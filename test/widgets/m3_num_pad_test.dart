@@ -7,7 +7,7 @@ import 'package:love_app/widgets/common/m3_num_pad.dart';
 void main() {
   Widget host(Widget child) => MaterialApp(home: Scaffold(body: child));
 
-  testWidgets('на панели десять цифр, стирание и готово', (tester) async {
+  testWidgets('На панели десять цифр, стирание и готово', (tester) async {
     await tester.pumpWidget(host(M3NumPad(
       onDigit: (_) {},
       onBackspace: () {},
@@ -21,7 +21,7 @@ void main() {
     expect(find.byIcon(Icons.keyboard_arrow_down_rounded), findsOneWidget);
   });
 
-  testWidgets('цифра приходит нажатием', (tester) async {
+  testWidgets('Цифра приходит нажатием', (tester) async {
     final typed = <String>[];
     await tester.pumpWidget(host(M3NumPad(
       onDigit: typed.add,
@@ -33,7 +33,7 @@ void main() {
     expect(typed, ['7', '0']);
   });
 
-  testWidgets('стирание и готово зовут свои обработчики', (tester) async {
+  testWidgets('Стирание и готово зовут свои обработчики', (tester) async {
     var erased = 0;
     var done = 0;
     await tester.pumpWidget(host(M3NumPad(
@@ -48,7 +48,7 @@ void main() {
     expect(done, 1);
   });
 
-  testWidgets('без onDone кнопка готово не рисуется', (tester) async {
+  testWidgets('Без onDone кнопка готово не рисуется', (tester) async {
     await tester.pumpWidget(host(M3NumPad(
       onDigit: (_) {},
       onBackspace: () {},
@@ -59,7 +59,7 @@ void main() {
     expect(find.byType(M3NumPad), findsOneWidget);
   });
 
-  testWidgets('действие сверху показывается, когда его передали',
+  testWidgets('Действие сверху показывается, когда его передали',
       (tester) async {
     await tester.pumpWidget(host(M3NumPad(
       onDigit: (_) {},

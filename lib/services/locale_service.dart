@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:love_app/config/update_notes.dart';
+import '../screens/postcard/models/postcard_template.dart';
 
 /// Supported languages
 enum AppLanguage { ru, en }
@@ -1204,6 +1205,22 @@ abstract class AppStrings {
   String memoryFileTooBig(int limitMb);
   String get statsTitle;
   String get pickerDateTab;
+  String get pcTicketRoute;
+  String get pcNameTicket;
+  String get pcNameReceipt;
+  String get pcNameTelegram;
+  String get pcNameParcel;
+  String get pcMsgTicket;
+  String get pcReceiptTotal;
+  String pcReceiptShift(int days);
+  String pcReceiptItems(PostcardStats stats);
+  String get pcLabelReceiptItems;
+  String get pcMsgReceipt;
+  String get pcTelegramTitle;
+  String get pcMsgTelegram;
+  String get pcParcelCare;
+  String get pcParcelTo;
+  String pcMsgParcel(String from, int days);
   String get redeemCodeAlphabet;
   String get pickerTimeTab;
   String get statsDaysTogether;
@@ -4038,6 +4055,50 @@ class _RuStrings extends AppStrings {
   String get statsTitle => 'Статистика пары';
   @override
   String get pickerDateTab => 'Дата';
+  @override
+  String get pcTicketRoute => 'рейс без пересадок';
+  @override
+  String get pcNameTicket => 'Билет';
+  @override
+  String get pcNameReceipt => 'Чек';
+  @override
+  String get pcNameTelegram => 'Телеграмма';
+  @override
+  String get pcNameParcel => 'Посылка';
+  @override
+  String get pcMsgTicket => 'Посадка закончена. Обратных билетов не выдаём.';
+  @override
+  String get pcReceiptTotal => 'итого';
+  @override
+  String pcReceiptShift(int days) => 'смена №$days';
+  @override
+  String pcReceiptItems(PostcardStats stats) {
+    // Только то, что приложение действительно посчитало. Нулевые строки не
+    // печатаем: чек с «Рисунков — 0» выглядит упрёком, а не подарком.
+    final lines = <String>[];
+    if (stats.memories > 0) lines.add('Воспоминаний — ${stats.memories}');
+    if (stats.drawings > 0) lines.add('Рисунков — ${stats.drawings}');
+    if (stats.missYou > 0) lines.add('«Я скучаю» — ${stats.missYou}');
+    if (stats.streak > 0) lines.add('Дней подряд — ${stats.streak}');
+    if (lines.isEmpty) lines.add('Всё только начинается — 1');
+    return lines.join('\n');
+  }
+  @override
+  String get pcLabelReceiptItems => 'Строки чека';
+  @override
+  String get pcMsgReceipt => 'спасибо за покупку · возврату не подлежит';
+  @override
+  String get pcTelegramTitle => 'телеграмма';
+  @override
+  String get pcMsgTelegram => 'Люблю тчк\nЖду дома тчк\nНе опаздывай вскл';
+  @override
+  String get pcParcelCare => 'хрупкое · не кантовать';
+  @override
+  String get pcParcelTo => 'кому';
+  @override
+  String pcMsgParcel(String from, int days) =>
+      'От кого: ${from.isEmpty ? 'меня' : from}\n'
+      'Содержимое: $days дней, всё целое';
   @override
   String get redeemCodeAlphabet =>
       'В коде нет нуля, единицы, O и I — их легко перепутать';
@@ -7302,6 +7363,48 @@ class _EnStrings extends AppStrings {
   String get statsTitle => 'Couple stats';
   @override
   String get pickerDateTab => 'Date';
+  @override
+  String get pcTicketRoute => 'non-stop flight';
+  @override
+  String get pcNameTicket => 'Ticket';
+  @override
+  String get pcNameReceipt => 'Receipt';
+  @override
+  String get pcNameTelegram => 'Telegram';
+  @override
+  String get pcNameParcel => 'Parcel';
+  @override
+  String get pcMsgTicket => 'Boarding closed. No return tickets issued.';
+  @override
+  String get pcReceiptTotal => 'total';
+  @override
+  String pcReceiptShift(int days) => 'shift #$days';
+  @override
+  String pcReceiptItems(PostcardStats stats) {
+    final lines = <String>[];
+    if (stats.memories > 0) lines.add('Memories — ${stats.memories}');
+    if (stats.drawings > 0) lines.add('Drawings — ${stats.drawings}');
+    if (stats.missYou > 0) lines.add('Miss you — ${stats.missYou}');
+    if (stats.streak > 0) lines.add('Days in a row — ${stats.streak}');
+    if (lines.isEmpty) lines.add('It is only starting — 1');
+    return lines.join('\n');
+  }
+  @override
+  String get pcLabelReceiptItems => 'Receipt lines';
+  @override
+  String get pcMsgReceipt => 'thank you for your purchase · no refunds';
+  @override
+  String get pcTelegramTitle => 'telegram';
+  @override
+  String get pcMsgTelegram => 'Love you stop\nWaiting home stop\nDo not be late excl';
+  @override
+  String get pcParcelCare => 'fragile · handle with care';
+  @override
+  String get pcParcelTo => 'to';
+  @override
+  String pcMsgParcel(String from, int days) =>
+      'From: ${from.isEmpty ? 'me' : from}\n'
+      'Contents: $days days, all intact';
   @override
   String get redeemCodeAlphabet =>
       'The code has no zero, one, O or I — too easy to mix up';

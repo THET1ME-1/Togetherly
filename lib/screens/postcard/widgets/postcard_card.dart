@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../services/locale_service.dart';
 import '../models/postcard_template.dart';
+import 'paper_postcards.dart';
 
 class PostcardCard extends StatelessWidget {
   final PostcardTemplateId templateId;
@@ -67,10 +68,49 @@ class PostcardCard extends StatelessWidget {
           isEditing: isEditing,
           onBlockTap: onBlockTap,
         ),
+        // Бумажные открытки живут отдельным файлом: старые четыре — это
+        // градиенты со значками, новые — документы, общего кода у них нет.
+        //
+        // Рисуются на постоянном холсте 1000×1000 и масштабируются целиком:
+        // открытка должна выглядеть одинаково и в списке шаблонов, и в
+        // полноразмерном снимке, а вёрстка «от ширины» на мелком превью
+        // упиралась в переполнение по высоте.
+        PostcardTemplateId.ticket => _fixed(TicketPostcard(
+          days: days,
+          blocks: blocks,
+          isEditing: isEditing,
+          onBlockTap: onBlockTap,
+        )),
+        PostcardTemplateId.receipt => _fixed(ReceiptPostcard(
+          days: days,
+          blocks: blocks,
+          isEditing: isEditing,
+          onBlockTap: onBlockTap,
+        )),
+        PostcardTemplateId.telegram => _fixed(TelegramPostcard(
+          days: days,
+          blocks: blocks,
+          isEditing: isEditing,
+          onBlockTap: onBlockTap,
+        )),
+        PostcardTemplateId.parcel => _fixed(ParcelPostcard(
+          days: days,
+          blocks: blocks,
+          isEditing: isEditing,
+          onBlockTap: onBlockTap,
+        )),
       },
     );
   }
 }
+
+/// Постоянный холст открытки: всё внутри считается от 1000 логических точек,
+/// а наружу отдаётся масштабированная копия. Так превью в списке шаблонов и
+/// снимок в полном размере отличаются только количеством пикселей.
+Widget _fixed(Widget card) => FittedBox(
+      fit: BoxFit.contain,
+      child: SizedBox(width: 1000, height: 1000, child: card),
+    );
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared helper: wraps a text widget with an edit tap region when editing

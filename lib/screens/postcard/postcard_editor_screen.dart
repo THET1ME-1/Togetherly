@@ -13,6 +13,8 @@ import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import 'models/postcard_template.dart';
 import 'widgets/postcard_card.dart';
+import '../../services/pb_data_service.dart';
+import '../../services/miss_you_repository.dart';
 
 class PostcardEditorScreen extends StatefulWidget {
   final UserData userData;
@@ -38,11 +40,17 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
   PostcardTemplateId _templateId = PostcardTemplateId.together;
   late List<PostcardTextBlock> _blocks;
   bool _exporting = false;
+  /// Правил ли человек текст руками: после этого числа не перетираем.
+  bool _blocksEdited = false;
   bool _capturing = false; // true во время снимка — скрывает UI-оверлеи из экспорта
 
   // Polaroid photo state
   String? _polaroidImagePath;
   Alignment _polaroidAlignment = Alignment.center;
+
+  /// Числа пары для чека. Подтягиваются с сервера при открытии: открытка
+  /// показывает то, что приложение уже посчитало, а не выдуманные строки.
+  PostcardStats _stats = const PostcardStats();
 
   final GlobalKey _cardKey = GlobalKey();
   final GlobalKey _polaroidKey = GlobalKey();
@@ -59,10 +67,43 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
   void initState() {
     super.initState();
     _resetBlocks();
+    _loadStats();
+  }
+
+  /// Счётчики группы и «я скучаю». Молча пропускаем ошибку: открытка должна
+  /// открыться и без сети, просто без строк с числами.
+  Future<void> _loadStats() async {
+    final groupId = widget.pairData.pairId;
+    if (groupId.isEmpty) return;
+    try {
+      final group = await PbDataService().loadGroupById(groupId);
+      final counts = await MissYouRepository().watchCounts(groupId).first;
+      if (!mounted) return;
+      final missYou = counts.values.fold<int>(0, (a, b) => a + b);
+      setState(() {
+        _stats = PostcardStats(
+          memories: (group?.data['memories_count'] as num?)?.toInt() ?? 0,
+          drawings: (group?.data['drawings_count'] as num?)?.toInt() ?? 0,
+          streak: (group?.data['streak_days'] as num?)?.toInt() ?? 0,
+          missYou: missYou,
+        );
+        // Пока человек не правил строки чека руками, подставляем свежие числа.
+        if (_templateId == PostcardTemplateId.receipt && !_blocksEdited) {
+          _blocks = PostcardTemplate.defaultBlocks(
+            templateId: _templateId,
+            days: _days,
+            myName: _myName,
+            partnerName: _partnerName,
+            stats: _stats,
+          );
+        }
+      });
+    } catch (_) {}
   }
 
   void _resetBlocks() {
     _blocks = PostcardTemplate.defaultBlocks(
+      stats: _stats,
       templateId: _templateId,
       days: _days,
       myName: _myName,
@@ -96,6 +137,7 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
   }
 
   void _editBlock(String blockId) {
+    _blocksEdited = true;
     final block = _blocks.firstWhere((b) => b.id == blockId);
     final controller = TextEditingController(text: block.text);
 
@@ -367,7 +409,7 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
                   Text(tpl.emoji, style: const TextStyle(fontSize: 20)),
                   const SizedBox(width: 8),
                   Text(
-                    tpl.name,
+                    tpl.title,
                     style: GoogleFonts.rubik(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,

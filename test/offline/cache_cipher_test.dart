@@ -19,7 +19,7 @@ void main() {
   });
 
   group('CacheCipher', () {
-    test('ключ — 32 случайных байта, два вызова дают разные ключи', () {
+    test('Ключ — 32 случайных байта, два вызова дают разные ключи', () {
       final a = CacheCipher.generateKey();
       final b = CacheCipher.generateKey();
       expect(a.length, 32);
@@ -27,7 +27,7 @@ void main() {
       expect(a, isNot(equals(b)));
     });
 
-    test('раскодирует обратно ровно то, что закодировали', () {
+    test('Раскодирует обратно ровно то, что закодировали', () {
       final codec = CacheCipher.codec(CacheCipher.generateKey()).codec!;
       final value = {
         'id': 'msg1',
@@ -44,27 +44,27 @@ void main() {
       expect(codec.decode(codec.encode(value)), equals(value));
     });
 
-    test('в шифртексте нет открытого текста', () {
+    test('В шифртексте нет открытого текста', () {
       final codec = CacheCipher.codec(CacheCipher.generateKey()).codec!;
       final line = codec.encode({'text': 'секретная фраза'});
       expect(line.contains('секретная'), isFalse);
       expect(line.contains('text'), isFalse);
     });
 
-    test('одно значение шифруется каждый раз по-новому (случайный IV)', () {
+    test('Одно значение шифруется каждый раз по-новому (случайный IV)', () {
       final codec = CacheCipher.codec(CacheCipher.generateKey()).codec!;
       const value = {'text': 'одно и то же'};
       expect(codec.encode(value), isNot(equals(codec.encode(value))));
     });
 
-    test('чужой ключ не расшифровывает', () {
+    test('Чужой ключ не расшифровывает', () {
       final mine = CacheCipher.codec(CacheCipher.generateKey()).codec!;
       final theirs = CacheCipher.codec(CacheCipher.generateKey()).codec!;
       final line = mine.encode({'text': 'не для чужих глаз'});
       expect(() => theirs.decode(line), throwsA(anything));
     });
 
-    test('подпись зависит от ключа: чужой ключ базу не откроет', () async {
+    test('Подпись зависит от ключа: чужой ключ базу не откроет', () async {
       final key = CacheCipher.generateKey();
       final path = '${tmp.path}/enc.db';
       final store = stringMapStoreFactory.store('col_chat_messages');
@@ -86,7 +86,7 @@ void main() {
       );
     });
 
-    test('на диске файла базы нет открытого текста сообщения', () async {
+    test('На диске файла базы нет открытого текста сообщения', () async {
       final path = '${tmp.path}/ondisk.db';
       final db = await databaseFactoryIo.openDatabase(path,
           codec: CacheCipher.codec(CacheCipher.generateKey()));
@@ -102,8 +102,8 @@ void main() {
     });
   });
 
-  group('миграция открытого кэша в зашифрованный', () {
-    test('переносит записи всех сторов, включая очередь отправки', () async {
+  group('Миграция открытого кэша в зашифрованный', () {
+    test('Переносит записи всех сторов, включая очередь отправки', () async {
       final plain = '${tmp.path}/pb_cache.db';
       final enc = '${tmp.path}/pb_cache_enc.db';
       final messages = stringMapStoreFactory.store('col_chat_messages');
@@ -138,7 +138,7 @@ void main() {
       expect((await File(enc).readAsString()).contains('скучаю'), isFalse);
     });
 
-    test('нечего переносить — возвращает false и ничего не создаёт', () async {
+    test('Нечего переносить — возвращает false и ничего не создаёт', () async {
       final moved = await CacheMigration.plainToEncrypted(
         factory: databaseFactoryIo,
         plainPath: '${tmp.path}/нет-такого.db',
@@ -149,7 +149,7 @@ void main() {
       expect(await File('${tmp.path}/enc.db').exists(), isFalse);
     });
 
-    test('битый открытый файл не роняет запуск и удаляется', () async {
+    test('Битый открытый файл не роняет запуск и удаляется', () async {
       final plain = '${tmp.path}/broken.db';
       await File(plain).writeAsString('{это не sembast\nмусор');
 

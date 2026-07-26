@@ -9,8 +9,8 @@ void main() {
   final paid = ProfileIcon.purchasable.first.id;
   final granted = ProfileIcon.all.firstWhere((i) => i.grantOnly).id;
 
-  group('значки профиля', () {
-    test('без Plus доступны только купленные и выданные', () {
+  group('Значки профиля', () {
+    test('Без Plus доступны только купленные и выданные', () {
       expect(
         PlusAccess.ownsIcon(id: paid, plus: false, owned: {}, granted: {}),
         isFalse,
@@ -33,7 +33,7 @@ void main() {
       );
     });
 
-    test('наградной значок за деньги не достаётся даже с Plus', () {
+    test('Наградной значок за деньги не достаётся даже с Plus', () {
       expect(
         PlusAccess.ownsIcon(id: granted, plus: true, owned: {}, granted: {}),
         isFalse,
@@ -41,7 +41,7 @@ void main() {
       );
     });
 
-    test('выданный вручную наградной остаётся доступным', () {
+    test('Выданный вручную наградной остаётся доступным', () {
       expect(
         PlusAccess.ownsIcon(
             id: granted, plus: true, owned: {}, granted: {granted}),
@@ -49,7 +49,7 @@ void main() {
       );
     });
 
-    test('неизвестный id не открывается ничем', () {
+    test('Неизвестный id не открывается ничем', () {
       expect(
         PlusAccess.ownsIcon(id: 'нет-такого', plus: true, owned: {}, granted: {}),
         isFalse,
@@ -57,8 +57,8 @@ void main() {
     });
   });
 
-  group('фоны холста', () {
-    test('бесплатные доступны без всего', () {
+  group('Фоны холста', () {
+    test('Бесплатные доступны без всего', () {
       expect(
         PlusAccess.ownsBackground(
             id: CanvasBackground.plain, plus: false, owned: {}),
@@ -71,7 +71,7 @@ void main() {
       );
     });
 
-    test('платный без Plus и без покупки закрыт', () {
+    test('Платный без Plus и без покупки закрыт', () {
       expect(
         PlusAccess.ownsBackground(
             id: CanvasBackground.stars, plus: false, owned: {}),
@@ -89,7 +89,7 @@ void main() {
       }
     });
 
-    test('купленный за монеты остаётся доступным без Plus', () {
+    test('Купленный за монеты остаётся доступным без Plus', () {
       expect(
         PlusAccess.ownsBackground(
             id: CanvasBackground.film,
@@ -99,7 +99,7 @@ void main() {
       );
     });
 
-    test('в каталоге есть и бесплатные, и платные', () {
+    test('В каталоге есть и бесплатные, и платные', () {
       final prices =
           CanvasBackground.values.map((b) => kCanvasBackgrounds[b]!.price);
       expect(prices.any((p) => p == 0), isTrue);
@@ -107,21 +107,21 @@ void main() {
     });
   });
 
-  group('потолок файла воспоминания', () {
-    test('без Plus — 100 МБ', () {
+  group('Потолок файла воспоминания', () {
+    test('Без Plus — 100 МБ', () {
       expect(PlusAccess.memoryFileLimit(plus: false), 100 * 1024 * 1024);
     });
 
-    test('с Plus — 200 МБ', () {
+    test('С Plus — 200 МБ', () {
       expect(PlusAccess.memoryFileLimit(plus: true), 200 * 1024 * 1024);
     });
 
-    test('потолок не выше того, что примет сервер', () {
+    test('Потолок не выше того, что примет сервер', () {
       expect(PlusAccess.memoryFileLimit(plus: true),
           lessThanOrEqualTo(PlusAccess.serverFileLimit));
     });
 
-    test('файл ровно по границе проходит, на байт больше — нет', () {
+    test('Файл ровно по границе проходит, на байт больше — нет', () {
       final limit = PlusAccess.memoryFileLimit(plus: false);
       expect(PlusAccess.fitsMemoryLimit(bytes: limit, plus: false), isTrue);
       expect(PlusAccess.fitsMemoryLimit(bytes: limit + 1, plus: false), isFalse);

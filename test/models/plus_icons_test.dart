@@ -5,18 +5,18 @@ import 'package:love_app/models/profile_icon.dart';
 /// Наградные значки (Sponsor, Helper) покупка НЕ открывает: их выдают руками, и
 /// если их можно будет купить, они перестанут что-либо значить.
 void main() {
-  group('каталог значков', () {
-    test('покупаемые значки не включают наградные', () {
+  group('Каталог значков', () {
+    test('Покупаемые значки не включают наградные', () {
       expect(ProfileIcon.purchasable, isNotEmpty);
       expect(ProfileIcon.purchasable.every((i) => !i.grantOnly), isTrue);
     });
 
-    test('в каталоге есть хотя бы один наградной значок', () {
+    test('В каталоге есть хотя бы один наградной значок', () {
       expect(ProfileIcon.all.any((i) => i.grantOnly), isTrue,
           reason: 'иначе проверять разделение не на чем');
     });
 
-    test('byId находит значок и отличает наградной от платного', () {
+    test('ById находит значок и отличает наградной от платного', () {
       final paid = ProfileIcon.purchasable.first;
       final granted = ProfileIcon.all.firstWhere((i) => i.grantOnly);
 
@@ -26,7 +26,7 @@ void main() {
       expect(ProfileIcon.byId(null), isNull);
     });
 
-    test('у платных значков есть цена, у наградных её быть не должно', () {
+    test('У платных значков есть цена, у наградных её быть не должно', () {
       for (final icon in ProfileIcon.purchasable) {
         expect(icon.price, greaterThan(0), reason: 'значок ${icon.id}');
       }

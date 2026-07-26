@@ -10,7 +10,7 @@ void main() {
   Widget host(Widget child) => MaterialApp(home: Scaffold(body: child));
 
   group('M3Loading', () {
-    testWidgets('на обычном размере — морфинг-фигура', (tester) async {
+    testWidgets('На обычном размере — морфинг-фигура', (tester) async {
       await tester.pumpWidget(host(const M3Loading(color: Colors.pink)));
       await tester.pump();
 
@@ -18,7 +18,7 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsNothing);
     });
 
-    testWidgets('мельче порога — кольцо, а не фигура', (tester) async {
+    testWidgets('Мельче порога — кольцо, а не фигура', (tester) async {
       await tester.pumpWidget(
         host(const M3Loading(color: Colors.pink, size: 14)),
       );
@@ -28,7 +28,7 @@ void main() {
       expect(find.byType(ExpressiveLoadingIndicator), findsNothing);
     });
 
-    testWidgets('размер держится заданный', (tester) async {
+    testWidgets('Размер держится заданный', (tester) async {
       await tester.pumpWidget(
         host(const M3Loading(color: Colors.pink, size: 56)),
       );
@@ -39,7 +39,7 @@ void main() {
       expect(box.height, 56);
     });
 
-    testWidgets('contained добавляет тональный круг вокруг фигуры',
+    testWidgets('Contained добавляет тональный круг вокруг фигуры',
         (tester) async {
       await tester.pumpWidget(
         host(const M3Loading(
@@ -64,7 +64,7 @@ void main() {
   });
 
   group('M3PageLoading', () {
-    testWidgets('центрирует фигуру на всю страницу', (tester) async {
+    testWidgets('Центрирует фигуру на всю страницу', (tester) async {
       await tester.pumpWidget(host(const M3PageLoading(color: Colors.pink)));
       await tester.pump();
 
