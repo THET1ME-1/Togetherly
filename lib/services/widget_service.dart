@@ -76,6 +76,24 @@ class WidgetService extends ChangeNotifier {
   String? _myPhotoSig;
   final Map<String, String> _partnerPhotoSigs = {};
 
+  /// Фото на МОЕЙ половине парного виджета: только то, что я выбрал для этого
+  /// виджета. Фото «для партнёра» — другая функция и сюда не протекает.
+  static String pairPhotoOfMine(WidgetData? d) => d?.photoUrl ?? '';
+
+  /// Фото на половине ПАРТНЁРА. Сначала его фото парного виджета, и только если
+  /// он там ничего не ставил — фото из виджета «Фото партнёра».
+  ///
+  /// Порядок был обратным, и это ломало виджет у пар, которые однажды отправили
+  /// фото сразу по обоим направлениям (оба тумблера включены по умолчанию):
+  /// `photo_for_partner_url` больше не менялся и навсегда перекрывал свежее
+  /// фото парного виджета. Жалоба 2026-07-26: «стоит самая первая фотка, хотя
+  /// менялась пару раз», при этом текст и музыка обновлялись.
+  static String pairPhotoOfPartner(WidgetData? d) {
+    final own = d?.photoUrl ?? '';
+    if (own.isNotEmpty) return own;
+    return d?.photoForPartnerUrl ?? '';
+  }
+
   static String _photoSigOf(WidgetData? d) {
     if (d == null) return '';
     return [
@@ -634,19 +652,15 @@ class WidgetService extends ChangeNotifier {
       );
 
       // ── Фото: сохраняем URL, кэшируем локально фоново ──
-      // MY сторона показывает ТОЛЬКО photoUrl (фото, явно выбранное для
-      // парного виджета). НЕ падаем на photoForPartnerUrl — это отдельная
-      // функция «Фото партнёра» (что я отправляю партнёру), и её фото не
-      // должно протекать на мою половину парного виджета.
-      // PARTNER сторона: приоритет photoForPartnerUrl — это фото, которым
-      // партнёр осознанно поделился, чтобы оно показывалось у меня.
+      // Правило выбора — в pairPhotoOfMine/pairPhotoOfPartner (под тестами
+      // test/services/pair_widget_photo_test.dart).
       await HomeWidget.saveWidgetData<String>(
         'my_photo_url',
-        my?.photoUrl ?? '',
+        pairPhotoOfMine(my),
       );
       await HomeWidget.saveWidgetData<String>(
         'partner_photo_url',
-        partner?.photoForPartnerUrl ?? partner?.photoUrl ?? '',
+        pairPhotoOfPartner(partner),
       );
 
       // ── Аватарки для 2-человечного виджета (LoveWidget) ──
@@ -713,11 +727,9 @@ class WidgetService extends ChangeNotifier {
       });
 
       // Скачиваем фото и аватарки локально в фоне и обновляем виджет повторно.
-      // MY сторона — только photoUrl (см. комментарий выше про my_photo_url):
-      // фото «для партнёра» не должно попадать на мою половину парного виджета.
       _cachePhotosForWidget(
-        my?.photoUrl,
-        partner?.photoForPartnerUrl ?? partner?.photoUrl,
+        pairPhotoOfMine(my),
+        pairPhotoOfPartner(partner),
       );
       _cacheAvatarsForLoveWidget(my?.avatarUrl, partner?.avatarUrl);
       _cacheGroupAvatarsForWidget(limitedMembers);
