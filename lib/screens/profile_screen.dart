@@ -54,7 +54,7 @@ import '../services/app_icon_service.dart';
 import '../services/coin_store.dart';
 import '../services/celebration_notification_service.dart';
 import '../services/days_together_notification_service.dart';
-import '../widgets/common/m3_num_pad.dart';
+import 'date_time_picker_screen.dart';
 
 /// Entry for a partner across all connections
 class _PartnerEntry {
@@ -2217,64 +2217,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
 
-  /// Показывает диалог ввода даты с авто-точками (ДД.ММ.ГГГГ).
+  /// Выбор даты и времени. Открывает полноэкранный [DateTimePickerScreen]:
+  /// нижний лист с полем «ДД.ММ.ГГГГ» ушёл — крупная типографика в него не
+  /// влезала, месяц наезжал на год, а системная клавиатура занимала полэкрана.
   /// [firstYear] / [lastYear] — допустимый диапазон лет.
-  /// Возвращает выбранную дату или null если отменено.
+  /// Возвращает выбранную дату или null, если отменили.
   Future<DateTime?> _showDateInputDialog({
     required BuildContext context,
     required String title,
     required DateTime? initial,
     required int firstYear,
     required int lastYear,
-  }) async {
-    final primary = _accent;
-    final ctrl = TextEditingController(
-      text: initial != null
-          ? '${initial.day.toString().padLeft(2, '0')}.${initial.month.toString().padLeft(2, '0')}.${initial.year}'
-          : '',
-    );
-    ctrl.selection = TextSelection.collapsed(offset: ctrl.text.length);
+  }) =>
+      Navigator.of(context).push<DateTime>(
+        MaterialPageRoute<DateTime>(
+          builder: (_) => DateTimePickerScreen(
+            title: title,
+            theme: _t,
+            initial: initial,
+            firstYear: firstYear,
+            lastYear: lastYear,
+          ),
+          settings: const RouteSettings(name: '/date_picker'),
+        ),
+      );
 
-    // Контроллер времени — предзаполняем если уже есть время (не 00:00)
-    final hasTime = initial != null &&
-        (initial.hour != 0 || initial.minute != 0);
-    final timeCtrl = TextEditingController(
-      text: hasTime
-          ? '${initial.hour.toString().padLeft(2, '0')}:${initial.minute.toString().padLeft(2, '0')}'
-          : '',
-    );
-
-    final result = await showAppSheet<DateTime>(
-      context,
-      builder: (ctx) => _DateInputDialog(
-        title: title,
-        ctrl: ctrl,
-        timeCtrl: timeCtrl,
-        primary: primary,
-        firstYear: firstYear,
-        lastYear: lastYear,
-        initial: initial,
-        parseDateInput: _parseDateInput,
-      ),
-    );
-    return result;
-  }
-
-  /// Парсит строку ДД.ММ.ГГГГ → DateTime или null если некорректно.
-  DateTime? _parseDateInput(String text) {
-    final parts = text.split('.');
-    if (parts.length != 3) return null;
-    final d = int.tryParse(parts[0]);
-    final m = int.tryParse(parts[1]);
-    final y = int.tryParse(parts[2]);
-    if (d == null || m == null || y == null) return null;
-    if (d < 1 || d > 31 || m < 1 || m > 12 || y < 1000) return null;
-    try {
-      return DateTime(y, m, d);
-    } catch (_) {
-      return null;
-    }
-  }
 
 
   Future<void> _showAnniversaryDatePicker(
@@ -4737,362 +4704,5 @@ class _ProfileScreenState extends State<ProfileScreen> {
         SnackBar(content: Text(_s.deleteAccountError)),
       );
     }
-  }
-}
-
-// ── Форматтер авто-точек для ввода даты ДД.ММ.ГГГГ ──────────────────────────
-
-class _DateDotFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue old,
-    TextEditingValue value,
-  ) {
-    final digits = value.text.replaceAll(RegExp(r'[^\d]'), '');
-    final buf = StringBuffer();
-    for (int i = 0; i < digits.length && i < 8; i++) {
-      if (i == 2 || i == 4) buf.write('.');
-      buf.write(digits[i]);
-    }
-    final text = buf.toString();
-    return TextEditingValue(
-      text: text,
-      selection: TextSelection.collapsed(offset: text.length),
-    );
-  }
-}
-
-// ── Форматтер авто-двоеточия для ввода времени ЧЧ:ММ ────────────────────────
-
-class _TimeColonFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue old,
-    TextEditingValue value,
-  ) {
-    final digits = value.text.replaceAll(RegExp(r'[^\d]'), '');
-    final buf = StringBuffer();
-    for (int i = 0; i < digits.length && i < 4; i++) {
-      if (i == 2) buf.write(':');
-      buf.write(digits[i]);
-    }
-    final text = buf.toString();
-    return TextEditingValue(
-      text: text,
-      selection: TextSelection.collapsed(offset: text.length),
-    );
-  }
-}
-
-// ── Диалог ввода даты + времени — StatefulWidget ─────────────────────────────
-
-class _DateInputDialog extends StatefulWidget {
-  final String title;
-  final TextEditingController ctrl;      // дата
-  final TextEditingController timeCtrl;  // время
-  final Color primary;
-  final int firstYear;
-  final int lastYear;
-  final DateTime? initial;
-  final DateTime? Function(String) parseDateInput;
-
-  const _DateInputDialog({
-    required this.title,
-    required this.ctrl,
-    required this.timeCtrl,
-    required this.primary,
-    required this.firstYear,
-    required this.lastYear,
-    required this.initial,
-    required this.parseDateInput,
-  });
-
-  @override
-  State<_DateInputDialog> createState() => _DateInputDialogState();
-}
-
-class _DateInputDialogState extends State<_DateInputDialog> {
-  String? _error;
-
-  /// Куда сейчас идут нажатия своей клавиатуры: в дату или во время.
-  /// Системная панель не поднимается вовсе (поля `readOnly`), поэтому фокус
-  /// ведём сами.
-  bool _timeActive = false;
-
-  /// Активная тема из контекста (семантические токены для тёмной темы).
-  AppTheme get _t => context.appTheme;
-
-  TextEditingController get _activeCtrl =>
-      _timeActive ? widget.timeCtrl : widget.ctrl;
-
-  /// Дописать цифру в активное поле.
-  ///
-  /// Форматирование не дублируем: гоняем текст через те же
-  /// [_DateDotFormatter]/[_TimeColonFormatter], что стояли на системном вводе,
-  /// — точки и двоеточие расставляются одним кодом, и лишние цифры так же
-  /// отсекаются по длине.
-  void _type(String digit) {
-    final ctrl = _activeCtrl;
-    final formatter = _timeActive
-        ? _TimeColonFormatter() as TextInputFormatter
-        : _DateDotFormatter();
-    final old = ctrl.value;
-    final next = TextEditingValue(text: '${old.text}$digit');
-    ctrl.value = formatter.formatEditUpdate(old, next);
-    if (_error != null) setState(() => _error = null);
-
-    // Дата набрана целиком — сами переводим на время: тянуться пальцем к
-    // соседнему полю посреди набора неудобно.
-    if (!_timeActive && ctrl.text.length == 10) {
-      setState(() => _timeActive = true);
-    }
-  }
-
-  void _backspace() {
-    final ctrl = _activeCtrl;
-    final digits = ctrl.text.replaceAll(RegExp(r'[^\d]'), '');
-    if (digits.isEmpty) {
-      // Время пустое — стирание уводит обратно в дату, а не молчит.
-      if (_timeActive) setState(() => _timeActive = false);
-      return;
-    }
-    final formatter = _timeActive
-        ? _TimeColonFormatter() as TextInputFormatter
-        : _DateDotFormatter();
-    final old = ctrl.value;
-    final next =
-        TextEditingValue(text: digits.substring(0, digits.length - 1));
-    ctrl.value = formatter.formatEditUpdate(old, next);
-    if (_error != null) setState(() => _error = null);
-  }
-
-  @override
-  void dispose() {
-    widget.ctrl.dispose();
-    widget.timeCtrl.dispose();
-    super.dispose();
-  }
-
-  void _submit() {
-    final parsedDate = widget.parseDateInput(widget.ctrl.text);
-    if (parsedDate == null) {
-      setState(() => _error = LocaleService.current.enterDateFormat);
-      return;
-    }
-    if (parsedDate.year < widget.firstYear ||
-        parsedDate.year > widget.lastYear) {
-      setState(() => _error =
-          LocaleService.current.yearRange(widget.firstYear, widget.lastYear));
-      return;
-    }
-    // Разбираем время если введено
-    int hour = 0, minute = 0;
-    final timeParts = widget.timeCtrl.text.split(':');
-    if (timeParts.length == 2) {
-      hour = int.tryParse(timeParts[0]) ?? 0;
-      minute = int.tryParse(timeParts[1]) ?? 0;
-      if (hour > 23 || minute > 59) {
-        setState(() => _error = LocaleService.current.enterTimeFormat);
-        return;
-      }
-    }
-    Navigator.pop(
-      context,
-      DateTime(parsedDate.year, parsedDate.month, parsedDate.day, hour, minute),
-    );
-  }
-
-  InputDecoration _fieldDecoration({
-    required String hint,
-    required Color p,
-    bool showError = false,
-    bool active = false,
-  }) =>
-      InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(
-          fontSize: 20,
-          color: _t.textMuted,
-          letterSpacing: 2,
-          fontWeight: FontWeight.w400,
-        ),
-        errorText: showError ? _error : null,
-        // Поля readOnly, системного фокуса у них нет — подчёркиваем активное
-        // сами, иначе непонятно, куда сейчас идут цифры.
-        enabledBorder: UnderlineInputBorder(
-          borderSide: BorderSide(color: active ? p : _t.divider, width: 2),
-        ),
-        focusedBorder: UnderlineInputBorder(
-          borderSide: BorderSide(color: p, width: 2),
-        ),
-        errorBorder: const UnderlineInputBorder(
-          borderSide: BorderSide(color: Colors.red, width: 2),
-        ),
-        focusedErrorBorder: const UnderlineInputBorder(
-          borderSide: BorderSide(color: Colors.red, width: 2),
-        ),
-      );
-
-  @override
-  Widget build(BuildContext context) {
-    final p = widget.primary;
-    // Нижний лист, а не диалог посреди экрана: под открытой клавиатурой поля
-    // остаются на виду, а на кнопочной навигации кнопки не липнут к панели —
-    // отступ держит SheetScaffold.
-    return SheetScaffold(
-      title: widget.title,
-      bottom: Row(
-        children: [
-          Expanded(
-            child: TextButton(
-              onPressed: () => Navigator.pop(context),
-              style: TextButton.styleFrom(
-                foregroundColor: _t.textMuted,
-                shape: const StadiumBorder(),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
-              child: Text(
-                LocaleService.current.cancel,
-                style:
-                    const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: p,
-                shape: const StadiumBorder(),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
-              onPressed: _submit,
-              child: Text(
-                LocaleService.current.done,
-                style:
-                    const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-              ),
-            ),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
-        child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Дата (3) + Время (2) ──
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              // Дата — flex 3
-              Expanded(
-                flex: 3,
-                child: GestureDetector(
-                  onTap: () => setState(() => _timeActive = false),
-                  child: AbsorbPointer(
-                    child: TextField(
-                      controller: widget.ctrl,
-                      // Ввод идёт своей клавиатурой (M3NumPad ниже), системную
-                      // не поднимаем: readOnly + курсор оставляем видимым.
-                      readOnly: true,
-                      showCursor: !_timeActive,
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 2,
-                        color: p,
-                      ),
-                      decoration: _fieldDecoration(
-                        hint: LocaleService.current.dateHintFormat,
-                        p: p,
-                        showError: true,
-                        active: !_timeActive,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              // Время — flex 2
-              Expanded(
-                flex: 2,
-                child: GestureDetector(
-                  onTap: () => setState(() => _timeActive = true),
-                  child: AbsorbPointer(
-                    child: TextField(
-                      controller: widget.timeCtrl,
-                      readOnly: true,
-                      showCursor: _timeActive,
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 2,
-                        color: p,
-                      ),
-                      decoration: _fieldDecoration(
-                        hint: LocaleService.current.timeHintFormat,
-                        p: p,
-                        active: _timeActive,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          TextButton.icon(
-            onPressed: () async {
-              final calInitial = widget.parseDateInput(widget.ctrl.text) ??
-                  widget.initial ??
-                  DateTime(widget.lastYear - 25);
-              final calPicked = await showDatePicker(
-                context: context,
-                initialDate: calInitial,
-                firstDate: DateTime(widget.firstYear),
-                lastDate: DateTime(widget.lastYear, 12, 31),
-                builder: (c, child) => Theme(
-                  data: Theme.of(c).copyWith(
-                    colorScheme: ColorScheme.light(
-                      primary: p,
-                      onPrimary: Colors.white,
-                      surface: _t.isDark ? _t.cardSurface : Colors.white,
-                      onSurface: _t.textPrimary,
-                    ),
-                    textButtonTheme: TextButtonThemeData(
-                      style: TextButton.styleFrom(foregroundColor: p),
-                    ),
-                  ),
-                  child: child!,
-                ),
-              );
-              if (calPicked != null && mounted) {
-                widget.ctrl.text =
-                    '${calPicked.day.toString().padLeft(2, '0')}.${calPicked.month.toString().padLeft(2, '0')}.${calPicked.year}';
-                widget.ctrl.selection = TextSelection.collapsed(
-                    offset: widget.ctrl.text.length);
-                setState(() => _error = null);
-              }
-            },
-            icon: Icon(Icons.calendar_month_rounded, size: 16, color: p),
-            label: Text(LocaleService.current.openCalendar,
-                style: TextStyle(fontSize: 13, color: p)),
-            style: TextButton.styleFrom(
-              padding: EdgeInsets.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          ),
-          const SizedBox(height: 12),
-          M3NumPad(
-            accent: p,
-            onDigit: _type,
-            onBackspace: _backspace,
-          ),
-        ],
-        ),
-      ),
-    );
   }
 }

@@ -1203,6 +1203,8 @@ abstract class AppStrings {
   String get plusStoreUnavailable;
   String memoryFileTooBig(int limitMb);
   String get statsTitle;
+  String get pickerDateTab;
+  String get pickerTimeTab;
   String get statsDaysTogether;
   String get statsMemories;
   String get statsDrawings;
@@ -4033,6 +4035,10 @@ class _RuStrings extends AppStrings {
       'Файл тяжелее $limitMb МБ — такой не загрузится';
   @override
   String get statsTitle => 'Статистика пары';
+  @override
+  String get pickerDateTab => 'Дата';
+  @override
+  String get pickerTimeTab => 'Время';
   @override
   String get statsDaysTogether => 'дней вместе';
   @override
@@ -7290,6 +7296,10 @@ class _EnStrings extends AppStrings {
       'The file is over $limitMb MB — it will not upload';
   @override
   String get statsTitle => 'Couple stats';
+  @override
+  String get pickerDateTab => 'Date';
+  @override
+  String get pickerTimeTab => 'Time';
   @override
   String get statsDaysTogether => 'days together';
   @override
