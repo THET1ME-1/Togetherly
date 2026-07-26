@@ -55,6 +55,7 @@ import '../services/coin_store.dart';
 import '../services/celebration_notification_service.dart';
 import '../services/days_together_notification_service.dart';
 import 'date_time_picker_screen.dart';
+import '../widgets/common/redeem_code_sheet.dart';
 
 /// Entry for a partner across all connections
 class _PartnerEntry {
@@ -3433,15 +3434,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   /// Ввод кода пополнения из телеграм-бота.
   Future<void> _askRedeemCode() async {
-    final code = await AppDialog.prompt(
-      context,
-      title: _s.redeemCodeTitle,
-      label: _s.redeemCodeHint,
-      hint: 'TG-XXXX-XXXX',
-      confirmLabel: _s.redeemCodeApply,
-      maxLength: 24,
-      capitalization: TextCapitalization.characters,
-    );
+    final code = await RedeemCodeSheet.show(context);
     if (code == null || code.trim().isEmpty || !mounted) return;
 
     final awarded = await widget.userData.redeemCode(code.trim());

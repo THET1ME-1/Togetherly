@@ -11,6 +11,7 @@ import '../services/media_service.dart';
 import '../services/memory_repository.dart';
 import '../theme/app_theme.dart';
 import '../utils/photo_crop.dart';
+import 'date_time_picker_screen.dart';
 
 /// Композер «Капсулы времени»: письмо и/или фото, запечатанные до выбранной даты.
 /// Создаёт обычное воспоминание с флагами `sealed`+`openAt` (лента прячет его до
@@ -343,13 +344,27 @@ class _TimeCapsuleScreenState extends State<TimeCapsuleScreen> {
 
   Future<void> _pickDate() async {
     final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _openAt.isAfter(now) ? _openAt : now.add(const Duration(days: 1)),
-      firstDate: now.add(const Duration(days: 1)),
-      lastDate: DateTime(now.year + 10, now.month, now.day),
+    final picked = await Navigator.of(context).push<DateTime>(
+      MaterialPageRoute<DateTime>(
+        builder: (_) => DateTimePickerScreen(
+          title: LocaleService.current.capsuleOpenDate,
+          theme: _t,
+          initial: _openAt.isAfter(now) ? _openAt : now.add(const Duration(days: 1)),
+          firstYear: now.year,
+          lastYear: now.year + 10,
+          // Час открытия фиксированный (девять утра), время выбирать нечего.
+          withTime: false,
+        ),
+        settings: const RouteSettings(name: '/date_picker'),
+      ),
     );
     if (picked == null || !mounted) return;
+    // Дату из прошлого барабан отдать может (год начинается с нынешнего) —
+    // проверку оставляем здесь: она же ловит и «сегодня».
+    if (!picked.isAfter(now)) {
+      _snack(LocaleService.current.capsuleNeedsFutureDate, error: true);
+      return;
+    }
     setState(() => _openAt = DateTime(picked.year, picked.month, picked.day, 9));
   }
 

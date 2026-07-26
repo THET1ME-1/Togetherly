@@ -1204,6 +1204,7 @@ abstract class AppStrings {
   String memoryFileTooBig(int limitMb);
   String get statsTitle;
   String get pickerDateTab;
+  String get redeemCodeAlphabet;
   String get pickerTimeTab;
   String get statsDaysTogether;
   String get statsMemories;
@@ -4037,6 +4038,9 @@ class _RuStrings extends AppStrings {
   String get statsTitle => 'Статистика пары';
   @override
   String get pickerDateTab => 'Дата';
+  @override
+  String get redeemCodeAlphabet =>
+      'В коде нет нуля, единицы, O и I — их легко перепутать';
   @override
   String get pickerTimeTab => 'Время';
   @override
@@ -7298,6 +7302,9 @@ class _EnStrings extends AppStrings {
   String get statsTitle => 'Couple stats';
   @override
   String get pickerDateTab => 'Date';
+  @override
+  String get redeemCodeAlphabet =>
+      'The code has no zero, one, O or I — too easy to mix up';
   @override
   String get pickerTimeTab => 'Time';
   @override

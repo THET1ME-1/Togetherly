@@ -65,6 +65,7 @@ import '../widgets/common/app_dialog.dart';
 import '../widgets/memory_date_field.dart';
 import '../widgets/rating_widgets.dart';
 import '../services/movie_search_service.dart';
+import '../widgets/common/pin_entry_sheet.dart';
 
 // Экран разбит на части (один большой файл → читаемые модули). Все части —
 // `part of` этой библиотеки: приватные классы остаются библиотечно-приватными,
@@ -3471,101 +3472,48 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
 
   /// Диалог PIN. [create]=true — задать новый (≥4 цифр); иначе ввод для
   /// разблокировки. Возвращает PIN или null (отмена).
+  /// PIN секретных воспоминаний: четыре крупные ячейки и своя клавиатура.
+  ///
+  /// Маленькое поле с системной клавиатурой ушло: для четырёх цифр она
+  /// занимала полэкрана буквами, которые тут не нужны, а сколько цифр уже
+  /// набрано, было не видно.
   Future<String?> _askPin({required bool create}) async {
-    final ctrl = TextEditingController();
     return showAppSheet<String>(
       context,
       builder: (ctx) {
         String? err;
-        final cs = Theme.of(ctx).colorScheme;
+        final key = GlobalKey<State<PinEntry>>();
         return StatefulBuilder(
-          builder: (ctx, setD) {
-            void submit() {
-              final v = ctrl.text.trim();
-              if (create && v.length < 4) {
-                setD(() => err = LocaleService.current.pinTooShort);
-                return;
-              }
-              if (v.isEmpty) return;
-              Navigator.pop(ctx, v);
-            }
-
-            return SheetScaffold(
-              title: create
-                  ? LocaleService.current.setPinTitle
-                  : LocaleService.current.enterPinTitle,
-              bottom: Row(
+          builder: (ctx, setSheet) => SheetScaffold(
+            title: create
+                ? LocaleService.current.setPinTitle
+                : LocaleService.current.enterPinTitle,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      style: TextButton.styleFrom(
-                        foregroundColor: cs.onSurfaceVariant,
-                        shape: const StadiumBorder(),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                  if (create) ...[
+                    Text(
+                      LocaleService.current.setPinHint,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Theme.of(ctx).colorScheme.onSurfaceVariant,
                       ),
-                      child: Text(LocaleService.current.cancel),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: FilledButton(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: cs.primary,
-                        foregroundColor: cs.onPrimary,
-                        shape: const StadiumBorder(),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                      onPressed: submit,
-                      child: Text(LocaleService.current.pinDone),
-                    ),
+                    const SizedBox(height: 18),
+                  ],
+                  PinEntry(
+                    key: key,
+                    create: create,
+                    error: err,
+                    onDone: (pin) => Navigator.pop(ctx, pin),
                   ),
                 ],
               ),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextField(
-                      controller: ctrl,
-                      keyboardType: TextInputType.number,
-                      obscureText: true,
-                      autofocus: true,
-                      maxLength: 8,
-                      onSubmitted: (_) => submit(),
-                      decoration: InputDecoration(
-                        hintText: '••••',
-                        counterText: '',
-                        errorText: err,
-                        filled: true,
-                        fillColor: cs.surfaceContainerHighest,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(18),
-                          borderSide: BorderSide.none,
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(18),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
-                    if (create) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        LocaleService.current.setPinHint,
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          color: cs.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            );
-          },
+            ),
+          ),
         );
       },
     );
@@ -7787,4 +7735,3 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     );
   }
 }
-

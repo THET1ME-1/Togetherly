@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/locale_service.dart';
+import '../screens/date_time_picker_screen.dart';
 import '../theme/theme_scope.dart';
 
 /// Поле выбора даты/времени воспоминания.
@@ -27,45 +28,28 @@ class MemoryDateField extends StatelessWidget {
     this.showReset = true,
   });
 
-  Future<void> _pickDate(BuildContext context) async {
+  /// Открывает наш экран выбора вместо стоковых пикеров Material: те живут по
+  /// своим правилам оформления и посреди приложения выглядят чужими.
+  /// [onTime] — открыться сразу на вкладке времени (нажали вторую кнопку).
+  Future<void> _pick(BuildContext context, {required bool onTime}) async {
     final now = DateTime.now();
-    final initial = value ?? now;
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: DateTime(2000),
-      lastDate: now,
-      // Локализованные подписи берём из стандартного Material локали,
-      // но кнопка OK / Cancel уже переведены в системе.
+    final picked = await Navigator.of(context).push<DateTime>(
+      MaterialPageRoute<DateTime>(
+        builder: (_) => DateTimePickerScreen(
+          title: LocaleService.current.memoryDateLabel,
+          theme: context.appTheme,
+          initial: value ?? now,
+          // Воспоминание — про прошлое: год из будущего выбрать нельзя, как и
+          // раньше (lastDate: now у стокового пикера).
+          firstYear: 2000,
+          lastYear: now.year,
+          startOnTime: onTime,
+        ),
+        settings: const RouteSettings(name: '/date_picker'),
+      ),
     );
     if (picked == null) return;
-    // Сохраняем время из текущего value (или now), но обновляем дату.
-    final cur = value ?? now;
-    onChanged(DateTime(
-      picked.year,
-      picked.month,
-      picked.day,
-      cur.hour,
-      cur.minute,
-    ));
-  }
-
-  Future<void> _pickTime(BuildContext context) async {
-    final now = DateTime.now();
-    final cur = value ?? now;
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay(hour: cur.hour, minute: cur.minute),
-    );
-    if (picked == null) return;
-    final base = value ?? now;
-    onChanged(DateTime(
-      base.year,
-      base.month,
-      base.day,
-      picked.hour,
-      picked.minute,
-    ));
+    onChanged(picked);
   }
 
   @override
@@ -169,7 +153,7 @@ class MemoryDateField extends StatelessWidget {
                   child: _DateTimeButton(
                     icon: Icons.calendar_today_rounded,
                     label: s.memoryDatePickDate,
-                    onTap: () => _pickDate(context),
+                    onTap: () => _pick(context, onTime: false),
                     accent: accent,
                   ),
                 ),
@@ -178,7 +162,7 @@ class MemoryDateField extends StatelessWidget {
                   child: _DateTimeButton(
                     icon: Icons.access_time_rounded,
                     label: s.memoryDatePickTime,
-                    onTap: () => _pickTime(context),
+                    onTap: () => _pick(context, onTime: true),
                     accent: accent,
                   ),
                 ),

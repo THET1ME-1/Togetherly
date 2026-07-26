@@ -24,6 +24,7 @@ class DateTimePickerScreen extends StatefulWidget {
     required this.lastYear,
     this.initial,
     this.withTime = true,
+    this.startOnTime = false,
   });
 
   final String title;
@@ -34,6 +35,10 @@ class DateTimePickerScreen extends StatefulWidget {
 
   /// Показывать ли вкладку времени. Для дня рождения время лишнее.
   final bool withTime;
+
+  /// Открыться сразу на времени. Нужно там, где кнопок две («дата» и «время»)
+  /// и человек нажал вторую: показывать ему сперва дату было бы издевательством.
+  final bool startOnTime;
 
   @override
   State<DateTimePickerScreen> createState() => _DateTimePickerScreenState();
@@ -48,7 +53,7 @@ class _DateTimePickerScreenState extends State<DateTimePickerScreen> {
 
   /// false — крутим дату, true — время. Барабаны меняются на месте, экран не
   /// прыгает: высота области выбора одна и та же.
-  bool _timeTab = false;
+  late bool _timeTab;
 
   late final FixedExtentScrollController _dayCtrl;
   late final FixedExtentScrollController _monthCtrl;
@@ -64,6 +69,7 @@ class _DateTimePickerScreenState extends State<DateTimePickerScreen> {
   @override
   void initState() {
     super.initState();
+    _timeTab = widget.withTime && widget.startOnTime;
     final init = widget.initial ?? DateTime.now();
     _year = init.year.clamp(widget.firstYear, widget.lastYear);
     _month = init.month;

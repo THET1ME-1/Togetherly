@@ -8,6 +8,7 @@ import '../theme/app_theme.dart';
 import '../services/locale_service.dart';
 import '../widgets/petal_timer_dial.dart';
 import '../widgets/common/app_dialog.dart';
+import 'date_time_picker_screen.dart';
 
 /// Карусель таймеров с ИДЕАЛЬНОЙ геометрией радиального меню, адаптированной под размеры контейнера.
 class ExpandableTimerCard extends StatefulWidget {
@@ -362,85 +363,57 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
                         ? LocaleService.current.targetDate
                         : LocaleService.current.startDate,
                   ),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: dateCtrl,
-                          keyboardType: TextInputType.datetime,
-                          // Ручной ввод даты не трогает pickedDate (его меняют
-                          // только пикеры) — перестраиваем лист, чтобы
-                          // предупреждение о прошедшей дате считалось по
-                          // фактически введённому тексту, а не по pickedDate.
-                          onChanged: (_) => setSheetState(() {}),
-                          decoration: _dialogInputDeco(
-                            '${LocaleService.current.dateFormatHint}  ${LocaleService.current.timeFormatHint}',
+                  // Дата и время выбираются на своём экране крупными барабанами
+                  // (DateTimePickerScreen). Поле с ручным вводом и две кнопки
+                  // рядом ушли: набирать «дд.мм.гггг чч:мм» с системной
+                  // клавиатуры дольше, чем прокрутить, а стоковые пикеры
+                  // выглядели чужими среди наших экранов.
+                  GestureDetector(
+                    onTap: () async {
+                      final picked = await Navigator.of(ctx).push<DateTime>(
+                        MaterialPageRoute<DateTime>(
+                          builder: (_) => DateTimePickerScreen(
+                            title: isCountdown
+                                ? LocaleService.current.targetDate
+                                : LocaleService.current.startDate,
+                            theme: _t,
+                            initial: pickedDate,
+                            firstYear: 1900,
+                            lastYear: 2100,
                           ),
+                          settings: const RouteSettings(name: '/date_picker'),
                         ),
+                      );
+                      if (picked == null || !ctx.mounted) return;
+                      setSheetState(() {
+                        pickedDate = picked;
+                        dateCtrl.text = _formatDate(picked);
+                      });
+                    },
+                    child: Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                      decoration: BoxDecoration(
+                        color: _t.primary.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(18),
                       ),
-                      const SizedBox(width: 6),
-                      GestureDetector(
-                        onTap: () async {
-                          final d = await showDatePicker(
-                            context: ctx,
-                            initialDate: pickedDate,
-                            firstDate: DateTime(1900),
-                            lastDate: DateTime(2100),
-                          );
-                          if (d == null || !ctx.mounted) return;
-                          setSheetState(() {
-                            pickedDate = DateTime(
-                              d.year, d.month, d.day,
-                              pickedDate.hour, pickedDate.minute,
-                            );
-                            dateCtrl.text = _formatDate(pickedDate);
-                          });
-                        },
-                        child: Container(
-                          width: 54,
-                          height: 54,
-                          decoration: BoxDecoration(
-                            color: _t.primary.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(16),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _formatDate(pickedDate),
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                                color: _t.textPrimary,
+                              ),
+                            ),
                           ),
-                          child: Icon(
-                            Icons.calendar_today_rounded,
-                            color: _t.primary,
-                            size: 24,
-                          ),
-                        ),
+                          Icon(Icons.calendar_today_rounded,
+                              color: _t.primary, size: 22),
+                        ],
                       ),
-                      const SizedBox(width: 6),
-                      GestureDetector(
-                        onTap: () async {
-                          final t = await showTimePicker(
-                            context: ctx,
-                            initialTime: TimeOfDay.fromDateTime(pickedDate),
-                          );
-                          if (t == null || !ctx.mounted) return;
-                          setSheetState(() {
-                            pickedDate = DateTime(
-                              pickedDate.year, pickedDate.month, pickedDate.day,
-                              t.hour, t.minute,
-                            );
-                            dateCtrl.text = _formatDate(pickedDate);
-                          });
-                        },
-                        child: Container(
-                          width: 54,
-                          height: 54,
-                          decoration: BoxDecoration(
-                            color: _t.primary.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Icon(
-                            Icons.access_time_rounded,
-                            color: _t.primary,
-                            size: 24,
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                   if (isCountdown &&
                       (_parseDate(dateCtrl.text) ?? pickedDate)
