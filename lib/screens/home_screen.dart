@@ -1238,7 +1238,7 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 const SizedBox(height: 16),
                 AnimatedSlideIn(
-                  delay: const Duration(milliseconds: 100),
+                  delay: const Duration(milliseconds: 0),
                   child: MiniMoodCalendar(
                     moodService: _moodService,
                     theme: _t,
@@ -1260,7 +1260,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     0,
                   ),
                   child: AnimatedSlideIn(
-                    delay: const Duration(milliseconds: 200),
+                    delay: const Duration(milliseconds: 80),
                     child: ExpandableTimerCard(
                       theme: _t,
                       timerService: _timerService,
@@ -1283,7 +1283,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     0,
                   ),
                   child: AnimatedSlideIn(
-                    delay: const Duration(milliseconds: 300),
+                    delay: const Duration(milliseconds: 120),
                     child: HomeActionButtons(
                       theme: _t,
                       isPaired: _pairData.isPaired,
@@ -1303,19 +1303,19 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (!_pairData.isPaired) ...[
                   const SizedBox(height: 8),
                   AnimatedSlideIn(
-                    delay: const Duration(milliseconds: 400),
+                    delay: const Duration(milliseconds: 200),
                     child: _buildConnectPrompt(),
                   ),
                 ],
                 if (_pairData.isPaired) ...[
                   const SizedBox(height: 8),
                   AnimatedSlideIn(
-                    delay: const Duration(milliseconds: 380),
+                    delay: const Duration(milliseconds: 160),
                     child: _buildMascotRow(),
                   ),
                   // Карта «Где мы»: live-геопозиция обоих партнёров.
                   AnimatedSlideIn(
-                    delay: const Duration(milliseconds: 420),
+                    delay: const Duration(milliseconds: 240),
                     child: LiveMapCard(
                       pairId: _pairData.pairId,
                       partnerUid: _pairData.partnerUid,
@@ -1331,34 +1331,34 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           if (_pairData.isPaired && !_spaOn)
             AnimatedSlideIn(
-              delay: const Duration(milliseconds: 460),
+              delay: const Duration(milliseconds: 240),
               child: _achievementsEntry(),
             ),
           if (_pairData.isPaired && !_spaOn)
             AnimatedSlideIn(
-              delay: const Duration(milliseconds: 500),
+              delay: const Duration(milliseconds: 240),
               child: _statsEntry(),
             ),
           if (_sunriseOn)
             AnimatedSlideIn(
-              delay: const Duration(milliseconds: 120),
+              delay: const Duration(milliseconds: 40),
               child: _sunriseBanner(),
             ),
           if (_pairData.isPaired && _giftsEnabled) ...[
             if (_incomingGifts.isNotEmpty)
               AnimatedSlideIn(
-                delay: const Duration(milliseconds: 460),
+                delay: const Duration(milliseconds: 240),
                 child: _incomingGiftEntry(),
               ),
             // Вход в профиль партнёра переехал на страницу «Профиль»
             // (личный профиль + карточка партнёра), с главной убран.
             AnimatedSlideIn(
-              delay: const Duration(milliseconds: 470),
+              delay: const Duration(milliseconds: 240),
               child: _giftsEntry(),
             ),
           ],
           AnimatedSlideIn(
-            delay: const Duration(milliseconds: 500),
+            delay: const Duration(milliseconds: 240),
             // В паре — встроенная НАСТОЯЩАЯ Лента (те же карточки _memoryTile,
             // первые 3). Без пары — лёгкая заглушка «подключись».
             child: _pairData.isPaired

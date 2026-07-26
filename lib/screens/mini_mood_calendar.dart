@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -41,6 +42,22 @@ class _MiniMoodCalendarState extends State<MiniMoodCalendar> {
   static const double _kItemStride = _kCellWidth + _kSeparator;
 
   late final ScrollController _scrollController;
+
+  /// Когда лента появилась на экране: первые полсекунды ячейки выходят
+  /// очередью слева направо, дальше — сразу, как их построит прокрутка.
+  final DateTime _mountedAt = DateTime.now();
+
+  Duration _spawnDelay(int index) {
+    if (DateTime.now().difference(_mountedAt) > const Duration(milliseconds: 500)) {
+      return Duration.zero;
+    }
+    final first = _scrollController.hasClients
+        ? (_scrollController.position.pixels / _kItemStride).floor()
+        : index;
+    final place = index - first;
+    if (place < 0 || place > 6) return Duration.zero;
+    return Duration(milliseconds: 45 * place);
+  }
   late DateTime _today;
   late DateTime _todayNorm;
   Timer? _midnightTimer;
@@ -142,6 +159,9 @@ class _MiniMoodCalendarState extends State<MiniMoodCalendar> {
                 padding: EdgeInsets.zero,
                 clipBehavior: Clip.none,
                 physics: const BouncingScrollPhysics(),
+                // Ровно один день про запас: с большим кэшем ячейка успевала
+                // отыграть появление ещё за краем экрана и выезжала готовой.
+                cacheExtent: _kItemStride,
                 itemCount: _kCenter * 2,
                 itemExtent: _kItemStride,
                 itemBuilder: (context, index) {
@@ -177,12 +197,15 @@ class _MiniMoodCalendarState extends State<MiniMoodCalendar> {
                       child: Align(
                         alignment: Alignment.topCenter,
                         child: RepaintBoundary(
-                          child: _DayCell(
-                            date: date,
-                            today: _today,
-                            moodService: widget.moodService,
-                            theme: widget.theme,
-                            onTap: widget.onDayTap,
+                          child: _SpawnIn(
+                            delay: _spawnDelay(index),
+                            child: _DayCell(
+                              date: date,
+                              today: _today,
+                              moodService: widget.moodService,
+                              theme: widget.theme,
+                              onTap: widget.onDayTap,
+                            ),
                           ),
                         ),
                       ),
@@ -247,6 +270,72 @@ class _MiniMoodCalendarState extends State<MiniMoodCalendar> {
       ],
     );
   }
+}
+
+/// Появление ячейки календаря: масштаб от 0,86 и прозрачность, пружиной.
+///
+/// Ячейки строятся лениво, поэтому та же анимация работает и при прокрутке:
+/// день, выехавший из-за края, не возникает готовым, а вырастает. На первом
+/// кадре родитель раздаёт задержки слева направо, дальше задержки нет — иначе
+/// при быстрой прокрутке дни отставали бы от пальца.
+class _SpawnIn extends StatefulWidget {
+  const _SpawnIn({required this.child, this.delay = Duration.zero});
+
+  final Widget child;
+  final Duration delay;
+
+  @override
+  State<_SpawnIn> createState() => _SpawnInState();
+}
+
+class _SpawnInState extends State<_SpawnIn>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  static final SpringDescription _spring = SpringDescription.withDampingRatio(
+    mass: 1,
+    stiffness: 300,
+    ratio: 0.75,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 420));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
+        _ctrl.value = 1;
+        return;
+      }
+      if (widget.delay == Duration.zero) {
+        _ctrl.animateWith(SpringSimulation(_spring, 0, 1, 0));
+      } else {
+        Future.delayed(widget.delay, () {
+          if (mounted) _ctrl.animateWith(SpringSimulation(_spring, 0, 1, 0));
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: _ctrl,
+        builder: (context, child) {
+          final t = _ctrl.value;
+          return Opacity(
+            opacity: t.clamp(0.0, 1.0) < 0.5 ? (t / 0.5).clamp(0.0, 1.0) : 1.0,
+            child: Transform.scale(scale: 0.86 + 0.14 * t, child: child),
+          );
+        },
+        child: widget.child,
+      );
 }
 
 class _DayCell extends StatefulWidget {
@@ -513,14 +602,10 @@ class _DayCellState extends State<_DayCell> with TickerProviderStateMixin {
           decoration: BoxDecoration(
             color: cardBg,
             borderRadius: BorderRadius.circular(100),
-            boxShadow: isToday
-                ? widget.theme.accentGlow(
-                    widget.theme.navActiveIcon,
-                    opacity: 0.3,
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  )
-                : const [],
+            // Свечение под сегодняшним днём убрано: цветная подсветка вокруг
+            // капсулы читалась как ореол и спорила с заливкой внутри неё.
+            // Сегодняшний день и без того выделен цветом и заполнением.
+            boxShadow: const [],
           ),
           clipBehavior: Clip.antiAlias,
           child: Stack(

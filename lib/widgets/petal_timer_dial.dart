@@ -66,6 +66,10 @@ class _PetalTimerDialState extends State<PetalTimerDial>
   late AnimationController _flingCtrl;
   late Ticker _chaseTicker;
   List<double> _displayFactors = List.filled(6, 0.0);
+
+  /// Доля вступления 0…1. Пока идёт от нуля к единице, числа на лепестках
+  /// набегают; дальше показываются как есть.
+  double _intro = 0;
   List<double> _presenceFactors = List.filled(6, 1.0);
   List<_PetalData> _currentPetals = [];
   final Set<int> _hiddenIndices = {};
@@ -76,9 +80,14 @@ class _PetalTimerDialState extends State<PetalTimerDial>
     _flingCtrl = AnimationController.unbounded(vsync: this);
     _flingCtrl.addListener(_onFlingTick);
 
-    // Инициализируем текущие значения лепестков и display factors
+    // Вход диска: заливка начинается с нуля и набегает до сегодняшнего дня, а
+    // числа набегают вместе с ней. Диск означает «сколько прошло», и на входе
+    // это «сколько» показывается, а не просто появляется.
+    //
+    // Отдельная анимация не нужна: догоняющий тикер ниже и так тянет заливку к
+    // цели с замедлением — достаточно стартовать от нуля.
     _currentPetals = _computePetals();
-    _displayFactors = _currentPetals.map((p) => p.factor).toList();
+    _displayFactors = List.filled(6, 0.0);
 
     // Запускаем ticker для плавной анимации
     _chaseTicker = createTicker(_onChaseTick)..start();
@@ -87,6 +96,13 @@ class _PetalTimerDialState extends State<PetalTimerDial>
   void _onChaseTick(Duration elapsed) {
     _currentPetals = _computePetals();
     bool changed = false;
+
+    if (_intro < 1) {
+      // Тем же законом, что и заливка: замедляясь к концу, около полусекунды.
+      _intro += (1 - _intro) * 0.12;
+      if (_intro > 0.995) _intro = 1;
+      changed = true;
+    }
     for (int i = 0; i < 6; i++) {
       final target = _currentPetals[i].factor;
       final diff = target - _displayFactors[i];
@@ -395,6 +411,7 @@ class _PetalTimerDialState extends State<PetalTimerDial>
                 theme: widget.theme,
                 scale: scale,
                 totalPresence: presence.reduce((a, b) => a + b),
+                intro: _intro,
               ),
             ),
           ),
@@ -413,6 +430,9 @@ class _PetalDialPainter extends CustomPainter {
   final double scale;
   final double totalPresence;
 
+  /// Доля вступления: на входе числа набегают от нуля вместе с заливкой.
+  final double intro;
+
   _PetalDialPainter({
     required this.petals,
     required this.displayFactors,
@@ -421,6 +441,7 @@ class _PetalDialPainter extends CustomPainter {
     required this.theme,
     required this.scale,
     required this.totalPresence,
+    this.intro = 1,
   });
 
   @override
@@ -559,7 +580,7 @@ class _PetalDialPainter extends CustomPainter {
 
       _drawText(
         canvas,
-        text: '${petal.value}',
+        text: '${intro >= 1 ? petal.value : (petal.value * intro).round()}',
         x: 0,
         y: -9 * scale * textScale,
         fontSize: 18 * scale * textScale,
@@ -705,5 +726,6 @@ class _PetalDialPainter extends CustomPainter {
       old.displayFactors != displayFactors ||
       old.presenceFactors != presenceFactors ||
       old.scale != scale ||
-      old.totalPresence != totalPresence;
+      old.totalPresence != totalPresence ||
+      old.intro != intro;
 }

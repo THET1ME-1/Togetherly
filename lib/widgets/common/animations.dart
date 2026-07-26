@@ -1,21 +1,39 @@
+import 'package:flutter/physics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../theme/theme_scope.dart';
 
-/// Animated slide-in wrapper for entrance animations
+/// Появление блока при входе: пружина на 16 логических точек.
+///
+/// Три вещи, из-за которых прежний вариант выглядел плохо и подтормаживал:
+///
+/// 1. `SlideTransition` считает смещение В ДОЛЯХ размера ребёнка. Стояло
+///    `Offset(0, 30)` — тридцать собственных высот, поэтому карточки стартовали
+///    далеко за экраном и «влетали» снизу. Теперь путь задаётся в точках и
+///    отрабатывается через [Transform.translate].
+/// 2. Анимация запускалась из `initState` по `Future.delayed`, то есть прямо
+///    посреди тяжёлого первого кадра: поднимался PocketBase, грелись картинки —
+///    и первые кадры анимации терялись, отсюда рывок. Теперь старт назначается
+///    после первого настоящего кадра.
+/// 3. Каждая карточка перерисовывала соседей: без [RepaintBoundary] слой
+///    анимации тянул за собой весь экран.
+///
+/// Движение — пружина M3 Expressive: блок чуть проскакивает и возвращается.
 class AnimatedSlideIn extends StatefulWidget {
   final Widget child;
   final Duration delay;
   final Duration duration;
-  final Offset beginOffset;
+
+  /// Насколько блок сдвинут в начале, в логических точках. Плюс — снизу вверх.
+  final double beginOffset;
 
   const AnimatedSlideIn({
     super.key,
     required this.child,
     this.delay = Duration.zero,
-    this.duration = const Duration(milliseconds: 500),
-    this.beginOffset = const Offset(0, 30),
+    this.duration = const Duration(milliseconds: 520),
+    this.beginOffset = 16,
   });
 
   @override
@@ -25,24 +43,41 @@ class AnimatedSlideIn extends StatefulWidget {
 class _AnimatedSlideInState extends State<AnimatedSlideIn>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
-  late final Animation<double> _opacity;
-  late final Animation<Offset> _offset;
+  bool _started = false;
+
+  /// Пружина: слегка недодемпфирована, поэтому даёт перелёт на пару точек и
+  /// мягкий возврат. Жёстче — и получится щелчок, мягче — кисель.
+  static final SpringDescription _spring = SpringDescription.withDampingRatio(
+    mass: 1,
+    stiffness: 260,
+    ratio: 0.72,
+  );
 
   @override
   void initState() {
     super.initState();
     _ctrl = AnimationController(vsync: this, duration: widget.duration);
-    _opacity = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
-    _offset = Tween<Offset>(
-      begin: widget.beginOffset,
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
-    Future.delayed(widget.delay, () {
-      if (mounted) _ctrl.forward();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _schedule());
+  }
+
+  void _schedule() {
+    if (!mounted || _started) return;
+    _started = true;
+    if (widget.delay == Duration.zero) {
+      _run();
+    } else {
+      Future.delayed(widget.delay, _run);
+    }
+  }
+
+  void _run() {
+    if (!mounted) return;
+    // Системный запрет анимаций уважаем: блок просто оказывается на месте.
+    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
+      _ctrl.value = 1;
+      return;
+    }
+    _ctrl.animateWith(SpringSimulation(_spring, 0, 1, 0));
   }
 
   @override
@@ -53,9 +88,23 @@ class _AnimatedSlideInState extends State<AnimatedSlideIn>
 
   @override
   Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _opacity,
-      child: SlideTransition(position: _offset, child: widget.child),
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _ctrl,
+        builder: (context, child) {
+          final t = _ctrl.value;
+          return Opacity(
+            // Прозрачность догоняет раньше движения: блок не должен мигать на
+            // перелёте, поэтому к середине пути он уже непрозрачный.
+            opacity: t.clamp(0.0, 1.0) < 0.55 ? (t / 0.55).clamp(0.0, 1.0) : 1.0,
+            child: Transform.translate(
+              offset: Offset(0, widget.beginOffset * (1 - t)),
+              child: child,
+            ),
+          );
+        },
+        child: widget.child,
+      ),
     );
   }
 }
