@@ -3063,7 +3063,23 @@ class _MascotPreviewWidget extends StatelessWidget {
   final Mascot mascot;
   final MascotService service;
 
-  const _MascotPreviewWidget({required this.mascot, required this.service});
+  /// Цвет морф-индикатора, пока картинка качается. Схему карточки знает только
+  /// кнопка, поэтому цвет приходит снаружи, а не из Theme.of.
+  final Color? color;
+
+  const _MascotPreviewWidget({
+    required this.mascot,
+    required this.service,
+    this.color,
+  });
+
+  Widget _waiting(BuildContext context) => Center(
+        child: M3Loading(
+          size: 32,
+          color: (color ?? Theme.of(context).colorScheme.onSecondaryContainer)
+              .withValues(alpha: 0.55),
+        ),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -3077,7 +3093,7 @@ class _MascotPreviewWidget extends StatelessWidget {
       return CachedNetworkImage(
         imageUrl: mascot.catalogUrl!,
         fit: BoxFit.contain,
-        placeholder: (_, _) => const SizedBox.shrink(),
+        placeholder: (context, _) => _waiting(context),
         errorWidget: (_, _, _) => const Icon(Icons.face),
       );
     }
@@ -3085,7 +3101,7 @@ class _MascotPreviewWidget extends StatelessWidget {
       return StorageImage(
         imageUrl: mascot.imageUrl!,
         fit: BoxFit.contain,
-        placeholder: (_, _) => const SizedBox.shrink(),
+        placeholder: (context, _) => _waiting(context),
         errorWidget: (_, _, _) => const Icon(Icons.face),
       );
     }
@@ -3145,6 +3161,11 @@ class _MascotButtonState extends State<_MascotButton>
     final t = widget.theme;
     final cs = ProfileTheme.themeFor(t).colorScheme;
     final hasStreak = streak > 0;
+    // Маскот ещё едет: либо сервис только подписался на группу, либо id выбран,
+    // а сам объект в галерею пока не приехал. Смайлик в это время врал —
+    // выглядел как «маскота нет, выберите».
+    final isLoading = mascot == null &&
+        (widget.service.isLoading || widget.service.hasActiveMascot);
 
     return GestureDetector(
       onTap: widget.onTap,
@@ -3171,12 +3192,22 @@ class _MascotButtonState extends State<_MascotButton>
                     ? _MascotPreviewWidget(
                         mascot: mascot,
                         service: widget.service,
+                        color: cs.onSecondaryContainer,
                       )
-                    : Icon(
-                        Icons.sentiment_satisfied_alt_rounded,
-                        size: 36,
-                        color: cs.onSecondaryContainer.withValues(alpha: 0.55),
-                      ),
+                    : isLoading
+                        ? Center(
+                            child: M3Loading(
+                              size: 36,
+                              color: cs.onSecondaryContainer
+                                  .withValues(alpha: 0.55),
+                            ),
+                          )
+                        : Icon(
+                            Icons.sentiment_satisfied_alt_rounded,
+                            size: 36,
+                            color:
+                                cs.onSecondaryContainer.withValues(alpha: 0.55),
+                          ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -3206,7 +3237,9 @@ class _MascotButtonState extends State<_MascotButton>
                       Text(
                         mascot != null
                             ? LocaleService.current.tapForGallery
-                            : LocaleService.current.selectMascot,
+                            : isLoading
+                                ? LocaleService.current.loading
+                                : LocaleService.current.selectMascot,
                         style: TextStyle(
                           fontSize: 12,
                           color:
