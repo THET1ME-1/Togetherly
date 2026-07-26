@@ -40,8 +40,17 @@ class OutboxService {
   static const int _maxAttempts = 5;
 
   bool _flushing = false;
+
+  /// Пока слив в полёте, пришли новые операции — значит нужен ещё один проход.
+  /// Без этого флага хвост очереди ждал следующего действия человека.
+  bool _rerunRequested = false;
   int _retryAttempt = 0;
   Timer? _retryTimer;
+
+  /// ТОЛЬКО для тестов: подменить применение операции, чтобы не ходить в сеть.
+  @visibleForTesting
+  Future<bool> Function(String type, Map<String, dynamic> payload)?
+      applyOverride;
 
   /// Когда очередь впервые перестала пустеть — чтобы отличить долгую отправку
   /// от залипания и один раз рассказать о нём в Bugsink.
@@ -116,7 +125,13 @@ class OutboxService {
   /// под нагрузкой — держала за собой настроение/чат/воспоминания, и плашка
   /// «Синхронизация…» залипала).
   Future<void> flush() async {
-    if (_flushing || !ConnectivityService.instance.isOnline) return;
+    if (_flushing) {
+      // Слив уже идёт: операции, поставленные прямо сейчас, в текущий проход не
+      // попадут (полосы разложены в начале). Запоминаем, что нужен ещё один.
+      _rerunRequested = true;
+      return;
+    }
+    if (!ConnectivityService.instance.isOnline) return;
     final db = await LocalStore.instance.database();
     if (db == null) return;
     _flushing = true;
@@ -179,6 +194,16 @@ class OutboxService {
       _inflightKeys.clear();
       _flushing = false;
       await _updatePending();
+      // Хвост, приехавший во время прохода, досылаем сразу: иначе он лежит с
+      // attempts == 0, держит счётчик «живых» операций и плашку до следующего
+      // действия человека.
+      if (_rerunRequested) {
+        _rerunRequested = false;
+        if (ConnectivityService.instance.isOnline &&
+            pendingCount.value > 0) {
+          unawaited(flush());
+        }
+      }
     }
   }
 
@@ -209,7 +234,8 @@ class OutboxService {
         // заморозить полосу (был баг «Синхронизация…(N)» не уходила, пока flush
         // вечно ждал повисший без таймаута запрос). По таймауту/исключению →
         // как провал → ретрай; операции идемпотентны по id.
-        ok = await _apply(parsed.type, parsed.payload)
+        final apply = applyOverride ?? _apply;
+        ok = await apply(parsed.type, parsed.payload)
             .timeout(const Duration(seconds: 20), onTimeout: () => false);
       } catch (_) {
         ok = false;

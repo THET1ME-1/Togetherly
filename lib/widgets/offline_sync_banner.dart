@@ -8,14 +8,20 @@ import '../services/media_service.dart';
 import '../services/offline/outbox_service.dart';
 import 'common/m3_wave_progress.dart';
 
-/// Глобальная тонкая плашка состояния синхронизации поверх любого экрана
-/// (через `MaterialApp.builder`). Показывается, только когда есть что показать:
+/// Глобальная тонкая плашка состояния поверх любого экрана (через
+/// `MaterialApp.builder`). Показывается, только когда человеку есть что решать:
 /// • офлайн — некликабельная подсказка (сразу);
-/// • идёт синхронизация — мягкая плашка со спиннером, но с ДЕБАУНСОМ: появляется
-///   лишь если отправка висит дольше [_syncDebounce] (быстрые синки не мигают
-///   плашкой и не раздражают);
+/// • сжатие видео — своя строка с реальной долей от кодека (десятки секунд, и
+///   отправку затеял сам человек);
 /// • есть «ядовитые» операции (сервер упорно отверг) — КЛИКАБЕЛЬНАЯ плашка
 ///   «повторить» (вызывает [OutboxService.retryPoison]), показывается сразу.
+///
+/// **Про фоновую отправку молчим.** Плашку «Синхронизация…» чинили четырежды
+/// (таймаут на операцию, полосы, лимит попыток, счётчик живых операций), и она
+/// всё равно всплывала: любой дефект очереди и любая медленная сеть тут же
+/// превращались в вечную серую доску поверх шапки. Состояние очереди — кухня
+/// приложения, а не решение пользователя; человеку важны только «нет сети» и
+/// «правка не сохранилась, повторить». Решение от 26.07.
 /// Цвета берутся из текущей темы. Пустые зоны прозрачны для касаний.
 class OfflineSyncBanner extends StatelessWidget {
   const OfflineSyncBanner({super.key, required this.child});
@@ -56,80 +62,32 @@ class _SyncChips extends StatefulWidget {
 }
 
 class _SyncChipsState extends State<_SyncChips> {
-  /// Сколько «висящая» синхронизация должна продержаться, прежде чем показать
-  /// плашку. Короткие отправки (доли секунды) проходят незаметно.
-  static const Duration _syncDebounce = Duration(seconds: 3);
-
   StreamSubscription<bool>? _connSub;
-  Timer? _debounce;
-
-  /// Прошёл ли дебаунс «идёт синхронизация» — только тогда показываем плашку.
-  bool _showSyncing = false;
-
-  /// Самая длинная очередь за текущую отправку. От неё считается доля полосы:
-  /// сам outbox отдаёт только «сколько осталось», а полосе нужно «сколько было».
-  /// Обнуляется, когда очередь опустела, — следующая отправка начинает с нуля.
-  int _peakActive = 0;
 
   @override
   void initState() {
     super.initState();
-    // Спиннер реагирует на activeCount (свежие записи), а не на pendingCount —
-    // запись в backoff после провала больше не крутит «вечную синхронизацию».
-    OutboxService.instance.activeCount.addListener(_onChange);
     OutboxService.instance.poisonCount.addListener(_onChange);
     MediaService.instance.compressProgress.addListener(_onChange);
     _connSub =
         ConnectivityService.instance.onOnlineChanged.listen((_) => _onChange());
-    _reconcile();
   }
 
   void _onChange() {
     if (!mounted) return;
-    _reconcile();
     setState(() {});
-  }
-
-  /// Управляет дебаунс-таймером показа «Синхронизация…».
-  void _reconcile() {
-    final active = OutboxService.instance.activeCount.value;
-    final online = ConnectivityService.instance.isOnline;
-    final syncing = online && active > 0;
-    if (active > _peakActive) _peakActive = active;
-    if (active == 0) _peakActive = 0;
-    if (syncing) {
-      // запустить таймер, если ещё не показываем и не запущен
-      if (!_showSyncing && _debounce == null) {
-        _debounce = Timer(_syncDebounce, () {
-          _debounce = null;
-          if (!mounted) return;
-          // показываем, только если к моменту срабатывания всё ещё синкаем
-          if (ConnectivityService.instance.isOnline &&
-              OutboxService.instance.activeCount.value > 0) {
-            setState(() => _showSyncing = true);
-          }
-        });
-      }
-    } else {
-      _debounce?.cancel();
-      _debounce = null;
-      _showSyncing = false;
-    }
   }
 
   @override
   void dispose() {
-    OutboxService.instance.activeCount.removeListener(_onChange);
     OutboxService.instance.poisonCount.removeListener(_onChange);
     MediaService.instance.compressProgress.removeListener(_onChange);
     _connSub?.cancel();
-    _debounce?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final active = OutboxService.instance.activeCount.value;
     final poison = OutboxService.instance.poisonCount.value;
     final online = ConnectivityService.instance.isOnline;
     final compressing = MediaService.instance.compressProgress.value;
@@ -163,20 +121,6 @@ class _SyncChipsState extends State<_SyncChips> {
           progress: compressing,
         ),
       ));
-    } else if (_showSyncing && active > 0) {
-      // Идёт синхронизация — мягкая плашка со спиннером, без сырого счётчика,
-      // и только после дебаунса (длительная отправка).
-      chips.add(IgnorePointer(
-        child: _chip(
-          context,
-          spinner: true,
-          text: ru ? 'Синхронизация…' : 'Syncing…',
-          bg: scheme.surfaceContainerHighest,
-          fg: scheme.onSurfaceVariant,
-          progress:
-              M3WaveProgress.queueFraction(active: active, peak: _peakActive),
-        ),
-      ));
     }
 
     // «Ядовитые» операции — кликабельно: повторить отправку. Показываем сразу.
@@ -205,10 +149,7 @@ class _SyncChipsState extends State<_SyncChips> {
       child: chips.isEmpty
           ? const SizedBox.shrink()
           : Padding(
-              // Сжатие входит в ключ: без него переход «сжатие → синхронизация»
-              // считался бы тем же состоянием и прошёл бы без анимации.
-              key: ValueKey(
-                  '${!online}-$_showSyncing-${poison > 0}-${compressing != null}'),
+              key: ValueKey('${!online}-${poison > 0}-${compressing != null}'),
               padding: const EdgeInsets.only(top: 6),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -232,34 +173,32 @@ class _SyncChipsState extends State<_SyncChips> {
     double? progress,
   }) =>
       Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: bg.withValues(alpha: 0.96),
+          color: bg,
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.12),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
         ),
+        // Ширина — по содержимому. Раньше стояло растягивание по поперечной оси,
+        // и чип с полосой распирало во всю ширину экрана: вместо короткого
+        // сообщения получалась серая доска поверх шапки.
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             _chipRow(context, icon: icon, spinner: spinner, text: text, fg: fg),
-            // Волновая полоса под строкой: доля показывает, сколько задач
-            // очереди уже ушло. Волна гаснет к концу — плашка сама сообщает,
-            // что отправка вот-вот закончится, вместо вечного «Синхронизация…».
+            // Волновая полоса под строкой — только там, где доля настоящая
+            // (сжатие видео). Ширину задаём сами, иначе она снова растянет чип.
             if (progress != null) ...[
-              const SizedBox(height: 6),
-              M3WaveProgress(
-                value: progress,
-                minHeight: 3,
-                wavelength: 16,
-                color: fg,
-                trackColor: fg.withValues(alpha: 0.22),
+              const SizedBox(height: 7),
+              SizedBox(
+                width: 150,
+                child: M3WaveProgress(
+                  value: progress,
+                  minHeight: 3,
+                  wavelength: 16,
+                  color: fg,
+                  trackColor: fg.withValues(alpha: 0.22),
+                ),
               ),
             ],
           ],
