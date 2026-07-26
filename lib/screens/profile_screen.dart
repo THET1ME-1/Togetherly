@@ -3742,6 +3742,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final canAfford = widget.userData.coins >= t.price;
     final themeName = _themeDisplayName(t.index);
 
+    // Тему и строки снимаем ДО открытия листа. Его builder живёт в дереве
+    // навигатора и переживает размонтирование экрана: колбэк стиля кнопки
+    // дёргал `_t` → `State.context` у мёртвого состояния и ронял приложение
+    // («Null check operator used on a null value», 327 падений в Bugsink на
+    // версиях 1.16.3–1.17.0).
+    final ui = _t;
+    final strings = _s;
+
     // null = preview, false = cancel, true = buy
     final result = await showAppSheet<bool>(
       context,
@@ -3751,9 +3759,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             12, 0, 12, MediaQuery.of(ctx).padding.bottom + 12),
         child: Container(
           decoration: BoxDecoration(
-            color: _t.cardSurface,
+            color: ui.cardSurface,
             borderRadius: BorderRadius.circular(28),
-            boxShadow: _t.accentGlow(
+            boxShadow: ui.accentGlow(
               t.primary,
               opacity: 0.18,
               blurRadius: 40,
@@ -3833,10 +3841,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          _s.coinBalance,
+                          strings.coinBalance,
                           style: TextStyle(
                             fontSize: 13,
-                            color: _t.textMuted,
+                            color: ui.textMuted,
                           ),
                         ),
                         const SizedBox(width: 6),
@@ -3852,7 +3860,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
                             color: canAfford
-                                ? _t.textPrimary
+                                ? ui.textPrimary
                                 : Colors.red.shade400,
                           ),
                         ),
@@ -3861,7 +3869,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     if (!canAfford) ...[
                       const SizedBox(height: 6),
                       Text(
-                        _s.notEnoughCoins,
+                        strings.notEnoughCoins,
                         style: TextStyle(
                           color: Colors.red.shade400,
                           fontSize: 12,
@@ -3908,9 +3916,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   end: Alignment.bottomRight,
                                 )
                               : null,
-                          color: canAfford ? null : _t.surfaceMuted,
+                          color: canAfford ? null : ui.surfaceMuted,
                           boxShadow: canAfford
-                              ? _t.accentGlow(
+                              ? ui.accentGlow(
                                   t.primary,
                                   opacity: 0.35,
                                   blurRadius: 14,
@@ -3928,14 +3936,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             child: Center(
                               child: Text(
                                 canAfford
-                                    ? _s.buyThemeConfirm
-                                    : _s.notEnoughCoins,
+                                    ? strings.buyThemeConfirm
+                                    : strings.notEnoughCoins,
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w700,
                                   color: canAfford
                                       ? Colors.white
-                                      : _t.textMuted,
+                                      : ui.textMuted,
                                 ),
                               ),
                             ),
@@ -3950,13 +3958,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: TextButton(
                         onPressed: () => Navigator.pop(ctx, false),
                         style: TextButton.styleFrom(
-                          foregroundColor: _t.textMuted,
+                          foregroundColor: ui.textMuted,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
                           ),
                         ),
                         child: Text(
-                          _s.cancel,
+                          strings.cancel,
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,

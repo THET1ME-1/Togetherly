@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'config/sentry_config.dart';
+import 'services/crash_noise.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:yandex_mobileads/mobile_ads.dart' as yandex;
@@ -217,70 +218,6 @@ Future<void> _homeWidgetBackgroundCallback(Uri? uri) async {
   }
 }
 
-/// Ошибки, прилетающие в глобальный async-обработчик из фоновых операций,
-/// которые НЕ роняют приложение (выполнение продолжается, есть деградация):
-///  • Firebase права/доступ: presence onDisconnect при недокаченных RTDB-правилах,
-///    фоновая загрузка в Storage без прав;
-///  • google_fonts: офлайн-загрузка шрифта с fonts.gstatic.com падает → текст
-///    рисуется системным шрифтом, не краш.
-/// Помечаем их non-fatal, чтобы не путать с настоящими падениями.
-bool _isBenignBackgroundError(Object error) {
-  final s = error.toString();
-  return s.contains('permission-denied') ||
-      s.contains('permission_denied') ||
-      s.contains('firebase_storage/unauthorized') ||
-      s.contains('Failed to load font') ||
-      // На случай редкого варианта Rubik, не вошедшего в бандл: текст просто
-      // рисуется системным шрифтом, не краш.
-      s.contains('allowRuntimeFetching');
-}
-
-/// Транспортные сетевые сбои = недоступность сервера или плохая сеть юзера
-/// (часто из-за блокировок в РФ), НЕ баги приложения. Такие события не шлём в
-/// Bugsink (`beforeSend → null`), чтобы реальные краши не тонули в шуме.
-bool _isNetworkNoise(Object error) {
-  final s = error.toString();
-  if (s.contains('SocketException') ||
-      s.contains('HandshakeException') ||
-      s.contains('Connection closed') ||
-      s.contains('Connection reset') ||
-      s.contains('Connection refused') ||
-      s.contains('Connection failed') ||
-      s.contains('Connection terminated') ||
-      s.contains('Connection abort') || // вкл. "Software caused connection abort"
-      s.contains('Network is unreachable') ||
-      s.contains('Connection timed out') ||
-      s.contains('Operation timed out')) {
-    return true;
-  }
-  // PocketBase ClientException транспортного уровня: запрос отменён / сервер не
-  // ответил. 4xx/5xx (реальные ответы сервера) НЕ трогаем — они информативны.
-  if (s.contains('ClientException') &&
-      (s.contains('isAbort: true') || s.contains('statusCode: 0'))) {
-    return true;
-  }
-  // PocketBase realtime (SSE) постоянно переподключается на мобильной сети:
-  // /api/realtime отдаёт 400 при обрыве/реконнекте — это churn соединения, а не
-  // баг. Именно он был issue #3 (1340 fatal-событий, топ по объёму в Bugsink).
-  // Глушим все ClientException этого эндпоинта независимо от статуса.
-  if (s.contains('ClientException') && s.contains('/api/realtime')) {
-    return true;
-  }
-  return false;
-}
-
-/// Android 12+ (mAllowStartForeground) запрещает старт foreground-сервиса из
-/// фона. Прямой путь старта уже обёрнут в try/catch, но плагин
-/// flutter_foreground_task доставляет отказ ещё и асинхронным событием
-/// EventChannel → оно всплывает как необработанная ошибка мимо catch. Это
-/// ограничение ОС, а не баг приложения — не шлём в Bugsink (был issue #35).
-bool _isForegroundServiceRestriction(Object error) {
-  final s = error.toString();
-  return s.contains('startForeground() not allowed') ||
-      s.contains('ForegroundServiceStartNotAllowed') ||
-      s.contains('mAllowStartForeground');
-}
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -357,7 +294,7 @@ void main() async {
     options.beforeSend = (event, hint) {
       final t = event.throwable;
       if (t != null &&
-          (_isNetworkNoise(t) || _isForegroundServiceRestriction(t))) {
+          (isCrashNoise(t))) {
         return null; // выбросить событие
       }
       return event;
@@ -375,7 +312,7 @@ void main() async {
     // ошибок здесь — из фоновых операций (presence, фоновая загрузка медиа) и
     // крашами не являются: помечаем их level=warning, остальное — fatal, чтобы
     // не завышать счётчик падений.
-    final fatal = !_isBenignBackgroundError(error);
+    final fatal = !isBenignBackgroundError(error);
     unawaited(Sentry.captureException(
       error,
       stackTrace: stack,
