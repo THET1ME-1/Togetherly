@@ -35,7 +35,6 @@ import '../widgets/morph_loader.dart';
 import '../widgets/settings_scaffold.dart';
 import '../services/cycle_service.dart';
 import '../services/plus_service.dart';
-import 'cycle_screen.dart';
 import 'plus_screen.dart';
 import 'settings_screen.dart';
 import '../widgets/common/coin_reward_toast.dart';
@@ -55,6 +54,7 @@ import '../services/app_icon_service.dart';
 import '../services/coin_store.dart';
 import '../services/celebration_notification_service.dart';
 import '../services/days_together_notification_service.dart';
+import '../widgets/common/m3_num_pad.dart';
 
 /// Entry for a partner across all connections
 class _PartnerEntry {
@@ -1231,10 +1231,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onPlus: () => _openPlus(ctx),
             cycleAvailable: CycleService.availableFor(widget.userData),
             cycleShared: CycleService.instance.shareWithPartner,
-            // Не куплено — строка ведёт на экран покупки, а не в пустоту.
-            onCycleOpen: () => PlusService.instance.active
-                ? _openCycle(ctx)
-                : _openPlus(ctx),
             onCycleSharedChanged: (v) async {
               await CycleService.instance.setShareWithPartner(v);
               setSheetState(() {});
@@ -1253,42 +1249,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  /// Календарь цикла. Раздел доступен только при женском поле в профиле.
-  void _openCycle(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => CycleScreen(
-          scheme: _cs,
-          groupId: widget.pairData.pairId,
-          partnerName: widget.pairData.partnerDisplayName,
-        ),
-      ),
-    );
-  }
-
   /// Стирание данных цикла: спрашиваем прежде, чем удалять, — вернуть нельзя.
   Future<void> _confirmCycleWipe(
     BuildContext context,
     StateSetter refreshSheet,
   ) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        content: Text(_s.cycleWipeConfirm),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(_s.cancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: _cs.error),
-            child: Text(_s.delete),
-          ),
-        ],
-      ),
+    final ok = await AppDialog.confirm(
+      context,
+      title: _s.cycleWipe,
+      message: _s.cycleWipeConfirm,
+      confirmLabel: _s.delete,
+      destructive: true,
+      icon: Icons.delete_outline_rounded,
     );
-    if (ok != true) return;
+    if (!ok) return;
     await CycleService.instance.wipe();
     refreshSheet(() {});
   }
@@ -1991,7 +1965,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                M3LoadingDots(color: _accentLight),
+                M3Loading(color: _accentLight),
                 const SizedBox(height: 16),
                 Text(
                   _s.uploading,
@@ -2198,6 +2172,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ],
       const SettingsDivider(),
       SettingsRow(
+        icon: widget.userData.isMale
+            ? Icons.male_rounded
+            : widget.userData.isFemale
+                ? Icons.female_rounded
+                : Icons.transgender_rounded,
+        title: _s.gender,
+        subtitle: _genderLabel(),
+        trailing: const SettingsChevron(),
+        onTap: () => _showGenderPicker(context),
+      ),
+      const SettingsDivider(),
+      SettingsRow(
         icon: Icons.cake_rounded,
         title: _s.myBirthday,
         subtitle: _formatCelebrationDate(widget.userData.birthDate),
@@ -2258,9 +2244,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           : '',
     );
 
-    final result = await showDialog<DateTime>(
-      context: context,
-      useRootNavigator: true,
+    final result = await showAppSheet<DateTime>(
+      context,
       builder: (ctx) => _DateInputDialog(
         title: title,
         ctrl: ctrl,
@@ -2354,6 +2339,125 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (mounted) setState(() {});
   }
 
+  // ── Пол ──
+
+  /// Что показать в строке профиля: свой вариант человек пишет сам.
+  String _genderLabel() {
+    final u = widget.userData;
+    if (u.isMale) return _s.male;
+    if (u.isFemale) return _s.female;
+    final custom = u.customGender?.trim() ?? '';
+    if (custom.isNotEmpty) return custom;
+    return u.gender == null ? _s.genderNotSet : _s.genderPreferNotSay;
+  }
+
+  /// Пол меняется и после регистрации: его видит партнёр, от него зависит
+  /// календарь цикла и оформление виджетов. Набор вариантов тот же, что при
+  /// входе, включая свой — иначе смена пола означала бы новый аккаунт.
+  Future<void> _showGenderPicker(BuildContext context) async {
+    final u = widget.userData;
+    final ctrl = TextEditingController(text: u.customGender ?? '');
+    bool customOpen =
+        u.gender == Gender.unspecified && (u.customGender ?? '').isNotEmpty;
+
+    Future<void> apply(
+      BuildContext sheetCtx,
+      Gender gender, {
+      String? custom,
+    }) async {
+      Navigator.pop(sheetCtx);
+      await u.updateGender(gender, customGender: custom);
+      // Профиль кэшируется в WidgetService на сессию: без рефреша виджет и
+      // партнёр держали бы прежний пол до перезахода.
+      await widget.widgetService.refreshProfileOnWidget();
+      if (mounted) setState(() {});
+    }
+
+    await showAppSheet<void>(
+      context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => SheetScaffold(
+          title: _s.gender,
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            children: [
+              SettingsGroup([
+                SettingsRow(
+                  icon: Icons.male_rounded,
+                  title: _s.male,
+                  trailing: u.isMale ? const Icon(Icons.check_rounded) : null,
+                  onTap: () => apply(ctx, Gender.male),
+                ),
+                const SettingsDivider(),
+                SettingsRow(
+                  icon: Icons.female_rounded,
+                  title: _s.female,
+                  trailing: u.isFemale ? const Icon(Icons.check_rounded) : null,
+                  onTap: () => apply(ctx, Gender.female),
+                ),
+                const SettingsDivider(),
+                SettingsRow(
+                  icon: Icons.do_not_disturb_on_rounded,
+                  title: _s.genderPreferNotSay,
+                  trailing: (u.gender == Gender.unspecified &&
+                          (u.customGender ?? '').isEmpty)
+                      ? const Icon(Icons.check_rounded)
+                      : null,
+                  onTap: () => apply(ctx, Gender.unspecified),
+                ),
+                const SettingsDivider(),
+                SettingsRow(
+                  icon: Icons.edit_rounded,
+                  title: _s.genderCustom,
+                  subtitle: customOpen ? null : u.customGender,
+                  trailing: customOpen
+                      ? const Icon(Icons.keyboard_arrow_up_rounded)
+                      : (u.customGender ?? '').isNotEmpty
+                          ? const Icon(Icons.check_rounded)
+                          : const SettingsChevron(),
+                  onTap: () => setSheet(() => customOpen = !customOpen),
+                ),
+              ]),
+              if (customOpen) ...[
+                const SizedBox(height: 12),
+                TextField(
+                  controller: ctrl,
+                  autofocus: true,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: InputDecoration(
+                    labelText: _s.genderCustom,
+                    hintText: _s.genderCustomHint,
+                    prefixIcon: const Icon(Icons.edit_rounded),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onChanged: (_) => setSheet(() {}),
+                  onSubmitted: (v) => v.trim().isEmpty
+                      ? null
+                      : apply(ctx, Gender.unspecified, custom: v),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: FilledButton(
+                    onPressed: ctrl.text.trim().isEmpty
+                        ? null
+                        : () => apply(ctx, Gender.unspecified, custom: ctrl.text),
+                    child: Text(_s.save),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+    ctrl.dispose();
+  }
+
   // ── Relationship type helpers ──
   String _relTypeToRussian(RelationshipType type) {
     switch (type) {
@@ -2414,108 +2518,89 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final current = connection?.relationshipType ?? _localRelType;
 
-    await showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheet) => Container(
-          decoration: BoxDecoration(
-            color: _t.cardSurface,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+    // M3-лист: выбранный тип — тональная карточка secondaryContainer с
+    // галочкой, остальные ровные. Цветных обводок нет: цвет здесь означал бы
+    // категорию, а категория тут одна.
+    await showAppSheet<void>(
+      context,
+      builder: (ctx) => SheetScaffold(
+        title: _s.relationshipType,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: _t.divider,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    _s.relationshipType,
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                      color: _t.textPrimary,
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    icon: const Icon(Icons.close_rounded),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
               ...types.map((type) {
                 final label = _relTypeToRussian(type);
                 final icon = _relTypeToIcon(type);
-                final color = _relTypeToColor(type);
                 final isSelected = current == type;
-                return GestureDetector(
-                  onTap: () {
-                    if (connection != null) {
-                      connection.setRelationshipType(type);
-                    } else {
-                      setState(() => _localRelType = type);
-                    }
-                    Navigator.pop(ctx);
-                    setState(() {});
-                  },
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Material(
+                    color: isSelected
+                        ? _cs.secondaryContainer
+                        : _cs.surfaceContainerHigh,
+                    clipBehavior: Clip.antiAlias,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
                     ),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? color.withOpacity(0.08)
-                          : _t.surfaceMuted,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: isSelected ? color : Colors.transparent,
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          icon,
-                          color: isSelected ? color : _t.textMuted,
-                          size: 22,
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Text(
-                            label,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: isSelected
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
-                              color: isSelected ? color : _t.textPrimary,
+                    child: InkWell(
+                      onTap: () {
+                        if (connection != null) {
+                          connection.setRelationshipType(type);
+                        } else {
+                          setState(() => _localRelType = type);
+                        }
+                        Navigator.pop(ctx);
+                        setState(() {});
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 14),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 46,
+                              height: 46,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? _cs.onSecondaryContainer
+                                        .withValues(alpha: 0.12)
+                                    : _cs.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Icon(
+                                icon,
+                                size: 23,
+                                color: isSelected
+                                    ? _cs.onSecondaryContainer
+                                    : _cs.onSurfaceVariant,
+                              ),
                             ),
-                          ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Text(
+                                label,
+                                style: TextStyle(
+                                  fontFamily: 'Onest',
+                                  fontSize: 16,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w700
+                                      : FontWeight.w600,
+                                  color: isSelected
+                                      ? _cs.onSecondaryContainer
+                                      : _cs.onSurface,
+                                ),
+                              ),
+                            ),
+                            if (isSelected)
+                              Icon(Icons.check_circle_rounded,
+                                  size: 22, color: _cs.primary),
+                          ],
                         ),
-                        if (isSelected)
-                          Icon(
-                            Icons.check_circle_rounded,
-                            color: color,
-                            size: 20,
-                          ),
-                      ],
+                      ),
                     ),
                   ),
                 );
@@ -3381,49 +3466,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   /// Ввод кода пополнения из телеграм-бота.
   Future<void> _askRedeemCode() async {
-    final ctrl = TextEditingController();
-    final code = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: _t.cardSurface,
-        title: Text(_s.redeemCodeTitle,
-            style: TextStyle(color: _t.textPrimary, fontWeight: FontWeight.w800)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(_s.redeemCodeHint,
-                style: TextStyle(fontSize: 14, color: _t.textSecondary)),
-            const SizedBox(height: 14),
-            TextField(
-              controller: ctrl,
-              autofocus: true,
-              textCapitalization: TextCapitalization.characters,
-              style: TextStyle(color: _t.textPrimary, letterSpacing: 1.5),
-              decoration: InputDecoration(
-                hintText: 'TG-XXXX-XXXX',
-                hintStyle: TextStyle(color: _t.textMuted, letterSpacing: 1.5),
-                filled: true,
-                fillColor: _t.surfaceMuted,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(_s.cancel, style: TextStyle(color: _t.textSecondary)),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, ctrl.text),
-            child: Text(_s.redeemCodeApply),
-          ),
-        ],
-      ),
+    final code = await AppDialog.prompt(
+      context,
+      title: _s.redeemCodeTitle,
+      label: _s.redeemCodeHint,
+      hint: 'TG-XXXX-XXXX',
+      confirmLabel: _s.redeemCodeApply,
+      maxLength: 24,
+      capitalization: TextCapitalization.characters,
     );
     if (code == null || code.trim().isEmpty || !mounted) return;
 
@@ -3733,12 +3783,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final themeName = _themeDisplayName(t.index);
 
     // null = preview, false = cancel, true = buy
-    final result = await showDialog<bool>(
-      context: context,
-      barrierColor: Colors.black.withOpacity(0.35),
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 32),
+    final result = await showAppSheet<bool>(
+      context,
+      background: Colors.transparent,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.fromLTRB(
+            12, 0, 12, MediaQuery.of(ctx).padding.bottom + 12),
         child: Container(
           decoration: BoxDecoration(
             color: _t.cardSurface,
@@ -4316,28 +4366,67 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showIconInfo(ProfileIcon icon, {bool rewardLocked = false}) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-        ),
-        title: Row(
-          children: [
-            Image.asset(icon.asset, width: 28, height: 28),
-            const SizedBox(width: 10),
-            Expanded(child: Text(icon.name)),
-          ],
-        ),
-        content: Text(
-          rewardLocked ? '${icon.description}\n\n${_s.iconRewardHint}' : icon.description,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('OK'),
+    showAppSheet<void>(
+      context,
+      builder: (ctx) => SheetScaffold(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Image.asset(icon.asset, width: 40, height: 40),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      icon.name,
+                      style: TextStyle(
+                        fontFamily: 'Unbounded',
+                        fontSize: 19,
+                        fontWeight: FontWeight.w700,
+                        fontVariations: const [FontVariation('wght', 700)],
+                        letterSpacing: -0.3,
+                        color: _cs.onSurface,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                rewardLocked
+                    ? '${icon.description}\n\n${_s.iconRewardHint}'
+                    : icon.description,
+                style: TextStyle(
+                  fontFamily: 'Onest',
+                  fontSize: 15,
+                  height: 1.4,
+                  color: _cs.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 22),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _cs.primary,
+                    foregroundColor: _cs.onPrimary,
+                    shape: const StadiumBorder(),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: Text(
+                    _s.ok,
+                    style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -4345,12 +4434,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   /// Диалог подтверждения покупки иконки. Возвращает true при успешной покупке.
   Future<bool> _confirmPurchaseIcon(BuildContext context, ProfileIcon icon) async {
     final canAfford = widget.userData.coins >= icon.price;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      barrierColor: Colors.black.withOpacity(0.35),
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 32),
+    final confirmed = await showAppSheet<bool>(
+      context,
+      background: Colors.transparent,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.fromLTRB(
+            12, 0, 12, MediaQuery.of(ctx).padding.bottom + 12),
         child: Container(
           decoration: BoxDecoration(
             color: _t.cardSurface,
@@ -4575,77 +4664,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
 
-  void _showLogoutDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(_s.logoutQuestion),
-        content: Text(_s.logoutConfirm),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(_s.cancel),
-          ),
-          TextButton(
-            onPressed: () async {
-              final userData = widget.userData;
-              Navigator.of(ctx).pop();
-
-              // Navigate first to avoid race condition with notifyListeners
-              if (context.mounted) {
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(
-                    builder: (_) => WelcomeScreen(userData: userData),
-                    settings: const RouteSettings(name: '/welcome'),
-                  ),
-                  (_) => false,
-                );
-              }
-
-              // Logout after navigation so dispose() runs cleanly first
-              try {
-                await userData.logout();
-              } catch (e) {
-                debugPrint('Logout error: $e');
-              }
-            },
-            child: Text(
-              _s.logoutBtn,
-              style: TextStyle(color: Colors.red.shade400),
-            ),
-          ),
-        ],
-      ),
+  Future<void> _showLogoutDialog(BuildContext context) async {
+    final ok = await AppDialog.confirm(
+      context,
+      title: _s.logoutQuestion,
+      message: _s.logoutConfirm,
+      confirmLabel: _s.logoutBtn,
+      destructive: true,
+      icon: Icons.logout_rounded,
     );
+    if (!ok || !context.mounted) return;
+
+    final userData = widget.userData;
+    // Уходим с экрана раньше выхода: иначе notifyListeners успевает дёрнуть
+    // уже размонтированное дерево.
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => WelcomeScreen(userData: userData),
+        settings: const RouteSettings(name: '/welcome'),
+      ),
+      (_) => false,
+    );
+    try {
+      await userData.logout();
+    } catch (e) {
+      debugPrint('Logout error: $e');
+    }
   }
 
   /// Диалог подтверждения удаления аккаунта (App Store 5.1.1(v)).
-  void _showDeleteAccountDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(_s.deleteAccountQuestion),
-        content: Text(_s.deleteAccountConfirm),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(_s.cancel),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              _performAccountDeletion(context);
-            },
-            child: Text(
-              _s.deleteAccountBtn,
-              style: TextStyle(color: Colors.red.shade400),
-            ),
-          ),
-        ],
-      ),
+  Future<void> _showDeleteAccountDialog(BuildContext context) async {
+    final ok = await AppDialog.confirm(
+      context,
+      title: _s.deleteAccountQuestion,
+      message: _s.deleteAccountConfirm,
+      confirmLabel: _s.deleteAccountBtn,
+      destructive: true,
+      icon: Icons.person_remove_rounded,
     );
+    if (!ok || !context.mounted) return;
+    _performAccountDeletion(context);
   }
 
   /// Выполняет удаление: блокирующий индикатор → удаление → навигация на
@@ -4756,8 +4814,57 @@ class _DateInputDialog extends StatefulWidget {
 class _DateInputDialogState extends State<_DateInputDialog> {
   String? _error;
 
+  /// Куда сейчас идут нажатия своей клавиатуры: в дату или во время.
+  /// Системная панель не поднимается вовсе (поля `readOnly`), поэтому фокус
+  /// ведём сами.
+  bool _timeActive = false;
+
   /// Активная тема из контекста (семантические токены для тёмной темы).
   AppTheme get _t => context.appTheme;
+
+  TextEditingController get _activeCtrl =>
+      _timeActive ? widget.timeCtrl : widget.ctrl;
+
+  /// Дописать цифру в активное поле.
+  ///
+  /// Форматирование не дублируем: гоняем текст через те же
+  /// [_DateDotFormatter]/[_TimeColonFormatter], что стояли на системном вводе,
+  /// — точки и двоеточие расставляются одним кодом, и лишние цифры так же
+  /// отсекаются по длине.
+  void _type(String digit) {
+    final ctrl = _activeCtrl;
+    final formatter = _timeActive
+        ? _TimeColonFormatter() as TextInputFormatter
+        : _DateDotFormatter();
+    final old = ctrl.value;
+    final next = TextEditingValue(text: '${old.text}$digit');
+    ctrl.value = formatter.formatEditUpdate(old, next);
+    if (_error != null) setState(() => _error = null);
+
+    // Дата набрана целиком — сами переводим на время: тянуться пальцем к
+    // соседнему полю посреди набора неудобно.
+    if (!_timeActive && ctrl.text.length == 10) {
+      setState(() => _timeActive = true);
+    }
+  }
+
+  void _backspace() {
+    final ctrl = _activeCtrl;
+    final digits = ctrl.text.replaceAll(RegExp(r'[^\d]'), '');
+    if (digits.isEmpty) {
+      // Время пустое — стирание уводит обратно в дату, а не молчит.
+      if (_timeActive) setState(() => _timeActive = false);
+      return;
+    }
+    final formatter = _timeActive
+        ? _TimeColonFormatter() as TextInputFormatter
+        : _DateDotFormatter();
+    final old = ctrl.value;
+    final next =
+        TextEditingValue(text: digits.substring(0, digits.length - 1));
+    ctrl.value = formatter.formatEditUpdate(old, next);
+    if (_error != null) setState(() => _error = null);
+  }
 
   @override
   void dispose() {
@@ -4799,6 +4906,7 @@ class _DateInputDialogState extends State<_DateInputDialog> {
     required String hint,
     required Color p,
     bool showError = false,
+    bool active = false,
   }) =>
       InputDecoration(
         hintText: hint,
@@ -4809,8 +4917,10 @@ class _DateInputDialogState extends State<_DateInputDialog> {
           fontWeight: FontWeight.w400,
         ),
         errorText: showError ? _error : null,
+        // Поля readOnly, системного фокуса у них нет — подчёркиваем активное
+        // сами, иначе непонятно, куда сейчас идут цифры.
         enabledBorder: UnderlineInputBorder(
-          borderSide: BorderSide(color: _t.divider, width: 2),
+          borderSide: BorderSide(color: active ? p : _t.divider, width: 2),
         ),
         focusedBorder: UnderlineInputBorder(
           borderSide: BorderSide(color: p, width: 2),
@@ -4826,18 +4936,49 @@ class _DateInputDialogState extends State<_DateInputDialog> {
   @override
   Widget build(BuildContext context) {
     final p = widget.primary;
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: Text(
-        widget.title,
-        style: TextStyle(
-          fontSize: 17,
-          fontWeight: FontWeight.w700,
-          color: _t.textPrimary,
-        ),
+    // Нижний лист, а не диалог посреди экрана: под открытой клавиатурой поля
+    // остаются на виду, а на кнопочной навигации кнопки не липнут к панели —
+    // отступ держит SheetScaffold.
+    return SheetScaffold(
+      title: widget.title,
+      bottom: Row(
+        children: [
+          Expanded(
+            child: TextButton(
+              onPressed: () => Navigator.pop(context),
+              style: TextButton.styleFrom(
+                foregroundColor: _t.textMuted,
+                shape: const StadiumBorder(),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              child: Text(
+                LocaleService.current.cancel,
+                style:
+                    const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: p,
+                shape: const StadiumBorder(),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              onPressed: _submit,
+              child: Text(
+                LocaleService.current.done,
+                style:
+                    const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+        ],
       ),
-      scrollable: true,
-      content: Column(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+        child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -4848,46 +4989,55 @@ class _DateInputDialogState extends State<_DateInputDialog> {
               // Дата — flex 3
               Expanded(
                 flex: 3,
-                child: TextField(
-                  controller: widget.ctrl,
-                  autofocus: true,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [_DateDotFormatter()],
-                  textInputAction: TextInputAction.next,
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 2,
-                    color: p,
+                child: GestureDetector(
+                  onTap: () => setState(() => _timeActive = false),
+                  child: AbsorbPointer(
+                    child: TextField(
+                      controller: widget.ctrl,
+                      // Ввод идёт своей клавиатурой (M3NumPad ниже), системную
+                      // не поднимаем: readOnly + курсор оставляем видимым.
+                      readOnly: true,
+                      showCursor: !_timeActive,
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 2,
+                        color: p,
+                      ),
+                      decoration: _fieldDecoration(
+                        hint: LocaleService.current.dateHintFormat,
+                        p: p,
+                        showError: true,
+                        active: !_timeActive,
+                      ),
+                    ),
                   ),
-                  decoration: _fieldDecoration(
-                    hint: LocaleService.current.dateHintFormat,
-                    p: p,
-                    showError: true,
-                  ),
-                  onChanged: (_) {
-                    if (_error != null) setState(() => _error = null);
-                  },
                 ),
               ),
               const SizedBox(width: 12),
               // Время — flex 2
               Expanded(
                 flex: 2,
-                child: TextField(
-                  controller: widget.timeCtrl,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [_TimeColonFormatter()],
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => _submit(),
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 2,
-                    color: p,
+                child: GestureDetector(
+                  onTap: () => setState(() => _timeActive = true),
+                  child: AbsorbPointer(
+                    child: TextField(
+                      controller: widget.timeCtrl,
+                      readOnly: true,
+                      showCursor: _timeActive,
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 2,
+                        color: p,
+                      ),
+                      decoration: _fieldDecoration(
+                        hint: LocaleService.current.timeHintFormat,
+                        p: p,
+                        active: _timeActive,
+                      ),
+                    ),
                   ),
-                  decoration: _fieldDecoration(
-                      hint: LocaleService.current.timeHintFormat, p: p),
                 ),
               ),
             ],
@@ -4934,23 +5084,15 @@ class _DateInputDialogState extends State<_DateInputDialog> {
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
           ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          style: TextButton.styleFrom(foregroundColor: _t.textMuted),
-          child: Text(LocaleService.current.cancel),
-        ),
-        FilledButton(
-          style: FilledButton.styleFrom(
-            backgroundColor: p,
-            shape: const StadiumBorder(),
+          const SizedBox(height: 12),
+          M3NumPad(
+            accent: p,
+            onDigit: _type,
+            onBackspace: _backspace,
           ),
-          onPressed: _submit,
-          child: Text(LocaleService.current.done),
+        ],
         ),
-      ],
+      ),
     );
   }
 }

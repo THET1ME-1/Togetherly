@@ -113,6 +113,9 @@ class ConnectionsManager extends ChangeNotifier {
     for (var c in _connections) {
       if (c.isSelfCode(code)) {
         debugPrint('acceptCodeAndCreateGroup: self code, ignoring');
+        // Без сообщения экран показал бы «код не найден» — и человек искал бы
+        // проблему в коде, а не в том, что это его собственный.
+        lastAcceptMessage = 'Это ваш собственный код';
         return false;
       }
     }
@@ -125,7 +128,10 @@ class ConnectionsManager extends ChangeNotifier {
     if (result['success'] != true) return false;
 
     final pairId = result['pairId'] as String? ?? '';
-    if (pairId.isEmpty) return false;
+    if (pairId.isEmpty) {
+      lastAcceptMessage = 'Сервер не вернул пару — попробуйте ещё раз';
+      return false;
+    }
 
     // Already have this group? (discovery listener might have picked it up)
     final existingConn = _connections.cast<Connection?>().firstWhere(

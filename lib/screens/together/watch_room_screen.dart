@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../services/locale_service.dart';
 import '../../services/watch_history_service.dart';
 import '../../services/watch_room_service.dart';
+import '../../widgets/common/m3_loading.dart';
 
 /// Комната совместного просмотра.
 ///
@@ -121,7 +122,7 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
             },
           ),
           if (_loading)
-            const Center(child: CircularProgressIndicator()),
+            Center(child: M3Loading(color: Theme.of(context).colorScheme.primary)),
         ],
       ),
     );

@@ -2091,30 +2091,16 @@ class _CommentsSectionState extends State<_CommentsSection> {
   }
 
   void _confirmDeleteComment(MemoryComment comment) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(LocaleService.current.deleteCommentQuestion),
-        content: Text(LocaleService.current.actionCannotBeUndone),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(LocaleService.current.cancel),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              MemoryRepository().deleteComment(comment.id);
-            },
-            child: Text(
-              LocaleService.current.delete,
-              style: TextStyle(color: Colors.red.shade400),
-            ),
-          ),
-        ],
-      ),
-    );
+    AppDialog.confirm(
+      context,
+      title: LocaleService.current.deleteCommentQuestion,
+      message: LocaleService.current.actionCannotBeUndone,
+      confirmLabel: LocaleService.current.delete,
+      destructive: true,
+      icon: Icons.delete_outline_rounded,
+    ).then((ok) {
+      if (ok) MemoryRepository().deleteComment(comment.id);
+    });
   }
 
   String _timeAgo(DateTime dt) {

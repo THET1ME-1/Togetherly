@@ -1040,6 +1040,22 @@
           "name": "updated_at",
           "type": "date",
           "required": false
+        },
+        {
+          "name": "coloring_id",
+          "type": "text",
+          "required": false
+        },
+        {
+          "name": "coloring_mode",
+          "type": "text",
+          "required": false
+        },
+        {
+          "name": "coloring_done",
+          "type": "json",
+          "required": false,
+          "maxSize": 20000
         }
       ],
       "indexes": [

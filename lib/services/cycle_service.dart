@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -32,6 +34,9 @@ class CycleService extends ChangeNotifier {
   List<CycleEntry> _mine = const [];
   List<CycleEntry> _partner = const [];
 
+  StreamSubscription<List<CycleEntry>>? _mineSub;
+  StreamSubscription<List<CycleEntry>>? _partnerSub;
+
   /// Разрешено ли партнёру видеть мои отметки. Локальная копия настройки:
   /// правда живёт в поле `shared` каждой записи на сервере.
   bool _shareWithPartner = false;
@@ -64,6 +69,10 @@ class CycleService extends ChangeNotifier {
   int? get averagePeriodLength => CycleMath.averagePeriodLength(_periodDays);
   int? get dayOfCycle => CycleMath.dayOfCycle(_periodDays);
 
+  /// Какой это день месячных (1-й, 2-й, …). null — в этот день не отмечено.
+  int? periodDayIndex(DateTime day) =>
+      CycleMath.periodDayIndex(_periodDays, day);
+
   /// Чем помечен день — для раскраски календаря.
   CyclePhase phaseOn(DateTime day) => CycleMath.phaseOn(_periodDays, day);
 
@@ -90,9 +99,34 @@ class CycleService extends ChangeNotifier {
     _partnerUid = partnerUid;
     final prefs = await SharedPreferences.getInstance();
     _shareWithPartner = prefs.getBool(_kSharePref) ?? false;
-    await refresh();
+    _listen();
   }
 
+  /// Живые подписки на свои и партнёрские отметки. Переподписываемся с нуля:
+  /// bind зовётся и при смене пары.
+  void _listen() {
+    _mineSub?.cancel();
+    _partnerSub?.cancel();
+    _mineSub = null;
+    _partnerSub = null;
+
+    if (_groupId.isEmpty) return;
+    final uid = PocketBaseService().userId ?? '';
+    if (uid.isEmpty) return;
+
+    _mineSub = _repo.watch(_groupId, uid).listen((entries) {
+      _mine = entries;
+      notifyListeners();
+    });
+    if (_partnerUid.isNotEmpty) {
+      _partnerSub = _repo.watch(_groupId, _partnerUid).listen((entries) {
+        _partner = entries;
+        notifyListeners();
+      });
+    }
+  }
+
+  /// Разовое перечитывание — запасной путь, когда подписка ещё не поднялась.
   Future<void> refresh() async {
     if (_groupId.isEmpty) return;
     final uid = PocketBaseService().userId ?? '';
@@ -102,6 +136,18 @@ class CycleService extends ChangeNotifier {
     _partner = _partnerUid.isEmpty
         ? const []
         : await _repo.load(_groupId, _partnerUid);
+    notifyListeners();
+  }
+
+  void unbind() {
+    _mineSub?.cancel();
+    _partnerSub?.cancel();
+    _mineSub = null;
+    _partnerSub = null;
+    _groupId = '';
+    _partnerUid = '';
+    _mine = const [];
+    _partner = const [];
     notifyListeners();
   }
 
@@ -122,7 +168,8 @@ class CycleService extends ChangeNotifier {
         shared: kind == CycleKind.intimacy ? true : _shareWithPartner,
       );
     }
-    await refresh();
+    // Перечитывать не нужно: репозиторий пишет в местное хранилище, а живая
+    // подписка отдаёт изменение сразу — отметка появляется без сети.
   }
 
   /// Переключает видимость моих отметок для партнёра.

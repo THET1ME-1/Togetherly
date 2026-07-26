@@ -52,6 +52,8 @@ import 'home/widgets/mood_picker_dialog.dart';
 import 'home/widgets/photo_day_carousel_editor.dart';
 import 'home/widgets/memory_photo_picker.dart';
 import 'postcard/postcard_editor_screen.dart';
+import '../widgets/common/app_dialog.dart';
+import '../widgets/app_sheet.dart';
 
 /// Экран виджетов — два тайла (мой / партнёра) + настройки автоотправки.
 class WidgetScreen extends StatefulWidget {
@@ -950,6 +952,9 @@ class _WidgetScreenState extends State<WidgetScreen>
           widgetType != 'streak') {
         final realType = widgetType;
         final bindTypeKey = switch (realType) {
+          // Оба оформления заметки — один и тот же виджет, отличается только
+          // стиль: он и уходит отдельным ключом.
+          'note' || 'note_paper' => 'note',
           'petal_timer' => 'petal_timer',
           'days_counter' => 'days_counter',
           'mood' => 'mood',
@@ -965,6 +970,12 @@ class _WidgetScreenState extends State<WidgetScreen>
           '${bindTypeKey}_next_bind_group',
           _pair.pairId,
         );
+        if (bindTypeKey == 'note') {
+          await HomeWidget.saveWidgetData<String>(
+            'note_next_style',
+            realType == 'note_paper' ? 'paper' : 'm3',
+          );
+        }
       }
 
       await HomeWidget.requestPinWidget(
@@ -1929,6 +1940,62 @@ class _WidgetScreenState extends State<WidgetScreen>
       ),
       const SizedBox(height: 16),
       _buildGalleryItem(
+        title: _s.tgNoteTitle,
+        subtitle: _s.tgNoteSubtitle,
+        svgString: _heartSvg,
+        qualifiedName: 'com.togetherly.love.NoteWidget4x2Provider',
+        widgetType: 'note',
+        sizes: [
+          _WidgetSizeOption(
+            label: '2×2',
+            hint: _s.tgSizeHintCompact,
+            qualifiedName: 'com.togetherly.love.NoteWidget2x2Provider',
+            previewBuilder: () => _buildNotePreview(compact: true),
+          ),
+          _WidgetSizeOption(
+            label: '4×2',
+            hint: _s.tgSizeHintWide,
+            qualifiedName: 'com.togetherly.love.NoteWidget4x2Provider',
+            previewBuilder: () => _buildNotePreview(),
+          ),
+          _WidgetSizeOption(
+            label: '4×4',
+            hint: _s.tgSizeHintLarge,
+            qualifiedName: 'com.togetherly.love.NoteWidget4x4Provider',
+            previewBuilder: () => _buildNotePreview(big: true),
+          ),
+        ],
+      ),
+      const SizedBox(height: 16),
+      _buildGalleryItem(
+        title: _s.tgNotePaperTitle,
+        subtitle: _s.tgNotePaperSubtitle,
+        svgString: _heartSvg,
+        qualifiedName: 'com.togetherly.love.NoteWidget4x2Provider',
+        widgetType: 'note_paper',
+        sizes: [
+          _WidgetSizeOption(
+            label: '2×2',
+            hint: _s.tgSizeHintCompact,
+            qualifiedName: 'com.togetherly.love.NoteWidget2x2Provider',
+            previewBuilder: () => _buildNotePreview(compact: true, paper: true),
+          ),
+          _WidgetSizeOption(
+            label: '4×2',
+            hint: _s.tgSizeHintWide,
+            qualifiedName: 'com.togetherly.love.NoteWidget4x2Provider',
+            previewBuilder: () => _buildNotePreview(paper: true),
+          ),
+          _WidgetSizeOption(
+            label: '4×4',
+            hint: _s.tgSizeHintLarge,
+            qualifiedName: 'com.togetherly.love.NoteWidget4x4Provider',
+            previewBuilder: () => _buildNotePreview(big: true, paper: true),
+          ),
+        ],
+      ),
+      const SizedBox(height: 16),
+      _buildGalleryItem(
         title: LocaleService.current.tgMissTitle,
         subtitle: LocaleService.current.tgMissSubtitle,
         svgString: _heartSvg,
@@ -2047,6 +2114,131 @@ class _WidgetScreenState extends State<WidgetScreen>
   }
 
   /// Превью «Вместе» 2×2: фон primary #6750A4, стек аватаров и число 54/800.
+  /// Превью листика в каталоге. [paper] — бумажный стикер, иначе карточка M3.
+  Widget _buildNotePreview({
+    bool compact = false,
+    bool big = false,
+    bool paper = false,
+  }) {
+    final cs = ProfileTheme.schemeFor(widget.theme);
+    const paperBg = Color(0xFFFFF3C4);
+    const paperInk = Color(0xFF4A3D13);
+    final bg = paper ? paperBg : cs.surfaceContainer;
+    final ink = paper ? paperInk : cs.onSurface;
+    final faded = paper ? const Color(0xFF8A7A45) : cs.onSurfaceVariant;
+
+    final text = compact
+        ? 'Купи молоко и что-нибудь к чаю 🙂'
+        : big
+            ? 'Список на выходные:\n— забрать посылку\n— заехать к твоим\n— купить корм коту'
+            : 'Купи молоко и что-нибудь к чаю. Вечером посмотрим то кино.';
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (!paper) ...[
+            Row(
+              children: [
+                Container(
+                  width: 24,
+                  height: 24,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: cs.primaryContainer,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.sticky_note_2_rounded,
+                      size: 14, color: cs.onPrimaryContainer),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  _s.tgNoteTitle.toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.3,
+                    color: faded,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ] else ...[
+            Center(
+              child: Container(
+                width: 46,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.14),
+                  borderRadius: const BorderRadius.vertical(
+                      bottom: Radius.circular(8)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+          Text(
+            text,
+            maxLines: big ? 5 : 3,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: compact ? 13 : 14,
+              height: 1.35,
+              fontWeight: FontWeight.w700,
+              color: ink,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Container(
+                width: 14,
+                height: 14,
+                decoration: BoxDecoration(
+                  color: paper
+                      ? Colors.black.withValues(alpha: 0.18)
+                      : cs.tertiaryContainer,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  '${widget.userData.displayName} · 12:40',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: faded,
+                  ),
+                ),
+              ),
+              Container(
+                width: 26,
+                height: 26,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: paper ? paperInk : cs.primary,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.edit_rounded,
+                    size: 14, color: paper ? paperBg : cs.onPrimary),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildTogether2x2Preview() {
     final days = _togetherDays();
     final myInitial = _initialOf(widget.userData.displayName);
@@ -6203,7 +6395,7 @@ class _WidgetScreenState extends State<WidgetScreen>
 
         // Кнопка «Обновить виджет»
         if (_isLoadingPhotoGrid)
-          const Center(child: CircularProgressIndicator())
+          Center(child: M3Loading(color: _t.primaryLight))
         else
           SizedBox(
             width: double.infinity,
@@ -6767,7 +6959,7 @@ class _WidgetScreenState extends State<WidgetScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                M3LoadingDots(color: _t.primaryLight),
+                M3Loading(color: _t.primaryLight),
                 const SizedBox(height: 16),
                 Text(_s.uploadingPhoto, style: GoogleFonts.rubik(fontSize: 14)),
               ],
@@ -6808,31 +7000,15 @@ class _WidgetScreenState extends State<WidgetScreen>
   }
 
   Future<void> _confirmClearAll() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          _s.resetWidget,
-          style: GoogleFonts.rubik(fontWeight: FontWeight.w700),
-        ),
-        content: Text(_s.resetWidgetConfirm, style: GoogleFonts.rubik()),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(
-              _s.cancel,
-              style: TextStyle(color: _t.textSecondary),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(_s.resetBtn, style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
+    final confirmed = await AppDialog.confirm(
+      context,
+      title: _s.resetWidget,
+      message: _s.resetWidgetConfirm,
+      confirmLabel: _s.resetBtn,
+      destructive: true,
+      icon: Icons.restart_alt_rounded,
     );
-    if (confirmed == true) {
+    if (confirmed) {
       _ws.clearAll();
     }
   }
@@ -8067,17 +8243,11 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
 
   void _showServicesInfo(BuildContext context) {
     final primary = widget.theme.primary;
-    showDialog(
-      context: context,
-      builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 340),
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: widget.theme.cardSurface,
-            borderRadius: BorderRadius.circular(24),
-          ),
+    showAppSheet<void>(
+      context,
+      builder: (ctx) => SheetScaffold(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

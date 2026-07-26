@@ -61,6 +61,7 @@ class CanvasStorageService {
     String groupId = '',
     int? pixelW,
     int? pixelH,
+    double? sheetRatio,
   }) async {
     final canvases = await getCanvases(uid, groupId: groupId);
     final id = 'canvas_${DateTime.now().millisecondsSinceEpoch}';
@@ -72,10 +73,10 @@ class CanvasStorageService {
       pixelW: pixelW,
       pixelH: pixelH,
       // Новый холст сразу с листом. У старых поле пустое — их рисунки
-      // остаются в прежней геометрии.
-      sheetRatio: (pixelW != null && pixelH != null)
-          ? pixelW / pixelH
-          : 4 / 5,
+      // остаются в прежней геометрии. Раскраске нужен квадрат: её контур
+      // нарисован 1:1, при другом формате половины разъедутся.
+      sheetRatio: sheetRatio ??
+          ((pixelW != null && pixelH != null) ? pixelW / pixelH : 4 / 5),
     );
     await _save(uid, groupId, [meta, ...canvases]);
 

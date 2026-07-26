@@ -1,4 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Что НЕ уезжает в автобэкап Android (API < 31; для 31+ см. data_extraction_rules.xml).
+
+  • FlutterSharedPreferences.xml — там лежит токен сессии PocketBase (AsyncAuthStore).
+  • offline/ — офлайн-кэш: база sembast `pb_cache.db` со всей перепиской пары и
+    очередью отправки, плюс `pending_media` (фото и видео, ещё не залитые на сервер).
+    Кэш восстанавливается с сервера за одну синхронизацию, а копия переписки на
+    Google Drive не нужна ни при каких условиях. База с 1.19 ещё и зашифрована
+    ключом из Keystore, который в бэкап не попадает — восстановленный файл всё
+    равно не открылся бы.
+-->
 <full-backup-content>
     <exclude domain="sharedpref" path="FlutterSharedPreferences.xml"/>
+    <exclude domain="file" path="offline"/>
 </full-backup-content>

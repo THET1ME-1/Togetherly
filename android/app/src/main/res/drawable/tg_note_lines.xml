@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Линейки бумажного стикера. Рисуем вектором, а не повторяющимся bitmap: у
+  виджета высота ячейки гуляет вдвое между лончерами, и tile-фон на ней съезжал
+  бы. Здесь линии просто растягиваются вместе с листом.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="100dp"
+    android:height="100dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100"
+    android:tint="#4A3D13">
+    <path android:fillColor="#FFFFFF" android:fillAlpha="0.16" android:pathData="M0,24h100v1.2H0z" />
+    <path android:fillColor="#FFFFFF" android:fillAlpha="0.16" android:pathData="M0,42h100v1.2H0z" />
+    <path android:fillColor="#FFFFFF" android:fillAlpha="0.16" android:pathData="M0,60h100v1.2H0z" />
+    <path android:fillColor="#FFFFFF" android:fillAlpha="0.16" android:pathData="M0,78h100v1.2H0z" />
+</vector>

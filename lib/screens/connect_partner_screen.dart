@@ -28,6 +28,7 @@ import '../widgets/connect_expressive.dart';
 import 'package:material3_expressive_loading_indicator/material3_expressive_loading_indicator.dart';
 import 'chat_screen.dart';
 import 'home/widgets/relationship_type_dialog.dart';
+import '../widgets/app_sheet.dart';
 
 class ConnectPartnerScreen extends StatefulWidget {
   final PairData pairData;
@@ -1489,24 +1490,66 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   }
 
   void _showBadgeInfo(ProfileIcon icon) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Row(
-          children: [
-            Image.asset(icon.asset, width: 28, height: 28),
-            const SizedBox(width: 10),
-            Expanded(child: Text(icon.name)),
-          ],
-        ),
-        content: Text(icon.description),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('OK'),
+    final cs = ProfileTheme.themeFor(widget.theme).colorScheme;
+    showAppSheet<void>(
+      context,
+      builder: (ctx) => SheetScaffold(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Image.asset(icon.asset, width: 40, height: 40),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      icon.name,
+                      style: TextStyle(
+                        fontFamily: 'Unbounded',
+                        fontSize: 19,
+                        fontWeight: FontWeight.w700,
+                        fontVariations: const [FontVariation('wght', 700)],
+                        letterSpacing: -0.3,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                icon.description,
+                style: TextStyle(
+                  fontFamily: 'Onest',
+                  fontSize: 15,
+                  height: 1.4,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 22),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: cs.primary,
+                    foregroundColor: cs.onPrimary,
+                    shape: const StadiumBorder(),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: Text(
+                    LocaleService.current.ok,
+                    style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -2508,78 +2551,20 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     );
   }
 
-  void _showRenameDialog(GroupMember member) {
+  Future<void> _showRenameDialog(GroupMember member) async {
     final current = NicknameService.instance.get(member.uid);
-    final controller = TextEditingController(text: current);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          LocaleService.current.renamePartner,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              LocaleService.current.renamePartnerHint,
-              style: TextStyle(fontSize: 13, color: widget.theme.textMuted),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              autofocus: true,
-              maxLength: 30,
-              decoration: InputDecoration(
-                hintText: member.name,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: primary, width: 2),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          if (current.isNotEmpty)
-            TextButton(
-              onPressed: () async {
-                await pair.clearNickname(member.uid);
-                if (ctx.mounted) Navigator.of(ctx).pop();
-                if (mounted) setState(() {});
-              },
-              child: Text(
-                LocaleService.current.resetNickname,
-                style: TextStyle(color: widget.theme.textMuted),
-              ),
-            ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(LocaleService.current.cancel),
-          ),
-          TextButton(
-            onPressed: () async {
-              await pair.setNickname(member.uid, controller.text);
-              if (ctx.mounted) Navigator.of(ctx).pop();
-              if (mounted) setState(() {});
-            },
-            child: Text(
-              LocaleService.current.save,
-              style: TextStyle(color: primary, fontWeight: FontWeight.w700),
-            ),
-          ),
-        ],
-      ),
+    final name = await AppDialog.prompt(
+      context,
+      title: LocaleService.current.renamePartner,
+      label: LocaleService.current.renamePartnerHint,
+      hint: member.name,
+      initial: current,
+      confirmLabel: LocaleService.current.save,
+      maxLength: 30,
     );
+    if (name == null) return;
+    await pair.setNickname(member.uid, name);
+    if (mounted) setState(() {});
   }
 
   void _confirmDeleteConnection(String connectionId) {

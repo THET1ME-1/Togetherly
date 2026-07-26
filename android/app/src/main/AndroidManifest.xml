@@ -431,6 +431,54 @@
 
 
         <!-- Новый каталог: «Скучаю» в трёх размерах -->
+        <!-- Заметка на двоих: три размера. Окно правки — NoteEditorActivity. -->
+        <receiver android:name=".NoteWidget2x2Provider"
+            android:exported="true"
+            android:label="Заметка · 2×2">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tg_note_2x2_info" />
+        </receiver>
+
+        <receiver android:name=".NoteWidget4x2Provider"
+            android:exported="true"
+            android:label="Заметка · 4×2">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tg_note_4x2_info" />
+        </receiver>
+
+        <receiver android:name=".NoteWidget4x4Provider"
+            android:exported="true"
+            android:label="Заметка · 4×4">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tg_note_4x4_info" />
+        </receiver>
+
+        <!--
+          Окно правки заметки. Прозрачная тема без анимации: открывается прямо
+          поверх рабочего стола, приложение при этом не разворачивается.
+          excludeFromRecents — чтобы окошко не оседало в списке задач.
+        -->
+        <activity
+            android:name=".NoteEditorActivity"
+            android:exported="false"
+            android:theme="@style/TgNoteEditorTheme"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:launchMode="singleTop"
+            android:windowSoftInputMode="adjustResize|stateAlwaysVisible" />
+
         <receiver android:name=".MissWidget2x2Provider"
             android:exported="true"
             android:label="Скучаю · 2×2">

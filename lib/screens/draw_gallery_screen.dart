@@ -12,6 +12,7 @@ import '../theme/app_theme.dart';
 import '../theme/fonts.dart';
 import '../widgets/common/app_dialog.dart';
 import '../widgets/common/m3_loading.dart';
+import 'coloring_catalogue_screen.dart';
 import 'draw_screen.dart';
 import 'pixel_size_screen.dart';
 
@@ -85,39 +86,23 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
 
   // ── Actions ─────────────────────────────────────────────────────────────
 
-  Future<void> _openCanvas(CanvasMeta meta) async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => DrawScreen(
-          userData: widget.userData,
-          pairData: widget.pairData,
-          theme: widget.theme,
-          canvasId: meta.id,
-          canvasName: meta.name,
-          pixelW: meta.pixelW,
-          pixelH: meta.pixelH,
-          sheetRatio: meta.effectiveRatio,
-        ),
-        fullscreenDialog: true,
-        settings: const RouteSettings(name: '/draw'),
-      ),
-    );
-    // Reload after returning so thumbnails are refreshed.
-    _load();
-  }
-
   Future<void> _createNewCanvas() async {
     final s = LocaleService.current;
-    // Prompt for a name.
+    final kind = await _askCanvasKind();
+    if (kind == null || !mounted) return;
+
+    if (kind == 'coloring') {
+      await _createColoringCanvas();
+      return;
+    }
+
     final name = await _showNameDialog(
       title: s.newCanvas,
       initial: '${s.untitledCanvas} ${_canvases.length + 1}',
     );
     if (name == null || !mounted) return;
 
-    // Обычный холст или пиксель-арт; сетка выбирается на своём экране.
-    final grid = await _askPixelGrid();
+    final grid = kind == 'pixel' ? await _askPixelGrid() : null;
     if (!mounted) return;
 
     final meta = await _storage.createCanvas(
@@ -131,6 +116,33 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
     );
 
     if (!mounted) return;
+    await _openCanvas(meta);
+  }
+
+  /// Раскраска: выбираем картинку и режим, заводим квадратный холст под неё.
+  Future<void> _createColoringCanvas() async {
+    final choice = await Navigator.push<ColoringChoice>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ColoringCatalogueScreen(theme: widget.theme),
+        settings: const RouteSettings(name: '/coloring_catalogue'),
+      ),
+    );
+    if (choice == null || !mounted) return;
+
+    // Лист квадратный: раскраска нарисована 1:1, иначе половины перестали бы
+    // совпадать с контуром.
+    final meta = await _storage.createCanvas(
+      _uid,
+      name: choice.picture.title,
+      groupId: _groupId,
+      sheetRatio: 1.0,
+    );
+    if (!mounted) return;
+    await _openCanvas(meta, coloring: choice);
+  }
+
+  Future<void> _openCanvas(CanvasMeta meta, {ColoringChoice? coloring}) async {
     await Navigator.push(
       context,
       MaterialPageRoute(
@@ -142,7 +154,9 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
           canvasName: meta.name,
           pixelW: meta.pixelW,
           pixelH: meta.pixelH,
-          sheetRatio: meta.effectiveRatio,
+          sheetRatio: coloring != null ? 1.0 : meta.effectiveRatio,
+          coloringId: coloring?.picture.id,
+          coloringMode: coloring?.mode,
         ),
         fullscreenDialog: true,
         settings: const RouteSettings(name: '/draw'),
@@ -200,13 +214,12 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
     _load();
   }
 
-  /// Спрашиваем режим: обычный холст или пиксель-арт. Сетка выбирается на
-  /// отдельном экране [PixelSizeScreen] — так же, как в макете.
-  Future<(int, int)?> _askPixelGrid() async {
+  /// Спрашиваем, что заводим: обычный холст, пиксель-арт или раскраску.
+  Future<String?> _askCanvasKind() async {
     final s = LocaleService.current;
     final t = widget.theme;
 
-    final wantPixel = await showModalBottomSheet<bool>(
+    return showModalBottomSheet<String>(
       context: context,
       backgroundColor: t.cardSurface,
       shape: const RoundedRectangleBorder(
@@ -244,7 +257,7 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
                 icon: Icons.brush_rounded,
                 title: s.plainCanvas,
                 subtitle: s.plainCanvasSubtitle,
-                onTap: () => Navigator.pop(ctx, false),
+                onTap: () => Navigator.pop(ctx, 'plain'),
               ),
               const SizedBox(height: 10),
               _modeTile(
@@ -252,7 +265,15 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
                 icon: Icons.grid_on_rounded,
                 title: s.pixelCanvasCreate,
                 subtitle: s.pixelCanvasSubtitle,
-                onTap: () => Navigator.pop(ctx, true),
+                onTap: () => Navigator.pop(ctx, 'pixel'),
+              ),
+              const SizedBox(height: 10),
+              _modeTile(
+                t,
+                icon: Icons.palette_rounded,
+                title: s.coloringTitle,
+                subtitle: s.coloringSubtitle,
+                onTap: () => Navigator.pop(ctx, 'coloring'),
               ),
             ],
           ),
@@ -260,16 +281,16 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
       ),
     );
 
-    if (wantPixel != true || !mounted) return null;
-
-    return Navigator.push<(int, int)>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => PixelSizeScreen(theme: t),
-        settings: const RouteSettings(name: '/pixel_size'),
-      ),
-    );
   }
+
+  /// Сетка пиксельного холста — на своём экране, как в макете.
+  Future<(int, int)?> _askPixelGrid() => Navigator.push<(int, int)>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PixelSizeScreen(theme: widget.theme),
+          settings: const RouteSettings(name: '/pixel_size'),
+        ),
+      );
 
   Widget _modeTile(
     AppTheme t, {
@@ -326,96 +347,18 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
     );
   }
 
+  /// Имя холста спрашиваем нижним листом: диалог по центру не дотянуться
+  /// большим пальцем, а на кнопочной навигации он ещё и лип к панели.
   Future<String?> _showNameDialog({
     required String title,
     required String initial,
-  }) async {
-    final s = LocaleService.current;
-    final t = widget.theme;
-    final controller = TextEditingController(text: initial);
-    controller.selection = TextSelection(
-      baseOffset: 0,
-      extentOffset: initial.length,
-    );
-
-    return showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: t.cardSurface,
-        surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-        titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 10),
-        contentPadding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-        actionsPadding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-        title: Text(
-          title,
-          style: AppFonts.unbounded(
-            size: 21,
-            weight: 700,
-            letterSpacing: -0.4,
-            color: t.textPrimary,
-          ),
-        ),
-        content: Container(
-          decoration: BoxDecoration(
-            color: t.surfaceMuted,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          padding: const EdgeInsets.fromLTRB(18, 10, 18, 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                s.canvasNameLabel,
-                style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w600,
-                  color: t.primary,
-                ),
-              ),
-              TextField(
-                controller: controller,
-                autofocus: true,
-                textCapitalization: TextCapitalization.sentences,
-                style: TextStyle(fontSize: 17, color: t.textPrimary),
-                decoration: const InputDecoration(
-                  isCollapsed: true,
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(vertical: 6),
-                ),
-                onSubmitted: (v) => Navigator.pop(ctx, v),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            style: TextButton.styleFrom(
-              shape: const StadiumBorder(),
-              foregroundColor: t.textSecondary,
-              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-            ),
-            child: Text(s.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, controller.text),
-            style: FilledButton.styleFrom(
-              backgroundColor: t.primary,
-              foregroundColor: _onPrimary(t),
-              shape: const StadiumBorder(),
-              padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 14),
-            ),
-            child: Text(
-              s.done,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  }) =>
+      AppDialog.prompt(
+        context,
+        title: title,
+        label: LocaleService.current.canvasNameLabel,
+        initial: initial,
+      );
 
   // ── Build ────────────────────────────────────────────────────────────────
 
@@ -460,7 +403,7 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
               const SizedBox(height: 16),
               Expanded(
                 child: _loading
-                    ? Center(child: M3LoadingDots(color: t.primaryLight))
+                    ? Center(child: M3Loading(color: t.primaryLight))
                     : _canvases.isEmpty
                         ? _buildEmpty(s, t)
                         : _buildGrid(s, t),

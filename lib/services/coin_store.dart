@@ -26,6 +26,12 @@ const List<CoinPack> kCoinPacks = [
   CoinPack(productId: 'coins_300', coins: 300),
 ];
 
+/// Товар Togetherly+ в магазинах приложений (Google Play — способ покупки
+/// `lifetime`, заведён 26 июля 2026). В отличие от монет это НЕрасходуемая
+/// покупка: купить второй раз нельзя, а восстанавливать доступ не нужно — флаг
+/// живёт на аккаунте в PocketBase и переезжает вместе с ним.
+const String kPlusProductId = 'togetherly_plus';
+
 /// Статус обработки одной покупки.
 enum IapStatus {
   /// Покупка подтверждена и монеты начислены.

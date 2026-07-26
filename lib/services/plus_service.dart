@@ -22,15 +22,16 @@ enum PlusFeature {
 
 /// Доступ к Togetherly+.
 ///
-/// Оплата идёт через lava.top тем же вебхуком, что и покупка монет: совпала
-/// почта — флаг ставится сам, не совпала — бот выдаёт код, и он гасится тем же
-/// роутом, что коды пополнения. Своей платёжной логики в приложении нет.
+/// Флаг `users.plus` серверный и живёт на аккаунте, поэтому куплено где угодно —
+/// действует везде: человек может купить в Play, а пользоваться в сборке с
+/// GitHub, и наоборот.
 ///
-/// Покупка доступна только в сборках, которые ставятся мимо Google Play
-/// (GitHub и RuStore): в Play нельзя проводить оплату цифровых товаров мимо
-/// их биллинга, и такая сборка получила бы бан. В Play-сборке раздел просто не
-/// показывается, а купленный доступ всё равно действует — флаг живёт на
-/// аккаунте, а не в сборке.
+/// Путей оплаты два, и выбор жёстко зависит от сборки:
+/// • GitHub и RuStore — lava.top тем же вебхуком, что и монеты: совпала почта,
+///   флаг ставится сам; не совпала — бот выдаёт код, он гасится [redeem];
+/// • Google Play — только их биллинг, товар `togetherly_plus`. Оплата цифровых
+///   товаров мимо биллинга в Play-сборке = бан, поэтому ссылку на lava.top там
+///   не показываем никогда.
 class PlusService extends ChangeNotifier {
   PlusService._();
   static final PlusService instance = PlusService._();
@@ -48,8 +49,19 @@ class PlusService extends ChangeNotifier {
   /// Куплен ли Togetherly+.
   bool get active => _active;
 
-  /// Можно ли предлагать покупку в этой сборке.
-  static bool get canPurchase => kStore == 'github' || kStore == 'rustore';
+  /// Покупка идёт через биллинг магазина, а не по ссылке на lava.top.
+  ///
+  /// Google Play — товар `togetherly_plus` со способом покупки `lifetime`
+  /// (заведён 26 июля 2026). На iOS остаётся false: продукта в App Store
+  /// Connect нет, а витрина без рабочего продукта уже стоила реджекта 2.1(b)
+  /// на паках монет.
+  static bool get buysInStore =>
+      kStore == 'play' && defaultTargetPlatform != TargetPlatform.iOS;
+
+  /// Можно ли предлагать покупку в этой сборке. GitHub и RuStore ведут на
+  /// lava.top, Play — в свой биллинг (мимо него платить нельзя, забанят).
+  static bool get canPurchase =>
+      kStore == 'github' || kStore == 'rustore' || buysInStore;
 
   /// Открыта ли возможность прямо сейчас.
   bool allows(PlusFeature feature) => _active;

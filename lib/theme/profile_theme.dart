@@ -90,6 +90,23 @@ abstract final class ProfileTheme {
         ),
       ),
       switchTheme: const SwitchThemeData(),
+      // Индикаторы прогресса в облике M3 Expressive: зазор между заполненной
+      // частью и треком, точка-стопер на конце, скруглённые торцы. Флаг
+      // year2023 по умолчанию true, и без него Flutter рисует вид 2023 года —
+      // сплошную полосу без зазора и точки. Требование M3-ДНК, до этого в
+      // приложении не стояло, поэтому все полосы (достижения, уровень,
+      // магазин подарков, каталог виджетов) выглядели устаревшими.
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        // Флаг помечен устаревшим самим Flutter: он существует ради перехода и
+        // однажды станет false по умолчанию. Пока этого не случилось, ставим
+        // руками — иначе полосы рисуются в облике 2023 года.
+        // ignore: deprecated_member_use
+        year2023: false,
+        color: scheme.primary,
+        linearTrackColor: scheme.secondaryContainer,
+        circularTrackColor: scheme.secondaryContainer,
+        stopIndicatorColor: scheme.primary,
+      ),
     );
   }
 

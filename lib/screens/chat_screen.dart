@@ -26,6 +26,7 @@ import '../widgets/common/app_dialog.dart';
 import '../widgets/md_message_text.dart';
 import '../widgets/storage_image.dart';
 import 'memory_lane_screen.dart';
+import '../widgets/common/m3_loading.dart';
 
 /// Цена смены фона чата в монетах (зеркало CONSUMABLE_PRICES на сервере).
 const int _kChatBgPrice = 20;
@@ -135,6 +136,36 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Прикреплённый к набираемому сообщению пин.
   Memory? _attachedPin;
 
+  /// Оформление сообщений живёт дольше экрана: выбранная мордочка, цвета и
+  /// положение лица восстанавливаются при следующем заходе в чат. Раньше всё
+  /// это сбрасывалось на выходе (жалоба от @Vidming).
+  Future<void> _loadChatStyle() async {
+    final style = await _chat.loadStyle(_groupId);
+    if (!mounted || style.isEmpty) return;
+    setState(() {
+      final face = style['face'] as String?;
+      _selectedFace = face == null
+          ? null
+          : _FaceExpr.values.where((f) => f.name == face).firstOrNull;
+      final color = (style['color'] as num?)?.toInt();
+      _selectedColor = color == null ? null : Color(color);
+      final textColor = (style['textColor'] as num?)?.toInt();
+      _selectedTextColor = textColor == null ? null : Color(textColor);
+      _selectedFaceX = (style['fx'] as num?)?.toDouble() ?? _selectedFaceX;
+      _selectedFaceY = (style['fy'] as num?)?.toDouble() ?? _selectedFaceY;
+    });
+  }
+
+  void _saveChatStyle() {
+    unawaited(_chat.saveStyle(_groupId, {
+      'face': _selectedFace?.name,
+      'color': _selectedColor?.toARGB32(),
+      'textColor': _selectedTextColor?.toARGB32(),
+      'fx': _selectedFaceX,
+      'fy': _selectedFaceY,
+    }));
+  }
+
   /// Выбранное отправителем выражение мордочки (липкое между сообщениями;
   /// null — без лица). Ставит автор сам — лицо больше не угадывается по тексту.
   _FaceExpr? _selectedFace = _FaceExpr.happy;
@@ -235,6 +266,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _loadBackground();
     _loadSavedScroll();
     _loadRecentColors();
+    _loadChatStyle();
     _controller.addListener(_onTextChanged);
     _scrollController.addListener(_onScroll);
   }
@@ -752,6 +784,7 @@ class _ChatScreenState extends State<ChatScreen> {
         _selectedFace = result.face;
         _selectedFaceX = result.fx;
         _selectedFaceY = result.fy;
+        _saveChatStyle();
         // Текст из превью — источник истины: что напечатали/правили в листе,
         // то и уходит в композер (двусторонняя синхронизация).
         if (result.text != _controller.text) {
@@ -1574,7 +1607,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
                 if (snap.connectionState == ConnectionState.waiting &&
                     messages.isEmpty) {
-                  return const Center(child: CircularProgressIndicator());
+                  return Center(child: M3Loading(color: _t.primaryLight));
                 }
                 if (messages.isEmpty) {
                   return Center(
@@ -1589,7 +1622,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 // уехали бы на одну сторону. Если PocketBase ещё не отдал
                 // userId (восстановление сессии), ждём, а не рисуем криво.
                 if (_myUid.isEmpty) {
-                  return const Center(child: CircularProgressIndicator());
+                  return Center(child: M3Loading(color: _t.primaryLight));
                 }
 
                 final items = _buildItems(messages);

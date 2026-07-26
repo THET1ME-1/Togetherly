@@ -153,6 +153,26 @@ Future<void> _homeWidgetBackgroundCallback(Uri? uri) async {
     return;
   }
 
+  // Заметка, написанная прямо на рабочем столе. Листик уже показал новый
+  // текст — здесь только отправка партнёру.
+  if (host == 'note') {
+    try {
+      await PocketBaseService().init();
+      if ((PocketBaseService().userId ?? '').isEmpty) return;
+      final groupId = uri.queryParameters['group']?.trim() ??
+          await HomeWidget.getWidgetData<String>('note_latest_group') ??
+          '';
+      if (groupId.isEmpty || groupId == 'solo') return;
+      await HomeWidgetService.instance.saveNoteFromWidget(
+        groupId: groupId,
+        text: uri.queryParameters['text'] ?? '',
+      );
+    } catch (e) {
+      debugPrint('note from widget failed: $e');
+    }
+    return;
+  }
+
   // Тап по кнопке настроения на виджете: отмечаем день, не открывая
   // приложение. Виджет уже подсветил выбор — здесь только запись.
   if (host == 'mood') {

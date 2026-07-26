@@ -95,3 +95,83 @@ routerAdd("POST", "/api/coins/donation-credit", (e) => {
   }
   return e.json(200, { ok: true, credited: coins, uid: user.id });
 });
+
+/// Ручная привязка зависшего доната к аккаунту. Зовёт бот командой `/coins`.
+///
+/// POST /api/coins/donation-bind  body {da_id, email?, uid?, coins?}
+///   → 200 {ok:true, credited:N, uid}   начислено, запись погашена
+///   → 200 {ok:true, already:true}      этот донат уже начислен
+///   → 404 {ok:false, error}            нет такой записи / не нашли аккаунт
+///   → 401                              не суперюзер
+///
+/// Пускаем только суперюзера: бот ходит его токеном (тем же, которым выписывает
+/// коды Togetherly+). Отдельный секрет заводить не стали — лишний секрет в
+/// лишнем месте.
+///
+/// Курс НЕ пересчитываем: монеты уже посчитаны на приёме и лежат в записи
+/// очереди. Для донатов ниже минимума там ноль — тогда сумму задаёт владелец
+/// полем `coins`, иначе начислять было бы нечего.
+///
+/// Идемпотентность общая с автоматическим начислением: ключ — `da_id` в
+/// `donation_grants`. Повторная команда с тем же донатом ничего не добавит.
+routerAdd("POST", "/api/coins/donation-bind", (e) => {
+  const body = e.requestInfo().body || {};
+  const daId = String(body.da_id || "").trim();
+  const email = String(body.email || "").toLowerCase().trim();
+  const uid = String(body.uid || "").trim();
+  const override = Math.floor(Number(body.coins) || 0);
+  if (!daId) return e.json(400, { ok: false, error: "no da_id" });
+
+  // Уже начислен — молча подтверждаем, чтобы повтор команды не пугал ошибкой.
+  try {
+    $app.findFirstRecordByFilter("donation_grants", "da_id = {:d}", { d: daId });
+    return e.json(200, { ok: true, already: true });
+  } catch (_) {}
+
+  let pending = null;
+  try {
+    pending = $app.findFirstRecordByFilter(
+      "pending_donations", "da_id = {:d}", { d: daId });
+  } catch (_) {
+    return e.json(404, { ok: false, error: "no_pending" });
+  }
+
+  let user = null;
+  if (uid) {
+    try { user = $app.findRecordById("users", uid); } catch (_) {}
+  }
+  if (!user && email) {
+    try {
+      user = $app.findFirstRecordByFilter("users", "email = {:e}", { e: email });
+    } catch (_) {}
+  }
+  if (!user) return e.json(404, { ok: false, error: "no_user" });
+
+  const coins = override > 0 ? override : (pending.getInt("coins") || 0);
+  if (coins <= 0) return e.json(400, { ok: false, error: "no_coins" });
+
+  try {
+    $app.runInTransaction((tx) => {
+      const u = tx.findRecordById("users", user.id);
+      u.set("coins", (u.getInt("coins") || 0) + coins);
+      tx.save(u);
+
+      const gcol = tx.findCollectionByNameOrId("donation_grants");
+      const g = new Record(gcol);
+      g.set("da_id", daId);
+      g.set("uid", user.id);
+      g.set("coins", coins);
+      g.set("amount_rub", pending.getInt("amount_rub") || 0);
+      g.set("donor", pending.getString("donor"));
+      tx.save(g);
+
+      const p = tx.findRecordById("pending_donations", pending.id);
+      p.set("status", "bound");
+      p.set("matched_uid", user.id);
+      tx.save(p);
+    });
+  } catch (err) {
+    return e.json(500, { ok: false, error: "save failed" });
+  }
+  return e.json(200, { ok: true, credited: coins, uid: user.id });
+}, $apis.requireSuperuserAuth());

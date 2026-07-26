@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 
 import 'coin_store.dart';
+import 'plus_service.dart';
 
 /// Реализация [CoinStore] для Google Play и App Store (через `in_app_purchase`).
 ///
@@ -81,7 +82,12 @@ class IapService extends CoinStore {
     _loading = true;
     notifyListeners();
     try {
-      final ids = kCoinPacks.map((p) => p.productId).toSet();
+      // Вместе с паками монет спрашиваем и Togetherly+: цена показывается на
+      // экране Plus, а без загруженного ProductDetails покупку не начать.
+      final ids = <String>{
+        ...kCoinPacks.map((p) => p.productId),
+        kPlusProductId,
+      };
       final response = await _iap.queryProductDetails(ids);
       if (response.error != null) {
         debugPrint('IapService: queryProductDetails error: ${response.error}');
@@ -128,10 +134,16 @@ class IapService extends CoinStore {
 
     final param = PurchaseParam(productDetails: pd);
     try {
-      // consumable = true (монеты — расходуемый товар)
-      await _iap.buyConsumable(purchaseParam: param);
+      if (productId == kPlusProductId) {
+        // Togetherly+ покупается один раз навсегда. Через buyConsumable Play
+        // разрешил бы купить его повторно, а деньги ушли бы впустую.
+        await _iap.buyNonConsumable(purchaseParam: param);
+      } else {
+        // consumable = true (монеты — расходуемый товар)
+        await _iap.buyConsumable(purchaseParam: param);
+      }
     } catch (e) {
-      debugPrint('IapService: buyConsumable failed: $e');
+      debugPrint('IapService: buy failed: $e');
       _completeWith(IapResult(IapStatus.error, error: e.toString()));
     }
 
@@ -187,6 +199,13 @@ class IapService extends CoinStore {
       );
 
       if (newBalance != null) {
+        if (productId == kPlusProductId) {
+          // Флаг ставит сервер, приложение его перечитывает: экран Plus и все
+          // проверки доступа завязаны на PlusService, а не на ответ магазина.
+          await PlusService.instance.refresh();
+          _completeWith(const IapResult(IapStatus.success));
+          return;
+        }
         final pack = kCoinPacks.firstWhere(
           (p) => p.productId == productId,
           orElse: () => const CoinPack(productId: '', coins: 0),

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Заметка 2x2. Размеры по формуле 70*n-30 — просить больше нельзя, лончер
+  всё равно даёт ячейку по своей сетке и молча режет содержимое.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/tg_note_2x2"
+    android:previewImage="@drawable/tg_preview_note_2x2"
+    android:description="@string/tg_desc_note_2x2"
+    android:minWidth="110dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="110dp"
+    android:maxResizeWidth="306dp"
+    android:maxResizeHeight="276dp"
+    android:targetCellWidth="2"
+    android:targetCellHeight="2"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen" />

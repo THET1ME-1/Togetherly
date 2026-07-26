@@ -370,9 +370,97 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
   const productId = String(body.productId || "");
   const purchaseToken = String(body.purchaseToken || "");
   const COIN_PACKS = { "coins_10": 10, "coins_50": 50, "coins_120": 120, "coins_300": 300 };
+  const PLUS_PRODUCT = "togetherly_plus";
   const amount = COIN_PACKS[productId];
-  if (!amount) return e.json(400, { ok: false, error: "unknown productId" });
+  if (!amount && productId !== PLUS_PRODUCT) {
+    return e.json(400, { ok: false, error: "unknown productId" });
+  }
   if (!purchaseToken) return e.json(400, { ok: false, error: "purchaseToken required" });
+
+  // ── сверка чека с Google ──────────────────────────────────────────────────
+  //
+  // Без неё purchaseToken можно выдумать и получить монеты или вечный Plus
+  // даром: до этого сервер верил клиенту на слово. Подпись RS256 в JSVM не
+  // сделать, поэтому поход в Play API вынесен в локальную службу
+  // (`tools/play_verify.py`, 127.0.0.1:8097), а сюда приходит только вердикт.
+  //
+  // Три исхода, и обходиться с ними надо по-разному:
+  //   valid=true   — покупка настоящая, начисляем;
+  //   valid=false  — Google такой покупки не знает или она отменена: отказ;
+  //   ok=false     — сверить НЕ ВЫШЛО (служба легла, Google не ответил). Тут
+  //                  начисляем: ломать покупку живому человеку из-за своей же
+  //                  аварии нельзя, а след в журнале останется.
+  //
+  // RuStore проверяем не здесь: у него свой API, и его токен Google отвергнет.
+  // Пока RuStore-сборка не выпущена, ветка нужна на будущее.
+  const store = String(body.store || "").toLowerCase();
+  if (store !== "rustore") {
+    let verdict = { ok: false, reason: "unreachable" };
+    try {
+      const res = $http.send({
+        url: "http://127.0.0.1:8097/verify",
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ productId: productId, purchaseToken: purchaseToken }),
+        timeout: 20,
+      });
+      const parsed = res.json;
+      if (parsed && parsed.ok === true) {
+        verdict = { ok: true, valid: parsed.valid === true, reason: parsed.reason || "" };
+      } else if (parsed && parsed.reason) {
+        verdict = { ok: false, reason: String(parsed.reason) };
+      }
+    } catch (err) {
+      verdict = { ok: false, reason: "send_failed" };
+    }
+
+    if (verdict.ok && !verdict.valid) {
+      try {
+        $app.logger().error("iap: чек не подтверждён",
+          "product", productId, "uid", e.auth.id, "reason", verdict.reason);
+      } catch (_) {}
+      return e.json(403, { ok: false, error: "purchase_not_verified" });
+    }
+    if (!verdict.ok) {
+      try {
+        $app.logger().error("iap: сверка не удалась, начисляю без неё",
+          "product", productId, "uid", e.auth.id, "reason", verdict.reason);
+      } catch (_) {}
+    }
+  }
+
+  // Togetherly+ из Google Play (товар togetherly_plus, способ покупки lifetime).
+  // Монеты не начисляем — ставим флаг доступа, тот же, что даёт lava.top-вебхук
+  // и погашение кода. Идемпотентность общая с монетами: один purchaseToken =
+  // одна запись в iap_purchases, повторный вызов ничего не меняет.
+  if (productId === PLUS_PRODUCT) {
+    let plusOut;
+    try {
+      $app.runInTransaction((txApp) => {
+        const user = txApp.findRecordById("users", e.auth.id);
+        let already = null;
+        try { already = txApp.findRecordById("iap_purchases", purchaseToken); } catch (_) { already = null; }
+        if (already) {
+          plusOut = { s: 200, b: { ok: true, alreadyGranted: true, plus: true, coins: user.getInt("coins") || 0 } };
+          return;
+        }
+        user.set("plus", true);
+        txApp.save(user);
+        const col = txApp.findCollectionByNameOrId("iap_purchases");
+        const rec = new Record(col);
+        rec.set("id", purchaseToken);
+        rec.set("user_uid", e.auth.id);
+        rec.set("product_id", productId);
+        rec.set("amount", 0);
+        rec.set("at", new Date().toISOString());
+        txApp.save(rec);
+        plusOut = { s: 200, b: { ok: true, alreadyGranted: false, plus: true, coins: user.getInt("coins") || 0 } };
+      });
+    } catch (err) {
+      return e.json(500, { ok: false, error: "tx failed" });
+    }
+    return e.json(plusOut.s, plusOut.b);
+  }
   let out;
   try {
     $app.runInTransaction((txApp) => {

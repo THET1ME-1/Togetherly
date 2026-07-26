@@ -338,6 +338,10 @@ abstract class AppStrings {
   String get gender;
   String get male;
   String get female;
+  String get genderPreferNotSay;
+  String get genderCustom;
+  String get genderCustomHint;
+  String get genderNotSet;
   String get information;
   String get theme;
   String get relationships;
@@ -1056,6 +1060,10 @@ abstract class AppStrings {
   /// Виджет «Вместе» из нового каталога.
   String get tgTogetherTitle;
   String get tgTogetherSubtitle;
+  String get tgNoteTitle;
+  String get tgNoteSubtitle;
+  String get tgNotePaperTitle;
+  String get tgNotePaperSubtitle;
   String get tgMissTitle;
   String get tgMissSubtitle;
   /// Выбор размера в карточке каталога и подписи внутри превью.
@@ -1149,6 +1157,15 @@ abstract class AppStrings {
   List<String> get cycleWeekdayShorts;
   List<String> get cycleMonthNames;
   List<String> get cycleMonthsGenitive;
+  /// Лист дня в календаре: что отмечаем на этот день.
+  String dayLogDate(DateTime day);
+  String dayLogWeekday(DateTime day);
+  String get dayLogWhat;
+  String get dayLogNotMarked;
+  String get dayLogTodayOnly;
+  String get cycleSheetHint;
+  String cyclePeriodDayLabel(int day);
+  String get cycleSexMarked;
   /// Рисование: слои и фоны листа.
   String get drawLayers;
   String get drawLayerAdd;
@@ -1183,6 +1200,25 @@ abstract class AppStrings {
   String get plusHowItWorks;
   String get plusPortableNote;
   String get plusUnavailableHere;
+  String get plusStoreUnavailable;
+  String memoryFileTooBig(int limitMb);
+  String get statsTitle;
+  String get statsDaysTogether;
+  String get statsMemories;
+  String get statsDrawings;
+  String get statsStreak;
+  String get statsXp;
+  String get statsMoodMonth;
+  String get statsMoodMine;
+  String get statsMoodPartner;
+  String statsMoodMarks(int n);
+  String get statsTipsTitle;
+  String get statsEntryTitle;
+  String get statsEntrySubtitle;
+  String memoryFileTooBigPlusHint(int limitMb);
+  String get plusPurchased;
+  String get plusPurchasePending;
+  String get plusPurchaseFailed;
   String get plusCodeHint;
   String get plusCodeApply;
   String get plusCodeOk;
@@ -1349,7 +1385,33 @@ abstract class AppStrings {
   String get underlayLabel;
   String get drawHintEdit;
   String get drawHintDraw;
+  /// Раскраска вдвоём.
+  String get coloringTitle;
+  String get coloringSubtitle;
+  String get coloringModeSurprise;
+  String get coloringModeTogether;
+  String get coloringModeSurpriseHint;
+  String get coloringModeTogetherHint;
+  String get coloringOtherHalf;
+  String get coloringMyHalf;
+  String get coloringPartnerHalfHidden;
+  String coloringPartnerColoring(String name);
+  String get coloringDoneBtn;
+  String get coloringNotDoneBtn;
+  String get coloringWaitingTitle;
+  String coloringWaitingHint(String name);
+  String get coloringRevealTitle;
+  String get coloringShare;
+  String get coloringSave;
+  String get coloringToMemories;
+  String get coloringSaved;
+  String get coloringNew;
   String get colorLabel;
+  /// Колор-пикер рисования.
+  String get eyedropper;
+  String get eyedropperHint;
+  String get recentColors;
+  String get customColor;
   String get hueLabel;
   String get saturationLabel;
   String get brightnessLabel;
@@ -2118,6 +2180,14 @@ class _RuStrings extends AppStrings {
   String get male => 'Мужской';
   @override
   String get female => 'Женский';
+  @override
+  String get genderPreferNotSay => 'Не хочу указывать';
+  @override
+  String get genderCustom => 'Свой пол';
+  @override
+  String get genderCustomHint => 'Укажите свой пол';
+  @override
+  String get genderNotSet => 'Не указан';
   @override
   String get information => 'ИНФОРМАЦИЯ';
   @override
@@ -3638,6 +3708,14 @@ class _RuStrings extends AppStrings {
   @override
   String get tgTogetherSubtitle => 'Дни вместе и ближайшая круглая дата';
   @override
+  String get tgNoteTitle => 'Заметка';
+  @override
+  String get tgNoteSubtitle => 'Общий листик: пишет один — видит второй';
+  @override
+  String get tgNotePaperTitle => 'Заметка · стикер';
+  @override
+  String get tgNotePaperSubtitle => 'Тот же листик, но бумажный и всегда жёлтый';
+  @override
   String get tgMissTitle => 'Скучаю';
   @override
   String get tgMissSubtitle => 'Тап с рабочего стола — партнёр сразу узнает';
@@ -3773,11 +3851,11 @@ class _RuStrings extends AppStrings {
   String get cycleIrregularWarning =>
       'Цикл нерегулярный, прогноз приблизительный';
   @override
-  String get cycleMarkPeriod => 'Месячные';
+  String get cycleMarkPeriod => 'Менструация';
   @override
   String get cycleMarkPeriodHint => 'этот день войдёт в расчёт цикла';
   @override
-  String get cycleMarkIntimacy => 'Близость';
+  String get cycleMarkIntimacy => 'Секс';
   @override
   String get cycleMarkIntimacyHint => 'видно обоим, на прогноз не влияет';
   @override
@@ -3821,7 +3899,7 @@ class _RuStrings extends AppStrings {
   @override
   String get cycleLegendFertile => 'фертильные дни';
   @override
-  String get cycleLegendIntimacy => 'близость';
+  String get cycleLegendIntimacy => 'секс';
   @override
   List<String> get cycleWeekdayShorts =>
       const ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
@@ -3835,6 +3913,26 @@ class _RuStrings extends AppStrings {
         'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
         'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
       ];
+  @override
+  String dayLogDate(DateTime day) =>
+      '${day.day} ${cycleMonthsGenitive[day.month - 1]}';
+  @override
+  String dayLogWeekday(DateTime day) => const [
+        'понедельник', 'вторник', 'среда', 'четверг',
+        'пятница', 'суббота', 'воскресенье',
+      ][day.weekday - 1];
+  @override
+  String get dayLogWhat => 'что отметим?';
+  @override
+  String get dayLogNotMarked => 'не отмечено';
+  @override
+  String get dayLogTodayOnly => 'только за сегодня';
+  @override
+  String get cycleSheetHint => 'отметка сохранится сразу';
+  @override
+  String cyclePeriodDayLabel(int day) => 'месячные, $day-й день';
+  @override
+  String get cycleSexMarked => 'секс отмечен';
   @override
   String get drawLayers => 'Слои';
   @override
@@ -3927,6 +4025,48 @@ class _RuStrings extends AppStrings {
   String get plusUnavailableHere =>
       'В этой версии покупка недоступна. Купленный доступ работает — войдите '
       'под своей почтой.';
+  @override
+  String get plusStoreUnavailable =>
+      'Магазин сейчас недоступен. Попробуйте позже.';
+  @override
+  String memoryFileTooBig(int limitMb) =>
+      'Файл тяжелее $limitMb МБ — такой не загрузится';
+  @override
+  String get statsTitle => 'Статистика пары';
+  @override
+  String get statsDaysTogether => 'дней вместе';
+  @override
+  String get statsMemories => 'воспоминаний';
+  @override
+  String get statsDrawings => 'рисунков';
+  @override
+  String get statsStreak => 'дней подряд';
+  @override
+  String get statsXp => 'опыта пары';
+  @override
+  String get statsMoodMonth => 'Настроение за месяц';
+  @override
+  String get statsMoodMine => 'Ваше';
+  @override
+  String get statsMoodPartner => 'Партнёра';
+  @override
+  String statsMoodMarks(int n) => 'Отметок за 30 дней: $n';
+  @override
+  String get statsTipsTitle => 'Что сделать сегодня';
+  @override
+  String get statsEntryTitle => 'Статистика пары';
+  @override
+  String get statsEntrySubtitle => 'Цифры, настроение и советы';
+  @override
+  String memoryFileTooBigPlusHint(int limitMb) =>
+      'Файл тяжелее $limitMb МБ. С Togetherly+ потолок вдвое выше';
+  @override
+  String get plusPurchased => 'Togetherly+ открыт';
+  @override
+  String get plusPurchasePending =>
+      'Платёж обрабатывается — доступ откроется сам.';
+  @override
+  String get plusPurchaseFailed => 'Покупка не прошла';
   @override
   String get plusCodeHint =>
       'Код из письма или от бота. Регистр и дефисы не важны.';
@@ -4313,6 +4453,57 @@ class _RuStrings extends AppStrings {
       'Два пальца быстро — отменить  •  Двойной тап — сбросить вид';
   @override
   String get colorLabel => 'Цвет';
+  @override
+  String get coloringTitle => 'Раскраска вдвоём';
+  @override
+  String get coloringSubtitle => 'Каждому — своя половина';
+  @override
+  String get coloringModeSurprise => 'Сюрприз';
+  @override
+  String get coloringModeTogether => 'Вместе';
+  @override
+  String get coloringModeSurpriseHint =>
+      'Половина партнёра откроется, когда оба нажмут «Готово»';
+  @override
+  String get coloringModeTogetherHint =>
+      'Видно, как партнёр красит свою половину';
+  @override
+  String get coloringOtherHalf => 'Это половина партнёра — её красит он';
+  @override
+  String get coloringMyHalf => 'твоя половина';
+  @override
+  String get coloringPartnerHalfHidden => 'Половина партнёра\nоткроется в конце';
+  @override
+  String coloringPartnerColoring(String name) => '$name красит';
+  @override
+  String get coloringDoneBtn => 'Готово';
+  @override
+  String get coloringNotDoneBtn => 'Вернуться и доделать';
+  @override
+  String get coloringWaitingTitle => 'Ты закончил(а)';
+  @override
+  String coloringWaitingHint(String name) =>
+      'откроем, как только $name нажмёт «Готово»';
+  @override
+  String get coloringRevealTitle => 'Готово вдвоём';
+  @override
+  String get coloringShare => 'Поделиться';
+  @override
+  String get coloringSave => 'Сохранить';
+  @override
+  String get coloringToMemories => 'В воспоминания';
+  @override
+  String get coloringSaved => 'Рисунок сохранён в галерею';
+  @override
+  String get coloringNew => 'Раскраска';
+  @override
+  String get eyedropper => 'Пипетка';
+  @override
+  String get eyedropperHint => 'Коснитесь рисунка — возьмём цвет';
+  @override
+  String get recentColors => 'Недавние';
+  @override
+  String get customColor => 'Свой цвет';
   @override
   String get hueLabel => 'Оттенок';
   @override
@@ -5281,6 +5472,14 @@ class _EnStrings extends AppStrings {
   String get male => 'Male';
   @override
   String get female => 'Female';
+  @override
+  String get genderPreferNotSay => 'Prefer not to say';
+  @override
+  String get genderCustom => 'Custom';
+  @override
+  String get genderCustomHint => 'Enter your gender';
+  @override
+  String get genderNotSet => 'Not set';
   @override
   String get information => 'INFORMATION';
   @override
@@ -6775,6 +6974,14 @@ class _EnStrings extends AppStrings {
   @override
   String get tgTogetherSubtitle => 'Days together and the next milestone';
   @override
+  String get tgNoteTitle => 'Note';
+  @override
+  String get tgNoteSubtitle => 'A shared sheet: one writes, the other sees it';
+  @override
+  String get tgNotePaperTitle => 'Note · sticker';
+  @override
+  String get tgNotePaperSubtitle => 'The same sheet, but paper and always yellow';
+  @override
   String get tgMissTitle => 'Miss you';
   @override
   String get tgMissSubtitle => 'One tap from the home screen';
@@ -6909,7 +7116,7 @@ class _EnStrings extends AppStrings {
   @override
   String get cycleMarkPeriodHint => 'this day counts towards the cycle';
   @override
-  String get cycleMarkIntimacy => 'Intimacy';
+  String get cycleMarkIntimacy => 'Sex';
   @override
   String get cycleMarkIntimacyHint => 'visible to both, no effect on forecast';
   @override
@@ -6966,6 +7173,26 @@ class _EnStrings extends AppStrings {
         'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
       ];
+  @override
+  String dayLogDate(DateTime day) =>
+      '${cycleMonthsGenitive[day.month - 1]} ${day.day}';
+  @override
+  String dayLogWeekday(DateTime day) => const [
+        'Monday', 'Tuesday', 'Wednesday', 'Thursday',
+        'Friday', 'Saturday', 'Sunday',
+      ][day.weekday - 1];
+  @override
+  String get dayLogWhat => 'what to log?';
+  @override
+  String get dayLogNotMarked => 'not logged';
+  @override
+  String get dayLogTodayOnly => 'today only';
+  @override
+  String get cycleSheetHint => 'saved as soon as you tap';
+  @override
+  String cyclePeriodDayLabel(int day) => 'period, day $day';
+  @override
+  String get cycleSexMarked => 'sex logged';
   @override
   String get drawLayers => 'Layers';
   @override
@@ -7056,6 +7283,47 @@ class _EnStrings extends AppStrings {
   String get plusUnavailableHere =>
       'Purchase is unavailable in this build. Access bought elsewhere still '
       'works — just sign in.';
+  @override
+  String get plusStoreUnavailable => 'The store is unavailable. Try later.';
+  @override
+  String memoryFileTooBig(int limitMb) =>
+      'The file is over $limitMb MB — it will not upload';
+  @override
+  String get statsTitle => 'Couple stats';
+  @override
+  String get statsDaysTogether => 'days together';
+  @override
+  String get statsMemories => 'memories';
+  @override
+  String get statsDrawings => 'drawings';
+  @override
+  String get statsStreak => 'days in a row';
+  @override
+  String get statsXp => 'couple XP';
+  @override
+  String get statsMoodMonth => 'Mood over the month';
+  @override
+  String get statsMoodMine => 'Yours';
+  @override
+  String get statsMoodPartner => "Partner's";
+  @override
+  String statsMoodMarks(int n) => 'Marks in 30 days: $n';
+  @override
+  String get statsTipsTitle => 'What to do today';
+  @override
+  String get statsEntryTitle => 'Couple stats';
+  @override
+  String get statsEntrySubtitle => 'Numbers, mood and tips';
+  @override
+  String memoryFileTooBigPlusHint(int limitMb) =>
+      'The file is over $limitMb MB. Togetherly+ doubles the cap';
+  @override
+  String get plusPurchased => 'Togetherly+ is unlocked';
+  @override
+  String get plusPurchasePending =>
+      'The payment is processing — access will open by itself.';
+  @override
+  String get plusPurchaseFailed => "The purchase didn't go through";
   @override
   String get plusCodeHint => 'The code from the email or the bot.';
   @override
@@ -7423,6 +7691,58 @@ class _EnStrings extends AppStrings {
       'Two fingers quickly — undo  •  Double tap — reset view';
   @override
   String get colorLabel => 'Color';
+  @override
+  String get coloringTitle => 'Colour it together';
+  @override
+  String get coloringSubtitle => 'One half each';
+  @override
+  String get coloringModeSurprise => 'Surprise';
+  @override
+  String get coloringModeTogether => 'Together';
+  @override
+  String get coloringModeSurpriseHint =>
+      'Your partner\u2019s half opens once you both tap Done';
+  @override
+  String get coloringModeTogetherHint =>
+      'You see your partner colouring their half';
+  @override
+  String get coloringOtherHalf => 'This half belongs to your partner';
+  @override
+  String get coloringMyHalf => 'your half';
+  @override
+  String get coloringPartnerHalfHidden =>
+      'Partner\u2019s half\nopens at the end';
+  @override
+  String coloringPartnerColoring(String name) => '$name is colouring';
+  @override
+  String get coloringDoneBtn => 'Done';
+  @override
+  String get coloringNotDoneBtn => 'Back to colouring';
+  @override
+  String get coloringWaitingTitle => 'You are done';
+  @override
+  String coloringWaitingHint(String name) =>
+      'we will open it as soon as $name taps Done';
+  @override
+  String get coloringRevealTitle => 'Done together';
+  @override
+  String get coloringShare => 'Share';
+  @override
+  String get coloringSave => 'Save';
+  @override
+  String get coloringToMemories => 'To memories';
+  @override
+  String get coloringSaved => 'Saved to your gallery';
+  @override
+  String get coloringNew => 'Colouring';
+  @override
+  String get eyedropper => 'Eyedropper';
+  @override
+  String get eyedropperHint => 'Tap the drawing to pick a colour';
+  @override
+  String get recentColors => 'Recent';
+  @override
+  String get customColor => 'Custom colour';
   @override
   String get hueLabel => 'Hue';
   @override

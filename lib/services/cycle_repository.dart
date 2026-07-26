@@ -7,6 +7,7 @@ import 'offline/local_store.dart';
 import 'offline/outbox_service.dart';
 import 'offline/pb_id.dart';
 import 'pb_data_service.dart';
+import 'pb_realtime_service.dart';
 import 'pocketbase_service.dart';
 
 /// Отметки календаря цикла.
@@ -27,8 +28,17 @@ class CycleRepository {
   static const String _collection = 'cycle_entries';
 
   final PbDataService _data = PbDataService();
+  final PbRealtimeService _rt = PbRealtimeService();
 
   String? get _uid => PocketBaseService().userId;
+
+  /// Живой список отметок [uid]: кэш + дельты Centrifugo. Отметка, поставленная
+  /// на втором устройстве или партнёршей, доезжает сама — без перезахода на
+  /// экран.
+  Stream<List<CycleEntry>> watch(String groupId, String uid) =>
+      _rt.watchCycle(groupId, uid).map(
+            (recs) => recs.map(CycleEntry.fromPb).toList(),
+          );
 
   /// Отметки [uid] в группе. Свои — все; партнёрские сервер отдаст только те,
   /// что разрешено показывать.

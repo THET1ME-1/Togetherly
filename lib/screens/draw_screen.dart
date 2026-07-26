@@ -7,8 +7,15 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import '../models/coloring_picture.dart';
+import 'coloring_result_screen.dart';
+import '../services/memory_repository.dart';
+import '../models/memory.dart';
 import '../utils/flood_fill.dart';
+import '../widgets/color_picker_sheet.dart';
+import '../utils/color_hex.dart';
 import '../widgets/app_sheet.dart';
 import '../utils/safe_pick.dart';
 import '../utils/safe_text.dart';
@@ -27,6 +34,10 @@ import '../services/media_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/storage_image.dart';
+import '../widgets/common/app_dialog.dart';
+import '../services/plus_access.dart';
+import '../services/plus_service.dart';
+import 'plus_screen.dart';
 
 
 //  Palette
@@ -82,6 +93,16 @@ class DrawScreen extends StatefulWidget {
   /// всю область, иначе штрихи, сохранённые в долях старого холста, сплющило бы.
   final double? sheetRatio;
 
+  /// Режим раскраски, выбранный при создании: сюрприз или вместе.
+  final ColoringMode? coloringMode;
+
+  /// Раскраска вдвоём: id картинки из каталога. null — обычный холст.
+  ///
+  /// В этом режиме контур лежит ПОВЕРХ мазков (закрасить рисунок нельзя), лист
+  /// делится пополам вертикальной линией, и каждый работает только в своей
+  /// половине. Инструменты все те же — кисть, фигуры, заливка, стёрка.
+  final String? coloringId;
+
   const DrawScreen({
     super.key,
     required this.userData,
@@ -92,6 +113,8 @@ class DrawScreen extends StatefulWidget {
     this.pixelW,
     this.pixelH,
     this.sheetRatio,
+    this.coloringId,
+    this.coloringMode,
   });
 
   @override
@@ -118,8 +141,13 @@ class _DrawScreenState extends State<DrawScreen>
 
   /// Пропорция листа: у пиксельного её задаёт сетка, у нового обычного —
   /// сохранённая при создании. null — старый холст без листа.
-  double? get _sheetRatio =>
-      _isPixel ? _pxCols / _pxRows : widget.sheetRatio;
+  double? get _sheetRatio {
+    // Раскраска нарисована 1:1: если взять сохранённое соотношение, контур
+    // сплющит, а половины перестанут совпадать с линией на картинке. Мета
+    // холста соотношение к тому же теряет — в каталог оно не синхронизируется.
+    if (_isColoring) return 1.0;
+    return _isPixel ? _pxCols / _pxRows : widget.sheetRatio;
+  }
 
   /// Старые холсты живут по-прежнему: лист во всю свободную область.
   bool get _hasSheet => _sheetRatio != null;
@@ -177,6 +205,73 @@ class _DrawScreenState extends State<DrawScreen>
   Color _activeColor = const Color(0xFF000000);
   double _strokeWidth = 5.0;
   Color _bgColor = Colors.white;
+
+  // ── Раскраска вдвоём ────────────────────────────────────────────────────
+  //
+  // Контур лежит поверх мазков, поэтому его нельзя закрасить; лист поделён
+  // пополам, и каждый пишет только в своей половине. Половина определяется по
+  // uid: у кого он меньше по алфавиту — левая. Так обе стороны считают
+  // одинаково, без переговоров.
+
+  /// Картинка раскраски. null — обычный холст.
+  ColoringPicture? get _coloring => ColoringPicture.byId(_coloringId);
+
+  /// id картинки: из параметра экрана или из меты холста (её мог завести
+  /// партнёр — тогда раскраска приезжает сама).
+  String? _coloringId;
+
+  ColoringMode _coloringMode = ColoringMode.surprise;
+
+  /// Кто уже нажал «Готово»: uid → true.
+  Map<String, bool> _coloringDone = const {};
+
+  /// Загруженный контур — им же рисуется вуаль поверх чужой половины.
+  ui.Image? _coloringOutline;
+
+  bool get _isColoring => _coloring != null;
+
+  /// Моя половина листа.
+  ColoringSide get _mySide =>
+      coloringSideFor(_myUid, widget.pairData.partnerUid);
+
+  bool get _iAmDone => _coloringDone[_myUid] == true;
+
+  bool get _partnerIsDone {
+    final partner = widget.pairData.partnerUid;
+    return partner.isNotEmpty && _coloringDone[partner] == true;
+  }
+
+  /// Рисунок открыт целиком: оба закончили — или партнёра нет вовсе.
+  bool get _coloringRevealed =>
+      _coloringMode == ColoringMode.together ||
+      widget.pairData.partnerUid.isEmpty ||
+      (_iAmDone && _partnerIsDone);
+
+  /// Локальные файлы картинок-штрихов: id → путь. Держим, чтобы после
+  /// загрузки на сервер продолжать показывать уже готовый файл — иначе штрих
+  /// перерисовывается сетевой картинкой и на кадр пропадает.
+  final Map<String, String> _localImagePaths = {};
+
+  /// Недавно выбранные цвета — общий список с остальными экранами рисования.
+  List<Color> _recentColors = const [];
+
+  // ── Пипетка ─────────────────────────────────────────────────────────────
+  //
+  // Снимок холста делается ОДИН раз при включении режима, дальше цвет читается
+  // из уже снятых байтов. Снимать на каждое движение пальца нельзя: `toImage`
+  // стоит кадра, и лупа плелась бы за пальцем.
+
+  /// Режим взятия цвета включён — следующее касание холста берёт пиксель.
+  bool _eyedropperArmed = false;
+
+  /// Сырые пиксели снимка (RGBA) и его размер.
+  ByteData? _eyedropperPixels;
+  int _eyedropperWidth = 0;
+  int _eyedropperHeight = 0;
+
+  /// Где сейчас палец и какой под ним цвет — для лупы.
+  Offset? _eyedropperPoint;
+  Color? _eyedropperColor;
 
   /// Текстура листа. Хранится вместе с рисунком, а не в настройках: у каждого
   /// холста своя бумага.
@@ -290,6 +385,16 @@ class _DrawScreenState extends State<DrawScreen>
         : const Color(0xFF000000);
     unawaited(_loadPixelGridPref());
     unawaited(_restoreBackground());
+    unawaited(_reloadRecentColors());
+
+    // Раскраска: параметры пришли с экрана выбора — сразу заводим её на холсте,
+    // чтобы партнёр увидел ту же картинку и тот же режим.
+    if (widget.coloringId != null) {
+      _coloringId = widget.coloringId;
+      _coloringMode = widget.coloringMode ?? ColoringMode.surprise;
+      unawaited(_loadColoringOutline());
+      unawaited(_startColoring(_coloringId!, _coloringMode));
+    }
     _currentColorValue = _activeColor.toARGB32();
 
     _toolbarAnim = AnimationController(
@@ -562,7 +667,36 @@ class _DrawScreenState extends State<DrawScreen>
       }
     }
 
-    if (version != null || rotationChanged || bgChanged) {
+    // Раскраска приезжает метой: партнёр мог завести её первым.
+    var coloringChanged = false;
+    final remoteColoring = meta.coloringId;
+    if (remoteColoring != null &&
+        remoteColoring.isNotEmpty &&
+        remoteColoring != _coloringId) {
+      _coloringId = remoteColoring;
+      coloringChanged = true;
+      unawaited(_loadColoringOutline());
+    }
+    final remoteMode = meta.coloringMode;
+    if (remoteMode != null && remoteMode.isNotEmpty) {
+      final next = ColoringMode.fromStorage(remoteMode);
+      if (next != _coloringMode) {
+        _coloringMode = next;
+        coloringChanged = true;
+      }
+    }
+    final done = meta.coloringDone;
+    if (done != null) {
+      final next = <String, bool>{
+        for (final e in done.entries) e.key: e.value == true,
+      };
+      if (next.toString() != _coloringDone.toString()) {
+        _coloringDone = next;
+        coloringChanged = true;
+      }
+    }
+
+    if (version != null || rotationChanged || bgChanged || coloringChanged) {
       setState(() {});
     }
   }
@@ -708,6 +842,7 @@ class _DrawScreenState extends State<DrawScreen>
   //  Tool selection
 
   void _selectTool(DrawTool tool) {
+    _disarmEyedropper();
     _cancelCurrentGesture();
     setState(() {
       _activeTool = tool;
@@ -732,6 +867,13 @@ class _DrawScreenState extends State<DrawScreen>
 
   void _startStroke(Offset localPoint) {
     if (_canvasSize.isEmpty) return;
+
+    // Раскраска: чужая половина не принимает касаний ни в каком режиме — даже
+    // когда её видно. Каждый отвечает за свою.
+    if (_isColoring && !_inMySide(_screenToCanvas(localPoint))) {
+      _showHalfHint();
+      return;
+    }
 
     if (_activeTool == DrawTool.fill) {
       _applyFill(localPoint);
@@ -784,6 +926,7 @@ class _DrawScreenState extends State<DrawScreen>
 
   void _updateStroke(Offset localPoint) {
     if (!_isDrawing || _canvasSize.isEmpty) return;
+    if (_isColoring) localPoint = _clampToMySide(localPoint);
     if (_currentShapeType != null) {
       final end = DrawPoint.fromOffset(
         _screenToCanvas(localPoint),
@@ -873,6 +1016,13 @@ class _DrawScreenState extends State<DrawScreen>
   }
 
   void _onPointerDown(PointerDownEvent event) {
+    // Пипетка перехватывает касание целиком: рисовать в этом режиме нельзя,
+    // палец только выбирает цвет.
+    if (_eyedropperArmed) {
+      _trackEyedropper(event.localPosition);
+      return;
+    }
+
     // ���� ����� ����� �������� � Set ��� �������� �������, ��
     // ����� ����� �������� � ��� ������� ������������ PointerUp
     // (�����������, ������). ������� ��������� �����.
@@ -926,6 +1076,10 @@ class _DrawScreenState extends State<DrawScreen>
   }
 
   void _onPointerMove(PointerMoveEvent event) {
+    if (_eyedropperArmed) {
+      _trackEyedropper(event.localPosition);
+      return;
+    }
     if (_isZooming || _activePointers.length != 1) return;
 
     // Palm tool
@@ -954,6 +1108,11 @@ class _DrawScreenState extends State<DrawScreen>
   }
 
   void _onPointerUp(PointerEvent event) {
+    if (_eyedropperArmed) {
+      _activePointers.remove(event.pointer);
+      _finishEyedropper();
+      return;
+    }
     final wasDrawing = _drawingPointerId == event.pointer;
     _activePointers.remove(event.pointer);
 
@@ -975,6 +1134,7 @@ class _DrawScreenState extends State<DrawScreen>
   }
 
   void _onScaleStart(ScaleStartDetails details) {
+    if (_eyedropperArmed) return;
     if (details.pointerCount < 2) return;
     _isZooming = true;
     _rotationUnlocked = false;
@@ -997,6 +1157,7 @@ class _DrawScreenState extends State<DrawScreen>
   }
 
   void _onScaleUpdate(ScaleUpdateDetails details) {
+    if (_eyedropperArmed) return;
     if (!_isZooming && details.pointerCount < 2) return;
     _isZooming = true;
 
@@ -1247,6 +1408,7 @@ class _DrawScreenState extends State<DrawScreen>
   }
 
   Future<void> _uploadImageAsync(String localStrokeId, String localPath) async {
+    _localImagePaths[localStrokeId] = localPath;
     final ext = localPath.split('.').last.toLowerCase();
     final dest = 'canvas/$_groupId/$_canvasId/$localStrokeId.$ext';
     final url = await _fb.uploadFile(localPath, dest);
@@ -1607,13 +1769,27 @@ class _DrawScreenState extends State<DrawScreen>
         startY: sy,
         fillColor: _activeColor.toARGB32(),
       );
+      final full = Size(snapshot.width.toDouble(), snapshot.height.toDouble());
       snapshot.dispose();
 
       if (filled == null) return;
 
-      final png = await filled.toByteData(format: ui.ImageByteFormat.png);
-      filled.dispose();
+      // Обрезаем прозрачные поля: слой во весь холст весил как целый рисунок и
+      // ложился в хранилище отдельным файлом на каждую заливку.
+      final bounds = await FloodFill.opaqueBounds(filled);
+      final cropped = bounds == null ? filled : await _cropImage(filled, bounds);
+      if (!identical(cropped, filled)) filled.dispose();
+
+      final png = await cropped.toByteData(format: ui.ImageByteFormat.png);
+      cropped.dispose();
       if (png == null || !mounted) return;
+
+      // Куда лечь обрезанному пятну: те же доли холста, что занимала область.
+      final rect = bounds ?? Rect.fromLTWH(0, 0, full.width, full.height);
+      final fx = (rect.left + rect.width / 2) / full.width;
+      final fy = (rect.top + rect.height / 2) / full.height;
+      final fw = rect.width / full.width;
+      final fh = rect.height / full.height;
 
       final dir = await getTemporaryDirectory();
       final file = File(
@@ -1631,12 +1807,10 @@ class _DrawScreenState extends State<DrawScreen>
         orderIndex: _orderCounter,
         layer: _activeLayer,
         imageUrl: 'file://${file.path}',
-        // Пятно занимает весь холст: закрашена в нём только найденная область,
-        // остальное прозрачно.
-        imageX: 0.5,
-        imageY: 0.5,
-        imageWidth: 1.0,
-        imageHeight: 1.0,
+        imageX: fx,
+        imageY: fy,
+        imageWidth: fw,
+        imageHeight: fh,
         imageRotation: 0.0,
       );
       _orderCounter++;
@@ -1664,27 +1838,16 @@ class _DrawScreenState extends State<DrawScreen>
 
   Future<void> _confirmClear() async {
     final s = LocaleService.current;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(s.clearCanvas),
-        content: Text(s.clearCanvasConfirm),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(s.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
-            child: Text(s.clearCanvas),
-          ),
-        ],
-      ),
+    final confirmed = await AppDialog.confirm(
+      context,
+      title: s.clearCanvas,
+      message: s.clearCanvasConfirm,
+      confirmLabel: s.clearCanvas,
+      destructive: true,
+      icon: Icons.cleaning_services_rounded,
     );
 
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
 
     final prevVisible = List<DrawStroke>.from(_visibleStrokes);
     final prevRemote = List<DrawStroke>.from(_remoteStrokes);
@@ -1886,99 +2049,408 @@ class _DrawScreenState extends State<DrawScreen>
     );
   }
 
+  /// Лист палитры: готовые цвета, недавние и вход в полный пикер.
   void _showColorPicker() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: widget.theme.cardSurface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: widget.theme.divider,
-                    borderRadius: BorderRadius.circular(4),
+    final s = LocaleService.current;
+    showAppSheet<void>(
+      context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => SheetScaffold(
+          title: s.colorLabel,
+          action: IconButton(
+            tooltip: s.customColor,
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _openFullColorPicker();
+            },
+            icon: const Icon(Icons.tune_rounded, size: 22),
+          ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 10,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
                   ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                LocaleService.current.brush,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 16),
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 10,
-                  crossAxisSpacing: 8,
-                  mainAxisSpacing: 8,
-                ),
-                itemCount: _kPalette.length,
-                itemBuilder: (_, i) {
-                  final c = _kPalette[i];
-                  final sel = c.toARGB32() == _activeColor.toARGB32();
-                  return GestureDetector(
+                  itemCount: _kPalette.length,
+                  itemBuilder: (_, i) => _paletteDot(
+                    _kPalette[i],
                     onTap: () {
-                      setState(() {
-                        _activeColor = c;
-                        _currentColorValue = c.toARGB32();
-                      });
+                      _applyPickedColor(_kPalette[i]);
                       Navigator.pop(ctx);
                     },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      decoration: BoxDecoration(
-                        color: c,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: sel
-                              ? widget.theme.primary
-                              : (c == Colors.white
-                                    ? Colors.grey.shade300
-                                    : Colors.transparent),
-                          width: sel ? 3 : 1.5,
-                        ),
-                        boxShadow: sel
-                            ? [
-                                BoxShadow(
-                                  color: c.withValues(alpha: 0.5),
-                                  blurRadius: 8,
-                                ),
-                              ]
-                            : null,
-                      ),
-                      child: sel
-                          ? Icon(
-                              Icons.check_rounded,
-                              color: c == Colors.white
-                                  ? Colors.black
-                                  : Colors.white,
-                              size: 16,
-                            )
-                          : null,
+                  ),
+                ),
+                if (_recentColors.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  Text(
+                    s.recentColors,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: widget.theme.textMuted,
                     ),
-                  );
-                },
-              ),
-            ],
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 36,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _recentColors.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 8),
+                      itemBuilder: (_, i) => SizedBox(
+                        width: 36,
+                        child: _paletteDot(
+                          _recentColors[i],
+                          onTap: () {
+                            _applyPickedColor(_recentColors[i]);
+                            Navigator.pop(ctx);
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.tonalIcon(
+                        onPressed: () async {
+                          Navigator.pop(ctx);
+                          await _openFullColorPicker();
+                        },
+                        icon: const Icon(Icons.palette_rounded, size: 20),
+                        label: Text(s.customColor),
+                        style: FilledButton.styleFrom(
+                          shape: const StadiumBorder(),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    IconButton.filledTonal(
+                      tooltip: s.eyedropper,
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _armEyedropper();
+                      },
+                      icon: const Icon(Icons.colorize_rounded, size: 22),
+                      style: IconButton.styleFrom(
+                        minimumSize: const Size(52, 52),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
+  }
+
+  Widget _paletteDot(Color c, {required VoidCallback onTap}) {
+    final sel = c.toARGB32() == _activeColor.toARGB32();
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        decoration: BoxDecoration(
+          color: c,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: sel
+                ? widget.theme.primary
+                : (c == Colors.white
+                    ? Colors.grey.shade300
+                    : Colors.transparent),
+            width: sel ? 3 : 1.5,
+          ),
+          boxShadow: sel
+              ? [BoxShadow(color: c.withValues(alpha: 0.5), blurRadius: 8)]
+              : null,
+        ),
+        child: sel
+            ? Icon(
+                Icons.check_rounded,
+                color: c == Colors.white ? Colors.black : Colors.white,
+                size: 16,
+              )
+            : null,
+      ),
+    );
+  }
+
+  /// Вырезает из слоя только закрашенную часть.
+  Future<ui.Image> _cropImage(ui.Image src, Rect rect) async {
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    canvas.drawImageRect(
+      src,
+      rect,
+      Rect.fromLTWH(0, 0, rect.width, rect.height),
+      Paint(),
+    );
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(
+      rect.width.round().clamp(1, 4096),
+      rect.height.round().clamp(1, 4096),
+    );
+    picture.dispose();
+    return image;
+  }
+
+  // ── Раскраска вдвоём ─────────────────────────────────────────────────────
+
+  /// Подгружает контур в память: он рисуется поверх мазков каждым кадром,
+  /// поэтому держим уже декодированную картинку, а не путь к ассету.
+  Future<void> _loadColoringOutline() async {
+    final picture = _coloring;
+    if (picture == null) return;
+    try {
+      final data = await rootBundle.load(picture.outlineAsset);
+      final codec = await ui.instantiateImageCodec(
+        data.buffer.asUint8List(),
+      );
+      final frame = await codec.getNextFrame();
+      if (!mounted) return;
+      setState(() => _coloringOutline = frame.image);
+    } catch (e) {
+      debugPrint('раскраска: контур не загрузился: $e');
+    }
+  }
+
+  /// Заводит раскраску на этом холсте (или подхватывает уже заведённую).
+  Future<void> _startColoring(String pictureId, ColoringMode mode) async {
+    setState(() {
+      _coloringId = pictureId;
+      _coloringMode = mode;
+      _coloringDone = const {};
+    });
+    await _loadColoringOutline();
+    if (_hasSharedCanvas) {
+      await CanvasRepository().setColoring(
+        _groupId,
+        _canvasId,
+        pictureId: pictureId,
+        mode: mode.storage,
+      );
+    }
+  }
+
+  /// Переключает мою отметку «Готово».
+  Future<void> _toggleColoringDone() async {
+    final next = Map<String, bool>.from(_coloringDone);
+    next[_myUid] = !(next[_myUid] ?? false);
+    setState(() => _coloringDone = next);
+    HapticFeedback.mediumImpact();
+    if (_hasSharedCanvas) {
+      await CanvasRepository().setColoringDone(_groupId, _canvasId, next);
+    }
+  }
+
+  /// Моя ли это половина холста (в долях 0..1 по ширине).
+  bool _inMySide(Offset canvasPoint) {
+    if (!_isColoring || _canvasSize.isEmpty) return true;
+    final half = _canvasSize.width / 2;
+    return _mySide == ColoringSide.left
+        ? canvasPoint.dx <= half
+        : canvasPoint.dx >= half;
+  }
+
+  /// Снимает холст целиком и открывает итог. Контур уже внутри снимка —
+  /// склеивать половины отдельно не нужно.
+  Future<void> _openColoringResult() async {
+    final picture = _coloring;
+    if (picture == null) return;
+    final boundary = _canvasKey.currentContext?.findRenderObject()
+        as RenderRepaintBoundary?;
+    if (boundary == null) return;
+    try {
+      final image = await boundary.toImage(pixelRatio: 2.5);
+      final png = await image.toByteData(format: ui.ImageByteFormat.png);
+      image.dispose();
+      if (png == null || !mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ColoringResultScreen(
+            png: png.buffer.asUint8List(),
+            picture: picture,
+            theme: widget.theme,
+            onToMemories: _hasSharedCanvas ? _coloringToMemories : null,
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint('раскраска: снимок итога не удался: $e');
+    }
+  }
+
+  /// Кладёт готовую раскраску в ленту воспоминаний: сначала файл на сервер,
+  /// потом запись — тем же путём, что и обычное фото.
+  Future<void> _coloringToMemories(File file) async {
+    final destination =
+        'memories/$_groupId/coloring_${DateTime.now().millisecondsSinceEpoch}.png';
+    final url = await MediaService().uploadFile(file.path, destination);
+    if (url == null) throw Exception('upload failed');
+    await MemoryRepository().add(
+      groupId: _groupId,
+      authorName: widget.userData.displayName,
+      authorAvatar: widget.userData.avatarUrl,
+      type: MemoryType.photo,
+      imageUrl: url,
+      title: _coloring?.title,
+      caption: LocaleService.current.coloringTitle,
+    );
+  }
+
+  /// Прижимает точку к своей половине: мазок можно вести к центру, но за
+  /// линию он не перельётся.
+  Offset _clampToMySide(Offset localPoint) {
+    if (_canvasSize.isEmpty) return localPoint;
+    final canvasPoint = _screenToCanvas(localPoint);
+    final half = _canvasSize.width / 2;
+    final margin = _strokeWidth / 2 + 1;
+    final clampedX = _mySide == ColoringSide.left
+        ? canvasPoint.dx.clamp(0.0, half - margin)
+        : canvasPoint.dx.clamp(half + margin, _canvasSize.width);
+    if ((clampedX - canvasPoint.dx).abs() < 0.01) return localPoint;
+    // Обратно в экранные координаты — тем же преобразованием, что и вперёд.
+    final delta = clampedX - canvasPoint.dx;
+    return Offset(localPoint.dx + delta * _scale, localPoint.dy);
+  }
+
+  DateTime _lastHalfHint = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// Подсказка, почему касание не сработало. Не чаще раза в три секунды —
+  /// иначе она сыплется на каждый тап.
+  void _showHalfHint() {
+    final now = DateTime.now();
+    if (now.difference(_lastHalfHint).inSeconds < 3) return;
+    _lastHalfHint = now;
+    HapticFeedback.selectionClick();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(LocaleService.current.coloringOtherHalf),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  // ── Пипетка ──────────────────────────────────────────────────────────────
+
+  /// Включает режим взятия цвета: снимает холст один раз, дальше цвет читается
+  /// из снимка. Лист при этом уже закрыт — цвет берут с самого рисунка.
+  Future<void> _armEyedropper() async {
+    final boundary = _canvasKey.currentContext?.findRenderObject()
+        as RenderRepaintBoundary?;
+    if (boundary == null) return;
+    try {
+      final snapshot = await boundary.toImage(pixelRatio: 1.0);
+      final bytes =
+          await snapshot.toByteData(format: ui.ImageByteFormat.rawRgba);
+      _eyedropperWidth = snapshot.width;
+      _eyedropperHeight = snapshot.height;
+      snapshot.dispose();
+      if (bytes == null || !mounted) return;
+      setState(() {
+        _eyedropperPixels = bytes;
+        _eyedropperArmed = true;
+        _eyedropperPoint = null;
+        _eyedropperColor = null;
+      });
+      HapticFeedback.selectionClick();
+    } catch (e) {
+      debugPrint('пипетка: снимок холста не удался: $e');
+    }
+  }
+
+  void _disarmEyedropper() {
+    if (!_eyedropperArmed) return;
+    setState(() {
+      _eyedropperArmed = false;
+      _eyedropperPixels = null;
+      _eyedropperPoint = null;
+      _eyedropperColor = null;
+    });
+  }
+
+  /// Цвет пикселя под точкой касания. null — палец вне холста.
+  Color? _colorAt(Offset localPoint) {
+    final pixels = _eyedropperPixels;
+    if (pixels == null || _canvasSize.isEmpty) return null;
+
+    final canvasPoint = _screenToCanvas(localPoint);
+    final x =
+        (canvasPoint.dx / _canvasSize.width * _eyedropperWidth).round();
+    final y =
+        (canvasPoint.dy / _canvasSize.height * _eyedropperHeight).round();
+    if (x < 0 || y < 0 || x >= _eyedropperWidth || y >= _eyedropperHeight) {
+      return null;
+    }
+
+    final offset = (y * _eyedropperWidth + x) * 4;
+    if (offset + 3 >= pixels.lengthInBytes) return null;
+    final r = pixels.getUint8(offset);
+    final g = pixels.getUint8(offset + 1);
+    final b = pixels.getUint8(offset + 2);
+    final a = pixels.getUint8(offset + 3);
+    // Прозрачное место листа — это его фон, а не «никакой цвет».
+    if (a == 0) return _bgColor;
+    return Color.fromARGB(255, r, g, b);
+  }
+
+  void _trackEyedropper(Offset localPoint) {
+    final color = _colorAt(localPoint);
+    setState(() {
+      _eyedropperPoint = localPoint;
+      if (color != null) _eyedropperColor = color;
+    });
+  }
+
+  void _finishEyedropper() {
+    final color = _eyedropperColor;
+    _disarmEyedropper();
+    if (color == null) return;
+    HapticFeedback.mediumImpact();
+    _applyPickedColor(color);
+  }
+
+  /// Полный пикер: квадрат «насыщенность × яркость», оттенок, HEX, пипетка.
+  Future<void> _openFullColorPicker() async {
+    final picked = await showColorPickerSheet(
+      context: context,
+      initial: _activeColor,
+      onEyedropper: _armEyedropper,
+    );
+    if (picked != null) _applyPickedColor(picked);
+  }
+
+  /// Ставит цвет активным и запоминает в недавних.
+  void _applyPickedColor(Color color) {
+    setState(() {
+      _activeColor = color;
+      _currentColorValue = color.toARGB32();
+      // Пипеткой берут цвет, чтобы им же рисовать: возвращаем кисть, иначе
+      // следующий мазок уйдёт стёркой или заливкой.
+      if (_activeTool == DrawTool.eraser) _activeTool = DrawTool.brush;
+    });
+    unawaited(RecentColors.remember(color).then((_) => _reloadRecentColors()));
+  }
+
+  Future<void> _reloadRecentColors() async {
+    final list = await RecentColors.load();
+    if (mounted) setState(() => _recentColors = list);
   }
 
   //  BUILD
@@ -2028,10 +2500,98 @@ class _DrawScreenState extends State<DrawScreen>
                   ],
                 ),
               ),
+              // Раскраска: полоса готовности над панелью инструментов.
+              if (_isColoring) _buildColoringBar(s, t),
               _buildBottomToolbar(s, t),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  /// Полоса раскраски: чья половина, отметка «Готово» и вход в итог.
+  Widget _buildColoringBar(AppStrings s, AppTheme t) {
+    final bothDone = _iAmDone && (_partnerIsDone || _groupId.isEmpty);
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: t.cardSurface,
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: (bothDone ? t.primary : t.surfaceMuted),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              bothDone ? Icons.celebration_rounded : Icons.palette_rounded,
+              size: 19,
+              color: bothDone ? Colors.white : t.textSecondary,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _coloring?.title ?? s.coloringTitle,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: t.textPrimary,
+                  ),
+                ),
+                Text(
+                  _iAmDone
+                      ? (bothDone
+                          ? s.coloringRevealTitle
+                          : s.coloringWaitingHint(
+                              widget.pairData.partnerDisplayName))
+                      : s.coloringMyHalf,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, color: t.textMuted),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          if (bothDone)
+            FilledButton(
+              onPressed: _openColoringResult,
+              style: FilledButton.styleFrom(
+                backgroundColor: t.primary,
+                foregroundColor: Colors.white,
+                shape: const StadiumBorder(),
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              ),
+              child: Text(s.coloringRevealTitle),
+            )
+          else
+            FilledButton.icon(
+              onPressed: _toggleColoringDone,
+              icon: Icon(
+                _iAmDone ? Icons.edit_rounded : Icons.check_rounded,
+                size: 18,
+              ),
+              label: Text(_iAmDone ? s.coloringNotDoneBtn : s.coloringDoneBtn),
+              style: FilledButton.styleFrom(
+                backgroundColor: _iAmDone ? t.surfaceMuted : t.primary,
+                foregroundColor: _iAmDone ? t.textSecondary : Colors.white,
+                shape: const StadiumBorder(),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -2229,7 +2789,12 @@ class _DrawScreenState extends State<DrawScreen>
                       )
                       ..scale(_scale, _scale, 1.0)
                       ..rotateZ(_canvasRotation),
-                    child: RepaintBoundary(
+                    // Вуаль едет вместе с холстом: при зуме и повороте она
+                    // должна закрывать ту же половину, иначе чужой рисунок
+                    // подсматривается простым щипком.
+                    child: Stack(
+                      children: [
+                    RepaintBoundary(
                       key: _canvasKey,
                       child: _CanvasScene(
                         bgColor: _bgColor,
@@ -2248,8 +2813,28 @@ class _DrawScreenState extends State<DrawScreen>
                         partnerNotifier: _partnerNotifier,
                         canvasSize: _canvasSize,
                         repaintNotifier: _repaintNotifier,
+                        coloringOutline: _coloringOutline,
+                        localImagePaths: _localImagePaths,
                         selectedImageId: _selectedImageId,
                       ),
+                    ),
+                    if (_isColoring && !_coloringRevealed)
+                      // Доли, а не пиксели: _canvasSize обновляется в разметке
+                      // и на первом кадре отстаёт — штриховка вылезала за лист
+                      // и заходила на свою половину.
+                      Positioned.fill(
+                        child: Align(
+                          alignment: _mySide == ColoringSide.left
+                              ? Alignment.centerRight
+                              : Alignment.centerLeft,
+                          child: FractionallySizedBox(
+                            widthFactor: 0.5,
+                            heightFactor: 1,
+                            child: _coloringVeil(),
+                          ),
+                        ),
+                      ),
+                      ],
                     ),
                   ),
                 ),
@@ -2306,10 +2891,161 @@ class _DrawScreenState extends State<DrawScreen>
                 );
               },
             ),
+            // Пипетка: лупа под пальцем и подсказка, пока цвет не взят.
+            if (_eyedropperArmed) ..._eyedropperOverlay(),
           ],
         );
       },
     );
+  }
+
+  /// Штриховка поверх половины партнёра: видно, что там чужая территория, но
+  /// не видно, что именно там нарисовано.
+  Widget _coloringVeil() {
+    final t = widget.theme;
+    final waiting = _iAmDone && !_partnerIsDone;
+    return IgnorePointer(
+      child: Container(
+        decoration: BoxDecoration(
+          color: t.surfaceMuted.withValues(alpha: 0.97),
+          border: Border(
+            left: BorderSide(
+              color: t.textPrimary,
+              width: _mySide == ColoringSide.left ? 1.5 : 0,
+            ),
+            right: BorderSide(
+              color: t.textPrimary,
+              width: _mySide == ColoringSide.right ? 1.5 : 0,
+            ),
+          ),
+        ),
+        child: CustomPaint(
+          painter: _HatchPainter(t.primary.withValues(alpha: 0.10)),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: t.cardSurface,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.12),
+                        blurRadius: 8,
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    waiting ? Icons.schedule_rounded : Icons.lock_rounded,
+                    size: 22,
+                    color: t.primary,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: Text(
+                    waiting
+                        ? LocaleService.current.coloringPartnerColoring(
+                            widget.pairData.partnerDisplayName)
+                        : LocaleService.current.coloringPartnerHalfHidden,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      height: 1.35,
+                      color: t.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Лупа под пальцем и подсказка внизу. Лупа поднята над точкой касания —
+  /// иначе её закрывает сам палец, и выбирать приходится вслепую.
+  List<Widget> _eyedropperOverlay() {
+    final s = LocaleService.current;
+    final t = widget.theme;
+    final point = _eyedropperPoint;
+    return [
+      if (point != null)
+        Positioned(
+          left: point.dx - 48,
+          top: point.dy - 116,
+          child: IgnorePointer(
+            child: Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                color: _eyedropperColor ?? t.cardSurface,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 3),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x59000000),
+                    blurRadius: 16,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              alignment: Alignment.center,
+              child: Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    width: 2,
+                  ),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+          ),
+        ),
+      Positioned(
+        left: 0,
+        right: 0,
+        bottom: 96,
+        child: IgnorePointer(
+          child: Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.82),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.colorize_rounded,
+                      size: 16, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Text(
+                    _eyedropperColor == null
+                        ? s.eyedropperHint
+                        : ColorHex.format(_eyedropperColor!),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ];
   }
 
   /// Подпись под листом: у пиксельного холста — сетка и сторона пикселя,
@@ -2320,8 +3056,16 @@ class _DrawScreenState extends State<DrawScreen>
       return '$_pxCols × $_pxRows · клетка $px px';
     }
     const exportW = 1600;
-    final exportH = (exportW / _kSheetRatio).round();
-    return '4 : 5 · $exportW×$exportH';
+    final ratio = _sheetRatio ?? (w / h);
+    final exportH = (exportW / ratio).round();
+    // Подпись раньше врала: соотношение было прибито к 4:5, а лист мог быть
+    // и квадратным (раскраска), и во всю область (старые холсты).
+    final label = (ratio - _kSheetRatio).abs() < 0.01
+        ? '4 : 5'
+        : (ratio - 1).abs() < 0.01
+            ? '1 : 1'
+            : ratio.toStringAsFixed(2);
+    return '$label · $exportW×$exportH';
   }
 
   Widget _buildPartnerCursor(DrawStroke stroke) {
@@ -2560,12 +3304,24 @@ class _DrawScreenState extends State<DrawScreen>
     );
   }
 
+  /// Ряд дополнительных инструментов.
+  ///
+  /// Прокручивается по горизонтали: на узком экране (или с крупным системным
+  /// шрифтом) фигуры, заливка, слои и фон не влезают в ряд, и кнопки за правым
+  /// краем становились недоступны совсем. Удаление вынесено из прокрутки и
+  /// прижато к правому краю — до него всегда один тап, и оно не уезжает под
+  /// палец во время прокрутки.
   Widget _buildExpandedTools(AppStrings s, AppTheme t) {
     return Container(
       height: 58,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       color: t.surfaceMuted,
       child: Row(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
         children: [
           _toolBtn(
             Icons.remove_rounded,
@@ -2630,7 +3386,13 @@ class _DrawScreenState extends State<DrawScreen>
                 ? t.primary
                 : t.textMuted,
           ),
-          const Spacer(),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Container(width: 1, height: 24, color: t.divider),
+          const SizedBox(width: 4),
           _actionBtn(
             Icons.delete_outline_rounded,
             _selectedImageId != null ? _deleteSelectedImage : _confirmClear,
@@ -2766,27 +3528,15 @@ class _DrawScreenState extends State<DrawScreen>
   /// Удаляет слой вместе со всем, что на нём нарисовано.
   Future<void> _deleteLayer(int index, StateSetter refreshSheet) async {
     final s = LocaleService.current;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        content: Text(s.drawLayerDeleteConfirm),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(s.cancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red.shade600),
-            child: Text(s.delete),
-          ),
-        ],
-      ),
+    final ok = await AppDialog.confirm(
+      context,
+      title: s.drawLayerDelete,
+      message: s.drawLayerDeleteConfirm,
+      confirmLabel: s.delete,
+      destructive: true,
+      icon: Icons.layers_clear_rounded,
     );
-    if (ok != true || !mounted) return;
+    if (!ok || !mounted) return;
 
     final doomed =
         _visibleStrokes.where((st) => st.layer == index).map((st) => st.id);
@@ -2839,9 +3589,28 @@ class _DrawScreenState extends State<DrawScreen>
     final spec = specOf(bg);
     final selected = _background == bg;
     final s = LocaleService.current;
+    // Платные фоны набора открывает Togetherly+ (или поштучная покупка).
+    final unlocked = PlusAccess.ownsBackground(
+      id: bg,
+      plus: PlusService.instance.active,
+      owned: widget.userData.ownedFeatures,
+    );
 
     return GestureDetector(
       onTap: () {
+        if (!unlocked) {
+          // Закрытый фон не выбирается молча: ведём туда, где его открывают.
+          Navigator.of(context).pop();
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => PlusScreen(
+                scheme: Theme.of(context).colorScheme,
+              ),
+              settings: const RouteSettings(name: '/plus'),
+            ),
+          );
+          return;
+        }
         setState(() => _background = bg);
         _repaintNotifier.value++;
         _persistBackground();
@@ -2882,7 +3651,18 @@ class _DrawScreenState extends State<DrawScreen>
                 ),
               ),
             ),
-            if (selected)
+            // Закрытый фон гасим и вешаем замок: видно, что он есть и что за
+            // него надо заплатить, — вместо молчаливого «не нажимается».
+            if (!unlocked)
+              Positioned.fill(
+                child: Container(
+                  color: cs.surface.withValues(alpha: 0.55),
+                  alignment: Alignment.center,
+                  child: Icon(Icons.lock_rounded,
+                      size: 20, color: cs.onSurfaceVariant),
+                ),
+              ),
+            if (selected && unlocked)
               Positioned(
                 top: 6,
                 right: 6,
@@ -3288,6 +4068,53 @@ class _PulsingDotState extends State<_PulsingDot>
 
 //  _CanvasScene
 
+/// Косая штриховка закрытой половины.
+class _HatchPainter extends CustomPainter {
+  const _HatchPainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 6;
+    const step = 22.0;
+    for (double x = -size.height; x < size.width; x += step) {
+      canvas.drawLine(
+        Offset(x, size.height),
+        Offset(x + size.height, 0),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_HatchPainter old) => old.color != color;
+}
+
+/// Контур раскраски поверх мазков — растянут на весь лист.
+class _ColoringOutlinePainter extends CustomPainter {
+  const _ColoringOutlinePainter(this.image);
+
+  final ui.Image image;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final src = Rect.fromLTWH(
+        0, 0, image.width.toDouble(), image.height.toDouble());
+    canvas.drawImageRect(
+      image,
+      src,
+      Offset.zero & size,
+      Paint()..filterQuality = FilterQuality.high,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_ColoringOutlinePainter old) => old.image != image;
+}
+
 class _CanvasScene extends StatefulWidget {
   final Color bgColor;
 
@@ -3313,6 +4140,13 @@ class _CanvasScene extends StatefulWidget {
   final ValueNotifier<int> repaintNotifier;
   final String? selectedImageId;
 
+  /// Контур раскраски. Рисуется ПОСЛЕДНИМ, поверх всех мазков: закрасить сам
+  /// рисунок нельзя, как ни старайся — краска всегда уходит под линии.
+  final ui.Image? coloringOutline;
+
+  /// Локальные файлы своих картинок-штрихов: id → путь.
+  final Map<String, String> localImagePaths;
+
   const _CanvasScene({
     required this.bgColor,
     required this.background,
@@ -3331,6 +4165,8 @@ class _CanvasScene extends StatefulWidget {
     required this.canvasSize,
     required this.repaintNotifier,
     this.selectedImageId,
+    this.coloringOutline,
+    this.localImagePaths = const {},
   });
 
   @override
@@ -3420,6 +4256,14 @@ class _CanvasSceneState extends State<_CanvasScene> {
             ),
           ),
           ...imageStrokes.map((s) => _buildImageWidget(s, widget.canvasSize)),
+          if (widget.coloringOutline != null)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(
+                  painter: _ColoringOutlinePainter(widget.coloringOutline!),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -3434,7 +4278,12 @@ class _CanvasSceneState extends State<_CanvasScene> {
     final rot = s.imageRotation ?? 0.0;
     // file:// — локальный файл; остальное (pb:// protected / http / gs / sb) —
     // через StorageImage: он добавит PocketBase file-токен и разрешит схему async.
-    final raw = s.imageUrl ?? '';
+    // Свой, только что загруженный штрих показываем с диска: сетевой адрес у
+    // него уже есть, но качать своё же изображение заново незачем.
+    final local = widget.localImagePaths[s.id];
+    final raw = (local != null && File(local).existsSync())
+        ? 'file://$local'
+        : (s.imageUrl ?? '');
     final isSelected = widget.selectedImageId == s.id;
 
     Widget img;
@@ -3444,6 +4293,9 @@ class _CanvasSceneState extends State<_CanvasScene> {
         width: w,
         height: h,
         fit: BoxFit.cover,
+        // Без этого каждая перестройка дерева гасит картинку на кадр: после
+        // заливки (а она кладётся картинкой на весь холст) рисунок мигал.
+        gaplessPlayback: true,
         errorBuilder: (_, __, ___) => _imgPlaceholder(w, h),
       );
     } else if (raw.isNotEmpty) {
@@ -3460,6 +4312,10 @@ class _CanvasSceneState extends State<_CanvasScene> {
     }
 
     return Positioned(
+      // Ключ по id штриха: без него список картинок пересобирается при каждом
+      // мазке, элементы съезжают друг на друга и все заливки перезагружаются —
+      // рисунок мигал на каждом штрихе.
+      key: ValueKey(s.id),
       left: cx - w / 2,
       top: cy - h / 2,
       child: Transform.rotate(

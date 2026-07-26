@@ -7,6 +7,7 @@ import '../../widgets/avatar_widget.dart';
 import '../../services/locale_service.dart';
 import '../../services/pb_data_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/common/m3_loading.dart';
 
 /// Тело профиля-«Открытки»: шапка с аватаром и чипами, полка подарков со
 /// счётчиками, столбики «скучаю» по дням недели.
@@ -92,7 +93,7 @@ class GiftProfileBodyState extends State<GiftProfileBody> {
     if (_loading) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 48),
-        child: Center(child: CircularProgressIndicator()),
+        child: Center(child: M3Loading(color: Color(0xFFFF7E8B))),
       );
     }
     return Column(

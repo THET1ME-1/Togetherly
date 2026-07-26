@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 
 import '../services/locale_service.dart';
 import '../services/offline/connectivity_service.dart';
+import '../services/media_service.dart';
 import '../services/offline/outbox_service.dart';
+import 'common/m3_wave_progress.dart';
 
 /// Глобальная тонкая плашка состояния синхронизации поверх любого экрана
 /// (через `MaterialApp.builder`). Показывается, только когда есть что показать:
@@ -64,6 +66,11 @@ class _SyncChipsState extends State<_SyncChips> {
   /// Прошёл ли дебаунс «идёт синхронизация» — только тогда показываем плашку.
   bool _showSyncing = false;
 
+  /// Самая длинная очередь за текущую отправку. От неё считается доля полосы:
+  /// сам outbox отдаёт только «сколько осталось», а полосе нужно «сколько было».
+  /// Обнуляется, когда очередь опустела, — следующая отправка начинает с нуля.
+  int _peakActive = 0;
+
   @override
   void initState() {
     super.initState();
@@ -71,6 +78,7 @@ class _SyncChipsState extends State<_SyncChips> {
     // запись в backoff после провала больше не крутит «вечную синхронизацию».
     OutboxService.instance.activeCount.addListener(_onChange);
     OutboxService.instance.poisonCount.addListener(_onChange);
+    MediaService.instance.compressProgress.addListener(_onChange);
     _connSub =
         ConnectivityService.instance.onOnlineChanged.listen((_) => _onChange());
     _reconcile();
@@ -87,6 +95,8 @@ class _SyncChipsState extends State<_SyncChips> {
     final active = OutboxService.instance.activeCount.value;
     final online = ConnectivityService.instance.isOnline;
     final syncing = online && active > 0;
+    if (active > _peakActive) _peakActive = active;
+    if (active == 0) _peakActive = 0;
     if (syncing) {
       // запустить таймер, если ещё не показываем и не запущен
       if (!_showSyncing && _debounce == null) {
@@ -111,6 +121,7 @@ class _SyncChipsState extends State<_SyncChips> {
   void dispose() {
     OutboxService.instance.activeCount.removeListener(_onChange);
     OutboxService.instance.poisonCount.removeListener(_onChange);
+    MediaService.instance.compressProgress.removeListener(_onChange);
     _connSub?.cancel();
     _debounce?.cancel();
     super.dispose();
@@ -121,6 +132,7 @@ class _SyncChipsState extends State<_SyncChips> {
     final active = OutboxService.instance.activeCount.value;
     final poison = OutboxService.instance.poisonCount.value;
     final online = ConnectivityService.instance.isOnline;
+    final compressing = MediaService.instance.compressProgress.value;
     final ru = LocaleService.instance.isRussian;
     final scheme = Theme.of(context).colorScheme;
 
@@ -137,6 +149,20 @@ class _SyncChipsState extends State<_SyncChips> {
           fg: scheme.onSurfaceVariant,
         ),
       ));
+    } else if (compressing != null) {
+      // Сжатие видео идёт десятки секунд. Без своей строки это выглядело как
+      // застрявшая синхронизация, поэтому показываем сразу, без дебаунса, и с
+      // настоящей долей от кодека.
+      chips.add(IgnorePointer(
+        child: _chip(
+          context,
+          spinner: true,
+          text: ru ? 'Сжатие видео…' : 'Compressing video…',
+          bg: scheme.surfaceContainerHighest,
+          fg: scheme.onSurfaceVariant,
+          progress: compressing,
+        ),
+      ));
     } else if (_showSyncing && active > 0) {
       // Идёт синхронизация — мягкая плашка со спиннером, без сырого счётчика,
       // и только после дебаунса (длительная отправка).
@@ -147,6 +173,8 @@ class _SyncChipsState extends State<_SyncChips> {
           text: ru ? 'Синхронизация…' : 'Syncing…',
           bg: scheme.surfaceContainerHighest,
           fg: scheme.onSurfaceVariant,
+          progress:
+              M3WaveProgress.queueFraction(active: active, peak: _peakActive),
         ),
       ));
     }
@@ -177,7 +205,10 @@ class _SyncChipsState extends State<_SyncChips> {
       child: chips.isEmpty
           ? const SizedBox.shrink()
           : Padding(
-              key: ValueKey('${!online}-$_showSyncing-${poison > 0}'),
+              // Сжатие входит в ключ: без него переход «сжатие → синхронизация»
+              // считался бы тем же состоянием и прошёл бы без анимации.
+              key: ValueKey(
+                  '${!online}-$_showSyncing-${poison > 0}-${compressing != null}'),
               padding: const EdgeInsets.only(top: 6),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -198,6 +229,7 @@ class _SyncChipsState extends State<_SyncChips> {
     required String text,
     required Color bg,
     required Color fg,
+    double? progress,
   }) =>
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
@@ -212,7 +244,36 @@ class _SyncChipsState extends State<_SyncChips> {
             ),
           ],
         ),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _chipRow(context, icon: icon, spinner: spinner, text: text, fg: fg),
+            // Волновая полоса под строкой: доля показывает, сколько задач
+            // очереди уже ушло. Волна гаснет к концу — плашка сама сообщает,
+            // что отправка вот-вот закончится, вместо вечного «Синхронизация…».
+            if (progress != null) ...[
+              const SizedBox(height: 6),
+              M3WaveProgress(
+                value: progress,
+                minHeight: 3,
+                wavelength: 16,
+                color: fg,
+                trackColor: fg.withValues(alpha: 0.22),
+              ),
+            ],
+          ],
+        ),
+      );
+
+  Widget _chipRow(
+    BuildContext context, {
+    IconData? icon,
+    bool spinner = false,
+    required String text,
+    required Color fg,
+  }) =>
+      Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (spinner)
@@ -234,6 +295,5 @@ class _SyncChipsState extends State<_SyncChips> {
               ),
             ),
           ],
-        ),
-      );
+        );
 }

@@ -383,6 +383,57 @@ def photo_grid() -> None:
     save(img, "preview_photo_grid")
 
 
+def note_card(w: int, h: int, name: str, lines: list[str], big: bool = False) -> None:
+    """Заметка в стиле M3: тональная карточка, чип с листиком, подпись автора."""
+    img, d = canvas(w, h)
+    card(d, (0, 0, w, h), 32, SURFACE_CONTAINER)
+
+    # Чип с иконкой листика и надпись раздела.
+    circle(d, 30, 32, 13, PRIMARY_CONTAINER)
+    d.rounded_rectangle(
+        [(24 * S, 26 * S), (36 * S, 39 * S)], radius=2 * S, fill=ON_PRIMARY_CONTAINER)
+    text(d, (50, 26), "ЗАМЕТКА", 10, 800, ON_SURFACE_VARIANT)
+
+    y = 56
+    for line in lines:
+        text(d, (20, y), line, 14 if not big else 15, 700, ON_SURFACE)
+        y += 22
+
+    # Подпись: точка-аватар и «кто · когда».
+    circle(d, 27, h - 24, 7, TERTIARY_CONTAINER)
+    text(d, (40, h - 30), "Саша · 12:40", 10, 700, ON_SURFACE_VARIANT)
+
+    # Карандаш в углу.
+    circle(d, w - 28, h - 28, 15, PRIMARY)
+    d.line(
+        [((w - 34) * S, (h - 22) * S), ((w - 22) * S, (h - 34) * S)],
+        fill=ON_PRIMARY, width=3 * S)
+    save(img, name)
+
+
+def note_2x2() -> None:
+    note_card(200, 200, "tg_preview_note_2x2", ["Купи молоко", "и что-нибудь", "к чаю 🙂"])
+
+
+def note_4x2() -> None:
+    note_card(
+        424, 200, "tg_preview_note_4x2",
+        ["Купи молоко и что-нибудь к чаю.", "Вечером посмотрим то кино."])
+
+
+def note_4x4() -> None:
+    note_card(
+        424, 424, "tg_preview_note_4x4",
+        [
+            "Список на выходные:",
+            "— забрать посылку",
+            "— заехать к твоим",
+            "— купить корм коту",
+        ],
+        big=True,
+    )
+
+
 if __name__ == "__main__":
     print("Превью виджетов →", OUT)
     together_2x2()
@@ -399,4 +450,7 @@ if __name__ == "__main__":
     self_photo()
     partner_photo()
     photo_grid()
+    note_2x2()
+    note_4x2()
+    note_4x4()
     print("готово")

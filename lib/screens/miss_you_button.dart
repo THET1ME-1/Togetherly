@@ -8,6 +8,7 @@ import '../services/pocketbase_service.dart';
 import '../services/locale_service.dart';
 import '../services/rate_limiter_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_sheet.dart';
 
 // ─── Layout ────────────────────────────────────────────────────────────────────
 //
@@ -331,9 +332,9 @@ class _MissYouButtonState extends State<MissYouButton>
 
   Future<void> _showCustomVibeDialog() async {
     final s = LocaleService.current;
-    final text = await showDialog<String>(
-      context: context,
-      builder: (ctx) => _CustomVibeDialog(
+    final text = await showAppSheet<String>(
+      context,
+      builder: (ctx) => _CustomVibeSheet(
         theme: widget.theme,
         title: s.customVibeTitle,
         hint: s.customVibeHint,
@@ -985,14 +986,14 @@ class _SmallBadge extends StatelessWidget {
 
 // ─── Custom vibe dialog ────────────────────────────────────────────────────────
 
-class _CustomVibeDialog extends StatefulWidget {
+class _CustomVibeSheet extends StatefulWidget {
   final AppTheme theme;
   final String title;
   final String hint;
   final String sendLabel;
   final String cancelLabel;
 
-  const _CustomVibeDialog({
+  const _CustomVibeSheet({
     required this.theme,
     required this.title,
     required this.hint,
@@ -1001,10 +1002,10 @@ class _CustomVibeDialog extends StatefulWidget {
   });
 
   @override
-  State<_CustomVibeDialog> createState() => _CustomVibeDialogState();
+  State<_CustomVibeSheet> createState() => _CustomVibeSheetState();
 }
 
-class _CustomVibeDialogState extends State<_CustomVibeDialog> {
+class _CustomVibeSheetState extends State<_CustomVibeSheet> {
   late final TextEditingController _controller;
 
   @override
@@ -1028,102 +1029,77 @@ class _CustomVibeDialogState extends State<_CustomVibeDialog> {
   Widget build(BuildContext context) {
     final color = widget.theme.promptButtonColor;
 
-    return Dialog(
-      backgroundColor: widget.theme.cardSurface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
+    return SheetScaffold(
+      title: widget.title,
+      bottom: Row(
+        children: [
+          Expanded(
+            child: TextButton(
+              onPressed: () => Navigator.pop(context),
+              style: TextButton.styleFrom(
+                foregroundColor: color.withValues(alpha: 0.65),
+                shape: const StadiumBorder(),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              child: Text(
+                widget.cancelLabel,
+                style: const TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: FilledButton(
+              onPressed: _submit,
+              style: FilledButton.styleFrom(
+                backgroundColor: color,
+                foregroundColor: Colors.white,
+                shape: const StadiumBorder(),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              child: Text(
+                widget.sendLabel,
+                style: const TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+        ],
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Text('✏️', style: TextStyle(fontSize: 20)),
-                const SizedBox(width: 10),
-                Text(
-                  widget.title,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: color,
-                  ),
-                ),
-              ],
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+        child: TextField(
+          controller: _controller,
+          autofocus: true,
+          maxLength: 80,
+          textCapitalization: TextCapitalization.sentences,
+          style: const TextStyle(fontSize: 15),
+          decoration: InputDecoration(
+            hintText: widget.hint,
+            hintStyle: TextStyle(color: color.withValues(alpha: 0.4)),
+            filled: true,
+            fillColor: color.withValues(alpha: 0.06),
+            counterStyle: TextStyle(
+              color: color.withValues(alpha: 0.4),
+              fontSize: 11,
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _controller,
-              autofocus: true,
-              maxLength: 80,
-              textCapitalization: TextCapitalization.sentences,
-              style: const TextStyle(fontSize: 14),
-              decoration: InputDecoration(
-                hintText: widget.hint,
-                hintStyle: TextStyle(color: color.withValues(alpha: 0.4)),
-                filled: true,
-                fillColor: color.withValues(alpha: 0.06),
-                counterStyle: TextStyle(
-                  color: color.withValues(alpha: 0.4),
-                  fontSize: 11,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide(
-                    color: color.withValues(alpha: 0.4),
-                    width: 1.5,
-                  ),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-              ),
-              onSubmitted: (_) => _submit(),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide: BorderSide.none,
             ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text(
-                    widget.cancelLabel,
-                    style: TextStyle(
-                      color: color.withValues(alpha: 0.55),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: _submit,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: color,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 10,
-                    ),
-                    elevation: 0,
-                  ),
-                  child: Text(
-                    widget.sendLabel,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ],
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide: BorderSide.none,
             ),
-          ],
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide: BorderSide(color: color, width: 2),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          ),
+          onSubmitted: (_) => _submit(),
         ),
       ),
     );

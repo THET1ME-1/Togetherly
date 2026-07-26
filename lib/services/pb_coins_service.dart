@@ -5,6 +5,7 @@ import 'package:pocketbase/pocketbase.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'pocketbase_service.dart';
+import 'coin_store.dart' show kStore;
 
 /// Исход разовой dev-выдачи. Нужен, чтобы вызывающий отличал окончательный
 /// отказ сервера (не разработчик → больше не спрашивать) от транзиентного сбоя
@@ -26,8 +27,10 @@ class DevCoinsOutcome {
 /// (`{ok, coins, awarded?, ownedThemes?, ...}`) → `UserData._applyServerResult`
 /// читает результат без изменений.
 ///
-/// IAP (`iap-purchase`) — на PB-хуке: whitelist productId + идемпотентность по
-/// purchaseToken (как в прежней Firebase-функции, реальной Play-валидации нет).
+/// IAP (`iap-purchase`) — на PB-хуке: whitelist productId, идемпотентность по
+/// purchaseToken и сверка чека с Google (локальная служба `play_verify`,
+/// см. `tools/play_verify.py`). Токен RuStore Google не признаёт, поэтому в
+/// теле едет `store` — по нему сервер решает, у кого спрашивать чек.
 /// НЕ покрыто: AdMob SSV-callback (нужна серверная проверка подписи AdMob).
 class PbCoinsService {
   PbCoinsService._();
@@ -116,5 +119,8 @@ class PbCoinsService {
   }) => _call('iap-purchase', {
     'productId': productId,
     'purchaseToken': purchaseToken,
+    // Магазин нужен серверу, чтобы знать, у кого спрашивать чек: покупку Play
+    // он сверяет через Play Developer API, а токен RuStore тот не признает.
+    'store': kStore,
   });
 }

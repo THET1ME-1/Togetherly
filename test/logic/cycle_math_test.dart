@@ -217,4 +217,36 @@ void main() {
           CyclePhase.none);
     });
   });
+
+  group('CycleMath.periodDayIndex — какой это день месячных', () {
+    final marks = [
+      d(2026, 7, 22), d(2026, 7, 23), d(2026, 7, 24),
+      d(2026, 6, 24), d(2026, 6, 25),
+    ];
+
+    test('первый день серии — первый', () {
+      expect(CycleMath.periodDayIndex(marks, d(2026, 7, 22)), 1);
+    });
+
+    test('третий день серии — третий', () {
+      expect(CycleMath.periodDayIndex(marks, d(2026, 7, 24)), 3);
+    });
+
+    test('счёт идёт внутри своей серии, а не от последних месячных', () {
+      expect(CycleMath.periodDayIndex(marks, d(2026, 6, 25)), 2);
+    });
+
+    test('день без отметки — null', () {
+      expect(CycleMath.periodDayIndex(marks, d(2026, 7, 25)), isNull);
+    });
+
+    test('пустой список — null', () {
+      expect(CycleMath.periodDayIndex(const [], d(2026, 7, 22)), isNull);
+    });
+
+    test('время в отметке не мешает', () {
+      final withTime = [DateTime(2026, 7, 22, 13, 40), DateTime(2026, 7, 23, 9)];
+      expect(CycleMath.periodDayIndex(withTime, d(2026, 7, 23)), 2);
+    });
+  });
 }

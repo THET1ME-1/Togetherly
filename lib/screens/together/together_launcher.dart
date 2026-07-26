@@ -8,6 +8,7 @@ import '../../services/pocketbase_service.dart';
 import '../../services/rewarded_ad_service.dart';
 import '../../services/watch_room_service.dart';
 import 'watch_room_screen.dart';
+import '../../widgets/common/m3_loading.dart';
 
 /// Вход в совместный просмотр.
 ///
@@ -133,7 +134,7 @@ class TogetherLauncher {
         dialogCtx = ctx;
         return const PopScope(
           canPop: false,
-          child: Center(child: CircularProgressIndicator()),
+          child: Center(child: M3Loading(color: Color(0xFFFF7E8B))),
         );
       },
     );

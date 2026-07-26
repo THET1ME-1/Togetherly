@@ -9,6 +9,7 @@ import '../../services/pb_media_service.dart';
 import '../../services/pocketbase_service.dart';
 import '../../services/watch_channel_service.dart';
 import '../../services/watch_history_service.dart';
+import '../../widgets/common/m3_loading.dart';
 
 /// Нативный просмотр своего видео вдвоём.
 ///
@@ -221,7 +222,7 @@ class _WatchPlayerScreenState extends State<WatchPlayerScreen>
                 child: Text(_error, style: TextStyle(color: cs.onSurface)),
               )
             : !_ready || v == null
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(child: M3Loading(color: Colors.white))
                 : GestureDetector(
                     onTap: _tapScreen,
                     child: Stack(

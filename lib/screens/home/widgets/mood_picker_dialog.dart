@@ -77,6 +77,9 @@ void showMoodPicker({
 /// Shows mood picker for a specific date.
 /// Для сегодняшней даты использует [MoodService.setMoodForToday]
 /// (атомарный апдейт всех трёх источников). Для прошлых — только календарь.
+/// [withAilmentTab] — показывать ли переключатель «Настроение / Самочувствие».
+/// Из листа дня он не нужен: разделы там уже разведены отдельными пунктами, и
+/// второй ряд вкладок внутри выглядел бы дублем выбора.
 void showMoodPickerForDate({
   required BuildContext context,
   required DateTime date,
@@ -85,6 +88,7 @@ void showMoodPickerForDate({
   required WidgetService widgetService,
   required Color primary,
   required Color navActiveIcon,
+  bool withAilmentTab = true,
 }) {
   final today = DateTime.now();
   final todayNorm = DateTime(today.year, today.month, today.day);
@@ -135,7 +139,7 @@ void showMoodPickerForDate({
               }
             : null,
         // Самочувствие — текущий статус, не история: вкладка только для сегодня.
-        showAilmentTab: isToday,
+        showAilmentTab: withAilmentTab && isToday,
         currentAilmentId: isToday ? pairData.myAilment.id : '',
         onSelectAilment: isToday
             ? (a) {
@@ -144,6 +148,48 @@ void showMoodPickerForDate({
               }
             : null,
         onClearAilment: (isToday && pairData.myAilment.isNotEmpty)
+            ? () async {
+                Navigator.pop(ctx);
+                await pairData.clearAilment();
+              }
+            : null,
+      ),
+    ),
+  );
+}
+
+/// Лист «Самочувствие» сам по себе — без вкладок и без сетки настроений.
+///
+/// Самочувствие живёт не в календаре, а в профиле пары и стареет само, поэтому
+/// отмечается только на сегодня; лист дня зовёт его лишь для текущей даты.
+void showAilmentPicker({
+  required BuildContext context,
+  required PairData pairData,
+  required Color primary,
+}) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    builder: (_) => DraggableScrollableSheet(
+      initialChildSize: 0.62,
+      minChildSize: 0.4,
+      maxChildSize: 0.9,
+      builder: (ctx, scrollController) => _MoodPickerSheet(
+        scrollController: scrollController,
+        currentEmoji: '',
+        primary: primary,
+        title: LocaleService.current.ailmentTabLabel,
+        subtitle: LocaleService.current.ailmentPickerSubtitle,
+        onSelect: (_) {},
+        onClear: null,
+        ailmentOnly: true,
+        currentAilmentId: pairData.myAilment.id,
+        onSelectAilment: (a) {
+          Navigator.pop(ctx);
+          pairData.setAilment(a.id, a.localizedLabel, a.emoji);
+        },
+        onClearAilment: pairData.myAilment.isNotEmpty
             ? () async {
                 Navigator.pop(ctx);
                 await pairData.clearAilment();
@@ -169,6 +215,9 @@ class _MoodPickerSheet extends StatefulWidget {
 
   // ── Вкладка «Самочувствие» (опционально) ──
   final bool showAilmentTab;
+
+  /// Лист целиком про самочувствие: ни вкладок, ни сетки настроений.
+  final bool ailmentOnly;
   final String currentAilmentId;
   final void Function(Ailment)? onSelectAilment;
   final Future<void> Function()? onClearAilment;
@@ -182,6 +231,7 @@ class _MoodPickerSheet extends StatefulWidget {
     required this.onSelect,
     required this.onClear,
     this.showAilmentTab = false,
+    this.ailmentOnly = false,
     this.currentAilmentId = '',
     this.onSelectAilment,
     this.onClearAilment,
@@ -206,7 +256,7 @@ class _MoodPickerSheetState extends State<_MoodPickerSheet> {
   Widget build(BuildContext context) {
     final s = LocaleService.current;
     final t = context.appTheme;
-    final onAilment = widget.showAilmentTab && _tab == 1;
+    final onAilment = widget.ailmentOnly || (widget.showAilmentTab && _tab == 1);
     return Container(
       decoration: BoxDecoration(
         color: t.cardSurface,

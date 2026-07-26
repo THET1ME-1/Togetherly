@@ -21,6 +21,7 @@ import 'welcome_screen.dart';
 import '../services/locale_service.dart';
 import '../theme/theme_scope.dart';
 import '../widgets/auth_widgets.dart';
+import '../widgets/common/app_dialog.dart';
 
 
 class SetupScreen extends StatefulWidget {
@@ -345,49 +346,23 @@ class _SetupScreenState extends State<SetupScreen>
   }
 
   void _showEmailExistsDialog() {
-    final t = context.appTheme;
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          LocaleService.current.accountExists,
-          style: const TextStyle(fontWeight: FontWeight.w700),
+    AppDialog.confirm(
+      context,
+      title: LocaleService.current.accountExists,
+      message: LocaleService.current.emailAlreadyRegistered,
+      confirmLabel: LocaleService.current.login,
+      icon: Icons.account_circle_rounded,
+    ).then((ok) {
+      if (!ok || !mounted) return;
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder(
+          pageBuilder: (_, __, ___) => LoginScreen(userData: widget.userData),
+          transitionsBuilder: (_, animation, __, child) =>
+              FadeTransition(opacity: animation, child: child),
+          transitionDuration: const Duration(milliseconds: 300),
         ),
-        content: Text(LocaleService.current.emailAlreadyRegistered),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(
-              LocaleService.current.cancel,
-              style: TextStyle(color: t.textSecondary),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              Navigator.of(context).pushReplacement(
-                PageRouteBuilder(
-                  pageBuilder: (_, __, ___) =>
-                      LoginScreen(userData: widget.userData),
-                  transitionsBuilder: (_, animation, __, child) =>
-                      FadeTransition(opacity: animation, child: child),
-                  transitionDuration: const Duration(milliseconds: 300),
-                ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _accent,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: Text(LocaleService.current.login),
-          ),
-        ],
-      ),
-    );
+      );
+    });
   }
 
   void _showError(String msg) {

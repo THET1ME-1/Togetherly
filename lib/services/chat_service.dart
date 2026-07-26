@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -360,6 +361,37 @@ class ChatService {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setStringList(
           _kRecentColors, colors.map((c) => '$c').toList());
+    } catch (_) {}
+  }
+
+  // ── Оформление сообщений ─────────────────────────────────────────────────
+  //
+  // Мордочка, цвет пузыря, цвет текста и положение лица держались только в
+  // памяти экрана: вышел из чата — всё вернулось к умолчанию (жалоба от
+  // @Vidming). Теперь выбор переживает выход, и на каждую пару он свой:
+  // с разными людьми и оформление разное.
+
+  static String _styleKey(String groupId) =>
+      'chat_style_${groupId.isEmpty ? 'solo' : groupId}';
+
+  /// Сохранённое оформление: face, color, textColor, fx, fy. Пусто — ничего
+  /// не выбирали, экран возьмёт умолчание.
+  Future<Map<String, dynamic>> loadStyle(String groupId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_styleKey(groupId));
+      if (raw == null || raw.isEmpty) return const {};
+      final decoded = jsonDecode(raw);
+      return decoded is Map ? Map<String, dynamic>.from(decoded) : const {};
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  Future<void> saveStyle(String groupId, Map<String, dynamic> style) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_styleKey(groupId), jsonEncode(style));
     } catch (_) {}
   }
 

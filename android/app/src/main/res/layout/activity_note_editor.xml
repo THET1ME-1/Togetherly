@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Окно правки заметки — открывается поверх рабочего стола, в облике самого
+  листика. Это обычная активность, а не RemoteViews, поэтому EditText здесь
+  доступен: в самом виджете его не бывает.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/scrim"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#8C0A0610">
+
+    <LinearLayout
+        android:id="@+id/card"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical"
+        android:layout_margin="16dp"
+        android:orientation="vertical"
+        android:padding="18dp"
+        android:background="@drawable/tg_shape_28">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="14dp">
+
+            <ImageView
+                android:id="@+id/head_chip"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:src="@drawable/tg_shape_circle"
+                android:contentDescription="@null" />
+
+            <ImageView
+                android:id="@+id/head_icon"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_marginStart="-23dp"
+                android:src="@drawable/ic_tg_note"
+                android:contentDescription="@null" />
+
+            <TextView
+                android:id="@+id/head_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:text="@string/tg_note_editor_title" />
+        </LinearLayout>
+
+        <EditText
+            android:id="@+id/note_input"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="120dp"
+            android:gravity="top|start"
+            android:padding="14dp"
+            android:background="@drawable/tg_note_field"
+            android:inputType="textMultiLine|textCapSentences"
+            android:maxLength="500"
+            android:textSize="15sp"
+            android:lineSpacingExtra="2dp"
+            android:hint="@string/tg_note_hint"
+            android:importantForAutofill="no"
+            android:autofillHints="" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="14dp">
+
+            <Button
+                android:id="@+id/cancel"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:textSize="15sp"
+                android:textAllCaps="false"
+                android:text="@string/tg_note_cancel"
+                android:background="@drawable/tg_shape_24" />
+
+            <Button
+                android:id="@+id/save"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:layout_marginStart="10dp"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:textAllCaps="false"
+                android:text="@string/tg_note_save"
+                android:background="@drawable/tg_shape_24" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

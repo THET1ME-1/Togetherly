@@ -3,6 +3,8 @@ import '../models/pair_data.dart';
 import '../models/relationship_status.dart';
 import '../services/locale_service.dart';
 import '../theme/theme_scope.dart';
+import '../widgets/app_sheet.dart';
+import '../widgets/common/app_dialog.dart';
 import '../widgets/common/m3_loading.dart';
 
 class RelationshipStatusScreen extends StatefulWidget {
@@ -65,7 +67,7 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
         ),
       ),
       body: _loading
-          ? const Center(child: M3LoadingDots(color: Color(0xFFFF7E8B)))
+          ? const Center(child: M3Loading(color: Color(0xFFFF7E8B)))
           : SingleChildScrollView(
               padding: const EdgeInsets.all(24),
               child: Column(
@@ -307,9 +309,9 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
   }
 
   Future<void> _addCustomStatus() async {
-    final result = await showDialog<Map<String, String>>(
-      context: context,
-      builder: (context) => _CustomStatusDialog(),
+    final result = await showAppSheet<Map<String, String>>(
+      context,
+      builder: (_) => const _CustomStatusSheet(),
     );
 
     if (result != null && mounted) {
@@ -343,9 +345,9 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
   }
 
   Future<void> _editCustomStatus(RelationshipStatus status) async {
-    final result = await showDialog<Map<String, String>>(
-      context: context,
-      builder: (context) => _CustomStatusDialog(
+    final result = await showAppSheet<Map<String, String>>(
+      context,
+      builder: (_) => _CustomStatusSheet(
         initialLabel: status.label,
         initialEmoji: status.emoji,
         isEdit: true,
@@ -384,28 +386,16 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
   }
 
   Future<void> _deleteCustomStatus(RelationshipStatus status) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(LocaleService.current.deleteStatus),
-        content: Text(LocaleService.current.deleteStatusConfirm(status.label)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(LocaleService.current.cancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(
-              LocaleService.current.delete,
-              style: const TextStyle(color: Colors.red),
-            ),
-          ),
-        ],
-      ),
+    final confirmed = await AppDialog.confirm(
+      context,
+      title: LocaleService.current.deleteStatus,
+      message: LocaleService.current.deleteStatusConfirm(status.label),
+      confirmLabel: LocaleService.current.delete,
+      destructive: true,
+      icon: Icons.delete_outline_rounded,
     );
 
-    if (confirmed == true && mounted) {
+    if (confirmed && mounted) {
       setState(() => _loading = true);
       try {
         await widget.pairData.manager.activeConnection?.deleteCustomStatus(
@@ -436,22 +426,22 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
 }
 
 // Dialog for adding/editing custom status
-class _CustomStatusDialog extends StatefulWidget {
+class _CustomStatusSheet extends StatefulWidget {
   final String initialLabel;
   final String initialEmoji;
   final bool isEdit;
 
-  const _CustomStatusDialog({
+  const _CustomStatusSheet({
     this.initialLabel = '',
     this.initialEmoji = '',
     this.isEdit = false,
   });
 
   @override
-  State<_CustomStatusDialog> createState() => _CustomStatusDialogState();
+  State<_CustomStatusSheet> createState() => _CustomStatusSheetState();
 }
 
-class _CustomStatusDialogState extends State<_CustomStatusDialog> {
+class _CustomStatusSheetState extends State<_CustomStatusSheet> {
   late TextEditingController _labelController;
   late TextEditingController _emojiController;
 
@@ -471,13 +461,52 @@ class _CustomStatusDialogState extends State<_CustomStatusDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(
-        widget.isEdit
-            ? LocaleService.current.editStatus
-            : LocaleService.current.addCustomStatus,
+    final cs = Theme.of(context).colorScheme;
+    return SheetScaffold(
+      title: widget.isEdit
+          ? LocaleService.current.editStatus
+          : LocaleService.current.addCustomStatus,
+      bottom: Row(
+        children: [
+          Expanded(
+            child: TextButton(
+              onPressed: () => Navigator.pop(context),
+              style: TextButton.styleFrom(
+                foregroundColor: cs.onSurfaceVariant,
+                shape: const StadiumBorder(),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              child: Text(LocaleService.current.cancel),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: cs.primary,
+                foregroundColor: cs.onPrimary,
+                shape: const StadiumBorder(),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              onPressed: () {
+                final label = _labelController.text.trim();
+                final emoji = _emojiController.text.trim();
+                if (label.isNotEmpty) {
+                  Navigator.pop(context, {'label': label, 'emoji': emoji});
+                }
+              },
+              child: Text(
+                widget.isEdit
+                    ? LocaleService.current.update
+                    : LocaleService.current.add,
+              ),
+            ),
+          ),
+        ],
       ),
-      content: Column(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+        child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           TextField(
@@ -499,27 +528,8 @@ class _CustomStatusDialogState extends State<_CustomStatusDialog> {
             textCapitalization: TextCapitalization.words,
           ),
         ],
+        ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(LocaleService.current.cancel),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            final label = _labelController.text.trim();
-            final emoji = _emojiController.text.trim();
-            if (label.isNotEmpty) {
-              Navigator.pop(context, {'label': label, 'emoji': emoji});
-            }
-          },
-          child: Text(
-            widget.isEdit
-                ? LocaleService.current.update
-                : LocaleService.current.add,
-          ),
-        ),
-      ],
     );
   }
 }

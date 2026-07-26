@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Заметка 4x4. Размеры по формуле 70*n-30 — просить больше нельзя, лончер
+  всё равно даёт ячейку по своей сетке и молча режет содержимое.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/tg_note_4x4"
+    android:previewImage="@drawable/tg_preview_note_4x4"
+    android:description="@string/tg_desc_note_4x4"
+    android:minWidth="250dp"
+    android:minHeight="250dp"
+    android:minResizeWidth="250dp"
+    android:minResizeHeight="250dp"
+    android:maxResizeWidth="306dp"
+    android:maxResizeHeight="276dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="4"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen" />

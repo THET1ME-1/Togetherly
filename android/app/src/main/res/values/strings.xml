@@ -4,6 +4,14 @@
     <string name="tg_desc_together_2x2">Дни вместе и аватары пары</string>
     <string name="tg_desc_together_4x2">Дни вместе и прогресс до круглой даты</string>
     <string name="tg_desc_together_4x4">Дни вместе и ближайшие даты пары</string>
+    <string name="tg_desc_note_2x2">Общая заметка: пишет один — видит второй</string>
+    <string name="tg_desc_note_4x2">Общая заметка на двоих, пара строк</string>
+    <string name="tg_desc_note_4x4">Общая заметка на двоих, целый список</string>
+    <string name="tg_note_empty">Нажмите, чтобы написать</string>
+    <string name="tg_note_editor_title">Заметка на двоих</string>
+    <string name="tg_note_hint">Что написать?</string>
+    <string name="tg_note_cancel">Отмена</string>
+    <string name="tg_note_save">Сохранить</string>
     <string name="tg_desc_miss_2x2">Отправить «скучаю» одним тапом</string>
     <string name="tg_desc_miss_4x2">Счётчики «скучаю» обоих и кнопка</string>
     <string name="tg_desc_miss_4x1">Полоска: отправить «скучаю»</string>

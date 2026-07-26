@@ -94,20 +94,22 @@ class LoveWidgetProvider : HomeWidgetProvider() {
             val myPhotoPath = widgetData.getString("my_photo_path", null)
                 .takeIf { !it.isNullOrEmpty() }
             val myBgBitmap = loadScaledBitmap(myPhotoPath, 220)
+            // Цвет подписи считаем по самой фотографии: на светлом кадре
+            // белые буквы пропадали (жалоба от @Vidming). Способ тот же, что и
+            // у текста в чате — контраст по WCAG.
+            val myInk = WidgetContrast.inkFor(myBgBitmap)
             if (myBgBitmap != null) {
                 setImageViewBitmap(R.id.my_bg_photo, myBgBitmap)
                 setViewVisibility(R.id.my_bg_photo, View.VISIBLE)
                 setViewVisibility(R.id.my_overlay, View.VISIBLE)
-                setTextColor(R.id.my_status, Color.WHITE)
-                setTextColor(R.id.my_message, Color.argb(220, 255, 255, 255))
-                setTextColor(R.id.my_music, Color.argb(180, 255, 255, 255))
+                setInt(R.id.my_overlay, "setBackgroundColor", myInk.veil)
             } else {
                 setViewVisibility(R.id.my_bg_photo, View.GONE)
                 setViewVisibility(R.id.my_overlay, View.GONE)
-                setTextColor(R.id.my_status, Color.argb(204, 0, 0, 0))
-                setTextColor(R.id.my_message, Color.argb(153, 0, 0, 0))
-                setTextColor(R.id.my_music, Color.argb(136, 0, 0, 0))
             }
+            setTextColor(R.id.my_status, myInk.primary)
+            setTextColor(R.id.my_message, myInk.secondary)
+            setTextColor(R.id.my_music, myInk.tertiary)
 
             // ── Круглая аватарка ──
             val myAvatarPath = widgetData.getString("my_avatar_path", null)
@@ -161,20 +163,19 @@ class LoveWidgetProvider : HomeWidgetProvider() {
             val partnerPhotoPath = widgetData.getString("partner_photo_path", null)
                 .takeIf { !it.isNullOrEmpty() }
             val partnerBgBitmap = loadScaledBitmap(partnerPhotoPath, 220)
+            val partnerInk = WidgetContrast.inkFor(partnerBgBitmap)
             if (partnerBgBitmap != null) {
                 setImageViewBitmap(R.id.partner_bg_photo, partnerBgBitmap)
                 setViewVisibility(R.id.partner_bg_photo, View.VISIBLE)
                 setViewVisibility(R.id.partner_overlay, View.VISIBLE)
-                setTextColor(R.id.partner_status, Color.WHITE)
-                setTextColor(R.id.partner_message, Color.argb(220, 255, 255, 255))
-                setTextColor(R.id.partner_music, Color.argb(180, 255, 255, 255))
+                setInt(R.id.partner_overlay, "setBackgroundColor", partnerInk.veil)
             } else {
                 setViewVisibility(R.id.partner_bg_photo, View.GONE)
                 setViewVisibility(R.id.partner_overlay, View.GONE)
-                setTextColor(R.id.partner_status, Color.argb(204, 0, 0, 0))
-                setTextColor(R.id.partner_message, Color.argb(153, 0, 0, 0))
-                setTextColor(R.id.partner_music, Color.argb(136, 0, 0, 0))
             }
+            setTextColor(R.id.partner_status, partnerInk.primary)
+            setTextColor(R.id.partner_message, partnerInk.secondary)
+            setTextColor(R.id.partner_music, partnerInk.tertiary)
 
             // ── Круглая аватарка партнёра ──
             val partnerAvatarPath = widgetData.getString("partner_avatar_path", null)

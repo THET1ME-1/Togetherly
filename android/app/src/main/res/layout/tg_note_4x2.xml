@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Заметка на двоих, 4x2. Один и тот же скелет у всех размеров: меняются
+  отступы и кегли, а стиль (бумажный стикер или карточка M3) выбирается кодом —
+  через видимость линеек со «скрепкой» и заливки.
+
+  Только классы из белого списка RemoteViews: FrameLayout, LinearLayout,
+  ImageView, TextView, ImageButton. Распорок нет — иначе виджет не
+  инфлейтится вовсе (см. CLAUDE.md).
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:src="@drawable/tg_shape_32"
+        android:contentDescription="@null" />
+
+    <!-- Линейки бумаги: в стиле M3 прячем. -->
+    <ImageView
+        android:id="@+id/paper_lines"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_marginTop="34dp"
+        android:scaleType="fitXY"
+        android:src="@drawable/tg_note_lines"
+        android:visibility="gone"
+        android:contentDescription="@null" />
+
+    <!-- «Скрепка» бумаги: тоже только в бумажном стиле. -->
+    <ImageView
+        android:id="@+id/paper_clip"
+        android:layout_width="52dp"
+        android:layout_height="13dp"
+        android:layout_gravity="top|center_horizontal"
+        android:src="@drawable/tg_note_clip"
+        android:visibility="gone"
+        android:contentDescription="@null" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="15dp">
+
+        <LinearLayout
+            android:id="@+id/head"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="7dp"
+            android:visibility="visible">
+
+            <ImageView
+                android:id="@+id/head_chip"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/tg_shape_circle"
+                android:contentDescription="@null" />
+
+            <ImageView
+                android:id="@+id/head_icon"
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:layout_marginStart="-19dp"
+                android:src="@drawable/ic_tg_note"
+                android:contentDescription="@null" />
+
+            <TextView
+                android:id="@+id/head_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:textSize="10dp"
+                android:textStyle="bold"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:text="ЗАМЕТКА" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/note_text"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:textSize="14dp"
+            android:textStyle="bold"
+            android:lineSpacingExtra="2dp"
+            android:includeFontPadding="false"
+            android:ellipsize="end"
+            android:text="Нажмите, чтобы написать" />
+
+        <LinearLayout
+            android:id="@+id/foot"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="6dp">
+
+            <ImageView
+                android:id="@+id/author_dot"
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:src="@drawable/tg_shape_circle"
+                android:contentDescription="@null" />
+
+            <TextView
+                android:id="@+id/author_line"
+                android:layout_width="1dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="6dp"
+                android:textSize="10dp"
+                android:textStyle="bold"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:includeFontPadding="false"
+                android:text="" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Карандаш: тот же ввод, но со своим откликом на нажатие. -->
+    <ImageView
+        android:id="@+id/pencil_bg"
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="10dp"
+        android:src="@drawable/tg_shape_circle"
+        android:contentDescription="@null" />
+
+    <ImageView
+        android:id="@+id/pencil_icon"
+        android:layout_width="15dp"
+        android:layout_height="15dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="18dp"
+        android:layout_marginBottom="18dp"
+        android:src="@drawable/ic_tg_pencil"
+        android:contentDescription="@null" />
+</FrameLayout>

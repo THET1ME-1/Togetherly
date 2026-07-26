@@ -198,6 +198,26 @@ class CycleMath {
     return now.difference(last).inDays + 1;
   }
 
+  /// Какой это день месячных внутри своей серии: 1-й, 2-й, 3-й. null — в этот
+  /// день месячные не отмечены.
+  ///
+  /// Считается от начала непрерывной серии, в которую попал [date], а не от
+  /// последних месячных вообще: открытый в календаре июнь должен показывать
+  /// «2-й день» для июньских отметок, даже если июльские уже идут.
+  static int? periodDayIndex(List<DateTime> marks, DateTime date) {
+    final day = _day(date);
+    final days = marks.map(_day).toSet();
+    if (!days.contains(day)) return null;
+
+    var index = 1;
+    var cursor = day.subtract(const Duration(days: 1));
+    while (days.contains(cursor)) {
+      index++;
+      cursor = cursor.subtract(const Duration(days: 1));
+    }
+    return index;
+  }
+
   /// Чем помечен день [date] — для раскраски календаря.
   static CyclePhase phaseOn(
     List<DateTime> marks,

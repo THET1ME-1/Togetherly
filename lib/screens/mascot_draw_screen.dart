@@ -14,6 +14,8 @@ import '../models/draw_stroke.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_scope.dart';
+import '../widgets/common/app_dialog.dart';
+import '../widgets/color_picker_sheet.dart';
 
 // ── Palette (32 colours) ─────────────────────────────────────────────────────
 
@@ -878,49 +880,21 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
     }
   }
 
-  Future<String?> _showNameDialog() async {
-    final ctrl = TextEditingController(text: widget.initialName ?? '');
-    return showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(LocaleService.current.mascotNameTitle),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          maxLength: 30,
-          decoration: InputDecoration(
-            hintText: LocaleService.current.enterNameHint,
-          ),
-          onSubmitted: (_) => Navigator.of(ctx).pop(ctrl.text.trim()),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(LocaleService.current.cancel),
-          ),
-          TextButton(
-            onPressed: () {
-              final n = ctrl.text.trim();
-              if (n.isNotEmpty) Navigator.of(ctx).pop(n);
-            },
-            child: Text(
-              LocaleService.current.save,
-              style: TextStyle(color: _t.primary, fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Future<String?> _showNameDialog() => AppDialog.prompt(
+        context,
+        title: LocaleService.current.mascotNameTitle,
+        hint: LocaleService.current.enterNameHint,
+        initial: widget.initialName ?? '',
+        confirmLabel: LocaleService.current.save,
+        maxLength: 30,
+      );
 
   // ── Custom colour picker ──────────────────────────────────────────────────
 
   Future<void> _pickCustomColor() async {
-    final result = await showDialog<Color>(
+    final result = await showColorPickerSheet(
       context: context,
-      builder: (ctx) =>
-          _ColorPickerDialog(initial: _color, primaryColor: _t.primary),
+      initial: _color,
     );
     if (result != null) _selectColor(result);
   }
@@ -1956,190 +1930,4 @@ class _MascotCanvasPainter extends CustomPainter {
   // Always repaint: currentPoints is a shared mutable list — length comparisons
   // between old/new painter would read the *same* object and always be equal.
   bool shouldRepaint(_MascotCanvasPainter old) => true;
-}
-
-// ── HSV colour-picker dialog ──────────────────────────────────────────────────
-
-class _ColorPickerDialog extends StatefulWidget {
-  final Color initial;
-  final Color primaryColor;
-  const _ColorPickerDialog({required this.initial, required this.primaryColor});
-
-  @override
-  State<_ColorPickerDialog> createState() => _ColorPickerDialogState();
-}
-
-class _ColorPickerDialogState extends State<_ColorPickerDialog> {
-  late HSVColor _hsv;
-
-  @override
-  void initState() {
-    super.initState();
-    _hsv = HSVColor.fromColor(widget.initial);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _hsv.toColor();
-    final t = context.appTheme;
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: Text(
-        LocaleService.current.colorLabel,
-        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
-      ),
-      contentPadding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Colour preview
-          Container(
-            height: 52,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: t.divider),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          _HsvSlider(
-            label: LocaleService.current.hueLabel,
-            value: _hsv.hue,
-            min: 0,
-            max: 360,
-            gradientColors: List.generate(
-              13,
-              (i) => HSVColor.fromAHSV(1, i * 30.0, 1, 1).toColor(),
-            ),
-            onChanged: (v) => setState(() => _hsv = _hsv.withHue(v)),
-          ),
-          const SizedBox(height: 10),
-
-          _HsvSlider(
-            label: LocaleService.current.saturationLabel,
-            value: _hsv.saturation,
-            min: 0,
-            max: 1,
-            gradientColors: [
-              HSVColor.fromAHSV(1, _hsv.hue, 0, _hsv.value).toColor(),
-              HSVColor.fromAHSV(1, _hsv.hue, 1, _hsv.value).toColor(),
-            ],
-            onChanged: (v) => setState(() => _hsv = _hsv.withSaturation(v)),
-          ),
-          const SizedBox(height: 10),
-
-          _HsvSlider(
-            label: LocaleService.current.brightnessLabel,
-            value: _hsv.value,
-            min: 0,
-            max: 1,
-            gradientColors: [
-              Colors.black,
-              HSVColor.fromAHSV(1, _hsv.hue, _hsv.saturation, 1).toColor(),
-            ],
-            onChanged: (v) => setState(() => _hsv = _hsv.withValue(v)),
-          ),
-          const SizedBox(height: 4),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(LocaleService.current.cancel),
-        ),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: widget.primaryColor,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-          onPressed: () => Navigator.pop(context, color),
-          child: Text(LocaleService.current.selectAction),
-        ),
-      ],
-    );
-  }
-}
-
-// Gradient slider row used inside the colour picker
-class _HsvSlider extends StatelessWidget {
-  final String label;
-  final double value, min, max;
-  final List<Color> gradientColors;
-  final ValueChanged<double> onChanged;
-
-  const _HsvSlider({
-    required this.label,
-    required this.value,
-    required this.min,
-    required this.max,
-    required this.gradientColors,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.appTheme;
-    return Row(
-      children: [
-        SizedBox(
-          width: 64,
-          child: Text(
-            label,
-            style: TextStyle(fontSize: 12, color: t.textMuted),
-          ),
-        ),
-        Expanded(
-          child: SizedBox(
-            height: 36,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                // Gradient track background
-                Positioned(
-                  left: 12,
-                  right: 12,
-                  child: Container(
-                    height: 18,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(9),
-                      gradient: LinearGradient(colors: gradientColors),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withAlpha(25),
-                          blurRadius: 4,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                // Transparent slider overlaid
-                SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    trackHeight: 18,
-                    activeTrackColor: Colors.transparent,
-                    inactiveTrackColor: Colors.transparent,
-                    thumbColor: Colors.white,
-                    overlayColor: Colors.white.withAlpha(40),
-                    thumbShape: const RoundSliderThumbShape(
-                      enabledThumbRadius: 11,
-                    ),
-                  ),
-                  child: Slider(
-                    value: value,
-                    min: min,
-                    max: max,
-                    onChanged: onChanged,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 }

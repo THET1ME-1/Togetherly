@@ -13,6 +13,7 @@ import '../utils/share_origin.dart';
 import 'dart:io';
 
 import '../models/mascot.dart';
+import '../widgets/common/app_dialog.dart';
 import '../services/pb_media_service.dart';
 import '../services/level_service.dart';
 import '../services/mascot_service.dart';
@@ -241,43 +242,14 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
   }
 
   Future<String?> _showImportNameDialog(String defaultName) async {
-    final controller = TextEditingController(text: defaultName);
-    return showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(LocaleService.current.mascotNameTitle),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextField(
-              controller: controller,
-              autofocus: true,
-              maxLength: 30,
-              decoration: InputDecoration(
-                hintText: LocaleService.current.enterNameHint,
-              ),
-              onSubmitted: (_) {
-                final n = controller.text.trim();
-                if (n.isNotEmpty) Navigator.of(ctx).pop(n);
-              },
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(LocaleService.current.cancel),
-          ),
-          TextButton(
-            onPressed: () {
-              final n = controller.text.trim();
-              if (n.isNotEmpty) Navigator.of(ctx).pop(n);
-            },
-            child: Text(LocaleService.current.add, style: TextStyle(color: _t.primary)),
-          ),
-        ],
-      ),
+
+    return AppDialog.prompt(
+      context,
+      title: LocaleService.current.mascotNameTitle,
+      hint: LocaleService.current.enterNameHint,
+      initial: defaultName,
+      confirmLabel: LocaleService.current.add,
+      maxLength: 30,
     );
   }
 
@@ -334,31 +306,13 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
   }
 
   Future<void> _rename(Mascot mascot) async {
-    final controller = TextEditingController(text: mascot.localizedName);
-    final newName = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(LocaleService.current.rename),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLength: 30,
-          decoration: InputDecoration(
-            hintText: LocaleService.current.mascotNameTitle,
-          ),
-          onSubmitted: (_) => Navigator.of(ctx).pop(controller.text.trim()),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(LocaleService.current.cancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
-            child: Text('OK', style: TextStyle(color: _t.primary)),
-          ),
-        ],
-      ),
+
+    final newName = await AppDialog.prompt(
+      context,
+      title: LocaleService.current.rename,
+      hint: LocaleService.current.mascotNameTitle,
+      initial: mascot.localizedName,
+      maxLength: 30,
     );
     if (newName != null && newName.isNotEmpty && newName != mascot.localizedName) {
       await _svc.renameMascot(mascot, newName);
@@ -366,27 +320,15 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
   }
 
   Future<void> _delete(Mascot mascot) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(LocaleService.current.deleteMascotTitle),
-        content: Text(
-          LocaleService.current.deleteMascotBody(mascot.localizedName),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(LocaleService.current.cancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(LocaleService.current.delete,
-                style: const TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
+    final confirmed = await AppDialog.confirm(
+      context,
+      title: LocaleService.current.deleteMascotTitle,
+      message: LocaleService.current.deleteMascotBody(mascot.localizedName),
+      confirmLabel: LocaleService.current.delete,
+      destructive: true,
+      icon: Icons.delete_outline_rounded,
     );
-    if (confirmed == true) {
+    if (confirmed) {
       await _svc.deleteMascot(mascot);
     }
   }

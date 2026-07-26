@@ -21,17 +21,54 @@ class FloodFill {
   /// кромка, и строгое сравнение оставляло бы вокруг заливки светлый ореол.
   static const int defaultTolerance = 32;
 
+  /// На сколько пикселей залезать под контур. Два — кромка сглаживания у линии
+  /// толщиной около семи пикселей; больше начинает выпирать из-под тонких.
+  static const int defaultBleed = 2;
+
   /// Заливает область вокруг точки ([startX], [startY]) цветом [fillColor].
   ///
   /// Возвращает картинку размером с холст, где закрашена только найденная
   /// область, а остальное прозрачно, — её кладут поверх рисунка отдельным
   /// штрихом. null, если заливать нечего (ткнули в уже залитое место).
+  /// Границы закрашенной области — левый/верхний/правый/нижний непрозрачные
+  /// пиксели. null — слой пустой.
+  ///
+  /// Нужно, чтобы не тащить на сервер прозрачный слой во весь холст: заливка
+  /// одной юбки весила столько же, сколько весь рисунок.
+  static Future<ui.Rect?> opaqueBounds(ui.Image image) async {
+    final data = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+    if (data == null) return null;
+    final pixels = data.buffer.asUint32List();
+    final w = image.width, h = image.height;
+
+    var minX = w, minY = h, maxX = -1, maxY = -1;
+    for (var y = 0; y < h; y++) {
+      final row = y * w;
+      for (var x = 0; x < w; x++) {
+        // Альфа лежит в старшем байте ABGR-пикселя.
+        if ((pixels[row + x] >> 24) == 0) continue;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+    if (maxX < 0) return null;
+    return ui.Rect.fromLTRB(
+      minX.toDouble(),
+      minY.toDouble(),
+      (maxX + 1).toDouble(),
+      (maxY + 1).toDouble(),
+    );
+  }
+
   static Future<ui.Image?> fill({
     required ui.Image source,
     required int startX,
     required int startY,
     required int fillColor,
     int tolerance = defaultTolerance,
+    int bleed = defaultBleed,
   }) async {
     final width = source.width;
     final height = source.height;
@@ -88,6 +125,8 @@ class FloodFill {
       push(x, y - 1);
     }
 
+    _bleed(out, width, height, fill, bleed);
+
     final completer = Completer<ui.Image>();
     ui.decodeImageFromPixels(
       out.buffer.asUint8List(),
@@ -97,6 +136,33 @@ class FloodFill {
       completer.complete,
     );
     return completer.future;
+  }
+
+  /// Расширяет залитое пятно на [steps] пикселей во все стороны.
+  ///
+  /// Без этого вдоль каждой линии оставался светлый ободок: контур нарисован со
+  /// сглаживанием, его полупрозрачная кромка по цвету уже не белая, и заливка
+  /// до неё не доходит. Лишние пиксели прячутся под самим контуром — он лежит
+  /// поверх мазков, — поэтому расширять безопаснее, чем повышать допуск:
+  /// допуск начинает просачиваться сквозь тонкие линии.
+  static void _bleed(Uint32List out, int width, int height, int fill, int steps) {
+    if (steps <= 0) return;
+    for (var pass = 0; pass < steps; pass++) {
+      // Копия нужна, иначе расширение пойдёт лавиной внутри одного прохода.
+      final source = Uint32List.fromList(out);
+      for (var y = 0; y < height; y++) {
+        final row = y * width;
+        for (var x = 0; x < width; x++) {
+          final index = row + x;
+          if (source[index] != 0) continue;
+          final up = y > 0 && source[index - width] == fill;
+          final down = y < height - 1 && source[index + width] == fill;
+          final left = x > 0 && source[index - 1] == fill;
+          final right = x < width - 1 && source[index + 1] == fill;
+          if (up || down || left || right) out[index] = fill;
+        }
+      }
+    }
   }
 
   /// Похожи ли цвета. Прозрачность учитываем отдельно: прозрачный пиксель и

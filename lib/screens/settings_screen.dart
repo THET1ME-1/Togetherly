@@ -38,7 +38,6 @@ class SettingsScreen extends StatelessWidget {
     this.onPlus,
     this.cycleAvailable = false,
     this.cycleShared = false,
-    this.onCycleOpen,
     this.onCycleSharedChanged,
     this.onCycleWipe,
   });
@@ -74,7 +73,6 @@ class SettingsScreen extends StatelessWidget {
   /// цикла не бывает, и пункт был бы шумом.
   final bool cycleAvailable;
   final bool cycleShared;
-  final VoidCallback? onCycleOpen;
   final ValueChanged<bool>? onCycleSharedChanged;
   final VoidCallback? onCycleWipe;
 
@@ -183,14 +181,6 @@ class SettingsScreen extends StatelessWidget {
               if (cycleAvailable) ...[
                 SettingsSection(s.cycleTitle),
                 SettingsGroup([
-                  SettingsRow(
-                    icon: Icons.water_drop_rounded,
-                    title: s.cycleTitle,
-                    subtitle: s.cycleSettingsHint,
-                    trailing: const SettingsChevron(),
-                    onTap: onCycleOpen,
-                  ),
-                  const SettingsDivider(),
                   SettingsRow(
                     icon: Icons.visibility_rounded,
                     title: s.cycleShareWithPartner,

@@ -85,6 +85,8 @@ import '../services/celebration_notification_service.dart';
 import '../services/days_together_notification_service.dart';
 import '../services/mood_notification_service.dart';
 import '../widgets/celebration_banner.dart';
+import '../widgets/app_sheet.dart';
+import 'relationship_stats_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final UserData userData;
@@ -367,6 +369,7 @@ class _HomeScreenState extends State<HomeScreen> {
               moodService: _moodService,
               widgetService: _widgetService,
               theme: _t,
+              userData: widget.userData,
             ),
             settings: const RouteSettings(name: '/mood_calendar'),
           ),
@@ -1331,6 +1334,11 @@ class _HomeScreenState extends State<HomeScreen> {
               delay: const Duration(milliseconds: 460),
               child: _achievementsEntry(),
             ),
+          if (_pairData.isPaired && !_spaOn)
+            AnimatedSlideIn(
+              delay: const Duration(milliseconds: 500),
+              child: _statsEntry(),
+            ),
           if (_sunriseOn)
             AnimatedSlideIn(
               delay: const Duration(milliseconds: 120),
@@ -1757,6 +1765,7 @@ class _HomeScreenState extends State<HomeScreen> {
           moodService: _moodService,
           widgetService: _widgetService,
           theme: _t,
+          userData: widget.userData,
         ),
         settings: const RouteSettings(name: '/mood_calendar'),
       ),
@@ -2030,6 +2039,36 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// Вход в расширенную статистику — раздел Togetherly+. Без покупки карточка
+  /// ведёт на страницу Plus, а не прячется: иначе о разделе никто не узнает.
+  Widget _statsEntry() {
+    final cs = ProfileTheme.themeFor(_t).colorScheme;
+    final plus = PlusService.instance.active;
+    return _m3EntryCard(
+      cs: cs,
+      boxColor: cs.secondaryContainer,
+      onBoxColor: cs.onSecondaryContainer,
+      icon: plus ? Icons.insights_rounded : Icons.lock_outline_rounded,
+      title: LocaleService.current.statsEntryTitle,
+      onTap: () => openRelationshipStats(
+        context,
+        theme: _t,
+        groupId: _pairData.pairId,
+        myUid: widget.userData.uid,
+        partnerUid: _pairData.partnerUid,
+        startDate: _pairData.startDate,
+      ),
+      subtitle: Text(
+        LocaleService.current.statsEntrySubtitle,
+        style: TextStyle(
+          fontFamily: ProfileTheme.bodyFont,
+          fontSize: 12.5,
+          color: cs.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+
   /// Компактная карточка-вход «Достижения пары» на главном. Счётчик «N из M»
   /// живёт на снимке [AchievementService.stats] и обновляется в реальном времени.
   Widget _achievementsEntry() {
@@ -2247,7 +2286,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                M3LoadingDots(color: primaryLight),
+                M3Loading(color: primaryLight),
                 const SizedBox(height: 16),
                 Text(
                   LocaleService.current.posting,
@@ -2456,7 +2495,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }) async {
     final titleController = TextEditingController();
     final controller = TextEditingController();
-    return showDialog<
+    return showAppSheet<
       ({
         String? title,
         String? caption,
@@ -2465,7 +2504,7 @@ class _HomeScreenState extends State<HomeScreen> {
         bool toPartnerWidget,
       })
     >(
-      context: context,
+      context,
       builder: (ctx) {
         bool toMemories = initToMemories;
         bool toPairWidget = initToPairWidget;
@@ -2477,13 +2516,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 : LocaleService.current.partnerFallback;
             final nothingSelected =
                 !toMemories && !toPairWidget && !toPartnerWidget;
-            return Dialog(
-              backgroundColor: _t.cardSurface,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(24),
+            return SheetScaffold(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [

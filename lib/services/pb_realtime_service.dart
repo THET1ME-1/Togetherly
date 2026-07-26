@@ -644,6 +644,19 @@ class PbRealtimeService {
         rtMatch: (r) => r.data['user_uid'] == uid,
       );
 
+  /// Отметки календаря цикла [uid] в группе. Свои приходят все, партнёрские —
+  /// только разрешённые: их отсекает правило чтения коллекции на сервере.
+  Stream<List<RecordModel>> watchCycle(String groupId, String uid) => watchList(
+        'cycle_entries',
+        filter: _pb.filter(
+            'group_id = {:g} && user_uid = {:u}', {'g': groupId, 'u': uid}),
+        scope: RecordScope('cycle:g=$groupId:u=$uid',
+            equals: {'group_id': groupId, 'user_uid': uid}),
+        compare: (a, b) => _strAsc(a.data['day'], b.data['day']),
+        rtChannel: 'pair:$groupId',
+        rtMatch: (r) => r.data['user_uid'] == uid,
+      );
+
   /// Чат группы — старые сверху (по ts). [limit] (ленивый режим): начальная
   /// выборка лишь новейших [limit] сообщений (по убыванию ts), а не всей истории;
   /// догрузка старых — повторный вызов с бо́льшим [limit] (UI: chat_screen

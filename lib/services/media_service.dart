@@ -23,6 +23,29 @@ class MediaService {
   static final MediaService instance = MediaService._();
   factory MediaService() => instance;
 
+  /// Доля сжатия текущего видео (0..1). null — сжатие не идёт.
+  ///
+  /// Сжатие минуты видео занимает десятки секунд, и всё это время плашка
+  /// показывала «Синхронизация…» без движения — выглядело как зависание.
+  /// Плашка (`offline_sync_banner`) слушает это значение и рисует волновую
+  /// полосу с настоящей долей.
+  final ValueNotifier<double?> compressProgress = ValueNotifier<double?>(null);
+
+  /// Подписка на прогресс живёт одна на всё приложение: `subscribe` у
+  /// video_compress закрывает свой StreamController при отписке, поэтому
+  /// переподписываться на каждое видео дороже и рискованнее, чем держать одну.
+  Subscription? _compressSub;
+
+  void _beginCompressProgress() {
+    compressProgress.value = 0;
+    _compressSub ??= VideoCompress.compressProgress$.subscribe((p) {
+      // Плагин отдаёт проценты (0..100), а полосе нужна доля.
+      compressProgress.value = (p / 100).clamp(0.0, 1.0);
+    });
+  }
+
+  void _endCompressProgress() => compressProgress.value = null;
+
   /// Сжать (растровая картинка → WebP, видео → H.264) и загрузить в PocketBase.
   ///
   /// [destination] = `<kind>/<groupId>/<file>` — из него берём имя файла, kind
@@ -95,6 +118,7 @@ class MediaService {
       // DefaultQuality даёт 720p: минута видео весит около 30 МБ вместо 90.
       File? compressedTempFile;
       if (!kIsWeb && ['mp4', 'mov', 'avi', 'mkv'].contains(ext)) {
+        _beginCompressProgress();
         try {
           // Таймаут обязателен: VideoCompress на части устройств/кодеков виснет
           // и future НИКОГДА не возвращается (как FlutterImageCompress выше) →
@@ -138,6 +162,8 @@ class MediaService {
           // cancelCompression only on error — calling it after success on some
           // Android devices leaves the native codec spinning and freezes the UI.
           VideoCompress.cancelCompression();
+        } finally {
+          _endCompressProgress();
         }
       }
 

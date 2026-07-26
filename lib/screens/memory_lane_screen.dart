@@ -60,6 +60,8 @@ import 'memory_music_form_screen.dart';
 import 'memory_location_form_screen.dart';
 import 'memory_book_form_screen.dart';
 import 'memory_movie_form_screen.dart';
+import '../widgets/app_sheet.dart';
+import '../widgets/common/app_dialog.dart';
 import '../widgets/memory_date_field.dart';
 import '../widgets/rating_widgets.dart';
 import '../services/movie_search_service.dart';
@@ -3471,60 +3473,99 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   /// разблокировки. Возвращает PIN или null (отмена).
   Future<String?> _askPin({required bool create}) async {
     final ctrl = TextEditingController();
-    return showDialog<String>(
-      context: context,
+    return showAppSheet<String>(
+      context,
       builder: (ctx) {
         String? err;
+        final cs = Theme.of(ctx).colorScheme;
         return StatefulBuilder(
-          builder: (ctx, setD) => AlertDialog(
-            backgroundColor: widget.theme.cardSurface,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: Text(create
-                ? LocaleService.current.setPinTitle
-                : LocaleService.current.enterPinTitle),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: ctrl,
-                  keyboardType: TextInputType.number,
-                  obscureText: true,
-                  autofocus: true,
-                  maxLength: 8,
-                  decoration: InputDecoration(
-                    hintText: '••••',
-                    counterText: '',
-                    errorText: err,
+          builder: (ctx, setD) {
+            void submit() {
+              final v = ctrl.text.trim();
+              if (create && v.length < 4) {
+                setD(() => err = LocaleService.current.pinTooShort);
+                return;
+              }
+              if (v.isEmpty) return;
+              Navigator.pop(ctx, v);
+            }
+
+            return SheetScaffold(
+              title: create
+                  ? LocaleService.current.setPinTitle
+                  : LocaleService.current.enterPinTitle,
+              bottom: Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: TextButton.styleFrom(
+                        foregroundColor: cs.onSurfaceVariant,
+                        shape: const StadiumBorder(),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child: Text(LocaleService.current.cancel),
+                    ),
                   ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: cs.primary,
+                        foregroundColor: cs.onPrimary,
+                        shape: const StadiumBorder(),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      onPressed: submit,
+                      child: Text(LocaleService.current.pinDone),
+                    ),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: ctrl,
+                      keyboardType: TextInputType.number,
+                      obscureText: true,
+                      autofocus: true,
+                      maxLength: 8,
+                      onSubmitted: (_) => submit(),
+                      decoration: InputDecoration(
+                        hintText: '••••',
+                        counterText: '',
+                        errorText: err,
+                        filled: true,
+                        fillColor: cs.surfaceContainerHighest,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(18),
+                          borderSide: BorderSide.none,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(18),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                    if (create) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        LocaleService.current.setPinHint,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-                if (create)
-                  Text(
-                    LocaleService.current.setPinHint,
-                    style:
-                        TextStyle(fontSize: 12, color: widget.theme.textMuted),
-                  ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: Text(LocaleService.current.cancel),
               ),
-              ElevatedButton(
-                onPressed: () {
-                  final v = ctrl.text.trim();
-                  if (create && v.length < 4) {
-                    setD(() => err = LocaleService.current.pinTooShort);
-                    return;
-                  }
-                  if (v.isEmpty) return;
-                  Navigator.pop(ctx, v);
-                },
-                child: Text(LocaleService.current.pinDone),
-              ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -3830,46 +3871,33 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     );
   }
 
-  void _confirmDelete(Memory memory) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(LocaleService.current.deleteMemoryQuestion),
-        content: Text(LocaleService.current.actionCannotBeUndone),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(LocaleService.current.cancel),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _memRepo.delete(
-                groupId: _groupId,
-                memoryId: memory.id,
-                imageUrl: memory.imageUrl,
-                videoUrl: memory.videoUrl,
-                musicUrl: memory.musicUrl,
-                musicCoverUrl: memory.musicCoverUrl,
-              );
-
-              // Обновляем виджет, если удалили фото дня
-              if (memory.type == MemoryType.photo) {
-                await HomeWidgetService.instance.handleMemoryDeleted(
-                  _groupId,
-                  memory.id,
-                );
-              }
-            },
-            child: Text(
-              LocaleService.current.delete,
-              style: TextStyle(color: Colors.red.shade400),
-            ),
-          ),
-        ],
-      ),
+  Future<void> _confirmDelete(Memory memory) async {
+    final ok = await AppDialog.confirm(
+      context,
+      title: LocaleService.current.deleteMemoryQuestion,
+      message: LocaleService.current.actionCannotBeUndone,
+      confirmLabel: LocaleService.current.delete,
+      destructive: true,
+      icon: Icons.delete_outline_rounded,
     );
+    if (!ok) return;
+
+    await _memRepo.delete(
+      groupId: _groupId,
+      memoryId: memory.id,
+      imageUrl: memory.imageUrl,
+      videoUrl: memory.videoUrl,
+      musicUrl: memory.musicUrl,
+      musicCoverUrl: memory.musicCoverUrl,
+    );
+
+    // Обновляем виджет, если удалили фото дня
+    if (memory.type == MemoryType.photo) {
+      await HomeWidgetService.instance.handleMemoryDeleted(
+        _groupId,
+        memory.id,
+      );
+    }
   }
 
   void _editMemory(Memory memory) {
@@ -4695,17 +4723,11 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
 
   void _showSupportedVideoServicesDialog() {
     final primary = widget.theme.primary;
-    showDialog(
-      context: context,
-      builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 340),
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: widget.theme.cardSurface,
-            borderRadius: BorderRadius.circular(24),
-          ),
+    showAppSheet<void>(
+      context,
+      builder: (ctx) => SheetScaffold(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -4821,17 +4843,11 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
 
   void _showSupportedServicesDialog() {
     final primary = widget.theme.primary;
-    showDialog(
-      context: context,
-      builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 340),
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: widget.theme.cardSurface,
-            borderRadius: BorderRadius.circular(24),
-          ),
+    showAppSheet<void>(
+      context,
+      builder: (ctx) => SheetScaffold(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -6067,9 +6083,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                               )
                             : isGeneratingThumbnail
                                 ? const Center(
-                                    child: CircularProgressIndicator(
+                                    child: M3Loading(
                                       color: Colors.white,
-                                      strokeWidth: 2,
+                                      size: 36,
                                     ),
                                   )
                                 : Stack(

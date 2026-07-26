@@ -784,11 +784,36 @@ class PbDataService {
       };
     }
     try {
-      final resp = await _pb.send(
-        '/api/invite/accept',
-        method: 'POST',
-        body: {'code': code},
-      );
+      Future<dynamic> send() => _pb.send(
+            '/api/invite/accept',
+            method: 'POST',
+            body: {'code': code},
+          );
+      dynamic resp;
+      try {
+        resp = await send();
+      } on ClientException catch (e) {
+        // 401 от маршрута (`requireAuth`) значит протухший токен, а не плохой
+        // код: myUid лежит в памяти, поэтому проверка выше его не поймала, и
+        // человек видел «код не найден» при живом коде. Освежаем сессию и
+        // пробуем ещё раз — жалоба от @frizzovoi была ровно про это (в логах
+        // PB все обращения к /api/invite/accept за двое суток — 401).
+        if (e.statusCode != 401) rethrow;
+        try {
+          await _pb
+              .collection('users')
+              .authRefresh()
+              .timeout(const Duration(seconds: 8));
+        } catch (_) {}
+        if ((PocketBaseService().userId ?? '').isEmpty) {
+          return {
+            'success': false,
+            'message': 'Сессия истекла — войдите заново',
+            'authExpired': true,
+          };
+        }
+        resp = await send();
+      }
       final map =
           resp is Map ? Map<String, dynamic>.from(resp) : <String, dynamic>{};
       if (map['success'] != true) {
@@ -810,6 +835,13 @@ class PbDataService {
       );
     } on ClientException catch (e) {
       // Хук вернул 4xx (код не найден / свой код / занято) — текст в response.
+      if (e.statusCode == 401) {
+        return {
+          'success': false,
+          'message': 'Сессия истекла — войдите заново',
+          'authExpired': true,
+        };
+      }
       final msg = (e.response['message'] ?? 'Ошибка приёма кода').toString();
       debugPrint('PbData.acceptInviteCode hook ${e.statusCode}: $msg');
       return {'success': false, 'message': msg};
@@ -1491,6 +1523,22 @@ class PbDataService {
     }
   }
 
+  /// Данные виджетов обоих участников группы.
+  ///
+  /// Нужны заметке на двоих: она общая, и свежую версию выбираем из записей
+  /// обоих, а не только своей.
+  Future<List<RecordModel>> loadWidgetsForGroup(String groupId) async {
+    if (groupId.isEmpty) return const [];
+    try {
+      return await _pb.collection('widget_data').getFullList(
+            filter: _pb.filter('group_id = {:g}', {'g': groupId}),
+          );
+    } catch (e) {
+      debugPrint('PbData.loadWidgetsForGroup($groupId) failed: $e');
+      return const [];
+    }
+  }
+
   // ══════════════════════════════════════════════ CANVAS
   Future<bool> upsertStroke(
     String groupId,
@@ -1637,7 +1685,12 @@ class PbDataService {
   }
 
   Future<bool> upsertCanvasMeta(String groupId, String canvasId,
-      {int? bgColor, int? rotation, int? clearVersion}) async {
+      {int? bgColor,
+      int? rotation,
+      int? clearVersion,
+      String? coloringId,
+      String? coloringMode,
+      Map<String, dynamic>? coloringDone}) async {
     if (groupId.isEmpty) return false;
     final body = <String, dynamic>{
       'group_id': groupId,
@@ -1647,6 +1700,10 @@ class PbDataService {
     if (bgColor != null) body['bg_color'] = bgColor;
     if (rotation != null) body['canvas_rotation'] = rotation;
     if (clearVersion != null) body['clear_version'] = clearVersion;
+    // Раскраска вдвоём: какая картинка, режим и кто уже нажал «Готово».
+    if (coloringId != null) body['coloring_id'] = coloringId;
+    if (coloringMode != null) body['coloring_mode'] = coloringMode;
+    if (coloringDone != null) body['coloring_done'] = coloringDone;
     return _upsertByFilter('canvas_meta',
         'group_id = {:g} && canvas_id = {:c}', {'g': groupId, 'c': canvasId},
         body, op: 'upsertCanvasMeta');

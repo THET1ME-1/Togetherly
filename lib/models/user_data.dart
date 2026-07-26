@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/pb_coins_service.dart';
+import '../services/plus_access.dart';
 import '../services/pb_data_service.dart';
 import '../services/pocketbase_service.dart';
 import '../services/push_background_service.dart';
@@ -258,12 +259,23 @@ class UserData extends ChangeNotifier {
   String? get equippedIcon =>
       (_badge != null && _badge!.isNotEmpty) ? _badge : null;
 
-  /// Доступна ли иконка пользователю (куплена или выдана).
-  bool ownsIcon(String id) =>
-      _ownedIcons.contains(id) || _grantedBadges.contains(id);
+  /// Доступна ли иконка: куплена, выдана наградой или открыта Togetherly+.
+  /// Наградные значки покупка не открывает — см. [PlusAccess.ownsIcon].
+  bool ownsIcon(String id) => PlusAccess.ownsIcon(
+        id: id,
+        plus: PlusService.instance.active,
+        owned: _ownedIcons,
+        granted: _grantedBadges,
+      );
 
-  /// Все доступные пользователю иконки (купленные + выданные), без дублей.
-  Set<String> get availableIcons => {..._ownedIcons, ..._grantedBadges};
+  /// Все доступные пользователю иконки, без дублей. С Togetherly+ сюда входит
+  /// весь платный набор, кроме наградных.
+  Set<String> get availableIcons => {
+        ..._ownedIcons,
+        ..._grantedBadges,
+        if (PlusService.instance.active)
+          ...ProfileIcon.purchasable.map((i) => i.id),
+      };
 
   // ── Одноразовые фичи ─────────────────────────────────────────────────────
   /// ID фичи: свои фото пары на виджете «Дни вместе» (зеркало FEATURE_PRICES).
@@ -936,6 +948,26 @@ class UserData extends ChangeNotifier {
     _birthDate = date;
     await _saveLocal();
     await PbDataService().updateUserProfile(PocketBaseService().userId ?? "", {'birthDate': date});
+    notifyListeners();
+  }
+
+  /// Меняет пол уже после регистрации.
+  ///
+  /// [customGender] осмыслен только при [Gender.unspecified]: пустой текст
+  /// означает «не хочу указывать». Пол виден партнёру и решает, показывать ли
+  /// календарь цикла, поэтому уезжает на сервер тем же полем, что при входе.
+  Future<void> updateGender(Gender gender, {String? customGender}) async {
+    _gender = gender;
+    final custom = customGender?.trim();
+    _customGender = (gender == Gender.unspecified && custom != null && custom.isNotEmpty)
+        ? custom
+        : null;
+    await _saveLocal();
+    final uid = PocketBaseService().userId ?? '';
+    if (uid.isNotEmpty) {
+      await PbDataService()
+          .updateUserProfile(uid, {'gender': genderToStorage()});
+    }
     notifyListeners();
   }
 

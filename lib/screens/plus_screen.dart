@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../services/coin_store.dart';
 import '../services/locale_service.dart';
+import '../services/pb_coins_service.dart';
 import '../services/plus_service.dart';
 import '../theme/profile_theme.dart';
 import '../widgets/app_sheet.dart';
@@ -29,6 +31,10 @@ class _PlusScreenState extends State<PlusScreen> {
   final PlusService _plus = PlusService.instance;
   bool _busy = false;
 
+  /// Магазин заводится только в Play-сборке — там покупка идёт через биллинг.
+  /// В остальных сборках оплата уходит на lava.top, и магазин не нужен.
+  CoinStore? _store;
+
   ColorScheme get _cs => widget.scheme;
   AppStrings get _s => LocaleService.current;
 
@@ -37,6 +43,28 @@ class _PlusScreenState extends State<PlusScreen> {
     super.initState();
     _plus.addListener(_onChanged);
     unawaitedRefresh();
+    if (PlusService.buysInStore) _initStore();
+  }
+
+  Future<void> _initStore() async {
+    final store = createCoinStore();
+    _store = store;
+    store.addListener(_onChanged);
+    await store.init(
+      onGrantCoins: ({
+        required String productId,
+        required String purchaseToken,
+      }) async {
+        // Тот же роут, что начисляет монеты: для togetherly_plus он ставит флаг
+        // доступа. Возвращаем баланс — по non-null сервис понимает, что сервер
+        // покупку принял.
+        final res = await PbCoinsService()
+            .iapPurchase(productId: productId, purchaseToken: purchaseToken);
+        if (res == null || res['ok'] != true) return null;
+        return (res['coins'] as num?)?.toInt() ?? 0;
+      },
+    );
+    if (mounted) setState(() {});
   }
 
   void unawaitedRefresh() {
@@ -46,6 +74,8 @@ class _PlusScreenState extends State<PlusScreen> {
   @override
   void dispose() {
     _plus.removeListener(_onChanged);
+    _store?.removeListener(_onChanged);
+    _store?.dispose();
     super.dispose();
   }
 
@@ -267,6 +297,11 @@ class _PlusScreenState extends State<PlusScreen> {
             ),
           ),
         ),
+        // Ввод кода в Play-сборке не показываем: код выдают за оплату мимо
+        // биллинга Google, и кнопка «у меня есть код» рядом с их же покупкой
+        // читается как обход. Купившие на lava.top с другой почтой открывают
+        // доступ в сборке с GitHub — флаг всё равно ложится на аккаунт.
+        if (!PlusService.buysInStore) ...[
         const SizedBox(height: 10),
         SizedBox(
           width: double.infinity,
@@ -288,6 +323,7 @@ class _PlusScreenState extends State<PlusScreen> {
             ),
           ),
         ),
+        ],
         const SizedBox(height: 12),
         Text(
           _s.plusHowItWorks,
@@ -331,6 +367,10 @@ class _PlusScreenState extends State<PlusScreen> {
   }
 
   Future<void> _openPurchase() async {
+    if (PlusService.buysInStore) {
+      await _buyInStore();
+      return;
+    }
     final url = Uri.tryParse(PlusService.purchaseUrl);
     if (url == null) return;
     setState(() => _busy = true);
@@ -340,6 +380,37 @@ class _PlusScreenState extends State<PlusScreen> {
       // Браузера нет или ссылка не открылась — молча возвращаем кнопку.
     }
     if (mounted) setState(() => _busy = false);
+  }
+
+  /// Покупка через биллинг Google Play. Флаг доступа ставит сервер, экран лишь
+  /// показывает исход: успех, отмену или ошибку.
+  Future<void> _buyInStore() async {
+    final store = _store;
+    if (store == null || !store.isAvailable) {
+      _toast(_s.plusStoreUnavailable);
+      return;
+    }
+    setState(() => _busy = true);
+    final res = await store.buy(kPlusProductId);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    switch (res.status) {
+      case IapStatus.success:
+        await _plus.refresh();
+        if (mounted) _toast(_s.plusPurchased);
+      case IapStatus.pending:
+        _toast(_s.plusPurchasePending);
+      case IapStatus.cancelled:
+        break; // человек сам отказался — молчим
+      case IapStatus.error:
+        _toast(_s.plusPurchaseFailed);
+    }
+  }
+
+  void _toast(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(text)));
   }
 
   /// Ввод кода, выданного ботом: платили с другой почты или аккаунта ещё не

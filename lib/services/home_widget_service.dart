@@ -1237,6 +1237,141 @@ class HomeWidgetService {
     }
   }
 
+  // ── Заметка на двоих ─────────────────────────────────────────────────────
+
+  /// Кладёт заметку на листики рабочего стола.
+  ///
+  /// Заметка общая: у каждого своя запись `widget_data`, а виджет показывает
+  /// свежую из двух. Так правка партнёра не затирается моей и наоборот —
+  /// последнее слово за тем, кто писал позже.
+  Future<void> syncNote({
+    required String groupId,
+    required String text,
+    required String author,
+    required String time,
+    String myName = '',
+  }) async {
+    try {
+      final g = groupId.isEmpty ? 'solo' : groupId;
+      await HomeWidget.saveWidgetData<String>('note_${g}_text', text);
+      await HomeWidget.saveWidgetData<String>('note_${g}_author', author);
+      await HomeWidget.saveWidgetData<String>('note_${g}_time', time);
+      await HomeWidget.saveWidgetData<String>('note_${g}_my_name', myName);
+      await HomeWidget.saveWidgetData<String>('note_my_name', myName);
+      await HomeWidget.saveWidgetData<String>('note_latest_group', g);
+      await _updateNoteWidgets();
+    } catch (e) {
+      debugPrint('HomeWidgetService.syncNote failed: $e');
+    }
+  }
+
+  /// Тянет заметку из облака и раскладывает по листикам.
+  Future<void> _syncNoteFromCloud(String groupId) async {
+    if (groupId.isEmpty || groupId == 'solo') return;
+    try {
+      final uid = PocketBaseService().userId ?? '';
+      if (uid.isEmpty) return;
+      final records = await PbDataService().loadWidgetsForGroup(groupId);
+      final note = latestNote(records.map((r) => r.data));
+      final me = PbAuthService().currentProfile();
+      final myName = (me?['displayName'] as String?) ?? '';
+      if (note == null) {
+        await syncNote(
+          groupId: groupId, text: '', author: '', time: '', myName: myName);
+        return;
+      }
+      final hh = note.at.hour.toString().padLeft(2, '0');
+      final mm = note.at.minute.toString().padLeft(2, '0');
+      await syncNote(
+        groupId: groupId,
+        text: note.text,
+        author: note.author,
+        time: '$hh:$mm',
+        myName: myName,
+      );
+    } catch (e) {
+      debugPrint('HomeWidgetService._syncNoteFromCloud failed: $e');
+    }
+  }
+
+  /// Сохраняет заметку, написанную прямо на рабочем столе.
+  ///
+  /// Виджет уже показал новый текст, поэтому здесь только запись на сервер и
+  /// снятие отметки «ждёт отправки»: без неё приложение дошлёт заметку при
+  /// следующем запуске, если фоновый вызов не добрался до сети.
+  Future<void> saveNoteFromWidget({
+    required String groupId,
+    required String text,
+  }) async {
+    if (groupId.isEmpty || groupId == 'solo') return;
+    final uid = PocketBaseService().userId ?? '';
+    if (uid.isEmpty) return;
+
+    final now = DateTime.now();
+    final hh = now.hour.toString().padLeft(2, '0');
+    final mm = now.minute.toString().padLeft(2, '0');
+    final me = PbAuthService().currentProfile();
+    final myName = (me?['displayName'] as String?) ?? '';
+
+    // Читаем своё `data` целиком: в нём живут и другие ключи, а upsert
+    // перезаписывает поле json целиком.
+    final existing = await PbDataService().loadWidget(groupId, uid);
+    final raw = existing?.data['data'];
+    final data = raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+    data['note'] = {
+      'text': text,
+      'author': myName,
+      'at': now.millisecondsSinceEpoch,
+    };
+    await PbDataService().upsertWidget(groupId, uid, {'data': data});
+
+    await syncNote(
+      groupId: groupId,
+      text: text,
+      author: myName,
+      time: '$hh:$mm',
+      myName: myName,
+    );
+    await HomeWidget.saveWidgetData<String>('note_${groupId}_pending_send', '0');
+  }
+
+  /// Достаёт свежую заметку из данных обоих участников.
+  ///
+  /// Возвращает null, если её нет ни у кого: тогда листик остаётся с
+  /// приглашением написать.
+  ({String text, String author, DateTime at})? latestNote(
+      Iterable<Map<String, dynamic>> widgetDataRecords) {
+    ({String text, String author, DateTime at})? best;
+    for (final rec in widgetDataRecords) {
+      final data = rec['data'];
+      if (data is! Map) continue;
+      final note = data['note'];
+      if (note is! Map) continue;
+      final text = (note['text'] ?? '').toString();
+      if (text.isEmpty) continue;
+      final at = DateTime.fromMillisecondsSinceEpoch(
+          (note['at'] as num?)?.toInt() ?? 0);
+      if (best == null || at.isAfter(best.at)) {
+        best = (text: text, author: (note['author'] ?? '').toString(), at: at);
+      }
+    }
+    return best;
+  }
+
+  Future<void> _updateNoteWidgets() async {
+    for (final n in const [
+      'NoteWidget2x2Provider',
+      'NoteWidget4x2Provider',
+      'NoteWidget4x4Provider',
+    ]) {
+      await HomeWidget.updateWidget(
+        name: n,
+        androidName: n,
+        qualifiedAndroidName: 'com.togetherly.love.$n',
+      );
+    }
+  }
+
   /// Отметка после отправки прямо с рабочего стола: свой счётчик +1, состояние
   /// «отправлено» и время. Приложение при этом может быть закрыто, поэтому
   /// читаем прежние значения из данных виджета.
@@ -2191,6 +2326,11 @@ class HomeWidgetService {
       // Выбираем «активный» таймер один раз — тот же самый идёт и в Timer-виджет,
       // и в Days Counter, чтобы они гарантированно показывали одно и то же.
       final activeTimer = await _resolveActiveTimer(activeTimers, activeGroupId);
+
+      // ── Заметка на двоих ──
+      // Текст общий: берём свежую запись из данных обоих участников, иначе
+      // листик у второго остался бы с прошлым текстом.
+      unawaited(_syncNoteFromCloud(activeGroupId));
 
       // ── Новый каталог: «Вместе» ──
       // Без этого виджет на рабочем столе не знает даже своей группы и стоит

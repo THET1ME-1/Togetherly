@@ -13,6 +13,8 @@ import '../theme/app_theme.dart';
 import '../widgets/memory_date_field.dart';
 
 import 'map_picker_screen.dart';
+import '../services/plus_access.dart';
+import '../services/plus_service.dart';
 
 /// type авто-определяется: фото → photo, видео → video, без медиа → text.
 typedef MemoryPhotoSaveCallback = Future<void> Function({
@@ -93,6 +95,29 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
     try {
       final picked = await ImagePicker().pickMultipleMedia();
       if (picked.isEmpty || !mounted) return;
+
+      // Потолок файла: 100 МБ обычно, 200 с Togetherly+. Проверяем ДО добавления
+      // в форму — иначе тяжёлое видео уходило бы в очередь и висело там, получая
+      // отказ сервера уже без человека у экрана.
+      final plus = PlusService.instance.active;
+      final tooBig = <XFile>[];
+      final fits = <XFile>[];
+      for (final f in picked) {
+        final size = await File(f.path).length();
+        (PlusAccess.fitsMemoryLimit(bytes: size, plus: plus) ? fits : tooBig)
+            .add(f);
+      }
+      if (!mounted) return;
+      if (tooBig.isNotEmpty) {
+        final limitMb = PlusAccess.memoryFileLimit(plus: plus) ~/ (1024 * 1024);
+        _showError(plus
+            ? LocaleService.current.memoryFileTooBig(limitMb)
+            : LocaleService.current.memoryFileTooBigPlusHint(limitMb));
+      }
+      if (fits.isEmpty) return;
+      picked
+        ..clear()
+        ..addAll(fits);
       setState(() => _media = [..._media, ...picked]);
       if (_lat == null) {
         final firstPhoto =

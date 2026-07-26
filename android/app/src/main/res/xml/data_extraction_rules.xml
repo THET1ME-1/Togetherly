@@ -1,9 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ (API 31): раздельные правила для облачного бэкапа и переноса на новый
+  телефон. Исключаем одно и то же в обоих (см. backup_rules.xml): токен сессии и
+  папку offline/ с перепиской, очередью отправки и медиа.
+
+  Перенос устройства исключён намеренно: ключ шифрования кэша живёт в Keystore и на
+  новый телефон не переезжает, так что перенесённая база не открылась бы — приложение
+  просто скачает всё заново.
+-->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="sharedpref" path="FlutterSharedPreferences.xml"/>
+        <exclude domain="file" path="offline"/>
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="FlutterSharedPreferences.xml"/>
+        <exclude domain="file" path="offline"/>
     </device-transfer>
 </data-extraction-rules>

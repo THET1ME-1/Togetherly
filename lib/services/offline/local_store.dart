@@ -5,7 +5,11 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:sembast/sembast_io.dart';
+import 'package:sembast/sembast_memory.dart';
 
+import 'cache_cipher.dart';
+import 'cache_key_store.dart';
+import 'cache_migration.dart';
 import 'record_scope.dart';
 
 /// Локальное офлайн-хранилище (sembast) — «домашняя копия» данных PocketBase
@@ -30,10 +34,17 @@ class LocalStore {
 
   static const int _dbVersion = 1;
 
+  /// Открытый файл кэша до 1.19 — остаётся только как источник для переноса.
+  static const String _plainFile = 'pb_cache.db';
+
+  /// Зашифрованная база (AES-256-GCM, ключ из Keystore/Keychain).
+  static const String _encryptedFile = 'pb_cache_enc.db';
+
   Database? _db;
   Completer<void>? _opening;
   DatabaseFactory? _factory;
   String? _path;
+  SembastCodec? _codec;
 
   StoreRef<String, Map<String, Object?>> _col(String collection) =>
       stringMapStoreFactory.store('col_$collection');
@@ -62,6 +73,10 @@ class LocalStore {
   }
 
   /// Открывает БД (идемпотентно). Параллельные вызовы ждут один и тот же future.
+  ///
+  /// База зашифрована (AES-256-GCM), ключ лежит в Keystore/Keychain. При первом
+  /// запуске новой версии открытый файл прошлых версий переносится в
+  /// зашифрованный и удаляется с диска.
   Future<void> init() async {
     if (_db != null) return;
     final pending = _opening;
@@ -72,16 +87,50 @@ class LocalStore {
       final dir = await getApplicationSupportDirectory();
       final folder = Directory('${dir.path}/offline');
       if (!await folder.exists()) await folder.create(recursive: true);
-      _factory = databaseFactoryIo;
-      _path = '${folder.path}/pb_cache.db';
-      _db = await _factory!.openDatabase(_path!, version: _dbVersion);
-      debugPrint('LocalStore: открыт $_path');
+
+      final key = await CacheKeyStore.readOrCreate();
+      if (key == null) {
+        // Без секретного хранилища ключ пришлось бы класть на диск рядом с
+        // базой — это ровно та утечка, от которой уходим. Тогда кэш живёт в
+        // памяти: офлайн работает до перезапуска, на диске не остаётся ничего.
+        _factory = databaseFactoryMemory;
+        _codec = null;
+        _path = 'pb_cache_mem.db';
+        _db = await _factory!.openDatabase(_path!, version: _dbVersion);
+        debugPrint('LocalStore: кэш только в памяти (нет Keystore/Keychain)');
+      } else {
+        _factory = databaseFactoryIo;
+        _codec = CacheCipher.codec(key);
+        _path = '${folder.path}/$_encryptedFile';
+        await CacheMigration.plainToEncrypted(
+          factory: _factory!,
+          plainPath: '${folder.path}/$_plainFile',
+          encryptedPath: _path!,
+          codec: _codec!,
+        );
+        _db = await _open();
+        debugPrint('LocalStore: открыт $_path (зашифрован)');
+      }
     } catch (e) {
       debugPrint('LocalStore.init failed (работаем без кэша): $e');
       _db = null; // fail-open
     } finally {
       c.complete();
       _opening = null;
+    }
+  }
+
+  /// Открывает базу текущим ключом. Ключ мог смениться (сброс Keystore после
+  /// восстановления системы) — тогда файл не расшифровать, и он пересоздаётся:
+  /// это кэш, всё содержимое приедет с сервера заново.
+  Future<Database> _open() async {
+    try {
+      return await _factory!
+          .openDatabase(_path!, version: _dbVersion, codec: _codec);
+    } catch (e) {
+      debugPrint('LocalStore: база не открылась ($e), пересоздаю');
+      await _factory!.deleteDatabase(_path!);
+      return _factory!.openDatabase(_path!, version: _dbVersion, codec: _codec);
     }
   }
 
@@ -318,7 +367,7 @@ class LocalStore {
       await db.close();
       _db = null;
       await f.deleteDatabase(p);
-      _db = await f.openDatabase(p, version: _dbVersion);
+      _db = await f.openDatabase(p, version: _dbVersion, codec: _codec);
     } catch (e) {
       debugPrint('LocalStore.clearAll failed: $e');
     }

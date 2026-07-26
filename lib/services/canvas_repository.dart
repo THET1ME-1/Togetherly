@@ -13,10 +13,20 @@ class CanvasMetaUpdate {
   final int? bgColor;
   final int? clearVersion;
   final int? rotationMilliRadians;
+
+  /// Раскраска вдвоём: какая картинка лежит контуром поверх холста, в каком
+  /// режиме её красят и кто уже нажал «Готово» (uid → true).
+  final String? coloringId;
+  final String? coloringMode;
+  final Map<String, dynamic>? coloringDone;
+
   const CanvasMetaUpdate({
     this.bgColor,
     this.clearVersion,
     this.rotationMilliRadians,
+    this.coloringId,
+    this.coloringMode,
+    this.coloringDone,
   });
 }
 
@@ -121,10 +131,14 @@ class CanvasRepository {
           return n == 0 ? null : n;
         }
 
+        final done = d['coloring_done'];
         return CanvasMetaUpdate(
           bgColor: nz(d['bg_color']),
           clearVersion: nz(d['clear_version']),
           rotationMilliRadians: nz(d['canvas_rotation']),
+          coloringId: (d['coloring_id'] as String?)?.trim(),
+          coloringMode: (d['coloring_mode'] as String?)?.trim(),
+          coloringDone: done is Map ? Map<String, dynamic>.from(done) : null,
         );
       });
 
@@ -135,6 +149,25 @@ class CanvasRepository {
           String groupId, String canvasId, int rotationMilliRadians) =>
       _data.upsertCanvasMeta(groupId, canvasId,
           rotation: rotationMilliRadians);
+
+  /// Заводит на холсте раскраску: картинка и режим одни на двоих.
+  Future<void> setColoring(
+    String groupId,
+    String canvasId, {
+    required String pictureId,
+    required String mode,
+  }) =>
+      _data.upsertCanvasMeta(groupId, canvasId,
+          coloringId: pictureId, coloringMode: mode, coloringDone: const {});
+
+  /// Отмечает готовность одного из двоих. Карта целиком, а не поле: правку
+  /// одного ключа PocketBase в json-поле не умеет.
+  Future<void> setColoringDone(
+    String groupId,
+    String canvasId,
+    Map<String, dynamic> done,
+  ) =>
+      _data.upsertCanvasMeta(groupId, canvasId, coloringDone: done);
 
   // ── Рисование: live-штрихи (in-progress) — ЭФЕМЕРНО через Centrifugo ───────
   // НЕ пишем в БД: раньше каждый in-progress штрих = запись в коллекцию

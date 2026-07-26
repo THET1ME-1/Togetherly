@@ -3,15 +3,20 @@ import 'package:flutter/material.dart';
 import '../../theme/fonts.dart';
 
 import '../../services/locale_service.dart';
+import '../app_sheet.dart';
 
-/// Единый стиль для всех меню приложения: диалоги, подтверждения и снэкбары.
+/// Единый стиль для всех меню приложения: подтверждения, сообщения, ввод строки
+/// и снэкбары.
 ///
-/// Форма/скругления/цвета наследуются от глобальной темы (`dialogTheme`,
-/// `snackBarTheme` в [main]), а акцент по умолчанию берётся из активной темы
-/// через `Theme.of(context).colorScheme.primary`. Поэтому все меню выглядят
-/// одинаково и автоматически перекрашиваются при смене темы.
+/// **Всё это — нижние листы, а не диалоги по центру.** Диалог посреди экрана
+/// требует тянуться большим пальцем к середине, а на телефонах с кнопочной
+/// навигацией ещё и жил впритык к панели: лист через [showAppSheet] выезжает
+/// снизу, держит отступ под системные кнопки и закрывается смахиванием.
+///
+/// Форма и цвета берутся из активной темы (`colorScheme`), поэтому всё
+/// перекрашивается при смене темы само.
 abstract final class AppDialog {
-  /// Диалог-подтверждение с заголовком, текстом и двумя кнопками.
+  /// Лист-подтверждение с заголовком, текстом и двумя кнопками.
   ///
   /// Возвращает `true`, если пользователь подтвердил действие.
   /// Для деструктивных действий (удаление/сброс) передай [destructive] = true —
@@ -27,69 +32,67 @@ abstract final class AppDialog {
   }) async {
     final cs = Theme.of(context).colorScheme;
     final s = LocaleService.current;
-    // M3: заголовок Unbounded, крупные скругления, кнопки-таблетки. Деструктивное
-    // действие — тональная кнопка на errorContainer, а не красный текст: так
-    // видно, что оно опасное, но кнопка остаётся кнопкой.
+    // Деструктивное действие — тональная кнопка на errorContainer, а не красный
+    // текст: видно, что опасное, но кнопка остаётся кнопкой.
     final confirmBg = destructive ? cs.errorContainer : cs.primary;
     final confirmFg = destructive ? cs.onErrorContainer : cs.onPrimary;
 
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: cs.surfaceContainerHigh,
-        surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-        icon: icon != null
-            ? Icon(icon, color: destructive ? cs.error : cs.primary, size: 30)
-            : null,
-        titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 10),
-        contentPadding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-        actionsPadding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-        title: title != null
-            ? Text(
-                title,
-                style: AppFonts.unbounded(
-                  size: 21,
-                  weight: 700,
-                  letterSpacing: -0.4,
-                  color: cs.onSurface,
+    final result = await showAppSheet<bool>(
+      context,
+      builder: (ctx) => SheetScaffold(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (icon != null) ...[
+                _iconChip(icon, destructive ? cs.error : cs.primary, cs),
+                const SizedBox(height: 14),
+              ],
+              if (title != null) ...[
+                Text(title, style: _titleStyle(cs)),
+                const SizedBox(height: 8),
+              ],
+              Text(
+                message,
+                style: TextStyle(
+                  fontFamily: 'Onest',
+                  fontSize: 15,
+                  height: 1.4,
+                  color: cs.onSurfaceVariant,
                 ),
-              )
-            : null,
-        content: Text(
-          message,
-          style: TextStyle(fontSize: 15, height: 1.4, color: cs.onSurfaceVariant),
+              ),
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  Expanded(
+                    child: _flatButton(
+                      cs,
+                      label: cancelLabel ?? s.cancel,
+                      onPressed: () => Navigator.pop(ctx, false),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _filledButton(
+                      label: confirmLabel ?? s.confirm,
+                      background: confirmBg,
+                      foreground: confirmFg,
+                      onPressed: () => Navigator.pop(ctx, true),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            style: TextButton.styleFrom(
-              shape: const StadiumBorder(),
-              foregroundColor: cs.onSurfaceVariant,
-              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
-            ),
-            child: Text(cancelLabel ?? s.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(
-              backgroundColor: confirmBg,
-              foregroundColor: confirmFg,
-              shape: const StadiumBorder(),
-              padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 14),
-            ),
-            child: Text(
-              confirmLabel ?? s.confirm,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
       ),
     );
     return result ?? false;
   }
 
-  /// Информационный диалог с одной кнопкой «ОК».
+  /// Лист-сообщение с одной кнопкой «ОК».
   static Future<void> info(
     BuildContext context, {
     required String title,
@@ -97,54 +100,217 @@ abstract final class AppDialog {
     String? buttonLabel,
     IconData? icon,
   }) {
-    final accent = Theme.of(context).colorScheme.primary;
     final s = LocaleService.current;
-    return showDialog<void>(
-      context: context,
+    return showAppSheet<void>(
+      context,
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
-        return AlertDialog(
-          backgroundColor: cs.surfaceContainerHigh,
-          surfaceTintColor: Colors.transparent,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-          icon: icon != null ? Icon(icon, color: accent, size: 30) : null,
-          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 10),
-          contentPadding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-          actionsPadding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-          title: Text(
-            title,
-            style: AppFonts.unbounded(
-              size: 21,
-              weight: 700,
-              letterSpacing: -0.4,
-              color: cs.onSurface,
+        return SheetScaffold(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (icon != null) ...[
+                  _iconChip(icon, cs.primary, cs),
+                  const SizedBox(height: 14),
+                ],
+                Text(title, style: _titleStyle(cs)),
+                const SizedBox(height: 8),
+                Text(
+                  message,
+                  style: TextStyle(
+                    fontFamily: 'Onest',
+                    fontSize: 15,
+                    height: 1.4,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  child: _filledButton(
+                    label: buttonLabel ?? s.ok,
+                    background: cs.primary,
+                    foreground: cs.onPrimary,
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ),
+              ],
             ),
           ),
-          content: Text(
-            message,
-            style:
-                TextStyle(fontSize: 15, height: 1.4, color: cs.onSurfaceVariant),
-          ),
-          actions: [
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx),
-              style: FilledButton.styleFrom(
-                backgroundColor: cs.primary,
-                foregroundColor: cs.onPrimary,
-                shape: const StadiumBorder(),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 26, vertical: 14),
-              ),
-              child: Text(
-                buttonLabel ?? s.ok,
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ),
-          ],
         );
       },
     );
   }
+
+  /// Лист с одним полем ввода: имя холста, название рисунка, свой текст.
+  ///
+  /// Возвращает введённую строку или null, если отменили. Пустую строку не
+  /// отдаёт — кнопка подтверждения на ней просто не срабатывает.
+  static Future<String?> prompt(
+    BuildContext context, {
+    required String title,
+    String? label,
+    String? hint,
+    String initial = '',
+    String? confirmLabel,
+    String? cancelLabel,
+    int maxLength = 60,
+    int maxLines = 1,
+    TextCapitalization capitalization = TextCapitalization.sentences,
+  }) {
+    final s = LocaleService.current;
+    return showAppSheet<String>(
+      context,
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        final controller = TextEditingController(text: initial)
+          ..selection = TextSelection(
+            baseOffset: 0,
+            extentOffset: initial.length,
+          );
+
+        void submit() {
+          final value = controller.text.trim();
+          if (value.isEmpty) return;
+          Navigator.pop(ctx, value);
+        }
+
+        return SheetScaffold(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: _titleStyle(cs)),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  maxLength: maxLength,
+                  maxLines: maxLines,
+                  minLines: 1,
+                  textCapitalization: capitalization,
+                  textInputAction: maxLines > 1
+                      ? TextInputAction.newline
+                      : TextInputAction.done,
+                  onSubmitted: (_) => submit(),
+                  style: TextStyle(
+                    fontFamily: 'Onest',
+                    fontSize: 16,
+                    color: cs.onSurface,
+                  ),
+                  decoration: InputDecoration(
+                    labelText: label,
+                    hintText: hint,
+                    counterText: '',
+                    filled: true,
+                    fillColor: cs.surfaceContainerHighest,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      borderSide: BorderSide(color: cs.primary, width: 2),
+                    ),
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _flatButton(
+                        cs,
+                        label: cancelLabel ?? s.cancel,
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _filledButton(
+                        label: confirmLabel ?? s.done,
+                        background: cs.primary,
+                        foreground: cs.onPrimary,
+                        onPressed: submit,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ── общие кусочки оформления ─────────────────────────────────────────────
+
+  static TextStyle _titleStyle(ColorScheme cs) => AppFonts.unbounded(
+        size: 21,
+        weight: 700,
+        letterSpacing: -0.4,
+        color: cs.onSurface,
+      );
+
+  static Widget _iconChip(IconData icon, Color color, ColorScheme cs) =>
+      Container(
+        width: 52,
+        height: 52,
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.14),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: color, size: 26),
+      );
+
+  static Widget _flatButton(
+    ColorScheme cs, {
+    required String label,
+    required VoidCallback onPressed,
+  }) =>
+      TextButton(
+        onPressed: onPressed,
+        style: TextButton.styleFrom(
+          shape: const StadiumBorder(),
+          foregroundColor: cs.onSurfaceVariant,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+      );
+
+  static Widget _filledButton({
+    required String label,
+    required Color background,
+    required Color foreground,
+    required VoidCallback onPressed,
+  }) =>
+      FilledButton(
+        onPressed: onPressed,
+        style: FilledButton.styleFrom(
+          backgroundColor: background,
+          foregroundColor: foreground,
+          shape: const StadiumBorder(),
+          padding: const EdgeInsets.symmetric(vertical: 16),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+        ),
+      );
 }
 
 /// Снэкбары в едином стиле (форма/поведение — из `snackBarTheme`).

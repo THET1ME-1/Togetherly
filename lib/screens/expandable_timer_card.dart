@@ -7,6 +7,7 @@ import '../services/timer_service.dart';
 import '../theme/app_theme.dart';
 import '../services/locale_service.dart';
 import '../widgets/petal_timer_dial.dart';
+import '../widgets/common/app_dialog.dart';
 
 /// Карусель таймеров с ИДЕАЛЬНОЙ геометрией радиального меню, адаптированной под размеры контейнера.
 class ExpandableTimerCard extends StatefulWidget {
@@ -563,60 +564,30 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
     );
   }
 
-  void _showDeleteConfirm(TimerItem timer) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: _t.cardSurface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-        title: Text(
-          LocaleService.current.deleteTimerQuestion,
-          style: const TextStyle(fontWeight: FontWeight.w900),
-        ),
-        content: Text(LocaleService.current.timerDeleteConfirm(timer.title)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              LocaleService.current.cancel,
-              style: TextStyle(
-                color: _t.textSecondary,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              // _timers.removeWhere — синхронная операция внутри deleteTimer,
-              // поэтому timers уже обновлён к моменту чтения ниже.
-              widget.timerService.deleteTimer(timer.id);
-              Navigator.pop(ctx);
-              final updatedTimers = widget.timerService.timers;
-              if (updatedTimers.isNotEmpty) {
-                final sysIdx = updatedTimers.indexWhere((t) => t.isSystem);
-                final targetIdx = (sysIdx >= 0 ? sysIdx : 0).clamp(
-                  0,
-                  updatedTimers.length - 1,
-                );
-                setState(() => _currentIndex = targetIdx);
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (mounted && _pageController.hasClients) {
-                    _pageController.jumpToPage(targetIdx);
-                  }
-                });
-              }
-            },
-            child: Text(
-              LocaleService.current.delete,
-              style: const TextStyle(
-                color: Colors.red,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-        ],
-      ),
+  Future<void> _showDeleteConfirm(TimerItem timer) async {
+    final ok = await AppDialog.confirm(
+      context,
+      title: LocaleService.current.deleteTimerQuestion,
+      message: LocaleService.current.timerDeleteConfirm(timer.title),
+      confirmLabel: LocaleService.current.delete,
+      destructive: true,
+      icon: Icons.timer_off_rounded,
     );
+    if (!ok || !mounted) return;
+
+    // deleteTimer правит список синхронно, поэтому ниже он уже обновлён.
+    widget.timerService.deleteTimer(timer.id);
+    final updatedTimers = widget.timerService.timers;
+    if (updatedTimers.isEmpty) return;
+    final sysIdx = updatedTimers.indexWhere((t) => t.isSystem);
+    final targetIdx =
+        (sysIdx >= 0 ? sysIdx : 0).clamp(0, updatedTimers.length - 1);
+    setState(() => _currentIndex = targetIdx);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _pageController.hasClients) {
+        _pageController.jumpToPage(targetIdx);
+      }
+    });
   }
 
   Widget _dialogLabel(String text) => Padding(

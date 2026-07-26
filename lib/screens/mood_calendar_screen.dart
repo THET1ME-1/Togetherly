@@ -4,15 +4,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../models/cycle_entry.dart';
 import '../models/mood_entry.dart';
 import '../models/pair_data.dart';
+import '../models/user_data.dart';
+import '../services/cycle_service.dart';
 import '../services/locale_service.dart';
 import '../services/mood_service.dart';
 import '../services/widget_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/profile_theme.dart';
+import '../utils/cycle_math.dart';
+import '../widgets/cycle_analytics.dart';
 import '../widgets/mood_image.dart';
-import 'home/widgets/mood_picker_dialog.dart';
+import 'home/widgets/day_log_sheet.dart';
 
 /// Режим календаря настроений.
 enum _CalMode { week, month, year }
@@ -31,12 +36,16 @@ class MoodCalendarScreen extends StatefulWidget {
 
   final AppTheme theme;
 
+  /// Нужен листу дня: пункт «Цикл» показывается только женскому полу.
+  final UserData? userData;
+
   const MoodCalendarScreen({
     super.key,
     required this.pairData,
     required this.moodService,
     required this.widgetService,
     required this.theme,
+    this.userData,
   });
 
   @override
@@ -49,10 +58,12 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
   double _calendarScale = 1.0;
   double _baseScale = 1.0;
   bool _legendExpanded = false;
+  bool _cycleExpanded = false;
 
   MoodService get _mood => widget.moodService;
   PairData get _pair => widget.pairData;
   WidgetService get _ws => widget.widgetService;
+  CycleService get _cycle => CycleService.instance;
 
   @override
   void initState() {
@@ -61,6 +72,9 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
     _calAnchor = DateTime(now.year, now.month, now.day);
     _mood.addListener(_onChanged);
     _mood.loadSettings();
+    // Отметки цикла рисуются прямо в сетке настроений, поэтому экран следит и
+    // за ними: поставленная в листе менструация красит ячейку сразу.
+    _cycle.addListener(_onChanged);
 
     for (final p in _pair.partners) {
       _mood.listenToPartner(p.uid);
@@ -70,6 +84,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
   @override
   void dispose() {
     _mood.removeListener(_onChanged);
+    _cycle.removeListener(_onChanged);
     super.dispose();
   }
 
@@ -573,9 +588,266 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
         if (stats.isNotEmpty) _buildStatsBar(stats),
         const SizedBox(height: 16),
         if (entries.isNotEmpty) _buildAnalytics(scheme, entries),
+        if (!isPartner && CycleService.unlockedFor(widget.userData))
+          _buildCycleBlock(scheme),
       ],
     );
   }
+
+  // ═══════════════════════════════════════════
+  //  ЦИКЛ: прогноз, средние и графики
+  // ═══════════════════════════════════════════
+
+  /// Сворачиваемый блок под календарём: то, что раньше жило отдельным экраном
+  /// в настройках. Отметки ставятся в самом календаре, поэтому здесь только
+  /// цифры — прогноз, средние длины и графики.
+  Widget _buildCycleBlock(ColorScheme scheme) {
+    final s = LocaleService.current;
+    final forecast = _cycle.forecast;
+    final dayOfCycle = _cycle.dayOfCycle;
+    final cycleLen = _cycle.averageCycleLength;
+    final periodLen = _cycle.averagePeriodLength;
+    final periodDays = _cycle.mine
+        .where((e) => e.kind == CycleKind.period)
+        .map((e) => e.day)
+        .toList();
+
+    String headline;
+    String? note;
+    if (forecast == null) {
+      headline = s.cycleNoDataTitle;
+      note = s.cycleNoDataHint;
+    } else if (forecast.overdueDays > 0) {
+      headline = s.cycleOverdue(forecast.overdueDays);
+      note = s.cycleOverdueHint;
+    } else {
+      final now = DateTime.now();
+      final left = forecast.nextPeriod
+          .difference(DateTime(now.year, now.month, now.day))
+          .inDays;
+      headline = left <= 0 ? s.cycleExpectedToday : s.cycleDaysLeft(left);
+      note = dayOfCycle == null ? null : s.cycleDayOfCycle(dayOfCycle);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              HapticFeedback.selectionClick();
+              setState(() => _cycleExpanded = !_cycleExpanded);
+            },
+            child: Row(
+              children: [
+                Icon(Icons.water_drop_rounded, size: 18, color: _periodColor),
+                const SizedBox(width: 8),
+                Text(
+                  s.cycleTitle,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: widget.theme.textPrimary,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    dayOfCycle == null ? '' : s.cycleDayOfCycle(dayOfCycle),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: widget.theme.textMuted,
+                    ),
+                  ),
+                ),
+                AnimatedRotation(
+                  turns: _cycleExpanded ? 0.5 : 0.0,
+                  duration: const Duration(milliseconds: 200),
+                  child: Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    size: 20,
+                    color: widget.theme.textMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          AnimatedCrossFade(
+            duration: const Duration(milliseconds: 220),
+            crossFadeState: _cycleExpanded
+                ? CrossFadeState.showFirst
+                : CrossFadeState.showSecond,
+            firstChild: Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: scheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          headline,
+                          style: TextStyle(
+                            fontSize: 19,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.3,
+                            color: scheme.onPrimaryContainer,
+                          ),
+                        ),
+                        if (note != null) ...[
+                          const SizedBox(height: 5),
+                          Text(
+                            note,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: scheme.onPrimaryContainer
+                                  .withValues(alpha: 0.75),
+                            ),
+                          ),
+                        ],
+                        if (forecast != null && forecast.irregular) ...[
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Icon(Icons.info_rounded,
+                                  size: 15, color: scheme.onPrimaryContainer),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  s.cycleIrregularWarning,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: scheme.onPrimaryContainer
+                                        .withValues(alpha: 0.9),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (cycleLen != null || periodLen != null) ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        if (cycleLen != null)
+                          Expanded(
+                            child: _statTile(scheme, s.cycleDaysValue(cycleLen),
+                                s.cycleAverageLength),
+                          ),
+                        if (cycleLen != null && periodLen != null)
+                          const SizedBox(width: 10),
+                        if (periodLen != null)
+                          Expanded(
+                            child: _statTile(scheme,
+                                s.cycleDaysValue(periodLen), s.cycleAveragePeriod),
+                          ),
+                      ],
+                    ),
+                  ],
+                  if (forecast != null) ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _statTile(
+                            scheme,
+                            _shortDate(forecast.nextPeriod),
+                            s.cycleNextPeriod,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _statTile(
+                            scheme,
+                            '${_shortDate(forecast.fertileFrom)} — '
+                            '${_shortDate(forecast.fertileTo)}',
+                            s.cycleFertileWindow,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  CycleAnalytics(
+                    scheme: scheme,
+                    periodDays: periodDays,
+                    periodColor: _periodColor,
+                  ),
+                  const SizedBox(height: 12),
+                  _cycleLegend(scheme),
+                ],
+              ),
+            ),
+            secondChild: const SizedBox.shrink(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Что значат метки на клетках. Переехала сюда с отдельного экрана цикла —
+  /// он удалён, а календарь остался один, и объяснять цвета всё равно надо.
+  ///
+  /// В списке только то, что календарь РИСУЕТ: закрашенный день с точкой,
+  /// обводка ожидаемых и точка близости. Овуляции и фертильных дней тут нет —
+  /// они живут в карточках прогноза выше, и рисовать их в легенде значило бы
+  /// обещать метки, которых на клетках не существует.
+  Widget _cycleLegend(ColorScheme scheme) {
+    final s = LocaleService.current;
+    return Wrap(
+      spacing: 14,
+      runSpacing: 8,
+      children: [
+        _legendItem(scheme, s.cycleLegendPeriod, fill: _periodColor),
+        _legendItem(scheme, s.cycleLegendPredicted, outline: _periodColor),
+        _legendItem(scheme, s.cycleLegendIntimacy, fill: scheme.primary),
+      ],
+    );
+  }
+
+  Widget _legendItem(
+    ColorScheme scheme,
+    String label, {
+    Color? fill,
+    Color? outline,
+  }) =>
+      Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: fill,
+              border: outline == null
+                  ? null
+                  : Border.all(color: outline.withValues(alpha: 0.75), width: 1.5),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(fontSize: 12.5, color: widget.theme.textSecondary),
+          ),
+        ],
+      );
+
+  String _shortDate(DateTime d) =>
+      '${d.day} ${LocaleService.current.cycleMonthsGenitive[d.month - 1]}';
 
   // ═══════════════════════════════════════════
   //  СЕТКА
@@ -640,10 +912,24 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
         ? moods.reduce((a, b) => a.timestamp.isAfter(b.timestamp) ? a : b)
         : null;
 
-    final bg = hasMood
+    // Отметки цикла: свои в своей сетке, партнёрские — в партнёрской, и только
+    // те, что она разрешила показывать (лишнее отсекает сервер).
+    final cycleEntries = isPartner ? _cycle.partner : _cycle.mine;
+    final hasPeriod = cycleEntries
+        .any((e) => e.kind == CycleKind.period && e.day == day);
+    final hasSex = cycleEntries
+        .any((e) => e.kind == CycleKind.intimacy && e.day == day);
+    final expectsPeriod = !isPartner &&
+        !hasPeriod &&
+        _cycle.phaseOn(day) == CyclePhase.predictedPeriod;
+
+    var bg = hasMood
         ? Color.alphaBlend(
             latest!.color.withValues(alpha: 0.22), scheme.surfaceContainerHighest)
         : scheme.surfaceContainerHighest;
+    if (hasPeriod) {
+      bg = Color.alphaBlend(_periodColor.withValues(alpha: 0.16), bg);
+    }
 
     return GestureDetector(
       onTap: () {
@@ -652,7 +938,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
           return;
         }
         if (isFuture) return;
-        _showMoodPickerForDay(day);
+        _showDayLog(day);
       },
       onLongPress: hasMood
           ? () => _showDayDetail(day, moods, isPartner: isPartner)
@@ -666,10 +952,18 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
             borderRadius: BorderRadius.circular(14),
             border: isToday
                 ? Border.all(color: scheme.primary, width: 2)
-                : null,
+                // Ожидаемые месячные — пунктирный по смыслу контур: прогноз,
+                // а не факт, поэтому он тоньше и полупрозрачный.
+                : (expectsPeriod
+                    ? Border.all(
+                        color: _periodColor.withValues(alpha: 0.55), width: 1.5)
+                    : null),
           ),
           padding: const EdgeInsets.all(3),
-          child: Column(
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+          Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
@@ -703,10 +997,35 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                 ),
             ],
           ),
+              // Точки цикла у нижнего края: настроение занимает середину
+              // ячейки, поэтому отметки живут отдельным слоем и не сжимают его.
+              if (hasPeriod || hasSex)
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (hasPeriod) _cycleDot(_periodColor),
+                      if (hasPeriod && hasSex) const SizedBox(width: 3),
+                      if (hasSex) _cycleDot(scheme.primary),
+                    ],
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
+
+  /// Красный месячных — тот же, что на экране цикла.
+  Color get _periodColor => const Color(0xFFD32F2F);
+
+  Widget _cycleDot(Color color) => Container(
+        width: 5,
+        height: 5,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      );
 
   Widget _weekGrid(
     Map<String, List<MoodEntry>> byDay,
@@ -1255,15 +1574,16 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
   //  ПИКЕР НАСТРОЕНИЯ ДНЯ
   // ═══════════════════════════════════════════
 
-  void _showMoodPickerForDay(DateTime day) {
-    showMoodPickerForDate(
+  /// Лист дня: настроение, самочувствие и цикл в одном месте.
+  void _showDayLog(DateTime day) {
+    showDayLogSheet(
       context: context,
-      date: day,
+      day: DateTime(day.year, day.month, day.day),
       pairData: _pair,
       moodService: _mood,
       widgetService: _ws,
-      primary: widget.theme.primary,
-      navActiveIcon: widget.theme.navActiveIcon,
+      theme: widget.theme,
+      userData: widget.userData,
     );
   }
 
