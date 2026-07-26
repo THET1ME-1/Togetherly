@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
+import '../../../theme/profile_theme.dart';
 import '../../../theme/theme_scope.dart';
 import '../../../widgets/mood_image.dart';
 import 'package:flutter/services.dart';
 import '../../../models/ailment.dart';
+import '../../../models/mood_band.dart';
 import '../../../models/mood_entry.dart';
+import '../../../models/mood_pack.dart';
 import '../../../models/pair_data.dart';
 import '../../../services/locale_service.dart';
 import '../../../services/mood_pack_service.dart';
 import '../../../services/mood_service.dart';
 import '../../../services/widget_service.dart';
 import '../../../widgets/mood_pack_selector.dart';
+import '../../../widgets/mood_tile_shapes.dart';
 
 /// Shows mood picker bottom sheet for today's mood.
 ///
@@ -36,7 +40,7 @@ void showMoodPicker({
       initialChildSize: 0.72,
       minChildSize: 0.45,
       maxChildSize: 0.92,
-      builder: (ctx, scrollController) => _MoodPickerSheet(
+      builder: (ctx, scrollController) => MoodPickerSheet(
         scrollController: scrollController,
         currentEmoji: currentEmoji,
         primary: primary,
@@ -117,7 +121,7 @@ void showMoodPickerForDate({
       initialChildSize: 0.72,
       minChildSize: 0.45,
       maxChildSize: 0.92,
-      builder: (ctx, scrollController) => _MoodPickerSheet(
+      builder: (ctx, scrollController) => MoodPickerSheet(
         scrollController: scrollController,
         currentEmoji: existingPath,
         primary: primary,
@@ -175,7 +179,7 @@ void showAilmentPicker({
       initialChildSize: 0.62,
       minChildSize: 0.4,
       maxChildSize: 0.9,
-      builder: (ctx, scrollController) => _MoodPickerSheet(
+      builder: (ctx, scrollController) => MoodPickerSheet(
         scrollController: scrollController,
         currentEmoji: '',
         primary: primary,
@@ -204,7 +208,8 @@ void showAilmentPicker({
 //  Shared bottom-sheet widget
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _MoodPickerSheet extends StatefulWidget {
+/// Тело листа выбора настроения. Публичный ради golden-тестов раскладки.
+class MoodPickerSheet extends StatefulWidget {
   final ScrollController scrollController;
   final String currentEmoji;
   final Color primary;
@@ -222,7 +227,7 @@ class _MoodPickerSheet extends StatefulWidget {
   final void Function(Ailment)? onSelectAilment;
   final Future<void> Function()? onClearAilment;
 
-  const _MoodPickerSheet({
+  const MoodPickerSheet({
     required this.scrollController,
     required this.currentEmoji,
     required this.primary,
@@ -238,10 +243,10 @@ class _MoodPickerSheet extends StatefulWidget {
   });
 
   @override
-  State<_MoodPickerSheet> createState() => _MoodPickerSheetState();
+  State<MoodPickerSheet> createState() => _MoodPickerSheetState();
 }
 
-class _MoodPickerSheetState extends State<_MoodPickerSheet> {
+class _MoodPickerSheetState extends State<MoodPickerSheet> {
   int _tab = 0; // 0 — настроение, 1 — самочувствие
 
   @override
@@ -256,106 +261,110 @@ class _MoodPickerSheetState extends State<_MoodPickerSheet> {
   Widget build(BuildContext context) {
     final s = LocaleService.current;
     final t = context.appTheme;
+    final cs = ProfileTheme.schemeFor(t);
     final onAilment = widget.ailmentOnly || (widget.showAilmentTab && _tab == 1);
     return Container(
       decoration: BoxDecoration(
         color: t.cardSurface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       child: Column(
         children: [
-          // Handle
+          const SizedBox(height: 16),
+          // Ручка листа по спецификации M3: 32×4.
           Container(
-            width: 40,
+            width: 32,
             height: 4,
             decoration: BoxDecoration(
-              color: t.divider,
+              color: cs.outlineVariant,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          const SizedBox(height: 14),
-          if (widget.showAilmentTab) ...[
-            _segmented(s),
-            const SizedBox(height: 10),
-            Text(
-              onAilment ? s.ailmentPickerSubtitle : widget.subtitle,
-              style: TextStyle(fontSize: 13, color: t.textMuted),
-              textAlign: TextAlign.center,
+          // Заголовок держим на обеих вкладках: раньше при двух вкладках он
+          // исчезал и наверху оставалась одна серая строка подсказки.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: Text(
+                    widget.title,
+                    style: TextStyle(
+                      fontFamily: ProfileTheme.displayFont,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.5,
+                      height: 1.2,
+                      color: t.textPrimary,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  onAilment ? s.ailmentPickerSubtitle : widget.subtitle,
+                  style: TextStyle(fontSize: 14, color: cs.onSurfaceVariant),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-          ] else ...[
-            const SizedBox(height: 4),
-            Text(
-              widget.title,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: t.textPrimary,
-              ),
+          ),
+          if (widget.showAilmentTab)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              child: _segmented(s, cs),
             ),
-            const SizedBox(height: 4),
-            Text(
-              widget.subtitle,
-              style: TextStyle(fontSize: 13, color: t.textMuted),
-            ),
-            const SizedBox(height: 14),
-          ],
-          // Body
-          Expanded(child: onAilment ? _ailmentGrid() : _moodBody()),
-          // Clear button (зависит от вкладки)
-          _clearButton(s, onAilment),
+          Expanded(child: onAilment ? _ailmentList(cs) : _moodBody(cs)),
+          _clearButton(s, cs, onAilment),
         ],
       ),
     );
   }
 
-  Widget _segmented(AppStrings s) {
-    final t = context.appTheme;
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: t.surfaceMuted,
-        borderRadius: BorderRadius.circular(14),
-      ),
+  /// Связанная группа кнопок M3 Expressive: выбранная вкладка забирает больше
+  /// места и округляется в стадион, соседняя остаётся мягким прямоугольником.
+  Widget _segmented(AppStrings s, ColorScheme cs) {
+    return SizedBox(
+      height: 48,
       child: Row(
         children: [
-          _segBtn(s.moodTabLabel, 0),
-          _segBtn(s.ailmentTabLabel, 1),
+          _segBtn(s.moodTabLabel, 0, cs, first: true),
+          const SizedBox(width: 4),
+          _segBtn(s.ailmentTabLabel, 1, cs, first: false),
         ],
       ),
     );
   }
 
-  Widget _segBtn(String label, int idx) {
+  Widget _segBtn(String label, int idx, ColorScheme cs, {required bool first}) {
     final active = _tab == idx;
-    final t = context.appTheme;
+    final outer = Radius.circular(active ? 24 : 20);
+    final inner = Radius.circular(active ? 24 : 12);
     return Expanded(
+      flex: active ? 145 : 100,
       child: GestureDetector(
         onTap: () => setState(() => _tab = idx),
         behavior: HitTestBehavior.opaque,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          padding: const EdgeInsets.symmetric(vertical: 9),
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: active ? t.cardSurface : Colors.transparent,
-            borderRadius: BorderRadius.circular(11),
-            boxShadow: active
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.06),
-                      blurRadius: 6,
-                    ),
-                  ]
-                : null,
+            color: active ? widget.primary : cs.surfaceContainerHigh,
+            borderRadius: BorderRadius.only(
+              topLeft: first ? outer : inner,
+              bottomLeft: first ? outer : inner,
+              topRight: first ? inner : outer,
+              bottomRight: first ? inner : outer,
+            ),
           ),
           child: Text(
             label,
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: active ? widget.primary : t.textMuted,
+              fontSize: 14.5,
+              fontWeight: FontWeight.w600,
+              color: active ? cs.onPrimary : cs.onSurfaceVariant,
             ),
           ),
         ),
@@ -363,44 +372,27 @@ class _MoodPickerSheetState extends State<_MoodPickerSheet> {
     );
   }
 
-  Widget _moodBody() {
+  Widget _moodBody(ColorScheme cs) {
     return Column(
       children: [
-        MoodPackSelector(
-          primary: widget.primary,
-          onChanged: (_) => setState(() {}),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
+          child: MoodPackSelector(
+            primary: widget.primary,
+            onChanged: (_) => setState(() {}),
+          ),
         ),
-        const SizedBox(height: 12),
         Expanded(
           child: AnimatedBuilder(
             animation: MoodPackService.instance,
             builder: (context, _) {
               final pack = MoodPackService.instance.selectedPack;
-              return GridView.builder(
+              final sections = groupMoodsByBand(pack.moods);
+              return ListView.builder(
                 controller: widget.scrollController,
-                padding: const EdgeInsets.only(bottom: 16),
-                gridDelegate:
-                    const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 5,
-                  mainAxisSpacing: 8,
-                  crossAxisSpacing: 8,
-                  childAspectRatio: 0.68,
-                ),
-                itemCount: pack.moods.length,
-                itemBuilder: (_, i) {
-                  final mood = pack.moods[i];
-                  final isSelected = widget.currentEmoji == mood.imagePath;
-                  return _MoodTile(
-                    mood: mood,
-                    isSelected: isSelected,
-                    primary: widget.primary,
-                    tileGradient: pack.tileGradient,
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      widget.onSelect(mood);
-                    },
-                  );
-                },
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                itemCount: sections.length,
+                itemBuilder: (_, i) => _bandSection(sections[i], pack, cs),
               );
             },
           ),
@@ -409,51 +401,117 @@ class _MoodPickerSheetState extends State<_MoodPickerSheet> {
     );
   }
 
-  Widget _ailmentGrid() {
-    return GridView.builder(
-      controller: widget.scrollController,
-      padding: const EdgeInsets.only(bottom: 16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
-        mainAxisSpacing: 10,
-        crossAxisSpacing: 10,
-        childAspectRatio: 0.82,
-      ),
-      itemCount: kAilments.length,
-      itemBuilder: (_, i) {
-        final a = kAilments[i];
-        final isSelected = widget.currentAilmentId == a.id;
-        return _AilmentTile(
-          ailment: a,
-          isSelected: isSelected,
-          primary: widget.primary,
-          onTap: () {
-            HapticFeedback.lightImpact();
-            widget.onSelectAilment?.call(a);
+  /// Раздел сетки: подпись с линией и свои пять колонок.
+  Widget _bandSection(MoodBandSection section, MoodPack pack, ColorScheme cs) {
+    final s = LocaleService.current;
+    final title = switch (section.band) {
+      MoodBand.bright => s.moodBandBright,
+      MoodBand.even => s.moodBandEven,
+      MoodBand.sad => s.moodBandSad,
+      MoodBand.heavy => s.moodBandHeavy,
+    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(2, 14, 2, 10),
+          child: Row(
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.3,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: Divider(height: 1, color: cs.outlineVariant)),
+            ],
+          ),
+        ),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 5,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 8,
+            // Плитка + две строки подписи в 11 пунктов: при 360 dp ячейка
+            // выходит 57×93, и подпись помещается целиком.
+            childAspectRatio: 0.62,
+          ),
+          itemCount: section.moods.length,
+          itemBuilder: (_, i) {
+            final mood = section.moods[i];
+            final isSelected = widget.currentEmoji == mood.imagePath;
+            return _MoodTile(
+              mood: mood,
+              isSelected: isSelected,
+              primary: widget.primary,
+              scheme: cs,
+              tileGradient: pack.tileGradient,
+              onTap: () {
+                HapticFeedback.lightImpact();
+                widget.onSelect(mood);
+              },
+            );
           },
-        );
-      },
+        ),
+      ],
     );
   }
 
-  Widget _clearButton(AppStrings s, bool onAilment) {
+  /// Болячки — это подпись с эмодзи, поэтому чипы-строки, а не сетка квадратов
+  /// с обрезанными названиями.
+  Widget _ailmentList(ColorScheme cs) {
+    return SingleChildScrollView(
+      controller: widget.scrollController,
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final a in kAilments)
+            _AilmentChip(
+              ailment: a,
+              isSelected: widget.currentAilmentId == a.id,
+              scheme: cs,
+              onTap: () {
+                HapticFeedback.lightImpact();
+                widget.onSelectAilment?.call(a);
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _clearButton(AppStrings s, ColorScheme cs, bool onAilment) {
     final onClear = onAilment ? widget.onClearAilment : widget.onClear;
     if (onClear == null) return const SizedBox(height: 16);
-    final t = context.appTheme;
     final label = onAilment ? s.clearAilment : s.clearMood;
     return SafeArea(
       top: false,
       child: Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: TextButton(
-          onPressed: onClear,
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: t.textMuted,
+        padding: const EdgeInsets.fromLTRB(20, 6, 20, 12),
+        child: SizedBox(
+          width: double.infinity,
+          height: 56,
+          child: FilledButton(
+            onPressed: onClear,
+            style: FilledButton.styleFrom(
+              backgroundColor: cs.secondaryContainer,
+              foregroundColor: cs.onSecondaryContainer,
+              shape: const StadiumBorder(),
+              textStyle: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
             ),
+            child: Text(label),
           ),
         ),
       ),
@@ -469,87 +527,112 @@ class _MoodTile extends StatelessWidget {
   final MoodOption mood;
   final bool isSelected;
   final Color primary;
+  final ColorScheme scheme;
 
   /// Подложка для паков с прозрачными стикерами (напр. розовый). null —
   /// картинка непрозрачная и заполняет плитку сама (классический пак).
   final List<Color>? tileGradient;
   final VoidCallback onTap;
 
-  static const double _radius = 16;
-
   const _MoodTile({
     required this.mood,
     required this.isSelected,
     required this.primary,
+    required this.scheme,
     required this.onTap,
     this.tileGradient,
   });
 
   @override
   Widget build(BuildContext context) {
-    final gradient = tileGradient;
-    final t = context.appTheme;
+    final sticker = tileGradient != null;
     return GestureDetector(
       onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           AspectRatio(
             aspectRatio: 1.0,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(_radius),
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: mood.color.withValues(alpha: 0.55),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
+            child: LayoutBuilder(
+              builder: (context, box) {
+                final size = box.maxWidth;
+                // Выбор читается формой: мягкий квадрат превращается в
+                // волнистую фигуру и чуть подрастает. Цветное свечение прошлой
+                // версии выглядело подсветкой, а не отметкой.
+                final shape = moodTileShape(selected: isSelected, size: size);
+                return AnimatedScale(
+                  scale: isSelected ? 1.06 : 1.0,
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Positioned.fill(
+                        child: ClipPath(
+                          clipper: ShapeBorderClipper(shape: shape),
+                          child: Container(
+                            color: sticker
+                                ? Color.alphaBlend(
+                                    mood.color.withValues(alpha: 0.16),
+                                    scheme.surfaceContainerHigh,
+                                  )
+                                : null,
+                            child: mood.imagePath.isEmpty
+                                ? Container(color: mood.color)
+                                : sticker
+                                    ? Padding(
+                                        padding: EdgeInsets.all(size * 0.06),
+                                        child: MoodImage(
+                                          mood.imagePath,
+                                          fit: BoxFit.contain,
+                                        ),
+                                      )
+                                    : MoodImage(
+                                        mood.imagePath,
+                                        fit: BoxFit.cover,
+                                        width: double.infinity,
+                                        height: double.infinity,
+                                      ),
+                          ),
                         ),
-                      ]
-                    : null,
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(_radius),
-                child: Container(
-                  // Мягкий фон под прозрачными стикерами; для классики gradient
-                  // == null и непрозрачная картинка перекрывает белый фон.
-                  decoration: BoxDecoration(
-                    color: gradient == null ? null : Colors.white,
-                    gradient: gradient != null
-                        ? LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: gradient,
-                          )
-                        : null,
+                      ),
+                      if (isSelected)
+                        Positioned(
+                          top: 0,
+                          right: 0,
+                          child: Container(
+                            width: 20,
+                            height: 20,
+                            decoration: BoxDecoration(
+                              color: primary,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.check_rounded,
+                              size: 13,
+                              color: scheme.onPrimary,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
-                  child: mood.imagePath.isNotEmpty
-                      ? MoodImage(
-                          mood.imagePath,
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                          height: double.infinity,
-                        )
-                      : Container(color: mood.color),
-                ),
-              ),
+                );
+              },
             ),
           ),
-          const SizedBox(height: 5),
+          const SizedBox(height: 6),
           Text(
             mood.localizedLabel,
             style: TextStyle(
-              fontSize: 10,
-              fontWeight:
-                  isSelected ? FontWeight.w700 : FontWeight.w500,
-              color: isSelected ? primary : t.textSecondary,
+              fontSize: 11,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              color: isSelected ? primary : scheme.onSurfaceVariant,
               height: 1.2,
             ),
             textAlign: TextAlign.center,
             maxLines: 2,
-            overflow: TextOverflow.visible,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -561,63 +644,53 @@ class _MoodTile extends StatelessWidget {
 //  Single ailment tile (emoji-based, no asset pipeline)
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _AilmentTile extends StatelessWidget {
+class _AilmentChip extends StatelessWidget {
   final Ailment ailment;
   final bool isSelected;
-  final Color primary;
+  final ColorScheme scheme;
   final VoidCallback onTap;
 
-  const _AilmentTile({
+  const _AilmentChip({
     required this.ailment,
     required this.isSelected,
-    required this.primary,
+    required this.scheme,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final t = context.appTheme;
+    final fg =
+        isSelected ? scheme.onSecondaryContainer : scheme.onSurface;
     return GestureDetector(
       onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AspectRatio(
-            aspectRatio: 1.0,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? primary.withValues(alpha: 0.14)
-                    : t.surfaceMuted,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: isSelected ? primary : Colors.transparent,
-                  width: 2,
-                ),
-              ),
-              child: Center(
-                child: Text(
-                  ailment.emoji,
-                  style: const TextStyle(fontSize: 28),
-                ),
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        height: 44,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        decoration: BoxDecoration(
+          color: isSelected ? scheme.secondaryContainer : null,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: isSelected ? Colors.transparent : scheme.outlineVariant,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(ailment.emoji, style: const TextStyle(fontSize: 18)),
+            const SizedBox(width: 8),
+            Text(
+              ailment.localizedLabel,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                color: fg,
               ),
             ),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            ailment.localizedLabel,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-              color: isSelected ? primary : t.textSecondary,
-              height: 1.2,
-            ),
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.visible,
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -217,6 +217,11 @@ abstract class AppStrings {
   String get partnerWillSeeMood;
   String moodDateLabel(String dateLabel);
   String get indicateMoodForDay;
+  // ── Разделы сетки настроений ──
+  String get moodBandBright;
+  String get moodBandEven;
+  String get moodBandSad;
+  String get moodBandHeavy;
   // ── Самочувствие («болячки») ──
   String get moodTabLabel;
   String get ailmentTabLabel;
@@ -1946,6 +1951,14 @@ class _RuStrings extends AppStrings {
   String get howAreYouFeeling => 'Как вы себя чувствуете?';
   @override
   String get partnerWillSeeMood => 'Партнёр увидит ваше настроение';
+  @override
+  String get moodBandBright => 'Светлое';
+  @override
+  String get moodBandEven => 'Ровное';
+  @override
+  String get moodBandSad => 'Грусть и тревога';
+  @override
+  String get moodBandHeavy => 'Тяжёлое';
   @override
   String get moodTabLabel => 'Настроение';
   @override
@@ -5292,6 +5305,14 @@ class _EnStrings extends AppStrings {
   String get howAreYouFeeling => 'How are you feeling?';
   @override
   String get partnerWillSeeMood => 'Your partner will see your mood';
+  @override
+  String get moodBandBright => 'Bright';
+  @override
+  String get moodBandEven => 'Steady';
+  @override
+  String get moodBandSad => 'Low and anxious';
+  @override
+  String get moodBandHeavy => 'Heavy';
   @override
   String get moodTabLabel => 'Mood';
   @override
