@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -25,6 +26,7 @@ import '../logic/photo_day_widget_logic.dart';
 import '../models/pair_data.dart';
 import '../models/timer_item.dart';
 import '../models/widget_data.dart';
+import '../models/year_progress.dart';
 import '../models/user_data.dart';
 import '../models/mood_entry.dart';
 import '../models/memory.dart';
@@ -964,6 +966,8 @@ class _WidgetScreenState extends State<WidgetScreen>
           // у виджета «Таймер», а сами новые виджеты оставались без группы.
           'together' => 'together',
           'miss' => 'miss',
+          'year_ring' => 'year_ring',
+          'year_grid' => 'year_grid',
           _ => 'timer', // 'timer' and others
         };
         await HomeWidget.saveWidgetData<String>(
@@ -1196,7 +1200,25 @@ class _WidgetScreenState extends State<WidgetScreen>
           missYouLabel: LocaleService.current.missYousStat,
         );
         break;
+      case 'year_ring':
+      case 'year_grid':
+        await _syncYearWidgets();
+        break;
     }
+  }
+
+  /// Данные «Кольца года» и «Календаря лет».
+  ///
+  /// Дата начала — от основного таймера, как у остальных счётчиков: системный
+  /// таймер держит дату регистрации пары и дал бы почти нулевой стаж.
+  Future<void> _syncYearWidgets() async {
+    final start = _togetherStart();
+    await HomeWidgetService.instance.syncYearWidgets(
+      groupId: _pair.pairId,
+      start: start,
+      memoriesCount: _memoriesCount ?? 0,
+      startDateLabel: start == null ? '' : _s.tgYearSince(_formatDate(start)),
+    );
   }
 
   @override
@@ -1900,7 +1922,7 @@ class _WidgetScreenState extends State<WidgetScreen>
 
   /// Сколько виджетов в новом каталоге — для бейджа раздела, без построения
   /// карточек. Держать в согласии с [_newWidgetItems].
-  static const int _kNewWidgetCount = 4;
+  static const int _kNewWidgetCount = 8;
 
   /// Новый каталог виджетов. Пополняется по одному: каждый делается целиком —
   /// все размеры, состояния и данные — и только потом берётся следующий.
@@ -2059,6 +2081,50 @@ class _WidgetScreenState extends State<WidgetScreen>
             hint: _s.tgSizeHintWide,
             qualifiedName: 'com.togetherly.love.CountdownWidget4x2Provider',
             previewBuilder: () => _buildCountdown4x2Preview(),
+          ),
+        ],
+      ),
+      const SizedBox(height: 16),
+      _buildGalleryItem(
+        title: _s.tgRingTitle,
+        subtitle: _s.tgRingSubtitle,
+        svgString: _heartSvg,
+        qualifiedName: 'com.togetherly.love.YearRingWidget4x2Provider',
+        widgetType: 'year_ring',
+        sizes: [
+          _WidgetSizeOption(
+            label: '2×2',
+            hint: _s.tgSizeHintCompact,
+            qualifiedName: 'com.togetherly.love.YearRingWidget2x2Provider',
+            previewBuilder: () => _buildYearRing2x2Preview(),
+          ),
+          _WidgetSizeOption(
+            label: '4×2',
+            hint: _s.tgSizeHintWide,
+            qualifiedName: 'com.togetherly.love.YearRingWidget4x2Provider',
+            previewBuilder: () => _buildYearRing4x2Preview(),
+          ),
+        ],
+      ),
+      const SizedBox(height: 16),
+      _buildGalleryItem(
+        title: _s.tgGridTitle,
+        subtitle: _s.tgGridSubtitle,
+        svgString: _heartSvg,
+        qualifiedName: 'com.togetherly.love.YearGridWidget4x2Provider',
+        widgetType: 'year_grid',
+        sizes: [
+          _WidgetSizeOption(
+            label: '2×2',
+            hint: _s.tgSizeHintCompact,
+            qualifiedName: 'com.togetherly.love.YearGridWidget2x2Provider',
+            previewBuilder: () => _buildYearGrid2x2Preview(),
+          ),
+          _WidgetSizeOption(
+            label: '4×2',
+            hint: _s.tgSizeHintWide,
+            qualifiedName: 'com.togetherly.love.YearGridWidget4x2Provider',
+            previewBuilder: () => _buildYearGrid4x2Preview(),
           ),
         ],
       ),
@@ -3060,6 +3126,459 @@ class _WidgetScreenState extends State<WidgetScreen>
       ),
     );
   }
+
+  /// Разметка совместного времени для превью «Кольца года» и «Календаря лет».
+  /// Тот же расчёт, что уходит в нативные виджеты, поэтому карточка в каталоге
+  /// и виджет на столе показывают одно число.
+  YearProgress? _yearProgress() {
+    final start = _togetherStart();
+    return start == null ? null : YearProgress.between(start, DateTime.now());
+  }
+
+  /// Превью «Кольцо года» 2×2: кольцо во всю карточку, число внутри.
+  Widget _buildYearRing2x2Preview() {
+    final p = _yearProgress();
+    return AspectRatio(
+      aspectRatio: 1,
+      child: Container(
+        decoration: BoxDecoration(
+          color: _wr('primary'),
+          borderRadius: BorderRadius.circular(32),
+        ),
+        child: p == null
+            ? _widgetEmptyLabel(_wr('onPrimarySoft'))
+            : Stack(
+                alignment: Alignment.center,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: CustomPaint(
+                      size: Size.infinite,
+                      painter: _YearRingPainter(
+                        progress: p.ringProgress,
+                        stroke: 8,
+                        track: _wr('blockOnPrimary'),
+                        fill: _wr('accentOnPrimary'),
+                      ),
+                    ),
+                  ),
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        '${p.daysTotal}',
+                        style: TextStyle(
+                          fontSize: 44,
+                          height: 1.05,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -2,
+                          color: _wr('onPrimary'),
+                        ),
+                      ),
+                      Text(
+                        _s.tgYearDaysTogether(p.daysTotal),
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: _wr('onPrimarySoft'),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _s.tgYearToAnniversaryShort(
+                          p.yearsCompleted + 1,
+                          p.daysToNextAnniversary,
+                        ),
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
+                          color: _wr('accentOnPrimary'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  /// Превью «Кольцо года» 4×2: кольцо слева, счётчики справа.
+  Widget _buildYearRing4x2Preview() {
+    final p = _yearProgress();
+
+    Widget tile(String label, String value) => Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+            decoration: BoxDecoration(
+              color: _wr('blockOnPrimary'),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                    color: _wr('accentOnPrimary'),
+                  ),
+                ),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 20,
+                    height: 1.1,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                    color: _wr('onPrimary'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+
+    return AspectRatio(
+      aspectRatio: 424 / 200,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 22),
+        decoration: BoxDecoration(
+          color: _wr('primary'),
+          borderRadius: BorderRadius.circular(32),
+        ),
+        child: p == null
+            ? _widgetEmptyLabel(_wr('onPrimarySoft'))
+            : Row(
+                children: [
+                  SizedBox(
+                    width: 110,
+                    height: 110,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        CustomPaint(
+                          size: const Size.square(110),
+                          painter: _YearRingPainter(
+                            progress: p.ringProgress,
+                            stroke: 9,
+                            track: _wr('blockOnPrimary'),
+                            fill: _wr('accentOnPrimary'),
+                          ),
+                        ),
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              '${p.daysTotal}',
+                              style: TextStyle(
+                                fontSize: 30,
+                                height: 1.05,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -1.4,
+                                color: _wr('onPrimary'),
+                              ),
+                            ),
+                            Text(
+                              _s.tgYearDaysWord(p.daysTotal),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: _wr('onPrimarySoft'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 22),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          _s.tgYearOrdinalLabel(p.yearsCompleted + 1),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.3,
+                            color: _wr('accentOnPrimary'),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          _s.tgYearDaysLeft(p.daysToNextAnniversary),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 22,
+                            height: 1.1,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.7,
+                            color: _wr('onPrimary'),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${_s.tgYearToAnniversary(p.yearsCompleted + 1)} · '
+                          '${_formatDayMonth(p.nextAnniversary)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w800,
+                            color: _wr('onPrimarySoft'),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            tile(_s.tgYearMonthsLabel, '${p.monthsCompleted}'),
+                            const SizedBox(width: 8),
+                            tile(
+                              _s.tgYearMemoriesLabel,
+                              '${_memoriesCount ?? 0}',
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  /// Превью «Календарь лет» 2×2: сетка сверху, число снизу.
+  Widget _buildYearGrid2x2Preview() {
+    final p = _yearProgress();
+    return AspectRatio(
+      aspectRatio: 1,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: _wr('surface'),
+          borderRadius: BorderRadius.circular(32),
+          border: Border.all(color: _wr('trackOnSurface')),
+        ),
+        child: p == null
+            ? _widgetEmptyLabel(_wr('onSurfaceVariant'))
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _monthsGrid(p, dot: 8, gap: 4),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '${p.daysTotal}',
+                        style: TextStyle(
+                          fontSize: 52,
+                          height: 1.02,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -2.3,
+                          color: _wr('onSurface'),
+                        ),
+                      ),
+                      Text(
+                        _s.tgYearDaysTogether(p.daysTotal),
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w800,
+                          color: _wr('primary'),
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        _s.tgYearCurrentYearShort(
+                          p.yearsCompleted + 1,
+                          p.daysToNextAnniversary,
+                        ),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: _wr('onSurfaceVariant'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  /// Превью «Календарь лет» 4×2: число и годы сверху, сетка и отсчёт снизу.
+  Widget _buildYearGrid4x2Preview() {
+    final p = _yearProgress();
+    final start = _togetherStart();
+
+    return AspectRatio(
+      aspectRatio: 424 / 200,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 22),
+        decoration: BoxDecoration(
+          color: _wr('surface'),
+          borderRadius: BorderRadius.circular(32),
+          border: Border.all(color: _wr('trackOnSurface')),
+        ),
+        child: p == null
+            ? _widgetEmptyLabel(_wr('onSurfaceVariant'))
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '${p.daysTotal}',
+                        style: TextStyle(
+                          fontSize: 60,
+                          height: 1,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -2.8,
+                          color: _wr('onSurface'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          _s.tgYearDaysWord(p.daysTotal),
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: _wr('onSurfaceVariant'),
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _s.tgYearsAndDays(
+                              p.yearsCompleted,
+                              p.daysIntoYear,
+                            ),
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w800,
+                              color: _wr('primary'),
+                            ),
+                          ),
+                          if (start != null)
+                            Text(
+                              _s.tgYearSince(_formatDate(start)),
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w800,
+                                color: _wr('onSurfaceVariant'),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      _monthsGrid(p, dot: 9, gap: 5),
+                      const SizedBox(width: 14),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 15, vertical: 11),
+                        decoration: BoxDecoration(
+                          color: _wr('surfaceContainer'),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '${p.daysToNextAnniversary}',
+                              style: TextStyle(
+                                fontSize: 22,
+                                height: 1.05,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.8,
+                                color: _wr('primary'),
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              _s.tgYearToAnniversary(p.yearsCompleted + 1),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: _wr('onSurfaceVariant'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  /// Сетка месяцев для превью «Календаря лет».
+  ///
+  /// Колонок всегда двенадцать, рядов — шесть на каждое прожитое шестилетие,
+  /// как в нативном виджете. Точка мельчает, число колонок не меняется.
+  Widget _monthsGrid(YearProgress p, {required double dot, required double gap}) {
+    final rows = (p.monthsCompleted ~/ 72 + 1) * 6;
+    final shrink = 6 / rows;
+    return CustomPaint(
+      size: Size(
+        (12 * dot + 11 * gap) * shrink,
+        (rows * dot + (rows - 1) * gap) * shrink,
+      ),
+      painter: _MonthsGridPainter(
+        filled: p.monthsCompleted,
+        rows: rows,
+        dot: dot * shrink,
+        gap: gap * shrink,
+        past: _wr('primary'),
+        current: _wr('tertiary'),
+        future: _wr('trackOnSurface'),
+      ),
+    );
+  }
+
+  /// Дата цифрами, как в подписи «с 30.09.2020».
+  String _formatDate(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}.'
+      '${d.month.toString().padLeft(2, '0')}.${d.year}';
+
+  /// Подпись пустого состояния: дата начала не задана, считать нечего.
+  Widget _widgetEmptyLabel(Color color) => Center(
+        child: Text(
+          _s.tgYearNoStartDate,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+            color: color,
+          ),
+        ),
+      );
 
   /// Отдаём виджету «Настроение» сегодняшние отметки обоих и неделю.
   ///
@@ -8382,6 +8901,114 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
 /// выбором размера» не бывает. Поэтому размер выбирается до установки:
 /// выбранный вариант определяет и превью, и того провайдера, что уйдёт на
 /// рабочий стол.
+/// Кольцо года для превью каталога.
+///
+/// Повторяет `WidgetImages.ring` на нативной стороне: радиус 0.42 стороны,
+/// старт на двенадцати часах, круглый конец дуги. Расхождение было бы видно
+/// сразу — карточка и виджет стоят рядом в момент установки.
+class _YearRingPainter extends CustomPainter {
+  const _YearRingPainter({
+    required this.progress,
+    required this.stroke,
+    required this.track,
+    required this.fill,
+  });
+
+  final double progress;
+  final double stroke;
+  final Color track;
+  final Color fill;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final side = size.shortestSide;
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = side * 0.42;
+
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..isAntiAlias = true
+      ..color = track;
+    canvas.drawCircle(center, radius, paint);
+
+    final sweep = 2 * math.pi * progress.clamp(0.0, 1.0);
+    // Круглый конец на нулевой дуге рисует точку на двенадцати часах — в
+    // первый день года это читается как сбой.
+    if (sweep > 0.01) {
+      paint
+        ..color = fill
+        ..strokeCap = StrokeCap.round;
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        -math.pi / 2,
+        sweep,
+        false,
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_YearRingPainter old) =>
+      old.progress != progress ||
+      old.stroke != stroke ||
+      old.track != track ||
+      old.fill != fill;
+}
+
+/// Сетка месяцев для превью каталога: точка — месяц, ряд — год.
+/// Повторяет `WidgetImages.monthsGrid` на нативной стороне.
+class _MonthsGridPainter extends CustomPainter {
+  const _MonthsGridPainter({
+    required this.filled,
+    required this.rows,
+    required this.dot,
+    required this.gap,
+    required this.past,
+    required this.current,
+    required this.future,
+  });
+
+  final int filled;
+  final int rows;
+  final double dot;
+  final double gap;
+  final Color past;
+  final Color current;
+  final Color future;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..isAntiAlias = true;
+    final r = dot / 2;
+    for (var row = 0; row < rows; row++) {
+      for (var col = 0; col < 12; col++) {
+        final i = row * 12 + col;
+        paint.color = i < filled
+            ? past
+            : i == filled
+                ? current
+                : future;
+        canvas.drawCircle(
+          Offset(col * (dot + gap) + r, row * (dot + gap) + r),
+          r,
+          paint,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_MonthsGridPainter old) =>
+      old.filled != filled ||
+      old.rows != rows ||
+      old.dot != dot ||
+      old.past != past ||
+      old.current != current ||
+      old.future != future;
+}
+
 class _WidgetSizeOption {
   const _WidgetSizeOption({
     required this.label,

@@ -60,6 +60,11 @@ class WidgetThemeSync {
       'trackOnContainer': _blend(scheme.primary, 0.26, scheme.primaryContainer),
       'trackOnSurface': _blend(scheme.primary, 0.16, scheme.surface),
 
+      // Блок, приподнятый над заливкой primary: плитки и трек кольца в
+      // «Кольце года». Роль отдельная, потому что и primaryContainer, и
+      // secondaryContainer на тёмной карточке выглядят наклейкой чужого цвета.
+      'blockOnPrimary': _blend(scheme.onPrimary, 0.12, scheme.primary),
+
       // Кружки аватаров, когда фотографии нет.
       'avatarMine': dark ? scheme.primaryContainer : scheme.inversePrimary,
       'avatarPartner': scheme.tertiaryContainer,

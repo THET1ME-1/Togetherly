@@ -34,6 +34,7 @@ data class WidgetTheme(
     val accentOnPrimary: Int,
     val trackOnContainer: Int,
     val trackOnSurface: Int,
+    val blockOnPrimary: Int,
     val avatarMine: Int,
     val avatarPartner: Int,
 ) {
@@ -61,6 +62,7 @@ data class WidgetTheme(
             "accentOnPrimary" to "#D0BCFF",
             "trackOnContainer" to "#D6C6F0",
             "trackOnSurface" to "#E8DEF8",
+            "blockOnPrimary" to "#7965B0",
             "avatarMine" to "#D0BCFF",
             "avatarPartner" to "#FFD8E4",
         )
@@ -97,6 +99,7 @@ data class WidgetTheme(
             accentOnPrimary = read(prefs, "accentOnPrimary"),
             trackOnContainer = read(prefs, "trackOnContainer"),
             trackOnSurface = read(prefs, "trackOnSurface"),
+            blockOnPrimary = read(prefs, "blockOnPrimary"),
             avatarMine = read(prefs, "avatarMine"),
             avatarPartner = read(prefs, "avatarPartner"),
         )

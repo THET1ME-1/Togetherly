@@ -1058,6 +1058,60 @@ class HomeWidgetService {
     }
   }
 
+  /// Данные виджетов «Кольцо года» и «Календарь лет» (новый каталог).
+  ///
+  /// Оба показывают одну и ту же разметку совместного времени, поэтому и
+  /// кладутся одним вызовом: разъехавшиеся кольцо и сетка на соседних
+  /// виджетах видно сразу.
+  ///
+  /// Сами дни, месяцы и доля кольца сюда НЕ пишутся: их считает нативный
+  /// `YearMath` от даты начала, иначе счётчик застывал бы до следующего
+  /// открытия приложения. Отсюда уходит только то, что само по себе не
+  /// меняется — дата начала и счётчик воспоминаний.
+  ///
+  /// [start] — дата начала; null означает, что пара её не задала, и виджеты
+  /// показывают просьбу указать дату вместо нулей.
+  Future<void> syncYearWidgets({
+    required String groupId,
+    required DateTime? start,
+    required int memoriesCount,
+    String startDateLabel = '',
+    String anniversaryLabel = '',
+  }) async {
+    try {
+      final g = groupId.isEmpty ? 'solo' : groupId;
+
+      Future<void> put(String key, String value) async {
+        await HomeWidget.saveWidgetData<String>('ring_${g}_$key', value);
+        await HomeWidget.saveWidgetData<String>('grid_${g}_$key', value);
+      }
+
+      await put('start_ms', '${start?.millisecondsSinceEpoch ?? 0}');
+      await put('memories', '$memoriesCount');
+      await put('start_date', startDateLabel);
+
+      await HomeWidget.saveWidgetData<String>('year_ring_latest_group', g);
+      await HomeWidget.saveWidgetData<String>('year_grid_latest_group', g);
+
+      // Размер — отдельный провайдер, будим каждый: иначе обновится только
+      // тот виджет, что стоит на рабочем столе.
+      for (final n in const [
+        'YearRingWidget2x2Provider',
+        'YearRingWidget4x2Provider',
+        'YearGridWidget2x2Provider',
+        'YearGridWidget4x2Provider',
+      ]) {
+        await HomeWidget.updateWidget(
+          name: n,
+          androidName: n,
+          qualifiedAndroidName: 'com.togetherly.love.$n',
+        );
+      }
+    } catch (e) {
+      debugPrint('HomeWidgetService.syncYearWidgets failed: $e');
+    }
+  }
+
   /// Данные виджета «Скучаю» (новый каталог).
   /// Данные виджета «Настроение» из нового каталога.
   ///
@@ -2272,6 +2326,15 @@ class HomeWidgetService {
         drawingsCount: drawingsCount,
         missYouCount: missYouCount,
       );
+
+      // «Кольцо года» и «Календарь лет» цепляются сюда же: счётчик
+      // воспоминаний для плитки уже посчитан, а дата начала под рукой.
+      await syncYearWidgets(
+        groupId: groupId,
+        start: startDate,
+        memoriesCount: memoriesCount,
+        startDateLabel: startDate == null ? '' : 'с ${_formatDate(startDate)}',
+      );
     } catch (e) {
       debugPrint('HomeWidgetService.refreshRelationshipStats failed: $e');
     }
@@ -2617,6 +2680,7 @@ class HomeWidgetService {
 
   String _formatDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+
 
   // ════════════════════════════════════════════════════════════════════════
   //  ВСПОМОГАТЕЛЬНЫЕ

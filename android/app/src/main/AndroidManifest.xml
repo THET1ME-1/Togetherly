@@ -429,6 +429,52 @@
                 android:resource="@xml/tg_together_4x4_info" />
         </receiver>
 
+        <!-- Новый каталог: «Кольцо года» в двух размерах -->
+        <receiver android:name=".YearRingWidget2x2Provider"
+            android:exported="true"
+            android:label="Кольцо года · 2×2">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tg_ring_2x2_info" />
+        </receiver>
+
+        <receiver android:name=".YearRingWidget4x2Provider"
+            android:exported="true"
+            android:label="Кольцо года · 4×2">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tg_ring_4x2_info" />
+        </receiver>
+
+        <!-- Новый каталог: «Календарь лет» в двух размерах -->
+        <receiver android:name=".YearGridWidget2x2Provider"
+            android:exported="true"
+            android:label="Календарь лет · 2×2">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tg_grid_2x2_info" />
+        </receiver>
+
+        <receiver android:name=".YearGridWidget4x2Provider"
+            android:exported="true"
+            android:label="Календарь лет · 4×2">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tg_grid_4x2_info" />
+        </receiver>
+
 
         <!-- Новый каталог: «Скучаю» в трёх размерах -->
         <!-- Заметка на двоих: три размера. Окно правки — NoteEditorActivity. -->

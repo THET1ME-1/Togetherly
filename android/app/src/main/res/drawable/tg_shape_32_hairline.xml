@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Внутренняя обводка карточки радиусом 32dp: заливки нет, только контур.
+
+  Кладётся поверх подложки отдельным ImageView и красится кодом. Заливка
+  прозрачная намеренно — `setColorFilter` работает в режиме SRC_ATOP и берёт
+  альфу из самого drawable, поэтому прозрачное остаётся прозрачным, а контур
+  принимает цвет темы.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#00FFFFFF" />
+    <stroke android:width="1dp" android:color="#FFFFFF" />
+    <corners android:radius="32dp" />
+</shape>

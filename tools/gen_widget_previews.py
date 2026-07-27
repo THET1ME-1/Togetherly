@@ -318,6 +318,100 @@ def countdown_4x2() -> None:
     save(img, "tg_preview_countdown_4x2")
 
 
+# ── 07 «Кольцо года» и «Календарь лет» ───────────────────────────────────────
+
+BLOCK_ON_PRIMARY = "#7965B0"  # blend(onPrimary 12%, primary) — как в WidgetThemeSync
+TRACK_ON_SURFACE = "#E8DEF8"
+
+
+def ring(d, cx, cy, radius, width, progress, track, fill) -> None:
+    """Кольцо прогресса: трек по всей окружности и дуга от двенадцати часов."""
+    box = ((cx - radius) * S, (cy - radius) * S, (cx + radius) * S, (cy + radius) * S)
+    d.ellipse(box, outline=track, width=width * S)
+    if progress > 0.01:
+        # PIL рисует дугу от трёх часов, поэтому старт смещён на четверть.
+        d.arc(box, -90, -90 + 360 * progress, fill=fill, width=width * S)
+
+
+def months_grid(d, x, y, filled, rows, dot, gap, past, current, future) -> None:
+    """Сетка месяцев: двенадцать колонок, ряд — год."""
+    for row in range(rows):
+        for col in range(12):
+            i = row * 12 + col
+            color = past if i < filled else current if i == filled else future
+            cx = x + col * (dot + gap) + dot / 2
+            cy = y + row * (dot + gap) + dot / 2
+            circle(d, cx, cy, dot / 2, color)
+
+
+def ring_2x2() -> None:
+    img, d = canvas(200, 200)
+    card(d, (0, 0, 200, 200), 32, PRIMARY)
+
+    ring(d, 100, 100, 78, 7, 0.072, BLOCK_ON_PRIMARY, PRIMARY_DARK)
+    text(d, (100, 92), "2126", 40, 800, ON_PRIMARY, anchor="mm")
+    text(d, (100, 118), "дней вместе", 12, 800, CAPTION_ON_PRIMARY, anchor="mm")
+    text(d, (100, 136), "до 6 лет — 355", 10, 800, PRIMARY_DARK, anchor="mm")
+    save(img, "tg_preview_ring_2x2")
+
+
+def ring_4x2() -> None:
+    img, d = canvas(424, 200)
+    card(d, (0, 0, 424, 200), 32, PRIMARY)
+
+    ring(d, 90, 100, 62, 8, 0.072, BLOCK_ON_PRIMARY, PRIMARY_DARK)
+    text(d, (90, 94), "2126", 30, 800, ON_PRIMARY, anchor="mm")
+    text(d, (90, 118), "дней", 11, 800, CAPTION_ON_PRIMARY, anchor="mm")
+
+    text(d, (176, 44), "ШЕСТОЙ ГОД ВМЕСТЕ", 11, 800, PRIMARY_DARK)
+    text(d, (176, 62), "Ещё 355 дней", 21, 800, ON_PRIMARY)
+    text(d, (176, 94), "до 6 лет · 30 сентября", 12, 800, CAPTION_ON_PRIMARY)
+
+    tiles = (("МЕСЯЦЕВ", "69"), ("ВОСПОМИНАНИЙ", "412"))
+    gap = 8
+    w = (424 - 176 - 22 - gap) / 2
+    for i, (label, value) in enumerate(tiles):
+        x = 176 + i * (w + gap)
+        card(d, (x, 120, x + w, 172), 16, BLOCK_ON_PRIMARY)
+        text(d, (x + 13, 132), label, 10, 800, PRIMARY_DARK)
+        text(d, (x + 13, 148), value, 18, 800, ON_PRIMARY)
+    save(img, "tg_preview_ring_4x2")
+
+
+def grid_2x2() -> None:
+    img, d = canvas(200, 200)
+    card(d, (0, 0, 200, 200), 32, SURFACE)
+    d.rounded_rectangle(
+        (S, S, 199 * S, 199 * S), radius=32 * S, outline=TRACK_ON_SURFACE, width=S,
+    )
+
+    months_grid(d, 20, 20, 68, 6, 8, 4, PRIMARY, TERTIARY, TRACK_ON_SURFACE)
+    text(d, (20, 148), "2126", 46, 800, ON_SURFACE, anchor="ls")
+    text(d, (20, 166), "дней вместе", 13, 800, PRIMARY, anchor="ls")
+    text(d, (20, 182), "6-й год · ещё 355", 11, 800, ON_SURFACE_VARIANT, anchor="ls")
+    save(img, "tg_preview_grid_2x2")
+
+
+def grid_4x2() -> None:
+    img, d = canvas(424, 200)
+    card(d, (0, 0, 424, 200), 32, SURFACE)
+    d.rounded_rectangle(
+        (S, S, 423 * S, 199 * S), radius=32 * S, outline=TRACK_ON_SURFACE, width=S,
+    )
+
+    text(d, (24, 76), "2126", 54, 800, ON_SURFACE, anchor="ls")
+    text(d, (150, 76), "дней", 16, 800, ON_SURFACE_VARIANT, anchor="ls")
+    text(d, (400, 40), "5 ЛЕТ 10 ДНЕЙ", 12, 800, PRIMARY, anchor="ra")
+    text(d, (400, 58), "с 30.09.2020", 12, 800, ON_SURFACE_VARIANT, anchor="ra")
+
+    months_grid(d, 24, 104, 68, 6, 9, 5, PRIMARY, TERTIARY, TRACK_ON_SURFACE)
+
+    card(d, (330, 108, 400, 172), 20, SURFACE_CONTAINER)
+    text(d, (365, 132), "355", 21, 800, PRIMARY, anchor="mm")
+    text(d, (365, 154), "до 6 лет", 11, 800, ON_SURFACE_VARIANT, anchor="mm")
+    save(img, "tg_preview_grid_4x2")
+
+
 def photo_frame(d, box, fill, radius=32) -> None:
     """Заглушка фото: тональная заливка, солнце и горы — знак снимка."""
     x0, y0, x1, y1 = box
@@ -446,6 +540,10 @@ if __name__ == "__main__":
     mood_4x2()
     countdown_2x2()
     countdown_4x2()
+    ring_2x2()
+    ring_4x2()
+    grid_2x2()
+    grid_4x2()
     photo_day()
     self_photo()
     partner_photo()

@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapShader
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.RectF
 import android.graphics.Shader
 import android.widget.RemoteViews
 
@@ -150,6 +151,101 @@ object WidgetImages {
         if (filled >= heightPx) {
             paint.color = fillColor
             canvas.drawRoundRect(0f, 0f, filled, heightPx.toFloat(), r, r, paint)
+        }
+        return output
+    }
+
+    /**
+     * Кольцо года: трек [trackColor] на всю окружность и дуга [fillColor] на
+     * долю [progress] (0…1). Старт в двенадцать часов, дальше по часовой,
+     * концы дуги круглые.
+     *
+     * Дуги в RemoteViews нет: ни `ProgressBar` со стилем circular, ни поворот
+     * вью цвет темы не примут. Поэтому кольцо рисуется целиком и уходит в
+     * `ImageView` как bitmap.
+     */
+    fun ring(
+        sizePx: Int,
+        strokePx: Float,
+        progress: Float,
+        trackColor: Int,
+        fillColor: Int,
+    ): Bitmap? {
+        if (sizePx <= 0 || strokePx <= 0f) return null
+        val output = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+        val paint = Paint().apply {
+            isAntiAlias = true
+            style = Paint.Style.STROKE
+            strokeWidth = strokePx
+        }
+
+        // Радиус из хендофа: r = 42 в системе координат 100×100.
+        val radius = sizePx * 0.42f
+        val c = sizePx / 2f
+        val box = RectF(c - radius, c - radius, c + radius, c + radius)
+
+        paint.color = trackColor
+        paint.strokeCap = Paint.Cap.BUTT
+        canvas.drawCircle(c, c, radius, paint)
+
+        val sweep = 360f * progress.coerceIn(0f, 1f)
+        // Круглый конец на нулевой дуге рисует точку на двенадцати часах —
+        // в первый день года это читается как сбой, поэтому порог.
+        if (sweep > 0.5f) {
+            paint.color = fillColor
+            paint.strokeCap = Paint.Cap.ROUND
+            canvas.drawArc(box, -90f, sweep, false, paint)
+        }
+        return output
+    }
+
+    /**
+     * Календарь лет: сетка круглых точек, точка — месяц, ряд — год.
+     *
+     * Первые [filled] точек залиты [pastColor], следующая — [currentColor]
+     * (текущий месяц), остальные [futureColor]. Ряды и колонки задаёт
+     * вызывающий: 12 колонок неизменны, а рядов становится больше, когда пара
+     * переживает верхнюю границу сетки.
+     *
+     * Картинкой, а не семьюдесятью двумя `ImageView`: столько вью в одном
+     * RemoteViews раздувают транзакцию до отказа лончера.
+     */
+    fun monthsGrid(
+        filled: Int,
+        rows: Int,
+        columns: Int,
+        dotPx: Float,
+        gapPx: Float,
+        pastColor: Int,
+        currentColor: Int,
+        futureColor: Int,
+    ): Bitmap? {
+        if (rows <= 0 || columns <= 0 || dotPx <= 0f) return null
+        val width = (columns * dotPx + (columns - 1) * gapPx).toInt()
+        val height = (rows * dotPx + (rows - 1) * gapPx).toInt()
+        if (width <= 0 || height <= 0) return null
+
+        val output = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+        val paint = Paint().apply { isAntiAlias = true }
+        val r = dotPx / 2f
+
+        for (row in 0 until rows) {
+            for (col in 0 until columns) {
+                val i = row * columns + col
+                paint.color = when {
+                    i < filled -> pastColor
+                    i == filled -> currentColor
+                    else -> futureColor
+                }
+                canvas.drawCircle(
+                    col * (dotPx + gapPx) + r,
+                    row * (dotPx + gapPx) + r,
+                    r,
+                    paint,
+                )
+            }
         }
         return output
     }

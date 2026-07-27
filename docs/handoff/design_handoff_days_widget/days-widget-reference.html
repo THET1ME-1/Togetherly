@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<title>Дни вместе — «Кольцо года» и «Календарь лет» (референс)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<!--
+  ТОЧНЫЙ РЕФЕРЕНС для реализации на Flutter.
+  Все стили инлайн — это и есть спецификация (цвет, размер, вес, letter-spacing, радиус, padding, gap).
+  Данные-заглушки: 2126 дней, старт 30.09.2020, 6-й год, 68 полных месяцев, 355 дней до 6 лет.
+  Каждый вариант показан в размерах 4x2 (472x224) и 2x2 (224x224).
+-->
+
+
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+  html, body { margin:0; padding:0; background:#F4EFF4; font-family:Manrope, system-ui, sans-serif; -webkit-font-smoothing:antialiased; }
+  a { color:#E03B5E; text-decoration:none; }
+  a:hover { color:#C82748; }
+</style>
+
+<style> body { background:#F4EFF4; padding:40px; } </style>
+</head>
+<body>
+<div style="display:flex;flex-wrap:wrap;gap:30px;align-items:flex-start;font-family:Manrope,sans-serif;color:#241C29">
+<div id="1b" style="width:520px;background:#FFFFFF;border-radius:32px;padding:24px;display:flex;flex-direction:column;gap:16px;box-shadow:0 4px 20px rgba(44,34,48,.07)">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="background:#241C29;color:#FFFFFF;font-size:12px;font-weight:800;padding:5px 11px;border-radius:999px">1b</span>
+        <span style="font-size:18px;font-weight:800;letter-spacing:-0.4px">Кольцо года</span>
+        <span style="font-size:13.5px;font-weight:700;color:#9A8E97">видно, сколько до следующей даты</span>
+      </div>
+
+      <div style="width:472px;height:224px;border-radius:34px;background:#241C29;padding:22px 26px;box-sizing:border-box;display:flex;align-items:center;gap:28px">
+        <div style="position:relative;width:150px;height:150px;flex:none">
+          <svg width="150" height="150" viewBox="0 0 100 100"><circle cx="50" cy="50" r="42" fill="none" stroke="#3B2F3E" stroke-width="9"/><circle cx="50" cy="50" r="42" fill="none" stroke="#F2607A" stroke-width="9" stroke-linecap="round" stroke-dasharray="264" stroke-dashoffset="245" transform="rotate(-90 50 50)"/></svg>
+          <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px">
+            <span style="font-size:34px;font-weight:800;letter-spacing:-1.4px;color:#FFFFFF;line-height:1">2126</span>
+            <span style="font-size:12px;font-weight:800;color:#FF8FA8">дней</span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;flex:1">
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <span style="font-size:12.5px;font-weight:800;letter-spacing:0.3px;color:#9A8E97">ШЕСТОЙ ГОД ВМЕСТЕ</span>
+            <span style="font-size:24px;font-weight:800;letter-spacing:-0.7px;color:#FFFFFF">Ещё 355 дней</span>
+            <span style="font-size:13.5px;font-weight:700;color:#FF8FA8">до 6 лет · 30.09.2026</span>
+          </div>
+          <div style="display:flex;gap:8px">
+            <div style="flex:1;background:#3B2F3E;border-radius:16px;padding:11px 13px;display:flex;flex-direction:column;gap:1px">
+              <span style="font-size:11.5px;font-weight:800;color:#9A8E97">МЕСЯЦЕВ</span>
+              <span style="font-size:20px;font-weight:800;color:#FFFFFF;letter-spacing:-0.5px">69</span>
+            </div>
+            <div style="flex:1;background:#3B2F3E;border-radius:16px;padding:11px 13px;display:flex;flex-direction:column;gap:1px">
+              <span style="font-size:11.5px;font-weight:800;color:#9A8E97">ВСТРЕЧ</span>
+              <span style="font-size:20px;font-weight:800;color:#FFFFFF;letter-spacing:-0.5px">412</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:flex-end;gap:16px">
+        <div style="width:224px;height:224px;border-radius:34px;background:#241C29;box-sizing:border-box;display:flex;align-items:center;justify-content:center;position:relative">
+          <svg width="176" height="176" viewBox="0 0 100 100"><circle cx="50" cy="50" r="42" fill="none" stroke="#3B2F3E" stroke-width="8"/><circle cx="50" cy="50" r="42" fill="none" stroke="#F2607A" stroke-width="8" stroke-linecap="round" stroke-dasharray="264" stroke-dashoffset="245" transform="rotate(-90 50 50)"/></svg>
+          <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px">
+            <span style="font-size:44px;font-weight:800;letter-spacing:-2px;color:#FFFFFF;line-height:1">2126</span>
+            <span style="font-size:13px;font-weight:800;color:#FF8FA8">дней вместе</span>
+            <span style="font-size:11.5px;font-weight:700;color:#9A8E97;margin-top:4px">до 6 лет — 355</span>
+          </div>
+        </div>
+        <span style="font-size:12.5px;font-weight:800;color:#9A8E97;padding-bottom:6px">тёмный вариант</span>
+      </div>
+    </div>
+<div id="1d" style="width:520px;background:#FFFFFF;border-radius:32px;padding:24px;display:flex;flex-direction:column;gap:16px;box-shadow:0 4px 20px rgba(44,34,48,.07)">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="background:#241C29;color:#FFFFFF;font-size:12px;font-weight:800;padding:5px 11px;border-radius:999px">1d</span>
+        <span style="font-size:18px;font-weight:800;letter-spacing:-0.4px">Календарь лет</span>
+        <span style="font-size:13.5px;font-weight:700;color:#9A8E97">точка — месяц, ряд — год</span>
+      </div>
+
+      <div style="width:472px;height:224px;border-radius:34px;background:#FFF6F1;padding:22px 26px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:space-between;box-shadow:inset 0 0 0 1px rgba(240,96,122,.14)">
+        <div style="display:flex;align-items:flex-end;justify-content:space-between">
+          <div style="display:flex;align-items:flex-end;gap:8px">
+            <span style="font-size:60px;font-weight:800;letter-spacing:-2.8px;line-height:1;color:#241C29">2126</span>
+            <span style="font-size:17px;font-weight:800;color:#9A8E97;padding-bottom:8px">дней</span>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:1px">
+            <span style="font-size:12.5px;font-weight:800;color:#E03B5E">5 ЛЕТ 10 ДНЕЙ</span>
+            <span style="font-size:12.5px;font-weight:700;color:#9A8E97">с 30.09.2020</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:14px;align-items:flex-end">
+          <div style="display:flex;flex-direction:column;gap:5px"><div style="display:flex;gap:5px"><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div></div><div style="display:flex;gap:5px"><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div></div><div style="display:flex;gap:5px"><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div></div><div style="display:flex;gap:5px"><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div></div><div style="display:flex;gap:5px"><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div></div><div style="display:flex;gap:5px"><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#F2607A"></div><div style="width:9px;height:9px;border-radius:999px;background:#E03B5E"></div><div style="width:9px;height:9px;border-radius:999px;background:#FFD9E1"></div><div style="width:9px;height:9px;border-radius:999px;background:#FFD9E1"></div><div style="width:9px;height:9px;border-radius:999px;background:#FFD9E1"></div></div></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex:none;background:#FFFFFF;border-radius:20px;padding:11px 15px">
+            <span style="font-size:22px;font-weight:800;letter-spacing:-0.8px;color:#E03B5E;line-height:1">355</span>
+            <span style="font-size:11px;font-weight:800;color:#9A8E97">до 6 лет</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:flex-end;gap:16px">
+        <div style="width:224px;height:224px;border-radius:34px;background:#FFF6F1;padding:20px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:space-between;box-shadow:inset 0 0 0 1px rgba(240,96,122,.14)">
+          <div style="display:flex;flex-direction:column;gap:4px"><div style="display:flex;gap:4px"><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div></div><div style="display:flex;gap:4px"><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div></div><div style="display:flex;gap:4px"><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div></div><div style="display:flex;gap:4px"><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div></div><div style="display:flex;gap:4px"><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div></div><div style="display:flex;gap:4px"><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#F2607A"></div><div style="width:8px;height:8px;border-radius:999px;background:#E03B5E"></div><div style="width:8px;height:8px;border-radius:999px;background:#FFD9E1"></div><div style="width:8px;height:8px;border-radius:999px;background:#FFD9E1"></div><div style="width:8px;height:8px;border-radius:999px;background:#FFD9E1"></div></div></div>
+          <div style="display:flex;flex-direction:column;gap:1px">
+            <span style="font-size:52px;font-weight:800;letter-spacing:-2.3px;line-height:1;color:#241C29">2126</span>
+            <span style="font-size:14.5px;font-weight:800;color:#E03B5E">дней вместе</span>
+            <span style="font-size:12px;font-weight:700;color:#9A8E97;margin-top:3px">6-й год · ещё 355</span>
+          </div>
+        </div>
+        <span style="font-size:12.5px;font-weight:800;color:#9A8E97;padding-bottom:6px">69 месяцев из 72</span>
+      </div>
+    </div>
+</div>
+</body>
+</html>

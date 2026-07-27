@@ -1105,6 +1105,23 @@ abstract class AppStrings {
   String get tgCountdownMinutes;
   String get tgSizeHintToday;
   String get tgSizeHintWeek;
+  /// Виджеты «Кольцо года» и «Календарь лет».
+  String get tgRingTitle;
+  String get tgRingSubtitle;
+  String get tgGridTitle;
+  String get tgGridSubtitle;
+  String get tgYearNoStartDate;
+  String get tgYearMonthsLabel;
+  String get tgYearMemoriesLabel;
+  String tgYearDaysWord(int days);
+  String tgYearDaysTogether(int days);
+  String tgYearDaysLeft(int days);
+  String tgYearToAnniversary(int year);
+  String tgYearToAnniversaryShort(int year, int days);
+  String tgYearCurrentYearShort(int year, int days);
+  String tgYearOrdinalLabel(int year);
+  String tgYearsAndDays(int years, int days);
+  String tgYearSince(String date);
   /// Экран настроек, вынесенный из профиля.
   String get settingsTitle;
   String get settingsOpen;
@@ -3817,6 +3834,53 @@ class _RuStrings extends AppStrings {
   String get tgCountdownHours => 'часов';
   @override
   String get tgCountdownMinutes => 'минут';
+  @override
+  String get tgRingTitle => 'Кольцо года';
+  @override
+  String get tgRingSubtitle => 'Круг до годовщины и дни вместе';
+  @override
+  String get tgGridTitle => 'Календарь лет';
+  @override
+  String get tgGridSubtitle => 'Точка — месяц, ряд — год';
+  @override
+  String get tgYearNoStartDate => 'Укажите дату начала';
+  @override
+  String get tgYearMonthsLabel => 'МЕСЯЦЕВ';
+  @override
+  String get tgYearMemoriesLabel => 'ВОСПОМИНАНИЙ';
+  @override
+  String tgYearDaysWord(int days) => _ruPlural(days, 'день', 'дня', 'дней');
+  @override
+  String tgYearDaysTogether(int days) =>
+      '${_ruPlural(days, 'день', 'дня', 'дней')} вместе';
+  @override
+  String tgYearDaysLeft(int days) =>
+      'Ещё $days ${_ruPlural(days, 'день', 'дня', 'дней')}';
+  @override
+  String tgYearToAnniversary(int year) =>
+      'до $year ${_ruPlural(year, 'года', 'лет', 'лет')}';
+  @override
+  String tgYearToAnniversaryShort(int year, int days) =>
+      'до $year ${_ruPlural(year, 'года', 'лет', 'лет')} — $days';
+  @override
+  String tgYearCurrentYearShort(int year, int days) =>
+      '$year-й год · ещё $days';
+  @override
+  String tgYearOrdinalLabel(int year) {
+    const words = [
+      'ПЕРВЫЙ', 'ВТОРОЙ', 'ТРЕТИЙ', 'ЧЕТВЁРТЫЙ', 'ПЯТЫЙ',
+      'ШЕСТОЙ', 'СЕДЬМОЙ', 'ВОСЬМОЙ', 'ДЕВЯТЫЙ', 'ДЕСЯТЫЙ',
+    ];
+    final word = year >= 1 && year <= words.length ? words[year - 1] : '$year-Й';
+    return '$word ГОД ВМЕСТЕ';
+  }
+
+  @override
+  String tgYearsAndDays(int years, int days) =>
+      '$years ${_ruPlural(years, 'ГОД', 'ГОДА', 'ЛЕТ')} '
+      '$days ${_ruPlural(days, 'ДЕНЬ', 'ДНЯ', 'ДНЕЙ')}';
+  @override
+  String tgYearSince(String date) => 'с $date';
   @override
   String get tgSizeHintToday => 'сегодня';
   @override
@@ -7143,6 +7207,44 @@ class _EnStrings extends AppStrings {
   String get tgSizeHintToday => 'today';
   @override
   String get tgSizeHintWeek => 'week';
+  @override
+  String get tgRingTitle => 'Year ring';
+  @override
+  String get tgRingSubtitle => 'Circle to the anniversary and days together';
+  @override
+  String get tgGridTitle => 'Years calendar';
+  @override
+  String get tgGridSubtitle => 'A dot is a month, a row is a year';
+  @override
+  String get tgYearNoStartDate => 'Set the start date';
+  @override
+  String get tgYearMonthsLabel => 'MONTHS';
+  @override
+  String get tgYearMemoriesLabel => 'MEMORIES';
+  @override
+  String tgYearDaysWord(int days) => days == 1 ? 'day' : 'days';
+  @override
+  String tgYearDaysTogether(int days) =>
+      '${days == 1 ? 'day' : 'days'} together';
+  @override
+  String tgYearDaysLeft(int days) =>
+      '$days ${days == 1 ? 'day' : 'days'} left';
+  @override
+  String tgYearToAnniversary(int year) => 'to year $year';
+  @override
+  String tgYearToAnniversaryShort(int year, int days) =>
+      'to year $year — $days';
+  @override
+  String tgYearCurrentYearShort(int year, int days) =>
+      'year $year · $days left';
+  @override
+  String tgYearOrdinalLabel(int year) => 'YEAR $year TOGETHER';
+  @override
+  String tgYearsAndDays(int years, int days) =>
+      '$years ${years == 1 ? 'YEAR' : 'YEARS'} '
+      '$days ${days == 1 ? 'DAY' : 'DAYS'}';
+  @override
+  String tgYearSince(String date) => 'since $date';
   @override
   String get settingsTitle => 'Settings';
   @override

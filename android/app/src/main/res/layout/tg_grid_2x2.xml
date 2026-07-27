@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Виджет «Календарь лет», 2×2.
+
+  Сверху сетка месяцев, снизу число дней и строка о текущем годе. Сетка
+  приходит картинкой (`WidgetImages.monthsGrid`).
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:src="@drawable/tg_shape_32"
+        android:contentDescription="@null" />
+
+    <ImageView
+        android:id="@+id/bg_stroke"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:src="@drawable/tg_shape_32_hairline"
+        android:contentDescription="@null" />
+
+    <TextView
+        android:id="@+id/empty_label"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:paddingLeft="16dp"
+        android:paddingRight="16dp"
+        android:textSize="12dp"
+        android:fontFamily="@font/onest_extrabold"
+        android:includeFontPadding="false"
+        android:visibility="gone"
+        android:text="@string/tg_widget_no_start_date" />
+
+    <LinearLayout
+        android:id="@+id/content"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center_vertical"
+        android:padding="11dp">
+
+        <ImageView
+            android:id="@+id/grid"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:adjustViewBounds="true"
+            android:contentDescription="@null" />
+
+        <TextView
+            android:id="@+id/days_value"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:textSize="26dp"
+            android:fontFamily="@font/onest_extrabold"
+            android:letterSpacing="-0.044"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:text="—" />
+
+        <TextView
+            android:id="@+id/days_word"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="9dp"
+            android:fontFamily="@font/onest_extrabold"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:text="дней вместе" />
+
+        <TextView
+            android:id="@+id/year_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:textSize="8dp"
+            android:fontFamily="@font/onest_extrabold"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:text=" " />
+    </LinearLayout>
+</FrameLayout>

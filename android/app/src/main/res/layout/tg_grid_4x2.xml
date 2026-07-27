@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Виджет «Календарь лет», 4×2.
+
+  Светлая карточка: сверху крупное число дней и годы вместе, снизу сетка
+  точек — точка равна месяцу, ряд равен году — и плитка с обратным отсчётом до
+  следующей годовщины.
+
+  Сетка приходит картинкой (`WidgetImages.monthsGrid`): семьдесят две
+  отдельные вью раздувают транзакцию RemoteViews до отказа лончера.
+
+  Контур карточки — отдельный ImageView поверх подложки: у shape нельзя
+  перекрасить заливку и обводку по отдельности, а тема задаёт разные цвета.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:src="@drawable/tg_shape_32"
+        android:contentDescription="@null" />
+
+    <ImageView
+        android:id="@+id/bg_stroke"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:src="@drawable/tg_shape_32_hairline"
+        android:contentDescription="@null" />
+
+    <TextView
+        android:id="@+id/empty_label"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:paddingLeft="18dp"
+        android:paddingRight="18dp"
+        android:textSize="13dp"
+        android:fontFamily="@font/onest_extrabold"
+        android:includeFontPadding="false"
+        android:visibility="gone"
+        android:text="@string/tg_widget_no_start_date" />
+
+    <LinearLayout
+        android:id="@+id/content"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center_vertical"
+        android:paddingLeft="14dp"
+        android:paddingRight="14dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="12dp">
+
+        <!-- Верхняя строка: число дней слева, годы и дата начала справа -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="bottom">
+
+            <TextView
+                android:id="@+id/days_value"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="30dp"
+                android:fontFamily="@font/onest_extrabold"
+                android:letterSpacing="-0.047"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:text="—" />
+
+            <TextView
+                android:id="@+id/days_word"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="4dp"
+                android:layout_marginBottom="4dp"
+                android:textSize="9dp"
+                android:fontFamily="@font/onest_extrabold"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:text="дней" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="end">
+
+                <TextView
+                    android:id="@+id/years_label"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="9dp"
+                    android:fontFamily="@font/onest_extrabold"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:text=" " />
+
+                <TextView
+                    android:id="@+id/start_date"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:textSize="9dp"
+                    android:fontFamily="@font/onest_extrabold"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:text=" " />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Низ: сетка месяцев и плитка обратного отсчёта -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="horizontal"
+            android:gravity="bottom">
+
+            <ImageView
+                android:id="@+id/grid"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:adjustViewBounds="true"
+                android:contentDescription="@null" />
+
+            <FrameLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp">
+
+                <ImageView
+                    android:id="@+id/tile_bg"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:src="@drawable/tg_shape_20"
+                    android:contentDescription="@null" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center_horizontal"
+                    android:paddingLeft="8dp"
+                    android:paddingRight="8dp"
+                    android:paddingTop="6dp"
+                    android:paddingBottom="6dp">
+
+                    <TextView
+                        android:id="@+id/left_value"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textSize="14dp"
+                        android:fontFamily="@font/onest_extrabold"
+                        android:letterSpacing="-0.036"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="—" />
+
+                    <TextView
+                        android:id="@+id/left_label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:textSize="8dp"
+                        android:fontFamily="@font/onest_extrabold"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text=" " />
+                </LinearLayout>
+            </FrameLayout>
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>
