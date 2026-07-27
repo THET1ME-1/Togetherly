@@ -62,6 +62,7 @@ def main():
     ips_day = defaultdict(set)
     ips_all = set()
     agents = defaultdict(int)
+    agents_day = defaultdict(lambda: defaultdict(int))
     total = defaultdict(int)
 
     for row in rows(pattern):
@@ -86,6 +87,10 @@ def main():
         # видно, пришёл человек из приложения или со стороны.
         kind = "приложение" if "wv)" in ua or "Togetherly" in ua else "браузер"
         agents[kind] += 1
+        # По дням тоже: админка показывает разбивку за выбранный период, а не
+        # за весь охват журнала — иначе на карточке «за 7 дней» стояли бы числа
+        # за месяц, и сумма не сходилась бы с заходами.
+        agents_day[day][kind] += 1
 
     if args.json:
         summary = {
@@ -96,6 +101,8 @@ def main():
                     "landing": by_day[day]["лендинг"],
                     "room": by_day[day]["комната"],
                     "uniques": len(ips_day[day]),
+                    "app": agents_day[day]["приложение"],
+                    "web": agents_day[day]["браузер"],
                 }
                 for day in sorted(by_day)
             ],
