@@ -4,12 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../models/mood_entry.dart';
 import '../widgets/mood_image.dart';
 import '../services/mood_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
+import '../theme/profile_theme.dart';
 
 /// Горизонтальный мини-календарь с настроениями по дням.
 /// Листается бесконечно вперёд и назад. Сегодня — выделен.
@@ -638,6 +638,7 @@ class _DayCellState extends State<_DayCell> with TickerProviderStateMixin {
                           child: Text(
                             dayName,
                             style: TextStyle(
+                              fontFamily: ProfileTheme.bodyFont,
                               fontSize: 11,
                               fontWeight: FontWeight.w900,
                               color: isToday
@@ -651,11 +652,13 @@ class _DayCellState extends State<_DayCell> with TickerProviderStateMixin {
                         Center(
                           child: Text(
                             widget.date.day.toString(),
-                            style: GoogleFonts.rubik(
+                            style: const TextStyle(
+                              fontFamily: ProfileTheme.displayFont,
                               fontSize: 22,
                               fontWeight: FontWeight.w800,
-                              color: isToday ? Colors.white : baseNumColor,
                               height: 1.1,
+                            ).copyWith(
+                              color: isToday ? Colors.white : baseNumColor,
                             ),
                           ),
                         ),
@@ -693,6 +696,7 @@ class _DayCellState extends State<_DayCell> with TickerProviderStateMixin {
                               child: Text(
                                 dayName,
                                 style: TextStyle(
+                                  fontFamily: ProfileTheme.bodyFont,
                                   fontSize: 11,
                                   fontWeight: FontWeight.w900,
                                   color: fillTextColor.withOpacity(0.9),
@@ -704,16 +708,15 @@ class _DayCellState extends State<_DayCell> with TickerProviderStateMixin {
                             Center(
                               child: Text(
                                 widget.date.day.toString(),
-                                // Тот же Rubik, что слоем ниже: без него белая
-                                // цифра набиралась системным шрифтом, метрики
-                                // расходились и число сегодняшнего дня двоилось
-                                // по краям заливки.
-                                style: GoogleFonts.rubik(
+                                // Тот же шрифт, что слоем ниже: пока здесь
+                                // стоял системный, метрики расходились и число
+                                // сегодняшнего дня двоилось по краю заливки.
+                                style: const TextStyle(
+                                  fontFamily: ProfileTheme.displayFont,
                                   fontSize: 22,
                                   fontWeight: FontWeight.w800,
-                                  color: fillTextColor,
                                   height: 1.1,
-                                ),
+                                ).copyWith(color: fillTextColor),
                               ),
                             ),
                             // Иконка в инверсии не нужна, так как изображение само по себе цветное
