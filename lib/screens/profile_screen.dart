@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'couple_stats_screen.dart';
 import 'profile/profile_hero.dart';
 import 'profile/miss_you_week_chart.dart';
 import '../models/partner_profile.dart';
@@ -900,7 +901,74 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ],
         ),
+        if (widget.pairData.isPaired) ...[
+          const SizedBox(height: 12),
+          _fullStatsLink(context),
+        ],
       ],
+    );
+  }
+
+  /// Вход в полную статистику пары — раздел Togetherly+. Без покупки ведёт на
+  /// страницу Plus: прятать нельзя, иначе о разделе никто не узнает.
+  Widget _fullStatsLink(BuildContext context) {
+    final plus = PlusService.instance.active;
+    return Material(
+      color: _cs.secondaryContainer,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => openCoupleStats(
+          context,
+          theme: _t,
+          groupId: widget.pairData.pairId,
+          myUid: widget.userData.uid,
+          startDate: widget.pairData.startDate,
+          anniversaryDate: widget.pairData.anniversaryDate,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Icon(
+                plus ? Icons.insights_rounded : Icons.lock_outline_rounded,
+                size: 20,
+                color: _cs.onSecondaryContainer,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _s.statsFullLink,
+                      style: TextStyle(
+                        fontFamily: ProfileTheme.displayFont,
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w700,
+                        color: _cs.onSecondaryContainer,
+                      ),
+                    ),
+                    Text(
+                      _s.statsFullLinkHint,
+                      style: TextStyle(
+                        fontFamily: ProfileTheme.bodyFont,
+                        fontSize: 12,
+                        color: _cs.onSecondaryContainer.withValues(alpha: 0.75),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 20,
+                color: _cs.onSecondaryContainer,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

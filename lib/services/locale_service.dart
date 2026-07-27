@@ -1257,6 +1257,8 @@ abstract class AppStrings {
   String get statsTipsTitle;
   String get statsEntryTitle;
   String get statsEntrySubtitle;
+  String get statsFullLink;
+  String get statsFullLinkHint;
   String memoryFileTooBigPlusHint(int limitMb);
   String get plusPurchased;
   String get plusPurchasePending;
@@ -4205,6 +4207,10 @@ class _RuStrings extends AppStrings {
   String get statsEntryTitle => 'Статистика пары';
   @override
   String get statsEntrySubtitle => 'Цифры, настроение и советы';
+  @override
+  String get statsFullLink => 'Посмотреть полностью';
+  @override
+  String get statsFullLinkHint => 'Графики, сравнения и прогнозы';
   @override
   String memoryFileTooBigPlusHint(int limitMb) =>
       'Файл тяжелее $limitMb МБ. С Togetherly+ потолок вдвое выше';
@@ -7557,6 +7563,10 @@ class _EnStrings extends AppStrings {
   String get statsEntryTitle => 'Couple stats';
   @override
   String get statsEntrySubtitle => 'Numbers, mood and tips';
+  @override
+  String get statsFullLink => 'See the full picture';
+  @override
+  String get statsFullLinkHint => 'Charts, comparisons and forecasts';
   @override
   String memoryFileTooBigPlusHint(int limitMb) =>
       'The file is over $limitMb MB. Togetherly+ doubles the cap';

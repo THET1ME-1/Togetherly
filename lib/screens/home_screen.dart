@@ -86,7 +86,7 @@ import '../services/days_together_notification_service.dart';
 import '../services/mood_notification_service.dart';
 import '../widgets/celebration_banner.dart';
 import '../widgets/app_sheet.dart';
-import 'relationship_stats_screen.dart';
+
 
 class HomeScreen extends StatefulWidget {
   final UserData userData;
@@ -1334,11 +1334,9 @@ class _HomeScreenState extends State<HomeScreen> {
               delay: const Duration(milliseconds: 240),
               child: _achievementsEntry(),
             ),
-          if (_pairData.isPaired && !_spaOn)
-            AnimatedSlideIn(
-              delay: const Duration(milliseconds: 240),
-              child: _statsEntry(),
-            ),
+          // Статистика уехала в профиль, в блок «Статистика отношений»: на
+          // главной ей место только в первый день, а занимала она экран
+          // каждый раз.
           if (_sunriseOn)
             AnimatedSlideIn(
               delay: const Duration(milliseconds: 40),
@@ -2034,36 +2032,6 @@ class _HomeScreenState extends State<HomeScreen> {
             coins: widget.userData.coins,
           ),
           settings: const RouteSettings(name: '/gifts'),
-        ),
-      ),
-    );
-  }
-
-  /// Вход в расширенную статистику — раздел Togetherly+. Без покупки карточка
-  /// ведёт на страницу Plus, а не прячется: иначе о разделе никто не узнает.
-  Widget _statsEntry() {
-    final cs = ProfileTheme.themeFor(_t).colorScheme;
-    final plus = PlusService.instance.active;
-    return _m3EntryCard(
-      cs: cs,
-      boxColor: cs.secondaryContainer,
-      onBoxColor: cs.onSecondaryContainer,
-      icon: plus ? Icons.insights_rounded : Icons.lock_outline_rounded,
-      title: LocaleService.current.statsEntryTitle,
-      onTap: () => openRelationshipStats(
-        context,
-        theme: _t,
-        groupId: _pairData.pairId,
-        myUid: widget.userData.uid,
-        partnerUid: _pairData.partnerUid,
-        startDate: _pairData.startDate,
-      ),
-      subtitle: Text(
-        LocaleService.current.statsEntrySubtitle,
-        style: TextStyle(
-          fontFamily: ProfileTheme.bodyFont,
-          fontSize: 12.5,
-          color: cs.onSurfaceVariant,
         ),
       ),
     );
