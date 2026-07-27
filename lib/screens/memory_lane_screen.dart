@@ -6,9 +6,9 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
+import '../theme/fonts.dart';
 import '../widgets/storage_image.dart';
 import '../utils/safe_text.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:geolocator/geolocator.dart';
@@ -835,11 +835,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                           const SizedBox(width: 8),
                           Text(
                             LocaleService.current.addMemoryBtn,
-                            style: GoogleFonts.rubik(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
+                            style: AppFonts.onest(size: 15, weight: 700, color: Colors.white),
                           ),
                         ],
                       ),
@@ -880,22 +876,14 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         children: [
           Text(
             LocaleService.current.memoryLane,
-            style: GoogleFonts.rubik(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              color: widget.theme.textPrimary,
-            ),
+            style: AppFonts.onest(size: 20, weight: 800, color: widget.theme.textPrimary),
           ),
           if (widget.filterMode != MemoryFilterMode.none)
             Text(
               widget.filterMode == MemoryFilterMode.day
                   ? '📌 ${LocaleService.current.pinned} • ${_fmtToday()}'
                   : '📌 ${LocaleService.current.pinned} • ${_fmtMonth()}',
-              style: GoogleFonts.rubik(
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-                color: primary.withOpacity(0.8),
-              ),
+              style: AppFonts.onest(size: 11, weight: 500, color: primary.withOpacity(0.8)),
             ),
         ],
       ),
@@ -1185,12 +1173,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
         child: Text(
           title,
-          style: GoogleFonts.rubik(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: widget.theme.textMuted,
-            letterSpacing: 0.3,
-          ),
+          style: AppFonts.onest(size: 13, weight: 700, letterSpacing: 0.3, color: widget.theme.textMuted),
         ),
       ),
     );

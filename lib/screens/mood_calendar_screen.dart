@@ -1,9 +1,9 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import '../theme/fonts.dart';
 import 'package:flutter/services.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../models/cycle_entry.dart';
 import '../models/mood_entry.dart';
 import '../models/pair_data.dart';
@@ -121,11 +121,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
               const SizedBox(height: 20),
               Text(
                 s.moodSettings,
-                style: GoogleFonts.rubik(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: widget.theme.textPrimary,
-                ),
+                style: AppFonts.onest(size: 18, weight: 800, color: widget.theme.textPrimary),
               ),
               const SizedBox(height: 16),
               StatefulBuilder(
@@ -137,19 +133,12 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                         children: [
                           Text(
                             s.moodMultiplePerDay,
-                            style: GoogleFonts.rubik(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: widget.theme.textPrimary,
-                            ),
+                            style: AppFonts.onest(size: 14, weight: 600, color: widget.theme.textPrimary),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             s.moodMultiplePerDaySubtitle,
-                            style: GoogleFonts.rubik(
-                              fontSize: 12,
-                              color: widget.theme.textMuted,
-                            ),
+                            style: AppFonts.onest(size: 12, color: widget.theme.textMuted),
                           ),
                         ],
                       ),
@@ -252,11 +241,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
             ),
             title: Text(
               LocaleService.current.moodCalendarTitle,
-              style: GoogleFonts.rubik(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: widget.theme.textPrimary,
-              ),
+              style: AppFonts.onest(size: 20, weight: 800, color: widget.theme.textPrimary),
             ),
             centerTitle: true,
             actions: [

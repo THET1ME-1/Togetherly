@@ -2,7 +2,6 @@ import 'dart:async' show TimeoutException;
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:pocketbase/pocketbase.dart' show ClientException;
 import '../models/user_data.dart';
 import '../services/pb_auth_service.dart';

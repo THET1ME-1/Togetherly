@@ -13,7 +13,6 @@ dependencies:
 
   cupertino_icons: ^1.0.8
   characters: ^1.4.0 # графемы для безопасной работы с эмодзи (utils/safe_text)
-  google_fonts: ^6.2.1
   shared_preferences: ^2.3.4
   crypto: ^3.0.7 # SHA-256 для PIN секретных воспоминаний (secret_pin_service)
   google_sign_in: ^6.2.2
@@ -117,10 +116,7 @@ flutter:
     # Раскраски вдвоём: контур с прозрачным фоном (ложится поверх мазков) и
     # превью для каталога.
     - assets/coloring/
-    # Статические инстансы Rubik (веса 300–900 + Italic) — google_fonts берёт их
-    # из ассетов вместо загрузки с fonts.gstatic.com (офлайн, мгновенно, без
-    # сетевых ошибок). Имена файлов соответствуют конвенции пакета (Rubik-<Вес>).
-    - google_fonts/
+
 
   # Unbounded (заголовки/числа) + Onest (текст) — шрифты M3-экрана «Профиль»
   # в стиле Kadr. Веса задаются через FontWeight поверх одного начертания.

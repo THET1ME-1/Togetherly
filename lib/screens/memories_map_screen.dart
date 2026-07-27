@@ -1,7 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import '../theme/fonts.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
 import '../models/memory.dart';
 import '../services/locale_service.dart';
@@ -206,11 +206,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                         child: Center(
                           child: Text(
                             '${c.count}',
-                            style: GoogleFonts.rubik(
-                              fontSize: size * 0.32,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
-                            ),
+                            style: AppFonts.onest(size: size * 0.32, weight: 800, color: Colors.white),
                           ),
                         ),
                       ),
@@ -276,11 +272,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                             const SizedBox(width: 8),
                             Text(
                               LocaleService.current.memoriesMapTooltip,
-                              style: GoogleFonts.rubik(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: t.textPrimary,
-                              ),
+                              style: AppFonts.onest(size: 14, weight: 700, color: t.textPrimary),
                             ),
                             const Spacer(),
                             Container(
@@ -294,11 +286,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                               ),
                               child: Text(
                                 '${widget.memories.where((m) => m.latitude != null).length}',
-                                style: GoogleFonts.rubik(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: t.primary,
-                                ),
+                                style: AppFonts.onest(size: 12, weight: 700, color: t.primary),
                               ),
                             ),
                           ],
@@ -336,20 +324,13 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                     Text(
                       LocaleService.current.noGeoMemories,
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.rubik(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: t.textSecondary,
-                      ),
+                      style: AppFonts.onest(size: 16, weight: 700, color: t.textSecondary),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       LocaleService.current.addLocationHint,
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.rubik(
-                        fontSize: 13,
-                        color: t.textMuted,
-                      ),
+                      style: AppFonts.onest(size: 13, color: t.textMuted),
                     ),
                   ],
                 ),
@@ -422,20 +403,13 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                     children: [
                       Text(
                         locationName ?? LocaleService.current.placeFallback,
-                        style: GoogleFonts.rubik(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: t.textPrimary,
-                        ),
+                        style: AppFonts.onest(size: 15, weight: 700, color: t.textPrimary),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                       Text(
                         '${cluster.count} ${LocaleService.current.memoriesUnit(cluster.count)}',
-                        style: GoogleFonts.rubik(
-                          fontSize: 12,
-                          color: t.textMuted,
-                        ),
+                        style: AppFonts.onest(size: 12, color: t.textMuted),
                       ),
                     ],
                   ),

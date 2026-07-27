@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import '../theme/fonts.dart';
 import '../models/user_data.dart';
 import '../services/locale_service.dart';
 import 'setup_screen.dart';
@@ -85,11 +85,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                             : null,
                         child: Text(
                           s.skip,
-                          style: GoogleFonts.rubik(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black.withValues(alpha: 0.35),
-                          ),
+                          style: AppFonts.onest(size: 14, weight: 600, color: Colors.black.withValues(alpha: 0.35)),
                         ),
                       ),
                     ),
@@ -153,12 +149,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               const SizedBox(height: 8),
               Text(
                 s.privateSecure,
-                style: GoogleFonts.rubik(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black.withValues(alpha: 0.25),
-                  letterSpacing: 2.5,
-                ),
+                style: AppFonts.onest(size: 11, weight: 600, letterSpacing: 2.5, color: Colors.black.withValues(alpha: 0.25)),
               ),
               const SizedBox(height: 18),
             ],
@@ -186,13 +177,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           // ── Заголовок ──
           Text(
             slide.title,
-            style: GoogleFonts.rubik(
-              fontSize: 36,
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFF2B2230),
-              height: 1.12,
-              letterSpacing: -0.8,
-            ),
+            style: AppFonts.onest(size: 36, weight: 800, height: 1.12, letterSpacing: -0.8, color: const Color(0xFF2B2230)),
             textAlign: TextAlign.center,
           ),
 
@@ -201,12 +186,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           // ── Подзаголовок ──
           Text(
             slide.subtitle,
-            style: GoogleFonts.rubik(
-              fontSize: 15,
-              fontWeight: FontWeight.w400,
-              color: const Color(0xFF2B2230).withValues(alpha: 0.5),
-              height: 1.5,
-            ),
+            style: AppFonts.onest(size: 15, weight: 400, height: 1.5, color: const Color(0xFF2B2230).withValues(alpha: 0.5)),
             textAlign: TextAlign.center,
           ),
         ],
@@ -306,11 +286,7 @@ class _GhostBtn extends StatelessWidget {
         onPressed: onTap,
         child: Text(
           label,
-          style: GoogleFonts.rubik(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: const Color(0xFF2B2230).withValues(alpha: 0.55),
-          ),
+          style: AppFonts.onest(size: 16, weight: 600, color: const Color(0xFF2B2230).withValues(alpha: 0.55)),
         ),
       ),
     );

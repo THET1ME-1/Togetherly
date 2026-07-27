@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../theme/fonts.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
@@ -402,13 +402,10 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                             onChanged: _onChanged,
                             onSubmitted: _onSubmit,
                             textInputAction: TextInputAction.search,
-                            style: GoogleFonts.rubik(fontSize: 13),
+                            style: AppFonts.onest(size: 13),
                             decoration: InputDecoration(
                               hintText: LocaleService.current.placeOrCoordsHint,
-                              hintStyle: GoogleFonts.rubik(
-                                fontSize: 13,
-                                color: t.textMuted,
-                              ),
+                              hintStyle: AppFonts.onest(size: 13, color: t.textMuted),
                               prefixIcon: _searching
                                   ? Padding(
                                       padding: const EdgeInsets.all(13),
@@ -488,11 +485,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                             const SizedBox(width: 8),
                             Text(
                               LocaleService.current.goToCoordinates,
-                              style: GoogleFonts.rubik(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: primary,
-                              ),
+                              style: AppFonts.onest(size: 13, weight: 600, color: primary),
                             ),
                             const Spacer(),
                             Icon(
@@ -556,20 +549,13 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                                         children: [
                                           Text(
                                             p.shortName,
-                                            style: GoogleFonts.rubik(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w600,
-                                              color: t.textPrimary,
-                                            ),
+                                            style: AppFonts.onest(size: 13, weight: 600, color: t.textPrimary),
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                           ),
                                           Text(
                                             p.displayName,
-                                            style: GoogleFonts.rubik(
-                                              fontSize: 11,
-                                              color: t.textMuted,
-                                            ),
+                                            style: AppFonts.onest(size: 11, color: t.textMuted),
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                           ),
@@ -677,10 +663,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                                   const SizedBox(width: 8),
                                   Text(
                                     LocaleService.current.gettingAddress,
-                                    style: GoogleFonts.rubik(
-                                      fontSize: 13,
-                                      color: t.textMuted,
-                                    ),
+                                    style: AppFonts.onest(size: 13, color: t.textMuted),
                                   ),
                                 ],
                               )
@@ -688,15 +671,11 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                                 _address.isNotEmpty
                                     ? _address
                                     : LocaleService.current.tapOnMapToSelect,
-                                style: GoogleFonts.rubik(
-                                  fontSize: 14,
-                                  fontWeight: _address.isNotEmpty
-                                      ? FontWeight.w600
-                                      : FontWeight.w400,
-                                  color: _address.isNotEmpty
+                                style: AppFonts.onest(size: 14, color: _address.isNotEmpty
                                       ? t.textPrimary
-                                      : t.textMuted,
-                                ),
+                                      : t.textMuted).copyWith(fontWeight: _address.isNotEmpty
+                                      ? FontWeight.w600
+                                      : FontWeight.w400),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -719,10 +698,7 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                       ),
                       child: Text(
                         LocaleService.current.confirm,
-                        style: GoogleFonts.rubik(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                        ),
+                        style: AppFonts.onest(size: 15, weight: 700),
                       ),
                     ),
                   ),

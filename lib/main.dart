@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'config/sentry_config.dart';
 import 'services/crash_noise.dart';
@@ -243,11 +242,6 @@ void main() async {
   if (imagePickerImpl is ImagePickerAndroid) {
     imagePickerImpl.useAndroidPhotoPicker = true;
   }
-
-  // Шрифт Rubik зашит в сборку (assets google_fonts/) — запрещаем загрузку с
-  // fonts.gstatic.com во время работы. Это убирает сетевую зависимость, мерцание
-  // шрифта при старте и офлайн-ошибки «Failed to load font».
-  GoogleFonts.config.allowRuntimeFetching = false;
 
   // PocketBase — поднимаем клиент и восстанавливаем сессию из SharedPreferences
   // (миграция Firebase→PB). Сессия переживает перезапуск процесса. signInSilently

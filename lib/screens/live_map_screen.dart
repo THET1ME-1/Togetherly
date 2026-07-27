@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import '../theme/fonts.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../services/live_location_service.dart';
@@ -343,10 +343,7 @@ class _LiveMapScreenState extends State<LiveMapScreen>
                       const SizedBox(width: 10),
                       Text(
                         LocaleService.current.liveMapWaitingPartner,
-                        style: GoogleFonts.rubik(
-                          fontSize: 13,
-                          color: widget.theme.textSecondary,
-                        ),
+                        style: AppFonts.onest(size: 13, color: widget.theme.textSecondary),
                       ),
                     ],
                   ),
@@ -495,11 +492,7 @@ class _DistancePill extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             text,
-            style: GoogleFonts.rubik(
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
-              color: t.textPrimary,
-            ),
+            style: AppFonts.onest(size: 14, weight: 800, color: t.textPrimary),
           ),
         ],
       ),

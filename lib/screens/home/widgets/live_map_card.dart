@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../../theme/fonts.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -419,11 +419,7 @@ class _LiveMapCardState extends State<LiveMapCard> {
           const SizedBox(width: 6),
           Text(
             LiveLocationService.formatDistance(meters),
-            style: GoogleFonts.rubik(
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-              color: t.textPrimary,
-            ),
+            style: AppFonts.onest(size: 13, weight: 800, color: t.textPrimary),
           ),
         ],
       ),
@@ -439,7 +435,7 @@ class _LiveMapCardState extends State<LiveMapCard> {
       ),
       child: Text(
         text,
-        style: GoogleFonts.rubik(fontSize: 12, color: t.textSecondary),
+        style: AppFonts.onest(size: 12, color: t.textSecondary),
       ),
     );
   }

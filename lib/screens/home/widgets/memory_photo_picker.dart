@@ -1,6 +1,6 @@
 import '../../../widgets/storage_image.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import '../../../theme/fonts.dart';
 import '../../../services/locale_service.dart';
 import '../../../services/pb_data_service.dart';
 import '../../../models/memory.dart';
@@ -156,11 +156,7 @@ class _MemoryPhotoPickerState extends State<MemoryPhotoPicker> {
                         children: [
                           Text(
                             LocaleService.current.memoryLane,
-                            style: GoogleFonts.rubik(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              color: t.primary,
-                            ),
+                            style: AppFonts.onest(size: 18, weight: 700, color: t.primary),
                           ),
                           const SizedBox(height: 2),
                           Text(
@@ -170,10 +166,7 @@ class _MemoryPhotoPickerState extends State<MemoryPhotoPicker> {
                                     ? LocaleService.current.maxSelected
                                     : LocaleService.current
                                         .selectUpToPhotos(remaining),
-                            style: GoogleFonts.rubik(
-                              fontSize: 12,
-                              color: t.textSecondary,
-                            ),
+                            style: AppFonts.onest(size: 12, color: t.textSecondary),
                           ),
                         ],
                       ),
@@ -190,11 +183,7 @@ class _MemoryPhotoPickerState extends State<MemoryPhotoPicker> {
                         ),
                         child: Text(
                           '${_selected.length}/${widget.maxCount}',
-                          style: GoogleFonts.rubik(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: t.primary,
-                          ),
+                          style: AppFonts.onest(size: 12, weight: 700, color: t.primary),
                         ),
                       ),
                   ],
@@ -225,10 +214,7 @@ class _MemoryPhotoPickerState extends State<MemoryPhotoPicker> {
                             ? LocaleService.current.selectPhotosPrompt
                             : LocaleService.current
                                 .addWithCount(_selected.length),
-                        style: GoogleFonts.rubik(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                        ),
+                        style: AppFonts.onest(size: 15, weight: 700),
                       ),
                     ),
                   ),
@@ -249,7 +235,7 @@ class _MemoryPhotoPickerState extends State<MemoryPhotoPicker> {
       return Center(
         child: Text(
           LocaleService.current.failedToLoadMemories,
-          style: GoogleFonts.rubik(color: t.textMuted),
+          style: TextStyle(fontFamily: AppFonts.body, color: t.textMuted),
         ),
       );
     }
@@ -264,7 +250,7 @@ class _MemoryPhotoPickerState extends State<MemoryPhotoPicker> {
             const SizedBox(height: 12),
             Text(
               LocaleService.current.noPhotosInMemoryLane,
-              style: GoogleFonts.rubik(color: t.textMuted),
+              style: TextStyle(fontFamily: AppFonts.body, color: t.textMuted),
             ),
           ],
         ),
@@ -371,11 +357,7 @@ class _MemoryPhotoPickerState extends State<MemoryPhotoPicker> {
                     ),
                     child: Text(
                       LocaleService.current.inWidget,
-                      style: GoogleFonts.rubik(
-                        fontSize: 9,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: AppFonts.onest(size: 9, weight: 600, color: Colors.white),
                     ),
                   ),
                 ),

@@ -11,7 +11,7 @@ import '../widgets/mood_image.dart';
 import '../widgets/storage_image.dart';
 import 'package:characters/characters.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import '../theme/fonts.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/plus_service.dart';
@@ -1431,11 +1431,7 @@ class _WidgetScreenState extends State<WidgetScreen>
               const SizedBox(width: 6),
               Text(
                 _s.desktopPreview,
-                style: GoogleFonts.rubik(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: _t.textMuted,
-                ),
+                style: AppFonts.onest(size: 12, weight: 600, color: _t.textMuted),
               ),
             ],
           ),
@@ -1547,11 +1543,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                   Text(
                     data.status,
                     textAlign: TextAlign.center,
-                    style: GoogleFonts.rubik(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: textColor,
-                    ),
+                    style: AppFonts.onest(size: 10, weight: 600, color: textColor),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -1561,10 +1553,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                   Text(
                     data.message,
                     textAlign: TextAlign.center,
-                    style: GoogleFonts.rubik(
-                      fontSize: 9,
-                      color: subColor,
-                    ),
+                    style: AppFonts.onest(size: 9, color: subColor),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -1574,10 +1563,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                   Text(
                     '♪ ${data.musicTitle}',
                     textAlign: TextAlign.center,
-                    style: GoogleFonts.rubik(
-                      fontSize: 8,
-                      color: subColor,
-                    ),
+                    style: AppFonts.onest(size: 8, color: subColor),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -4474,11 +4460,7 @@ class _WidgetScreenState extends State<WidgetScreen>
             child: Center(
               child: Text(
                 yearsText,
-                style: GoogleFonts.rubik(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: _t.primary.withOpacity(0.7),
-                ),
+                style: AppFonts.onest(size: 12, weight: 700, color: _t.primary.withOpacity(0.7)),
               ),
             ),
           ),
@@ -4488,29 +4470,16 @@ class _WidgetScreenState extends State<WidgetScreen>
               children: [
                 Text(
                   '$totalDays',
-                  style: GoogleFonts.rubik(
-                    fontSize: 36,
-                    fontWeight: FontWeight.bold,
-                    color: _t.primary,
-                    height: 1.0,
-                  ),
+                  style: AppFonts.onest(size: 36, weight: 700, height: 1.0, color: _t.primary),
                 ),
                 Text(
                   LocaleService.current.daysCounterLabel,
-                  style: GoogleFonts.rubik(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: _t.primary.withOpacity(0.8),
-                  ),
+                  style: AppFonts.onest(size: 14, weight: 700, color: _t.primary.withOpacity(0.8)),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   startLabel,
-                  style: GoogleFonts.rubik(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: _t.primary.withOpacity(0.5),
-                  ),
+                  style: AppFonts.onest(size: 10, weight: 700, color: _t.primary.withOpacity(0.5)),
                 ),
               ],
             ),
@@ -4567,11 +4536,7 @@ class _WidgetScreenState extends State<WidgetScreen>
               Expanded(
                 child: Text(
                   LocaleService.current.ourPhotosInsteadOfDrawing,
-                  style: GoogleFonts.rubik(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: _t.textPrimary,
-                  ),
+                  style: AppFonts.onest(size: 14, weight: 700, color: _t.textPrimary),
                 ),
               ),
             ],
@@ -4579,10 +4544,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           const SizedBox(height: 6),
           Text(
             LocaleService.current.daysPhotosDescription,
-            style: GoogleFonts.rubik(
-              fontSize: 12,
-              color: _t.textSecondary,
-            ),
+            style: AppFonts.onest(size: 12, color: _t.textSecondary),
           ),
           const SizedBox(height: 14),
           if (!owned)
@@ -4610,11 +4572,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                   (_daysPhotosBusy || !bothPhotos) ? null : _setDaysPhotos,
               title: Text(
                 LocaleService.current.showOurPhotos,
-                style: GoogleFonts.rubik(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: _t.textPrimary,
-                ),
+                style: AppFonts.onest(size: 13, weight: 600, color: _t.textPrimary),
               ),
             ),
             if (!bothPhotos)
@@ -4622,7 +4580,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                 hasMyPhoto
                     ? LocaleService.current.partnerNoProfilePhoto
                     : LocaleService.current.addYourProfilePhoto,
-                style: GoogleFonts.rubik(fontSize: 11, color: Colors.red.shade400),
+                style: AppFonts.onest(size: 11, color: Colors.red.shade400),
               ),
           ],
         ],
@@ -4700,12 +4658,12 @@ class _WidgetScreenState extends State<WidgetScreen>
             const SizedBox(height: 8),
             Text(
               LocaleService.current.noTimersWidget,
-              style: GoogleFonts.rubik(fontSize: 13, color: _t.textMuted),
+              style: AppFonts.onest(size: 13, color: _t.textMuted),
             ),
             const SizedBox(height: 4),
             Text(
               LocaleService.current.addTimerHint,
-              style: GoogleFonts.rubik(fontSize: 11, color: _t.textMuted),
+              style: AppFonts.onest(size: 11, color: _t.textMuted),
               textAlign: TextAlign.center,
             ),
           ],
@@ -4795,11 +4753,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                     Flexible(
                       child: Text(
                         timer.title,
-                        style: GoogleFonts.rubik(
-                          fontSize: 10,
-                          color: titleColor,
-                          letterSpacing: 0.4,
-                        ),
+                        style: AppFonts.onest(size: 10, letterSpacing: 0.4, color: titleColor),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -4809,28 +4763,18 @@ class _WidgetScreenState extends State<WidgetScreen>
                 // Большое число
                 Text(
                   '$days',
-                  style: GoogleFonts.rubik(
-                    fontSize: 42,
-                    fontWeight: FontWeight.w900,
-                    color: numberColor,
-                    height: 1.05,
-                    letterSpacing: -0.5,
-                  ),
+                  style: AppFonts.onest(size: 42, weight: 900, height: 1.05, letterSpacing: -0.5, color: numberColor),
                 ),
                 // Подпись
                 Text(
                   daysLabel,
-                  style: GoogleFonts.rubik(fontSize: 11, color: labelColor),
+                  style: AppFonts.onest(size: 11, color: labelColor),
                 ),
                 if (date.isNotEmpty) ...[
                   const SizedBox(height: 3),
                   Text(
                     date,
-                    style: GoogleFonts.rubik(
-                      fontSize: 9,
-                      color: dateColor,
-                      letterSpacing: 0.2,
-                    ),
+                    style: AppFonts.onest(size: 9, letterSpacing: 0.2, color: dateColor),
                   ),
                 ],
               ],
@@ -4867,10 +4811,7 @@ class _WidgetScreenState extends State<WidgetScreen>
             const SizedBox(height: 8),
             Text(
               LocaleService.current.noTimersWidget,
-              style: GoogleFonts.rubik(
-                fontSize: 13,
-                color: _t.textMuted,
-              ),
+              style: AppFonts.onest(size: 13, color: _t.textMuted),
             ),
           ],
         ),
@@ -4904,7 +4845,7 @@ class _WidgetScreenState extends State<WidgetScreen>
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Text(
           LocaleService.current.noTimersAddHint,
-          style: GoogleFonts.rubik(fontSize: 12, color: _t.textMuted),
+          style: AppFonts.onest(size: 12, color: _t.textMuted),
         ),
       );
     }
@@ -4916,11 +4857,7 @@ class _WidgetScreenState extends State<WidgetScreen>
       children: [
         Text(
           LocaleService.current.selectTimerForWidget,
-          style: GoogleFonts.rubik(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: _t.textSecondary,
-          ),
+          style: AppFonts.onest(size: 12, weight: 600, color: _t.textSecondary),
         ),
         const SizedBox(height: 10),
         ...timers.map((timer) {
@@ -4953,23 +4890,16 @@ class _WidgetScreenState extends State<WidgetScreen>
                       children: [
                         Text(
                           timer.title,
-                          style: GoogleFonts.rubik(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: isSelected
+                          style: AppFonts.onest(size: 13, weight: 600, color: isSelected
                                 ? _t.primary
-                                : _t.primary.withOpacity(0.8),
-                          ),
+                                : _t.primary.withOpacity(0.8)),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                         Text(
                           '${timer.daysElapsed.abs()} '
                           '${timer.isCountdown ? LocaleService.current.daysShortLeft : LocaleService.current.daysShortElapsed} • ${timer.formattedStartDate}',
-                          style: GoogleFonts.rubik(
-                            fontSize: 11,
-                            color: _t.textMuted,
-                          ),
+                          style: AppFonts.onest(size: 11, color: _t.textMuted),
                         ),
                       ],
                     ),
@@ -5021,11 +4951,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                       ? LocaleService.current
                           .personalPhotosHelp(_pair.partnerName)
                       : LocaleService.current.personalPhotosHelpShort,
-                  style: GoogleFonts.rubik(
-                    fontSize: 11,
-                    color: _t.textSecondary,
-                    height: 1.35,
-                  ),
+                  style: AppFonts.onest(size: 11, height: 1.35, color: _t.textSecondary),
                 ),
               ),
             ],
@@ -5034,11 +4960,7 @@ class _WidgetScreenState extends State<WidgetScreen>
         const SizedBox(height: 16),
         Text(
           s.widgetInstances,
-          style: GoogleFonts.rubik(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: _t.primary.withOpacity(0.8),
-          ),
+          style: AppFonts.onest(size: 13, weight: 700, color: _t.primary.withOpacity(0.8)),
         ),
         const SizedBox(height: 10),
         _buildPhotoDayWidgetSelector(
@@ -5057,19 +4979,12 @@ class _WidgetScreenState extends State<WidgetScreen>
                     children: [
                       Text(
                         s.saveToMemoryLane,
-                        style: GoogleFonts.rubik(
-                          fontSize: 12,
-                          color: _t.textPrimary,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: AppFonts.onest(size: 12, weight: 600, color: _t.textPrimary),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         LocaleService.current.uploadedPhotosToMemoryLane,
-                        style: GoogleFonts.rubik(
-                          fontSize: 11,
-                          color: _t.textMuted,
-                        ),
+                        style: AppFonts.onest(size: 11, color: _t.textMuted),
                       ),
                     ],
                   ),
@@ -5118,11 +5033,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                           partnerName, partnerSharedCount)
                       : LocaleService.current
                           .partnerNotSharedHelp(partnerName),
-                  style: GoogleFonts.rubik(
-                    fontSize: 11,
-                    color: _t.textSecondary,
-                    height: 1.35,
-                  ),
+                  style: AppFonts.onest(size: 11, height: 1.35, color: _t.textSecondary),
                 ),
               ),
             ],
@@ -5153,10 +5064,7 @@ class _WidgetScreenState extends State<WidgetScreen>
               icon: const Icon(Icons.favorite_rounded, size: 18),
               label: Text(
                 LocaleService.current.selectPhotosForPartner,
-                style: GoogleFonts.rubik(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: AppFonts.onest(size: 13, weight: 700),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.transparent,
@@ -5173,11 +5081,7 @@ class _WidgetScreenState extends State<WidgetScreen>
         const SizedBox(height: 16),
         Text(
           LocaleService.current.widgetInstances,
-          style: GoogleFonts.rubik(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: _t.primary.withOpacity(0.8),
-          ),
+          style: AppFonts.onest(size: 13, weight: 700, color: _t.primary.withOpacity(0.8)),
         ),
         const SizedBox(height: 10),
         _buildPhotoDayWidgetSelector(
@@ -5203,19 +5107,12 @@ class _WidgetScreenState extends State<WidgetScreen>
           children: [
             Text(
               s.widgetNotAddedYet,
-              style: GoogleFonts.rubik(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: _t.textSecondary,
-              ),
+              style: AppFonts.onest(size: 13, weight: 700, color: _t.textSecondary),
             ),
             const SizedBox(height: 6),
             Text(
               s.addedWidgetsWillAppearHere,
-              style: GoogleFonts.rubik(
-                fontSize: 12,
-                color: _t.textMuted,
-              ),
+              style: AppFonts.onest(size: 12, color: _t.textMuted),
             ),
           ],
         ),
@@ -5353,11 +5250,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                             ),
                             child: Text(
                               '$photoCount',
-                              style: GoogleFonts.rubik(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
+                              style: AppFonts.onest(size: 9, weight: 700, color: Colors.white),
                             ),
                           ),
                         ),
@@ -5376,13 +5269,9 @@ class _WidgetScreenState extends State<WidgetScreen>
                               widgetName?.isNotEmpty == true
                                   ? widgetName!
                                   : s.widgetSlotTitle(index),
-                              style: GoogleFonts.rubik(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: isSelected
+                              style: AppFonts.onest(size: 13, weight: 700, color: isSelected
                                     ? _t.primary
-                                    : _t.textPrimary,
-                              ),
+                                    : _t.textPrimary),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -5404,10 +5293,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                       const SizedBox(height: 2),
                       Text(
                         summary,
-                        style: GoogleFonts.rubik(
-                          fontSize: 11,
-                          color: _t.textMuted,
-                        ),
+                        style: AppFonts.onest(size: 11, color: _t.textMuted),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -5478,11 +5364,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                   const SizedBox(height: 16),
                   Text(
                     LocaleService.current.partnerPhotoTitle,
-                    style: GoogleFonts.rubik(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: _t.primary,
-                    ),
+                    style: AppFonts.onest(size: 18, weight: 700, color: _t.primary),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -5492,20 +5374,13 @@ class _WidgetScreenState extends State<WidgetScreen>
                         : partnerCount == 1
                         ? LocaleService.current.partnerSharedOnePhoto
                         : LocaleService.current.partnerNotSharedYet,
-                    style: GoogleFonts.rubik(
-                      fontSize: 12,
-                      color: _t.textSecondary,
-                    ),
+                    style: AppFonts.onest(size: 12, color: _t.textSecondary),
                   ),
                   if (canRotate) ...[
                     const SizedBox(height: 20),
                     Text(
                       LocaleService.current.changePhotosLabel,
-                      style: GoogleFonts.rubik(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: _t.primary,
-                      ),
+                      style: AppFonts.onest(size: 14, weight: 700, color: _t.primary),
                     ),
                     const SizedBox(height: 10),
                     Row(
@@ -5604,10 +5479,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                       ),
                       child: Text(
                         LocaleService.current.save,
-                        style: GoogleFonts.rubik(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                        ),
+                        style: AppFonts.onest(size: 15, weight: 700),
                       ),
                     ),
                   ),
@@ -5652,11 +5524,7 @@ class _WidgetScreenState extends State<WidgetScreen>
             Flexible(
               child: Text(
                 title,
-                style: GoogleFonts.rubik(
-                  fontSize: 12,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                  color: isSelected ? _t.primary : _t.textSecondary,
-                ),
+                style: AppFonts.onest(size: 12, color: isSelected ? _t.primary : _t.textSecondary).copyWith(fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -5718,18 +5586,11 @@ class _WidgetScreenState extends State<WidgetScreen>
                   children: [
                     Text(
                       s.lockScreenMood,
-                      style: GoogleFonts.rubik(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: _t.textPrimary,
-                      ),
+                      style: AppFonts.onest(size: 15, weight: 700, color: _t.textPrimary),
                     ),
                     Text(
                       s.lockScreenMoodSubtitle,
-                      style: GoogleFonts.rubik(
-                        fontSize: 11,
-                        color: _t.textMuted,
-                      ),
+                      style: AppFonts.onest(size: 11, color: _t.textMuted),
                     ),
                   ],
                 ),
@@ -5807,20 +5668,14 @@ class _WidgetScreenState extends State<WidgetScreen>
             const SizedBox(height: 10),
             Text(
               s.lockScreenMoodToggleSub,
-              style: GoogleFonts.rubik(
-                fontSize: 11,
-                color: _t.textMuted,
-              ),
+              style: AppFonts.onest(size: 11, color: _t.textMuted),
               textAlign: TextAlign.center,
             ),
           ] else if (myEntry == null) ...[
             const SizedBox(height: 10),
             Text(
               s.lockScreenMoodSetHint,
-              style: GoogleFonts.rubik(
-                fontSize: 11,
-                color: _t.textMuted,
-              ),
+              style: AppFonts.onest(size: 11, color: _t.textMuted),
               textAlign: TextAlign.center,
             ),
           ],
@@ -5842,12 +5697,7 @@ class _WidgetScreenState extends State<WidgetScreen>
       children: [
         Text(
           name,
-          style: GoogleFonts.rubik(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            color: _t.textMuted,
-            letterSpacing: 0.3,
-          ),
+          style: AppFonts.onest(size: 11, weight: 700, letterSpacing: 0.3, color: _t.textMuted),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
@@ -5864,11 +5714,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           const SizedBox(height: 4),
           Text(
             entry.localizedLabel,
-            style: GoogleFonts.rubik(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: _t.primary,
-            ),
+            style: AppFonts.onest(size: 12, weight: 700, color: _t.primary),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -5877,7 +5723,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           const SizedBox(height: 4),
           Text(
             noMoodLabel,
-            style: GoogleFonts.rubik(fontSize: 12, color: _t.textMuted),
+            style: AppFonts.onest(size: 12, color: _t.textMuted),
           ),
         ],
       ],
@@ -6015,19 +5861,11 @@ class _WidgetScreenState extends State<WidgetScreen>
           const SizedBox(height: 8),
           Text(
             value,
-            style: GoogleFonts.rubik(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: _t.textPrimary,
-            ),
+            style: AppFonts.onest(size: 18, weight: 800, color: _t.textPrimary),
           ),
           Text(
             label,
-            style: GoogleFonts.rubik(
-              fontSize: 9,
-              fontWeight: FontWeight.w600,
-              color: _t.textMuted,
-            ),
+            style: AppFonts.onest(size: 9, weight: 600, color: _t.textMuted),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -6088,18 +5926,11 @@ class _WidgetScreenState extends State<WidgetScreen>
                 children: [
                   Text(
                     _s.myWidget,
-                    style: GoogleFonts.rubik(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: _t.textPrimary,
-                    ),
+                    style: AppFonts.onest(size: 16, weight: 800, color: _t.textPrimary),
                   ),
                   Text(
                     _s.tapToEdit,
-                    style: GoogleFonts.rubik(
-                      fontSize: 11,
-                      color: _t.textMuted,
-                    ),
+                    style: AppFonts.onest(size: 11, color: _t.textMuted),
                   ),
                 ],
               ),
@@ -6281,18 +6112,11 @@ class _WidgetScreenState extends State<WidgetScreen>
                 children: [
                   Text(
                     _s.widgetOfPartner(partnerName),
-                    style: GoogleFonts.rubik(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: _t.textPrimary,
-                    ),
+                    style: AppFonts.onest(size: 16, weight: 800, color: _t.textPrimary),
                   ),
                   Text(
                     partner.isEmpty ? _s.emptyYet : _s.updated,
-                    style: GoogleFonts.rubik(
-                      fontSize: 11,
-                      color: _t.textMuted,
-                    ),
+                    style: AppFonts.onest(size: 11, color: _t.textMuted),
                   ),
                 ],
               ),
@@ -6321,11 +6145,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                       const SizedBox(width: 4),
                       Text(
                         'Live',
-                        style: GoogleFonts.rubik(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.green.shade600,
-                        ),
+                        style: AppFonts.onest(size: 11, weight: 700, color: Colors.green.shade600),
                       ),
                     ],
                   ),
@@ -6442,11 +6262,7 @@ class _WidgetScreenState extends State<WidgetScreen>
               const SizedBox(width: 6),
               Text(
                 _s.widgetSettings,
-                style: GoogleFonts.rubik(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: _t.textSecondary,
-                ),
+                style: AppFonts.onest(size: 13, weight: 700, color: _t.textSecondary),
               ),
             ],
           ),
@@ -6536,22 +6352,13 @@ class _WidgetScreenState extends State<WidgetScreen>
                 children: [
                   Text(
                     label,
-                    style: GoogleFonts.rubik(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: _t.textMuted,
-                      letterSpacing: 0.3,
-                    ),
+                    style: AppFonts.onest(size: 11, weight: 600, letterSpacing: 0.3, color: _t.textMuted),
                   ),
                   if (hasValue) ...[
                     const SizedBox(height: 2),
                     Text(
                       value,
-                      style: GoogleFonts.rubik(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: valueColor ?? _t.textPrimary,
-                      ),
+                      style: AppFonts.onest(size: 14, weight: 600, color: valueColor ?? _t.textPrimary),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -6560,12 +6367,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                     const SizedBox(height: 3),
                     Text(
                       subtitle,
-                      style: GoogleFonts.rubik(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w500,
-                        color: _t.textMuted,
-                        height: 1.25,
-                      ),
+                      style: AppFonts.onest(size: 10.5, weight: 500, height: 1.25, color: _t.textMuted),
                     ),
                   ],
                 ],
@@ -6608,11 +6410,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                     const SizedBox(width: 2),
                     Text(
                       _s.addBtn,
-                      style: GoogleFonts.rubik(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: _t.primary,
-                      ),
+                      style: AppFonts.onest(size: 11, weight: 600, color: _t.primary),
                     ),
                   ],
                 ),
@@ -6654,22 +6452,13 @@ class _WidgetScreenState extends State<WidgetScreen>
               children: [
                 Text(
                   label,
-                  style: GoogleFonts.rubik(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: _t.textMuted,
-                    letterSpacing: 0.3,
-                  ),
+                  style: AppFonts.onest(size: 11, weight: 600, letterSpacing: 0.3, color: _t.textMuted),
                 ),
                 if (hasValue) ...[
                   const SizedBox(height: 2),
                   Text(
                     value,
-                    style: GoogleFonts.rubik(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: valueColor ?? _t.textPrimary,
-                    ),
+                    style: AppFonts.onest(size: 14, weight: 600, color: valueColor ?? _t.textPrimary),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -6716,18 +6505,11 @@ class _WidgetScreenState extends State<WidgetScreen>
               children: [
                 Text(
                   title,
-                  style: GoogleFonts.rubik(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: _t.textPrimary,
-                  ),
+                  style: AppFonts.onest(size: 13, weight: 600, color: _t.textPrimary),
                 ),
                 Text(
                   subtitle,
-                  style: GoogleFonts.rubik(
-                    fontSize: 11,
-                    color: _t.textMuted,
-                  ),
+                  style: AppFonts.onest(size: 11, color: _t.textMuted),
                 ),
               ],
             ),
@@ -6836,11 +6618,7 @@ class _WidgetScreenState extends State<WidgetScreen>
         // Выбор количества фото
         Text(
           s.photoGridCount,
-          style: GoogleFonts.rubik(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: _t.primary.withOpacity(0.8),
-          ),
+          style: AppFonts.onest(size: 13, weight: 700, color: _t.primary.withOpacity(0.8)),
         ),
         const SizedBox(height: 10),
         Wrap(
@@ -6882,11 +6660,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                   ),
                   child: Text(
                     label,
-                    style: GoogleFonts.rubik(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: selected ? _t.primary : _t.textMuted,
-                    ),
+                    style: AppFonts.onest(size: 12, weight: 600, color: selected ? _t.primary : _t.textMuted),
                   ),
                 ),
               ),
@@ -6898,11 +6672,7 @@ class _WidgetScreenState extends State<WidgetScreen>
         // Ячейки фото
         Text(
           s.photoGridSelectPhotos,
-          style: GoogleFonts.rubik(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            color: _t.primary.withOpacity(0.8),
-          ),
+          style: AppFonts.onest(size: 13, weight: 700, color: _t.primary.withOpacity(0.8)),
         ),
         const SizedBox(height: 10),
         _buildPhotoGridSlots(),
@@ -7008,10 +6778,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                         const SizedBox(height: 4),
                         Text(
                           s.photoGridAddPhoto,
-                          style: GoogleFonts.rubik(
-                            fontSize: 10,
-                            color: _t.primary.withOpacity(0.4),
-                          ),
+                          style: AppFonts.onest(size: 10, color: _t.primary.withOpacity(0.4)),
                         ),
                       ],
                     ),
@@ -7205,11 +6972,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           const SizedBox(width: 4),
           Text(
             _s.editBtn,
-            style: GoogleFonts.rubik(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: _t.primary,
-            ),
+            style: AppFonts.onest(size: 11, weight: 700, color: _t.primary),
           ),
         ],
       ),
@@ -7254,21 +7017,13 @@ class _WidgetScreenState extends State<WidgetScreen>
           Text(
             LocaleService.current.soloTimerBannerTitle,
             textAlign: TextAlign.center,
-            style: GoogleFonts.rubik(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: _t.textPrimary,
-            ),
+            style: AppFonts.onest(size: 16, weight: 700, color: _t.textPrimary),
           ),
           const SizedBox(height: 8),
           Text(
             LocaleService.current.soloTimerBannerSubtitle,
             textAlign: TextAlign.center,
-            style: GoogleFonts.rubik(
-              fontSize: 13,
-              color: _t.textMuted,
-              height: 1.5,
-            ),
+            style: AppFonts.onest(size: 13, height: 1.5, color: _t.textMuted),
           ),
         ],
       ),
@@ -7476,7 +7231,7 @@ class _WidgetScreenState extends State<WidgetScreen>
               children: [
                 M3Loading(color: _t.primaryLight),
                 const SizedBox(height: 16),
-                Text(_s.uploadingPhoto, style: GoogleFonts.rubik(fontSize: 14)),
+                Text(_s.uploadingPhoto, style: AppFonts.onest(size: 14)),
               ],
             ),
           ),
@@ -7686,11 +7441,7 @@ class _TextEditorSheetState extends State<_TextEditorSheet> {
             const SizedBox(height: 20),
             Text(
               widget.title,
-              style: GoogleFonts.rubik(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: widget.theme.textPrimary,
-              ),
+              style: AppFonts.onest(size: 18, weight: 800, color: widget.theme.textPrimary),
             ),
             const SizedBox(height: 20),
             TextField(
@@ -7698,10 +7449,10 @@ class _TextEditorSheetState extends State<_TextEditorSheet> {
               autofocus: true,
               maxLength: widget.maxLength,
               maxLines: widget.maxLength > 100 ? 3 : 1,
-              style: GoogleFonts.rubik(fontSize: 16),
+              style: AppFonts.onest(size: 16),
               decoration: InputDecoration(
                 hintText: widget.hint,
-                hintStyle: GoogleFonts.rubik(color: widget.theme.textMuted),
+                hintStyle: TextStyle(fontFamily: AppFonts.body, color: widget.theme.textMuted),
                 filled: true,
                 fillColor: widget.theme.surfaceMuted,
                 border: OutlineInputBorder(
@@ -7737,10 +7488,7 @@ class _TextEditorSheetState extends State<_TextEditorSheet> {
                 ),
                 child: Text(
                   LocaleService.current.save,
-                  style: GoogleFonts.rubik(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: AppFonts.onest(size: 15, weight: 700),
                 ),
               ),
             ),
@@ -7782,11 +7530,7 @@ class _PhotoSourceSheet extends StatelessWidget {
           const SizedBox(height: 20),
           Text(
             LocaleService.current.chooseSource,
-            style: GoogleFonts.rubik(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: theme.textPrimary,
-            ),
+            style: AppFonts.onest(size: 18, weight: 800, color: theme.textPrimary),
           ),
           const SizedBox(height: 20),
           Row(
@@ -7836,11 +7580,7 @@ class _PhotoSourceSheet extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               label,
-              style: GoogleFonts.rubik(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: theme.primary,
-              ),
+              style: AppFonts.onest(size: 13, weight: 600, color: theme.primary),
             ),
           ],
         ),
@@ -7922,11 +7662,7 @@ class _PhotoDestinationSheetState extends State<_PhotoDestinationSheet> {
           const SizedBox(height: 20),
           Text(
             LocaleService.current.whereToSendPhoto,
-            style: GoogleFonts.rubik(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: _t.textPrimary,
-            ),
+            style: AppFonts.onest(size: 18, weight: 800, color: _t.textPrimary),
           ),
           const SizedBox(height: 16),
           _destTile(
@@ -7975,10 +7711,7 @@ class _PhotoDestinationSheetState extends State<_PhotoDestinationSheet> {
               ),
               child: Text(
                 LocaleService.current.sendLabel,
-                style: GoogleFonts.rubik(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: AppFonts.onest(size: 15, weight: 700),
               ),
             ),
           ),
@@ -8014,20 +7747,12 @@ class _PhotoDestinationSheetState extends State<_PhotoDestinationSheet> {
               children: [
                 Text(
                   title,
-                  style: GoogleFonts.rubik(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: _t.textPrimary,
-                  ),
+                  style: AppFonts.onest(size: 14, weight: 700, color: _t.textPrimary),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: GoogleFonts.rubik(
-                    fontSize: 11.5,
-                    color: _t.textMuted,
-                    height: 1.25,
-                  ),
+                  style: AppFonts.onest(size: 11.5, height: 1.25, color: _t.textMuted),
                 ),
               ],
             ),
@@ -8234,11 +7959,7 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
                 Expanded(
                   child: Text(
                     LocaleService.current.music,
-                    style: GoogleFonts.rubik(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: widget.theme.textPrimary,
-                    ),
+                    style: AppFonts.onest(size: 18, weight: 800, color: widget.theme.textPrimary),
                   ),
                 ),
                 GestureDetector(
@@ -8288,11 +8009,7 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
                       const SizedBox(width: 10),
                       Text(
                         LocaleService.current.streamingLink,
-                        style: GoogleFonts.rubik(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: widget.theme.textPrimary,
-                        ),
+                        style: AppFonts.onest(size: 14, weight: 700, color: widget.theme.textPrimary),
                       ),
                     ],
                   ),
@@ -8302,11 +8019,11 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
                     controller: _urlCtrl,
                     focusNode: _urlFocus,
                     keyboardType: TextInputType.url,
-                    style: GoogleFonts.rubik(fontSize: 15),
+                    style: AppFonts.onest(size: 15),
                     onSubmitted: (_) => _triggerFetch(),
                     decoration: InputDecoration(
                       hintText: LocaleService.current.pasteLinkFromService,
-                      hintStyle: GoogleFonts.rubik(
+                      hintStyle: TextStyle(fontFamily: AppFonts.body, 
                         color: widget.theme.textMuted,
                       ),
                       prefixIcon: Icon(
@@ -8424,11 +8141,7 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
                         ),
                       Text(
                         LocaleService.current.songDetails,
-                        style: GoogleFonts.rubik(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: widget.theme.textPrimary,
-                        ),
+                        style: AppFonts.onest(size: 14, weight: 700, color: widget.theme.textPrimary),
                       ),
                     ],
                   ),
@@ -8475,10 +8188,7 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
                 ),
                 child: Text(
                   LocaleService.current.save,
-                  style: GoogleFonts.rubik(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: AppFonts.onest(size: 15, weight: 700),
                 ),
               ),
             ),
@@ -8782,19 +8492,12 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
               const SizedBox(height: 14),
               Text(
                 'Supported Services',
-                style: GoogleFonts.rubik(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: widget.theme.textPrimary,
-                ),
+                style: AppFonts.onest(size: 18, weight: 800, color: widget.theme.textPrimary),
               ),
               const SizedBox(height: 4),
               Text(
                 'Paste a link from any supported service',
-                style: GoogleFonts.rubik(
-                  fontSize: 12,
-                  color: widget.theme.textMuted,
-                ),
+                style: AppFonts.onest(size: 12, color: widget.theme.textMuted),
               ),
               const SizedBox(height: 18),
               ..._musicServicesList.map(
@@ -8823,11 +8526,7 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
                         Expanded(
                           child: Text(
                             svc['name'] as String,
-                            style: GoogleFonts.rubik(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: widget.theme.textPrimary,
-                            ),
+                            style: AppFonts.onest(size: 14, weight: 600, color: widget.theme.textPrimary),
                           ),
                         ),
                         Icon(
@@ -8857,7 +8556,7 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
                   ),
                   child: Text(
                     'Got it',
-                    style: GoogleFonts.rubik(fontWeight: FontWeight.w700),
+                    style: TextStyle(fontFamily: AppFonts.body, fontWeight: FontWeight.w700),
                   ),
                 ),
               ),
@@ -8871,10 +8570,10 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
   Widget _buildField(TextEditingController ctrl, String hint, IconData icon) {
     return TextField(
       controller: ctrl,
-      style: GoogleFonts.rubik(fontSize: 15),
+      style: AppFonts.onest(size: 15),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: GoogleFonts.rubik(color: widget.theme.textMuted),
+        hintStyle: TextStyle(fontFamily: AppFonts.body, color: widget.theme.textMuted),
         prefixIcon: Icon(icon, color: widget.theme.primary, size: 20),
         filled: true,
         fillColor: widget.theme.surfaceMuted,

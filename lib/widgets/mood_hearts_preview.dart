@@ -1,6 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import '../theme/fonts.dart';
 import '../models/mood_entry.dart';
 import '../services/locale_service.dart';
 import '../theme/theme_scope.dart';
@@ -178,12 +178,7 @@ class _HeartColumn extends StatelessWidget {
       children: [
         Text(
           name,
-          style: GoogleFonts.rubik(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            color: t.textSecondary,
-            letterSpacing: 0.3,
-          ),
+          style: AppFonts.onest(size: 11, weight: 700, letterSpacing: 0.3, color: t.textSecondary),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
@@ -203,21 +198,13 @@ class _HeartColumn extends StatelessWidget {
         if (ratingText.isNotEmpty) ...[
           Text(
             ratingText,
-            style: GoogleFonts.rubik(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: waterColor,
-            ),
+            style: AppFonts.onest(size: 10, weight: 600, color: waterColor),
           ),
           const SizedBox(height: 2),
         ],
         Text(
           lastEntry?.localizedLabel ?? LocaleService.current.noMoodRecorded,
-          style: GoogleFonts.rubik(
-            fontSize: 11.5,
-            fontWeight: lastEntry != null ? FontWeight.w600 : FontWeight.w400,
-            color: lastEntry != null ? lastEntry.color : t.textMuted,
-          ),
+          style: AppFonts.onest(size: 11.5, color: lastEntry != null ? lastEntry.color : t.textMuted).copyWith(fontWeight: lastEntry != null ? FontWeight.w600 : FontWeight.w400),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),

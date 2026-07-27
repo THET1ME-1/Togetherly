@@ -1,10 +1,10 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import '../theme/fonts.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
@@ -702,11 +702,7 @@ class _PetalDialPainter extends CustomPainter {
     final tp = TextPainter(
       text: TextSpan(
         text: text,
-        style: GoogleFonts.rubik(
-          fontSize: fontSize,
-          fontWeight: fontWeight,
-          color: color,
-        ),
+        style: AppFonts.onest(size: fontSize, color: color).copyWith(fontWeight: fontWeight),
       ),
       textDirection: TextDirection.ltr,
     );

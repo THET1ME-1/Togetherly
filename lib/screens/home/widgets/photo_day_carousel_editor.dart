@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../../../theme/fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../utils/safe_pick.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../../theme/app_theme.dart';
 import '../../../widgets/storage_image.dart';
 import '../../../utils/photo_crop.dart';
@@ -217,11 +217,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
                         children: [
                           Text(
                             LocaleService.current.widgetPhotoTitle,
-                            style: GoogleFonts.rubik(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              color: t.primary,
-                            ),
+                            style: AppFonts.onest(size: 18, weight: 700, color: t.primary),
                           ),
                           const SizedBox(height: 2),
                           Text(
@@ -231,10 +227,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
                                     ? LocaleService.current.onePhotoNoCarousel
                                     : LocaleService.current
                                         .photoCountCarousel(_paths.length),
-                            style: GoogleFonts.rubik(
-                              fontSize: 12,
-                              color: t.textSecondary,
-                            ),
+                            style: AppFonts.onest(size: 12, color: t.textSecondary),
                           ),
                         ],
                       ),
@@ -250,11 +243,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
                       ),
                       child: Text(
                         '${_paths.length}/${PhotoDayCarouselEditor.kMaxPhotos}',
-                        style: GoogleFonts.rubik(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: t.primary,
-                        ),
+                        style: AppFonts.onest(size: 12, weight: 700, color: t.primary),
                       ),
                     ),
                   ],
@@ -299,10 +288,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
                             Expanded(
                               child: Text(
                                 LocaleService.current.addMorePhotosCarouselHint,
-                                style: GoogleFonts.rubik(
-                                  fontSize: 11,
-                                  color: t.textSecondary,
-                                ),
+                                style: AppFonts.onest(size: 11, color: t.textSecondary),
                               ),
                             ),
                           ],
@@ -348,10 +334,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
                               _paths.isEmpty
                                   ? LocaleService.current.deletePhoto
                                   : LocaleService.current.save,
-                              style: GoogleFonts.rubik(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                              ),
+                              style: AppFonts.onest(size: 15, weight: 700),
                             ),
                     ),
                   ),
@@ -372,10 +355,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
         Expanded(
           child: Text(
             LocaleService.current.dragToReorder,
-            style: GoogleFonts.rubik(
-              fontSize: 11,
-              color: t.textSecondary,
-            ),
+            style: AppFonts.onest(size: 11, color: t.textSecondary),
           ),
         ),
       ],
@@ -462,21 +442,14 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
               children: [
                 Text(
                   LocaleService.current.photoNumber(index + 1),
-                  style: GoogleFonts.rubik(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: t.textPrimary,
-                  ),
+                  style: AppFonts.onest(size: 13, weight: 600, color: t.textPrimary),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   index == 0
                       ? LocaleService.current.mainPhoto
                       : LocaleService.current.positionNumber(index + 1),
-                  style: GoogleFonts.rubik(
-                    fontSize: 11,
-                    color: t.textMuted,
-                  ),
+                  style: AppFonts.onest(size: 11, color: t.textMuted),
                 ),
               ],
             ),
@@ -565,11 +538,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
             const SizedBox(height: 6),
             Text(
               label,
-              style: GoogleFonts.rubik(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: t.primary,
-              ),
+              style: AppFonts.onest(size: 12, weight: 700, color: t.primary),
               textAlign: TextAlign.center,
             ),
           ],
@@ -584,11 +553,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
       children: [
         Text(
           LocaleService.current.changePhotosLabel,
-          style: GoogleFonts.rubik(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: t.primary,
-          ),
+          style: AppFonts.onest(size: 14, weight: 700, color: t.primary),
         ),
         const SizedBox(height: 10),
         Row(
@@ -686,12 +651,8 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
             Flexible(
               child: Text(
                 title,
-                style: GoogleFonts.rubik(
-                  fontSize: 12,
-                  fontWeight:
-                      isSelected ? FontWeight.w600 : FontWeight.w400,
-                  color: isSelected ? t.primary : t.textSecondary,
-                ),
+                style: AppFonts.onest(size: 12, color: isSelected ? t.primary : t.textSecondary).copyWith(fontWeight:
+                      isSelected ? FontWeight.w600 : FontWeight.w400),
                 overflow: TextOverflow.ellipsis,
               ),
             ),

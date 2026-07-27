@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import '../../theme/fonts.dart';
 import 'package:flutter/rendering.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../utils/safe_pick.dart';
 import 'package:path_provider/path_provider.dart';
@@ -172,19 +172,14 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
               const SizedBox(height: 20),
               Text(
                 block.label,
-                style: GoogleFonts.rubik(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: _t.textMuted,
-                  letterSpacing: 1,
-                ),
+                style: AppFonts.onest(size: 13, weight: 600, letterSpacing: 1, color: _t.textMuted),
               ),
               const SizedBox(height: 10),
               TextField(
                 controller: controller,
                 autofocus: true,
                 maxLines: null,
-                style: GoogleFonts.rubik(fontSize: 16, color: _t.textPrimary),
+                style: AppFonts.onest(size: 16, color: _t.textPrimary),
                 decoration: InputDecoration(
                   filled: true,
                   fillColor: _t.primaryLight,
@@ -219,11 +214,7 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
                   },
                   child: Text(
                     LocaleService.current.done,
-                    style: GoogleFonts.rubik(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
+                    style: AppFonts.onest(size: 15, weight: 700, color: Colors.white),
                   ),
                 ),
               ),
@@ -350,20 +341,12 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
           Expanded(
             child: Text(
               LocaleService.current.postcardTitle,
-              style: GoogleFonts.rubik(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: _t.textPrimary,
-              ),
+              style: AppFonts.onest(size: 20, weight: 700, color: _t.textPrimary),
             ),
           ),
           Text(
             LocaleService.current.daysTogetherLabel('$_days'),
-            style: GoogleFonts.rubik(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: _t.primary,
-            ),
+            style: AppFonts.onest(size: 13, weight: 600, color: _t.primary),
           ),
         ],
       ),
@@ -410,11 +393,7 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
                   const SizedBox(width: 8),
                   Text(
                     tpl.title,
-                    style: GoogleFonts.rubik(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: isSelected ? Colors.white : _t.textSecondary,
-                    ),
+                    style: AppFonts.onest(size: 13, weight: 600, color: isSelected ? Colors.white : _t.textSecondary),
                   ),
                 ],
               ),
@@ -477,11 +456,7 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
                 hasPhoto
                     ? LocaleService.current.changePhoto
                     : LocaleService.current.addPhotoFromGallery,
-                style: GoogleFonts.rubik(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: _t.primary,
-                ),
+                style: AppFonts.onest(size: 13, weight: 600, color: _t.primary),
               ),
             ],
           ),
@@ -500,11 +475,7 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
           const SizedBox(width: 6),
           Text(
             LocaleService.current.tapAnyTextToEdit,
-            style: GoogleFonts.rubik(
-              fontSize: 12,
-              color: _t.textMuted,
-              fontWeight: FontWeight.w400,
-            ),
+            style: AppFonts.onest(size: 12, weight: 400, color: _t.textMuted),
           ),
         ],
       ),
@@ -539,11 +510,7 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
             _exporting
                 ? LocaleService.current.creating
                 : LocaleService.current.sharePostcard,
-            style: GoogleFonts.rubik(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
-            ),
+            style: AppFonts.onest(size: 15, weight: 700, color: Colors.white),
           ),
         ),
       ),

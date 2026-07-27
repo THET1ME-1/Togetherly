@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import '../../../theme/fonts.dart';
 import '../../../services/locale_service.dart';
 import '../models/postcard_template.dart';
 import 'paper_postcards.dart';
@@ -208,24 +208,14 @@ class _TogetherCard extends StatelessWidget {
                   highlightColor: const Color(0xFFFF6B81),
                   child: Text(
                     _b('names').text,
-                    style: GoogleFonts.rubik(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFFAD4560),
-                      letterSpacing: 2,
-                    ),
+                    style: AppFonts.onest(size: 15, weight: 600, letterSpacing: 2, color: const Color(0xFFAD4560)),
                     textAlign: TextAlign.center,
                   ),
                 ),
                 const SizedBox(height: 16),
                 Text(
                   days.toString(),
-                  style: GoogleFonts.rubik(
-                    fontSize: 96,
-                    fontWeight: FontWeight.w900,
-                    color: const Color(0xFFFF6B81),
-                    height: 1,
-                  ),
+                  style: AppFonts.onest(size: 96, weight: 900, height: 1, color: const Color(0xFFFF6B81)),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 4),
@@ -236,12 +226,7 @@ class _TogetherCard extends StatelessWidget {
                   highlightColor: const Color(0xFFFF6B81),
                   child: Text(
                     _b('days_label').text,
-                    style: GoogleFonts.rubik(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: const Color(0xFFCC4A66),
-                      letterSpacing: 1.5,
-                    ),
+                    style: AppFonts.onest(size: 16, weight: 500, letterSpacing: 1.5, color: const Color(0xFFCC4A66)),
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -253,12 +238,7 @@ class _TogetherCard extends StatelessWidget {
                   highlightColor: const Color(0xFFFF6B81),
                   child: Text(
                     _b('message').text,
-                    style: GoogleFonts.rubik(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w400,
-                      color: const Color(0xFFAD4560),
-                      fontStyle: FontStyle.italic,
-                    ),
+                    style: AppFonts.onest(size: 13, weight: 400, color: const Color(0xFFAD4560)).copyWith(fontStyle: FontStyle.italic),
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -349,20 +329,13 @@ class _PolaroidCard extends StatelessWidget {
                     children: [
                       Text(
                         days.toString(),
-                        style: GoogleFonts.rubik(
-                          fontSize: 72, fontWeight: FontWeight.w900,
-                          color: Colors.white, height: 1,
-                          shadows: const [Shadow(color: Colors.black26, blurRadius: 12)],
-                        ),
+                        style: AppFonts.onest(size: 72, weight: 900, height: 1, color: Colors.white).copyWith(shadows: const [Shadow(color: Colors.black26, blurRadius: 12)]),
                       ),
                       _editable(
                         block: _b('days_label'), isEditing: isEditing, onTap: onBlockTap,
                         child: Text(
                           _b('days_label').text,
-                          style: GoogleFonts.rubik(
-                            fontSize: 12, fontWeight: FontWeight.w500,
-                            color: Colors.white.withOpacity(0.85), letterSpacing: 1.5,
-                          ),
+                          style: AppFonts.onest(size: 12, weight: 500, letterSpacing: 1.5, color: Colors.white.withOpacity(0.85)),
                         ),
                       ),
                     ],
@@ -427,22 +400,15 @@ class _PolaroidCard extends StatelessWidget {
                       const Icon(Icons.add_photo_alternate_rounded, color: Colors.white, size: 34),
                       const SizedBox(height: 6),
                       Text(LocaleService.current.addPhoto,
-                        style: GoogleFonts.rubik(
-                          fontSize: 12, color: Colors.white.withOpacity(0.9),
-                          fontWeight: FontWeight.w500)),
+                        style: AppFonts.onest(size: 12, weight: 500, color: Colors.white.withOpacity(0.9))),
                       const SizedBox(height: 16),
                     ],
                     Text(days.toString(),
-                      style: GoogleFonts.rubik(
-                        fontSize: 80, fontWeight: FontWeight.w900,
-                        color: Colors.white, height: 1,
-                        shadows: [Shadow(color: Colors.black.withOpacity(0.2), blurRadius: 8)])),
+                      style: AppFonts.onest(size: 80, weight: 900, height: 1, color: Colors.white).copyWith(shadows: [Shadow(color: Colors.black.withOpacity(0.2), blurRadius: 8)])),
                     _editable(
                       block: _b('days_label'), isEditing: isEditing, onTap: onBlockTap,
                       child: Text(_b('days_label').text,
-                        style: GoogleFonts.rubik(
-                          fontSize: 13, fontWeight: FontWeight.w500,
-                          color: Colors.white.withOpacity(0.85), letterSpacing: 1.5))),
+                        style: AppFonts.onest(size: 13, weight: 500, letterSpacing: 1.5, color: Colors.white.withOpacity(0.85)))),
                   ],
                 ),
               ),
@@ -462,8 +428,7 @@ class _PolaroidCard extends StatelessWidget {
             block: _b('names'), isEditing: isEditing, onTap: onBlockTap,
             highlightColor: const Color(0xFFFF6B9D),
             child: Text(_b('names').text,
-              style: GoogleFonts.rubik(fontSize: 14, fontWeight: FontWeight.w700,
-                color: const Color(0xFF333333)),
+              style: AppFonts.onest(size: 14, weight: 700, color: const Color(0xFF333333)),
               textAlign: TextAlign.center),
           ),
           const SizedBox(height: 6),
@@ -471,8 +436,7 @@ class _PolaroidCard extends StatelessWidget {
             block: _b('message'), isEditing: isEditing, onTap: onBlockTap,
             highlightColor: const Color(0xFFFF6B9D),
             child: Text(_b('message').text,
-              style: GoogleFonts.rubik(fontSize: 12, fontWeight: FontWeight.w400,
-                color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+              style: AppFonts.onest(size: 12, weight: 400, color: Colors.grey.shade500).copyWith(fontStyle: FontStyle.italic),
               textAlign: TextAlign.center),
           ),
         ],
@@ -594,24 +558,14 @@ class _BloomCard extends StatelessWidget {
                     highlightColor: const Color(0xFFD48BC0),
                     child: Text(
                       _b('names').text,
-                      style: GoogleFonts.rubik(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFFB06090),
-                        letterSpacing: 1.5,
-                      ),
+                      style: AppFonts.onest(size: 13, weight: 600, letterSpacing: 1.5, color: const Color(0xFFB06090)),
                       textAlign: TextAlign.center,
                     ),
                   ),
                   const SizedBox(height: 12),
                   Text(
                     days.toString(),
-                    style: GoogleFonts.rubik(
-                      fontSize: 82,
-                      fontWeight: FontWeight.w900,
-                      color: const Color(0xFFD48BC0),
-                      height: 1,
-                    ),
+                    style: AppFonts.onest(size: 82, weight: 900, height: 1, color: const Color(0xFFD48BC0)),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 4),
@@ -622,12 +576,7 @@ class _BloomCard extends StatelessWidget {
                     highlightColor: const Color(0xFFD48BC0),
                     child: Text(
                       _b('days_label').text,
-                      style: GoogleFonts.rubik(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w400,
-                        color: const Color(0xFFB06090),
-                        letterSpacing: 1.2,
-                      ),
+                      style: AppFonts.onest(size: 13, weight: 400, letterSpacing: 1.2, color: const Color(0xFFB06090)),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -639,12 +588,7 @@ class _BloomCard extends StatelessWidget {
                     highlightColor: const Color(0xFFD48BC0),
                     child: Text(
                       _b('message').text,
-                      style: GoogleFonts.rubik(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w400,
-                        color: const Color(0xFF9A5070),
-                        fontStyle: FontStyle.italic,
-                      ),
+                      style: AppFonts.onest(size: 12, weight: 400, color: const Color(0xFF9A5070)).copyWith(fontStyle: FontStyle.italic),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -726,28 +670,17 @@ class _NightSkyCard extends StatelessWidget {
                     onTap: onBlockTap,
                     child: Text(
                       _b('names').text,
-                      style: GoogleFonts.rubik(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.white.withOpacity(0.7),
-                        letterSpacing: 2.5,
-                      ),
+                      style: AppFonts.onest(size: 14, weight: 500, letterSpacing: 2.5, color: Colors.white.withOpacity(0.7)),
                       textAlign: TextAlign.center,
                     ),
                   ),
                   const SizedBox(height: 12),
                   Text(
                     days.toString(),
-                    style: GoogleFonts.rubik(
-                      fontSize: 96,
-                      fontWeight: FontWeight.w900,
-                      color: const Color(0xFFFFD700),
-                      height: 1,
-                      shadows: const [
+                    style: AppFonts.onest(size: 96, weight: 900, height: 1, color: const Color(0xFFFFD700)).copyWith(shadows: const [
                         Shadow(color: Color(0x80FFD700), blurRadius: 24),
                         Shadow(color: Color(0x40FFD700), blurRadius: 48),
-                      ],
-                    ),
+                      ]),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 6),
@@ -757,12 +690,7 @@ class _NightSkyCard extends StatelessWidget {
                     onTap: onBlockTap,
                     child: Text(
                       _b('days_label').text,
-                      style: GoogleFonts.rubik(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w400,
-                        color: Colors.white.withOpacity(0.5),
-                        letterSpacing: 1.5,
-                      ),
+                      style: AppFonts.onest(size: 12, weight: 400, letterSpacing: 1.5, color: Colors.white.withOpacity(0.5)),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -773,12 +701,7 @@ class _NightSkyCard extends StatelessWidget {
                     onTap: onBlockTap,
                     child: Text(
                       _b('message').text,
-                      style: GoogleFonts.rubik(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w400,
-                        color: Colors.white.withOpacity(0.85),
-                        fontStyle: FontStyle.italic,
-                      ),
+                      style: AppFonts.onest(size: 14, weight: 400, color: Colors.white.withOpacity(0.85)).copyWith(fontStyle: FontStyle.italic),
                       textAlign: TextAlign.center,
                     ),
                   ),
