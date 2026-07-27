@@ -2302,6 +2302,10 @@ class PbDataService {
     put('notifMood', 'notif_mood');
     put('notifChat', 'notif_chat');
     put('soloTimers', 'solo_timers', json: true);
+    // Оформление: нужно только статистике — какой палитрой и в каком режиме
+    // пользуются. Локальный выбор от этого не зависит, он живёт в prefs.
+    put('themeMode', 'theme_mode');
+    put('themeId', 'theme_id');
     if (row.isEmpty) return true;
     row['updated_at'] = DateTime.now().toIso8601String();
     return _upsertById('users', uid, row, op: 'updateUserProfile');

@@ -163,6 +163,33 @@ class UserData extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('themeMode', m.index);
+    unawaited(_syncAppearance());
+  }
+
+  /// Отдаёт серверу выбранное оформление — палитру и режим.
+  ///
+  /// Нужно только статистике: сам выбор живёт в SharedPreferences и с сервера
+  /// не читается, поэтому неудачная отправка ничего не ломает и не повторяется.
+  Future<void> _syncAppearance() async {
+    final uid = PocketBaseService().userId ?? '';
+    if (uid.isEmpty || !PocketBaseService().isLoggedIn) return;
+    final mode = _themeMode.name;
+    final id = _themeId < 0 ? 0 : _themeId;
+    final ok = await PbDataService().updateUserProfile(uid, {
+      'themeMode': mode,
+      'themeId': id,
+    });
+    if (!ok) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('appearanceSynced', '$mode/$id');
+  }
+
+  /// То же, но молча пропускает отправку, если сервер уже знает этот выбор.
+  Future<void> _syncAppearanceIfChanged() async {
+    final prefs = await SharedPreferences.getInstance();
+    final id = _themeId < 0 ? 0 : _themeId;
+    if (prefs.getString('appearanceSynced') == '${_themeMode.name}/$id') return;
+    await _syncAppearance();
   }
 
   Future<void> setThemeFlavor(SchemeFlavor f) async {
@@ -743,6 +770,11 @@ class UserData extends ChangeNotifier {
           unawaited(PbDataService()
               .updateMemberFieldInGroups(myUid, 'member_avatars', _avatarUrl));
         }
+        // Оформление уходит на сервер при входе, иначе статистика знала бы
+        // только тех, кто менял тему после обновления. Отправляем лишь при
+        // расхождении с прошлым разом — лишний PATCH на каждый старт у
+        // тридцати тысяч человек не нужен.
+        unawaited(_syncAppearanceIfChanged());
       }
     } catch (e) {
       debugPrint('Firestore sync failed: $e');
@@ -936,6 +968,7 @@ class UserData extends ChangeNotifier {
     _themeId = id;
     await _saveLocal();
     notifyListeners();
+    unawaited(_syncAppearance());
   }
 
   Future<void> setBlobAnimationEnabled(bool value) async {
