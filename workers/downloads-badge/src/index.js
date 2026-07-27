@@ -23,7 +23,11 @@
  * содержит внутреннюю аналитику и никогда не проксируется.
  */
 
-const STATS_URL = 'https://togetherly.duckdns.org/modapi/stats';
+// Адрес админского домена, а не togetherly.duckdns.org: на публичном домене
+// `/modapi/*` с 26 июля отдаёт 403 наглухо (укрепление доступа), и бейдж
+// полгода показывал бы «n/a». На admin.togetherly.day для этого роута сделано
+// исключение из куки-авторизации — секрет проверяет сам хук.
+const STATS_URL = 'https://admin.togetherly.day/modapi/stats';
 const GITHUB_REPOS = [
   'THET1ME-1/togetherly',
   'THET1ME-1/togetherly_app_releases',
