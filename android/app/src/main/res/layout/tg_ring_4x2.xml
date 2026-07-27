@@ -89,7 +89,7 @@
                     android:fontFamily="@font/onest_extrabold"
                     android:includeFontPadding="false"
                     android:maxLines="1"
-                    android:text="дней" />
+                    android:text="Дней" />
             </LinearLayout>
         </FrameLayout>
 

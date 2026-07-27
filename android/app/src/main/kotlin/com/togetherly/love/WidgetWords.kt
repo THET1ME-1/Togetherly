@@ -36,6 +36,10 @@ object WidgetWords {
         return "$word ГОД ВМЕСТЕ"
     }
 
+    /** Та же строка с заглавной: подпись начинается с неё, а не продолжает фразу. */
+    fun cap(s: String): String =
+        if (s.isEmpty()) s else s.substring(0, 1).uppercase() + s.substring(1)
+
     private fun plural(n: Int, one: String, few: String, many: String): String {
         val a = n % 100
         val b = n % 10

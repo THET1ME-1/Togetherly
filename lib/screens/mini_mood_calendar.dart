@@ -704,7 +704,11 @@ class _DayCellState extends State<_DayCell> with TickerProviderStateMixin {
                             Center(
                               child: Text(
                                 widget.date.day.toString(),
-                                style: TextStyle(
+                                // Тот же Rubik, что слоем ниже: без него белая
+                                // цифра набиралась системным шрифтом, метрики
+                                // расходились и число сегодняшнего дня двоилось
+                                // по краям заливки.
+                                style: GoogleFonts.rubik(
                                   fontSize: 22,
                                   fontWeight: FontWeight.w800,
                                   color: fillTextColor,

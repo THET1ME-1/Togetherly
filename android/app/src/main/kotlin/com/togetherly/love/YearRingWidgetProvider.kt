@@ -124,7 +124,7 @@ open class YearRingWidgetProvider : HomeWidgetProvider() {
 
             when (layout) {
                 R.layout.tg_ring_4x2 -> {
-                    setTextViewText(R.id.ring_days_word, WidgetWords.days(days))
+                    setTextViewText(R.id.ring_days_word, WidgetWords.cap(WidgetWords.days(days)))
                     setTextViewTextSize(
                         R.id.ring_days, TypedValue.COMPLEX_UNIT_DIP, 22f * scale,
                     )
@@ -159,7 +159,7 @@ open class YearRingWidgetProvider : HomeWidgetProvider() {
                     setTextViewText(
                         R.id.next_date,
                         listOf(
-                            "до $nextYears ${WidgetWords.yearsGenitive(nextYears)}",
+                            "До $nextYears ${WidgetWords.yearsGenitive(nextYears)}",
                             anniversary,
                         ).filter { it.isNotEmpty() }.joinToString(" · "),
                     )
@@ -184,7 +184,7 @@ open class YearRingWidgetProvider : HomeWidgetProvider() {
                 }
 
                 else -> {
-                    setTextViewText(R.id.ring_days_word, "${WidgetWords.days(days)} вместе")
+                    setTextViewText(R.id.ring_days_word, "${WidgetWords.cap(WidgetWords.days(days))} вместе")
                     setTextViewTextSize(
                         R.id.ring_days, TypedValue.COMPLEX_UNIT_DIP, 26f * scale,
                     )
@@ -209,7 +209,7 @@ open class YearRingWidgetProvider : HomeWidgetProvider() {
                     val nextYears = years + 1
                     setTextViewText(
                         R.id.next_label,
-                        "до $nextYears ${WidgetWords.yearsGenitive(nextYears)} — $daysLeft",
+                        "До $nextYears ${WidgetWords.yearsGenitive(nextYears)} — $daysLeft",
                     )
                     setTextViewTextSize(
                         R.id.next_label, TypedValue.COMPLEX_UNIT_DIP, 8f * scale,

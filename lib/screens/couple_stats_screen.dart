@@ -10,6 +10,7 @@ import '../services/plus_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/profile_theme.dart';
 import '../utils/couple_days.dart';
+import '../utils/memory_type_label.dart';
 import '../utils/relationship_tips.dart';
 import '../widgets/common/m3_loading.dart';
 import 'plus_screen.dart';
@@ -216,7 +217,7 @@ class _CoupleStatsScreenState extends State<CoupleStatsScreen> {
 
     return _card(
       title: _tr('Советы на сегодня', 'Tips for today'),
-      subtitle: _tr('подобраны по вашим числам', 'picked from your numbers'),
+      subtitle: _tr('Подобраны по вашим числам', 'Picked from your numbers'),
       child: Column(
         children: [
           for (final tip in tips)
@@ -424,7 +425,7 @@ class _CoupleStatsScreenState extends State<CoupleStatsScreen> {
             ),
           ),
           Text(
-            _tr('дней вместе', 'days together'),
+            _tr('Дней вместе', 'Days together'),
             style: TextStyle(
               fontFamily: ProfileTheme.bodyFont,
               fontSize: 14,
@@ -436,13 +437,13 @@ class _CoupleStatsScreenState extends State<CoupleStatsScreen> {
           Row(
             children: [
               chip(Icons.local_fire_department_rounded, '${s.streak}',
-                  _tr('дней подряд', 'day streak')),
+                  _tr('Дней подряд', 'Day streak')),
               const SizedBox(width: 10),
               chip(Icons.auto_awesome_rounded, '${s.xp}',
-                  _tr('опыта пары', 'couple XP')),
+                  _tr('Опыта пары', 'Couple XP')),
               const SizedBox(width: 10),
               chip(Icons.event_available_rounded, '${_daysToAnniversary()}',
-                  _tr('до годовщины', 'to anniversary')),
+                  _tr('До годовщины', 'To anniversary')),
             ],
           ),
         ],
@@ -464,18 +465,18 @@ class _CoupleStatsScreenState extends State<CoupleStatsScreen> {
 
   Widget _totalsGrid(CoupleStats s) {
     final items = <(IconData, int, String)>[
-      (Icons.photo_library_rounded, s.total('memories'), _tr('воспоминаний', 'memories')),
-      (Icons.image_rounded, s.total('photos'), _tr('фотографий', 'photos')),
-      (Icons.videocam_rounded, s.total('videos'), _tr('видео', 'videos')),
-      (Icons.forum_rounded, s.total('messages'), _tr('сообщений', 'messages')),
-      (Icons.mood_rounded, s.total('moods'), _tr('отметок настроения', 'mood marks')),
-      (Icons.favorite_rounded, s.total('missYou'), _tr('«скучаю»', 'miss-yous')),
-      (Icons.brush_rounded, s.total('strokes'), _tr('штрихов на холсте', 'brush strokes')),
-      (Icons.comment_rounded, s.total('comments'), _tr('комментариев', 'comments')),
-      (Icons.card_giftcard_rounded, s.total('gifts'), _tr('подарков', 'gifts')),
-      (Icons.pets_rounded, s.total('mascots'), _tr('маскотов', 'mascots')),
-      (Icons.play_circle_rounded, s.total('watch'), _tr('совместных включений', 'watch sessions')),
-      (Icons.palette_rounded, s.total('canvases'), _tr('холстов', 'canvases')),
+      (Icons.photo_library_rounded, s.total('memories'), _tr('Воспоминаний', 'Memories')),
+      (Icons.image_rounded, s.total('photos'), _tr('Фотографий', 'Photos')),
+      (Icons.videocam_rounded, s.total('videos'), _tr('Видео', 'Videos')),
+      (Icons.forum_rounded, s.total('messages'), _tr('Сообщений', 'Messages')),
+      (Icons.mood_rounded, s.total('moods'), _tr('Отметок настроения', 'Mood marks')),
+      (Icons.favorite_rounded, s.total('missYou'), _tr('«Скучаю»', 'Miss-yous')),
+      (Icons.brush_rounded, s.total('strokes'), _tr('Штрихов на холсте', 'Brush strokes')),
+      (Icons.comment_rounded, s.total('comments'), _tr('Комментариев', 'Comments')),
+      (Icons.card_giftcard_rounded, s.total('gifts'), _tr('Подарков', 'Gifts')),
+      (Icons.pets_rounded, s.total('mascots'), _tr('Маскотов', 'Mascots')),
+      (Icons.play_circle_rounded, s.total('watch'), _tr('Совместных включений', 'Watch sessions')),
+      (Icons.palette_rounded, s.total('canvases'), _tr('Холстов', 'Canvases')),
     ];
 
     return LayoutBuilder(
@@ -581,12 +582,12 @@ class _CoupleStatsScreenState extends State<CoupleStatsScreen> {
 
     return _card(
       title: _tr('Год вместе', 'The year together'),
-      subtitle: _tr('доля от лучшего месяца по каждому ряду',
-          'share of each series best month'),
+      subtitle: _tr('Доля от лучшего месяца по каждому ряду',
+          'Share of each series best month'),
       legend: _legendRow([
-        (_tr('воспоминания', 'memories'), colors[0]),
-        (_tr('сообщения', 'messages'), colors[1]),
-        (_tr('настроения', 'moods'), colors[2]),
+        (_tr('Воспоминания', 'Memories'), colors[0]),
+        (_tr('Сообщения', 'Messages'), colors[1]),
+        (_tr('Настроения', 'Moods'), colors[2]),
       ]),
       child: SizedBox(
         height: 210,
@@ -675,9 +676,9 @@ class _CoupleStatsScreenState extends State<CoupleStatsScreen> {
   String _tooltipFor(int series, String month, CoupleStats s) {
     final key = ['memories', 'messages', 'moods'][series.clamp(0, 2)];
     final label = [
-      _tr('воспоминаний', 'memories'),
-      _tr('сообщений', 'messages'),
-      _tr('настроений', 'moods'),
+      _tr('Воспоминаний', 'Memories'),
+      _tr('Сообщений', 'Messages'),
+      _tr('Настроений', 'Moods'),
     ][series.clamp(0, 2)];
     return '$month · ${s.timeline[key]![month] ?? 0} $label';
   }
@@ -701,7 +702,7 @@ class _CoupleStatsScreenState extends State<CoupleStatsScreen> {
 
     return _card(
       title: _tr('Кто сколько', 'Side by side'),
-      subtitle: _tr('вклад каждого за всё время', 'each partner all-time'),
+      subtitle: _tr('Вклад каждого за всё время', 'Each partner all-time'),
       legend: _legendRow([
         (_nameOf(widget.myUid), _cs.primary),
         (_nameOf(partner), _cs.tertiary),
@@ -801,10 +802,10 @@ class _CoupleStatsScreenState extends State<CoupleStatsScreen> {
 
     return _card(
       title: _tr('Ритм недели', 'Weekly rhythm'),
-      subtitle: _tr('в какие дни вы активнее', 'which days you are busiest'),
+      subtitle: _tr('В какие дни вы активнее', 'Which days you are busiest'),
       legend: _legendRow([
-        (_tr('сообщения', 'messages'), _cs.primary),
-        (_tr('воспоминания', 'memories'), _cs.tertiary),
+        (_tr('Сообщения', 'Messages'), _cs.primary),
+        (_tr('Воспоминания', 'Memories'), _cs.tertiary),
       ]),
       child: SizedBox(
         height: 190,
@@ -900,8 +901,8 @@ class _CoupleStatsScreenState extends State<CoupleStatsScreen> {
     return _card(
       title: _tr('Часы суток', 'Hours of the day'),
       subtitle: _tr(
-        'пик в $peak:00 · ночью с 0 до 6 — ${(night / math.max(1, total) * 100).round()}% сообщений',
-        'peak at $peak:00 · ${(night / math.max(1, total) * 100).round()}% between 0 and 6',
+        'Пик в $peak:00 · ночью с 0 до 6 — ${(night / math.max(1, total) * 100).round()}% сообщений',
+        'Peak at $peak:00 · ${(night / math.max(1, total) * 100).round()}% between 0 and 6',
       ),
       child: SizedBox(
         height: 150,
@@ -990,7 +991,7 @@ class _CoupleStatsScreenState extends State<CoupleStatsScreen> {
 
     return _card(
       title: _tr('Настроение за 90 дней', 'Mood over 90 days'),
-      subtitle: _tr('средняя оценка дня, от 1 до 5', 'daily average, 1 to 5'),
+      subtitle: _tr('Средняя оценка дня, от 1 до 5', 'Daily average, 1 to 5'),
       legend: _legendRow([
         (_nameOf(widget.myUid), _cs.primary),
         (_nameOf(partner), _cs.tertiary),
@@ -1146,7 +1147,7 @@ class _CoupleStatsScreenState extends State<CoupleStatsScreen> {
 
     return _card(
       title: _tr('Любимые настроения', 'Favourite moods'),
-      subtitle: _tr('что вы отмечаете чаще всего', 'what you mark most often'),
+      subtitle: _tr('Что вы отмечаете чаще всего', 'What you mark most often'),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1180,29 +1181,12 @@ class _CoupleStatsScreenState extends State<CoupleStatsScreen> {
       _cs.tertiaryContainer,
     ];
 
-    String label(String key) {
-      switch (key) {
-        case 'photo':
-          return _tr('фото', 'photo');
-        case 'video':
-          return _tr('видео', 'video');
-        case 'text':
-          return _tr('текст', 'text');
-        case 'audio':
-          return _tr('аудио', 'audio');
-        case '':
-          return _tr('без типа', 'untyped');
-        default:
-          return key;
-      }
-    }
-
     return _card(
       title: _tr('Из чего собраны воспоминания', 'What memories are made of'),
-      subtitle: '$total ${_tr('записей всего', 'entries in total')}',
+      subtitle: '$total ${_recordsWord(total)}',
       legend: _legendRow([
         for (var i = 0; i < entries.length && i < palette.length; i++)
-          (label(entries[i].key), palette[i]),
+          (memoryTypeLabel(entries[i].key), palette[i]),
       ]),
       child: SizedBox(
         height: 180,
@@ -1260,27 +1244,27 @@ class _CoupleStatsScreenState extends State<CoupleStatsScreen> {
       (
         Icons.speed_rounded,
         perWeek < 1
-            ? _tr('меньше одного', 'under one')
+            ? _tr('Меньше одного', 'Under one')
             : perWeek.toStringAsFixed(1),
-        _tr('воспоминаний в неделю сейчас', 'memories per week now'),
+        _tr('Воспоминаний в неделю сейчас', 'Memories per week now'),
       ),
       (
         Icons.flag_rounded,
         daysToTarget == null
             ? '—'
-            : _tr('через $daysToTarget дн.', 'in $daysToTarget days'),
-        _tr('до отметки $target воспоминаний', 'to $target memories'),
+            : _tr('Через $daysToTarget дн.', 'In $daysToTarget days'),
+        _tr('До отметки $target воспоминаний', 'To $target memories'),
       ),
       (
         Icons.trending_up_rounded,
         '$yearProjection',
-        _tr('столько наберётся за год при этом темпе',
-            'projected for a year at this pace'),
+        _tr('Столько наберётся за год при этом темпе',
+            'Projected for a year at this pace'),
       ),
       (
         Icons.calendar_month_rounded,
         '$activeDays ${_tr('из 30', 'of 30')}',
-        _tr('дней с активностью за месяц', 'active days last month'),
+        _tr('Дней с активностью за месяц', 'Active days last month'),
       ),
       (
         trend == null
@@ -1293,14 +1277,14 @@ class _CoupleStatsScreenState extends State<CoupleStatsScreen> {
         trend == null
             ? '—'
             : '${trend > 0 ? '+' : ''}${trend.toStringAsFixed(1)}',
-        _tr('настроение к прошлому месяцу', 'mood versus last month'),
+        _tr('Настроение к прошлому месяцу', 'Mood versus last month'),
       ),
     ];
 
     return _card(
       title: _tr('Что дальше', 'What is next'),
-      subtitle: _tr('прогноз по темпу последних тридцати дней',
-          'projection from the last thirty days'),
+      subtitle: _tr('Прогноз по темпу последних тридцати дней',
+          'Projection from the last thirty days'),
       child: Column(
         children: [
           for (final (icon, value, label) in items)
@@ -1372,6 +1356,16 @@ class _CoupleStatsScreenState extends State<CoupleStatsScreen> {
     }
     if (recentCount == 0 || prevCount == 0) return null;
     return recentSum / recentCount - prevSum / prevCount;
+  }
+
+  /// «44 записи», а не «44 записей»: число рядом со словом склоняется.
+  String _recordsWord(int n) {
+    if (!_ru) return n == 1 ? 'Entry in total' : 'Entries in total';
+    final a = n % 100, b = n % 10;
+    if (a >= 11 && a <= 19) return 'Записей всего';
+    if (b == 1) return 'Запись всего';
+    if (b >= 2 && b <= 4) return 'Записи всего';
+    return 'записей всего';
   }
 
   Widget _noData() => Padding(

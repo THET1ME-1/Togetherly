@@ -70,7 +70,7 @@
                 android:fontFamily="@font/onest_extrabold"
                 android:includeFontPadding="false"
                 android:maxLines="1"
-                android:text="дней вместе" />
+                android:text="Дней вместе" />
 
             <TextView
                 android:id="@+id/next_label"

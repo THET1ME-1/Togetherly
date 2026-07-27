@@ -144,11 +144,11 @@ open class YearGridWidgetProvider : HomeWidgetProvider() {
                     setTextColor(R.id.left_value, theme.primary)
                     setTextColor(R.id.left_label, theme.onSurfaceVariant)
 
-                    setTextViewText(R.id.days_word, WidgetWords.days(days))
+                    setTextViewText(R.id.days_word, WidgetWords.cap(WidgetWords.days(days)))
                     setTextViewText(
                         R.id.years_label,
-                        "$years ${WidgetWords.years(years)} " +
-                            "$daysIntoYear ${WidgetWords.days(daysIntoYear)}",
+                        "$years ${WidgetWords.cap(WidgetWords.years(years))} " +
+                            "$daysIntoYear ${WidgetWords.cap(WidgetWords.days(daysIntoYear))}",
                     )
                     if (startDate.isNotEmpty()) {
                         setTextViewText(R.id.start_date, startDate)
@@ -157,7 +157,7 @@ open class YearGridWidgetProvider : HomeWidgetProvider() {
                     val nextYears = years + 1
                     setTextViewText(
                         R.id.left_label,
-                        "до $nextYears ${WidgetWords.yearsGenitive(nextYears)}",
+                        "До $nextYears ${WidgetWords.yearsGenitive(nextYears)}",
                     )
 
                     setTextViewTextSize(
@@ -178,7 +178,7 @@ open class YearGridWidgetProvider : HomeWidgetProvider() {
                     setTextColor(R.id.days_word, theme.primary)
                     setTextColor(R.id.year_label, theme.onSurfaceVariant)
 
-                    setTextViewText(R.id.days_word, "${WidgetWords.days(days)} вместе")
+                    setTextViewText(R.id.days_word, "${WidgetWords.cap(WidgetWords.days(days))} вместе")
                     val nextYears = years + 1
                     setTextViewText(
                         R.id.year_label,

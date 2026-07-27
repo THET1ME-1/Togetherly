@@ -3851,19 +3851,19 @@ class _RuStrings extends AppStrings {
   @override
   String get tgYearMemoriesLabel => 'ВОСПОМИНАНИЙ';
   @override
-  String tgYearDaysWord(int days) => _ruPlural(days, 'день', 'дня', 'дней');
+  String tgYearDaysWord(int days) => _ruPlural(days, 'День', 'Дня', 'Дней');
   @override
   String tgYearDaysTogether(int days) =>
-      '${_ruPlural(days, 'день', 'дня', 'дней')} вместе';
+      '${_ruPlural(days, 'День', 'Дня', 'Дней')} вместе';
   @override
   String tgYearDaysLeft(int days) =>
       'Ещё $days ${_ruPlural(days, 'день', 'дня', 'дней')}';
   @override
   String tgYearToAnniversary(int year) =>
-      'до $year ${_ruPlural(year, 'года', 'лет', 'лет')}';
+      'До $year ${_ruPlural(year, 'года', 'лет', 'лет')}';
   @override
   String tgYearToAnniversaryShort(int year, int days) =>
-      'до $year ${_ruPlural(year, 'года', 'лет', 'лет')} — $days';
+      'До $year ${_ruPlural(year, 'года', 'лет', 'лет')} — $days';
   @override
   String tgYearCurrentYearShort(int year, int days) =>
       '$year-й год · ещё $days';
@@ -3882,7 +3882,7 @@ class _RuStrings extends AppStrings {
       '$years ${_ruPlural(years, 'ГОД', 'ГОДА', 'ЛЕТ')} '
       '$days ${_ruPlural(days, 'ДЕНЬ', 'ДНЯ', 'ДНЕЙ')}';
   @override
-  String tgYearSince(String date) => 'с $date';
+  String tgYearSince(String date) => 'С $date';
   @override
   String get tgSizeHintToday => 'сегодня';
   @override
@@ -7228,21 +7228,21 @@ class _EnStrings extends AppStrings {
   @override
   String get tgYearMemoriesLabel => 'MEMORIES';
   @override
-  String tgYearDaysWord(int days) => days == 1 ? 'day' : 'days';
+  String tgYearDaysWord(int days) => days == 1 ? 'Day' : 'Days';
   @override
   String tgYearDaysTogether(int days) =>
-      '${days == 1 ? 'day' : 'days'} together';
+      '${days == 1 ? 'Day' : 'Days'} together';
   @override
   String tgYearDaysLeft(int days) =>
       '$days ${days == 1 ? 'day' : 'days'} left';
   @override
-  String tgYearToAnniversary(int year) => 'to year $year';
+  String tgYearToAnniversary(int year) => 'To year $year';
   @override
   String tgYearToAnniversaryShort(int year, int days) =>
-      'to year $year — $days';
+      'To year $year — $days';
   @override
   String tgYearCurrentYearShort(int year, int days) =>
-      'year $year · $days left';
+      'Year $year · $days left';
   @override
   String tgYearOrdinalLabel(int year) => 'YEAR $year TOGETHER';
   @override
@@ -7250,7 +7250,7 @@ class _EnStrings extends AppStrings {
       '$years ${years == 1 ? 'YEAR' : 'YEARS'} '
       '$days ${days == 1 ? 'DAY' : 'DAYS'}';
   @override
-  String tgYearSince(String date) => 'since $date';
+  String tgYearSince(String date) => 'Since $date';
   @override
   String get settingsTitle => 'Settings';
   @override
