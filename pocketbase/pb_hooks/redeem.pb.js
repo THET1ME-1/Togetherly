@@ -72,6 +72,10 @@ routerAdd("POST", "/api/coins/redeem", (e) => {
         txApp.save(rec);
 
         user.set("plus", true);
+        // Код от бота — оплата шла мимо магазина; помечаем, чтобы поддержка
+        // не гадала, откуда доступ (особенно у тех, кто сидит с iPhone, где
+        // витрины Togetherly+ нет).
+        user.set("plus_platform", "code");
         txApp.save(user);
         out = { s: 200, b: { ok: true, plus: true, awarded: 0 } };
         return;

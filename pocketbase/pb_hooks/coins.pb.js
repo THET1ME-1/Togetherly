@@ -445,6 +445,10 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
           return;
         }
         user.set("plus", true);
+        // Покупка через биллинг Google Play. Отмечаем источник: витрина
+        // Togetherly+ живёт только на Android, и по полю видно, откуда доступ
+        // у человека, который заходит ещё и с iPhone.
+        user.set("plus_platform", "play");
         txApp.save(user);
         const col = txApp.findCollectionByNameOrId("iap_purchases");
         const rec = new Record(col);

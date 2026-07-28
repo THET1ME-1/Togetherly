@@ -50,7 +50,12 @@ class CycleService extends ChangeNotifier {
   /// Женский пол — потому что цикла у остальных не бывает; Togetherly+ —
   /// потому что это платная часть. Раздел не прячем совсем: без покупки
   /// строка ведёт на экран Togetherly+, иначе о ней никто не узнает.
-  static bool availableFor(UserData? user) => user?.gender == Gender.female;
+  ///
+  /// Исключение — платформа, где Togetherly+ не продаётся (iOS): там
+  /// некупившему раздела нет вовсе, вести его некуда. У купившего он на месте:
+  /// флаг живёт на аккаунте и переезжает вместе с ним.
+  static bool availableFor(UserData? user) =>
+      user?.gender == Gender.female && PlusService.instance.visible;
 
   /// Открыт ли раздел на самом деле.
   static bool unlockedFor(UserData? user) =>

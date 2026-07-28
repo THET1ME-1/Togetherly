@@ -128,4 +128,27 @@ void main() {
       expect(PlusAccess.fitsMemoryLimit(bytes: limit + 1, plus: true), isTrue);
     });
   });
+
+  group('Что показывать на месте платного', () {
+    test('Куплено — открыто везде, даже там, где Plus не продаётся', () {
+      expect(PlusAccess.gate(active: true, exists: true), PlusGate.open);
+      expect(
+        PlusAccess.gate(active: true, exists: false),
+        PlusGate.open,
+        reason: 'оплативший с Android заходит с iPhone и видит купленное',
+      );
+    });
+
+    test('Не куплено, но купить можно — замок с предложением', () {
+      expect(PlusAccess.gate(active: false, exists: true), PlusGate.locked);
+    });
+
+    test('Не куплено и Plus тут нет — платного места не существует', () {
+      expect(
+        PlusAccess.gate(active: false, exists: false),
+        PlusGate.hidden,
+        reason: 'на iOS витрина стоила бы реджекта по 2.1(b) и 3.1.1',
+      );
+    });
+  });
 }

@@ -64,6 +64,7 @@ import 'mood_calendar_screen.dart';
 import 'profile_screen.dart';
 import '../theme/profile_theme.dart';
 import '../services/cycle_service.dart';
+import '../services/platform_tag.dart';
 import '../services/plus_service.dart';
 import '../services/home_widget_service.dart';
 import '../services/mood_service.dart';
@@ -204,6 +205,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Онлайн-презенс: heartbeat в PocketBase, пока приложение активно.
     PresenceService().start();
+
+    // Платформа последнего входа. Нужна поддержке: на iOS Togetherly+ не
+    // существует, и человек с покупкой видит открытые фичи, ни разу не
+    // встретив её названия. Пары для этого не требуется, поэтому здесь, а не
+    // в привязке к группе.
+    unawaited(PlatformTag.sync());
 
     // Check if launched from homescreen widget > open Widgets tab
     _checkWidgetLaunch();

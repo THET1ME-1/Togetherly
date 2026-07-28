@@ -110,9 +110,12 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
       if (!mounted) return;
       if (tooBig.isNotEmpty) {
         final limitMb = PlusAccess.memoryFileLimit(plus: plus) ~/ (1024 * 1024);
-        _showError(plus
-            ? LocaleService.current.memoryFileTooBig(limitMb)
-            : LocaleService.current.memoryFileTooBigPlusHint(limitMb));
+        // Про больший потолок рассказываем только там, где Togetherly+ можно
+        // купить. На iOS его не существует — там просто потолок.
+        final hintsPlus = !plus && PlusService.instance.visible;
+        _showError(hintsPlus
+            ? LocaleService.current.memoryFileTooBigPlusHint(limitMb)
+            : LocaleService.current.memoryFileTooBig(limitMb));
       }
       if (fits.isEmpty) return;
       picked

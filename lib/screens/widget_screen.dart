@@ -1670,25 +1670,28 @@ class _WidgetScreenState extends State<WidgetScreen>
           count: _legacyWidgetCount(isPaired, halfTiles),
           itemsBuilder: () => _legacyWidgetItems(isPaired, halfTiles),
         ),
-        const SizedBox(height: 14),
-
         // ── Новый каталог ──
-        _CollapsibleWidgetSection(
-          cs: _cs,
-          title: LocaleService.current.widgetsNewSection,
-          subtitle: LocaleService.current.widgetsNewSubtitle,
-          icon: Icons.auto_awesome_rounded,
-          expanded: _newSectionExpanded,
-          onToggle: () => setState(
-            () => _newSectionExpanded = !_newSectionExpanded,
+        // На iOS Togetherly+ не существует, и некупившему раздела не видно
+        // совсем: показать каталог, который нечем открыть, значит дразнить.
+        if (PlusService.instance.visible) ...[
+          const SizedBox(height: 14),
+          _CollapsibleWidgetSection(
+            cs: _cs,
+            title: LocaleService.current.widgetsNewSection,
+            subtitle: LocaleService.current.widgetsNewSubtitle,
+            icon: Icons.auto_awesome_rounded,
+            expanded: _newSectionExpanded,
+            onToggle: () => setState(
+              () => _newSectionExpanded = !_newSectionExpanded,
+            ),
+            // Без Togetherly+ раздел виден, но вместо карточек — предложение
+            // купить: прятать его целиком значит не показать, что появилось.
+            count: isPaired ? _kNewWidgetCount : 0,
+            itemsBuilder: () => PlusService.instance.active
+                ? _newWidgetItems(isPaired)
+                : [_newWidgetsLocked()],
           ),
-          // Без Togetherly+ раздел виден, но вместо карточек — предложение
-          // купить: прятать его целиком значит не показать, что появилось.
-          count: isPaired ? _kNewWidgetCount : 0,
-          itemsBuilder: () => PlusService.instance.active
-              ? _newWidgetItems(isPaired)
-              : [_newWidgetsLocked()],
-        ),
+        ],
       ],
     );
   }

@@ -35,6 +35,7 @@ import '../widgets/app_sheet.dart';
 import '../widgets/morph_loader.dart';
 import '../widgets/settings_scaffold.dart';
 import '../services/cycle_service.dart';
+import '../services/plus_access.dart';
 import '../services/plus_service.dart';
 import 'plus_screen.dart';
 import 'settings_screen.dart';
@@ -901,7 +902,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ],
         ),
-        if (widget.pairData.isPaired) ...[
+        if (widget.pairData.isPaired && PlusService.instance.visible) ...[
           const SizedBox(height: 12),
           _fullStatsLink(context),
         ],
@@ -910,9 +911,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   /// Вход в полную статистику пары — раздел Togetherly+. Без покупки ведёт на
-  /// страницу Plus: прятать нельзя, иначе о разделе никто не узнает.
+  /// страницу Plus: прятать нельзя, иначе о разделе никто не узнает. А там, где
+  /// Плюса не существует (iOS), некупившему не показываем и вход.
   Widget _fullStatsLink(BuildContext context) {
-    final plus = PlusService.instance.active;
+    final gate = PlusService.instance.gate;
+    if (gate == PlusGate.hidden) return const SizedBox.shrink();
+    final plus = gate == PlusGate.open;
     return Material(
       color: _cs.secondaryContainer,
       borderRadius: BorderRadius.circular(20),
@@ -1297,6 +1301,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               setSheetState(() {});
             },
             plusActive: PlusService.instance.active,
+            plusVisible: PlusService.instance.visible,
             onPlus: () => _openPlus(ctx),
             cycleAvailable: CycleService.availableFor(widget.userData),
             cycleShared: CycleService.instance.shareWithPartner,

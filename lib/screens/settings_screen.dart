@@ -35,6 +35,7 @@ class SettingsScreen extends StatelessWidget {
     required this.onToggleSideAction,
     this.appVersion = '',
     this.plusActive = false,
+    this.plusVisible = true,
     this.onPlus,
     this.cycleAvailable = false,
     this.cycleShared = false,
@@ -67,6 +68,10 @@ class SettingsScreen extends StatelessWidget {
 
   /// Куплен ли Togetherly+ — от этого зависит подпись строки.
   final bool plusActive;
+
+  /// Существует ли Togetherly+ на этой платформе. На iOS строки нет вовсе:
+  /// продавать там нечего, а название без покупки только путает.
+  final bool plusVisible;
   final VoidCallback? onPlus;
 
   /// Раздел цикла показывается только при женском поле в профиле: у остальных
@@ -109,18 +114,21 @@ class SettingsScreen extends StatelessWidget {
             ),
             children: [
               // Togetherly+ первым: это главное, что можно тут сделать.
-              SettingsGroup([
-                SettingsRow(
-                  icon: Icons.workspace_premium_rounded,
-                  title: s.plusTitle,
-                  subtitle: plusActive ? s.plusActiveBody : s.plusHeroBody,
-                  iconBg: plusActive ? scheme.primary : scheme.primaryContainer,
-                  iconFg:
-                      plusActive ? scheme.onPrimary : scheme.onPrimaryContainer,
-                  trailing: const SettingsChevron(),
-                  onTap: onPlus,
-                ),
-              ]),
+              if (plusVisible)
+                SettingsGroup([
+                  SettingsRow(
+                    icon: Icons.workspace_premium_rounded,
+                    title: s.plusTitle,
+                    subtitle: plusActive ? s.plusActiveBody : s.plusHeroBody,
+                    iconBg:
+                        plusActive ? scheme.primary : scheme.primaryContainer,
+                    iconFg: plusActive
+                        ? scheme.onPrimary
+                        : scheme.onPrimaryContainer,
+                    trailing: const SettingsChevron(),
+                    onTap: onPlus,
+                  ),
+                ]),
 
               SettingsSection(s.appearanceTitle),
               SettingsGroup([

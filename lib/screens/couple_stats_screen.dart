@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../models/mood_entry.dart';
 import '../services/couple_stats_service.dart';
 import '../services/locale_service.dart';
+import '../services/plus_access.dart';
 import '../services/plus_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/profile_theme.dart';
@@ -1383,7 +1384,9 @@ class _CoupleStatsScreenState extends State<CoupleStatsScreen> {
 }
 
 /// Открывает полную статистику, если куплен Togetherly+, иначе ведёт на его
-/// страницу: прятать раздел нельзя, иначе о нём никто не узнает.
+/// страницу: прятать раздел нельзя, иначе о нём никто не узнает. Там, где
+/// Плюса не существует (iOS), вход к некупившему просто не ведёт — ни экрана,
+/// ни предложения.
 Future<void> openCoupleStats(
   BuildContext context, {
   required AppTheme theme,
@@ -1392,16 +1395,21 @@ Future<void> openCoupleStats(
   DateTime? startDate,
   DateTime? anniversaryDate,
 }) async {
-  if (!PlusService.instance.active) {
-    await Navigator.push(
-      context,
-      MaterialPageRoute<void>(
-        builder: (_) =>
-            PlusScreen(scheme: ProfileTheme.themeFor(theme).colorScheme),
-        settings: const RouteSettings(name: '/plus'),
-      ),
-    );
-    return;
+  switch (PlusService.instance.gate) {
+    case PlusGate.hidden:
+      return;
+    case PlusGate.locked:
+      await Navigator.push(
+        context,
+        MaterialPageRoute<void>(
+          builder: (_) =>
+              PlusScreen(scheme: ProfileTheme.themeFor(theme).colorScheme),
+          settings: const RouteSettings(name: '/plus'),
+        ),
+      );
+      return;
+    case PlusGate.open:
+      break;
   }
   if (!context.mounted) return;
   await Navigator.push(

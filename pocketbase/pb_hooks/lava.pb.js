@@ -145,6 +145,9 @@ routerAdd("POST", "/api/lava/webhook", (e) => {
 
         if (isPlus) {
           user.set("plus", true);
+          // Откуда покупка: на iOS витрины Togetherly+ нет вовсе, и по этому
+          // полю потом видно, почему у человека всё открыто без неё.
+          user.set("plus_platform", "lava");
           txApp.save(user);
           out = { s: 200, b: { ok: true, plus: true, direct: true } };
           return;

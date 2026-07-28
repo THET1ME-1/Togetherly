@@ -7,6 +7,7 @@ import '../../../models/user_data.dart';
 import '../../../services/cycle_service.dart';
 import '../../../services/locale_service.dart';
 import '../../../services/mood_service.dart';
+import '../../../services/plus_access.dart';
 import '../../../services/plus_service.dart';
 import '../../../services/widget_service.dart';
 import '../../../theme/app_theme.dart';
@@ -186,16 +187,22 @@ class _DayLogSheetState extends State<_DayLogSheet> {
   }
 
   void _openCycle() {
-    // Без Togetherly+ отмечать нечего — ведём туда, где его покупают.
-    if (!PlusService.instance.active) {
-      final nav = Navigator.of(context);
-      nav.pop();
-      nav.push(
-        MaterialPageRoute<void>(builder: (_) => PlusScreen(scheme: _cs)),
-      );
-      return;
+    switch (PlusService.instance.gate) {
+      // Платформа без Togetherly+ (iOS): строки цикла тут и не должно быть,
+      // вести некуда.
+      case PlusGate.hidden:
+        return;
+      // Без покупки отмечать нечего — ведём туда, где Плюс покупают.
+      case PlusGate.locked:
+        final nav = Navigator.of(context);
+        nav.pop();
+        nav.push(
+          MaterialPageRoute<void>(builder: (_) => PlusScreen(scheme: _cs)),
+        );
+        return;
+      case PlusGate.open:
+        showCycleDaySheet(context: context, day: widget.day, scheme: _cs);
     }
-    showCycleDaySheet(context: context, day: widget.day, scheme: _cs);
   }
 
   @override

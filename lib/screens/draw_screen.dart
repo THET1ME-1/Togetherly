@@ -3573,13 +3573,26 @@ class _DrawScreenState extends State<DrawScreen>
             mainAxisSpacing: 10,
             children: [
               for (final bg in CanvasBackground.values)
-                _backgroundTile(bg, cs, setSheet),
+                if (_backgroundShown(bg)) _backgroundTile(bg, cs, setSheet),
             ],
           ),
         ),
       ),
     );
   }
+
+  /// Показывать ли фон в листе выбора.
+  ///
+  /// Там, где Togetherly+ не существует (iOS), платные фоны прячем совсем:
+  /// поштучно они не продаются, монетами их не открыть, и замок без выхода
+  /// выглядел бы поломкой. Купленное раньше остаётся на месте.
+  bool _backgroundShown(CanvasBackground bg) =>
+      PlusService.instance.visible ||
+      PlusAccess.ownsBackground(
+        id: bg,
+        plus: false,
+        owned: widget.userData.ownedFeatures,
+      );
 
   Widget _backgroundTile(
     CanvasBackground bg,
@@ -3599,6 +3612,9 @@ class _DrawScreenState extends State<DrawScreen>
     return GestureDetector(
       onTap: () {
         if (!unlocked) {
+          // Там, где Togetherly+ не существует, закрытых фонов в списке нет —
+          // а если тап всё же случился, молча ничего не делаем.
+          if (!PlusService.instance.visible) return;
           // Закрытый фон не выбирается молча: ведём туда, где его открывают.
           Navigator.of(context).pop();
           Navigator.of(context).push(

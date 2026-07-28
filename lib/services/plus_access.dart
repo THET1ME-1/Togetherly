@@ -1,6 +1,18 @@
 import '../models/canvas_background.dart';
 import '../models/profile_icon.dart';
 
+/// Что показывать на месте платной вещи.
+enum PlusGate {
+  /// Куплено — фича работает.
+  open,
+
+  /// Не куплено, но купить можно: замок и переход на экран Togetherly+.
+  locked,
+
+  /// Togetherly+ на этой платформе не существует — платного места нет вовсе.
+  hidden,
+}
+
 /// Правила доступа Togetherly+ в одном месте.
 ///
 /// Чистые функции без обращений к сети и синглтонам: их зовут и экраны, и
@@ -8,6 +20,18 @@ import '../models/profile_icon.dart';
 /// файле, из-за чего витрина обещала одно, а приложение делало другое.
 class PlusAccess {
   const PlusAccess._();
+
+  /// Что рисовать на месте платной вещи.
+  ///
+  /// [active] — куплен ли Togetherly+ на аккаунте, [exists] — продаётся ли он
+  /// на этой платформе вообще. Купленное открыто всегда: флаг живёт на
+  /// аккаунте, и человек, оплативший с Android, заходит с iPhone и видит своё.
+  /// А вот предлагать покупку можно только там, где Плюс существует, — на iOS
+  /// витрина стоила бы реджекта (2.1(b) на паках монет уже стоила).
+  static PlusGate gate({required bool active, required bool exists}) {
+    if (active) return PlusGate.open;
+    return exists ? PlusGate.locked : PlusGate.hidden;
+  }
 
   /// Потолок файла в PocketBase (`media.file.maxSize`). Выше него не пропустит
   /// сервер, поэтому клиентские лимиты не имеют права его превышать.

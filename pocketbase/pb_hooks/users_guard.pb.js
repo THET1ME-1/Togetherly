@@ -33,6 +33,13 @@ onRecordUpdateRequest((e) => {
       "last_daily_bonus_at", "last_memory_reward_at",
       "partner_invite_reward_granted", "partner_invite_rewarded_keys",
       "mood_streak_rewards",
+      // Togetherly+ ведут только серверные пути: вебхук lava.top, погашение
+      // кода и роут /api/coins/iap-purchase (он же сверяет чек с Google). До
+      // 28 июля флага тут не было, и `PATCH /api/collections/users/records/:id`
+      // с `{"plus": true}` открывал платное даром — правило коллекции пускает
+      // владельца писать в свою запись любое поле. Место покупки и дата выдачи
+      // ежемесячных монет закрыты по той же причине.
+      "plus", "plus_platform", "last_plus_grant_ms",
     ];
     // Источник истины — ТЕЛО запроса (как в create-guard ниже). Прежнее
     // сравнение orig.get(f) vs e.record.get(f) давало ЛОЖНЫЙ 403: в PB JSVM
@@ -135,6 +142,13 @@ onRecordCreateRequest((e) => {
       "last_daily_bonus_at", "last_memory_reward_at",
       "partner_invite_reward_granted", "partner_invite_rewarded_keys",
       "mood_streak_rewards",
+      // Togetherly+ ведут только серверные пути: вебхук lava.top, погашение
+      // кода и роут /api/coins/iap-purchase (он же сверяет чек с Google). До
+      // 28 июля флага тут не было, и `PATCH /api/collections/users/records/:id`
+      // с `{"plus": true}` открывал платное даром — правило коллекции пускает
+      // владельца писать в свою запись любое поле. Место покупки и дата выдачи
+      // ежемесячных монет закрыты по той же причине.
+      "plus", "plus_platform", "last_plus_grant_ms",
     ];
     // Проверяем ТОЛЬКО реально присланные клиентом поля, а не дефолты записи:
     // e.record.get() для json-полей экономики (owned_*/granted_badges/
