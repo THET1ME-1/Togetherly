@@ -1381,23 +1381,27 @@ class _HomeScreenState extends State<HomeScreen> {
                     _showTodayButton ? 0 : -15,
                     0,
                   ),
+                  // Ряд быстрых действий — только в паре. Все четыре пишут в
+                  // коллекции с group_id, и без партнёра не работают ни одна:
+                  // показывать их выключенными значит держать на главной
+                  // половину неработающего экрана.
                   child: AnimatedSlideIn(
                     delay: const Duration(milliseconds: 120),
-                    child: HomeActionButtons(
-                      theme: _t,
-                      isPaired: _pairData.isPaired,
-                      // Единый источник правды — календарь (myMoodToday), как у
-                      // шапки. Раньше кнопка читала pairData.myMood (group
-                      // memberMoods) и расходилась с мини-календарём/шапкой:
-                      // настроение с мини-календаря не отображалось на кнопке.
-                      myMoodImagePath:
-                          _moodService.myMoodToday?.imagePath ?? '',
-                      onDraw: _openDraw,
-                      onMood: _showMoodPicker,
-                      onCalendar: _openMoodCalendar,
-                      onPost: _postPhoto,
-                      onLockedTap: _explainNeedsPartner,
-                    ),
+                    child: _pairData.isPaired
+                        ? HomeActionButtons(
+                            theme: _t,
+                            isPaired: true,
+                            // Единый источник правды — календарь (myMoodToday),
+                            // как у шапки. Раньше кнопка читала pairData.myMood
+                            // (group memberMoods) и расходилась с мини-календарём.
+                            myMoodImagePath:
+                                _moodService.myMoodToday?.imagePath ?? '',
+                            onDraw: _openDraw,
+                            onMood: _showMoodPicker,
+                            onCalendar: _openMoodCalendar,
+                            onPost: _postPhoto,
+                          )
+                        : const SizedBox.shrink(),
                   ),
                 ),
                 // Слот подсказки один на оба состояния: без пары тут стоит
@@ -2878,30 +2882,6 @@ class _HomeScreenState extends State<HomeScreen> {
       case OnboardingStep.widget:
         setState(() => _selectedNavIndex = 1);
     }
-  }
-
-  /// Тап по кнопке, которая без пары не работает: объясняем и зовём позвать
-  /// партнёра. Молчаливая кнопка читается как поломка — а это первое, что
-  /// одиночка успевает потрогать.
-  void _explainNeedsPartner() {
-    final s = LocaleService.current;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 4),
-        content: Text(s.needsPartnerHint),
-        action: SnackBarAction(
-          label: s.invitePromptAction,
-          onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) =>
-                  InvitePartnerScreen(pairData: _pairData, theme: _t),
-              settings: const RouteSettings(name: '/invite_partner'),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
   /// «Скучаю» с карточки затихшего партнёра.

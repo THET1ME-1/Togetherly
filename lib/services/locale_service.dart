@@ -5030,7 +5030,15 @@ class _RuStrings extends AppStrings {
   @override
   String get hide => 'Скрыть';
   @override
-  String coinsPlus(int n) => '+$n монет';
+  String coinsPlus(int n) {
+    // «+1 монет» резало глаз на каждой награде — считаем окончание по числу.
+    final tens = n % 100;
+    final ones = n % 10;
+    final word = (tens >= 11 && tens <= 14)
+        ? 'монет'
+        : (ones == 1 ? 'монета' : (ones >= 2 && ones <= 4 ? 'монеты' : 'монет'));
+    return '+$n $word';
+  }
   @override
   String moodScoreLabel(int score, int max) => '$moodScorePrefix $score из $max';
   @override

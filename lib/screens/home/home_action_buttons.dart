@@ -6,11 +6,11 @@ import '../../widgets/common/animations.dart';
 
 /// Ряд из 4 быстрых кнопок под таймером: рисование, настроение, календарь, фото.
 ///
-/// Все четыре работают только в паре: записи уходят в коллекции с `group_id`,
-/// и без группы сервер их не принимает. Приглушённые кнопки не молчат — тап по
-/// ним объясняет, чего не хватает, и ведёт к приглашению. Рисование до 28 июля
-/// оставалось активным: холст открывался, штрихи не сохранялись (`createStroke`
-/// выходит на пустом groupId), и человек терял нарисованное без единого слова.
+/// Показывается только в паре — все четыре пишут в коллекции с `group_id`, и
+/// без партнёра ни одна не работает. Раньше ряд висел выключенным: белые пилюли
+/// под общей прозрачностью выглядели выцветшими, а рисование к тому же
+/// оставалось активным и молча теряло нарисованное (`createStroke` выходит на
+/// пустом groupId). Теперь без пары на этом месте стоит приглашение.
 class HomeActionButtons extends StatelessWidget {
   final AppTheme theme;
   final bool isPaired;
@@ -19,9 +19,6 @@ class HomeActionButtons extends StatelessWidget {
   final VoidCallback onMood;
   final VoidCallback onCalendar;
   final VoidCallback onPost;
-
-  /// Тап по кнопке, которая без пары не работает.
-  final VoidCallback onLockedTap;
 
   const HomeActionButtons({
     super.key,
@@ -32,7 +29,6 @@ class HomeActionButtons extends StatelessWidget {
     required this.onMood,
     required this.onCalendar,
     required this.onPost,
-    required this.onLockedTap,
   });
 
   static const String _drawSvg =
@@ -92,9 +88,6 @@ class HomeActionButtons extends StatelessWidget {
     String? moodImagePath,
   }) {
     final opacity = enabled ? 1.0 : 0.4;
-    // Приглушённая кнопка остаётся нажимаемой: молчаливая кнопка читается как
-    // поломка, а объяснение — это ещё и повод позвать партнёра.
-    final VoidCallback handler = enabled ? (onTap ?? () {}) : onLockedTap;
     final hasMoodImage = moodImagePath != null && moodImagePath.isNotEmpty;
 
     // Смещение вниз для кнопок 1 и 2 (параболический изгиб)
@@ -105,7 +98,7 @@ class HomeActionButtons extends StatelessWidget {
       child: Opacity(
         opacity: opacity,
         child: QuickTapScale(
-          onTap: handler,
+          onTap: enabled ? (onTap ?? () {}) : null,
           scale: 0.92,
           child: Container(
             width: 74,
