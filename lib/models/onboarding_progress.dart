@@ -1,21 +1,23 @@
-/// Первые действия новичка.
+/// Первые действия пары.
 ///
-/// По базе на 28 июля: до пары доходят 57% зарегистрировавшихся, и у дошедших
-/// дожитие до седьмого дня 47,7% против 10,4% у одиночек. Ещё резче работает
-/// количество тронутых возможностей: ни одной — 9,8%, четыре и больше — 58,5%.
-/// Отсюда карточка на главной: довести до четырёх действий в первые дни.
+/// По базе на 28 июля: у тех, кто трогал четыре возможности и больше, дожитие
+/// до седьмого дня 58,5% против 9,8% у тех, кто не трогал ничего. Отсюда
+/// короткий список на главной — довести до первых действий, пока интерес свежий.
+///
+/// Список показывается только паре. В одиночку обучать нечему: настроение без
+/// группы не сохраняется (`MoodService` выходит на пустом `groupId`), из
+/// каталога виджетов доступны три штуки из десяти, а чат, лента и карта
+/// появляются вместе с партнёром. Одиночка вместо списка видит приглашение —
+/// это его единственный осмысленный следующий шаг.
 ///
 /// Правила вынесены в чистые функции: от них зависит, увидит ли человек
 /// карточку вообще, и их проще держать под тестами, чем внутри экрана.
 library;
 
-/// Шаг, который новичок должен пройти.
+/// Шаг, который проходит новая пара.
 enum OnboardingStep {
   /// Фото профиля — его видит партнёр в чате, виджете и ленте.
   photo,
-
-  /// Подключить партнёра. Главный шаг: без него половина приложения мертва.
-  partner,
 
   /// Отметить сегодняшнее настроение.
   mood,
@@ -25,11 +27,10 @@ enum OnboardingStep {
 }
 
 abstract final class OnboardingProgress {
-  /// Порядок в карточке. Партнёр идёт вторым: настроение и виджет без пары
-  /// наполовину бессмысленны, вести к ним раньше — сбивать с главного.
+  /// Порядок в карточке. Фото первым: его видно партнёру во всех разделах,
+  /// а поставить его — секунда.
   static const List<OnboardingStep> order = [
     OnboardingStep.photo,
-    OnboardingStep.partner,
     OnboardingStep.mood,
     OnboardingStep.widget,
   ];
@@ -38,17 +39,23 @@ abstract final class OnboardingProgress {
   /// шагами: список, который висит месяц, читается как упрёк.
   static const int lifetimeDays = 14;
 
+  /// Шаги, которые видит человек прямо сейчас. Без пары — ни одного.
+  static List<OnboardingStep> stepsFor({required bool hasPartner}) =>
+      hasPartner ? order : const [];
+
+  /// Сколько шагов в списке — знаменатель кольца прогресса.
+  static int totalFor({required bool hasPartner}) =>
+      stepsFor(hasPartner: hasPartner).length;
+
   /// Что уже сделано. Считается по фактам в данных, а не по нажатиям: кто
   /// поставил аватар ещё при регистрации, увидит шаг закрытым.
   static Set<OnboardingStep> doneSteps({
     required bool hasPhoto,
-    required bool hasPartner,
     required bool moodToday,
     required bool widgetPinned,
   }) =>
       {
         if (hasPhoto) OnboardingStep.photo,
-        if (hasPartner) OnboardingStep.partner,
         if (moodToday) OnboardingStep.mood,
         if (widgetPinned) OnboardingStep.widget,
       };
@@ -58,10 +65,12 @@ abstract final class OnboardingProgress {
     required Set<OnboardingStep> done,
     required int daysSinceSignup,
     required bool dismissed,
+    required bool hasPartner,
   }) {
+    if (!hasPartner) return false;
     if (dismissed) return false;
     if (daysSinceSignup >= lifetimeDays) return false;
-    return done.length < order.length;
+    return order.any((s) => !done.contains(s));
   }
 
   /// Первый невыполненный шаг — на него смотрит человек.
@@ -74,19 +83,9 @@ abstract final class OnboardingProgress {
 
   /// Свернуть ли карточку в строку.
   ///
-  /// Пока пары нет, главная короткая — маскот, карта, достижения и лента
-  /// показываются только в паре, — и карточка занимает пустующее место. Как
-  /// только партнёр появился, все эти блоки приходят, и список уступает им
-  /// место, оставаясь строкой с прогрессом.
-  static bool collapsed({
-    required bool hasPartner,
-    required Set<OnboardingStep> done,
-  }) =>
-      hasPartner;
-
-  /// Приглушить ли шаг: сделать его сейчас нельзя, но видно, что будет дальше.
-  static bool dimmed(OnboardingStep step, {required bool hasPartner}) {
-    if (hasPartner) return false;
-    return step == OnboardingStep.mood || step == OnboardingStep.widget;
-  }
+  /// Сразу после подключения список развёрнут — это и есть обучение. Как
+  /// только сделан первый шаг, человек понял, что от него хотят, и дальше
+  /// хватает строки: главная у пары плотная, там маскот, карта, достижения и
+  /// лента.
+  static bool collapsed({required Set<OnboardingStep> done}) => done.isNotEmpty;
 }

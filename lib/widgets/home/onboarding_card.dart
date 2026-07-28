@@ -4,12 +4,12 @@ import '../../models/onboarding_progress.dart';
 import '../../services/locale_service.dart';
 import '../../theme/profile_theme.dart';
 
-/// Карточка первых действий на главной.
+/// Карточка первых действий пары на главной.
 ///
-/// Пока пары нет — развёрнутый список: главная в этом состоянии короткая
-/// (маскот, карта, достижения и лента приходят только с партнёром), и карточка
-/// занимает место прежней «подключите партнёра». Как только пара появилась,
-/// сворачивается в строку и пропускает вперёд всё, что появилось.
+/// Показывается только когда пара собралась: в одиночку эти шаги не закрыть.
+/// Сразу после подключения список развёрнут — это и есть обучение; как только
+/// сделан первый шаг, сворачивается в строку и пропускает вперёд маскота,
+/// карту, достижения и ленту.
 ///
 /// Правила показа и порядок шагов живут в [OnboardingProgress] — здесь только
 /// внешний вид.
@@ -18,14 +18,12 @@ class OnboardingCard extends StatelessWidget {
     super.key,
     required this.scheme,
     required this.done,
-    required this.hasPartner,
     required this.onStep,
     required this.onHide,
   });
 
   final ColorScheme scheme;
   final Set<OnboardingStep> done;
-  final bool hasPartner;
 
   /// Тап по шагу — ведём туда, где его выполняют.
   final void Function(OnboardingStep step) onStep;
@@ -35,15 +33,17 @@ class OnboardingCard extends StatelessWidget {
 
   AppStrings get _s => LocaleService.current;
 
-  int get _left => OnboardingProgress.order.length - done.length;
+  List<OnboardingStep> get _steps => OnboardingProgress.order;
+
+  int get _doneCount => _steps.where(done.contains).length;
+
+  int get _left => _steps.length - _doneCount;
 
   @override
   Widget build(BuildContext context) {
-    final collapsed = OnboardingProgress.collapsed(
-      hasPartner: hasPartner,
-      done: done,
-    );
-    return collapsed ? _collapsed(context) : _expanded(context);
+    return OnboardingProgress.collapsed(done: done)
+        ? _collapsed(context)
+        : _expanded(context);
   }
 
   // ── Свёрнутая строка: с парой на главной уже есть что показывать ──
@@ -57,7 +57,7 @@ class OnboardingCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(28),
         onTap: () => onStep(next),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+          padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
           child: Row(
             children: [
               _ring(size: 38, fontSize: 11),
@@ -73,10 +73,17 @@ class OnboardingCard extends StatelessWidget {
                   ),
                 ),
               ),
-              Icon(
-                Icons.chevron_right_rounded,
-                size: 22,
-                color: scheme.onSurfaceVariant,
+              // Закрыть можно и отсюда: свёрнутая строка живёт неделями, и
+              // человеку не должно приходиться разворачивать её ради крестика.
+              IconButton(
+                onPressed: onHide,
+                tooltip: _s.onboardingSkip,
+                visualDensity: VisualDensity.compact,
+                icon: Icon(
+                  Icons.close_rounded,
+                  size: 18,
+                  color: scheme.onSurfaceVariant,
+                ),
               ),
             ],
           ),
@@ -85,7 +92,7 @@ class OnboardingCard extends StatelessWidget {
     );
   }
 
-  // ── Развёрнутый список: без пары это главное, что есть на экране ──
+  // ── Развёрнутый список: первый заход после подключения ──
   Widget _expanded(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 8),
@@ -126,19 +133,33 @@ class OnboardingCard extends StatelessWidget {
                   ],
                 ),
               ),
-              IconButton(
-                onPressed: onHide,
-                tooltip: _s.onboardingHide,
-                icon: Icon(
-                  Icons.close_rounded,
-                  size: 20,
-                  color: scheme.onSurfaceVariant,
-                ),
-              ),
             ],
           ),
           const SizedBox(height: 6),
-          for (final step in OnboardingProgress.order) _row(step),
+          for (final step in _steps) _row(step),
+          const SizedBox(height: 2),
+          // «Пропустить» словом, а не одним крестиком: обучение должно быть
+          // предложением, и отказаться от него нужно уметь с первого взгляда.
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: onHide,
+              style: TextButton.styleFrom(
+                foregroundColor: scheme.onSurfaceVariant,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: const Size(0, 40),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                _s.onboardingSkip,
+                style: const TextStyle(
+                  fontFamily: ProfileTheme.bodyFont,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -146,8 +167,7 @@ class OnboardingCard extends StatelessWidget {
 
   Widget _row(OnboardingStep step) {
     final isDone = done.contains(step);
-    final dim = OnboardingProgress.dimmed(step, hasPartner: hasPartner);
-    final index = OnboardingProgress.order.indexOf(step) + 1;
+    final index = _steps.indexOf(step) + 1;
 
     final row = Padding(
       padding: const EdgeInsets.symmetric(vertical: 9),
@@ -188,7 +208,7 @@ class OnboardingCard extends StatelessWidget {
               ),
             ),
           ),
-          if (!isDone && !dim)
+          if (!isDone)
             Icon(
               Icons.chevron_right_rounded,
               size: 20,
@@ -198,11 +218,8 @@ class OnboardingCard extends StatelessWidget {
       ),
     );
 
-    // Приглушённый шаг не кликается: без пары его всё равно не сделать, а
-    // ведущий в никуда тап читается как поломка.
-    if (isDone || dim) {
-      return Opacity(opacity: dim ? 0.45 : 1, child: row);
-    }
+    // Пройденный шаг не кликается: вести некуда, всё уже сделано.
+    if (isDone) return row;
     return InkWell(
       borderRadius: BorderRadius.circular(14),
       onTap: () => onStep(step),
@@ -213,7 +230,7 @@ class OnboardingCard extends StatelessWidget {
   /// Кольцо прогресса. Дуг у Flutter-виджетов достаточно, рисовать нечего:
   /// хватает CircularProgressIndicator с подписью внутри.
   Widget _ring({required double size, required double fontSize}) {
-    final total = OnboardingProgress.order.length;
+    final total = _steps.length;
     return SizedBox(
       width: size,
       height: size,
@@ -224,7 +241,7 @@ class OnboardingCard extends StatelessWidget {
             width: size,
             height: size,
             child: CircularProgressIndicator(
-              value: done.length / total,
+              value: _doneCount / total,
               strokeWidth: 4,
               backgroundColor: scheme.surfaceContainer,
               color: scheme.primary,
@@ -232,7 +249,7 @@ class OnboardingCard extends StatelessWidget {
             ),
           ),
           Text(
-            '${done.length}/$total',
+            '$_doneCount/$total',
             style: TextStyle(
               fontFamily: ProfileTheme.displayFont,
               fontSize: fontSize,
@@ -247,7 +264,6 @@ class OnboardingCard extends StatelessWidget {
 
   String _label(OnboardingStep step) => switch (step) {
         OnboardingStep.photo => _s.onboardingStepPhoto,
-        OnboardingStep.partner => _s.onboardingStepPartner,
         OnboardingStep.mood => _s.onboardingStepMood,
         OnboardingStep.widget => _s.onboardingStepWidget,
       };

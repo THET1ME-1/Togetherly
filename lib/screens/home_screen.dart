@@ -32,6 +32,7 @@ import '../models/onboarding_progress.dart';
 import '../models/quiet_partner.dart';
 import '../services/miss_you_repository.dart';
 import '../services/pb_realtime_service.dart';
+import '../widgets/home/invite_prompt_card.dart';
 import '../widgets/home/onboarding_card.dart';
 import '../widgets/home/quiet_partner_card.dart';
 import 'invite_partner_screen.dart';
@@ -2786,14 +2787,29 @@ class _HomeScreenState extends State<HomeScreen> {
   // СЛОТ ПОДСКАЗКИ НА ГЛАВНОЙ
   // =============================================
 
-  /// Что показать в слоте подсказки: напоминание о затихшем партнёре, список
-  /// первых действий или ничего.
+  /// Что показать в слоте подсказки: приглашение партнёра, напоминание о
+  /// затихшем партнёре, список первых действий пары или ничего.
   ///
-  /// Приоритет у затихшего партнёра: он про сейчас, а список подождёт. Прежняя
-  /// карточка «подключите партнёра» убрана — её работу делает первый шаг
-  /// списка, и две карточки об одном на пустой главной выглядели избыточно.
+  /// Одиночке показываем только приглашение: настроение без группы не
+  /// сохраняется, половина каталога виджетов закрыта, чат и лента ждут второго —
+  /// учить нечему, пока пары нет. Список появляется у собравшейся пары.
+  ///
+  /// У напоминания о затихшем партнёре приоритет: оно про сейчас, а список
+  /// подождёт.
   Widget? _homePrompt() {
     final cs = ProfileTheme.themeFor(_t).colorScheme;
+
+    if (!_pairData.isPaired) {
+      return InvitePromptCard(
+        scheme: cs,
+        onInvite: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => InvitePartnerScreen(pairData: _pairData, theme: _t),
+            settings: const RouteSettings(name: '/invite_partner'),
+          ),
+        ),
+      );
+    }
 
     if (_quietDays != null) {
       return QuietPartnerCard(
@@ -2812,13 +2828,13 @@ class _HomeScreenState extends State<HomeScreen> {
       done: done,
       daysSinceSignup: _daysSinceSignup(),
       dismissed: _onboardingDismissed,
+      hasPartner: _pairData.isPaired,
     )) {
       return null;
     }
     return OnboardingCard(
       scheme: cs,
       done: done,
-      hasPartner: _pairData.isPaired,
       onStep: _openOnboardingStep,
       onHide: () async {
         setState(() => _onboardingDismissed = true);
@@ -2831,7 +2847,6 @@ class _HomeScreenState extends State<HomeScreen> {
   /// при регистрации, видит шаг закрытым сразу.
   Set<OnboardingStep> _onboardingDone() => OnboardingProgress.doneSteps(
         hasPhoto: widget.userData.avatarUrl.isNotEmpty,
-        hasPartner: _pairData.isPaired,
         moodToday: _moodService.myMoodToday != null,
         widgetPinned: _widgetPinned,
       );
@@ -2850,8 +2865,6 @@ class _HomeScreenState extends State<HomeScreen> {
     switch (step) {
       case OnboardingStep.photo:
         setState(() => _selectedNavIndex = 3);
-      case OnboardingStep.partner:
-        setState(() => _selectedNavIndex = 2);
       case OnboardingStep.mood:
         _showMoodPicker();
       case OnboardingStep.widget:

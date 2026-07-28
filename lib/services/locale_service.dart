@@ -621,11 +621,15 @@ abstract class AppStrings {
   String onboardingLeft(int left);
   String get onboardingDone;
   String get onboardingStepPhoto;
-  String get onboardingStepPartner;
   String get onboardingStepMood;
   String get onboardingStepWidget;
   String onboardingNext(String step);
-  String get onboardingHide;
+  String get onboardingSkip;
+
+  // ── Приглашение партнёра в слоте подсказки ──
+  String get invitePromptTitle;
+  String get invitePromptBody;
+  String get invitePromptAction;
 
   // ── Партнёр давно не заходил ──
   String quietPartnerTitle(String name, int days);
@@ -2841,15 +2845,21 @@ class _RuStrings extends AppStrings {
   @override
   String get onboardingStepPhoto => 'Поставить фото профиля';
   @override
-  String get onboardingStepPartner => 'Подключить партнёра';
-  @override
   String get onboardingStepMood => 'Отметить настроение';
   @override
   String get onboardingStepWidget => 'Поставить виджет на экран';
   @override
   String onboardingNext(String step) => 'Остался шаг: $step';
   @override
-  String get onboardingHide => 'Скрыть';
+  String get onboardingSkip => 'Пропустить';
+
+  @override
+  String get invitePromptTitle => 'Позовите свою половину';
+  @override
+  String get invitePromptBody =>
+      'Чат, настроение, лента и виджеты появятся, когда вас станет двое';
+  @override
+  String get invitePromptAction => 'Пригласить партнёра';
 
   @override
   String quietPartnerTitle(String name, int days) {
@@ -6307,15 +6317,21 @@ class _EnStrings extends AppStrings {
   @override
   String get onboardingStepPhoto => 'Add a profile photo';
   @override
-  String get onboardingStepPartner => 'Connect your partner';
-  @override
   String get onboardingStepMood => 'Mark your mood';
   @override
   String get onboardingStepWidget => 'Put a widget on the screen';
   @override
   String onboardingNext(String step) => 'One step left: $step';
   @override
-  String get onboardingHide => 'Hide';
+  String get onboardingSkip => 'Skip';
+
+  @override
+  String get invitePromptTitle => 'Invite your other half';
+  @override
+  String get invitePromptBody =>
+      'Chat, moods, the feed and widgets show up once there are two of you';
+  @override
+  String get invitePromptAction => 'Invite your partner';
 
   @override
   String quietPartnerTitle(String name, int days) =>

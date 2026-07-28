@@ -1,13 +1,15 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:love_app/models/onboarding_progress.dart';
 
-/// Первые действия новичка. Правила собраны в чистых функциях, потому что от
-/// них зависит, увидит ли человек карточку вообще: по базе 43% новичков не
-/// доходят до пары, и почти все они уходят в день установки.
+/// Первые действия пары.
+///
+/// В одиночку обучать нечему: настроение без группы не сохраняется, половина
+/// каталога виджетов закрыта, а лента, чат и карта появляются только с
+/// партнёром. Поэтому одиночке показывается приглашение, а список шагов ждёт
+/// готовой пары.
 void main() {
   const all = {
     OnboardingStep.photo,
-    OnboardingStep.partner,
     OnboardingStep.mood,
     OnboardingStep.widget,
   };
@@ -17,7 +19,6 @@ void main() {
       expect(
         OnboardingProgress.doneSteps(
           hasPhoto: false,
-          hasPartner: false,
           moodToday: false,
           widgetPinned: false,
         ),
@@ -29,7 +30,6 @@ void main() {
       expect(
         OnboardingProgress.doneSteps(
           hasPhoto: true,
-          hasPartner: true,
           moodToday: true,
           widgetPinned: true,
         ),
@@ -41,7 +41,6 @@ void main() {
       expect(
         OnboardingProgress.doneSteps(
           hasPhoto: true,
-          hasPartner: false,
           moodToday: false,
           widgetPinned: false,
         ),
@@ -51,21 +50,55 @@ void main() {
     });
   });
 
-  group('Показывать ли карточку', () {
-    test('Новичку с незакрытыми шагами — да', () {
+  group('Одиночке список не показываем', () {
+    test('Без пары шагов нет вовсе', () {
+      expect(OnboardingProgress.stepsFor(hasPartner: false), isEmpty);
+    });
+
+    test('Без пары карточки нет, что бы ни было сделано', () {
+      expect(
+        OnboardingProgress.visible(
+          done: const {},
+          daysSinceSignup: 0,
+          dismissed: false,
+          hasPartner: false,
+        ),
+        isFalse,
+        reason: 'в одиночку эти шаги физически не закрыть — вместо списка '
+            'человек видит приглашение',
+      );
+    });
+
+    test('С парой список из трёх шагов', () {
+      expect(
+        OnboardingProgress.stepsFor(hasPartner: true),
+        [OnboardingStep.photo, OnboardingStep.mood, OnboardingStep.widget],
+      );
+      expect(OnboardingProgress.totalFor(hasPartner: true), 3);
+    });
+  });
+
+  group('Показывать ли карточку паре', () {
+    test('С незакрытыми шагами — да', () {
       expect(
         OnboardingProgress.visible(
           done: const {OnboardingStep.photo},
           daysSinceSignup: 0,
           dismissed: false,
+          hasPartner: true,
         ),
         isTrue,
       );
     });
 
-    test('Все шаги пройдены — карточки нет', () {
+    test('Всё пройдено — карточки нет', () {
       expect(
-        OnboardingProgress.visible(done: all, daysSinceSignup: 1, dismissed: false),
+        OnboardingProgress.visible(
+          done: all,
+          daysSinceSignup: 1,
+          dismissed: false,
+          hasPartner: true,
+        ),
         isFalse,
       );
     });
@@ -76,18 +109,20 @@ void main() {
           done: const {OnboardingStep.photo},
           daysSinceSignup: OnboardingProgress.lifetimeDays,
           dismissed: false,
+          hasPartner: true,
         ),
         isFalse,
-        reason: 'незакрытый список на видном месте раздражает сильнее, чем помогает',
+        reason: 'список, который висит месяц, читается как упрёк',
       );
     });
 
-    test('Закрыл руками — больше не поднимается', () {
+    test('Пропустил — больше не поднимается', () {
       expect(
         OnboardingProgress.visible(
           done: const {},
           daysSinceSignup: 0,
           dismissed: true,
+          hasPartner: true,
         ),
         isFalse,
       );
@@ -95,16 +130,16 @@ void main() {
   });
 
   group('Порядок шагов', () {
-    test('Следующий — первый невыполненный по порядку', () {
+    test('Следующий — первый невыполненный', () {
       expect(
         OnboardingProgress.nextStep(const {OnboardingStep.photo}),
-        OnboardingStep.partner,
+        OnboardingStep.mood,
       );
       expect(
         OnboardingProgress.nextStep(
-          const {OnboardingStep.photo, OnboardingStep.partner},
+          const {OnboardingStep.photo, OnboardingStep.mood},
         ),
-        OnboardingStep.mood,
+        OnboardingStep.widget,
       );
     });
 
@@ -112,53 +147,23 @@ void main() {
       expect(OnboardingProgress.nextStep(all), isNull);
     });
 
-    test('Партнёр идёт раньше настроения и виджета', () {
-      final order = OnboardingProgress.order;
-      expect(order.indexOf(OnboardingStep.partner),
-          lessThan(order.indexOf(OnboardingStep.mood)));
-      expect(order.indexOf(OnboardingStep.partner),
-          lessThan(order.indexOf(OnboardingStep.widget)),
-          reason: 'без пары настроение и виджет наполовину бессмысленны');
+    test('Фото первым: его видно партнёру везде', () {
+      expect(OnboardingProgress.order.first, OnboardingStep.photo);
     });
   });
 
-  group('Развёрнутый вид или строка', () {
-    test('Без пары карточка развёрнута — там главный шаг', () {
-      expect(
-        OnboardingProgress.collapsed(
-          hasPartner: false,
-          done: const {OnboardingStep.photo},
-        ),
-        isFalse,
-      );
+  group('Развёрнутый список или строка', () {
+    test('Сразу после подключения — развёрнутый: это и есть обучение', () {
+      expect(OnboardingProgress.collapsed(done: const {}), isFalse);
     });
 
-    test('С парой сворачивается в строку и пропускает вперёд остальное', () {
+    test('Первый шаг сделан — сворачивается в строку', () {
       expect(
-        OnboardingProgress.collapsed(
-          hasPartner: true,
-          done: const {OnboardingStep.photo, OnboardingStep.partner},
-        ),
+        OnboardingProgress.collapsed(done: const {OnboardingStep.photo}),
         isTrue,
+        reason: 'человек уже понял, что это, и дальше хватает строки — '
+            'главная у пары плотная',
       );
-    });
-  });
-
-  group('Шаги, которые без пары не сделать', () {
-    test('Настроение и виджет приглушены, пока партнёра нет', () {
-      expect(OnboardingProgress.dimmed(OnboardingStep.mood, hasPartner: false), isTrue);
-      expect(OnboardingProgress.dimmed(OnboardingStep.widget, hasPartner: false), isTrue);
-    });
-
-    test('Фото и партнёр доступны всегда', () {
-      expect(OnboardingProgress.dimmed(OnboardingStep.photo, hasPartner: false), isFalse);
-      expect(OnboardingProgress.dimmed(OnboardingStep.partner, hasPartner: false), isFalse);
-    });
-
-    test('С парой приглушать нечего', () {
-      for (final step in all) {
-        expect(OnboardingProgress.dimmed(step, hasPartner: true), isFalse);
-      }
     });
   });
 }
