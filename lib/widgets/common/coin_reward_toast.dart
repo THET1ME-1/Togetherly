@@ -197,7 +197,7 @@ class _CoinToastWidgetState extends State<_CoinToastWidget>
               );
             },
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(13, 11, 22, 11),
+              padding: const EdgeInsets.fromLTRB(10, 9, 22, 9),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -227,19 +227,15 @@ class _CoinToastWidgetState extends State<_CoinToastWidget>
                         ),
                       );
                     },
-                    child: Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        color: cs.inversePrimary.withValues(alpha: 0.28),
-                        shape: BoxShape.circle,
-                      ),
-                      alignment: Alignment.center,
-                      child: Image.asset(
-                        'assets/images/icons/coin.webp',
-                        width: 24,
-                        height: 24,
-                      ),
+                    // Сама монета TY и есть кружок, поэтому подложки под ней
+                    // нет: круг в круге давал ощущение, что иконку забыли
+                    // обрезать. У файла широкие прозрачные поля — заметная
+                    // часть размера уходит в них, отсюда 44 px вместо 24.
+                    child: Image.asset(
+                      'assets/images/icons/coin.webp',
+                      width: 44,
+                      height: 44,
+                      filterQuality: FilterQuality.medium,
                     ),
                   ),
                   const SizedBox(width: 12),
