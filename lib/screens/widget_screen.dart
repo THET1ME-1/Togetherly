@@ -15,6 +15,7 @@ import '../theme/fonts.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/plus_service.dart';
+import '../services/ui_prefs.dart';
 import '../services/widget_theme_sync.dart';
 import '../widgets/tips_card.dart';
 import 'plus_screen.dart';
@@ -988,6 +989,10 @@ class _WidgetScreenState extends State<WidgetScreen>
       );
       debugPrint('_pinWidget: requestPinWidget completed successfully');
       unawaited(LevelService.instance.award(XpAction.setWidget));
+      // Шаг «поставить виджет» в списке первых действий закрывается отсюда:
+      // записи widget_data заводятся при любой синхронизации и о рабочем столе
+      // ничего не говорят.
+      unawaited(UiPrefs.markWidgetPinned());
       // Привязываем виджет к текущей группе и СРАЗУ синхронизируем данные
       // For solo mode, we still sync with empty groupId
       if (widgetType != null) {

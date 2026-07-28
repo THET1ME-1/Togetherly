@@ -601,6 +601,38 @@ abstract class AppStrings {
   String get newCodeGenerated;
   String get showQr;
   String get haveACode;
+
+  // ── Первый экран после регистрации: позвать половину ──
+  String get inviteHeroTitle;
+  String get inviteHeroBody;
+  String get sendInvitation;
+  String get haveCode;
+  String get staySolo;
+  String get later;
+  String get tapToCopy;
+  String get inviteCodeLoading;
+  String get inviteQrTitle;
+  String get inviteQrHint;
+  String get enterPartnerCode;
+  String get inviteCodeNotFound;
+
+  // ── Первые действия новичка ──
+  String get onboardingTitle;
+  String onboardingLeft(int left);
+  String get onboardingDone;
+  String get onboardingStepPhoto;
+  String get onboardingStepPartner;
+  String get onboardingStepMood;
+  String get onboardingStepWidget;
+  String onboardingNext(String step);
+  String get onboardingHide;
+
+  // ── Партнёр давно не заходил ──
+  String quietPartnerTitle(String name, int days);
+  String get quietPartnerBody;
+  String get quietPartnerAction;
+  String get quietPartnerSent;
+
   String get connectPartnerBtn;
   String get inviteMoreMembers;
   String membersOfMax(int current, int max);
@@ -2769,6 +2801,71 @@ class _RuStrings extends AppStrings {
   String get showQr => 'Показать QR';
   @override
   String get haveACode => 'Есть код?';
+
+  @override
+  String get inviteHeroTitle => 'Позовите свою половину';
+  @override
+  String get inviteHeroBody =>
+      'Приложение оживает, когда вас двое: общий чат, настроение, '
+      'виджет на экране и лента воспоминаний.';
+  @override
+  String get sendInvitation => 'Отправить приглашение';
+  @override
+  String get haveCode => 'Ввести код';
+  @override
+  String get staySolo => 'Пока побуду один';
+  @override
+  String get later => 'Позже';
+  @override
+  String get tapToCopy => 'Нажмите, чтобы скопировать';
+  @override
+  String get inviteCodeLoading => 'Готовим код';
+  @override
+  String get inviteQrTitle => 'Код для партнёра';
+  @override
+  String get inviteQrHint =>
+      'Пусть партнёр наведёт камеру — приложение откроется с готовым кодом';
+  @override
+  String get enterPartnerCode => 'Код партнёра';
+  @override
+  String get inviteCodeNotFound => 'Код не найден или уже использован';
+
+  @override
+  String get onboardingTitle => 'Обустройтесь';
+  @override
+  String onboardingLeft(int left) => left == 1
+      ? 'Остался один шаг'
+      : (left < 5 ? 'Осталось $left шага' : 'Осталось $left шагов');
+  @override
+  String get onboardingDone => 'Всё готово';
+  @override
+  String get onboardingStepPhoto => 'Поставить фото профиля';
+  @override
+  String get onboardingStepPartner => 'Подключить партнёра';
+  @override
+  String get onboardingStepMood => 'Отметить настроение';
+  @override
+  String get onboardingStepWidget => 'Поставить виджет на экран';
+  @override
+  String onboardingNext(String step) => 'Остался шаг: $step';
+  @override
+  String get onboardingHide => 'Скрыть';
+
+  @override
+  String quietPartnerTitle(String name, int days) {
+    final d = days == 1
+        ? 'день'
+        : (days > 1 && days < 5 ? 'дня' : 'дней');
+    return '$name не заходит $days $d';
+  }
+
+  @override
+  String get quietPartnerBody =>
+      'Напомните о себе — партнёр увидит это на своём экране';
+  @override
+  String get quietPartnerAction => 'Отправить «Скучаю»';
+  @override
+  String get quietPartnerSent => 'Отправили. Партнёр увидит, что вы скучаете';
   @override
   String get connectPartnerBtn => 'Подключить партнёра';
   @override
@@ -6171,6 +6268,66 @@ class _EnStrings extends AppStrings {
   String get showQr => 'Show QR';
   @override
   String get haveACode => 'Have a code?';
+
+  @override
+  String get inviteHeroTitle => 'Invite your other half';
+  @override
+  String get inviteHeroBody =>
+      'The app comes alive with two of you: a shared chat, moods, '
+      'a widget on the screen and a memory feed.';
+  @override
+  String get sendInvitation => 'Send an invitation';
+  @override
+  String get haveCode => 'Enter a code';
+  @override
+  String get staySolo => 'I will stay solo for now';
+  @override
+  String get later => 'Later';
+  @override
+  String get tapToCopy => 'Tap to copy';
+  @override
+  String get inviteCodeLoading => 'Preparing the code';
+  @override
+  String get inviteQrTitle => 'Code for your partner';
+  @override
+  String get inviteQrHint =>
+      'Let your partner point a camera at it — the app opens with the code ready';
+  @override
+  String get enterPartnerCode => "Partner's code";
+  @override
+  String get inviteCodeNotFound => 'Code not found or already used';
+
+  @override
+  String get onboardingTitle => 'Settle in';
+  @override
+  String onboardingLeft(int left) =>
+      left == 1 ? 'One step left' : '$left steps left';
+  @override
+  String get onboardingDone => 'All set';
+  @override
+  String get onboardingStepPhoto => 'Add a profile photo';
+  @override
+  String get onboardingStepPartner => 'Connect your partner';
+  @override
+  String get onboardingStepMood => 'Mark your mood';
+  @override
+  String get onboardingStepWidget => 'Put a widget on the screen';
+  @override
+  String onboardingNext(String step) => 'One step left: $step';
+  @override
+  String get onboardingHide => 'Hide';
+
+  @override
+  String quietPartnerTitle(String name, int days) =>
+      days == 1 ? '$name has been away a day' : '$name has been away $days days';
+  @override
+  String get quietPartnerBody =>
+      'Remind them about you — they will see it on their screen';
+  @override
+  String get quietPartnerAction => 'Send "Miss you"';
+  @override
+  String get quietPartnerSent => 'Sent. Your partner will see that you miss them';
+
   @override
   String get connectPartnerBtn => 'Connect Partner';
   @override

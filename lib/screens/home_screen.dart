@@ -28,6 +28,13 @@ import '../widgets/achievement_unlock_overlay.dart';
 import '../models/pair_data.dart';
 import '../models/user_data.dart';
 import '../models/mood_entry.dart';
+import '../models/onboarding_progress.dart';
+import '../models/quiet_partner.dart';
+import '../services/miss_you_repository.dart';
+import '../services/pb_realtime_service.dart';
+import '../widgets/home/onboarding_card.dart';
+import '../widgets/home/quiet_partner_card.dart';
+import 'invite_partner_screen.dart';
 import '../services/deep_link_service.dart';
 import '../services/media_service.dart';
 import '../services/memory_repository.dart';
@@ -106,6 +113,34 @@ class _HomeScreenState extends State<HomeScreen> {
   // -- State --
   int _selectedNavIndex = 0;
   bool _showTodayButton = false;
+
+  // Слот подсказки на главной: список первых действий и напоминание о
+  // затихшем партнёре. Флаги локальные — сервер о них ничего не знает.
+  bool _onboardingDismissed = false;
+  bool _widgetPinned = false;
+  int? _partnerSeenAtMs;
+  int? _quietNudgeAt;
+  bool _quietSending = false;
+  StreamSubscription<dynamic>? _partnerPresenceSub;
+
+  /// Сколько суток партнёр не заходил, если пора об этом сказать. null — не
+  /// пора: он заходил недавно, пары нет, отметки визита нет или мы уже
+  /// напоминали сегодня.
+  int? get _quietDays {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (!QuietPartner.shouldPrompt(
+      isPaired: _pairData.isPaired,
+      partnerSeenAtMs: _partnerSeenAtMs,
+      nowMs: now,
+      lastNudgeAtMs: _quietNudgeAt,
+    )) {
+      return null;
+    }
+    return QuietPartner.quietDays(
+      partnerSeenAtMs: _partnerSeenAtMs,
+      nowMs: now,
+    );
+  }
 
   // Боковая кнопка навбара: стрелка → (открыть Ленту, дефолт) либо плюс +
   // (сразу создать пин). Хранится в [UiPrefs]; переключается удержанием кнопки
@@ -199,6 +234,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _timerService.init();
     _initPairData();
     _loadSideActionPref();
+    _loadPromptState();
     _loadGiftsFlag();
     _loadIncomingGifts();
     _listenGifts();
@@ -294,6 +330,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _deepLinkSub?.cancel();
     _memorySub?.cancel();
     _achievementSub?.cancel();
+    _partnerPresenceSub?.cancel();
     PbPushService().stop();
     _appLifecycleListener?.dispose();
     _mascotService.dispose();
@@ -434,6 +471,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (groupChanged || _wasPaired != isPaired) {
       _startMemoryListener();
       _updatePartnerPush(isPaired);
+      // Кого слушать на предмет «давно не заходил» — знаем только теперь.
+      _watchPartnerPresence();
       // Подписка на подарки живёт по тем же правилам, что и пуши: пара
       // грузится асинхронно, и на момент initState её ещё нет. Если не
       // переподнять здесь, подарок доезжает только пушем — без анимации
@@ -1006,6 +1045,51 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _sideActionIsArrow = isArrow);
   }
 
+  /// Локальные флаги слота подсказки плюс разовый показ экрана приглашения.
+  Future<void> _loadPromptState() async {
+    final dismissed = await UiPrefs.onboardingDismissed();
+    final pinned = await UiPrefs.widgetPinned();
+    final nudgeAt = await UiPrefs.quietNudgeAt();
+    if (!mounted) return;
+    setState(() {
+      _onboardingDismissed = dismissed;
+      _widgetPinned = pinned;
+      _quietNudgeAt = nudgeAt;
+    });
+    await _maybeShowInviteScreen();
+  }
+
+  /// Экран «позовите свою половину» — один раз после регистрации и только пока
+  /// пары нет. Дальше приглашение живёт первым шагом списка на главной.
+  Future<void> _maybeShowInviteScreen() async {
+    if (await UiPrefs.inviteScreenShown()) return;
+    await UiPrefs.markInviteScreenShown();
+    if (!mounted || _pairData.isPaired) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => InvitePartnerScreen(pairData: _pairData, theme: _t),
+        settings: const RouteSettings(name: '/invite_partner'),
+      ),
+    );
+  }
+
+  /// Последний визит партнёра: по нему решаем, пора ли подсказать «Скучаю».
+  void _watchPartnerPresence() {
+    _partnerPresenceSub?.cancel();
+    _partnerPresenceSub = null;
+    final uid = _pairData.partnerUid;
+    if (uid.isEmpty) {
+      if (_partnerSeenAtMs != null) setState(() => _partnerSeenAtMs = null);
+      return;
+    }
+    _partnerPresenceSub =
+        PbRealtimeService().watchPresence(uid).listen((rec) {
+      final seen = (rec?.data['seen_at'] as num?)?.toInt();
+      if (!mounted || seen == _partnerSeenAtMs) return;
+      setState(() => _partnerSeenAtMs = seen);
+    }, onError: (Object e) => debugPrint('partner presence failed: $e'));
+  }
+
   /// Тап по боковой кнопке навбара. Стрелка → открывает Ленту (без авто-создания),
   /// плюс + сразу открывает создание пина.
   void _onSideAction() {
@@ -1307,11 +1391,15 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ),
-                if (!_pairData.isPaired) ...[
+                // Слот подсказки один на оба состояния: без пары тут стоит
+                // список первых действий (раньше — карточка «подключите
+                // партнёра»), с парой — либо строка прогресса, либо напоминание
+                // о затихшем партнёре. Пусто у тех, кто всё прошёл.
+                if (_homePrompt() case final prompt?) ...[
                   const SizedBox(height: 8),
                   AnimatedSlideIn(
                     delay: const Duration(milliseconds: 200),
-                    child: _buildConnectPrompt(),
+                    child: prompt,
                   ),
                 ],
                 if (_pairData.isPaired) ...[
@@ -2693,63 +2781,107 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+
   // =============================================
-  // CONNECT PROMPT (shown when unpaired)
+  // СЛОТ ПОДСКАЗКИ НА ГЛАВНОЙ
   // =============================================
-  Widget _buildConnectPrompt() {
-    return GestureDetector(
-      onTap: () => setState(() => _selectedNavIndex = 2),
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: _t.cardSurface,
-          borderRadius: BorderRadius.circular(32),
-          border: Border.all(color: _t.cardBorder, width: 0.5),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 24,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: primary.withOpacity(0.12),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(Icons.person_add_rounded, color: primary, size: 24),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    LocaleService.current.inviteYourPartner,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: _t.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    LocaleService.current.shareLinkCodeQr,
-                    style: TextStyle(fontSize: 13, color: _t.textMuted),
-                  ),
-                ],
-              ),
-            ),
-            Icon(Icons.arrow_forward_ios_rounded, size: 16, color: primary),
-          ],
-        ),
-      ),
+
+  /// Что показать в слоте подсказки: напоминание о затихшем партнёре, список
+  /// первых действий или ничего.
+  ///
+  /// Приоритет у затихшего партнёра: он про сейчас, а список подождёт. Прежняя
+  /// карточка «подключите партнёра» убрана — её работу делает первый шаг
+  /// списка, и две карточки об одном на пустой главной выглядели избыточно.
+  Widget? _homePrompt() {
+    final cs = ProfileTheme.themeFor(_t).colorScheme;
+
+    if (_quietDays != null) {
+      return QuietPartnerCard(
+        scheme: cs,
+        partnerUid: _pairData.partnerUid,
+        partnerName: _pairData.partnerDisplayName,
+        partnerAvatarUrl: _pairData.partnerAvatarUrl,
+        quietDays: _quietDays!,
+        busy: _quietSending,
+        onSend: _sendQuietNudge,
+      );
+    }
+
+    final done = _onboardingDone();
+    if (!OnboardingProgress.visible(
+      done: done,
+      daysSinceSignup: _daysSinceSignup(),
+      dismissed: _onboardingDismissed,
+    )) {
+      return null;
+    }
+    return OnboardingCard(
+      scheme: cs,
+      done: done,
+      hasPartner: _pairData.isPaired,
+      onStep: _openOnboardingStep,
+      onHide: () async {
+        setState(() => _onboardingDismissed = true);
+        await UiPrefs.dismissOnboarding();
+      },
     );
+  }
+
+  /// Пройденные шаги считаем по данным, а не по нажатиям: кто поставил аватар
+  /// при регистрации, видит шаг закрытым сразу.
+  Set<OnboardingStep> _onboardingDone() => OnboardingProgress.doneSteps(
+        hasPhoto: widget.userData.avatarUrl.isNotEmpty,
+        hasPartner: _pairData.isPaired,
+        moodToday: _moodService.myMoodToday != null,
+        widgetPinned: _widgetPinned,
+      );
+
+  /// Сколько дней человек с нами. Дата регистрации — системное поле `created`
+  /// профиля; если его нет (офлайн-старт), считаем новичком.
+  int _daysSinceSignup() {
+    final raw = PocketBaseService().currentUser?.get<String>('created') ?? '';
+    final created = DateTime.tryParse(raw);
+    if (created == null) return 0;
+    return DateTime.now().difference(created).inDays;
+  }
+
+  /// Тап по шагу ведёт ровно туда, где его выполняют.
+  void _openOnboardingStep(OnboardingStep step) {
+    switch (step) {
+      case OnboardingStep.photo:
+        setState(() => _selectedNavIndex = 3);
+      case OnboardingStep.partner:
+        setState(() => _selectedNavIndex = 2);
+      case OnboardingStep.mood:
+        _showMoodPicker();
+      case OnboardingStep.widget:
+        setState(() => _selectedNavIndex = 1);
+    }
+  }
+
+  /// «Скучаю» с карточки затихшего партнёра.
+  Future<void> _sendQuietNudge() async {
+    if (_quietSending) return;
+    setState(() => _quietSending = true);
+    try {
+      await MissYouRepository().sendMissYou(_pairData.pairId);
+      final now = DateTime.now().millisecondsSinceEpoch;
+      await UiPrefs.markQuietNudgeSent(now);
+      if (!mounted) return;
+      setState(() {
+        _quietNudgeAt = now;
+        _quietSending = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text(LocaleService.current.quietPartnerSent),
+        ),
+      );
+    } catch (e) {
+      debugPrint('quiet nudge failed: $e');
+      if (mounted) setState(() => _quietSending = false);
+    }
   }
 
   // =============================================

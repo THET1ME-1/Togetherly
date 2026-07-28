@@ -31,4 +31,62 @@ class UiPrefs {
     final p = await SharedPreferences.getInstance();
     await p.setBool(kSideActionHintSeen, true);
   }
+
+  /// Показан ли экран приглашения партнёра после регистрации. Флаг локальный
+  /// намеренно: экран нужен один раз новичку, а не каждому, кто когда-то
+  /// расстался и остался без пары.
+  static const String kInviteScreenShown = 'invite_screen_shown';
+
+  static Future<bool> inviteScreenShown() async {
+    final p = await SharedPreferences.getInstance();
+    return p.getBool(kInviteScreenShown) ?? false;
+  }
+
+  static Future<void> markInviteScreenShown() async {
+    final p = await SharedPreferences.getInstance();
+    await p.setBool(kInviteScreenShown, true);
+  }
+
+  /// Карточка первых действий закрыта крестиком.
+  static const String kOnboardingDismissed = 'onboarding_card_dismissed';
+
+  static Future<bool> onboardingDismissed() async {
+    final p = await SharedPreferences.getInstance();
+    return p.getBool(kOnboardingDismissed) ?? false;
+  }
+
+  static Future<void> dismissOnboarding() async {
+    final p = await SharedPreferences.getInstance();
+    await p.setBool(kOnboardingDismissed, true);
+  }
+
+  /// Виджет добавлен на рабочий стол. Считаем по факту успешного добавления:
+  /// записи `widget_data` заводятся при любой синхронизации и о рабочем столе
+  /// ничего не говорят.
+  static const String kWidgetPinned = 'widget_pinned_once';
+
+  static Future<bool> widgetPinned() async {
+    final p = await SharedPreferences.getInstance();
+    return p.getBool(kWidgetPinned) ?? false;
+  }
+
+  static Future<void> markWidgetPinned() async {
+    final p = await SharedPreferences.getInstance();
+    await p.setBool(kWidgetPinned, true);
+  }
+
+  /// Когда в последний раз отправляли «Скучаю» с карточки затихшего партнёра
+  /// (epoch ms). Ограничивает подсказку одним разом в сутки.
+  static const String kQuietNudgeAt = 'quiet_partner_nudge_at';
+
+  static Future<int?> quietNudgeAt() async {
+    final p = await SharedPreferences.getInstance();
+    final v = p.getInt(kQuietNudgeAt) ?? 0;
+    return v > 0 ? v : null;
+  }
+
+  static Future<void> markQuietNudgeSent(int atMs) async {
+    final p = await SharedPreferences.getInstance();
+    await p.setInt(kQuietNudgeAt, atMs);
+  }
 }
