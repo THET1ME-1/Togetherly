@@ -5,6 +5,12 @@ import '../../theme/app_theme.dart';
 import '../../widgets/common/animations.dart';
 
 /// Ряд из 4 быстрых кнопок под таймером: рисование, настроение, календарь, фото.
+///
+/// Все четыре работают только в паре: записи уходят в коллекции с `group_id`,
+/// и без группы сервер их не принимает. Приглушённые кнопки не молчат — тап по
+/// ним объясняет, чего не хватает, и ведёт к приглашению. Рисование до 28 июля
+/// оставалось активным: холст открывался, штрихи не сохранялись (`createStroke`
+/// выходит на пустом groupId), и человек терял нарисованное без единого слова.
 class HomeActionButtons extends StatelessWidget {
   final AppTheme theme;
   final bool isPaired;
@@ -13,6 +19,9 @@ class HomeActionButtons extends StatelessWidget {
   final VoidCallback onMood;
   final VoidCallback onCalendar;
   final VoidCallback onPost;
+
+  /// Тап по кнопке, которая без пары не работает.
+  final VoidCallback onLockedTap;
 
   const HomeActionButtons({
     super.key,
@@ -23,6 +32,7 @@ class HomeActionButtons extends StatelessWidget {
     required this.onMood,
     required this.onCalendar,
     required this.onPost,
+    required this.onLockedTap,
   });
 
   static const String _drawSvg =
@@ -42,7 +52,12 @@ class HomeActionButtons extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _pillButton(index: 0, svgIcon: _drawSvg, onTap: onDraw),
+        _pillButton(
+          index: 0,
+          svgIcon: _drawSvg,
+          enabled: isPaired,
+          onTap: onDraw,
+        ),
         const SizedBox(width: 10),
         _pillButton(
           index: 1,
@@ -77,6 +92,9 @@ class HomeActionButtons extends StatelessWidget {
     String? moodImagePath,
   }) {
     final opacity = enabled ? 1.0 : 0.4;
+    // Приглушённая кнопка остаётся нажимаемой: молчаливая кнопка читается как
+    // поломка, а объяснение — это ещё и повод позвать партнёра.
+    final VoidCallback handler = enabled ? (onTap ?? () {}) : onLockedTap;
     final hasMoodImage = moodImagePath != null && moodImagePath.isNotEmpty;
 
     // Смещение вниз для кнопок 1 и 2 (параболический изгиб)
@@ -87,7 +105,7 @@ class HomeActionButtons extends StatelessWidget {
       child: Opacity(
         opacity: opacity,
         child: QuickTapScale(
-          onTap: enabled ? (onTap ?? () {}) : null,
+          onTap: handler,
           scale: 0.92,
           child: Container(
             width: 74,

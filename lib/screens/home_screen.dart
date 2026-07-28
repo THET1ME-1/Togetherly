@@ -30,6 +30,7 @@ import '../models/user_data.dart';
 import '../models/mood_entry.dart';
 import '../models/onboarding_progress.dart';
 import '../models/quiet_partner.dart';
+import '../services/invite_reminder_service.dart';
 import '../services/miss_you_repository.dart';
 import '../services/pb_realtime_service.dart';
 import '../widgets/home/invite_prompt_card.dart';
@@ -474,6 +475,12 @@ class _HomeScreenState extends State<HomeScreen> {
       _updatePartnerPush(isPaired);
       // Кого слушать на предмет «давно не заходил» — знаем только теперь.
       _watchPartnerPresence();
+      // Второй шанс у приглашения ровно один — следующий день: 81,5% пар
+      // складываются в первый час, а одиночка после дня установки почти не
+      // возвращается. Пара появилась — напоминание снимаем.
+      unawaited(isPaired
+          ? InviteReminderService.instance.cancel()
+          : InviteReminderService.instance.scheduleIfSolo());
       // Подписка на подарки живёт по тем же правилам, что и пуши: пара
       // грузится асинхронно, и на момент initState её ещё нет. Если не
       // переподнять здесь, подарок доезжает только пушем — без анимации
@@ -1389,6 +1396,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       onMood: _showMoodPicker,
                       onCalendar: _openMoodCalendar,
                       onPost: _postPhoto,
+                      onLockedTap: _explainNeedsPartner,
                     ),
                   ),
                 ),
@@ -2870,6 +2878,30 @@ class _HomeScreenState extends State<HomeScreen> {
       case OnboardingStep.widget:
         setState(() => _selectedNavIndex = 1);
     }
+  }
+
+  /// Тап по кнопке, которая без пары не работает: объясняем и зовём позвать
+  /// партнёра. Молчаливая кнопка читается как поломка — а это первое, что
+  /// одиночка успевает потрогать.
+  void _explainNeedsPartner() {
+    final s = LocaleService.current;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+        content: Text(s.needsPartnerHint),
+        action: SnackBarAction(
+          label: s.invitePromptAction,
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) =>
+                  InvitePartnerScreen(pairData: _pairData, theme: _t),
+              settings: const RouteSettings(name: '/invite_partner'),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   /// «Скучаю» с карточки затихшего партнёра.

@@ -627,6 +627,9 @@ abstract class AppStrings {
   String get onboardingSkip;
 
   // ── Приглашение партнёра в слоте подсказки ──
+  String get needsPartnerHint;
+  String get inviteReminderTitle;
+  String get inviteReminderBody;
   String get invitePromptTitle;
   String get invitePromptBody;
   String get invitePromptAction;
@@ -2853,6 +2856,13 @@ class _RuStrings extends AppStrings {
   @override
   String get onboardingSkip => 'Пропустить';
 
+  @override
+  String get needsPartnerHint => 'Это работает вдвоём — позовите свою половину';
+  @override
+  String get inviteReminderTitle => 'Ваш код приглашения ещё активен';
+  @override
+  String get inviteReminderBody =>
+      'Напомните партнёру — вдвоём тут появятся чат, настроение и виджеты';
   @override
   String get invitePromptTitle => 'Позовите свою половину';
   @override
@@ -6325,6 +6335,13 @@ class _EnStrings extends AppStrings {
   @override
   String get onboardingSkip => 'Skip';
 
+  @override
+  String get needsPartnerHint => 'This one works in pairs — invite your other half';
+  @override
+  String get inviteReminderTitle => 'Your invite code is still active';
+  @override
+  String get inviteReminderBody =>
+      'Remind your partner — together you get chat, moods and widgets';
   @override
   String get invitePromptTitle => 'Invite your other half';
   @override
