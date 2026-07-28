@@ -75,6 +75,37 @@ class UiPrefs {
     await p.setBool(kWidgetPinned, true);
   }
 
+  /// Вид чата: `cozy` — наш (кривые углы, хвостики, лёгкий наклон, мордочки),
+  /// `material` — обычные пузыри Material 3 без украшений. Хранится локально:
+  /// это дело вкуса каждого, а не пары.
+  static const String kChatLook = 'chat_look';
+
+  static Future<bool> chatLookMaterial() async {
+    final p = await SharedPreferences.getInstance();
+    return (p.getString(kChatLook) ?? 'cozy') == 'material';
+  }
+
+  static Future<void> setChatLookMaterial(bool value) async {
+    final p = await SharedPreferences.getInstance();
+    await p.setString(kChatLook, value ? 'material' : 'cozy');
+  }
+
+  /// Узор фона чата (имя значения `ChatBackground`). По умолчанию «точки»:
+  /// самый нейтральный из семи — работает с любой из двадцати палитр и не
+  /// спорит с пузырями. Хранится локально, как и вид пузырей: это вкус
+  /// каждого, а общий фон-картинка пары живёт отдельно в `groups`.
+  static const String kChatBackground = 'chat_background_pattern';
+
+  static Future<String> chatBackground() async {
+    final p = await SharedPreferences.getInstance();
+    return p.getString(kChatBackground) ?? 'dots';
+  }
+
+  static Future<void> setChatBackground(String name) async {
+    final p = await SharedPreferences.getInstance();
+    await p.setString(kChatBackground, name);
+  }
+
   /// Когда в последний раз отправляли «Скучаю» с карточки затихшего партнёра
   /// (epoch ms). Ограничивает подсказку одним разом в сутки.
   static const String kQuietNudgeAt = 'quiet_partner_nudge_at';

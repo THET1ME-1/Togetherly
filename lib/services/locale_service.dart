@@ -626,6 +626,18 @@ abstract class AppStrings {
   String onboardingNext(String step);
   String get onboardingSkip;
 
+  // ── Чат: пустой экран и подсказки к кнопкам ──
+  String get chatEmptyTitle;
+  String get chatEmptyBody;
+  String get chatEmptyGhostTheirs;
+  String get chatEmptyGhostMine;
+  String get chatPinTooltip;
+  String get chatStyleTooltip;
+  String get chatLookMaterial;
+  String get chatLookCozy;
+  String get chatLookMaterialOn;
+  String get chatLookCozyOn;
+
   // ── Приглашение партнёра в слоте подсказки ──
   String get needsPartnerHint;
   String get inviteReminderTitle;
@@ -2856,6 +2868,27 @@ class _RuStrings extends AppStrings {
   @override
   String get onboardingSkip => 'Пропустить';
 
+  @override
+  String get chatEmptyTitle => 'Начните разговор';
+  @override
+  String get chatEmptyBody =>
+      'Цвет пузыря, мордочку и фон можно будет настроить — когда будет что настраивать.';
+  @override
+  String get chatEmptyGhostTheirs => 'Тут появится её сообщение';
+  @override
+  String get chatEmptyGhostMine => 'А тут ваше';
+  @override
+  String get chatPinTooltip => 'Прикрепить воспоминание';
+  @override
+  String get chatStyleTooltip => 'Оформление сообщения';
+  @override
+  String get chatLookMaterial => 'Обычные пузыри';
+  @override
+  String get chatLookCozy => 'Наши пузыри';
+  @override
+  String get chatLookMaterialOn => 'Обычный вид Material';
+  @override
+  String get chatLookCozyOn => 'Вернули наш вид';
   @override
   String get needsPartnerHint => 'Это работает вдвоём — позовите свою половину';
   @override
@@ -6343,6 +6376,27 @@ class _EnStrings extends AppStrings {
   @override
   String get onboardingSkip => 'Skip';
 
+  @override
+  String get chatEmptyTitle => 'Start the conversation';
+  @override
+  String get chatEmptyBody =>
+      'Bubble colour, the little face and the background are all adjustable — once there is something to adjust.';
+  @override
+  String get chatEmptyGhostTheirs => 'Their message goes here';
+  @override
+  String get chatEmptyGhostMine => 'And yours here';
+  @override
+  String get chatPinTooltip => 'Attach a memory';
+  @override
+  String get chatStyleTooltip => 'Message style';
+  @override
+  String get chatLookMaterial => 'Plain bubbles';
+  @override
+  String get chatLookCozy => 'Our bubbles';
+  @override
+  String get chatLookMaterialOn => 'Plain Material look';
+  @override
+  String get chatLookCozyOn => 'Our look is back';
   @override
   String get needsPartnerHint => 'This one works in pairs — invite your other half';
   @override

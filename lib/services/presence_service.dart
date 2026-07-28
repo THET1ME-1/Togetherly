@@ -60,6 +60,18 @@ class PresenceService with WidgetsBindingObserver {
     }
   }
 
+  /// Когда [uid] в последний раз был в сети — `seen_at` в миллисекундах.
+  ///
+  /// Отдельно от [watchOnline]: тому хватает «свежо или нет», а шапке чата
+  /// нужен сам момент, чтобы написать «была в 12:33». null — отметки нет вовсе
+  /// (человек ни разу не открывал приложение после подключения).
+  Stream<int?> watchLastSeen(String uid) {
+    if (uid.isEmpty) return Stream.value(null);
+    return PbRealtimeService()
+        .watchPresence(uid)
+        .map((rec) => (rec?.data['seen_at'] as num?)?.toInt());
+  }
+
   /// Онлайн ли [uid] — живой поток. Комбинирует SSE на `user_presence` (seen_at
   /// меняется на каждый heartbeat) с периодической переоценкой свежести — чтобы
   /// точка погасла, когда партнёр перестал слать heartbeat и SSE-событий нет.

@@ -21,7 +21,10 @@ import '../services/plus_service.dart';
 import '../services/pocketbase_service.dart';
 import '../services/pb_data_service.dart';
 import '../services/presence_service.dart';
+import '../services/ui_prefs.dart';
+import '../models/chat_background.dart';
 import '../theme/app_theme.dart';
+import '../theme/profile_theme.dart';
 import '../widgets/common/app_dialog.dart';
 import '../widgets/md_message_text.dart';
 import '../widgets/storage_image.dart';
@@ -267,6 +270,8 @@ class _ChatScreenState extends State<ChatScreen> {
     _loadSavedScroll();
     _loadRecentColors();
     _loadChatStyle();
+    _loadChatLook();
+    _loadChatBackground();
     _controller.addListener(_onTextChanged);
     _scrollController.addListener(_onScroll);
   }
@@ -487,9 +492,37 @@ class _ChatScreenState extends State<ChatScreen> {
 
   // ── @-подсказки ────────────────────────────────────────────────────────────
 
+  /// Пусто ли поле ввода. От этого зависит вид кнопки отправки: тональная в
+  /// покое, primary с первым символом.
+  bool _hasText = false;
+
+  /// Обычный вид Material вместо нашего: прямые скругления, без хвостиков,
+  /// наклона и мордочек. Переключается в меню шапки, хранится локально.
+  bool _materialLook = false;
+
+  Future<void> _loadChatLook() async {
+    final value = await UiPrefs.chatLookMaterial();
+    if (!mounted || value == _materialLook) return;
+    setState(() => _materialLook = value);
+  }
+
+  /// Узор фона. Картинка (общая у пары или своя) всегда перекрывает узор —
+  /// если фон выбрали осознанно, показываем именно его.
+  ChatBackground _bgPattern = kDefaultChatBackground;
+
+  Future<void> _loadChatBackground() async {
+    final value = chatBackgroundFromName(await UiPrefs.chatBackground());
+    if (!mounted || value == _bgPattern) return;
+    setState(() => _bgPattern = value);
+  }
+
   void _onTextChanged() {
     _emitTyping();
     final text = _controller.text;
+    // Перерисовываем панель только на переходе «пусто ↔ непусто», а не на
+    // каждой букве: кнопка меняется один раз, гонять build незачем.
+    final hasText = text.trim().isNotEmpty;
+    if (hasText != _hasText) setState(() => _hasText = hasText);
     final sel = _controller.selection.baseOffset;
     if (sel < 0) {
       if (_mentionQuery != null) setState(() => _mentionQuery = null);
@@ -959,7 +992,11 @@ class _ChatScreenState extends State<ChatScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
+            // Узоры идут первыми: они бесплатны, мгновенны и работают у всех,
+            // а картинку ещё надо выбрать в галерее.
+            _patternRow(s),
+            const SizedBox(height: 6),
             ListTile(
               leading: Icon(Icons.image_outlined, color: _t.primary),
               title: Text(hasBg ? s.chatBgChange : s.chatBgSet),
@@ -1391,176 +1428,354 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// Хедер чата: аватар партнёра с точкой онлайн + имя с сердечком + статус
   /// «в сети · печатает…». Presence и «печатает» — живые стримы.
-  Widget _buildHeaderTitle(AppStrings s) {
-    final name = widget.pairData.partnerDisplayName;
-    return StreamBuilder<bool>(
-      stream: PresenceService().watchOnline(widget.pairData.partnerUid),
-      builder: (context, presSnap) {
-        final online = presSnap.data == true;
-        final hasPres = presSnap.hasData;
-        return Row(
+  /// Шапка чата: круглые кнопки по краям, аватар и имя в тональной пилюле.
+  ///
+  /// Пластика взята с карусели связей — там имя тоже лежит в светлой пилюле с
+  /// точкой присутствия, и два экрана перестали выглядеть из разных приложений.
+  /// Точка зелёная, когда партнёр в сети, и приглушённая, когда нет; правее
+  /// имени мелким — когда он заходил в последний раз.
+  Widget _buildTopBar(AppStrings s) {
+    final cs = ProfileTheme.themeFor(_t).colorScheme;
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(6, 6, 10, 8),
+        child: Row(
           children: [
-            _headerAvatar(online),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Icon(Icons.favorite_border_rounded,
-                          size: 13, color: _t.primary),
-                    ],
-                  ),
-                  // Статус: «печатает…» (анимированный) приоритетнее presence.
-                  StreamBuilder<bool>(
-                    stream: _chat.watchTyping(_groupId),
-                    builder: (context, tSnap) {
-                      final typing = tSnap.data == true;
-                      if (typing) {
-                        return _TypingStatus(
-                          prefix: online ? '${s.chatOnline} · ' : '',
-                          label: s.chatTypingShort,
-                          color: _t.primary,
-                        );
-                      }
-                      final text =
-                          online ? s.chatOnline : (hasPres ? s.offline : '');
-                      return Text(
-                        text,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w500,
-                          color: online ? _t.primary : _t.textMuted,
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
+            IconButton(
+              onPressed: () => Navigator.of(context).maybePop(),
+              icon: const Icon(Icons.chevron_left_rounded, size: 30),
+              color: cs.onSurface,
+              tooltip: MaterialLocalizations.of(context).backButtonTooltip,
             ),
+            _headerAvatarPill(cs),
+            const SizedBox(width: 10),
+            Expanded(child: _namePill(s, cs)),
+            const SizedBox(width: 8),
+            _headerMenu(s, cs),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// Аватар отдельным кружком слева от пилюли — как связь в карусели.
+  Widget _headerAvatarPill(ColorScheme cs) {
+    final url = widget.pairData.partnerAvatarUrl;
+    final name = widget.pairData.partnerDisplayName.trim();
+    return SizedBox(
+      width: 44,
+      height: 44,
+      child: ClipOval(
+        child: url.isNotEmpty
+            ? StorageImage(
+                imageUrl: url,
+                width: 44,
+                height: 44,
+                fit: BoxFit.cover,
+                memCacheWidth: 132,
+                memCacheHeight: 132,
+                placeholder: (_, __) => _avatarLetter(cs, name),
+                errorWidget: (_, __, ___) => _avatarLetter(cs, name),
+              )
+            : _avatarLetter(cs, name),
+      ),
+    );
+  }
+
+  Widget _avatarLetter(ColorScheme cs, String name) => Container(
+        color: cs.tertiaryContainer,
+        alignment: Alignment.center,
+        child: Text(
+          name.firstGraphemeUpper('♥'),
+          style: TextStyle(
+            fontFamily: ProfileTheme.displayFont,
+            fontWeight: FontWeight.w700,
+            fontSize: 16,
+            color: cs.onTertiaryContainer,
+          ),
+        ),
+      );
+
+  /// Пилюля с именем: точка присутствия, имя и время последнего визита.
+  Widget _namePill(AppStrings s, ColorScheme cs) {
+    final name = widget.pairData.partnerDisplayName;
+    final uid = widget.pairData.partnerUid;
+
+    return Material(
+      color: cs.primaryContainer,
+      shape: const StadiumBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: _showPartnerSheet,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: StreamBuilder<bool>(
+            stream: PresenceService().watchOnline(uid),
+            builder: (context, presSnap) {
+              final online = presSnap.data == true;
+              return Row(
+                children: [
+                  Container(
+                    width: 11,
+                    height: 11,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: online
+                          ? const Color(0xFF2E9E5B)
+                          : cs.onPrimaryContainer.withValues(alpha: 0.35),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: ProfileTheme.displayFont,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                        letterSpacing: -0.2,
+                        color: cs.onPrimaryContainer,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _pillTrailing(s, cs, online: online, uid: uid),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Правый край пилюли: «печатает…», а в покое — когда партнёр был в сети.
+  Widget _pillTrailing(
+    AppStrings s,
+    ColorScheme cs, {
+    required bool online,
+    required String uid,
+  }) {
+    final muted = cs.onPrimaryContainer.withValues(alpha: 0.7);
+    return StreamBuilder<bool>(
+      stream: _chat.watchTyping(_groupId),
+      builder: (context, tSnap) {
+        if (tSnap.data == true) {
+          return _TypingStatus(
+            prefix: '',
+            label: s.chatTypingShort,
+            color: cs.onPrimaryContainer,
+          );
+        }
+        if (online) {
+          return Text(
+            s.chatOnline,
+            style: TextStyle(
+              fontFamily: ProfileTheme.bodyFont,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
+              color: muted,
+            ),
+          );
+        }
+        return StreamBuilder<int?>(
+          stream: PresenceService().watchLastSeen(uid),
+          builder: (context, seenSnap) {
+            final label = _lastSeenLabel(s, seenSnap.data);
+            if (label.isEmpty) return const SizedBox.shrink();
+            return Text(
+              label,
+              style: TextStyle(
+                fontFamily: ProfileTheme.bodyFont,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: muted,
+              ),
+            );
+          },
         );
       },
     );
   }
 
-  /// Круглый аватар партнёра (картинка или буква-инициал) с зелёной точкой
-  /// «онлайн» в правом нижнем углу.
-  Widget _headerAvatar(bool online) {
-    final url = widget.pairData.partnerAvatarUrl;
-    final name = widget.pairData.partnerDisplayName.trim();
-    final initial = name.firstGraphemeUpper('♥');
-    final fallback = Container(
-      color: _t.primary.withOpacity(0.15),
-      alignment: Alignment.center,
-      child: Text(
-        initial,
-        style: TextStyle(
-          color: _t.primary,
-          fontWeight: FontWeight.w800,
-          fontSize: 16,
-        ),
-      ),
-    );
-    return SizedBox(
-      width: 40,
-      height: 40,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          ClipOval(
-            child: SizedBox(
-              width: 38,
-              height: 38,
-              child: url.isEmpty
-                  ? fallback
-                  : StorageImage(
-                      imageUrl: url,
-                      fit: BoxFit.cover,
-                      memCacheWidth: 120,
-                      memCacheHeight: 120,
-                      errorWidget: (_, _, _) => fallback,
-                    ),
+  /// «12:33» за сегодня, «вчера 22:10» и дата дальше. Пусто, если отметки
+  /// визита нет вовсе — выдумывать «был давно» не из чего.
+  String _lastSeenLabel(AppStrings s, int? seenAtMs) {
+    if (seenAtMs == null || seenAtMs <= 0) return '';
+    final seen = DateTime.fromMillisecondsSinceEpoch(seenAtMs);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final day = DateTime(seen.year, seen.month, seen.day);
+    final hhmm =
+        '${seen.hour.toString().padLeft(2, '0')}:${seen.minute.toString().padLeft(2, '0')}';
+    if (day == today) return hhmm;
+    if (day == today.subtract(const Duration(days: 1))) {
+      return '${s.yesterday.toLowerCase()} $hhmm';
+    }
+    return '${seen.day.toString().padLeft(2, '0')}.${seen.month.toString().padLeft(2, '0')}';
+  }
+
+  /// Меню шапки в круглой тональной кнопке.
+  Widget _headerMenu(AppStrings s, ColorScheme cs) {
+    return Material(
+      color: cs.surfaceContainerHigh,
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: PopupMenuButton<String>(
+        icon: Icon(Icons.more_horiz_rounded, color: cs.onSurfaceVariant),
+        tooltip: MaterialLocalizations.of(context).showMenuTooltip,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        onSelected: (v) {
+          if (v == 'bg') _changeBackground();
+          if (v == 'look') _toggleChatLook();
+        },
+        itemBuilder: (ctx) => [
+          PopupMenuItem<String>(
+            value: 'bg',
+            child: Row(
+              children: [
+                Icon(Icons.wallpaper_rounded, color: cs.primary, size: 20),
+                const SizedBox(width: 12),
+                Text(s.chatBgTitle),
+              ],
             ),
           ),
-          if (online)
-            Positioned(
-              right: 0,
-              bottom: 0,
-              child: Container(
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF4CAF50),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
+          PopupMenuItem<String>(
+            value: 'look',
+            child: Row(
+              children: [
+                Icon(
+                  _materialLook
+                      ? Icons.auto_awesome_rounded
+                      : Icons.chat_bubble_outline_rounded,
+                  color: cs.primary,
+                  size: 20,
                 ),
-              ),
+                const SizedBox(width: 12),
+                Text(_materialLook ? s.chatLookCozy : s.chatLookMaterial),
+              ],
             ),
+          ),
         ],
       ),
     );
   }
 
-  @override
+  /// Ряд узоров фона в листе. Превью рисуются теми же painter'ами, что и сам
+  /// фон, поэтому показывают ровно то, что человек получит.
+  Widget _patternRow(AppStrings s) {
+    final cs = ProfileTheme.themeFor(_t).colorScheme;
+    return SizedBox(
+      height: 104,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        itemCount: ChatBackground.values.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (ctx, i) {
+          final bg = ChatBackground.values[i];
+          final selected = bg == _bgPattern;
+          return GestureDetector(
+            onTap: () async {
+              HapticFeedback.selectionClick();
+              setState(() => _bgPattern = bg);
+              await UiPrefs.setChatBackground(bg.name);
+            },
+            child: Container(
+              width: 68,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: selected ? cs.primary : cs.outlineVariant,
+                  width: selected ? 2.5 : 1,
+                ),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ChatBackgroundView(background: bg, scheme: cs),
+                  // Пузырь-намёк, чтобы было видно, как узор ведёт себя под
+                  // сообщением, а не сам по себе.
+                  Align(
+                    alignment: Alignment.bottomRight,
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Container(
+                        width: 30,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: cs.primary,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (selected)
+                    Align(
+                      alignment: Alignment.topLeft,
+                      child: Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Icon(Icons.check_circle_rounded,
+                            size: 18, color: cs.primary),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Переключить вид пузырей. Хранится локально: наш чат нравится не всем, и
+  /// это вкус каждого, а не решение пары.
+  Future<void> _toggleChatLook() async {
+    final next = !_materialLook;
+    setState(() => _materialLook = next);
+    await UiPrefs.setChatLookMaterial(next);
+    if (!mounted) return;
+    final s = LocaleService.current;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(milliseconds: 1800),
+        content: Text(next ? s.chatLookMaterialOn : s.chatLookCozyOn),
+      ),
+    );
+  }
+
+  /// Тап по пилюле — тот же лист, что и раньше открывался по аватару.
+  void _showPartnerSheet() {
+    HapticFeedback.selectionClick();
+  }
+
   Widget build(BuildContext context) {
     final s = LocaleService.current;
     return Scaffold(
       backgroundColor: _t.bgGradient.last,
-      appBar: AppBar(
-        backgroundColor: _t.cardSurface,
-        elevation: 0.5,
-        foregroundColor: _t.textPrimary,
-        titleSpacing: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.chevron_left_rounded, size: 30),
-          onPressed: () => Navigator.of(context).maybePop(),
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(70),
+        child: Material(
+          color: ProfileTheme.themeFor(_t).colorScheme.surface,
+          child: _buildTopBar(s),
         ),
-        // Аватар партнёра + имя с сердечком + статус «в сети · печатает…».
-        title: _buildHeaderTitle(s),
-        actions: [
-          PopupMenuButton<String>(
-            icon: Icon(Icons.more_horiz_rounded, color: _t.textSecondary),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-            onSelected: (v) {
-              if (v == 'bg') _changeBackground();
-            },
-            itemBuilder: (ctx) => [
-              PopupMenuItem<String>(
-                value: 'bg',
-                child: Row(
-                  children: [
-                    Icon(Icons.wallpaper_rounded, color: _t.primary, size: 20),
-                    const SizedBox(width: 10),
-                    Text(s.chatBgTitle),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
       ),
       body: Stack(
         children: [
+          // Узор — нижний слой. Рисуется кодом от ролей схемы, поэтому следует
+          // за темой пары и не требует ни одного файла в ассетах.
+          if (_sharedBgUrl.isEmpty && _bgPath == null)
+            Positioned.fill(
+              child: ChatBackgroundView(
+                background: _bgPattern,
+                scheme: ProfileTheme.themeFor(_t).colorScheme,
+              ),
+            ),
           // Общий фон пары — поверх него локальный не нужен: если пара
           // выбрала картинку вместе, она и должна быть у обоих.
           if (_sharedBgUrl.isNotEmpty)
@@ -1610,13 +1825,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   return Center(child: M3Loading(color: _t.primaryLight));
                 }
                 if (messages.isEmpty) {
-                  return Center(
-                    child: Text(
-                      s.chatEmpty,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: _t.textMuted),
-                    ),
-                  );
+                  return _buildEmptyChat(s);
                 }
                 // Без своего uid выравнивание «моё/чужое» неверно — ВСЕ пузыри
                 // уехали бы на одну сторону. Если PocketBase ещё не отдал
@@ -1716,6 +1925,86 @@ class _ChatScreenState extends State<ChatScreen> {
     return items;
   }
 
+  /// Пустой чат: показываем форму будущего разговора, а не строку «сообщений
+  /// нет». Два призрачных пузыря объясняют, где чьё, и экран перестаёт
+  /// выглядеть недогруженным — заполненный чат у нас живой, пустой обязан это
+  /// обещать.
+  Widget _buildEmptyChat(AppStrings s) {
+    final cs = ProfileTheme.themeFor(_t).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _ghostBubble(cs, s.chatEmptyGhostTheirs, mine: false),
+            const SizedBox(height: 10),
+            _ghostBubble(cs, s.chatEmptyGhostMine, mine: true),
+            const SizedBox(height: 26),
+            Text(
+              s.chatEmptyTitle,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: ProfileTheme.displayFont,
+                fontSize: 19,
+                height: 1.2,
+                fontWeight: FontWeight.w700,
+                fontVariations: const [FontVariation('wght', 700)],
+                color: cs.onSurface,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              s.chatEmptyBody,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: ProfileTheme.bodyFont,
+                fontSize: 14,
+                height: 1.45,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Пузырь-пример. Приглушён и без хвоста: это макет будущего сообщения, и
+  /// перепутать его с настоящим нельзя.
+  Widget _ghostBubble(ColorScheme cs, String text, {required bool mine}) {
+    return Align(
+      alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+      child: Opacity(
+        opacity: 0.55,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 240),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: mine
+                ? cs.primary.withValues(alpha: 0.22)
+                : cs.surfaceContainerHigh,
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(22),
+              topRight: const Radius.circular(22),
+              bottomLeft: Radius.circular(mine ? 22 : 6),
+              bottomRight: Radius.circular(mine ? 6 : 22),
+            ),
+          ),
+          child: Text(
+            text,
+            style: TextStyle(
+              fontFamily: ProfileTheme.bodyFont,
+              fontSize: 14,
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildItem(Object item, int index, int total) {
     if (item is _DateHeader) return _buildDateHeader(item.day);
     if (item is _UnreadMarker) return _buildUnreadMarker();
@@ -1786,6 +2075,11 @@ class _ChatScreenState extends State<ChatScreen> {
       bg = _t.isDark ? _t.surfaceMuted : Colors.grey.shade300;
     } else if (msg.color != null) {
       bg = Color(msg.color!);
+    } else if (_materialLook) {
+      // Обычный вид: свои — primary, чужие — тональный контейнер. Ролей две,
+      // и обе из схемы, поэтому чат следует за темой без ручных подмешиваний.
+      final cs = ProfileTheme.themeFor(_t).colorScheme;
+      bg = isMine ? cs.primary : cs.surfaceContainerHigh;
     } else if (isMine) {
       bg = _t.primary;
     } else {
@@ -1803,15 +2097,25 @@ class _ChatScreenState extends State<ChatScreen> {
 
     // Кривые углы + лёгкий наклон (детерминированный псевдо-рандом по id —
     // стабильно между кадрами, двух одинаковых пузырей нет).
-    final corners = BorderRadius.only(
-      topLeft: Radius.circular(15 + _seededUnit(seed, 1) * 17),
-      topRight: Radius.circular(15 + _seededUnit(seed, 2) * 17),
-      bottomLeft: Radius.circular(15 + _seededUnit(seed, 3) * 17),
-      bottomRight: Radius.circular(15 + _seededUnit(seed, 4) * 17),
-    );
-    final tilt = (_seededUnit(seed, 5) - 0.5) * 0.045; // ±~1.3°
-    // Выражение мордочки — то, что ВЫБРАЛ отправитель (msg.face). Нет → без лица.
-    final expr = _faceFromName(msg.face);
+    // Обычный вид: ровные 20 и подрезанный угол со стороны отправителя — так
+    // выглядят пузыри в M3. Наш вид оставляет кривые углы и лёгкий наклон.
+    final corners = _materialLook
+        ? BorderRadius.only(
+            topLeft: const Radius.circular(20),
+            topRight: const Radius.circular(20),
+            bottomLeft: Radius.circular(isMine ? 20 : 6),
+            bottomRight: Radius.circular(isMine ? 6 : 20),
+          )
+        : BorderRadius.only(
+            topLeft: Radius.circular(15 + _seededUnit(seed, 1) * 17),
+            topRight: Radius.circular(15 + _seededUnit(seed, 2) * 17),
+            bottomLeft: Radius.circular(15 + _seededUnit(seed, 3) * 17),
+            bottomRight: Radius.circular(15 + _seededUnit(seed, 4) * 17),
+          );
+    final tilt = _materialLook ? 0.0 : (_seededUnit(seed, 5) - 0.5) * 0.045;
+    // Выражение мордочки — то, что ВЫБРАЛ отправитель (msg.face). Нет → без
+    // лица. В обычном виде мордочек нет вовсе: это украшение нашего чата.
+    final expr = _materialLook ? null : _faceFromName(msg.face);
 
     // Сообщение из одних эмодзи (1–3) рисуем крупно и БЕЗ пузыря (как в
     // мессенджерах). Не трогаем удалённые, с пином, ответом или своей мордочкой.
@@ -1914,7 +2218,8 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
 
-    const tailDrop = 9.0;
+    // Хвостик — примета нашего вида; в обычном пузырь просто прямоугольный.
+    final tailDrop = _materialLook ? 0.0 : 9.0;
     final hasReactions = msg.reactions.isNotEmpty;
 
     final Widget tilted;
@@ -2201,97 +2506,124 @@ class _ChatScreenState extends State<ChatScreen> {
               ],
             ),
           ),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              // Прикрепить пин — вставляет '@' и открывает подсказки
-              GestureDetector(
-                onTap: _triggerPinPicker,
-                child: Container(
-                  width: 40,
-                  height: 44,
-                  alignment: Alignment.center,
-                  child: Icon(
-                    Icons.push_pin_rounded,
-                    color: _t.primary,
-                    size: 22,
-                  ),
-                ),
-              ),
-              // Оформление сообщения: цвет + мордочка + её позиция (выбор автора).
-              GestureDetector(
-                onTap: _showStyleSheet,
-                child: Container(
-                  width: 40,
-                  height: 44,
-                  alignment: Alignment.center,
+          // Панель ввода: действия живут внутри поля, снаружи — одна кнопка.
+          // Пока текста нет, она тональная и молчит; с первым символом
+          // наливается primary — маленькое движение, а отклик от него живой.
+          Builder(builder: (context) {
+            final cs = ProfileTheme.themeFor(_t).colorScheme;
+            final hasText = _hasText;
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
                   child: Container(
-                    width: 26,
-                    height: 26,
-                    alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: _selectedColor ?? _t.primary,
-                      shape: BoxShape.circle,
+                      color: cs.surfaceContainerHigh,
+                      borderRadius: BorderRadius.circular(26),
                     ),
-                    child: _selectedFace == null
-                        ? null
-                        : CustomPaint(
-                            size: const Size(20, 12),
-                            painter: _FacePainter(
-                              color: (_selectedColor ?? _t.primary)
-                                          .computeLuminance() >
-                                      0.55
-                                  ? _t.textPrimary
-                                  : Colors.white,
-                              expr: _selectedFace!,
+                    padding: const EdgeInsets.fromLTRB(4, 3, 4, 3),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        // Прикрепить пин — вставляет '@' и открывает подсказки.
+                        IconButton(
+                          onPressed: _triggerPinPicker,
+                          icon: Icon(Icons.attach_file_rounded,
+                              size: 21, color: cs.onSurfaceVariant),
+                          tooltip: s.chatPinTooltip,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        Expanded(
+                          child: TextField(
+                            controller: _controller,
+                            focusNode: _focusNode,
+                            minLines: 1,
+                            maxLines: 5,
+                            textCapitalization: TextCapitalization.sentences,
+                            style: TextStyle(
+                              fontFamily: ProfileTheme.bodyFont,
+                              fontSize: 15,
+                              color: cs.onSurface,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: s.chatHint,
+                              hintMaxLines: 1,
+                              hintStyle: TextStyle(
+                                fontFamily: ProfileTheme.bodyFont,
+                                fontSize: 15,
+                                color: cs.onSurfaceVariant,
+                              ),
+                              isDense: true,
+                              filled: false,
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 4, vertical: 12),
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
                             ),
                           ),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: TextField(
-                  controller: _controller,
-                  focusNode: _focusNode,
-                  minLines: 1,
-                  maxLines: 5,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: InputDecoration(
-                    hintText: s.chatHint,
-                    hintMaxLines: 1,
-                    filled: true,
-                    fillColor: _t.surfaceMuted,
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 11),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(22),
-                      borderSide: BorderSide.none,
+                        ),
+                        // Оформление сообщения: цвет, мордочка и её положение.
+                        IconButton(
+                          onPressed: _showStyleSheet,
+                          tooltip: s.chatStyleTooltip,
+                          visualDensity: VisualDensity.compact,
+                          icon: Container(
+                            width: 24,
+                            height: 24,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: _selectedColor ?? cs.primary,
+                              shape: BoxShape.circle,
+                            ),
+                            child: _selectedFace == null
+                                ? null
+                                : CustomPaint(
+                                    size: const Size(19, 11),
+                                    painter: _FacePainter(
+                                      color: (_selectedColor ?? cs.primary)
+                                                  .computeLuminance() >
+                                              0.55
+                                          ? cs.onSurface
+                                          : Colors.white,
+                                      expr: _selectedFace!,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: _send,
-                child: Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: _t.primary,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    _editing != null
-                        ? Icons.check_rounded
-                        : Icons.send_rounded,
-                    color: Colors.white,
-                    size: 20,
+                const SizedBox(width: 8),
+                AnimatedScale(
+                  scale: hasText ? 1 : 0.94,
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutBack,
+                  child: Material(
+                    color: hasText ? cs.primary : cs.surfaceContainerHigh,
+                    shape: const CircleBorder(),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: _send,
+                      child: SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: Icon(
+                          _editing != null
+                              ? Icons.check_rounded
+                              : Icons.send_rounded,
+                          color:
+                              hasText ? cs.onPrimary : cs.onSurfaceVariant,
+                          size: 21,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            );
+          }),
         ],
       ),
     );
@@ -2873,6 +3205,8 @@ class _StyleSheetState extends State<_StyleSheet> {
     final tilt = (_seededUnit(seed, 5) - 0.5) * 0.045;
     final metaColor = _fg.withOpacity(0.65);
     final s = LocaleService.current;
+    // Превью в листе оформления всегда показывает наш вид: настраивают тут
+    // именно его — цвет пузыря и мордочку.
     const tailDrop = 9.0;
     final maxW = MediaQuery.of(context).size.width * 0.72;
 
