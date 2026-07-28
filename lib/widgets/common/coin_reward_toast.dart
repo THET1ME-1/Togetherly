@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../services/locale_service.dart';
@@ -12,6 +14,13 @@ import '../../theme/profile_theme.dart';
 /// Цвета берём из схемы (`inverseSurface` — та самая роль, на которой M3 строит
 /// снекбары), а не из захардкоженного тёмно-синего: на тёплых темах он выпадал
 /// из оформления.
+///
+/// Движение построено вокруг монеты, а не вокруг прямоугольника. Плашка
+/// прилетает снизу с пружинным перелётом, монета в это время переворачивается
+/// ребром, как настоящая, число набегает счётчиком. На уходе плашка схлопывается
+/// обратно в монету — ширина стягивается к левому краю, текст гаснет раньше — и
+/// монета улетает вверх. Форма при этом всё время остаётся стадионом, поэтому
+/// схлопывание читается как превращение в кружок.
 ///
 /// Использование:
 ///   CoinRewardToast.show(context, amount: 5, label: 'Ежедневный вход');
@@ -82,60 +91,50 @@ class _CoinToastWidget extends StatefulWidget {
 
 class _CoinToastWidgetState extends State<_CoinToastWidget>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double> _opacity;
-  late final Animation<Offset> _slide;
-  late final Animation<double> _scale;
+  // ── Раскадровка (мс) ──
+  // Полная длина держит паузу, за которую награду успевают прочитать; всё
+  // движение живёт по краям, середина неподвижна.
+  static const int _total = 2900;
+  static const int _enterEnd = 460; // прилёт плашки
+  static const int _coinEnd = 780; // переворот монеты и её пружина
+  static const int _countEnd = 760; // счётчик добегает до числа
+  static const int _collapseStart = 2280; // плашка начинает схлопываться
+  static const int _collapseEnd = 2620; // остаётся один кружок монеты
+  static const int _flyEnd = 2900; // монета уходит вверх
 
-  /// M3-кривые: входит с emphasized decelerate, уходит с emphasized accelerate.
-  static const Curve _enter = Cubic(0.05, 0.7, 0.1, 1);
-  static const Curve _exit = Cubic(0.3, 0, 0.8, 0.15);
+  /// Кривые M3: входит с emphasized decelerate, уходит с emphasized accelerate.
+  static const Curve _decelerate = Cubic(0.05, 0.7, 0.1, 1);
+  static const Curve _accelerate = Cubic(0.3, 0, 0.8, 0.15);
+
+  /// Пружинный перелёт на прилёте. Собственная кривая вместо easeOutBack:
+  /// у неё перелёт мягче и без «отскока в минус» на старте.
+  static const Curve _overshoot = Cubic(0.2, 1.35, 0.35, 1);
+
+  late final AnimationController _ctrl;
+
+  double _t(int ms) => ms / _total;
 
   @override
   void initState() {
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2600),
-    );
-
-    _opacity = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 12),
-      TweenSequenceItem(tween: ConstantTween(1.0), weight: 63),
-      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 25),
-    ]).animate(_ctrl);
-
-    _slide = TweenSequence<Offset>([
-      TweenSequenceItem(
-        tween: Tween(begin: const Offset(0, 0.5), end: Offset.zero)
-            .chain(CurveTween(curve: _enter)),
-        weight: 15,
-      ),
-      TweenSequenceItem(tween: ConstantTween(Offset.zero), weight: 60),
-      TweenSequenceItem(
-        tween: Tween(begin: Offset.zero, end: const Offset(0, -0.5))
-            .chain(CurveTween(curve: _exit)),
-        weight: 25,
-      ),
-    ]).animate(_ctrl);
-
-    // Лёгкий пружинный доворот на входе — плашка «прилетает», а не проявляется.
-    _scale = TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween(begin: 0.88, end: 1.0)
-            .chain(CurveTween(curve: Curves.easeOutBack)),
-        weight: 18,
-      ),
-      TweenSequenceItem(tween: ConstantTween(1.0), weight: 82),
-    ]).animate(_ctrl);
-
-    _ctrl.forward().then((_) => widget.onDone());
+      duration: const Duration(milliseconds: _total),
+    )..forward().then((_) => widget.onDone());
   }
 
   @override
   void dispose() {
     _ctrl.dispose();
     super.dispose();
+  }
+
+  /// Значение 0…1 внутри отрезка раскадровки.
+  double _phase(double v, int fromMs, int toMs, {Curve curve = Curves.linear}) {
+    final from = _t(fromMs), to = _t(toMs);
+    if (v <= from) return 0;
+    if (v >= to) return 1;
+    return curve.transform((v - from) / (to - from));
   }
 
   @override
@@ -148,47 +147,146 @@ class _CoinToastWidgetState extends State<_CoinToastWidget>
       left: 0,
       right: 0,
       child: IgnorePointer(
-        child: AnimatedBuilder(
-          animation: _ctrl,
-          builder: (_, child) => FadeTransition(
-            opacity: _opacity,
-            child: SlideTransition(
-              position: _slide,
-              child: ScaleTransition(scale: _scale, child: child),
-            ),
-          ),
-          child: Center(
-            child: Material(
-              // Обёртка обязательна: в оверлее нет Material-предка, и текст
-              // рисуется отладочным жёлтым с двойным подчёркиванием.
-              color: cs.inverseSurface,
-              // Плашка всплывает поверх любого экрана, поэтому небольшая тень
-              // тут уместна: тональности для отделения не хватает.
-              elevation: 3,
-              shadowColor: Colors.black26,
-              shape: const StadiumBorder(),
-              clipBehavior: Clip.antiAlias,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 12, 22, 12),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _Coin(scheme: cs),
-                    const SizedBox(width: 12),
-                    Column(
+        child: Center(
+          child: AnimatedBuilder(
+            animation: _ctrl,
+            builder: (context, child) {
+              final v = _ctrl.value;
+
+              final enter = _phase(v, 0, _enterEnd, curve: _overshoot);
+              final collapse =
+                  _phase(v, _collapseStart, _collapseEnd, curve: _accelerate);
+              final fly = _phase(v, _collapseEnd, _flyEnd, curve: _accelerate);
+
+              // Появление: подъём снизу с перелётом. Уход: короткий рывок вверх
+              // уже схлопнутой монеты.
+              final dy = (1 - enter) * 34 - fly * 22;
+              final scale = 0.88 + 0.12 * enter;
+              final opacity = _phase(v, 0, 170) * (1 - fly);
+
+              // Ширина стягивается к левому краю, где сидит монета: плашка
+              // складывается в кружок, а не просто уезжает.
+              final widthFactor = 1 - collapse * 0.68;
+
+              return Opacity(
+                opacity: opacity.clamp(0.0, 1.0),
+                child: Transform.translate(
+                  offset: Offset(0, dy),
+                  child: Transform.scale(
+                    scale: scale,
+                    child: Material(
+                      // Обёртка обязательна: в оверлее нет Material-предка, и
+                      // текст рисуется отладочным жёлтым с подчёркиванием.
+                      color: cs.inverseSurface,
+                      // Плашка всплывает поверх любого экрана, поэтому тень тут
+                      // уместна: одной тональности для отделения не хватает.
+                      elevation: 3,
+                      shadowColor: Colors.black26,
+                      shape: const StadiumBorder(),
+                      clipBehavior: Clip.antiAlias,
+                      child: ClipRect(
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          widthFactor: widthFactor,
+                          child: child,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(13, 11, 22, 11),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AnimatedBuilder(
+                    animation: _ctrl,
+                    builder: (_, coin) {
+                      final v = _ctrl.value;
+                      final spin = _phase(v, 0, _coinEnd, curve: _decelerate);
+                      final pop = _phase(v, 0, _coinEnd, curve: _overshoot);
+                      // Монета входит ребром и доворачивается до лица —
+                      // полоборота вокруг вертикальной оси.
+                      final angle = (1 - spin) * math.pi / 2;
+                      // На схлопывании чуть подрастает: кружок будто вбирает
+                      // в себя всю плашку.
+                      final grow = 1 +
+                          0.08 *
+                              _phase(v, _collapseStart, _collapseEnd,
+                                  curve: _decelerate);
+                      return Transform.scale(
+                        scale: (0.5 + 0.5 * pop) * grow,
+                        child: Transform(
+                          alignment: Alignment.center,
+                          transform: Matrix4.identity()
+                            ..setEntry(3, 2, 0.0015)
+                            ..rotateY(angle),
+                          child: coin,
+                        ),
+                      );
+                    },
+                    child: Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: cs.inversePrimary.withValues(alpha: 0.28),
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: Image.asset(
+                        'assets/images/icons/coin.webp',
+                        width: 24,
+                        height: 24,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Текст гаснет раньше, чем стянется ширина: иначе буквы
+                  // видно, как их режет край плашки.
+                  AnimatedBuilder(
+                    animation: _ctrl,
+                    builder: (_, textChild) {
+                      final v = _ctrl.value;
+                      final out =
+                          _phase(v, _collapseStart, _collapseStart + 140);
+                      final appear = _phase(v, 90, 300, curve: _decelerate);
+                      return Opacity(
+                        opacity: (appear * (1 - out)).clamp(0.0, 1.0),
+                        child: Transform.translate(
+                          offset: Offset((1 - appear) * -8, 0),
+                          child: textChild,
+                        ),
+                      );
+                    },
+                    child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          s.coinsPlus(widget.amount),
-                          style: TextStyle(
-                            fontFamily: ProfileTheme.displayFont,
-                            fontSize: 17,
-                            height: 1.15,
-                            fontWeight: FontWeight.w700,
-                            fontVariations: const [FontVariation('wght', 700)],
-                            color: cs.onInverseSurface,
-                          ),
+                        // Число набегает счётчиком — награда чувствуется
+                        // начислением, а не готовым фактом.
+                        AnimatedBuilder(
+                          animation: _ctrl,
+                          builder: (context, _) {
+                            final grow = _phase(_ctrl.value, 120, _countEnd,
+                                curve: Curves.easeOutCubic);
+                            final shown =
+                                (widget.amount * grow).ceil().clamp(1, widget.amount);
+                            return Text(
+                              s.coinsPlus(shown),
+                              style: TextStyle(
+                                fontFamily: ProfileTheme.displayFont,
+                                fontSize: 17,
+                                height: 1.15,
+                                fontWeight: FontWeight.w700,
+                                fontVariations: const [
+                                  FontVariation('wght', 700)
+                                ],
+                                color: cs.onInverseSurface,
+                              ),
+                            );
+                          },
                         ),
                         if (widget.label != null && widget.label!.isNotEmpty)
                           Padding(
@@ -206,67 +304,11 @@ class _CoinToastWidgetState extends State<_CoinToastWidget>
                           ),
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Монета в тональном кружке: на тёмной плашке светлая иконка сама по себе
-/// теряется, а круг задаёт ей место и повторяет форму самой плашки.
-class _Coin extends StatefulWidget {
-  const _Coin({required this.scheme});
-
-  final ColorScheme scheme;
-
-  @override
-  State<_Coin> createState() => _CoinState();
-}
-
-class _CoinState extends State<_Coin> with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double> _scale;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 700),
-    );
-    _scale = Tween(begin: 0.4, end: 1.0)
-        .chain(CurveTween(curve: Curves.elasticOut))
-        .animate(_ctrl);
-    _ctrl.forward();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ScaleTransition(
-      scale: _scale,
-      child: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: widget.scheme.inversePrimary.withValues(alpha: 0.28),
-          shape: BoxShape.circle,
-        ),
-        alignment: Alignment.center,
-        child: Image.asset(
-          'assets/images/icons/coin.webp',
-          width: 24,
-          height: 24,
         ),
       ),
     );
