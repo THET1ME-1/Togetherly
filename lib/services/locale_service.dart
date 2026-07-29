@@ -641,6 +641,9 @@ abstract class AppStrings {
   /// Подпись под полем заголовка в форме записи.
   String get titleFieldHint;
 
+  /// Название типа записи в открытом воспоминании.
+  String memoryTypeName(String type);
+
   // ── Выбор символа таймера ──
   String get symbolPickerTitle;
   String get symbolPickerAll;
@@ -718,6 +721,9 @@ abstract class AppStrings {
   // ── Memory Lane Screen ──
   String get memoryLane;
   String get addMemoryBtn;
+
+  /// Кнопка внизу формы записи.
+  String get addMemoryToFeed;
   String get pinned;
 
   // ── Timer Card ──
@@ -881,6 +887,9 @@ abstract class AppStrings {
   // ── Memory date picker ──
   String get memoryDateLabel;
   String get memoryDateNow;
+
+  /// Короткая подпись чипа даты в форме записи.
+  String get dateNowLabel;
   String get memoryDatePickDate;
   String get memoryDatePickTime;
   String get memoryDateClear;
@@ -2920,6 +2929,17 @@ class _RuStrings extends AppStrings {
   @override
   String get titleFieldHint => 'Появится в ленте над фотографией';
   @override
+  String memoryTypeName(String type) => switch (type) {
+        'photo' => 'Фотография',
+        'video' => 'Видео',
+        'location' => 'Локация',
+        'music' => 'Музыка',
+        'text' => 'Заметка',
+        'videoLink' => 'Видео по ссылке',
+        'book' => 'Книга',
+        _ => 'Кино',
+      };
+  @override
   String get symbolPickerTitle => 'Символ';
   @override
   String get symbolPickerAll => 'Все';
@@ -3072,6 +3092,8 @@ class _RuStrings extends AppStrings {
   String get memoryLane => 'Лента воспоминаний';
   @override
   String get addMemoryBtn => 'Добавить';
+  @override
+  String get addMemoryToFeed => 'Добавить в ленту';
   @override
   String get pinned => 'Закреплено';
 
@@ -3393,6 +3415,8 @@ class _RuStrings extends AppStrings {
   String get memoryDateLabel => 'Когда это было';
   @override
   String get memoryDateNow => 'Сейчас (момент создания)';
+  @override
+  String get dateNowLabel => 'Сейчас';
   @override
   String get memoryDatePickDate => 'Дата';
   @override
@@ -6472,6 +6496,17 @@ class _EnStrings extends AppStrings {
   @override
   String get titleFieldHint => 'Shown in the feed above the photo';
   @override
+  String memoryTypeName(String type) => switch (type) {
+        'photo' => 'Photo',
+        'video' => 'Video',
+        'location' => 'Location',
+        'music' => 'Music',
+        'text' => 'Note',
+        'videoLink' => 'Video link',
+        'book' => 'Book',
+        _ => 'Movie',
+      };
+  @override
   String get symbolPickerTitle => 'Symbol';
   @override
   String get symbolPickerAll => 'All';
@@ -6619,6 +6654,8 @@ class _EnStrings extends AppStrings {
   String get memoryLane => 'Memory Lane';
   @override
   String get addMemoryBtn => 'Add Memory';
+  @override
+  String get addMemoryToFeed => 'Add to the feed';
   @override
   String get pinned => 'Pinned';
 
@@ -6946,6 +6983,8 @@ class _EnStrings extends AppStrings {
   String get memoryDateLabel => 'When was it';
   @override
   String get memoryDateNow => 'Now (at creation)';
+  @override
+  String get dateNowLabel => 'Now';
   @override
   String get memoryDatePickDate => 'Date';
   @override

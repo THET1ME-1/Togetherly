@@ -11,10 +11,10 @@ import '../models/memory.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/profile_theme.dart';
-import '../widgets/memory_date_field.dart';
 
 import 'map_picker_screen.dart';
 import '../services/plus_access.dart';
+import '../widgets/app_sheet.dart';
 import '../services/plus_service.dart';
 
 /// type авто-определяется: фото → photo, видео → video, без медиа → text.
@@ -253,180 +253,467 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
 
   // ── Build ───────────────────────────────────────────────────────────────────
 
-  /// Схема M3 экрана. Форма собрана на ролях (`surfaceContainer`, `primary`,
-  /// `outline`), а не на цветах старой темы: зелёная кнопка «На карте» и синяя
-  /// «Текущее» были единственными чужими акцентами в фиолетовом приложении.
+  /// Схема M3 экрана: цвета берём ролями, а не из старой темы.
   ColorScheme get _cs => ProfileTheme.themeFor(widget.theme).colorScheme;
+
+  /// Выбранное место человеку видно строкой чипа.
+  bool get _hasPlace => _lat != null && _lng != null;
 
   @override
   Widget build(BuildContext context) {
     final cs = _cs;
-    final s = LocaleService.current;
+    final media = MediaQuery.of(context);
 
     return Theme(
       data: ProfileTheme.data(cs),
       child: Scaffold(
         backgroundColor: cs.surface,
-        appBar: _buildAppBar(cs, s),
-        body: SingleChildScrollView(
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildPhotoPicker(cs.primary),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildTitleField(s),
-                    const SizedBox(height: 12),
-                    _buildCaptionField(s),
-                    const SizedBox(height: 18),
-                    _sectionLabel(s.location, cs),
-                    const SizedBox(height: 8),
-                    _buildLocationSection(cs.primary, s),
-                    const SizedBox(height: 18),
-                    // Настройки записи — одна карточка: раньше «18+» и «Когда
-                    // это было» были двумя блоками с разной геометрией.
-                    Container(
-                      decoration: BoxDecoration(
-                        color: cs.surfaceContainerLow,
-                        borderRadius: BorderRadius.circular(22),
-                      ),
-                      child: Column(
-                        children: [
-                          _buildAdultToggle(s),
-                          Divider(
-                            height: 1,
-                            indent: 16,
-                            endIndent: 16,
-                            color: cs.outlineVariant,
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
-                            child: MemoryDateField(
-                              value: _customDate,
-                              onChanged: (d) =>
-                                  setState(() => _customDate = d),
-                              accent: cs.primary,
-                            ),
-                          ),
-                        ],
+        // Экран собран кадром-героем: фотография занимает верх целиком, а лист
+        // с полями наезжает на неё скруглением. Прежняя форма была простынёй,
+        // где кадр шёл строкой между полями, и до кнопки приходилось листать
+        // всё, даже когда заполнять нечего.
+        body: LayoutBuilder(
+          builder: (context, box) {
+            final heroHeight = box.maxHeight * 0.44;
+            final sheetTop = heroHeight - 26;
+            return Stack(
+              children: [
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: heroHeight + 26,
+                  child: _buildHero(cs),
+                ),
+                Positioned(
+                  top: sheetTop,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: _buildSheet(cs, media),
+                ),
+                Positioned(
+                  top: media.padding.top + 6,
+                  left: 10,
+                  child: _glassButton(
+                    cs,
+                    icon: Icons.close_rounded,
+                    onTap: () => Navigator.pop(context),
+                  ),
+                ),
+                if (_media.length > 1)
+                  Positioned(
+                    top: media.padding.top + 12,
+                    right: 16,
+                    child: _glassPill(
+                      cs,
+                      LocaleService.current.itemsShort(_media.length),
+                    ),
+                  ),
+                // Действие всегда на экране и всегда одной ширины: до кнопки в
+                // шапке большой палец не дотягивался, а со скроллом она
+                // уезжала вместе с формой.
+                Positioned(
+                  left: 16,
+                  right: 16,
+                  bottom: media.padding.bottom + 16,
+                  child: FilledButton.icon(
+                    onPressed: _canSave ? _save : null,
+                    icon: const Icon(Icons.add_rounded, size: 22),
+                    label: Text(LocaleService.current.addMemoryToFeed),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(58),
+                      textStyle: const TextStyle(
+                        fontFamily: ProfileTheme.bodyFont,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(height: 24),
-                  ],
+                  ),
                 ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  // ── Кадр ───────────────────────────────────────────────────────────────────
+
+  Widget _buildHero(ColorScheme cs) {
+    if (_media.isEmpty) {
+      // Пустой кадр зовёт сам собой: тональная плоскость во всю ширину вместо
+      // прямоугольника с пунктиром — обводок на экране нет вовсе.
+      return GestureDetector(
+        onTap: _pickMedia,
+        child: Container(
+          color: cs.surfaceContainerHigh,
+          alignment: Alignment.center,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 76,
+                height: 76,
+                decoration: BoxDecoration(
+                  color: cs.primaryContainer,
+                  borderRadius: BorderRadius.circular(26),
+                ),
+                alignment: Alignment.center,
+                child: Icon(Icons.add_photo_alternate_rounded,
+                    size: 34, color: cs.onPrimaryContainer),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                LocaleService.current.photoVideo,
+                style: TextStyle(
+                  fontFamily: ProfileTheme.displayFont,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: cs.onSurface,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                LocaleService.current.optionalTapToSelect,
+                style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant),
               ),
             ],
           ),
         ),
-        // Основное действие внизу: до кнопки в шапке большой палец не
-        // дотягивался, а рядом с крестиком она ещё и путала.
-        bottomNavigationBar: Container(
-          decoration: BoxDecoration(
-            color: cs.surfaceContainerLow,
-            border: Border(top: BorderSide(color: cs.outlineVariant)),
-          ),
-          padding: EdgeInsets.fromLTRB(
-            16,
-            12,
-            16,
-            MediaQuery.of(context).padding.bottom + 12,
-          ),
-          child: FilledButton.icon(
-            onPressed: _canSave ? _save : null,
-            icon: const Icon(Icons.add_rounded, size: 20),
-            label: Text(s.addMemoryBtn),
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(56),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _sectionLabel(String text, ColorScheme cs) => Text(
-        text,
-        style: TextStyle(
-          fontFamily: ProfileTheme.displayFont,
-          fontSize: 12.5,
-          fontWeight: FontWeight.w700,
-          color: cs.primary,
-        ),
       );
+    }
 
-  PreferredSizeWidget _buildAppBar(ColorScheme cs, AppStrings s) {
-    return AppBar(
-      backgroundColor: cs.surface,
-      surfaceTintColor: Colors.transparent,
-      elevation: 0,
-      scrolledUnderElevation: 0,
-      leading: IconButton(
-        onPressed: () => Navigator.pop(context),
-        icon: const Icon(Icons.close_rounded, size: 22),
-      ),
-      title: Text(
-        LocaleService.current.newEntry,
-        style: TextStyle(
-          fontFamily: ProfileTheme.displayFont,
-          fontSize: 18,
-          fontWeight: FontWeight.w700,
-          color: cs.onSurface,
-        ),
-      ),
-      centerTitle: true,
-    );
-  }
-
-  // ── Media picker ────────────────────────────────────────────────────────────
-
-  Widget _buildPhotoPicker(Color primary) {
-    if (_media.isEmpty) return _buildEmptyMediaPicker(primary);
-    return _buildFilledMedia(primary);
-  }
-
-  // Пустое состояние — вся область = пикер
-  Widget _buildEmptyMediaPicker(Color primary) {
+    final first = _media.first;
+    final isFirstVideo = _isVideo(first);
     return GestureDetector(
       onTap: _pickMedia,
-      child: Container(
-        width: double.infinity,
-        height: 180,
-        margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-        decoration: BoxDecoration(
-          color: widget.theme.surfaceMuted,
-          borderRadius: BorderRadius.circular(18),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (isFirstVideo)
+            _videoPreviewWidget(first.path, fit: BoxFit.cover)
+          else
+            Image.file(File(first.path), fit: BoxFit.cover),
+          if (isFirstVideo)
+            const Center(
+              child: Icon(Icons.play_circle_filled_rounded,
+                  color: Colors.white, size: 56),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Кружок поверх фотографии. Полупрозрачная подложка нужна, чтобы крестик
+  /// читался и на светлом кадре, и на тёмном.
+  Widget _glassButton(ColorScheme cs,
+      {required IconData icon, required VoidCallback onTap}) {
+    return Material(
+      color: cs.inverseSurface.withValues(alpha: 0.55),
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Icon(icon, size: 22, color: cs.onInverseSurface),
         ),
-        child: CustomPaint(
-          painter: _DashedBorderPainter(color: primary.withValues(alpha: 0.35)),
-          child: Center(
+      ),
+    );
+  }
+
+  Widget _glassPill(ColorScheme cs, String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: cs.inverseSurface.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: cs.onInverseSurface,
+        ),
+      ),
+    );
+  }
+
+  // ── Лист с полями ─────────────────────────────────────────────────────────
+
+  Widget _buildSheet(ColorScheme cs, MediaQueryData media) {
+    final s = LocaleService.current;
+    return Container(
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: Column(
+        children: [
+          const SizedBox(height: 10),
+          Container(
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+              color: cs.outlineVariant,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              keyboardDismissBehavior:
+                  ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: EdgeInsets.fromLTRB(
+                16,
+                14,
+                16,
+                media.padding.bottom + 96,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_media.isNotEmpty) ...[
+                    _buildThumbRow(cs),
+                    const SizedBox(height: 14),
+                  ],
+                  _buildTitleField(s),
+                  const SizedBox(height: 10),
+                  _buildCaptionField(s),
+                  const SizedBox(height: 14),
+                  _buildMetaChips(cs, s),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Лента миниатюр. Плитка добавления — такая же по форме и размеру, как
+  /// кадры: ряд читается лентой, а не «две картинки и дырка с плюсом».
+  Widget _buildThumbRow(ColorScheme cs) {
+    return SizedBox(
+      height: 64,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: _media.length + 1,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (_, i) {
+          if (i == _media.length) {
+            return Material(
+              color: cs.primaryContainer,
+              borderRadius: BorderRadius.circular(18),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: _pickMedia,
+                child: SizedBox(
+                  width: 64,
+                  height: 64,
+                  child: Icon(Icons.photo_library_rounded,
+                      size: 24, color: cs.onPrimaryContainer),
+                ),
+              ),
+            );
+          }
+          final item = _media[i];
+          final isVid = _isVideo(item);
+          return SizedBox(
+            width: 64,
+            height: 64,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(18),
+                  child: isVid
+                      ? _videoPreviewWidget(item.path, width: 64, height: 64)
+                      : Image.file(File(item.path),
+                          width: 64, height: 64, fit: BoxFit.cover),
+                ),
+                if (isVid)
+                  const Positioned.fill(
+                    child: Center(
+                      child: Icon(Icons.play_circle_filled_rounded,
+                          color: Colors.white70, size: 22),
+                    ),
+                  ),
+                Positioned(
+                  top: -4,
+                  right: -4,
+                  child: GestureDetector(
+                    onTap: () => setState(() => _media.removeAt(i)),
+                    child: Container(
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        color: cs.inverseSurface,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.close_rounded,
+                          size: 14, color: cs.onInverseSurface),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ── Метки: место, дата, 18+ ───────────────────────────────────────────────
+
+  /// Три чипа вместо двух блоков формы. Пустой зовёт, заполненный показывает
+  /// значение и снимается крестиком — экран из-за них больше не растёт.
+  Widget _buildMetaChips(ColorScheme cs, AppStrings s) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        _metaChip(
+          cs: cs,
+          icon: Icons.location_on_rounded,
+          label: _hasPlace
+              ? (_locationCtrl.text.isNotEmpty
+                  ? _locationCtrl.text
+                  : '${_lat!.toStringAsFixed(3)}, ${_lng!.toStringAsFixed(3)}')
+              : s.location,
+          filled: _hasPlace,
+          accent: true,
+          loading: _isLoadingLocation,
+          onTap: _showPlaceSheet,
+          onClear: _hasPlace ? _clearLocation : null,
+        ),
+        _metaChip(
+          cs: cs,
+          icon: Icons.schedule_rounded,
+          label: _customDate == null
+              ? s.dateNowLabel
+              : _formatCustomDate(_customDate!),
+          filled: _customDate != null,
+          onTap: _pickCustomDate,
+          onClear: _customDate == null
+              ? null
+              : () => setState(() => _customDate = null),
+        ),
+        _metaChip(
+          cs: cs,
+          icon: _isAdult ? Icons.lock_rounded : Icons.lock_open_rounded,
+          label: s.adultContent,
+          filled: _isAdult,
+          onTap: () => setState(() => _isAdult = !_isAdult),
+        ),
+      ],
+    );
+  }
+
+  Widget _metaChip({
+    required ColorScheme cs,
+    required IconData icon,
+    required String label,
+    required bool filled,
+    required VoidCallback onTap,
+    bool accent = false,
+    bool loading = false,
+    VoidCallback? onClear,
+  }) {
+    final bg = !filled
+        ? cs.surfaceContainerHigh
+        : (accent ? cs.primaryContainer : cs.secondaryContainer);
+    final fg = !filled
+        ? cs.onSurface
+        : (accent ? cs.onPrimaryContainer : cs.onSecondaryContainer);
+    return Material(
+      color: bg,
+      borderRadius: BorderRadius.circular(999),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(14, 9, onClear == null ? 15 : 8, 9),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (loading)
+                SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: fg),
+                )
+              else
+                Icon(icon, size: 18, color: fg),
+              const SizedBox(width: 7),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 180),
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: fg,
+                  ),
+                ),
+              ),
+              if (onClear != null) ...[
+                const SizedBox(width: 4),
+                GestureDetector(
+                  onTap: onClear,
+                  child: Padding(
+                    padding: const EdgeInsets.all(3),
+                    child: Icon(Icons.close_rounded, size: 16, color: fg),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Лист выбора места. Обе кнопки — роли схемы: зелёная «На карте» была
+  /// единственным зелёным пятном в теме пары.
+  void _showPlaceSheet() {
+    final cs = _cs;
+    final s = LocaleService.current;
+    showAppSheet<void>(
+      context,
+      background: cs.surfaceContainer,
+      builder: (ctx) => Theme(
+        data: ProfileTheme.data(cs),
+        child: SheetScaffold(
+          title: s.location,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: primary.withValues(alpha: 0.08),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(Icons.add_photo_alternate_rounded,
-                      size: 30, color: primary),
+                _placeRow(
+                  cs: cs,
+                  icon: Icons.my_location_rounded,
+                  title: s.useCurrent,
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _useCurrentLocation();
+                  },
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  LocaleService.current.photoVideo,
-                  style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: primary),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  LocaleService.current.optionalTapToSelect,
-                  style: TextStyle(fontSize: 12, color: widget.theme.textMuted),
+                const SizedBox(height: 10),
+                _placeRow(
+                  cs: cs,
+                  icon: Icons.map_rounded,
+                  title: s.pickOnMap,
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pickOnMap();
+                  },
                 ),
               ],
             ),
@@ -436,132 +723,132 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
     );
   }
 
-  // Заполненное состояние — превью первого элемента + лента миниатюр
-  Widget _buildFilledMedia(Color primary) {
-    final first = _media.first;
-    final isFirstVideo = _isVideo(first);
+  Widget _placeRow({
+    required ColorScheme cs,
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: cs.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(22),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: cs.primaryContainer,
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Icon(icon, size: 22, color: cs.onPrimaryContainer),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: cs.onSurface,
+                  ),
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded,
+                  size: 22, color: cs.onSurfaceVariant),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Hero — первый элемент
-        SizedBox(
-          width: double.infinity,
-          height: 260,
-          child: ClipRect(
-            child: Stack(
-              children: [
-                // Превью — Positioned.fill гарантирует обрезку, а не сжатие
-                if (isFirstVideo)
-                  Positioned.fill(
-                    child: _videoPreviewWidget(first.path, fit: BoxFit.cover),
-                  )
-                else
-                  Positioned.fill(
-                    child: Image.file(File(first.path), fit: BoxFit.cover),
-                  ),
-                // Иконка Play для видео
-                if (isFirstVideo)
-                  const Center(
-                    child: Icon(Icons.play_circle_filled_rounded,
-                        color: Colors.white, size: 52),
-                  ),
-                // Счётчик
-                if (_media.length > 1)
-                  Positioned(
-                    bottom: 10,
-                    right: 10,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.black54,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        LocaleService.current.itemsShort(_media.length),
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-        // Лента миниатюр
-        const SizedBox(height: 6),
-        SizedBox(
-          height: 72,
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            scrollDirection: Axis.horizontal,
-            itemCount: _media.length + 1,
-            separatorBuilder: (_, __) => const SizedBox(width: 6),
-            itemBuilder: (_, i) {
-              // Кнопка "Добавить ещё" в конце
-              if (i == _media.length) {
-                return GestureDetector(
-                  onTap: _pickMedia,
-                  child: Container(
-                    width: 72,
-                    height: 72,
-                    decoration: BoxDecoration(
-                      color: widget.theme.surfaceMuted,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                          color: primary.withValues(alpha: 0.3), width: 1.5),
-                    ),
-                    child: Icon(Icons.add_rounded, color: primary, size: 24),
-                  ),
-                );
-              }
-              final item = _media[i];
-              final isVid = _isVideo(item);
-              return Stack(
-                children: [
-                  // Миниатюра
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: isVid
-                        ? _videoPreviewWidget(item.path,
-                            width: 72, height: 72)
-                        : Image.file(File(item.path),
-                            width: 72, height: 72, fit: BoxFit.cover),
-                  ),
-                  // Play-иконка на видео
-                  if (isVid)
-                    const Positioned.fill(
-                      child: Center(
-                        child: Icon(Icons.play_circle_filled_rounded,
-                            color: Colors.white70, size: 22),
-                      ),
-                    ),
-                  // Удалить
-                  Positioned(
-                    top: 3,
-                    right: 3,
-                    child: GestureDetector(
-                      onTap: () => setState(() => _media.removeAt(i)),
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: const BoxDecoration(
-                            color: Colors.black54,
-                            shape: BoxShape.circle),
-                        child: const Icon(Icons.close_rounded,
-                            color: Colors.white, size: 12),
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: 4),
-      ],
+  /// Дата и время записи — стандартные пикеры M3 вместо самодельной пары
+  /// кнопок «Дата / Время».
+  Future<void> _pickCustomDate() async {
+    final now = DateTime.now();
+    final base = _customDate ?? now;
+    final day = await showDatePicker(
+      context: context,
+      initialDate: base,
+      firstDate: DateTime(2000),
+      lastDate: now,
+      builder: (ctx, child) => Theme(data: ProfileTheme.data(_cs), child: child!),
+    );
+    if (day == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(base),
+      builder: (ctx, child) => Theme(data: ProfileTheme.data(_cs), child: child!),
+    );
+    if (!mounted) return;
+    setState(() {
+      _customDate = DateTime(
+        day.year,
+        day.month,
+        day.day,
+        time?.hour ?? base.hour,
+        time?.minute ?? base.minute,
+      );
+    });
+  }
+
+  String _formatCustomDate(DateTime d) {
+    final months = LocaleService.current.shortMonths;
+    final hh = d.hour.toString().padLeft(2, '0');
+    final mm = d.minute.toString().padLeft(2, '0');
+    return '${d.day} ${months[d.month - 1]}, $hh:$mm';
+  }
+
+  // ── Поля ──────────────────────────────────────────────────────────────────
+
+  /// Поля стоят на заливке, без единой линии: подпись отличается от описания
+  /// плотностью фона и весом текста.
+  InputDecoration _fieldDeco(String label, {Color? fill}) {
+    final cs = _cs;
+    final shape = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(20),
+      borderSide: BorderSide.none,
+    );
+    return InputDecoration(
+      labelText: label,
+      floatingLabelStyle: TextStyle(color: cs.primary, fontWeight: FontWeight.w600),
+      filled: true,
+      fillColor: fill ?? cs.surfaceContainerHigh,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      border: shape,
+      enabledBorder: shape,
+      focusedBorder: shape,
+    );
+  }
+
+  Widget _buildTitleField(AppStrings s) {
+    return TextField(
+      controller: _titleCtrl,
+      onChanged: (_) => setState(() {}),
+      textCapitalization: TextCapitalization.sentences,
+      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+      decoration: _fieldDeco(s.titleOptional),
+    );
+  }
+
+  Widget _buildCaptionField(AppStrings s) {
+    return TextField(
+      controller: _captionCtrl,
+      onChanged: (_) => setState(() {}),
+      maxLines: 4,
+      minLines: 2,
+      textCapitalization: TextCapitalization.sentences,
+      decoration: _fieldDeco(
+        s.descriptionOptional,
+        fill: _cs.surfaceContainer,
+      ),
     );
   }
 
@@ -591,149 +878,6 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
   }
 
   // ── Fields ──────────────────────────────────────────────────────────────────
-
-  /// Поля с меткой, а не с подсказкой внутри: заполненное поле с одним
-  /// `hintText` теряло название, и было не понять, где заголовок, а где
-  /// описание.
-  InputDecoration _fieldDeco(String label, {String? helper}) {
-    final cs = _cs;
-    return InputDecoration(
-      labelText: label,
-      helperText: helper,
-      filled: true,
-      fillColor: cs.surfaceContainerHigh,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(18),
-        borderSide: BorderSide.none,
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(18),
-        borderSide: BorderSide.none,
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(18),
-        borderSide: BorderSide(color: cs.primary, width: 2),
-      ),
-    );
-  }
-
-  Widget _buildTitleField(AppStrings s) {
-    return TextField(
-      controller: _titleCtrl,
-      onChanged: (_) => setState(() {}),
-      textCapitalization: TextCapitalization.sentences,
-      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-      decoration: _fieldDeco(s.titleOptional, helper: s.titleFieldHint),
-    );
-  }
-
-  Widget _buildCaptionField(AppStrings s) {
-    return TextField(
-      controller: _captionCtrl,
-      onChanged: (_) => setState(() {}),
-      maxLines: 5,
-      minLines: 3,
-      textCapitalization: TextCapitalization.sentences,
-      decoration: _fieldDeco(s.descriptionOptional),
-    );
-  }
-
-  // ── Location ────────────────────────────────────────────────────────────────
-
-  Widget _buildLocationSection(Color primary, AppStrings s) {
-    final cs = _cs;
-    // Выбранное место — чип с адресом: одно нажатие ставит, одно снимает.
-    if (_lat != null && _lng != null) {
-      return Align(
-        alignment: Alignment.centerLeft,
-        child: InputChip(
-          avatar: Icon(Icons.location_on_rounded,
-              size: 18, color: cs.onSecondaryContainer),
-          label: Text(
-            _locationCtrl.text.isNotEmpty
-                ? _locationCtrl.text
-                : '${_lat!.toStringAsFixed(4)}, ${_lng!.toStringAsFixed(4)}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          backgroundColor: cs.secondaryContainer,
-          labelStyle: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: cs.onSecondaryContainer,
-          ),
-          onDeleted: _clearLocation,
-          deleteIcon: const Icon(Icons.close_rounded, size: 18),
-        ),
-      );
-    }
-    // Две равные кнопки одной формы: раньше «Текущее» было синим, «На карте» —
-    // зелёным, и оба цвета не имели отношения к теме пары.
-    return Row(
-      children: [
-        Expanded(
-          child: FilledButton.tonalIcon(
-            onPressed: _isLoadingLocation ? null : _useCurrentLocation,
-            icon: _isLoadingLocation
-                ? SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: cs.onSecondaryContainer),
-                  )
-                : const Icon(Icons.my_location_rounded, size: 19),
-            label: Text(s.useCurrent, maxLines: 1),
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(48),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: _pickOnMap,
-            icon: const Icon(Icons.map_rounded, size: 19),
-            label: Text(s.pickOnMap, maxLines: 1),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size.fromHeight(48),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ── Adult toggle ────────────────────────────────────────────────────────────
-
-  Widget _buildAdultToggle(AppStrings s) {
-    final cs = _cs;
-    return SwitchListTile(
-      value: _isAdult,
-      onChanged: (v) => setState(() => _isAdult = v),
-      contentPadding: const EdgeInsets.fromLTRB(16, 4, 12, 4),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-      secondary: Icon(
-        _isAdult ? Icons.lock_rounded : Icons.lock_open_rounded,
-        size: 22,
-        color: _isAdult ? cs.primary : cs.onSurfaceVariant,
-      ),
-      title: Text(
-        s.adultContent,
-        style: TextStyle(
-          fontSize: 14.5,
-          fontWeight: FontWeight.w600,
-          color: cs.onSurface,
-        ),
-      ),
-      subtitle: Text(
-        s.photoBlurred,
-        style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
-      ),
-    );
-  }
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -798,32 +942,3 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
 
 // ── Dashed border painter ────────────────────────────────────────────────────
 
-class _DashedBorderPainter extends CustomPainter {
-  final Color color;
-  const _DashedBorderPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1.5
-      ..style = PaintingStyle.stroke;
-    const dashLen = 8.0;
-    const gapLen = 5.0;
-    const radius = Radius.circular(18);
-    final path = Path()
-      ..addRRect(RRect.fromRectAndRadius(
-          Rect.fromLTWH(0, 0, size.width, size.height), radius));
-    for (final metric in path.computeMetrics()) {
-      double distance = 0;
-      while (distance < metric.length) {
-        final end = (distance + dashLen).clamp(0.0, metric.length);
-        canvas.drawPath(metric.extractPath(distance, end), paint);
-        distance += dashLen + gapLen;
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(_DashedBorderPainter old) => old.color != color;
-}
