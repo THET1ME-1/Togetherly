@@ -10,6 +10,7 @@ import 'package:video_compress/video_compress.dart';
 import '../models/memory.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
+import '../theme/profile_theme.dart';
 import '../widgets/memory_date_field.dart';
 
 import 'map_picker_screen.dart';
@@ -252,94 +253,131 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
 
   // ── Build ───────────────────────────────────────────────────────────────────
 
+  /// Схема M3 экрана. Форма собрана на ролях (`surfaceContainer`, `primary`,
+  /// `outline`), а не на цветах старой темы: зелёная кнопка «На карте» и синяя
+  /// «Текущее» были единственными чужими акцентами в фиолетовом приложении.
+  ColorScheme get _cs => ProfileTheme.themeFor(widget.theme).colorScheme;
+
   @override
   Widget build(BuildContext context) {
-    final primary = widget.theme.primary;
+    final cs = _cs;
     final s = LocaleService.current;
 
-    return Scaffold(
-      backgroundColor: widget.theme.cardSurface,
-      appBar: _buildAppBar(primary, s),
-      body: SingleChildScrollView(
-        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: _buildTitleField(s),
-            ),
-            const SizedBox(height: 12),
-            _buildPhotoPicker(primary),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildCaptionField(s),
-                  const SizedBox(height: 12),
-                  _buildLocationSection(primary, s),
-                  const SizedBox(height: 10),
-                  _buildAdultToggle(s),
-                  const SizedBox(height: 16),
-                  MemoryDateField(
-                    value: _customDate,
-                    onChanged: (d) => setState(() => _customDate = d),
-                    accent: primary,
-                  ),
-                  const SizedBox(height: 24),
-                ],
+    return Theme(
+      data: ProfileTheme.data(cs),
+      child: Scaffold(
+        backgroundColor: cs.surface,
+        appBar: _buildAppBar(cs, s),
+        body: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildPhotoPicker(cs.primary),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildTitleField(s),
+                    const SizedBox(height: 12),
+                    _buildCaptionField(s),
+                    const SizedBox(height: 18),
+                    _sectionLabel(s.location, cs),
+                    const SizedBox(height: 8),
+                    _buildLocationSection(cs.primary, s),
+                    const SizedBox(height: 18),
+                    // Настройки записи — одна карточка: раньше «18+» и «Когда
+                    // это было» были двумя блоками с разной геометрией.
+                    Container(
+                      decoration: BoxDecoration(
+                        color: cs.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(22),
+                      ),
+                      child: Column(
+                        children: [
+                          _buildAdultToggle(s),
+                          Divider(
+                            height: 1,
+                            indent: 16,
+                            endIndent: 16,
+                            color: cs.outlineVariant,
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+                            child: MemoryDateField(
+                              value: _customDate,
+                              onChanged: (d) =>
+                                  setState(() => _customDate = d),
+                              accent: cs.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                ),
               ),
+            ],
+          ),
+        ),
+        // Основное действие внизу: до кнопки в шапке большой палец не
+        // дотягивался, а рядом с крестиком она ещё и путала.
+        bottomNavigationBar: Container(
+          decoration: BoxDecoration(
+            color: cs.surfaceContainerLow,
+            border: Border(top: BorderSide(color: cs.outlineVariant)),
+          ),
+          padding: EdgeInsets.fromLTRB(
+            16,
+            12,
+            16,
+            MediaQuery.of(context).padding.bottom + 12,
+          ),
+          child: FilledButton.icon(
+            onPressed: _canSave ? _save : null,
+            icon: const Icon(Icons.add_rounded, size: 20),
+            label: Text(s.addMemoryBtn),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(56),
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  PreferredSizeWidget _buildAppBar(Color primary, AppStrings s) {
+  Widget _sectionLabel(String text, ColorScheme cs) => Text(
+        text,
+        style: TextStyle(
+          fontFamily: ProfileTheme.displayFont,
+          fontSize: 12.5,
+          fontWeight: FontWeight.w700,
+          color: cs.primary,
+        ),
+      );
+
+  PreferredSizeWidget _buildAppBar(ColorScheme cs, AppStrings s) {
     return AppBar(
-      backgroundColor: widget.theme.cardSurface,
+      backgroundColor: cs.surface,
+      surfaceTintColor: Colors.transparent,
       elevation: 0,
       scrolledUnderElevation: 0,
       leading: IconButton(
         onPressed: () => Navigator.pop(context),
         icon: const Icon(Icons.close_rounded, size: 22),
-        style: IconButton.styleFrom(foregroundColor: widget.theme.textSecondary),
       ),
       title: Text(
         LocaleService.current.newEntry,
         style: TextStyle(
-          fontSize: 17,
+          fontFamily: ProfileTheme.displayFont,
+          fontSize: 18,
           fontWeight: FontWeight.w700,
-          color: widget.theme.textPrimary,
+          color: cs.onSurface,
         ),
       ),
       centerTitle: true,
-      actions: [
-        Padding(
-          padding: const EdgeInsets.only(right: 12),
-          child: AnimatedOpacity(
-            opacity: _canSave ? 1.0 : 0.4,
-            duration: const Duration(milliseconds: 200),
-            child: FilledButton(
-              onPressed: _canSave ? _save : null,
-              style: FilledButton.styleFrom(
-                backgroundColor: primary,
-                foregroundColor: Colors.white,
-                shape: const StadiumBorder(),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                textStyle: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14,
-                ),
-              ),
-              child: Text(s.addMemoryBtn),
-            ),
-          ),
-        ),
-      ],
     );
   }
 
@@ -554,35 +592,39 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
 
   // ── Fields ──────────────────────────────────────────────────────────────────
 
+  /// Поля с меткой, а не с подсказкой внутри: заполненное поле с одним
+  /// `hintText` теряло название, и было не понять, где заголовок, а где
+  /// описание.
+  InputDecoration _fieldDeco(String label, {String? helper}) {
+    final cs = _cs;
+    return InputDecoration(
+      labelText: label,
+      helperText: helper,
+      filled: true,
+      fillColor: cs.surfaceContainerHigh,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: BorderSide(color: cs.primary, width: 2),
+      ),
+    );
+  }
+
   Widget _buildTitleField(AppStrings s) {
     return TextField(
       controller: _titleCtrl,
       onChanged: (_) => setState(() {}),
       textCapitalization: TextCapitalization.sentences,
-      style:
-          const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-      decoration: InputDecoration(
-        hintText: s.titleOptional,
-        hintStyle: TextStyle(
-            fontWeight: FontWeight.w400, color: widget.theme.textMuted),
-        filled: true,
-        fillColor: widget.theme.surfaceMuted,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: widget.theme.divider),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: widget.theme.divider),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide:
-              BorderSide(color: widget.theme.primary, width: 1.5),
-        ),
-      ),
+      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+      decoration: _fieldDeco(s.titleOptional, helper: s.titleFieldHint),
     );
   }
 
@@ -593,213 +635,102 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
       maxLines: 5,
       minLines: 3,
       textCapitalization: TextCapitalization.sentences,
-      decoration: InputDecoration(
-        hintText: s.descriptionOptional,
-        hintStyle: TextStyle(color: widget.theme.textMuted),
-        filled: true,
-        fillColor: widget.theme.surfaceMuted,
-        contentPadding: const EdgeInsets.all(16),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: widget.theme.divider),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: widget.theme.divider),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide:
-              BorderSide(color: widget.theme.primary, width: 1.5),
-        ),
-      ),
+      decoration: _fieldDeco(s.descriptionOptional),
     );
   }
 
   // ── Location ────────────────────────────────────────────────────────────────
 
   Widget _buildLocationSection(Color primary, AppStrings s) {
+    final cs = _cs;
+    // Выбранное место — чип с адресом: одно нажатие ставит, одно снимает.
     if (_lat != null && _lng != null) {
-      return GestureDetector(
-        onTap: _clearLocation,
-        child: Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF22C55E).withValues(alpha: 0.07),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-                color:
-                    const Color(0xFF22C55E).withValues(alpha: 0.25)),
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: InputChip(
+          avatar: Icon(Icons.location_on_rounded,
+              size: 18, color: cs.onSecondaryContainer),
+          label: Text(
+            _locationCtrl.text.isNotEmpty
+                ? _locationCtrl.text
+                : '${_lat!.toStringAsFixed(4)}, ${_lng!.toStringAsFixed(4)}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF22C55E).withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.location_on_rounded,
-                    size: 16, color: Color(0xFF22C55E)),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  _locationCtrl.text.isNotEmpty
-                      ? _locationCtrl.text
-                      : '${_lat!.toStringAsFixed(4)}, ${_lng!.toStringAsFixed(4)}',
-                  style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF16A34A)),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              Icon(Icons.close_rounded,
-                  size: 16, color: widget.theme.textMuted),
-            ],
+          backgroundColor: cs.secondaryContainer,
+          labelStyle: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: cs.onSecondaryContainer,
           ),
+          onDeleted: _clearLocation,
+          deleteIcon: const Icon(Icons.close_rounded, size: 18),
         ),
       );
     }
+    // Две равные кнопки одной формы: раньше «Текущее» было синим, «На карте» —
+    // зелёным, и оба цвета не имели отношения к теме пары.
     return Row(
       children: [
         Expanded(
-          child: _locationButton(
-            icon: _isLoadingLocation ? null : Icons.my_location_rounded,
-            loadingWidget: _isLoadingLocation
-                ? const SizedBox(
+          child: FilledButton.tonalIcon(
+            onPressed: _isLoadingLocation ? null : _useCurrentLocation,
+            icon: _isLoadingLocation
+                ? SizedBox(
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white))
-                : null,
-            label: s.useCurrent,
-            color: primary,
-            onTap: _isLoadingLocation ? null : _useCurrentLocation,
+                        strokeWidth: 2, color: cs.onSecondaryContainer),
+                  )
+                : const Icon(Icons.my_location_rounded, size: 19),
+            label: Text(s.useCurrent, maxLines: 1),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(48),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+            ),
           ),
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: _locationButton(
-            icon: Icons.map_rounded,
-            label: s.pickOnMap,
-            color: const Color(0xFF22C55E),
-            onTap: _pickOnMap,
+          child: OutlinedButton.icon(
+            onPressed: _pickOnMap,
+            icon: const Icon(Icons.map_rounded, size: 19),
+            label: Text(s.pickOnMap, maxLines: 1),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(48),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _locationButton({
-    IconData? icon,
-    Widget? loadingWidget,
-    required String label,
-    required Color color,
-    VoidCallback? onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (loadingWidget != null) ...[
-              loadingWidget,
-              const SizedBox(width: 7),
-            ] else if (icon != null) ...[
-              Icon(icon, size: 16, color: Colors.white),
-              const SizedBox(width: 7),
-            ],
-            Text(
-              label,
-              style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   // ── Adult toggle ────────────────────────────────────────────────────────────
 
   Widget _buildAdultToggle(AppStrings s) {
-    return GestureDetector(
-      onTap: () => setState(() => _isAdult = !_isAdult),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: _isAdult ? Colors.red.shade50 : widget.theme.surfaceMuted,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-              color: _isAdult
-                  ? Colors.red.shade200
-                  : widget.theme.divider),
+    final cs = _cs;
+    return SwitchListTile(
+      value: _isAdult,
+      onChanged: (v) => setState(() => _isAdult = v),
+      contentPadding: const EdgeInsets.fromLTRB(16, 4, 12, 4),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      secondary: Icon(
+        _isAdult ? Icons.lock_rounded : Icons.lock_open_rounded,
+        size: 22,
+        color: _isAdult ? cs.primary : cs.onSurfaceVariant,
+      ),
+      title: Text(
+        s.adultContent,
+        style: TextStyle(
+          fontSize: 14.5,
+          fontWeight: FontWeight.w600,
+          color: cs.onSurface,
         ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: _isAdult
-                    ? Colors.red.withValues(alpha: 0.12)
-                    : widget.theme.surfaceMuted,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                _isAdult ? Icons.lock_rounded : Icons.lock_open_rounded,
-                size: 16,
-                color: _isAdult
-                    ? Colors.red.shade400
-                    : widget.theme.textMuted,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    s.adultContent,
-                    style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: _isAdult
-                            ? Colors.red.shade600
-                            : widget.theme.textSecondary),
-                  ),
-                  Text(
-                    s.photoBlurred,
-                    style: TextStyle(
-                        fontSize: 11,
-                        color: _isAdult
-                            ? Colors.red.shade400
-                            : widget.theme.textMuted),
-                  ),
-                ],
-              ),
-            ),
-            Switch(
-              value: _isAdult,
-              onChanged: (v) => setState(() => _isAdult = v),
-              activeThumbColor: Colors.red.shade400,
-              activeTrackColor: Colors.red.shade100,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          ],
-        ),
+      ),
+      subtitle: Text(
+        s.photoBlurred,
+        style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
       ),
     );
   }

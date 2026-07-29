@@ -16,12 +16,9 @@ import '../utils/photo_crop.dart';
 import '../utils/safe_pick.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/memory.dart';
-import '../models/pair_achievement.dart';
 import '../models/gift.dart';
 import '../models/gift_effect.dart';
 import '../services/pb_data_service.dart';
-import 'achievements_screen.dart';
-import 'gifts/gift_shop_screen.dart';
 import 'gifts/gift_receive_sheet.dart';
 import '../services/achievement_service.dart';
 import '../widgets/achievement_unlock_overlay.dart';
@@ -198,10 +195,6 @@ class _HomeScreenState extends State<HomeScreen> {
       (PocketBaseService().currentUser?.data['sunrise_until'] as num?)?.toInt(),
       DateTime.now());
 
-  /// Подарок «Отдых»: на сутки прячем счётчики и задания — тихий экран.
-  bool get _spaOn => isEffectActive(
-      (PocketBaseService().currentUser?.data['spa_until'] as num?)?.toInt(),
-      DateTime.now());
   String _lastPairId = '';
   int _pairChangedGeneration = 0;
 
@@ -1437,32 +1430,21 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-          if (_pairData.isPaired && !_spaOn)
-            AnimatedSlideIn(
-              delay: const Duration(milliseconds: 240),
-              child: _achievementsEntry(),
-            ),
-          // Статистика уехала в профиль, в блок «Статистика отношений»: на
-          // главной ей место только в первый день, а занимала она экран
-          // каждый раз.
+          // Достижения и магазин подарков уехали в профиль, в блок «Наша
+          // пара»: открывают их изредка, а место между картой и лентой они
+          // занимали каждый день. Статистика переехала туда же и раньше.
           if (_sunriseOn)
             AnimatedSlideIn(
               delay: const Duration(milliseconds: 40),
               child: _sunriseBanner(),
             ),
-          if (_pairData.isPaired && _giftsEnabled) ...[
-            if (_incomingGifts.isNotEmpty)
-              AnimatedSlideIn(
-                delay: const Duration(milliseconds: 240),
-                child: _incomingGiftEntry(),
-              ),
-            // Вход в профиль партнёра переехал на страницу «Профиль»
-            // (личный профиль + карточка партнёра), с главной убран.
+          // Пришедший подарок остаётся на главной: это событие сегодняшнего
+          // дня, а не раздел.
+          if (_pairData.isPaired && _giftsEnabled && _incomingGifts.isNotEmpty)
             AnimatedSlideIn(
               delay: const Duration(milliseconds: 240),
-              child: _giftsEntry(),
+              child: _incomingGiftEntry(),
             ),
-          ],
           AnimatedSlideIn(
             delay: const Duration(milliseconds: 240),
             // В паре — встроенная НАСТОЯЩАЯ Лента (те же карточки _memoryTile,
@@ -2115,132 +2097,6 @@ class _HomeScreenState extends State<HomeScreen> {
               Icon(Icons.chevron_right_rounded,
                   color: cs.onPrimaryContainer, size: 22),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Карточка-вход «Подарки». Показывается только когда раздел включён на
-  /// сервере (`app_config.gifts_enabled`) — флаг гасит его без релиза.
-  Widget _giftsEntry() {
-    final cs = ProfileTheme.themeFor(_t).colorScheme;
-    return _m3EntryCard(
-      cs: cs,
-      boxColor: cs.primaryContainer,
-      onBoxColor: cs.onPrimaryContainer,
-      icon: Icons.card_giftcard_rounded,
-      title: LocaleService.current.giftShopTitle,
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => GiftShopScreen(
-            theme: _t,
-            groupId: _pairData.pairId,
-            coins: widget.userData.coins,
-          ),
-          settings: const RouteSettings(name: '/gifts'),
-        ),
-      ),
-    );
-  }
-
-  /// Компактная карточка-вход «Достижения пары» на главном. Счётчик «N из M»
-  /// живёт на снимке [AchievementService.stats] и обновляется в реальном времени.
-  Widget _achievementsEntry() {
-    final cs = ProfileTheme.themeFor(_t).colorScheme;
-    return _m3EntryCard(
-      cs: cs,
-      boxColor: cs.tertiaryContainer,
-      onBoxColor: cs.onTertiaryContainer,
-      icon: Icons.emoji_events_rounded,
-      title: LocaleService.current.achievementsTitle,
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => AchievementsScreen(theme: _t),
-          settings: const RouteSettings(name: '/achievements'),
-        ),
-      ),
-      subtitle: ValueListenableBuilder<AchievementStats>(
-        valueListenable: AchievementService.instance.stats,
-        builder: (_, stats, __) {
-          final n =
-              PairAchievement.all.where((a) => a.isUnlockedBy(stats)).length;
-          return Text(
-            LocaleService.current
-                .achievementsUnlockedOf(n, PairAchievement.all.length),
-            style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant),
-          );
-        },
-      ),
-    );
-  }
-
-  /// Единый M3-компонент строки-входа (Достижения, Подарки): тональный
-  /// контейнер без бордера, тональный бокс-иконка (роль задаёт [boxColor]),
-  /// заголовок Unbounded, опциональная подпись и шеврон. Подтянут к языку
-  /// эталонного блока «Тебе подарок» ([_incomingGiftEntry]).
-  Widget _m3EntryCard({
-    required ColorScheme cs,
-    required Color boxColor,
-    required Color onBoxColor,
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-    Widget? subtitle,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 4),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(24),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(
-              color: cs.surfaceContainerHigh,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: boxColor,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  alignment: Alignment.center,
-                  child: Icon(icon, color: onBoxColor, size: 24),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        title,
-                        style: TextStyle(
-                          fontFamily: ProfileTheme.displayFont,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: cs.onSurface,
-                        ),
-                      ),
-                      if (subtitle != null) ...[
-                        const SizedBox(height: 2),
-                        subtitle,
-                      ],
-                    ],
-                  ),
-                ),
-                Icon(Icons.chevron_right_rounded,
-                    color: cs.onSurfaceVariant, size: 22),
-              ],
-            ),
           ),
         ),
       ),

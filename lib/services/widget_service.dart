@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/widget_data.dart';
 import '../models/memory.dart';
 import '../models/mood_entry.dart';
+import 'locale_service.dart';
 import 'media_service.dart';
 import 'home_widget_service.dart';
 import 'level_service.dart';
@@ -363,7 +364,7 @@ class WidgetService extends ChangeNotifier {
           authorAvatar: a.avatar,
           type: MemoryType.photo,
           imageUrl: url,
-          caption: '📸 Виджет',
+          caption: LocaleService.current.widgetPhotoCaption,
         );
       } catch (e) {
         debugPrint('Widget → Memory (photo) failed: $e');

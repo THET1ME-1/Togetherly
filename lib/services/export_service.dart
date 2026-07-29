@@ -28,7 +28,9 @@ class ExportService {
       final timerBuffer = StringBuffer();
       timerBuffer.writeln('=== ТАЙМЕРЫ ===');
       for (final t in timers) {
-        timerBuffer.writeln('${t.emoji} ${t.title}');
+        // Символ в текстовую выгрузку не пишем: с версии 1.20 там лежит имя
+        // значка (`favorite`), а не эмодзи, и в архиве оно выглядело бы мусором.
+        timerBuffer.writeln(t.title);
         timerBuffer.writeln('Начало: ${t.formattedStartDate}');
         timerBuffer.writeln('Прошло: ${t.daysElapsed} дней');
         timerBuffer.writeln('--------------------');

@@ -2,7 +2,7 @@ name: love_app
 description: "Togetherly — a private space for couples with shared memories, mood tracking, timers, drawings, and widgets."
 publish_to: "none"
 
-version: 1.19.0+145
+version: 1.20.0+146
 
 environment:
   sdk: ^3.10.4
@@ -116,10 +116,21 @@ flutter:
     # Раскраски вдвоём: контур с прозрачным фоном (ложится поверх мазков) и
     # превью для каталога.
     - assets/coloring/
+    # Карта «имя символа → кодпоинт» для выбора значка таймера. Лежит файлом, а
+    # не константой в коде: 4334 записи в Dart раздували бы сборку исходника,
+    # а нужны они только на экране выбора.
+    - assets/symbols/material_symbols.json
 
 
   # Unbounded (заголовки/числа) + Onest (текст) — шрифты M3-экрана «Профиль»
   # в стиле Kadr. Веса задаются через FontWeight поверх одного начертания.
+  #
+  # MaterialSymbolsRounded — полный набор значков Google (4381 штука) для
+  # выбора символа таймера. Взят из пакета material_symbols_icons и
+  # зафиксирован по осям (wght 400, FILL 0, GRAD 0, opsz 24): переменный файл
+  # весит 15 МБ, статический — 1,7 МБ. Пакетом не подключаем намеренно: символ
+  # выбирается по имени из базы, а при динамическом IconData Flutter отключает
+  # tree-shaking и тянет в сборку все три начертания.
   fonts:
     - family: Unbounded
       fonts:
@@ -127,3 +138,6 @@ flutter:
     - family: Onest
       fonts:
         - asset: assets/fonts/Onest.ttf
+    - family: MaterialSymbolsRounded
+      fonts:
+        - asset: assets/fonts/MaterialSymbolsRounded.ttf

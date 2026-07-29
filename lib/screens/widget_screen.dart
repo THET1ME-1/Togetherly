@@ -1353,56 +1353,35 @@ class _WidgetScreenState extends State<WidgetScreen>
   // HEADER
   // ════════════════════════════════════════════════════════════════════════════
 
+  /// Шапка каталога.
+  ///
+  /// Раньше это была строка ростом с четверть экрана: квадрат-иконка,
+  /// «Виджеты» кеглем 30 и рядом текстовая кнопка «Сбросить» такого же веса,
+  /// как заголовок. Сброс стирает всё содержимое виджета — действие редкое и
+  /// необратимое, кричать ему незачем, поэтому оно ушло в иконку с подсказкой.
   Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 4),
+      padding: const EdgeInsets.fromLTRB(24, 8, 12, 4),
       child: Row(
         children: [
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color: _cs.secondaryContainer,
-              borderRadius: BorderRadius.circular(15),
-            ),
-            child: Icon(Icons.widgets_rounded,
-                color: _cs.onSecondaryContainer, size: 24),
-          ),
-          const SizedBox(width: 12),
           Text(
             _s.widgetsTitle,
             style: TextStyle(
               fontFamily: 'Unbounded',
-              fontSize: 30,
+              fontSize: 24,
               fontWeight: FontWeight.w800,
-        fontVariations: const [FontVariation('wght', 800)],
-              letterSpacing: -1,
+              fontVariations: const [FontVariation('wght', 800)],
+              letterSpacing: -0.8,
               color: _cs.onSurface,
             ),
           ),
           const Spacer(),
-          // Сбросить мой виджет
           if (_ws.myData != null && !_ws.myData!.isEmpty)
-            GestureDetector(
-              onTap: _confirmClearAll,
-              behavior: HitTestBehavior.opaque,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.restart_alt_rounded, size: 18, color: _cs.primary),
-                  const SizedBox(width: 6),
-                  Text(
-                    _s.resetBtn,
-                    style: TextStyle(
-                      fontFamily: 'Onest',
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-        fontVariations: const [FontVariation('wght', 700)],
-                      color: _cs.primary,
-                    ),
-                  ),
-                ],
-              ),
+            IconButton(
+              onPressed: _confirmClearAll,
+              tooltip: _s.resetWidget,
+              icon: Icon(Icons.restart_alt_rounded,
+                  size: 22, color: _cs.onSurfaceVariant),
             ),
         ],
       ),
@@ -5966,7 +5945,6 @@ class _WidgetScreenState extends State<WidgetScreen>
                   }
                 : null,
           ),
-          _slotDivider(),
           _buildSlotRow(
             icon: Icons.chat_bubble_outline_rounded,
             iconColor: _t.primary,
@@ -5981,7 +5959,6 @@ class _WidgetScreenState extends State<WidgetScreen>
             ),
             onClear: data.hasStatus ? () => _ws.clearStatus() : null,
           ),
-          _slotDivider(),
           _buildSlotRow(
             icon: Icons.mail_outline_rounded,
             iconColor: _t.primary,
@@ -5996,7 +5973,6 @@ class _WidgetScreenState extends State<WidgetScreen>
             ),
             onClear: data.hasMessage ? () => _ws.clearMessage() : null,
           ),
-          _slotDivider(),
           _buildSlotRow(
             icon: Icons.photo_camera_outlined,
             iconColor: _t.iconPost,
@@ -6051,7 +6027,6 @@ class _WidgetScreenState extends State<WidgetScreen>
             onTap: () => _pickPhoto(),
             onClear: data.hasPhoto ? () => _ws.clearPhoto() : null,
           ),
-          _slotDivider(),
           _buildSlotRow(
             icon: Icons.music_note_rounded,
             iconColor: _t.iconCalendar,
@@ -6173,21 +6148,18 @@ class _WidgetScreenState extends State<WidgetScreen>
                 ? ClipOval(child: Image.asset(partner.moodEmoji, width: 24, height: 24, fit: BoxFit.cover))
                 : null,
           ),
-          _slotDivider(),
           _buildReadonlySlot(
             icon: Icons.chat_bubble_outline_rounded,
             iconColor: _t.primary,
             label: _s.status,
             value: partner.hasStatus ? partner.status : null,
           ),
-          _slotDivider(),
           _buildReadonlySlot(
             icon: Icons.mail_outline_rounded,
             iconColor: _t.primary,
             label: _s.message,
             value: partner.hasMessage ? '«${partner.message}»' : null,
           ),
-          _slotDivider(),
           _buildReadonlySlot(
             icon: Icons.photo_camera_outlined,
             iconColor: _t.iconPost,
@@ -6240,7 +6212,6 @@ class _WidgetScreenState extends State<WidgetScreen>
                   )
                 : null,
           ),
-          _slotDivider(),
           _buildReadonlySlot(
             icon: Icons.music_note_rounded,
             iconColor: _t.iconCalendar,
@@ -6324,6 +6295,12 @@ class _WidgetScreenState extends State<WidgetScreen>
   // SLOT ROWS
   // ════════════════════════════════════════════════════════════════════════════
 
+  /// Слот содержимого виджета: настроение, статус, сообщение, фото, музыка.
+  ///
+  /// Заполненный — сплошная карточка со значением, пустой — та же карточка
+  /// пунктиром: сразу видно, что место свободно. Раньше все слоты были
+  /// одинаковыми строками с разделителями, и «пусто» отличалось только
+  /// кнопкой «+ Добавить» разной ширины.
   Widget _buildSlotRow({
     required IconData icon,
     required Color iconColor,
@@ -6336,100 +6313,127 @@ class _WidgetScreenState extends State<WidgetScreen>
     VoidCallback? onClear,
   }) {
     final hasValue = value != null;
+    final radius = BorderRadius.circular(22);
 
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.1),
-                shape: BoxShape.circle,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: hasValue ? _cs.surfaceContainerHigh : _cs.surfaceContainerLow,
+        borderRadius: radius,
+        clipBehavior: Clip.antiAlias,
+        shape: hasValue
+            ? RoundedRectangleBorder(borderRadius: radius)
+            : RoundedRectangleBorder(
+                borderRadius: radius,
+                side: BorderSide(color: _cs.outlineVariant),
               ),
-              child: Icon(icon, size: 22, color: iconColor),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: AppFonts.onest(size: 11, weight: 600, letterSpacing: 0.3, color: _t.textMuted),
-                  ),
-                  if (hasValue) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      value,
-                      style: AppFonts.onest(size: 14, weight: 600, color: valueColor ?? _t.textPrimary),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      style: AppFonts.onest(size: 10.5, weight: 500, height: 1.25, color: _t.textMuted),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            if (trailing != null) ...[const SizedBox(width: 8), trailing],
-            if (onClear != null) ...[
-              const SizedBox(width: 6),
-              GestureDetector(
-                onTap: onClear,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
-                    color: _t.surfaceMuted,
-                    borderRadius: BorderRadius.circular(8),
+                    color: hasValue
+                        ? _cs.primaryContainer
+                        : _cs.surfaceContainerHighest,
+                    shape: BoxShape.circle,
                   ),
-                  child: Icon(
-                    Icons.close_rounded,
-                    size: 14,
-                    color: _t.textMuted,
+                  child: Icon(icon,
+                      size: 22,
+                      color: hasValue
+                          ? _cs.onPrimaryContainer
+                          : _cs.onSurfaceVariant),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        style: AppFonts.onest(
+                            size: hasValue ? 11.5 : 14.5,
+                            weight: hasValue ? 500 : 600,
+                            color: hasValue
+                                ? _cs.onSurfaceVariant
+                                : _cs.onSurface),
+                      ),
+                      if (hasValue) ...[
+                        const SizedBox(height: 1),
+                        Text(
+                          value,
+                          style: AppFonts.onest(
+                              size: 14.5,
+                              weight: 600,
+                              color: valueColor ?? _cs.onSurface),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          subtitle,
+                          style: AppFonts.onest(
+                              size: 11,
+                              weight: 500,
+                              height: 1.25,
+                              color: _cs.onSurfaceVariant),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-              ),
-            ],
-            if (!hasValue) ...[
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: _t.primary.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.add_rounded, size: 14, color: _t.primary),
-                    const SizedBox(width: 2),
-                    Text(
-                      _s.addBtn,
-                      style: AppFonts.onest(size: 11, weight: 600, color: _t.primary),
+                if (trailing != null) ...[const SizedBox(width: 8), trailing],
+                if (onClear != null) ...[
+                  const SizedBox(width: 4),
+                  IconButton(
+                    onPressed: onClear,
+                    visualDensity: VisualDensity.compact,
+                    icon: Icon(Icons.close_rounded,
+                        size: 18, color: _cs.onSurfaceVariant),
+                  ),
+                ],
+                if (!hasValue) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding:
+                        const EdgeInsets.fromLTRB(10, 6, 12, 6),
+                    decoration: BoxDecoration(
+                      color: _cs.secondaryContainer,
+                      borderRadius: BorderRadius.circular(999),
                     ),
-                  ],
-                ),
-              ),
-            ],
-          ],
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.add_rounded,
+                            size: 16, color: _cs.onSecondaryContainer),
+                        const SizedBox(width: 4),
+                        Text(
+                          _s.addBtn,
+                          style: AppFonts.onest(
+                              size: 12.5,
+                              weight: 600,
+                              color: _cs.onSecondaryContainer),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 
+  /// Слот половины партнёра — та же карточка, что и своя, но без нажатия:
+  /// чужое содержимое мы не правим.
   Widget _buildReadonlySlot({
     required IconData icon,
     required Color iconColor,
@@ -6441,46 +6445,67 @@ class _WidgetScreenState extends State<WidgetScreen>
     final hasValue = value != null;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.1),
-              shape: BoxShape.circle,
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        decoration: BoxDecoration(
+          color: hasValue ? _cs.surfaceContainerHigh : _cs.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(22),
+          border: hasValue ? null : Border.all(color: _cs.outlineVariant),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: hasValue
+                    ? _cs.primaryContainer
+                    : _cs.surfaceContainerHighest,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon,
+                  size: 22,
+                  color: hasValue
+                      ? _cs.onPrimaryContainer
+                      : _cs.onSurfaceVariant),
             ),
-            child: Icon(icon, size: 22, color: iconColor),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: AppFonts.onest(size: 11, weight: 600, letterSpacing: 0.3, color: _t.textMuted),
-                ),
-                if (hasValue) ...[
-                  const SizedBox(height: 2),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    value,
-                    style: AppFonts.onest(size: 14, weight: 600, color: valueColor ?? _t.textPrimary),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    label,
+                    style: AppFonts.onest(
+                        size: hasValue ? 11.5 : 14.5,
+                        weight: hasValue ? 500 : 600,
+                        color:
+                            hasValue ? _cs.onSurfaceVariant : _cs.onSurface),
                   ),
+                  if (hasValue) ...[
+                    const SizedBox(height: 1),
+                    Text(
+                      value,
+                      style: AppFonts.onest(
+                          size: 14.5,
+                          weight: 600,
+                          color: valueColor ?? _cs.onSurface),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-          if (trailing != null) ...[const SizedBox(width: 8), trailing],
-          if (!hasValue)
-            Text(
-              '—',
-              style: TextStyle(fontSize: 14, color: _t.textMuted),
-            ),
-        ],
+            if (trailing != null) ...[const SizedBox(width: 8), trailing],
+            if (!hasValue)
+              Text(
+                '—',
+                style: TextStyle(fontSize: 14, color: _cs.onSurfaceVariant),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -6986,9 +7011,6 @@ class _WidgetScreenState extends State<WidgetScreen>
       ),
     );
   }
-
-  Widget _slotDivider() =>
-      Divider(color: _t.divider, height: 1, thickness: 1);
 
   Widget _settingDivider() =>
       Divider(color: _t.divider, height: 8, thickness: 1);

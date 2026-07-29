@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../services/locale_service.dart';
+
 /// Фоны чата, нарисованные кодом.
 ///
 /// Картинок в ассетах нет намеренно: фон должен следовать за темой пары, а
@@ -40,39 +42,40 @@ class ChatBackgroundSpec {
 
   final ChatBackground id;
 
-  /// Painter под конкретную схему. null — рисовать нечего, только заливка.
-  final CustomPainter? Function(ColorScheme scheme) painterOf;
+  /// Painter под конкретную схему и масштаб узора. null — рисовать нечего,
+  /// только заливка. Масштаб нужен превью: см. [ChatBackgroundView.scale].
+  final CustomPainter? Function(ColorScheme scheme, double scale) painterOf;
 }
 
 /// Каталог. Порядок = порядок в листе выбора.
 final Map<ChatBackground, ChatBackgroundSpec> kChatBackgrounds = {
   ChatBackground.plain: ChatBackgroundSpec(
     id: ChatBackground.plain,
-    painterOf: (_) => null,
+    painterOf: (_, __) => null,
   ),
   ChatBackground.dawn: ChatBackgroundSpec(
     id: ChatBackground.dawn,
-    painterOf: (cs) => _DawnPainter(cs),
+    painterOf: (cs, k) => _DawnPainter(cs, k),
   ),
   ChatBackground.hearts: ChatBackgroundSpec(
     id: ChatBackground.hearts,
-    painterOf: (cs) => _HeartsPainter(cs),
+    painterOf: (cs, k) => _HeartsPainter(cs, k),
   ),
   ChatBackground.weave: ChatBackgroundSpec(
     id: ChatBackground.weave,
-    painterOf: (cs) => _WeavePainter(cs),
+    painterOf: (cs, k) => _WeavePainter(cs, k),
   ),
   ChatBackground.dots: ChatBackgroundSpec(
     id: ChatBackground.dots,
-    painterOf: (cs) => _DotsPainter(cs),
+    painterOf: (cs, k) => _DotsPainter(cs, k),
   ),
   ChatBackground.bubbles: ChatBackgroundSpec(
     id: ChatBackground.bubbles,
-    painterOf: (cs) => _BubblesPainter(cs),
+    painterOf: (cs, k) => _BubblesPainter(cs, k),
   ),
   ChatBackground.night: ChatBackgroundSpec(
     id: ChatBackground.night,
-    painterOf: (cs) => _NightPainter(cs),
+    painterOf: (cs, k) => _NightPainter(cs, k),
   ),
 };
 
@@ -80,6 +83,20 @@ final Map<ChatBackground, ChatBackgroundSpec> kChatBackgrounds = {
 /// настолько, чтобы экран не выглядел пустым листом, и не спорит ни с одной из
 /// двадцати палитр.
 const ChatBackground kDefaultChatBackground = ChatBackground.dots;
+
+/// Название фона для списка выбора.
+String chatBackgroundName(ChatBackground bg) {
+  final s = LocaleService.current;
+  return switch (bg) {
+    ChatBackground.plain => s.chatBgPlain,
+    ChatBackground.dawn => s.chatBgDawn,
+    ChatBackground.hearts => s.chatBgHearts,
+    ChatBackground.weave => s.chatBgWeave,
+    ChatBackground.dots => s.chatBgDots,
+    ChatBackground.bubbles => s.chatBgBubbles,
+    ChatBackground.night => s.chatBgNight,
+  };
+}
 
 /// Разбор сохранённого значения. Неизвестное имя (старая версия, опечатка) —
 /// это фон по умолчанию, а не исключение: фон не та вещь, из-за которой стоит
@@ -98,14 +115,22 @@ class ChatBackgroundView extends StatelessWidget {
     super.key,
     required this.background,
     required this.scheme,
+    this.scale = 1.0,
   });
 
   final ChatBackground background;
   final ColorScheme scheme;
 
+  /// Масштаб узора. На экране 1.0; в карточке выбора 70×104 узор в натуральную
+  /// величину давал случайный обрезок (одно сердце наполовину, три точки), и
+  /// понять по такому превью было нечего. Painter'ы умножают на этот
+  /// коэффициент шаг сетки, радиусы и толщину линий — рисунок сжимается вместе
+  /// с карточкой и показывает ритм, а не осколок.
+  final double scale;
+
   @override
   Widget build(BuildContext context) {
-    final painter = kChatBackgrounds[background]?.painterOf(scheme);
+    final painter = kChatBackgrounds[background]?.painterOf(scheme, scale);
     return Container(
       color: scheme.surface,
       child: painter == null
@@ -116,23 +141,25 @@ class ChatBackgroundView extends StatelessWidget {
 }
 
 // ── Узоры ───────────────────────────────────────────────────────────────────
-// Все painter'ы держат `shouldRepaint` на сравнении схемы: перекрашивать надо
-// при смене темы, а не на каждом кадре списка сообщений.
+// Все painter'ы держат `shouldRepaint` на сравнении схемы и масштаба:
+// перекрашивать надо при смене темы, а не на каждом кадре списка сообщений.
 
 class _DawnPainter extends CustomPainter {
-  const _DawnPainter(this.cs);
+  const _DawnPainter(this.cs, this.k);
   final ColorScheme cs;
+  final double k;
 
   @override
   void paint(Canvas canvas, Size size) {
     // Два мягких пятна из противоположных углов. Радиус берём от диагонали,
-    // поэтому на планшете свечение не превращается в точку.
+    // поэтому на планшете свечение не превращается в точку. Масштаб здесь
+    // менять не нужно: пятна и так заданы долями холста.
     final d = math.sqrt(size.width * size.width + size.height * size.height);
-    void glow(Offset center, Color color, double k) {
-      final rect = Rect.fromCircle(center: center, radius: d * k);
+    void glow(Offset center, Color color, double r) {
+      final rect = Rect.fromCircle(center: center, radius: d * r);
       canvas.drawCircle(
         center,
-        d * k,
+        d * r,
         Paint()
           ..shader = RadialGradient(
             colors: [color, color.withValues(alpha: 0)],
@@ -146,24 +173,26 @@ class _DawnPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_DawnPainter old) => old.cs != cs;
+  bool shouldRepaint(_DawnPainter old) => old.cs != cs || old.k != k;
 }
 
 class _HeartsPainter extends CustomPainter {
-  const _HeartsPainter(this.cs);
+  const _HeartsPainter(this.cs, this.k);
   final ColorScheme cs;
+  final double k;
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = cs.primary.withValues(alpha: 0.07);
-    const step = 92.0;
+    final step = 92.0 * k;
     var row = 0;
-    for (double y = -20; y < size.height + step; y += step) {
+    for (double y = -20 * k; y < size.height + step; y += step) {
       // Каждый второй ряд сдвинут на полшага: сетка перестаёт читаться рядами.
       final offset = row.isEven ? 0.0 : step / 2;
-      for (double x = -20 + offset; x < size.width + step; x += step) {
-        final wobble = ((row * 7 + x) % 13) - 6;
-        _heart(canvas, Offset(x, y + wobble), 13 + (wobble.abs() % 4), paint);
+      for (double x = -20 * k + offset; x < size.width + step; x += step) {
+        final wobble = (((row * 7 + x) % 13) - 6) * k;
+        _heart(canvas, Offset(x, y + wobble),
+            (13 + (wobble.abs() % 4)) * k, paint);
       }
       row++;
     }
@@ -181,20 +210,21 @@ class _HeartsPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_HeartsPainter old) => old.cs != cs;
+  bool shouldRepaint(_HeartsPainter old) => old.cs != cs || old.k != k;
 }
 
 class _WeavePainter extends CustomPainter {
-  const _WeavePainter(this.cs);
+  const _WeavePainter(this.cs, this.k);
   final ColorScheme cs;
+  final double k;
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = cs.onSurface.withValues(alpha: 0.05)
-      ..strokeWidth = 1.2
+      ..strokeWidth = 1.2 * math.max(k, 0.6)
       ..style = PaintingStyle.stroke;
-    const step = 26.0;
+    final step = 26.0 * k;
     // Диагональ в одну сторону: перекрестие даёт клетку, а она уже спорит с
     // прямоугольными пузырями.
     for (double x = -size.height; x < size.width + size.height; x += step) {
@@ -203,39 +233,42 @@ class _WeavePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_WeavePainter old) => old.cs != cs;
+  bool shouldRepaint(_WeavePainter old) => old.cs != cs || old.k != k;
 }
 
 class _DotsPainter extends CustomPainter {
-  const _DotsPainter(this.cs);
+  const _DotsPainter(this.cs, this.k);
   final ColorScheme cs;
+  final double k;
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = cs.onSurface.withValues(alpha: 0.07);
-    const step = 30.0;
+    final step = 30.0 * k;
     var row = 0;
-    for (double y = 10; y < size.height; y += step) {
+    for (double y = 10 * k; y < size.height; y += step) {
       final offset = row.isEven ? 0.0 : step / 2;
-      for (double x = 10 + offset; x < size.width; x += step) {
-        canvas.drawCircle(Offset(x, y), 1.8, paint);
+      for (double x = 10 * k + offset; x < size.width; x += step) {
+        canvas.drawCircle(Offset(x, y), 1.8 * math.max(k, 0.55), paint);
       }
       row++;
     }
   }
 
   @override
-  bool shouldRepaint(_DotsPainter old) => old.cs != cs;
+  bool shouldRepaint(_DotsPainter old) => old.cs != cs || old.k != k;
 }
 
 class _BubblesPainter extends CustomPainter {
-  const _BubblesPainter(this.cs);
+  const _BubblesPainter(this.cs, this.k);
   final ColorScheme cs;
+  final double k;
 
   @override
   void paint(Canvas canvas, Size size) {
     // Позиции заданы долями от размера, а не пикселями: узор одинаково лежит
-    // и на узком экране, и на планшете.
+    // и на узком экране, и на планшете. Масштаб трогает только радиусы —
+    // иначе в превью виден один сплошной круг.
     const spots = <(double, double, double)>[
       (0.08, 0.12, 0.30),
       (0.86, 0.26, 0.22),
@@ -246,19 +279,20 @@ class _BubblesPainter extends CustomPainter {
     for (final (fx, fy, fr) in spots) {
       canvas.drawCircle(
         Offset(size.width * fx, size.height * fy),
-        size.width * fr,
+        size.width * fr * math.max(k, 0.5),
         Paint()..color = cs.primary.withValues(alpha: 0.055),
       );
     }
   }
 
   @override
-  bool shouldRepaint(_BubblesPainter old) => old.cs != cs;
+  bool shouldRepaint(_BubblesPainter old) => old.cs != cs || old.k != k;
 }
 
 class _NightPainter extends CustomPainter {
-  const _NightPainter(this.cs);
+  const _NightPainter(this.cs, this.k);
   final ColorScheme cs;
+  final double k;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -276,12 +310,14 @@ class _NightPainter extends CustomPainter {
         ).createShader(Offset.zero & size),
     );
     // Звёзды раскладываем детерминированным генератором: узор одинаков между
-    // кадрами и перерисовками, мерцания при скролле нет.
+    // кадрами и перерисовками, мерцания при скролле нет. В превью звёзд
+    // столько же на площадь — иначе карточка выглядит пустым небом.
     final rnd = math.Random(7);
-    for (var i = 0; i < 70; i++) {
+    final count = (70 * k).round().clamp(18, 70);
+    for (var i = 0; i < count; i++) {
       final x = rnd.nextDouble() * size.width;
       final y = rnd.nextDouble() * size.height;
-      final r = 0.7 + rnd.nextDouble() * 1.4;
+      final r = (0.7 + rnd.nextDouble() * 1.4) * math.max(k, 0.55);
       canvas.drawCircle(
         Offset(x, y),
         r,
@@ -292,5 +328,5 @@ class _NightPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_NightPainter old) => old.cs != cs;
+  bool shouldRepaint(_NightPainter old) => old.cs != cs || old.k != k;
 }
