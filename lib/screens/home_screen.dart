@@ -3176,26 +3176,23 @@ class _MascotButtonState extends State<_MascotButton>
               SizedBox(
                 width: 48,
                 height: 48,
+                // Пока маскота нет — морфинг-фигура M3, и в загрузке, и в
+                // пустом состоянии. Смайлик отсюда убран: он рисовался
+                // системной иконкой, ничего не значил и оставался на экране,
+                // будто маскот такой и есть.
                 child: mascot != null
                     ? _MascotPreviewWidget(
                         mascot: mascot,
                         service: widget.service,
                         color: cs.onSecondaryContainer,
                       )
-                    : isLoading
-                        ? Center(
-                            child: M3Loading(
-                              size: 36,
-                              color: cs.onSecondaryContainer
-                                  .withValues(alpha: 0.55),
-                            ),
-                          )
-                        : Icon(
-                            Icons.sentiment_satisfied_alt_rounded,
-                            size: 36,
-                            color:
-                                cs.onSecondaryContainer.withValues(alpha: 0.55),
-                          ),
+                    : Center(
+                        child: M3Loading(
+                          size: 36,
+                          color:
+                              cs.onSecondaryContainer.withValues(alpha: 0.55),
+                        ),
+                      ),
               ),
               const SizedBox(width: 12),
               Expanded(
