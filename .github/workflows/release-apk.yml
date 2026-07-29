@@ -114,7 +114,11 @@ jobs:
       - name: Build release APK
         # --split-per-abi: отдельный APK на архитектуру (~45 МБ) вместо
         # одного «толстого» universal (~109 МБ).
-        run: flutter build apk --release --split-per-abi --dart-define=STORE=github
+        # --no-tree-shake-icons: значок таймера берётся по имени из базы, то есть
+        # IconData собирается на ходу. Flutter такое дерево иконок урезать не
+        # умеет и падает «Avoid non-constant invocations of IconData». Расплата —
+        # полный MaterialIcons в сборке, +1,5 МБ.
+        run: flutter build apk --release --split-per-abi --no-tree-shake-icons --dart-define=STORE=github
 
       - name: Stage artifacts
         id: stage
@@ -294,7 +298,8 @@ jobs:
           echo "code=${LINE##*+}" >> "$GITHUB_OUTPUT"
 
       - name: Build AAB
-        run: flutter build appbundle --release
+        # См. комментарий у сборки APK: динамический IconData ломает tree-shaking.
+        run: flutter build appbundle --release --no-tree-shake-icons
 
       - name: Publish to Google Play (production)
         uses: r0adkll/upload-google-play@v1
@@ -401,7 +406,7 @@ jobs:
           echo "code=${LINE##*+}" >> "$GITHUB_OUTPUT"
 
       - name: Build RuStore APK
-        run: flutter build apk --release --dart-define=STORE=rustore
+        run: flutter build apk --release --no-tree-shake-icons --dart-define=STORE=rustore
 
       - name: Stage APK
         id: stage
@@ -563,6 +568,7 @@ jobs:
           NEW=$((LATEST + 1))
           echo "ASC latest build = $LATEST → building with $NEW"
           flutter build ipa --release \
+            --no-tree-shake-icons \
             --build-number="$NEW" \
             --export-options-plist="$HOME/export_options.plist"
 
