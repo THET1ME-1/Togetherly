@@ -5,6 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../widgets/storage_image.dart';
 import 'package:exif/exif.dart';
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:geocoding/geocoding.dart';
@@ -67,6 +68,7 @@ import 'memory_lane_screen.dart';
 import 'together/together_launcher.dart';
 import 'mini_mood_calendar.dart';
 import 'mood_calendar_screen.dart';
+import 'plus_screen.dart';
 import 'profile_screen.dart';
 import '../theme/profile_theme.dart';
 import '../services/cycle_service.dart';
@@ -1058,6 +1060,40 @@ class _HomeScreenState extends State<HomeScreen> {
       _quietNudgeAt = nudgeAt;
     });
     await _maybeShowInviteScreen();
+    await _maybePitchPlus();
+  }
+
+  /// Рассказ про Togetherly+ — один раз после обновления.
+  ///
+  /// Не показываем: тем, у кого Плюс уже куплен; там, где его не существует
+  /// (iOS — витрины нет вовсе, экран с ценой попал бы под 3.1.1); и новичку в
+  /// первый запуск — ему сначала нужно позвать партнёра.
+  ///
+  /// Периодических напоминаний нет намеренно: приложение открывают по
+  /// несколько раз в день, и показ «раз в N заходов» превращается в долбёжку.
+  /// Дальше Плюс продаёт себя по месту — там, где человек упирается в замок.
+  Future<void> _maybePitchPlus() async {
+    if (!mounted) return;
+    if (!PlusService.instance.visible || PlusService.instance.active) return;
+    if (await UiPrefs.isFirstLaunchEver()) return;
+
+    String version;
+    try {
+      final info = await PackageInfo.fromPlatform();
+      version = '${info.version}+${info.buildNumber}';
+    } catch (_) {
+      return;
+    }
+    if (await UiPrefs.plusPitchShownFor(version)) return;
+    await UiPrefs.markPlusPitchShown(version);
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            PlusScreen(scheme: ProfileTheme.themeFor(_t).colorScheme),
+        settings: const RouteSettings(name: '/plus_pitch'),
+      ),
+    );
   }
 
   /// Экран «позовите свою половину» — один раз после регистрации и только пока

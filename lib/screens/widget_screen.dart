@@ -4478,22 +4478,29 @@ class _WidgetScreenState extends State<WidgetScreen>
 
   /// Кружок-аватарка для превью счётчика дней.
   Widget _daysPreviewAvatar(String url) {
+    // Кайма — это отступ, а не `Border`. У круглого `Container` рамка рисуется
+    // ВНУТРЬ, а картинка внутри просилась во все 56 px: она не влезала в
+    // оставшиеся 52 и обрезалась по краям — на превью аватар выглядел
+    // подрезанным сбоку. Теперь картинка занимает ровно внутреннюю область.
     return Container(
       width: 56,
       height: 56,
+      padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: _t.primary.withOpacity(0.1),
-        border: Border.all(color: _t.cardSurface, width: 2),
+        color: _t.cardSurface,
       ),
       child: ClipOval(
-        child: StorageImage(
-          imageUrl: url,
-          width: 56,
-          height: 56,
-          fit: BoxFit.cover,
-          errorWidget: (_, __, ___) =>
-              Icon(Icons.person_rounded, color: _t.primary.withOpacity(0.5)),
+        child: ColoredBox(
+          color: _t.primary.withValues(alpha: 0.1),
+          child: StorageImage(
+            imageUrl: url,
+            width: 52,
+            height: 52,
+            fit: BoxFit.cover,
+            errorWidget: (_, __, ___) =>
+                Icon(Icons.person_rounded, color: _t.primary.withValues(alpha: 0.5)),
+          ),
         ),
       ),
     );

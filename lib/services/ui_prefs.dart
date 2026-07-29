@@ -47,6 +47,34 @@ class UiPrefs {
     await p.setBool(kInviteScreenShown, true);
   }
 
+  /// Версия, на которой показывали рассказ про Togetherly+.
+  ///
+  /// Про платную часть надо рассказать один раз после обновления — и замолчать.
+  /// Периодические напоминания «раз в N заходов» превращаются в долбёжку:
+  /// человек открывает приложение по несколько раз в день, и такой экран
+  /// вылезал бы каждые три-четыре дня. Дальше Плюс продаёт себя сам — по
+  /// замкам, там, где человек в него упирается.
+  static const String kPlusPitchVersion = 'plus_pitch_version';
+
+  /// Показывали ли рассказ на этой версии.
+  static Future<bool> plusPitchShownFor(String version) async {
+    final p = await SharedPreferences.getInstance();
+    return p.getString(kPlusPitchVersion) == version;
+  }
+
+  static Future<void> markPlusPitchShown(String version) async {
+    final p = await SharedPreferences.getInstance();
+    await p.setString(kPlusPitchVersion, version);
+  }
+
+  /// Первый запуск приложения после установки: рассказ про Плюс новичку не
+  /// показываем — у него своя дорога, приглашение партнёра.
+  static Future<bool> isFirstLaunchEver() async {
+    final p = await SharedPreferences.getInstance();
+    return p.getString(kPlusPitchVersion) == null &&
+        !(p.getBool(kInviteScreenShown) ?? false);
+  }
+
   /// Карточка первых действий закрыта крестиком.
   static const String kOnboardingDismissed = 'onboarding_card_dismissed';
 
