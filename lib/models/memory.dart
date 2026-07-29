@@ -1,9 +1,39 @@
 import 'dart:convert';
 
+import 'package:flutter/material.dart';
 import 'package:pocketbase/pocketbase.dart';
+
+import '../services/locale_service.dart';
 
 /// Types of memory content
 enum MemoryType { photo, video, location, music, text, videoLink, book, movie }
+
+/// Иконка типа записи — одна на всё приложение: лента, чат, задачи дня,
+/// лист добавления. Раньше каждый экран рисовал свой эмодзи или свою иконку,
+/// и одна и та же «музыка» выглядела тремя разными способами.
+/// Прежние подписи фото, отправленных в виджет, приходят с эмодзи в начале:
+/// приложение до июля подставляло `📸 Виджет` прямо в заголовок, и он уже
+/// лежит в базе у тысяч записей. Правим на показе, а не миграцией: сравнение
+/// точное, поэтому подписи, которые люди писали сами, остаются как есть.
+const Set<String> _kLegacyWidgetCaptions = {'📸 Виджет', '📸 Widget'};
+
+String? normalizeMemoryCaption(String? caption) {
+  if (caption == null || caption.isEmpty) return caption;
+  return _kLegacyWidgetCaptions.contains(caption.trim())
+      ? LocaleService.current.widgetPhotoCaption
+      : caption;
+}
+
+IconData memoryTypeIcon(MemoryType type) => switch (type) {
+      MemoryType.photo => Icons.photo_camera_rounded,
+      MemoryType.video => Icons.movie_rounded,
+      MemoryType.location => Icons.location_on_rounded,
+      MemoryType.music => Icons.music_note_rounded,
+      MemoryType.text => Icons.edit_note_rounded,
+      MemoryType.videoLink => Icons.smart_display_rounded,
+      MemoryType.book => Icons.menu_book_rounded,
+      MemoryType.movie => Icons.local_movies_rounded,
+    };
 
 /// A single memory entry in the shared Memory Lane
 class Memory {
@@ -153,6 +183,13 @@ class Memory {
     }
   }
 
+  /// Иконка типа для интерфейса. Эмодзи рисует система: набор свой на каждом
+  /// телефоне, цвет мимо палитры, в тёмной теме — яркое пятно. Иконка берёт
+  /// цвет из схемы и держит один вес со всем остальным.
+  IconData get typeIcon => memoryTypeIcon(type);
+
+  /// Эмодзи типа — только для текстовых выгрузок (экспорт в .txt), где иконку
+  /// не нарисовать.
   String get typeEmoji {
     switch (type) {
       case MemoryType.photo:
@@ -242,7 +279,7 @@ class Memory {
           : null,
       videoUrl: json['videoUrl'],
       title: json['title'],
-      caption: json['caption'],
+      caption: normalizeMemoryCaption(json['caption'] as String?),
       locationName: json['locationName'],
       latitude: (json['latitude'] as num?)?.toDouble(),
       longitude: (json['longitude'] as num?)?.toDouble(),

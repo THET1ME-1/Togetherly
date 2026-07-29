@@ -14,6 +14,7 @@ import 'coloring_result_screen.dart';
 import '../services/memory_repository.dart';
 import '../models/memory.dart';
 import '../utils/flood_fill.dart';
+import '../utils/local_image_paths.dart';
 import '../widgets/color_picker_sheet.dart';
 import '../utils/color_hex.dart';
 import '../widgets/app_sheet.dart';
@@ -609,6 +610,9 @@ class _DrawScreenState extends State<DrawScreen>
         for (int i = 0; i < updatedMyIds.length; i++) {
           if (updatedMyIds[i] == matchKey) updatedMyIds[i] = remote.id;
         }
+        // Картинку-штрих (заливка, вставленное фото) продолжаем рисовать с
+        // диска — см. [adoptLocalImagePath].
+        adoptLocalImagePath(_localImagePaths, matchKey, remote.id);
       }
     }
 

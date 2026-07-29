@@ -60,6 +60,7 @@ import 'memory_music_form_screen.dart';
 import 'memory_location_form_screen.dart';
 import 'memory_book_form_screen.dart';
 import 'memory_movie_form_screen.dart';
+import '../theme/profile_theme.dart';
 import '../widgets/app_sheet.dart';
 import '../widgets/common/app_dialog.dart';
 import '../widgets/memory_date_field.dart';
@@ -716,7 +717,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   const SliverToBoxAdapter(child: SizedBox(height: 6)),
                   // Pinned section (only in normal mode)
                   if (_pinnedMemories.isNotEmpty) ...[
-                    _sectionHeader('📌  ${LocaleService.current.pinned}'),
+                    _sectionHeader(LocaleService.current.pinned,
+                        icon: Icons.push_pin_rounded),
                     SliverPadding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       sliver: SliverList(
@@ -879,11 +881,21 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             style: AppFonts.onest(size: 20, weight: 800, color: widget.theme.textPrimary),
           ),
           if (widget.filterMode != MemoryFilterMode.none)
-            Text(
-              widget.filterMode == MemoryFilterMode.day
-                  ? '📌 ${LocaleService.current.pinned} • ${_fmtToday()}'
-                  : '📌 ${LocaleService.current.pinned} • ${_fmtMonth()}',
-              style: AppFonts.onest(size: 11, weight: 500, color: primary.withOpacity(0.8)),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.push_pin_rounded,
+                    size: 12, color: primary.withValues(alpha: 0.8)),
+                const SizedBox(width: 5),
+                Text(
+                  '${LocaleService.current.pinned} • '
+                  '${widget.filterMode == MemoryFilterMode.day ? _fmtToday() : _fmtMonth()}',
+                  style: AppFonts.onest(
+                      size: 11,
+                      weight: 500,
+                      color: primary.withValues(alpha: 0.8)),
+                ),
+              ],
             ),
         ],
       ),
@@ -1167,14 +1179,24 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   // ═══════════════════════════════════════════════════
   //  SECTION HEADER
   // ═══════════════════════════════════════════════════
-  SliverToBoxAdapter _sectionHeader(String title) {
+  /// Заголовок секции ленты. [icon] — для секции закреплённого: раньше туда
+  /// подставляли 📌 прямо в строку, и заголовок зависел от эмодзи-набора
+  /// системы.
+  SliverToBoxAdapter _sectionHeader(String title, {IconData? icon}) {
+    final style = AppFonts.onest(
+        size: 13, weight: 700, letterSpacing: 0.3, color: widget.theme.textMuted);
     return SliverToBoxAdapter(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
-        child: Text(
-          title,
-          style: AppFonts.onest(size: 13, weight: 700, letterSpacing: 0.3, color: widget.theme.textMuted),
-        ),
+        child: icon == null
+            ? Text(title, style: style)
+            : Row(
+                children: [
+                  Icon(icon, size: 15, color: widget.theme.textMuted),
+                  const SizedBox(width: 7),
+                  Text(title, style: style),
+                ],
+              ),
       ),
     );
   }
@@ -4209,142 +4231,221 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   // ═══════════════════════════════════════════════════
   //  ADD MEMORY
   // ═══════════════════════════════════════════════════
+  /// Лист «Добавить воспоминание»: шесть равных плиток вместо семи строк.
+  ///
+  /// Раньше у каждой строки был свой яркий цвет иконки (синий, розовый,
+  /// зелёный, красный) поверх темы пары — четыре чужих акцента на одном экране.
+  /// Теперь цвета берутся из ролей схемы и следуют за палитрой.
   void _showAddMemorySheet() {
-    showModalBottomSheet(
-      context: context,
-      // Без этого лист ограничен ~половиной экрана и нижние пункты
-      // (Фильмы/Сериалы) обрезаются под системными кнопками.
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      backgroundColor: widget.theme.cardSurface,
-      builder: (_) => SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: widget.theme.divider,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 20),
+    final cs = ProfileTheme.themeFor(widget.theme).colorScheme;
+    final s = LocaleService.current;
+    showAppSheet<void>(
+      context,
+      background: cs.surfaceContainer,
+      builder: (ctx) => Theme(
+        data: ProfileTheme.data(cs),
+        child: SheetScaffold(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
               Text(
-                LocaleService.current.addMemoryTitle,
+                s.addMemoryTitle,
+                textAlign: TextAlign.center,
                 style: TextStyle(
+                  fontFamily: ProfileTheme.displayFont,
                   fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: widget.theme.textPrimary,
+                  fontWeight: FontWeight.w700,
+                  color: cs.onSurface,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Text(
-                LocaleService.current.chooseWhatToShare,
-                style: TextStyle(fontSize: 13, color: widget.theme.textMuted),
+                s.chooseWhatToShare,
+                style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant),
               ),
-              const SizedBox(height: 24),
-              _addMemoryOption(
-                icon: Icons.perm_media_rounded,
-                label: LocaleService.current.photoVideoNote,
-                color: const Color(0xFF3B82F6),
-                type: MemoryType.photo,
-              ),
-              _addMemoryOption(
-                icon: Icons.link_rounded,
-                label: LocaleService.current.videoLink,
-                color: const Color(0xFFEC4899),
-                type: MemoryType.video,
-              ),
-              _addMemoryOption(
-                icon: Icons.location_on_rounded,
-                label: LocaleService.current.location,
-                color: const Color(0xFF22C55E),
-                type: MemoryType.location,
-              ),
-              _addMemoryOption(
-                icon: Icons.music_note_rounded,
-                label: LocaleService.current.music,
-                color: const Color(0xFF8B5CF6),
-                type: MemoryType.music,
-              ),
-              _addMemoryOption(
-                icon: Icons.menu_book_rounded,
-                label: LocaleService.current.books,
-                color: const Color(0xFFA855F7),
-                type: MemoryType.book,
-              ),
-              _addMemoryOption(
-                icon: Icons.movie_rounded,
-                label: LocaleService.current.movies,
-                color: const Color(0xFFEF4444),
-                type: MemoryType.movie,
-              ),
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF59E0B).withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(12),
+              const SizedBox(height: 18),
+              GridView.count(
+                crossAxisCount: 3,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: 0.92,
+                children: [
+                  _addMemoryTile(
+                    cs: cs,
+                    icon: memoryTypeIcon(MemoryType.photo),
+                    label: s.photoVideoNote,
+                    box: cs.primaryContainer,
+                    onBox: cs.onPrimaryContainer,
+                    type: MemoryType.photo,
                   ),
-                  child: const Text('💌', style: TextStyle(fontSize: 20)),
-                ),
-                title: Text(
-                  LocaleService.current.timeCapsule,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: widget.theme.textPrimary,
+                  _addMemoryTile(
+                    cs: cs,
+                    icon: Icons.link_rounded,
+                    label: s.videoLink,
+                    box: cs.secondaryContainer,
+                    onBox: cs.onSecondaryContainer,
+                    type: MemoryType.video,
+                  ),
+                  _addMemoryTile(
+                    cs: cs,
+                    icon: memoryTypeIcon(MemoryType.location),
+                    label: s.location,
+                    box: cs.tertiaryContainer,
+                    onBox: cs.onTertiaryContainer,
+                    type: MemoryType.location,
+                  ),
+                  _addMemoryTile(
+                    cs: cs,
+                    icon: memoryTypeIcon(MemoryType.music),
+                    label: s.music,
+                    box: cs.primaryContainer,
+                    onBox: cs.onPrimaryContainer,
+                    type: MemoryType.music,
+                  ),
+                  _addMemoryTile(
+                    cs: cs,
+                    icon: memoryTypeIcon(MemoryType.book),
+                    label: s.books,
+                    box: cs.secondaryContainer,
+                    onBox: cs.onSecondaryContainer,
+                    type: MemoryType.book,
+                  ),
+                  _addMemoryTile(
+                    cs: cs,
+                    icon: memoryTypeIcon(MemoryType.movie),
+                    label: s.movies,
+                    box: cs.tertiaryContainer,
+                    onBox: cs.onTertiaryContainer,
+                    type: MemoryType.movie,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              // Капсула — не «ещё один тип», а обещание на будущее, поэтому
+              // стоит отдельно тональной карточкой.
+              Material(
+                color: cs.primaryContainer,
+                borderRadius: BorderRadius.circular(24),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _openTimeCapsule();
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 14),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: cs.primary,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          alignment: Alignment.center,
+                          child: Icon(Icons.mail_rounded,
+                              size: 22, color: cs.onPrimary),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                s.timeCapsule,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: cs.onPrimaryContainer,
+                                ),
+                              ),
+                              Text(
+                                s.capsuleAddSub,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: cs.onPrimaryContainer
+                                      .withValues(alpha: 0.8),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(Icons.chevron_right_rounded,
+                            color: cs.onPrimaryContainer, size: 22),
+                      ],
+                    ),
                   ),
                 ),
-                subtitle: Text(
-                  LocaleService.current.capsuleAddSub,
-                  style: TextStyle(fontSize: 12, color: widget.theme.textMuted),
-                ),
-                trailing: Icon(Icons.chevron_right_rounded,
-                    color: widget.theme.textMuted),
-                onTap: () {
-                  Navigator.pop(context);
-                  _openTimeCapsule();
-                },
               ),
             ],
-          ),
           ),
         ),
       ),
     );
   }
 
-  Widget _addMemoryOption({
+  /// Плитка типа записи в листе добавления.
+  Widget _addMemoryTile({
+    required ColorScheme cs,
     required IconData icon,
     required String label,
-    required Color color,
+    required Color box,
+    required Color onBox,
     required MemoryType type,
   }) {
-    return ListTile(
-      leading: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(12),
+    return Material(
+      color: cs.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(24),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () {
+          Navigator.pop(context);
+          _openMemoryForm(type);
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: box,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                alignment: Alignment.center,
+                child: Icon(icon, size: 23, color: onBox),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                maxLines: 2,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.25,
+                  fontWeight: FontWeight.w600,
+                  color: cs.onSurface,
+                ),
+              ),
+            ],
+          ),
         ),
-        child: Icon(icon, color: color, size: 22),
       ),
-      title: Text(
-        label,
-        style: TextStyle(
-          fontWeight: FontWeight.w600,
-          color: widget.theme.textPrimary,
-        ),
-      ),
-      trailing: Icon(Icons.chevron_right_rounded, color: widget.theme.textMuted),
-      onTap: () {
-        Navigator.pop(context);
+    );
+  }
+
+  /// Открыть форму создания записи выбранного типа. Раньше это ветвление жило
+  /// внутри строки листа; теперь лист — сетка плиток, и переход вызывается
+  /// отдельно.
+  void _openMemoryForm(MemoryType type) {
         if (type == MemoryType.photo) {
           Navigator.push(
             context,
@@ -4511,8 +4612,6 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           // на вкладке «По ссылке».
           _showCreateMemoryForm(type, startWithUrl: type == MemoryType.video);
         }
-      },
-    );
   }
 
   /// Fetch track metadata from YouTube (stream-based) or Spotify (oEmbed).

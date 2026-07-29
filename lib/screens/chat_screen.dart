@@ -1296,26 +1296,38 @@ class _ChatScreenState extends State<ChatScreen> {
   /// [fg] — цвет текста пузыря (авто-контраст или выбранный автором): цитата
   /// живёт ВНУТРИ пузыря, поэтому красится им, а не жёстко белым.
   Widget _buildReplyQuote(ChatMsg msg, bool isMine, Color fg) {
-    final accent = isMine ? fg : _t.primary;
-    final nameColor = isMine ? fg : _t.primary;
-    final textColor = isMine ? fg.withOpacity(0.85) : _t.textSecondary;
-    // Тап по цитате — переход к оригинальному сообщению (если оно в ленте).
+    // Цитата — вложенная карточка со своей подложкой и скруглением. В своём
+    // пузыре подложка делается из цвета текста (он уже посчитан на контраст к
+    // пузырю), в чужом — из роли схемы: так цитата читается и на цветном
+    // пузыре, и на тональном.
+    final cs = ProfileTheme.themeFor(_t).colorScheme;
+    final bg = isMine
+        ? fg.withValues(alpha: 0.20)
+        : cs.surfaceContainerHighest.withValues(alpha: 0.9);
+    final nameColor = isMine ? fg : cs.primary;
+    final textColor =
+        isMine ? fg.withValues(alpha: 0.78) : cs.onSurfaceVariant;
+    // Миниатюру берём у оригинала, если он ещё в загруженной ленте. Своего
+    // поля под неё в записи нет, а заводить его ради превью — менять схему на
+    // проде; цитата на воспоминание почти всегда живёт рядом с оригиналом.
+    final origin = _lastMessages.cast<ChatMsg?>().firstWhere(
+          (m) => m?.id == msg.replyToId,
+          orElse: () => null,
+        );
+    final thumb = origin?.pinThumb;
+    final hasThumb = (thumb ?? '').isNotEmpty;
     return GestureDetector(
       onTap: () => _scrollToMessage(msg.replyToId),
       child: Container(
-      margin: const EdgeInsets.only(bottom: 4),
-      padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
-      decoration: BoxDecoration(
-        color: accent.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: IntrinsicHeight(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: EdgeInsets.fromLTRB(11, 8, hasThumb ? 8 : 11, 8),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(15),
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Container(width: 3, color: accent.withOpacity(0.8)),
-            const SizedBox(width: 6),
             Flexible(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1326,23 +1338,38 @@ class _ChatScreenState extends State<ChatScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 11.5,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                       color: nameColor,
                     ),
                   ),
+                  const SizedBox(height: 1),
                   Text(
                     msg.replyToText ?? '',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 12, color: textColor),
+                    style: TextStyle(fontSize: 12.5, color: textColor),
                   ),
                 ],
               ),
             ),
+            // Миниатюра оригинала: у фото и прикреплённого воспоминания видно,
+            // на что отвечают, без перехода к самому сообщению.
+            if (hasThumb) ...[
+              const SizedBox(width: 9),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(9),
+                child: StorageImage(
+                  imageUrl: thumb!,
+                  width: 34,
+                  height: 34,
+                  fit: BoxFit.cover,
+                  memCacheWidth: 104,
+                ),
+              ),
+            ],
           ],
         ),
-      ),
       ),
     );
   }
@@ -1665,67 +1692,31 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   /// Ряд узоров фона в листе. Превью рисуются теми же painter'ами, что и сам
-  /// фон, поэтому показывают ровно то, что человек получит.
+  /// фон, только в масштабе [_kBgPreviewScale]: в натуральную величину в
+  /// карточку 70×104 попадал случайный обрезок — одно сердце наполовину, три
+  /// точки, кусок штриховки, и выбирать приходилось вслепую.
   Widget _patternRow(AppStrings s) {
     final cs = ProfileTheme.themeFor(_t).colorScheme;
     return SizedBox(
-      height: 104,
+      height: 130,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 20),
         itemCount: ChatBackground.values.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        separatorBuilder: (_, __) => const SizedBox(width: 9),
         itemBuilder: (ctx, i) {
           final bg = ChatBackground.values[i];
           final selected = bg == _bgPattern;
-          return GestureDetector(
+          return _ChatBgTile(
+            background: bg,
+            scheme: cs,
+            selected: selected,
+            label: chatBackgroundName(bg),
             onTap: () async {
               HapticFeedback.selectionClick();
               setState(() => _bgPattern = bg);
               await UiPrefs.setChatBackground(bg.name);
             },
-            child: Container(
-              width: 68,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: selected ? cs.primary : cs.outlineVariant,
-                  width: selected ? 2.5 : 1,
-                ),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  ChatBackgroundView(background: bg, scheme: cs),
-                  // Пузырь-намёк, чтобы было видно, как узор ведёт себя под
-                  // сообщением, а не сам по себе.
-                  Align(
-                    alignment: Alignment.bottomRight,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Container(
-                        width: 30,
-                        height: 14,
-                        decoration: BoxDecoration(
-                          color: cs.primary,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (selected)
-                    Align(
-                      alignment: Alignment.topLeft,
-                      child: Padding(
-                        padding: const EdgeInsets.all(6),
-                        child: Icon(Icons.check_circle_rounded,
-                            size: 18, color: cs.primary),
-                      ),
-                    ),
-                ],
-              ),
-            ),
           );
         },
       ),
@@ -2343,13 +2334,17 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Квадратная миниатюра пина: картинка по [thumb], иначе [emoji].
   Widget _pinThumbView({
     required String? thumb,
-    required String emoji,
+    required IconData icon,
     required double size,
     double radius = 6,
     double emojiSize = 20,
+    Color? iconColor,
   }) {
+    // Без миниатюры показываем иконку типа записи: она берёт цвет из темы, в
+    // отличие от системного эмодзи, который в тёмной теме светился пятном.
     final fallback = Center(
-      child: Text(emoji, style: TextStyle(fontSize: emojiSize)),
+      child: Icon(icon,
+          size: emojiSize, color: iconColor ?? _t.primary),
     );
     if (thumb == null || thumb.isEmpty) {
       return SizedBox(width: size, height: size, child: fallback);
@@ -2381,7 +2376,7 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     }
     final thumb = msg.pinThumb ?? (mem != null ? _memoryThumb(mem) : null);
-    final emoji = mem?.typeEmoji ?? '📌';
+    final icon = mem?.typeIcon ?? Icons.push_pin_rounded;
     return GestureDetector(
       onTap: () => _openPin(msg.pinId!),
       child: Container(
@@ -2396,10 +2391,11 @@ class _ChatScreenState extends State<ChatScreen> {
           children: [
             _pinThumbView(
               thumb: thumb,
-              emoji: emoji,
+              icon: icon,
               size: 36,
               radius: 8,
               emojiSize: 18,
+              iconColor: isMine ? fg : _t.primary,
             ),
             const SizedBox(width: 8),
             Flexible(
@@ -2432,7 +2428,7 @@ class _ChatScreenState extends State<ChatScreen> {
             dense: true,
             leading: _pinThumbView(
               thumb: _memoryThumb(m),
-              emoji: m.typeEmoji,
+              icon: m.typeIcon,
               size: 40,
             ),
             title: Text(
@@ -2663,6 +2659,132 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
     );
   }
+}
+
+/// Насколько сжимается узор в карточке выбора фона. 70 px карточки против
+/// ~360 px экрана — рисунок сжимаем примерно во столько же раз.
+const double _kBgPreviewScale = 0.42;
+
+/// Карточка узора в листе оформления: превью фона, два пузыря-намёка и подпись.
+///
+/// Обводка рисуется не `Border` поверх скруглённого клипа (на дуге оставался
+/// зубец), а отдельным слоем поверх содержимого с тем же радиусом — край
+/// выходит ровным при любой толщине.
+class _ChatBgTile extends StatelessWidget {
+  const _ChatBgTile({
+    required this.background,
+    required this.scheme,
+    required this.selected,
+    required this.label,
+    required this.onTap,
+  });
+
+  final ChatBackground background;
+  final ColorScheme scheme;
+  final bool selected;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(22);
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 70,
+            height: 104,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                ClipRRect(
+                  borderRadius: radius,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      ChatBackgroundView(
+                        background: background,
+                        scheme: scheme,
+                        scale: _kBgPreviewScale,
+                      ),
+                      // Два пузыря вместо одного прямоугольника: видно, как
+                      // узор ведёт себя под перепиской, а не сам по себе.
+                      Positioned(
+                        left: 8,
+                        top: 34,
+                        child: _miniBubble(36, scheme.surfaceContainerHigh),
+                      ),
+                      Positioned(
+                        right: 8,
+                        top: 52,
+                        child: _miniBubble(30, scheme.primary),
+                      ),
+                    ],
+                  ),
+                ),
+                // Обводка поверх: у невыбранного — тонкий контур, у выбранного
+                // кольцо primary.
+                IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: radius,
+                      border: Border.all(
+                        color: selected ? scheme.primary : scheme.outlineVariant,
+                        width: selected ? 2.5 : 1,
+                      ),
+                    ),
+                  ),
+                ),
+                if (selected)
+                  Positioned(
+                    top: 5,
+                    right: 5,
+                    child: Container(
+                      width: 19,
+                      height: 19,
+                      decoration: BoxDecoration(
+                        color: scheme.primary,
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: Icon(Icons.check_rounded,
+                          size: 13, color: scheme.onPrimary),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            width: 70,
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: selected ? scheme.primary : scheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniBubble(double width, Color color) => Container(
+        width: width,
+        height: 11,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(99),
+        ),
+      );
 }
 
 /// Элемент-разделитель: заголовок даты в ленте чата.

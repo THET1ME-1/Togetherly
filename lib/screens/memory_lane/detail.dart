@@ -45,8 +45,6 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
   late final AnimationController _animCtrl;
   late final Animation<double> _fadeAnim;
   late final Animation<Offset> _slideAnim;
-  // Cached to avoid recomputing Color.lerp on every build frame
-  late final List<Color> _bannerGradient;
 
   @override
   void initState() {
@@ -60,10 +58,6 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
       begin: const Offset(0, 0.06),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _animCtrl, curve: Curves.easeOutCubic));
-    _bannerGradient = [
-      widget.primary,
-      Color.lerp(widget.primary, Colors.white, 0.30)!,
-    ];
     _animCtrl.forward();
   }
 
@@ -74,230 +68,611 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
     super.dispose();
   }
 
+  /// Схема M3 экрана — тот же язык, что у формы новой записи.
+  ColorScheme get _cs => ProfileTheme.themeFor(context.appTheme).colorScheme;
+
+  /// У фотографии и видео кадр становится героем экрана; у книги, музыки,
+  /// фильма и заметки такого кадра нет — там контент рисуется внутри листа.
+  bool get _hasHero {
+    final t = widget.memory.type;
+    return t == MemoryType.photo ||
+        t == MemoryType.video ||
+        t == MemoryType.videoLink;
+  }
+
   @override
   Widget build(BuildContext context) {
     final memory = widget.memory;
-    final p = widget.primary;
-    final isLarge =
-        memory.type == MemoryType.photo ||
-        memory.type == MemoryType.video ||
-        memory.type == MemoryType.videoLink;
-    return DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: isLarge ? 0.88 : 0.75,
-      maxChildSize: 0.95,
-      builder: (_, sc) => Container(
-        color: context.appTheme.cardSurface,
-        child: Column(
-            children: [
-              _buildHeader(memory, p),
-              Expanded(
-                // RepaintBoundary isolates the animated entry from the static
-                // header so the header layer doesn't repaint every animation frame.
-                child: RepaintBoundary(
-                  child: FadeTransition(
-                    opacity: _fadeAnim,
-                    child: SlideTransition(
-                      position: _slideAnim,
-                      child: SingleChildScrollView(
-                        controller: sc,
-                        padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Images/video are GPU-heavy; isolate them so that
-                            // caption/location/action repaints don't touch them.
-                            RepaintBoundary(child: _buildMedia(memory, p)),
-                            _buildCaption(memory),
-                            _buildLocationRow(memory, p),
-                            const SizedBox(height: 20),
-                            // Action buttons are static after build; isolate them
-                            // so comments StreamBuilder repaints don't cascade up.
-                            RepaintBoundary(child: _buildActions(memory, p)),
-                            const SizedBox(height: 24),
-                            RepaintBoundary(
-                              child: _CommentsSection(
-                                groupId: widget.groupId,
-                                memoryId: widget.memory.id,
-                                primary: p,
-                              ),
-                            ),
-                            const _KeyboardPaddingBox(),
-                          ],
-                        ),
+    final cs = _cs;
+    return Theme(
+      data: ProfileTheme.data(cs),
+      child: DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: _hasHero ? 0.92 : 0.8,
+        maxChildSize: 0.96,
+        builder: (_, sc) => LayoutBuilder(
+          builder: (context, box) {
+            final heroHeight = _hasHero ? box.maxHeight * 0.46 : 0.0;
+            return ColoredBox(
+              color: cs.surface,
+              child: Stack(
+                children: [
+                  if (_hasHero)
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: heroHeight + 26,
+                      child: RepaintBoundary(
+                        child: _buildHero(memory, cs),
                       ),
                     ),
+                  Positioned(
+                    top: _hasHero ? heroHeight : 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: _buildSheetBody(memory, cs, sc),
                   ),
-                ),
+                  // Кнопки поверх кадра: подложка нужна, чтобы они читались и
+                  // на светлой фотографии, и на тёмной.
+                  Positioned(
+                    top: 12,
+                    left: 12,
+                    child: _circleOverlay(
+                      cs,
+                      icon: Icons.arrow_back_rounded,
+                      onTap: () => Navigator.pop(context),
+                      glass: _hasHero,
+                    ),
+                  ),
+                  Positioned(
+                    top: 12,
+                    right: 12,
+                    child: Row(
+                      children: [
+                        _typePill(memory, cs, glass: _hasHero),
+                        const SizedBox(width: 8),
+                        _circleOverlay(
+                          cs,
+                          icon: Icons.more_vert_rounded,
+                          onTap: () => _showMoreMenu(memory, cs),
+                          glass: _hasHero,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: _buildActionBar(memory, cs),
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         ),
+      ),
     );
   }
 
-  // ── HEADER ───────────────────────────────────────────────────────────────────
-  Widget _buildHeader(Memory memory, Color p) {
-    final theme = context.appTheme;
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: _bannerGradient,
+  // ── Кадр ──────────────────────────────────────────────────────────────────
+
+  Widget _buildHero(Memory memory, ColorScheme cs) {
+    final url = memory.imageUrl ?? memory.imageUrls?.firstOrNull ?? '';
+    if (url.isEmpty) {
+      return ColoredBox(
+        color: cs.surfaceContainerHigh,
+        child: Center(
+          child: Icon(memoryTypeIcon(memory.type),
+              size: 44, color: cs.onSurfaceVariant),
+        ),
+      );
+    }
+    return GestureDetector(
+      onTap: () => _openHeroGallery(memory),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          StorageImage(
+            imageUrl: url,
+            fit: BoxFit.cover,
+            placeholder: (_, __) => ColoredBox(color: cs.surfaceContainerHigh),
+            errorWidget: (_, __, ___) => ColoredBox(
+              color: cs.surfaceContainerHigh,
+              child: Icon(Icons.image_not_supported_rounded,
+                  size: 40, color: cs.onSurfaceVariant),
+            ),
+          ),
+          if (memory.type == MemoryType.video ||
+              memory.type == MemoryType.videoLink)
+            const Center(
+              child: Icon(Icons.play_circle_filled_rounded,
+                  color: Colors.white, size: 60),
+            ),
+          // Счётчик кадров: сколько фотографий в записи.
+          if ((memory.imageUrls?.length ?? 0) > 1)
+            Positioned(
+              right: 14,
+              bottom: 40,
+              child: _glassPill(
+                cs,
+                LocaleService.current.itemsShort(memory.imageUrls!.length),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Полноэкранный просмотр кадра — тот же, что открывается из ленты.
+  void _openHeroGallery(Memory memory) {
+    final photos = <String>[
+      if (memory.imageUrls?.isNotEmpty == true)
+        ...memory.imageUrls!
+      else if (memory.imageUrl?.isNotEmpty == true)
+        memory.imageUrl!,
+    ];
+    if (photos.isEmpty) return;
+    Navigator.of(context).push<String>(
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.black,
+        pageBuilder: (_, __, ___) => FullscreenGallery(
+          items: photos
+              .map((url) => GalleryItem(url: url, memoryId: memory.id))
+              .toList(),
+          initialIndex: 0,
         ),
       ),
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    );
+  }
+
+  Widget _circleOverlay(
+    ColorScheme cs, {
+    required IconData icon,
+    required VoidCallback onTap,
+    required bool glass,
+  }) {
+    return Material(
+      color: glass
+          ? cs.inverseSurface.withValues(alpha: 0.55)
+          : cs.surfaceContainerHigh,
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Icon(icon,
+              size: 22,
+              color: glass ? cs.onInverseSurface : cs.onSurface),
+        ),
+      ),
+    );
+  }
+
+  Widget _typePill(Memory memory, ColorScheme cs, {required bool glass}) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(11, 8, 13, 8),
+      decoration: BoxDecoration(
+        color: glass
+            ? cs.inverseSurface.withValues(alpha: 0.55)
+            : cs.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Center(
-            child: Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: theme.isDark
-                    ? theme.cardSurface
-                    : Colors.white.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(2),
+          Icon(memoryTypeIcon(memory.type),
+              size: 16,
+              color: glass ? cs.onInverseSurface : cs.onSurfaceVariant),
+          const SizedBox(width: 6),
+          Text(
+            LocaleService.current.memoryTypeName(memory.type.name),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: glass ? cs.onInverseSurface : cs.onSurface,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _glassPill(ColorScheme cs, String text) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: cs.inverseSurface.withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          text,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: cs.onInverseSurface,
+          ),
+        ),
+      );
+
+  // ── Лист ──────────────────────────────────────────────────────────────────
+
+  Widget _buildSheetBody(Memory memory, ColorScheme cs, ScrollController sc) {
+    return Container(
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: _hasHero
+            ? const BorderRadius.vertical(top: Radius.circular(28))
+            : BorderRadius.zero,
+      ),
+      child: Column(
+        children: [
+          const SizedBox(height: 10),
+          Container(
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+              color: cs.outlineVariant,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          Expanded(
+            child: RepaintBoundary(
+              child: FadeTransition(
+                opacity: _fadeAnim,
+                child: SlideTransition(
+                  position: _slideAnim,
+                  child: SingleChildScrollView(
+                    controller: sc,
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 110),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildAuthorRow(memory, cs),
+                        if (memory.title?.isNotEmpty == true) ...[
+                          const SizedBox(height: 16),
+                          Text(
+                            memory.title!,
+                            style: TextStyle(
+                              fontFamily: ProfileTheme.displayFont,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.6,
+                              height: 1.2,
+                              color: cs.onSurface,
+                            ),
+                          ),
+                        ],
+                        _buildCaption(memory),
+                        // У фото кадр уже показан героем; остальные типы рисуют
+                        // свой контент здесь — плеер, обложку, карту.
+                        if (!_hasHero) ...[
+                          const SizedBox(height: 16),
+                          RepaintBoundary(
+                            child: _buildMedia(memory, cs.primary),
+                          ),
+                        ],
+                        _buildMetaChips(memory, cs),
+                        const SizedBox(height: 20),
+                        RepaintBoundary(
+                          child: _CommentsSection(
+                            groupId: widget.groupId,
+                            memoryId: widget.memory.id,
+                            primary: cs.primary,
+                          ),
+                        ),
+                        const _KeyboardPaddingBox(),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
-          const SizedBox(height: 14),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAuthorRow(Memory memory, ColorScheme cs) {
+    return Row(
+      children: [
+        AvatarWidget(
+          uid: memory.authorUid,
+          liveUrl: widget.liveAuthorAvatar,
+          fallbackUrl: memory.authorAvatar,
+          name: memory.authorName,
+          size: 40,
+          primary: cs.primary,
+        ),
+        const SizedBox(width: 11),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: theme.isDark
-                        ? theme.cardBorder
-                        : Colors.white.withOpacity(0.7),
-                    width: 2,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.12),
-                      blurRadius: 8,
-                    ),
-                  ],
-                ),
-                child: AvatarWidget(
-                  uid: memory.authorUid,
-                  liveUrl: widget.liveAuthorAvatar,
-                  fallbackUrl: memory.authorAvatar,
-                  name: memory.authorName,
-                  size: 44,
-                  primary: widget.primary,
+              Text(
+                memory.authorName,
+                style: TextStyle(
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w600,
+                  color: cs.onSurface,
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      memory.authorName,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _fmtDate(memory.createdAt),
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        color: Colors.white.withOpacity(0.8),
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
+              Text(
+                _fmtDate(memory.createdAt),
+                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 5,
-                ),
-                decoration: BoxDecoration(
-                  color: theme.isDark
-                      ? theme.cardSurface
-                      : Colors.white.withOpacity(0.22),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: theme.isDark
-                        ? theme.cardBorder
-                        : Colors.white.withOpacity(0.35),
-                    width: 1,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SvgPicture.asset(
-                      _svgAssetForType(memory.type),
-                      width: 12,
-                      height: 12,
-                      colorFilter: const ColorFilter.mode(
-                        Colors.white,
-                        BlendMode.srcIn,
-                      ),
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      memory.typeLabel,
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (memory.isPinned) ...[
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.all(5),
-                  decoration: BoxDecoration(
-                    color: theme.isDark
-                        ? theme.cardSurface
-                        : Colors.white.withOpacity(0.22),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: theme.isDark
-                          ? theme.cardBorder
-                          : Colors.white.withOpacity(0.35),
-                      width: 1,
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.push_pin_rounded,
-                    size: 13,
-                    color: Colors.white,
-                  ),
-                ),
-              ],
             ],
           ),
-          if (memory.title?.isNotEmpty == true) ...[
-            const SizedBox(height: 12),
-            Text(
-              memory.title!,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
-                height: 1.2,
+        ),
+      ],
+    );
+  }
+
+  /// Место и «закреплено» — чипами, как в форме записи.
+  Widget _buildMetaChips(Memory memory, ColorScheme cs) {
+    final place = (memory.locationName?.isNotEmpty ?? false)
+        ? memory.locationName!
+        : (memory.latitude != null && memory.longitude != null
+            ? '${memory.latitude!.toStringAsFixed(3)}, ${memory.longitude!.toStringAsFixed(3)}'
+            : null);
+    if (place == null && !memory.isPinned) return const SizedBox.shrink();
+    // Расстояние до места жило отдельной строкой с цветной пилюлей; теперь оно
+    // просто дописывается к чипу — строка ради одной цифры экран не стоила.
+    String? placeLabel = place;
+    if (place != null &&
+        memory.latitude != null &&
+        memory.longitude != null &&
+        widget.userLat != null &&
+        widget.userLng != null) {
+      final meters = Geolocator.distanceBetween(
+        widget.userLat!, widget.userLng!,
+        memory.latitude!, memory.longitude!,
+      );
+      placeLabel = '$place · ${LocaleService.current.distanceLabel(meters)}';
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          if (place != null)
+            _metaChip(
+              cs: cs,
+              icon: Icons.location_on_rounded,
+              label: placeLabel!,
+              accent: true,
+            ),
+          if (memory.isPinned)
+            _metaChip(
+              cs: cs,
+              icon: Icons.push_pin_rounded,
+              label: LocaleService.current.pinned,
+              accent: false,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _metaChip({
+    required ColorScheme cs,
+    required IconData icon,
+    required String label,
+    required bool accent,
+    VoidCallback? onTap,
+  }) {
+    final bg = accent ? cs.primaryContainer : cs.secondaryContainer;
+    final fg = accent ? cs.onPrimaryContainer : cs.onSecondaryContainer;
+    return Material(
+      color: bg,
+      borderRadius: BorderRadius.circular(999),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 17, color: fg),
+              const SizedBox(width: 7),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 200),
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: fg,
+                  ),
+                ),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Действия ──────────────────────────────────────────────────────────────
+
+  /// Панель внизу: одно главное действие таблеткой и два круглых рядом.
+  /// Удаление сюда не входит — оно живёт в меню: раньше оно стояло вплотную к
+  /// «Редактировать» и отличалось только цветом слова.
+  Widget _buildActionBar(Memory memory, ColorScheme cs) {
+    final media = MediaQuery.of(context);
+    return Container(
+      decoration: BoxDecoration(color: cs.surfaceContainerLow),
+      padding: EdgeInsets.fromLTRB(16, 12, 16, media.padding.bottom + 16),
+      child: Row(
+        children: [
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                widget.onTogglePin();
+              },
+              icon: Icon(
+                memory.isPinned
+                    ? Icons.push_pin_rounded
+                    : Icons.push_pin_outlined,
+                size: 21,
+              ),
+              label: Text(
+                memory.isPinned
+                    ? LocaleService.current.unpinMemory
+                    : LocaleService.current.pinMemory,
+              ),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(54),
+              ),
+            ),
+          ),
+          if (widget.canDownload) ...[
+            const SizedBox(width: 10),
+            _roundAction(
+              cs,
+              icon: Icons.download_rounded,
+              tooltip: LocaleService.current.saveToDevice,
+              onTap: () {
+                Navigator.pop(context);
+                widget.onDownload();
+              },
+            ),
+          ],
+          if (widget.isOwner) ...[
+            const SizedBox(width: 10),
+            _roundAction(
+              cs,
+              icon: Icons.edit_rounded,
+              tooltip: LocaleService.current.editMemory,
+              onTap: () {
+                Navigator.pop(context);
+                widget.onEdit();
+              },
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _roundAction(
+    ColorScheme cs, {
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: cs.surfaceContainerHigh,
+        shape: const CircleBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: SizedBox(
+            width: 54,
+            height: 54,
+            child: Icon(icon, size: 22, color: cs.onSurface),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Редкое и опасное: сменить место и удалить. У чужой записи меню не
+  /// открывается вовсе — раньше «Редактировать» и «Удалить» показывались всем,
+  /// а отказ приходил уже от сервера.
+  void _showMoreMenu(Memory memory, ColorScheme cs) {
+    final canSetPlace = widget.onSetLocation != null &&
+        memory.type != MemoryType.location &&
+        memory.latitude == null &&
+        memory.longitude == null &&
+        (memory.locationName?.isEmpty ?? true);
+    if (!widget.isOwner && !canSetPlace) return;
+
+    showAppSheet<void>(
+      context,
+      background: cs.surfaceContainer,
+      builder: (ctx) => Theme(
+        data: ProfileTheme.data(cs),
+        child: SheetScaffold(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (canSetPlace)
+                  _menuRow(
+                    cs,
+                    icon: Icons.add_location_alt_rounded,
+                    title: LocaleService.current.selectLocation,
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      Navigator.pop(context);
+                      widget.onSetLocation!();
+                    },
+                  ),
+                if (widget.isOwner)
+                  _menuRow(
+                    cs,
+                    icon: Icons.delete_outline_rounded,
+                    title: LocaleService.current.deleteMemory,
+                    danger: true,
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      Navigator.pop(context);
+                      widget.onDelete();
+                    },
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _menuRow(
+    ColorScheme cs, {
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+    bool danger = false,
+  }) {
+    final fg = danger ? cs.error : cs.onSurface;
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          child: Row(
+            children: [
+              Icon(icon, size: 22, color: danger ? cs.error : cs.onSurfaceVariant),
+              const SizedBox(width: 14),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: fg,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1441,111 +1816,6 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
     );
   }
 
-  // ── LOCATION ROW (shown for all memory types that have coords/name) ──────────
-  Widget _buildLocationRow(Memory memory, Color p) {
-    final hasCoords = memory.latitude != null && memory.longitude != null;
-    final hasName = memory.locationName?.isNotEmpty == true;
-    if (!hasCoords && !hasName) return const SizedBox.shrink();
-    // Don't duplicate — location type already shows full card via _buildLocationMedia
-    if (memory.type == MemoryType.location) return const SizedBox.shrink();
-
-    String? distLabel;
-    Color pillColor = context.appTheme.textMuted;
-    if (hasCoords && widget.userLat != null && widget.userLng != null) {
-      final m = Geolocator.distanceBetween(
-        widget.userLat!, widget.userLng!,
-        memory.latitude!, memory.longitude!,
-      );
-      final km = m / 1000;
-      distLabel = LocaleService.current.distanceLabel(m);
-      if (km < 1) {
-        pillColor = const Color(0xFF22C55E);
-      } else if (km < 10) {
-        pillColor = const Color(0xFF16A34A);
-      } else if (km < 50) {
-        pillColor = const Color(0xFFF59E0B);
-      } else {
-        pillColor = const Color(0xFFEF4444);
-      }
-    }
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 16),
-      child: GestureDetector(
-        onTap: hasCoords
-            ? () => _showMapsPickerSheet(
-                context, memory.latitude!, memory.longitude!, memory.locationName)
-            : null,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: hasCoords ? pillColor.withOpacity(0.06) : context.appTheme.surfaceMuted,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: hasCoords ? pillColor.withOpacity(0.25) : context.appTheme.divider,
-              width: 1,
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: hasCoords ? pillColor.withOpacity(0.12) : context.appTheme.surfaceMuted,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.location_on_rounded,
-                  size: 18,
-                  color: hasCoords ? pillColor : context.appTheme.textMuted,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (hasName)
-                      Text(
-                        memory.locationName!,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: context.appTheme.textPrimary,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    if (distLabel != null)
-                      Text(
-                        distLabel,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: pillColor,
-                        ),
-                      )
-                    else if (!hasName)
-                      Text(
-                        '${memory.latitude!.toStringAsFixed(5)}, ${memory.longitude!.toStringAsFixed(5)}',
-                        style: TextStyle(fontSize: 12, color: context.appTheme.textMuted),
-                      ),
-                  ],
-                ),
-              ),
-              if (hasCoords) ...[
-                const SizedBox(width: 6),
-                Icon(Icons.chevron_right_rounded, size: 18, color: pillColor),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Shows a bottom sheet with map app choices to build a route.
   static Future<void> _showMapsPickerSheet(
     BuildContext context,
     double lat,
@@ -1664,140 +1934,6 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
     );
   }
 
-  // ── ACTIONS ───────────────────────────────────────────────────────────────────
-  Widget _buildActions(Memory memory, Color p) {
-    return Column(
-      children: [
-        Container(height: 1, color: context.appTheme.divider),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _actionBtn(
-                icon: memory.isPinned
-                    ? Icons.push_pin_rounded
-                    : Icons.push_pin_outlined,
-                label: memory.isPinned
-                    ? LocaleService.current.unpinMemory
-                    : LocaleService.current.pinMemory,
-                color: p,
-                // Закрепление — основное действие: залитая кнопка под цвет темы.
-                filled: !memory.isPinned,
-                onTap: () {
-                  Navigator.pop(context);
-                  widget.onTogglePin();
-                },
-              ),
-            ),
-            if (widget.canDownload) ...[
-              const SizedBox(width: 10),
-              Expanded(
-                child: _actionBtn(
-                  icon: Icons.download_rounded,
-                  label: LocaleService.current.saveToDevice,
-                  color: p,
-                  onTap: () {
-                    Navigator.pop(context);
-                    widget.onDownload();
-                  },
-                ),
-              ),
-            ],
-          ],
-        ),
-        if (widget.isOwner) ...[
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: _actionBtn(
-                  icon: Icons.edit_rounded,
-                  label: LocaleService.current.editMemory,
-                  color: p,
-                  onTap: () {
-                    Navigator.pop(context);
-                    widget.onEdit();
-                  },
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _actionBtn(
-                  icon: Icons.delete_outline_rounded,
-                  label: LocaleService.current.deleteMemory,
-                  color: const Color(0xFFEF4444),
-                  onTap: () {
-                    Navigator.pop(context);
-                    widget.onDelete();
-                  },
-                ),
-              ),
-            ],
-          ),
-          // Show "Set Location" only when the memory has no location yet
-          if (widget.onSetLocation != null &&
-              widget.memory.type != MemoryType.location &&
-              widget.memory.latitude == null &&
-              widget.memory.longitude == null &&
-              (widget.memory.locationName?.isEmpty ?? true)) ...[
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: _actionBtn(
-                icon: Icons.add_location_alt_rounded,
-                label: LocaleService.current.selectLocation,
-                color: p,
-                onTap: () {
-                  Navigator.pop(context);
-                  widget.onSetLocation!();
-                },
-              ),
-            ),
-          ],
-        ],
-      ],
-    );
-  }
-
-  Widget _actionBtn({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-    bool filled = false,
-  }) {
-    // Залитая кнопка — сплошной цвет, белый текст; обычная — мягкая заливка
-    // тем же цветом без рамки (меньше цветов, всё под тему).
-    final bgColor = filled ? color : color.withValues(alpha: 0.10);
-    final fgColor = filled ? Colors.white : color;
-    return Material(
-      color: bgColor,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 13),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 17, color: fgColor),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w700,
-                  color: fgColor,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _noImgBox(double h) => Container(
     height: h,
     decoration: BoxDecoration(
@@ -1813,26 +1949,26 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
     ),
   );
 
+  /// Дата записи по-русски: «Сегодня, 0:03», «Вчера, 21:40», «12 мая, 23:40».
+  /// Раньше здесь стоял английский формат «Jul 29, 2026 at 00:03» — он не
+  /// переводился и не совпадал с лентой.
   static String _fmtDate(DateTime dt) {
-    const months = [
-      '',
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    final h = dt.hour.toString().padLeft(2, '0');
-    final m = dt.minute.toString().padLeft(2, '0');
-    return '${months[dt.month]} ${dt.day}, ${dt.year} at $h:$m';
+    final s = LocaleService.current;
+    final now = DateTime.now();
+    final hh = dt.hour.toString();
+    final mm = dt.minute.toString().padLeft(2, '0');
+    final today = DateTime(now.year, now.month, now.day);
+    final day = DateTime(dt.year, dt.month, dt.day);
+    final diff = today.difference(day).inDays;
+    if (diff == 0) return '${s.todayLabel}, $hh:$mm';
+    if (diff == 1) return '${s.yesterday}, $hh:$mm';
+    final months = s.shortMonths;
+    final date = '${dt.day} ${months[dt.month - 1]}';
+    return dt.year == now.year
+        ? '$date, $hh:$mm'
+        : '$date ${dt.year}, $hh:$mm';
   }
+
 }
 
 // ══════════════════════════════════════════════════════

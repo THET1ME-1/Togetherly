@@ -6,9 +6,13 @@ import '../models/timer_item.dart';
 import '../services/timer_service.dart';
 import '../theme/app_theme.dart';
 import '../services/locale_service.dart';
+import '../models/symbol_catalog.dart';
+import '../theme/profile_theme.dart';
+import '../widgets/app_sheet.dart';
 import '../widgets/petal_timer_dial.dart';
 import '../widgets/common/app_dialog.dart';
 import 'date_time_picker_screen.dart';
+import 'symbol_picker_screen.dart';
 
 /// Карусель таймеров с ИДЕАЛЬНОЙ геометрией радиального меню, адаптированной под размеры контейнера.
 class ExpandableTimerCard extends StatefulWidget {
@@ -258,7 +262,8 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
       title: LocaleService.current.createTimer,
       initialTitle: '',
       initialDate: DateTime.now(),
-      initialEmoji: '❤️',
+      // Новый таймер сразу заводится на имени символа, а не на эмодзи.
+      initialEmoji: 'favorite',
       initialIsDefault: widget.timerService.count == 0,
       initialIsCountdown: false,
       onSave: (t, d, e, def, c) => widget.timerService.addTimer(
@@ -291,6 +296,13 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
     );
   }
 
+  /// Лист создания и правки таймера.
+  ///
+  /// Раньше он жил на старых цветах: подписи капсом («НАЗВАНИЕ», «ДАТА
+  /// НАЧАЛА»), кружки-радиокнопки вместо переключателей, «СОХРАНИТЬ» капсом и
+  /// сетка из шестнадцати эмодзи на треть экрана. Теперь — M3-тема профиля,
+  /// поля с меткой на контуре, живой предпросмотр сверху и пять символов на
+  /// виду; остальные 4334 открываются поиском.
   void _showTimerSettingsDialog({
     required String title,
     required String initialTitle,
@@ -300,241 +312,385 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
     required bool initialIsCountdown,
     required void Function(String, DateTime, String, bool, bool) onSave,
   }) {
+    final cs = ProfileTheme.themeFor(_t).colorScheme;
+    final s = LocaleService.current;
     final titleCtrl = TextEditingController(text: initialTitle);
-    final dateCtrl = TextEditingController(text: _formatDate(initialDate));
     var pickedDate = initialDate;
-    var selectedEmoji = initialEmoji;
+    // В базе лежит либо имя символа (новые таймеры), либо эмодзи (старые) —
+    // разбираем оба, наружу отдаём имя.
+    var symbol = SymbolCatalog.nameFromStored(initialEmoji);
     var isDefault = initialIsDefault;
     var isCountdown = initialIsCountdown;
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheetState) {
-          return Container(
-            decoration: BoxDecoration(
-              color: _t.cardSurface,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-            ),
-            padding: EdgeInsets.fromLTRB(
-              24,
-              16,
-              24,
-              MediaQuery.of(ctx).viewInsets.bottom +
-                  MediaQuery.of(ctx).padding.bottom +
-                  32,
-            ),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
+    // Каталог нужен, чтобы нарисовать символ; грузится один раз за запуск.
+    unawaited(SymbolCatalog.load());
+
+    showAppSheet<void>(
+      context,
+      background: cs.surfaceContainer,
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          final days = _daysBetween(pickedDate, isCountdown);
+          return Theme(
+            data: ProfileTheme.data(cs),
+            child: SheetScaffold(
+              bottom: Row(
                 children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: _t.divider,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: Text(s.cancel),
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  _dialogLabel(LocaleService.current.timerNameLabel),
-                  TextField(
-                    controller: titleCtrl,
-                    decoration: _dialogInputDeco(
-                      LocaleService.current.egAnniversary,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  _dialogLabel(
-                    isCountdown
-                        ? LocaleService.current.targetDate
-                        : LocaleService.current.startDate,
-                  ),
-                  // Дата и время выбираются на своём экране крупными барабанами
-                  // (DateTimePickerScreen). Поле с ручным вводом и две кнопки
-                  // рядом ушли: набирать «дд.мм.гггг чч:мм» с системной
-                  // клавиатуры дольше, чем прокрутить, а стоковые пикеры
-                  // выглядели чужими среди наших экранов.
-                  GestureDetector(
-                    onTap: () async {
-                      final picked = await Navigator.of(ctx).push<DateTime>(
-                        MaterialPageRoute<DateTime>(
-                          builder: (_) => DateTimePickerScreen(
-                            title: isCountdown
-                                ? LocaleService.current.targetDate
-                                : LocaleService.current.startDate,
-                            theme: _t,
-                            initial: pickedDate,
-                            firstYear: 1900,
-                            lastYear: 2100,
-                          ),
-                          settings: const RouteSettings(name: '/date_picker'),
-                        ),
-                      );
-                      if (picked == null || !ctx.mounted) return;
-                      setSheetState(() {
-                        pickedDate = picked;
-                        dateCtrl.text = _formatDate(picked);
-                      });
-                    },
-                    child: Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-                      decoration: BoxDecoration(
-                        color: _t.primary.withValues(alpha: 0.10),
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              _formatDate(pickedDate),
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                                color: _t.textPrimary,
-                              ),
-                            ),
-                          ),
-                          Icon(Icons.calendar_today_rounded,
-                              color: _t.primary, size: 22),
-                        ],
-                      ),
-                    ),
-                  ),
-                  if (isCountdown &&
-                      (_parseDate(dateCtrl.text) ?? pickedDate)
-                          .isBefore(DateTime.now()))
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.warning_amber_rounded, size: 16, color: Colors.orange),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              LocaleService.current.countdownPastDateWarning,
-                              style: const TextStyle(fontSize: 12, color: Colors.orange),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  const SizedBox(height: 20),
-                  _dialogLabel(LocaleService.current.symbolLabel),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children:
-                        [
-                          '❤️',
-                          '💕',
-                          '💖',
-                          '🔥',
-                          '⭐',
-                          '🌙',
-                          '🎂',
-                          '🏠',
-                          '🎓',
-                          '💼',
-                          '✈️',
-                          '🐾',
-                          '🌸',
-                          '💍',
-                          '👶',
-                          '🎯',
-                        ].map((e) {
-                          final sel = selectedEmoji == e;
-                          return GestureDetector(
-                            onTap: () => setSheetState(() => selectedEmoji = e),
-                            child: Container(
-                              width: 46,
-                              height: 46,
-                              decoration: BoxDecoration(
-                                color: sel
-                                    ? _t.primary.withOpacity(0.15)
-                                    : _t.surfaceMuted,
-                                borderRadius: BorderRadius.circular(14),
-                                border: sel
-                                    ? Border.all(color: _t.primary, width: 2)
-                                    : null,
-                              ),
-                              child: Center(
-                                child: Text(
-                                  e,
-                                  style: const TextStyle(fontSize: 22),
-                                ),
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                  ),
-                  const SizedBox(height: 32),
-                  _dialogSwitch(
-                    LocaleService.current.countdownMode,
-                    isCountdown,
-                    (v) => setSheetState(() => isCountdown = v),
-                  ),
-                  _dialogSwitch(
-                    LocaleService.current.setAsMain,
-                    isDefault,
-                    (v) => setSheetState(() => isDefault = v),
-                  ),
-                  const SizedBox(height: 32),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: ElevatedButton(
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 3,
+                    child: FilledButton(
                       onPressed: () {
-                        if (titleCtrl.text.isEmpty) return;
-                        var finalDate = _parseDate(dateCtrl.text) ?? pickedDate;
-                        finalDate = _normalizeTimerDate(finalDate);
+                        if (titleCtrl.text.trim().isEmpty) return;
                         onSave(
                           titleCtrl.text.trim(),
-                          finalDate,
-                          selectedEmoji,
+                          _normalizeTimerDate(pickedDate),
+                          symbol,
                           isDefault,
                           isCountdown,
                         );
                         Navigator.pop(ctx);
                       },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _t.fillColor,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        elevation: 0,
-                      ),
-                      child: Text(
-                        LocaleService.current.saveSettings,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
+                      child: Text(s.saveSettings),
                     ),
                   ),
                 ],
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontFamily: ProfileTheme.displayFont,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.6,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    // Живой предпросмотр: символ, название и счёт дней сразу
+                    // показывают, что получится.
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(26),
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [cs.primaryContainer, cs.secondaryContainer],
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 52,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              color: cs.primary,
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            alignment: Alignment.center,
+                            child: SymbolIcon(symbol,
+                                size: 27, color: cs.onPrimary),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  titleCtrl.text.trim().isEmpty
+                                      ? s.timerNameLabel
+                                      : titleCtrl.text.trim(),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    color: cs.onPrimaryContainer
+                                        .withValues(alpha: 0.8),
+                                  ),
+                                ),
+                                Text(
+                                  s.timerDaysCount(days),
+                                  style: TextStyle(
+                                    fontFamily: ProfileTheme.displayFont,
+                                    fontSize: 28,
+                                    height: 1.1,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: -1,
+                                    color: cs.onPrimaryContainer,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    TextField(
+                      controller: titleCtrl,
+                      textCapitalization: TextCapitalization.sentences,
+                      onChanged: (_) => setSheet(() {}),
+                      decoration: InputDecoration(
+                        labelText: s.timerNameLabel,
+                        hintText: s.egAnniversary,
+                        filled: true,
+                        fillColor: cs.surfaceContainerHigh,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(18),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    // Дата и время выбираются на своём экране крупными
+                    // барабанами: набирать «дд.мм.гггг чч:мм» с системной
+                    // клавиатуры дольше, чем прокрутить.
+                    Material(
+                      color: cs.surfaceContainerHigh,
+                      borderRadius: BorderRadius.circular(18),
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        onTap: () async {
+                          final picked =
+                              await Navigator.of(ctx).push<DateTime>(
+                            MaterialPageRoute<DateTime>(
+                              builder: (_) => DateTimePickerScreen(
+                                title: isCountdown ? s.targetDate : s.startDate,
+                                theme: _t,
+                                initial: pickedDate,
+                                firstYear: 1900,
+                                lastYear: 2100,
+                              ),
+                              settings:
+                                  const RouteSettings(name: '/date_picker'),
+                            ),
+                          );
+                          if (picked == null || !ctx.mounted) return;
+                          setSheet(() => pickedDate = picked);
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      isCountdown ? s.targetDate : s.startDate,
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: cs.primary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      _formatDate(pickedDate),
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w600,
+                                        color: cs.onSurface,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(Icons.calendar_month_rounded,
+                                  color: cs.primary, size: 22),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (isCountdown && pickedDate.isBefore(DateTime.now()))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Row(
+                          children: [
+                            Icon(Icons.warning_amber_rounded,
+                                size: 16, color: cs.error),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                s.countdownPastDateWarning,
+                                style:
+                                    TextStyle(fontSize: 12, color: cs.error),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Text(
+                          s.symbolLabel,
+                          style: TextStyle(
+                            fontFamily: ProfileTheme.displayFont,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: cs.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        // Пять привычных символов на виду; шестнадцать сеткой
+                        // занимали треть листа, а выбирали из них те же пять.
+                        for (final name in SymbolCatalog.quickPicks) ...[
+                          Expanded(
+                            child: _symbolBox(
+                              cs: cs,
+                              name: name,
+                              selected: symbol == name,
+                              onTap: () => setSheet(() => symbol = name),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        // Остальной каталог — отдельным экраном с поиском.
+                        Material(
+                          color: Colors.transparent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: BorderSide(color: cs.outline),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: InkWell(
+                            onTap: () async {
+                              final picked =
+                                  await Navigator.of(ctx).push<String>(
+                                MaterialPageRoute<String>(
+                                  builder: (_) => SymbolPickerScreen(
+                                    theme: _t,
+                                    selected: symbol,
+                                  ),
+                                  settings: const RouteSettings(
+                                      name: '/symbol_picker'),
+                                ),
+                              );
+                              if (picked == null || !ctx.mounted) return;
+                              setSheet(() => symbol = picked);
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 13),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.grid_view_rounded,
+                                      size: 18, color: cs.onSurface),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    s.symbolPickerAll,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: cs.onSurface,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: cs.surfaceContainerHigh,
+                        borderRadius: BorderRadius.circular(22),
+                      ),
+                      child: Column(
+                        children: [
+                          SwitchListTile(
+                            value: isCountdown,
+                            onChanged: (v) => setSheet(() => isCountdown = v),
+                            title: Text(s.countdownMode),
+                            subtitle: Text(s.countdownModeHint),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(22),
+                            ),
+                          ),
+                          Divider(
+                            height: 1,
+                            indent: 16,
+                            endIndent: 16,
+                            color: cs.outlineVariant,
+                          ),
+                          SwitchListTile(
+                            value: isDefault,
+                            onChanged: (v) => setSheet(() => isDefault = v),
+                            title: Text(s.setAsMain),
+                            subtitle: Text(s.setAsMainHint),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(22),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           );
         },
       ),
     );
+  }
+
+  /// Квадрат символа в ряду быстрого выбора.
+  Widget _symbolBox({
+    required ColorScheme cs,
+    required String name,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: selected ? cs.primary : cs.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: AspectRatio(
+          aspectRatio: 1,
+          child: Center(
+            child: SymbolIcon(
+              name,
+              size: 23,
+              color: selected ? cs.onPrimary : cs.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Сколько дней показывает предпросмотр: прошло от даты или осталось до неё.
+  int _daysBetween(DateTime date, bool countdown) {
+    final now = DateTime.now();
+    final diff = countdown ? date.difference(now) : now.difference(date);
+    final days = diff.inDays;
+    return days < 0 ? 0 : days;
   }
 
   Future<void> _showDeleteConfirm(TimerItem timer) async {
@@ -563,86 +719,12 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
     });
   }
 
-  Widget _dialogLabel(String text) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: Text(
-      text,
-      style: TextStyle(
-        fontSize: 11,
-        fontWeight: FontWeight.w900,
-        color: _t.textMuted,
-        letterSpacing: 1.5,
-      ),
-    ),
-  );
-  InputDecoration _dialogInputDeco(String hint) => InputDecoration(
-    hintText: hint,
-    filled: true,
-    fillColor: _t.surfaceMuted,
-    border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(16),
-      borderSide: BorderSide.none,
-    ),
-    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-  );
-  Widget _dialogSwitch(String label, bool val, ValueChanged<bool> onChanged) =>
-      Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: InkWell(
-          onTap: () => onChanged(!val),
-          child: Row(
-            children: [
-              Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: val ? _t.fillColor : Colors.transparent,
-                  border: Border.all(
-                    color: val ? _t.fillColor : _t.textMuted,
-                    width: 2,
-                  ),
-                ),
-                child: val
-                    ? const Icon(Icons.check, size: 16, color: Colors.white)
-                    : null,
-              ),
-              const SizedBox(width: 12),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: _t.textPrimary,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
   String _formatDate(DateTime d) {
     final date =
         '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
     return '$date  ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
   }
 
-  DateTime? _parseDate(String s) {
-    final parts = s.trim().split(RegExp(r'\s+'));
-    if (parts.isEmpty) return null;
-    final dateParts = parts[0].split('.');
-    if (dateParts.length != 3) return null;
-    final day = int.tryParse(dateParts[0]);
-    final month = int.tryParse(dateParts[1]);
-    final year = int.tryParse(dateParts[2]);
-    if (day == null || month == null || year == null) return null;
-    int h = 0, min = 0;
-    if (parts.length >= 2) {
-      final timeParts = parts[1].split(':');
-      h = int.tryParse(timeParts[0]) ?? 0;
-      if (timeParts.length >= 2) min = int.tryParse(timeParts[1]) ?? 0;
-    }
-    return DateTime(year, month, day, h.clamp(0, 23), min.clamp(0, 59));
-  }
 
   DateTime _normalizeTimerDate(DateTime date) => date;
 }

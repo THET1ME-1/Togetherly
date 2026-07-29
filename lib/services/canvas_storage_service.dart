@@ -276,10 +276,19 @@ class CanvasStorageService {
     }
   }
 
-  /// Push all existing local canvases to Firebase (one-time bootstrap).
-  /// Called when a user first pairs or opens the gallery while paired.
+  /// Группы, для которых бутстрап каталога уже сделан в этом запуске.
+  final Set<String> _bootstrapped = <String>{};
+
+  /// Push all existing local canvases to the catalogue (one-time bootstrap).
+  ///
+  /// Раз за запуск на группу. Раньше это выполнялось при КАЖДОМ открытии
+  /// галереи: каждый холст переписывался в `canvas_catalogue`, сервер рассылал
+  /// дельту в `pair:<groupId>`, её же слушал открытый экран — и на каждое
+  /// событие перезагружал список. Семь холстов давали семь перерисовок подряд,
+  /// а миниатюры при этом моргали.
   Future<void> pushAllToFirebase(String uid, String groupId) async {
     if (groupId.isEmpty) return;
+    if (!_bootstrapped.add(groupId)) return;
     final canvases = await getCanvases(uid, groupId: groupId);
     for (final meta in canvases) {
       await _canvas.upsertCatalogue(

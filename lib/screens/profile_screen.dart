@@ -42,9 +42,14 @@ import 'settings_screen.dart';
 import '../widgets/common/coin_reward_toast.dart';
 import '../widgets/common/m3_loading.dart';
 import 'welcome_screen.dart';
+import 'achievements_screen.dart';
 import 'gifts/gift_profile_body.dart';
+import 'gifts/gift_shop_screen.dart';
 import 'gifts/partner_profile_screen.dart';
 import 'gifts/self_profile_screen.dart';
+import '../models/gift_effect.dart';
+import '../models/pair_achievement.dart';
+import '../services/achievement_service.dart';
 import '../widgets/avatar_widget.dart';
 import '../widgets/seed_swatch.dart';
 import '../utils/share_origin.dart';
@@ -598,7 +603,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     // Экран профиля живёт в своей M3-теме (Kadr-стиль): схема из seed темы,
     // шрифты Unbounded/Onest, тональные поверхности, кнопки-пилюли.
-    final paired = widget.pairData.isPaired && widget.giftsEnabled;
+    // Блок «Отношения» показываем всей паре: подарки внутри него ещё зависят
+    // от флага, а достижения от него не зависели никогда.
+    final paired = widget.pairData.isPaired;
     return Theme(
       data: ProfileTheme.data(_cs),
       child: Builder(
@@ -1505,13 +1512,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
   /// отношений», который открывал лист с теми же полями: три уровня, чтобы
   /// добраться до годовщины. Теперь строки лежат на виду, а лист остаётся
   /// только для правки конкретного поля.
+  /// Подарок «Отдых»: сутки без счётчиков — достижения на это время прячем.
+  bool get _spaOn => isEffectActive(
+      (PocketBaseService().currentUser?.data['spa_until'] as num?)?.toInt(),
+      DateTime.now());
+
   Widget _buildPairGroup(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SettingsSection(_s.relationships),
         _buildRelationshipCard(context),
+        // Достижения и магазин подарков переехали сюда с главной: открывают их
+        // изредка, а место между картой и лентой они занимали каждый день.
+        // Подарок «Отдых» прячет достижения на сутки — раньше он гасил их на
+        // главной, теперь гасит здесь, иначе тихий день перестал бы быть тихим.
+        if (!_spaOn) ...[
+          const SizedBox(height: 10),
+          _achievementsEntry(context),
+        ],
         if (widget.giftsEnabled) ...[
+          const SizedBox(height: 10),
+          _giftShopEntry(context),
           const SizedBox(height: 10),
           SettingsGroup([
             SettingsRow(
@@ -1523,6 +1545,147 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ]),
         ],
       ],
+    );
+  }
+
+  /// Вход в достижения пары. Счётчик и полоса считаются по снимку
+  /// [AchievementService.stats] — он и так живёт в памяти и обновляется
+  /// realtime, поэтому показать прогресс дешевле, чем прятать его.
+  Widget _achievementsEntry(BuildContext context) {
+    final cs = _cs;
+    return ValueListenableBuilder<AchievementStats>(
+      valueListenable: AchievementService.instance.stats,
+      builder: (_, stats, __) {
+        final total = PairAchievement.all.length;
+        final unlocked =
+            PairAchievement.all.where((a) => a.isUnlockedBy(stats)).length;
+        return Material(
+          color: cs.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(24),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AchievementsScreen(theme: _t),
+                settings: const RouteSettings(name: '/achievements'),
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: cs.tertiaryContainer,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        alignment: Alignment.center,
+                        child: Icon(Icons.emoji_events_rounded,
+                            size: 24, color: cs.onTertiaryContainer),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _s.achievementsTitle,
+                              style: TextStyle(
+                                fontFamily: ProfileTheme.displayFont,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: cs.onSurface,
+                              ),
+                            ),
+                            Text(
+                              _s.achievementsUnlockedOf(unlocked, total),
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                color: cs.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(Icons.chevron_right_rounded,
+                          color: cs.onSurfaceVariant, size: 22),
+                    ],
+                  ),
+                  const SizedBox(height: 11),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(99),
+                    child: LinearProgressIndicator(
+                      value: total == 0 ? 0 : unlocked / total,
+                      minHeight: 8,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Вход в магазин подарков — тот же, что был на главной.
+  Widget _giftShopEntry(BuildContext context) {
+    final cs = _cs;
+    return Material(
+      color: cs.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(24),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => GiftShopScreen(
+              theme: _t,
+              groupId: widget.pairData.pairId,
+              coins: widget.userData.coins,
+            ),
+            settings: const RouteSettings(name: '/gifts'),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: cs.primaryContainer,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                alignment: Alignment.center,
+                child: Icon(Icons.redeem_rounded,
+                    size: 24, color: cs.onPrimaryContainer),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  _s.giftShopTitle,
+                  style: TextStyle(
+                    fontFamily: ProfileTheme.displayFont,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurface,
+                  ),
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded,
+                  color: cs.onSurfaceVariant, size: 22),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -3240,6 +3403,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
 
 
+  /// Магазин монет: баланс героем, две вкладки и список наград.
+  ///
+  /// Лист собран в M3-теме профиля, а не на старых цветах ([AppTheme]): раньше
+  /// он их и использовал, поэтому все строки выглядели одинаково серыми, а
+  /// выключенная награда отличалась от доступной только бледностью.
   void _showCoinShop(BuildContext context) {
     // Юзер осознанно открыл магазин коинов — теперь имеет смысл
     // предзагрузить rewarded, чтобы к тапу «Смотреть видео» он был готов.
@@ -3250,13 +3418,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!_iap.isAvailable || _iap.priceLabel(kCoinPacks.first.productId) == null) {
       unawaited(_initIap());
     }
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
+    // Паков нет на iOS: продукты там не заведены, а вести на оплату мимо
+    // биллинга запрещает 3.1.1. Без паков не нужен и переключатель вкладок.
+    final packsVisible = !Platform.isIOS && kCoinsPurchasable;
+    var showPacks = false;
+
+    showAppSheet<void>(
+      context,
+      expand: true,
+      background: _cs.surfaceContainer,
       // Лист подписан на userData: начисления (реклама/ежедневный бонус/
       // воспоминание) идут через notifyListeners, поэтому баланс и счётчик
-      // «X/3» в открытом магазине обновляются сразу, без переоткрытия/рестарта.
+      // «X/3» в открытом магазине обновляются сразу, без переоткрытия.
       //
       // И на _iap: загрузка продуктов из App Store/Google Play асинхронная, и
       // раньше открытый лист на неё НЕ реагировал (setState в _initIap чинит
@@ -3264,228 +3437,320 @@ class _ProfileScreenState extends State<ProfileScreen> {
       // открыть до окончания queryProductDetails — паки не отрисовывались и
       // не появлялись, пока лист открыт. Из-за этого App Review не нашёл
       // покупки и отклонил сборку (Guideline 2.1(b), 1.16.2).
-      builder: (_) => ListenableBuilder(
-        listenable: Listenable.merge([widget.userData, _iap]),
-        builder: (ctx, _) => DraggableScrollableSheet(
-          initialChildSize: 0.75,
-          minChildSize: 0.4,
-          maxChildSize: 0.95,
-          expand: false,
-          builder: (_, scrollController) => Container(
-            decoration: BoxDecoration(
-              color: _t.cardSurface,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (sheetCtx, setSheet) => ListenableBuilder(
+          listenable: Listenable.merge([widget.userData, _iap]),
+          builder: (ctx, _) => Theme(
+            data: ProfileTheme.data(_cs),
+            child: SheetScaffold(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 0, 18, 0),
+                    child: _coinBalanceHero(
+                      packsVisible: packsVisible,
+                      showPacks: showPacks,
+                      onTab: (packs) => setSheet(() => showPacks = packs),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Expanded(
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(18, 0, 18, 8),
+                      children: showPacks
+                          ? _coinPacksTab(ctx)
+                          : _coinEarnTab(ctx),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            child: Column(
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Шапка магазина: баланс крупно на тональной подложке и переключатель
+  /// «Заработать / Купить».
+  Widget _coinBalanceHero({
+    required bool packsVisible,
+    required bool showPacks,
+    required ValueChanged<bool> onTab,
+  }) {
+    final cs = _cs;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [cs.primaryContainer, cs.secondaryContainer],
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _s.coinShopTitle,
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: cs.onPrimaryContainer,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Image.asset('assets/images/icons/coin.webp', width: 34, height: 34),
+              const SizedBox(width: 10),
+              Text(
+                '${widget.userData.coins}',
+                style: TextStyle(
+                  fontFamily: ProfileTheme.displayFont,
+                  fontSize: 42,
+                  height: 1.0,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -1.5,
+                  color: cs.onPrimaryContainer,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _s.coinShopSubtitle,
+            style: TextStyle(
+              fontSize: 12.5,
+              color: cs.onPrimaryContainer.withValues(alpha: 0.78),
+            ),
+          ),
+          if (packsVisible) ...[
+            const SizedBox(height: 14),
+            Row(
               children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
-                  child: Column(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: _t.divider,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Image.asset(
-                            'assets/images/icons/coin.webp',
-                            width: 30,
-                            height: 30,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${widget.userData.coins}',
-                            style: const TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w800,
-                              height: 1.0,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        _s.coinShopSubtitle,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: _t.textMuted,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                    ],
+                _coinTab(_s.earnCoinsSection, !showPacks, () => onTab(false)),
+                const SizedBox(width: 8),
+                _coinTab(_s.coinPacksSectionTitle, showPacks, () => onTab(true)),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _coinTab(String label, bool active, VoidCallback onTap) {
+    final cs = _cs;
+    return Material(
+      color: active
+          ? cs.primary
+          : cs.onPrimaryContainer.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(999),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: active ? cs.onPrimary : cs.onPrimaryContainer,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Вкладка «Заработать»: иконки профиля и список наград.
+  List<Widget> _coinEarnTab(BuildContext ctx) {
+    final cs = _cs;
+    return [
+      _coinEarnRow(
+        icon: Icons.add_reaction_rounded,
+        title: _s.iconShopTitle,
+        subtitle: _s.iconShopSubtitle,
+        trailing: Icon(Icons.chevron_right_rounded,
+            color: cs.onSurfaceVariant, size: 22),
+        onTap: () {
+          Navigator.pop(ctx);
+          _showIconPicker(context);
+        },
+      ),
+      const SizedBox(height: 10),
+      // Ежедневный вход
+      _coinEarnRow(
+        icon: Icons.calendar_today_rounded,
+        title: _s.dailyBonusTitle,
+        subtitle: _s.dailyBonusSubtitle,
+        reward: 1,
+        done: widget.userData.dailyBonusClaimedThisSession,
+        onTap: widget.userData.dailyBonusClaimedThisSession
+            ? null
+            : () async {
+                final rootCtx = context;
+                final awarded = await widget.userData.claimDailyBonus();
+                if (!mounted) return;
+                if (awarded) {
+                  // ignore: use_build_context_synchronously
+                  CoinRewardToast.show(rootCtx,
+                      amount: 1, label: _s.dailyBonusTitle);
+                }
+              },
+      ),
+      // Воспоминание — скрыто в соло-режиме
+      if (!widget.pairData.isSolo) ...[
+        const SizedBox(height: 10),
+        _coinEarnRow(
+          icon: Icons.photo_album_rounded,
+          title: _s.memoryRewardTitle,
+          subtitle: _s.memoryRewardSubtitle,
+          reward: 1,
+          done: widget.userData.memoryRewardClaimedThisSession,
+          onTap: widget.userData.memoryRewardClaimedThisSession
+              ? null
+              : () async {
+                  final amount = await widget.userData.claimMemoryReward();
+                  if (!mounted) return;
+                  if (amount > 0) {
+                    // ignore: use_build_context_synchronously
+                    CoinRewardToast.show(context,
+                        amount: amount, label: _s.memoryRewardTitle);
+                  }
+                },
+        ),
+      ],
+      const SizedBox(height: 10),
+      // Реклама: счётчик показов за сегодня + сумма награды
+      _coinEarnRow(
+        icon: Icons.play_circle_rounded,
+        title: _s.watchAdTitle,
+        subtitle: _s.watchAdSubtitle,
+        reward: 3,
+        counter:
+            '${widget.userData.adRewardsToday}/${UserData.adRewardsDailyLimit}',
+        onTap: widget.userData.adRewardsRemaining == 0
+            ? null
+            // Лист НЕ закрываем: он подписан на userData, поэтому после
+            // начисления баланс и счётчик обновятся прямо здесь.
+            : () async => _watchRewardedAd(),
+      ),
+      const SizedBox(height: 10),
+      // Недоступное вручную — цели, а не мусор: показываем приглушённо.
+      _coinEarnRow(
+        icon: Icons.favorite_rounded,
+        title: _s.moodStreakRewardTitle,
+        subtitle: _s.moodStreakRewardSubtitle,
+        reward: 10,
+        onTap: null,
+      ),
+      const SizedBox(height: 10),
+      _coinEarnRow(
+        icon: Icons.person_add_rounded,
+        title: _s.partnerInviteRewardTitle,
+        subtitle: _s.partnerInviteRewardSubtitle,
+        reward: 50,
+        onTap: null,
+      ),
+    ];
+  }
+
+  /// Строка награды. Доступная — залитая иконка и чип суммы; выполненная —
+  /// галочка вместо суммы; недоступная — нейтральные тона.
+  Widget _coinEarnRow({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    VoidCallback? onTap,
+    int? reward,
+    String? counter,
+    bool done = false,
+    Widget? trailing,
+  }) {
+    final cs = _cs;
+    final active = onTap != null;
+    return Material(
+      color: cs.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(24),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Opacity(
+          opacity: active || done ? 1 : 0.5,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: active ? cs.primary : cs.surfaceContainerHighest,
+                    shape: BoxShape.circle,
                   ),
+                  alignment: Alignment.center,
+                  child: Icon(icon,
+                      size: 22,
+                      color: active ? cs.onPrimary : cs.onSurfaceVariant),
                 ),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: ListView(
-                    controller: scrollController,
-                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Выбор цветовой схемы отсюда убран: он вёл в старый
-                      // список готовых тем, которого больше нет — палитра и
-                      // насыщенность живут в «Оформлении».
-                      // ── Иконки профиля ───────────────────────────────
-                      _coinShopItem(
-                        icon: Icons.add_reaction_outlined,
-                        title: _s.iconShopTitle,
-                        subtitle: _s.iconShopSubtitle,
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          _showIconPicker(context);
-                        },
-                      ),
-                      // ── Заработать бесплатно ──────────────────────────
-                      const SizedBox(height: 4),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: Text(
-                          _s.earnCoinsSection,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: _t.textMuted,
-                          ),
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w600,
+                          color: cs.onSurface,
                         ),
                       ),
-                      // Ежедневный вход
-                      _coinShopItem(
-                        icon: Icons.calendar_today_rounded,
-                        title: _s.dailyBonusTitle,
-                        subtitle: _s.dailyBonusSubtitle,
-                        coinAmount: 1,
-                        counterText: widget.userData.dailyBonusClaimedThisSession ? '✓' : null,
-                        counterExhausted: widget.userData.dailyBonusClaimedThisSession,
-                        onTap: widget.userData.dailyBonusClaimedThisSession
-                            ? null
-                            : () async {
-                                final rootCtx = context;
-                                final awarded = await widget.userData.claimDailyBonus();
-                                if (!mounted) return;
-                                if (awarded) {
-                                  // ignore: use_build_context_synchronously
-                                  CoinRewardToast.show(rootCtx, amount: 1, label: _s.dailyBonusTitle);
-                                }
-                              },
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style:
+                            TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
                       ),
-                      // Воспоминание — скрыто в соло-режиме
-                      if (!widget.pairData.isSolo)
-                        _coinShopItem(
-                          icon: Icons.photo_album_outlined,
-                          title: _s.memoryRewardTitle,
-                          subtitle: _s.memoryRewardSubtitle,
-                          coinAmount: 1,
-                          counterText: widget.userData.memoryRewardClaimedThisSession ? '✓' : null,
-                          counterExhausted: widget.userData.memoryRewardClaimedThisSession,
-                          onTap: widget.userData.memoryRewardClaimedThisSession
-                              ? null
-                              : () async {
-                                  final amount = await widget.userData.claimMemoryReward();
-                                  if (!mounted) return;
-                                  if (amount > 0) {
-                                    // ignore: use_build_context_synchronously
-                                    CoinRewardToast.show(context, amount: amount, label: _s.memoryRewardTitle);
-                                  }
-                                },
-                        ),
-                      // Реклама
-                      _coinShopItem(
-                        icon: Icons.play_circle_outline_rounded,
-                        title: _s.watchAdTitle,
-                        subtitle: _s.watchAdSubtitle,
-                        coinAmount: 3,
-                        counterText:
-                            '${widget.userData.adRewardsToday}/${UserData.adRewardsDailyLimit}',
-                        counterExhausted: widget.userData.adRewardsRemaining == 0,
-                        onTap: widget.userData.adRewardsRemaining == 0
-                            ? null
-                            : () async {
-                                // Лист НЕ закрываем: он подписан на userData,
-                                // поэтому после начисления баланс и счётчик
-                                // «X/3» обновятся прямо в открытом магазине.
-                                await _watchRewardedAd();
-                              },
-                      ),
-                      // Стрик настроения
-                      _coinShopItem(
-                        icon: Icons.favorite_border_rounded,
-                        title: _s.moodStreakRewardTitle,
-                        subtitle: _s.moodStreakRewardSubtitle,
-                        coinAmount: 10,
-                        onTap: null,
-                      ),
-                      // Пригласить партнёра
-                      _coinShopItem(
-                        icon: Icons.person_add_outlined,
-                        title: _s.partnerInviteRewardTitle,
-                        subtitle: _s.partnerInviteRewardSubtitle,
-                        coinAmount: 50,
-                        onTap: null,
-                      ),
-                      // ── Купить монеты (IAP) — скрыто на iOS ───────────
-                      // На iOS встроенные покупки убраны: App Review не мог
-                      // найти/подтвердить продукты (Guideline 2.1(b)). Монеты
-                      // на iOS остаются бесплатными (ежедневный бонус, реклама,
-                      // инвайт) + донат-кнопки. На Android/RuStore паки на месте.
-                      if (!Platform.isIOS && kCoinsPurchasable) ...[
-                        const SizedBox(height: 8),
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: Text(
-                            _s.coinPacksSectionTitle,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: _t.textMuted,
-                            ),
-                          ),
-                        ),
-                        ...kCoinPacks.map((pack) {
-                          final priceLabel =
-                              _iap.priceLabel(pack.productId) ?? '…';
-                          return _coinShopItem(
-                            icon: Icons.shopping_bag_outlined,
-                            title: _s.coinPackTitle(pack.coins),
-                            subtitle: priceLabel,
-                            onTap: _iapLoading || _iap.isLoading
-                                ? null
-                                : () async {
-                                    Navigator.pop(ctx);
-                                    await _buyCoins(pack.productId);
-                                  },
-                          );
-                        }),
-                        const SizedBox(height: 4),
-                        _coinShopItem(
-                          icon: Icons.restore_outlined,
-                          title: _s.restorePurchasesTitle,
-                          subtitle: '',
-                          onTap: () {
-                            Navigator.pop(ctx);
-                            _restorePurchases();
-                          },
-                        ),
-                        // Покупка мимо магазинов: код из телеграм-бота. Нужен
-                        // тем, кто поставил приложение с GitHub — там биллинга
-                        // Google нет вовсе.
-                        _coinShopItem(
-                          icon: Icons.confirmation_number_outlined,
-                          title: _s.redeemCodeTitle,
-                          subtitle: _s.redeemCodeSubtitle,
-                          onTap: () {
-                            Navigator.pop(ctx);
-                            _askRedeemCode();
-                          },
-                        ),
-                      ],
                     ],
                   ),
                 ),
+                if (counter != null) ...[
+                  const SizedBox(width: 8),
+                  _coinChip(counter, filled: false),
+                ],
+                if (done)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: cs.primaryContainer,
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: Icon(Icons.check_rounded,
+                          size: 19, color: cs.onPrimaryContainer),
+                    ),
+                  )
+                else if (reward != null) ...[
+                  const SizedBox(width: 8),
+                  _coinChip('+$reward', filled: active),
+                ],
+                if (trailing != null) ...[
+                  const SizedBox(width: 4),
+                  trailing,
+                ],
               ],
             ),
           ),
@@ -3494,6 +3759,181 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _coinChip(String text, {required bool filled}) {
+    final cs = _cs;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+      decoration: BoxDecoration(
+        color: filled ? cs.primary : cs.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 12.5,
+          fontWeight: FontWeight.w700,
+          color: filled ? cs.onPrimary : cs.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+
+  /// Вкладка «Купить»: паки сеткой 2×2 и служебные строки.
+  List<Widget> _coinPacksTab(BuildContext ctx) {
+    final cs = _cs;
+    // Выгодным считаем пак с лучшей ценой за монету. Считать это в UI дешевле,
+    // чем держать флаг в каталоге и забыть обновить его при смене цен.
+    final best = _bestValuePack();
+    return [
+      GridView.count(
+        crossAxisCount: 2,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: 1.15,
+        children: kCoinPacks.map((pack) {
+          final priceLabel = _iap.priceLabel(pack.productId);
+          final highlighted = pack.productId == best;
+          return Material(
+            color: highlighted ? cs.primary : cs.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(26),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: _iapLoading || _iap.isLoading
+                  ? null
+                  : () async {
+                      Navigator.pop(ctx);
+                      await _buyCoins(pack.productId);
+                    },
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${pack.coins}',
+                                style: TextStyle(
+                                  fontFamily: ProfileTheme.displayFont,
+                                  fontSize: 28,
+                                  height: 1.0,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -1,
+                                  color: highlighted
+                                      ? cs.onPrimary
+                                      : cs.onSurface,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _s.coinPackTitle(pack.coins),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: highlighted
+                                      ? cs.onPrimary.withValues(alpha: 0.8)
+                                      : cs.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Image.asset('assets/images/icons/coin.webp',
+                            width: 22, height: 22),
+                      ],
+                    ),
+                    const Spacer(),
+                    Container(
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: highlighted
+                            ? cs.primaryContainer
+                            : cs.secondaryContainer,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      alignment: Alignment.center,
+                      child: priceLabel == null
+                          // Цены приезжают из магазина асинхронно; пока их нет,
+                          // показываем ожидание, а не многоточие-заглушку.
+                          ? SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: highlighted
+                                    ? cs.onPrimaryContainer
+                                    : cs.onSecondaryContainer,
+                              ),
+                            )
+                          : Text(
+                              priceLabel,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: highlighted
+                                    ? cs.onPrimaryContainer
+                                    : cs.onSecondaryContainer,
+                              ),
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+      const SizedBox(height: 14),
+      _coinEarnRow(
+        icon: Icons.confirmation_number_rounded,
+        title: _s.redeemCodeTitle,
+        subtitle: _s.redeemCodeSubtitle,
+        trailing: Icon(Icons.chevron_right_rounded,
+            color: cs.onSurfaceVariant, size: 22),
+        onTap: () {
+          Navigator.pop(ctx);
+          _askRedeemCode();
+        },
+      ),
+      const SizedBox(height: 10),
+      _coinEarnRow(
+        icon: Icons.restore_rounded,
+        title: _s.restorePurchasesTitle,
+        subtitle: _s.coinShopSubtitle,
+        trailing: Icon(Icons.chevron_right_rounded,
+            color: cs.onSurfaceVariant, size: 22),
+        onTap: () {
+          Navigator.pop(ctx);
+          _restorePurchases();
+        },
+      ),
+    ];
+  }
+
+  /// Пак с наименьшей ценой за монету. Пока магазин не отдал цены, выгодным
+  /// считаем ничего — подсветка появится вместе с ценниками.
+  String? _bestValuePack() {
+    String? best;
+    double bestRate = double.infinity;
+    for (final pack in kCoinPacks) {
+      final price = _iap.priceValue(pack.productId);
+      if (price == null || price <= 0 || pack.coins <= 0) continue;
+      final rate = price / pack.coins;
+      if (rate < bestRate) {
+        bestRate = rate;
+        best = pack.productId;
+      }
+    }
+    return best;
+  }
   Future<void> _initIap() async {
     await _iap.init(
       onGrantCoins: ({required String productId, required String purchaseToken}) =>
@@ -3627,156 +4067,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (mounted) setState(() {});
   }
 
-  Widget _coinShopItem({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback? onTap,
-    String? counterText,
-    bool counterExhausted = false,
-    int? coinAmount,
-  }) {
-    final disabled = onTap == null;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Material(
-        color: disabled
-            ? _t.surfaceMuted
-            : _accentLight.withValues(alpha: 0.45),
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: _t.cardSurface,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    icon,
-                    color: disabled ? _t.textMuted : _accent,
-                    size: 22,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: disabled
-                              ? _t.textMuted
-                              : _t.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: _t.textSecondary,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                // Бейдж с наградой монетами (coin.webp + число)
-                if (coinAmount != null) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: disabled ? _t.surfaceMuted : _t.cardSurface,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: disabled
-                          ? null
-                          : _t.accentGlow(
-                              _accent,
-                              opacity: 0.15,
-                              blurRadius: 4,
-                              offset: const Offset(0, 1),
-                            ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Image.asset(
-                          'assets/images/icons/coin.webp',
-                          width: 14,
-                          height: 14,
-                        ),
-                        const SizedBox(width: 3),
-                        Text(
-                          '+$coinAmount',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            height: 1.0,
-                            color: disabled ? _t.textMuted : _accent,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                ],
-                // Счётчик (например 1/3 для рекламы)
-                if (counterText != null) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: counterExhausted
-                          ? _t.surfaceMuted
-                          : _t.cardSurface,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: counterExhausted
-                          ? null
-                          : _t.accentGlow(
-                              _accent,
-                              opacity: 0.15,
-                              blurRadius: 4,
-                              offset: const Offset(0, 1),
-                            ),
-                    ),
-                    child: Text(
-                      counterText,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        height: 1.0,
-                        color: counterExhausted
-                            ? _t.textSecondary
-                            : _accent,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                ],
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: _t.textMuted,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
   String _themeDisplayName(int index) {
     final names = <String>[

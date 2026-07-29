@@ -638,6 +638,37 @@ abstract class AppStrings {
   String get chatLookMaterialOn;
   String get chatLookCozyOn;
 
+  /// Подпись под полем заголовка в форме записи.
+  String get titleFieldHint;
+
+  /// Название типа записи в открытом воспоминании.
+  String memoryTypeName(String type);
+
+  // ── Выбор символа таймера ──
+  String get symbolPickerTitle;
+  String get symbolPickerAll;
+  String get countdownModeHint;
+  String get setAsMainHint;
+  String timerDaysCount(int days);
+  String get symbolSearchHint;
+  String get symbolSearchEmpty;
+  String symbolSearchFound(int count);
+  String get symbolSetHint;
+  String get symbolSetLove;
+  String get symbolSetHolidays;
+  String get symbolSetHome;
+  String get symbolSetRoad;
+  String get symbolSetWork;
+
+  // ── Названия фонов чата (узоры рисуются кодом) ──
+  String get chatBgPlain;
+  String get chatBgDawn;
+  String get chatBgHearts;
+  String get chatBgWeave;
+  String get chatBgDots;
+  String get chatBgBubbles;
+  String get chatBgNight;
+
   // ── Приглашение партнёра в слоте подсказки ──
   String get needsPartnerHint;
   String get inviteReminderTitle;
@@ -690,6 +721,9 @@ abstract class AppStrings {
   // ── Memory Lane Screen ──
   String get memoryLane;
   String get addMemoryBtn;
+
+  /// Кнопка внизу формы записи.
+  String get addMemoryToFeed;
   String get pinned;
 
   // ── Timer Card ──
@@ -853,6 +887,9 @@ abstract class AppStrings {
   // ── Memory date picker ──
   String get memoryDateLabel;
   String get memoryDateNow;
+
+  /// Короткая подпись чипа даты в форме записи.
+  String get dateNowLabel;
   String get memoryDatePickDate;
   String get memoryDatePickTime;
   String get memoryDateClear;
@@ -2890,6 +2927,61 @@ class _RuStrings extends AppStrings {
   @override
   String get chatLookCozyOn => 'Вернули наш вид';
   @override
+  String get titleFieldHint => 'Появится в ленте над фотографией';
+  @override
+  String memoryTypeName(String type) => switch (type) {
+        'photo' => 'Фотография',
+        'video' => 'Видео',
+        'location' => 'Локация',
+        'music' => 'Музыка',
+        'text' => 'Заметка',
+        'videoLink' => 'Видео по ссылке',
+        'book' => 'Книга',
+        _ => 'Кино',
+      };
+  @override
+  String get symbolPickerTitle => 'Символ';
+  @override
+  String get symbolPickerAll => 'Все';
+  @override
+  String get countdownModeHint => 'Считать до даты, а не от неё';
+  @override
+  String get setAsMainHint => 'Показывать на главной';
+  @override
+  String timerDaysCount(int days) => '$days ${_daysWord(days)}';
+  @override
+  String get symbolSearchHint => 'Найти символ';
+  @override
+  String get symbolSearchEmpty => 'Ничего не нашлось — попробуйте английское имя';
+  @override
+  String symbolSearchFound(int count) => 'Найдено: $count';
+  @override
+  String get symbolSetHint => 'Или найдите любой другой поиском';
+  @override
+  String get symbolSetLove => 'Про нас';
+  @override
+  String get symbolSetHolidays => 'Праздники';
+  @override
+  String get symbolSetHome => 'Дом';
+  @override
+  String get symbolSetRoad => 'Дорога';
+  @override
+  String get symbolSetWork => 'Дела';
+  @override
+  String get chatBgPlain => 'Гладкий';
+  @override
+  String get chatBgDawn => 'Рассвет';
+  @override
+  String get chatBgHearts => 'Сердца';
+  @override
+  String get chatBgWeave => 'Плетение';
+  @override
+  String get chatBgDots => 'Точки';
+  @override
+  String get chatBgBubbles => 'Пузыри';
+  @override
+  String get chatBgNight => 'Ночь';
+  @override
   String get needsPartnerHint => 'Это работает вдвоём — позовите свою половину';
   @override
   String get inviteReminderTitle => 'Ваш код приглашения ещё активен';
@@ -3001,7 +3093,9 @@ class _RuStrings extends AppStrings {
   @override
   String get addMemoryBtn => 'Добавить';
   @override
-  String get pinned => '📌  Закреплено';
+  String get addMemoryToFeed => 'Добавить в ленту';
+  @override
+  String get pinned => 'Закреплено';
 
   // ── Timer Card ──
   @override
@@ -3321,6 +3415,8 @@ class _RuStrings extends AppStrings {
   String get memoryDateLabel => 'Когда это было';
   @override
   String get memoryDateNow => 'Сейчас (момент создания)';
+  @override
+  String get dateNowLabel => 'Сейчас';
   @override
   String get memoryDatePickDate => 'Дата';
   @override
@@ -4645,7 +4741,7 @@ class _RuStrings extends AppStrings {
   @override
   String get sendLabel => 'Отправить';
   @override
-  String get widgetPhotoCaption => '📸 Виджет';
+  String get widgetPhotoCaption => 'Из виджета';
 
   // ── Mascot gallery ──
   @override
@@ -5222,9 +5318,9 @@ class _RuStrings extends AppStrings {
   @override
   String get openPartnerProfile => 'Открыть профиль партнёра';
   @override
-  String partnerGiftsChip(int count) => '🎁 $count';
+  String partnerGiftsChip(int count) => '$count';
   @override
-  String partnerMissChip(int count) => '💌 $count';
+  String partnerMissChip(int count) => '$count';
   @override
   String partnerDaysTogether(int days) => 'вместе $days ${_daysWord(days)}';
   @override
@@ -6398,6 +6494,61 @@ class _EnStrings extends AppStrings {
   @override
   String get chatLookCozyOn => 'Our look is back';
   @override
+  String get titleFieldHint => 'Shown in the feed above the photo';
+  @override
+  String memoryTypeName(String type) => switch (type) {
+        'photo' => 'Photo',
+        'video' => 'Video',
+        'location' => 'Location',
+        'music' => 'Music',
+        'text' => 'Note',
+        'videoLink' => 'Video link',
+        'book' => 'Book',
+        _ => 'Movie',
+      };
+  @override
+  String get symbolPickerTitle => 'Symbol';
+  @override
+  String get symbolPickerAll => 'All';
+  @override
+  String get countdownModeHint => 'Count towards the date, not from it';
+  @override
+  String get setAsMainHint => 'Show on the home screen';
+  @override
+  String timerDaysCount(int days) => days == 1 ? '1 day' : '$days days';
+  @override
+  String get symbolSearchHint => 'Find a symbol';
+  @override
+  String get symbolSearchEmpty => 'Nothing found — try another word';
+  @override
+  String symbolSearchFound(int count) => 'Found: $count';
+  @override
+  String get symbolSetHint => 'Or search for any other one';
+  @override
+  String get symbolSetLove => 'About us';
+  @override
+  String get symbolSetHolidays => 'Holidays';
+  @override
+  String get symbolSetHome => 'Home';
+  @override
+  String get symbolSetRoad => 'Travel';
+  @override
+  String get symbolSetWork => 'Work';
+  @override
+  String get chatBgPlain => 'Plain';
+  @override
+  String get chatBgDawn => 'Dawn';
+  @override
+  String get chatBgHearts => 'Hearts';
+  @override
+  String get chatBgWeave => 'Weave';
+  @override
+  String get chatBgDots => 'Dots';
+  @override
+  String get chatBgBubbles => 'Bubbles';
+  @override
+  String get chatBgNight => 'Night';
+  @override
   String get needsPartnerHint => 'This one works in pairs — invite your other half';
   @override
   String get inviteReminderTitle => 'Your invite code is still active';
@@ -6504,7 +6655,9 @@ class _EnStrings extends AppStrings {
   @override
   String get addMemoryBtn => 'Add Memory';
   @override
-  String get pinned => '📌  Pinned';
+  String get addMemoryToFeed => 'Add to the feed';
+  @override
+  String get pinned => 'Pinned';
 
   // ── Timer Card ──
   @override
@@ -6830,6 +6983,8 @@ class _EnStrings extends AppStrings {
   String get memoryDateLabel => 'When was it';
   @override
   String get memoryDateNow => 'Now (at creation)';
+  @override
+  String get dateNowLabel => 'Now';
   @override
   String get memoryDatePickDate => 'Date';
   @override
@@ -8085,7 +8240,7 @@ class _EnStrings extends AppStrings {
   @override
   String get sendLabel => 'Send';
   @override
-  String get widgetPhotoCaption => '📸 Widget';
+  String get widgetPhotoCaption => 'From widget';
 
   // ── Mascot gallery ──
   @override
@@ -8648,9 +8803,9 @@ class _EnStrings extends AppStrings {
   @override
   String get openPartnerProfile => "Open partner's profile";
   @override
-  String partnerGiftsChip(int count) => '🎁 $count';
+  String partnerGiftsChip(int count) => '$count';
   @override
-  String partnerMissChip(int count) => '💌 $count';
+  String partnerMissChip(int count) => '$count';
   @override
   String partnerDaysTogether(int days) =>
       days == 1 ? 'together 1 day' : 'together $days days';

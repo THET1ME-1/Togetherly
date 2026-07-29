@@ -86,6 +86,12 @@ abstract class CoinStore extends ChangeNotifier {
   /// Готовый ценник продукта (с валютой), либо null если ещё не загружен.
   String? priceLabel(String productId);
 
+  /// Цена числом в валюте магазина — нужна витрине, чтобы отметить пак с
+  /// лучшей ценой за монету. Считать по [priceLabel] нельзя: там валюта,
+  /// пробелы и запятая, и в каждой стране по-своему. null — цена ещё не
+  /// приехала или магазин её не отдаёт.
+  double? priceValue(String productId) => null;
+
   /// Инициализация. [onGrantCoins] — серверное начисление после оплаты.
   Future<void> init({required GrantCoinsCallback onGrantCoins});
 

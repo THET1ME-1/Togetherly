@@ -40,6 +40,18 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
   List<CanvasMeta> _canvases = [];
   bool _loading = true;
 
+  /// Отпечаток последнего показанного списка — см. [_load].
+  String _fingerprint = '';
+
+  /// Декодированные миниатюры по id холста.
+  ///
+  /// `Image.memory` сравнивает провайдеры по самому массиву байт, а не по его
+  /// содержимому. Каждый билд декодировал base64 заново, получал новый
+  /// `Uint8List`, и Flutter считал это другой картинкой: сбрасывал кадр,
+  /// декодировал png и рисовал заново — отсюда и моргание всей сетки. Держим
+  /// готовый провайдер и меняем его, только когда превью действительно новое.
+  final Map<String, ({String source, MemoryImage image})> _thumbs = {};
+
   /// Отмеченные холсты. Пустое множество — обычный просмотр. Долгое нажатие
   /// включает выбор, дальше карточки отмечаются касанием.
   final Set<String> _selected = <String>{};
@@ -76,12 +88,17 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
 
   Future<void> _load() async {
     final list = await _storage.getCanvases(_uid, groupId: _groupId);
-    if (mounted) {
-      setState(() {
-        _canvases = list;
-        _loading = false;
-      });
-    }
+    if (!mounted) return;
+    // Перерисовываем, только если список правда изменился. Realtime-канал пары
+    // несёт изменения всех холстов, и на каждое событие экран пересобирал сетку
+    // целиком — миниатюры при этом моргали белым.
+    final next = list.map((c) => c.fingerprint).join(';');
+    if (next == _fingerprint && !_loading) return;
+    _fingerprint = next;
+    setState(() {
+      _canvases = list;
+      _loading = false;
+    });
   }
 
   // ── Actions ─────────────────────────────────────────────────────────────
@@ -696,13 +713,27 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
   }
 
   Widget _buildThumbnail(CanvasMeta meta, AppTheme t) {
-    if (meta.previewBase64 != null) {
-      try {
-        final bytes = base64Decode(meta.previewBase64!);
-        return Image.memory(
-          Uint8List.fromList(bytes),
+    final preview = meta.previewBase64;
+    if (preview != null) {
+      final cached = _thumbs[meta.id];
+      if (cached != null && cached.source == preview) {
+        return Image(
+          image: cached.image,
           fit: BoxFit.cover,
           width: double.infinity,
+          gaplessPlayback: true,
+        );
+      }
+      try {
+        final image = MemoryImage(Uint8List.fromList(base64Decode(preview)));
+        _thumbs[meta.id] = (source: preview, image: image);
+        return Image(
+          image: image,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          // Пока новое превью декодируется, держим прошлый кадр — иначе на
+          // месте рисунка на мгновение появляется пустая карточка.
+          gaplessPlayback: true,
         );
       } catch (_) {}
     }

@@ -208,8 +208,11 @@ class _Hero extends StatelessWidget {
             runSpacing: 8,
             alignment: WrapAlignment.center,
             children: [
-              _Chip(theme: theme, text: giftsChip),
-              _Chip(theme: theme, text: missChip),
+              _Chip(
+                  theme: theme,
+                  icon: Icons.card_giftcard_rounded,
+                  text: giftsChip),
+              _Chip(theme: theme, icon: Icons.mail_rounded, text: missChip),
             ],
           ),
         ],
@@ -219,24 +222,35 @@ class _Hero extends StatelessWidget {
 }
 
 class _Chip extends StatelessWidget {
-  const _Chip({required this.theme, required this.text});
+  const _Chip({required this.theme, required this.icon, required this.text});
 
   final AppTheme theme;
+
+  /// Иконка вместо прежнего эмодзи в строке: та красилась системой и в тёмной
+  /// теме светилась ярче самого числа.
+  final IconData icon;
   final String text;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.fromLTRB(10, 6, 12, 6),
       decoration: BoxDecoration(
         color: theme.cardSurface.withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Text(text,
-          style: TextStyle(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w700,
-              color: theme.textPrimary)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: theme.primary),
+          const SizedBox(width: 6),
+          Text(text,
+              style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: theme.textPrimary)),
+        ],
+      ),
     );
   }
 }

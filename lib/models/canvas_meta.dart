@@ -71,6 +71,14 @@ class CanvasMeta {
         if (sheetRatio != null) 'sheetRatio': sheetRatio,
       };
 
+  /// Отпечаток для сравнения списков: всё, что видно в карточке галереи.
+  ///
+  /// Экран перезагружает каталог на каждое realtime-событие пары, а событий
+  /// приходит много (правка соседнего холста, чужой бутстрап). Без сравнения
+  /// `setState` пересобирал сетку впустую, и миниатюры моргали.
+  String get fingerprint => '$id|$name|${updatedAt.millisecondsSinceEpoch}|'
+      '${previewBase64?.length ?? 0}|$pixelW|$pixelH|$sheetRatio';
+
   factory CanvasMeta.fromJson(Map<String, dynamic> json) => CanvasMeta(
         id: json['id'] as String,
         name: (json['name'] as String?) ?? 'Canvas',

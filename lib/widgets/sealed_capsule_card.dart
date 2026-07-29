@@ -170,7 +170,8 @@ class _SealedCapsuleCardState extends State<SealedCapsuleCard>
             ],
           ),
           alignment: Alignment.center,
-          child: const Text('🎁', style: TextStyle(fontSize: 38)),
+          child: Icon(Icons.card_giftcard_rounded,
+              size: 38, color: AppThemes.onColor(t.primary)),
         )
             .animate(onPlay: (c) => c.repeat(reverse: true))
             .scaleXY(begin: 1, end: 1.06, duration: 1400.ms, curve: Curves.easeInOut)

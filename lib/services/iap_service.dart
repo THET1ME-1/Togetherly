@@ -35,6 +35,9 @@ class IapService extends CoinStore {
   @override
   String? priceLabel(String productId) => _products[productId]?.price;
 
+  @override
+  double? priceValue(String productId) => _products[productId]?.rawPrice;
+
   // ── Внутренние поля ───────────────────────────────────────────────────────
 
   final InAppPurchase _iap = InAppPurchase.instance;
