@@ -1,11 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../../models/connection.dart';
+import '../../../models/symbol_catalog.dart';
 import '../../../models/pair_data.dart';
 import '../../../services/locale_service.dart';
 import '../../../theme/app_theme.dart';
 import '../../../theme/profile_theme.dart';
 import '../../../theme/theme_scope.dart';
 import '../../../widgets/connect_expressive.dart';
+import '../../symbol_picker_screen.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Иконки типов связи (пара иконка↔эмодзи). Иконку показываем в интерфейсе
@@ -35,9 +39,20 @@ const List<String> kRelEmojis = [
   '🎨', '🏆', '🌿', '✨',
 ];
 
-IconData relIconForEmoji(String emoji) {
-  final i = kRelEmojis.indexOf(emoji);
-  return i >= 0 ? kRelIcons[i] : Icons.auto_awesome_rounded;
+/// Значок своего типа связи по сохранённому значению.
+///
+/// Раньше туда ложился эмодзи из списка [kRelEmojis] — шестнадцать штук, и
+/// больше выбрать было нечего. Теперь можно сохранить имя значка из полного
+/// набора Material Symbols; старые значения по-прежнему разбираются по списку.
+/// Нативный виджет это поле не читает (`DaysCounterWidgetProvider` затирает
+/// `love_emoji` пустой строкой), поэтому смена формата ему безразлична.
+IconData relIconForEmoji(String stored) {
+  final i = kRelEmojis.indexOf(stored);
+  if (i >= 0) return kRelIcons[i];
+  if (stored.isNotEmpty && SymbolCatalog.has(stored)) {
+    return SymbolCatalog.iconFor(stored);
+  }
+  return Icons.auto_awesome_rounded;
 }
 
 IconData relIconForType(RelationshipType type, {String customEmoji = ''}) {
@@ -297,7 +312,11 @@ void showAddCustomRelTypeSheet(
   final cs = ProfileTheme.themeFor(theme).colorScheme;
   final s = LocaleService.current;
   final labelCtrl = TextEditingController();
+  // Пустая строка — выбран значок из списка ниже; иначе имя значка из полного
+  // набора Material Symbols, выбранное поиском.
   int selectedIcon = 0;
+  String customSymbol = '';
+  unawaited(SymbolCatalog.load());
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -325,22 +344,66 @@ void showAddCustomRelTypeSheet(
                   crossAxisCount: 6,
                   mainAxisSpacing: 10,
                   crossAxisSpacing: 10,
-                  children: List.generate(kRelIcons.length, (i) {
-                    final sel = i == selectedIcon;
-                    return GestureDetector(
-                      onTap: () => setSheet(() => selectedIcon = i),
+                  children: [
+                    ...List.generate(kRelIcons.length, (i) {
+                      final sel = customSymbol.isEmpty && i == selectedIcon;
+                      return GestureDetector(
+                        onTap: () => setSheet(() {
+                          selectedIcon = i;
+                          customSymbol = '';
+                        }),
+                        child: Container(
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: sel ? cs.primary : cs.surfaceContainerHigh,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Icon(kRelIcons[i],
+                              size: 24,
+                              color: sel ? cs.onPrimary : cs.onSurfaceVariant),
+                        ),
+                      );
+                    }),
+                    // Шестнадцати значков мало: за этой плиткой весь набор
+                    // Material с поиском по-русски — тот же экран, что у
+                    // символа таймера.
+                    GestureDetector(
+                      onTap: () async {
+                        final picked = await Navigator.of(ctx).push<String>(
+                          MaterialPageRoute<String>(
+                            builder: (_) => SymbolPickerScreen(
+                              theme: theme,
+                              selected: customSymbol.isEmpty
+                                  ? 'favorite'
+                                  : customSymbol,
+                            ),
+                            settings:
+                                const RouteSettings(name: '/symbol_picker'),
+                          ),
+                        );
+                        if (picked == null || !ctx.mounted) return;
+                        setSheet(() => customSymbol = picked);
+                      },
                       child: Container(
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
-                          color: sel ? cs.primary : cs.surfaceContainerHigh,
+                          color: customSymbol.isEmpty
+                              ? cs.secondaryContainer
+                              : cs.primary,
                           borderRadius: BorderRadius.circular(16),
                         ),
-                        child: Icon(kRelIcons[i],
-                            size: 24,
-                            color: sel ? cs.onPrimary : cs.onSurfaceVariant),
+                        child: Icon(
+                          customSymbol.isEmpty
+                              ? Icons.search_rounded
+                              : SymbolCatalog.iconFor(customSymbol),
+                          size: 24,
+                          color: customSymbol.isEmpty
+                              ? cs.onSecondaryContainer
+                              : cs.onPrimary,
+                        ),
                       ),
-                    );
-                  }),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 18),
                 TextField(
@@ -378,7 +441,11 @@ void showAddCustomRelTypeSheet(
                       final label = labelCtrl.text.trim();
                       if (label.isEmpty) return;
                       await pair.addCustomRelationshipType(
-                          label, kRelEmojis[selectedIcon]);
+                        label,
+                        customSymbol.isEmpty
+                            ? kRelEmojis[selectedIcon]
+                            : customSymbol,
+                      );
                       if (!context.mounted) return;
                       Navigator.of(sheetCtx).pop();
                       onChanged();

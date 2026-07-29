@@ -24,6 +24,7 @@ import 'services/deep_link_service.dart';
 import 'services/pb_push_service.dart';
 import 'services/catalog_service.dart';
 import 'services/live_location_service.dart';
+import 'models/symbol_catalog.dart';
 import 'services/locale_service.dart';
 import 'services/mascot_inactivity_notification_service.dart';
 import 'services/mood_pack_service.dart';
@@ -388,6 +389,11 @@ void main() async {
 
   // Locale — инициализация (определяет язык по региону или сохранённым настройкам)
   await LocaleService.instance.init();
+
+  // Каталог значков Material Symbols: по нему рисуются символ таймера и знак
+  // своего типа связи. Грузим заранее и не ждём — иначе на первом кадре вместо
+  // выбранного значка мелькает запасной.
+  unawaited(SymbolCatalog.load());
 
   // Восстанавливаем флаг шеринга геопозиции (карта «Где мы»). Сам трекинг
   // стартует из home_screen после привязки к группе (resumeIfEnabled).

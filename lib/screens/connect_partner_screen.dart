@@ -1149,8 +1149,14 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(pair.relationshipEmoji,
-                      style: const TextStyle(fontSize: 15)),
+                  // Значок, а не эмодзи: тот красится системой и в тёмной теме
+                  // светится ярче самой подписи.
+                  Icon(
+                    relIconForType(pair.relationshipType,
+                        customEmoji: pair.relationshipEmoji),
+                    size: 17,
+                    color: cs.onPrimaryContainer,
+                  ),
                   const SizedBox(width: 7),
                   Text(
                     pair.relationshipLabel,
