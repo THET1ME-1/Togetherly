@@ -9,31 +9,13 @@
 // ============================================================
 
 const String ruWhatsNew =
-    'Цикл, статистика пары и новый облик 💜\n'
+    'Больше достижений 💜\n'
     '\n'
-    '— Календарь цикла с прогнозом и статистикой.\n'
-    '— Полная статистика пары: год по месяцам, ритмы недели и суток, настроения.\n'
-    '— Рисование: заливка области, слои, фоны листа и пиксель-арт вдвоём.\n'
-    '— Пять новых виджетов и каталог с предпросмотром.\n'
-    '— Чат: новая шапка, панель ввода и семь фонов на выбор.\n'
-    '— Магазин монет, настройки и лист настроения собраны заново.\n'
-    '— Символ таймера выбирается из 4381 значка с поиском по-русски.\n'
-    '— Достижения пары и подарки переехали в профиль.\n'
-    '\n'
-    'Починили: вечную «Синхронизацию…», установку виджетов на рабочий стол, '
-    'моргание рисунков и залипшее фото партнёра.';
+    '— Достижений стало 38 вместо 16, экран собран заново.\n'
+    '— Исправили ошибки.';
 
 const String enWhatsNew =
-    'Cycle, couple stats and a new look 💜\n'
+    'More achievements 💜\n'
     '\n'
-    '— Cycle calendar with a forecast and stats.\n'
-    '— Full couple stats: the year by months, weekly and daily rhythms, moods.\n'
-    '— Drawing: area fill, layers, sheet backgrounds and pixel art together.\n'
-    '— Five new home screen widgets and a catalogue with previews.\n'
-    '— Chat: new header, input bar and seven backgrounds to choose from.\n'
-    '— Coin shop, settings and the mood sheet are rebuilt.\n'
-    '— The timer symbol is picked from 4381 icons with search.\n'
-    '— Couple achievements and gifts moved to the profile.\n'
-    '\n'
-    'Fixed: the endless «Syncing…» banner, widgets refusing to land on the home '
-    'screen, flickering drawings and a stuck partner photo.';
+    '— 38 achievements instead of 16, the screen is rebuilt.\n'
+    '— Fixed bugs.';

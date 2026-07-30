@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -71,15 +72,34 @@ class _AdBannerState extends State<AdBanner> {
   /// Запрос уже отправляли: второй раз при возврате в зону видимости не шлём.
   bool _requested = false;
 
+  /// Страховка на случай, если детектор видимости промолчал.
+  Timer? _fallback;
+
   /// Сколько места под баннер на самом деле. Раньше у Яндекса просили ширину
   /// всего экрана, и в карточке с отступами (главная) приходил баннер шире
   /// доступного места — платформенный вид схлопывался, оставляя пустую
   /// полосу. В ленте баннер во всю ширину, поэтому там расхождения не было.
   double _slotWidth = 0;
 
+  @override
+  void initState() {
+    super.initState();
+    // Детектор видимости в бою оказался ненадёжен: событий показа не пришло
+    // ни одного — ни с главной, ни из ленты, — и баннер молча ждал разрешения
+    // загрузиться. Ждём его три секунды, дальше грузим сами. Ленивость от
+    // этого почти не страдает: когда блок на экране, детектор отвечает за
+    // полсекунды, и до страховки дело не доходит.
+    _fallback = Timer(const Duration(seconds: 3), () {
+      if (!mounted || _requested) return;
+      _requested = true;
+      _loadAd();
+    });
+  }
+
   void _onVisible(VisibilityInfo info) {
     if (_requested || info.visibleFraction <= 0) return;
     _requested = true;
+    _fallback?.cancel();
     // Свой счёт показов рядом с кабинетом сети: по нему видно, какое место
     // теряет показы, а какое отрабатывает.
     if (widget.slot.isNotEmpty) {
@@ -90,6 +110,7 @@ class _AdBannerState extends State<AdBanner> {
 
   @override
   void dispose() {
+    _fallback?.cancel();
     _ad?.dispose();
     super.dispose();
   }
