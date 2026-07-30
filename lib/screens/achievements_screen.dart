@@ -194,12 +194,18 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
       );
     }
 
-    return Row(
-      children: [
-        chip(_s.achFilterAll, _Filter.all),
-        chip(_s.achFilterUnlocked, _Filter.unlocked),
-        chip(_s.achFilterInProgress, _Filter.inProgress),
-      ],
+    // Три чипа в ряд не влезают на 360 dp — на такой ширине строка вылезала
+    // за экран на 86 пикселей (поймал golden-тест). Пускаем их прокруткой:
+    // Wrap перенёс бы третий чип на вторую строку и сдвинул весь список.
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          chip(_s.achFilterAll, _Filter.all),
+          chip(_s.achFilterUnlocked, _Filter.unlocked),
+          chip(_s.achFilterInProgress, _Filter.inProgress),
+        ],
+      ),
     );
   }
 
@@ -237,7 +243,9 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
           AchievementMedal(
             tier: a.tier,
             unlocked: unlocked,
-            label: unlocked ? a.emoji : '${a.threshold}',
+            // Всегда число-цель: статус читается цветом фигуры и галочкой
+            // справа, а эмодзи внутри медали дублировал бы их и мельчил.
+            label: '${a.threshold}',
             size: 48,
             fill: unlocked ? a.tierColor : cs.surfaceContainerHighest,
             onFill: unlocked ? Colors.white : cs.onSurfaceVariant,
