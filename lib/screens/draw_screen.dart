@@ -2221,10 +2221,23 @@ class _DrawScreenState extends State<DrawScreen>
     final picture = _coloring;
     if (picture == null) return;
     try {
-      final data = await rootBundle.load(picture.outlineAsset);
-      final codec = await ui.instantiateImageCodec(
-        data.buffer.asUint8List(),
-      );
+      // Своя раскраска лежит файлом в папке приложения, встроенная — в
+      // ассетах. Дальше разницы нет: контур точно так же рисуется поверх
+      // мазков, а половины делит вертикальная линия по центру.
+      final Uint8List raw;
+      if (picture.isOwn) {
+        final dir = await getApplicationDocumentsDirectory();
+        final file = File('${dir.path}/coloring/${picture.id}.png');
+        if (!file.existsSync()) {
+          debugPrint('раскраска: своего контура нет на диске');
+          return;
+        }
+        raw = await file.readAsBytes();
+      } else {
+        final data = await rootBundle.load(picture.outlineAsset);
+        raw = data.buffer.asUint8List();
+      }
+      final codec = await ui.instantiateImageCodec(raw);
       final frame = await codec.getNextFrame();
       if (!mounted) return;
       setState(() => _coloringOutline = frame.image);

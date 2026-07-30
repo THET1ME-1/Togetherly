@@ -1,7 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'dart:async';
+import 'dart:io';
+
+import 'package:image_picker/image_picker.dart';
+
 import '../models/coloring_picture.dart';
+import '../services/coloring_upload_queue.dart';
+import '../services/plus_service.dart';
+import '../widgets/common/m3_loading.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/profile_theme.dart';
@@ -32,7 +40,39 @@ class ColoringCatalogueScreen extends StatefulWidget {
 class _ColoringCatalogueScreenState extends State<ColoringCatalogueScreen> {
   ColoringMode _mode = ColoringMode.surprise;
 
+  final ColoringUploadQueue _uploads = ColoringUploadQueue.instance;
+
   AppStrings get _s => LocaleService.current;
+
+  /// Свои раскраски открывает Togetherly+. На iPhone его не существует как
+  /// понятия, поэтому там раздела нет вовсе.
+  bool get _ownAllowed => PlusService.instance.active && !Platform.isIOS;
+
+  @override
+  void initState() {
+    super.initState();
+    _uploads.addListener(_onUploads);
+    unawaited(_uploads.resume());
+  }
+
+  @override
+  void dispose() {
+    _uploads.removeListener(_onUploads);
+    super.dispose();
+  }
+
+  void _onUploads() {
+    if (mounted) setState(() {});
+  }
+
+  /// Берём картинку и сразу отдаём управление: обработка идёт в стороне, а
+  /// карточка появляется в сетке в ту же секунду с пометкой «готовим».
+  Future<void> _pickOwn() async {
+    final picked = await ImagePicker()
+        .pickImage(source: ImageSource.gallery, imageQuality: 100);
+    if (picked == null || !mounted) return;
+    await _uploads.add(File(picked.path), title: _s.coloringOwnDefaultName);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -86,8 +126,18 @@ class _ColoringCatalogueScreenState extends State<ColoringCatalogueScreen> {
                 mainAxisSpacing: 12,
                 childAspectRatio: 0.82,
               ),
-              itemCount: ColoringPicture.all.length,
-              itemBuilder: (_, i) => _card(cs, ColoringPicture.all[i]),
+              itemCount: ColoringPicture.all.length +
+                  (_ownAllowed ? _uploads.items.length + 1 : 0),
+              itemBuilder: (_, i) {
+                if (!_ownAllowed) return _card(cs, ColoringPicture.all[i]);
+                if (i == 0) return _addOwnCard(cs);
+                final own = i - 1;
+                if (own < _uploads.items.length) {
+                  return _ownCard(cs, _uploads.items[own]);
+                }
+                return _card(cs,
+                    ColoringPicture.all[i - 1 - _uploads.items.length]);
+              },
             ),
           ],
         ),
@@ -146,6 +196,107 @@ class _ColoringCatalogueScreenState extends State<ColoringCatalogueScreen> {
           seg(_s.coloringModeSurprise, ColoringMode.surprise),
           seg(_s.coloringModeTogether, ColoringMode.together),
         ],
+      ),
+    );
+  }
+
+
+  /// Кнопка «загрузить свою» — такой же плиткой, чтобы сетка не рвалась.
+  Widget _addOwnCard(ColorScheme cs) {
+    return Material(
+      color: cs.primaryContainer,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: _pickOwn,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.add_photo_alternate_rounded,
+                size: 34, color: cs.onPrimaryContainer),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text(
+                _s.coloringOwnAdd,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Onest',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: cs.onPrimaryContainer,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Своя раскраска: пока считается — круговой индикатор прямо в плитке,
+  /// приложением при этом можно пользоваться дальше.
+  Widget _ownCard(ColorScheme cs, ColoringUpload item) {
+    final failed = item.status == ColoringUploadStatus.failed;
+    return Material(
+      color: failed ? cs.errorContainer : cs.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: item.isReady
+            ? () => Navigator.pop(
+                  context,
+                  ColoringChoice(
+                    picture: ColoringPicture.own(
+                      id: item.id,
+                      title: item.title,
+                      ratio: item.ratio,
+                    ),
+                    mode: _mode,
+                  ),
+                )
+            : null,
+        onLongPress: () => _uploads.remove(item.id),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (item.status == ColoringUploadStatus.processing)
+                M3Loading(size: 40, color: cs.primary)
+              else
+                Icon(
+                  failed ? Icons.error_outline_rounded : Icons.brush_rounded,
+                  size: 32,
+                  color: failed ? cs.onErrorContainer : cs.primary,
+                ),
+              const SizedBox(height: 10),
+              Text(
+                failed ? item.error : item.title,
+                textAlign: TextAlign.center,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'Onest',
+                  fontSize: 12,
+                  height: 1.3,
+                  fontWeight: FontWeight.w600,
+                  color: failed ? cs.onErrorContainer : cs.onSurface,
+                ),
+              ),
+              if (item.status == ColoringUploadStatus.processing) ...[
+                const SizedBox(height: 4),
+                Text(
+                  _s.coloringOwnProcessing,
+                  style: TextStyle(
+                      fontFamily: 'Onest',
+                      fontSize: 11,
+                      color: cs.onSurfaceVariant),
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }

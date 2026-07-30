@@ -46,13 +46,33 @@ class ColoringPicture {
     required this.id,
     required this.titleRu,
     required this.titleEn,
+    this.ownRatio,
   });
+
+  /// Своя раскраска: контур человек загрузил сам, лист любой пропорции.
+  /// Граница половин при этом остаётся вертикальной по центру — доли равные
+  /// при любом соотношении сторон.
+  factory ColoringPicture.own({
+    required String id,
+    required String title,
+    required double ratio,
+  }) =>
+      ColoringPicture(
+          id: id, titleRu: title, titleEn: title, ownRatio: ratio);
+
+  /// Пропорция листа для своей раскраски. У встроенных лист квадратный.
+  final double? ownRatio;
 
   final String id;
   final String titleRu;
   final String titleEn;
 
   /// Контур с прозрачным фоном — кладётся поверх рисунка.
+  /// Своя раскраска лежит файлом в папке приложения, встроенная — в ассетах.
+  /// Отличаем по префиксу id, чтобы не тащить лишнее поле через canvas_meta:
+  /// в паре синхронизируется именно id.
+  bool get isOwn => id.startsWith('own_');
+
   String get outlineAsset => 'assets/coloring/$id.png';
 
   /// Превью для каталога — уже на белой бумаге.

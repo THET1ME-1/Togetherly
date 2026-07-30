@@ -71,6 +71,12 @@ class _AdBannerState extends State<AdBanner> {
   /// Запрос уже отправляли: второй раз при возврате в зону видимости не шлём.
   bool _requested = false;
 
+  /// Сколько места под баннер на самом деле. Раньше у Яндекса просили ширину
+  /// всего экрана, и в карточке с отступами (главная) приходил баннер шире
+  /// доступного места — платформенный вид схлопывался, оставляя пустую
+  /// полосу. В ленте баннер во всю ширину, поэтому там расхождения не было.
+  double _slotWidth = 0;
+
   void _onVisible(VisibilityInfo info) {
     if (_requested || info.visibleFraction <= 0) return;
     _requested = true;
@@ -133,7 +139,10 @@ class _AdBannerState extends State<AdBanner> {
     if (!Platform.isAndroid && !Platform.isIOS) return;
 
     final unit = kDebugMode ? _demoYandexBannerUnit : _prodYandexBannerUnit;
-    final width = MediaQuery.of(context).size.width.truncate();
+    final width = (_slotWidth > 0
+            ? _slotWidth
+            : MediaQuery.of(context).size.width)
+        .truncate();
 
     final banner = yandex.BannerAd(
       adUnitId: unit,
@@ -151,6 +160,15 @@ class _AdBannerState extends State<AdBanner> {
 
   @override
   Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, constraints) {
+      if (constraints.maxWidth.isFinite && constraints.maxWidth > 0) {
+        _slotWidth = constraints.maxWidth;
+      }
+      return _content(context);
+    });
+  }
+
+  Widget _content(BuildContext context) {
     // Togetherly+ снимает рекламу целиком: не прячет уже загруженный баннер, а
     // не занимает под него место. Проверка здесь одна на все пять мест показа.
     if (PlusService.instance.active) return const SizedBox.shrink();

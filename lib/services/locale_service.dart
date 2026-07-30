@@ -250,6 +250,16 @@ abstract class AppStrings {
   String get memoryNotSaved;
   String get achievementUnlocked;
   String get achievementsTitle;
+  String get achMetricDays;
+  String get achMetricMemories;
+  String get achMetricMessages;
+  String get achMetricDrawings;
+  String get achMetricStreak;
+  String get achFilterAll;
+  String get achFilterUnlocked;
+  String get achFilterInProgress;
+  String get achNothingHere;
+  String achProgressOf(int value, int target);
   String get achievementDone;
   String achievementsUnlockedOf(int unlocked, int total);
   String get markSecret;
@@ -1527,6 +1537,9 @@ abstract class AppStrings {
   /// Раскраска вдвоём.
   String get coloringTitle;
   String get coloringSubtitle;
+  String get coloringOwnAdd;
+  String get coloringOwnProcessing;
+  String get coloringOwnDefaultName;
   String get coloringModeSurprise;
   String get coloringModeTogether;
   String get coloringModeSurpriseHint;
@@ -2131,6 +2144,26 @@ class _RuStrings extends AppStrings {
       'Фото не попало в воспоминания. Проверьте вход и повторите.';
   @override
   String get achievementUnlocked => 'Достижение получено!';
+  @override
+  String get achMetricDays => 'Время вместе';
+  @override
+  String get achMetricMemories => 'Воспоминания';
+  @override
+  String get achMetricMessages => 'Переписка';
+  @override
+  String get achMetricDrawings => 'Рисунки';
+  @override
+  String get achMetricStreak => 'Серия дней';
+  @override
+  String get achFilterAll => 'Все';
+  @override
+  String get achFilterUnlocked => 'Получено';
+  @override
+  String get achFilterInProgress => 'В процессе';
+  @override
+  String get achNothingHere => 'Здесь пока пусто';
+  @override
+  String achProgressOf(int value, int target) => '$value из $target';
   @override
   String get achievementsTitle => 'Достижения пары';
   @override
@@ -4865,6 +4898,12 @@ class _RuStrings extends AppStrings {
   @override
   String get colorLabel => 'Цвет';
   @override
+  String get coloringOwnAdd => 'Своя раскраска';
+  @override
+  String get coloringOwnProcessing => 'готовим';
+  @override
+  String get coloringOwnDefaultName => 'Моя раскраска';
+  @override
   String get coloringTitle => 'Раскраска вдвоём';
   @override
   String get coloringSubtitle => 'Каждому — своя половина';
@@ -5706,6 +5745,26 @@ class _EnStrings extends AppStrings {
       "Photo wasn't added to memories. Check sign-in and try again.";
   @override
   String get achievementUnlocked => 'Achievement unlocked!';
+  @override
+  String get achMetricDays => 'Time together';
+  @override
+  String get achMetricMemories => 'Memories';
+  @override
+  String get achMetricMessages => 'Chat';
+  @override
+  String get achMetricDrawings => 'Drawings';
+  @override
+  String get achMetricStreak => 'Streak';
+  @override
+  String get achFilterAll => 'All';
+  @override
+  String get achFilterUnlocked => 'Unlocked';
+  @override
+  String get achFilterInProgress => 'In progress';
+  @override
+  String get achNothingHere => 'Nothing here yet';
+  @override
+  String achProgressOf(int value, int target) => '$value of $target';
   @override
   String get achievementsTitle => 'Couple achievements';
   @override
@@ -8366,6 +8425,12 @@ class _EnStrings extends AppStrings {
       'Two fingers quickly — undo  •  Double tap — reset view';
   @override
   String get colorLabel => 'Color';
+  @override
+  String get coloringOwnAdd => 'My picture';
+  @override
+  String get coloringOwnProcessing => 'preparing';
+  @override
+  String get coloringOwnDefaultName => 'My picture';
   @override
   String get coloringTitle => 'Colour it together';
   @override

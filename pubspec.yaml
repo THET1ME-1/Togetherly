@@ -86,6 +86,7 @@ dependencies:
   encrypt: ^5.0.3
   flutter_secure_storage: ^10.3.1
   visibility_detector: ^0.4.0+2
+  image: ^4.8.0
 
 dev_dependencies:
   flutter_test:
