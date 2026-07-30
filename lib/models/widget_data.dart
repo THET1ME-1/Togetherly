@@ -26,6 +26,14 @@ class WidgetData {
   String gender; // 'male' or 'female'
   DateTime? updatedAt;
 
+  /// Куплен ли Togetherly+ у владельца карточки.
+  ///
+  /// Живёт здесь, а не в `users`: правила той коллекции пускают человека
+  /// только к своей записи, и чужой флаг приложению не виден. В `widget_data`
+  /// его проставляет сервер на каждом сохранении (`widget_plus.pb.js`),
+  /// поэтому дорисовать себе значок нельзя.
+  final bool plus;
+
   WidgetData({
     required this.uid,
     this.displayName = '',
@@ -46,6 +54,7 @@ class WidgetData {
     this.musicCoverUrl,
     this.gender = '',
     this.updatedAt,
+    this.plus = false,
   });
 
   /// Есть ли хоть какой-то контент
@@ -97,6 +106,7 @@ class WidgetData {
       musicCoverUrl: nz(d['music_cover_url']),
       gender: (d['gender'] ?? '').toString(),
       updatedAt: DateTime.tryParse((d['updated_at'] ?? '').toString()),
+      plus: d['plus'] == true || d['plus'] == 1,
     );
   }
 

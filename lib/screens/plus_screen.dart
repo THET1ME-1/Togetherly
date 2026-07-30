@@ -47,7 +47,10 @@ class _PlusScreenState extends State<PlusScreen> {
   }
 
   Future<void> _initStore() async {
-    final store = createCoinStore();
+    // Общий магазин на всё приложение: свой экземпляр отписывался бы от потока
+    // покупок в `dispose`, и оплата, случившаяся при закрытом экране, до
+    // сервера не доезжала (инцидент 30 июля).
+    final store = sharedCoinStore;
     _store = store;
     store.addListener(_onChanged);
     await store.init(
@@ -75,7 +78,8 @@ class _PlusScreenState extends State<PlusScreen> {
   void dispose() {
     _plus.removeListener(_onChanged);
     _store?.removeListener(_onChanged);
-    _store?.dispose();
+    // dispose у общего магазина не зовём: он живёт со всем приложением и
+    // должен продолжать слушать поток покупок после закрытия экрана.
     super.dispose();
   }
 

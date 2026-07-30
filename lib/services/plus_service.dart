@@ -90,12 +90,30 @@ class PlusService extends ChangeNotifier {
   ///
   /// Флаг серверный: подделать его на устройстве нельзя, и он переезжает
   /// вместе с аккаунтом на новый телефон — восстанавливать покупку не нужно.
+  ///
+  /// Ходим за свежей записью на сервер, а не читаем локальный профиль: там
+  /// лежит копия из `authStore`, которая обновляется только при входе. Оплата
+  /// на lava.top проходит вне приложения, вебхук ставит `plus` на аккаунт — и
+  /// без похода на сервер человек увидел бы покупку лишь после перезапуска.
+  /// Сети нет — остаёмся на том, что знаем, и не гасим уже открытое.
   Future<void> refresh() async {
     try {
       final uid = PocketBaseService().userId ?? '';
       if (uid.isEmpty) {
         _setActive(false);
         return;
+      }
+      try {
+        final rec = await PocketBaseService()
+            .pb
+            .collection('users')
+            .getOne(uid)
+            .timeout(const Duration(seconds: 8));
+        final fresh = rec.data['plus'];
+        _setActive(fresh == true || fresh == 1);
+        return;
+      } catch (e) {
+        debugPrint('PlusService.refresh: сервер недоступен ($e), берём кэш');
       }
       final profile = PbAuthService().currentProfile();
       final value = profile?['plus'];

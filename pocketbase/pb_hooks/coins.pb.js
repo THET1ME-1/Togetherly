@@ -377,6 +377,17 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
   }
   if (!purchaseToken) return e.json(400, { ok: false, error: "purchaseToken required" });
 
+  // Ключ записи о покупке = sha256 от токена, а НЕ сам токен.
+  //
+  // Токен Google выглядит как `ndecncajl….AO-J1OzF…` — с точкой посередине, а
+  // PocketBase точку в первичном ключе запрещает на уровне движка
+  // (`validation_forbidden_pk_character`). Пока сюда клали сам токен, любая
+  // покупка Play падала на сохранении записи, роут отвечал `500 tx failed`, и
+  // за всю историю в `iap_purchases` не появилось ни одной строки: 30 июля так
+  // потерялась оплата Togetherly+ на 9,99 €. Хеш даёт те же 64 безопасных
+  // символа и ту же идемпотентность: один токен — одна запись.
+  const tokenKey = $security.sha256(purchaseToken);
+
   // ── сверка чека с Google ──────────────────────────────────────────────────
   //
   // Без неё purchaseToken можно выдумать и получить монеты или вечный Plus
@@ -439,7 +450,7 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
       $app.runInTransaction((txApp) => {
         const user = txApp.findRecordById("users", e.auth.id);
         let already = null;
-        try { already = txApp.findRecordById("iap_purchases", purchaseToken); } catch (_) { already = null; }
+        try { already = txApp.findRecordById("iap_purchases", tokenKey); } catch (_) { already = null; }
         if (already) {
           plusOut = { s: 200, b: { ok: true, alreadyGranted: true, plus: true, coins: user.getInt("coins") || 0 } };
           return;
@@ -452,7 +463,8 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
         txApp.save(user);
         const col = txApp.findCollectionByNameOrId("iap_purchases");
         const rec = new Record(col);
-        rec.set("id", purchaseToken);
+        rec.set("id", tokenKey);
+        rec.set("token", purchaseToken);
         rec.set("user_uid", e.auth.id);
         rec.set("product_id", productId);
         rec.set("amount", 0);
@@ -470,7 +482,7 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
     $app.runInTransaction((txApp) => {
       const user = txApp.findRecordById("users", e.auth.id);
       let already = null;
-      try { already = txApp.findRecordById("iap_purchases", purchaseToken); } catch (_) { already = null; }
+      try { already = txApp.findRecordById("iap_purchases", tokenKey); } catch (_) { already = null; }
       if (already) {
         out = { s: 200, b: { ok: true, alreadyGranted: true, coins: user.getInt("coins") || 0 } };
         return;
@@ -480,7 +492,8 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
       txApp.save(user);
       const col = txApp.findCollectionByNameOrId("iap_purchases");
       const rec = new Record(col);
-      rec.set("id", purchaseToken);
+      rec.set("id", tokenKey);
+        rec.set("token", purchaseToken);
       rec.set("user_uid", e.auth.id);
       rec.set("product_id", productId);
       rec.set("amount", amount);

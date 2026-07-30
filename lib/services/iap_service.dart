@@ -195,6 +195,14 @@ class IapService extends CoinStore {
         purchase.verificationData.serverVerificationData;
     final productId = purchase.productID;
 
+    // Подтверждаем покупку в Play ТОЛЬКО когда сервер её принял. Подтверждённую
+    // покупку Google больше не доставляет, и прежний `finally` закрывал её даже
+    // после отказа сервера: нет сети, протухла сессия (роут отвечает 401) — и
+    // деньги списаны, а доступа нет навсегда. Так 30 июля пропала оплата
+    // Togetherly+ на 9,99 €. Неподтверждённая покупка вернётся в поток при
+    // следующем запуске и доедет сама; если сервер так и не примет её за три
+    // дня, Play вернёт человеку деньги — это честнее молчаливой пропажи.
+    var granted = false;
     try {
       final newBalance = await _onGrantCoins?.call(
         productId: productId,
@@ -202,6 +210,7 @@ class IapService extends CoinStore {
       );
 
       if (newBalance != null) {
+        granted = true;
         if (productId == kPlusProductId) {
           // Флаг ставит сервер, приложение его перечитывает: экран Plus и все
           // проверки доступа завязаны на PlusService, а не на ответ магазина.
@@ -224,8 +233,7 @@ class IapService extends CoinStore {
       debugPrint('IapService: _verifyAndGrant failed: $e');
       _completeWith(IapResult(IapStatus.error, error: e.toString()));
     } finally {
-      // Важно: подтверждаем покупку ПОСЛЕ обработки сервером.
-      if (purchase.pendingCompletePurchase) {
+      if (granted && purchase.pendingCompletePurchase) {
         await _iap.completePurchase(purchase);
       }
     }

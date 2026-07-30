@@ -1657,7 +1657,14 @@ class _WidgetScreenState extends State<WidgetScreen>
         // ── Новый каталог ──
         // На iOS Togetherly+ не существует, и некупившему раздела не видно
         // совсем: показать каталог, который нечем открыть, значит дразнить.
-        if (PlusService.instance.visible) ...[
+        //
+        // Купившему на iPhone (оплата через lava.top проходит с любой
+        // платформы, `gate` при купленном отдаёт `open`) раздел тоже не
+        // показываем: все восемь — Android-провайдеры
+        // `com.togetherly.love.TogetherWidget*`, а в `ios/TogetherlyWidget`
+        // лежат только старые. Иначе человек платит, видит каталог и упирается
+        // в кнопку, за которой пусто.
+        if (PlusService.instance.visible && _newWidgetsExist) ...[
           const SizedBox(height: 14),
           _CollapsibleWidgetSection(
             cs: _cs,
@@ -1877,6 +1884,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     return AdBanner(
       key: ValueKey(slot),
       adUnitId: kDebugMode ? '' : realId,
+      slot: 'widgets',
     );
   }
 
@@ -1896,6 +1904,11 @@ class _WidgetScreenState extends State<WidgetScreen>
   /// Сколько виджетов в новом каталоге — для бейджа раздела, без построения
   /// карточек. Держать в согласии с [_newWidgetItems].
   static const int _kNewWidgetCount = 8;
+
+  /// Существуют ли виджеты нового каталога на этой платформе. Они собраны на
+  /// Kotlin как `AppWidgetProvider`, и переносить их в WidgetKit никто не
+  /// брался: на iPhone показывать нечего.
+  static bool get _newWidgetsExist => !Platform.isIOS;
 
   /// Новый каталог виджетов. Пополняется по одному: каждый делается целиком —
   /// все размеры, состояния и данные — и только потом берётся следующий.
@@ -2272,6 +2285,13 @@ class _WidgetScreenState extends State<WidgetScreen>
         ],
       ),
     );
+  }
+
+  /// Какую долю ширины карточки занимает превью размера [label] («2×2»,
+  /// «4×2», «4×4»). Ряд на рабочем столе — четыре ячейки, от этого и считаем.
+  double _previewWidthFactor(String? label) {
+    final width = int.tryParse((label ?? '').split('×').first) ?? 4;
+    return (width / 4).clamp(0.25, 1.0);
   }
 
   Widget _buildTogether2x2Preview() {
@@ -4232,7 +4252,15 @@ class _WidgetScreenState extends State<WidgetScreen>
               duration: const Duration(milliseconds: 220),
               curve: Curves.easeOutCubic,
               alignment: Alignment.topCenter,
-              child: effectivePreview,
+              // Ширину превью держим в пропорции к реальному виджету. Раньше
+              // любое превью растягивалось на всю карточку, и квадрат 2×2
+              // рисовался шириной в четыре ячейки: огромное пустое поле,
+              // аватары-крошки по углам и потерянный текст. Ячеек в ряду
+              // четыре, поэтому 2×2 занимает половину, 1×1 — четверть.
+              child: FractionallySizedBox(
+                widthFactor: _previewWidthFactor(chosen?.label),
+                child: effectivePreview,
+              ),
             ),
           ],
           // ── Кнопка «Добавить на рабочий стол» ──

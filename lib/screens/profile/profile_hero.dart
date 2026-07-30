@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/app_theme.dart';
 import '../../theme/profile_theme.dart';
+import '../../widgets/common/plus_badge.dart';
 import '../../widgets/avatar_widget.dart';
 import 'profile_banner.dart';
 
@@ -13,6 +15,12 @@ class ProfileHero extends StatelessWidget {
   final String uid;
   final String avatarUrl;
   final String name;
+
+  /// Показывать ли значок Togetherly+ рядом с именем.
+  final bool plus;
+
+  /// Тема приложения — значок Плюса красится её основным цветом.
+  final AppTheme? theme;
   final String bannerUrl;
   final String? localBannerPath;
   final String subtitle;
@@ -26,6 +34,8 @@ class ProfileHero extends StatelessWidget {
     required this.uid,
     required this.avatarUrl,
     required this.name,
+    this.plus = false,
+    this.theme,
     required this.bannerUrl,
     this.localBannerPath,
     this.subtitle = '',
@@ -109,6 +119,10 @@ class ProfileHero extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (plus && theme != null) ...[
+                    const SizedBox(width: 8),
+                    PlusBadge(theme: theme!),
+                  ],
                   if (onEdit != null) ...[
                     const SizedBox(width: 4),
                     GestureDetector(

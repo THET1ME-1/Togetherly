@@ -1,5 +1,8 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import '../models/days_together_plan.dart';
 import '../utils/notification_permission.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz;
@@ -7,20 +10,24 @@ import 'package:timezone/timezone.dart' as tz;
 
 import 'locale_service.dart';
 
-/// Постоянное «тихое» уведомление-счётчик «дней вместе».
+/// Счётчик «дней вместе» в уведомлениях. По умолчанию выключен.
 ///
-/// Висит в шторке уведомлений и показывает, сколько дней пара уже вместе.
-/// Не пищит и не вибрирует (канал с Importance.low, silent), не смахивается
-/// случайно (ongoing). Число пересчитывается:
-///   • при включении тумблера в профиле,
-///   • при старте приложения (rescheduleOnAppStart),
-///   • при возврате в приложение (refresh),
-///   • раз в сутки в 00:10 фоновым zonedSchedule (DateTimeComponents.time).
+/// **Android** — постоянная тихая плашка в шторке: канал с Importance.low и
+/// silent, ongoing, чтобы не смахнуть случайно. Число пересчитывается при
+/// включении тумблера, на старте приложения (rescheduleOnAppStart), при
+/// возврате в него (refresh) и раз в сутки в 00:10 повторяющимся
+/// zonedSchedule.
 ///
-/// Замечание про точность: фоновое обновление повторяется с одним и тем же
-/// текстом, поэтому если приложение не открывать несколько суток подряд, число
-/// может отставать на эти сутки — оно выровняется при следующем открытии
-/// (refresh вызывается на старте и на resume). По умолчанию фича выключена.
+/// **iPhone** — ежедневное уведомление в 9 утра, и устроено оно иначе.
+/// Постоянных уведомлений в iOS нет, фоновой доставки у нас нет тоже, а текст
+/// уведомления записывается в момент планирования и сам не пересчитывается.
+/// Одно повторяющееся уведомление поэтому каждый день показывало одно и то же
+/// число (жалоба от 30 июля: «в приложении меняется, а в уведомлении всегда
+/// 1349»). Вместо него планируется [_iosDaysAhead] отдельных уведомлений — на
+/// каждый день своё, с числом, посчитанным на этот день. Пачка целиком
+/// переписывается при каждом открытии приложения, так что запас не кончается;
+/// а если приложение не открывать дольше трёх недель, уведомления замолчат до
+/// следующего открытия — это лучше, чем врать числом.
 class DaysTogetherNotificationService {
   DaysTogetherNotificationService._();
   static final DaysTogetherNotificationService instance =
@@ -28,6 +35,15 @@ class DaysTogetherNotificationService {
 
   // Уникальный ID (не пересекается с 9001-9004 праздники, 9991 маскот, 8888 mood)
   static const int _notificationId = 9101;
+
+  /// На сколько дней вперёд планируется пачка на iPhone. Слоты занимают
+  /// id 9101…9121; лимит iOS — 64 отложенных уведомления на всё приложение,
+  /// и часть их разбирают праздники, капсулы и маскот.
+  static const int _iosDaysAhead = 21;
+
+  /// Час ежедневного показа на iPhone. Ночные 00:10 Android-плашки здесь не
+  /// годятся: на iOS это не тихая строчка в шторке, а баннер на экране.
+  static const int _iosHour = 9;
   static const String _channelId = 'days_together_v1';
   static const String _channelName = 'Дни вместе';
   static const String _channelDesc =
@@ -35,6 +51,7 @@ class DaysTogetherNotificationService {
 
   static const String _keyEnabled = 'days_together_notif_enabled';
   static const String _keyStartMs = 'days_together_start_ms';
+  static const String _keyIosLegacyCleared = 'days_together_ios_legacy_cleared';
 
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
@@ -70,6 +87,13 @@ class DaysTogetherNotificationService {
         showBadge: false,
       ),
     );
+
+    if (Platform.isIOS || Platform.isMacOS) {
+      await _plugin
+          .resolvePlatformSpecificImplementation<
+              IOSFlutterLocalNotificationsPlugin>()
+          ?.requestPermissions(alert: true, badge: false, sound: false);
+    }
 
     _initialized = true;
   }
@@ -111,7 +135,26 @@ class DaysTogetherNotificationService {
   }
 
   /// Пересчёт расписания при старте приложения.
-  Future<void> rescheduleOnAppStart() => _refresh();
+  Future<void> rescheduleOnAppStart() async {
+    await _clearIosLegacyOnce();
+    await _refresh();
+  }
+
+  /// Разовая уборка наследия старой схемы на iPhone.
+  ///
+  /// Раньше ставилось одно повторяющееся уведомление с числом, вписанным в
+  /// текст навсегда. Снять его мог только `_cancel`, а `_refresh` при
+  /// выключенном тумблере выходит первой же строкой — у того, кто успел
+  /// выключить счётчик, оно приходило бы каждый день до переустановки
+  /// приложения.
+  Future<void> _clearIosLegacyOnce() async {
+    if (!(Platform.isIOS || Platform.isMacOS)) return;
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_keyIosLegacyCleared) ?? false) return;
+    await init();
+    await _cancelIosBatch();
+    await prefs.setBool(_keyIosLegacyCleared, true);
+  }
 
   /// Пересчёт при возврате в приложение (count мог измениться за полночь).
   Future<void> refresh() => _refresh();
@@ -143,11 +186,59 @@ class DaysTogetherNotificationService {
     // Общий сериализатор: не падаем на параллельном запросе (permissionRequestInProgress).
     await requestNotificationPermissionSafely(androidPlugin);
 
+    if (Platform.isIOS || Platform.isMacOS) {
+      // Постоянной плашки на iOS нет, показывать «прямо сейчас» нечего:
+      // человек и так в приложении, где число видно крупно.
+      await _scheduleIosBatch(start);
+      return;
+    }
+
     // 1) Показать прямо сейчас с актуальным числом.
     await _show(_daysAt(start, DateTime.now()));
 
     // 2) Запланировать ежесуточное обновление в 00:10.
     await _scheduleDailyRefresh(start);
+  }
+
+  /// Пачка ежедневных уведомлений на iPhone: на каждый день своё число.
+  Future<void> _scheduleIosBatch(DateTime start) async {
+    final s = LocaleService.current;
+    final ticks = daysTogetherTicks(
+      start: start,
+      from: DateTime.now(),
+      count: _iosDaysAhead,
+      hour: _iosHour,
+    );
+
+    // Сначала снимаем прежнюю пачку: дату начала могли поправить, и старые
+    // слоты показывали бы числа от другой даты.
+    await _cancelIosBatch();
+
+    for (var i = 0; i < ticks.length; i++) {
+      final tick = ticks[i];
+      try {
+        await _plugin.zonedSchedule(
+          id: _notificationId + i,
+          title: s.daysTogetherNotifBody(tick.days),
+          body: s.daysTogetherNotifTagline,
+          scheduledDate: tz.TZDateTime.from(tick.at, tz.local),
+          notificationDetails: _details(),
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        );
+      } catch (e) {
+        debugPrint('DaysTogetherNotificationService._scheduleIosBatch($i): $e');
+      }
+    }
+  }
+
+  Future<void> _cancelIosBatch() async {
+    for (var i = 0; i < _iosDaysAhead; i++) {
+      try {
+        await _plugin.cancel(id: _notificationId + i);
+      } catch (e) {
+        debugPrint('DaysTogetherNotificationService._cancelIosBatch($i): $e');
+      }
+    }
   }
 
   Future<void> _show(int days) async {
@@ -217,6 +308,10 @@ class DaysTogetherNotificationService {
 
   Future<void> _cancel() async {
     await init();
+    if (Platform.isIOS || Platform.isMacOS) {
+      await _cancelIosBatch();
+      return;
+    }
     try {
       await _plugin.cancel(id: _notificationId);
     } catch (e) {

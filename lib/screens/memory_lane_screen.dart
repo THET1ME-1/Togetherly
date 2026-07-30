@@ -31,6 +31,7 @@ import 'package:video_player/video_player.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import '../models/memory.dart';
 import '../models/comment.dart';
+import '../models/feed_ad_rule.dart';
 import '../models/pair_data.dart';
 import '../models/user_data.dart';
 import '../widgets/common/coin_reward_toast.dart';
@@ -428,12 +429,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   }
 
   // ── In-feed реклама ────────────────────────────────────────────────────────
-  // Баннер вставляется после каждого N-го воспоминания в основной ленте
-  // (нормальный режим, без фильтра и без закреплённых). N — баланс
-  // «доход / не раздражает»: на первой странице (20) выходит ~3 баннера.
-  // Меньше ставить рискованно — AdMob/Яндекс штрафуют за слишком плотную
-  // рекламу (invalid traffic), да и ленту пары не хочется превращать в спам.
-  static const int _adEveryNMemories = 6;
+  // Расстановку задаёт `adAfterMemory` (lib/models/feed_ad_rule.dart): первый
+  // баннер после первого воспоминания, дальше через каждые шесть. Раньше
+  // первые шесть карточек шли без рекламы, и до первого баннера долистывали
+  // не все — отсюда трёхкратный разрыв между запросами и показами в РСЯ.
 
   // Боевой баннерный блок (тот же, что в widget_screen). В debug AdBanner сам
   // подставляет тестовый юнит при пустом adUnitId.
@@ -445,23 +444,20 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   /// чтобы баннер встал ровно между тайлами, а не ломал тайл.
   List<Widget> _buildDateGroupedSlivers() {
     final slivers = <Widget>[];
-    var sinceAd = 0; // воспоминаний с момента последнего баннера
+    var position = 0; // сквозной номер воспоминания по всей ленте
     var adIndex = 0; // порядковый номер баннера (для стабильного ключа)
     for (final entry in _groupedByDate.entries) {
       slivers.add(_sectionHeader(entry.key));
       final mems = entry.value;
       var chunkStart = 0;
       for (var i = 0; i < mems.length; i++) {
-        sinceAd++;
-        final adHere = sinceAd >= _adEveryNMemories;
+        position++;
+        final adHere = adAfterMemory(position);
         if (adHere || i == mems.length - 1) {
           // Сбрасываем накопленный чанк тайлов (он остаётся внутри своей даты).
           slivers.add(_memoryTilesSliver(mems.sublist(chunkStart, i + 1)));
           chunkStart = i + 1;
-          if (adHere) {
-            slivers.add(_inFeedBannerSliver(adIndex++));
-            sinceAd = 0;
-          }
+          if (adHere) slivers.add(_inFeedBannerSliver(adIndex++));
         }
       }
     }
@@ -491,6 +487,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         child: AdBanner(
           key: ValueKey('memlane_ad_$adIndex'),
           adUnitId: kDebugMode ? '' : _bannerAdUnit,
+          slot: 'memlane',
         ),
       ),
     );

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:in_app_update/in_app_update.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../widgets/storage_image.dart';
@@ -53,6 +54,8 @@ import '../services/update_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_scope.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'canvas_create_flow.dart';
+import '../widgets/common/ad_banner.dart';
 import '../widgets/common/animations.dart';
 import '../widgets/common/m3_loading.dart';
 import 'home/widgets/mood_picker_dialog.dart';
@@ -88,7 +91,6 @@ import 'home/widgets/live_map_card.dart';
 import 'mascot_gallery_screen.dart';
 import 'widget_screen.dart';
 
-import 'draw_screen.dart';
 import 'draw_gallery_screen.dart';
 import '../services/celebration_notification_service.dart';
 import '../services/days_together_notification_service.dart';
@@ -106,6 +108,9 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  // Тот же боевой блок, что в ленте воспоминаний и каталоге виджетов.
+  static const String _homeAdUnit = 'ca-app-pub-1956369312643059/2560361524';
+
   // -- Theme --
   AppTheme get _t => widget.userData.theme;
   Color get primary => _t.primary;
@@ -306,6 +311,10 @@ class _HomeScreenState extends State<HomeScreen> {
         // Обновляем число в постоянном счётчике «дней вместе» (могла смениться
         // дата за полночь). No-op, если фича выключена.
         unawaited(DaysTogetherNotificationService.instance.refresh());
+        // Togetherly+ мог открыться прямо сейчас: человек ушёл платить на
+        // lava.top и вернулся в приложение. Перечитываем флаг с сервера, чтобы
+        // купленное заработало здесь же, без перезапуска.
+        unawaited(PlusService.instance.refresh());
         // Lock-screen mood-уведомление: освежаем при возврате (день мог
         // смениться за полночь, настроение могло поменяться вне приложения).
         unawaited(_refreshLockScreenMoodNotification());
@@ -1450,6 +1459,21 @@ class _HomeScreenState extends State<HomeScreen> {
                     delay: const Duration(milliseconds: 160),
                     child: _buildMascotRow(),
                   ),
+                  // Реклама между маскотом и картой — единственное место на
+                  // главной, где она никому не мешает: до сгиба ничего не
+                  // трогает, а в зону видимости попадает при первом же
+                  // движении пальца. Выше по экрану её ставить нельзя, там
+                  // таймер и настроения, ради которых приложение открывают.
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: AdBanner(
+                      key: const ValueKey('home_ad'),
+                      adUnitId: kDebugMode ? '' : _homeAdUnit,
+                      framed: true,
+                      label: LocaleService.current.adLabel,
+                      slot: 'home',
+                    ),
+                  ),
                   // Карта «Где мы»: live-геопозиция обоих партнёров.
                   AnimatedSlideIn(
                     delay: const Duration(milliseconds: 240),
@@ -1835,34 +1859,19 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// «Новый холст» с главной: сперва спрашиваем вид.
+  ///
+  /// Раньше отсюда молча заводился пустой лист, а выбрать раскраску можно было
+  /// только в галерее рисунков, через кнопку создания там. Люди её не находили
+  /// и писали, что раскраски в приложении нет — при том что она на месте и
+  /// бесплатна. Теперь путь один на всё приложение: [CanvasCreateFlow].
   Future<void> _openNewCanvas() async {
-    final s = LocaleService.current;
-    final canvases = await _storage.getCanvases(
-      widget.userData.uid,
-      groupId: _pairData.pairId,
-    );
-    final meta = await _storage.createCanvas(
-      widget.userData.uid,
-      name: '${s.untitledCanvas} ${canvases.length + 1}',
-      groupId: _pairData.pairId,
-    );
-    if (!mounted) return;
-    await Navigator.push(
+    await CanvasCreateFlow.start(
       context,
-      MaterialPageRoute(
-        builder: (_) => DrawScreen(
-          userData: widget.userData,
-          pairData: _pairData,
-          theme: _t,
-          canvasId: meta.id,
-          canvasName: meta.name,
-          pixelW: meta.pixelW,
-          pixelH: meta.pixelH,
-          sheetRatio: meta.effectiveRatio,
-        ),
-        fullscreenDialog: true,
-        settings: const RouteSettings(name: '/draw'),
-      ),
+      userData: widget.userData,
+      pairData: _pairData,
+      theme: _t,
+      storage: _storage,
     );
   }
 

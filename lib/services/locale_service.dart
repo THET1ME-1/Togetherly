@@ -1098,8 +1098,15 @@ abstract class AppStrings {
   String get notifMoodSub;
   String get notifChat;
   String get notifChatSub;
+  /// Подпись над рекламным блоком.
+  String get adLabel;
+
   String get notifDaysTogether;
   String get notifDaysTogetherSub;
+
+  /// Подпись того же тумблера на iPhone: постоянной плашки там нет,
+  /// счётчик приходит утренним уведомлением.
+  String get notifDaysTogetherSubIos;
   String daysTogetherNotifBody(int days);
   String get daysTogetherNotifTagline;
   String get openSystemSettings;
@@ -3885,6 +3892,10 @@ class _RuStrings extends AppStrings {
   @override
   String get notifDaysTogetherSub =>
       'Постоянный счётчик в шторке уведомлений';
+  @override
+  String get notifDaysTogetherSubIos => 'Каждое утро в 9:00';
+  @override
+  String get adLabel => 'Реклама';
   @override
   String daysTogetherNotifBody(int days) {
     final mod10 = days % 10;
@@ -7437,6 +7448,10 @@ class _EnStrings extends AppStrings {
   @override
   String get notifDaysTogetherSub =>
       'Always-on counter in your notification shade';
+  @override
+  String get notifDaysTogetherSubIos => 'Every morning at 9:00';
+  @override
+  String get adLabel => 'Ad';
   @override
   String daysTogetherNotifBody(int days) =>
       "You've been together $days ${days == 1 ? 'day' : 'days'} ❤️";

@@ -12,9 +12,9 @@ import '../theme/app_theme.dart';
 import '../theme/fonts.dart';
 import '../widgets/common/app_dialog.dart';
 import '../widgets/common/m3_loading.dart';
+import 'canvas_create_flow.dart';
 import 'coloring_catalogue_screen.dart';
 import 'draw_screen.dart';
-import 'pixel_size_screen.dart';
 
 /// Gallery of saved drawings.  Shows a 2-column card grid with thumbnail
 /// preview, canvas name and date.  A prominent "New Canvas" card is always
@@ -103,61 +103,20 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
 
   // ── Actions ─────────────────────────────────────────────────────────────
 
+  /// Создание холста идёт общим путём — тем же, что и с главной
+  /// ([CanvasCreateFlow]). Раньше выбор вида (включая раскраску) жил только
+  /// здесь, и до него доходили не все.
   Future<void> _createNewCanvas() async {
-    final s = LocaleService.current;
-    final kind = await _askCanvasKind();
-    if (kind == null || !mounted) return;
-
-    if (kind == 'coloring') {
-      await _createColoringCanvas();
-      return;
-    }
-
-    final name = await _showNameDialog(
-      title: s.newCanvas,
-      initial: '${s.untitledCanvas} ${_canvases.length + 1}',
-    );
-    if (name == null || !mounted) return;
-
-    final grid = kind == 'pixel' ? await _askPixelGrid() : null;
-    if (!mounted) return;
-
-    final meta = await _storage.createCanvas(
-      _uid,
-      name: name.trim().isEmpty
-          ? '${s.untitledCanvas} ${_canvases.length + 1}'
-          : name.trim(),
-      groupId: _groupId,
-      pixelW: grid?.$1,
-      pixelH: grid?.$2,
-    );
-
-    if (!mounted) return;
-    await _openCanvas(meta);
-  }
-
-  /// Раскраска: выбираем картинку и режим, заводим квадратный холст под неё.
-  Future<void> _createColoringCanvas() async {
-    final choice = await Navigator.push<ColoringChoice>(
+    final created = await CanvasCreateFlow.start(
       context,
-      MaterialPageRoute(
-        builder: (_) => ColoringCatalogueScreen(theme: widget.theme),
-        settings: const RouteSettings(name: '/coloring_catalogue'),
-      ),
+      userData: widget.userData,
+      pairData: widget.pairData,
+      theme: widget.theme,
+      storage: _storage,
     );
-    if (choice == null || !mounted) return;
-
-    // Лист квадратный: раскраска нарисована 1:1, иначе половины перестали бы
-    // совпадать с контуром.
-    final meta = await _storage.createCanvas(
-      _uid,
-      name: choice.picture.title,
-      groupId: _groupId,
-      sheetRatio: 1.0,
-    );
-    if (!mounted) return;
-    await _openCanvas(meta, coloring: choice);
+    if (created && mounted) _load();
   }
+
 
   Future<void> _openCanvas(CanvasMeta meta, {ColoringChoice? coloring}) async {
     await Navigator.push(
@@ -231,138 +190,6 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
     _load();
   }
 
-  /// Спрашиваем, что заводим: обычный холст, пиксель-арт или раскраску.
-  Future<String?> _askCanvasKind() async {
-    final s = LocaleService.current;
-    final t = widget.theme;
-
-    return showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: t.cardSurface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: t.divider,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 18),
-              Text(
-                s.newCanvas,
-                style: TextStyle(
-                  fontSize: 21,
-                  fontWeight: FontWeight.w800,
-                  color: t.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 14),
-              _modeTile(
-                t,
-                icon: Icons.brush_rounded,
-                title: s.plainCanvas,
-                subtitle: s.plainCanvasSubtitle,
-                onTap: () => Navigator.pop(ctx, 'plain'),
-              ),
-              const SizedBox(height: 10),
-              _modeTile(
-                t,
-                icon: Icons.grid_on_rounded,
-                title: s.pixelCanvasCreate,
-                subtitle: s.pixelCanvasSubtitle,
-                onTap: () => Navigator.pop(ctx, 'pixel'),
-              ),
-              const SizedBox(height: 10),
-              _modeTile(
-                t,
-                icon: Icons.palette_rounded,
-                title: s.coloringTitle,
-                subtitle: s.coloringSubtitle,
-                onTap: () => Navigator.pop(ctx, 'coloring'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-
-  }
-
-  /// Сетка пиксельного холста — на своём экране, как в макете.
-  Future<(int, int)?> _askPixelGrid() => Navigator.push<(int, int)>(
-        context,
-        MaterialPageRoute(
-          builder: (_) => PixelSizeScreen(theme: widget.theme),
-          settings: const RouteSettings(name: '/pixel_size'),
-        ),
-      );
-
-  Widget _modeTile(
-    AppTheme t, {
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: t.surfaceMuted,
-      borderRadius: BorderRadius.circular(22),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-          child: Row(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: t.primaryLight,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(icon, color: t.primary, size: 22),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: t.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: TextStyle(fontSize: 13, color: t.textSecondary),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(Icons.chevron_right_rounded, color: t.textMuted),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   /// Имя холста спрашиваем нижним листом: диалог по центру не дотянуться
   /// большим пальцем, а на кнопочной навигации он ещё и лип к панели.

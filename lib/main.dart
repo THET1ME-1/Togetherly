@@ -38,6 +38,8 @@ import 'services/offline/local_store.dart';
 import 'services/offline/connectivity_service.dart';
 import 'services/offline/outbox_service.dart';
 import 'services/offline/media_cache.dart';
+import 'services/coin_store.dart';
+import 'services/pb_coins_service.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
@@ -407,6 +409,31 @@ void main() async {
   // диска мгновенно, свежий список тянем фоном. Новые паки/эмоции приезжают без
   // обновления приложения. Офлайн/без credentials — остаются встроенные паки.
   await CatalogService.instance.init();
+
+  // Своя аналитика: экраны считает NavigatorObserver, события уходят пачками
+  // раз в минуту. До входа ничего не отправляется.
+  unawaited(AnalyticsService.instance.init());
+
+  // Магазин покупок поднимаем на старте, а не при открытии экрана.
+  //
+  // Google доставляет незавершённые покупки в поток сразу после подписки.
+  // Пока подписка жила вместе с экраном Togetherly+, оплата, случившаяся при
+  // свёрнутом или закрытом экране, просто некому было обработать: деньги
+  // списаны, роут начисления не вызван. Здесь слушатель живёт столько же,
+  // сколько приложение, и зависшая покупка доезжает при следующем запуске.
+  if (kCoinsPurchasable) {
+    unawaited(sharedCoinStore.init(
+      onGrantCoins: ({
+        required String productId,
+        required String purchaseToken,
+      }) async {
+        final res = await PbCoinsService()
+            .iapPurchase(productId: productId, purchaseToken: purchaseToken);
+        if (res == null || res['ok'] != true) return null;
+        return (res['coins'] as num?)?.toInt() ?? 0;
+      },
+    ));
+  }
 
   // Synchronise Flutter's window with MainActivity's setDecorFitsSystemWindows(false).
   // Without this call Flutter and Android disagree about where gesture exclusion

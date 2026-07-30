@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import '../utils/safe_text.dart';
 import '../utils/couple_days.dart';
 import '../widgets/common/app_dialog.dart';
+import '../widgets/common/plus_badge.dart';
 import '../widgets/level_avatar.dart';
 import '../widgets/storage_image.dart';
 import 'package:image_picker/image_picker.dart';
@@ -98,7 +99,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final RewardedAdService _rewardedAd = RewardedAdService();
-  final CoinStore _iap = createCoinStore();
+  final CoinStore _iap = sharedCoinStore;
   bool _iapLoading = false;
 
 
@@ -237,6 +238,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.initState();
     _selectedPartnerUid = widget.pairData.manager.preferredPartnerUid;
     widget.pairData.addListener(_onPairDataChanged);
+    // Значок Togetherly+ у своего имени: флаг приезжает с сервера, и без
+    // подписки он появлялся бы только после перезахода в профиль.
+    PlusService.instance.addListener(_onPlusChanged);
+    unawaited(PlusService.instance.refresh());
     SharedPreferences.getInstance().then((p) {
       final b = p.getString('profileBannerPath');
       if (b != null && b.isNotEmpty && File(b).existsSync() && mounted) {
@@ -372,10 +377,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void dispose() {
     _missYouSub?.cancel();
     widget.pairData.removeListener(_onPairDataChanged);
+    PlusService.instance.removeListener(_onPlusChanged);
     _dayTimer?.cancel();
     _rewardedAd.dispose();
-    _iap.dispose();
+    // Магазин общий на всё приложение — закрывать его вместе с экраном нельзя,
+    // иначе покупка, завершившаяся после выхода из профиля, потеряется.
     super.dispose();
+  }
+
+  void _onPlusChanged() {
+    if (mounted) setState(() {});
   }
 
   void _onPairDataChanged() {
@@ -849,6 +860,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       uid: widget.userData.uid,
       avatarUrl: widget.userData.avatarUrl,
       name: widget.userData.displayName,
+      // Значок Togetherly+ у своего имени — в шапке профиля, там же, где
+      // человек его и ищет.
+      plus: PlusService.instance.active,
+      theme: _t,
       bannerUrl: widget.userData.bannerUrl,
       localBannerPath: _bannerPath,
       subtitle: chipText,
@@ -1898,6 +1913,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 color: _t.textPrimary,
               ),
             ),
+            // Значок Togetherly+ у своего имени. Флаг локальный — это мой
+            // аккаунт, ходить за ним на сервер незачем.
+            if (PlusService.instance.active) ...[
+              const SizedBox(width: 8),
+              PlusBadge(theme: _t),
+            ],
             // Закреплённая иконка-бейдж. Тап открывает магазин иконок,
             // где можно сменить/купить/снять иконку.
             GestureDetector(
@@ -3099,7 +3120,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 SettingsRow(
                   icon: Icons.calendar_month_rounded,
                   title: s.notifDaysTogether,
-                  subtitle: s.notifDaysTogetherSub,
+                  subtitle: Platform.isIOS
+                      ? s.notifDaysTogetherSubIos
+                      : s.notifDaysTogetherSub,
                   trailing: Switch(
                     value: _notifDaysTogether,
                     onChanged: (v) => _toggleDaysTogetherNotif(v, setModal),
@@ -3891,18 +3914,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
           );
         }).toList(),
       ),
-      const SizedBox(height: 14),
-      _coinEarnRow(
-        icon: Icons.confirmation_number_rounded,
-        title: _s.redeemCodeTitle,
-        subtitle: _s.redeemCodeSubtitle,
-        trailing: Icon(Icons.chevron_right_rounded,
-            color: cs.onSurfaceVariant, size: 22),
-        onTap: () {
-          Navigator.pop(ctx);
-          _askRedeemCode();
-        },
-      ),
+      // Код из телеграм-бота — только там, где своего биллинга нет.
+      //
+      // В сборке Play и на iPhone эта строка вела мимо кассы магазина: у
+      // Google это нарушение политики платежей, у Apple — 3.1.1, то самое, за
+      // что уже прилетал реджект по пакам монет.
+      //
+      // Одного `kDonationsEnabled` мало: IPA собирается с `STORE=github`, и по
+      // флагу строка осталась бы видимой на iPhone. Поэтому iOS исключён явно.
+      if (kDonationsEnabled && !Platform.isIOS) ...[
+        const SizedBox(height: 14),
+        _coinEarnRow(
+          icon: Icons.confirmation_number_rounded,
+          title: _s.redeemCodeTitle,
+          subtitle: _s.redeemCodeSubtitle,
+          trailing: Icon(Icons.chevron_right_rounded,
+              color: cs.onSurfaceVariant, size: 22),
+          onTap: () {
+            Navigator.pop(ctx);
+            _askRedeemCode();
+          },
+        ),
+      ],
       const SizedBox(height: 10),
       _coinEarnRow(
         icon: Icons.restore_rounded,

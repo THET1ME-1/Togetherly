@@ -30,6 +30,8 @@ import '../widgets/md_message_text.dart';
 import '../widgets/storage_image.dart';
 import 'memory_lane_screen.dart';
 import '../widgets/common/m3_loading.dart';
+import '../models/widget_data.dart';
+import '../widgets/common/plus_badge.dart';
 
 /// Цена смены фона чата в монетах (зеркало CONSUMABLE_PRICES на сервере).
 const int _kChatBgPrice = 20;
@@ -118,6 +120,11 @@ class _ChatScreenState extends State<ChatScreen> {
   final FocusNode _focusNode = FocusNode();
 
   String get _groupId => widget.pairData.pairId;
+
+  /// Есть ли Togetherly+ у партнёра. Правила `users` чужую запись не отдают,
+  /// поэтому читаем его карточку `widget_data` — туда флаг проставляет сервер
+  /// (`widget_plus.pb.js`), и дорисовать его себе нельзя.
+  bool _partnerPlus = false;
   // Личность из PocketBase: чат отличает свои сообщения по userId
   // (выравнивание/удаление).
   String get _myUid => PocketBaseService().userId ?? '';
@@ -256,11 +263,22 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Троттлинг сохранения позиции — чтобы не писать prefs на каждый кадр.
   DateTime _lastScrollSave = DateTime.fromMillisecondsSinceEpoch(0);
 
+  /// Флаг Togetherly+ партнёра — разово при открытии чата.
+  Future<void> _loadPartnerPlus() async {
+    final uid = widget.pairData.partnerUid;
+    if (_groupId.isEmpty || uid.isEmpty) return;
+    final rec = await PbDataService().loadWidget(_groupId, uid);
+    if (!mounted || rec == null) return;
+    final has = WidgetData.fromPb(rec).plus;
+    if (has && !_partnerPlus) setState(() => _partnerPlus = true);
+  }
+
   @override
   void initState() {
     super.initState();
     // Пока этот чат открыт — foreground-пуш о новом сообщении не дублируем.
     PbPushService.activeChatGroupId = _groupId;
+    unawaited(_loadPartnerPlus());
     _messagesStream = _chat.watchMessages(_groupId, limit: _limit);
     _captureUnreadAnchor();
     _watchPartnerReads();
@@ -1490,22 +1508,29 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget _headerAvatarPill(ColorScheme cs) {
     final url = widget.pairData.partnerAvatarUrl;
     final name = widget.pairData.partnerDisplayName.trim();
-    return SizedBox(
-      width: 44,
-      height: 44,
-      child: ClipOval(
-        child: url.isNotEmpty
-            ? StorageImage(
-                imageUrl: url,
-                width: 44,
-                height: 44,
-                fit: BoxFit.cover,
-                memCacheWidth: 132,
-                memCacheHeight: 132,
-                placeholder: (_, __) => _avatarLetter(cs, name),
-                errorWidget: (_, __, ___) => _avatarLetter(cs, name),
-              )
-            : _avatarLetter(cs, name),
+    return PlusAvatarDot(
+      theme: _t,
+      visible: _partnerPlus,
+      size: 17,
+      // Обводка под цвет шапки, иначе метка сливается с самим аватаром.
+      ringColor: cs.surface,
+      child: SizedBox(
+        width: 44,
+        height: 44,
+        child: ClipOval(
+          child: url.isNotEmpty
+              ? StorageImage(
+                  imageUrl: url,
+                  width: 44,
+                  height: 44,
+                  fit: BoxFit.cover,
+                  memCacheWidth: 132,
+                  memCacheHeight: 132,
+                  placeholder: (_, __) => _avatarLetter(cs, name),
+                  errorWidget: (_, __, ___) => _avatarLetter(cs, name),
+                )
+              : _avatarLetter(cs, name),
+        ),
       ),
     );
   }

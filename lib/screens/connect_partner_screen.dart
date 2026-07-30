@@ -29,6 +29,8 @@ import 'package:material3_expressive_loading_indicator/material3_expressive_load
 import 'chat_screen.dart';
 import 'home/widgets/relationship_type_dialog.dart';
 import '../widgets/app_sheet.dart';
+import '../models/widget_data.dart';
+import '../widgets/common/plus_badge.dart';
 
 class ConnectPartnerScreen extends StatefulWidget {
   final PairData pairData;
@@ -75,6 +77,12 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   // Онлайн-статус партнёра — живой PB-презенс (heartbeat+TTL). Бейдж — разовая
   // загрузка из профиля (дедуп по _badgeLoadedUids).
   final Map<String, bool> _partnerOnlineStatus = {};
+
+  /// Есть ли у участника Togetherly+. Берём из его карточки `widget_data`:
+  /// правила `users` чужую запись не отдают, а флаг туда проставляет сервер
+  /// (`widget_plus.pb.js`), поэтому подделать значок нельзя.
+  final Map<String, bool> _partnerPlus = {};
+  final Set<String> _plusLoadedUids = {};
   final Map<String, String?> _partnerBadges = {};
   final Map<String, StreamSubscription<bool>> _presenceSubs = {};
   final Set<String> _badgeLoadedUids = {};
@@ -139,6 +147,8 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
       _badgeLoadedUids.remove(uid);
       _partnerOnlineStatus.remove(uid);
       _partnerBadges.remove(uid);
+      _plusLoadedUids.remove(uid);
+      _partnerPlus.remove(uid);
     }
 
     for (final member in partners) {
@@ -150,6 +160,17 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
           if (mounted) {
             setState(() => _partnerOnlineStatus[member.uid] = online);
           }
+        });
+      }
+      // Togetherly+ — разово из карточки виджета партнёра.
+      if (!_plusLoadedUids.contains(member.uid)) {
+        _plusLoadedUids.add(member.uid);
+        PbDataService()
+            .loadWidget(widget.pairData.pairId, member.uid)
+            .then((rec) {
+          if (!mounted || rec == null) return;
+          final has = WidgetData.fromPb(rec).plus;
+          if (has) setState(() => _partnerPlus[member.uid] = true);
         });
       }
       // Бейдж — разово из профиля PB.
@@ -747,6 +768,12 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
           ),
           if (badgeUid != null)
             Positioned(top: 0, right: 0, child: _badgeIcon(badgeUid)),
+          if (badgeUid != null && (_partnerPlus[badgeUid] ?? false))
+            Positioned(
+              top: 0,
+              left: 0,
+              child: PlusBadge(theme: widget.theme),
+            ),
         ],
       ),
     );
