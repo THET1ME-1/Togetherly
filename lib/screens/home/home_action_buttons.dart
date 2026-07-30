@@ -43,11 +43,20 @@ class HomeActionButtons extends StatelessWidget {
   static const String _postSvg =
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-6">\n  <path d="M12 9a3.75 3.75 0 1 0 0 7.5A3.75 3.75 0 0 0 12 9Z" />\n  <path fill-rule="evenodd" d="M9.344 3.071a49.52 49.52 0 0 1 5.312 0c.967.052 1.83.585 2.332 1.39l.821 1.317c.24.383.645.643 1.11.71.386.054.77.113 1.152.177 1.432.239 2.429 1.493 2.429 2.909V18a3 3 0 0 1-3 3h-15a3 3 0 0 1-3-3V9.574c0-1.416.997-2.67 2.429-2.909.382-.064.766-.123 1.151-.178a1.56 1.56 0 0 0 1.11-.71l.822-1.315a2.942 2.942 0 0 1 2.332-1.39ZM6.75 12.75a5.25 5.25 0 1 1 10.5 0 5.25 5.25 0 0 1-10.5 0Zm12-1.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clip-rule="evenodd" />\n</svg>';
 
+  /// Насколько две средние кнопки уезжают вниз ради параболического изгиба.
+  static const double _bend = 11.0;
+
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
+    // Изгиб делается `Transform.translate`, а он двигает картинку, не занимая
+    // места: ряд отдавал раскладке высоту без учёта смещения, и следующий блок
+    // (карточка маскота) подлезал средним кнопкам под низ. Добираем отступ
+    // ровно на величину изгиба.
+    return Padding(
+      padding: const EdgeInsets.only(bottom: _bend),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
         _pillButton(
           index: 0,
           svgIcon: _drawSvg,
@@ -76,7 +85,8 @@ class HomeActionButtons extends StatelessWidget {
           enabled: isPaired,
           onTap: onPost,
         ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -91,7 +101,7 @@ class HomeActionButtons extends StatelessWidget {
     final hasMoodImage = moodImagePath != null && moodImagePath.isNotEmpty;
 
     // Смещение вниз для кнопок 1 и 2 (параболический изгиб)
-    final double dy = (index == 1 || index == 2) ? 11.0 : 0.0;
+    final double dy = (index == 1 || index == 2) ? _bend : 0.0;
 
     return Transform.translate(
       offset: Offset(0, dy),

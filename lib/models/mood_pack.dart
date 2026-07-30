@@ -65,7 +65,17 @@ class MoodPack {
     tileGradient: [Color(0xFFFFF2F8), Color(0xFFFFDCEC)],
   );
 
-  static const List<MoodPack> all = [classic, pink];
+  /// Черновой пак: пока пять эмоций, чтобы посмотреть зайку в приложении.
+  static const MoodPack bunny = MoodPack(
+    id: 'bunny',
+    isFree: true,
+    nameRu: 'Зайка',
+    nameEn: 'Bunny',
+    moods: MoodOption.bunnyPack,
+    tileGradient: [Color(0xFFFFF4F8), Color(0xFFFFE1EC)],
+  );
+
+  static const List<MoodPack> all = [classic, pink, bunny];
 
   /// Пак по id; неизвестный/`null` → классический (безопасный дефолт).
   static MoodPack byId(String? id) {

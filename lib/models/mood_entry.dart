@@ -164,10 +164,22 @@ class MoodOption {
     MoodOption(id: 'anger',        imagePath: '$_pinkDir/anger.webp',        label: 'Злость',        color: _red),
   ];
 
+  // ── Bunny pack (черновой) — каваи-зайка, единый стиль ────────────────────
+  // Пока пять эмоций из двадцати шести: пак собран, чтобы посмотреть зайку
+  // живьём. Остальные подрисовываются по промптам и лягут сюда же.
+  static const String _bunnyDir = 'assets/images/mood_packs/bunny';
+  static const List<MoodOption> bunnyPack = [
+    MoodOption(id: 'love',   imagePath: '$_bunnyDir/love.webp',   label: 'Люблю',        color: _pink),
+    MoodOption(id: 'kiss',   imagePath: '$_bunnyDir/kiss.webp',   label: 'Целую',        color: _pink),
+    MoodOption(id: 'laugh',  imagePath: '$_bunnyDir/laugh.webp',  label: 'Смех',         color: _yellow),
+    MoodOption(id: 'bliss',  imagePath: '$_bunnyDir/bliss.webp',  label: 'Наслаждение',  color: _yellow),
+    MoodOption(id: 'pride',  imagePath: '$_bunnyDir/pride.webp',  label: 'Гордость',     color: _yellow),
+  ];
+
   /// Все ВСТРОЕННЫЕ настроения — для поиска по id/пути. Классические идут
   /// первыми, поэтому для общих id [byId] возвращает каноничный (классический)
   /// вариант (его метку/цвет видно в статистике и календаре).
-  static const List<MoodOption> registry = [...all, ...pinkPack];
+  static const List<MoodOption> registry = [...all, ...pinkPack, ...bunnyPack];
 
   /// Настроения из УДАЛЁННОГО каталога (паки, скачанные манифестом). Нужны,
   /// чтобы у НОВЫХ эмоций (id которых нет в сборке) корректно резолвились

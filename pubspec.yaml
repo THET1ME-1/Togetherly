@@ -107,6 +107,7 @@ flutter:
   assets:
     - assets/images/new emodji/
     - assets/images/mood_packs/pink/
+    - assets/images/mood_packs/bunny/
     - assets/images/widget/
     - assets/images/mascots/
     - assets/images/gif/
