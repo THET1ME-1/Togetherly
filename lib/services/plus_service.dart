@@ -136,6 +136,43 @@ class PlusService extends ChangeNotifier {
     }
   }
 
+  /// Ссылка на оплату Togetherly+ через lava.top.
+  ///
+  /// Сервер создаёт СЧЁТ (`POST /api/lava/checkout`) и возвращает адрес его
+  /// оплаты. Прежняя статическая ссылка вела на витрину товара, а по таким
+  /// покупкам lava.top не присылает уведомлений вовсе: 31 июля две оплаты
+  /// подряд не дошли до сервера при живом и правильно настроенном вебхуке,
+  /// и доступ обоим выдавали руками. Со счётом уведомление приходит, а если
+  /// потеряется, серверный крон добьёт покупку опросом статуса.
+  ///
+  /// Почту берёт сам сервер из аккаунта, поэтому исчезает и вторая беда:
+  /// оплата с чужого адреса, после которой доступ приходилось искать по коду.
+  ///
+  /// Вернул null — падаем на статическую ссылку: покупка через витрину хуже
+  /// автоматической, но лучше кнопки, которая ничего не делает.
+  /// [method] `sbp` (по умолчанию для рублей) или `card`. За рубли платят
+  /// через СБП: карточная форма lava российские карты не принимает, а
+  /// единственная живая оплата прошла именно по СБП.
+  Future<String?> checkoutUrl({
+    String currency = 'RUB',
+    String method = 'sbp',
+  }) async {
+    try {
+      final res = await PocketBaseService().pb.send(
+        '/api/lava/checkout',
+        method: 'POST',
+        body: {'currency': currency, 'method': method},
+      );
+      if (res is Map && res['ok'] == true) {
+        final url = res['url'];
+        if (url is String && url.isNotEmpty) return url;
+      }
+    } catch (e) {
+      debugPrint('PlusService.checkoutUrl failed: $e');
+    }
+    return null;
+  }
+
   /// Гасит код, выданный ботом. Возвращает true, если доступ открылся.
   Future<bool> redeem(String code) async {
     try {

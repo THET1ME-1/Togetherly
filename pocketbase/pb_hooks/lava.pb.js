@@ -27,12 +27,30 @@ routerAdd("POST", "/api/lava/webhook", (e) => {
   // переопределить, если товар пересоздадут.
   const PLUS_SKU = ($os.getenv("LAVA_PLUS_SKU") ||
     "ec861b44-a4b7-49e3-aa0e-e4608abdb0f0").trim().toLowerCase();
+  // У товара в lava.top есть ещё и оффер со СВОИМ идентификатором, и в
+  // уведомлении может приехать он, а не товар (`/api/v2/products` показывает
+  // оба). Держим список: совпадение с любым из них считаем покупкой Плюса.
+  const PLUS_OFFER = ($os.getenv("LAVA_PLUS_OFFER") ||
+    "40364f0a-b0c5-44e8-8380-55d9cf492bb6").trim().toLowerCase();
   const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
+  // Форма вебхука в кабинете lava.top спрашивает логин и пароль, то есть шлёт
+  // обычный Basic. Заголовка X-Api-Key она не умеет вовсе, и первая покупка
+  // (31 июля, 797 ₽) потерялась молча: интеграции там не было, а когда её
+  // завели, оказалось, что ключ вписать некуда. Держим оба способа: Basic для
+  // lava.top, X-Api-Key и ?key= для тестов curl'ом и на случай смены формата.
+  //
+  // Base64 в этой сборке JSVM нет (`atob` не определён), поэтому сравниваем
+  // заголовок целиком с заранее посчитанной строкой из окружения:
+  // LAVA_BASIC = base64("логин:пароль").
   const secret = $os.getenv("LAVA_WEBHOOK_KEY") || "";
+  const basic = ($os.getenv("LAVA_BASIC") || "").trim();
   const given = e.request.header.get("X-Api-Key") ||
     e.request.url.query().get("key") || "";
-  if (!secret || given !== secret) {
+  const auth = (e.request.header.get("Authorization") || "").trim();
+  const okKey = secret !== "" && given === secret;
+  const okBasic = basic !== "" && auth === "Basic " + basic;
+  if (!okKey && !okBasic) {
     return e.json(401, { ok: false, error: "bad_key" });
   }
 
@@ -81,17 +99,46 @@ routerAdd("POST", "/api/lava/webhook", (e) => {
 
   const email = (pick(["email", "buyeremail", "clientemail", "contactemail"]) || "")
     .trim().toLowerCase();
-  const productId = (pick(["productid", "offerid", "parentid", "uuid", "id"]) || "")
-    .trim().toLowerCase();
   const orderId = (pick(["contractid", "orderid", "invoiceid", "paymentid"]) || "").trim();
-  const amount = PRODUCTS[productId];
-  const isPlus = PLUS_SKU !== "" && productId === PLUS_SKU;
+
+  // Товар ищем НЕ по имени поля, а по значению: собираем из уведомления все
+  // uuid подряд и смотрим, нет ли среди них знакомого. Прежний `pick` брал
+  // первое поле, чей хвост совпал с «id», а им запросто оказывался
+  // идентификатор покупателя или платежа, и покупка уходила в «not_ours».
+  // Чужие uuid ни с чем не совпадут, поэтому ложных начислений не будет.
+  const isUuid = (s) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(s);
+  let productId = "", amount = 0, isPlus = false;
+  for (const key in flat) {
+    const v = String(flat[key]).trim().toLowerCase();
+    if (!isUuid(v)) continue;
+    if (v === PLUS_SKU || v === PLUS_OFFER) { productId = v; isPlus = true; break; }
+    if (PRODUCTS[v]) { productId = v; amount = PRODUCTS[v]; break; }
+  }
+  if (!productId) {
+    productId = (pick(["productid", "offerid", "parentid", "uuid", "id"]) || "")
+      .trim().toLowerCase();
+  }
+
+  // Каждый входящий вебхук оставляет след. `logger().warn` кладёт запись в
+  // `_logs` (info туда не попадает), и теперь любую пропажу видно без
+  // кабинета lava.top: кто платил, за что, чем закончилось. Первую живую
+  // покупку разбирали вслепую именно потому, что следов не было никаких.
+  const trace = (verdict) => {
+    try {
+      $app.logger().warn("lava/webhook: " + verdict,
+        "email", email || "-", "product", productId || "-",
+        "order", orderId || "-", "status", status || "-");
+    } catch (_) {}
+  };
 
   if (!amount && !isPlus) {
     // Товар другого приложения — этим занимается бот, не мы.
+    trace("not_ours");
     return e.json(200, { ok: true, skipped: "not_ours", product: productId });
   }
   if (!email) {
+    trace("no_email");
     return e.json(400, { ok: false, error: "no_email" });
   }
 
@@ -168,6 +215,9 @@ routerAdd("POST", "/api/lava/webhook", (e) => {
       txApp.save(rec);
       out = { s: 200, b: { ok: true, credited: 0, direct: false } };
     });
+    trace(out.b && out.b.repeated ? "repeated"
+      : out.b && out.b.direct ? (isPlus ? "plus_granted" : "coins_credited")
+      : "code_issued");
   } catch (err) {
     try {
       $http.send({

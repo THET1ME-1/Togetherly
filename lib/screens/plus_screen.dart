@@ -375,9 +375,16 @@ class _PlusScreenState extends State<PlusScreen> {
       await _buyInStore();
       return;
     }
-    final url = Uri.tryParse(PlusService.purchaseUrl);
-    if (url == null) return;
     setState(() => _busy = true);
+    // Ссылку выдаёт сервер: он заводит счёт в lava.top на почту аккаунта, и
+    // только по счетам оттуда приходят уведомления об оплате. Не ответил —
+    // идём на витрину, как раньше, но тогда доступ придётся выдавать руками.
+    final fromServer = await PlusService.instance.checkoutUrl();
+    final url = Uri.tryParse(fromServer ?? PlusService.purchaseUrl);
+    if (url == null) {
+      if (mounted) setState(() => _busy = false);
+      return;
+    }
     try {
       await launchUrl(url, mode: LaunchMode.externalApplication);
     } catch (_) {
