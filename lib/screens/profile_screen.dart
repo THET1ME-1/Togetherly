@@ -657,8 +657,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         const SizedBox(height: 8),
                         _buildPairGroup(context),
                       ],
-                      const SizedBox(height: 22),
-                      _buildDonationCard(context),
+                      // Донатов на iOS нет: ссылки на Boosty, DonationAlerts
+                      // и lava.top — оплата цифрового мимо биллинга Apple,
+                      // ровно то, за что прилетел реджект 3.1.1 по 1.21.0
+                      // (111). Гейта `kDonationsEnabled` тут мало: IPA
+                      // собирается с `STORE=github`, и по флагу карточка
+                      // осталась бы видимой (как и в листе монет, стр. 3925).
+                      if (!Platform.isIOS) ...[
+                        const SizedBox(height: 22),
+                        _buildDonationCard(context),
+                      ],
                       const SizedBox(height: 16),
                       SettingsGroup([
                         SettingsRow(
