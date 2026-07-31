@@ -146,9 +146,13 @@ def funnel(conn, days):
             (key, edge_ts),
         ).fetchone()["u"]
         out.append({"k": key, "label": label, "users": n})
-    first = out[0]["users"] or 1
+    # Доля считается от первого шага. Пока приложение шлёт из пяти шагов один
+    # (`pair_created`), первый шаг равен нулю, и подстановка единицы вместо
+    # него выдавала «56 человек · 5600%». Нет базы — нет и доли: None честно
+    # говорит «считать не от чего», а ноль соврал бы про «никто не дошёл».
+    first = out[0]["users"]
     for step in out:
-        step["share"] = round(step["users"] / first * 1000) / 10
+        step["share"] = round(step["users"] / first * 1000) / 10 if first else None
     return out
 
 
@@ -182,8 +186,12 @@ def main():
     }
 
     tmp = args.json + ".tmp"
+    # ensure_ascii=True не для красоты: файл читает хук админки, а в JSVM он
+    # склеивается из байтов через String.fromCharCode — то есть по latin-1.
+    # Русские подписи воронки доезжали до страницы как «ÐÐµÐ³Ð¸ÑÑÑÐ°ÑÐ¸Ñ».
+    # Экранированный \uXXXX проходит этот путь без потерь.
     with open(tmp, "w") as f:
-        json.dump(summary, f, ensure_ascii=False)
+        json.dump(summary, f, ensure_ascii=True)
     # Подменяем целиком: админка не должна прочитать файл на середине записи.
     os.replace(tmp, args.json)
     os.chmod(args.json, 0o644)
