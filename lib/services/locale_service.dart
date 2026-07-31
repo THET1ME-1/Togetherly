@@ -1024,6 +1024,7 @@ abstract class AppStrings {
   // ── Widget Screen (extended) ──
   String get homeScreenWidgets;
   String get addToHomeScreen;
+  String get addWidgetFromHomeHint;
   String get setAsPhotoOfDay;
   String get widgetAddedToHome;
   String failedAddWidget(String e);
@@ -3731,6 +3732,9 @@ class _RuStrings extends AppStrings {
   String get homeScreenWidgets => 'Виджеты рабочего стола';
   @override
   String get addToHomeScreen => 'Добавить на рабочий стол';
+  @override
+  String get addWidgetFromHomeHint =>
+      'Долгий тап по рабочему столу → «+» → Togetherly';
   @override
   String get setAsPhotoOfDay => 'Установлено как фото дня';
   @override
@@ -7328,6 +7332,9 @@ class _EnStrings extends AppStrings {
   String get homeScreenWidgets => 'Home Screen Widgets';
   @override
   String get addToHomeScreen => 'Add to Home Screen';
+  @override
+  String get addWidgetFromHomeHint =>
+      'Long-press the Home Screen → “+” → Togetherly';
   @override
   String get setAsPhotoOfDay => 'Set as Photo of the Day';
   @override

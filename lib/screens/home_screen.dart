@@ -97,6 +97,7 @@ import '../services/days_together_notification_service.dart';
 import '../services/mood_notification_service.dart';
 import '../widgets/celebration_banner.dart';
 import '../widgets/app_sheet.dart';
+import '../widgets/note_editor_sheet.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -406,6 +407,34 @@ class _HomeScreenState extends State<HomeScreen> {
     else if (uri.host == 'memory_lane') {
       if (mounted && _pairData.isPaired) {
         _openMemoryLane();
+      }
+    }
+    // loveapp://mood?id=happy → отметить настроение с виджета-плиток.
+    //
+    // Так работают только виджеты iPhone: на Android отметка уходит фоновым
+    // интентом, не открывая приложение, а у iOS фонового исполнения для
+    // виджетов нет — тап открывает приложение, и запись идёт здесь.
+    else if (uri.host == 'mood' && (uri.queryParameters['id'] ?? '').isNotEmpty) {
+      final moodId = uri.queryParameters['id']!;
+      if (_pairData.isPaired) {
+        unawaited(
+          HomeWidgetService.instance.applyMoodFromWidget(
+            groupId: _pairData.pairId,
+            moodId: moodId,
+          ),
+        );
+      }
+    }
+    // loveapp://miss → сказать «скучаю» с виджета.
+    else if (uri.host == 'miss') {
+      if (_pairData.isPaired) {
+        unawaited(_sendQuietNudge());
+      }
+    }
+    // loveapp://note → правка общего листика (печатать в виджете iOS не даёт).
+    else if (uri.host == 'note') {
+      if (mounted && _pairData.isPaired) {
+        unawaited(showNoteEditorSheet(context, groupId: _pairData.pairId));
       }
     }
     // loveapp://mood → открыть Mood Calendar

@@ -1128,7 +1128,6 @@ class HomeWidgetService {
     List<List<int>> week = const [],
     int matchedDays = 0,
   }) async {
-    if (!Platform.isAndroid) return;
     try {
       final g = groupId.isEmpty ? 'solo' : groupId;
       await HomeWidget.saveWidgetData<String>('tgmood_${g}_my_label', myLabel);
@@ -1168,7 +1167,6 @@ class HomeWidgetService {
     required String groupId,
     required String moodId,
   }) async {
-    if (!Platform.isAndroid) return;
     final g = groupId.isEmpty ? 'solo' : groupId;
     if (g == 'solo') return;
     try {
@@ -1202,7 +1200,6 @@ class HomeWidgetService {
 
   /// Дописывает настроение, отмеченное на виджете, если та запись не дошла.
   Future<void> flushPendingMood(String groupId) async {
-    if (!Platform.isAndroid) return;
     final g = groupId.isEmpty ? 'solo' : groupId;
     if (g == 'solo') return;
     try {
@@ -1225,7 +1222,6 @@ class HomeWidgetService {
     int minutesLeft = 0,
     int percent = 0,
   }) async {
-    if (!Platform.isAndroid) return;
     try {
       final g = groupId.isEmpty ? 'solo' : groupId;
       await HomeWidget.saveWidgetData<String>('tgcd_${g}_title', title);
@@ -1438,7 +1434,6 @@ class HomeWidgetService {
   /// закрывает долг при первом же запуске. Без этого виджет говорил
   /// «отправлено», а счётчик в приложении не двигался.
   Future<void> flushPendingMiss(String groupId) async {
-    if (!Platform.isAndroid) return;
     final g = groupId.isEmpty ? 'solo' : groupId;
     if (g == 'solo') return;
     try {

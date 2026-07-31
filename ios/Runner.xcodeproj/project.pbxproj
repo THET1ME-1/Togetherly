@@ -26,6 +26,13 @@
 		FE000000000000000000D007 /* PhotoWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE000000000000000000A007 /* PhotoWidgets.swift */; };
 		FE000000000000000000D008 /* WidgetGraphics.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE000000000000000000A008 /* WidgetGraphics.swift */; };
 		FE000000000000000000D009 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FE000000000000000000A009 /* Assets.xcassets */; };
+		FE000000000000000000D010 /* WidgetTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE000000000000000000A010 /* WidgetTheme.swift */; };
+		FE000000000000000000D011 /* TogetherWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE000000000000000000A011 /* TogetherWidget.swift */; };
+		FE000000000000000000D012 /* NoteWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE000000000000000000A012 /* NoteWidgets.swift */; };
+		FE000000000000000000D013 /* MissWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE000000000000000000A013 /* MissWidget.swift */; };
+		FE000000000000000000D014 /* MoodTilesWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE000000000000000000A014 /* MoodTilesWidget.swift */; };
+		FE000000000000000000D015 /* CountdownWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE000000000000000000A015 /* CountdownWidget.swift */; };
+		FE000000000000000000D016 /* YearWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE000000000000000000A016 /* YearWidgets.swift */; };
 		FE000000000000000000E001 /* TogetherlyWidgetExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = FE000000000000000000C001 /* TogetherlyWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
@@ -104,6 +111,13 @@
 		FE000000000000000000A007 /* PhotoWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoWidgets.swift; sourceTree = "<group>"; };
 		FE000000000000000000A008 /* WidgetGraphics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetGraphics.swift; sourceTree = "<group>"; };
 		FE000000000000000000A009 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		FE000000000000000000A010 /* WidgetTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetTheme.swift; sourceTree = "<group>"; };
+		FE000000000000000000A011 /* TogetherWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TogetherWidget.swift; sourceTree = "<group>"; };
+		FE000000000000000000A012 /* NoteWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteWidgets.swift; sourceTree = "<group>"; };
+		FE000000000000000000A013 /* MissWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MissWidget.swift; sourceTree = "<group>"; };
+		FE000000000000000000A014 /* MoodTilesWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoodTilesWidget.swift; sourceTree = "<group>"; };
+		FE000000000000000000A015 /* CountdownWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountdownWidget.swift; sourceTree = "<group>"; };
+		FE000000000000000000A016 /* YearWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YearWidgets.swift; sourceTree = "<group>"; };
 		FE000000000000000000B001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		FE000000000000000000B002 /* TogetherlyWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TogetherlyWidget.entitlements; sourceTree = "<group>"; };
 		FE000000000000000000C001 /* TogetherlyWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TogetherlyWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -227,6 +241,13 @@
 				FE000000000000000000A006 /* MoodWidget.swift */,
 				FE000000000000000000A007 /* PhotoWidgets.swift */,
 				FE000000000000000000A008 /* WidgetGraphics.swift */,
+				FE000000000000000000A010 /* WidgetTheme.swift */,
+				FE000000000000000000A011 /* TogetherWidget.swift */,
+				FE000000000000000000A012 /* NoteWidgets.swift */,
+				FE000000000000000000A013 /* MissWidget.swift */,
+				FE000000000000000000A014 /* MoodTilesWidget.swift */,
+				FE000000000000000000A015 /* CountdownWidget.swift */,
+				FE000000000000000000A016 /* YearWidgets.swift */,
 				FE000000000000000000A009 /* Assets.xcassets */,
 				FE000000000000000000B001 /* Info.plist */,
 				FE000000000000000000B002 /* TogetherlyWidget.entitlements */,
@@ -495,6 +516,13 @@
 				FE000000000000000000D006 /* MoodWidget.swift in Sources */,
 				FE000000000000000000D007 /* PhotoWidgets.swift in Sources */,
 				FE000000000000000000D008 /* WidgetGraphics.swift in Sources */,
+				FE000000000000000000D010 /* WidgetTheme.swift in Sources */,
+				FE000000000000000000D011 /* TogetherWidget.swift in Sources */,
+				FE000000000000000000D012 /* NoteWidgets.swift in Sources */,
+				FE000000000000000000D013 /* MissWidget.swift in Sources */,
+				FE000000000000000000D014 /* MoodTilesWidget.swift in Sources */,
+				FE000000000000000000D015 /* CountdownWidget.swift in Sources */,
+				FE000000000000000000D016 /* YearWidgets.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -1655,15 +1655,13 @@ class _WidgetScreenState extends State<WidgetScreen>
           itemsBuilder: () => _legacyWidgetItems(isPaired, halfTiles),
         ),
         // ── Новый каталог ──
-        // На iOS Togetherly+ не существует, и некупившему раздела не видно
+        // На iOS Togetherly+ не продаётся, и некупившему раздела не видно
         // совсем: показать каталог, который нечем открыть, значит дразнить.
         //
-        // Купившему на iPhone (оплата через lava.top проходит с любой
-        // платформы, `gate` при купленном отдаёт `open`) раздел тоже не
-        // показываем: все восемь — Android-провайдеры
-        // `com.togetherly.love.TogetherWidget*`, а в `ios/TogetherlyWidget`
-        // лежат только старые. Иначе человек платит, видит каталог и упирается
-        // в кнопку, за которой пусто.
+        // Купившему на iPhone раздел показываем — `gate` при купленном отдаёт
+        // `open` независимо от платформы. С 31 июля за ним есть что показать:
+        // все восемь виджетов получили WidgetKit-двойников в
+        // `ios/TogetherlyWidget`, работающих на тех же данных App Group.
         if (PlusService.instance.visible && _newWidgetsExist) ...[
           const SizedBox(height: 14),
           _CollapsibleWidgetSection(
@@ -1905,10 +1903,13 @@ class _WidgetScreenState extends State<WidgetScreen>
   /// карточек. Держать в согласии с [_newWidgetItems].
   static const int _kNewWidgetCount = 8;
 
-  /// Существуют ли виджеты нового каталога на этой платформе. Они собраны на
-  /// Kotlin как `AppWidgetProvider`, и переносить их в WidgetKit никто не
-  /// брался: на iPhone показывать нечего.
-  static bool get _newWidgetsExist => !Platform.isIOS;
+  /// Существуют ли виджеты нового каталога на этой платформе.
+  ///
+  /// С 31 июля все восемь есть и на iPhone: `ios/TogetherlyWidget` получил
+  /// WidgetKit-двойников, читающих те же ключи App Group, что пишет
+  /// `HomeWidgetService`. Флаг остался точкой правды на случай новой
+  /// платформы — например, macOS без расширения.
+  static bool get _newWidgetsExist => true;
 
   /// Новый каталог виджетов. Пополняется по одному: каждый делается целиком —
   /// все размеры, состояния и данные — и только потом берётся следующий.
@@ -4290,6 +4291,29 @@ class _WidgetScreenState extends State<WidgetScreen>
                   ),
                 ),
               ),
+            ),
+          ] else if (Platform.isIOS) ...[
+            // На iPhone виджеты ставит система, программного «закрепить» нет.
+            // Без этой строки карточка выглядит витриной без кнопки, и человек
+            // не понимает, что делать дальше.
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(Icons.info_outline_rounded,
+                    size: 16, color: _cs.onSurfaceVariant),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    LocaleService.current.addWidgetFromHomeHint,
+                    style: TextStyle(
+                      fontFamily: 'Onest',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: _cs.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
           // ── Раскрываемое содержимое ──

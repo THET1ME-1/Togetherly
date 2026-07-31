@@ -5,12 +5,13 @@ import WidgetKit
 
 @main
 struct TogetherlyWidgetBundle: WidgetBundle {
-    // Разбито на два под-блока: один @WidgetBundleBuilder-блок поддерживает
-    // не более 10 виджетов, а у нас их 11.
+    // Разбито на под-блоки: один @WidgetBundleBuilder-блок поддерживает не
+    // более 10 виджетов, а у нас их 19.
     @WidgetBundleBuilder
     var body: some Widget {
         coreWidgets
         photoWidgets
+        newWidgets
     }
 
     @WidgetBundleBuilder
@@ -37,6 +38,22 @@ struct TogetherlyWidgetBundle: WidgetBundle {
             PartnerPhotoWidgetConfigurable()
             PhotoDayWidgetConfigurable()
         }
+    }
+
+    /// Новый каталог — восемь виджетов, до июля жившие только на Android.
+    /// Данные им пишет тот же `home_widget`, поэтому Dart-сторона не менялась:
+    /// ключи `together_*`, `note_*`, `miss_*`, `tgmood_*`, `tgcd_*`, `ring_*`
+    /// и `grid_*` уже лежат в общем контейнере App Group.
+    @WidgetBundleBuilder
+    var newWidgets: some Widget {
+        TogetherWidget()
+        NoteWidget()
+        NotePaperWidget()
+        MissWidget()
+        MoodTilesWidget()
+        CountdownWidget()
+        YearRingWidget()
+        YearGridWidget()
     }
 }
 
