@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../services/locale_service.dart';
 import '../../services/watch_history_service.dart';
 import '../../services/watch_room_service.dart';
+import '../../utils/share_origin.dart';
 import '../../widgets/common/m3_loading.dart';
 
 /// Комната совместного просмотра.
@@ -48,7 +49,12 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
   String get _inviteUrl => WatchRoomService.siteUrl(widget.room);
 
   Future<void> _share() async {
-    await Share.share(_inviteUrl);
+    // Без якоря на iPad лист не открывается вовсе, и кнопка выглядит мёртвой —
+    // ровно за это прилетал реджект 2.1(a) по «Scan to Connect».
+    await Share.share(
+      _inviteUrl,
+      sharePositionOrigin: shareOriginFromContext(context),
+    );
   }
 
   Future<void> _copy() async {
