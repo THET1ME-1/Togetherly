@@ -15,7 +15,8 @@ const String ruWhatsNew =
     '— «Поделиться» из магазина открывает форму с готовой ссылкой.\n'
     '— Отметка «дарю» на вещи партнёра: он её не видит.\n'
     '— Совместный просмотр больше не перематывает видео сам.\n'
-    '— Холст в рисовалке не убегает, когда убираешь палец.';
+    '— Холст в рисовалке не убегает, когда убираешь палец.\n'
+    '— Задания дня: три штуки, закрываются пином в ленте.';
 
 const String enWhatsNew =
     'Things in your wish list 💜\n'
@@ -24,4 +25,5 @@ const String enWhatsNew =
     '— Sharing from a shop opens the form with the link already in.\n'
     "— Mark your partner's item as “gifting” — they won't see it.\n"
     '— Watching together no longer rewinds the video on its own.\n'
-    '— The drawing canvas stays put when you lift a finger.';
+    '— The drawing canvas stays put when you lift a finger.\n'
+    '— Daily tasks: three a day, closed by a pin in the feed.';
