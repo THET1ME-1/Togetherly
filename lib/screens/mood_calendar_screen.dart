@@ -19,6 +19,7 @@ import '../theme/cycle_colors.dart';
 import '../utils/cycle_math.dart';
 import '../widgets/cycle/cycle_tips_strip.dart';
 import '../widgets/cycle_analytics.dart';
+import '../widgets/mood/mood_ring_stats.dart';
 import '../widgets/mood_image.dart';
 import 'home/widgets/day_log_sheet.dart';
 
@@ -576,7 +577,8 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        if (stats.isNotEmpty) _buildStatsBar(stats),
+        if (stats.isNotEmpty)
+          MoodRingStats(counts: stats, scheme: Theme.of(context).colorScheme),
         const SizedBox(height: 16),
         if (entries.isNotEmpty) _buildAnalytics(scheme, entries),
         if (!isPartner && CycleService.unlockedFor(widget.userData))
@@ -1192,74 +1194,6 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
       ));
     }
     return Column(children: rows);
-  }
-
-  // ═══════════════════════════════════════════
-  //  СТОЛБЕЦ РАСПРЕДЕЛЕНИЯ
-  // ═══════════════════════════════════════════
-
-  Widget _buildStatsBar(Map<String, int> stats) {
-    final total = stats.values.fold(0, (a, b) => a + b);
-    if (total == 0) return const SizedBox.shrink();
-
-    final sorted = stats.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          height: 24,
-          decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
-          clipBehavior: Clip.antiAlias,
-          child: Row(
-            children: sorted.map((e) {
-              final mood = MoodOption.byId(e.key);
-              final fraction = e.value / total;
-              return Expanded(
-                flex: (fraction * 1000).round(),
-                child: Container(color: mood?.color ?? Colors.grey),
-              );
-            }).toList(),
-          ),
-        ),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 12,
-          runSpacing: 6,
-          children: sorted.map((e) {
-            final mood = MoodOption.byId(e.key);
-            final pct = ((e.value / total) * 100).round();
-            return Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: mood?.color ?? Colors.grey,
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                if (mood != null)
-                  if (mood.imagePath.isNotEmpty)
-                    MoodImage(mood.imagePath, width: 20, height: 20),
-                const SizedBox(width: 4),
-                Text(
-                  '$pct%',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: widget.theme.textSecondary,
-                  ),
-                ),
-              ],
-            );
-          }).toList(),
-        ),
-      ],
-    );
   }
 
   // ═══════════════════════════════════════════
