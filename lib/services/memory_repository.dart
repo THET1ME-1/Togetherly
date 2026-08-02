@@ -5,6 +5,7 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 import '../models/comment.dart';
 import '../models/memory.dart';
 import 'analytics_service.dart';
+import 'daily_task_service.dart';
 import 'level_service.dart';
 import 'offline/local_store.dart';
 import 'offline/outbox_service.dart';
@@ -166,6 +167,9 @@ class MemoryRepository {
         {'groupId': groupId, 'field': 'memories_count', 'by': 1});
     // XP/аналитика — best-effort (онлайн); офлайн просто не начислится.
     unawaited(LevelService.instance.award(XpAction.addMemory));
+    // Задание дня закрывается тем же пином: тип совпал — задание засчитано,
+    // монету выдаёт сервер. Пин чужого типа не делает ничего.
+    unawaited(DailyTaskService.instance.onMemoryCreated(type));
     unawaited(AnalyticsService.instance.logMemoryAdded(type: type.name));
     return memory;
   }

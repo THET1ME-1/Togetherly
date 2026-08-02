@@ -326,6 +326,45 @@ routerAdd("POST", "/api/coins/ad-reward", (e) => {
   return e.json(out.s, out.b);
 }, $apis.requireAuth());
 
+// ── Награда за задание дня (1 монета, не больше трёх в сутки) ────────────────
+//
+// Набор дня клиент считает сам из даты и id пары, поэтому сервер не пересчитывает
+// его заново — он сторожит другое: чтобы за сутки не пришло больше трёх наград и
+// чтобы одно задание не оплатили дважды. Без этого «выполнил» превращается в
+// бесконечную кнопку начисления.
+routerAdd("POST", "/api/coins/task-reward", (e) => {
+  const PER_DAY = 3;
+  const body = e.requestInfo().body || {};
+  const taskId = String(body.task_id || "").trim();
+  if (!taskId || taskId.length > 64) {
+    return e.json(400, { ok: false, error: "task_id required" });
+  }
+  let out;
+  try {
+    $app.runInTransaction((txApp) => {
+      const rec = txApp.findRecordById("users", e.auth.id);
+      const today = new Date().toISOString().slice(0, 10);
+      const sameDay = rec.getString("task_rewards_date") === today;
+      const paid = sameDay ? String(rec.getString("task_rewards_ids") || "").split(",") : [];
+      if (paid.indexOf(taskId) !== -1) {
+        out = { s: 200, b: { ok: false, already: true, coins: rec.getInt("coins") || 0 } };
+        return;
+      }
+      if (paid.filter(Boolean).length >= PER_DAY) {
+        out = { s: 200, b: { ok: false, rateLimited: true, coins: rec.getInt("coins") || 0 } };
+        return;
+      }
+      const coins = (rec.getInt("coins") || 0) + 1;
+      rec.set("coins", coins);
+      rec.set("task_rewards_date", today);
+      rec.set("task_rewards_ids", paid.filter(Boolean).concat([taskId]).join(","));
+      txApp.save(rec);
+      out = { s: 200, b: { ok: true, coins: coins, awarded: 1 } };
+    });
+  } catch (err) { return e.json(500, { ok: false, error: "tx failed" }); }
+  return e.json(out.s, out.b);
+}, $apis.requireAuth());
+
 // ── Дев-коины (1000, только dev-email, единожды) ──────────────────────────────
 routerAdd("POST", "/api/coins/dev-coins", (e) => {
   const DEV_EMAIL = "badzoff@gmail.com", AMOUNT = 1000;

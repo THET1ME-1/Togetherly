@@ -40,6 +40,7 @@ import '../models/mascot_sleep.dart';
 import '../services/catalog_service.dart';
 import '../widgets/mascot/pixel_mascot_view.dart';
 import '../widgets/home/quiet_partner_card.dart';
+import '../widgets/home/daily_tasks_card.dart';
 import '../widgets/home/wishes_card.dart';
 import '../services/shared_link_service.dart';
 import 'wishes_screen.dart';
@@ -83,6 +84,7 @@ import 'plus_screen.dart';
 import 'profile_screen.dart';
 import '../theme/profile_theme.dart';
 import '../services/cycle_service.dart';
+import '../services/daily_task_service.dart';
 import '../services/platform_tag.dart';
 import '../services/plus_service.dart';
 import '../services/home_widget_service.dart';
@@ -609,6 +611,11 @@ class _HomeScreenState extends State<HomeScreen> {
           groupId: _pairData.pairId,
           partnerUid: _pairData.partnerUid,
         ));
+
+        // Задания дня: набор считается из даты и пары, с сервера нужен только
+        // прогресс — он приезжает в записи группы.
+        DailyTaskService.instance.bind(groupId: _pairData.pairId);
+        unawaited(DailyTaskService.instance.refresh());
 
         // Bind widget service to group for Firestore sync
         await _widgetService.bindToGroup(_pairData.pairId);
@@ -1568,6 +1575,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   // «Хочу с тобой»: общий список желаний пары. Стоит после
                   // карты — это раздел, а не событие дня, и наверх лезть ему
                   // незачем.
+                  AnimatedSlideIn(
+                    delay: const Duration(milliseconds: 260),
+                    child: DailyTasksCard(
+                      groupId: _pairData.pairId,
+                      partnerName: _pairData.partnerDisplayName,
+                    ),
+                  ),
                   if (_wishesEnabled)
                     AnimatedSlideIn(
                       delay: const Duration(milliseconds: 280),

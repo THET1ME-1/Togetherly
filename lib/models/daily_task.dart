@@ -571,3 +571,87 @@ class DailyTask {
         'A video to watch with {p}'),
   ];
 }
+
+/// Сколько заданий в наборе на день.
+const int kDailyTaskCount = 3;
+
+/// Набор заданий на день для конкретной пары.
+///
+/// Сервер в выборе не участвует: набор считается из даты и id пары, поэтому у
+/// обоих партнёров он совпадает без единого запроса, а назавтра меняется сам.
+/// Типы пинов в наборе разные — три задания «сделай фото» подряд читаются как
+/// одно и то же задание трижды.
+List<DailyTask> dailyTasksFor({required DateTime day, required String pairId}) {
+  final key = '${day.toUtc().toIso8601String().substring(0, 10)}|$pairId';
+  // Хэш строки: нужен устойчивый и одинаковый на обеих платформах, поэтому
+  // считаем сами, а не через hashCode — он не обещает стабильности между
+  // запусками.
+  var seed = 2166136261;
+  for (final unit in key.codeUnits) {
+    seed = (seed ^ unit) * 16777619 & 0x7FFFFFFF;
+  }
+
+  final pool = List<DailyTask>.from(DailyTask.all);
+  final picked = <DailyTask>[];
+  final usedTypes = <MemoryType>{};
+  var cursor = seed;
+  var guard = 0;
+  while (picked.length < kDailyTaskCount && guard < pool.length * 4) {
+    guard++;
+    cursor = (cursor * 1103515245 + 12345) & 0x7FFFFFFF;
+    final task = pool[cursor % pool.length];
+    if (usedTypes.contains(task.type)) continue;
+    usedTypes.add(task.type);
+    picked.add(task);
+  }
+  return picked;
+}
+
+/// Какое задание закрывает только что созданный пин.
+///
+/// Возвращает id закрытого задания или null: пин чужого типа и повторный пин
+/// уже закрытого задания монету не приносят.
+String? closeByMemory({
+  required List<DailyTask> tasks,
+  required Set<String> alreadyDone,
+  required MemoryType type,
+}) {
+  for (final task in tasks) {
+    if (task.type == type && !alreadyDone.contains(task.id)) return task.id;
+  }
+  return null;
+}
+
+/// Что пара успела сегодня. Дата хранится строкой: прогресс живёт сутки и на
+/// следующий день начинается с чистого листа.
+class DailyTaskProgress {
+  const DailyTaskProgress({required this.date, required this.done});
+
+  const DailyTaskProgress.empty() : date = '', done = const {};
+
+  final String date;
+  final Set<String> done;
+
+  static String dayKey(DateTime day) =>
+      day.toUtc().toIso8601String().substring(0, 10);
+
+  Set<String> doneOn(DateTime day) => date == dayKey(day) ? done : const {};
+
+  DailyTaskProgress withDone(String id, DateTime day) {
+    final key = dayKey(day);
+    return DailyTaskProgress(
+      date: key,
+      done: date == key ? {...done, id} : {id},
+    );
+  }
+
+  factory DailyTaskProgress.fromMap(Map<String, dynamic> map) =>
+      DailyTaskProgress(
+        date: (map['date'] ?? '').toString(),
+        done: {
+          for (final v in (map['done'] as List? ?? const [])) v.toString(),
+        },
+      );
+
+  Map<String, dynamic> toMap() => {'date': date, 'done': done.toList()};
+}

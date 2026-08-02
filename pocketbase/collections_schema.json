@@ -148,6 +148,12 @@
           "maxSize": 5000000
         },
         {
+          "name": "daily_tasks",
+          "type": "json",
+          "required": false,
+          "maxSize": 20000
+        },
+        {
           "name": "xp",
           "type": "number",
           "required": false

@@ -63,6 +63,11 @@ class PbCoinsService {
 
   Future<Map<String, dynamic>?> dailyBonus() => _call('daily-bonus');
   Future<Map<String, dynamic>?> memoryReward() => _call('memory-reward');
+
+  /// Монета за закрытое задание дня. Сервер сам следит, чтобы за сутки их
+  /// вышло не больше трёх и чтобы одно задание не оплатили дважды.
+  Future<Map<String, dynamic>?> taskReward(String taskId) =>
+      _call('task-reward', {'task_id': taskId});
   Future<Map<String, dynamic>?> adReward() => _call('ad-reward');
 
   /// Разовая dev-выдача. НЕ через [_call]: тот схлопывает любую ошибку в null,

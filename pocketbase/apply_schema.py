@@ -81,6 +81,10 @@ USERS_CUSTOM = [
     date("updated_at"), date("last_daily_bonus_at"),
     date("last_memory_reward_at"), text("ad_rewards_date"),
     number("ad_rewards_today"), boolean("dev_coins_granted"),
+    # Задания дня: за какой день считаны награды и какие задания уже оплачены.
+    # Строкой через запятую, а не json: список из трёх коротких id, а сравнение
+    # строк в JSVM надёжнее разбора массива.
+    text("task_rewards_date"), text("task_rewards_ids"),
     boolean("partner_invite_reward_granted"),
     jsonf("partner_invite_rewarded_keys"), jsonf("mood_streak_rewards"),
     # Кулдауны коин-наград — epoch-ms (number, а не date): надёжнее в pb_hooks
