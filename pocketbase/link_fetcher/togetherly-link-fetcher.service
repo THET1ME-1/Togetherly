@@ -1,0 +1,17 @@
+[Unit]
+Description=Togetherly link fetcher (превью товара по ссылке)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/pocketbase/link_fetcher/fetcher.py
+Restart=always
+RestartSec=3
+# Сервис только тянет чужие страницы: свой диск ему не нужен, привилегии тоже.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

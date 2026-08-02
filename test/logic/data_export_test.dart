@@ -76,5 +76,49 @@ void main() {
     test('архив сериализуется в json', () {
       expect(() => jsonEncode(bundle()), returnsNormally);
     });
+
+    test('чужие записи в архив не попадают', () {
+      // Право доступа даёт копию СВОИХ данных. Партнёрский профиль и его
+      // сообщения — данные другого человека, и в машиночитаемом архиве им
+      // не место: файл уходит куда угодно одним нажатием.
+      final b = buildExportBundle(
+        takenAt: now,
+        appVersion: '1.23.0+159',
+        uid: 'me',
+        ownedById: const {'profile'},
+        sections: {
+          'messages': [
+            {'id': 'm1', 'author_uid': 'me', 'text': 'моё'},
+            {'id': 'm2', 'author_uid': 'partner', 'text': 'чужое'},
+          ],
+          'profile': [
+            {'id': 'me', 'name': 'Я'},
+            {'id': 'partner', 'name': 'Партнёр'},
+          ],
+        },
+      );
+      final messages = (b['data'] as Map)['messages'] as List;
+      final profile = (b['data'] as Map)['profile'] as List;
+      expect(messages.length, 1);
+      expect(messages.single['text'], 'моё');
+      expect(profile.length, 1);
+      expect(profile.single['name'], 'Я');
+    });
+
+    test('общая запись без автора остаётся', () {
+      // У желаний и таймеров автора может не быть вовсе — это общее имущество
+      // пары, и вырезать их значило бы отдать неполный архив.
+      final b = buildExportBundle(
+        takenAt: now,
+        appVersion: '1.23.0+159',
+        uid: 'me',
+        sections: {
+          'timers': [
+            {'id': 't1', 'title': 'до встречи'},
+          ],
+        },
+      );
+      expect(((b['data'] as Map)['timers'] as List).length, 1);
+    });
   });
 }

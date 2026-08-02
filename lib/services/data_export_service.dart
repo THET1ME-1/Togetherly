@@ -51,6 +51,9 @@ class DataExportService {
         takenAt: DateTime.now(),
         appVersion: '${info.version}+${info.buildNumber}',
         uid: uid,
+        // В кэше лежат записи обоих: и профиль партнёра, и его сообщения.
+        // Право доступа — про свои данные, поэтому чужое в архив не идёт.
+        ownedById: const {'profile'},
         sections: data,
       );
 

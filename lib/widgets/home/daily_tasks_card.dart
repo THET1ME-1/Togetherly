@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/daily_task.dart';
+import '../../models/symbol_catalog.dart';
 import '../../services/daily_task_service.dart';
 import '../../services/locale_service.dart';
 import '../../theme/fonts.dart';
@@ -174,10 +175,17 @@ class _TaskRow extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: 8),
-        Text(
-          task.emoji,
-          style: const TextStyle(fontSize: 16),
+        const SizedBox(width: 10),
+        // Значок типа пина — Material Symbols, как везде в интерфейсе.
+        // Эмодзи здесь выбивались из набора: своя палитра, свой вес, своя
+        // отрисовка на каждом телефоне.
+        Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: SymbolIcon(
+            task.symbol,
+            size: 19,
+            color: done ? scheme.onSurfaceVariant : scheme.primary,
+          ),
         ),
       ],
     );

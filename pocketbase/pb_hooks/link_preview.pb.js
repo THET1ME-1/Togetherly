@@ -10,9 +10,15 @@
 /// `product:price:amount`, `product:price:currency`, плюс JSON-LD Product и
 /// `itemprop="price"`. Что не нашли — оставляем клиенту, он даст вписать руками.
 ///
-/// ГРАНИЦЫ: ходим только по http(s), тянем не больше 512 КБ и не дольше 8 с,
-/// внутренние адреса не трогаем. Это не парсер магазинов, а помощник: у кого
-/// og-тегов нет, тот заполнит карточку сам.
+/// ГРАНИЦЫ: страницу тянет НЕ этот хук, а `link_fetcher` на 127.0.0.1:8110.
+/// Раньше запрос делал сам хук: адрес проверялся перед вызовом, но клиент PB
+/// молча идёт по редиректам, и проверка обходилась в один шаг — внешний сервер
+/// отвечал `302 Location: http://127.0.0.1:9988/`, и пользователю возвращалось
+/// содержимое службы, доступной только с localhost (проверено живьём 2 августа
+/// 2026). Фетчер разбирает редиректы вручную и резолвит каждый хоп в IP.
+/// Здесь остался разбор разметки — он безопасен и держится рядом с форматом
+/// ответа. Это не парсер магазинов, а помощник: у кого og-тегов нет, тот
+/// заполнит карточку сам.
 ///
 /// ВАЖНО (PB JSVM): всё внутри обработчика — модульный уровень ему не виден.
 /// Регулярки без `\p{...}`: этот движок их не понимает (см. invite_web.pb.js).
@@ -48,20 +54,22 @@ routerAdd("GET", "/api/link/preview", (e) => {
 
   let html = "";
   try {
+    // Адрес пользователя уходит параметром на фиксированный localhost-сервис:
+    // сам хук в интернет больше не ходит, поэтому подменить адрес редиректом
+    // нечем.
     const res = $http.send({
       method: "GET",
-      url: raw,
-      timeout: 8,
-      headers: {
-        // Без человеческого UA половина магазинов отдаёт заглушку.
-        "User-Agent": "Mozilla/5.0 (compatible; TogetherlyBot/1.0; +https://togetherly.duckdns.org)",
-        "Accept-Language": "ru,en;q=0.8",
-      },
+      url: "http://127.0.0.1:8110/preview?url=" + encodeURIComponent(raw),
+      timeout: 12,
     });
     if (res.statusCode >= 400) {
-      return e.json(200, { success: false, message: "shop answered " + res.statusCode });
+      return e.json(200, { success: false, message: "fetch failed" });
     }
-    html = String(res.raw || "");
+    const payload = JSON.parse(String(res.raw || "{}"));
+    if (!payload.ok) {
+      return e.json(200, { success: false, message: String(payload.error || "fetch failed") });
+    }
+    html = String(payload.html || "");
   } catch (err) {
     return e.json(200, { success: false, message: "fetch failed" });
   }

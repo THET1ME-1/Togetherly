@@ -1,6 +1,9 @@
 import 'dart:async';
 
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/daily_task.dart';
 import '../models/memory.dart';
@@ -22,6 +25,8 @@ class DailyTaskService extends ChangeNotifier {
   DailyTaskService._();
   static final DailyTaskService instance = DailyTaskService._();
   factory DailyTaskService() => instance;
+
+  static const String _prefsKey = 'daily_tasks_progress';
 
   final PbDataService _data = PbDataService();
 
@@ -48,6 +53,38 @@ class DailyTaskService extends ChangeNotifier {
     _groupId = groupId;
     _progress = const DailyTaskProgress.empty();
     notifyListeners();
+    unawaited(_loadLocal());
+  }
+
+  /// Прогресс на устройстве. Без сети запись в группу не уходит, и до этой
+  /// копии галочки пропадали при первом же перезапуске: монета выдана, а
+  /// задание снова выглядит несделанным.
+  Future<void> _loadLocal() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('$_prefsKey:$_groupId');
+      if (raw == null || raw.isEmpty) return;
+      final local = DailyTaskProgress.fromMap(
+          Map<String, dynamic>.from(jsonDecode(raw) as Map));
+      // Серверный прогресс главнее: у партнёра могли закрыться другие задания.
+      if (_progress.doneOn(DateTime.now()).isEmpty) {
+        _progress = local;
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('DailyTaskService._loadLocal failed: $e');
+    }
+  }
+
+  Future<void> _saveLocal() async {
+    if (_groupId.isEmpty) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+          '$_prefsKey:$_groupId', jsonEncode(_progress.toMap()));
+    } catch (e) {
+      debugPrint('DailyTaskService._saveLocal failed: $e');
+    }
   }
 
   /// Подтягивает прогресс из записи группы. Отдельный поток заводить не за чем:
@@ -57,7 +94,10 @@ class DailyTaskService extends ChangeNotifier {
     if (_groupId.isEmpty) return;
     try {
       final rec = await _data.loadGroupById(_groupId);
-      if (rec != null) applyGroupRaw(Map<String, dynamic>.from(rec.data));
+      if (rec != null) {
+        applyGroupRaw(Map<String, dynamic>.from(rec.data));
+        unawaited(_saveLocal());
+      }
     } catch (e) {
       debugPrint('DailyTaskService.refresh failed: $e');
     }
@@ -90,6 +130,7 @@ class DailyTaskService extends ChangeNotifier {
     _progress = _progress.withDone(closedId, now);
     notifyListeners();
 
+    unawaited(_saveLocal());
     unawaited(_data.updateGroupFields(_groupId, {
       'daily_tasks': _progress.toMap(),
     }));

@@ -32,6 +32,30 @@ class DailyTask {
     return raw.replaceAll('{p}', p);
   }
 
+  /// Значок типа пина из Material Symbols — тем же набором, что и остальной
+  /// интерфейс. Эмодзи рядом оставлены для уведомлений: в системной шторке
+  /// шрифта символов нет.
+  String get symbol {
+    switch (type) {
+      case MemoryType.photo:
+        return 'photo_camera';
+      case MemoryType.video:
+        return 'videocam';
+      case MemoryType.location:
+        return 'location_on';
+      case MemoryType.music:
+        return 'music_note';
+      case MemoryType.text:
+        return 'edit_note';
+      case MemoryType.videoLink:
+        return 'smart_display';
+      case MemoryType.book:
+        return 'menu_book';
+      case MemoryType.movie:
+        return 'theaters';
+    }
+  }
+
   /// Эмодзи типа пина (переиспользуем [Memory.typeEmoji] через фиктивный доступ
   /// к таблице эмодзи — сам маппинг живёт в модели памяти).
   String get emoji {
