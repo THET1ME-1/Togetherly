@@ -16,7 +16,8 @@ const String ruWhatsNew =
     '— Отметка «дарю» на вещи партнёра: он её не видит.\n'
     '— Совместный просмотр больше не перематывает видео сам.\n'
     '— Холст в рисовалке не убегает, когда убираешь палец.\n'
-    '— Задания дня: три штуки, закрываются пином в ленте.';
+    '— Задания дня: три штуки, закрываются пином в ленте.\n'
+    '— Статистика настроений кольцом: сразу видно, чего было больше.';
 
 const String enWhatsNew =
     'Things in your wish list 💜\n'
@@ -26,4 +27,5 @@ const String enWhatsNew =
     "— Mark your partner's item as “gifting” — they won't see it.\n"
     '— Watching together no longer rewinds the video on its own.\n'
     '— The drawing canvas stays put when you lift a finger.\n'
-    '— Daily tasks: three a day, closed by a pin in the feed.';
+    '— Daily tasks: three a day, closed by a pin in the feed.\n'
+    '— Mood stats as a ring: what prevailed is visible at a glance.';
