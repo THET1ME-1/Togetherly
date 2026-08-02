@@ -157,26 +157,30 @@ class _MoodChip extends StatelessWidget {
         alpha: 0.35);
 
     return Container(
-      padding: EdgeInsets.fromLTRB(6, 5, compact ? 10 : 12, 5),
+      width: compact ? null : double.infinity,
+      padding: EdgeInsets.fromLTRB(6, 5, compact ? 10 : 14, 5),
       decoration: BoxDecoration(
         color: scheme.surfaceContainer,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: compact ? MainAxisSize.min : MainAxisSize.max,
         children: [
           Container(
-            width: 26,
-            height: 26,
+            width: 28,
+            height: 28,
             decoration: BoxDecoration(color: tint, shape: BoxShape.circle),
             alignment: Alignment.center,
+            // Картинки настроений квадратные, и углы торчали из круглой
+            // подложки. Клипаем по кругу, а не подгоняем каждую вручную.
             child: mood != null && mood.imagePath.isNotEmpty
-                ? MoodImage(mood.imagePath, width: 18, height: 18)
+                ? ClipOval(
+                    child: MoodImage(mood.imagePath, width: 24, height: 24))
                 : null,
           ),
           const SizedBox(width: 8),
           if (!compact) ...[
-            Flexible(
+            Expanded(
               child: Text(
                 mood?.localizedLabel ?? slice.id,
                 maxLines: 1,
