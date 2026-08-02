@@ -343,6 +343,10 @@ class OutboxService {
       case 'wishMark':
       case 'wishDelete':
         return k('wishes', p['id']);
+      case 'wishReserve':
+        return k('wish_reservations', (p['res'] as Map?)?['id']);
+      case 'wishReserveDelete':
+        return k('wish_reservations', p['id']);
       case 'wishCategoryUpsert':
         return k('wish_categories', (p['kind'] as Map?)?['id']);
       case 'wishCategoryDelete':
@@ -528,6 +532,10 @@ class OutboxService {
       case 'wishCategoryUpsert':
         return _replaceOrMerge(db, type, p,
             (a, b) => (a['kind'] as Map?)?['id'] == (b['kind'] as Map?)?['id']);
+      // «Дарю» нажимают туда-обратно: серверу нужно последнее состояние.
+      case 'wishReserve':
+        return _replaceOrMerge(db, type, p,
+            (a, b) => (a['res'] as Map?)?['id'] == (b['res'] as Map?)?['id']);
       case 'memoryDelete':
         // create+delete аннигиляция: убрать ещё не отправленный memoryUpsert того
         // же id (создавать-затем-удалять на сервере не нужно). Сам delete ставим
@@ -648,6 +656,13 @@ class OutboxService {
         );
       case 'wishDelete':
         return data.deleteWish(p['id'] as String? ?? '');
+      case 'wishReserve':
+        return data.upsertWishReservation(
+          p['groupId'] as String? ?? '',
+          Map<String, dynamic>.from(p['res'] as Map? ?? const {}),
+        );
+      case 'wishReserveDelete':
+        return data.deleteWishReservation(p['id'] as String? ?? '');
       case 'wishCategoryUpsert':
         return data.upsertWishCategory(
           p['groupId'] as String? ?? '',

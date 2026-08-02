@@ -41,6 +41,8 @@ import '../services/catalog_service.dart';
 import '../widgets/mascot/pixel_mascot_view.dart';
 import '../widgets/home/quiet_partner_card.dart';
 import '../widgets/home/wishes_card.dart';
+import '../services/shared_link_service.dart';
+import 'wishes_screen.dart';
 import 'invite_partner_screen.dart';
 import '../services/deep_link_service.dart';
 import '../services/media_service.dart';
@@ -167,6 +169,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _openPairEditorOnWidgetsTab = false;
 
   StreamSubscription? _deepLinkSub;
+  StreamSubscription<String>? _sharedLinkSub;
 
   // -- Pair data --
   final PairData _pairData = PairData();
@@ -268,6 +271,14 @@ class _HomeScreenState extends State<HomeScreen> {
     HomeWidget.widgetClicked.listen(_onWidgetClicked);
 
     // Listen to deep link invites
+    _sharedLinkSub = SharedLinkService.instance.linkStream.listen(_openSharedLink);
+    // Ссылка могла прийти до того, как главная смонтировалась: на холодном
+    // старте «Поделиться» опережает первый кадр.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final pending = SharedLinkService.instance.consumePending();
+      if (pending != null && pending.isNotEmpty) _openSharedLink(pending);
+    });
+
     _deepLinkSub = DeepLinkService().inviteCodeStream.listen((code) {
       if (mounted && !_pairData.isPaired) {
         // Открываем вкладку подключения (индекс 2 — ConnectPartnerScreen в
@@ -337,6 +348,31 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// Ссылка из «Поделиться»: открываем «Хочу с тобой» и сразу форму вещи.
+  ///
+  /// Без пары раздела нет вовсе — тогда молчим: человек делится товаром, а
+  /// получает экран подключения, и это выглядит поломкой, а не подсказкой.
+  void _openSharedLink(String url) {
+    if (!mounted || url.isEmpty) return;
+    if (!_pairData.isPaired || _pairData.pairId.isEmpty) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => WishesScreen(
+          theme: _t,
+          groupId: _pairData.pairId,
+          myUid: PocketBaseService().userId ?? '',
+          myName: widget.userData.displayName,
+          partnerUid: _pairData.partnerUid,
+          partnerName: _pairData.partnerDisplayName,
+          myAvatarUrl: widget.userData.avatarUrl,
+          partnerAvatarUrl: _pairData.partnerAvatarUrl,
+          sharedUrl: url,
+        ),
+        settings: const RouteSettings(name: '/wishes'),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     final giftsOff = _giftsUnsub;
@@ -347,6 +383,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _syncMoodWidgetDebounce?.cancel();
     _moodStreakRewardDebounce?.cancel();
     _deepLinkSub?.cancel();
+    _sharedLinkSub?.cancel();
     _memorySub?.cancel();
     _achievementSub?.cancel();
     _partnerPresenceSub?.cancel();

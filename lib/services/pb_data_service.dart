@@ -1456,6 +1456,45 @@ class PbDataService {
     }
   }
 
+  /// Свои отметки «дарю». Фильтр только по группе намеренно: правило
+  /// коллекции отдаёт записи с `uid = auth.id` и ничего больше, так что
+  /// чужого сюда не приедет, даже если попросить.
+  Future<List<RecordModel>> loadWishReservations(String groupId) async {
+    if (groupId.isEmpty) return const [];
+    try {
+      return await _pb.collection('wish_reservations').getFullList(
+            filter: _pb.filter('group_id = {:g}', {'g': groupId}),
+          );
+    } catch (e) {
+      debugPrint('PbData.loadWishReservations($groupId) failed: $e');
+      return const [];
+    }
+  }
+
+  /// Берёт вещь на себя. Запись создаётся своим id, повтор идемпотентен.
+  Future<bool> upsertWishReservation(
+      String groupId, Map<String, dynamic> res) async {
+    final id = res['id'] as String?;
+    if (id == null || id.isEmpty || groupId.isEmpty) return false;
+    return _upsertById('wish_reservations', id, {
+      'group_id': groupId,
+      'wish_id': res['wish_id'] ?? '',
+      'uid': res['uid'] ?? '',
+    }, op: 'upsertWishReservation');
+  }
+
+  Future<bool> deleteWishReservation(String id) async {
+    if (id.isEmpty) return false;
+    try {
+      await _pb.collection('wish_reservations').delete(id);
+      return true;
+    } catch (e) {
+      if (e is ClientException && e.statusCode == 404) return true;
+      debugPrint('PbData.deleteWishReservation($id) failed: $e');
+      return false;
+    }
+  }
+
   // ══════════════════════════════════════════════ TIMERS
   // Групповые таймеры живут json-массивом в колонке `groups.timers`; соло —
   // в `users.solo_timers`. Гранулярные правки — RMW массива (PB без транзакций;

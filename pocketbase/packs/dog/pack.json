@@ -1,0 +1,10 @@
+{
+  "id": "dog",
+  "name_ru": "Пёсик",
+  "name_en": "Puppy",
+  "tileGradient": [
+    "#E8C79A",
+    "#FFF3E2"
+  ],
+  "moods": {}
+}

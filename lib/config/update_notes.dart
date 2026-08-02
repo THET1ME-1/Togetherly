@@ -9,13 +9,19 @@
 // ============================================================
 
 const String ruWhatsNew =
-    'Больше достижений 💜\n'
+    'Вещи в списке желаний 💜\n'
     '\n'
-    '— Достижений стало 38 вместо 16, экран собран заново.\n'
-    '— Исправили ошибки.';
+    '— Своё фото у вещи: снимок с полки или скриншот.\n'
+    '— «Поделиться» из магазина открывает форму с готовой ссылкой.\n'
+    '— Отметка «дарю» на вещи партнёра: он её не видит.\n'
+    '— Совместный просмотр больше не перематывает видео сам.\n'
+    '— Холст в рисовалке не убегает, когда убираешь палец.';
 
 const String enWhatsNew =
-    'More achievements 💜\n'
+    'Things in your wish list 💜\n'
     '\n'
-    '— 38 achievements instead of 16, the screen is rebuilt.\n'
-    '— Fixed bugs.';
+    '— Your own photo for an item: a shot from the shelf or a screenshot.\n'
+    '— Sharing from a shop opens the form with the link already in.\n'
+    "— Mark your partner's item as “gifting” — they won't see it.\n"
+    '— Watching together no longer rewinds the video on its own.\n'
+    '— The drawing canvas stays put when you lift a finger.';

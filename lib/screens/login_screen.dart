@@ -1,4 +1,3 @@
-import 'dart:async' show TimeoutException;
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,6 +5,7 @@ import 'package:pocketbase/pocketbase.dart' show ClientException;
 import '../models/user_data.dart';
 import '../services/pb_auth_service.dart';
 import '../services/locale_service.dart';
+import '../utils/auth_failure.dart';
 import '../widgets/auth_widgets.dart';
 import '../theme/theme_scope.dart';
 import '../theme/profile_theme.dart';
@@ -159,14 +159,20 @@ class _LoginScreenState extends State<LoginScreen> {
   /// не различить, показываем общий «неверный email или пароль».
   String _authErrorMessage(Object e) {
     final s = LocaleService.current;
-    if (e is TimeoutException) return s.serverNotResponding;
-    if (e is ClientException) {
-      final code = e.statusCode;
-      if (code == 400 || code == 403) return s.wrongPassword;
-      if (code == 429) return s.tooManyAttempts;
-      if (code == 0 || code >= 500) return s.serverNotResponding;
-    }
-    return s.loginError(e.toString());
+    return switch (AuthFailure.of(e)) {
+      // Соединение рвут по дороге — сервер при этом жив и отвечает остальным,
+      // поэтому «сервер не отвечает» тут сбивало бы с толку.
+      AuthFailure.blockedConnection => s.connectionBlocked,
+      AuthFailure.noConnection ||
+      AuthFailure.timeout ||
+      AuthFailure.serverDown =>
+        s.serverNotResponding,
+      AuthFailure.tooManyAttempts => s.tooManyAttempts,
+      // PB отвечает одинаково и на чужую почту, и на неверный пароль —
+      // различить их нельзя, это защита от перебора адресов.
+      AuthFailure.badCredentials || AuthFailure.emailTaken => s.wrongPassword,
+      AuthFailure.unknown => s.loginError(e.toString()),
+    };
   }
 
   /// Универсальный OAuth-вход: google / apple / yandex / vk / facebook.
@@ -226,12 +232,7 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       _oauthInFlight = false;
       if (mounted) setState(() => _isLoading = false);
-      final errorMsg = e.toString();
-      if (errorMsg.contains('TimeoutException')) {
-        _showError(LocaleService.current.serverNotResponding);
-      } else {
-        _showError(LocaleService.current.loginError(errorMsg));
-      }
+      _showError(_authErrorMessage(e));
     }
   }
 

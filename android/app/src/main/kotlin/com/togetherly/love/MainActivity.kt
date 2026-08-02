@@ -16,6 +16,18 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
 
+    // «Поделиться → Togetherly»: текст со ссылкой на товар.
+    //
+    // Плагина здесь нет намеренно: receive_sharing_intent 1.9 собран под
+    // старый Kotlin-DSL Gradle и валит сборку на `kotlin()` в своём
+    // build.gradle. Приём ACTION_SEND — двадцать строк, дешевле держать своими.
+    //
+    // Текст запоминается до того, как Flutter поднимет канал: на холодном
+    // старте `configureFlutterEngine` случается позже, чем приходит интент,
+    // и без буфера ссылка терялась бы.
+    private var pendingSharedText: String? = null
+    private var sharedTextChannel: MethodChannel? = null
+
     // Dynamically-registered receiver for ACTION_USER_PRESENT.
     //
     // On Android 8.0+ implicit broadcasts declared in the manifest are NOT
@@ -33,6 +45,25 @@ class MainActivity : FlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        takeSharedText(intent)
+    }
+
+    // Приложение уже живёт в фоне: система переиспользует активность и шлёт
+    // новый интент сюда, а не в onCreate.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        takeSharedText(intent)
+        pendingSharedText?.let { text ->
+            sharedTextChannel?.invokeMethod("shared", text)
+            pendingSharedText = null
+        }
+    }
+
+    private fun takeSharedText(intent: Intent?) {
+        if (intent == null || intent.action != Intent.ACTION_SEND) return
+        if (intent.type != "text/plain") return
+        val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return
+        if (text.isNotBlank()) pendingSharedText = text
     }
 
     override fun onStart() {
@@ -59,6 +90,22 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        sharedTextChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "love_app/shared_text"
+        ).also { channel ->
+            channel.setMethodCallHandler { call, result ->
+                when (call.method) {
+                    // Первый кадр Flutter забирает то, что пришло до его старта.
+                    "consumePending" -> {
+                        result.success(pendingSharedText)
+                        pendingSharedText = null
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+        }
 
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,

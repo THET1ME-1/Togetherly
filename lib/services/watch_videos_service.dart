@@ -150,7 +150,10 @@ class WatchVideosService {
             page: 1,
             perPage: 60,
             filter: 'group_id = "$groupId"',
-            sort: '-created',
+            // Дата воспоминания лежит в created_at: автополя created у этой
+            // коллекции нет, и сортировка по нему отдавала 400 на каждый заход
+            // в комнату — видео-воспоминания не показывались ни разу.
+            sort: '-created_at',
           );
       final out = <WatchVideo>[];
       for (final r in res.items) {

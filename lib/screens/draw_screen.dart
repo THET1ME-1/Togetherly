@@ -33,6 +33,7 @@ import '../services/canvas_storage_service.dart';
 import '../services/canvas_repository.dart';
 import '../services/media_service.dart';
 import '../services/locale_service.dart';
+import '../utils/canvas_pinch.dart';
 import '../theme/app_theme.dart';
 import '../widgets/storage_image.dart';
 import '../widgets/common/app_dialog.dart';
@@ -318,6 +319,10 @@ class _DrawScreenState extends State<DrawScreen>
   // Pan / zoom / rotation
   Size _canvasSize = Size.zero;
   double _scale = 1.0;
+
+  /// Щипок на паузе: пальцев стало меньше двух и холст ждёт возвращения
+  /// второго, а не едет за оставшимся.
+  bool _pinchPaused = false;
   double _canvasRotation = 0.0; // radians
   Offset _canvasOffset = Offset.zero;
   double _baseScale = 1.0;
@@ -1141,6 +1146,7 @@ class _DrawScreenState extends State<DrawScreen>
     if (_eyedropperArmed) return;
     if (details.pointerCount < 2) return;
     _isZooming = true;
+    _pinchPaused = false;
     _rotationUnlocked = false;
     _rotationSlopUsed = 0.0;
     _cancelCurrentGesture();
@@ -1164,6 +1170,28 @@ class _DrawScreenState extends State<DrawScreen>
     if (_eyedropperArmed) return;
     if (!_isZooming && details.pointerCount < 2) return;
     _isZooming = true;
+
+    // Пальцев снова меньше двух: система продолжает слать события, а фокус
+    // скачком уезжает к оставшемуся пальцу — лист прыгал за ним и «метался
+    // туда-сюда». Пока палец один, холст стоит; вернулся второй — берём новую
+    // опору и только потом двигаем.
+    switch (pinchAction(
+        pointerCount: details.pointerCount, paused: _pinchPaused)) {
+      case PinchAction.pause:
+        _pinchPaused = true;
+        return;
+      case PinchAction.rebase:
+        _pinchPaused = false;
+        _baseScale = _scale;
+        _baseOffset = _canvasOffset;
+        _baseRotation = _canvasRotation;
+        _baseFocalPoint = details.localFocalPoint;
+        _rotationUnlocked = false;
+        _rotationSlopUsed = 0.0;
+        return;
+      case PinchAction.transform:
+        break;
+    }
 
     // Image pinch: scale + rotate the selected image
     if (_activeTool == DrawTool.image &&
@@ -1193,13 +1221,15 @@ class _DrawScreenState extends State<DrawScreen>
     final nextRotation = _rotationUnlocked
         ? _baseRotation + details.rotation - _rotationSlopUsed
         : _baseRotation;
-    final focalCanvas = _rotateOffset(
-      (_baseFocalPoint - _baseOffset) / _baseScale,
-      -_baseRotation,
+    final nextOffset = pinchOffset(
+      focal: details.localFocalPoint,
+      baseFocal: _baseFocalPoint,
+      baseOffset: _baseOffset,
+      baseScale: _baseScale,
+      nextScale: nextScale,
+      baseRotation: _baseRotation,
+      nextRotation: nextRotation,
     );
-    final nextOffset =
-        details.localFocalPoint -
-        _rotateOffset(focalCanvas * nextScale, nextRotation);
     setState(() {
       _scale = nextScale;
       _canvasRotation = nextRotation;
@@ -1209,6 +1239,7 @@ class _DrawScreenState extends State<DrawScreen>
 
   void _onScaleEnd(ScaleEndDetails _) {
     _isZooming = false;
+    _pinchPaused = false;
     // Sync image transform to Firestore after pinch ends
     if (_activeTool == DrawTool.image && _imgDragBase != null) {
       final img = _findImageById(_selectedImageId ?? '');

@@ -134,6 +134,16 @@
                       android:host="togetherly-d4856.web.app"
                       android:pathPrefix="/invite" />
             </intent-filter>
+
+            <!-- «Поделиться → Togetherly» из магазина или браузера: ссылка
+                 уезжает в «Хочу с тобой» вещью. Магазины шлют подпись целиком
+                 (название, перенос, адрес), поэтому тип text/plain, а адрес
+                 достаётся из текста уже в приложении. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
         </activity>
 
         <!-- ───── Кастомизация иконки приложения (тестовый набор: 5 тем) ─────

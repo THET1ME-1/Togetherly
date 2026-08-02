@@ -5,6 +5,7 @@ import '../../../models/cycle_entry.dart';
 import '../../../models/pair_data.dart';
 import '../../../models/user_data.dart';
 import '../../../services/cycle_service.dart';
+import 'cycle_consent_sheet.dart';
 import '../../../services/locale_service.dart';
 import '../../../services/mood_service.dart';
 import '../../../services/plus_access.dart';
@@ -312,6 +313,16 @@ class _CycleDaySheetState extends State<_CycleDaySheet> {
   ColorScheme get _cs => widget.scheme;
 
   Future<void> _toggle(CycleKind kind) async {
+    // Отметки цикла — данные о здоровье, особая категория и по закону
+    // Молдовы № 133/2011, и по GDPR. Общего «принимаю политику» при
+    // регистрации для них мало: спрашиваем отдельно и ровно один раз, перед
+    // первой отметкой.
+    if (!_cycle.consentGranted) {
+      final agreed = await showCycleConsentSheet(context, scheme: _cs);
+      if (agreed != true) return;
+      await _cycle.grantConsent();
+      if (!mounted) return;
+    }
     HapticFeedback.selectionClick();
     await _cycle.toggle(widget.day, kind);
   }

@@ -387,6 +387,8 @@ class _ChatScreenState extends State<ChatScreen> {
     _voiceElapsedSub?.cancel();
     _voiceLevelsSub?.cancel();
     _voiceLimitSub?.cancel();
+    _voiceElapsed.dispose();
+    _voiceLevels.dispose();
     if (_recording) unawaited(VoiceRecorderService.instance.cancel());
     VoicePlayerService.instance.stop();
     _controller.dispose();
@@ -567,8 +569,13 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _voiceLocked = false;
   /// Что случится, если отпустить палец прямо сейчас.
   VoiceGesture _voiceGesture = VoiceGesture.recording;
-  Duration _voiceElapsed = Duration.zero;
-  List<double> _voiceLevels = const [];
+  /// Таймер и волна записи. Отдельные нотифаеры, а не поля состояния: замеры
+  /// идут каждые 60 мс, и setState на каждый тик перестраивал весь чат вместе
+  /// со списком сообщений — интерфейс проседал до кадра в секунду.
+  final ValueNotifier<Duration> _voiceElapsed =
+      ValueNotifier<Duration>(Duration.zero);
+  final ValueNotifier<List<double>> _voiceLevels =
+      ValueNotifier<List<double>>(const []);
   StreamSubscription<Duration>? _voiceElapsedSub;
   StreamSubscription<List<double>>? _voiceLevelsSub;
   StreamSubscription<void>? _voiceLimitSub;
@@ -683,15 +690,15 @@ class _ChatScreenState extends State<ChatScreen> {
       _recording = true;
       _voiceLocked = false;
       _voiceGesture = VoiceGesture.recording;
-      _voiceElapsed = Duration.zero;
-      _voiceLevels = const [];
     });
+    _voiceElapsed.value = Duration.zero;
+    _voiceLevels.value = const [];
     final rec = VoiceRecorderService.instance;
     _voiceElapsedSub = rec.elapsed.listen((d) {
-      if (mounted) setState(() => _voiceElapsed = d);
+      if (mounted) _voiceElapsed.value = d;
     });
     _voiceLevelsSub = rec.levels.listen((l) {
-      if (mounted) setState(() => _voiceLevels = l);
+      if (mounted) _voiceLevels.value = l;
     });
     // Дошли до трёх минут — не обрываем молча, а отправляем записанное.
     _voiceLimitSub = rec.autoStopped.listen((_) {
@@ -745,8 +752,8 @@ class _ChatScreenState extends State<ChatScreen> {
       setState(() {
         _recording = false;
         _voiceLocked = false;
-        _voiceElapsed = Duration.zero;
-        _voiceLevels = const [];
+        _voiceElapsed.value = Duration.zero;
+        _voiceLevels.value = const [];
       });
     }
     if (capture == null) return;
@@ -2754,16 +2761,42 @@ class _ChatScreenState extends State<ChatScreen> {
             final cs = ProfileTheme.themeFor(_t).colorScheme;
             final hasText = _hasText;
             // Идёт запись — поле ввода уступает место полосе с таймером и
-            // волной. Возвращать его на время записи некуда: печатать всё
-            // равно нельзя, а место нужно подсказкам жеста.
+            // волной. Кнопка при этом ОСТАЁТСЯ: палец держит именно её, и
+            // вместе с ней живёт распознавание жеста. Пока её убирали из
+            // дерева, арена жеста закрывалась на первом же кадре — подсказка
+            // «влево — отмена, вверх — закрепить» висела, а вести палец было
+            // некуда и не по чему.
             if (_recording) {
-              return VoiceRecordingBar(
-                elapsed: _voiceElapsed,
-                levels: _voiceLevels,
-                gesture: _voiceGesture,
-                locked: _voiceLocked,
-                onCancel: () => _finishVoice(cancelled: true),
-                onSend: () => _finishVoice(cancelled: false),
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: VoiceRecordingBar(
+                      elapsed: _voiceElapsed,
+                      levels: _voiceLevels,
+                      gesture: _voiceGesture,
+                      locked: _voiceLocked,
+                      onCancel: () => _finishVoice(cancelled: true),
+                      onSend: () => _finishVoice(cancelled: false),
+                    ),
+                  ),
+                  if (!_voiceLocked) ...[
+                    const SizedBox(width: 8),
+                    SendMicButton(
+                      hasText: false,
+                      editing: false,
+                      primary: cs.primary,
+                      onPrimary: cs.onPrimary,
+                      idleBackground: cs.surfaceContainerHigh,
+                      idleForeground: cs.onSurfaceVariant,
+                      onSend: _send,
+                      onRecordStart: _startVoice,
+                      onRecordGesture: _onVoiceGesture,
+                      onRecordEnd: ({required cancelled, required locked}) =>
+                          _endVoice(cancelled: cancelled, locked: locked),
+                    ),
+                  ],
+                ],
               );
             }
             return Row(
@@ -3978,6 +4011,43 @@ class _StyleSheetState extends State<_StyleSheet> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _VoiceLockTarget extends StatelessWidget {
+  const _VoiceLockTarget({required this.scheme, required this.active});
+
+  final ColorScheme scheme;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      width: 40,
+      height: active ? 52 : 44,
+      decoration: BoxDecoration(
+        color: active ? scheme.primary : scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            active ? Icons.lock_rounded : Icons.lock_open_rounded,
+            size: 17,
+            color: active ? scheme.onPrimary : scheme.onSurfaceVariant,
+          ),
+          const SizedBox(height: 2),
+          Icon(
+            Icons.keyboard_arrow_up_rounded,
+            size: 14,
+            color: active ? scheme.onPrimary : scheme.onSurfaceVariant,
+          ),
+        ],
       ),
     );
   }

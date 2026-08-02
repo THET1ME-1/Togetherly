@@ -19,6 +19,7 @@ import 'home_screen.dart';
 import 'login_screen.dart';
 import 'welcome_screen.dart';
 import '../services/locale_service.dart';
+import '../utils/auth_failure.dart';
 import '../theme/theme_scope.dart';
 import '../widgets/auth_widgets.dart';
 import '../widgets/common/app_dialog.dart';
@@ -212,12 +213,16 @@ class _SetupScreenState extends State<SetupScreen>
       _oauthInFlight = false;
       if (mounted) {
         setState(() => _isLoading = false);
-        final errorMsg = e.toString();
-        if (errorMsg.contains('TimeoutException')) {
-          _showError(LocaleService.current.serverNotResponding);
-        } else {
-          _showError(LocaleService.current.googleLoginError(errorMsg));
-        }
+        final s = LocaleService.current;
+        _showError(switch (AuthFailure.of(e)) {
+          AuthFailure.blockedConnection => s.connectionBlocked,
+          AuthFailure.noConnection ||
+          AuthFailure.timeout ||
+          AuthFailure.serverDown =>
+            s.serverNotResponding,
+          AuthFailure.tooManyAttempts => s.tooManyAttempts,
+          _ => s.googleLoginError(e.toString()),
+        });
       }
     }
   }
@@ -317,29 +322,25 @@ class _SetupScreenState extends State<SetupScreen>
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        final errorMsg = e.toString();
         final s = LocaleService.current;
-        // Проверяем, не существует ли уже аккаунт с таким email.
-        // PB при дубле email кидает validation_not_unique в теле ответа.
-        if (errorMsg.contains('email-already-in-use') ||
-            errorMsg.contains('validation_not_unique') ||
-            errorMsg.contains('already exists')) {
-          _showEmailExistsDialog();
-        } else if (errorMsg.contains('TimeoutException') ||
-            errorMsg.contains('network-request-failed') ||
-            errorMsg.contains('internal-error') ||
-            errorMsg.contains('timeout')) {
-          // Частый кейс из России: нестабильное/VPN-соединение. Понятный текст
-          // вместо сырого исключения — и сервис уже сделал ретраи.
-          _showError(s.serverNotResponding);
-        } else if (errorMsg.contains('weak-password')) {
-          _showError(s.passwordMin6);
-        } else if (errorMsg.contains('invalid-email')) {
-          _showError(s.invalidEmailFormat);
-        } else if (errorMsg.contains('too-many-requests')) {
-          _showError(s.tooManyAttempts);
-        } else {
-          _showError(s.registrationError(errorMsg));
+        // Разбор один на вход и регистрацию (`AuthFailure`). Раньше причину
+        // искали подстроками в тексте исключения, и незнакомое доезжало до
+        // человека сырым — вплоть до `tls_record.cc:127` на экране.
+        switch (AuthFailure.of(e)) {
+          case AuthFailure.emailTaken:
+            _showEmailExistsDialog();
+          case AuthFailure.blockedConnection:
+            _showError(s.connectionBlocked);
+          case AuthFailure.noConnection:
+          case AuthFailure.timeout:
+          case AuthFailure.serverDown:
+            _showError(s.serverNotResponding);
+          case AuthFailure.tooManyAttempts:
+            _showError(s.tooManyAttempts);
+          case AuthFailure.badCredentials:
+            _showError(s.invalidEmailFormat);
+          case AuthFailure.unknown:
+            _showError(s.registrationError(e.toString()));
         }
       }
     }

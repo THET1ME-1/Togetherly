@@ -311,9 +311,11 @@ class _PlusScreenState extends State<PlusScreen> {
         const SizedBox(height: 10),
         SizedBox(
           width: double.infinity,
-          child: OutlinedButton(
+          // Без обводки: рамка спорила с заливкой кнопки покупки и вторая
+          // кнопка читалась равной первой. Вес ей задаёт только текст.
+          child: TextButton(
             onPressed: _busy ? null : _openRedeem,
-            style: OutlinedButton.styleFrom(
+            style: TextButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),

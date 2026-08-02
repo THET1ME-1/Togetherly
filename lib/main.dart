@@ -21,6 +21,7 @@ import 'theme/profile_theme.dart';
 import 'theme/theme_scope.dart';
 import 'services/analytics_service.dart';
 import 'services/deep_link_service.dart';
+import 'services/shared_link_service.dart';
 import 'services/pb_push_service.dart';
 import 'services/catalog_service.dart';
 import 'services/live_location_service.dart';
@@ -384,6 +385,11 @@ void main() async {
 
   // Deep links — инициализация
   DeepLinkService().init();
+
+  // «Поделиться → Togetherly»: ссылка на товар из магазина уезжает в «Хочу
+  // с тобой». Ловим до первого кадра — на холодном старте она приходит
+  // раньше, чем смонтируется главная.
+  unawaited(SharedLinkService.instance.init());
 
   // Локальное напоминание, если пользователь долго не открывает приложение
   await MascotInactivityNotificationService.instance.init();

@@ -7,6 +7,7 @@ import 'package:video_player/video_player.dart';
 import '../../services/locale_service.dart';
 import '../../services/pb_media_service.dart';
 import '../../services/pocketbase_service.dart';
+import '../../services/watch_sync.dart';
 import '../../services/watch_voice_service.dart';
 import '../../services/watch_channel_service.dart';
 import '../../services/watch_history_service.dart';
@@ -52,6 +53,12 @@ class _WatchPlayerScreenState extends State<WatchPlayerScreen>
 
   bool _ready = false;
   bool _applying = false;
+
+  /// Кто второй в комнате. Приходит с первым же сообщением партнёра и решает,
+  /// кто задаёт время: отметку шлёт ровно один, иначе двое догоняют друг
+  /// друга и видео дёргается назад каждые несколько секунд.
+  String _peer = '';
+  String _me = '';
   bool _controlsVisible = true;
   String _error = '';
 
@@ -78,6 +85,7 @@ class _WatchPlayerScreenState extends State<WatchPlayerScreen>
 
     controller.addListener(_onPlayerTick);
     final me = PocketBaseService().userId ?? 'app';
+    _me = me;
     final room = WatchChannel(widget.room, me);
     await room.connect(_onRoomMessage);
     await room.send('hello');
@@ -97,6 +105,9 @@ class _WatchPlayerScreenState extends State<WatchPlayerScreen>
     _heartbeat = Timer.periodic(const Duration(seconds: 3), (_) {
       final v = _video;
       if (v == null || !v.value.isPlaying) return;
+      // Отметку времени шлёт только ведущий. Обоюдный heartbeat и был
+      // причиной рывков: каждый прыгал назад на дорогу чужого сообщения.
+      if (!leadsSync(me: _me, peer: _peer)) return;
       room.send('sync',
           at: v.value.position.inMilliseconds / 1000, extra: {'playing': true});
     });
@@ -137,6 +148,8 @@ class _WatchPlayerScreenState extends State<WatchPlayerScreen>
     final v = _video;
     if (v == null) return;
     final at = ((data['at'] ?? 0) as num).toDouble();
+    final from = (data['from'] ?? '').toString();
+    if (from.isNotEmpty && from != _me && from != _peer) _peer = from;
 
     switch (data['t']) {
       case 'play':
@@ -146,9 +159,19 @@ class _WatchPlayerScreenState extends State<WatchPlayerScreen>
         _apply(play: false, at: at);
         break;
       case 'sync':
-        final diff = (v.value.position.inMilliseconds / 1000 - at).abs();
-        if (diff > _drift.inMilliseconds / 1000) {
-          _apply(play: data['playing'] == true, at: at);
+        // Ведущий свои же отметки не слушает: он и есть источник времени.
+        if (leadsSync(me: _me, peer: _peer)) break;
+        final target = catchUpTarget(
+          mine: v.value.position,
+          theirs: Duration(milliseconds: (at * 1000).round()),
+          playing: data['playing'] == true,
+          drift: _drift,
+        );
+        if (target != null) {
+          _apply(
+            play: data['playing'] == true,
+            at: target.inMilliseconds / 1000,
+          );
         }
         break;
       case 'hello':

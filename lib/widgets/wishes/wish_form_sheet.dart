@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../models/symbol_catalog.dart';
 import '../../models/wish.dart';
 import '../../models/wish_category.dart';
 import '../../services/locale_service.dart';
 import '../../services/pb_data_service.dart';
+import '../../services/pb_media_service.dart';
 import '../../services/plus_access.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/fonts.dart';
 import '../../theme/profile_theme.dart';
 import '../app_sheet.dart';
+import '../storage_image.dart';
 
 /// Что вернул лист: новое желание или правка старого.
 class WishDraft {
@@ -47,7 +50,10 @@ Future<WishDraft?> showWishFormSheet(
   required AppTheme theme,
   required List<WishKind> customKinds,
   required PlusGate plusGate,
+  required String groupId,
+  required String uid,
   Wish? existing,
+  String initialUrl = '',
   Future<WishKind?> Function()? onCreateCategory,
   Future<void> Function(WishKind kind)? onEditCategory,
   VoidCallback? onOfferPlus,
@@ -64,6 +70,9 @@ Future<WishDraft?> showWishFormSheet(
     builder: (_) => _WishForm(
       scheme: scheme,
       ru: ru,
+      groupId: groupId,
+      uid: uid,
+      initialUrl: initialUrl,
       existing: existing,
       customKinds: customKinds,
       plusGate: plusGate,
@@ -80,6 +89,9 @@ class _WishForm extends StatefulWidget {
     required this.ru,
     required this.customKinds,
     required this.plusGate,
+    required this.groupId,
+    required this.uid,
+    this.initialUrl = '',
     this.existing,
     this.onCreateCategory,
     this.onEditCategory,
@@ -90,6 +102,11 @@ class _WishForm extends StatefulWidget {
   final bool ru;
   final List<WishKind> customKinds;
   final PlusGate plusGate;
+  final String groupId;
+  final String uid;
+
+  /// Ссылка, пришедшая из «Поделиться»: форма открывается уже с ней.
+  final String initialUrl;
   final Wish? existing;
   final Future<WishKind?> Function()? onCreateCategory;
   final Future<void> Function(WishKind kind)? onEditCategory;
@@ -111,6 +128,18 @@ class _WishFormState extends State<_WishForm> {
 
   String _tr(String r, String e) => widget.ru ? r : e;
 
+  @override
+  void initState() {
+    super.initState();
+    // Ссылка пришла из «Поделиться» — карточку тянем сразу, человек нажал
+    // «поделиться» именно ради неё.
+    if (widget.existing == null && widget.initialUrl.isNotEmpty) {
+      _isItem = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _fetchPreview());
+    }
+    if (widget.existing?.isItem ?? false) _isItem = true;
+  }
+
   WishKind _initialKind() {
     final w = widget.existing;
     if (w == null) return kBuiltinWishKinds.first;
@@ -125,13 +154,15 @@ class _WishFormState extends State<_WishForm> {
 
   // ── Вещь ──
   /// Ссылка на товар: по ней сервер сам достаёт название, картинку и цену.
-  final TextEditingController _url = TextEditingController();
+  late final TextEditingController _url =
+      TextEditingController(text: widget.existing?.url ?? widget.initialUrl);
   final TextEditingController _price = TextEditingController();
   bool _fetching = false;
+  bool _uploading = false;
   bool _isItem = false;
-  String _image = '';
-  String _shop = '';
-  String _currency = '';
+  late String _image = widget.existing?.image ?? '';
+  late String _shop = widget.existing?.shop ?? '';
+  late String _currency = widget.existing?.currency ?? '';
 
   /// Тянет карточку товара со страницы магазина. Что не нашлось — человек
   /// вписывает сам: у половины магазинов og-тегов нет вовсе, и пустая форма
@@ -162,6 +193,79 @@ class _WishFormState extends State<_WishForm> {
         ),
       );
     }
+  }
+
+  /// Своё фото вещи: снимок с полки магазина или скриншот из приложения.
+  ///
+  /// Ссылку на картинку дают не все магазины — половина закрыта антиботом, и
+  /// без своей фотографии список превращается в одинаковые строки. Файл уходит
+  /// в хранилище и возвращается ссылкой `pb://`, её же понимает карточка.
+  Future<void> _pickPhoto(ImageSource source) async {
+    if (_uploading) return;
+    final x = await ImagePicker().pickImage(
+      source: source,
+      imageQuality: 85,
+      maxWidth: 1600,
+      maxHeight: 1600,
+    );
+    if (x == null || !mounted) return;
+    setState(() => _uploading = true);
+    final url = await PbMediaService.instance.uploadFile(
+      x.path,
+      uid: widget.uid,
+      groupId: widget.groupId,
+      kind: 'wish',
+    );
+    if (!mounted) return;
+    setState(() {
+      _uploading = false;
+      if (url != null && url.isNotEmpty) {
+        _image = url;
+        _isItem = true;
+      }
+    });
+    if (url == null && mounted) {
+      // Очереди для файлов нет намеренно: желание сохранится и без картинки,
+      // а фото добавится правкой, когда сеть вернётся.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_tr('Фото не загрузилось — попробуйте позже',
+              "The photo didn't upload — try later")),
+        ),
+      );
+    }
+  }
+
+  Future<void> _choosePhotoSource() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: _cs.surfaceContainerHigh,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            ListTile(
+              leading: Icon(Icons.photo_library_rounded, color: _cs.primary),
+              title: Text(_tr('Из галереи', 'From gallery'),
+                  style: AppFonts.onest(size: 16, color: _cs.onSurface)),
+              onTap: () => Navigator.of(sheetContext).pop(ImageSource.gallery),
+            ),
+            ListTile(
+              leading: Icon(Icons.photo_camera_rounded, color: _cs.primary),
+              title: Text(_tr('Снять', 'Take a photo'),
+                  style: AppFonts.onest(size: 16, color: _cs.onSurface)),
+              onTap: () => Navigator.of(sheetContext).pop(ImageSource.camera),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (source != null) await _pickPhoto(source);
   }
 
   @override
@@ -273,6 +377,8 @@ class _WishFormState extends State<_WishForm> {
             ),
             const SizedBox(height: 10),
             _linkField(),
+            const SizedBox(height: 10),
+            _photoButton(),
             if (_isItem) ...[
               const SizedBox(height: 10),
               _itemPreview(),
@@ -313,6 +419,40 @@ class _WishFormState extends State<_WishForm> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// Своя фотография вещи. Стоит рядом со ссылкой: половина магазинов
+  /// закрыта антиботом и картинку не отдаёт, и это единственный способ
+  /// оставить в списке не строку, а вещь.
+  Widget _photoButton() {
+    return SizedBox(
+      height: 48,
+      child: OutlinedButton.icon(
+        onPressed: _uploading ? null : _choosePhotoSource,
+        icon: _uploading
+            ? SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2.2, color: _cs.primary),
+              )
+            : Icon(_image.isEmpty
+                ? Icons.add_a_photo_outlined
+                : Icons.photo_rounded),
+        label: Text(
+          _image.isEmpty
+              ? _tr('Своё фото', 'Own photo')
+              : _tr('Заменить фото', 'Replace photo'),
+          style: AppFonts.onest(size: 14.5, weight: 600),
+        ),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: _cs.onSurfaceVariant,
+          side: BorderSide(color: _cs.outlineVariant),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
       ),
     );
@@ -400,12 +540,12 @@ class _WishFormState extends State<_WishForm> {
                     child: Icon(Icons.image_outlined,
                         color: _cs.onSurfaceVariant, size: 22),
                   )
-                : Image.network(
-                    _image,
+                : StorageImage(
+                    imageUrl: _image,
                     width: 56,
                     height: 56,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => Container(
+                    errorWidget: (_, _, _) => Container(
                       width: 56,
                       height: 56,
                       color: _cs.surfaceContainerHighest,

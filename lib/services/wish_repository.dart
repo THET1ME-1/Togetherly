@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/wish.dart';
+import '../models/wish_reservation.dart';
 import '../models/wish_category.dart';
 import 'offline/local_store.dart';
 import 'offline/outbox_service.dart';
@@ -21,6 +22,7 @@ class WishRepository {
 
   static const String _collection = 'wishes';
   static const String _categories = 'wish_categories';
+  static const String _reservations = 'wish_reservations';
 
   final PbDataService _data = PbDataService();
   final PbRealtimeService _rt = PbRealtimeService();
@@ -225,6 +227,66 @@ class WishRepository {
     if (wishId.isEmpty) return;
     await LocalStore.instance.deleteRecord(_collection, wishId);
     await OutboxService.instance.enqueue('wishDelete', {'id': wishId});
+  }
+
+  // ── «дарю»: отметки, которых автор не видит ──
+
+  /// Свои отметки. Чужих не бывает: правило коллекции отдаёт только записи
+  /// с `uid = auth.id`, поэтому сюрприз не доедет до автора ни выборкой, ни
+  /// дельтой канала пары.
+  Future<List<WishReservation>> loadReservations(String groupId) async {
+    if (groupId.isEmpty) return const [];
+    final uid = _uid ?? '';
+    try {
+      final recs = await _data.loadWishReservations(groupId);
+      final fresh = recs.map(WishReservation.fromPb).toList();
+      for (final r in fresh) {
+        await LocalStore.instance
+            .upsertRaw(_reservations, r.id, r.toMap(groupId: groupId));
+      }
+      return fresh;
+    } catch (e) {
+      debugPrint('WishRepository.loadReservations failed: $e');
+      // Без сети показываем то, что уже брали: кнопка «Дарю» не должна
+      // сбрасываться в исходное только потому, что связи нет.
+      final cached = await LocalStore.instance.allRecords(_reservations);
+      return cached
+          .map(WishReservation.fromPb)
+          .where((r) => uid.isEmpty || r.uid == uid)
+          .toList();
+    }
+  }
+
+  /// Берёт вещь на себя. Возвращает созданную отметку.
+  Future<WishReservation?> reserve({
+    required String groupId,
+    required String wishId,
+  }) async {
+    final uid = _uid;
+    if (uid == null || uid.isEmpty || groupId.isEmpty || wishId.isEmpty) {
+      return null;
+    }
+    final res = WishReservation(
+      id: newPbId(),
+      wishId: wishId,
+      uid: uid,
+      createdAt: DateTime.now(),
+    );
+    final map = res.toMap(groupId: groupId);
+    await LocalStore.instance.upsertRaw(_reservations, res.id, map);
+    await OutboxService.instance.enqueue('wishReserve', {
+      'groupId': groupId,
+      'res': map,
+    });
+    return res;
+  }
+
+  /// Передумал дарить.
+  Future<void> release(String reservationId) async {
+    if (reservationId.isEmpty) return;
+    await LocalStore.instance.deleteRecord(_reservations, reservationId);
+    await OutboxService.instance
+        .enqueue('wishReserveDelete', {'id': reservationId});
   }
 
   /// Кладёт запись местно и ставит задание в очередь.

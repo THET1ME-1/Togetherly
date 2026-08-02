@@ -135,6 +135,9 @@ abstract class AppStrings {
   String get invalidEmailFormat;
   String get tooManyAttempts;
   String get serverNotResponding;
+
+  /// Соединение ломают по дороге (TLS не доходит целым).
+  String get connectionBlocked;
   String get googleNotResponding;
   String loginError(String e);
   String googleLoginError(String e);
@@ -1302,11 +1305,24 @@ abstract class AppStrings {
   String mascotNightRange(String from, String to);
   /// Календарь цикла.
   String get cycleTitle;
+
+  /// Заголовок блока цикла в календаре партнёрши.
+  String cycleOf(String name);
   String get cycleSettingsHint;
   String get cycleShareWithPartner;
   String get cycleShareHint;
   String get cycleWipe;
   String get cycleWipeHint;
+  String get cycleConsentTitle;
+  String get cycleConsentBody;
+  String get cycleConsentAgree;
+  String get cycleConsentLater;
+  String get cycleConsentWithdraw;
+  String get cycleConsentWithdrawHint;
+  String get exportMyData;
+  String get exportMyDataHint;
+  String get exportMyDataReady;
+  String get exportMyDataFailed;
   String get cycleWipeConfirm;
   String get cycleNoDataTitle;
   String get cycleNoDataHint;
@@ -2001,6 +2017,11 @@ class _RuStrings extends AppStrings {
   String get tooManyAttempts => 'Слишком много попыток. Попробуйте позже';
   @override
   String get serverNotResponding => 'Сервер не отвечает. Проверьте интернет.';
+
+  @override
+  String get connectionBlocked =>
+      'Соединение обрывается по пути. Чаще всего мешает провайдер: '
+      'попробуйте мобильный интернет, другую сеть или VPN.';
   @override
   String get googleNotResponding => 'Google не отвечает. Проверьте интернет.';
   @override
@@ -3940,6 +3961,20 @@ class _RuStrings extends AppStrings {
 
   // ── Profile (extended) ──
   @override
+  String get cycleConsentTitle => 'Отметки цикла';
+  String get cycleConsentBody =>
+      'Даты цикла и самочувствия — данные о здоровье, поэтому спрашиваем '
+      'отдельно. Они хранятся на нашем сервере, партнёру видны только если вы '
+      'сами это включите, и удаляются в один тап. Согласие можно отозвать в '
+      'настройках — отметки сотрутся вместе с ним.';
+  String get cycleConsentAgree => 'Согласен, вести цикл';
+  String get cycleConsentLater => 'Не сейчас';
+  String get cycleConsentWithdraw => 'Отозвать согласие на цикл';
+  String get cycleConsentWithdrawHint => 'раздел закроется, отметки сотрутся';
+  String get exportMyData => 'Мои данные';
+  String get exportMyDataHint => 'скачать архив со всем, что мы храним';
+  String get exportMyDataReady => 'Архив готов';
+  String get exportMyDataFailed => 'Не получилось собрать архив';
   String get exportMemories => 'Экспорт воспоминаний';
   @override
   String get resetMissYouCount => 'Сбросить мои нажатия «Скучаю»';
@@ -4389,6 +4424,9 @@ class _RuStrings extends AppStrings {
   String mascotNightRange(String from, String to) => 'Светит с $from до $to';
   @override
   String get cycleTitle => 'Цикл';
+
+  @override
+  String cycleOf(String name) => 'Цикл $name';
   @override
   String get cycleSettingsHint => 'календарь, прогноз и доступ партнёра';
   @override
@@ -5759,6 +5797,10 @@ class _EnStrings extends AppStrings {
   @override
   String get serverNotResponding =>
       'Server not responding. Check your internet.';
+  @override
+  String get connectionBlocked =>
+      'The connection is being cut on the way. Usually it is the network '
+      'provider: try mobile data, another network or a VPN.';
   @override
   String get googleNotResponding =>
       'Google not responding. Check your internet.';
@@ -7680,6 +7722,20 @@ class _EnStrings extends AppStrings {
 
   // ── Profile (extended) ──
   @override
+  String get cycleConsentTitle => 'Cycle tracking';
+  String get cycleConsentBody =>
+      'Cycle dates and well-being are health data, so we ask separately. They '
+      'are stored on our server, your partner sees them only if you turn that '
+      'on, and they are deleted in one tap. You can withdraw consent in '
+      'settings — the entries go with it.';
+  String get cycleConsentAgree => 'Agree and track';
+  String get cycleConsentLater => 'Not now';
+  String get cycleConsentWithdraw => 'Withdraw cycle consent';
+  String get cycleConsentWithdrawHint => 'the section closes, entries are erased';
+  String get exportMyData => 'My data';
+  String get exportMyDataHint => 'download an archive of everything we store';
+  String get exportMyDataReady => 'Archive ready';
+  String get exportMyDataFailed => "Couldn't build the archive";
   String get exportMemories => 'Export Memories';
   @override
   String get resetMissYouCount => 'Reset My Miss You Taps';
@@ -8097,6 +8153,9 @@ class _EnStrings extends AppStrings {
       'Glows from $from to $to';
   @override
   String get cycleTitle => 'Cycle';
+
+  @override
+  String cycleOf(String name) => '$name\'s cycle';
   @override
   String get cycleSettingsHint => 'calendar, forecast and partner access';
   @override

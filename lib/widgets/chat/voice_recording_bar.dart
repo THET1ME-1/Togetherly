@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/voice_note.dart';
@@ -10,10 +11,16 @@ import 'send_mic_button.dart';
 /// будет при отпускании. Закрепили запись — вместо подсказки появляются «Отмена»
 /// и кнопка «Отправить»: руки свободны, говорить можно сколько нужно.
 class VoiceRecordingBar extends StatelessWidget {
-  final Duration elapsed;
+  /// Таймер и волна приходят слушателями, а не значениями.
+  ///
+  /// Замеры идут каждые 60 мс. Пока они лежали в состоянии экрана чата, на
+  /// каждый тик перестраивался весь экран со списком сообщений — запись шла
+  /// с частотой кадра в секунду. Теперь на тик отвечают только эти два
+  /// маленьких поддерева.
+  final ValueListenable<Duration> elapsed;
 
   /// Последние замеры громкости 0..1 — бегущая волна.
-  final List<double> levels;
+  final ValueListenable<List<double>> levels;
 
   /// Что случится, если сейчас отпустить палец.
   final VoiceGesture gesture;
@@ -75,24 +82,59 @@ class VoiceRecordingBar extends StatelessWidget {
               const SizedBox(width: 10),
               SizedBox(
                 width: 42,
-                child: Text(
-                  VoiceNote.formatDuration(elapsed),
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                    color: cancelling ? cs.onErrorContainer : cs.onSurface,
+                child: ValueListenableBuilder<Duration>(
+                  valueListenable: elapsed,
+                  builder: (_, value, _) => Text(
+                    VoiceNote.formatDuration(value),
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                      color: cancelling ? cs.onErrorContainer : cs.onSurface,
+                    ),
                   ),
                 ),
               ),
               Expanded(
-                child: CustomPaint(
-                  size: const Size(double.infinity, 26),
-                  painter: _LiveWavePainter(
-                    levels: levels,
-                    color: cancelling ? cs.onErrorContainer : cs.primary,
+                child: ValueListenableBuilder<List<double>>(
+                  valueListenable: levels,
+                  builder: (_, value, _) => CustomPaint(
+                    size: const Size(double.infinity, 26),
+                    painter: _LiveWavePainter(
+                      levels: value,
+                      color: cancelling ? cs.onErrorContainer : cs.primary,
+                    ),
                   ),
                 ),
               ),
+              // Куда вести палец: корзина для отмены, замок для
+              // закрепления. Одних слов мало — человек не станет вести палец
+              // непонятно куда и до какого места.
+              if (!locked) ...[
+                const SizedBox(width: 8),
+                _GestureTarget(
+                  icon: Icons.delete_outline_rounded,
+                  arrow: Icons.keyboard_arrow_left_rounded,
+                  arrowFirst: true,
+                  active: cancelling,
+                  activeBackground: cs.error,
+                  activeForeground: cs.onError,
+                  idleForeground: cs.onSurfaceVariant,
+                ),
+                // При отмене замок прячется: жест уже занят, и вторая цель
+                // в красной полосе только сбивает.
+                if (!cancelling) ...[
+                  const SizedBox(width: 4),
+                  _GestureTarget(
+                    icon: Icons.lock_outline_rounded,
+                    arrow: Icons.keyboard_arrow_up_rounded,
+                    arrowFirst: false,
+                    active: gesture == VoiceGesture.locking,
+                    activeBackground: cs.primary,
+                    activeForeground: cs.onPrimary,
+                    idleForeground: cs.onSurfaceVariant,
+                  ),
+                ],
+              ],
               if (locked) ...[
                 const SizedBox(width: 8),
                 TextButton(
@@ -118,6 +160,49 @@ class VoiceRecordingBar extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Значок цели жеста: иконка со стрелкой, которая наливается цветом, когда
+/// палец прошёл порог и жест засчитан.
+class _GestureTarget extends StatelessWidget {
+  const _GestureTarget({
+    required this.icon,
+    required this.arrow,
+    required this.arrowFirst,
+    required this.active,
+    required this.activeBackground,
+    required this.activeForeground,
+    required this.idleForeground,
+  });
+
+  final IconData icon;
+  final IconData arrow;
+  final bool arrowFirst;
+  final bool active;
+  final Color activeBackground;
+  final Color activeForeground;
+  final Color idleForeground;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = active ? activeForeground : idleForeground;
+    final parts = [
+      Icon(arrow, size: 15, color: fg),
+      Icon(icon, size: 17, color: fg),
+    ];
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      padding: EdgeInsets.symmetric(horizontal: active ? 8 : 4, vertical: 6),
+      decoration: BoxDecoration(
+        color: active ? activeBackground : Colors.transparent,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: arrowFirst ? parts : parts.reversed.toList(),
+      ),
     );
   }
 }

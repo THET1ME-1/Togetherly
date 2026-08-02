@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 import 'couple_stats_screen.dart';
 import 'profile/profile_hero.dart';
 import 'profile/miss_you_week_chart.dart';
@@ -37,6 +38,7 @@ import '../widgets/morph_loader.dart';
 import '../widgets/mascot/mascot_sleep_sheet.dart';
 import '../widgets/settings_scaffold.dart';
 import '../services/cycle_service.dart';
+import '../services/data_export_service.dart';
 import '../services/plus_access.dart';
 import '../services/plus_service.dart';
 import 'plus_screen.dart';
@@ -1342,6 +1344,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               setSheetState(() {});
             },
             onCycleWipe: () => _confirmCycleWipe(ctx, setSheetState),
+            onCycleConsentWithdraw: () =>
+                _confirmCycleConsentWithdraw(ctx, setSheetState),
+            onExportMyData: () => _exportMyData(ctx),
             mascotSleepAvailable: nightCapableMascots().isNotEmpty,
             onMascotSleep: () => showMascotSleepSheet(
               ctx,
@@ -1359,6 +1364,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
     Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => PlusScreen(scheme: _cs)),
     );
+  }
+
+  /// Отзыв согласия на обработку данных цикла.
+  ///
+  /// Отзывать должно быть так же просто, как соглашаться, поэтому строка стоит
+  /// рядом с самим разделом. Вместе с согласием стираются отметки: держать их
+  /// дальше не на чем.
+  Future<void> _confirmCycleConsentWithdraw(
+    BuildContext context,
+    StateSetter refreshSheet,
+  ) async {
+    final ok = await AppDialog.confirm(
+      context,
+      title: _s.cycleConsentWithdraw,
+      message: _s.cycleConsentWithdrawHint,
+      confirmLabel: _s.delete,
+      destructive: true,
+      icon: Icons.gpp_maybe_outlined,
+    );
+    if (ok != true) return;
+    await CycleService.instance.withdrawConsent();
+    refreshSheet(() {});
+  }
+
+  /// Архив «мои данные»: собираем и отдаём системному «Поделиться».
+  Future<void> _exportMyData(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    // Якорь снимаем ДО await: на iPad без него лист «Поделиться» не
+    // открывается, а после долгой сборки контекст может уже уехать.
+    final origin = shareOriginFromContext(context);
+    final path = await DataExportService.instance.buildArchive();
+    if (!mounted) return;
+    if (path == null) {
+      messenger.showSnackBar(SnackBar(content: Text(_s.exportMyDataFailed)));
+      return;
+    }
+    await Share.shareXFiles(
+      [XFile(path)],
+      text: _s.exportMyData,
+      sharePositionOrigin: origin,
+    );
+    messenger.showSnackBar(SnackBar(content: Text(_s.exportMyDataReady)));
   }
 
   /// Стирание данных цикла: спрашиваем прежде, чем удалять, — вернуть нельзя.

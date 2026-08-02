@@ -9,11 +9,13 @@ import '../models/mood_entry.dart';
 import '../models/pair_data.dart';
 import '../models/user_data.dart';
 import '../services/cycle_service.dart';
+import '../services/plus_service.dart';
 import '../services/locale_service.dart';
 import '../services/mood_service.dart';
 import '../services/widget_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/profile_theme.dart';
+import '../theme/cycle_colors.dart';
 import '../utils/cycle_math.dart';
 import '../widgets/cycle/cycle_tips_strip.dart';
 import '../widgets/cycle_analytics.dart';
@@ -59,7 +61,8 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
   double _calendarScale = 1.0;
   double _baseScale = 1.0;
   bool _legendExpanded = false;
-  bool _cycleExpanded = false;
+  bool _myCycleExpanded = false;
+  bool _partnerCycleExpanded = false;
 
   MoodService get _mood => widget.moodService;
   PairData get _pair => widget.pairData;
@@ -323,6 +326,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                     stats: _mood.partnerStats(p.uid,
                         from: _periodStart, to: _periodEnd),
                     isPartner: true,
+                    ownerName: p.name,
                   ),
                 ),
               ),
@@ -515,6 +519,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
     required List<MoodEntry> entries,
     required Map<String, int> stats,
     bool isPartner = false,
+    String ownerName = '',
   }) {
     final byDay = <String, List<MoodEntry>>{};
     for (final e in entries) {
@@ -576,6 +581,12 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
         if (entries.isNotEmpty) _buildAnalytics(scheme, entries),
         if (!isPartner && CycleService.unlockedFor(widget.userData))
           _buildCycleBlock(scheme),
+        // Цикл партнёрши: только когда она делится отметками и их хватило на
+        // прогноз. Своего пола тут не спрашиваем — цикл читают, а не ведут.
+        if (isPartner &&
+            PlusService.instance.active &&
+            CycleService.forecastOf(_cycle.partner) != null)
+          _buildCycleBlock(scheme, partner: true, ownerName: ownerName),
       ],
     );
   }
@@ -587,16 +598,26 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
   /// Сворачиваемый блок под календарём: то, что раньше жило отдельным экраном
   /// в настройках. Отметки ставятся в самом календаре, поэтому здесь только
   /// цифры — прогноз, средние длины и графики.
-  Widget _buildCycleBlock(ColorScheme scheme) {
+  /// [partner] — блок считается по отметкам партнёрши, которые она разрешила
+  /// показывать. Арифметика та же: источник отметок ей безразличен.
+  Widget _buildCycleBlock(
+    ColorScheme scheme, {
+    bool partner = false,
+    String ownerName = '',
+  }) {
     final s = LocaleService.current;
-    final forecast = _cycle.forecast;
-    final dayOfCycle = _cycle.dayOfCycle;
-    final cycleLen = _cycle.averageCycleLength;
-    final periodLen = _cycle.averagePeriodLength;
-    final periodDays = _cycle.mine
+    // Цвет метки и состояние «развёрнут» у каждого календаря свои: блоков на
+    // экране два, и общий флаг раскрывал их парой.
+    final accent = _periodColorOf(scheme, partner: partner);
+    final expanded = partner ? _partnerCycleExpanded : _myCycleExpanded;
+    final periodDays = (partner ? _cycle.partner : _cycle.mine)
         .where((e) => e.kind == CycleKind.period)
         .map((e) => e.day)
         .toList();
+    final forecast = CycleMath.predict(periodDays);
+    final dayOfCycle = CycleMath.dayOfCycle(periodDays);
+    final cycleLen = CycleMath.averageCycleLength(periodDays);
+    final periodLen = CycleMath.averagePeriodLength(periodDays);
 
     String headline;
     String? note;
@@ -624,14 +645,22 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
             behavior: HitTestBehavior.opaque,
             onTap: () {
               HapticFeedback.selectionClick();
-              setState(() => _cycleExpanded = !_cycleExpanded);
+              setState(() {
+                if (partner) {
+                  _partnerCycleExpanded = !_partnerCycleExpanded;
+                } else {
+                  _myCycleExpanded = !_myCycleExpanded;
+                }
+              });
             },
             child: Row(
               children: [
-                Icon(Icons.water_drop_rounded, size: 18, color: _periodColor),
+                Icon(Icons.water_drop_rounded, size: 18, color: accent),
                 const SizedBox(width: 8),
                 Text(
-                  s.cycleTitle,
+                  partner && ownerName.isNotEmpty
+                      ? s.cycleOf(ownerName)
+                      : s.cycleTitle,
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
@@ -651,7 +680,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                   ),
                 ),
                 AnimatedRotation(
-                  turns: _cycleExpanded ? 0.5 : 0.0,
+                  turns: expanded ? 0.5 : 0.0,
                   duration: const Duration(milliseconds: 200),
                   child: Icon(
                     Icons.keyboard_arrow_down_rounded,
@@ -664,7 +693,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
           ),
           AnimatedCrossFade(
             duration: const Duration(milliseconds: 220),
-            crossFadeState: _cycleExpanded
+            crossFadeState: expanded
                 ? CrossFadeState.showFirst
                 : CrossFadeState.showSecond,
             firstChild: Padding(
@@ -769,15 +798,15 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                   const SizedBox(height: 14),
                   // Советы стоят сразу после прогноза, до статистики: в дни
                   // месячных нужны они, а средняя длина цикла подождёт.
-                  CycleTipsStrip(scheme: scheme, accent: _periodColor),
+                  CycleTipsStrip(scheme: scheme, accent: accent),
                   const SizedBox(height: 12),
                   CycleAnalytics(
                     scheme: scheme,
                     periodDays: periodDays,
-                    periodColor: _periodColor,
+                    periodColor: accent,
                   ),
                   const SizedBox(height: 12),
-                  _cycleLegend(scheme),
+                  _cycleLegend(scheme, accent),
                 ],
               ),
             ),
@@ -795,14 +824,14 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
   /// обводка ожидаемых и точка близости. Овуляции и фертильных дней тут нет —
   /// они живут в карточках прогноза выше, и рисовать их в легенде значило бы
   /// обещать метки, которых на клетках не существует.
-  Widget _cycleLegend(ColorScheme scheme) {
+  Widget _cycleLegend(ColorScheme scheme, Color accent) {
     final s = LocaleService.current;
     return Wrap(
       spacing: 14,
       runSpacing: 8,
       children: [
-        _legendItem(scheme, s.cycleLegendPeriod, fill: _periodColor),
-        _legendItem(scheme, s.cycleLegendPredicted, outline: _periodColor),
+        _legendItem(scheme, s.cycleLegendPeriod, fill: accent),
+        _legendItem(scheme, s.cycleLegendPredicted, outline: accent),
         _legendItem(scheme, s.cycleLegendIntimacy, fill: scheme.primary),
       ],
     );
@@ -909,16 +938,19 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
         .any((e) => e.kind == CycleKind.period && e.day == day);
     final hasSex = cycleEntries
         .any((e) => e.kind == CycleKind.intimacy && e.day == day);
-    final expectsPeriod = !isPartner &&
-        !hasPeriod &&
-        _cycle.phaseOn(day) == CyclePhase.predictedPeriod;
+    // Ожидаемые дни считаем от той же сетки, что рисуем: расчёт не спрашивает,
+    // чьи отметки ему дали. Раньше прогноз был только своим, и в паре из двух
+    // девушек каждая видела у второй голый календарь без ожидаемых дней.
+    final expectsPeriod = !hasPeriod &&
+        CycleService.phaseOf(cycleEntries, day) == CyclePhase.predictedPeriod;
 
     var bg = hasMood
         ? Color.alphaBlend(
             latest!.color.withValues(alpha: 0.22), scheme.surfaceContainerHighest)
         : scheme.surfaceContainerHighest;
+    final periodColor = _periodColorOf(scheme, partner: isPartner);
     if (hasPeriod) {
-      bg = Color.alphaBlend(_periodColor.withValues(alpha: 0.16), bg);
+      bg = Color.alphaBlend(periodColor.withValues(alpha: 0.16), bg);
     }
 
     return GestureDetector(
@@ -946,7 +978,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                 // а не факт, поэтому он тоньше и полупрозрачный.
                 : (expectsPeriod
                     ? Border.all(
-                        color: _periodColor.withValues(alpha: 0.55), width: 1.5)
+                        color: periodColor.withValues(alpha: 0.55), width: 1.5)
                     : null),
           ),
           padding: const EdgeInsets.all(3),
@@ -987,15 +1019,19 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                 ),
             ],
           ),
-              // Точки цикла у нижнего края: настроение занимает середину
-              // ячейки, поэтому отметки живут отдельным слоем и не сжимают его.
+              // Точки цикла у края клетки: настроение занимает середину, поэтому
+              // отметки живут отдельным слоем и не сжимают его. Свои прижаты
+              // книзу, партнёрские кверху — владельца видно и на чёрно-белом
+              // снимке экрана, и при цветовой слепоте, когда один цвет не
+              // спасает.
               if (hasPeriod || hasSex)
                 Align(
-                  alignment: Alignment.bottomCenter,
+                  alignment:
+                      isPartner ? Alignment.topCenter : Alignment.bottomCenter,
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (hasPeriod) _cycleDot(_periodColor),
+                      if (hasPeriod) _cycleDot(periodColor),
                       if (hasPeriod && hasSex) const SizedBox(width: 3),
                       if (hasSex) _cycleDot(scheme.primary),
                     ],
@@ -1008,8 +1044,10 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
     );
   }
 
-  /// Красный месячных — тот же, что на экране цикла.
-  Color get _periodColor => const Color(0xFFD32F2F);
+  /// Цвет отметок цикла. Календарей на экране два, поэтому метка обязана
+  /// называть владельца сама: свои дни красные, партнёрские сливовые.
+  Color _periodColorOf(ColorScheme scheme, {required bool partner}) =>
+      CycleColors.period(scheme.brightness, partner: partner);
 
   Widget _cycleDot(Color color) => Container(
         width: 5,

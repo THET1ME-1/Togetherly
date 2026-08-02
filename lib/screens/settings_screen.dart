@@ -41,6 +41,8 @@ class SettingsScreen extends StatelessWidget {
     this.cycleShared = false,
     this.onCycleSharedChanged,
     this.onCycleWipe,
+    this.onCycleConsentWithdraw,
+    this.onExportMyData,
     this.mascotSleepAvailable = false,
     this.onMascotSleep,
   });
@@ -87,6 +89,13 @@ class SettingsScreen extends StatelessWidget {
   final bool cycleShared;
   final ValueChanged<bool>? onCycleSharedChanged;
   final VoidCallback? onCycleWipe;
+
+  /// Отзыв согласия на обработку данных цикла: закрывает раздел и стирает
+  /// отметки. Отзывать должно быть так же просто, как соглашаться.
+  final VoidCallback? onCycleConsentWithdraw;
+
+  /// Архив «мои данные» — право забрать копию по закону 133/2011 и GDPR.
+  final VoidCallback? onExportMyData;
 
   @override
   Widget build(BuildContext context) {
@@ -218,6 +227,14 @@ class SettingsScreen extends StatelessWidget {
                   ),
                   const SettingsDivider(),
                   SettingsRow(
+                    icon: Icons.gpp_maybe_outlined,
+                    title: s.cycleConsentWithdraw,
+                    subtitle: s.cycleConsentWithdrawHint,
+                    trailing: const SettingsChevron(),
+                    onTap: onCycleConsentWithdraw,
+                  ),
+                  const SettingsDivider(),
+                  SettingsRow(
                     icon: Icons.delete_outline_rounded,
                     title: s.cycleWipe,
                     subtitle: s.cycleWipeHint,
@@ -231,6 +248,14 @@ class SettingsScreen extends StatelessWidget {
 
               SettingsSection(s.settingsDataSection),
               SettingsGroup([
+                SettingsRow(
+                  icon: Icons.folder_zip_outlined,
+                  title: s.exportMyData,
+                  subtitle: s.exportMyDataHint,
+                  trailing: const SettingsChevron(),
+                  onTap: onExportMyData,
+                ),
+                const SettingsDivider(),
                 SettingsRow(
                   icon: Icons.download_rounded,
                   title: s.exportMemories,

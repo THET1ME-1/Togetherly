@@ -20,9 +20,9 @@ enum VoiceGesture {
 /// перетекает из тональной поверхности в `primary`), поэтому кнопка читается
 /// как одна и та же, просто в другом настроении.
 ///
-/// Жесты записи повторяют привычную механику: держишь — пишет, ведёшь влево —
-/// отмена, вверх — закрепление. На каждом переломе короткая вибрация, чтобы
-/// понять происходящее, не глядя на экран.
+/// Жесты записи: держишь — пишет, ведёшь влево — отмена, вверх —
+/// закрепление, отпустил на месте — отправилось. На каждом переломе короткая
+/// вибрация, чтобы понять происходящее, не глядя на экран.
 class SendMicButton extends StatefulWidget {
   final bool hasText;
 
@@ -75,6 +75,9 @@ class _SendMicButtonState extends State<SendMicButton> {
   VoiceGesture _gesture = VoiceGesture.recording;
   Offset _shift = Offset.zero;
 
+  /// Где палец лёг на кнопку: сдвиг считаем от этой точки, а не от центра.
+  Offset _origin = Offset.zero;
+
   void _report(VoiceGesture g) {
     if (g == _gesture) return;
     _gesture = g;
@@ -126,6 +129,7 @@ class _SendMicButtonState extends State<SendMicButton> {
   Widget build(BuildContext context) {
     final active = widget.hasText || widget.editing;
     final cancelling = _pressing && _gesture == VoiceGesture.cancelling;
+    final locking = _pressing && _gesture == VoiceGesture.locking;
     final cs = Theme.of(context).colorScheme;
     final bg = cancelling
         ? cs.errorContainer
@@ -136,6 +140,8 @@ class _SendMicButtonState extends State<SendMicButton> {
 
     // Кнопка едет за пальцем, но вдвое медленнее и в пределах жеста: движение
     // читается, а палец не теряет цель.
+    // Кнопка едет за пальцем вдвое медленнее и в пределах жеста: влево до
+    // корзины, вверх до замка. Движение читается, а палец не теряет цель.
     final follow = _pressing
         ? Offset(
             (_shift.dx / 2).clamp(-_cancelAt.toDouble(), 0.0),
@@ -149,41 +155,54 @@ class _SendMicButtonState extends State<SendMicButton> {
         scale: _pressing ? 1.28 : (active ? 1 : 0.94),
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutBack,
-        child: GestureDetector(
-          onTap: active ? widget.onSend : null,
-          onLongPressStart: active ? null : (_) => _start(),
-          onLongPressMoveUpdate:
-              active ? null : (d) => _move(d.localOffsetFromOrigin),
-          onLongPressEnd: active ? null : (_) => _end(),
-          onLongPressCancel: active ? null : _end,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOut,
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              switchInCurve: Curves.easeOutBack,
-              transitionBuilder: (child, anim) => RotationTransition(
-                turns: Tween<double>(begin: 0.6, end: 1).animate(anim),
-                child: ScaleTransition(
-                  scale: anim,
-                  child: FadeTransition(opacity: anim, child: child),
+        // Запись начинается от касания, а не после долгого нажатия. Раньше
+        // стоял onLongPress: полсекунды кнопка молчала, и человек успевал
+        // решить, что она не работает. Listener берёт палец сразу и держит
+        // его до отпускания, поэтому короткое касание тоже пишет — просто
+        // очень недолго.
+        child: Listener(
+          onPointerDown: active
+              ? null
+              : (e) {
+                  _origin = e.position;
+                  _start();
+                },
+          onPointerMove: active ? null : (e) => _move(e.position - _origin),
+          onPointerUp: active ? null : (_) => _end(),
+          onPointerCancel: active ? null : (_) => _end(),
+          child: GestureDetector(
+            onTap: active ? widget.onSend : null,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOut,
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                switchInCurve: Curves.easeOutBack,
+                transitionBuilder: (child, anim) => RotationTransition(
+                  turns: Tween<double>(begin: 0.6, end: 1).animate(anim),
+                  child: ScaleTransition(
+                    scale: anim,
+                    child: FadeTransition(opacity: anim, child: child),
+                  ),
                 ),
-              ),
-              child: Icon(
-                cancelling
-                    ? Icons.delete_outline_rounded
-                    : widget.editing
-                        ? Icons.check_rounded
-                        : widget.hasText
-                            ? Icons.send_rounded
-                            : Icons.mic_rounded,
-                key: ValueKey(
-                    '${cancelling}_${widget.editing}_${widget.hasText}'),
-                color: fg,
-                size: 21,
+                child: Icon(
+                  cancelling
+                      ? Icons.delete_outline_rounded
+                      : locking
+                          ? Icons.lock_rounded
+                          : widget.editing
+                              ? Icons.check_rounded
+                              : widget.hasText
+                                  ? Icons.send_rounded
+                                  : Icons.mic_rounded,
+                  key: ValueKey('${cancelling}_${locking}_'
+                      '${widget.editing}_${widget.hasText}'),
+                  color: fg,
+                  size: 21,
+                ),
               ),
             ),
           ),

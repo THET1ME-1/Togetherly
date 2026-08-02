@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/cycle_consent.dart';
 import '../models/cycle_entry.dart';
 import '../models/user_data.dart';
 import '../utils/cycle_math.dart';
@@ -25,6 +27,7 @@ class CycleService extends ChangeNotifier {
   factory CycleService() => instance;
 
   static const String _kSharePref = 'cycle_share_with_partner';
+  static const String _kConsentPref = 'cycle_consent';
 
   final CycleRepository _repo = CycleRepository();
 
@@ -45,6 +48,50 @@ class CycleService extends ChangeNotifier {
   List<CycleEntry> get partner => List.unmodifiable(_partner);
   bool get shareWithPartner => _shareWithPartner;
 
+  /// Явное согласие на обработку данных цикла.
+  ///
+  /// Отметки цикла — особая категория персональных данных: закон Молдовы
+  /// № 133/2011 и GDPR требуют отдельного согласия, а не общего «принимаю
+  /// политику» при регистрации. Пока согласия нет, раздел данные не пишет.
+  CycleConsent _consent = const CycleConsent.absent();
+  CycleConsent get consent => _consent;
+  bool get consentGranted => _consent.granted;
+
+  Future<void> _loadConsent() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_kConsentPref);
+    if (raw == null || raw.isEmpty) {
+      _consent = const CycleConsent.absent();
+      return;
+    }
+    try {
+      _consent = CycleConsent.fromMap(
+          Map<String, dynamic>.from(jsonDecode(raw) as Map));
+    } catch (_) {
+      _consent = const CycleConsent.absent();
+    }
+  }
+
+  Future<void> _saveConsent(CycleConsent value) async {
+    _consent = value;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kConsentPref, jsonEncode(value.toMap()));
+  }
+
+  /// Человек согласился вести цикл в приложении.
+  Future<void> grantConsent() => _saveConsent(
+        CycleConsent.granted(at: DateTime.now(), version: kCycleConsentVersion),
+      );
+
+  /// Отзыв согласия. Отзывать должно быть так же просто, как соглашаться,
+  /// поэтому вместе с флагом стираются и сами отметки: держать их дальше
+  /// оснований нет.
+  Future<void> withdrawConsent() async {
+    await wipe();
+    await _saveConsent(_consent.withdrawn(at: DateTime.now()));
+  }
+
   /// Показывать ли раздел вообще.
   ///
   /// Женский пол — потому что цикла у остальных не бывает; Togetherly+ —
@@ -61,11 +108,32 @@ class CycleService extends ChangeNotifier {
   static bool unlockedFor(UserData? user) =>
       availableFor(user) && PlusService.instance.active;
 
-  /// Дни, когда у меня отмечены месячные, — вход для всех расчётов.
-  List<DateTime> get _periodDays => _mine
+  /// Дни месячных из набора отметок. Близость в расчёт не идёт: она живёт в
+  /// том же календаре, но к циклу отношения не имеет.
+  static List<DateTime> _periodDaysOf(Iterable<CycleEntry> entries) => entries
       .where((e) => e.kind == CycleKind.period)
       .map((e) => e.day)
       .toList();
+
+  /// Прогноз по любому набору отметок. Расчёт не спрашивает, чей это набор,
+  /// поэтому одинаково считает и свой цикл, и цикл партнёрши, которая
+  /// разрешила показывать отметки. null — циклов меньше двух.
+  static CycleForecast? forecastOf(
+    Iterable<CycleEntry> entries, {
+    DateTime? today,
+  }) =>
+      CycleMath.predict(_periodDaysOf(entries), today: today);
+
+  /// Чем помечен день у владельца [entries] — для раскраски его сетки.
+  static CyclePhase phaseOf(
+    Iterable<CycleEntry> entries,
+    DateTime day, {
+    DateTime? today,
+  }) =>
+      CycleMath.phaseOn(_periodDaysOf(entries), day, today: today);
+
+  /// Дни, когда у меня отмечены месячные, — вход для всех расчётов.
+  List<DateTime> get _periodDays => _periodDaysOf(_mine);
 
   /// Прогноз по своим данным. null — циклов меньше двух.
   CycleForecast? get forecast => CycleMath.predict(_periodDays);
@@ -104,6 +172,7 @@ class CycleService extends ChangeNotifier {
     _partnerUid = partnerUid;
     final prefs = await SharedPreferences.getInstance();
     _shareWithPartner = prefs.getBool(_kSharePref) ?? false;
+    await _loadConsent();
     _listen();
   }
 

@@ -2174,6 +2174,59 @@
       "deleteRule": "@request.auth.id != \"\" && author_uid = @request.auth.id"
     },
     {
+      "name": "wish_reservations",
+      "type": "base",
+      "fields": [
+        {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "required": true,
+          "system": true,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "min": 1,
+          "max": 50,
+          "autogeneratePattern": "[a-z0-9]{15}"
+        },
+        {
+          "name": "group_id",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "wish_id",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "uid",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "onCreate": true,
+          "onUpdate": false
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "onCreate": true,
+          "onUpdate": true
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX `idx_wish_res_unique` ON `wish_reservations` (`wish_id`, `uid`)",
+        "CREATE INDEX `idx_wish_res_uid` ON `wish_reservations` (`uid`)"
+      ],
+      "listRule": "@request.auth.id != \"\" && uid = @request.auth.id",
+      "viewRule": "@request.auth.id != \"\" && uid = @request.auth.id",
+      "createRule": "@request.auth.id != \"\" && uid = @request.auth.id && @request.auth.group_ids.id ?= group_id",
+      "updateRule": null,
+      "deleteRule": "@request.auth.id != \"\" && uid = @request.auth.id"
+    },
+    {
       "name": "wish_categories",
       "type": "base",
       "fields": [

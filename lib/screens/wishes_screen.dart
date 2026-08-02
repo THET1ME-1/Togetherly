@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/symbol_catalog.dart';
 import '../models/wish.dart';
 import '../models/wish_category.dart';
+import '../models/wish_reservation.dart';
 import '../services/locale_service.dart';
 import '../services/plus_service.dart';
 import '../services/wish_repository.dart';
@@ -14,6 +15,7 @@ import '../theme/fonts.dart';
 import '../theme/profile_theme.dart';
 import '../widgets/avatar_widget.dart';
 import '../widgets/common/app_dialog.dart';
+import '../widgets/storage_image.dart';
 import '../widgets/wishes/wish_category_sheet.dart';
 import '../widgets/wishes/wish_form_sheet.dart';
 import 'plus_screen.dart';
@@ -36,6 +38,7 @@ class WishesScreen extends StatefulWidget {
     this.myAvatarUrl,
     this.partnerAvatarUrl,
     this.openFulfilled = false,
+    this.sharedUrl = '',
   });
 
   final AppTheme theme;
@@ -52,6 +55,9 @@ class WishesScreen extends StatefulWidget {
   /// Открыть сразу архив — из строки «12 уже сбылось» на главной.
   final bool openFulfilled;
 
+  /// Ссылка из «Поделиться»: экран открывается с готовой формой вещи.
+  final String sharedUrl;
+
   @override
   State<WishesScreen> createState() => _WishesScreenState();
 }
@@ -66,6 +72,11 @@ class _WishesScreenState extends State<WishesScreen> {
   List<WishKind> _custom = const [];
   StreamSubscription<List<WishKind>>? _customSub;
 
+  /// Вещи, которые я взял на себя. Список приходит только свой: у коллекции
+  /// правило чтения `uid = auth.id`, автору сюрприз не виден вовсе.
+  Set<String> _reserved = const {};
+  Map<String, String> _reservationIds = const {};
+
   ColorScheme get _cs => Theme.of(context).colorScheme;
   bool get _ru => LocaleService.instance.isRussian;
 
@@ -77,6 +88,73 @@ class _WishesScreenState extends State<WishesScreen> {
     _customSub = _repo.watchCategories(widget.groupId).listen((list) {
       if (mounted) setState(() => _custom = list);
     });
+    _loadReservations();
+    if (widget.sharedUrl.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _addShared());
+    }
+  }
+
+  /// Форма вещи с подставленной ссылкой — сразу после открытия экрана.
+  Future<void> _addShared() async {
+    final draft = await _openForm(initialUrl: widget.sharedUrl);
+    if (draft == null) return;
+    await _repo.add(
+      groupId: widget.groupId,
+      title: draft.title,
+      kind: draft.kind,
+      note: draft.note,
+      isItem: draft.isItem,
+      price: draft.price,
+      currency: draft.currency,
+      url: draft.url,
+      image: draft.image,
+      shop: draft.shop,
+    );
+  }
+
+  Future<void> _loadReservations() async {
+    final list = await _repo.loadReservations(widget.groupId);
+    if (!mounted) return;
+    setState(() {
+      _reserved = reservedWishIds(list);
+      _reservationIds = {for (final r in list) r.wishId: r.id};
+    });
+  }
+
+  /// «Дарю» и обратно. Состояние правим на месте: список свой, ждать ответа
+  /// сервера ради переключения одной иконки незачем.
+  Future<void> _toggleReserve(Wish wish) async {
+    final taken = _reserved.contains(wish.id);
+    if (taken) {
+      final id = _reservationIds[wish.id] ?? '';
+      setState(() {
+        _reserved = {..._reserved}..remove(wish.id);
+        _reservationIds = {..._reservationIds}..remove(wish.id);
+      });
+      await _repo.release(id);
+      return;
+    }
+    final res = await _repo.reserve(groupId: widget.groupId, wishId: wish.id);
+    if (res == null || !mounted) return;
+    setState(() {
+      _reserved = {..._reserved, wish.id};
+      _reservationIds = {..._reservationIds, wish.id: res.id};
+    });
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.clearSnackBars();
+    messenger.showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: _cs.inverseSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        content: Text(
+          _tr('Дарите вы — партнёр не узнает',
+              "You're gifting it — your partner won't know"),
+          style: AppFonts.onest(size: 14, color: _cs.onInverseSurface),
+        ),
+      ),
+    );
   }
 
   @override
@@ -136,11 +214,15 @@ class _WishesScreenState extends State<WishesScreen> {
     );
   }
 
-  Future<WishDraft?> _openForm({Wish? existing}) => showWishFormSheet(
+  Future<WishDraft?> _openForm({Wish? existing, String initialUrl = ''}) =>
+      showWishFormSheet(
         context,
         theme: widget.theme,
         customKinds: _custom,
         plusGate: PlusService.instance.gate,
+        groupId: widget.groupId,
+        uid: widget.myUid,
+        initialUrl: initialUrl,
         existing: existing,
         onCreateCategory: _createCategory,
         onEditCategory: _editCategory,
@@ -321,6 +403,10 @@ class _WishesScreenState extends State<WishesScreen> {
                                           : null,
                                   onLongPress:
                                       mine ? () => _remove(wish) : null,
+                                  onReserve: mine
+                                      ? null
+                                      : () => _toggleReserve(wish),
+                                  reserved: _reserved.contains(wish.id),
                                 );
                               },
                             ),
@@ -493,6 +579,8 @@ class _WishTile extends StatelessWidget {
     this.authorAvatarUrl,
     this.onTap,
     this.onLongPress,
+    this.onReserve,
+    this.reserved = false,
   });
 
   final Wish wish;
@@ -503,6 +591,12 @@ class _WishTile extends StatelessWidget {
   final VoidCallback onToggle;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+
+  /// Взять вещь на себя. Null у автора желания — ему этой кнопки не видно.
+  final VoidCallback? onReserve;
+
+  /// Уже взял. Знают об этом только даритель и сервер.
+  final bool reserved;
 
   @override
   Widget build(BuildContext context) {
@@ -543,12 +637,15 @@ class _WishTile extends StatelessWidget {
               wish.isItem && wish.image.isNotEmpty
                   ? ClipRRect(
                       borderRadius: BorderRadius.circular(16),
-                      child: Image.network(
-                        wish.image,
+                      // StorageImage, а не Image.network: своё фото уходит в
+                      // хранилище и приходит ссылкой `pb://`, которую обычная
+                      // картинка не понимает — на её месте был бы значок.
+                      child: StorageImage(
+                        imageUrl: wish.image,
                         width: 56,
                         height: 56,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => Container(
+                        errorWidget: (_, _, _) => Container(
                           width: 56,
                           height: 56,
                           color: leadBackground,
@@ -685,6 +782,23 @@ class _WishTile extends StatelessWidget {
                   ],
                 ),
               ),
+              // «Дарю» — только на чужой вещи и только пока она не сбылась.
+              // Кнопки нет у автора вовсе: он и записи такой не получает,
+              // а пустая кнопка выдала бы, что подарок кто-то готовит.
+              if (onReserve != null && wish.isItem && !done)
+                IconButton(
+                  tooltip: reserved
+                      ? (ru ? 'Я дарю' : "I'm gifting")
+                      : (ru ? 'Дарю' : 'Gift it'),
+                  onPressed: onReserve,
+                  icon: Icon(
+                    reserved
+                        ? Icons.card_giftcard_rounded
+                        : Icons.redeem_outlined,
+                    size: 20,
+                    color: reserved ? scheme.primary : scheme.onSurfaceVariant,
+                  ),
+                ),
               // Ссылка на магазин: без неё карточка товара — просто картинка,
               // а желание обычно и приходит ссылкой.
               if (wish.url.isNotEmpty)
