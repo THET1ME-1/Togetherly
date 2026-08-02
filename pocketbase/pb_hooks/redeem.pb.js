@@ -81,6 +81,43 @@ routerAdd("POST", "/api/coins/redeem", (e) => {
         return;
       }
 
+      // Код на элемент каталога (пак настроений, маскот): монет не несёт,
+      // открывает ключ владения — тот же, что даёт покупка за монеты. Как и у
+      // Плюса, проверяем раньше суммы, иначе такой код упёрся бы в
+      // «invalid_code».
+      const feature = rec.getString("feature") || "";
+      if (feature) {
+        rec.set("used_by", me);
+        rec.set("used_at", Date.now());
+        txApp.save(rec);
+
+        const parse = (s, fb) => {
+          try { return JSON.parse(s || JSON.stringify(fb)) || fb; } catch (_) { return fb; }
+        };
+        const owned = parse(user.getString("owned_features"), []);
+        if (owned.indexOf(feature) === -1) {
+          user.set("owned_features", JSON.stringify(owned.concat([feature])));
+        }
+        txApp.save(user);
+
+        // Купленное общее на пару — см. shareToGroups в coins.pb.js.
+        // `group_ids` читаем только getStringSlice: это relation, а не json.
+        let groupIds = [];
+        try { groupIds = user.getStringSlice("group_ids") || []; } catch (_) { groupIds = []; }
+        if (!groupIds.length) groupIds = parse(user.getString("pair_ids"), []);
+        for (let i = 0; i < groupIds.length; i++) {
+          let grp = null;
+          try { grp = txApp.findRecordById("groups", String(groupIds[i])); } catch (_) { grp = null; }
+          if (!grp) continue;
+          const gOwned = parse(grp.getString("owned_features"), []);
+          if (gOwned.indexOf(feature) !== -1) continue;
+          grp.set("owned_features", JSON.stringify(gOwned.concat([feature])));
+          txApp.save(grp);
+        }
+        out = { s: 200, b: { ok: true, feature: feature, awarded: 0 } };
+        return;
+      }
+
       const amount = rec.getInt("coins") || 0;
       if (amount <= 0) {
         out = { s: 400, b: { ok: false, error: "invalid_code" } };

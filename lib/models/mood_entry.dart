@@ -232,6 +232,44 @@ class MoodOption {
     return null;
   }
 
+  /// Свежий адрес той же картинки, если пак каталога перезаливали.
+  ///
+  /// В отметке настроения лежит АБСОЛЮТНЫЙ адрес картинки — так партнёр видит
+  /// именно тот набор, которым отметились, даже если у него выбран другой. Но
+  /// PocketBase при каждой заливке даёт файлам новые имена, и после обновления
+  /// пака все прежние отметки начинали ссылаться на удалённые файлы: 404,
+  /// вместо картинки классический фолбэк. Ровно так «пропала» анимация пёсика
+  /// на главном и в календаре — старые отметки показывали не его.
+  ///
+  /// Поэтому адрес разбирается на пак и настроение и ищется в текущем
+  /// каталоге. Имя файла PocketBase выглядит как `<id>_<10 символов>.webp`,
+  /// а id настроения сам может содержать `_` (`no_emotion`, `very_sad`) —
+  /// отсюда отсечка по длине суффикса, а не по первому подчёркиванию.
+  /// Возвращает null, если адрес и так актуален или пака в каталоге нет.
+  static String? freshRemotePath(String path) {
+    const marker = '/catalog_items/';
+    final at = path.indexOf(marker);
+    if (at < 0) return null;
+    final tail = path.substring(at + marker.length);
+    final slash = tail.indexOf('/');
+    if (slash <= 0) return null;
+    final packId = tail.substring(0, slash);
+    var file = tail.substring(slash + 1);
+    final q = file.indexOf('?');
+    if (q > 0) file = file.substring(0, q);
+    final dot = file.lastIndexOf('.');
+    final base = dot > 0 ? file.substring(0, dot) : file;
+    if (base.length <= 11) return null;
+    final id = base.substring(0, base.length - 11);
+
+    for (final m in _remote) {
+      if (m.id != id) continue;
+      if (!m.imagePath.contains('$marker$packId/')) continue;
+      return m.imagePath == path ? null : m.imagePath;
+    }
+    return null;
+  }
+
   /// Эквивалентная картинка из КЛАССИЧЕСКОГО пака для [path] по id настроения.
   /// Классический пак входит в любую сборку (самые старые ассеты), поэтому это
   /// безопасный фолбэк, когда картинка из нового пака отсутствует в текущей

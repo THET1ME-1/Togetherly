@@ -267,6 +267,11 @@ class MoodPickerSheet extends StatefulWidget {
 class _MoodPickerSheetState extends State<MoodPickerSheet> {
   int _tab = 0; // 0 — настроение, 1 — самочувствие
 
+  /// Закрытый набор, который человек сейчас разглядывает. Экран тот же, просто
+  /// эмоции показываются от чужого пака, выбрать их нельзя, а кнопка внизу
+  /// превращается из «Убрать настроение» в покупку. Пусто — показан свой.
+  MoodPack? _preview;
+
   @override
   void initState() {
     super.initState();
@@ -399,20 +404,28 @@ class _MoodPickerSheetState extends State<MoodPickerSheet> {
             primary: widget.primary,
             user: widget.user,
             pairOwned: widget.pairOwned,
-            onChanged: (_) => setState(() {}),
+            shownId: _preview?.id,
+            onChanged: (_) => setState(() => _preview = null),
+            onPreview: (p) => setState(() => _preview = p),
           ),
         ),
         Expanded(
           child: AnimatedBuilder(
             animation: MoodPackService.instance,
             builder: (context, _) {
-              final pack = MoodPackService.instance.selectedPack;
+              final pack = _preview ?? MoodPackService.instance.selectedPack;
               final sections = groupMoodsByBand(pack.moods);
+              // Подпись художника идёт последней строкой списка, а не отдельным
+              // блоком под ним: иначе она висела бы на экране всё время, пока
+              // человек листает эмоции, и спорила бы с кнопкой снизу.
+              final signed = pack.author.isNotEmpty;
               return ListView.builder(
                 controller: widget.scrollController,
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-                itemCount: sections.length,
-                itemBuilder: (_, i) => _bandSection(sections[i], pack, cs),
+                itemCount: sections.length + (signed ? 1 : 0),
+                itemBuilder: (_, i) => i < sections.length
+                    ? _bandSection(sections[i], pack, cs)
+                    : _authorLine(pack.author, cs),
               );
             },
           ),
@@ -469,18 +482,44 @@ class _MoodPickerSheetState extends State<MoodPickerSheet> {
             final isSelected = widget.currentEmoji == mood.imagePath;
             return _MoodTile(
               mood: mood,
-              isSelected: isSelected,
+              // У чужого набора выбранного быть не может: человек его смотрит.
+              isSelected: _preview == null && isSelected,
               primary: widget.primary,
               scheme: cs,
               tileGradient: pack.tileGradient,
               onTap: () {
                 HapticFeedback.lightImpact();
+                // Тап по эмоции закрытого набора ведёт туда же, куда кнопка
+                // внизу: отметить ею день пока нельзя.
+                if (_preview != null) {
+                  _buyPreviewed();
+                  return;
+                }
                 widget.onSelect(mood);
               },
             );
           },
         ),
       ],
+    );
+  }
+
+  /// Кто нарисовал пак. Тихая строка по центру — благодарность художнику,
+  /// а не элемент управления, поэтому ни ссылки, ни нажатия.
+  Widget _authorLine(String author, ColorScheme cs) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 18, 2, 4),
+      child: Center(
+        child: Text(
+          LocaleService.current.moodPackAuthor(author),
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 0.2,
+            color: cs.onSurfaceVariant.withValues(alpha: 0.7),
+          ),
+        ),
+      ),
     );
   }
 
@@ -509,7 +548,71 @@ class _MoodPickerSheetState extends State<MoodPickerSheet> {
     );
   }
 
+  /// Купить набор, который человек сейчас смотрит.
+  Future<void> _buyPreviewed() async {
+    final pack = _preview;
+    final user = widget.user;
+    if (pack == null || user == null) return;
+    await buyMoodPack(
+      context,
+      pack,
+      user: user,
+      // За монеты набор открывается сразу и становится выбранным — значит
+      // просмотр закончился, показываем его уже как свой.
+      onBought: () {
+        if (mounted) setState(() => _preview = null);
+      },
+    );
+  }
+
   Widget _clearButton(AppStrings s, ColorScheme cs, bool onAilment) {
+    // Смотрим чужой набор — вместо «убрать настроение» тут покупка: другого
+    // действия на этом экране сейчас нет.
+    final previewed = _preview;
+    if (previewed != null && !onAilment) {
+      final ru = LocaleService.instance.isRussian;
+      final price = previewed.unlock.priceLabel;
+      final author = previewed.author;
+      return SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 6, 20, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: FilledButton(
+                  onPressed: _buyPreviewed,
+                  style: FilledButton.styleFrom(
+                    shape: const StadiumBorder(),
+                    textStyle: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  child: Text(ru ? 'Открыть за $price' : 'Unlock for $price'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                author.isEmpty
+                    ? (ru
+                        ? 'Набор останется навсегда и появится у партнёра'
+                        : 'Yours forever, and your partner gets it too')
+                    : (ru
+                        ? 'Рисунки — $author · набор появится и у партнёра'
+                        : 'Art by $author · your partner gets it too'),
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final onClear = onAilment ? widget.onClearAilment : widget.onClear;
     if (onClear == null) return const SizedBox(height: 16);
     final label = onAilment ? s.clearAilment : s.clearMood;
@@ -679,8 +782,17 @@ class _AilmentChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fg =
-        isSelected ? scheme.onSecondaryContainer : scheme.onSurface;
+    // Цвет говорит, насколько плохо: жёлтый — мешает, красный — свалило.
+    // Обводка не сообщала ничего, все шестнадцать чипов были на одно лицо.
+    // Тон приглушён тем же приёмом, что клетки календаря: цвет ложится на
+    // поверхность, а не заливается в полную силу.
+    final tone = ailment.severity.color;
+    final fill = Color.alphaBlend(
+      tone.withValues(alpha: isSelected ? 0.55 : 0.20),
+      scheme.surfaceContainerHighest,
+    );
+    final fg = isSelected ? scheme.onSurface : scheme.onSurfaceVariant;
+
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -690,11 +802,8 @@ class _AilmentChip extends StatelessWidget {
         height: 44,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(
-          color: isSelected ? scheme.secondaryContainer : null,
+          color: fill,
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(
-            color: isSelected ? Colors.transparent : scheme.outlineVariant,
-          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -705,7 +814,7 @@ class _AilmentChip extends StatelessWidget {
               ailment.localizedLabel,
               style: TextStyle(
                 fontSize: 14,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                 color: fg,
               ),
             ),

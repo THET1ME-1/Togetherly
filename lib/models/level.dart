@@ -111,7 +111,9 @@ class Rank {
 }
 
 /// Тип требования для разблокировки элемента каталога.
-enum UnlockType { free, level, premium }
+/// `premium` — покупается за монеты, `money` — за деньги через lava.top
+/// (монетами такой элемент не продаётся вовсе: цена в нём валютная).
+enum UnlockType { free, level, premium, money }
 
 /// Вид элемента каталога в ключе владения (`owned_features`). Маскот и пак
 /// настроений могут носить одинаковый id, поэтому вид обязателен.
@@ -143,18 +145,31 @@ class Unlock {
   /// персонаж доставался бы подписчикам даром без всякого решения.
   final bool plusIncluded;
 
+  /// Валюта цены для [UnlockType.money] (`USD`, `EUR`, `RUB`). У остальных
+  /// видов не используется: там цена в монетах.
+  final String currency;
+
   const Unlock.free()
       : type = UnlockType.free,
         requiredLevel = 0,
         price = 0,
-        plusIncluded = false;
+        plusIncluded = false,
+        currency = '';
   const Unlock.level(this.requiredLevel)
       : type = UnlockType.level,
         price = 0,
-        plusIncluded = false;
+        plusIncluded = false,
+        currency = '';
   const Unlock.premium({this.price = 0, this.plusIncluded = false})
       : type = UnlockType.premium,
-        requiredLevel = 0;
+        requiredLevel = 0,
+        currency = '';
+
+  /// Покупка за деньги: [price] — сумма в [currency], а не в монетах.
+  const Unlock.money({this.price = 0, this.currency = 'USD'})
+      : type = UnlockType.money,
+        requiredLevel = 0,
+        plusIncluded = false;
 
   /// Разобрать поле `unlock` из манифеста каталога. null/неизвестное → free.
   factory Unlock.fromJson(Map<String, dynamic>? json) {
@@ -168,6 +183,13 @@ class Unlock {
           price: price > 0 ? price : 0,
           plusIncluded: json['plus'] == true,
         );
+      case 'money':
+        final raw = json!['price'];
+        final price = raw is num ? raw.toInt() : 0;
+        return Unlock.money(
+          price: price > 0 ? price : 0,
+          currency: (json['currency'] as String? ?? 'USD').toUpperCase(),
+        );
       default:
         return const Unlock.free();
     }
@@ -176,9 +198,20 @@ class Unlock {
   bool get isFree => type == UnlockType.free;
   bool get isPremium => type == UnlockType.premium;
 
+  /// Продаётся за деньги (lava.top), а не за монеты.
+  bool get isMoney => type == UnlockType.money;
+
   /// Можно ли элемент купить прямо сейчас. Цену в каталог положить забыли —
   /// показывать «купить за 0» нельзя, и отдавать даром тоже.
-  bool get isForSale => isPremium && price > 0;
+  bool get isForSale => (isPremium || isMoney) && price > 0;
+
+  /// Цена как её видит человек: «150» для монет, «5 $» для денег.
+  String get priceLabel {
+    if (!isMoney) return '$price';
+    const signs = {'USD': '\$', 'EUR': '€', 'RUB': '₽'};
+    final sign = signs[currency] ?? currency;
+    return sign == '\$' ? '$price\$' : '$price $sign';
+  }
 
   /// Ключ владения в общем `owned_features`.
   ///
@@ -202,6 +235,9 @@ class Unlock {
         // Купленное остаётся у человека навсегда — в том числе когда Плюс
         // кончился. Отбирать оплаченное нельзя.
         return owned || (plusIncluded && plus);
+      case UnlockType.money:
+        // Плюс сюда не входит: за такой элемент платят отдельно, деньгами.
+        return owned;
     }
   }
 }

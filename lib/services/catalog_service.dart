@@ -12,6 +12,7 @@ import '../models/mascot_anim.dart';
 import '../models/mood_entry.dart';
 import '../models/mood_pack.dart';
 import 'pb_data_service.dart';
+import 'pocketbase_service.dart';
 
 /// Удалённый КАТАЛОГ контента (паки настроений + маскоты-награды за уровень).
 ///
@@ -101,6 +102,36 @@ class CatalogService extends ChangeNotifier {
     }
   }
 
+  /// Ссылка на оплату элемента каталога, который продаётся за деньги.
+  ///
+  /// Счёт заводит сервер (`/api/lava/checkout`) на почту аккаунта: покупка по
+  /// витринной ссылке lava.top уведомлений НЕ порождает, и выдавать её пришлось
+  /// бы руками. Вернул null — оплату не открываем, кнопка честно скажет об
+  /// ошибке, а не уведёт человека в никуда.
+  ///
+  /// `already == true` означает, что элемент уже куплен (например партнёром) —
+  /// платить второй раз не за что.
+  Future<({String? url, bool already})> purchaseUrl(
+    String featureKey, {
+    String currency = 'USD',
+  }) async {
+    try {
+      final res = await PocketBaseService().pb.send(
+        '/api/lava/checkout',
+        method: 'POST',
+        body: {'feature': featureKey, 'currency': currency},
+      );
+      if (res is Map && res['ok'] == true) {
+        if (res['already'] == true) return (url: null, already: true);
+        final url = res['url'];
+        if (url is String && url.isNotEmpty) return (url: url, already: false);
+      }
+    } catch (e) {
+      debugPrint('CatalogService.purchaseUrl failed: $e');
+    }
+    return (url: null, already: false);
+  }
+
   // ── Парсинг манифеста ───────────────────────────────────────────────────────
 
   void _apply(List rows, String appVersion) {
@@ -159,6 +190,7 @@ class CatalogService extends ChangeNotifier {
         moods: moods,
         tileGradient: _parseGradient(data['tileGradient']),
         unlock: _parseUnlock(row, data),
+        author: (data['author'] as String? ?? '').trim(),
       ));
     }
 

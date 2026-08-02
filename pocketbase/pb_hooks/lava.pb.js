@@ -33,6 +33,15 @@ routerAdd("POST", "/api/lava/webhook", (e) => {
   // оба). Держим список: совпадение с любым из них считаем покупкой Плюса.
   const PLUS_OFFER = ($os.getenv("LAVA_PLUS_OFFER") ||
     "40364f0a-b0c5-44e8-8380-55d9cf492bb6").trim().toLowerCase();
+  // Элементы каталога, купленные деньгами: покупка открывает тот же ключ
+  // владения `вид:id`, что и покупка за монеты, поэтому клиент правок не
+  // требует. Новый пак или маскот добавляется сюда ДВУМЯ строками — товар и
+  // его оффер: в уведомлении lava.top приезжает любой из двух идентификаторов
+  // (на этом уже спотыкались с Togetherly+).
+  const FEATURE_SKUS = {
+    "a3752660-488e-495e-a67b-ed1e4f6ad877": "mood_pack:moti",
+    "1d908a4e-9751-41f7-98e9-8499c0c835aa": "mood_pack:moti",
+  };
   const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
   // Форма вебхука в кабинете lava.top спрашивает логин и пароль, то есть шлёт
@@ -109,11 +118,12 @@ routerAdd("POST", "/api/lava/webhook", (e) => {
   // Чужие uuid ни с чем не совпадут, поэтому ложных начислений не будет.
   const isUuid = (s) =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(s);
-  let productId = "", amount = 0, isPlus = false;
+  let productId = "", amount = 0, isPlus = false, feature = "";
   for (const key in flat) {
     const v = String(flat[key]).trim().toLowerCase();
     if (!isUuid(v)) continue;
     if (v === PLUS_SKU || v === PLUS_OFFER) { productId = v; isPlus = true; break; }
+    if (FEATURE_SKUS[v]) { productId = v; feature = FEATURE_SKUS[v]; break; }
     if (PRODUCTS[v]) { productId = v; amount = PRODUCTS[v]; break; }
   }
   if (!productId) {
@@ -133,7 +143,7 @@ routerAdd("POST", "/api/lava/webhook", (e) => {
     } catch (_) {}
   };
 
-  if (!amount && !isPlus) {
+  if (!amount && !isPlus && !feature) {
     // Товар другого приложения — этим занимается бот, не мы.
     trace("not_ours");
     return e.json(200, { ok: true, skipped: "not_ours", product: productId });
@@ -179,8 +189,11 @@ routerAdd("POST", "/api/lava/webhook", (e) => {
       const rec = new Record(col);
       // У Togetherly+ монет нет: код открывает возможности, а не пополняет
       // баланс. Флаг едет вместе с кодом, чтобы погашение знало, что делать.
-      rec.set("coins", isPlus ? 0 : amount);
+      rec.set("coins", (isPlus || feature) ? 0 : amount);
       rec.set("plus", isPlus);
+      // Что открывает код, если аккаунта с почтой покупки ещё нет: ключ
+      // владения едет вместе с кодом, погашение только кладёт его человеку.
+      rec.set("feature", feature);
       rec.set("sku", productId);
       rec.set("buyer_email", email);
       rec.set("order_key", key);
@@ -201,6 +214,38 @@ routerAdd("POST", "/api/lava/webhook", (e) => {
           return;
         }
 
+        if (feature) {
+          // Ключ владения ложится и покупателю, и его парам: элементы каталога
+          // общие на двоих (маскот живёт на главной у обоих, пак настроений
+          // видно в календаре партнёра), поэтому второй раз за него не платят.
+          // Тот же приём в `coins.pb.js` — shareToGroups.
+          const parse = (s, fb) => {
+            try { return JSON.parse(s || JSON.stringify(fb)) || fb; } catch (_) { return fb; }
+          };
+          const owned = parse(user.getString("owned_features"), []);
+          if (owned.indexOf(feature) === -1) {
+            user.set("owned_features", JSON.stringify(owned.concat([feature])));
+          }
+          txApp.save(user);
+
+          // `group_ids` — relation, а не json: строкой не читается (грабля
+          // раздачи купленного, разобранная 1 августа).
+          let groupIds = [];
+          try { groupIds = user.getStringSlice("group_ids") || []; } catch (_) { groupIds = []; }
+          if (!groupIds.length) groupIds = parse(user.getString("pair_ids"), []);
+          for (let i = 0; i < groupIds.length; i++) {
+            let grp = null;
+            try { grp = txApp.findRecordById("groups", String(groupIds[i])); } catch (_) { grp = null; }
+            if (!grp) continue;
+            const gOwned = parse(grp.getString("owned_features"), []);
+            if (gOwned.indexOf(feature) !== -1) continue;
+            grp.set("owned_features", JSON.stringify(gOwned.concat([feature])));
+            txApp.save(grp);
+          }
+          out = { s: 200, b: { ok: true, feature: feature, direct: true } };
+          return;
+        }
+
         user.set("coins", (user.getInt("coins") || 0) + amount);
         txApp.save(user);
         out = { s: 200, b: { ok: true, credited: amount, direct: true } };
@@ -217,8 +262,9 @@ routerAdd("POST", "/api/lava/webhook", (e) => {
       out = { s: 200, b: { ok: true, credited: 0, direct: false } };
     });
     trace(out.b && out.b.repeated ? "repeated"
-      : out.b && out.b.direct ? (isPlus ? "plus_granted" : "coins_credited")
-      : "code_issued");
+      : out.b && out.b.direct
+        ? (isPlus ? "plus_granted" : feature ? "feature_granted" : "coins_credited")
+        : "code_issued");
   } catch (err) {
     try {
       $http.send({

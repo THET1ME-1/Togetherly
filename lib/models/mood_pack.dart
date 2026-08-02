@@ -30,6 +30,11 @@ class MoodPack {
   /// Требование разблокировки (для каталожных паков). Встроенные — free.
   final Unlock unlock;
 
+  /// Кто нарисовал пак. Подписывает его в конце листа выбора настроения;
+  /// пустая строка означает «наш», подписи не будет. Ссылок тут нет намеренно:
+  /// это подпись под работой, а не переход на чужую площадку.
+  final String author;
+
   const MoodPack({
     required this.id,
     required this.isFree,
@@ -38,6 +43,7 @@ class MoodPack {
     required String nameEn,
     this.tileGradient,
     this.unlock = const Unlock.free(),
+    this.author = '',
   })  : _nameRu = nameRu,
         _nameEn = nameEn;
 

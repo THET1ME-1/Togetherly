@@ -45,8 +45,10 @@ class MoodImage extends StatelessWidget {
       );
     }
 
+    // Пак могли перезалить — тогда в отметке лежит адрес удалённого файла.
+    // Берём тот же стикер по актуальному адресу из каталога.
     return CachedNetworkImage(
-      imageUrl: imagePath,
+      imageUrl: MoodOption.freshRemotePath(imagePath) ?? imagePath,
       fit: fit,
       width: width,
       height: height,

@@ -225,6 +225,8 @@ abstract class AppStrings {
   String get moodBandEven;
   String get moodBandSad;
   String get moodBandHeavy;
+  /// Подпись художника под сеткой пака: «Рисунки — noia_aa».
+  String moodPackAuthor(String name);
   // ── Самочувствие («болячки») ──
   String get moodTabLabel;
   String get ailmentTabLabel;
@@ -2185,6 +2187,8 @@ class _RuStrings extends AppStrings {
   String get moodBandSad => 'Грусть и тревога';
   @override
   String get moodBandHeavy => 'Тяжёлое';
+  @override
+  String moodPackAuthor(String name) => 'Рисунки — $name';
   @override
   String get moodTabLabel => 'Настроение';
   @override
@@ -5964,6 +5968,8 @@ class _EnStrings extends AppStrings {
   String get moodBandSad => 'Low and anxious';
   @override
   String get moodBandHeavy => 'Heavy';
+  @override
+  String moodPackAuthor(String name) => 'Art by $name';
   @override
   String get moodTabLabel => 'Mood';
   @override

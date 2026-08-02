@@ -20,16 +20,20 @@
 /// ИЗОЛИРОВАННОМ пуле и НЕ видит функции уровня файла — всё инлайнится.
 
 routerAdd("POST", "/api/lava/checkout", (e) => {
-  const OFFER = ($os.getenv("LAVA_PLUS_OFFER") ||
+  const PLUS_OFFER = ($os.getenv("LAVA_PLUS_OFFER") ||
     "40364f0a-b0c5-44e8-8380-55d9cf492bb6").trim();
+  // Платные элементы каталога, которые продаются за деньги: ключ владения →
+  // оффер lava.top. Зеркало `FEATURE_SKUS` в `lava.pb.js`, где тот же ключ
+  // выдаётся по уведомлению об оплате. Новый элемент добавляется строкой сюда
+  // и двумя строками туда (товар и оффер).
+  const FEATURE_OFFERS = {
+    "mood_pack:moti": "1d908a4e-9751-41f7-98e9-8499c0c835aa",
+  };
   const apiKey = $os.getenv("LAVA_API_KEY") || "";
   if (!apiKey) return e.json(500, { ok: false, error: "no_api_key" });
 
   const user = e.auth;
   if (!user) return e.json(401, { ok: false, error: "unauthorized" });
-  if (user.getBool("plus")) {
-    return e.json(200, { ok: true, already: true });
-  }
   const email = String(user.getString("email") || "").trim().toLowerCase();
   if (!email) return e.json(400, { ok: false, error: "no_email" });
 
@@ -39,6 +43,7 @@ routerAdd("POST", "/api/lava/checkout", (e) => {
   let currency = "RUB";
   let lang = "RU";
   let method = "";
+  let feature = "";
   try {
     const body = e.requestInfo().body || {};
     const c = String(body.currency || "").toUpperCase();
@@ -46,7 +51,34 @@ routerAdd("POST", "/api/lava/checkout", (e) => {
     const l = String(body.lang || "").toUpperCase();
     if (l === "EN" || l === "ES") lang = l;
     method = String(body.method || "").toLowerCase();
+    feature = String(body.feature || "").trim();
   } catch (_) {}
+
+  // Без `feature` это покупка Togetherly+ — прежнее поведение хука.
+  let OFFER = PLUS_OFFER;
+  if (feature) {
+    OFFER = FEATURE_OFFERS[feature] || "";
+    if (!OFFER) return e.json(400, { ok: false, error: "unknown_feature" });
+    // Уже куплено — счёт не заводим. Смотрим и свои ключи, и общие ключи пар:
+    // элемент каталога общий на двоих, второй раз за него не платят.
+    let owned = [];
+    try { owned = JSON.parse(user.getString("owned_features") || "[]") || []; } catch (_) { owned = []; }
+    let mine = owned.indexOf(feature) !== -1;
+    if (!mine) {
+      let groupIds = [];
+      try { groupIds = user.getStringSlice("group_ids") || []; } catch (_) { groupIds = []; }
+      for (let i = 0; i < groupIds.length && !mine; i++) {
+        try {
+          const grp = $app.findRecordById("groups", String(groupIds[i]));
+          const g = JSON.parse(grp.getString("owned_features") || "[]") || [];
+          if (g.indexOf(feature) !== -1) mine = true;
+        } catch (_) {}
+      }
+    }
+    if (mine) return e.json(200, { ok: true, already: true });
+  } else if (user.getBool("plus")) {
+    return e.json(200, { ok: true, already: true });
+  }
 
   // Провайдер решает, ЧЕМ человек заплатит, и для рублей это вопрос жизни:
   //   PAY2ME       — СБП, выбор банковского приложения (проверено живьём);
@@ -102,6 +134,9 @@ routerAdd("POST", "/api/lava/checkout", (e) => {
     rec.set("email", email);
     rec.set("status", String(data.status || "NEW").toUpperCase());
     rec.set("granted", false);
+    // Пусто — счёт за Togetherly+; иначе ключ владения, который выдаст крон,
+    // если вебхук по этой оплате потеряется.
+    rec.set("feature", feature);
     $app.save(rec);
   } catch (err) {
     // Счёт уже создан на стороне lava, ронять покупку из-за своей записи
@@ -162,7 +197,33 @@ cronAdd("lavaInvoicePoll", "*/2 * * * *", () => {
     // Оплачено, а доступа нет — значит вебхук не доехал. Выдаём сами.
     try {
       const user = $app.findRecordById("users", rec.getString("user_uid"));
-      if (!user.getBool("plus")) {
+      const feature = rec.getString("feature") || "";
+
+      if (feature) {
+        // Элемент каталога: ключ ложится покупателю и его парам — ровно то же,
+        // что делает вебхук и покупка за монеты (shareToGroups в coins.pb.js).
+        const parse = (s, fb) => {
+          try { return JSON.parse(s || JSON.stringify(fb)) || fb; } catch (_) { return fb; }
+        };
+        const owned = parse(user.getString("owned_features"), []);
+        if (owned.indexOf(feature) === -1) {
+          user.set("owned_features", JSON.stringify(owned.concat([feature])));
+          $app.save(user);
+          $app.logger().warn("lava/poll: элемент выдан по опросу счёта",
+            "email", rec.getString("email"), "feature", feature, "contract", contractId);
+        }
+        let groupIds = [];
+        try { groupIds = user.getStringSlice("group_ids") || []; } catch (_) { groupIds = []; }
+        for (let i = 0; i < groupIds.length; i++) {
+          let grp = null;
+          try { grp = $app.findRecordById("groups", String(groupIds[i])); } catch (_) { grp = null; }
+          if (!grp) continue;
+          const gOwned = parse(grp.getString("owned_features"), []);
+          if (gOwned.indexOf(feature) !== -1) continue;
+          grp.set("owned_features", JSON.stringify(gOwned.concat([feature])));
+          try { $app.save(grp); } catch (_) {}
+        }
+      } else if (!user.getBool("plus")) {
         user.set("plus", true);
         user.set("plus_platform", "lava");
         $app.save(user);
@@ -172,7 +233,7 @@ cronAdd("lavaInvoicePoll", "*/2 * * * *", () => {
       rec.set("granted", true);
       $app.save(rec);
     } catch (err) {
-      $app.logger().warn("lava/poll: не удалось выдать Плюс",
+      $app.logger().warn("lava/poll: не удалось выдать покупку",
         "contract", contractId, "err", String(err));
     }
   }

@@ -24,6 +24,7 @@
       "id": "kawaii",
       "name_ru": "Каваи",
       "name_en": "Kawaii",
+      "author": "noia_aa",
       "tileGradient": ["#FFD9E8", "#FFF1F6"],
       "moods": {
         "happy": {"labelRu": "Счастье", "labelEn": "Happy", "color": "#F5C542", "score": 5},
@@ -179,6 +180,10 @@ def main() -> None:
         manifest: dict = {"moods": []}
         if spec.get("tileGradient"):
             manifest["tileGradient"] = spec["tileGradient"]
+        # Имя художника подписывает пак в листе выбора настроения. Ссылок сюда
+        # не кладём: это подпись под работой, а не реклама площадки.
+        if spec.get("author"):
+            manifest["author"] = spec["author"]
         if args.price > 0:
             manifest["unlock"] = {"type": "premium", "price": args.price, "plus": args.plus}
 

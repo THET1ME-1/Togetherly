@@ -1,5 +1,8 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/level.dart';
 import '../models/mood_pack.dart';
 import '../models/user_data.dart';
@@ -8,7 +11,6 @@ import '../services/level_service.dart';
 import '../services/locale_service.dart';
 import '../services/mood_pack_service.dart';
 import '../theme/theme_scope.dart';
-import 'common/app_dialog.dart';
 import 'mood_image.dart';
 
 /// Выбор пака настроений в пикере: таблетки без обводки.
@@ -27,6 +29,12 @@ class MoodPackSelector extends StatelessWidget {
   /// Вызывается после смены пака (родитель обновляет сетку настроений).
   final ValueChanged<MoodPack>? onChanged;
 
+  /// Тап по ЗАКРЫТОМУ паку. Родитель показывает его эмоции в своей же сетке —
+  /// человек видит набор целиком, а кнопка покупки стоит внизу экрана. Отдельного
+  /// окна-витрины тут нет намеренно: это тот же экран настроения, только чужой
+  /// набор в нём пока нельзя выбрать.
+  final ValueChanged<MoodPack>? onPreview;
+
   /// Чей кошелёк и что уже куплено. Без него пак считается открытым.
   final UserData? user;
 
@@ -34,12 +42,18 @@ class MoodPackSelector extends StatelessWidget {
   /// как и маскот, поэтому платит кто-то один.
   final Set<String> pairOwned;
 
+  /// Какой пак сейчас показан в сетке. Обычно это выбранный, но при просмотре
+  /// закрытого набора подсвечен именно он.
+  final String? shownId;
+
   const MoodPackSelector({
     super.key,
     required this.primary,
     this.onChanged,
+    this.onPreview,
     this.user,
     this.pairOwned = const {},
+    this.shownId,
   });
 
   /// Открыт ли пак этому человеку.
@@ -69,12 +83,24 @@ class MoodPackSelector extends StatelessWidget {
       ),
       builder: (context, _) {
         final selectedId = MoodPackService.instance.selectedPackId;
-        final packs = CatalogService.instance.allPacks;
+        // Подсвечиваем тот набор, который человек сейчас видит: у закрытого это
+        // просмотр, а не выбор, поэтому галочки у него не будет — только замок.
+        final shownId = this.shownId ?? selectedId;
+        // На iOS платного за деньги не показываем вовсе: вести на оплату мимо
+        // биллинга Apple запрещает 3.1.1, за это уже прилетал реджект 1.21.0.
+        // Купленный (в том числе партнёром с Android) остаётся видимым —
+        // отбирать оплаченное нельзя.
+        final packs = CatalogService.instance.allPacks
+            .where((p) => !(Platform.isIOS && p.unlock.isMoney && !isOpen(p)))
+            .toList();
         if (packs.isEmpty) return const SizedBox.shrink();
 
         void select(MoodPack pack) {
           if (!isOpen(pack)) {
-            _offerPurchase(context, pack);
+            // Закрытый набор просто показываем в сетке — купить его можно
+            // кнопкой внизу экрана, когда человек посмотрел, что берёт.
+            HapticFeedback.selectionClick();
+            onPreview?.call(pack);
             return;
           }
           if (pack.id == selectedId) return;
@@ -93,7 +119,7 @@ class MoodPackSelector extends StatelessWidget {
                   Expanded(
                     child: _PackChip(
                       pack: packs[i],
-                      selected: packs[i].id == selectedId,
+                      selected: packs[i].id == shownId,
                       locked: !isOpen(packs[i]),
                       primary: primary,
                       stretched: true,
@@ -114,7 +140,7 @@ class MoodPackSelector extends StatelessWidget {
             separatorBuilder: (_, _) => const SizedBox(width: 8),
             itemBuilder: (context, i) => _PackChip(
               pack: packs[i],
-              selected: packs[i].id == selectedId,
+              selected: packs[i].id == shownId,
               locked: !isOpen(packs[i]),
               primary: primary,
               stretched: false,
@@ -127,15 +153,19 @@ class MoodPackSelector extends StatelessWidget {
   }
 }
 
-/// Предложить купить пак за монеты.
+/// Купить пак: за деньги (lava.top) или за монеты, смотря что стоит в каталоге.
 ///
-/// Цену показываем из каталога, а списывает её сервер по своей же записи:
-/// клиентскому числу он не верит, подменить его в запросе нельзя.
-Future<void> _offerPurchase(BuildContext context, MoodPack pack) async {
-  final selector = context.findAncestorWidgetOfExactType<MoodPackSelector>();
-  final user = selector?.user;
-  if (user == null) return;
-
+/// Зовётся кнопкой внизу экрана настроения, когда человек смотрит закрытый
+/// набор. Цену показываем из каталога, а списывает её сервер по своей же
+/// записи: клиентскому числу он не верит, подменить его в запросе нельзя.
+/// [onBought] срабатывает только после покупки за монеты — оплата деньгами
+/// уходит в браузер и возвращается уведомлением сервера.
+Future<void> buyMoodPack(
+  BuildContext context,
+  MoodPack pack, {
+  required UserData user,
+  VoidCallback? onBought,
+}) async {
   final ru = LocaleService.instance.isRussian;
   final price = pack.unlock.price;
   final messenger = ScaffoldMessenger.of(context);
@@ -148,25 +178,39 @@ Future<void> _offerPurchase(BuildContext context, MoodPack pack) async {
     say(ru ? 'Этот набор пока не продаётся' : 'This pack is not for sale yet');
     return;
   }
+
+  // Пак за деньги: монеты тут ни при чём, оплату ведёт lava.top. Счёт заводит
+  // сервер на почту аккаунта — по витринной ссылке уведомление об оплате не
+  // приходит вовсе, и набор пришлось бы выдавать руками.
+  if (pack.unlock.isMoney) {
+    final res = await CatalogService.instance.purchaseUrl(
+      Unlock.featureKey(kMoodPackFeatureKind, pack.id),
+      currency: pack.unlock.currency,
+    );
+    if (!context.mounted) return;
+    if (res.already) {
+      say(ru ? 'Набор уже открыт' : 'You already own this pack');
+      return;
+    }
+    final url = res.url;
+    if (url == null) {
+      say(ru ? 'Не удалось открыть оплату' : 'Could not open checkout');
+      return;
+    }
+    final ok = await launchUrl(Uri.parse(url),
+        mode: LaunchMode.externalApplication);
+    if (!ok && context.mounted) {
+      say(ru ? 'Не удалось открыть оплату' : 'Could not open checkout');
+    }
+    return;
+  }
+
   if (user.coins < price) {
     say(ru
         ? 'Не хватает монет: нужно $price, у вас ${user.coins}'
         : 'Not enough coins: $price needed, you have ${user.coins}');
     return;
   }
-
-  final ok = await AppDialog.confirm(
-    context,
-    title: pack.name,
-    message: ru
-        ? 'Открыть этот набор настроений навсегда за $price монет? '
-            'Он появится и у партнёра.'
-        : 'Unlock this mood pack forever for $price coins? '
-            'Your partner gets it too.',
-    confirmLabel: ru ? 'Купить' : 'Buy',
-    icon: Icons.mood_rounded,
-  );
-  if (!ok || !context.mounted) return;
 
   final bought = await user.purchaseCatalogItem(kMoodPackFeatureKind, pack.id);
   if (!context.mounted) return;
@@ -177,7 +221,7 @@ Future<void> _offerPurchase(BuildContext context, MoodPack pack) async {
 
   HapticFeedback.selectionClick();
   await MoodPackService.instance.setSelectedPack(pack.id);
-  selector?.onChanged?.call(pack);
+  onBought?.call();
 }
 
 class _PackChip extends StatelessWidget {
@@ -264,7 +308,9 @@ class _PackChip extends StatelessWidget {
               if (pack.unlock.isForSale) ...[
                 const SizedBox(width: 3),
                 Text(
-                  '${pack.unlock.price}',
+                  // Монеты — голое число рядом со значком монеты, деньги — со
+                  // знаком валюты: «150» и «5 $» не должны читаться одинаково.
+                  pack.unlock.priceLabel,
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
