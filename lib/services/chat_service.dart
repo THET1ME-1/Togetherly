@@ -1,10 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/chat_msg.dart';
+import '../models/voice_note.dart';
+import 'voice_recorder_service.dart';
 import 'offline/local_store.dart';
 import 'offline/outbox_service.dart';
 import 'offline/pb_id.dart';
@@ -120,6 +124,119 @@ class ChatService {
     });
     // Пуш партнёру — через PbPushService (SSE на chat_messages при отправке очереди).
     return true; // оптимистично: сообщение в кэше и очереди
+  }
+
+  /// Отправить голосовое. [capture] — то, что вернул [VoiceRecorderService].
+  ///
+  /// Пузырь появляется сразу и играет с диска, а файл уезжает очередью
+  /// (операция `chatVoice`: сперва заливка в `media`, следом само сообщение).
+  /// Файл переносим из временной папки в постоянную: очередь может лежать
+  /// сутками при плохой сети, а временную систему чистит без предупреждения.
+  Future<bool> sendVoice({
+    required String groupId,
+    required String senderName,
+    required VoiceCapture capture,
+    String? replyToId,
+    String? replyToName,
+    String? replyToText,
+  }) async {
+    if (groupId.isEmpty || _uid.isEmpty) return false;
+    if (capture.duration < VoiceRecorderService.minDuration) return false;
+
+    final stored = await _keepFile(capture.path);
+    if (stored == null) return false;
+
+    final id = newPbId();
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final ms = capture.duration.inMilliseconds;
+
+    await LocalStore.instance.upsertRaw('chat_messages', id, {
+      'id': id,
+      'group_id': groupId,
+      'user_uid': _uid,
+      'user_name': senderName,
+      'text': '',
+      'ts': ts,
+      'deleted': false,
+      'voice_url': stored,
+      'voice_ms': ms,
+      'voice_peaks': capture.peaks,
+      'reply_to_id': ?replyToId,
+      'reply_to_name': ?replyToName,
+      'reply_to_text': ?replyToText,
+    });
+
+    await OutboxService.instance.enqueue('chatVoice', {
+      'groupId': groupId,
+      'id': id,
+      'path': stored,
+      'msg': {
+        'uid': _uid,
+        'name': senderName,
+        'text': '',
+        'ts': ts,
+        'voiceUrl': stored,
+        'voiceMs': ms,
+        'voicePeaks': capture.peaks,
+        'replyToId': replyToId,
+        'replyToName': replyToName,
+        'replyToText': replyToText,
+      },
+    });
+    return true;
+  }
+
+  /// Переносит запись в папку приложения (`files/voice_outbox`). Возвращает
+  /// новый путь или null, если перенести не вышло.
+  Future<String?> _keepFile(String tempPath) async {
+    try {
+      final src = File(tempPath);
+      if (!await src.exists()) return null;
+      final base = await getApplicationSupportDirectory();
+      final dir = Directory('${base.path}/voice_outbox');
+      if (!await dir.exists()) await dir.create(recursive: true);
+      final dst = '${dir.path}/${tempPath.split(Platform.pathSeparator).last}';
+      final moved = await src.rename(dst);
+      return moved.path;
+    } catch (e) {
+      debugPrint('ChatService._keepFile failed: $e');
+      // Переименование через границу файловых систем падает — копируем.
+      try {
+        final base = await getApplicationSupportDirectory();
+        final dir = Directory('${base.path}/voice_outbox');
+        if (!await dir.exists()) await dir.create(recursive: true);
+        final dst = '${dir.path}/${tempPath.split(Platform.pathSeparator).last}';
+        await File(tempPath).copy(dst);
+        await File(tempPath).delete();
+        return dst;
+      } catch (e2) {
+        debugPrint('ChatService._keepFile copy failed: $e2');
+        return null;
+      }
+    }
+  }
+
+  /// Отметить чужое голосовое прослушанным. Идёт через очередь, как и всё
+  /// остальное: отметка не должна теряться при плохой сети и не должна
+  /// заставлять ждать — пузырь гасит точку сразу.
+  Future<void> markVoiceHeard(String messageId) async {
+    if (messageId.isEmpty) return;
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    await LocalStore.instance.patchRecordFields('chat_messages', messageId, {
+      'voice_heard_at': ts,
+    });
+    await OutboxService.instance.enqueue('chatUpdate', {
+      'id': messageId,
+      'fields': {'voice_heard_at': ts},
+    });
+  }
+
+  /// Подпись голосового в цитате ответа и в списке связей: текста у него нет,
+  /// поэтому показываем длительность («Голосовое · 0:14»).
+  static String voiceQuote(ChatMsg msg, String label) {
+    final v = msg.voice;
+    if (v == null) return label;
+    return '$label · ${VoiceNote.formatDuration(v.duration)}';
   }
 
   /// Редактировать своё сообщение. null-значения оформления СТИРАЮТ поле:
@@ -323,10 +440,22 @@ class ChatService {
 
   /// Сохранить позицию прокрутки чата (px от верха) — при перезаходе вернём
   /// человека ровно туда, где он остановился.
-  Future<void> saveScrollOffset(String groupId, double px) async {
+  ///
+  /// Рядом кладём два признака: стоял ли он у низа и ts последнего сообщения
+  /// на тот момент. Без них пиксели врут: за время отсутствия приходят новые
+  /// сообщения, лента съезжает, и та же цифра указывает в середину старой
+  /// переписки (жалоба «чат открывается где-то вверху», 31 июля).
+  Future<void> saveScrollOffset(
+    String groupId,
+    double px, {
+    bool nearBottom = false,
+    int lastMessageTs = 0,
+  }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setDouble(_scrollKey(groupId), px);
+      await prefs.setBool('${_scrollKey(groupId)}_bottom', nearBottom);
+      await prefs.setInt('${_scrollKey(groupId)}_ts', lastMessageTs);
     } catch (_) {}
   }
 
@@ -337,6 +466,26 @@ class ChatService {
       return prefs.getDouble(_scrollKey(groupId));
     } catch (_) {
       return null;
+    }
+  }
+
+  /// Стоял ли человек у низа, когда выходил.
+  Future<bool> loadScrollNearBottom(String groupId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool('${_scrollKey(groupId)}_bottom') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Каким было последнее сообщение в момент выхода (0 — не знаем).
+  Future<int> loadScrollLastTs(String groupId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getInt('${_scrollKey(groupId)}_ts') ?? 0;
+    } catch (_) {
+      return 0;
     }
   }
 

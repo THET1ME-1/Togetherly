@@ -65,7 +65,7 @@ class MoodPack {
     tileGradient: [Color(0xFFFFF2F8), Color(0xFFFFDCEC)],
   );
 
-  /// Черновой пак: пока пять эмоций, чтобы посмотреть зайку в приложении.
+  /// Каваи-зайка: двадцать одна эмоция, весь набор нарисован.
   static const MoodPack bunny = MoodPack(
     id: 'bunny',
     isFree: true,

@@ -93,8 +93,69 @@ routerAdd("POST", "/api/coins/purchase-feature", (e) => {
   const body = (e.requestInfo().body || {});
   const featureId = String(body.featureId || "");
   const PRICES = { "days_widget_photos": 20 };
-  const price = PRICES[featureId];
-  if (!price) return e.json(400, { ok: false, error: "not for sale" });
+  let price = PRICES[featureId] || 0;
+
+  // Элементы каталога продаются по СВОЕЙ цене, из своей же записи: ключ
+  // владения выглядит как `вид:id` (`mascot:kuku`). Благодаря этому новый
+  // платный персонаж заводится одной записью в `catalog_items` и продаётся
+  // сразу — без правки этого хука и без новой сборки приложения.
+  //
+  // Цену берём с сервера, а не из запроса: присланному числу верить нельзя,
+  // иначе любой купил бы маскота за одну монету.
+  if (!price && featureId.indexOf(":") > 0) {
+    const parts = featureId.split(":");
+    const kind = String(parts[0] || "");
+    const itemId = String(parts[1] || "");
+    // Вид ключа владения → значение `kind` в каталоге. Новый вид платного
+    // добавляется сюда одной строкой; сами элементы по-прежнему заводятся
+    // записью в `catalog_items`, без сборки.
+    const KINDS = { "mascot": "mascot_anim", "mood_pack": "mood_pack" };
+    const wantKind = KINDS[kind];
+    if (!wantKind || !itemId) return e.json(400, { ok: false, error: "not for sale" });
+
+    let item = null;
+    try { item = $app.findRecordById("catalog_items", itemId); } catch (_) { item = null; }
+    if (!item) return e.json(400, { ok: false, error: "not for sale" });
+    if (item.getString("kind") !== wantKind) return e.json(400, { ok: false, error: "not for sale" });
+    if (!item.getBool("enabled")) return e.json(400, { ok: false, error: "not for sale" });
+    if (item.getBool("is_free")) return e.json(400, { ok: false, error: "already free" });
+
+    price = item.getInt("price") || 0;
+    if (!price) {
+      // Запасной путь: цена лежит в манифесте рядом с остальным про элемент.
+      const data = safeParse(item.getString("data"), {});
+      const unlock = (data && data.unlock) || {};
+      price = typeof unlock.price === "number" ? unlock.price : 0;
+    }
+  }
+
+  if (!price || price < 0) return e.json(400, { ok: false, error: "not for sale" });
+  // Элементы каталога общие на пару: маскот живёт на главной у обоих, и серию
+  // они растят вдвоём. Ключ поэтому кладётся ЕЩЁ И на группу — так партнёр
+  // получает купленное, не платя второй раз. У покупателя ключ остаётся в
+  // своём `owned_features` навсегда, даже если пара разойдётся.
+  //
+  // Раздача идёт и при повторном запросе: тот, кто купил в прошлой паре, обязан
+  // поделиться и в новой, иначе персонаж достался бы только ему.
+  const shareToGroups = (txApp, rec, key) => {
+    if (key.indexOf(":") <= 0) return;
+    const parse = (s, fb) => { try { return JSON.parse(s || JSON.stringify(fb)) || fb; } catch (_) { return fb; } };
+    // `group_ids` — это relation, а не json: строкой его читать бесполезно,
+    // нужен getStringSlice. На этом раздача купленного молча не работала.
+    let groupIds = [];
+    try { groupIds = rec.getStringSlice("group_ids") || []; } catch (_) { groupIds = []; }
+    if (!groupIds.length) groupIds = parse(rec.getString("pair_ids"), []);
+    for (let i = 0; i < groupIds.length; i++) {
+      let grp = null;
+      try { grp = txApp.findRecordById("groups", String(groupIds[i])); } catch (_) { grp = null; }
+      if (!grp) continue;
+      const gOwned = parse(grp.getString("owned_features"), []);
+      if (gOwned.indexOf(key) !== -1) continue;
+      grp.set("owned_features", JSON.stringify(gOwned.concat([key])));
+      txApp.save(grp);
+    }
+  };
+
   let out;
   try {
     $app.runInTransaction((txApp) => {
@@ -102,6 +163,7 @@ routerAdd("POST", "/api/coins/purchase-feature", (e) => {
       const coins = rec.getInt("coins") || 0;
       const owned = safeParse(rec.getString("owned_features"), []);
       if (owned.indexOf(featureId) !== -1) {
+        shareToGroups(txApp, rec, featureId);
         out = { s: 200, b: { ok: true, alreadyOwned: true, coins: coins, ownedFeatures: owned } };
         return;
       }
@@ -113,6 +175,8 @@ routerAdd("POST", "/api/coins/purchase-feature", (e) => {
       rec.set("coins", coins - price);
       rec.set("owned_features", JSON.stringify(newOwned));
       txApp.save(rec);
+      shareToGroups(txApp, rec, featureId);
+
       out = { s: 200, b: { ok: true, alreadyOwned: false, coins: coins - price, ownedFeatures: newOwned } };
     });
   } catch (err) { return e.json(500, { ok: false, error: "tx failed" }); }

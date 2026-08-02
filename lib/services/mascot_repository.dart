@@ -70,9 +70,13 @@ class MascotRepository {
         .map((rec) =>
             rec == null ? const GroupMascotState() : GroupMascotState.fromPb(rec))
         .where((s) {
+      // Покупки пары обязаны быть в подписи: без них покупка партнёра —
+      // единственное изменение записи — отсеивалась бы как «ничего нового»,
+      // и купленный персонаж открылся бы у второго только со следующей правкой
+      // группы.
       final sig = '${s.activeMascotId}|${s.positionX}|${s.positionY}|'
           '${s.scale}|${s.streakDays}|${s.streakLastOpenedDate}|${s.xp}|'
-          '${s.mascotStreaks}';
+          '${s.mascotStreaks}|${s.ownedFeatures.length}';
       if (sig == prevSig) return false;
       prevSig = sig;
       return true;

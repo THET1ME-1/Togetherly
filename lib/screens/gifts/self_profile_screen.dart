@@ -20,6 +20,7 @@ class SelfProfileScreen extends StatefulWidget {
     this.selfAvatarUrl,
     this.bannerUrl = '',
     this.daysTogether,
+    this.partnerName,
   });
 
   final AppTheme theme;
@@ -29,6 +30,9 @@ class SelfProfileScreen extends StatefulWidget {
   final String? selfAvatarUrl;
   final String bannerUrl;
   final int? daysTogether;
+
+  /// Имя партнёра — им подписаны записки к подаркам на полке.
+  final String? partnerName;
 
   @override
   State<SelfProfileScreen> createState() => _SelfProfileScreenState();
@@ -96,6 +100,7 @@ class _SelfProfileScreenState extends State<SelfProfileScreen> {
                 avatarUrl: widget.selfAvatarUrl,
                 daysTogether: widget.daysTogether,
                 isSelf: true,
+                counterpartName: widget.partnerName,
                 showHeader: false, // шапку даёт ProfileHero выше
               ),
             ),

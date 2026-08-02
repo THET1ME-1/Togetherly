@@ -1126,6 +1126,53 @@ abstract class AppStrings {
   // ── Chat ──
   String get chatTitle;
   String get chatHint;
+
+  // ── Голосовые сообщения ──
+  /// Подсказка под полосой записи, пока палец держит микрофон.
+  String get voiceSlideHints;
+  /// Палец увели влево: отпустишь — запись пропадёт.
+  String get voiceReleaseToCancel;
+  /// Палец увели вверх: отпустишь — запись останется идти без пальца.
+  String get voiceReleaseToLock;
+  /// Подпись голосового там, где нужен текст (цитата ответа, список связей).
+  String get voiceMessage;
+  /// Отпустили слишком быстро — записывать нечего.
+  String get voiceTooShort;
+  /// Микрофон не дали.
+  String get voiceNoPermission;
+  /// Записать не вышло: микрофон занят или платформа отказала.
+  String get voiceFailed;
+  /// Дошли до предела длительности.
+  String get voiceLimitReached;
+  /// Партнёр послушал наше голосовое.
+  String get voiceHeard;
+
+  // ── Пара с пустым местом («он в армии») ──
+  String get waitingSetupTitle;
+  String get waitingEditTitle;
+  String get waitingSetupHint;
+  String get waitingNameLabel;
+  String get waitingReturnDate;
+  String get waitingCreateAction;
+  String get waitingCreateFailed;
+  String get waitingBadge;
+  String get waitingCodeTitle;
+  String get waitingCodeHint;
+  String get waitingCodeCopied;
+  String get waitingResetCode;
+  String get waitingResetCodeHint;
+  String get waitingClaimTitle;
+  String get waitingClaimAsk;
+  String get waitingClaimYes;
+  String get waitingClaimNo;
+  String get waitingPendingTitle;
+  String get waitingPendingHint;
+  String get waitingRejected;
+  String get waitingApproved;
+  String get waitingUntilReturn;
+  String get waitingHomeToday;
+  /// Сколько дней осталось до возвращения.
+  String waitingDaysLeft(int days);
   String get chatEmpty;
   String get chatEditMessage;
   String get chatDeleteMessage;
@@ -1243,6 +1290,16 @@ abstract class AppStrings {
   String get settingsSupportHint;
   String get settingsAccountSection;
   String get settingsDeleteHint;
+  /// Сон маскотов: у каждого персонажа своё окно ночной сцены.
+  String get mascotSleepTitle;
+  String get mascotSleepHint;
+  String get mascotSleepEmpty;
+  String get mascotSleepFrom;
+  String get mascotSleepTo;
+  String get mascotSleepOff;
+  String get mascotNightAwake;
+  String mascotSleepRange(String from, String to);
+  String mascotNightRange(String from, String to);
   /// Календарь цикла.
   String get cycleTitle;
   String get cycleSettingsHint;
@@ -1286,6 +1343,22 @@ abstract class AppStrings {
   List<String> get cycleWeekdayShorts;
   List<String> get cycleMonthNames;
   List<String> get cycleMonthsGenitive;
+  /// Советы на дни месячных (лента под блоком цикла).
+  String get cycleTipsTitle;
+  String get cycleTipWarmTitle;
+  String get cycleTipWarmBody;
+  String get cycleTipFeetTitle;
+  String get cycleTipFeetBody;
+  String get cycleTipPainTitle;
+  String get cycleTipPainBody;
+  String get cycleTipShowerTitle;
+  String get cycleTipShowerBody;
+  String get cycleTipChangeTitle;
+  String get cycleTipChangeBody;
+  String get cycleTipIronTitle;
+  String get cycleTipIronBody;
+  String get cycleTipRestTitle;
+  String get cycleTipRestBody;
   /// Лист дня в календаре: что отмечаем на этот день.
   String dayLogDate(DateTime day);
   String dayLogWeekday(DateTime day);
@@ -1320,6 +1393,10 @@ abstract class AppStrings {
   String get plusCycleBody;
   String get plusWidgetsTitle;
   String get plusWidgetsBody;
+  String get plusColoringTitle;
+  String get plusColoringBody;
+  String get plusWishesTitle;
+  String get plusWishesBody;
   String get plusTipsTitle;
   String get plusTipsBody;
   String get plusVideoTitle;
@@ -3957,6 +4034,87 @@ class _RuStrings extends AppStrings {
   String get chatTitle => 'Чат';
   @override
   String get chatHint => 'Сообщение…';
+
+  @override
+  String get voiceSlideHints => 'Влево — отмена, вверх — закрепить';
+  @override
+  String get voiceReleaseToCancel => 'Отпустите — запись сотрётся';
+  @override
+  String get voiceReleaseToLock => 'Отпустите — запись продолжится';
+  @override
+  String get voiceMessage => 'Голосовое';
+  @override
+  String get voiceTooShort => 'Подержите кнопку дольше';
+  @override
+  String get voiceNoPermission => 'Разрешите доступ к микрофону в настройках';
+  @override
+  String get voiceFailed => 'Записать не вышло, попробуйте ещё раз';
+  @override
+  String get voiceLimitReached => 'Три минуты — предел одного сообщения';
+  @override
+  String get voiceHeard => 'Послушал';
+
+  @override
+  String get waitingSetupTitle => 'Ждём человека';
+  @override
+  String get waitingEditTitle => 'Кого ждём';
+  @override
+  String get waitingSetupHint =>
+      'Пара заведётся сразу, на одного. Фото, настроения и «Скучаю» будут '
+      'копиться в ней с первого дня — он увидит всё, когда вернётся и введёт код.';
+  @override
+  String get waitingNameLabel => 'Его имя';
+  @override
+  String get waitingReturnDate => 'Дата возвращения';
+  @override
+  String get waitingCreateAction => 'Завести пару';
+  @override
+  String get waitingCreateFailed => 'Не получилось. Попробуйте ещё раз';
+  @override
+  String get waitingBadge => 'Ждём';
+  @override
+  String get waitingCodeTitle => 'Код второго места';
+  @override
+  String get waitingCodeHint =>
+      'Отдайте его, когда вернётся. Код не протухает — ни через год, ни через два.';
+  @override
+  String get waitingCodeCopied => 'Код скопирован';
+  @override
+  String get waitingResetCode => 'Сменить код';
+  @override
+  String get waitingResetCodeHint => 'Старый перестанет работать';
+  @override
+  String get waitingClaimTitle => 'Кто-то ввёл ваш код';
+  @override
+  String get waitingClaimAsk => 'Это он?';
+  @override
+  String get waitingClaimYes => 'Да, это он';
+  @override
+  String get waitingClaimNo => 'Нет, это чужой';
+  @override
+  String get waitingPendingTitle => 'Ждём подтверждения';
+  @override
+  String get waitingPendingHint =>
+      'Код принят. Осталось, чтобы вас подтвердили в приложении — тогда откроется вся история пары.';
+  @override
+  String get waitingRejected => 'Заявку отклонили';
+  @override
+  String get waitingApproved => 'Вас подтвердили — добро пожаловать';
+  @override
+  String get waitingUntilReturn => 'До возвращения';
+  @override
+  String get waitingHomeToday => 'Возвращается сегодня';
+  @override
+  String waitingDaysLeft(int days) {
+    final n = days.abs();
+    final mod10 = n % 10, mod100 = n % 100;
+    final word = (mod10 == 1 && mod100 != 11)
+        ? 'день'
+        : (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14))
+            ? 'дня'
+            : 'дней';
+    return '$n $word';
+  }
   @override
   String get chatEmpty => 'Пока нет сообщений.\nНапишите первым 💬';
   @override
@@ -4210,6 +4368,26 @@ class _RuStrings extends AppStrings {
   @override
   String get settingsDeleteHint => 'вместе со всеми записями, без возврата';
   @override
+  String get mascotSleepTitle => 'Сон маскотов';
+  @override
+  String get mascotSleepHint => 'когда персонаж уходит на ночную сцену';
+  @override
+  String get mascotSleepEmpty =>
+      'Ночная сцена есть не у всех. Заведите персонажа, который умеет ночь, '
+      'и его время появится здесь.';
+  @override
+  String get mascotSleepFrom => 'Засыпает';
+  @override
+  String get mascotSleepTo => 'Просыпается';
+  @override
+  String get mascotSleepOff => 'Не спит совсем';
+  @override
+  String get mascotNightAwake => 'Ночью не спит — он ночной';
+  @override
+  String mascotSleepRange(String from, String to) => 'Спит с $from до $to';
+  @override
+  String mascotNightRange(String from, String to) => 'Светит с $from до $to';
+  @override
   String get cycleTitle => 'Цикл';
   @override
   String get cycleSettingsHint => 'календарь, прогноз и доступ партнёра';
@@ -4307,6 +4485,49 @@ class _RuStrings extends AppStrings {
         'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
       ];
   @override
+  String get cycleTipsTitle => 'Как себе помочь';
+  @override
+  String get cycleTipWarmTitle => 'Тепло на живот';
+  @override
+  String get cycleTipWarmBody =>
+      'Грелка или тёплый компресс на 15–20 минут расслабляет мышцы. '
+      'Тёплая, не горячая.';
+  @override
+  String get cycleTipFeetTitle => 'Ноги в тепле';
+  @override
+  String get cycleTipFeetBody =>
+      'Носки и плед. Когда ноги мёрзнут, спазмы чувствуются сильнее.';
+  @override
+  String get cycleTipPainTitle => 'Боль терпеть не надо';
+  @override
+  String get cycleTipPainBody =>
+      'Если мешает жить, подойдёт привычное обезболивающее. Когда каждый цикл '
+      'валит с ног — стоит показаться врачу.';
+  @override
+  String get cycleTipShowerTitle => 'Душ вместо ванны';
+  @override
+  String get cycleTipShowerBody =>
+      'Быстрый тёплый душ. Подмываться утром, вечером и после каждой смены '
+      'прокладки.';
+  @override
+  String get cycleTipChangeTitle => 'Каждые 3–4 часа';
+  @override
+  String get cycleTipChangeBody =>
+      'Менять прокладку или тампон, даже если кажется, что рано. Бельё — '
+      'после подмывания.';
+  @override
+  String get cycleTipIronTitle => 'Железо в тарелке';
+  @override
+  String get cycleTipIronBody =>
+      'Гречка, гранат, печень, орехи, яблоки, тёмный шоколад: за эти дни '
+      'железа уходит много.';
+  @override
+  String get cycleTipRestTitle => 'Ты справишься';
+  @override
+  String get cycleTipRestBody =>
+      'Тело сейчас делает большую работу. Отдохнуть сегодня — не лень, '
+      'а помощь себе.';
+  @override
   String dayLogDate(DateTime day) =>
       '${day.day} ${cycleMonthsGenitive[day.month - 1]}';
   @override
@@ -4379,6 +4600,16 @@ class _RuStrings extends AppStrings {
   @override
   String get plusNoAdsBody =>
       'Баннеры исчезают, совместный просмотр запускается сразу — без ролика';
+  @override
+  String get plusWishesTitle => 'Свои категории желаний';
+  @override
+  String get plusWishesBody =>
+      'Заведите в «Хочу с тобой» свою категорию со значком на выбор';
+  @override
+  String get plusColoringTitle => 'Свои рисунки в раскрасках';
+  @override
+  String get plusColoringBody =>
+      'Загрузите свою картинку и раскрасьте её вдвоём';
   @override
   String get plusThemesTitle => 'Все темы и иконки';
   @override
@@ -4841,7 +5072,7 @@ class _RuStrings extends AppStrings {
   String get mascotsLoadFailedMultiline =>
       'Маскоты не загрузились.\nПроверьте соединение.';
   @override
-  String get artistCredit => 'Художница — Алёна Гребенева';
+  String get artistCredit => 'Художница — Meller1';
   @override
   String get uploadPhotoTooltip => 'Загрузить фото';
   @override
@@ -4856,7 +5087,7 @@ class _RuStrings extends AppStrings {
   @override
   String get fromUs => 'От нас';
   @override
-  String recordStreakBadge(int days) => '🏅 $days дн.';
+  String recordStreakBadge(int days) => '$days дн.';
 
   // ── Mascot draw screen ──
   @override
@@ -7533,6 +7764,81 @@ class _EnStrings extends AppStrings {
   String get chatTitle => 'Chat';
   @override
   String get chatHint => 'Message…';
+
+  @override
+  String get voiceSlideHints => 'Left to cancel, up to lock';
+  @override
+  String get voiceReleaseToCancel => 'Release to delete';
+  @override
+  String get voiceReleaseToLock => 'Release to keep recording';
+  @override
+  String get voiceMessage => 'Voice message';
+  @override
+  String get voiceTooShort => 'Hold the button a bit longer';
+  @override
+  String get voiceNoPermission => 'Allow microphone access in settings';
+  @override
+  String get voiceFailed => "Couldn't record, try again";
+  @override
+  String get voiceLimitReached => 'Three minutes is the limit for one message';
+  @override
+  String get voiceHeard => 'Heard';
+
+  @override
+  String get waitingSetupTitle => 'Waiting for someone';
+  @override
+  String get waitingEditTitle => 'Who we wait for';
+  @override
+  String get waitingSetupHint =>
+      'The pair starts right away, with just you. Photos, moods and "Miss you" '
+      'collect in it from day one — he sees everything once he enters the code.';
+  @override
+  String get waitingNameLabel => 'His name';
+  @override
+  String get waitingReturnDate => 'Return date';
+  @override
+  String get waitingCreateAction => 'Create the pair';
+  @override
+  String get waitingCreateFailed => "That didn't work. Try again";
+  @override
+  String get waitingBadge => 'Waiting';
+  @override
+  String get waitingCodeTitle => 'Code for the second seat';
+  @override
+  String get waitingCodeHint =>
+      'Give it to him when he is back. The code never expires.';
+  @override
+  String get waitingCodeCopied => 'Code copied';
+  @override
+  String get waitingResetCode => 'Change the code';
+  @override
+  String get waitingResetCodeHint => 'The old one stops working';
+  @override
+  String get waitingClaimTitle => 'Someone entered your code';
+  @override
+  String get waitingClaimAsk => 'Is this him?';
+  @override
+  String get waitingClaimYes => 'Yes, it is him';
+  @override
+  String get waitingClaimNo => 'No, a stranger';
+  @override
+  String get waitingPendingTitle => 'Waiting for approval';
+  @override
+  String get waitingPendingHint =>
+      'The code is accepted. Once you are approved in the app, the whole pair history opens up.';
+  @override
+  String get waitingRejected => 'The request was declined';
+  @override
+  String get waitingApproved => 'You are approved — welcome';
+  @override
+  String get waitingUntilReturn => 'Until return';
+  @override
+  String get waitingHomeToday => 'Comes home today';
+  @override
+  String waitingDaysLeft(int days) {
+    final n = days.abs();
+    return n == 1 ? '1 day' : '$n days';
+  }
   @override
   String get chatEmpty => 'No messages yet.\nSay hi first 💬';
   @override
@@ -7768,6 +8074,28 @@ class _EnStrings extends AppStrings {
   @override
   String get settingsDeleteHint => 'with every entry, no way back';
   @override
+  String get mascotSleepTitle => 'Mascot sleep';
+  @override
+  String get mascotSleepHint => 'when a character switches to its night scene';
+  @override
+  String get mascotSleepEmpty =>
+      'Not every character has a night scene. Get one who does, and its hours '
+      'will show up here.';
+  @override
+  String get mascotSleepFrom => 'Falls asleep';
+  @override
+  String get mascotSleepTo => 'Wakes up';
+  @override
+  String get mascotSleepOff => 'Never sleeps';
+  @override
+  String get mascotNightAwake => 'Awake at night — it is nocturnal';
+  @override
+  String mascotSleepRange(String from, String to) =>
+      'Sleeps from $from to $to';
+  @override
+  String mascotNightRange(String from, String to) =>
+      'Glows from $from to $to';
+  @override
   String get cycleTitle => 'Cycle';
   @override
   String get cycleSettingsHint => 'calendar, forecast and partner access';
@@ -7862,6 +8190,49 @@ class _EnStrings extends AppStrings {
         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
       ];
   @override
+  String get cycleTipsTitle => 'How to feel better';
+  @override
+  String get cycleTipWarmTitle => 'Warmth on the belly';
+  @override
+  String get cycleTipWarmBody =>
+      'A heating pad or warm compress for 15–20 minutes relaxes the muscles. '
+      'Warm, not hot.';
+  @override
+  String get cycleTipFeetTitle => 'Keep your feet warm';
+  @override
+  String get cycleTipFeetBody =>
+      'Socks and a blanket. Cold feet make cramps feel stronger.';
+  @override
+  String get cycleTipPainTitle => 'Pain is not to be endured';
+  @override
+  String get cycleTipPainBody =>
+      'If it gets in the way, your usual painkiller helps. When every cycle '
+      'knocks you down, see a doctor.';
+  @override
+  String get cycleTipShowerTitle => 'Shower, not a bath';
+  @override
+  String get cycleTipShowerBody =>
+      'A quick warm shower. Wash in the morning, in the evening and after '
+      'every change.';
+  @override
+  String get cycleTipChangeTitle => 'Every 3–4 hours';
+  @override
+  String get cycleTipChangeBody =>
+      'Change the pad or tampon even if it feels early. Underwear — after '
+      'washing.';
+  @override
+  String get cycleTipIronTitle => 'Iron on your plate';
+  @override
+  String get cycleTipIronBody =>
+      'Buckwheat, pomegranate, liver, nuts, apples, dark chocolate: these '
+      'days take a lot of iron.';
+  @override
+  String get cycleTipRestTitle => 'You will get through it';
+  @override
+  String get cycleTipRestBody =>
+      'Your body is doing hard work right now. Resting today is help, '
+      'not laziness.';
+  @override
   String dayLogDate(DateTime day) =>
       '${cycleMonthsGenitive[day.month - 1]} ${day.day}';
   @override
@@ -7934,6 +8305,16 @@ class _EnStrings extends AppStrings {
   @override
   String get plusNoAdsBody =>
       'Banners disappear and watching together starts right away';
+  @override
+  String get plusWishesTitle => 'Your own wish categories';
+  @override
+  String get plusWishesBody =>
+      'Add a category with an icon of your choice to «Want with you»';
+  @override
+  String get plusColoringTitle => 'Your own coloring pages';
+  @override
+  String get plusColoringBody =>
+      'Upload your picture and color it together';
   @override
   String get plusThemesTitle => 'All themes and icons';
   @override
@@ -8373,7 +8754,7 @@ class _EnStrings extends AppStrings {
   String get mascotsLoadFailedMultiline =>
       'Mascots didn’t load.\nCheck your connection.';
   @override
-  String get artistCredit => 'Artist — Alyona Grebeneva';
+  String get artistCredit => 'Artist — Meller1';
   @override
   String get uploadPhotoTooltip => 'Upload photo';
   @override
@@ -8387,7 +8768,7 @@ class _EnStrings extends AppStrings {
   @override
   String get fromUs => 'From us';
   @override
-  String recordStreakBadge(int days) => '🏅 $days d.';
+  String recordStreakBadge(int days) => '$days d.';
 
   // ── Mascot draw screen ──
   @override

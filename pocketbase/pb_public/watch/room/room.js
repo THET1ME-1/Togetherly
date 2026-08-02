@@ -187,6 +187,10 @@
     const holder = $('#player');
     holder.innerHTML = '';
     const v = document.createElement('video');
+    // Реферера здесь быть не должно (Яндекс отвечает 403), и его снимает
+    // страничная мета в index.html. Вешать `referrerPolicy` на сам тег
+    // бесполезно: у медиа-элементов такого атрибута нет, запрос всё равно
+    // уходит с реферером — проверено, файл после этого не открывается.
     v.src = src;
     v.controls = true;
     v.playsInline = true;
@@ -246,7 +250,7 @@
     setStatus(I18N.t('room.resolving'));
     const api = 'https://cloud-api.yandex.net/v1/disk/public/resources/download?public_key='
       + encodeURIComponent(publicUrl);
-    fetch(api)
+    fetch(api, { referrerPolicy: 'no-referrer' })
       .then((r) => r.json())
       .then((d) => {
         if (!d || !d.href) throw new Error('no href');
@@ -279,6 +283,12 @@
     setManual(!!MANUAL[src.kind]);
 
     const frame = document.createElement('iframe');
+    // Исключение из страничного `no-referrer`: ютуб на запрос без реферера
+    // отвечает ошибкой 153 и не играет НИ ОДНОГО ролика (жалоба 1 августа —
+    // «совершенно любое видео»). У iframe атрибут referrerpolicy работает и
+    // перебивает мету, поэтому площадки снова видят, откуда пришёл человек, а
+    // ссылки дисков в теге <video> остаются без реферера.
+    frame.referrerPolicy = 'strict-origin-when-cross-origin';
     frame.src = embedUrl(src);
     frame.allow = 'autoplay; fullscreen; encrypted-media; picture-in-picture';
     frame.allowFullscreen = true;
@@ -733,8 +743,36 @@
 
   window.addEventListener('message', onFrameMessage);
 
+  /// Держит высоту страницы равной ВИДИМОЙ области.
+  ///
+  /// На iPhone клавиатура не уменьшает 100dvh внутри WKWebView: страница
+  /// остаётся во весь экран, строка со ссылкой прячется под клавиатурой, а
+  /// прокрутки у комнаты нет (`overflow: hidden`). Человек тапает по полю,
+  /// печатает и не видит ни строки, ни результата — жалоба «ссылка не
+  /// вводится на iOS». visualViewport знает настоящую высоту, отдаём её в CSS
+  /// и заодно подводим сфокусированное поле к глазам.
+  function followKeyboard() {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const apply = () => {
+      document.documentElement.style.setProperty('--vph', vv.height + 'px');
+    };
+    apply();
+    vv.addEventListener('resize', apply);
+    vv.addEventListener('scroll', apply);
+    for (const id of ['#link', '#message']) {
+      const el = $(id);
+      if (!el) continue;
+      el.addEventListener('focus', () => {
+        // Ждём, пока клавиатура доедет и высота пересчитается.
+        setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 250);
+      });
+    }
+  }
+
   window.addEventListener('load', () => {
     I18N.mount();
+    followKeyboard();
     $('#chat').dataset.empty = I18N.t('room.chatEmpty');
 
     const room = roomFromHash();

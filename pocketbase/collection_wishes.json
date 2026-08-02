@@ -1,0 +1,93 @@
+{
+  "name": "wishes",
+  "type": "base",
+  "fields": [
+    {
+      "name": "id",
+      "type": "text",
+      "primaryKey": true,
+      "required": true,
+      "system": true,
+      "pattern": "^[A-Za-z0-9_-]+$",
+      "min": 1,
+      "max": 50,
+      "autogeneratePattern": "[a-z0-9]{15}"
+    },
+    {
+      "name": "group_id",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "author_uid",
+      "type": "text",
+      "required": true
+    },
+    {
+      "name": "title",
+      "type": "text",
+      "required": true,
+      "max": 200
+    },
+    {
+      "name": "note",
+      "type": "text",
+      "required": false,
+      "max": 500
+    },
+    {
+      "name": "category",
+      "type": "text",
+      "required": false,
+      "max": 20
+    },
+    {
+      "name": "symbol",
+      "type": "text",
+      "required": false,
+      "max": 60
+    },
+    {
+      "name": "done",
+      "type": "bool",
+      "required": false
+    },
+    {
+      "name": "done_at",
+      "type": "date",
+      "required": false
+    },
+    {
+      "name": "done_by",
+      "type": "text",
+      "required": false
+    },
+    {
+      "name": "done_note",
+      "type": "text",
+      "required": false,
+      "max": 500
+    },
+    {
+      "name": "created",
+      "type": "autodate",
+      "onCreate": true,
+      "onUpdate": false
+    },
+    {
+      "name": "updated",
+      "type": "autodate",
+      "onCreate": true,
+      "onUpdate": true
+    }
+  ],
+  "indexes": [
+    "CREATE INDEX `idx_wishes_group_created` ON `wishes` (`group_id`, `created`)",
+    "CREATE INDEX `idx_wishes_group_updated` ON `wishes` (`group_id`, `updated`)"
+  ],
+  "listRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
+  "viewRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
+  "createRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id && author_uid = @request.auth.id",
+  "updateRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
+  "deleteRule": "@request.auth.id != \"\" && author_uid = @request.auth.id"
+}

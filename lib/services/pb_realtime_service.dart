@@ -657,6 +657,27 @@ class PbRealtimeService {
         rtMatch: (r) => r.data['user_uid'] == uid,
       );
 
+  /// Общие желания пары — свежие сверху. Запись одна на двоих: отметку
+  /// «сбылось» ставит любой из партнёров, и второму телефону она приезжает
+  /// дельтой канала пары, без перезахода на экран.
+  Stream<List<RecordModel>> watchWishes(String groupId) => watchList(
+        'wishes',
+        filter: _pb.filter('group_id = {:g}', {'g': groupId}),
+        scope: RecordScope('wishes:g=$groupId', equals: {'group_id': groupId}),
+        compare: (a, b) => _strDesc(a.data['created'], b.data['created']),
+        rtChannel: 'pair:$groupId',
+      );
+
+  /// Свои категории желаний — в порядке заведения.
+  Stream<List<RecordModel>> watchWishCategories(String groupId) => watchList(
+        'wish_categories',
+        filter: _pb.filter('group_id = {:g}', {'g': groupId}),
+        scope: RecordScope('wish_cats:g=$groupId',
+            equals: {'group_id': groupId}),
+        compare: (a, b) => _strAsc(a.data['created'], b.data['created']),
+        rtChannel: 'pair:$groupId',
+      );
+
   /// Чат группы — старые сверху (по ts). [limit] (ленивый режим): начальная
   /// выборка лишь новейших [limit] сообщений (по убыванию ts), а не всей истории;
   /// догрузка старых — повторный вызов с бо́льшим [limit] (UI: chat_screen

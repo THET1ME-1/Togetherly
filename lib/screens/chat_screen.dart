@@ -10,6 +10,7 @@ import '../utils/readable_text.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/chat_msg.dart';
+import '../models/chat_open_position.dart';
 import '../models/memory.dart';
 import '../models/pair_data.dart';
 import '../models/user_data.dart';
@@ -25,6 +26,11 @@ import '../services/ui_prefs.dart';
 import '../models/chat_background.dart';
 import '../theme/app_theme.dart';
 import '../theme/profile_theme.dart';
+import '../services/voice_player_service.dart';
+import '../services/voice_recorder_service.dart';
+import '../widgets/chat/send_mic_button.dart';
+import '../widgets/chat/voice_bubble.dart';
+import '../widgets/chat/voice_recording_bar.dart';
 import '../widgets/common/app_dialog.dart';
 import '../widgets/md_message_text.dart';
 import '../widgets/storage_image.dart';
@@ -260,6 +266,9 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _showScrollDown = false;
   /// Сохранённая позиция прокрутки (восстанавливаем при открытии чата).
   double? _savedScrollOffset;
+  /// Стоял ли человек у низа в момент выхода и какое сообщение было последним.
+  bool _savedWasNearBottom = false;
+  int _savedLastMessageTs = 0;
   /// Троттлинг сохранения позиции — чтобы не писать prefs на каждый кадр.
   DateTime _lastScrollSave = DateTime.fromMillisecondsSinceEpoch(0);
 
@@ -295,9 +304,16 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   /// Подтягиваем сохранённую позицию прокрутки до первой раскладки списка.
+  /// Вместе с ней — признаки, по которым решаем, верить ей или встать внизу
+  /// (см. [chatOpenPosition]).
   Future<void> _loadSavedScroll() async {
     final px = await _chat.loadScrollOffset(_groupId);
-    if (mounted) _savedScrollOffset = px;
+    final nearBottom = await _chat.loadScrollNearBottom(_groupId);
+    final ts = await _chat.loadScrollLastTs(_groupId);
+    if (!mounted) return;
+    _savedScrollOffset = px;
+    _savedWasNearBottom = nearBottom;
+    _savedLastMessageTs = ts;
   }
 
   Future<void> _loadRecentColors() async {
@@ -357,9 +373,22 @@ class _ChatScreenState extends State<ChatScreen> {
     _chat.setTyping(_groupId, false);
     // Сохраняем точную позицию выхода — вернёмся ровно сюда при перезаходе.
     if (_scrollController.hasClients) {
-      _chat.saveScrollOffset(_groupId, _scrollController.position.pixels);
+      final pos = _scrollController.position;
+      _chat.saveScrollOffset(
+        _groupId,
+        pos.pixels,
+        nearBottom: pos.maxScrollExtent - pos.pixels < 160,
+        lastMessageTs: _lastMessageTs,
+      );
     }
     _scrollController.removeListener(_onScroll);
+    // Запись не должна пережить экран: уходя с открытым микрофоном, палец с
+    // кнопки уже не поднимут.
+    _voiceElapsedSub?.cancel();
+    _voiceLevelsSub?.cancel();
+    _voiceLimitSub?.cancel();
+    if (_recording) unawaited(VoiceRecorderService.instance.cancel());
+    VoicePlayerService.instance.stop();
     _controller.dispose();
     _scrollController.dispose();
     _focusNode.dispose();
@@ -379,7 +408,12 @@ class _ChatScreenState extends State<ChatScreen> {
     final now = DateTime.now();
     if (now.difference(_lastScrollSave).inMilliseconds >= 400) {
       _lastScrollSave = now;
-      _chat.saveScrollOffset(_groupId, pos.pixels);
+      _chat.saveScrollOffset(
+        _groupId,
+        pos.pixels,
+        nearBottom: pos.maxScrollExtent - pos.pixels < 160,
+        lastMessageTs: _lastMessageTs,
+      );
     }
     // Пагинация: у начала ленты подгружаем старые.
     if (_loadingMore || !_hasMore) return;
@@ -441,15 +475,23 @@ class _ChatScreenState extends State<ChatScreen> {
     if (!_didInitialScroll) {
       _didInitialScroll = true;
       _autoScrolledTs = _lastMessageTs;
-      final saved = _savedScrollOffset;
-      if (saved != null && saved > 0) {
-        _scrollController.jumpTo(saved.clamp(0.0, pos.maxScrollExtent));
-      } else {
-        _scrollController.jumpTo(pos.maxScrollExtent);
-        if (_hasUnreadMarker) {
+      final where = chatOpenPosition(
+        savedOffset: _savedScrollOffset,
+        savedWasNearBottom: _savedWasNearBottom,
+        hasUnread: _hasUnreadMarker,
+        newMessagesSinceExit:
+            _savedLastMessageTs > 0 && _lastMessageTs > _savedLastMessageTs,
+      );
+      switch (where) {
+        case ChatOpenPosition.savedOffset:
+          _scrollController
+              .jumpTo(_savedScrollOffset!.clamp(0.0, pos.maxScrollExtent));
+        case ChatOpenPosition.unreadMarker:
+          _scrollController.jumpTo(pos.maxScrollExtent);
           WidgetsBinding.instance
               .addPostFrameCallback((_) => _scrollToUnread());
-        }
+        case ChatOpenPosition.bottom:
+          _scrollController.jumpTo(pos.maxScrollExtent);
       }
       // Изначально видимые баблы уже проиграли «влёт» — дальше (при скролле)
       // сообщения появляются без анимации.
@@ -517,6 +559,19 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Обычный вид Material вместо нашего: прямые скругления, без хвостиков,
   /// наклона и мордочек. Переключается в меню шапки, хранится локально.
   bool _materialLook = false;
+
+  // ── Запись голосового ──
+  /// Идёт запись: панель ввода уступает место полосе с таймером и волной.
+  bool _recording = false;
+  /// Палец убран, запись продолжается — «руки свободны».
+  bool _voiceLocked = false;
+  /// Что случится, если отпустить палец прямо сейчас.
+  VoiceGesture _voiceGesture = VoiceGesture.recording;
+  Duration _voiceElapsed = Duration.zero;
+  List<double> _voiceLevels = const [];
+  StreamSubscription<Duration>? _voiceElapsedSub;
+  StreamSubscription<List<double>>? _voiceLevelsSub;
+  StreamSubscription<void>? _voiceLimitSub;
 
   Future<void> _loadChatLook() async {
     final value = await UiPrefs.chatLookMaterial();
@@ -605,6 +660,123 @@ class _ChatScreenState extends State<ChatScreen> {
 
   // ── Отправка / редактирование ───────────────────────────────────────────────
 
+  // ── Голосовые ──────────────────────────────────────────────────────────────
+
+  /// Палец лёг на микрофон. Ошибку показываем сразу: держать кнопку впустую,
+  /// не понимая, пишется ли, — худшее из состояний.
+  Future<void> _startVoice() async {
+    final s = LocaleService.current;
+    try {
+      await VoiceRecorderService.instance.start();
+    } on VoiceRecordException catch (e) {
+      if (!mounted) return;
+      _toast(e.reason == VoiceRecordError.noPermission
+          ? s.voiceNoPermission
+          : s.voiceFailed);
+      return;
+    }
+    if (!mounted) {
+      await VoiceRecorderService.instance.cancel();
+      return;
+    }
+    setState(() {
+      _recording = true;
+      _voiceLocked = false;
+      _voiceGesture = VoiceGesture.recording;
+      _voiceElapsed = Duration.zero;
+      _voiceLevels = const [];
+    });
+    final rec = VoiceRecorderService.instance;
+    _voiceElapsedSub = rec.elapsed.listen((d) {
+      if (mounted) setState(() => _voiceElapsed = d);
+    });
+    _voiceLevelsSub = rec.levels.listen((l) {
+      if (mounted) setState(() => _voiceLevels = l);
+    });
+    // Дошли до трёх минут — не обрываем молча, а отправляем записанное.
+    _voiceLimitSub = rec.autoStopped.listen((_) {
+      if (!mounted) return;
+      _toast(s.voiceLimitReached);
+      _finishVoice(cancelled: false);
+    });
+  }
+
+  void _onVoiceGesture(VoiceGesture g) {
+    if (!mounted || !_recording) return;
+    setState(() => _voiceGesture = g);
+  }
+
+  /// Палец подняли. [locked] — запись остаётся идти без пальца.
+  Future<void> _endVoice({required bool cancelled, required bool locked}) async {
+    if (!_recording) return;
+    if (locked && !cancelled) {
+      setState(() {
+        _voiceLocked = true;
+        _voiceGesture = VoiceGesture.recording;
+      });
+      return;
+    }
+    await _finishVoice(cancelled: cancelled);
+  }
+
+  /// Останавливает запись и либо отправляет её, либо стирает.
+  Future<void> _finishVoice({required bool cancelled}) async {
+    final rec = VoiceRecorderService.instance;
+    await _voiceElapsedSub?.cancel();
+    await _voiceLevelsSub?.cancel();
+    await _voiceLimitSub?.cancel();
+    _voiceElapsedSub = null;
+    _voiceLevelsSub = null;
+    _voiceLimitSub = null;
+
+    if (cancelled) {
+      await rec.cancel();
+      if (mounted) {
+        setState(() {
+          _recording = false;
+          _voiceLocked = false;
+        });
+      }
+      return;
+    }
+
+    final capture = await rec.stop();
+    if (mounted) {
+      setState(() {
+        _recording = false;
+        _voiceLocked = false;
+        _voiceElapsed = Duration.zero;
+        _voiceLevels = const [];
+      });
+    }
+    if (capture == null) return;
+    if (capture.duration < VoiceRecorderService.minDuration) {
+      if (mounted) _toast(LocaleService.current.voiceTooShort);
+      return;
+    }
+
+    final reply = _replyingTo;
+    final ok = await _chat.sendVoice(
+      groupId: _groupId,
+      senderName: widget.myDisplayName,
+      capture: capture,
+      replyToId: reply?.id,
+      replyToName: reply?.name,
+      replyToText: reply == null
+          ? null
+          : (reply.isVoice
+              ? ChatService.voiceQuote(reply, LocaleService.current.voiceMessage)
+              : reply.text),
+    );
+    if (!mounted) return;
+    if (ok) {
+      setState(() => _replyingTo = null);
+      _jumpToBottom();
+    } else {
+      _toast(LocaleService.current.voiceFailed);
+    }
+  }
+
   Future<void> _send() async {
     // Защита от повторной отправки: при плохой сети await может «висеть»,
     // и повторный тап по кнопке отправил бы дубликат.
@@ -655,9 +827,14 @@ class _ChatScreenState extends State<ChatScreen> {
               ? null
               : (reply.deleted
                   ? LocaleService.current.chatDeletedPlaceholder
-                  : (reply.text.isNotEmpty
-                      ? reply.text
-                      : (reply.pinTitle ?? '📌'))),
+                  // Текста у голосового нет: в цитате подписываем его словом
+                  // и длительностью, иначе ответ выглядел бы пустым.
+                  : (reply.isVoice
+                      ? ChatService.voiceQuote(
+                          reply, LocaleService.current.voiceMessage)
+                      : (reply.text.isNotEmpty
+                          ? reply.text
+                          : (reply.pinTitle ?? '📌')))),
           face: _selectedFace?.name, // выбранное автором лицо (липкое)
           color: _selectedColor?.toARGB32(),
           textColor: _selectedTextColor?.toARGB32(),
@@ -2148,6 +2325,49 @@ class _ChatScreenState extends State<ChatScreen> {
         s.chatDeletedPlaceholder,
         style: TextStyle(color: fg, fontStyle: FontStyle.italic, fontSize: 14),
       );
+    } else if (msg.isVoice) {
+      // Голосовое: волна занимает всю ширину пузыря, поэтому текстовая ветка
+      // ниже ему не подходит. Кнопка «слушать» берёт цвет пузыря наоборот —
+      // так она читается и на primary, и на тональной поверхности.
+      content = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (msg.replyToId != null) ...[
+            _buildReplyQuote(msg, isMine, fg),
+            const SizedBox(height: 6),
+          ],
+          VoiceBubble(
+            msg: msg,
+            foreground: fg,
+            buttonBackground: fg.withValues(alpha: .92),
+            buttonForeground: bg,
+            isMine: isMine,
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _formatTime(msg.ts),
+                style: TextStyle(fontSize: 10, color: metaColor),
+              ),
+              if (isMine) ...[
+                const SizedBox(width: 4),
+                Icon(
+                  msg.ts <= _partnerReadTs
+                      ? Icons.done_all_rounded
+                      : Icons.done_rounded,
+                  size: 14,
+                  color: msg.ts <= _partnerReadTs
+                      ? const Color(0xFF8FD3FF)
+                      : metaColor,
+                ),
+              ],
+            ],
+          ),
+        ],
+      );
     } else if (bigEmoji != null) {
       // Крупные эмодзи + мета снизу. Цвета меты — серые (фон-то не пузырь).
       final meta = _t.textMuted;
@@ -2533,6 +2753,19 @@ class _ChatScreenState extends State<ChatScreen> {
           Builder(builder: (context) {
             final cs = ProfileTheme.themeFor(_t).colorScheme;
             final hasText = _hasText;
+            // Идёт запись — поле ввода уступает место полосе с таймером и
+            // волной. Возвращать его на время записи некуда: печатать всё
+            // равно нельзя, а место нужно подсказкам жеста.
+            if (_recording) {
+              return VoiceRecordingBar(
+                elapsed: _voiceElapsed,
+                levels: _voiceLevels,
+                gesture: _voiceGesture,
+                locked: _voiceLocked,
+                onCancel: () => _finishVoice(cancelled: true),
+                onSend: () => _finishVoice(cancelled: false),
+              );
+            }
             return Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
@@ -2617,30 +2850,18 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                AnimatedScale(
-                  scale: hasText ? 1 : 0.94,
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutBack,
-                  child: Material(
-                    color: hasText ? cs.primary : cs.surfaceContainerHigh,
-                    shape: const CircleBorder(),
-                    clipBehavior: Clip.antiAlias,
-                    child: InkWell(
-                      onTap: _send,
-                      child: SizedBox(
-                        width: 48,
-                        height: 48,
-                        child: Icon(
-                          _editing != null
-                              ? Icons.check_rounded
-                              : Icons.send_rounded,
-                          color:
-                              hasText ? cs.onPrimary : cs.onSurfaceVariant,
-                          size: 21,
-                        ),
-                      ),
-                    ),
-                  ),
+                SendMicButton(
+                  hasText: hasText,
+                  editing: _editing != null,
+                  primary: cs.primary,
+                  onPrimary: cs.onPrimary,
+                  idleBackground: cs.surfaceContainerHigh,
+                  idleForeground: cs.onSurfaceVariant,
+                  onSend: _send,
+                  onRecordStart: _startVoice,
+                  onRecordGesture: _onVoiceGesture,
+                  onRecordEnd: ({required cancelled, required locked}) =>
+                      _endVoice(cancelled: cancelled, locked: locked),
                 ),
               ],
             );

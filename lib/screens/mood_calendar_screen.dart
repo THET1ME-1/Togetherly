@@ -15,6 +15,7 @@ import '../services/widget_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/profile_theme.dart';
 import '../utils/cycle_math.dart';
+import '../widgets/cycle/cycle_tips_strip.dart';
 import '../widgets/cycle_analytics.dart';
 import '../widgets/mood_image.dart';
 import 'home/widgets/day_log_sheet.dart';
@@ -765,6 +766,10 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                       ],
                     ),
                   ],
+                  const SizedBox(height: 14),
+                  // Советы стоят сразу после прогноза, до статистики: в дни
+                  // месячных нужны они, а средняя длина цикла подождёт.
+                  CycleTipsStrip(scheme: scheme, accent: _periodColor),
                   const SizedBox(height: 12),
                   CycleAnalytics(
                     scheme: scheme,

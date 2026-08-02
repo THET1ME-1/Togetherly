@@ -4,8 +4,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:pocketbase/pocketbase.dart';
 
+import '../models/chat_msg.dart';
 import '../models/gift.dart';
 import '../models/gift_effect.dart';
+import 'chat_service.dart';
 import 'centrifugo_service.dart';
 import 'locale_service.dart';
 import 'pocketbase_service.dart';
@@ -134,7 +136,14 @@ class PbPushService {
         if (r.data['deleted'] == true || !_pref('notif_chat')) return;
         final name = (r.data['user_name'] ?? partnerName).toString();
         final text = (r.data['text'] ?? '').toString();
-        _notify(r.id.hashCode, name, text.isEmpty ? '✉️' : text);
+        // У голосового текста нет: в шторке показываем подпись с длительностью,
+        // иначе уведомление приходило бы пустым конвертом.
+        final voiceUrl = (r.data['voice_url'] ?? '').toString();
+        final body = voiceUrl.isNotEmpty
+            ? ChatService.voiceQuote(
+                ChatMsg.fromPb(r), LocaleService.current.voiceMessage)
+            : (text.isEmpty ? '✉️' : text);
+        _notify(r.id.hashCode, name, body);
       } catch (err) {
         debugPrint('PbPush chat callback error: $err');
       }

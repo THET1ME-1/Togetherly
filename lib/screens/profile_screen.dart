@@ -34,6 +34,7 @@ import '../theme/theme_scope.dart';
 import '../theme/profile_theme.dart';
 import '../widgets/app_sheet.dart';
 import '../widgets/morph_loader.dart';
+import '../widgets/mascot/mascot_sleep_sheet.dart';
 import '../widgets/settings_scaffold.dart';
 import '../services/cycle_service.dart';
 import '../services/plus_access.dart';
@@ -1125,6 +1126,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           avatarUrl: widget.userData.avatarUrl,
           daysTogether: days,
           isSelf: true,
+          counterpartName: widget.pairData.partnerDisplayName,
           onAvatarTap: () => _editProfile(context),
         ),
         const SizedBox(height: 16),
@@ -1340,6 +1342,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               setSheetState(() {});
             },
             onCycleWipe: () => _confirmCycleWipe(ctx, setSheetState),
+            mascotSleepAvailable: nightCapableMascots().isNotEmpty,
+            onMascotSleep: () => showMascotSleepSheet(
+              ctx,
+              theme: widget.userData.theme,
+              user: widget.userData,
+            ),
           ),
         ),
       ),
@@ -1467,6 +1475,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           selfAvatarUrl: widget.userData.avatarUrl,
           bannerUrl: widget.userData.bannerUrl,
           daysTogether: days,
+          partnerName: widget.pairData.partnerDisplayName,
         ),
         settings: const RouteSettings(name: '/self_gifts'),
       ),
@@ -4142,241 +4151,148 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   // null = предпросмотр запрошен, false = отмена, true = куплено
+  /// Лист покупки темы.
+  ///
+  /// Крупный нижний лист, как остальные листы проекта: цвет темы показывает
+  /// плашка-образец, а не градиентная шапка со свечением — подсветка под
+  /// карточками в M3 не используется, слои разводит цвет контейнера.
+  ///
+  /// Тему и строки снимаем ДО открытия: builder живёт в дереве навигатора и
+  /// переживает размонтирование экрана. Раньше колбэк стиля кнопки дёргал
+  /// `_t` → `State.context` у мёртвого состояния и ронял приложение
+  /// (327 падений в Bugsink на 1.16.3–1.17.0).
   Future<bool?> _confirmPurchaseTheme(BuildContext context, AppTheme t) async {
     final canAfford = widget.userData.coins >= t.price;
     final themeName = _themeDisplayName(t.index);
-
-    // Тему и строки снимаем ДО открытия листа. Его builder живёт в дереве
-    // навигатора и переживает размонтирование экрана: колбэк стиля кнопки
-    // дёргал `_t` → `State.context` у мёртвого состояния и ронял приложение
-    // («Null check operator used on a null value», 327 падений в Bugsink на
-    // версиях 1.16.3–1.17.0).
-    final ui = _t;
+    final cs = ProfileTheme.themeFor(_t).colorScheme;
     final strings = _s;
+    final coins = widget.userData.coins;
 
-    // null = preview, false = cancel, true = buy
+    // null = посмотреть, false = отмена, true = купить
     final result = await showAppSheet<bool>(
       context,
-      background: Colors.transparent,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.fromLTRB(
-            12, 0, 12, MediaQuery.of(ctx).padding.bottom + 12),
-        child: Container(
-          decoration: BoxDecoration(
-            color: ui.cardSurface,
-            borderRadius: BorderRadius.circular(28),
-            boxShadow: ui.accentGlow(
-              t.primary,
-              opacity: 0.18,
-              blurRadius: 40,
-              offset: const Offset(0, 16),
-            ),
-          ),
+      background: cs.surfaceContainer,
+      builder: (ctx) => SheetScaffold(
+        title: themeName,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // ── Градиентная шапка с названием темы ──
-              ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(28),
-                ),
-                child: Container(
-                  height: 120,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: t.heroGradient,
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
-                  child: Center(
-                    child: Text(
-                      themeName,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 26,
-                        fontWeight: FontWeight.w800,
-                        height: 1.0,
-                      ),
-                    ),
+              // Образец темы: её собственные цвета полосой — понятнее описания.
+              Container(
+                height: 84,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  gradient: LinearGradient(
+                    colors: t.heroGradient,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
                 ),
               ),
-              // ── Содержимое ──
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
-                child: Column(
+              const SizedBox(height: 16),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                decoration: BoxDecoration(
+                  color: cs.surfaceContainerHigh,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
                   children: [
-                    // ── Цена ──
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: t.primaryLight,
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Image.asset(
-                            'assets/images/icons/coin.webp',
-                            width: 30,
-                            height: 30,
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            '${t.price}',
-                            style: TextStyle(
-                              fontSize: 26,
-                              fontWeight: FontWeight.w800,
-                              height: 1.0,
-                              color: t.primary,
-                            ),
-                          ),
-                        ],
+                    Image.asset('assets/images/icons/coin.webp',
+                        width: 28, height: 28),
+                    const SizedBox(width: 10),
+                    Text(
+                      '${t.price}',
+                      style: TextStyle(
+                        fontFamily: 'Unbounded',
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        color: cs.onSurface,
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    // ── Баланс ──
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    const Spacer(),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Text(
                           strings.coinBalance,
                           style: TextStyle(
-                            fontSize: 13,
-                            color: ui.textMuted,
-                          ),
+                              fontSize: 12, color: cs.onSurfaceVariant),
                         ),
-                        const SizedBox(width: 6),
-                        Image.asset(
-                          'assets/images/icons/coin.webp',
-                          width: 16,
-                          height: 16,
-                        ),
-                        const SizedBox(width: 4),
                         Text(
-                          '${widget.userData.coins}',
+                          '$coins',
                           style: TextStyle(
-                            fontSize: 14,
+                            fontSize: 15,
                             fontWeight: FontWeight.w700,
-                            color: canAfford
-                                ? ui.textPrimary
-                                : Colors.red.shade400,
+                            color: canAfford ? cs.onSurface : cs.error,
                           ),
                         ),
                       ],
                     ),
-                    if (!canAfford) ...[
-                      const SizedBox(height: 6),
-                      Text(
+                  ],
+                ),
+              ),
+              if (!canAfford) ...[
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Icon(Icons.info_outline_rounded, size: 18, color: cs.error),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
                         strings.notEnoughCoins,
-                        style: TextStyle(
-                          color: Colors.red.shade400,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 20),
-                    // ── Посмотреть ──
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: OutlinedButton.icon(
-                        onPressed: () => Navigator.pop(ctx, null),
-                        style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: t.primary, width: 1.5),
-                          foregroundColor: t.primary,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                        icon: const Icon(Icons.visibility_outlined, size: 20),
-                        label: Text(
-                          LocaleService.current.viewAction,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    // ── Купить ──
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          gradient: canAfford
-                              ? LinearGradient(
-                                  colors: t.heroGradient,
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                )
-                              : null,
-                          color: canAfford ? null : ui.surfaceMuted,
-                          boxShadow: canAfford
-                              ? ui.accentGlow(
-                                  t.primary,
-                                  opacity: 0.35,
-                                  blurRadius: 14,
-                                  offset: const Offset(0, 6),
-                                )
-                              : null,
-                        ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(16),
-                            onTap: canAfford
-                                ? () => Navigator.pop(ctx, true)
-                                : null,
-                            child: Center(
-                              child: Text(
-                                canAfford
-                                    ? strings.buyThemeConfirm
-                                    : strings.notEnoughCoins,
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  color: canAfford
-                                      ? Colors.white
-                                      : ui.textMuted,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 44,
-                      child: TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        style: TextButton.styleFrom(
-                          foregroundColor: ui.textMuted,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                        child: Text(
-                          strings.cancel,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                        style: TextStyle(fontSize: 13, color: cs.error),
                       ),
                     ),
                   ],
+                ),
+              ],
+              const SizedBox(height: 18),
+              SizedBox(
+                height: 56,
+                child: FilledButton(
+                  onPressed: canAfford ? () => Navigator.pop(ctx, true) : null,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: cs.primary,
+                    foregroundColor: cs.onPrimary,
+                    disabledBackgroundColor:
+                        cs.onSurface.withValues(alpha: .12),
+                    disabledForegroundColor:
+                        cs.onSurface.withValues(alpha: .38),
+                    shape: const StadiumBorder(),
+                    textStyle: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w700),
+                  ),
+                  child: Text(strings.buyThemeConfirm),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 56,
+                child: FilledButton.tonalIcon(
+                  onPressed: () => Navigator.pop(ctx, null),
+                  icon: const Icon(Icons.visibility_outlined, size: 20),
+                  label: Text(LocaleService.current.viewAction),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: cs.secondaryContainer,
+                    foregroundColor: cs.onSecondaryContainer,
+                    shape: const StadiumBorder(),
+                    textStyle: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              SizedBox(
+                height: 48,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  style: TextButton.styleFrom(foregroundColor: cs.primary),
+                  child: Text(strings.cancel),
                 ),
               ),
             ],

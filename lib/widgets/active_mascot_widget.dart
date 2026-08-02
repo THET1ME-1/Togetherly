@@ -2,12 +2,17 @@ import 'dart:async';
 import 'storage_image.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/mascot.dart';
 import '../services/locale_service.dart';
+import '../models/mascot_anim.dart';
+import '../models/mascot_sleep.dart';
+import '../services/catalog_service.dart';
 import '../services/mascot_service.dart';
+import 'mascot/pixel_mascot_view.dart';
 import '../theme/app_theme.dart';
 
 const String _kHiddenKey = 'mascot_hidden';
@@ -25,11 +30,15 @@ class ActiveMascotWidget extends StatefulWidget {
   final AppTheme theme;
   final VoidCallback onOpenGallery;
 
+  /// Окно ночной сцены персонажа: у каждого своё, задаётся в настройках.
+  final SleepWindow Function(String mascotId) sleepOf;
+
   const ActiveMascotWidget({
     super.key,
     required this.mascotService,
     required this.theme,
     required this.onOpenGallery,
+    required this.sleepOf,
   });
 
   @override
@@ -44,6 +53,11 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
   // Gesture tracking
   Offset _position = Offset.zero; // screen-space position of mascot center
   double _scale = 1.0;
+
+  /// Границы размера маскота. Те же, что у щипка двумя пальцами: настройка
+  /// одна, и разъехаться они не должны.
+  static const double _kMinScale = 1.0;
+  static const double _kMaxScale = 3.0;
   bool _positionInitialized = false;
 
   // Pinch state
@@ -72,6 +86,7 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
     );
 
     _loadPrefs();
+    unawaited(_reactToStreak());
     _svc.addListener(_onServiceChanged);
     mascotHiddenNotifier.addListener(_onExternalVisibilityChanged);
   }
@@ -122,7 +137,7 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
             state.positionX * size.width,
             state.positionY * size.height,
           );
-          _scale = state.scale.clamp(0.4, 3.0);
+          _scale = state.scale.clamp(_kMinScale, _kMaxScale);
           _positionInitialized = true;
         });
         _entranceCtrl.forward(from: 0);
@@ -137,7 +152,7 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
         state.positionX * size.width,
         state.positionY * size.height,
       );
-      final nextScale = state.scale.clamp(0.4, 3.0);
+      final nextScale = state.scale.clamp(_kMinScale, _kMaxScale);
       final shouldUpdatePosition =
           (_position.dx - nextPosition.dx).abs() > 0.5 ||
           (_position.dy - nextPosition.dy).abs() > 0.5;
@@ -206,20 +221,69 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
   void _onScaleStart(ScaleStartDetails d) {
     _isInteracting = true;
     _baseScale = _scale;
+    _setAnim(MascotAnimState.grab);
   }
 
   void _onScaleUpdate(ScaleUpdateDetails d) {
     setState(() {
-      _scale = (_baseScale * d.scale).clamp(0.4, 3.0);
+      // Нижняя граница — обычный размер: уменьшенного до точки маскота
+      // потом не поймать пальцем, и вернуть его было нечем.
+      _scale = (_baseScale * d.scale).clamp(_kMinScale, _kMaxScale);
       _position += d.focalPointDelta;
       _clampPosition();
     });
+    // Пальцем тянут или щиплют: маскот реагирует по-разному, поэтому одно
+    // движение мы отличаем от другого по тому, менялся ли масштаб.
+    final resizing = (d.scale - 1.0).abs() > 0.02;
+    final moving = d.focalPointDelta.distance > 0.5;
+    if (resizing) {
+      _setAnim(MascotAnimState.resize);
+    } else if (moving) {
+      _setAnim(MascotAnimState.drag);
+    }
     _scheduleSyncTimer();
   }
 
   void _onScaleEnd(ScaleEndDetails _) {
     _isInteracting = false;
+    _setAnim(MascotAnimState.drop);
     _scheduleSync();
+  }
+
+  /// Текущая поза анимированного маскота. Разовые (подрос, обрадовался,
+  /// приземлился) сами возвращают его к обычной жизни.
+  MascotAnimState _anim = MascotAnimState.live;
+
+  /// Серия на прошлом показе — по ней и видно, что случилось за это время.
+  static const String _kStreakKey = 'mascot_anim_last_streak';
+
+  /// Сверяет серию с прошлым разом и играет подходящую сцену: выросла — рост,
+  /// тот же день — радость, обнулилась — грусть. Состояние держим в prefs, а не
+  /// в памяти: главную открывают заново после каждого убийства приложения.
+  Future<void> _reactToStreak() async {
+    final anim = CatalogService.instance.animById(_svc.activeMascot?.id);
+    if (anim == null) return;
+    final streak = _svc.activeStreak;
+    final prefs = await SharedPreferences.getInstance();
+    final was = prefs.getInt(_kStreakKey);
+    await prefs.setInt(_kStreakKey, streak);
+    if (was == null || was == streak || !mounted) return;
+
+    if (streak > was) {
+      // Каждая третья отметка — рост, остальные просто радость: иначе маскот
+      // растёт на глазах каждый день и ступени теряют смысл.
+      _setAnim(streak % 3 == 0 ? MascotAnimState.grow : MascotAnimState.happy);
+    } else if (streak == 0) {
+      _setAnim(MascotAnimState.sad);
+      Future.delayed(const Duration(seconds: 4), () {
+        if (mounted) _setAnim(MascotAnimState.live);
+      });
+    }
+  }
+
+  void _setAnim(MascotAnimState s) {
+    if (_anim == s || !mounted) return;
+    setState(() => _anim = s);
   }
 
   void _clampPosition() {
@@ -253,11 +317,13 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
     showModalBottomSheet(
       context: context,
       backgroundColor: widget.theme.cardSurface,
+      useSafeArea: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) => SafeArea(
-        child: Column(
+        child: StatefulBuilder(
+          builder: (ctx, setSheetState) => Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const SizedBox(height: 8),
@@ -270,6 +336,39 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
               ),
             ),
             const SizedBox(height: 16),
+            // Размер: щипок двумя пальцами по маскоту работал и раньше, но о нём
+            // никто не догадывался. Ползунок делает ту же настройку явной, а
+            // масштаб уезжает партнёру тем же путём (`mascot_scale` группы).
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+              child: Row(
+                children: [
+                  Icon(Icons.photo_size_select_small_rounded,
+                      size: 18, color: widget.theme.textMuted),
+                  Expanded(
+                    child: Slider(
+                      value: _scale.clamp(_kMinScale, _kMaxScale),
+                      min: _kMinScale,
+                      max: _kMaxScale,
+                      // Шаг заметен глазу и не даёт промахнуться пальцем мимо
+                      // «того же самого» размера.
+                      divisions: 16,
+                      label: '${(_scale * 100).round()}%',
+                      onChanged: (v) {
+                        setSheetState(() {});
+                        setState(() => _scale = v);
+                      },
+                      onChangeEnd: (_) {
+                        HapticFeedback.selectionClick();
+                        _scheduleSync();
+                      },
+                    ),
+                  ),
+                  Icon(Icons.photo_size_select_large_rounded,
+                      size: 22, color: widget.theme.textMuted),
+                ],
+              ),
+            ),
             ListTile(
               leading: Icon(
                 Icons.photo_library_outlined,
@@ -297,6 +396,7 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
             ),
             const SizedBox(height: 8),
           ],
+          ),
         ),
       ),
     );
@@ -327,7 +427,14 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
           child: SizedBox(
             width: mascotSize,
             height: mascotSize,
-            child: _MascotImage(mascot: mascot, service: _svc),
+            child: _MascotImage(
+              mascot: mascot,
+              service: _svc,
+              anim: _anim,
+              level: MascotAnim.levelForStreak(_svc.activeStreak),
+              sleep: widget.sleepOf(mascot.id),
+              onAnimDone: () => _setAnim(MascotAnimState.live),
+            ),
           ),
         ),
       ),
@@ -341,10 +448,49 @@ class _MascotImage extends StatelessWidget {
   final Mascot mascot;
   final MascotService service;
 
-  const _MascotImage({required this.mascot, required this.service});
+  /// Поза анимированного маскота. У обычных картинок не используется.
+  final MascotAnimState anim;
+
+  /// Ступень роста: считается по длине серии.
+  final int level;
+  final VoidCallback? onAnimDone;
+
+  /// Когда этот персонаж уходит на ночную сцену.
+  final SleepWindow sleep;
+
+  const _MascotImage({
+    required this.mascot,
+    required this.service,
+    this.anim = MascotAnimState.live,
+    this.level = 3,
+    this.sleep = SleepWindow.standard,
+    this.onAnimDone,
+  });
 
   @override
   Widget build(BuildContext context) {
+    // Пиксельный маскот из каталога: рисуем кадр из атласа. Проверка идёт
+    // первой — у такого маскота catalogUrl ведёт на атлас, и обычный Image
+    // показал бы всю простыню кадров разом.
+    final animated = CatalogService.instance.animById(mascot.id);
+    if (animated != null) {
+      return LayoutBuilder(
+        builder: (_, c) {
+          final side = c.biggest.shortestSide;
+          return PixelMascotView(
+            anim: animated,
+            state: anim,
+            level: level,
+            sleep: sleep,
+            // Без ограничений сверху сюда приходит бесконечность, а её нельзя
+            // отдавать в размер: виджет схлопывает всё вокруг себя.
+            size: side.isFinite ? side : 96,
+            onOneShotDone: onAnimDone,
+          );
+        },
+      );
+    }
+
     final asset = service.resolvedAssetForMood(mascot);
     if (asset != null) {
       return buildMascotAssetImage(asset, fit: BoxFit.contain);

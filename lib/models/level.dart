@@ -113,6 +113,15 @@ class Rank {
 /// Тип требования для разблокировки элемента каталога.
 enum UnlockType { free, level, premium }
 
+/// Вид элемента каталога в ключе владения (`owned_features`). Маскот и пак
+/// настроений могут носить одинаковый id, поэтому вид обязателен.
+const String kMascotFeatureKind = 'mascot';
+
+/// Вид для паков настроений. Ключ владения выглядит как `mood_pack:kawaii`,
+/// а серверный роут покупки по нему находит запись каталога и берёт цену
+/// оттуда же — клиентскому числу он не верит.
+const String kMoodPackFeatureKind = 'mood_pack';
+
 /// УНИВЕРСАЛЬНОЕ требование разблокировки — на любом элементе каталога
 /// (маскот, пак настроений, в будущем темы/рамки). Один механизм для всего.
 class Unlock {
@@ -121,11 +130,29 @@ class Unlock {
   /// Требуемый уровень (для [UnlockType.level]).
   final int requiredLevel;
 
+  /// Цена в монетах для [UnlockType.premium].
+  ///
+  /// Приходит из каталога, а не живёт списком в коде: в этом весь смысл —
+  /// платный персонаж заводится одной записью и продаётся сразу, без новой
+  /// сборки. Настоящую цену при покупке всё равно берёт сервер из той же
+  /// записи, клиентскому числу тут никто не верит.
+  final int price;
+
+  /// Открыт ли элемент владельцам Togetherly+. Решается в каталоге: по
+  /// умолчанию Плюс платные элементы НЕ открывает, иначе каждый новый
+  /// персонаж доставался бы подписчикам даром без всякого решения.
+  final bool plusIncluded;
+
   const Unlock.free()
       : type = UnlockType.free,
-        requiredLevel = 0;
-  const Unlock.level(this.requiredLevel) : type = UnlockType.level;
-  const Unlock.premium()
+        requiredLevel = 0,
+        price = 0,
+        plusIncluded = false;
+  const Unlock.level(this.requiredLevel)
+      : type = UnlockType.level,
+        price = 0,
+        plusIncluded = false;
+  const Unlock.premium({this.price = 0, this.plusIncluded = false})
       : type = UnlockType.premium,
         requiredLevel = 0;
 
@@ -135,7 +162,12 @@ class Unlock {
       case 'level':
         return Unlock.level((json!['level'] as num?)?.toInt() ?? 1);
       case 'premium':
-        return const Unlock.premium();
+        final raw = json!['price'];
+        final price = raw is num ? raw.toInt() : 0;
+        return Unlock.premium(
+          price: price > 0 ? price : 0,
+          plusIncluded: json['plus'] == true,
+        );
       default:
         return const Unlock.free();
     }
@@ -144,15 +176,32 @@ class Unlock {
   bool get isFree => type == UnlockType.free;
   bool get isPremium => type == UnlockType.premium;
 
-  /// Открыт ли элемент при текущем [level] пары и факте покупки [owned].
-  bool isUnlocked({required int level, required bool owned}) {
+  /// Можно ли элемент купить прямо сейчас. Цену в каталог положить забыли —
+  /// показывать «купить за 0» нельзя, и отдавать даром тоже.
+  bool get isForSale => isPremium && price > 0;
+
+  /// Ключ владения в общем `owned_features`.
+  ///
+  /// Вид обязателен: маскот и пак настроений могут носить одинаковый id, и
+  /// без приставки покупка одного открывала бы другой.
+  static String featureKey(String kind, String id) => '$kind:$id';
+
+  /// Открыт ли элемент при текущем [level] пары, факте покупки [owned] и
+  /// действующем Togetherly+ ([plus]).
+  bool isUnlocked({
+    required int level,
+    required bool owned,
+    bool plus = false,
+  }) {
     switch (type) {
       case UnlockType.free:
         return true;
       case UnlockType.level:
         return level >= requiredLevel;
       case UnlockType.premium:
-        return owned;
+        // Купленное остаётся у человека навсегда — в том числе когда Плюс
+        // кончился. Отбирать оплаченное нельзя.
+        return owned || (plusIncluded && plus);
     }
   }
 }

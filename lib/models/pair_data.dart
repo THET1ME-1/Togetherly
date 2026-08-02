@@ -186,6 +186,73 @@ class PairData extends ChangeNotifier {
     return _manager.isSelfCodeAny(code);
   }
 
+  // ── Пара с пустым местом («он в армии») ──
+  bool get waitingMode => _active?.waitingMode ?? false;
+  String get placeholderName => _active?.placeholderName ?? '';
+  String get placeholderAvatar => _active?.placeholderAvatar ?? '';
+  DateTime? get returnDate => _active?.returnDate;
+  String get claimToken => _active?.claimToken ?? '';
+  bool get hasClaimRequest => _active?.hasClaimRequest ?? false;
+  String get claimName => _active?.claimName ?? '';
+  int? get daysUntilReturn => _active?.daysUntilReturn;
+
+  /// Кого показывать вторым: настоящего партнёра или заглушку.
+  String get counterpartName =>
+      waitingMode ? placeholderName : partnerDisplayName;
+
+  /// Заявка на второе место ушла и ждёт подтверждения хозяйкой пары.
+  bool get awaitingApproval => _manager.lastAcceptWaiting;
+  String get awaitingOwnerName => _manager.lastAcceptOwnerName;
+
+  Future<String> createWaitingPair({
+    required String name,
+    String? avatar,
+    DateTime? returnDate,
+  }) async {
+    final code = await _manager.createWaitingPair(
+      name: name,
+      avatar: avatar,
+      returnDate: returnDate,
+    );
+    notifyListeners();
+    return code;
+  }
+
+  Future<bool> updateWaitingPlaceholder({
+    String? name,
+    String? avatar,
+    DateTime? returnDate,
+    bool clearReturnDate = false,
+  }) async {
+    if (pairId.isEmpty) return false;
+    final ok = await _manager.updatePlaceholder(
+      pairId: pairId,
+      name: name,
+      avatar: avatar,
+      returnDate: returnDate,
+      clearReturnDate: clearReturnDate,
+    );
+    notifyListeners();
+    return ok;
+  }
+
+  Future<bool> answerClaim({required bool approve}) async {
+    if (pairId.isEmpty) return false;
+    final ok = await _manager.answerClaim(pairId, approve: approve);
+    notifyListeners();
+    return ok;
+  }
+
+  Future<String> resetClaimToken() async {
+    if (pairId.isEmpty) return '';
+    final code = await _manager.resetClaimToken(pairId);
+    notifyListeners();
+    return code;
+  }
+
+  /// Проверить, подтвердили ли нашу заявку («ждём» → «мы в паре»).
+  Future<String> checkWaitingClaim() => _manager.checkWaitingClaim();
+
   /// Разорвать пару
   Future<void> unpair() async {
     if (_active == null) return;

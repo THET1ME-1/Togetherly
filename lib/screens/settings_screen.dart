@@ -41,6 +41,8 @@ class SettingsScreen extends StatelessWidget {
     this.cycleShared = false,
     this.onCycleSharedChanged,
     this.onCycleWipe,
+    this.mascotSleepAvailable = false,
+    this.onMascotSleep,
   });
 
   final ColorScheme scheme;
@@ -65,6 +67,11 @@ class SettingsScreen extends StatelessWidget {
   final VoidCallback onToggleSideAction;
 
   final String appVersion;
+
+  /// Есть ли у человека хоть один персонаж с ночной сценой. Нет такого — и
+  /// строки нет: настраивать нечего, а пустой лист только сбивает с толку.
+  final bool mascotSleepAvailable;
+  final VoidCallback? onMascotSleep;
 
   /// Куплен ли Togetherly+ — от этого зависит подпись строки.
   final bool plusActive;
@@ -139,6 +146,16 @@ class SettingsScreen extends StatelessWidget {
                   trailing: const SettingsChevron(),
                   onTap: onAppearance,
                 ),
+                if (mascotSleepAvailable) ...[
+                  const SettingsDivider(),
+                  SettingsRow(
+                    icon: Icons.bedtime_rounded,
+                    title: s.mascotSleepTitle,
+                    subtitle: s.mascotSleepHint,
+                    trailing: const SettingsChevron(),
+                    onTap: onMascotSleep,
+                  ),
+                ],
                 const SettingsDivider(),
                 SettingsRow(
                   icon: Icons.translate_rounded,

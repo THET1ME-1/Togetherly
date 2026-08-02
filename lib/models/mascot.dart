@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:pocketbase/pocketbase.dart';
 import 'package:love_app/services/locale_service.dart';
 import 'level.dart';
@@ -143,6 +145,14 @@ class GroupMascotState {
   /// Общий опыт пары (растёт за действия). Уровень/ранг выводятся из него.
   final int xp;
 
+  /// Что пара уже купила: ключи вида `вид:id` (`mascot:kuku`).
+  ///
+  /// Маскот общий — он живёт на главной у обоих, и серию они растят вдвоём.
+  /// Поэтому покупка одного открывает персонажа второму. У покупателя ключ
+  /// лежит ещё и в своём `owned_features` и остаётся там навсегда, даже если
+  /// пара разойдётся: оплатил он.
+  final Set<String> ownedFeatures;
+
   const GroupMascotState({
     this.activeMascotId,
     this.positionX = 0.8,
@@ -152,7 +162,32 @@ class GroupMascotState {
     this.streakLastOpenedDate,
     this.mascotStreaks = const {},
     this.xp = 0,
+    this.ownedFeatures = const {},
   });
+
+  /// Куплен ли парой этот элемент каталога.
+  bool owns(String featureKey) => ownedFeatures.contains(featureKey);
+
+  /// Разобрать список покупок пары. Поле правит сервер, но приходит оно то
+  /// списком, то строкой json — смотря по сети или из офлайн-кэша.
+  static Set<String> parseOwned(Object? raw) {
+    final source = raw is String ? _decodeOwned(raw) : raw;
+    if (source is! List) return const {};
+    return {
+      for (final v in source)
+        if (v is String && v.isNotEmpty) v,
+    };
+  }
+
+  static Object? _decodeOwned(String raw) {
+    final text = raw.trim();
+    if (text.isEmpty) return null;
+    try {
+      return jsonDecode(text);
+    } on FormatException {
+      return null;
+    }
+  }
 
   /// Текущая серия конкретного маскота. Если последний общий день — НЕ сегодня и
   /// не вчера, маскот «умер» → 0 (серия начнётся заново при следующем общем дне).
@@ -233,6 +268,7 @@ class GroupMascotState {
           ? Map<String, dynamic>.from(d['mascot_streaks'] as Map)
           : const {},
       xp: (d['xp'] as num?)?.toInt() ?? 0,
+      ownedFeatures: parseOwned(d['owned_features']),
     );
   }
 
@@ -255,6 +291,7 @@ class GroupMascotState {
     String? streakLastOpenedDate,
     Map<String, dynamic>? mascotStreaks,
     int? xp,
+    Set<String>? ownedFeatures,
     bool clearActiveMascot = false,
   }) {
     return GroupMascotState(
@@ -268,6 +305,7 @@ class GroupMascotState {
       streakLastOpenedDate: streakLastOpenedDate ?? this.streakLastOpenedDate,
       mascotStreaks: mascotStreaks ?? this.mascotStreaks,
       xp: xp ?? this.xp,
+      ownedFeatures: ownedFeatures ?? this.ownedFeatures,
     );
   }
 }

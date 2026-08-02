@@ -164,16 +164,33 @@ class MoodOption {
     MoodOption(id: 'anger',        imagePath: '$_pinkDir/anger.webp',        label: 'Злость',        color: _red),
   ];
 
-  // ── Bunny pack (черновой) — каваи-зайка, единый стиль ────────────────────
-  // Пока пять эмоций из двадцати шести: пак собран, чтобы посмотреть зайку
-  // живьём. Остальные подрисовываются по промптам и лягут сюда же.
+  // ── Bunny pack — каваи-зайка, единый стиль ───────────────────────────────
+  // Двадцать одна эмоция, порядок тот же, что у остальных паков: сперва
+  // светлые, потом ровные, дальше грустные и злые. Так шкала настроения
+  // читается одинаково, каким бы паком человек ни пользовался.
   static const String _bunnyDir = 'assets/images/mood_packs/bunny';
   static const List<MoodOption> bunnyPack = [
-    MoodOption(id: 'love',   imagePath: '$_bunnyDir/love.webp',   label: 'Люблю',        color: _pink),
-    MoodOption(id: 'kiss',   imagePath: '$_bunnyDir/kiss.webp',   label: 'Целую',        color: _pink),
-    MoodOption(id: 'laugh',  imagePath: '$_bunnyDir/laugh.webp',  label: 'Смех',         color: _yellow),
-    MoodOption(id: 'bliss',  imagePath: '$_bunnyDir/bliss.webp',  label: 'Наслаждение',  color: _yellow),
-    MoodOption(id: 'pride',  imagePath: '$_bunnyDir/pride.webp',  label: 'Гордость',     color: _yellow),
+    MoodOption(id: 'love',         imagePath: '$_bunnyDir/love.webp',         label: 'Люблю',         color: _pink),
+    MoodOption(id: 'kiss',         imagePath: '$_bunnyDir/kiss.webp',         label: 'Целую',         color: _pink),
+    MoodOption(id: 'laugh',        imagePath: '$_bunnyDir/laugh.webp',        label: 'Смех',          color: _yellow),
+    MoodOption(id: 'bliss',        imagePath: '$_bunnyDir/bliss.webp',        label: 'Наслаждение',   color: _yellow),
+    MoodOption(id: 'pride',        imagePath: '$_bunnyDir/pride.webp',        label: 'Гордость',      color: _yellow),
+    MoodOption(id: 'cool',         imagePath: '$_bunnyDir/cool.webp',         label: 'Крутой',        color: _yellow),
+    MoodOption(id: 'winking',      imagePath: '$_bunnyDir/winking.webp',      label: 'Подмигиваю',    color: _yellow),
+    MoodOption(id: 'drooling',     imagePath: '$_bunnyDir/drooling.webp',     label: 'Слюни текут',   color: _skyBlue),
+    MoodOption(id: 'embarrassed',  imagePath: '$_bunnyDir/embarrassed.webp',  label: 'Смущение',      color: _pink),
+    MoodOption(id: 'surprise',     imagePath: '$_bunnyDir/surprise.webp',     label: 'Удивление',     color: _purple),
+    MoodOption(id: 'no_emotion',   imagePath: '$_bunnyDir/no_emotion.webp',   label: 'Нет эмоций',    color: _slate),
+    MoodOption(id: 'sleepy',       imagePath: '$_bunnyDir/sleepy.webp',       label: 'Сплю',          color: _slate),
+    MoodOption(id: 'tired',        imagePath: '$_bunnyDir/tired.webp',        label: 'Устала',        color: _slate),
+    MoodOption(id: 'missing',      imagePath: '$_bunnyDir/missing.webp',      label: 'Скучаю',        color: _slate),
+    MoodOption(id: 'sick',         imagePath: '$_bunnyDir/sick.webp',         label: 'Болен',         color: _slate),
+    MoodOption(id: 'sad',          imagePath: '$_bunnyDir/sad.webp',          label: 'Грусть',        color: _blue),
+    MoodOption(id: 'disappointed', imagePath: '$_bunnyDir/disappointed.webp', label: 'Разочарование', color: _blue),
+    MoodOption(id: 'hurt',         imagePath: '$_bunnyDir/hurt.webp',         label: 'Обида',         color: _red),
+    MoodOption(id: 'anxiety',      imagePath: '$_bunnyDir/anxiety.webp',      label: 'Тревожность',   color: _purple),
+    MoodOption(id: 'liar',         imagePath: '$_bunnyDir/liar.webp',         label: 'Врунишка',      color: _red),
+    MoodOption(id: 'anger',        imagePath: '$_bunnyDir/anger.webp',        label: 'Злость',        color: _red),
   ];
 
   /// Все ВСТРОЕННЫЕ настроения — для поиска по id/пути. Классические идут

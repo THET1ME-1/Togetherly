@@ -15,7 +15,7 @@
 ///
 /// Разрешено:
 ///   • автор — что угодно со своим сообщением (правка, мягкое удаление, оформление);
-///   • не автор — ТОЛЬКО поле `reactions`;
+///   • не автор — ТОЛЬКО поля `reactions` и `voice_heard_at` (отметка «послушал»);
 ///   • суперюзер — всё (админка).
 ///
 /// Жёсткое удаление записи не делает никто: клиент удаляет мягко (deleted=true),
@@ -42,11 +42,14 @@ onRecordUpdateRequest((e) => {
     }
 
     if (author && author !== uid) {
+      // `voice_heard_at` ставит СЛУШАТЕЛЬ, а не автор: иначе отправитель никогда
+      // не узнает, дошло ли его голосовое до ушей. Поле числовое (epoch-ms) и
+      // ничего, кроме отметки, не несёт — переписать им чужой текст нельзя.
       const body = (e.requestInfo().body || {});
       const keys = Object.keys(body);
       for (let i = 0; i < keys.length; i++) {
         const f = keys[i];
-        if (f === "reactions" || f === "id") continue;
+        if (f === "reactions" || f === "voice_heard_at" || f === "id") continue;
         throw new ForbiddenError("only the author can edit this message");
       }
     }

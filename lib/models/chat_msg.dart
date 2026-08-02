@@ -1,5 +1,7 @@
 import 'package:pocketbase/pocketbase.dart';
 
+import 'voice_note.dart';
+
 /// Сообщение постоянного чата пары. Хранится в PocketBase (коллекция
 /// `chat_messages`); удаление мягкое (deleted=true + текст затирается).
 ///
@@ -47,6 +49,18 @@ class ChatMsg {
   final double? faceX;
   final double? faceY;
 
+  /// Голосовое сообщение: ссылка на файл (`pb://media/...`, у неотправленного —
+  /// путь на устройстве), длительность и огибающая громкости строкой из 40 цифр.
+  /// null во всех трёх — обычное текстовое сообщение.
+  final String? voiceUrl;
+  final int? voiceMs;
+  final String? voicePeaks;
+
+  /// Когда получатель дослушал (epoch-ms). Ставит СЛУШАТЕЛЬ, а не автор —
+  /// отправителю важно знать, дошло ли голосовое до ушей, а не только до
+  /// экрана. Страж `chat_guard.pb.js` пускает не-автора ровно в это поле.
+  final int? voiceHeardAt;
+
   const ChatMsg({
     required this.id,
     required this.uid,
@@ -67,7 +81,20 @@ class ChatMsg {
     this.textColor,
     this.faceX,
     this.faceY,
+    this.voiceUrl,
+    this.voiceMs,
+    this.voicePeaks,
+    this.voiceHeardAt,
   });
+
+  /// Голосовое сообщение или null, если это обычный текст.
+  VoiceNote? get voice =>
+      VoiceNote.fromFields(url: voiceUrl, ms: voiceMs, peaks: voicePeaks);
+
+  bool get isVoice => (voiceUrl ?? '').isNotEmpty;
+
+  /// Голосовое уже послушали.
+  bool get voiceHeard => (voiceHeardAt ?? 0) > 0;
 
   bool get isEdited => editedTs != null && !deleted;
 
@@ -131,6 +158,10 @@ class ChatMsg {
       textColor: nzInt(m['text_color']),
       faceX: nzDouble(m['face_x']),
       faceY: nzDouble(m['face_y']),
+      voiceUrl: nz(m['voice_url']),
+      voiceMs: nzInt(m['voice_ms']),
+      voicePeaks: nz(m['voice_peaks']),
+      voiceHeardAt: nzInt(m['voice_heard_at']),
     );
   }
 }

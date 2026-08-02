@@ -173,6 +173,7 @@ class _DayLogSheetState extends State<_DayLogSheet> {
       primary: widget.theme.primary,
       navActiveIcon: widget.theme.navActiveIcon,
       withAilmentTab: false,
+      user: widget.userData,
     );
   }
 

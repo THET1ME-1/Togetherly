@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/level.dart';
 import '../models/mascot.dart';
+import '../models/mascot_anim.dart';
 import '../models/mood_entry.dart';
 import '../models/mood_pack.dart';
 import 'pb_data_service.dart';
@@ -32,6 +33,7 @@ class CatalogService extends ChangeNotifier {
 
   List<MoodPack> _remotePacks = const [];
   List<Mascot> _mascots = const [];
+  Map<String, MascotAnim> _anims = const {};
   bool _initialized = false;
 
   /// Бандл + удалённые паки (бандл первым — порядок в пикере стабилен).
@@ -39,6 +41,19 @@ class CatalogService extends ChangeNotifier {
 
   /// Маскоты из удалённого каталога (рендер-онли, поверх галереи группы).
   List<Mascot> get mascots => _mascots;
+
+  /// Анимированные пиксельные маскоты каталога по id.
+  ///
+  /// Живут отдельной картой, а не полем [Mascot]: галерея, плавающий маскот и
+  /// превью работают с обычной моделью, а анимацию спрашивают по id. Нет
+  /// анимации — рисуется прежняя картинка, и старые персонажи не ломаются.
+  MascotAnim? animById(String? id) => id == null ? null : _anims[id];
+
+  /// Есть ли в каталоге хоть один анимированный маскот.
+  bool get hasAnimated => _anims.isNotEmpty;
+
+  /// Все анимированные персонажи каталога.
+  List<MascotAnim> get animated => List.unmodifiable(_anims.values);
 
   /// Пак по id среди всех (бандл+каталог); неизвестный → классический.
   MoodPack packById(String? id) {
@@ -92,6 +107,7 @@ class CatalogService extends ChangeNotifier {
     final packs = <MoodPack>[];
     final remoteMoods = <MoodOption>[];
     final mascots = <Mascot>[];
+    final anims = <String, MascotAnim>{};
 
     for (final raw in rows) {
       if (raw is! Map) continue;
@@ -101,6 +117,24 @@ class CatalogService extends ChangeNotifier {
       if (row['kind'] == 'mascot') {
         final mascot = _parseMascot(row);
         if (mascot != null) mascots.add(mascot);
+        continue;
+      }
+      // Анимированный: в галерее это обычный маскот, а кадры берутся из
+      // атласа по манифесту.
+      if (row['kind'] == 'mascot_anim') {
+        final data = (row['data'] as Map?)?.cast<String, dynamic>() ?? const {};
+        final unlock = _parseUnlock(row, data);
+        final anim = MascotAnim.fromCatalog(row, unlock: unlock);
+        if (anim != null) {
+          anims[anim.id] = anim;
+          mascots.add(Mascot.fromCatalog(
+            id: anim.id,
+            nameRu: anim.nameRu,
+            nameEn: anim.nameEn,
+            url: anim.sheetUrl,
+            unlock: unlock,
+          ));
+        }
         continue;
       }
       if (row['kind'] != 'mood_pack') continue;
@@ -130,6 +164,7 @@ class CatalogService extends ChangeNotifier {
 
     _remotePacks = List.unmodifiable(packs);
     _mascots = List.unmodifiable(mascots);
+    _anims = Map.unmodifiable(anims);
     MoodOption.registerRemoteMoods(remoteMoods);
     notifyListeners();
   }
@@ -150,11 +185,25 @@ class CatalogService extends ChangeNotifier {
   }
 
   /// Требование разблокировки: поле `unlock` в data, иначе по `is_free`.
+  ///
+  /// Цена лежит там же, в каталоге, и в коде её нет вовсе: новый платный
+  /// персонаж появляется у людей записью в `catalog_items`, без новой сборки.
+  /// Цена из `price` в самой записи имеет старшинство над манифестом — так её
+  /// правят одним запросом, не перезаливая атлас.
   Unlock _parseUnlock(Map<String, dynamic> row, Map<String, dynamic> data) {
+    final rowPrice = (row['price'] as num?)?.toInt() ?? 0;
     final u = data['unlock'];
-    if (u is Map) return Unlock.fromJson(u.cast<String, dynamic>());
+    if (u is Map) {
+      final parsed = u.cast<String, dynamic>();
+      if (rowPrice > 0) parsed['price'] = rowPrice;
+      return Unlock.fromJson(parsed);
+    }
     final free = row['is_free'] as bool? ?? true;
-    return free ? const Unlock.free() : const Unlock.premium();
+    if (free) return const Unlock.free();
+    return Unlock.premium(
+      price: rowPrice,
+      plusIncluded: row['plus_included'] as bool? ?? false,
+    );
   }
 
   /// Одно настроение из манифеста. Для известных id цвет/метку берём из сборки,

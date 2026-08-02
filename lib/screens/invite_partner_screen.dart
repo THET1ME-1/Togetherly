@@ -224,6 +224,10 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
   }
 
   Future<void> _submitCode(String code) async {
+    // Второй запрос тем же кодом, пока идёт первый, не отправляем: он
+    // натыкался на уже использованный код, и его ошибка ложилась поверх
+    // успешного подключения (тот же guard в connect_partner_screen).
+    if (_joining) return;
     if (_pair.isSelfCode(code)) {
       _toast(_s.cantInviteSelf);
       return;
@@ -236,7 +240,12 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
       // Пара появилась — слушатель уведёт экран сам, но на всякий случай.
       Navigator.of(context).maybePop();
     } else {
-      _toast(_s.inviteCodeNotFound);
+      // Показываем настоящую причину (истёкшая сессия, группа занята, свой
+      // код), а не всегда «код не найден»: этот экран отвечал одной строкой на
+      // все отказы, и человек искал проблему в коде, когда дело было в сессии.
+      // Так же устроен _submitCode в connect_partner_screen.
+      final msg = _pair.lastAcceptMessage;
+      _toast((msg != null && msg.isNotEmpty) ? msg : _s.inviteCodeNotFound);
     }
   }
 

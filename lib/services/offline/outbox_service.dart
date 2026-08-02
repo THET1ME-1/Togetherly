@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:sembast/sembast_io.dart';
@@ -337,7 +338,17 @@ class OutboxService {
       case 'cycleShareAll':
       case 'cycleWipe':
         return k('cycle_entries', p['groupId']);
+      case 'wishUpsert':
+        return k('wishes', (p['wish'] as Map?)?['id']);
+      case 'wishMark':
+      case 'wishDelete':
+        return k('wishes', p['id']);
+      case 'wishCategoryUpsert':
+        return k('wish_categories', (p['kind'] as Map?)?['id']);
+      case 'wishCategoryDelete':
+        return k('wish_categories', p['id']);
       case 'chatUpsert':
+      case 'chatVoice':
       case 'chatUpdate':
       case 'chatSetReaction':
         return k('chat_messages', p['id']);
@@ -507,6 +518,16 @@ class OutboxService {
             (a, b) => a['memoryId'] == b['memoryId'] && a['uid'] == b['uid']);
       case 'memoryUpsert':
         return _replaceOrMerge(db, type, p, (a, b) => a['id'] == b['id']);
+      // Желание правят и отмечают подряд — в очередь нужна только последняя
+      // версия записи, промежуточные состояния серверу не интересны.
+      case 'wishUpsert':
+        return _replaceOrMerge(db, type, p,
+            (a, b) => (a['wish'] as Map?)?['id'] == (b['wish'] as Map?)?['id']);
+      case 'wishMark':
+        return _replaceOrMerge(db, type, p, (a, b) => a['id'] == b['id']);
+      case 'wishCategoryUpsert':
+        return _replaceOrMerge(db, type, p,
+            (a, b) => (a['kind'] as Map?)?['id'] == (b['kind'] as Map?)?['id']);
       case 'memoryDelete':
         // create+delete аннигиляция: убрать ещё не отправленный memoryUpsert того
         // же id (создавать-затем-удалять на сервере не нужно). Сам delete ставим
@@ -614,6 +635,26 @@ class OutboxService {
           p['groupId'] as String? ?? '',
           p['uid'] as String? ?? '',
         );
+      // ── общие желания ──
+      case 'wishUpsert':
+        return data.upsertWish(
+          p['groupId'] as String? ?? '',
+          Map<String, dynamic>.from(p['wish'] as Map? ?? const {}),
+        );
+      case 'wishMark':
+        return data.markWish(
+          p['id'] as String? ?? '',
+          Map<String, dynamic>.from(p['fields'] as Map? ?? const {}),
+        );
+      case 'wishDelete':
+        return data.deleteWish(p['id'] as String? ?? '');
+      case 'wishCategoryUpsert':
+        return data.upsertWishCategory(
+          p['groupId'] as String? ?? '',
+          Map<String, dynamic>.from(p['kind'] as Map? ?? const {}),
+        );
+      case 'wishCategoryDelete':
+        return data.deleteWishCategory(p['id'] as String? ?? '');
       // ── комментарии ──
       case 'commentUpsert':
         return data.upsertComment(
@@ -637,6 +678,8 @@ class OutboxService {
           p['id'] as String? ?? '',
           Map<String, dynamic>.from(p['msg'] as Map? ?? const {}),
         );
+      case 'chatVoice':
+        return _applyChatVoice(p);
       case 'chatUpdate':
         return data.chatUpdate(
           p['id'] as String? ?? '',
@@ -693,6 +736,53 @@ class OutboxService {
 
   /// RMW счётчика комментариев в json `data` воспоминания (бейдж в ленте).
   /// Не идемпотентен (как и counterInc) — возможен косметический дрейф бейджа.
+  /// Голосовое: сперва файл в `media`, следом само сообщение.
+  ///
+  /// Двухшаговость нужна из-за очереди: она возит json, а голос — блоб. Файл
+  /// лежит в постоянной папке приложения (не во временной, её чистит система),
+  /// и удаляется только после того, как ссылка `pb://` записана в кэш. Пропал
+  /// файл — операция снимается с очереди: возить нечего, а вечно повторять
+  /// нельзя, иначе очередь встанет колом и утянет за собой весь чат.
+  Future<bool> _applyChatVoice(Map<String, dynamic> p) async {
+    final id = p['id'] as String? ?? '';
+    final groupId = p['groupId'] as String? ?? '';
+    if (id.isEmpty || groupId.isEmpty) return true;
+    final msg = Map<String, dynamic>.from(p['msg'] as Map? ?? const {});
+    final path = p['path'] as String? ?? '';
+
+    var url = (msg['voiceUrl'] as String?) ?? '';
+    if (!url.startsWith('pb://')) {
+      final file = File(path);
+      if (path.isEmpty || !await file.exists()) {
+        debugPrint('outbox.chatVoice: файла нет ($path), операция снимается');
+        return true;
+      }
+      final uploaded = await PbMediaService.instance.uploadFile(
+        path,
+        uid: msg['uid'] as String?,
+        groupId: groupId,
+        kind: 'voice',
+      );
+      if (uploaded == null) return false; // сеть/сервер — повторим позже
+      url = uploaded;
+      msg['voiceUrl'] = url;
+      // Кэш переводим на серверную ссылку сразу: файл на устройстве вот-вот
+      // исчезнет, а пузырь должен продолжать играть.
+      await LocalStore.instance.patchRecordFields('chat_messages', id, {
+        'voice_url': url,
+      });
+    }
+
+    final ok = await PbDataService().chatSend(groupId, id, msg);
+    if (ok && path.isNotEmpty) {
+      try {
+        final f = File(path);
+        if (await f.exists()) await f.delete();
+      } catch (_) {/* не удалился — уберёт система */}
+    }
+    return ok;
+  }
+
   Future<bool> _applyBumpComments(
       String groupId, String memoryId, int by) async {
     if (memoryId.isEmpty || by == 0) return true;

@@ -446,7 +446,186 @@ class PbDataService {
       'anniversaryDate': _date(data['anniversary_date']),
       'firstKissDate': _date(data['first_kiss_date']),
       'memberBirthdays': birthdays(),
+      // Пара с пустым местом («он в армии»): второго участника ещё нет, его
+      // место держит заглушка, а `claim_token` ждёт своего человека.
+      'waitingMode': data['waiting_mode'] == true,
+      'placeholderName': (data['placeholder_name'] ?? '').toString(),
+      'placeholderAvatar': (data['placeholder_avatar'] ?? '').toString(),
+      'returnDate': _date(data['return_date']),
+      'claimToken': (data['claim_token'] ?? '').toString(),
+      'claimUid': (data['claim_uid'] ?? '').toString(),
+      'claimName': (data['claim_name'] ?? '').toString(),
+      'claimAt': (data['claim_at'] as num?)?.toInt() ?? 0,
     };
+  }
+
+  // ══════════════════════════════════════════════ ПАРА С ПУСТЫМ МЕСТОМ
+  // Второе место пары держит заглушка, пока человек в армии (на вахте, в
+  // экспедиции). Всё делают серверные роуты `waiting.pb.js`: клиент не может ни
+  // выдать себе код, ни объявить место свободным — `groups_guard` эти поля
+  // закрывает.
+
+  /// Завести пару с пустым местом. Возвращает `{pairId, code}` или null.
+  Future<Map<String, String>?> waitingCreate({
+    required String name,
+    String? avatar,
+    DateTime? returnDate,
+  }) async {
+    try {
+      final res = await _pb.send('/api/waiting/create', method: 'POST', body: {
+        'name': name,
+        if (avatar != null && avatar.isNotEmpty) 'avatar': avatar,
+        if (returnDate != null) 'returnDate': _iso(returnDate),
+      });
+      final map = res is Map
+          ? Map<String, dynamic>.from(res)
+          : <String, dynamic>{};
+      if (map['success'] != true) return null;
+      return {
+        'pairId': (map['pairId'] ?? '').toString(),
+        'code': (map['code'] ?? '').toString(),
+      };
+    } catch (e) {
+      debugPrint('PbData.waitingCreate failed: $e');
+      return null;
+    }
+  }
+
+  /// Поправить заглушку: имя, фото, дату возвращения.
+  Future<bool> waitingUpdate({
+    required String groupId,
+    String? name,
+    String? avatar,
+    DateTime? returnDate,
+    bool clearReturnDate = false,
+  }) async {
+    try {
+      final res = await _pb.send('/api/waiting/update', method: 'POST', body: {
+        'groupId': groupId,
+        if (name != null) 'name': name,
+        if (avatar != null) 'avatar': avatar,
+        if (clearReturnDate) 'returnDate': '',
+        if (!clearReturnDate && returnDate != null)
+          'returnDate': _iso(returnDate),
+      });
+      return res is Map && res['success'] == true;
+    } catch (e) {
+      debugPrint('PbData.waitingUpdate failed: $e');
+      return false;
+    }
+  }
+
+  /// Попроситься на второе место по коду. Возвращает статус
+  /// (`pending`, `member`) или null с текстом ошибки в [lastWaitingError].
+  String? lastWaitingError;
+
+  Future<Map<String, dynamic>?> waitingClaim(String code) async {
+    lastWaitingError = null;
+    try {
+      final res = await _pb.send('/api/waiting/claim',
+          method: 'POST', body: {'code': code});
+      final map = res is Map
+          ? Map<String, dynamic>.from(res)
+          : <String, dynamic>{};
+      if (map['success'] != true) {
+        lastWaitingError = (map['message'] ?? '').toString();
+        return null;
+      }
+      return map;
+    } on ClientException catch (e) {
+      lastWaitingError = (e.response['message'] ?? '').toString();
+      debugPrint('PbData.waitingClaim ${e.statusCode}: $lastWaitingError');
+      return null;
+    } catch (e) {
+      debugPrint('PbData.waitingClaim failed: $e');
+      return null;
+    }
+  }
+
+  /// Подтвердить или отклонить заявку на второе место.
+  Future<bool> waitingApprove(String groupId, {required bool approve}) async {
+    try {
+      final res = await _pb.send('/api/waiting/approve',
+          method: 'POST', body: {'groupId': groupId, 'approve': approve});
+      return res is Map && res['success'] == true;
+    } catch (e) {
+      debugPrint('PbData.waitingApprove failed: $e');
+      return false;
+    }
+  }
+
+  /// Сбросить код второго места (расставание, код утёк). Возвращает новый код.
+  Future<String?> waitingReset(String groupId) async {
+    try {
+      final res = await _pb.send('/api/waiting/reset',
+          method: 'POST', body: {'groupId': groupId});
+      final map = res is Map
+          ? Map<String, dynamic>.from(res)
+          : <String, dynamic>{};
+      if (map['success'] != true) return null;
+      return (map['code'] ?? '').toString();
+    } catch (e) {
+      debugPrint('PbData.waitingReset failed: $e');
+      return null;
+    }
+  }
+
+  /// Адреса STUN/TURN для голосовой связи в комнате просмотра. Пустой список
+  /// не возвращаем: без STUN соединение не соберётся вовсе, поэтому при отказе
+  /// сервера оставляем публичный.
+  Future<List<Map<String, dynamic>>> iceServers() async {
+    try {
+      final res = await _pb.send('/api/watch/rtc');
+      final map = res is Map
+          ? Map<String, dynamic>.from(res)
+          : <String, dynamic>{};
+      final list = (map['iceServers'] as List?)
+          ?.map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+      if (list != null && list.isNotEmpty) return list;
+    } catch (e) {
+      debugPrint('PbData.iceServers failed: $e');
+    }
+    return [
+      {
+        'urls': ['stun:stun.l.google.com:19302'],
+      }
+    ];
+  }
+
+  /// Карточка товара по ссылке: название, картинка, магазин, цена.
+  /// null — магазин закрылся от нас (антибот, нет og-тегов): форма даст
+  /// заполнить руками, а не покажет пустоту после «загрузки».
+  Future<Map<String, dynamic>?> linkPreview(String url) async {
+    if (url.trim().isEmpty) return null;
+    try {
+      final res = await _pb
+          .send('/api/link/preview?url=${Uri.encodeQueryComponent(url.trim())}')
+          .timeout(const Duration(seconds: 15));
+      final map = res is Map
+          ? Map<String, dynamic>.from(res)
+          : <String, dynamic>{};
+      if (map['success'] != true) return null;
+      return map;
+    } catch (e) {
+      debugPrint('PbData.linkPreview failed: $e');
+      return null;
+    }
+  }
+
+  /// Статус своей заявки: `pending`, `approved`, `rejected`, `gone`, `none`.
+  /// Пока заявку не подтвердили, группа заявителю не видна вовсе — этот роут
+  /// единственный, что ему отвечает.
+  Future<Map<String, dynamic>> waitingState(String code) async {
+    try {
+      final res = await _pb.send('/api/waiting/state?code=$code');
+      return res is Map
+          ? Map<String, dynamic>.from(res)
+          : <String, dynamic>{};
+    } catch (e) {
+      debugPrint('PbData.waitingState failed: $e');
+      return <String, dynamic>{};
+    }
   }
 
   /// Группа по id → pair-карта (или null, если нет/распущена).
@@ -826,6 +1005,17 @@ class PbDataService {
       if (pairId.isEmpty) {
         return {'success': false, 'message': 'Сервер не вернул пару'};
       }
+      // Код второго места у пары «он в армии»: группа существует, но пока нас
+      // в неё не пустили — сперва заявка, потом подтверждение хозяйкой.
+      if (map['waiting'] == true) {
+        return {
+          'success': false,
+          'waiting': true,
+          'pairId': pairId,
+          'code': code,
+          'message': 'Это код второго места — отправляем заявку',
+        };
+      }
       final g = await _pb.collection('groups').getOne(pairId);
       return _acceptResult(
         g,
@@ -1150,6 +1340,118 @@ class PbDataService {
       return true;
     } catch (e) {
       debugPrint('PbData.wipeCycle($groupId) failed: $e');
+      return false;
+    }
+  }
+
+  // ══════════════════════════════════════════════ WISHES
+
+  /// Общие желания пары. Запись одна на двоих, поэтому фильтр только по
+  /// группе — чужих здесь не бывает, их не пускает правило коллекции.
+  Future<List<RecordModel>> loadWishes(String groupId) async {
+    if (groupId.isEmpty) return const [];
+    try {
+      return await _pb.collection('wishes').getFullList(
+            filter: _pb.filter('group_id = {:g}', {'g': groupId}),
+            sort: '-created',
+          );
+    } catch (e) {
+      debugPrint('PbData.loadWishes($groupId) failed: $e');
+      return const [];
+    }
+  }
+
+  /// Заводит или правит желание. Отметка «сбылось» приходит сюда же: она
+  /// меняет поля той же записи, отдельного роута под неё нет.
+  Future<bool> upsertWish(String groupId, Map<String, dynamic> wish) async {
+    final id = wish['id'] as String?;
+    if (id == null || id.isEmpty || groupId.isEmpty) return false;
+    return _upsertById('wishes', id, {
+      'group_id': groupId,
+      'author_uid': wish['author_uid'] ?? '',
+      'title': wish['title'] ?? '',
+      'note': wish['note'] ?? '',
+      'category': wish['category'] ?? 'other',
+      'symbol': wish['symbol'] ?? '',
+      'done': wish['done'] ?? false,
+      // Пустая строка стирает дату на сервере: отмена отметки должна убирать
+      // её целиком, иначе в архиве останется дата у вернувшегося желания.
+      'done_at': _iso(wish['done_at']) ?? '',
+      'done_by': wish['done_by'] ?? '',
+      'done_note': wish['done_note'] ?? '',
+    }, op: 'upsertWish');
+  }
+
+  /// Свои категории желаний, заведённые парой.
+  Future<List<RecordModel>> loadWishCategories(String groupId) async {
+    if (groupId.isEmpty) return const [];
+    try {
+      return await _pb.collection('wish_categories').getFullList(
+            filter: _pb.filter('group_id = {:g}', {'g': groupId}),
+            sort: 'created',
+          );
+    } catch (e) {
+      debugPrint('PbData.loadWishCategories($groupId) failed: $e');
+      return const [];
+    }
+  }
+
+  Future<bool> upsertWishCategory(
+      String groupId, Map<String, dynamic> kind) async {
+    final id = kind['id'] as String?;
+    if (id == null || id.isEmpty || groupId.isEmpty) return false;
+    return _upsertById('wish_categories', id, {
+      'group_id': groupId,
+      'author_uid': kind['author_uid'] ?? '',
+      'title': kind['title'] ?? '',
+      'symbol': kind['symbol'] ?? 'star',
+      'note': kind['note'] ?? '',
+    }, op: 'upsertWishCategory');
+  }
+
+  Future<bool> deleteWishCategory(String id) async {
+    if (id.isEmpty) return false;
+    try {
+      await _pb.collection('wish_categories').delete(id);
+      return true;
+    } catch (e) {
+      if (e is ClientException && e.statusCode == 404) return true;
+      debugPrint('PbData.deleteWishCategory($id) failed: $e');
+      return false;
+    }
+  }
+
+  /// Отметка «сбылось» на ЧУЖОМ желании: шлём только поля отметки.
+  ///
+  /// Полное тело здесь не годится — страж `wishes_guard.pb.js` пускает не-автора
+  /// ровно в эти четыре поля, а `upsertWish` отправляет и название с заметкой,
+  /// и обычная галочка отваливалась бы с 403. Записи может не быть только если
+  /// её только что снёс автор — тогда отмечать нечего, и это не ошибка.
+  Future<bool> markWish(String wishId, Map<String, dynamic> fields) async {
+    if (wishId.isEmpty) return false;
+    try {
+      await _pb.collection('wishes').update(wishId, body: {
+        'done': fields['done'] ?? false,
+        'done_at': _iso(fields['done_at']) ?? '',
+        'done_by': fields['done_by'] ?? '',
+        'done_note': fields['done_note'] ?? '',
+      }).timeout(const Duration(seconds: 15));
+      return true;
+    } catch (e) {
+      if (e is ClientException && e.statusCode == 404) return true;
+      debugPrint('PbData.markWish($wishId) failed: $e');
+      return false;
+    }
+  }
+
+  Future<bool> deleteWish(String wishId) async {
+    if (wishId.isEmpty) return false;
+    try {
+      await _pb.collection('wishes').delete(wishId);
+      return true;
+    } catch (e) {
+      if (e is ClientException && e.statusCode == 404) return true;
+      debugPrint('PbData.deleteWish($wishId) failed: $e');
       return false;
     }
   }
@@ -2086,6 +2388,9 @@ class PbDataService {
       'text_color': msg['textColor'],
       'face_x': msg['faceX'],
       'face_y': msg['faceY'],
+      'voice_url': msg['voiceUrl'],
+      'voice_ms': msg['voiceMs'],
+      'voice_peaks': msg['voicePeaks'],
     }..removeWhere((k, v) => v == null);
     return _upsertById('chat_messages', id, body, op: 'chatSend');
   }
@@ -2250,6 +2555,9 @@ class PbDataService {
       'lastDailyBonusMs': d['last_daily_bonus_ms'],
       'lastMemoryRewardMs': d['last_memory_reward_ms'],
       'birthDate': d['birth_date'],
+      // Когда каждый маскот уходит в ночную сцену. Поле правит сам человек,
+      // разбирает его MascotSleep — оно бывает и картой, и строкой.
+      'mascotSleep': d['mascot_sleep'],
     };
   }
 
@@ -2440,6 +2748,22 @@ class PbDataService {
     } catch (e) {
       debugPrint('PbData.fetchGiftsEnabled failed: $e');
       return false;
+    }
+  }
+
+  /// Включён ли раздел «Хочу с тобой» (поле `wishes_enabled` там же).
+  ///
+  /// Здесь неопределённость решается в другую сторону, чем у подарков: раздел
+  /// бесплатный и ничего не тратит, поэтому он виден, пока его явно не
+  /// выключили. Сбой сети не должен прятать список, который человек уже завёл.
+  Future<bool> fetchWishesEnabled() async {
+    try {
+      final res = await _pb.collection('app_config').getList(perPage: 1);
+      if (res.items.isEmpty) return true;
+      return res.items.first.data['wishes_enabled'] != false;
+    } catch (e) {
+      debugPrint('PbData.fetchWishesEnabled failed: $e');
+      return true;
     }
   }
 

@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:material_new_shapes/material_new_shapes.dart';
 
-/// Набор символов кода-приглашения (== Connection.generateLocalCode: без 0/1/I/O,
+/// Набор символов кода-приглашения (как у сервера: без 0/1/I/O,
 /// чтобы не путались). «Дешифратор» гоняет именно эти глифы, поэтому бегущие
 /// символы выглядят настоящими и корректно замирают на коде.
 const String kInviteAlphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';

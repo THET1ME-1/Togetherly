@@ -7,7 +7,12 @@
 <meta name="robots" content="noindex">
 <!-- Яндекс Диск отдаёт файл только тем, кто не представился чужим сайтом:
      с нашим Referer он отвечает 403. Заодно площадки перестают узнавать,
-     откуда пришёл человек. -->
+     откуда пришёл человек.
+     ВАЖНО: мета действует на всю страницу, а ютуб на запрос без реферера
+     отвечает ошибкой 153 и не играет ни одного ролика. Поэтому iframe
+     площадок получает свою политику в room.js (у iframe атрибут
+     referrerpolicy поддерживается и перебивает страничный, у <video> — нет).
+     Стережёт tests/room-youtube-referrer.test.js. -->
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#150D0F">
 <link rel="stylesheet" href="../landing.css">

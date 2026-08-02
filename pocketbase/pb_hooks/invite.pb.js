@@ -24,7 +24,23 @@ routerAdd("POST", "/api/invite/accept", (e) => {
   const myUid = e.auth.id;
   const raw = (e.requestInfo().body || {}).code;
   const code = String(raw || "").toUpperCase().trim();
-  if (!code) return e.json(400, { success: false, message: "Код не указан" });
+
+  // Отказы этого роута НЕ попадают в _logs сами: PocketBase пишет туда только
+  // ошибки уровня middleware, а `e.json(400, …)` из тела хука проходит мимо
+  // журнала (проверено). Из-за этого жалоба «код не работает» разбиралась
+  // вслепую — в логах за две недели ноль строк при живом потоке отказов.
+  // Поэтому каждую причину пишем сами, через warn (info в _logs не доходит).
+  // Смотреть так:
+  //   sqlite3 pb_data/auxiliary.db "select created, data from _logs
+  //     where message like '%invite accept%' order by created desc limit 30;"
+  const deny = (status, message, why) => {
+    try {
+      $app.logger().warn("invite accept: отказ", "why", why, "code", code, "uid", myUid);
+    } catch (_) { /* журнал не должен ронять приём кода */ }
+    return e.json(status, { success: false, message: message });
+  };
+
+  if (!code) return deny(400, "Код не указан", "пустой код");
 
   // ── хелперы ────────────────────────────────────────────────────────────────
   const membersOf = (g) => {
@@ -69,16 +85,28 @@ routerAdd("POST", "/api/invite/accept", (e) => {
   };
 
   // ── найти код ────────────────────────────────────────────────────────────
+  // Кодов в приложении два вида, а поле ввода одно: обычный инвайт и постоянный
+  // код второго места у пары «он в армии» (`groups.claim_token`, waiting.pb.js).
+  // Человеку разница не видна и видна быть не должна, поэтому сперва ищем
+  // инвайт, а не нашли — пробуем второе место и отдаём заявку на подтверждение.
   let codeRec;
   try {
     codeRec = $app.findFirstRecordByFilter("invite_codes", "code = {:c}", { c: code });
   } catch (_) {
-    return e.json(404, { success: false, message: "Код не найден" });
+    let waiting = null;
+    try {
+      const rows = $app.findRecordsByFilter("groups", "claim_token = {:t}", "", 1, 0, { t: code });
+      waiting = rows && rows.length ? rows[0] : null;
+    } catch (_) { waiting = null; }
+    if (waiting) {
+      return e.json(200, { success: true, waiting: true, pairId: waiting.id, code: code });
+    }
+    return deny(404, "Код не найден", "кода нет ни в invite_codes, ни в claim_token");
   }
   const ownerUid = String(codeRec.getString("owner_uid") || "");
-  if (!ownerUid) return e.json(400, { success: false, message: "Код повреждён" });
+  if (!ownerUid) return deny(400, "Код повреждён", "у кода пустой owner_uid");
   if (ownerUid === myUid) {
-    return e.json(400, { success: false, message: "Это ваш собственный код!" });
+    return deny(400, "Это ваш собственный код!", "свой же код");
   }
   const codeGroupId = String(codeRec.getString("group_id") || "");
 
@@ -86,14 +114,28 @@ routerAdd("POST", "/api/invite/accept", (e) => {
   const owner = profileOf(ownerUid, "Partner");
   const groupsCol = $app.findCollectionByNameOrId("groups");
   const nowIso = new Date().toISOString();
-  const delCode = () => { try { $app.delete(codeRec); } catch (_) { /* гонка — ок */ } };
+  // РАНЬШЕ код удалялся сразу после успешного приёма, и это давало главный поток
+  // жалоб: человек жмёт «подключиться» второй раз (двойной тап, диплинк присылает
+  // код дважды, партнёр просит «попробуй ещё») — и получает «Код не найден» поверх
+  // уже СОСТОЯВШЕЙСЯ пары. За сутки таких отказов 517. Теперь код не удаляем, а
+  // привязываем к получившейся группе: повтор попадает в ветку A → joinGroup →
+  // «уже в группе» → успех с тем же pairId. Третьего код не пустит — группа
+  // заполнена. Живёт привязанный код недолго: приглашающий, увидев пару, сам
+  // перевыпускает его групповым (Connection.claimPair) и старый удаляет.
+  const bindCode = (pairId) => {
+    try {
+      if (String(codeRec.getString("group_id") || "") === String(pairId)) return;
+      codeRec.set("group_id", pairId);
+      $app.save(codeRec);
+    } catch (_) { /* гонка/повтор — не критично */ }
+  };
 
   // ── операции над группой (все через $app — правила не применяются) ────────
   // INV-1: мутации обёрнуты в $app.runInTransaction. PB исполняет транзакции на
   // единственном неконкурентном write-коннекте → два параллельных accept
   // сериализуются: второй читает уже обновлённый members → не превысит max_members
-  // и не создаст дубль-группу. Внутри tx — ТОЛЬКО txApp. delCode() вызываем ПОСЛЕ
-  // коммита (если save упал — код инвайта не теряем, см. INV-4). Решение «группа не
+  // и не создаст дубль-группу. Внутри tx — ТОЛЬКО txApp. bindCode() вызываем ПОСЛЕ
+  // коммита (если save упал — код инвайта не трогаем, см. INV-4). Решение «группа не
   // найдена → создать» принимаем ВНЕ tx, чтобы не открыть вложенную транзакцию.
   const createGroup = () => {
     let result;
@@ -129,7 +171,7 @@ routerAdd("POST", "/api/invite/accept", (e) => {
         result = { success: true, message: "Connected!", pairId: g.id, _delCode: true };
       });
     } catch (err) { return { success: false, message: "Ошибка сохранения группы" }; }
-    if (result && result._delCode) { delCode(); delete result._delCode; }
+    if (result && result._delCode) { bindCode(result.pairId); delete result._delCode; }
     return result;
   };
 
@@ -143,7 +185,9 @@ routerAdd("POST", "/api/invite/accept", (e) => {
         const members = membersOf(g);
         const maxM = Number(g.get("max_members")) || 2;
         if (members.indexOf(myUid) !== -1) {
-          result = { success: false, message: "Вы уже в этой группе" };
+          // Повтор приёма своего же кода: пара уже собрана, отвечаем успехом с тем
+          // же pairId — клиент просто заново покажет пару, а не ошибку.
+          result = { success: true, message: "Connected!", pairId: g.id };
           return;
         }
         if (members.length >= maxM) {
@@ -162,7 +206,7 @@ routerAdd("POST", "/api/invite/accept", (e) => {
         result = { success: true, message: "Joined the group!", pairId: g.id, _full: members.length >= maxM };
       });
     } catch (err) { return { success: false, message: "Ошибка сохранения группы" }; }
-    if (result && result.success && result._full) delCode();
+    if (result && result.success && result.pairId) bindCode(result.pairId);
     if (result) delete result._full;
     return result;
   };
@@ -189,7 +233,7 @@ routerAdd("POST", "/api/invite/accept", (e) => {
         result = { success: true, message: "Reconnected!", pairId: g.id, restored: true };
       });
     } catch (err) { return { success: false, message: "Ошибка сохранения группы" }; }
-    if (result && result.success) delCode();
+    if (result && result.success) bindCode(result.pairId);
     return result;
   };
 
@@ -205,7 +249,9 @@ routerAdd("POST", "/api/invite/accept", (e) => {
     if (ownerGroup) {
       const members = membersOf(ownerGroup);
       if (members.indexOf(myUid) !== -1 && members.indexOf(ownerUid) !== -1) {
-        res = { success: false, message: "Вы уже подключены к этому пользователю" };
+        // Мы уже в паре с владельцем кода — повторный ввод не ошибка. Отдаём
+        // успех с pairId: экран подключения покажет пару вместо красной плашки.
+        res = { success: true, message: "Connected!", pairId: ownerGroup.id };
         handled = true;
       } else {
         const maxM = Number(ownerGroup.get("max_members")) || 2;
@@ -225,5 +271,9 @@ routerAdd("POST", "/api/invite/accept", (e) => {
     }
   }
 
-  return e.json(res.success ? 200 : 400, res);
+  if (!res || res.success !== true) {
+    return deny(400, (res && res.message) || "Не удалось принять код",
+      (res && res.message) || "ветвление вернуло пустоту");
+  }
+  return e.json(200, res);
 }, $apis.requireAuth());

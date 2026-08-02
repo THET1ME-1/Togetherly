@@ -6,8 +6,10 @@ import '../../models/partner_profile.dart';
 import '../../widgets/avatar_widget.dart';
 import '../../services/locale_service.dart';
 import '../../services/pb_data_service.dart';
+import '../../services/pocketbase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common/m3_loading.dart';
+import 'gift_memo_sheet.dart';
 
 /// Тело профиля-«Открытки»: шапка с аватаром и чипами, полка подарков со
 /// счётчиками, столбики «скучаю» по дням недели.
@@ -30,6 +32,7 @@ class GiftProfileBody extends StatefulWidget {
     this.isSelf = false,
     this.onAvatarTap,
     this.showHeader = true,
+    this.counterpartName,
   });
 
   final AppTheme theme;
@@ -48,6 +51,10 @@ class GiftProfileBody extends StatefulWidget {
   /// false — не рисовать внутреннюю шапку (её даёт ProfileHero сверху).
   final bool showHeader;
 
+  /// Имя второго в паре — им подписаны записки в листе подарка. Пусто —
+  /// подпись станет обезличенной («от партнёра»), но лист всё равно откроется.
+  final String? counterpartName;
+
   @override
   State<GiftProfileBody> createState() => GiftProfileBodyState();
 }
@@ -55,6 +62,9 @@ class GiftProfileBody extends StatefulWidget {
 /// Публичен, чтобы родитель мог дёрнуть [reload] из [RefreshIndicator].
 class GiftProfileBodyState extends State<GiftProfileBody> {
   List<GiftTally> _shelf = const [];
+
+  /// Сырые записи подарков: из них лист собирает записки по тапу на полке.
+  List<Map<String, dynamic>> _gifts = const [];
   WeekStats _week = const WeekStats([0, 0, 0, 0, 0, 0, 0]);
   int _giftsTotal = 0;
   int _missTotal = 0;
@@ -78,12 +88,28 @@ class GiftProfileBodyState extends State<GiftProfileBody> {
         await data.fetchMissYouFor(groupId: widget.groupId, uid: widget.uid);
     if (!mounted) return;
     setState(() {
+      _gifts = gifts;
       _shelf = tallyGifts(gifts);
       _giftsTotal = gifts.length;
       _week = parseWeekdays(miss?['by_weekday'] as String?);
       _missTotal = (miss?['count'] as num?)?.toInt() ?? 0;
       _loading = false;
     });
+  }
+
+  /// Есть ли у подарков этого вида слова — по этому полка ставит метку.
+  bool _hasTextOf(String key) =>
+      memosOfKey(_gifts, key).any((m) => m.hasText);
+
+  void _openMemos(GiftTally tally) {
+    showGiftMemoSheet(
+      context,
+      theme: widget.theme,
+      gift: tally.gift,
+      memos: memosOfKey(_gifts, tally.key),
+      myUid: PocketBaseService().userId ?? '',
+      counterpartName: widget.counterpartName,
+    );
   }
 
   @override
@@ -117,7 +143,12 @@ class GiftProfileBodyState extends State<GiftProfileBody> {
           trailing: _giftsTotal > 0 ? '$_giftsTotal' : null,
           child: _shelf.isEmpty
               ? _Empty(theme: t, text: s.partnerGiftsEmpty)
-              : _Shelf(theme: t, shelf: _shelf),
+              : _Shelf(
+                  theme: t,
+                  shelf: _shelf,
+                  hasTextOf: _hasTextOf,
+                  onTap: _openMemos,
+                ),
         ),
         const SizedBox(height: 20),
         _Block(
@@ -309,10 +340,20 @@ class _Block extends StatelessWidget {
 }
 
 class _Shelf extends StatelessWidget {
-  const _Shelf({required this.theme, required this.shelf});
+  const _Shelf({
+    required this.theme,
+    required this.shelf,
+    required this.hasTextOf,
+    required this.onTap,
+  });
 
   final AppTheme theme;
   final List<GiftTally> shelf;
+
+  /// Хранит ли этот подарок записку — по нему рисуется уголок с точкой.
+  final bool Function(String key) hasTextOf;
+
+  final void Function(GiftTally tally) onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -321,22 +362,44 @@ class _Shelf extends StatelessWidget {
       spacing: 10,
       runSpacing: 10,
       children: shelf.map((t) {
+        final withText = hasTextOf(t.key);
         return SizedBox(
           width: 76,
           height: 76,
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              Container(
-                width: 76,
-                height: 76,
-                decoration: BoxDecoration(
-                  color: cs.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(22),
+              Material(
+                color: cs.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(22),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: () => onTap(t),
+                  child: SizedBox(
+                    width: 76,
+                    height: 76,
+                    child: Center(
+                      child: Image.asset(t.gift.asset, width: 46, height: 46),
+                    ),
+                  ),
                 ),
-                alignment: Alignment.center,
-                child: Image.asset(t.gift.asset, width: 46, height: 46),
               ),
+              // Точка в нижнем углу: у этого подарка есть что перечитать.
+              // Без неё полка выглядит нажимаемой везде одинаково, а слова
+              // приложены далеко не к каждому.
+              if (withText)
+                Positioned(
+                  left: 6,
+                  bottom: 6,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: cs.primary,
+                    ),
+                  ),
+                ),
               if (t.count > 1)
                 Positioned(
                   right: -3,

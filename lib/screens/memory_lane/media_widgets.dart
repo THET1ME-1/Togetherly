@@ -362,12 +362,14 @@ class _YouTubeInlineCardState extends State<_YouTubeInlineCard> {
 
   @override
   void dispose() {
-    _controller?.dispose();
+    _controller?.close();
     super.dispose();
   }
 
   void _startInlinePlay() {
-    final videoId = YoutubePlayer.convertUrlToId(widget.memory.videoUrl ?? '');
+    final videoId = YoutubePlayerController.convertUrlToId(
+      widget.memory.videoUrl ?? '',
+    );
     if (videoId == null) {
       final url = widget.memory.videoUrl;
       if (url != null && url.isNotEmpty) {
@@ -376,12 +378,13 @@ class _YouTubeInlineCardState extends State<_YouTubeInlineCard> {
       return;
     }
     setState(() {
-      _controller = YoutubePlayerController(
-        initialVideoId: videoId,
-        flags: const YoutubePlayerFlags(
-          autoPlay: true,
+      _controller = YoutubePlayerController.fromVideoId(
+        videoId: videoId,
+        autoPlay: true,
+        params: const YoutubePlayerParams(
+          showControls: true,
+          showFullscreenButton: true,
           enableCaption: false,
-          hideControls: false,
         ),
       );
       _isPlaying = true;
@@ -398,7 +401,9 @@ class _YouTubeInlineCardState extends State<_YouTubeInlineCard> {
     // (регион/сеть) → imageUrl пуст, и раньше показывался только красный
     // градиент. i.ytimg.com/vi/<id>/hqdefault.jpg доступен без API-ключа;
     // BoxFit.cover аккуратно обрезает 4:3 до 16:9. Чинит и старые воспоминания.
-    final videoId = YoutubePlayer.convertUrlToId(memory.videoUrl ?? '');
+    final videoId = YoutubePlayerController.convertUrlToId(
+      memory.videoUrl ?? '',
+    );
     final thumbUrl = memory.imageUrl?.isNotEmpty == true
         ? memory.imageUrl!
         : (videoId != null
@@ -420,14 +425,20 @@ class _YouTubeInlineCardState extends State<_YouTubeInlineCard> {
           if (_isPlaying && _controller != null)
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
-              child: YoutubePlayer(
-                controller: _controller!,
-                showVideoProgressIndicator: true,
-                progressIndicatorColor: platformColor,
-                progressColors: ProgressBarColors(
-                  playedColor: platformColor,
-                  handleColor: platformColor,
+              // Цвет полосы у 10.x приходит темой, а не полем виджета:
+              // ProgressBarColors больше нет. Подкрашиваем расширением темы,
+              // чтобы полоса осталась в цвете площадки.
+              child: Theme(
+                data: Theme.of(context).copyWith(
+                  extensions: <ThemeExtension<dynamic>>[
+                    YoutubePlayerTheme(
+                      progressBarActiveColor: platformColor,
+                      progressBarBufferedColor:
+                          platformColor.withValues(alpha: 0.4),
+                    ),
+                  ],
                 ),
+                child: YoutubePlayer(controller: _controller!),
               ),
             )
           else

@@ -7,6 +7,7 @@ import 'package:video_player/video_player.dart';
 import '../../services/locale_service.dart';
 import '../../services/pb_media_service.dart';
 import '../../services/pocketbase_service.dart';
+import '../../services/watch_voice_service.dart';
 import '../../services/watch_channel_service.dart';
 import '../../services/watch_history_service.dart';
 import '../../widgets/common/m3_loading.dart';
@@ -44,6 +45,8 @@ class _WatchPlayerScreenState extends State<WatchPlayerScreen>
 
   VideoPlayerController? _video;
   WatchChannel? _room;
+  /// Голосовая связь в комнате: микрофон, звук, соединение между двумя.
+  WatchVoiceService? _voice;
   Timer? _heartbeat;
   Timer? _hideControls;
 
@@ -79,9 +82,15 @@ class _WatchPlayerScreenState extends State<WatchPlayerScreen>
     await room.connect(_onRoomMessage);
     await room.send('hello');
 
+    // Голос живёт в том же канале, что и команды плеера: отдельный сигналинг
+    // ради двух человек — лишняя сущность, а комната у них уже общая.
+    final voice = WatchVoiceService(channel: room, me: me);
+    voice.addListener(_onVoiceChanged);
+
     setState(() {
       _video = controller;
       _room = room;
+      _voice = voice;
       _ready = true;
     });
 
@@ -96,7 +105,35 @@ class _WatchPlayerScreenState extends State<WatchPlayerScreen>
 
   // ── разговор с комнатой ────────────────────────────────────────────────────
 
+  void _onVoiceChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// Включить или выключить разговор. Микрофон спрашивает сам WebRTC; отказ
+  /// оставляет плеер как был, без разговоров.
+  Future<void> _toggleVoice() async {
+    final voice = _voice;
+    if (voice == null) return;
+    if (voice.active) {
+      await voice.stop();
+    } else {
+      await voice.start();
+      if (mounted && voice.state == VoiceCallState.failed) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(LocaleService.current.voiceNoPermission)),
+        );
+      }
+    }
+  }
+
   void _onRoomMessage(Map<String, dynamic> data) {
+    // Сообщения голосовой связи (`voice-*`) разбирает сам сервис: плееру они
+    // ничего не говорят.
+    final voice = _voice;
+    if (voice != null && (data['t'] ?? '').toString().startsWith('voice-')) {
+      unawaited(voice.handleMessage(data));
+      return;
+    }
     final v = _video;
     if (v == null) return;
     final at = ((data['at'] ?? 0) as num).toDouble();
@@ -191,6 +228,8 @@ class _WatchPlayerScreenState extends State<WatchPlayerScreen>
   void dispose() {
     _heartbeat?.cancel();
     _hideControls?.cancel();
+    _voice?.removeListener(_onVoiceChanged);
+    _voice?.dispose();
     _video?.removeListener(_onPlayerTick);
     final seconds = (_video?.value.position.inSeconds ?? 0);
     if (seconds > 5) {
@@ -243,10 +282,66 @@ class _WatchPlayerScreenState extends State<WatchPlayerScreen>
                           onPlayPause: _togglePlay,
                           onSeek: _seekTo,
                           onClose: () => Navigator.of(context).maybePop(),
+                          voiceState: _voice?.state ?? VoiceCallState.off,
+                          micOn: _voice?.micOn ?? false,
+                          speakerOn: _voice?.speakerOn ?? true,
+                          onVoiceToggle: _toggleVoice,
+                          onMicToggle: () => _voice?.toggleMic(),
+                          onSpeakerToggle: () => _voice?.toggleSpeaker(),
                         ),
                       ],
                     ),
                   ),
+      ),
+    );
+  }
+}
+
+/// Круглая кнопка поверх кадра: тональная в покое, наливается цветом в работе.
+class _RoundAction extends StatelessWidget {
+  final IconData icon;
+  final bool active;
+  final bool busy;
+  final bool danger;
+  final VoidCallback onTap;
+
+  const _RoundAction({
+    required this.icon,
+    required this.onTap,
+    this.active = false,
+    this.busy = false,
+    this.danger = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final bg = danger
+        ? cs.errorContainer
+        : active
+            ? cs.primary
+            : Colors.white.withValues(alpha: .18);
+    final fg = danger
+        ? cs.onErrorContainer
+        : active
+            ? cs.onPrimary
+            : Colors.white;
+    return Material(
+      color: bg,
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          width: 40,
+          height: 40,
+          child: busy
+              ? Padding(
+                  padding: const EdgeInsets.all(11),
+                  child: CircularProgressIndicator(strokeWidth: 2.2, color: fg),
+                )
+              : Icon(icon, size: 20, color: fg),
+        ),
       ),
     );
   }
@@ -264,6 +359,14 @@ class _Controls extends StatelessWidget {
   final ValueChanged<Duration> onSeek;
   final VoidCallback onClose;
 
+  // ── Голос ──
+  final VoiceCallState voiceState;
+  final bool micOn;
+  final bool speakerOn;
+  final VoidCallback onVoiceToggle;
+  final VoidCallback onMicToggle;
+  final VoidCallback onSpeakerToggle;
+
   const _Controls({
     required this.visible,
     required this.playing,
@@ -273,6 +376,12 @@ class _Controls extends StatelessWidget {
     required this.onPlayPause,
     required this.onSeek,
     required this.onClose,
+    required this.voiceState,
+    required this.micOn,
+    required this.speakerOn,
+    required this.onVoiceToggle,
+    required this.onMicToggle,
+    required this.onSpeakerToggle,
   });
 
   static String _stamp(Duration d) {
@@ -322,6 +431,34 @@ class _Controls extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: text.titleSmall?.copyWith(color: Colors.white),
                     ),
+                  ),
+                  // Разговор во время просмотра. Пока связь не поднята, кнопка
+                  // одна; заговорили — рядом появляются «заглушить себя» и
+                  // «заглушить его», потому что нужны они порознь.
+                  if (voiceState != VoiceCallState.off) ...[
+                    _RoundAction(
+                      icon: micOn ? Icons.mic_rounded : Icons.mic_off_rounded,
+                      active: micOn,
+                      onTap: onMicToggle,
+                    ),
+                    const SizedBox(width: 6),
+                    _RoundAction(
+                      icon: speakerOn
+                          ? Icons.volume_up_rounded
+                          : Icons.volume_off_rounded,
+                      active: speakerOn,
+                      onTap: onSpeakerToggle,
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                  _RoundAction(
+                    icon: voiceState == VoiceCallState.off
+                        ? Icons.headset_mic_rounded
+                        : Icons.call_end_rounded,
+                    active: voiceState == VoiceCallState.live,
+                    busy: voiceState == VoiceCallState.connecting,
+                    danger: voiceState != VoiceCallState.off,
+                    onTap: onVoiceToggle,
                   ),
                   const SizedBox(width: 12),
                 ],

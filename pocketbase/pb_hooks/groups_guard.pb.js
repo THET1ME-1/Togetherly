@@ -17,6 +17,9 @@
 /// Отсюда правило: новый список участников обязан быть подмножеством прежнего.
 /// Создание группы (сразу с двумя) идёт через create — этот хук его не трогает.
 ///
+/// Он же держит служебные поля пары с пустым местом (`claim_token`, `claim_*`,
+/// `waiting_mode`) — их пишет только сервер, роутами waiting.pb.js.
+///
 /// ВАЖНО (PB JSVM): обработчик исполняется в изолированном пуле и НЕ видит
 /// функций уровня файла — разбор списка инлайнится внутрь.
 
@@ -67,6 +70,19 @@ onRecordUpdateRequest((e) => {
         if (current.indexOf(String(next[i])) === -1) {
           throw new ForbiddenError("cannot add members directly");
         }
+      }
+    }
+
+    // Служебные поля пары с пустым местом («он в армии») пишет только сервер:
+    // `claim_token` — постоянный код второго места, `claim_*` — заявка на него,
+    // `waiting_mode` — признак самого режима. Дай их клиенту, и любой участник
+    // подменит код на свой (уведя себе чужую заявку) или объявит место
+    // свободным. Всё это делается роутами waiting.pb.js, а они сохраняют
+    // запись через $app.save и сюда не заходят.
+    const locked = ["claim_token", "claim_uid", "claim_name", "claim_at", "waiting_mode"];
+    for (let i = 0; i < locked.length; i++) {
+      if (locked[i] in body) {
+        throw new ForbiddenError("read-only pairing field: " + locked[i]);
       }
     }
   }

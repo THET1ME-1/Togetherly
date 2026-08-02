@@ -33,8 +33,14 @@ import '../services/invite_reminder_service.dart';
 import '../services/miss_you_repository.dart';
 import '../services/pb_realtime_service.dart';
 import '../widgets/home/invite_prompt_card.dart';
+import '../widgets/home/waiting_home_card.dart';
 import '../widgets/home/onboarding_card.dart';
+import '../models/mascot_anim.dart';
+import '../models/mascot_sleep.dart';
+import '../services/catalog_service.dart';
+import '../widgets/mascot/pixel_mascot_view.dart';
 import '../widgets/home/quiet_partner_card.dart';
+import '../widgets/home/wishes_card.dart';
 import 'invite_partner_screen.dart';
 import '../services/deep_link_service.dart';
 import '../services/media_service.dart';
@@ -194,6 +200,11 @@ class _HomeScreenState extends State<HomeScreen> {
   /// прочитался, лучше не показывать кнопку, чем показать неработающую.
   bool _giftsEnabled = false;
 
+  /// Раздел «Хочу с тобой» включён на сервере. По умолчанию включён: он
+  /// бесплатный и ничего не тратит, а спрятать уже заведённый список из-за
+  /// непрочитанного конфига хуже, чем показать его лишний раз.
+  bool _wishesEnabled = true;
+
   /// Подарки, которые ждут моего действия: задутой свечи, открытой коробки.
   List<Map<String, dynamic>> _incomingGifts = const [];
   RtUnsub? _giftsUnsub;
@@ -239,6 +250,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadSideActionPref();
     _loadPromptState();
     _loadGiftsFlag();
+    _loadWishesFlag();
     _loadIncomingGifts();
     _listenGifts();
 
@@ -680,6 +692,7 @@ class _HomeScreenState extends State<HomeScreen> {
           mascotService: _mascotService,
           theme: _t,
           myUid: widget.userData.uid,
+          user: widget.userData,
         ),
         settings: const RouteSettings(name: '/mascot_gallery'),
       ),
@@ -1028,6 +1041,7 @@ class _HomeScreenState extends State<HomeScreen> {
               mascotService: _mascotService,
               theme: _t,
               onOpenGallery: _openMascotGallery,
+              sleepOf: widget.userData.sleepOf,
             ),
           // -- Theme preview banner (показывается только на главной вкладке) --
           if (widget.userData.isPreviewingTheme && _selectedNavIndex == 0)
@@ -1514,6 +1528,23 @@ class _HomeScreenState extends State<HomeScreen> {
                       theme: _t,
                     ),
                   ),
+                  // «Хочу с тобой»: общий список желаний пары. Стоит после
+                  // карты — это раздел, а не событие дня, и наверх лезть ему
+                  // незачем.
+                  if (_wishesEnabled)
+                    AnimatedSlideIn(
+                      delay: const Duration(milliseconds: 280),
+                      child: WishesCard(
+                        theme: _t,
+                        groupId: _pairData.pairId,
+                        myUid: PocketBaseService().userId ?? '',
+                        myName: widget.userData.displayName,
+                        partnerUid: _pairData.partnerUid,
+                        partnerName: _pairData.partnerDisplayName,
+                        myAvatarUrl: widget.userData.avatarUrl,
+                        partnerAvatarUrl: _pairData.partnerAvatarUrl,
+                      ),
+                    ),
                 ],
                 const SizedBox(height: 40),
               ],
@@ -1575,6 +1606,7 @@ class _HomeScreenState extends State<HomeScreen> {
               streak: _mascotService.state.activeStreak,
               isHidden: isHidden,
               onTap: _openMascotGallery,
+              sleepOf: widget.userData.sleepOf,
               onShowOverlay: showMascotOverlay,
             );
           },
@@ -1944,6 +1976,8 @@ class _HomeScreenState extends State<HomeScreen> {
       widgetService: _widgetService,
       primary: primary,
       navActiveIcon: _t.navActiveIcon, // добавлено
+      user: widget.userData,
+      pairOwned: _mascotService.state.ownedFeatures,
     );
   }
 
@@ -1998,6 +2032,8 @@ class _HomeScreenState extends State<HomeScreen> {
       widgetService: _widgetService,
       primary: primary,
       navActiveIcon: _t.navActiveIcon, // добавлено
+      user: widget.userData,
+      pairOwned: _mascotService.state.ownedFeatures,
     );
   }
 
@@ -2092,6 +2128,11 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     final on = await PbDataService().fetchGiftsEnabled();
     if (mounted && on != _giftsEnabled) setState(() => _giftsEnabled = on);
+  }
+
+  Future<void> _loadWishesFlag() async {
+    final on = await PbDataService().fetchWishesEnabled();
+    if (mounted && on != _wishesEnabled) setState(() => _wishesEnabled = on);
   }
 
   /// Рассвет от подарка «Солнце»: тёплая полоса поверх главного экрана.
@@ -2753,6 +2794,20 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
+    // Пара с пустым местом: вместо «партнёр молчит» и списка первых шагов —
+    // сколько осталось до возвращения и заявка, если кто-то ввёл код. Всё
+    // остальное в этой паре и так работает, подсказки ей не нужны.
+    if (_pairData.waitingMode) {
+      return WaitingHomeCard(
+        scheme: cs,
+        name: _pairData.placeholderName,
+        daysLeft: _pairData.daysUntilReturn,
+        claimName: _pairData.hasClaimRequest ? _pairData.claimName : null,
+        onApprove: () => _pairData.answerClaim(approve: true),
+        onDecline: () => _pairData.answerClaim(approve: false),
+      );
+    }
+
     if (_quietDays != null) {
       return QuietPartnerCard(
         scheme: cs,
@@ -3129,10 +3184,14 @@ class _MascotPreviewWidget extends StatelessWidget {
   /// кнопка, поэтому цвет приходит снаружи, а не из Theme.of.
   final Color? color;
 
+  /// Когда этот персонаж уходит на ночную сцену.
+  final SleepWindow sleep;
+
   const _MascotPreviewWidget({
     required this.mascot,
     required this.service,
     this.color,
+    this.sleep = SleepWindow.standard,
   });
 
   Widget _waiting(BuildContext context) => Center(
@@ -3148,6 +3207,24 @@ class _MascotPreviewWidget extends StatelessWidget {
     final asset = service.resolvedAssetForMood(mascot);
     if (asset != null) {
       return buildMascotAssetImage(asset, fit: BoxFit.contain);
+    }
+    // Пиксельный маскот: его catalogUrl ведёт на атлас кадров, и обычная
+    // картинка показывала бы всю простыню разом. Проверка идёт ПЕРЕД веткой
+    // catalogUrl — иначе на главной вместо персонажа лежит лента кадров.
+    final animated = CatalogService.instance.animById(mascot.id);
+    if (animated != null) {
+      return LayoutBuilder(
+        builder: (_, c) {
+          final side = c.biggest.shortestSide;
+          return PixelMascotView(
+            anim: animated,
+            state: MascotAnimState.live,
+            level: MascotAnim.levelForStreak(service.activeStreak),
+            sleep: sleep,
+            size: side.isFinite ? side : 64,
+          );
+        },
+      );
     }
     // Каталожные (уровневые) маскоты рендерятся по публичному catalogUrl.
     // Без этой ветки они падали в Icon(face) → «нет превью» в карточке серии.
@@ -3182,6 +3259,9 @@ class _MascotButton extends StatefulWidget {
   final VoidCallback onTap;
   final Future<void> Function()? onShowOverlay;
 
+  /// Окно ночной сцены персонажа: у каждого своё, задаётся в настройках.
+  final SleepWindow Function(String mascotId) sleepOf;
+
   const _MascotButton({
     required this.mascot,
     required this.service,
@@ -3189,6 +3269,7 @@ class _MascotButton extends StatefulWidget {
     required this.streak,
     required this.isHidden,
     required this.onTap,
+    required this.sleepOf,
     this.onShowOverlay,
   });
 
@@ -3259,6 +3340,7 @@ class _MascotButtonState extends State<_MascotButton>
                         mascot: mascot,
                         service: widget.service,
                         color: cs.onSecondaryContainer,
+                        sleep: widget.sleepOf(mascot.id),
                       )
                     : Center(
                         child: M3Loading(

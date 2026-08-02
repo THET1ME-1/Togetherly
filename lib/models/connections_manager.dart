@@ -29,6 +29,12 @@ class ConnectionsManager extends ChangeNotifier {
   /// вместо generic «код не найден», чтобы реальная причина (истёкшая сессия,
   /// свой код, группа полна) была видна.
   String? lastAcceptMessage;
+
+  /// Введённый код оказался кодом второго места: заявка ушла, ждём, пока
+  /// хозяйка пары нажмёт «это он».
+  bool lastAcceptWaiting = false;
+  String lastAcceptWaitingCode = '';
+  String lastAcceptOwnerName = '';
   // Last known pairing fingerprint — skip callback if the set of groups is same.
   // null = ещё не обрабатывали (первый emit пройдёт даже при пустом списке).
   String? _lastPairKey;
@@ -125,6 +131,33 @@ class ConnectionsManager extends ChangeNotifier {
       'acceptCodeAndCreateGroup: result=${result['success']}, msg=${result['message']}',
     );
     lastAcceptMessage = result['message'] as String?;
+
+    // Код второго места («он в армии»): вместо мгновенного входа — заявка,
+    // которую подтверждает хозяйка пары. Иначе код, засветившийся в сторис,
+    // увёл бы чужого человека в чужую переписку.
+    if (result['waiting'] == true) {
+      final claim = await PbDataService().waitingClaim(code);
+      if (claim == null) {
+        lastAcceptMessage =
+            PbDataService().lastWaitingError ?? 'Не удалось отправить заявку';
+        lastAcceptWaiting = false;
+        return false;
+      }
+      if (claim['status'] == 'member') {
+        // Мы уже в этой паре — просто подхватываем её.
+        final pid = (claim['pairId'] ?? '').toString();
+        if (pid.isNotEmpty) await _adoptPair(pid);
+        return true;
+      }
+      lastAcceptWaiting = true;
+      lastAcceptWaitingCode = code;
+      lastAcceptOwnerName = (claim['ownerName'] ?? '').toString();
+      lastAcceptMessage = null;
+      notifyListeners();
+      return false;
+    }
+    lastAcceptWaiting = false;
+
     if (result['success'] != true) return false;
 
     final pairId = result['pairId'] as String? ?? '';
@@ -222,6 +255,150 @@ class ConnectionsManager extends ChangeNotifier {
     return true;
   }
 
+  // ══════════════════════════════════════════════
+  //  ПАРА С ПУСТЫМ МЕСТОМ
+  // ══════════════════════════════════════════════
+
+  /// Завести пару, где второе место пока держит заглушка. Возвращает код
+  /// второго места или пусто при отказе сервера.
+  Future<String> createWaitingPair({
+    required String name,
+    String? avatar,
+    DateTime? returnDate,
+  }) async {
+    final res = await PbDataService().waitingCreate(
+      name: name,
+      avatar: avatar,
+      returnDate: returnDate,
+    );
+    if (res == null) return '';
+    final pairId = res['pairId'] ?? '';
+    if (pairId.isEmpty) return '';
+
+    Connection? target = _connections.cast<Connection?>().firstWhere(
+      (c) => !c!.isSolo && !c.isPaired && c.pairId.isEmpty,
+      orElse: () => null,
+    );
+    if (target == null) {
+      target = Connection(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        onChanged: _onConnectionChanged,
+      );
+      _connections.add(target);
+    }
+    target.pairId = pairId;
+    await target.refreshPairStatus();
+    target.startListening();
+    _activeConnectionIndex = _connections.indexOf(target);
+    await _saveLocal();
+    notifyListeners();
+    return res['code'] ?? '';
+  }
+
+  /// Подтвердить или отклонить заявку на второе место.
+  Future<bool> answerClaim(String pairId, {required bool approve}) async {
+    final ok = await PbDataService().waitingApprove(pairId, approve: approve);
+    if (!ok) return false;
+    final conn = _connections.cast<Connection?>().firstWhere(
+      (c) => c!.pairId == pairId,
+      orElse: () => null,
+    );
+    await conn?.refreshPairStatus();
+    await _saveLocal();
+    notifyListeners();
+    return true;
+  }
+
+  /// Выдать новый код второго места (старый перестаёт работать).
+  Future<String> resetClaimToken(String pairId) async {
+    final code = await PbDataService().waitingReset(pairId);
+    if (code == null) return '';
+    final conn = _connections.cast<Connection?>().firstWhere(
+      (c) => c!.pairId == pairId,
+      orElse: () => null,
+    );
+    await conn?.refreshPairStatus();
+    notifyListeners();
+    return code;
+  }
+
+  /// Поправить заглушку: имя, фото, дату возвращения.
+  Future<bool> updatePlaceholder({
+    required String pairId,
+    String? name,
+    String? avatar,
+    DateTime? returnDate,
+    bool clearReturnDate = false,
+  }) async {
+    final ok = await PbDataService().waitingUpdate(
+      groupId: pairId,
+      name: name,
+      avatar: avatar,
+      returnDate: returnDate,
+      clearReturnDate: clearReturnDate,
+    );
+    if (!ok) return false;
+    final conn = _connections.cast<Connection?>().firstWhere(
+      (c) => c!.pairId == pairId,
+      orElse: () => null,
+    );
+    await conn?.refreshPairStatus();
+    notifyListeners();
+    return true;
+  }
+
+  /// Подхватить готовую группу в свободную связь (нас уже приняли).
+  Future<void> _adoptPair(String pairId) async {
+    final existing = _connections.cast<Connection?>().firstWhere(
+      (c) => c!.pairId == pairId,
+      orElse: () => null,
+    );
+    if (existing != null) {
+      _activeConnectionIndex = _connections.indexOf(existing);
+      await existing.refreshPairStatus();
+      await _saveLocal();
+      notifyListeners();
+      return;
+    }
+    Connection? target = _connections.cast<Connection?>().firstWhere(
+      (c) => !c!.isSolo && !c.isPaired && c.pairId.isEmpty,
+      orElse: () => null,
+    );
+    if (target == null) {
+      target = Connection(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        onChanged: _onConnectionChanged,
+      );
+      _connections.add(target);
+    }
+    target.pairId = pairId;
+    await target.refreshPairStatus();
+    target.startListening();
+    _activeConnectionIndex = _connections.indexOf(target);
+    await _saveLocal();
+    notifyListeners();
+  }
+
+  /// Проверить, не приняли ли нашу заявку. Экран ожидания зовёт это по таймеру:
+  /// пока заявку не подтвердили, группа нам не видна и realtime по ней молчит.
+  Future<String> checkWaitingClaim() async {
+    if (lastAcceptWaitingCode.isEmpty) return 'none';
+    final res = await PbDataService().waitingState(lastAcceptWaitingCode);
+    final status = (res['status'] ?? 'none').toString();
+    if (status == 'approved') {
+      final pid = (res['pairId'] ?? '').toString();
+      if (pid.isNotEmpty) await _adoptPair(pid);
+      lastAcceptWaiting = false;
+      lastAcceptWaitingCode = '';
+      notifyListeners();
+    } else if (status == 'rejected' || status == 'gone') {
+      lastAcceptWaiting = false;
+      lastAcceptWaitingCode = '';
+      notifyListeners();
+    }
+    return status;
+  }
+
   /// Check if code is self-code for any connection
   bool isSelfCodeAny(String code) {
     for (var c in _connections) {
@@ -243,6 +420,10 @@ class ConnectionsManager extends ChangeNotifier {
       if (conn.isSolo) continue;
       if (!conn.isPaired || conn.pairId.isEmpty) continue;
       if (conn.partners.isNotEmpty) continue;
+      // Пара с пустым местом («он в армии») выглядит точно так же: группа есть,
+      // партнёра в ней нет. Раньше эта уборка снесла бы её на первом запуске
+      // вместе со всей перепиской, которую человек копил, пока ждал.
+      if (conn.waitingMode) continue;
 
       debugPrint(
         '_cleanupStaleConnections: removing orphaned group ${conn.pairId}',
@@ -425,7 +606,9 @@ class ConnectionsManager extends ChangeNotifier {
       await unpaired.claimPair(remotePairId);
 
       // Validate: a claimed group must have at least one partner besides us.
-      if (!unpaired.isPaired || unpaired.partners.isEmpty) {
+      // Исключение — пара с пустым местом: партнёра в ней нет по замыслу.
+      if (!unpaired.isPaired ||
+          (unpaired.partners.isEmpty && !unpaired.waitingMode)) {
         debugPrint(
           'Real-time: stale/invalid group $remotePairId (no partners), '
           'cleaning up',
@@ -545,15 +728,22 @@ class ConnectionsManager extends ChangeNotifier {
     }
   }
 
-  /// Выдать связи серверный инвайт-код (с локальным фолбэком при офлайне).
-  /// Вызывается только когда кода ещё нет — старый код не передаём (не плодим
-  /// удаления). Привязка к группе, если связь уже парная.
+  /// Выдать связи серверный инвайт-код. Вызывается только когда кода ещё нет —
+  /// старый код не передаём (не плодим удаления). Привязка к группе, если связь
+  /// уже парная.
+  ///
+  /// Провал сервера (нет сети на старте, протухший токен) оставляет код ПУСТЫМ.
+  /// Раньше здесь подставлялся `Connection.generateLocalCode()` — код, которого
+  /// нет в `invite_codes`: партнёр видел «Код не найден» при живом с виду коде,
+  /// а сам код оседал в prefs навсегда (повторная генерация идёт только на
+  /// пустом). Пустой код экран подключения перевыпускает сам (`initState` →
+  /// `regenerateCode`), и то же правило уже действует в `claimPair` и
+  /// `acceptCodeAndCreateGroup`.
   Future<void> _ensureServerCode(Connection c) async {
-    final code = await PbDataService().generateInviteCode(
+    c.inviteCode = await PbDataService().generateInviteCode(
       ownerUid: _uid,
       groupId: c.pairId.isNotEmpty ? c.pairId : null,
     );
-    c.inviteCode = code.isNotEmpty ? code : Connection.generateLocalCode();
   }
 
   // ── Connection Management ──

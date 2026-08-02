@@ -5,8 +5,12 @@
  * ссылку зовущий копирует кнопкой в шапке.
  */
 
+/* Высота берётся из --vph, куда room.js кладёт настоящую высоту видимой
+   области (visualViewport). На iPhone клавиатура НЕ меняет 100dvh внутри
+   WKWebView: страница остаётся во весь экран, поле со ссылкой оказывается
+   под клавиатурой, а прокрутки нет — отсюда «ссылка не вводится». */
 .room-body {
-  height: 100dvh;
+  height: var(--vph, 100dvh);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -239,4 +243,8 @@
   .player { width: 100%; border-radius: 18px; }
   .side { border-radius: 22px; }
   .composer { padding-bottom: env(safe-area-inset-bottom); }
+  /* 16px — порог, ниже которого Safari на iPhone зумит страницу при фокусе.
+     После такого зума раскладка съезжает, поле уходит вбок, и человек видит
+     мигающий курсор непонятно где вместо своей строки ввода. */
+  .source__input, .composer .input { font-size: 16px; }
 }

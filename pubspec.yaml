@@ -2,7 +2,7 @@ name: love_app
 description: "Togetherly — a private space for couples with shared memories, mood tracking, timers, drawings, and widgets."
 publish_to: "none"
 
-version: 1.21.1+156
+version: 1.22.0+157
 
 environment:
   sdk: ^3.10.4
@@ -31,6 +31,10 @@ dependencies:
   geocoding: ^3.0.0
   path_provider: ^2.1.5
   just_audio: ^0.9.42
+  # Запись голосовых: 7.x требует Flutter 3.44, у нас 3.41 — держим 6.x.
+  record: ^6.2.1
+  # Голосовая связь в комнате совместного просмотра (WebRTC между двумя).
+  flutter_webrtc: ^1.1.0
   url_launcher: ^6.3.1
   http: ^1.2.0
   intl: ^0.19.0
@@ -50,10 +54,14 @@ dependencies:
   flutter_map: ^8.2.2
   latlong2: ^0.9.1
   exif: ^3.3.0
-  youtube_player_flutter: ^9.1.1
-  # Транзитивно тянется youtube_player_flutter; объявляем явно, т.к. напрямую
-  # зовём InAppWebViewController.getCurrentWebViewPackage() (версия WebView в
-  # телеметрию отказов co-watch плеера).
+  # 10.x обязателен: 9.x грузил плеер как данные с baseUrl youtube-nocookie.com
+  # и не передавал `origin` вовсе, поэтому YouTube отвечал ошибкой 153 и не
+  # играл НИ ОДНОГО ролика (жалоба 1 августа). Движок 10.x переписан на
+  # youtube_player_iframe, а тот явно проставляет origin и widget_referrer.
+  youtube_player_flutter: ^10.0.1
+  # Свой, не транзитивный: 10.x ушёл с flutter_inappwebview на webview_flutter,
+  # а мы напрямую зовём InAppWebViewController.getCurrentWebViewPackage()
+  # (версия WebView в телеметрию отказов co-watch плеера).
   flutter_inappwebview: ^6.1.5
   timezone: ^0.11.0
   package_info_plus: ^8.0.0

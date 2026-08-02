@@ -67,7 +67,7 @@ class _MissYouButtonState extends State<MissYouButton>
   bool _isExpanded = false;
 
   // ── Vibe sent feedback ────────────────────────────────────────────────────────
-  String? _sentEmoji;
+  IconData? _sentIcon;
   Timer? _feedbackTimer;
 
   // ── Saved custom wishes ───────────────────────────────────────────────────────
@@ -277,6 +277,8 @@ class _MissYouButtonState extends State<MissYouButton>
     _sendMissYou();
   }
 
+  /// [emoji] уезжает партнёру как есть: это данные, их читают и старые
+  /// сборки. Своему экрану показываем значок по типу вайба.
   Future<void> _onVibeFromPanel(String vibeType, String emoji) async {
     _closePanel();
     HapticFeedback.mediumImpact();
@@ -285,7 +287,7 @@ class _MissYouButtonState extends State<MissYouButton>
         groupId: widget.groupId,
         vibeType: vibeType,
       );
-      if (mounted) _showSentFeedback(emoji);
+      if (mounted) _showSentFeedback(_vibeIcon(vibeType));
     } on RateLimitException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -316,7 +318,7 @@ class _MissYouButtonState extends State<MissYouButton>
         vibeType: 'custom',
         customText: text,
       );
-      if (mounted) _showSentFeedback('✏️');
+      if (mounted) _showSentFeedback(Icons.edit_rounded);
       // Поднимаем в начало списка (most-recently-used).
       await _saveCustomWish(text);
     } on RateLimitException catch (e) {
@@ -353,7 +355,7 @@ class _MissYouButtonState extends State<MissYouButton>
       );
       // Запоминаем пожелание для быстрого выбора в следующий раз.
       await _saveCustomWish(text.trim());
-      if (mounted) _showSentFeedback('✏️');
+      if (mounted) _showSentFeedback(Icons.edit_rounded);
     } on RateLimitException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -365,19 +367,33 @@ class _MissYouButtonState extends State<MissYouButton>
     }
   }
 
-  void _showSentFeedback(String emoji) {
-    setState(() => _sentEmoji = emoji);
+  /// Значок по типу вайба: тот же смысл, что нёс эмодзи, но красится схемой.
+  static IconData _vibeIcon(String vibeType) => switch (vibeType) {
+        'thinking_of_you' => Icons.cloud_rounded,
+        'want_hug' => Icons.volunteer_activism_rounded,
+        'custom' => Icons.edit_rounded,
+        _ => Icons.favorite_rounded,
+      };
+
+  void _showSentFeedback(IconData icon) {
+    setState(() => _sentIcon = icon);
     _feedbackTimer?.cancel();
     _feedbackTimer = Timer(const Duration(milliseconds: 1800), () {
-      if (mounted) setState(() => _sentEmoji = null);
+      if (mounted) setState(() => _sentIcon = null);
     });
   }
 
   void _spawnHearts() {
-    final emojis = ['💕', '💗', '💖', '💘', '💝', '✨'];
+    // Значки вместо эмодзи: эмодзи рисует системный шрифт, они не красятся
+    // ролью схемы и на тёмной теме светятся чужим цветом.
+    const icons = [
+      Icons.favorite_rounded,
+      Icons.favorite_border_rounded,
+      Icons.auto_awesome_rounded,
+    ];
     for (int i = 0; i < 3; i++) {
       final heart = _FloatingHeart(
-        emoji: emojis[_random.nextInt(emojis.length)],
+        icon: icons[_random.nextInt(icons.length)],
         controller: AnimationController(
           vsync: this,
           duration: Duration(milliseconds: 650 + _random.nextInt(450)),
@@ -444,8 +460,8 @@ class _MissYouButtonState extends State<MissYouButton>
                       bottom: 22 + (-h.endDy * ct),
                       child: Opacity(
                         opacity: (1 - t).clamp(0.0, 1.0),
-                        child:
-                            Text(h.emoji, style: TextStyle(fontSize: h.size)),
+                        child: Icon(h.icon,
+                            size: h.size, color: btnColor),
                       ),
                     );
                   },
@@ -466,9 +482,9 @@ class _MissYouButtonState extends State<MissYouButton>
                       final ratio = _fillController.value;
 
                       // Sent-vibe feedback
-                      if (_sentEmoji != null) {
+                      if (_sentIcon != null) {
                         return _SentFeedbackPill(
-                          emoji: _sentEmoji!,
+                          icon: _sentIcon!,
                           label: s.vibeSent,
                           color: btnColor,
                         );
@@ -602,12 +618,12 @@ class _MissYouButtonState extends State<MissYouButton>
 // ─── Sent-vibe feedback pill ───────────────────────────────────────────────────
 
 class _SentFeedbackPill extends StatelessWidget {
-  final String emoji;
+  final IconData icon;
   final String label;
   final Color color;
 
   const _SentFeedbackPill({
-    required this.emoji,
+    required this.icon,
     required this.label,
     required this.color,
   });
@@ -624,7 +640,7 @@ class _SentFeedbackPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(emoji, style: const TextStyle(fontSize: 14)),
+          Icon(icon, size: 15, color: color),
           const SizedBox(width: 5),
           Text(
             label,
@@ -761,7 +777,7 @@ class _VibePanelOverlayState extends State<_VibePanelOverlay>
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         _VibeRow(
-                          emoji: '💕',
+                          icon: Icons.favorite_rounded,
                           label: s.iMissYou,
                           color: color,
                           trailing: hasData
@@ -775,7 +791,7 @@ class _VibePanelOverlayState extends State<_VibePanelOverlay>
                           showDivider: true,
                         ),
                         _VibeRow(
-                          emoji: '💭',
+                          icon: Icons.cloud_rounded,
                           label: s.thinkingOfYou,
                           color: color,
                           onTap: () =>
@@ -783,7 +799,7 @@ class _VibePanelOverlayState extends State<_VibePanelOverlay>
                           showDivider: true,
                         ),
                         _VibeRow(
-                          emoji: '🤗',
+                          icon: Icons.volunteer_activism_rounded,
                           label: s.wantHug,
                           color: color,
                           onTap: () => widget.onVibe('want_hug', '🤗'),
@@ -793,7 +809,7 @@ class _VibePanelOverlayState extends State<_VibePanelOverlay>
                         // Крестик справа убирает пожелание из списка.
                         ..._wishes.map(
                           (w) => _VibeRow(
-                            emoji: '✏️',
+                            icon: Icons.edit_rounded,
                             label: w,
                             color: color,
                             onTap: () => widget.onSavedWish(w),
@@ -817,7 +833,7 @@ class _VibePanelOverlayState extends State<_VibePanelOverlay>
                         ),
                         // Custom vibe row
                         _VibeRow(
-                          emoji: '✏️',
+                          icon: Icons.add_rounded,
                           label: s.customVibe,
                           color: color.withValues(alpha: 0.75),
                           onTap: widget.onCustom,
@@ -876,7 +892,7 @@ class _CounterTrailing extends StatelessWidget {
 // ─── Single row in the panel ───────────────────────────────────────────────────
 
 class _VibeRow extends StatefulWidget {
-  final String emoji;
+  final IconData icon;
   final String label;
   final Color color;
   final Widget? trailing;
@@ -885,7 +901,7 @@ class _VibeRow extends StatefulWidget {
   final bool italic;
 
   const _VibeRow({
-    required this.emoji,
+    required this.icon,
     required this.label,
     required this.color,
     this.trailing,
@@ -920,7 +936,7 @@ class _VibeRowState extends State<_VibeRow> {
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               children: [
-                Text(widget.emoji, style: const TextStyle(fontSize: 17)),
+                Icon(widget.icon, size: 19, color: widget.color),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -1150,14 +1166,14 @@ class _CountBadge extends StatelessWidget {
 // ─── Floating heart particle ──────────────────────────────────────────────────
 
 class _FloatingHeart {
-  final String emoji;
+  final IconData icon;
   final AnimationController controller;
   final double dx;
   final double endDy;
   final double size;
 
   _FloatingHeart({
-    required this.emoji,
+    required this.icon,
     required this.controller,
     required this.dx,
     required this.endDy,

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:flutter/foundation.dart';
 import '../services/locale_service.dart';
 import '../services/offline/local_store.dart';
@@ -137,6 +136,33 @@ class Connection {
   // ConnectionsManager/Connection переведены с Firebase на PB: личность берётся
   // из PB-сессии, группа читается/пишется через PbDataService/PbRealtimeService.
   String get _uid => PocketBaseService().userId ?? '';
+
+  // ── Пара с пустым местом («он в армии») ──
+  /// Второе место держит заглушка: человек ещё не поставил приложение.
+  bool waitingMode = false;
+  /// Имя, фото и дата возвращения того, кого ждут. Заполняет хозяйка пары.
+  String placeholderName = '';
+  String placeholderAvatar = '';
+  DateTime? returnDate;
+  /// Постоянный код второго места. Не протухает: человек может вернуться и
+  /// через два года.
+  String claimToken = '';
+  /// Заявка на второе место, которую надо подтвердить («это он?»).
+  String claimUid = '';
+  String claimName = '';
+  int claimAt = 0;
+
+  bool get hasClaimRequest => claimUid.isNotEmpty;
+
+  /// Сколько дней осталось до возвращения. null — дата не задана.
+  int? get daysUntilReturn {
+    final d = returnDate;
+    if (d == null) return null;
+    final today = DateTime.now();
+    final from = DateTime(today.year, today.month, today.day);
+    final to = DateTime(d.year, d.month, d.day);
+    return to.difference(from).inDays;
+  }
 
   /// Группа была распущена партнёром (этот клиент НЕ инициировал удаление).
   /// Менеджер при следующем onChanged уберёт такую связь из локального списка,
@@ -670,7 +696,17 @@ class Connection {
   }
 
   void _applyPairData(Map<String, dynamic> data) {
+    // Пара с пустым местом — тоже пара: настроение, лента и чат должны работать
+    // с первого дня, иначе ждущий сидит с мёртвым приложением до дембеля.
     isPaired = true;
+    waitingMode = data['waitingMode'] == true;
+    placeholderName = (data['placeholderName'] ?? '') as String;
+    placeholderAvatar = (data['placeholderAvatar'] ?? '') as String;
+    returnDate = data['returnDate'] as DateTime?;
+    claimToken = (data['claimToken'] ?? '') as String;
+    claimUid = (data['claimUid'] ?? '') as String;
+    claimName = (data['claimName'] ?? '') as String;
+    claimAt = (data['claimAt'] as int?) ?? 0;
     startDate = data['startDate'] as DateTime?;
     partnerName = data['partnerName'] ?? '';
     partnerAvatarUrl = data['partnerAvatar'] ?? '';
@@ -975,11 +1011,10 @@ class Connection {
   }
 
   // ── Helpers ──
-  static String generateLocalCode() {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    final rng = Random(DateTime.now().microsecondsSinceEpoch);
-    return List.generate(6, (_) => chars[rng.nextInt(chars.length)]).join();
-  }
+  // `generateLocalCode()` убран намеренно: он выдавал шестизначный код, которого
+  // нет в `invite_codes`, и партнёр получал «Код не найден» при живом с виду
+  // коде. Код приглашения заводит только сервер (`PbDataService.generateInviteCode`),
+  // а провал оставляет поле пустым — экран перевыпустит.
 
   // ── Serialization ──
   Map<String, dynamic> toJson() {
@@ -1003,6 +1038,16 @@ class Connection {
       'firstKissDate': firstKissDate?.toIso8601String(),
       'memberBirthdays': memberBirthdays
           .map((k, v) => MapEntry(k, v.toIso8601String())),
+      // Пустое место кэшируем целиком: на холодном старте без сети карточка
+      // должна показать, кого ждём и сколько осталось, а не пустоту.
+      'waitingMode': waitingMode,
+      'placeholderName': placeholderName,
+      'placeholderAvatar': placeholderAvatar,
+      'returnDate': returnDate?.toIso8601String(),
+      'claimToken': claimToken,
+      'claimUid': claimUid,
+      'claimName': claimName,
+      'claimAt': claimAt,
     };
   }
 
@@ -1089,7 +1134,17 @@ class Connection {
       ..firstKissDate = json['firstKissDate'] != null
           ? DateTime.tryParse(json['firstKissDate'])
           : null
-      ..memberBirthdays = _birthdaysFromJson(json['memberBirthdays']);
+      ..memberBirthdays = _birthdaysFromJson(json['memberBirthdays'])
+      ..waitingMode = json['waitingMode'] == true
+      ..placeholderName = json['placeholderName'] ?? ''
+      ..placeholderAvatar = json['placeholderAvatar'] ?? ''
+      ..returnDate = json['returnDate'] != null
+          ? DateTime.tryParse(json['returnDate'])
+          : null
+      ..claimToken = json['claimToken'] ?? ''
+      ..claimUid = json['claimUid'] ?? ''
+      ..claimName = json['claimName'] ?? ''
+      ..claimAt = (json['claimAt'] as num?)?.toInt() ?? 0;
   }
 
   static Map<String, DateTime> _birthdaysFromJson(dynamic raw) {

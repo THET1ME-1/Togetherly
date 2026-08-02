@@ -8,11 +8,13 @@ import 'package:image_picker/image_picker.dart';
 
 import '../models/coloring_picture.dart';
 import '../services/coloring_upload_queue.dart';
+import '../services/plus_access.dart';
 import '../services/plus_service.dart';
 import '../widgets/common/m3_loading.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/profile_theme.dart';
+import 'plus_screen.dart';
 
 /// Что выбрали в каталоге раскрасок.
 class ColoringChoice {
@@ -44,9 +46,30 @@ class _ColoringCatalogueScreenState extends State<ColoringCatalogueScreen> {
 
   AppStrings get _s => LocaleService.current;
 
-  /// Свои раскраски открывает Togetherly+. На iPhone его не существует как
-  /// понятия, поэтому там раздела нет вовсе.
-  bool get _ownAllowed => PlusService.instance.active && !Platform.isIOS;
+  bool get _ru => LocaleService.instance.isRussian;
+
+  String _tr(String ru, String en) => _ru ? ru : en;
+
+  /// Свои рисунки открывает Togetherly+.
+  ///
+  /// Решает общий `PlusAccess.gate`, а не связка «активен и не iOS»:
+  ///   • `open` — загрузка работает, в том числе у оплатившего с Android,
+  ///     который зашёл с iPhone (флаг живёт на аккаунте, купленное открыто
+  ///     везде — прежний `!Platform.isIOS` прятал у него собственные рисунки);
+  ///   • `locked` — плитка на месте, но с замком и переходом на экран Плюса.
+  ///     Раньше её просто не рисовали, и о самой возможности человек не узнавал;
+  ///   • `hidden` — Плюса на платформе нет как понятия (iOS у некупившего),
+  ///     плитки нет вовсе: вести на внешнюю оплату запрещает 3.1.1.
+  PlusGate get _gate => PlusService.instance.gate;
+
+  /// Показывать ли свои рисунки — и уже загруженные, и плитку добавления.
+  bool get _ownVisible => _gate != PlusGate.hidden;
+
+  /// Уже загруженные рисунки остаются на месте и после того, как Плюс кончился:
+  /// они лежат на устройстве, и прятать их задним числом значит отобрать
+  /// сделанное. Закрыта только загрузка новых.
+  List<ColoringUpload> get _ownItems =>
+      _ownVisible ? _uploads.items : const [];
 
   @override
   void initState() {
@@ -68,6 +91,17 @@ class _ColoringCatalogueScreenState extends State<ColoringCatalogueScreen> {
   /// Берём картинку и сразу отдаём управление: обработка идёт в стороне, а
   /// карточка появляется в сетке в ту же секунду с пометкой «готовим».
   Future<void> _pickOwn() async {
+    if (_gate != PlusGate.open) {
+      // Стена: сначала экран Плюса, галерею не открываем вовсе.
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) =>
+              PlusScreen(scheme: ProfileTheme.themeFor(widget.theme).colorScheme),
+          settings: const RouteSettings(name: '/plus'),
+        ),
+      );
+      return;
+    }
     final picked = await ImagePicker()
         .pickImage(source: ImageSource.gallery, imageQuality: 100);
     if (picked == null || !mounted) return;
@@ -127,16 +161,16 @@ class _ColoringCatalogueScreenState extends State<ColoringCatalogueScreen> {
                 childAspectRatio: 0.82,
               ),
               itemCount: ColoringPicture.all.length +
-                  (_ownAllowed ? _uploads.items.length + 1 : 0),
+                  (_ownVisible ? _ownItems.length + 1 : 0),
               itemBuilder: (_, i) {
-                if (!_ownAllowed) return _card(cs, ColoringPicture.all[i]);
+                if (!_ownVisible) return _card(cs, ColoringPicture.all[i]);
                 if (i == 0) return _addOwnCard(cs);
                 final own = i - 1;
-                if (own < _uploads.items.length) {
-                  return _ownCard(cs, _uploads.items[own]);
+                if (own < _ownItems.length) {
+                  return _ownCard(cs, _ownItems[own]);
                 }
-                return _card(cs,
-                    ColoringPicture.all[i - 1 - _uploads.items.length]);
+                return _card(
+                    cs, ColoringPicture.all[i - 1 - _ownItems.length]);
               },
             ),
           ],
@@ -203,6 +237,7 @@ class _ColoringCatalogueScreenState extends State<ColoringCatalogueScreen> {
 
   /// Кнопка «загрузить свою» — такой же плиткой, чтобы сетка не рвалась.
   Widget _addOwnCard(ColorScheme cs) {
+    final locked = _gate != PlusGate.open;
     return Material(
       color: cs.primaryContainer,
       borderRadius: BorderRadius.circular(20),
@@ -212,8 +247,13 @@ class _ColoringCatalogueScreenState extends State<ColoringCatalogueScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.add_photo_alternate_rounded,
-                size: 34, color: cs.onPrimaryContainer),
+            Icon(
+              locked
+                  ? Icons.lock_rounded
+                  : Icons.add_photo_alternate_rounded,
+              size: 34,
+              color: cs.onPrimaryContainer,
+            ),
             const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -228,6 +268,21 @@ class _ColoringCatalogueScreenState extends State<ColoringCatalogueScreen> {
                 ),
               ),
             ),
+            // Замок без объяснения читается как поломка, поэтому под ним
+            // сказано, что открывает эту плитку.
+            if (locked) ...[
+              const SizedBox(height: 4),
+              Text(
+                _tr('в Togetherly+', 'in Togetherly+'),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Onest',
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: cs.onPrimaryContainer.withValues(alpha: .75),
+                ),
+              ),
+            ],
           ],
         ),
       ),

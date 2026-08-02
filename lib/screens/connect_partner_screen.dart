@@ -16,6 +16,8 @@ import '../models/profile_icon.dart';
 import '../models/user_data.dart';
 import '../services/chat_service.dart';
 import '../services/deep_link_service.dart';
+import '../widgets/waiting/waiting_card.dart';
+import '../widgets/waiting/waiting_setup_sheet.dart';
 import '../services/pb_data_service.dart';
 import '../services/pb_auth_service.dart';
 import '../services/presence_service.dart';
@@ -65,6 +67,8 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   bool _creatingConnection = false;
   // Идёт генерация нового кода (крутим лоадер + цикл «дешифратора»).
   bool _generating = false;
+  // Приём кода уже в работе — второй запрос тем же кодом не отправляем.
+  bool _submitting = false;
   // Копировать → галочка на ~1.3с.
   bool _copied = false;
   // Направление свайпа карусели (для slide-перехода активной группы).
@@ -73,6 +77,8 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   Map<String, int> _shapeIdx = {};
   late AnimationController _pulseController;
   StreamSubscription? _deepLinkSub;
+  /// Опрос статуса заявки на второе место (пока её не подтвердили).
+  Timer? _approvalTimer;
 
   // Онлайн-статус партнёра — живой PB-презенс (heartbeat+TTL). Бейдж — разовая
   // загрузка из профиля (дедуп по _badgeLoadedUids).
@@ -189,6 +195,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     _codeController.dispose();
     _pulseController.dispose();
     _deepLinkSub?.cancel();
+    _approvalTimer?.cancel();
     widget.pairData.removeListener(_onPairDataChanged);
     for (final sub in _presenceSubs.values) {
       sub.cancel();
@@ -209,11 +216,171 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
           const SizedBox(height: 8),
           _buildGroupTabs(),
           Expanded(
+            // Пара с пустым местом: партнёра ещё нет, но пара уже есть. Ей
+            // нужен свой экран — кого ждём, сколько осталось и код второго
+            // места, — а не карточка партнёра с пустотой вместо человека.
             child: pair.isPaired
-                ? _buildConnectedContent()
+                ? (pair.waitingMode
+                    ? _buildWaitingContent()
+                    : _buildConnectedContent())
                 : _buildInviteContent(),
           ),
         ],
+      ),
+    );
+  }
+
+  /// «Ждём подтверждения» — так это выглядит у того, кто ввёл код второго места.
+  /// Пока хозяйка пары не нажала «это он», группа ему не видна вовсе, поэтому
+  /// статус спрашиваем отдельным роутом по таймеру.
+  Widget _waitingApprovalCard(ColorScheme cs) {
+    final s = LocaleService.current;
+    _ensureApprovalPolling();
+    return Container(
+      margin: const EdgeInsets.only(top: 4),
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+      decoration: BoxDecoration(
+        color: cs.tertiaryContainer,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 26,
+            height: 26,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.6,
+              color: cs.onTertiaryContainer,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  s.waitingPendingTitle,
+                  style: TextStyle(
+                    fontFamily: ProfileTheme.displayFont,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: cs.onTertiaryContainer,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  pair.awaitingOwnerName.isEmpty
+                      ? s.waitingPendingHint
+                      : '${pair.awaitingOwnerName}: ${s.waitingPendingHint}',
+                  style: TextStyle(
+                    fontFamily: ProfileTheme.bodyFont,
+                    fontSize: 12.5,
+                    height: 1.3,
+                    color: cs.onTertiaryContainer,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Опрос статуса заявки. Раз в пять секунд: подтверждение — событие редкое,
+  /// но ждут его, глядя в экран, и минутная задержка читалась бы как поломка.
+  void _ensureApprovalPolling() {
+    if (_approvalTimer != null) return;
+    _approvalTimer = Timer.periodic(const Duration(seconds: 5), (t) async {
+      if (!mounted || !pair.awaitingApproval) {
+        t.cancel();
+        _approvalTimer = null;
+        return;
+      }
+      final status = await pair.checkWaitingClaim();
+      if (!mounted) return;
+      if (status == 'approved') {
+        t.cancel();
+        _approvalTimer = null;
+        _showSnack(LocaleService.current.waitingApproved);
+        setState(() {});
+      } else if (status == 'rejected' || status == 'gone') {
+        t.cancel();
+        _approvalTimer = null;
+        _showSnack(LocaleService.current.waitingRejected);
+        setState(() {});
+      }
+    });
+  }
+
+  /// Экран пары, где второе место ждёт своего человека.
+  Widget _buildWaitingContent() {
+    return ListView(
+      padding: const EdgeInsets.only(top: 8, bottom: 120),
+      children: [
+        WaitingCard(pair: pair, theme: widget.theme),
+      ],
+    );
+  }
+
+  /// Кнопка «жду человека» на экране приглашения: пара заводится на одного.
+  Widget _buildWaitingEntry() {
+    final cs = Theme.of(context).colorScheme;
+    final s = LocaleService.current;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(24),
+        onTap: () async {
+          final created = await WaitingSetupSheet.show(
+            context,
+            pair: pair,
+            theme: widget.theme,
+          );
+          if (created == true && mounted) setState(() {});
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          decoration: BoxDecoration(
+            color: cs.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.hourglass_top_rounded, color: cs.primary),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      s.waitingSetupTitle,
+                      style: TextStyle(
+                        fontFamily: ProfileTheme.displayFont,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      s.waitingSetupHint,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: ProfileTheme.bodyFont,
+                        fontSize: 12.5,
+                        height: 1.3,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: cs.onSurfaceVariant),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1104,6 +1271,13 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                 _connectTiles(cs),
                 const SizedBox(height: 14),
                 _enterCodeCard(cs),
+                const SizedBox(height: 14),
+                // Он в армии, на вахте, в экспедиции — приложение ему поставить
+                // некуда. Пара заводится на одного, второе место ждёт.
+                _buildWaitingEntry(),
+                // Заявку подтверждают в этом же экране, но она приходит уже
+                // после создания пары, поэтому карточка живёт в режиме ожидания.
+                if (pair.awaitingApproval) _waitingApprovalCard(cs),
               ],
             ),
           );
@@ -2299,6 +2473,22 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   // ═══════════════════════════════════════════════════
 
   Future<void> _submitCode() async {
+    // Один код — один запрос. Diplink присылает его дважды (поток
+    // DeepLinkService плюс буфер, забираемый после первого кадра), а кнопку
+    // успевают нажать второй раз, пока идёт первый запрос. В журнале сервера это
+    // видно как три-пять одинаковых приёмов в пределах полусекунды: первый
+    // собирал пару, остальные натыкались на уже использованный код, и их ошибка
+    // ложилась поверх успеха — человек читал «Код не найден» при собранной паре.
+    if (_submitting) return;
+    _submitting = true;
+    try {
+      await _submitCodeOnce();
+    } finally {
+      _submitting = false;
+    }
+  }
+
+  Future<void> _submitCodeOnce() async {
     final code = _codeController.text.trim().toUpperCase();
     if (pair.isSelfCode(code)) {
       setState(() => _codeError = true);

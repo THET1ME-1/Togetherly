@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../../../models/ailment.dart';
 import '../../../models/mood_band.dart';
 import '../../../models/mood_entry.dart';
+import '../../../models/user_data.dart';
 import '../../../models/mood_pack.dart';
 import '../../../models/pair_data.dart';
 import '../../../services/locale_service.dart';
@@ -28,6 +29,8 @@ void showMoodPicker({
   required WidgetService widgetService,
   required Color primary,
   required Color navActiveIcon,
+  UserData? user,
+  Set<String> pairOwned = const {},
 }) {
   final mood = moodService.myMoodToday;
   final currentEmoji = mood?.imagePath ?? '';
@@ -44,6 +47,8 @@ void showMoodPicker({
         scrollController: scrollController,
         currentEmoji: currentEmoji,
         primary: primary,
+        user: user,
+        pairOwned: pairOwned,
         title: LocaleService.current.howAreYouFeeling,
         subtitle: LocaleService.current.partnerWillSeeMood,
         onSelect: (mood) {
@@ -88,6 +93,8 @@ void showMoodPickerForDate({
   required BuildContext context,
   required DateTime date,
   required PairData pairData,
+  UserData? user,
+  Set<String> pairOwned = const {},
   required MoodService moodService,
   required WidgetService widgetService,
   required Color primary,
@@ -125,6 +132,8 @@ void showMoodPickerForDate({
         scrollController: scrollController,
         currentEmoji: existingPath,
         primary: primary,
+        user: user,
+        pairOwned: pairOwned,
         title: s.moodDateLabel(dateLabel),
         subtitle: isToday ? s.partnerWillSeeMood : s.indicateMoodForDay,
         onSelect: (mood) {
@@ -223,6 +232,13 @@ class MoodPickerSheet extends StatefulWidget {
 
   /// Лист целиком про самочувствие: ни вкладок, ни сетки настроений.
   final bool ailmentOnly;
+
+  /// Кошелёк и покупки человека: по ним пак настроений закрывается замком.
+  /// Без него замков нет — так ведут себя точки вызова без данных о человеке.
+  final UserData? user;
+
+  /// Ключи `owned_features` группы: пак общий на пару, платит кто-то один.
+  final Set<String> pairOwned;
   final String currentAilmentId;
   final void Function(Ailment)? onSelectAilment;
   final Future<void> Function()? onClearAilment;
@@ -235,6 +251,8 @@ class MoodPickerSheet extends StatefulWidget {
     required this.subtitle,
     required this.onSelect,
     required this.onClear,
+    this.user,
+    this.pairOwned = const {},
     this.showAilmentTab = false,
     this.ailmentOnly = false,
     this.currentAilmentId = '',
@@ -379,6 +397,8 @@ class _MoodPickerSheetState extends State<MoodPickerSheet> {
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
           child: MoodPackSelector(
             primary: widget.primary,
+            user: widget.user,
+            pairOwned: widget.pairOwned,
             onChanged: (_) => setState(() {}),
           ),
         ),

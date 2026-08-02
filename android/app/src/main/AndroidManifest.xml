@@ -2,6 +2,10 @@
     xmlns:tools="http://schemas.android.com/tools">
     <!-- Permissions для QR-сканера -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Голосовые сообщения в чате. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Голосовая связь в комнате просмотра: маршрутизация звука. -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     

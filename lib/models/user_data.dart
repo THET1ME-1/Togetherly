@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -13,6 +14,8 @@ import '../theme/app_theme.dart';
 import '../services/plus_service.dart';
 import '../theme/app_palettes.dart';
 import '../utils/safe_text.dart';
+import 'level.dart';
+import 'mascot_sleep.dart';
 import 'profile_icon.dart';
 
 enum Gender { male, female, unspecified }
@@ -32,6 +35,11 @@ class UserData extends ChangeNotifier {
 
   // ── Дата рождения (только день+месяц важны для поздравлений) ──
   DateTime? _birthDate;
+
+  // ── Сон маскотов: у каждого персонажа своё окно ночной сцены ──
+  // Живёт на аккаунте (`users.mascot_sleep`), поэтому переезжает вместе с ним
+  // на любое устройство. Кого тут нет — спит по прежним 23:00–07:00.
+  Map<String, SleepWindow> _mascotSleep = const {};
 
   // ── Коины и премиум-контент ──
   // Локальные значения — только КЭШ. Источник правды — Firestore,
@@ -105,6 +113,44 @@ class UserData extends ChangeNotifier {
   }
   bool get isRegistered => _isRegistered;
   bool get hasSeenWelcome => _hasSeenWelcome;
+
+  /// Расписание ночных сцен: `id маскота → окно`.
+  Map<String, SleepWindow> get mascotSleep => Map.unmodifiable(_mascotSleep);
+
+  /// Когда этот персонаж уходит в ночную сцену.
+  SleepWindow sleepOf(String mascotId) =>
+      MascotSleep.of(_mascotSleep, mascotId);
+
+  /// Задать персонажу своё окно сна.
+  ///
+  /// Пишем сразу и локально, и на сервер: человек сдвинул стрелки и хочет
+  /// увидеть это на главной немедленно, а не после следующей синхронизации.
+  /// Ответ сервера не ждём по той же причине — поле не экономическое, терять
+  /// тут нечего.
+  Future<void> setMascotSleep(String mascotId, SleepWindow window) async {
+    if (mascotId.isEmpty) return;
+    final next = Map<String, SleepWindow>.from(_mascotSleep);
+    if (window == SleepWindow.standard) {
+      next.remove(mascotId);
+    } else {
+      next[mascotId] = window;
+    }
+    if (mapEquals(next, _mascotSleep)) return;
+
+    _mascotSleep = next;
+    notifyListeners();
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+        'mascotSleep', jsonEncode(MascotSleep.encode(_mascotSleep)));
+
+    final uid = PocketBaseService().userId ?? '';
+    if (uid.isEmpty) return;
+    await PbDataService().updateUserProfile(
+      uid,
+      {'mascot_sleep': MascotSleep.encode(_mascotSleep)},
+    );
+  }
   String get uid => _uid;
   String? get badge => _badge;
 
@@ -522,6 +568,37 @@ class UserData extends ChangeNotifier {
     return _ownedFeatures.contains(featureId);
   }
 
+  /// Куплен ли этот элемент каталога.
+  ///
+  /// Владение всех платных элементов лежит в общем `owned_features` под ключом
+  /// `вид:id` — так новый вид платного не требует ни нового поля на сервере,
+  /// ни новой сборки.
+  bool ownsCatalogItem(String kind, String id) =>
+      _ownedFeatures.contains(Unlock.featureKey(kind, id));
+
+  /// Открыт ли элемент каталога прямо сейчас: бесплатный, дорос уровнем,
+  /// куплен (мной или партнёром) или включён в действующий Togetherly+.
+  ///
+  /// [boughtByPair] — покупка лежит на самой группе. Маскот общий, и платить
+  /// за него дважды паре не приходится.
+  bool unlocksCatalogItem(
+    Unlock unlock,
+    String kind,
+    String id,
+    int level, {
+    bool boughtByPair = false,
+  }) =>
+      unlock.isUnlocked(
+        level: level,
+        owned: boughtByPair || ownsCatalogItem(kind, id),
+        plus: PlusService.instance.active,
+      );
+
+  /// Купить элемент каталога за монеты. Цену считает сервер по записи в
+  /// каталоге — клиентскому числу он не верит.
+  Future<bool> purchaseCatalogItem(String kind, String id) =>
+      purchaseFeature(Unlock.featureKey(kind, id));
+
   /// Списывает коины за расходуемое действие (напр. смена фона чата).
   /// Списывает КАЖДЫЙ раз. Цена и проверка баланса — на сервере.
   /// Возвращает true при успешном списании.
@@ -551,7 +628,17 @@ class UserData extends ChangeNotifier {
   /// Возвращает true, только если бейдж выдан ВПЕРВЫЕ (его не было в наборе) —
   /// чтобы вызывающий код мог разово уведомить пользователя, а не на каждом
   /// запуске.
+  ///
+  /// **`granted_badges` пишет только сервер.** Поле в списке защищённых
+  /// (`users_guard.pb.js`), клиентский PATCH его молча не сохраняет. Раньше это
+  /// давало вечное поздравление: локально значок добавлялся, уведомление
+  /// показывалось, на сервер список не уезжал, а следующий синк затирал
+  /// локальный набор серверным пустым — и круг повторялся при каждом запуске
+  /// (жалоба про значок «Рыбка», 31 июля). Поэтому поздравляем только тогда,
+  /// когда значка нет ни в наборе, ни на человеке: надетый значок и есть
+  /// доказательство, что его уже вручали.
   Future<bool> grantSpecialBadge(String id) async {
+    final alreadyWorn = _badge == id;
     final added = _grantedBadges.add(id);
     final autoEquip = _badge == null || _badge!.isEmpty;
     if (!added && !autoEquip) return false; // ничего не изменилось — без записи
@@ -562,7 +649,7 @@ class UserData extends ChangeNotifier {
       'badge': _badge ?? '',
     });
     notifyListeners();
-    return added;
+    return added && !alreadyWorn;
   }
 
   /// Начисляет монеты после успешной IAP-покупки.
@@ -652,6 +739,7 @@ class UserData extends ChangeNotifier {
       _devCoinsChecked = prefs.getBool('devCoinsChecked') ?? false;
       _adRewardsToday = prefs.getInt('adRewardsToday') ?? 0;
       _adRewardsDate = prefs.getString('adRewardsDate') ?? '';
+      _mascotSleep = MascotSleep.parse(prefs.getString('mascotSleep'));
       final bdMs = prefs.getInt('birthDate');
       _birthDate = bdMs != null
           ? DateTime.fromMillisecondsSinceEpoch(bdMs)
@@ -756,6 +844,8 @@ class UserData extends ChangeNotifier {
           _birthDate = DateTime.fromMillisecondsSinceEpoch(bdRaw);
         }
 
+        _mascotSleep = MascotSleep.parse(data['mascotSleep']);
+
         await _saveLocal();
 
         // Propagate name/avatar to all group documents on every login so
@@ -809,6 +899,8 @@ class UserData extends ChangeNotifier {
       await prefs.setBool('devCoinsChecked', _devCoinsChecked);
       await prefs.setInt('adRewardsToday', _adRewardsToday);
       await prefs.setString('adRewardsDate', _adRewardsDate);
+      await prefs.setString(
+          'mascotSleep', jsonEncode(MascotSleep.encode(_mascotSleep)));
       await prefs.setStringList(
         'ownedThemes',
         _ownedThemes.map((e) => e.toString()).toList(),
@@ -1045,6 +1137,7 @@ class UserData extends ChangeNotifier {
     _badge = null;
     _adRewardsToday = 0;
     _adRewardsDate = '';
+    _mascotSleep = const {};
     await prefs.remove('coins');
     await prefs.remove('devCoinsGranted');
     await prefs.remove('devCoinsChecked');
@@ -1055,6 +1148,7 @@ class UserData extends ChangeNotifier {
     await prefs.remove('badge');
     await prefs.remove('adRewardsToday');
     await prefs.remove('adRewardsDate');
+    await prefs.remove('mascotSleep');
     notifyListeners();
   }
 

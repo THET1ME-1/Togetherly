@@ -184,6 +184,8 @@ class _PlusScreenState extends State<PlusScreen> {
       (Icons.widgets_rounded, _s.plusWidgetsTitle, _s.plusWidgetsBody),
       (Icons.lightbulb_rounded, _s.plusTipsTitle, _s.plusTipsBody),
       (Icons.videocam_rounded, _s.plusVideoTitle, _s.plusVideoBody),
+      (Icons.brush_rounded, _s.plusColoringTitle, _s.plusColoringBody),
+      (Icons.favorite_rounded, _s.plusWishesTitle, _s.plusWishesBody),
     ];
 
     return Container(
