@@ -33,6 +33,8 @@ class GiftProfileBody extends StatefulWidget {
     this.onAvatarTap,
     this.showHeader = true,
     this.counterpartName,
+    this.showMissWeek = true,
+    this.showGiftsTitle = true,
   });
 
   final AppTheme theme;
@@ -54,6 +56,14 @@ class GiftProfileBody extends StatefulWidget {
   /// Имя второго в паре — им подписаны записки в листе подарка. Пусто —
   /// подпись станет обезличенной («от партнёра»), но лист всё равно откроется.
   final String? counterpartName;
+
+  /// false — не рисовать столбики «Я скучаю». Нужно экрану одной полки, где
+  /// кроме подарков не должно быть ничего.
+  final bool showMissWeek;
+
+  /// false — полка без заголовка над ней: на своём экране название уже стоит
+  /// в шапке, и второй раз его писать незачем.
+  final bool showGiftsTitle;
 
   @override
   State<GiftProfileBody> createState() => GiftProfileBodyState();
@@ -137,27 +147,39 @@ class GiftProfileBodyState extends State<GiftProfileBody> {
           ),
           const SizedBox(height: 20),
         ],
-        _Block(
-          theme: t,
-          title: widget.isSelf ? s.selfGiftsTitle : s.partnerGiftsTitle,
-          trailing: _giftsTotal > 0 ? '$_giftsTotal' : null,
-          child: _shelf.isEmpty
-              ? _Empty(theme: t, text: s.partnerGiftsEmpty)
-              : _Shelf(
-                  theme: t,
-                  shelf: _shelf,
-                  hasTextOf: _hasTextOf,
-                  onTap: _openMemos,
-                ),
-        ),
-        const SizedBox(height: 20),
-        _Block(
-          theme: t,
-          title: widget.isSelf ? s.selfMissTitle : s.partnerMissTitle,
-          child: _week.isEmpty
-              ? _Empty(theme: t, text: s.partnerMissEmpty)
-              : MissYouWeekChart(theme: t, week: _week),
-        ),
+        if (widget.showGiftsTitle)
+          _Block(
+            theme: t,
+            title: widget.isSelf ? s.selfGiftsTitle : s.partnerGiftsTitle,
+            trailing: _giftsTotal > 0 ? '$_giftsTotal' : null,
+            child: _shelf.isEmpty
+                ? _Empty(theme: t, text: s.partnerGiftsEmpty)
+                : _Shelf(
+                    theme: t,
+                    shelf: _shelf,
+                    hasTextOf: _hasTextOf,
+                    onTap: _openMemos,
+                  ),
+          )
+        else if (_shelf.isEmpty)
+          _Empty(theme: t, text: s.partnerGiftsEmpty)
+        else
+          _Shelf(
+            theme: t,
+            shelf: _shelf,
+            hasTextOf: _hasTextOf,
+            onTap: _openMemos,
+          ),
+        if (widget.showMissWeek) ...[
+          const SizedBox(height: 20),
+          _Block(
+            theme: t,
+            title: widget.isSelf ? s.selfMissTitle : s.partnerMissTitle,
+            child: _week.isEmpty
+                ? _Empty(theme: t, text: s.partnerMissEmpty)
+                : MissYouWeekChart(theme: t, week: _week),
+          ),
+        ],
       ],
     );
   }

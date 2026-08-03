@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/pair_achievement.dart';
 import '../services/achievement_service.dart';
@@ -10,6 +11,9 @@ import '../widgets/common/m3_wave_progress.dart';
 
 /// Что показываем в списке.
 enum _Filter { all, unlocked, inProgress }
+
+/// Высота таблетки фильтра — та же, что у чипов паков настроений.
+const double _kFilterHeight = 38;
 
 /// Экран «Достижения пары».
 ///
@@ -171,41 +175,56 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
     );
   }
 
+  /// Фильтры — залитые таблетки в стиль лент паков настроений: одна высота,
+  /// полное скругление, никакой обводки.
+  ///
+  /// Обводка у невыбранных читалась как «поле ввода», а прокрутка вбок прятала
+  /// третий фильтр за краем экрана. Три штуки делят строку поровну и помещаются
+  /// на 360 dp: «В процессе» — самое длинное слово, и оно короче трети ширины.
   Widget _filters(ColorScheme cs) {
     Widget chip(String label, _Filter value) {
       final on = _filter == value;
-      return Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: FilterChip(
-          label: Text(label),
-          selected: on,
-          showCheckmark: false,
-          onSelected: (_) => setState(() => _filter = value),
-          labelStyle: TextStyle(
-            fontFamily: 'Onest',
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: on ? cs.onSecondaryContainer : cs.onSurfaceVariant,
+      return Expanded(
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            HapticFeedback.selectionClick();
+            setState(() => _filter = value);
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            height: _kFilterHeight,
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              color: on ? cs.primaryContainer : cs.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(_kFilterHeight / 2),
+            ),
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'Onest',
+                fontSize: 13,
+                fontWeight: on ? FontWeight.w700 : FontWeight.w600,
+                color: on ? cs.onPrimaryContainer : cs.onSurfaceVariant,
+              ),
+            ),
           ),
-          backgroundColor: Colors.transparent,
-          selectedColor: cs.secondaryContainer,
-          side: BorderSide(color: on ? Colors.transparent : cs.outlineVariant),
         ),
       );
     }
 
-    // Три чипа в ряд не влезают на 360 dp — на такой ширине строка вылезала
-    // за экран на 86 пикселей (поймал golden-тест). Пускаем их прокруткой:
-    // Wrap перенёс бы третий чип на вторую строку и сдвинул весь список.
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          chip(_s.achFilterAll, _Filter.all),
-          chip(_s.achFilterUnlocked, _Filter.unlocked),
-          chip(_s.achFilterInProgress, _Filter.inProgress),
-        ],
-      ),
+    return Row(
+      children: [
+        chip(_s.achFilterAll, _Filter.all),
+        const SizedBox(width: 8),
+        chip(_s.achFilterUnlocked, _Filter.unlocked),
+        const SizedBox(width: 8),
+        chip(_s.achFilterInProgress, _Filter.inProgress),
+      ],
     );
   }
 

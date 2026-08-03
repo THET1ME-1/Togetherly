@@ -475,7 +475,28 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
   const COIN_PACKS = { "coins_10": 10, "coins_50": 50, "coins_120": 120, "coins_300": 300 };
   const PLUS_PRODUCT = "togetherly_plus";
   const amount = COIN_PACKS[productId];
-  if (!amount && productId !== PLUS_PRODUCT) {
+
+  // Элемент каталога, купленный в Play: товар называется `вид.id`
+  // (`mood_pack.moti`), а ключ владения внутри приложения — `вид:id`. Точка
+  // вместо двоеточия потому, что Play двоеточие в идентификаторе не принимает.
+  // Разбираем сами, без таблицы соответствий: новый пак заводится записью в
+  // каталоге и товаром в консоли, хук править не нужно.
+  const KINDS = { "mascot": "mascot_anim", "mood_pack": "mood_pack" };
+  let featureKey = "";
+  let featureItemId = "";
+  let featureWantKind = "";
+  const dot = productId.indexOf(".");
+  if (dot > 0 && !amount && productId !== PLUS_PRODUCT) {
+    const kind = productId.slice(0, dot);
+    const itemId = productId.slice(dot + 1);
+    if (KINDS[kind] && itemId) {
+      featureKey = kind + ":" + itemId;
+      featureItemId = itemId;
+      featureWantKind = KINDS[kind];
+    }
+  }
+
+  if (!amount && productId !== PLUS_PRODUCT && !featureKey) {
     return e.json(400, { ok: false, error: "unknown productId" });
   }
   if (!purchaseToken) return e.json(400, { ok: false, error: "purchaseToken required" });
@@ -541,6 +562,73 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
           "product", productId, "uid", e.auth.id, "reason", verdict.reason);
       } catch (_) {}
     }
+  }
+
+  // Элемент каталога из Google Play: пак настроений или маскот. Монет не даёт,
+  // как и Togetherly+, — кладёт ключ владения `вид:id`, тот же самый, что
+  // выдают покупка за монеты, вебхук lava.top и погашение кода. Ключ уходит и
+  // парам покупателя: набор общий, платит кто-то один.
+  //
+  // ГРАБЛИ JSVM: обработчик исполняется изолированно и не видит функций уровня
+  // файла, поэтому раздача по группам инлайнится прямо здесь.
+  if (featureKey) {
+    let item = null;
+    try { item = $app.findRecordById("catalog_items", featureItemId); } catch (_) { item = null; }
+    if (!item || item.getString("kind") !== featureWantKind || !item.getBool("enabled")) {
+      return e.json(400, { ok: false, error: "not for sale" });
+    }
+
+    let featOut;
+    try {
+      $app.runInTransaction((txApp) => {
+        const parse = (str, fb) => { try { return JSON.parse(str || JSON.stringify(fb)) || fb; } catch (_) { return fb; } };
+        const user = txApp.findRecordById("users", e.auth.id);
+        let already = null;
+        try { already = txApp.findRecordById("iap_purchases", tokenKey); } catch (_) { already = null; }
+
+        const owned = parse(user.getString("owned_features"), []);
+        if (!already && owned.indexOf(featureKey) === -1) {
+          user.set("owned_features", JSON.stringify(owned.concat([featureKey])));
+          txApp.save(user);
+        }
+
+        // Раздача паре — та же, что в purchase-feature. `group_ids` это
+        // relation, читать его строкой бесполезно: нужен getStringSlice.
+        let groupIds = [];
+        try { groupIds = user.getStringSlice("group_ids") || []; } catch (_) { groupIds = []; }
+        if (!groupIds.length) groupIds = parse(user.getString("pair_ids"), []);
+        for (let i = 0; i < groupIds.length; i++) {
+          let grp = null;
+          try { grp = txApp.findRecordById("groups", String(groupIds[i])); } catch (_) { grp = null; }
+          if (!grp) continue;
+          const gOwned = parse(grp.getString("owned_features"), []);
+          if (gOwned.indexOf(featureKey) !== -1) continue;
+          grp.set("owned_features", JSON.stringify(gOwned.concat([featureKey])));
+          txApp.save(grp);
+        }
+
+        const nowOwned = parse(user.getString("owned_features"), []);
+        if (already) {
+          featOut = { s: 200, b: { ok: true, alreadyGranted: true, feature: featureKey, coins: user.getInt("coins") || 0, ownedFeatures: nowOwned } };
+          return;
+        }
+
+        const col = txApp.findCollectionByNameOrId("iap_purchases");
+        const rec = new Record(col);
+        rec.set("id", tokenKey);
+        rec.set("token", purchaseToken);
+        rec.set("user_uid", e.auth.id);
+        rec.set("product_id", productId);
+        rec.set("amount", 0);
+        rec.set("at", new Date().toISOString());
+        txApp.save(rec);
+        featOut = { s: 200, b: { ok: true, alreadyGranted: false, feature: featureKey, coins: user.getInt("coins") || 0, ownedFeatures: nowOwned } };
+      });
+    } catch (err) {
+      try { $app.logger().error("iap: выдача элемента каталога не удалась", "product", productId, "uid", e.auth.id); } catch (_) {}
+      return e.json(500, { ok: false, error: "tx failed" });
+    }
+    return e.json(featOut.s, featOut.b);
   }
 
   // Togetherly+ из Google Play (товар togetherly_plus, способ покупки lifetime).

@@ -2018,7 +2018,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// Открыть выбор настроения для конкретной даты.
+  /// Ключи, купленные парой, кладём в общий снимок каталога: выбор настроения
+  /// открывается и из календаря, и из листа дня, и с экрана виджетов, где
+  /// состояния группы нет вовсе.
+  void _publishPairOwned() =>
+      CatalogService.instance.updatePairOwned(_mascotService.state.ownedFeatures);
+
   void _showMoodPickerForDate(DateTime date) {
+    _publishPairOwned();
     showMoodPickerForDate(
       context: context,
       date: date,
@@ -2076,6 +2083,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showMoodPicker() {
+    _publishPairOwned();
     showMoodPicker(
       context: context,
       pairData: _pairData,

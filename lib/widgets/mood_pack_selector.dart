@@ -7,6 +7,7 @@ import '../models/level.dart';
 import '../models/mood_pack.dart';
 import '../models/user_data.dart';
 import '../services/catalog_service.dart';
+import '../services/coin_store.dart';
 import '../services/level_service.dart';
 import '../services/locale_service.dart';
 import '../services/mood_pack_service.dart';
@@ -57,17 +58,26 @@ class MoodPackSelector extends StatelessWidget {
   });
 
   /// Открыт ли пак этому человеку.
+  ///
+  /// Ключи пары берём из параметра, а если его не передали — из общего снимка
+  /// каталога: пикер открывается с четырёх экранов, и на тех, где параметр
+  /// забыли, купленный партнёром пак считался закрытым.
+  ///
+  /// Без данных пользователя открытыми считаем только бесплатные наборы и то,
+  /// что куплено парой. Прежнее «нет user — открыто всё» показывало платный
+  /// пак доступным на экране виджетов, где его никто не покупал.
   bool isOpen(MoodPack pack) {
+    final key = Unlock.featureKey(kMoodPackFeatureKind, pack.id);
+    final byPair = pairOwned.contains(key) ||
+        CatalogService.instance.pairOwned.contains(key);
     final u = user;
-    if (u == null) return true;
+    if (u == null) return byPair || !pack.unlock.isForSale;
     return u.unlocksCatalogItem(
       pack.unlock,
       kMoodPackFeatureKind,
       pack.id,
       LevelService.instance.level,
-      boughtByPair: pairOwned.contains(
-        Unlock.featureKey(kMoodPackFeatureKind, pack.id),
-      ),
+      boughtByPair: byPair,
     );
   }
 
@@ -91,7 +101,11 @@ class MoodPackSelector extends StatelessWidget {
         // Купленный (в том числе партнёром с Android) остаётся видимым —
         // отбирать оплаченное нельзя.
         final packs = CatalogService.instance.allPacks
-            .where((p) => !(Platform.isIOS && p.unlock.isMoney && !isOpen(p)))
+            .where((p) => moodPackVisible(
+                  isIOS: Platform.isIOS,
+                  isMoney: p.unlock.isMoney,
+                  isOpen: isOpen(p),
+                ))
             .toList();
         if (packs.isEmpty) return const SizedBox.shrink();
 
@@ -153,13 +167,21 @@ class MoodPackSelector extends StatelessWidget {
   }
 }
 
-/// Купить пак: за деньги (lava.top) или за монеты, смотря что стоит в каталоге.
+/// Купить пак: за деньги или за монеты, смотря что стоит в каталоге.
 ///
 /// Зовётся кнопкой внизу экрана настроения, когда человек смотрит закрытый
 /// набор. Цену показываем из каталога, а списывает её сервер по своей же
 /// записи: клиентскому числу он не верит, подменить его в запросе нельзя.
-/// [onBought] срабатывает только после покупки за монеты — оплата деньгами
-/// уходит в браузер и возвращается уведомлением сервера.
+///
+/// Платный за деньги набор идёт разными путями, смотря чья это сборка. В
+/// Google Play — только биллинг Google: увести оттуда на сайт значит потерять
+/// приложение. В остальных сборках (sideload, RuStore) товаров Play нет, и
+/// оплату ведёт lava.top — счёт заводит сервер на почту аккаунта, потому что
+/// по витринной ссылке уведомление об оплате не приходит вовсе и набор
+/// пришлось бы выдавать руками.
+///
+/// [onBought] срабатывает после покупки за монеты и после покупки в магазине;
+/// оплата на сайте уходит в браузер и возвращается уведомлением сервера.
 Future<void> buyMoodPack(
   BuildContext context,
   MoodPack pack, {
@@ -183,8 +205,43 @@ Future<void> buyMoodPack(
   // сервер на почту аккаунта — по витринной ссылке уведомление об оплате не
   // приходит вовсе, и набор пришлось бы выдавать руками.
   if (pack.unlock.isMoney) {
+    final featureKey = Unlock.featureKey(kMoodPackFeatureKind, pack.id);
+
+    if (kCatalogBuysInStore) {
+      final store = sharedCoinStore;
+      final productId = catalogProductId(featureKey);
+      final known = await store.ensureProduct(productId);
+      if (!context.mounted) return;
+      if (!known) {
+        say(ru ? 'Набор пока недоступен к покупке' : 'This pack is not available yet');
+        return;
+      }
+      final res = await store.buy(productId);
+      if (!context.mounted) return;
+      switch (res.status) {
+        case IapStatus.success:
+          // Ключ владения положил сервер при сверке чека — перечитываем свой
+          // профиль (`refreshCoinsFromServer` тянет и `owned_features`), на нём
+          // завязаны все проверки доступа.
+          await user.refreshCoinsFromServer();
+          if (!context.mounted) return;
+          HapticFeedback.selectionClick();
+          await MoodPackService.instance.setSelectedPack(pack.id);
+          onBought?.call();
+        case IapStatus.pending:
+          say(ru
+              ? 'Оплата обрабатывается — набор откроется сам'
+              : 'Payment is processing — the pack will open by itself');
+        case IapStatus.cancelled:
+          break;
+        case IapStatus.error:
+          say(ru ? 'Покупка не прошла' : 'Purchase failed');
+      }
+      return;
+    }
+
     final res = await CatalogService.instance.purchaseUrl(
-      Unlock.featureKey(kMoodPackFeatureKind, pack.id),
+      featureKey,
       currency: pack.unlock.currency,
     );
     if (!context.mounted) return;

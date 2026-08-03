@@ -110,6 +110,29 @@ class IapService extends CoinStore {
     }
   }
 
+  /// Догрузить товар каталога (пак, маскот) — его id приходит с сервера уже
+  /// после запуска, поэтому в постоянный список продуктов он не попадает.
+  @override
+  Future<bool> ensureProduct(String productId) async {
+    if (productId.isEmpty) return false;
+    if (_products.containsKey(productId)) return true;
+    try {
+      final response = await _iap.queryProductDetails({productId});
+      for (final pd in response.productDetails) {
+        _products[pd.id] = pd;
+      }
+      if (response.notFoundIDs.contains(productId)) {
+        debugPrint('IapService: товара "$productId" нет в магазине');
+        return false;
+      }
+      notifyListeners();
+      return _products.containsKey(productId);
+    } catch (e) {
+      debugPrint('IapService: ensureProduct failed: $e');
+      return false;
+    }
+  }
+
   // ── Покупка ───────────────────────────────────────────────────────────────
 
   /// Инициирует покупку продукта с [productId].
@@ -137,9 +160,11 @@ class IapService extends CoinStore {
 
     final param = PurchaseParam(productDetails: pd);
     try {
-      if (productId == kPlusProductId) {
-        // Togetherly+ покупается один раз навсегда. Через buyConsumable Play
-        // разрешил бы купить его повторно, а деньги ушли бы впустую.
+      if (productId == kPlusProductId || productId.contains('.')) {
+        // Togetherly+ и элементы каталога покупаются один раз навсегда. Через
+        // buyConsumable Play разрешил бы купить их повторно, а деньги ушли бы
+        // впустую. Товары каталога отличаются точкой в идентификаторе
+        // (`mood_pack.moti`), у монет её нет.
         await _iap.buyNonConsumable(purchaseParam: param);
       } else {
         // consumable = true (монеты — расходуемый товар)
@@ -211,6 +236,12 @@ class IapService extends CoinStore {
 
       if (newBalance != null) {
         granted = true;
+        if (productId.contains('.')) {
+          // Пак или маскот: ключ владения кладёт сервер, приложению остаётся
+          // перечитать свой профиль — на нём завязаны все проверки доступа.
+          _completeWith(const IapResult(IapStatus.success));
+          return;
+        }
         if (productId == kPlusProductId) {
           // Флаг ставит сервер, приложение его перечитывает: экран Plus и все
           // проверки доступа завязаны на PlusService, а не на ответ магазина.

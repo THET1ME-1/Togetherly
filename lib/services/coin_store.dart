@@ -32,6 +32,19 @@ const List<CoinPack> kCoinPacks = [
 /// живёт на аккаунте в PocketBase и переезжает вместе с ним.
 const String kPlusProductId = 'togetherly_plus';
 
+/// Продаётся ли платный элемент каталога через биллинг магазина, а не через
+/// сайт. В сборке для Google Play платить мимо Google нельзя — за это снимают
+/// приложение; в sideload и RuStore товаров Play нет, там остаётся lava.top.
+const bool kCatalogBuysInStore = kStore == 'play';
+
+/// Товар магазина для ключа владения: `mood_pack:moti` → `mood_pack.moti`.
+///
+/// Двоеточие в идентификаторе товара Google Play не принимает, поэтому в
+/// консоли те же ключи заводятся через точку. Пересчёт вместо таблицы
+/// соответствий: новый пак — это запись каталога плюс товар в консоли, кода
+/// это не касается.
+String catalogProductId(String featureKey) => featureKey.replaceFirst(':', '.');
+
 /// Статус обработки одной покупки.
 enum IapStatus {
   /// Покупка подтверждена и монеты начислены.
@@ -97,6 +110,13 @@ abstract class CoinStore extends ChangeNotifier {
 
   /// Инициирует покупку продукта [productId]. Завершается после оплаты/отмены.
   Future<IapResult> buy(String productId);
+
+  /// Догрузить описание товара, которого нет в постоянном списке.
+  ///
+  /// Паки и маскоты приезжают каталогом с сервера уже после старта, поэтому их
+  /// товары нельзя спросить у магазина заранее вместе с монетами. Возвращает
+  /// true, если товар известен магазину и покупку можно начинать.
+  Future<bool> ensureProduct(String productId) async => false;
 
   /// Восстановление/доведение незавершённых покупок (кнопка «Restore»).
   Future<void> restorePurchases();
@@ -171,6 +191,8 @@ class _DisabledCoinStore extends CoinStore {
   @override
   Future<IapResult> buy(String productId) async =>
       const IapResult(IapStatus.error, error: 'disabled');
+  @override
+  Future<bool> ensureProduct(String productId) async => false;
   @override
   Future<void> restorePurchases() async {}
 }

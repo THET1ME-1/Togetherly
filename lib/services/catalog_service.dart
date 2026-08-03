@@ -34,14 +34,37 @@ class CatalogService extends ChangeNotifier {
 
   List<MoodPack> _remotePacks = const [];
   List<Mascot> _mascots = const [];
+  Set<String> _pairOwned = const {};
   Map<String, MascotAnim> _anims = const {};
   bool _initialized = false;
 
-  /// Бандл + удалённые паки (бандл первым — порядок в пикере стабилен).
-  List<MoodPack> get allPacks => [...MoodPack.all, ..._remotePacks];
+  /// Встроенные и каталожные паки одним рядом, в порядке поля `sort`.
+  ///
+  /// Раньше каталожные просто дописывались в хвост, и пак с сервера не мог
+  /// встать между классическими и розовыми — только четвёртым. Сортировка идёт
+  /// по паре (sort, исходный номер): `List.sort` в Dart не обещает
+  /// устойчивости, а паки с одинаковым sort не должны меняться местами от
+  /// запуска к запуску.
+  List<MoodPack> get allPacks =>
+      orderedPacks([...MoodPack.all, ..._remotePacks]);
 
   /// Маскоты из удалённого каталога (рендер-онли, поверх галереи группы).
   List<Mascot> get mascots => _mascots;
+
+  /// Что куплено ПАРОЙ — ключи `owned_features` группы.
+  ///
+  /// Живут здесь, а не только параметром виджета: выбор настроения открывается
+  /// с четырёх экранов, и там, где ключи забывали передать, купленный
+  /// партнёром пак выглядел закрытым, а на iPhone исчезал совсем (платного за
+  /// деньги там не показываем). Снимок обновляет тот экран, который слушает
+  /// состояние группы.
+  Set<String> get pairOwned => _pairOwned;
+
+  void updatePairOwned(Set<String> keys) {
+    if (_pairOwned.length == keys.length && _pairOwned.containsAll(keys)) return;
+    _pairOwned = Set.unmodifiable(keys);
+    notifyListeners();
+  }
 
   /// Анимированные пиксельные маскоты каталога по id.
   ///
@@ -191,6 +214,7 @@ class CatalogService extends ChangeNotifier {
         tileGradient: _parseGradient(data['tileGradient']),
         unlock: _parseUnlock(row, data),
         author: (data['author'] as String? ?? '').trim(),
+        sort: (row['sort'] as num?)?.toInt() ?? 500,
       ));
     }
 

@@ -37,9 +37,19 @@ void main() {
   test('без покупки пак закрыт, с покупкой пары открыт', () {
     final key = Unlock.featureKey(kMoodPackFeatureKind, paid.id);
 
-    const closed = MoodPackSelector(primary: Colors.pink);
-    expect(closed.isOpen(paid), isTrue,
-        reason: 'без данных о человеке замков нет: старые точки вызова');
+    // Без данных о человеке платный пак закрыт. Раньше он в этом случае
+    // считался открытым, и на экране виджетов (пикер звался без user) платный
+    // набор предлагался к выбору, хотя его никто не покупал.
+    const noUser = MoodPackSelector(primary: Colors.pink);
+    expect(noUser.isOpen(paid), isFalse,
+        reason: 'нет кошелька — платный набор не отдаём');
+
+    // Купленное парой открыто и без данных о человеке: покупка партнёра
+    // приезжает ключами группы, а на iPhone от этого зависит, увидит ли он
+    // набор вообще.
+    final byPair = MoodPackSelector(primary: Colors.pink, pairOwned: {key});
+    expect(byPair.isOpen(paid), isTrue,
+        reason: 'партнёр купил — набор открыт обоим');
 
     expect(
       paid.unlock.isUnlocked(level: 99, owned: false, plus: false),

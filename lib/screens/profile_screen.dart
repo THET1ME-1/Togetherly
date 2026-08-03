@@ -51,7 +51,7 @@ import 'memory_lane_screen.dart';
 import 'gifts/gift_profile_body.dart';
 import 'gifts/gift_shop_screen.dart';
 import 'gifts/partner_profile_screen.dart';
-import 'gifts/self_profile_screen.dart';
+import 'gifts/gift_shelf_screen.dart';
 import '../models/gift_effect.dart';
 import '../models/pair_achievement.dart';
 import '../services/achievement_service.dart';
@@ -1776,14 +1776,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  /// Свой профиль-«Открытка»: полка полученных подарков и «Я скучаю» по дням —
-  /// симметрично профилю партнёра (тап по аватару в «Друзьях»).
+  /// Полка полученных подарков — только она. Плитка «Что вам дарили» вела на
+  /// свой профиль-«Открытку», и вместо подарков открывался второй профиль:
+  /// шапка с аватаром, чипы и столбики «Я скучаю».
   void _openSelfProfile(BuildContext context) {
-    final days = _daysTogetherActive();
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => SelfProfileScreen(
+        builder: (_) => GiftShelfScreen(
           theme: _t,
           groupId: widget.pairData.pairId,
           // Фолбэк на id сессии PB: пустой uid в профиле (бывает после
@@ -1792,9 +1792,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ? widget.userData.uid
               : (PocketBaseService().userId ?? ''),
           selfName: widget.userData.displayName,
-          selfAvatarUrl: widget.userData.avatarUrl,
-          bannerUrl: widget.userData.bannerUrl,
-          daysTogether: days,
           partnerName: widget.pairData.partnerDisplayName,
         ),
         settings: const RouteSettings(name: '/self_gifts'),

@@ -7133,6 +7133,10 @@ class _WidgetScreenState extends State<WidgetScreen>
       widgetService: _ws,
       primary: _t.primary,
       navActiveIcon: _t.navActiveIcon,
+      // Без этих двух платный пак считался открытым (нет user) и предлагался
+      // к выбору там, где его никто не покупал.
+      user: widget.userData,
+      pairOwned: _mascotService.state.ownedFeatures,
     );
   }
 

@@ -3,6 +3,7 @@ import 'package:love_app/models/mood_entry.dart';
 import 'package:love_app/models/mood_pack.dart';
 
 void main() {
+  _packOrderTests();
   group('MoodPack catalog', () {
     test('contains classic and pink, both free', () {
       expect(MoodPack.all.map((p) => p.id), containsAll(['classic', 'pink']));
@@ -61,6 +62,37 @@ void main() {
       expect(happy, isNotNull);
       expect(happy!.imagePath, contains('new emodji'),
           reason: 'shared ids should resolve to the classic image in stats');
+    });
+  });
+}
+
+void _packOrderTests() {
+  group('Порядок паков', () {
+    MoodPack fake(String id, int sort) => MoodPack(
+          id: id,
+          isFree: true,
+          nameRu: id,
+          nameEn: id,
+          moods: MoodOption.all,
+          sort: sort,
+        );
+
+    test('каталожный пак встаёт между встроенными по своему sort', () {
+      final order = orderedPacks([
+        ...MoodPack.all,
+        fake('moti', 50),
+        fake('dog', 200),
+      ]).map((p) => p.id).toList();
+      expect(order, ['classic', 'moti', 'pink', 'bunny', 'dog']);
+    });
+
+    test('одинаковый sort сохраняет прежний порядок', () {
+      final order = orderedPacks([
+        fake('a', 10),
+        fake('b', 10),
+        fake('c', 5),
+      ]).map((p) => p.id).toList();
+      expect(order, ['c', 'a', 'b']);
     });
   });
 }
