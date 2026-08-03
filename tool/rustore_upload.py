@@ -25,6 +25,7 @@
 import argparse
 import base64
 import os
+import re
 import sys
 from datetime import datetime, timezone
 
@@ -94,6 +95,30 @@ def create_version(token: str, package: str, whatsnew: str) -> int:
         json={"whatsNew": whatsnew, "publishType": "INSTANTLY"},
         timeout=30,
     )
+    # Зависший черновик от упавшего прогона блокирует все следующие: RuStore
+    # отвечает «You already have draft version with ID = N» и не даёт завести
+    # новую версию, пока старую не убрали. Руками её чистить в консоли —
+    # значит держать релиз до тех пор, поэтому убираем сами и пробуем снова.
+    if resp.status_code >= 400 and "already have draft version" in resp.text:
+        stale = re.search(r"ID\s*=\s*(\d+)", resp.text)
+        if stale:
+            stale_id = stale.group(1)
+            print(f"Нашёлся черновик {stale_id} от прошлого прогона — удаляю.")
+            drop = requests.delete(
+                f"{API}/public/v1/application/{package}/version/{stale_id}",
+                headers=_headers(token),
+                timeout=60,
+            )
+            if drop.status_code >= 400:
+                sys.exit(f"Черновик {stale_id} не удалить: "
+                         f"{drop.status_code} {drop.text[:400]}")
+            resp = requests.post(
+                f"{API}/public/v1/application/{package}/version",
+                headers={**_headers(token), "Content-Type": "application/json"},
+                json={"whatsNew": whatsnew, "publishType": "INSTANTLY"},
+                timeout=30,
+            )
+
     if resp.status_code >= 400:
         print(f"RuStore отказал на создании версии: {resp.status_code} {resp.text[:600]}",
               file=sys.stderr)
