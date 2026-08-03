@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'app_palettes.dart';
 import 'app_theme.dart';
 
 /// M3 Expressive-тема для экрана «Профиль» — в духе Kadr.
@@ -15,11 +16,30 @@ abstract final class ProfileTheme {
   static const String bodyFont = 'Onest';
 
   /// M3-схема из seed темы. Тёмные темы Togetherly дают тёмную схему.
-  static ColorScheme schemeFor(AppTheme t) => ColorScheme.fromSeed(
-        seedColor: t.primary,
-        brightness: t.brightness,
-        dynamicSchemeVariant: DynamicSchemeVariant.vibrant,
+  static ColorScheme schemeFor(AppTheme t) => schemeOf(t.primary, t.brightness);
+
+  /// Схема из произвольного акцента — ею же пользуются тесты палитр.
+  ///
+  /// Вариант `tonalSpot`, а не `vibrant`: последний задирал насыщенность на
+  /// зелёных, жёлтых и бирюзовых сидах до 0.85–0.93 при 0.26–0.30 у розовой и
+  /// фиолетовой. На тёмном фоне это выглядело кислотной кнопкой, и половину
+  /// тем справедливо называли некачественными. У розовой и фиолетовой
+  /// `tonalSpot` даёт практически тот же результат, что и раньше.
+  static ColorScheme schemeOf(Color accent, Brightness brightness) =>
+      ColorScheme.fromSeed(
+        seedColor: accent,
+        brightness: brightness,
+        dynamicSchemeVariant: variantFor(accent),
       );
+
+  /// Вариант берётся у палитры с этим акцентом; акцент, которого нет в
+  /// каталоге (свои цвета из паков), разворачивается спокойным `tonalSpot`.
+  static DynamicSchemeVariant variantFor(Color accent) {
+    for (final palette in kPalettes) {
+      if (palette.accent.toARGB32() == accent.toARGB32()) return palette.variant;
+    }
+    return DynamicSchemeVariant.tonalSpot;
+  }
 
   static ThemeData themeFor(AppTheme t) => data(schemeFor(t));
 

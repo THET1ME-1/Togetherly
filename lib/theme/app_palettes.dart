@@ -43,8 +43,17 @@ class Palette {
   final Color accent;
   final bool isPremium;
   final int price;
+
+  /// Как разворачивать акцент в схему. По умолчанию `tonalSpot` — спокойный
+  /// вариант, который не задирает насыщенность (`vibrant` делал зелёные и
+  /// бирюзовые темы кислотными). Отдельным палитрам нужен свой: «Монохром»
+  /// из холодно-серого сида получал голубую схему, серым его делает `neutral`.
+  final DynamicSchemeVariant variant;
+
   const Palette(this.index, this.name, this.accent,
-      {this.isPremium = false, this.price = 0});
+      {this.isPremium = false,
+      this.price = 0,
+      this.variant = DynamicSchemeVariant.tonalSpot});
 }
 
 /// 25 палитр. Акценты разведены по оттенку и светлоте (мин. ΔE ≈ 17.7), чтобы
@@ -60,7 +69,8 @@ const List<Palette> kPalettes = [
   Palette(7, 'Вишнёвая', Color(0xFFB03A63), isPremium: true, price: 30),
   Palette(8, 'Мятная', Color(0xFF74D8BE), isPremium: true, price: 30),
   Palette(9, 'Закатная', Color(0xFFFF6A47), isPremium: true, price: 30),
-  Palette(10, 'Монохром', Color(0xFF6E7178), isPremium: true, price: 30),
+  Palette(10, 'Монохром', Color(0xFF6E7178),
+      isPremium: true, price: 30, variant: DynamicSchemeVariant.neutral),
   Palette(11, 'Лесная', Color(0xFF276E3C), isPremium: true, price: 30),
   Palette(12, 'Океан', Color(0xFF1685A2), isPremium: true, price: 30),
   Palette(13, 'Медовая', Color(0xFFF0A81C), isPremium: true, price: 30),
@@ -83,7 +93,6 @@ Palette paletteByIndex(int index) =>
 // ── Цветовая математика (совпадает с утверждённым макетом) ──
 Color _lighten(Color c, double f) => Color.lerp(c, Colors.white, f)!;
 Color _darken(Color c, double f) => Color.lerp(c, Colors.black, f)!;
-double _avgLum(Color c) => 0.299 * c.r + 0.587 * c.g + 0.114 * c.b;
 
 /// Собирает [AppTheme] из палитры и режима. Все поверхности/текст — из M3-схемы
 /// (tonalSpot/vibrant/fidelity), а идентичность (primary, hero) — из самого
@@ -97,13 +106,20 @@ AppTheme buildAppTheme(
   final s = ColorScheme.fromSeed(
     seedColor: p.accent,
     brightness: brightness,
-    dynamicSchemeVariant: flavor.variant,
+    // «Мягкий» вариант палитра вправе уточнить: «Монохром» из холодно-серого
+    // сида получал у tonalSpot голубую схему и серым не выглядел.
+    dynamicSchemeVariant:
+        flavor == SchemeFlavor.soft ? p.variant : flavor.variant,
   );
   final dark = brightness == Brightness.dark;
-  // Эффективный акцент: тёмный акцент в тёмной теме поднимаем по светлоте.
-  final acc = (dark && _avgLum(p.accent) < 0.45)
-      ? _lighten(p.accent, 0.28)
-      : p.accent;
+  // Акцент берётся ИЗ СХЕМЫ, а не из сида. Сырой сид красил кнопки, цифры и
+  // значки мимо M3: у Медовой хрома доходила до 0.83, а контраст к фону падал
+  // до 1.63 у Мятной и 1.75 у Песочной — надпись «Создать таймер» на фоне
+  // читалась с трудом. Схема держит 6.1 в светлом и 10.9 в тёмном у всех
+  // палитр, оттенок при этом остаётся прежним: розовая остаётся розовой.
+  // Ручное осветление тёмных акцентов больше не нужно — тёмному режиму схема
+  // и так отдаёт светлый тон.
+  final acc = s.primary;
 
   final card = (dark && amoled) ? const Color(0xFF181818) : s.surfaceContainerHigh;
   final bg1 = (dark && amoled) ? const Color(0xFF000000) : s.surface;
@@ -136,7 +152,14 @@ AppTheme buildAppTheme(
     navActiveBg: s.secondaryContainer,
     navActiveIcon: acc,
     promptButtonColor: acc,
-    timerDialBackground: s.primaryContainer,
+    // Лепестки занимают половину экрана, поэтому чистый `primaryContainer`
+    // давал грязное пятно: охру у Медовой, хаки у Лимонной, ржавчину у
+    // Персиковой. Приглушаем его тональной поверхностью — цвет темы остаётся
+    // узнаваемым, а заполненный сектор акцентом выделяется на нём сильнее.
+    timerDialBackground: Color.alphaBlend(
+      s.primaryContainer.withValues(alpha: dark ? 0.34 : 0.78),
+      s.surfaceContainerHigh,
+    ),
     textPrimary: s.onSurface,
     textSecondary: s.onSurfaceVariant,
     textMuted: s.outline,

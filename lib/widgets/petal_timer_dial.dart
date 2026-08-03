@@ -8,6 +8,18 @@ import 'package:flutter/services.dart';
 
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/readable_text.dart';
+
+/// Цвет цифры и подписи внутри лепестка.
+///
+/// Белым он был прибит намертво — и это работало, пока заливка круга шла сырым
+/// насыщенным акцентом. После перевода палитр на M3 круг стал пастельным, и
+/// белые «0 Сек», «1 Лет» на нём пропали. Подложек две: незаполненная часть
+/// лепестка и та, что налилась акцентом, — какая под текстом, решает [factor]
+/// (доля заполнения, текст стоит на середине лепестка).
+Color petalTextColor(AppTheme theme, double factor) => readableTextOn(
+      factor > 0.5 ? theme.fillColor : theme.timerDialBackground,
+    );
 
 /// Data for a single petal segment.
 class _PetalData {
@@ -568,7 +580,8 @@ class _PetalDialPainter extends CustomPainter {
       }
 
       final textR = (innerR + outerR) / 2;
-      final txColor = Colors.white.withValues(alpha: 0.95 * textAlpha);
+      final txColor = petalTextColor(theme, factor)
+          .withValues(alpha: 0.95 * textAlpha);
 
       // Масштабируем размер текста пропорционально, но нелинейно (корень), чтобы не переборщить
       // При 1 лепестке рост будет около 2.45x вместо 6x

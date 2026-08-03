@@ -36,8 +36,22 @@ class MemoryRepository {
 
   // ── Лента ────────────────────────────────────────────────────────────────
   /// Живая лента группы (новые сверху), soft-deleted скрыты. Из локального кэша.
+  /// Битая запись выбрасывается, а не роняет ленту: `.map(...).toList()`
+  /// падал целиком на первой же неразобранной строке, и человек видел
+  /// «Пока нет воспоминаний» при полной базе.
   Stream<List<Memory>> watch(String groupId) =>
-      _rt.watchMemories(groupId).map((recs) => recs.map(Memory.fromPb).toList());
+      _rt.watchMemories(groupId).map((recs) {
+        final out = <Memory>[];
+        for (final rec in recs) {
+          try {
+            out.add(Memory.fromPb(rec));
+          } catch (e) {
+            Sentry.captureException(e,
+                hint: Hint.withMap({'memory_id': rec.id, 'group_id': groupId}));
+          }
+        }
+        return out;
+      });
 
   /// Точечное чтение пина (deep-link из чата). Сперва кэш, затем сеть.
   Future<Memory?> getById(String memoryId) async {

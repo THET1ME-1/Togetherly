@@ -9,23 +9,17 @@
 // ============================================================
 
 const String ruWhatsNew =
-    'Вещи в списке желаний 💜\n'
+    'Что нового 💜\n'
     '\n'
-    '— Своё фото у вещи: снимок с полки или скриншот.\n'
-    '— «Поделиться» из магазина открывает форму с готовой ссылкой.\n'
-    '— Отметка «дарю» на вещи партнёра: он её не видит.\n'
-    '— Совместный просмотр больше не перематывает видео сам.\n'
-    '— Холст в рисовалке не убегает, когда убираешь палец.\n'
-    '— Задания дня: три штуки, закрываются пином в ленте.\n'
-    '— Статистика настроений кольцом: сразу видно, чего было больше.';
+    '— Новый набор эмоций «Моти».\n'
+    '— Голосовые сообщения в чате.\n'
+    '— Голос в совместном просмотре: смотрим и разговариваем.\n'
+    '— Новые пиксельные маскоты.';
 
 const String enWhatsNew =
-    'Things in your wish list 💜\n'
+    'What is new 💜\n'
     '\n'
-    '— Your own photo for an item: a shot from the shelf or a screenshot.\n'
-    '— Sharing from a shop opens the form with the link already in.\n'
-    "— Mark your partner's item as “gifting” — they won't see it.\n"
-    '— Watching together no longer rewinds the video on its own.\n'
-    '— The drawing canvas stays put when you lift a finger.\n'
-    '— Daily tasks: three a day, closed by a pin in the feed.\n'
-    '— Mood stats as a ring: what prevailed is visible at a glance.';
+    '— A new mood pack, Mochi.\n'
+    '— Voice messages in chat.\n'
+    '— Voice chat while watching together.\n'
+    '— New pixel mascots.';

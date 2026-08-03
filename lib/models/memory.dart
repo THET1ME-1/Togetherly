@@ -17,6 +17,17 @@ enum MemoryType { photo, video, location, music, text, videoLink, book, movie }
 /// точное, поэтому подписи, которые люди писали сами, остаются как есть.
 const Set<String> _kLegacyWidgetCaptions = {'📸 Виджет', '📸 Widget'};
 
+/// Дата из json-карты записи. Обычно это ISO-строка, но хук подарков
+/// (`pb_hooks/gifts.pb.js`) кладёт в `createdAt` миллисекунды числом, а
+/// `DateTime.tryParse` принимает только строку и бросает на числе. Разбор
+/// одной такой записи ронял `.toList()` по ВСЕЙ ленте: у семи пар салют
+/// обнулял экран воспоминаний, хотя записи лежали на месте (3 августа).
+DateTime? memoryDate(dynamic raw) {
+  if (raw is num) return DateTime.fromMillisecondsSinceEpoch(raw.toInt());
+  if (raw is String) return DateTime.tryParse(raw);
+  return null;
+}
+
 String? normalizeMemoryCaption(String? caption) {
   if (caption == null || caption.isEmpty) return caption;
   return _kLegacyWidgetCaptions.contains(caption.trim())
@@ -269,10 +280,8 @@ class Memory {
         (e) => e.name == json['type'],
         orElse: () => MemoryType.text,
       ),
-      createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
-      editedAt: json['editedAt'] != null
-          ? DateTime.tryParse(json['editedAt'])
-          : null,
+      createdAt: memoryDate(json['createdAt']) ?? DateTime.now(),
+      editedAt: memoryDate(json['editedAt']),
       imageUrl: json['imageUrl'],
       imageUrls: json['imageUrls'] != null
           ? List<String>.from(json['imageUrls'])
@@ -305,7 +314,7 @@ class Memory {
       isAdult: json['isAdult'] ?? false,
       isSecret: json['isSecret'] ?? false,
       sealed: json['sealed'] ?? false,
-      openAt: json['openAt'] != null ? DateTime.tryParse(json['openAt']) : null,
+      openAt: memoryDate(json['openAt']),
       savedBy: json['savedBy'] != null
           ? List<String>.from(json['savedBy'])
           : null,

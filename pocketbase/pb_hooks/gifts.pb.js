@@ -292,17 +292,25 @@ routerAdd("POST", "/api/gifts/react", (e) => {
       }
 
       // Салют остаётся записью в общей ленте — событие, а не вспышка.
+      // Дата обязана быть ISO-СТРОКОЙ и лежать ещё и в колонке `created_at`:
+      // приложение читает `data.createdAt` через `DateTime.tryParse`, а тот
+      // принимает только строку и падает на миллисекундах. Одна такая запись
+      // роняла разбор всей ленты — семь пар видели «Пока нет воспоминаний»
+      // при целой базе (разбор 3 августа).
       if (gift.getString("gift_key") === "salute") {
         try {
           const memCol = txApp.findCollectionByNameOrId("memories");
           const mem = new Record(memCol);
+          const nowIso = new Date(now).toISOString();
           mem.set("group_id", gift.getString("group_id"));
           mem.set("author_uid", gift.getString("sender_uid"));
+          mem.set("type", "gift");
+          mem.set("created_at", nowIso);
           mem.set("data", JSON.stringify({
             type: "gift",
             giftKey: "salute",
             title: "Салют",
-            createdAt: now,
+            createdAt: nowIso,
           }));
           txApp.save(mem);
         } catch (_) {}
