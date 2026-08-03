@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/profile_theme.dart';
 import '../../widgets/common/plus_badge.dart';
@@ -28,6 +29,10 @@ class ProfileHero extends StatelessWidget {
   final VoidCallback? onPickBanner;
   final VoidCallback? onTapAvatar;
 
+  /// Вход в настройки прямо из шапки. Задан только у своего профиля: у
+  /// партнёрского настраивать нечего.
+  final VoidCallback? onSettings;
+
   const ProfileHero({
     super.key,
     required this.cs,
@@ -42,6 +47,7 @@ class ProfileHero extends StatelessWidget {
     this.onEdit,
     this.onPickBanner,
     this.onTapAvatar,
+    this.onSettings,
   });
 
   @override
@@ -58,6 +64,37 @@ class ProfileHero extends StatelessWidget {
               background: cs.primaryContainer,
               onPick: onPickBanner,
             ),
+            // Шестерёнка стоит слева от кнопки баннера. Тёмная подложка тут не
+            // для красоты: под ней бывает светлая фотография, и белый значок
+            // без неё пропадает.
+            if (onSettings != null)
+              Positioned(
+                top: 4,
+                right: onPickBanner != null ? 48 : 4,
+                child: Semantics(
+                  button: true,
+                  label: LocaleService.current.settingsOpen,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: onSettings,
+                    child: SizedBox(
+                      width: 50,
+                      height: 50,
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.black.withValues(alpha: 0.30),
+                          ),
+                          child: const Icon(Icons.settings_rounded,
+                              size: 18, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             Positioned(
               left: 20,
               bottom: -40,

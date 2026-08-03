@@ -255,6 +255,9 @@ abstract class AppStrings {
   String get memoryNotSaved;
   String get achievementUnlocked;
   String get achievementsTitle;
+
+  /// Короткая подпись плитки в профиле — «Достижения пары» там не помещается.
+  String get achievementsShort;
   String get achMetricDays;
   String get achMetricMemories;
   String get achMetricMessages;
@@ -2269,6 +2272,8 @@ class _RuStrings extends AppStrings {
   String achProgressOf(int value, int target) => '$value из $target';
   @override
   String get achievementsTitle => 'Достижения пары';
+  @override
+  String get achievementsShort => 'Достижения';
   @override
   String get achievementDone => 'Получено';
   @override
@@ -6050,6 +6055,8 @@ class _EnStrings extends AppStrings {
   String achProgressOf(int value, int target) => '$value of $target';
   @override
   String get achievementsTitle => 'Couple achievements';
+  @override
+  String get achievementsShort => 'Achievements';
   @override
   String get achievementDone => 'Unlocked';
   @override

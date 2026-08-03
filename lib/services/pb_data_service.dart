@@ -2734,6 +2734,25 @@ class PbDataService {
     }
   }
 
+  /// Сколько подарков получил [uid] за всё время — для плитки в профиле.
+  ///
+  /// Берём `totalItems` при `perPage: 1`: сами записи тут не нужны, а полка у
+  /// давней пары тянет сотни строк на каждый заход в профиль.
+  Future<int> countGiftsFor({required String uid}) async {
+    if (uid.isEmpty) return 0;
+    try {
+      final res = await _pb.collection('gifts').getList(
+            page: 1,
+            perPage: 1,
+            filter: 'recipient_uid = "$uid"',
+          );
+      return res.totalItems;
+    } catch (e) {
+      debugPrint('PbData.countGiftsFor failed: $e');
+      return 0;
+    }
+  }
+
   /// Подарки, которые ждут действия получателя [uid] — свежие сверху.
   Future<List<Map<String, dynamic>>> fetchIncomingGifts({
     required String groupId,

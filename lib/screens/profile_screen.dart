@@ -47,6 +47,7 @@ import '../widgets/common/coin_reward_toast.dart';
 import '../widgets/common/m3_loading.dart';
 import 'welcome_screen.dart';
 import 'achievements_screen.dart';
+import 'memory_lane_screen.dart';
 import 'gifts/gift_profile_body.dart';
 import 'gifts/gift_shop_screen.dart';
 import 'gifts/partner_profile_screen.dart';
@@ -210,6 +211,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   int? _memoriesCount;
   int? _missYouCount;
   int? _drawingsCount;
+
+  /// Сколько подарков лежит на полке — цифра для плитки «Что вам дарили».
+  int? _giftsCount;
   StreamSubscription? _missYouSub;
   String? _lastLoadedGroupId;
 
@@ -337,6 +341,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     }
     currentGroupId ??= widget.pairData.pairId;
+
+    // Полка подарков считается по ВСЕМ связям и до проверки группы: подарок из
+    // прошлой пары никуда не девается, а у одиночки группы нет вовсе.
+    final giftUid = PocketBaseService().userId ?? '';
+    if (giftUid.isNotEmpty && _giftsCount == null) {
+      PbDataService().countGiftsFor(uid: giftUid).then((n) {
+        if (!mounted) return;
+        setState(() => _giftsCount = n);
+      });
+    }
 
     if (currentGroupId.isEmpty) return;
     if (_lastLoadedGroupId == currentGroupId) return;
@@ -646,9 +660,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       // экран настроек: здесь оно тонуло в девяти
                       // сворачивающихся блоках со своими стилями.
                       _buildFriendsGroup(context),
-                      _m3Group('stats', _s.relationshipStats,
-                          Icons.insights_rounded,
-                          child: _m3Stats(context)),
+                      // Коины, достижения, полка подарков и лента — четыре
+                      // повода зайти в профиль. Держим их первым экраном, а
+                      // тяжёлые блоки ниже сворачиваются.
+                      const SizedBox(height: 6),
+                      _quickTiles(context),
                       _m3Group('missweek', _s.selfMissTitle,
                           Icons.calendar_view_week_rounded,
                           child: _m3Card([
@@ -656,10 +672,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 padding: const EdgeInsets.all(16),
                                 child: _missYouWeek())
                           ])),
-                      if (paired) ...[
-                        const SizedBox(height: 8),
-                        _buildPairGroup(context),
-                      ],
+                      if (paired) _buildPairGroup(context),
+                      _m3Group('stats', _s.relationshipStats,
+                          Icons.insights_rounded,
+                          child: _m3Stats(context)),
                       // Донатов на iOS нет: ссылки на Boosty, DonationAlerts
                       // и lava.top — оплата цифрового мимо биллинга Apple,
                       // ровно то, за что прилетел реджект 3.1.1 по 1.21.0
@@ -688,6 +704,262 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  /// Четыре квадратные плитки под друзьями: цифра видна сразу, тап ведёт
+  /// внутрь, стрелка в углу говорит, что плитка открывается.
+  ///
+  /// Раньше эти четыре вещи лежали на разной глубине: коины — в настройках,
+  /// достижения — карточкой в «Отношениях», полка подарков — строкой под ней,
+  /// лента — только с главной. Заходят за ними чаще всего.
+  Widget _quickTiles(BuildContext context) {
+    return Column(
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _quickTile(
+                icon: Icons.monetization_on_rounded,
+                value: '${widget.userData.coins}',
+                label: _s.coinBalance,
+                accent: true,
+                onTap: () => _showCoinShop(context),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(child: _achievementsTile(context)),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _quickTile(
+                icon: Icons.card_giftcard_rounded,
+                value: _giftsCount == null ? '—' : '$_giftsCount',
+                label: _s.selfGiftsTitle,
+                onTap: () => _openSelfProfile(context),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _quickTile(
+                icon: Icons.photo_library_rounded,
+                value: _memoriesCount == null ? '—' : '$_memoriesCount',
+                label: _s.memoriesStat,
+                onTap: () => _openMemoryLane(context),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        _appearanceTile(context),
+      ],
+    );
+  }
+
+  /// Квадрат: значок сверху, число внизу, стрелка в углу. [extra] дорисовывает
+  /// полосу прогресса под подписью (нужна только достижениям).
+  Widget _quickTile({
+    required IconData icon,
+    required String value,
+    required String label,
+    required VoidCallback onTap,
+    bool accent = false,
+    Widget? extra,
+  }) {
+    final cs = _cs;
+    return AspectRatio(
+      aspectRatio: 1,
+      child: Material(
+        color: cs.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(26),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            onTap();
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Stack(
+              children: [
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: Icon(Icons.chevron_right_rounded,
+                      size: 18, color: cs.onSurfaceVariant.withValues(alpha: .7)),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: accent ? cs.primaryContainer : cs.secondaryContainer,
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                      alignment: Alignment.center,
+                      child: Icon(icon,
+                          size: 20,
+                          color: accent
+                              ? cs.onPrimaryContainer
+                              : cs.onSecondaryContainer),
+                    ),
+                    const Spacer(),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        value,
+                        maxLines: 1,
+                        style: TextStyle(
+                          fontFamily: ProfileTheme.displayFont,
+                          fontSize: 24,
+                          height: 1,
+                          fontWeight: FontWeight.w700,
+                          color: cs.onSurface,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                    ),
+                    if (extra != null) ...[
+                      const SizedBox(height: 8),
+                      extra,
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Плитка достижений: «7 / 20» и полоса прогресса по снимку [AchievementService].
+  ///
+  /// Подарок «Отдых» даёт сутки без счётчиков, поэтому в такой день плитка
+  /// остаётся на месте, но цифры и полосу не показывает: тихий день не должен
+  /// сводиться к тому, что прогресс переехал в другое место экрана.
+  Widget _achievementsTile(BuildContext context) {
+    final cs = _cs;
+    return ValueListenableBuilder<AchievementStats>(
+      valueListenable: AchievementService.instance.stats,
+      builder: (_, stats, __) {
+        final total = PairAchievement.all.length;
+        final unlocked =
+            PairAchievement.all.where((a) => a.isUnlockedBy(stats)).length;
+        final quiet = _spaOn;
+        return _quickTile(
+          icon: Icons.emoji_events_rounded,
+          value: quiet ? '—' : '$unlocked / $total',
+          label: _s.achievementsShort,
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => AchievementsScreen(theme: _t),
+              settings: const RouteSettings(name: '/achievements'),
+            ),
+          ),
+          extra: quiet
+              ? null
+              : ClipRRect(
+                  borderRadius: BorderRadius.circular(99),
+                  child: LinearProgressIndicator(
+                    value: total == 0 ? 0 : unlocked / total,
+                    minHeight: 5,
+                    backgroundColor: cs.outlineVariant,
+                  ),
+                ),
+        );
+      },
+    );
+  }
+
+  /// Широкая строка под плитками: какая тема стоит сейчас, тап ведёт в
+  /// «Оформление» — тот же экран, что из настроек.
+  Widget _appearanceTile(BuildContext context) {
+    final cs = _cs;
+    final palette = paletteByIndex(widget.userData.themeId);
+    final ru = LocaleService.instance.isRussian;
+    final mode = _t.brightness == Brightness.dark
+        ? (ru ? 'тёмная' : 'dark')
+        : (ru ? 'светлая' : 'light');
+    return Material(
+      color: cs.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(26),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => _openAppearance(context),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: cs.primaryContainer,
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                alignment: Alignment.center,
+                child: Icon(Icons.palette_rounded,
+                    size: 20, color: cs.onPrimaryContainer),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(_s.appearanceTitle,
+                        style:
+                            TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+                    Text(
+                      '${palette.name} · $mode',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                          color: cs.onSurface),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded,
+                  color: cs.onSurfaceVariant, size: 22),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Лента воспоминаний из плитки. Навбар внутри ленты возвращает на главную,
+  /// поэтому вкладку профиля закрываем сами.
+  void _openMemoryLane(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MemoryLaneScreen(
+          pairData: widget.pairData,
+          theme: _t,
+          userData: widget.userData,
+        ),
+        settings: const RouteSettings(name: '/memory_lane'),
       ),
     );
   }
@@ -881,6 +1153,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       onEdit: () => _editProfile(context),
       onPickBanner: () => _pickBanner(context),
       onTapAvatar: () => _editProfile(context),
+      onSettings: () => _openSettings(context),
     );
   }
 
@@ -1596,120 +1869,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
       (PocketBaseService().currentUser?.data['spa_until'] as num?)?.toInt(),
       DateTime.now());
 
+  /// «Отношения» — такой же сворачиваемый блок, как соседние: значок слева,
+  /// заголовок акцентом, шеврон справа. Раньше это была секция без сворачивания
+  /// с четырьмя карточками подряд, и она распирала экран у всех.
+  ///
+  /// Достижения и полка подарков отсюда ушли в плитки под друзьями: за ними
+  /// заходят чаще, чем правят годовщину. Магазин подарков остался здесь —
+  /// покупка живёт рядом с датами пары, а не с цифрами.
   Widget _buildPairGroup(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SettingsSection(_s.relationships),
-        _buildRelationshipCard(context),
-        // Достижения и магазин подарков переехали сюда с главной: открывают их
-        // изредка, а место между картой и лентой они занимали каждый день.
-        // Подарок «Отдых» прячет достижения на сутки — раньше он гасил их на
-        // главной, теперь гасит здесь, иначе тихий день перестал бы быть тихим.
-        if (!_spaOn) ...[
-          const SizedBox(height: 10),
-          _achievementsEntry(context),
+    return _m3Group(
+      'pair',
+      _s.relationships,
+      Icons.favorite_rounded,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildRelationshipCard(context),
+          if (widget.giftsEnabled) ...[
+            const SizedBox(height: 10),
+            _giftShopEntry(context),
+          ],
         ],
-        if (widget.giftsEnabled) ...[
-          const SizedBox(height: 10),
-          _giftShopEntry(context),
-          const SizedBox(height: 10),
-          SettingsGroup([
-            SettingsRow(
-              icon: Icons.card_giftcard_rounded,
-              title: _s.selfGiftsTitle,
-              trailing: const SettingsChevron(),
-              onTap: () => _openSelfProfile(context),
-            ),
-          ]),
-        ],
-      ],
-    );
-  }
-
-  /// Вход в достижения пары. Счётчик и полоса считаются по снимку
-  /// [AchievementService.stats] — он и так живёт в памяти и обновляется
-  /// realtime, поэтому показать прогресс дешевле, чем прятать его.
-  Widget _achievementsEntry(BuildContext context) {
-    final cs = _cs;
-    return ValueListenableBuilder<AchievementStats>(
-      valueListenable: AchievementService.instance.stats,
-      builder: (_, stats, __) {
-        final total = PairAchievement.all.length;
-        final unlocked =
-            PairAchievement.all.where((a) => a.isUnlockedBy(stats)).length;
-        return Material(
-          color: cs.surfaceContainerHigh,
-          borderRadius: BorderRadius.circular(24),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => AchievementsScreen(theme: _t),
-                settings: const RouteSettings(name: '/achievements'),
-              ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: cs.tertiaryContainer,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        alignment: Alignment.center,
-                        child: Icon(Icons.emoji_events_rounded,
-                            size: 24, color: cs.onTertiaryContainer),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              _s.achievementsTitle,
-                              style: TextStyle(
-                                fontFamily: ProfileTheme.displayFont,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                color: cs.onSurface,
-                              ),
-                            ),
-                            Text(
-                              _s.achievementsUnlockedOf(unlocked, total),
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                color: cs.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Icon(Icons.chevron_right_rounded,
-                          color: cs.onSurfaceVariant, size: 22),
-                    ],
-                  ),
-                  const SizedBox(height: 11),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(99),
-                    child: LinearProgressIndicator(
-                      value: total == 0 ? 0 : unlocked / total,
-                      minHeight: 8,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
+      ),
     );
   }
 
