@@ -94,6 +94,9 @@ def create_version(token: str, package: str, whatsnew: str) -> int:
         json={"whatsNew": whatsnew, "publishType": "INSTANTLY"},
         timeout=30,
     )
+    if resp.status_code >= 400:
+        print(f"RuStore отказал на создании версии: {resp.status_code} {resp.text[:600]}",
+              file=sys.stderr)
     resp.raise_for_status()
     version_id = resp.json().get("body")
     print(f"Создан черновик версии: {version_id}")
@@ -109,6 +112,10 @@ def upload_build(token: str, package: str, version_id: int, path: str):
             files={"file": (os.path.basename(path), f, "application/octet-stream")},
             timeout=600,
         )
+    if resp.status_code >= 400:
+        # Без тела ответа отказ RuStore выглядит как голое «400 Bad Request», и
+        # причина (размер, подпись, занятый versionCode) остаётся неизвестной.
+        print(f"RuStore отказал: {resp.status_code} {resp.text[:600]}", file=sys.stderr)
     resp.raise_for_status()
     print(f"Сборка загружена ({ext}).")
 
@@ -119,6 +126,9 @@ def commit_version(token: str, package: str, version_id: int):
         headers=_headers(token),
         timeout=60,
     )
+    if resp.status_code >= 400:
+        print(f"RuStore отказал на публикации: {resp.status_code} {resp.text[:600]}",
+              file=sys.stderr)
     resp.raise_for_status()
     print("Версия отправлена на публикацию.")
 
