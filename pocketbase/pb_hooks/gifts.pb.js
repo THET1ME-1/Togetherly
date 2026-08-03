@@ -41,8 +41,10 @@ routerAdd("POST", "/api/gifts/send", (e) => {
   const giftId = (body.giftId || "").trim();
   const groupId = (body.groupId || "").trim();
   const giftKey = (body.giftKey || "").trim();
-  // Записка внутри коробки, предсказание в печенье, текст письма.
-  const note = String(body.note || "").slice(0, 500);
+  // Записка внутри коробки, предсказание в печенье, текст письма. Прежние
+  // 500 символов резали письмо молча — человек отправлял целое, а партнёр
+  // получал обрывок. Потолок оставлен только против мусора в поле.
+  const note = String(body.note || "").slice(0, 20000);
   const price = PRICES[giftKey];
 
   if (!giftId || !groupId || !price) {
@@ -217,8 +219,9 @@ routerAdd("POST", "/api/gifts/react", (e) => {
   const body = new DynamicModel({ giftId: "", reply: "" });
   e.bindBody(body);
   const giftId = (body.giftId || "").trim();
-  // Желание на звезду: текст получателя, который вернётся дарителю.
-  const reply = String(body.reply || "").slice(0, 500);
+  // Желание на звезду: текст получателя, который вернётся дарителю. Потолок
+  // тот же, что у записки, и по той же причине.
+  const reply = String(body.reply || "").slice(0, 20000);
   if (!giftId) return e.json(400, { ok: false, error: "gift_not_found" });
 
   let out = { s: 500, b: { ok: false, error: "internal" } };

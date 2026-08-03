@@ -230,9 +230,9 @@ class _GiftReceiveSheetState extends State<GiftReceiveSheet>
               const SizedBox(height: 12),
               TextField(
                 controller: _replyCtrl,
-                maxLength: 200,
+                keyboardType: TextInputType.multiline,
                 minLines: 1,
-                maxLines: 3,
+                maxLines: 6,
                 style: TextStyle(color: cs.onSurface),
                 decoration: InputDecoration(
                   hintText: s.giftWishHint,

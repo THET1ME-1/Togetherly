@@ -201,9 +201,12 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
                 const SizedBox(height: 16),
                 TextField(
                   controller: ctrl,
-                  maxLength: 500,
-                  maxLines: 4,
-                  minLines: 2,
+                  // Длину письма не ограничиваем: счётчик на 500 символов
+                  // обрывал текст на полуслове, а хранится записка целиком.
+                  // Поле растёт до десяти строк, дальше прокручивается внутри.
+                  keyboardType: TextInputType.multiline,
+                  maxLines: 10,
+                  minLines: 3,
                   autofocus: true,
                   style: TextStyle(color: cs.onSurface, fontFamily: 'Onest'),
                   decoration: InputDecoration(

@@ -1652,13 +1652,13 @@
           "name": "note",
           "type": "text",
           "required": false,
-          "max": 500
+          "max": 20000
         },
         {
           "name": "reply",
           "type": "text",
           "required": false,
-          "max": 500
+          "max": 20000
         },
         {
           "name": "place",
