@@ -3680,7 +3680,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // Вторая попытка инициализации: init() из initState мог не успеть или
     // упасть (медленная сеть, sandbox-аккаунт, StoreKit ещё не поднялся).
     // Лист подписан на _iap, поэтому цены подтянутся прямо в открытом листе.
-    if (!_iap.isAvailable || _iap.priceLabel(kCoinPacks.first.productId) == null) {
+    // Список паков пуст в сборках без товаров (IPA, sideload) — обращение к
+    // first там уронило бы лист монет целиком.
+    if (kCoinPacks.isNotEmpty &&
+        (!_iap.isAvailable || _iap.priceLabel(kCoinPacks.first.productId) == null)) {
       unawaited(_initIap());
     }
     // Паков нет на iOS: продукты там не заведены, а вести на оплату мимо

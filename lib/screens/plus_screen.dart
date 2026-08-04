@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -47,6 +49,11 @@ class _PlusScreenState extends State<PlusScreen> {
   }
 
   Future<void> _initStore() async {
+    // На iPhone покупок нет ни в каком виде: продуктов в App Store Connect не
+    // заведено, а вести на внешнюю оплату запрещает 3.1.1. Экран сюда попасть
+    // не должен (вход закрыт `PlusAccess.gate`), но магазин не поднимаем и
+    // здесь — чтобы новый вход не притащил инициализацию покупок обратно.
+    if (Platform.isIOS) return;
     // Общий магазин на всё приложение: свой экземпляр отписывался бы от потока
     // покупок в `dispose`, и оплата, случившаяся при закрытом экране, до
     // сервера не доезжала (инцидент 30 июля).
@@ -375,6 +382,11 @@ class _PlusScreenState extends State<PlusScreen> {
   }
 
   Future<void> _openPurchase() async {
+    // На iPhone Togetherly+ не продаётся никак: продукта в App Store Connect
+    // нет, а внешняя оплата — это 3.1.1, за которое версию уже отклоняли.
+    // Доступ там открывается только флагом на аккаунте: купили на Android или
+    // на сайте — Плюс работает и на iPhone.
+    if (Platform.isIOS) return;
     if (PlusService.buysInStore) {
       await _buyInStore();
       return;

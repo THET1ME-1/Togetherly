@@ -19,18 +19,28 @@ class CoinPack {
 }
 
 /// Все доступные паки монет. Порядок = порядок отображения в UI.
-const List<CoinPack> kCoinPacks = [
-  CoinPack(productId: 'coins_10', coins: 10),
-  CoinPack(productId: 'coins_50', coins: 50),
-  CoinPack(productId: 'coins_120', coins: 120),
-  CoinPack(productId: 'coins_300', coins: 300),
-];
+///
+/// Список пуст в сборках, где товаров монет нет в магазине (`STORE=github`, а
+/// с ним собирается и IPA). Причина не в UI: витрина и так была скрыта, но
+/// идентификаторы `coins_10/50/120/300` лежали КОНСТАНТАМИ в бинарнике, и
+/// App Review находил их сканированием, а в App Store Connect эти продукты
+/// черновики — отсюда отказы 2.1(b) «products could not be found in the
+/// submitted binary». Ветка константная, поэтому в снапшот AOT попадает
+/// только выбранная половина, и в IPA строк товаров нет вовсе.
+const List<CoinPack> kCoinPacks = _storeHasProducts
+    ? <CoinPack>[
+        CoinPack(productId: 'coins_10', coins: 10),
+        CoinPack(productId: 'coins_50', coins: 50),
+        CoinPack(productId: 'coins_120', coins: 120),
+        CoinPack(productId: 'coins_300', coins: 300),
+      ]
+    : <CoinPack>[];
 
 /// Товар Togetherly+ в магазинах приложений (Google Play — способ покупки
 /// `lifetime`, заведён 26 июля 2026). В отличие от монет это НЕрасходуемая
 /// покупка: купить второй раз нельзя, а восстанавливать доступ не нужно — флаг
 /// живёт на аккаунте в PocketBase и переезжает вместе с ним.
-const String kPlusProductId = 'togetherly_plus';
+const String kPlusProductId = _storeHasProducts ? 'togetherly_plus' : '';
 
 /// Продаётся ли платный элемент каталога через биллинг магазина, а не через
 /// сайт. В сборке для Google Play платить мимо Google нельзя — за это снимают
@@ -126,6 +136,12 @@ abstract class CoinStore extends ChangeNotifier {
 ///   flutter build apk --dart-define=STORE=rustore
 /// По умолчанию (Google Play / App Store) — `play`.
 const String kStore = String.fromEnvironment('STORE', defaultValue: 'play');
+
+/// Заведены ли товары этой сборки в магазине. Только Google Play и RuStore:
+/// в App Store продуктов нет (ни монет, ни Togetherly+), в sideload платит
+/// lava.top. От этого флага зависит, попадут ли идентификаторы товаров в
+/// бинарник вообще.
+const bool _storeHasProducts = kStore == 'play' || kStore == 'rustore';
 
 /// Можно ли ПОКУПАТЬ монеты в этой сборке. В гитхаб-версии (sideload,
 /// `--dart-define=STORE=github`) покупок нет: платёжный провайдер (Lava Top)

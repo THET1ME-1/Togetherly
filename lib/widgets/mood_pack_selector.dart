@@ -205,6 +205,10 @@ Future<void> buyMoodPack(
   // сервер на почту аккаунта — по витринной ссылке уведомление об оплате не
   // приходит вовсе, и набор пришлось бы выдавать руками.
   if (pack.unlock.isMoney) {
+    // Платный набор на iPhone не показывается вовсе (`moodPackVisible`), но и
+    // покупку отсюда не начинаем: биллинга Apple для него нет, а внешняя
+    // оплата — 3.1.1.
+    if (Platform.isIOS) return;
     final featureKey = Unlock.featureKey(kMoodPackFeatureKind, pack.id);
 
     if (kCatalogBuysInStore) {
