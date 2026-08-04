@@ -14,6 +14,8 @@ import 'package:flutter/material.dart';
 import '../theme/fonts.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:image_picker/image_picker.dart';
+import '../services/pb_media_service.dart';
+import '../services/widget_anim_service.dart';
 import '../services/plus_service.dart';
 import '../services/ui_prefs.dart';
 import '../services/widget_theme_sync.dart';
@@ -7165,13 +7167,91 @@ class _WidgetScreenState extends State<WidgetScreen>
     );
   }
 
+  /// Живое фото: короткое видео из галереи вместо снимка.
+  ///
+  /// Кадры из него делает сервер — телефон партнёра не должен разбирать видео
+  /// (`MediaMetadataRetriever` тратит 100–200 мс на кадр, и на слабом аппарате
+  /// пульс рвётся). Здесь только: взять файл, залить, дождаться раскадровки,
+  /// сохранить её для нативной стороны.
+  void _liveSnack(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  Future<void> _pickLiveVideo() async {
+    final ru = LocaleService.instance.isRussian;
+    final picker = ImagePicker();
+    final picked = await safePick(
+      () => picker.pickVideo(
+        source: ImageSource.gallery,
+        // Дальше полутора секунд сервер всё равно не берёт: в раскадровке
+        // восемнадцать кадров. Ограничение здесь экономит аплоад.
+        maxDuration: const Duration(seconds: 6),
+      ),
+    );
+    if (picked == null || !mounted) return;
+
+    final file = File(picked.path);
+    final size = await file.length();
+    if (size > WidgetAnimService.maxSourceBytes) {
+      if (!mounted) return;
+      _liveSnack(ru
+          ? 'Видео слишком большое — выберите короче'
+          : 'This video is too large — pick a shorter one');
+      return;
+    }
+
+    _showPhotoLoader();
+    try {
+      final uid = PocketBaseService().userId ?? '';
+      final ref = await PbMediaService().uploadFile(
+        picked.path,
+        uid: uid,
+        groupId: _pair.pairId,
+        kind: 'widget_anim',
+      );
+      // Ссылка приходит как pb://media/<id>/<file> — нам нужен только id записи.
+      final mediaId = (ref ?? '').split('/').length > 3 ? ref!.split('/')[3] : '';
+      if (mediaId.isEmpty) throw Exception('upload failed');
+
+      final ready = await WidgetAnimService.instance.fetch(mediaId);
+      if (ready == null) throw Exception('prepare failed');
+
+      await HomeWidget.saveWidgetData<String>(
+        WidgetAnimService.keyPath,
+        ready.path,
+      );
+      await HomeWidget.saveWidgetData<String>(
+        WidgetAnimService.keyManifest,
+        ready.manifest,
+      );
+      await HomeWidget.updateWidget(name: 'LoveWidgetProvider');
+      if (mounted) {
+        Navigator.of(context).pop();
+        _liveSnack(ru ? 'Живое фото в виджете' : 'Live photo is in the widget');
+      }
+    } catch (e) {
+      debugPrint('_pickLiveVideo failed: $e');
+      if (mounted) {
+        Navigator.of(context).pop();
+        _liveSnack(
+            ru ? 'Не получилось — попробуйте ещё раз' : 'Failed — please try again');
+      }
+    }
+  }
+
   Future<void> _pickPhoto() async {
-    final source = await showModalBottomSheet<ImageSource>(
+    final choice = await showModalBottomSheet<Object>(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (ctx) => _PhotoSourceSheet(theme: _t),
     );
-    if (source == null || !mounted) return;
+    if (choice == null || !mounted) return;
+    if (choice == _kPickLiveVideo) {
+      await _pickLiveVideo();
+      return;
+    }
+    final source = choice as ImageSource;
 
     final picker = ImagePicker();
     final file = await safePick(
@@ -7596,6 +7676,9 @@ class _TextEditorSheetState extends State<_TextEditorSheet> {
 // PHOTO SOURCE SHEET
 // ══════════════════════════════════════════════════════════════════════════════
 
+/// Маркер листа выбора: человек нажал «Живое фото», а не выбрал источник снимка.
+const String _kPickLiveVideo = 'live-video';
+
 class _PhotoSourceSheet extends StatelessWidget {
   final AppTheme theme;
 
@@ -7647,7 +7730,39 @@ class _PhotoSourceSheet extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          // Живое фото: короткое видео вместо снимка. Кадры из него делает
+          // сервер, здесь человек просто выбирает файл в галерее.
+          _liveButton(context),
         ],
+      ),
+    );
+  }
+
+  /// «Живое фото» отдаёт не источник, а признак: дальше вызывающий сам берёт
+  /// видео из галереи (`pickVideo`) и отправляет его на подготовку кадров.
+  Widget _liveButton(BuildContext context) {
+    final ru = LocaleService.instance.isRussian;
+    return GestureDetector(
+      onTap: () => Navigator.pop(context, _kPickLiveVideo),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        decoration: BoxDecoration(
+          color: theme.primary.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: theme.primary.withOpacity(0.15)),
+        ),
+        child: Column(
+          children: [
+            Icon(Icons.motion_photos_on_rounded, size: 30, color: theme.primary),
+            const SizedBox(height: 6),
+            Text(
+              ru ? 'Живое фото — короткое видео' : 'Live photo — a short video',
+              style: AppFonts.onest(size: 13, weight: 600, color: theme.primary),
+            ),
+          ],
+        ),
       ),
     );
   }

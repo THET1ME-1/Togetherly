@@ -24,6 +24,45 @@ import es.antonborri.home_widget.HomeWidgetProvider
 
 class LoveWidgetProvider : HomeWidgetProvider() {
 
+    companion object {
+        const val ACTION_PLAY_ANIM = "com.togetherly.love.PLAY_PAIR_ANIM"
+    }
+
+    override fun onReceive(context: Context, intent: android.content.Intent) {
+        if (intent.action == ACTION_PLAY_ANIM) {
+            val widgetData = es.antonborri.home_widget.HomeWidgetPlugin.getData(context)
+            val path = widgetData.getString(WidgetAnimPlayer.KEY_PATH, null)
+            val manifest = widgetData.getString(WidgetAnimPlayer.KEY_MANIFEST, null)
+            if (!WidgetAnimPlayer.ready(path, manifest)) return
+            val manager = AppWidgetManager.getInstance(context)
+            val ids = manager.getAppWidgetIds(
+                android.content.ComponentName(context, LoveWidgetProvider::class.java)
+            )
+            if (ids.isEmpty()) return
+            // goAsync даёт приёмнику около десяти секунд живого времени — на
+            // четыре секунды показа хватает, и не нужен ни сервис, ни
+            // уведомление в шторке.
+            val finish = goAsync()
+            Thread {
+                try {
+                    WidgetAnimPlayer.play(
+                        context = context,
+                        widgetIds = ids,
+                        path = path!!,
+                        manifest = manifest!!,
+                        imageViewId = R.id.my_bg_photo,
+                    ) { buildViews(context, widgetData) }
+                } catch (e: Exception) {
+                    Log.e("LoveWidgetProvider", "anim failed", e)
+                } finally {
+                    finish.finish()
+                }
+            }.start()
+            return
+        }
+        super.onReceive(context, intent)
+    }
+
     override fun onUpdate(
         context: Context,
         appWidgetManager: AppWidgetManager,
@@ -44,13 +83,33 @@ class LoveWidgetProvider : HomeWidgetProvider() {
     private fun buildViews(context: Context, widgetData: SharedPreferences): RemoteViews {
         return RemoteViews(context.packageName, R.layout.love_widget).apply {
 
-            // Тап по парному виджету → открыть приложение сразу на его настройках
-            // (вкладка «Виджеты» + раскрытая карточка «Парный виджет»).
-            val pendingIntent = HomeWidgetLaunchIntent.getActivity(
-                context,
-                MainActivity::class.java,
-                Uri.parse("loveapp://widgets/pair")
-            )
+            // Живое фото (короткое видео или гифка) приезжает раскадровкой:
+            // один webp с кадрами плюс манифест. Готовит его сервер, здесь мы
+            // только показываем — см. WidgetAnimPlayer.
+            val animPath = widgetData.getString(WidgetAnimPlayer.KEY_PATH, null)
+            val animManifest = widgetData.getString(WidgetAnimPlayer.KEY_MANIFEST, null)
+            val animReady = WidgetAnimPlayer.ready(animPath, animManifest)
+
+            // Тап: у живого фото он проигрывает кадры, у обычного открывает
+            // настройки виджета в приложении (вкладка «Виджеты», карточка
+            // «Парный виджет»). Двух целей на одном виджете не делаем: лончер
+            // отдаёт нажатие всему виджету целиком, и вторая цель не сработает.
+            val pendingIntent = if (animReady) {
+                android.app.PendingIntent.getBroadcast(
+                    context,
+                    1,
+                    android.content.Intent(context, LoveWidgetProvider::class.java)
+                        .setAction(ACTION_PLAY_ANIM),
+                    android.app.PendingIntent.FLAG_UPDATE_CURRENT or
+                        android.app.PendingIntent.FLAG_IMMUTABLE,
+                )
+            } else {
+                HomeWidgetLaunchIntent.getActivity(
+                    context,
+                    MainActivity::class.java,
+                    Uri.parse("loveapp://widgets/pair")
+                )
+            }
             setOnClickPendingIntent(R.id.widget_root, pendingIntent)
 
             // ═══════════ Моя сторона ═══════════
@@ -93,7 +152,14 @@ class LoveWidgetProvider : HomeWidgetProvider() {
             // ── Фото как фон + лёгкое затемнение ──
             val myPhotoPath = widgetData.getString("my_photo_path", null)
                 .takeIf { !it.isNullOrEmpty() }
-            val myBgBitmap = loadScaledBitmap(myPhotoPath, 220)
+            // У живого фото фоном стоит первый кадр: в покое виджет выглядит
+            // как обычная фотография, движение начинается по нажатию.
+            val myBgBitmap = if (animReady) {
+                WidgetAnimPlayer.firstFrame(animPath!!, animManifest!!)
+                    ?: loadScaledBitmap(myPhotoPath, 220)
+            } else {
+                loadScaledBitmap(myPhotoPath, 220)
+            }
             // Цвет подписи считаем по самой фотографии: на светлом кадре
             // белые буквы пропадали (жалоба от @Vidming). Способ тот же, что и
             // у текста в чате — контраст по WCAG.
