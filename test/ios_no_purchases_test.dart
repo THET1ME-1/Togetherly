@@ -98,6 +98,15 @@ void main() {
     );
   });
 
+  test('лист монет без витрины называется заданиями', () {
+    final src = File('lib/screens/profile_screen.dart').readAsStringSync();
+    expect(src.contains('packsVisible ? _s.coinShopTitle : _s.coinEarnTitle'), isTrue,
+        reason: 'без паков это не магазин, а список способов заработать');
+    expect(src.contains('packsVisible ? _s.coinShopSubtitle : _s.coinEarnSubtitle'), isTrue);
+    expect(src.contains('if (kCoinsPurchasable && !Platform.isIOS) ...['), isTrue,
+        reason: '«Восстановить покупки» показываем только там, где покупки есть');
+  });
+
   test('донаты и код пополнения на iPhone выключены явно', () {
     final profile = File('lib/screens/profile_screen.dart').readAsStringSync();
     expect(profile.contains('kDonationsEnabled && !Platform.isIOS'), isTrue,

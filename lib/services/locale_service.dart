@@ -460,6 +460,11 @@ abstract class AppStrings {
   String get coinBalance;
   String get coinShopTitle;
   String get coinShopSubtitle;
+
+  /// Тот же лист на iPhone. Покупок там нет вовсе, поэтому слово «магазин»
+  /// обещает то, чего внутри не будет: остаются только способы заработать.
+  String get coinEarnTitle;
+  String get coinEarnSubtitle;
   String get buyThemeTitle;
   String buyThemeDescription(String themeName, int price);
   String get buyThemeConfirm;
@@ -2678,6 +2683,12 @@ class _RuStrings extends AppStrings {
   String get coinShopTitle => 'Магазин Коинов';
   @override
   String get coinShopSubtitle => 'Кастомизация и приятности';
+
+  @override
+  String get coinEarnTitle => 'Задания за монеты';
+
+  @override
+  String get coinEarnSubtitle => 'Как пополнить баланс';
   @override
   String get buyThemeTitle => 'Купить тему?';
   @override
@@ -6458,6 +6469,12 @@ class _EnStrings extends AppStrings {
   String get coinShopTitle => 'Coin Shop';
   @override
   String get coinShopSubtitle => 'Customization & treats';
+
+  @override
+  String get coinEarnTitle => 'Coin tasks';
+
+  @override
+  String get coinEarnSubtitle => 'Ways to top up';
   @override
   String get buyThemeTitle => 'Buy this theme?';
   @override

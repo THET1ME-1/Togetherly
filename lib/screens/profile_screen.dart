@@ -3762,7 +3762,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            _s.coinShopTitle,
+            // На iPhone это не магазин: паков нет, покупка недоступна, и
+            // «Coin Shop» обещает витрину, которой там не будет.
+            packsVisible ? _s.coinShopTitle : _s.coinEarnTitle,
             style: TextStyle(
               fontSize: 12.5,
               fontWeight: FontWeight.w600,
@@ -3790,7 +3792,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            _s.coinShopSubtitle,
+            packsVisible ? _s.coinShopSubtitle : _s.coinEarnSubtitle,
             style: TextStyle(
               fontSize: 12.5,
               color: cs.onPrimaryContainer.withValues(alpha: 0.78),
@@ -4181,18 +4183,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
           },
         ),
       ],
-      const SizedBox(height: 10),
-      _coinEarnRow(
-        icon: Icons.restore_rounded,
-        title: _s.restorePurchasesTitle,
-        subtitle: _s.coinShopSubtitle,
-        trailing: Icon(Icons.chevron_right_rounded,
-            color: cs.onSurfaceVariant, size: 22),
-        onTap: () {
-          Navigator.pop(ctx);
-          _restorePurchases();
-        },
-      ),
+      // «Восстановить покупки» имеет смысл только там, где покупки есть. На
+      // iPhone их нет вовсе (продуктов в App Store Connect не заведено), в
+      // sideload — тоже, и строка обещала бы несуществующее.
+      if (kCoinsPurchasable && !Platform.isIOS) ...[
+        const SizedBox(height: 10),
+        _coinEarnRow(
+          icon: Icons.restore_rounded,
+          title: _s.restorePurchasesTitle,
+          subtitle: _s.coinEarnSubtitle,
+          trailing: Icon(Icons.chevron_right_rounded,
+              color: cs.onSurfaceVariant, size: 22),
+          onTap: () {
+            Navigator.pop(ctx);
+            _restorePurchases();
+          },
+        ),
+      ],
     ];
   }
 
