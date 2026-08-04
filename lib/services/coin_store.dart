@@ -137,17 +137,17 @@ abstract class CoinStore extends ChangeNotifier {
 /// По умолчанию (Google Play / App Store) — `play`.
 const String kStore = String.fromEnvironment('STORE', defaultValue: 'play');
 
-/// Заведены ли товары этой сборки в магазине. Только Google Play и RuStore:
-/// в App Store продуктов нет (ни монет, ни Togetherly+), в sideload платит
+/// Заведены ли товары этой сборки в магазине. Только Google Play: в App Store
+/// продуктов нет вовсе, у RuStore биллинг не работает, в sideload платит
 /// lava.top. От этого флага зависит, попадут ли идентификаторы товаров в
-/// бинарник вообще.
-const bool _storeHasProducts = kStore == 'play' || kStore == 'rustore';
+/// бинарник вообще — сканер ревью читает именно строки.
+const bool _storeHasProducts = kStore == 'play';
 
-/// Можно ли ПОКУПАТЬ монеты в этой сборке. В гитхаб-версии (sideload,
-/// `--dart-define=STORE=github`) покупок нет: платёжный провайдер (Lava Top)
-/// отклонил товары монет. Сами монеты остаются (ежедневный бонус, реклама,
-/// инвайт) — исчезает только витрина покупки.
-const bool kCoinsPurchasable = kStore != 'github';
+/// Можно ли ПОКУПАТЬ монеты в этой сборке. Только Google Play: в sideload
+/// платёжный провайдер (lava.top) отклонил товары монет, у RuStore не работает
+/// биллинг, в App Store продуктов нет. Сами монеты остаются везде (ежедневный
+/// вход, реклама, серия настроений, приглашение) — исчезает только витрина.
+const bool kCoinsPurchasable = kStore == 'play';
 
 /// Показывать ли донат→монеты (DonationAlerts с подсказкой указать email). Только
 /// в sideload/веб-сборках: GitHub-Android, RuStore, iOS-IPA (все собираются с
@@ -155,9 +155,10 @@ const bool kCoinsPurchasable = kStore != 'github';
 /// нельзя (продажа валюты за внешний платёж = нарушение биллинга/3.1.1).
 const bool kDonationsEnabled = kStore == 'github' || kStore == 'rustore';
 
-/// Создаёт реализацию магазина под текущую сборку. Google Play —
-/// [IapService], RuStore — [RuStoreIapService], гитхаб-версия и iOS — заглушка
-/// без покупок.
+/// Создаёт реализацию магазина под текущую сборку. Биллинг поднимается ровно в
+/// одной: Google Play — [IapService]. RuStore, гитхаб-версия и iOS получают
+/// заглушку без покупок. [RuStoreIapService] лежит рядом нетронутым — вернуть
+/// его в строй, когда у RuStore заработает биллинг, будет одной строкой.
 ///
 /// На iOS StoreKit не трогаем совсем. Витрина паков там скрыта (см.
 /// `profile_screen`), но [IapService.init] всё равно спрашивал у стора
@@ -168,10 +169,13 @@ const bool kDonationsEnabled = kStore == 'github' || kStore == 'rustore';
 /// ревью, потом снимаем эту ветку.
 CoinStore createCoinStore() {
   if (defaultTargetPlatform == TargetPlatform.iOS) return _DisabledCoinStore();
+  // RuStore тоже получает заглушку: их биллинг не работает, монеты там не
+  // продаются, а Togetherly+ покупается через lava.top. Поднимать
+  // `flutter_rustore_billing` ради пустого списка товаров незачем — реализация
+  // (`rustore_iap_service.dart`) остаётся на случай, когда биллинг заработает.
   return switch (kStore) {
-    'rustore' => RuStoreIapService(),
-    'github' => _DisabledCoinStore(),
-    _ => IapService(),
+    'play' => IapService(),
+    _ => _DisabledCoinStore(),
   };
 }
 

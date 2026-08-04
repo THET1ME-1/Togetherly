@@ -1,5 +1,8 @@
-// Сторож: в сборке для iPhone не должно быть ни покупок, ни оплаты, ни даже
-// идентификаторов товаров.
+// Сторож: товары магазина живут только в сборке Google Play.
+//
+// В App Store продуктов нет вовсе, у RuStore не работает биллинг, в sideload
+// платит lava.top. Значит ни витрины монет, ни идентификаторов товаров в этих
+// сборках быть не должно — Togetherly+ там покупается по ссылке на сайт.
 //
 // Отказы по 2.1(b) прилетали трижды подряд: витрина монет была скрыта, но
 // приложение всё равно спрашивало у StoreKit `coins_10/50/120/300`, а сами
@@ -61,8 +64,12 @@ void main() {
         reason: 'список паков обязан зависеть от _storeHasProducts');
     expect(src.contains("const String kPlusProductId = _storeHasProducts"), isTrue,
         reason: 'идентификатор Togetherly+ обязан зависеть от _storeHasProducts');
-    expect(src.contains("_storeHasProducts = kStore == 'play' || kStore == 'rustore'"), isTrue,
-        reason: 'товары есть только в Google Play и RuStore');
+    expect(src.contains("_storeHasProducts = kStore == 'play'"), isTrue,
+        reason: 'товары заведены только в Google Play');
+    expect(src.contains("kCoinsPurchasable = kStore == 'play'"), isTrue,
+        reason: 'витрина монет живёт только там, где работает биллинг');
+    expect(src.contains("'play' => IapService(),"), isTrue,
+        reason: 'биллинг поднимается только в сборке Play');
   });
 
   test('каждое обращение к покупкам закрыто гейтом', () {
