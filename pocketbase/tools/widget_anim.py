@@ -37,6 +37,9 @@ COLS, ROWS = 6, 3          # 18 кадров: столько влезает в 3
 CELL = 300                 # сторона кадра: плитка виджета крупнее не бывает
 SPAN_MS = 1500             # берём первые полторы секунды
 STEP_MS = SPAN_MS // (COLS * ROWS)
+# Границы шага для анимации: ниже 90 мс лончер не успевает перерисовать виджет,
+# выше 200 движение распадается на отдельные картинки.
+MIN_STEP_MS, MAX_STEP_MS = 90, 200
 QUALITY = 74
 VIDEO_EXT = (".mp4", ".mov", ".m4v", ".webm", ".3gp")
 GIF_EXT = (".gif", ".webp")
@@ -66,7 +69,7 @@ def sheet_path(rec_id: str) -> str:
     return os.path.join(OUT, f"{rec_id}.webp")
 
 
-def frames_from_video(src: str, work: str) -> list:
+def frames_from_video(src: str, work: str) -> tuple:
     """Кадры из видео. Один вызов ffmpeg вместо восемнадцати: перебор по времени
     поштучно стоил бы секунд, а фильтр fps отдаёт всё за один проход."""
     fps = 1000.0 / STEP_MS
@@ -79,18 +82,43 @@ def frames_from_video(src: str, work: str) -> list:
         "-frames:v", str(COLS * ROWS), pattern,
     ]
     subprocess.run(cmd, check=True, timeout=60)
-    return sorted(os.path.join(work, f) for f in os.listdir(work) if f.endswith(".png"))
+    frames = sorted(os.path.join(work, f) for f in os.listdir(work) if f.endswith(".png"))
+    return frames, STEP_MS
 
 
-def frames_from_animation(src: str, work: str) -> list:
-    """Кадры из гифки или анимированного webp — Pillow умеет их сам."""
+def frames_from_animation(src: str, work: str) -> tuple:
+    """Кадры из гифки или анимированного webp — Pillow умеет их сам.
+
+    Шаг берётся из самой анимации, а не из видео-константы. У гифки своя
+    скорость: кадров бывает шесть на две секунды, и показ по 83 мс гнал бы её
+    втрое быстрее оригинала. Длинную обрезаем по первым трём секундам —
+    восемнадцать кадров с шагом в полсекунды читаются как слайдшоу, а не как
+    живое фото.
+    """
     im = Image.open(src)
     total = getattr(im, "n_frames", 1)
+
+    # Раскладка по времени, а не по номерам кадров: у гифки кадры бывают разной
+    # длительности, и равномерная выборка по индексу дёргалась бы.
+    starts, clock = [], 0
+    for i in range(total):
+        im.seek(i)
+        starts.append(clock)
+        clock += int(im.info.get("duration") or 100)
+    span = min(clock, 3000) if clock > 0 else SPAN_MS
+    step = max(MIN_STEP_MS, min(MAX_STEP_MS, round(span / (COLS * ROWS))))
+
     picked = []
     for i in range(COLS * ROWS):
-        # Раскладываем по всей длине анимации: короткую проходим целиком, длинную
-        # прореживаем — иначе получим восемнадцать почти одинаковых кадров.
-        im.seek(min(total - 1, round(i * total / (COLS * ROWS))))
+        want = i * step
+        # Ближайший кадр, который к этому моменту уже показан.
+        idx = 0
+        for j, s in enumerate(starts):
+            if s <= want:
+                idx = j
+            else:
+                break
+        im.seek(idx)
         frame = im.convert("RGB")
         side = min(frame.size)
         left = (frame.width - side) // 2
@@ -100,7 +128,7 @@ def frames_from_animation(src: str, work: str) -> list:
         p = os.path.join(work, f"f{i:03d}.png")
         frame.save(p)
         picked.append(p)
-    return picked
+    return picked, step
 
 
 def build(rec_id: str, name: str) -> bool:
@@ -111,9 +139,9 @@ def build(rec_id: str, name: str) -> bool:
     work = tempfile.mkdtemp(prefix="wanim_")
     try:
         if lower.endswith(VIDEO_EXT):
-            frames = frames_from_video(src, work)
+            frames, step_ms = frames_from_video(src, work)
         elif lower.endswith(GIF_EXT):
-            frames = frames_from_animation(src, work)
+            frames, step_ms = frames_from_animation(src, work)
         else:
             return False
         if not frames:
@@ -132,7 +160,7 @@ def build(rec_id: str, name: str) -> bool:
 
         manifest = {
             "cols": COLS, "rows": ROWS, "cell": CELL,
-            "frames": COLS * ROWS, "step_ms": STEP_MS,
+            "frames": COLS * ROWS, "step_ms": step_ms,
             "source": "video" if lower.endswith(VIDEO_EXT) else "animation",
         }
         with open(os.path.join(OUT, f"{rec_id}.json"), "w", encoding="ascii") as fh:

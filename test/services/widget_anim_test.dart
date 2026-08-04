@@ -34,7 +34,43 @@ void main() {
     });
   });
 
+  group('Из чего собираем живое фото', () {
+    // Кнопка открывает общий выбор медиа, а не выбор видео: гифка в галерее
+    // лежит среди фотографий, и `pickVideo` её не показывал вовсе. Значит
+    // отсеивать статичный снимок приходится самим.
+    test('видео и анимация подходят', () {
+      for (final p in [
+        '/tmp/a.mp4', '/tmp/a.MOV', '/tmp/a.m4v', '/tmp/a.webm', '/tmp/a.3gp',
+        '/tmp/a.gif', '/tmp/a.GIF', '/tmp/a.webp',
+      ]) {
+        expect(WidgetAnimService.isSupportedSource(p), isTrue, reason: p);
+      }
+    });
+
+    test('статичный снимок не подходит', () {
+      for (final p in ['/tmp/a.jpg', '/tmp/a.jpeg', '/tmp/a.png', '/tmp/a.heic', '/tmp/a']) {
+        expect(WidgetAnimService.isSupportedSource(p), isFalse, reason: p);
+      }
+    });
+
+    test('видео отличается от гифки — от этого зависит текст ошибки', () {
+      expect(WidgetAnimService.isVideoSource('/tmp/a.mp4'), isTrue);
+      expect(WidgetAnimService.isVideoSource('/tmp/a.gif'), isFalse);
+    });
+  });
+
   group('Выбор кадра', () {
+    test('шаг гифки отличается от видео и всё равно заворачивается', () {
+      // У гифки шаг считает сервер по её собственной длительности: 2,5 секунды
+      // на 18 кадров дают 139 мс, а не 83 как у видео.
+      const gif = WidgetAnimManifest(
+        cols: 6, rows: 3, cell: 300, frames: 18, stepMs: 139, source: 'animation',
+      );
+      expect(WidgetAnimService.frameAt(gif, 0), 0);
+      expect(WidgetAnimService.frameAt(gif, 139), 1);
+      expect(WidgetAnimService.frameAt(gif, 139 * 18), 0);
+    });
+
     test('идёт по порядку и заворачивается по кругу', () {
       expect(WidgetAnimService.frameAt(m, 0), 0);
       expect(WidgetAnimService.frameAt(m, 83), 1);

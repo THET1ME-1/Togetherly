@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:home_widget/home_widget.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'pocketbase_service.dart';
@@ -88,6 +89,25 @@ class WidgetAnimService {
   static const String keyPath = 'anim_sheet_path';
   static const String keyManifest = 'anim_manifest';
 
+  /// Из чего сервер умеет собрать раскадровку.
+  ///
+  /// Видео и анимация идут разными путями (`ffmpeg` против Pillow), а статичный
+  /// снимок не идёт никуда: он дал бы восемнадцать одинаковых кадров. Проверка
+  /// живёт здесь, потому что системный выбор файла отдаёт всё вперемешку —
+  /// в галерее гифка лежит среди фотографий.
+  static const List<String> videoExt = ['.mp4', '.mov', '.m4v', '.webm', '.3gp'];
+  static const List<String> animExt = ['.gif', '.webp'];
+
+  static bool isSupportedSource(String path) {
+    final name = path.toLowerCase();
+    return videoExt.any(name.endsWith) || animExt.any(name.endsWith);
+  }
+
+  static bool isVideoSource(String path) {
+    final name = path.toLowerCase();
+    return videoExt.any(name.endsWith);
+  }
+
   /// Заказать раскадровку у сервера. Возвращает манифест или null.
   ///
   /// Роут идемпотентный: повторный вызов после обрыва сети не запускает вторую
@@ -156,6 +176,52 @@ class WidgetAnimService {
     final file = await download(mediaId);
     if (file == null) return null;
     return (path: file.path, manifest: jsonEncode(manifest.toJson()));
+  }
+
+  /// Стоит ли сейчас живое фото.
+  Future<bool> isActive() async {
+    try {
+      final path = await HomeWidget.getWidgetData<String>(keyPath);
+      final manifest = await HomeWidget.getWidgetData<String>(keyManifest);
+      if (path == null || path.isEmpty || manifest == null || manifest.isEmpty) {
+        return false;
+      }
+      return File(path).existsSync();
+    } catch (e) {
+      debugPrint('WidgetAnimService.isActive failed: $e');
+      return false;
+    }
+  }
+
+  /// Убрать живое фото и вернуть виджету обычное поведение.
+  ///
+  /// Зовётся не только из «убрать», но и при постановке любого нового снимка:
+  /// раскадровка лежит отдельными ключами и перекрывает фото, поэтому без
+  /// сброса виджет остаётся с прежним видео навсегда — так и было в сборке
+  /// preview.167. Ключ с пустым значением плагин удаляет из настроек, а не
+  /// пишет пустую строку.
+  Future<void> clear() async {
+    try {
+      final active = await HomeWidget.getWidgetData<String>(keyPath);
+      await HomeWidget.saveWidgetData<String>(keyPath, null);
+      await HomeWidget.saveWidgetData<String>(keyManifest, null);
+      await HomeWidget.updateWidget(name: 'LoveWidgetProvider');
+      if (active != null && active.isNotEmpty) {
+        // Раскадровки копятся по одной на каждое загруженное видео, а нужна
+        // всегда последняя: чистим папку целиком.
+        final dir = await getApplicationSupportDirectory();
+        for (final f in dir.listSync()) {
+          final name = f.path.split('/').last;
+          if (f is File && name.startsWith('widget_anim_')) {
+            try {
+              f.deleteSync();
+            } catch (_) {}
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('WidgetAnimService.clear failed: $e');
+    }
   }
 
   /// Какой кадр показывать в момент [elapsedMs]. Держим здесь, чтобы правило

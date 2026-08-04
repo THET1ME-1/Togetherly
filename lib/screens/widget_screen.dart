@@ -7181,28 +7181,40 @@ class _WidgetScreenState extends State<WidgetScreen>
   Future<void> _pickLiveVideo() async {
     final ru = LocaleService.instance.isRussian;
     final picker = ImagePicker();
-    final picked = await safePick(
-      () => picker.pickVideo(
-        source: ImageSource.gallery,
-        // Дальше полутора секунд сервер всё равно не берёт: в раскадровке
-        // восемнадцать кадров. Ограничение здесь экономит аплоад.
-        maxDuration: const Duration(seconds: 6),
-      ),
-    );
+    // Берём `pickMedia`, а не `pickVideo`: гифка в галерее лежит среди
+    // фотографий, и выбор видео её просто не показывает — в сборке preview.167
+    // живое фото из гифки поставить было нельзя вовсе. Здесь же нельзя задать
+    // `maxDuration`, поэтому длину ограничивает сервер (он берёт первые
+    // полторы секунды), а вес — проверка ниже.
+    final picked = await safePick(() => picker.pickMedia());
     if (picked == null || !mounted) return;
+
+    if (!WidgetAnimService.isSupportedSource(picked.path)) {
+      _liveSnack(ru
+          ? 'Для живого фото нужно видео или гифка'
+          : 'A live photo needs a video or a GIF');
+      return;
+    }
 
     final file = File(picked.path);
     final size = await file.length();
     if (size > WidgetAnimService.maxSourceBytes) {
       if (!mounted) return;
+      final video = WidgetAnimService.isVideoSource(picked.path);
       _liveSnack(ru
-          ? 'Видео слишком большое — выберите короче'
-          : 'This video is too large — pick a shorter one');
+          ? (video
+              ? 'Видео слишком большое — выберите короче'
+              : 'Гифка слишком большая — выберите полегче')
+          : (video
+              ? 'This video is too large — pick a shorter one'
+              : 'This GIF is too large — pick a lighter one'));
       return;
     }
 
     _showPhotoLoader();
     try {
+      // Прежняя раскадровка больше не нужна, а её файл занимает место.
+      await WidgetAnimService.instance.clear();
       final uid = PocketBaseService().userId ?? '';
       final ref = await PbMediaService().uploadFile(
         picked.path,
@@ -7241,14 +7253,24 @@ class _WidgetScreenState extends State<WidgetScreen>
   }
 
   Future<void> _pickPhoto() async {
+    final liveActive = await WidgetAnimService.instance.isActive();
+    if (!mounted) return;
     final choice = await showModalBottomSheet<Object>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => _PhotoSourceSheet(theme: _t),
+      builder: (ctx) => _PhotoSourceSheet(theme: _t, liveActive: liveActive),
     );
     if (choice == null || !mounted) return;
     if (choice == _kPickLiveVideo) {
       await _pickLiveVideo();
+      return;
+    }
+    if (choice == _kDropLiveVideo) {
+      await WidgetAnimService.instance.clear();
+      if (!mounted) return;
+      _liveSnack(LocaleService.instance.isRussian
+          ? 'Живое фото убрано'
+          : 'Live photo removed');
       return;
     }
     final source = choice as ImageSource;
@@ -7679,10 +7701,16 @@ class _TextEditorSheetState extends State<_TextEditorSheet> {
 /// Маркер листа выбора: человек нажал «Живое фото», а не выбрал источник снимка.
 const String _kPickLiveVideo = 'live-video';
 
+/// Маркер: человек хочет вернуть виджету обычную фотографию.
+const String _kDropLiveVideo = 'live-video-off';
+
 class _PhotoSourceSheet extends StatelessWidget {
   final AppTheme theme;
 
-  const _PhotoSourceSheet({required this.theme});
+  /// Стоит ли сейчас живое фото — от этого зависит, показывать ли «убрать».
+  final bool liveActive;
+
+  const _PhotoSourceSheet({required this.theme, this.liveActive = false});
 
   @override
   Widget build(BuildContext context) {
@@ -7731,16 +7759,20 @@ class _PhotoSourceSheet extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          // Живое фото: короткое видео вместо снимка. Кадры из него делает
-          // сервер, здесь человек просто выбирает файл в галерее.
+          // Живое фото: короткое видео или гифка вместо снимка. Кадры из файла
+          // делает сервер, здесь человек просто выбирает его в галерее.
           _liveButton(context),
+          if (liveActive) ...[
+            const SizedBox(height: 8),
+            _dropLiveButton(context),
+          ],
         ],
       ),
     );
   }
 
   /// «Живое фото» отдаёт не источник, а признак: дальше вызывающий сам берёт
-  /// видео из галереи (`pickVideo`) и отправляет его на подготовку кадров.
+  /// файл из галереи (`pickMedia`) и отправляет его на подготовку кадров.
   Widget _liveButton(BuildContext context) {
     final ru = LocaleService.instance.isRussian;
     return GestureDetector(
@@ -7758,8 +7790,41 @@ class _PhotoSourceSheet extends StatelessWidget {
             Icon(Icons.motion_photos_on_rounded, size: 30, color: theme.primary),
             const SizedBox(height: 6),
             Text(
-              ru ? 'Живое фото — короткое видео' : 'Live photo — a short video',
+              ru
+                  ? 'Живое фото — видео или гифка'
+                  : 'Live photo — a video or a GIF',
               style: AppFonts.onest(size: 13, weight: 600, color: theme.primary),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Выход из живого фото. Отдельная строка нужна потому, что снимок его больше
+  /// не вытесняет молча: раскадровка лежит своими ключами, и без явного сброса
+  /// виджет оставался с видео навсегда.
+  Widget _dropLiveButton(BuildContext context) {
+    final ru = LocaleService.instance.isRussian;
+    return GestureDetector(
+      onTap: () => Navigator.pop(context, _kDropLiveVideo),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: theme.textSecondary.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.motion_photos_off_rounded,
+                size: 20, color: theme.textSecondary),
+            const SizedBox(width: 8),
+            Text(
+              ru ? 'Убрать живое фото' : 'Remove the live photo',
+              style: AppFonts.onest(
+                  size: 13, weight: 600, color: theme.textSecondary),
             ),
           ],
         ),

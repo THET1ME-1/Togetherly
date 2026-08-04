@@ -20,6 +20,7 @@ import 'pb_data_service.dart';
 import 'pb_media_service.dart';
 import 'pb_realtime_service.dart';
 import 'pocketbase_service.dart';
+import 'widget_anim_service.dart';
 
 /// Сервис синхронизации виджет-данных между партнёрами — на PocketBase
 /// (миграция §3): коллекция `widget_data` (live SSE, без лимитов). Авто-отправка
@@ -353,6 +354,9 @@ class WidgetService extends ChangeNotifier {
     if (url == null || groupId != _groupId) return;
 
     await _updateField({'photoUrl': url}, groupId: groupId);
+    // Живое фото лежит отдельными ключами и перекрывает снимок, поэтому новая
+    // фотография обязана его снять — иначе виджет остаётся с прежним видео.
+    await WidgetAnimService.instance.clear();
 
     // Автоотправка в Memory Lane
     if (_autoSendPhotoToMemory && groupId.isNotEmpty) {
@@ -375,6 +379,7 @@ class WidgetService extends ChangeNotifier {
   /// Обновить фото по URL (уже загружено)
   Future<void> updatePhotoUrl(String url) async {
     await _updateField({'photoUrl': url}, groupId: _groupId);
+    await WidgetAnimService.instance.clear();
   }
 
   /// Фото, которым я делюсь с партнёром для partner-widget.
