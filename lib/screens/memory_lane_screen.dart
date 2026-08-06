@@ -112,6 +112,11 @@ class MemoryLaneScreen extends StatefulWidget {
   /// Авто-открыть лист создания пина сразу после входа (для кнопки «+» в навбаре).
   final bool openCreateOnStart;
 
+  /// Авто-открыть форму конкретного типа, минуя лист выбора: тип уже известен
+  /// (задание дня «сфоткай небо» ведёт прямо к фото). Задан — [openCreateOnStart]
+  /// не нужен, лист выбора не показывается.
+  final MemoryType? openCreateType;
+
   /// Авто-открыть деталь конкретного пина после загрузки (переход из чата).
   final String? initialMemoryId;
 
@@ -133,6 +138,7 @@ class MemoryLaneScreen extends StatefulWidget {
     this.filterMode = MemoryFilterMode.none,
     this.userData,
     this.openCreateOnStart = false,
+    this.openCreateType,
     this.initialMemoryId,
     this.onNavTab,
     this.embedded = false,
@@ -252,7 +258,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     _feedScroll.addListener(_onFeedScroll); // ленивая пагинация по скроллу
     _fetchUserLocation();
     widget.pairData.addListener(_onPairChanged);
-    if (widget.openCreateOnStart) {
+    final createType = widget.openCreateType;
+    if (createType != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _openMemoryForm(createType);
+      });
+    } else if (widget.openCreateOnStart) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _showAddMemorySheet();
       });
@@ -4443,7 +4454,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   /// внутри строки листа; теперь лист — сетка плиток, и переход вызывается
   /// отдельно.
   void _openMemoryForm(MemoryType type) {
-        if (type == MemoryType.photo) {
+        // Заметка живёт в той же форме, что фото: без выбранного медиа она сама
+        // сохраняет пин типом text (`_effectiveType`). Отдельной плитки в листе
+        // выбора у заметки нет, а задание дня приводит сюда напрямую.
+        if (type == MemoryType.photo || type == MemoryType.text) {
           Navigator.push(
             context,
             MaterialPageRoute(

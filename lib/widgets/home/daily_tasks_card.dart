@@ -9,20 +9,28 @@ import '../../theme/fonts.dart';
 /// Задания дня на главной: три штуки, галочка за каждое.
 ///
 /// Карточка того же вида, что остальные блоки главной — тональный контейнер,
-/// радиус 28, без теней и обводок. Задание закрывается не кнопкой, а самим
-/// действием: добавили пин нужного типа в ленту — галочка встала, монета
-/// пришла. Поэтому строки не нажимаются, они показывают, что сделать.
+/// радиус 28, без теней и обводок. Задание закрывается самим действием:
+/// добавили пин нужного типа в ленту — галочка встала, монета пришла.
+///
+/// Строка при этом нажимается и ведёт прямо в форму нужного типа
+/// ([onOpenTask]) — прежде человек читал «Сфоткай небо» и шёл искать, откуда
+/// добавляют пин. Колбэк необязателен: без него строки остаются просто
+/// списком (так карточка стоит в витрине тем).
 class DailyTasksCard extends StatefulWidget {
   const DailyTasksCard({
     super.key,
     required this.groupId,
     required this.partnerName,
+    this.onOpenTask,
   });
 
   final String groupId;
 
   /// Имя партнёра подставляется в текст задания вместо токена.
   final String partnerName;
+
+  /// Открыть форму создания пина под это задание.
+  final void Function(DailyTask task)? onOpenTask;
 
   @override
   State<DailyTasksCard> createState() => _DailyTasksCardState();
@@ -102,9 +110,13 @@ class _DailyTasksCardState extends State<DailyTasksCard> {
           Text(
             all
                 ? (ru ? 'Всё на сегодня — до завтра' : 'All done — see you tomorrow')
-                : (ru
-                    ? 'Добавьте пин в ленту, и задание закроется само'
-                    : 'Add a pin to the feed and the task closes itself'),
+                : (widget.onOpenTask != null
+                    ? (ru
+                        ? 'Нажмите на задание — откроется, что для него нужно'
+                        : 'Tap a task — it opens what the task needs')
+                    : (ru
+                        ? 'Добавьте пин в ленту, и задание закроется само'
+                        : 'Add a pin to the feed and the task closes itself')),
             style: AppFonts.onest(size: 12.5, color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 12),
@@ -116,6 +128,9 @@ class _DailyTasksCardState extends State<DailyTasksCard> {
                 done: _tasks.isDone(task),
                 partnerName: widget.partnerName,
                 scheme: cs,
+                onTap: widget.onOpenTask == null
+                    ? null
+                    : () => widget.onOpenTask!(task),
               ),
             ),
         ],
@@ -130,15 +145,36 @@ class _TaskRow extends StatelessWidget {
     required this.done,
     required this.partnerName,
     required this.scheme,
+    this.onTap,
   });
 
   final DailyTask task;
   final bool done;
   final String partnerName;
   final ColorScheme scheme;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
+    final row = _row();
+    if (onTap == null) return row;
+    // Закрытое задание тоже открывается: поделиться ещё раз можно, просто
+    // монеты за это уже не будет — предел сторожит сервер.
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+          child: row,
+        ),
+      ),
+    );
+  }
+
+  Widget _row() {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

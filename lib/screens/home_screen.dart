@@ -1255,7 +1255,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Открыть Ленту воспоминаний (общий навбар внутри; вкладки возвращают
   /// на главную через onNavTab). Без авто-создания пина.
-  void _openMemoryLane({bool openCreateOnStart = false}) {
+  void _openMemoryLane({
+    bool openCreateOnStart = false,
+    MemoryType? openCreateType,
+  }) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -1264,6 +1267,7 @@ class _HomeScreenState extends State<HomeScreen> {
           theme: _t,
           userData: widget.userData,
           openCreateOnStart: openCreateOnStart,
+          openCreateType: openCreateType,
           onNavTab: (i) {
             Navigator.of(context).pop();
             setState(() => _selectedNavIndex = i);
@@ -1580,6 +1584,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: DailyTasksCard(
                       groupId: _pairData.pairId,
                       partnerName: _pairData.partnerDisplayName,
+                      // Задание знает свой тип пина, поэтому лист выбора
+                      // пропускаем и открываем сразу нужную форму.
+                      onOpenTask: (task) =>
+                          _openMemoryLane(openCreateType: task.type),
                     ),
                   ),
                   if (_wishesEnabled)
