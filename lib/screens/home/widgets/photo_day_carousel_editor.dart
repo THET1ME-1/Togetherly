@@ -7,6 +7,7 @@ import '../../../theme/app_theme.dart';
 import '../../../widgets/storage_image.dart';
 import '../../../utils/photo_crop.dart';
 import '../../../services/locale_service.dart';
+import '../../../services/offline/media_cache.dart';
 
 /// Bottom-sheet редактор карусели для одного виджета "Фото-виджет".
 ///
@@ -60,6 +61,17 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
   bool _hadInitialPhotos = false;
   final ImagePicker _picker = ImagePicker();
 
+  /// Ключ строки списка. Прежде он считался из индекса и пути
+  /// (`photo_$index_${path.hashCode}`) — то есть менялся при каждой
+  /// перестановке, и [ReorderableListView] терял соответствие «ключ →
+  /// элемент»: строки наезжали друг на друга, а два одинаковых пути давали
+  /// вовсе один ключ на двоих. Ключ обязан жить вместе с фото, поэтому он
+  /// выдаётся один раз и переставляется рядом с ним.
+  final List<String> _keys = [];
+  int _keySeq = 0;
+
+  String _newKey() => 'photo_${_keySeq++}';
+
   @override
   void initState() {
     super.initState();
@@ -67,6 +79,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
         .where((p) => p.trim().isNotEmpty)
         .take(PhotoDayCarouselEditor.kMaxPhotos)
         .toList();
+    _keys.addAll(List.generate(_paths.length, (_) => _newKey()));
     _hadInitialPhotos = _paths.isNotEmpty;
     _rotationType = widget.initialRotationType;
     _rotationInterval = widget.initialRotationInterval;
@@ -82,6 +95,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
         if (!_paths.contains(url) &&
             _paths.length < PhotoDayCarouselEditor.kMaxPhotos) {
           _paths.add(url);
+          _keys.add(_newKey());
         }
       }
     });
@@ -106,10 +120,17 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
           taken.first.path,
           accentColor: widget.theme.primary,
         );
-        if (mounted) setState(() => _paths.add(croppedPath ?? taken.first.path));
+        if (mounted) _addPath(croppedPath ?? taken.first.path);
       } else {
         // Несколько фото — добавляем без обрезки
-        if (mounted) setState(() => _paths.addAll(taken.map((x) => x.path)));
+        if (mounted) {
+          setState(() {
+            for (final x in taken) {
+              _paths.add(x.path);
+              _keys.add(_newKey());
+            }
+          });
+        }
       }
     } catch (_) {
       final XFile? single = await safePick(
@@ -125,8 +146,15 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
         single.path,
         accentColor: widget.theme.primary,
       );
-      if (mounted) setState(() => _paths.add(croppedPath ?? single.path));
+      if (mounted) _addPath(croppedPath ?? single.path);
     }
+  }
+
+  void _addPath(String path) {
+    setState(() {
+      _paths.add(path);
+      _keys.add(_newKey());
+    });
   }
 
   void _replacePhoto(int index) async {
@@ -143,11 +171,21 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
       picked.path,
       accentColor: widget.theme.primary,
     );
-    if (mounted) setState(() => _paths[index] = croppedPath ?? picked.path);
+    if (mounted) {
+      setState(() {
+        _paths[index] = croppedPath ?? picked.path;
+        // Новое фото на прежнем месте — это другой снимок, и ключ ему нужен
+        // свой: иначе список покажет старую (уже кэшированную) миниатюру.
+        _keys[index] = _newKey();
+      });
+    }
   }
 
   void _removePhoto(int index) {
-    setState(() => _paths.removeAt(index));
+    setState(() {
+      _paths.removeAt(index);
+      _keys.removeAt(index);
+    });
   }
 
   void _reorder(int oldIndex, int newIndex) {
@@ -155,6 +193,8 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
       if (newIndex > oldIndex) newIndex -= 1;
       final item = _paths.removeAt(oldIndex);
       _paths.insert(newIndex, item);
+      final key = _keys.removeAt(oldIndex);
+      _keys.insert(newIndex, key);
     });
   }
 
@@ -368,6 +408,7 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
       physics: const NeverScrollableScrollPhysics(),
       buildDefaultDragHandles: false,
       onReorder: _reorder,
+      proxyDecorator: (child, index, animation) => _dragProxy(child, animation),
       children: [
         for (int i = 0; i < _paths.length; i++)
           _buildPhotoTile(t, i, _paths[i]),
@@ -375,9 +416,31 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
     );
   }
 
+  /// Поднятая пальцем строка.
+  ///
+  /// Умолчание [ReorderableListView] заворачивает её в `Material` цвета
+  /// `canvasColor` — белый лист под розовой карточкой, да ещё и шире её на
+  /// нижний отступ строки. Своя обёртка держит подложку прозрачной, а объём
+  /// даёт масштабом: карточка чуть подрастает, и видно, что её несут.
+  Widget _dragProxy(Widget child, Animation<double> animation) {
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, _) {
+        final v = Curves.easeInOut.transform(animation.value);
+        return Transform.scale(
+          scale: 1 + 0.03 * v,
+          child: Material(
+            color: Colors.transparent,
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildPhotoTile(AppTheme t, int index, String path) {
     return Container(
-      key: ValueKey('photo_${index}_${path.hashCode}'),
+      key: ValueKey(_keys[index]),
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
@@ -401,39 +464,10 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
               ),
             ),
           ),
-          GestureDetector(
-            onTap: () => _replacePhoto(index),
-            child: Container(
-              width: 56,
-              height: 56,
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                color: t.surfaceMuted,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: t.primary.withOpacity(0.25)),
-              ),
-              child: path.startsWith('http') || path.startsWith('gs://') || path.startsWith('sb://') || path.startsWith('pb://')
-                  ? StorageImage(
-                      imageUrl: path,
-                      fit: BoxFit.cover,
-                      memCacheWidth: 200,
-                      memCacheHeight: 200,
-                      errorWidget: (_, __, ___) => Icon(
-                        Icons.broken_image_rounded,
-                        size: 18,
-                        color: t.textMuted,
-                      ),
-                    )
-                  : Image.file(
-                      File(path),
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Icon(
-                        Icons.broken_image_rounded,
-                        size: 18,
-                        color: t.textMuted,
-                      ),
-                    ),
-            ),
+          _PhotoThumb(
+            theme: t,
+            path: path,
+            onReplace: () => _replacePhoto(index),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -661,4 +695,125 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
       ),
     );
   }
+}
+
+/// Миниатюра фото в строке списка.
+///
+/// Раньше источник выбирался прямо в строке двумя ветками: «начинается на
+/// http/gs/sb/pb» → сеть, иначе → файл. Мимо обеих проходило офлайн-медиа
+/// (`localfile://`) — путь уезжал в `File('localfile://…')` и плитка навсегда
+/// оставалась битой иконкой. Здесь разбираются все четыре источника, а пока
+/// картинка едет, стоит тональный квадрат, а не значок поломки: «грузится» и
+/// «не открылось» человек должен различать.
+///
+/// Тап по загруженной плитке меняет фото, тап по неоткрывшейся — пробует ещё
+/// раз. Повтор нужен: ссылка `pb://` открывается коротким файловым токеном, и
+/// первая попытка при полумёртвой сессии отдаёт 403 на все плитки разом.
+class _PhotoThumb extends StatefulWidget {
+  const _PhotoThumb({
+    required this.theme,
+    required this.path,
+    required this.onReplace,
+  });
+
+  final AppTheme theme;
+  final String path;
+  final VoidCallback onReplace;
+
+  @override
+  State<_PhotoThumb> createState() => _PhotoThumbState();
+}
+
+class _PhotoThumbState extends State<_PhotoThumb> {
+  /// Растёт при каждом повторе — новый ключ пересоздаёт [StorageImage], тот
+  /// заново берёт файловый токен.
+  int _nonce = 0;
+  bool _failed = false;
+
+  static bool _isRemote(String p) =>
+      p.startsWith('http') ||
+      p.startsWith('gs://') ||
+      p.startsWith('sb://') ||
+      p.startsWith('pb://');
+
+  void _markFailed() {
+    if (_failed) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_failed) setState(() => _failed = true);
+    });
+  }
+
+  void _onTap() {
+    if (!_failed) {
+      widget.onReplace();
+      return;
+    }
+    setState(() {
+      _failed = false;
+      _nonce++;
+    });
+  }
+
+  @override
+  void didUpdateWidget(_PhotoThumb old) {
+    super.didUpdateWidget(old);
+    if (old.path != widget.path) _failed = false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.theme;
+    return GestureDetector(
+      onTap: _onTap,
+      child: Container(
+        width: 56,
+        height: 56,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: t.surfaceMuted,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: t.primary.withOpacity(0.25)),
+        ),
+        child: _image(t),
+      ),
+    );
+  }
+
+  Widget _image(AppTheme t) {
+    final p = widget.path;
+
+    // Офлайн-медиа: файл лежит на устройстве, ссылка своя.
+    if (MediaCache.instance.isLocalRef(p)) {
+      final local = MediaCache.instance.localPath(p);
+      return local != null ? _file(t, local) : _mark(t, Icons.broken_image_rounded);
+    }
+
+    if (_isRemote(p)) {
+      return StorageImage(
+        key: ValueKey('$p|$_nonce'),
+        imageUrl: p,
+        fit: BoxFit.cover,
+        // Только по ширине: с обоими размерами кадр декодируется в квадрат и
+        // миниатюра сплющивается.
+        memCacheWidth: 200,
+        placeholder: (_, __) => ColoredBox(color: t.surfaceMuted),
+        errorWidget: (_, __, ___) {
+          _markFailed();
+          return _mark(t, Icons.refresh_rounded);
+        },
+      );
+    }
+
+    return _file(t, p);
+  }
+
+  Widget _file(AppTheme t, String path) => Image.file(
+        File(path),
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _mark(t, Icons.broken_image_rounded),
+      );
+
+  Widget _mark(AppTheme t, IconData icon) => Center(
+        child: Icon(icon, size: 18, color: t.textMuted),
+      );
 }
