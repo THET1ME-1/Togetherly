@@ -102,3 +102,6 @@ pocketbase/pb_hooks/admin_gate.pb.js
 
 # Служебный кэш Kotlin-плагина Gradle
 android/.kotlin/
+
+# Отчёты Gradle — артефакт сборки, а не исходник
+android/build/
