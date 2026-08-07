@@ -887,6 +887,13 @@ class _WidgetScreenState extends State<WidgetScreen>
     await _loadPhotoDayWidgets();
   }
 
+  Future<void> _clearPhotosForPartner() async {
+    await _ws.clearPhotoForPartner();
+    await _loadPhotoDayWidgets();
+    if (!mounted) return;
+    _liveSnack(LocaleService.current.photosForPartnerRemoved);
+  }
+
   Future<void> _renamePhotoDayWidget(int widgetId, String nextName) async {
     final trimmedName = nextName.trim();
     await HomeWidgetService.instance.setPhotoDayWidgetName(
@@ -1517,7 +1524,7 @@ class _WidgetScreenState extends State<WidgetScreen>
               children: [
                 if (data.hasMood)
                   ClipOval(
-                    child: Image.asset(
+                    child: MoodImage(
                       data.moodEmoji,
                       width: 38,
                       height: 38,
@@ -5059,6 +5066,13 @@ class _WidgetScreenState extends State<WidgetScreen>
         ((_ws.firstPartnerData?.photoForPartnerUrl?.isNotEmpty ?? false)
             ? 1
             : 0);
+    // Сколько фото показываю партнёру я. Одиночное поле считается за фото,
+    // даже когда карусель пуста: у пар, отправлявших фото сразу по обоим
+    // направлениям, живо именно оно — и именно его человек не мог убрать.
+    final mySharedUrls = _ws.myData?.photoForPartnerUrls ?? const <String>[];
+    final mySharedCount = mySharedUrls.isNotEmpty
+        ? mySharedUrls.length
+        : ((_ws.myData?.photoForPartnerUrl?.isNotEmpty ?? false) ? 1 : 0);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -5126,6 +5140,41 @@ class _WidgetScreenState extends State<WidgetScreen>
             ),
           ),
         ),
+        if (mySharedCount > 0) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+            decoration: BoxDecoration(
+              color: _t.primary.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    LocaleService.current.youSharePhotosWithPartner(
+                      partnerName,
+                      mySharedCount,
+                    ),
+                    style: AppFonts.onest(
+                      size: 12,
+                      height: 1.3,
+                      color: _t.textSecondary,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: _clearPhotosForPartner,
+                  style: TextButton.styleFrom(foregroundColor: _t.primary),
+                  child: Text(
+                    LocaleService.current.stopSharingPhotos,
+                    style: AppFonts.onest(size: 12, weight: 700),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 16),
         Text(
           LocaleService.current.widgetInstances,
@@ -5996,7 +6045,9 @@ class _WidgetScreenState extends State<WidgetScreen>
             value: data.hasMood ? data.localizedMoodLabel : null,
             valueColor: Colors.white,
             trailing: data.hasMood
-                ? ClipOval(child: Image.asset(data.moodEmoji, width: 24, height: 24, fit: BoxFit.cover))
+                ? ClipOval(
+                    child: MoodImage(data.moodEmoji,
+                        width: 24, height: 24, fit: BoxFit.cover))
                 : null,
             onTap: () => _showMoodPicker(),
             onClear: data.hasMood
@@ -6206,7 +6257,9 @@ class _WidgetScreenState extends State<WidgetScreen>
             value: partner.hasMood ? partner.localizedMoodLabel : null,
             valueColor: Colors.white,
             trailing: partner.hasMood
-                ? ClipOval(child: Image.asset(partner.moodEmoji, width: 24, height: 24, fit: BoxFit.cover))
+                ? ClipOval(
+                    child: MoodImage(partner.moodEmoji,
+                        width: 24, height: 24, fit: BoxFit.cover))
                 : null,
           ),
           _buildReadonlySlot(

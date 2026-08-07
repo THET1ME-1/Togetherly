@@ -96,6 +96,42 @@ class WidgetService extends ChangeNotifier {
     return d?.photoForPartnerUrl ?? '';
   }
 
+  /// Поля записи, когда фото «для партнёра» ставят или убирают.
+  ///
+  /// Пустой список — это «убрать фото», и убрать его можно ТОЛЬКО пустой
+  /// строкой: `upsertWidget` выбрасывает null-поля ради частичного апдейта,
+  /// поэтому прежний `null` оставлял старую ссылку жить на сервере. Карусель
+  /// при этом пустела, виджет «Фото партнёра» читал одиночное поле — и фото у
+  /// партнёра не пропадало (жалоба 2026-08-07).
+  static Map<String, dynamic> photoForPartnerFields(List<String> urls) => {
+        'photoForPartnerUrls': urls,
+        'photoForPartnerUrl': urls.isNotEmpty ? urls.first : '',
+      };
+
+  /// Поля записи, когда убирают фото ПАРНОГО виджета.
+  ///
+  /// В диалоге отправки оба тумблера включены по умолчанию, поэтому у многих
+  /// пар `photo_url` и `photo_for_partner_url` — один и тот же снимок. Стирая
+  /// только своё поле, мы отдавали половине партнёра тот же кадр фолбэком
+  /// (`pairPhotoOfPartner`), и удаление выглядело несработавшим. Такой снимок
+  /// снимается разом с обоих направлений.
+  ///
+  /// Осознанно собранную карусель «для партнёра» это не трогает: там фото
+  /// выбирали отдельно, и удаление своей половины его не отменяет.
+  static Map<String, dynamic> clearPairPhotoFields(WidgetData? d) {
+    const cleared = {'photoUrl': ''};
+    final mine = d?.photoUrl ?? '';
+    final forPartner = d?.photoForPartnerUrl ?? '';
+    if (mine.isEmpty || forPartner != mine) return cleared;
+
+    final carousel = d?.photoForPartnerUrls ?? const <String>[];
+    final sameShot = carousel.isEmpty ||
+        (carousel.length == 1 && carousel.first == mine);
+    if (!sameShot) return cleared;
+
+    return {...cleared, ...photoForPartnerFields(const [])};
+  }
+
   static String _photoSigOf(WidgetData? d) {
     if (d == null) return '';
     return [
@@ -385,18 +421,16 @@ class WidgetService extends ChangeNotifier {
   /// Фото, которым я делюсь с партнёром для partner-widget.
   /// Заменяет карусель одним фото — используется для «живого» фото с камеры.
   Future<void> updatePhotoForPartnerUrl(String url) async {
-    await _updateField({
-      'photoForPartnerUrl': url,
-      'photoForPartnerUrls': [url],
-    }, groupId: _groupId);
+    await _updateField(photoForPartnerFields([url]), groupId: _groupId);
   }
 
   Future<void> updatePhotoForPartnerCarousel(List<String> urls) async {
-    await _updateField({
-      'photoForPartnerUrls': urls,
-      'photoForPartnerUrl': urls.isNotEmpty ? urls.first : null,
-    }, groupId: _groupId);
+    await _updateField(photoForPartnerFields(urls), groupId: _groupId);
   }
+
+  /// Убрать фото, которое видит партнёр в виджете «Фото партнёра».
+  Future<void> clearPhotoForPartner() =>
+      _updateField(photoForPartnerFields(const []), groupId: _groupId);
 
   /// Сохранить настройки сетки фото (мои фото, которые увидит партнёр)
   Future<void> updatePhotoGrid(int count, List<String> photoUrls) async {
@@ -448,7 +482,7 @@ class WidgetService extends ChangeNotifier {
   Future<void> clearStatus() => _updateField({'status': ''});
   Future<void> clearMood() => _updateField({'moodEmoji': '', 'moodLabel': ''});
   Future<void> clearMessage() => _updateField({'message': ''});
-  Future<void> clearPhoto() => _updateField({'photoUrl': ''});
+  Future<void> clearPhoto() => _updateField(clearPairPhotoFields(_myData));
   Future<void> clearMusic() => _updateField({
     'musicTitle': '',
     'musicArtist': '',
@@ -463,7 +497,9 @@ class WidgetService extends ChangeNotifier {
       'moodEmoji': '',
       'moodLabel': '',
       'message': '',
-      'photoUrl': '',
+      // Фото снимается тем же правилом, что и по кнопке «убрать»: снимок,
+      // ушедший разом на оба направления, уходит с обоих.
+      ...clearPairPhotoFields(_myData),
       'musicTitle': '',
       'musicArtist': '',
       'musicUrl': '',

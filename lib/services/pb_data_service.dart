@@ -1813,34 +1813,53 @@ class PbDataService {
   }
 
   // ══════════════════════════════════════════════ WIDGET DATA (составной ключ)
+  /// Тело запроса `widget_data`: только те поля, которые действительно просили
+  /// изменить.
+  ///
+  /// Запись обновляют по одному полю (сменил статус — ушёл статус), и раньше
+  /// json-поля подставлялись значениями по умолчанию: `data` → `{}`, карусель
+  /// «для партнёра» и сетка фото → `[]`, число ячеек → 1. `removeWhere` их не
+  /// снимал — они уже не null, — поэтому любая смена статуса или настроения
+  /// стирала заметку на двоих и наборы фото. На проде это выглядело так:
+  /// 22 578 записей и ни одной с непустой `data`.
+  ///
+  /// Очистка по-прежнему работает — но только явная: переданный пустой список
+  /// или пустая строка доезжают до сервера и стирают поле.
+  static Map<String, dynamic> widgetUpsertBody(
+    String groupId,
+    String uid,
+    Map<String, dynamic> d,
+  ) =>
+      <String, dynamic>{
+        'group_id': groupId,
+        'user_uid': uid,
+        'display_name': d['displayName'],
+        'avatar_url': d['avatarUrl'],
+        'gender': d['gender'],
+        'status': d['status'],
+        'mood_emoji': d['moodEmoji'],
+        'mood_label': d['moodLabel'],
+        'message': d['message'],
+        'music_title': d['musicTitle'],
+        'music_artist': d['musicArtist'],
+        'music_url': d['musicUrl'],
+        'music_cover_url': d['musicCoverUrl'],
+        'photo_url': d['photoUrl'],
+        'photo_for_partner_url': d['photoForPartnerUrl'],
+        'photo_for_partner_urls': _jsonSafe(d['photoForPartnerUrls']),
+        'photo_grid_count': d['photoGridCount'],
+        'photo_grid_urls': _jsonSafe(d['photoGridUrls']),
+        'data': _jsonSafe(d['data']),
+        'updated_at': DateTime.now().toIso8601String(),
+      }..removeWhere((k, v) => v == null);
+
   Future<bool> upsertWidget(
     String groupId,
     String uid,
     Map<String, dynamic> d,
   ) async {
     if (groupId.isEmpty || uid.isEmpty) return false;
-    final body = <String, dynamic>{
-      'group_id': groupId,
-      'user_uid': uid,
-      'display_name': d['displayName'],
-      'avatar_url': d['avatarUrl'],
-      'gender': d['gender'],
-      'status': d['status'],
-      'mood_emoji': d['moodEmoji'],
-      'mood_label': d['moodLabel'],
-      'message': d['message'],
-      'music_title': d['musicTitle'],
-      'music_artist': d['musicArtist'],
-      'music_url': d['musicUrl'],
-      'music_cover_url': d['musicCoverUrl'],
-      'photo_url': d['photoUrl'],
-      'photo_for_partner_url': d['photoForPartnerUrl'],
-      'photo_for_partner_urls': _jsonSafe(d['photoForPartnerUrls'] ?? []),
-      'photo_grid_count': d['photoGridCount'] ?? 1,
-      'photo_grid_urls': _jsonSafe(d['photoGridUrls'] ?? []),
-      'data': _jsonSafe(d['data'] ?? {}),
-      'updated_at': DateTime.now().toIso8601String(),
-    }..removeWhere((k, v) => v == null);
+    final body = widgetUpsertBody(groupId, uid, d);
     return _upsertByFilter(
       'widget_data',
       'group_id = {:g} && user_uid = {:u}',

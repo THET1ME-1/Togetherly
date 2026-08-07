@@ -1563,6 +1563,9 @@ abstract class AppStrings {
   String partnerSharesPhotosHelp(String partner, int count);
   String partnerNotSharedHelp(String partner);
   String get selectPhotosForPartner;
+  String youSharePhotosWithPartner(String partner, int count);
+  String get stopSharingPhotos;
+  String get photosForPartnerRemoved;
   String photosUnit(int n);
   String get noPhotosFromPartner;
   String get noPhotosAdded;
@@ -5015,6 +5018,13 @@ class _RuStrings extends AppStrings {
       'партнёра» — обычный «Фото-виджет» виден только владельцу.';
   @override
   String get selectPhotosForPartner => 'Выбрать фото для партнёра';
+  @override
+  String youSharePhotosWithPartner(String partner, int count) =>
+      '$partner видит ваши фото: $count';
+  @override
+  String get stopSharingPhotos => 'Убрать у партнёра';
+  @override
+  String get photosForPartnerRemoved => 'Фото у партнёра убраны';
   @override
   String photosUnit(int n) => 'фото';
   @override
@@ -8727,6 +8737,13 @@ class _EnStrings extends AppStrings {
       'partner” — the regular “Photo widget” is visible only to its owner.';
   @override
   String get selectPhotosForPartner => 'Choose photos for partner';
+  @override
+  String youSharePhotosWithPartner(String partner, int count) =>
+      '$partner sees $count of your ${photosUnit(count)}';
+  @override
+  String get stopSharingPhotos => 'Stop sharing';
+  @override
+  String get photosForPartnerRemoved => 'Photos removed from partner’s widget';
   @override
   String photosUnit(int n) => n == 1 ? 'photo' : 'photos';
   @override
