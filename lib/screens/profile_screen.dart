@@ -101,7 +101,8 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends State<ProfileScreen>
+    with RememberedTheme<ProfileScreen> {
   final RewardedAdService _rewardedAd = RewardedAdService();
   final CoinStore _iap = sharedCoinStore;
   bool _iapLoading = false;
@@ -141,7 +142,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   AppStrings get _s => LocaleService.current;
 
   /// Активная тема из контекста (семантические токены для тёмной темы).
-  AppTheme get _t => context.appTheme;
+  ///
+  /// Через [RememberedTheme]: колбэки открытых отсюда листов переживают сам
+  /// экран, а `context` у ушедшего состояния бросает null check.
+  AppTheme get _t => rememberedTheme;
 
   /// M3-схема экрана, выведенная из [AppTheme.primary] темы как seed
   /// (вибрант, как в Kadr). Кэшируется по идентичности темы, чтобы не гонять

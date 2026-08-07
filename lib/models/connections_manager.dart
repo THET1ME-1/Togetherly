@@ -10,6 +10,21 @@ import '../services/pocketbase_service.dart';
 import '../services/offline/offline_reset.dart';
 import 'connection.dart';
 
+/// Индекс активной связи, приведённый к границам списка.
+///
+/// Индекс переживает перестройку списка и запросто указывает в пустоту: уборка
+/// устаревших связей считала его как `length - 1` и при пустом списке получала
+/// −1, а `activeConnection` проверял только верхнюю границу. Дальше `_connections[-1]`
+/// ронял главную у всех, кто в этот момент открывал приложение (185 падений за
+/// два часа 6 августа 2026 на 1.24.0+166). Единица при выходе за верхнюю границу —
+/// прежнее поведение уборки: под нулём лежит соло-связь, а нужна настоящая пара.
+int clampedActiveIndex(int index, int length) {
+  if (length <= 0) return 0;
+  if (index < 0) return 0;
+  if (index >= length) return length > 1 ? 1 : 0;
+  return index;
+}
+
 /// Manages multiple connections/groups
 ///
 /// Перенесён с Firebase на PocketBase: личность — из PB-сессии, обнаружение пар
@@ -48,8 +63,10 @@ class ConnectionsManager extends ChangeNotifier {
   int get activeConnectionIndex => _activeConnectionIndex;
   Connection? get activeConnection {
     if (_connections.isEmpty) return null;
-    if (_activeConnectionIndex >= _connections.length) return null;
-    return _connections[_activeConnectionIndex];
+    return _connections[clampedActiveIndex(
+      _activeConnectionIndex,
+      _connections.length,
+    )];
   }
 
   bool get loading => _loading;
@@ -494,10 +511,10 @@ class ConnectionsManager extends ChangeNotifier {
         await _createNewConnection();
       }
       // Keep active index in bounds
-      if (_activeConnectionIndex >= _connections.length) {
-        _activeConnectionIndex =
-            _connections.length > 1 ? 1 : _connections.length - 1;
-      }
+      _activeConnectionIndex = clampedActiveIndex(
+        _activeConnectionIndex,
+        _connections.length,
+      );
       await _saveLocal();
       notifyListeners();
     }

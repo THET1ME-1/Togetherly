@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+
+import '../utils/anim_dispose.dart';
 import '../theme/fonts.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
@@ -74,7 +76,7 @@ class _LiveMapScreenState extends State<LiveMapScreen>
   void dispose() {
     _partnerSub?.cancel();
     _meSub?.cancel();
-    _moveCtrl?.dispose();
+    _moveCtrl = disposeAnim(_moveCtrl);
     super.dispose();
   }
 
@@ -131,7 +133,7 @@ class _LiveMapScreenState extends State<LiveMapScreen>
         Tween<double>(begin: center.longitude, end: dest.longitude);
     final zoomTween = Tween<double>(begin: zoom, end: destZoom);
 
-    _moveCtrl?.dispose();
+    _moveCtrl = disposeAnim(_moveCtrl);
     final ctrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 900),
@@ -161,7 +163,7 @@ class _LiveMapScreenState extends State<LiveMapScreen>
     final me = _me;
     final partner = _partner?.latLng;
     if (me != null && partner != null) {
-      _moveCtrl?.dispose();
+      _moveCtrl = disposeAnim(_moveCtrl);
       try {
         _mapController.fitCamera(
           CameraFit.coordinates(

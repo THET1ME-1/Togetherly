@@ -38,3 +38,23 @@ class ThemeScope extends InheritedWidget {
 extension AppThemeContext on BuildContext {
   AppTheme get appTheme => ThemeScope.of(this);
 }
+
+/// Тема экрана, которая переживает его уход.
+///
+/// Нижний лист живёт в дереве навигатора дольше, чем открывший его экран, и его
+/// колбэк спокойно дёргает тему уже после `dispose`. `State.context` — это
+/// `_element!`, поэтому такое обращение падает с «Null check operator used on a
+/// null value»: 88 событий за день только из профиля на 1.24.0+166, а до этого
+/// 327 падений на покупке темы. Снимать тему в локальную переменную до открытия
+/// листа помогает ровно там, где об этом не забыли; миксин закрывает остальные.
+///
+/// Пока экран жив, тема берётся из контекста и запоминается. После ухода
+/// отдаётся последняя известная — цвет в уже уезжающем листе важнее падения.
+mixin RememberedTheme<T extends StatefulWidget> on State<T> {
+  AppTheme? _rememberedTheme;
+
+  AppTheme get rememberedTheme {
+    if (!mounted) return _rememberedTheme ?? AppThemes.pink;
+    return _rememberedTheme = context.appTheme;
+  }
+}
