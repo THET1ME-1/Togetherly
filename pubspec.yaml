@@ -34,7 +34,10 @@ dependencies:
   # Запись голосовых: 7.x требует Flutter 3.44, у нас 3.41 — держим 6.x.
   record: ^6.2.1
   # Голосовая связь в комнате совместного просмотра (WebRTC между двумя).
-  flutter_webrtc: ^1.1.0
+  # Не ниже 1.6.0: до неё FlutterRTCDesktopCapturer.m звал приватный селектор
+  # RPSystemBroadcastPickerView.buttonPressed:, и App Store резал бинарь
+  # (ITMS-90338, реджект 7 августа).
+  flutter_webrtc: ^1.6.0
   url_launcher: ^6.3.1
   http: ^1.2.0
   intl: ^0.19.0
@@ -62,7 +65,10 @@ dependencies:
   # Свой, не транзитивный: 10.x ушёл с flutter_inappwebview на webview_flutter,
   # а мы напрямую зовём InAppWebViewController.getCurrentWebViewPackage()
   # (версия WebView в телеметрию отказов co-watch плеера).
-  flutter_inappwebview: ^6.1.5
+  # Бета, а не 6.1.5: в стабильной InAppWebView.swift резолвит приватный класс
+  # PGHostedWindow через NSClassFromString, из-за чего Apple завернула сборку
+  # (ITMS-90338, реджект 7 августа). Убрано только в ветке 6.2.0-beta.
+  flutter_inappwebview: ^6.2.0-beta.3
   timezone: ^0.11.0
   package_info_plus: ^8.0.0
   device_info_plus: ^11.1.0
