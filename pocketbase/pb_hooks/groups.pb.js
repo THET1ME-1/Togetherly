@@ -60,14 +60,17 @@ routerAdd("POST", "/api/group/increment", (e) => {
   const groupId = String(body.groupId || "").trim();
   const field = String(body.field || "").trim();
   const by = Number(body.by);
-  // drawings_count теперь ведёт серверный хук counters.pb.js (по canvas_catalogue
-  // create/delete). Старые клиенты всё ещё дёргают increment(drawings_count) —
-  // гасим в NO-OP с ok:true (клиент считает операцию выполненной и НЕ падает в
-  // локальный RMW), иначе счётчик задвоился бы с хуком.
-  if (field === "drawings_count") {
+  // drawings_count и memories_count теперь ведёт серверный хук counters.pb.js
+  // (по canvas_catalogue и memories create/delete). Старые клиенты всё ещё
+  // дёргают increment по этим полям — гасим в NO-OP с ok:true (клиент считает
+  // операцию выполненной и НЕ падает в локальный RMW), иначе счётчик задвоился
+  // бы с хуком. memories_count вернулся сюда 5 августа 2026: пока цифру вёл
+  // клиент отдельной операцией очереди, она расходилась с лентой у каждой
+  // четвёртой пары.
+  if (field === "drawings_count" || field === "memories_count") {
     return e.json(200, { ok: true, value: 0, noop: true });
   }
-  const ALLOWED = ["memories_count", "xp"];
+  const ALLOWED = ["xp"];
   if (!groupId || ALLOWED.indexOf(field) === -1 || !Number.isFinite(by)) {
     return e.json(400, { ok: false, error: "bad params" });
   }

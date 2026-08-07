@@ -174,11 +174,12 @@ class MemoryRepository {
     );
     // 1) оптимистично в кэш → лента показывает сразу (и офлайн)
     await _cache.upsertRaw('memories', memory.id, _row(groupId, memory));
-    // 2) в очередь: создание + инкремент счётчика воспоминаний
+    // 2) в очередь: только сама запись. `memories_count` ведёт сервер
+    // (counters.pb.js по create/delete в `memories`) — пока цифру считал клиент
+    // отдельной операцией очереди, любая её потеря расходилась с лентой
+    // навсегда: у каждой четвёртой пары «воспоминаний 2, показывает 1».
     await _outbox.enqueue('memoryUpsert',
         {'groupId': groupId, 'id': memory.id, 'data': memory.toJson()});
-    await _outbox.enqueue('counterInc',
-        {'groupId': groupId, 'field': 'memories_count', 'by': 1});
     // XP/аналитика — best-effort (онлайн); офлайн просто не начислится.
     unawaited(LevelService.instance.award(XpAction.addMemory));
     // Задание дня закрывается тем же пином: тип совпал — задание засчитано,
@@ -291,7 +292,7 @@ class MemoryRepository {
   }
 
   /// Удаляет воспоминание: оптимистично из кэша + удаление (с чисткой PB-медиа)
-  /// и декремент счётчика в очередь.
+  /// в очередь. Счётчик уменьшает сервер, по факту удаления записи.
   Future<void> delete({
     required String groupId,
     required String memoryId,
@@ -306,8 +307,6 @@ class MemoryRepository {
         .toList();
     await _outbox.enqueue('memoryDelete',
         {'groupId': groupId, 'id': memoryId, 'mediaRefs': refs});
-    await _outbox.enqueue('counterInc',
-        {'groupId': groupId, 'field': 'memories_count', 'by': -1});
   }
 
   // ── Комментарии ──────────────────────────────────────────────────────────
