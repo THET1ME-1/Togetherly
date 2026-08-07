@@ -1,41 +1,24 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Togetherly — приватное пространство для двоих</title>
-<meta name="description" content="Togetherly — приложение для пары: даты, воспоминания, настроение, чат и виджеты на экране телефона. Ровно два аккаунта, третьего внутрь не пустит.">
-<meta name="theme-color" content="#1a1013">
-<link rel="canonical" href="https://togetherly.day/">
-<link rel="icon" href="/logo.jpg" type="image/jpeg">
-<link rel="apple-touch-icon" href="/logo.jpg">
-<!-- Верификация партнёрской программы Яндекса: была на прежнем лендинге,
-     снимать её нельзя, иначе домен отвяжется. -->
-<meta name="yandex-verification-partner" content="q325xqynw6ipmuec">
-<meta property="og:type" content="website">
-<meta property="og:site_name" content="Togetherly">
-<meta property="og:locale" content="ru_RU">
-<meta property="og:locale:alternate" content="en_US">
-<meta property="og:url" content="https://togetherly.day/">
-<meta property="og:title" content="Togetherly — приватное пространство для двоих">
-<meta property="og:description" content="Togetherly — приложение для пары: даты, воспоминания, настроение, чат и виджеты на экране телефона. Ровно два аккаунта, третьего внутрь не пустит.">
-<meta property="og:image" content="https://togetherly.day/landing/og.jpg">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Togetherly — приватное пространство для двоих">
-<meta name="twitter:description" content="Togetherly — приложение для пары: даты, воспоминания, настроение, чат и виджеты на экране телефона. Ровно два аккаунта, третьего внутрь не пустит.">
-<meta name="twitter:image" content="https://togetherly.day/landing/og.jpg">
-</head>
-<body>
-<style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Togetherly — романтичное пространство для двоих</title>
+  <meta name="description" content="Togetherly — стильное и приватное пространство для пары: воспоминания, таймеры, карта мест, настроение и совместные моменты.">
+  <meta name="theme-color" content="#FFF8F7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#191113" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="/logo.jpg">
+
+  <style>
     @font-face {
       font-family: 'Unbounded';
-      src: url('/landing/unbounded-200.woff2') format('woff2');
+      src: url('/fonts/unbounded.woff2') format('woff2');
       font-weight: 200 900;
       font-display: swap;
     }
     @font-face {
       font-family: 'Onest';
-      src: url('/landing/onest-100.woff2') format('woff2');
+      src: url('/fonts/onest.woff2') format('woff2');
       font-weight: 100 900;
       font-display: swap;
     }
@@ -272,13 +255,11 @@
     .section-note { margin: 20px 0 0; color: var(--on-surface-variant); max-width: 56ch; }
 
     /* ── экраны ── */
-    /* Пять колонок вместо четырёх: экран телефона высокий (1:2), и в четырёх
-       карточка вырастала до 645 px — вертикальная полоса во весь экран. */
-    .screens { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; align-items: start; }
+    .screens { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
     .screen { display: flex; flex-direction: column; gap: 14px; margin: 0; }
     .screen img {
-      display: block; width: 100%; height: auto; border-radius: var(--shape-l);
-      background: var(--surface-container); box-shadow: 0 12px 32px rgba(0, 0, 0, .16);
+      display: block; width: 100%; border-radius: var(--shape-l);
+      background: var(--surface-container);
     }
     .screen h3 { margin: 0; font-size: 18px; font-weight: 600; line-height: 1.2; }
     .screen p { margin: 0; font-size: 14px; color: var(--on-surface-variant); }
@@ -325,44 +306,34 @@
     .footer-links a:hover { background: var(--surface-container-high); }
 
     /* ── появление ── */
-    /* Появление — усиление, а не условие видимости: класс ставит сам скрипт,
-       поэтому без JS всё на месте, а роботы и превью видят текст. */
-    html.js-reveal .reveal { opacity: 0; transform: translateY(18px); transition: opacity 500ms var(--easing), transform 500ms var(--easing); }
-    html.js-reveal .reveal.visible { opacity: 1; transform: none; }
+    .reveal { opacity: 0; transform: translateY(18px); transition: opacity 500ms var(--easing), transform 500ms var(--easing); }
+    .reveal.visible { opacity: 1; transform: none; }
 
     @media (max-width: 900px) {
       .strip, .steps { grid-template-columns: 1fr; }
-      .numbers { grid-template-columns: repeat(2, 1fr); }
-      .screens { grid-template-columns: repeat(3, 1fr); }
+      .numbers, .screens { grid-template-columns: repeat(2, 1fr); }
       .hero { border-radius: var(--shape-xxl); }
       .brand-sub { display: none; }
     }
 
     @media (max-width: 560px) {
       .numbers { grid-template-columns: 1fr; }
-      /* На телефоне пять экранов столбиком — это пять экранов прокрутки.
-         Лента с прилипанием листается пальцем, как витрина в магазине. */
-      .screens { display: flex; overflow-x: auto; gap: 12px; scroll-snap-type: x mandatory;
-        scrollbar-width: none; margin: 0 -20px; padding: 0 20px 4px; }
-      .screens::-webkit-scrollbar { display: none; }
-      .screen { flex: 0 0 64%; scroll-snap-align: center; }
+      .screens { grid-template-columns: 1fr; }
       .top-link { display: none; }
       .btn-filled, .btn-tonal { width: 100%; justify-content: center; }
     }
 
     @media (prefers-reduced-motion: reduce) {
       * { transition: none !important; animation: none !important; }
-      /* Селектор с html.js-reveal сильнее одиночного класса, поэтому здесь
-         повторяем его же: иначе при отключённой анимации секции так и
-         остались бы прозрачными до попадания во вьюпорт. */
-      .reveal, html.js-reveal .reveal { opacity: 1; transform: none; }
+      .reveal { opacity: 1; transform: none; }
     }
   </style>
-
+</head>
+<body>
 
   <div class="auth-view">
     <div class="auth-card">
-      <img src="/landing/shot-1.jpg" alt="Togetherly">
+      <img src="/logo.jpg" alt="Togetherly">
       <h1>Togetherly</h1>
       <p class="lang-ru">Открываем приложение и завершаем подтверждение входа…</p>
       <p class="lang-en">Opening the app and finishing sign-in verification…</p>
@@ -374,7 +345,7 @@
     <header class="topbar">
       <div class="container topbar-inner">
         <a class="brand" href="#top">
-          <img src="/landing/shot-2.jpg" alt="Togetherly">
+          <img src="/logo.jpg" alt="Togetherly">
           <div>
             <div class="brand-title">Togetherly</div>
             <span class="brand-sub">private love space</span>
@@ -461,39 +432,32 @@
 
           <div class="screens">
             <figure class="screen reveal">
-              <img src="/landing/screen-home.jpg" alt="Главный экран Togetherly" loading="lazy" width="500" height="1015">
+              <img src="/appshots/hero-home.jpg" alt="Главный экран Togetherly" loading="lazy" width="420" height="900">
               <h3 class="lang-ru">Главный экран</h3>
               <h3 class="lang-en">Home screen</h3>
               <p class="lang-ru">Таймер вашей истории, настроение дня и быстрые действия.</p>
               <p class="lang-en">Your story timer, mood of the day and quick actions.</p>
             </figure>
             <figure class="screen reveal">
-              <img src="/landing/screen-widgets.jpg" alt="Виджеты Togetherly" loading="lazy" width="500" height="1015">
+              <img src="/appshots/widgets.jpg" alt="Виджеты Togetherly" loading="lazy" width="420" height="900">
               <h3 class="lang-ru">Виджеты</h3>
               <h3 class="lang-en">Widgets</h3>
               <p class="lang-ru">Счётчик дней, кольцо года, фото и заметка на двоих прямо на рабочем столе.</p>
               <p class="lang-en">Days together, the year ring, photos and a shared note right on your home screen.</p>
             </figure>
             <figure class="screen reveal">
-              <img src="/landing/screen-connection.jpg" alt="Экран связи Togetherly" loading="lazy" width="500" height="1015">
+              <img src="/appshots/connection.jpg" alt="Экран связи Togetherly" loading="lazy" width="420" height="900">
               <h3 class="lang-ru">Связь</h3>
               <h3 class="lang-en">Connection</h3>
               <p class="lang-ru">Приглашение по коду или QR и статус вашего общего пространства.</p>
               <p class="lang-en">Invite by code or QR and the status of your shared space.</p>
             </figure>
             <figure class="screen reveal">
-              <img src="/landing/screen-profile.jpg" alt="Профиль Togetherly" loading="lazy" width="500" height="1015">
+              <img src="/appshots/profile.jpg" alt="Профиль Togetherly" loading="lazy" width="420" height="900">
               <h3 class="lang-ru">Профиль</h3>
               <h3 class="lang-en">Profile</h3>
-              <p class="lang-ru">Данные аккаунта, друзья и статистика отношений.</p>
+              <p class="lang-ru">Оформление, достижения, подарки и данные аккаунта.</p>
               <p class="lang-en">Appearance, achievements, gifts and account data.</p>
-            </figure>
-            <figure class="screen reveal">
-              <img src="/landing/screen-watch.jpg" alt="Совместный просмотр в Togetherly" loading="lazy" width="500" height="1015">
-              <h3 class="lang-ru">Смотрим вместе</h3>
-              <h3 class="lang-en">Watch together</h3>
-              <p class="lang-ru">Один ставит на паузу — пауза у обоих. Комната открывается и в браузере.</p>
-              <p class="lang-en">One hits pause, it pauses for both. The room opens in a browser too.</p>
             </figure>
           </div>
         </section>
@@ -553,7 +517,7 @@
     <footer>
       <div class="container footer-box reveal">
         <div class="footer-info">
-          <img src="/landing/shot-7.jpg" alt="Togetherly">
+          <img src="/logo.jpg" alt="Togetherly">
           <div>
             <strong>Togetherly</strong>
             <span class="lang-ru">личное пространство для двоих</span>
@@ -599,9 +563,6 @@
     try { saved = localStorage.getItem('togetherly-lang'); } catch (e) {}
     setLang(saved || ((navigator.language || '').startsWith('ru') ? 'ru' : 'en'));
 
-    // Класс ставится до наблюдателя: до этой строки секции видимы, и если
-    // скрипт упадёт раньше, страница останется читаемой.
-    document.documentElement.classList.add('js-reveal');
     const observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
         if (entry.isIntersecting) {
@@ -613,7 +574,5 @@
 
     document.querySelectorAll('.reveal:not(.visible)').forEach((item) => observer.observe(item));
   </script>
-
-
 </body>
 </html>

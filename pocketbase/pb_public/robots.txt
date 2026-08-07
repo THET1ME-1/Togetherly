@@ -1,0 +1,9 @@
+# Публичные страницы открыты, служебное закрыто: админка и API модерации живут
+# на admin.togetherly.day и наружу отдают 403, но пусть роботы туда и не ходят.
+User-agent: *
+Allow: /
+Disallow: /modapi/
+Disallow: /_/
+Disallow: /api/
+
+Sitemap: https://togetherly.day/sitemap.xml
