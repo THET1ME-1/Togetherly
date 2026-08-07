@@ -25,6 +25,6 @@
        (код 90530). Значение совпадает с IPHONEOS_DEPLOYMENT_TARGET таргета
        Runner — именно под него собран App.framework. -->
   <key>MinimumOSVersion</key>
-  <string>13.0</string>
+  <string>15.0</string>
 </dict>
 </plist>
