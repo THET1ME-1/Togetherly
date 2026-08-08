@@ -45,6 +45,11 @@ class ConnectionsManager extends ChangeNotifier {
   /// свой код, группа полна) была видна.
   String? lastAcceptMessage;
 
+  /// Почему сервер отказался заводить пару с пустым местом. Лист показывает эту
+  /// строку у себя внутри: снекбар из нижнего листа уезжает ПОД лист, и отказ
+  /// выглядит как «нажимаю — ничего не происходит».
+  String? lastWaitingCreateError;
+
   /// Введённый код оказался кодом второго места: заявка ушла, ждём, пока
   /// хозяйка пары нажмёт «это он».
   bool lastAcceptWaiting = false;
@@ -283,12 +288,17 @@ class ConnectionsManager extends ChangeNotifier {
     String? avatar,
     DateTime? returnDate,
   }) async {
+    lastWaitingCreateError = null;
     final res = await PbDataService().waitingCreate(
       name: name,
       avatar: avatar,
       returnDate: returnDate,
     );
-    if (res == null) return '';
+    if (res == null) {
+      final msg = PbDataService().lastWaitingError ?? '';
+      lastWaitingCreateError = msg.isEmpty ? null : msg;
+      return '';
+    }
     final pairId = res['pairId'] ?? '';
     if (pairId.isEmpty) return '';
 
@@ -435,12 +445,17 @@ class ConnectionsManager extends ChangeNotifier {
     // перестроиться → иначе «Concurrent modification».
     for (final conn in _connections.toList()) {
       if (conn.isSolo) continue;
-      if (!conn.isPaired || conn.pairId.isEmpty) continue;
-      if (conn.partners.isNotEmpty) continue;
+      if (conn.pairId.isEmpty) continue;
       // Пара с пустым местом («он в армии») выглядит точно так же: группа есть,
-      // партнёра в ней нет. Раньше эта уборка снесла бы её на первом запуске
-      // вместе со всей перепиской, которую человек копил, пока ждал.
-      if (conn.waitingMode) continue;
+      // партнёра в ней нет. Правило общее с живым снимком группы —
+      // `shouldLeaveOrphanGroup`, иначе одно место чинится, а второе убивает.
+      if (!shouldLeaveOrphanGroup(
+        isPaired: conn.isPaired,
+        partnersCount: conn.partners.length,
+        waitingMode: conn.waitingMode,
+      )) {
+        continue;
+      }
 
       debugPrint(
         '_cleanupStaleConnections: removing orphaned group ${conn.pairId}',

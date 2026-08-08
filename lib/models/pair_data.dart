@@ -204,6 +204,9 @@ class PairData extends ChangeNotifier {
   bool get awaitingApproval => _manager.lastAcceptWaiting;
   String get awaitingOwnerName => _manager.lastAcceptOwnerName;
 
+  /// Почему сервер отказался заводить пару с пустым местом (пусто — не знаем).
+  String? get lastWaitingCreateError => _manager.lastWaitingCreateError;
+
   Future<String> createWaitingPair({
     required String name,
     String? avatar,

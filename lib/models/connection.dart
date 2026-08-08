@@ -8,6 +8,20 @@ import '../services/pb_realtime_service.dart';
 import '../services/pocketbase_service.dart';
 import 'relationship_status.dart';
 
+/// Пора ли выходить из группы, где кроме меня никого не осталось.
+///
+/// Пара с пустым местом («он в армии») выглядит точно так же — группа есть,
+/// партнёра в ней нет, — но пустое место там по замыслу и ждёт своего человека.
+/// Правило вынесено сюда, потому что живёт в двух местах: живой снимок группы и
+/// уборка устаревших связей. Разъезд между ними стоил всех 52 пар с пустым
+/// местом на проде: снимок звал `leaveGroup` через полсекунды после создания.
+bool shouldLeaveOrphanGroup({
+  required bool isPaired,
+  required int partnersCount,
+  required bool waitingMode,
+}) =>
+    isPaired && partnersCount == 0 && !waitingMode;
+
 enum RelationshipType {
   couple, // In Love — max 2
   married, // Married — max 2
@@ -838,6 +852,18 @@ class Connection {
       return;
     }
 
+    // Пара с пустым местом: живой снимок обязан приносить и её поля. Без них
+    // связь выглядит осиротевшей группой без партнёра (и уходила в leaveGroup),
+    // а заявка «это он?» не появлялась бы до перезапуска приложения.
+    waitingMode = data['waitingMode'] == true;
+    placeholderName = (data['placeholderName'] ?? '') as String;
+    placeholderAvatar = (data['placeholderAvatar'] ?? '') as String;
+    returnDate = data['returnDate'] as DateTime? ?? returnDate;
+    claimToken = (data['claimToken'] ?? '') as String;
+    claimUid = (data['claimUid'] ?? '') as String;
+    claimName = (data['claimName'] ?? '') as String;
+    claimAt = (data['claimAt'] as int?) ?? 0;
+
     partnerName = data['partnerName'] ?? partnerName;
     partnerAvatarUrl = data['partnerAvatar'] ?? partnerAvatarUrl;
     startDate = data['startDate'] as DateTime? ?? startDate;
@@ -891,7 +917,11 @@ class Connection {
       // If all partners left (only me remaining), mark as unpaired and disband
       // the orphan group (иначе оно вернётся в discovery: members~me).
       final partnersCount = members.where((m) => m.uid != myUid).length;
-      if (partnersCount == 0 && isPaired) {
+      if (shouldLeaveOrphanGroup(
+        isPaired: isPaired,
+        partnersCount: partnersCount,
+        waitingMode: waitingMode,
+      )) {
         debugPrint('_listenToPair: all partners left, marking as unpaired');
         final staleId = pairId;
         isPaired = false;

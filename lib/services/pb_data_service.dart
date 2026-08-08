@@ -471,6 +471,7 @@ class PbDataService {
     String? avatar,
     DateTime? returnDate,
   }) async {
+    lastWaitingError = null;
     try {
       final res = await _pb.send('/api/waiting/create', method: 'POST', body: {
         'name': name,
@@ -480,11 +481,20 @@ class PbDataService {
       final map = res is Map
           ? Map<String, dynamic>.from(res)
           : <String, dynamic>{};
-      if (map['success'] != true) return null;
+      if (map['success'] != true) {
+        lastWaitingError = (map['message'] ?? '').toString();
+        return null;
+      }
       return {
         'pairId': (map['pairId'] ?? '').toString(),
         'code': (map['code'] ?? '').toString(),
       };
+    } on ClientException catch (e) {
+      // Отказ роута приходит исключением, а причина — телом ответа. Без неё
+      // человек видит «не получилось» и не знает, что делать.
+      lastWaitingError = (e.response['message'] ?? '').toString();
+      debugPrint('PbData.waitingCreate ${e.statusCode}: $lastWaitingError');
+      return null;
     } catch (e) {
       debugPrint('PbData.waitingCreate failed: $e');
       return null;

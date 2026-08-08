@@ -50,6 +50,11 @@ class _WaitingSetupSheetState extends State<WaitingSetupSheet> {
   DateTime? _returnDate;
   bool _saving = false;
 
+  /// Отказ показываем ВНУТРИ листа. Снекбар живёт в Scaffold, а лист — маршрутом
+  /// поверх него: сообщение уезжало под лист, и отказ сервера выглядел как
+  /// «нажимаю „Завести пару“ — абсолютно ничего не происходит».
+  String? _error;
+
   @override
   void initState() {
     super.initState();
@@ -79,7 +84,10 @@ class _WaitingSetupSheetState extends State<WaitingSetupSheet> {
     final s = LocaleService.current;
     final name = _name.text.trim();
     if (name.isEmpty) return;
-    setState(() => _saving = true);
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
     final ok = widget.editing
         ? await widget.pair.updateWaitingPlaceholder(
             name: name,
@@ -92,13 +100,14 @@ class _WaitingSetupSheetState extends State<WaitingSetupSheet> {
           ))
             .isNotEmpty;
     if (!mounted) return;
-    setState(() => _saving = false);
     if (ok) {
+      setState(() => _saving = false);
       Navigator.of(context).pop(true);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(s.waitingCreateFailed)),
-      );
+      setState(() {
+        _saving = false;
+        _error = widget.pair.lastWaitingCreateError ?? s.waitingCreateFailed;
+      });
     }
   }
 
@@ -195,6 +204,35 @@ class _WaitingSetupSheetState extends State<WaitingSetupSheet> {
                 ),
               ),
             ),
+            if (_error != null) ...[
+              const SizedBox(height: 14),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: cs.errorContainer,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.error_outline_rounded,
+                        size: 20, color: cs.onErrorContainer),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        _error!,
+                        style: TextStyle(
+                          fontFamily: ProfileTheme.bodyFont,
+                          fontSize: 14,
+                          height: 1.3,
+                          color: cs.onErrorContainer,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 24),
             FilledButton(
               onPressed: _name.text.trim().isEmpty || _saving ? null : _save,
