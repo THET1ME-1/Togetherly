@@ -14,21 +14,18 @@ class RateLimitException implements Exception {
 /// Client-side rate limiter backed by SharedPreferences.
 /// Prevents excessive Firestore writes without blocking legitimate use.
 ///
-/// Limits:
-///   - Memories : 10 per hour
-///   - Comments : 30 per hour
-///   - Vibes    : 20 per 15 minutes (miss_you + thinking_of_you + want_hug + custom)
+/// Осталось ровно одно ограничение — комментарии, 30 в час. Лимит на
+/// воспоминания снят раньше, лимит на импульсы («думаю о тебе», «хочу обнять»,
+/// своё пожелание) — 8 августа 2026: 20 штук за 15 минут упирались в живой
+/// разговор пары, а сервер и без него держит поток (`miss-you` 600/10с).
 class RateLimiterService {
   static final RateLimiterService _instance = RateLimiterService._();
   factory RateLimiterService() => _instance;
   RateLimiterService._();
 
   static const _keyComment = 'rl_comment_ts';
-  static const _keyVibe = 'rl_vibe_ts';
   static const _maxCommentsPerHour = 30;
-  static const _maxVibesPerWindow = 20;
   static const _hourWindow = Duration(hours: 1);
-  static const _vibeWindow = Duration(minutes: 15);
 
   // ── Memories ──────────────────────────────────────────────────────────────
 
@@ -57,26 +54,6 @@ class RateLimiterService {
   Future<void> checkAndRecordComment() async {
     await checkComment();
     await recordComment();
-  }
-
-  // ── Vibes (miss_you + thinking_of_you + want_hug + custom) ───────────────
-
-  /// Throws [RateLimitException] if the vibe limit is exceeded.
-  Future<void> checkVibe() => _check(
-    key: _keyVibe,
-    maxCount: _maxVibesPerWindow,
-    window: _vibeWindow,
-    itemLabel: 'импульсов',
-    windowLabel: 'за 15 минут',
-  );
-
-  /// Records one successful vibe send.
-  Future<void> recordVibe() => _record(key: _keyVibe, window: _vibeWindow);
-
-  /// Checks and records atomically.
-  Future<void> checkAndRecordVibe() async {
-    await checkVibe();
-    await recordVibe();
   }
 
   // ── Internal ──────────────────────────────────────────────────────────────

@@ -4,7 +4,6 @@ import 'analytics_service.dart';
 import 'pb_data_service.dart';
 import 'pb_realtime_service.dart';
 import 'pocketbase_service.dart';
-import 'rate_limiter_service.dart';
 
 /// Репозиторий «Я скучаю» / вайбов поверх PocketBase (миграция §3).
 ///
@@ -38,10 +37,9 @@ class MissYouRepository {
     if (ok) unawaited(AnalyticsService.instance.logMissYouSent());
   }
 
-  /// Вайб (думаю о тебе / хочу обнять / custom). Рейт-лимит как прежде:
-  /// [RateLimiterService.checkVibe] бросает [RateLimitException] ДО записи —
-  /// исключение пробрасывается наружу (UI ловит). Инкрементит счётчик (см. док
-  /// класса) + пишет last_vibe/last_vibe_text для текста пуша.
+  /// Вайб (думаю о тебе / хочу обнять / custom). Без рейт-лимита, как и тап
+  /// «Я скучаю». Инкрементит счётчик (см. док класса) + пишет
+  /// last_vibe/last_vibe_text для текста пуша.
   Future<void> sendVibe({
     required String groupId,
     required String vibeType,
@@ -49,7 +47,6 @@ class MissYouRepository {
   }) async {
     final uid = _uid;
     if (uid == null || groupId.isEmpty) return;
-    await RateLimiterService().checkVibe(); // бросит RateLimitException при лимите
     final ok = await _data.incrementMissYou(
       groupId,
       uid,
@@ -57,7 +54,6 @@ class MissYouRepository {
       text: customText,
     );
     if (ok) {
-      unawaited(RateLimiterService().recordVibe());
       unawaited(AnalyticsService.instance.logVibeSent(vibeType: vibeType));
     }
   }

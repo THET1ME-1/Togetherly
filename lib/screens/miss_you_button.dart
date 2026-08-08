@@ -6,7 +6,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/miss_you_repository.dart';
 import '../services/pocketbase_service.dart';
 import '../services/locale_service.dart';
-import '../services/rate_limiter_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_sheet.dart';
 
@@ -256,14 +255,6 @@ class _MissYouButtonState extends State<MissYouButton>
 
     try {
       await _missYou.sendMissYou(widget.groupId);
-    } on RateLimitException catch (e) {
-      if (mounted) {
-        setState(() => _inFlightTaps = max(0, _inFlightTaps - 1));
-        _animateToCurrentRatio();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message)),
-        );
-      }
     } catch (_) {
       if (mounted) {
         setState(() => _inFlightTaps = max(0, _inFlightTaps - 1));
@@ -288,12 +279,6 @@ class _MissYouButtonState extends State<MissYouButton>
         vibeType: vibeType,
       );
       if (mounted) _showSentFeedback(_vibeIcon(vibeType));
-    } on RateLimitException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message)),
-        );
-      }
     } catch (e) {
       debugPrint('sendVibe error: $e');
     }
@@ -321,12 +306,6 @@ class _MissYouButtonState extends State<MissYouButton>
       if (mounted) _showSentFeedback(Icons.edit_rounded);
       // Поднимаем в начало списка (most-recently-used).
       await _saveCustomWish(text);
-    } on RateLimitException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message)),
-        );
-      }
     } catch (e) {
       debugPrint('sendSavedWish error: $e');
     }
@@ -356,12 +335,6 @@ class _MissYouButtonState extends State<MissYouButton>
       // Запоминаем пожелание для быстрого выбора в следующий раз.
       await _saveCustomWish(text.trim());
       if (mounted) _showSentFeedback(Icons.edit_rounded);
-    } on RateLimitException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message)),
-        );
-      }
     } catch (e) {
       debugPrint('sendCustomVibe error: $e');
     }
