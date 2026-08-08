@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:love_app/theme/app_palettes.dart';
+import 'package:material_color_utilities/material_color_utilities.dart';
 
 /// Качество того, что человек видит НА ЭКРАНЕ.
 ///
@@ -31,14 +32,24 @@ double _contrast(Color a, Color b) {
 
 void main() {
   group('AppTheme', () {
-    test('акцент не кислотный', () {
+    test('надпись акцентом не кислотная', () {
+      // Мерка сменилась осознанно (8 августа 2026). Акцентов стало
+      // два: `primary` — надпись, `accentFill` — заливка. Раньше одно число
+      // отвечало и за то, и за другое, поэтому кислотность приходилось резать
+      // по нижней границе. Теперь надпись сидит на читаемом тоне (36 в светлом
+      // режиме, 86 в тёмном), и её насыщенность ограничена кодом — хрома HCT
+      // не выше 55. Сочность самих заливок стережёт `palette_juice_test`,
+      // там же контраст текста поверх них.
       for (final p in kPalettes) {
         for (final b in Brightness.values) {
           final t = buildAppTheme(p, b);
+          // Меряем хрому HCT, а не разброс RGB: у светлых тонов разброс сам по
+          // себе большой, и в тёмном режиме честная бирюза (#4FF…) выглядела
+          // «кислотной» при 0.74, хотя на чёрном фоне читается спокойно.
           expect(
-            _chroma(t.primary),
-            lessThan(0.55),
-            reason: '${p.name} (${b.name}): акцент слишком насыщен',
+            Hct.fromInt(t.primary.toARGB32()).chroma,
+            lessThan(60),
+            reason: '${p.name} (${b.name}): надпись слишком насыщена',
           );
         }
       }

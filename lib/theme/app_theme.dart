@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../utils/readable_text.dart';
+
 /// Описание одной темы приложения.
 ///
 /// Чтобы добавить новую тему — создай [AppTheme] и добавь в [AppThemes.all].
@@ -13,8 +15,15 @@ class AppTheme {
 
   // ── Основные акцентные цвета ─────────────────────────────────────────────
 
-  /// Главный акцентный цвет (кнопки, иконки, бейджи, рамки)
+  /// Акцент для НАДПИСЕЙ и мелких значков поверх фона: тон подобран под
+  /// контраст, оттенок — от палитры. Для заливок берётся [fillColor].
   final Color primary;
+
+  /// Цвет ЗАЛИВКИ: пилюли, лепестки, круглые кнопки, hero, активная навигация.
+  /// Здесь живёт настоящий цвет темы — персик остаётся персиком, потому что его
+  /// не нужно тянуть к контрасту: надпись поверх считает [AppThemes.onColor].
+  /// Пусто у статических `AppThemes.*` — там заливка совпадает с [primary].
+  final Color? accentFill;
 
   /// Светлый вариант primary (фоны чипов, контейнеров)
   final Color primaryLight;
@@ -90,6 +99,13 @@ class AppTheme {
   /// Яркость темы. Управляет ColorScheme/scaffold/меню в `main._buildTheme`.
   final Brightness brightness;
 
+  /// Схема, из которой эта тема собрана. Едет вместе с темой, потому что
+  /// восстановить её по [primary] нельзя: `primary` — уже производный тон, и
+  /// повторный `fromSeed` по нему теряет и хрому, и выбранный человеком вариант
+  /// («сочный» скатывался в «мягкий»: `#BB005B` → `#8D4A5D`). Пусто у
+  /// статических `AppThemes.*` — они собраны руками, схемы за ними нет.
+  final ColorScheme? scheme;
+
   /// Основной текст на карточках и фоне (заголовки, значения). Заменяет
   /// хардкоженные `Colors.grey.shade900` / `Color(0xFF2A2A2A)` в виджетах.
   final Color textPrimary;
@@ -117,6 +133,7 @@ class AppTheme {
     required this.index,
     required this.name,
     required this.primary,
+    this.accentFill,
     required this.primaryLight,
     required this.bgGradient,
     this.bgImageUrl,
@@ -139,6 +156,7 @@ class AppTheme {
     this.isPremium = false,
     this.price = 0,
     this.brightness = Brightness.light,
+    this.scheme,
     this.textPrimary = const Color(0xFF212121),
     this.textSecondary = const Color(0xFF616161),
     this.textMuted = const Color(0xFF9E9E9E),
@@ -159,8 +177,10 @@ class AppTheme {
   /// тёмной темы почти-белый (яркость > 0.6, как серебро нуара) — заливка падает
   /// на графит [AppThemes.darkFill], иначе она стала бы белым пятном с «белым
   /// текстом на белом». Цвет иконки/текста поверх бери через [AppThemes.onColor].
-  Color get fillColor =>
-      (isDark && primary.computeLuminance() > 0.6) ? AppThemes.darkFill : primary;
+  Color get fillColor {
+    final base = accentFill ?? primary;
+    return (isDark && base.computeLuminance() > 0.6) ? AppThemes.darkFill : base;
+  }
 
   /// Свечение-ореол вокруг элемента цветом [color] — то, что раньше писалось
   /// inline как `boxShadow: [BoxShadow(color: accent.withOpacity(0.3), …)]`.
@@ -1010,8 +1030,12 @@ abstract final class AppThemes {
   /// средне-тональные акценты 20 светлых тем (макс. яркость ≈0.45) остаются с
   /// белым текстом — прежний вид не меняется, — а почти-белые акценты тёмных тем
   /// получают тёмный текст. Работает для любых будущих тем без правок виджетов.
-  static Color onColor(Color background) =>
-      background.computeLuminance() > 0.6
-          ? const Color(0xFF1B1B1D)
-          : Colors.white;
+  /// Что писать ПОВЕРХ заливки: белое или тёмное.
+  ///
+  /// Считает настоящий контраст по WCAG, а не яркость с порогом. Порог 0.6
+  /// врал ровно там, где заливка стала сочной: на персике `#FF9782` яркость
+  /// 0.45, то есть «тёмный фон» — и надпись выходила белой при контрасте 1.9.
+  /// Та же ошибка уже ловилась в пузырях чата, лечится тем же способом
+  /// (`readable_text.dart`).
+  static Color onColor(Color background) => readableTextOn(background);
 }

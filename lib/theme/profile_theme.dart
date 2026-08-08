@@ -15,8 +15,15 @@ abstract final class ProfileTheme {
   static const String displayFont = 'Unbounded';
   static const String bodyFont = 'Onest';
 
-  /// M3-схема из seed темы. Тёмные темы Togetherly дают тёмную схему.
-  static ColorScheme schemeFor(AppTheme t) => schemeOf(t.primary, t.brightness);
+  /// M3-схема темы. Тёмные темы Togetherly дают тёмную схему.
+  ///
+  /// Готовую схему берём как есть: `AppTheme.primary` — это уже `scheme.primary`,
+  /// то есть производный тон, и повторный `fromSeed` по нему скатывал любой
+  /// вариант в «мягкий». Тема вишнёвая, вариант «сочный»: главная `#BB005B`,
+  /// а всё, что строилось здесь, — `#8D4A5D`, вдвое бледнее по хроме. Схемы нет
+  /// только у статических `AppThemes.*` — им остаётся прежний путь через сид.
+  static ColorScheme schemeFor(AppTheme t) =>
+      t.scheme ?? schemeOf(t.primary, t.brightness);
 
   /// Схема из произвольного акцента — ею же пользуются тесты палитр.
   ///
@@ -83,8 +90,17 @@ abstract final class ProfileTheme {
         ),
       ),
       // Крупные «таблеточные» кнопки — фирменная черта expressive-стиля.
+      //
+      // Цвет берётся из `primaryContainer`, а не из `primary`: с 8 августа
+      // 2026 у темы два акцента, и `primary` — это НАДПИСЬ (тёмный тон под
+      // контраст), а заливка живёт в контейнере. Залитая кнопка — заливка по
+      // определению, поэтому «Сохранить» в листах красится цветом темы, а не
+      // её тёмным вариантом. Иначе выходило ровно то, на что жаловались:
+      // экран тональный и блёклый, хотя тема сочная.
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
+          backgroundColor: scheme.primaryContainer,
+          foregroundColor: scheme.onPrimaryContainer,
           minimumSize: const Size(0, 56),
           padding: const EdgeInsets.symmetric(horizontal: 28),
           shape: const StadiumBorder(),
