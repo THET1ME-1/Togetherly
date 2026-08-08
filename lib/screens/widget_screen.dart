@@ -42,6 +42,8 @@ import '../services/miss_you_repository.dart';
 import '../services/home_widget_service.dart';
 import '../services/level_service.dart';
 import '../services/locale_service.dart';
+import '../services/music_meta_service.dart';
+import '../utils/photo_crop.dart';
 import '../services/mood_notification_service.dart';
 import '../services/mood_service.dart';
 import '../services/mascot_service.dart';
@@ -6950,12 +6952,17 @@ class _WidgetScreenState extends State<WidgetScreen>
     );
     if (picked == null || !mounted) return;
 
+    // Клетка сетки квадратная, поэтому кадр без обрезки теряет края.
+    final path =
+        await cropPhoto(picked.path, accentColor: _t.primary) ?? picked.path;
+    if (!mounted) return;
+
     setState(() {
       final paths = List<String>.from(_photoGridPaths);
       while (paths.length <= index) {
         paths.add('');
       }
-      paths[index] = picked.path;
+      paths[index] = path;
       _photoGridPaths = paths;
     });
   }
@@ -7339,10 +7346,17 @@ class _WidgetScreenState extends State<WidgetScreen>
     );
     if (file == null || !mounted) return;
 
+    // Кадр на рабочем столе обрезается по ячейке, и решать, что останется в
+    // кадре, должен человек, а не BoxFit.cover. Отказ от кроппера означает
+    // «оставить как есть», а не отмену постановки фото.
+    final photoPath =
+        await cropPhoto(file.path, accentColor: _t.primary) ?? file.path;
+    if (!mounted) return;
+
     // Соло-режим: партнёра/воспоминаний нет — старое поведение (только мой виджет).
     if (_pair.pairId.isEmpty) {
       _showPhotoLoader();
-      await _ws.updatePhoto(file.path);
+      await _ws.updatePhoto(photoPath);
       if (mounted) Navigator.of(context).pop(); // закрываем лоадер
       return;
     }
@@ -7383,7 +7397,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     final uid = PocketBaseService().userId ?? '';
     final ts = DateTime.now().millisecondsSinceEpoch;
     final url = await fb.uploadFile(
-      file.path,
+      photoPath,
       'widget/${_pair.pairId}/${uid}_$ts.jpg',
     );
 
@@ -8209,6 +8223,9 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
 
   bool _isFetching = false;
   String? _coverUrl;
+  Timer? _debounce;
+  String? _lastFetchedUrl;
+  String? _error;
 
   @override
   void initState() {
@@ -8224,8 +8241,51 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
     });
   }
 
+  /// Сохранение с догрузкой. Прежняя кнопка на пустых полях просто выходила
+  /// молча (`if (title.isEmpty || artist.isEmpty) return`), и человек с
+  /// вставленной ссылкой упирался в мёртвую кнопку без единого слова.
+  Future<void> _saveMusic() async {
+    final url = _urlCtrl.text.trim();
+    final needMeta =
+        _titleCtrl.text.trim().isEmpty || _artistCtrl.text.trim().isEmpty;
+    if (needMeta && url.isNotEmpty && url != _lastFetchedUrl) {
+      await _triggerFetch();
+    }
+    if (!mounted) return;
+
+    final title = _titleCtrl.text.trim();
+    final artist = _artistCtrl.text.trim();
+    if (title.isEmpty || artist.isEmpty) {
+      // Снекбар отсюда не виден: лист лежит маршрутом поверх Scaffold, и
+      // сообщение уезжает под него (те же грабли, что у «Ждём человека»).
+      setState(() => _error = LocaleService.current.musicMetaNotFound);
+      return;
+    }
+    widget.onSave(
+      title: title,
+      artist: artist,
+      url: url.isNotEmpty ? url : null,
+      coverUrl: _coverUrl,
+    );
+  }
+
+  /// Подгрузка по вставке ссылки, а не по уходу курсора из поля. Раньше
+  /// сработать успевал только тот, кто нажимал куда-то ещё перед сохранением;
+  /// остальные вписывали автора и название руками, хотя приложение умеет их
+  /// доставать само.
+  void _onUrlChanged(String value) {
+    final url = value.trim();
+    if (_error != null) setState(() => _error = null);
+    _debounce?.cancel();
+    if (!url.startsWith('http') || !url.contains('.')) return;
+    _debounce = Timer(const Duration(milliseconds: 600), () {
+      if (url != _lastFetchedUrl) _triggerFetch();
+    });
+  }
+
   @override
   void dispose() {
+    _debounce?.cancel();
     _titleCtrl.dispose();
     _artistCtrl.dispose();
     _urlCtrl.dispose();
@@ -8236,7 +8296,8 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
   Future<void> _triggerFetch() async {
     final url = _urlCtrl.text.trim();
     if (url.isEmpty || !url.startsWith('http')) return;
-    if (!mounted) return;
+    if (!mounted || _isFetching) return;
+    _lastFetchedUrl = url;
     setState(() => _isFetching = true);
     final meta = await _fetchMusicMeta(url);
     if (!mounted) return;
@@ -8346,6 +8407,7 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
                     focusNode: _urlFocus,
                     keyboardType: TextInputType.url,
                     style: AppFonts.onest(size: 15),
+                    onChanged: _onUrlChanged,
                     onSubmitted: (_) => _triggerFetch(),
                     decoration: InputDecoration(
                       hintText: LocaleService.current.pasteLinkFromService,
@@ -8487,23 +8549,30 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
               ),
             ),
 
+            if (_error != null) ...[
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.errorContainer,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  _error!,
+                  style: AppFonts.onest(
+                    size: 13.5,
+                    color: Theme.of(context).colorScheme.onErrorContainer,
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
               height: 50,
               child: ElevatedButton(
-                onPressed: () {
-                  final title = _titleCtrl.text.trim();
-                  final artist = _artistCtrl.text.trim();
-                  if (title.isEmpty || artist.isEmpty) return;
-                  final url = _urlCtrl.text.trim();
-                  widget.onSave(
-                    title: title,
-                    artist: artist,
-                    url: url.isNotEmpty ? url : null,
-                    coverUrl: _coverUrl,
-                  );
-                },
+                onPressed: _isFetching ? null : _saveMusic,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primary,
                   foregroundColor: Colors.white,
@@ -8536,261 +8605,11 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
       .replaceAll('&#x27;', "'")
       .replaceAll('&nbsp;', ' ');
 
-  Future<Map<String, String?>> _fetchMusicMeta(String url) async {
-    final lower = url.toLowerCase();
-
-    // YouTube / YouTube Music
-    if (lower.contains('youtube.com') ||
-        lower.contains('youtu.be') ||
-        lower.contains('music.youtube.com')) {
-      try {
-        final resp = await http.get(Uri.parse(
-          'https://www.youtube.com/oembed?url=${Uri.encodeComponent(url)}&format=json',
-        ));
-        if (resp.statusCode == 200) {
-          final data = json.decode(resp.body) as Map<String, dynamic>;
-          return {
-            'title': data['title'] as String?,
-            'artist': data['author_name'] as String?,
-            'cover': data['thumbnail_url'] as String?,
-          };
-        }
-      } catch (e) {
-        debugPrint('YouTube meta fetch error: $e');
-      }
-      return {};
-    }
-
-    // Spotify
-    if (lower.contains('spotify.com')) {
-      try {
-        final oembedResp = await http.get(
-          Uri.parse('https://open.spotify.com/oembed?url=${Uri.encodeComponent(url)}'),
-          headers: {'User-Agent': 'Mozilla/5.0'},
-        );
-        String? parsedTitle;
-        String? parsedArtist;
-        String? cover;
-        if (oembedResp.statusCode == 200) {
-          final data = json.decode(oembedResp.body) as Map<String, dynamic>;
-          parsedTitle = data['title'] as String?;
-          cover = data['thumbnail_url'] as String?;
-        }
-        try {
-          final pageResp = await http.get(
-            Uri.parse(url),
-            headers: {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'},
-          );
-          if (pageResp.statusCode == 200) {
-            final titleMatch = RegExp(r'<title[^>]*>(.+?)</title>', caseSensitive: false)
-                .firstMatch(pageResp.body);
-            if (titleMatch != null) {
-              final byMatch = RegExp(r'(?:song and lyrics|[Aa]lbum|single)\s+by\s+(.+?)\s*\|\s*Spotify')
-                  .firstMatch(titleMatch.group(1) ?? '');
-              if (byMatch != null) parsedArtist = byMatch.group(1)?.trim();
-            }
-          }
-        } catch (_) {}
-        return {'title': parsedTitle, 'artist': parsedArtist, 'cover': cover};
-      } catch (e) {
-        debugPrint('Spotify meta fetch error: $e');
-      }
-    }
-
-    // Deezer
-    final isDeezer = lower.contains('deezer.com') ||
-        lower.contains('deezer.page.link') ||
-        lower.contains('link.deezer.com');
-    if (isDeezer) {
-      try {
-        String resolvedUrl = url;
-        if (lower.contains('deezer.page.link') || lower.contains('link.deezer.com')) {
-          try {
-            String current = url;
-            for (int i = 0; i < 5; i++) {
-              final httpClient = HttpClient()
-                ..connectionTimeout = const Duration(seconds: 6);
-              final req = await httpClient.getUrl(Uri.parse(current));
-              req.followRedirects = false;
-              final resp = await req.close();
-              final location = resp.headers.value('location');
-              httpClient.close();
-              if (location == null || location.isEmpty) break;
-              current = location;
-              if (current.toLowerCase().contains('deezer.com/') &&
-                  current.toLowerCase().contains('/track/')) {
-                resolvedUrl = current;
-                break;
-              }
-              resolvedUrl = current;
-            }
-          } catch (_) {}
-        }
-        final trackMatch =
-            RegExp(r'deezer\.com/(?:[^/?#]+/)*track/(\d+)').firstMatch(resolvedUrl.toLowerCase());
-        if (trackMatch != null) {
-          final apiResp = await http.get(
-            Uri.parse('https://api.deezer.com/track/${trackMatch.group(1)}'),
-            headers: {'Accept': 'application/json'},
-          );
-          if (apiResp.statusCode == 200) {
-            final data = json.decode(apiResp.body) as Map<String, dynamic>;
-            if (data['error'] == null) {
-              return {
-                'title': data['title'] as String?,
-                'artist': (data['artist'] as Map<String, dynamic>?)?['name'] as String?,
-                'cover': (data['album'] as Map<String, dynamic>?)?['cover_big'] as String?,
-              };
-            }
-          }
-        }
-        final oembedResp = await http.get(
-          Uri.parse('https://noembed.com/embed?url=${Uri.encodeComponent(resolvedUrl)}'),
-        );
-        if (oembedResp.statusCode == 200) {
-          final data = json.decode(oembedResp.body) as Map<String, dynamic>;
-          if (data['error'] == null && data['title'] != null) {
-            return {
-              'title': data['title'] as String?,
-              'artist': data['author_name'] as String?,
-              'cover': data['thumbnail_url'] as String?,
-            };
-          }
-        }
-      } catch (e) {
-        debugPrint('Deezer meta fetch error: $e');
-      }
-    }
-
-    // SoundCloud
-    if (lower.contains('soundcloud.com')) {
-      try {
-        final oembedResp = await http.get(Uri.parse(
-          'https://soundcloud.com/oembed?url=${Uri.encodeComponent(url)}&format=json',
-        ));
-        if (oembedResp.statusCode == 200) {
-          final data = json.decode(oembedResp.body) as Map<String, dynamic>;
-          return {
-            'title': data['title'] as String?,
-            'artist': data['author_name'] as String?,
-            'cover': data['thumbnail_url'] as String?,
-          };
-        }
-      } catch (e) {
-        debugPrint('SoundCloud meta fetch error: $e');
-      }
-    }
-
-    // Яндекс Музыка
-    if (lower.contains('music.yandex.')) {
-      try {
-        final pageResp = await http.get(
-          Uri.parse(url),
-          headers: {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'},
-        );
-        if (pageResp.statusCode == 200) {
-          final titleMatch = RegExp(r'<title[^>]*>(.+?)</title>', caseSensitive: false)
-              .firstMatch(pageResp.body);
-          if (titleMatch != null) {
-            final parts = (titleMatch.group(1) ?? '').split('—');
-            if (parts.length >= 2) {
-              return {
-                'title': parts[0].trim(),
-                'artist': parts[1].split(RegExp(r'слушать|listen')).first.trim(),
-                'cover': null,
-              };
-            }
-          }
-        }
-      } catch (e) {
-        debugPrint('Yandex Music meta fetch error: $e');
-      }
-    }
-
-    // Apple Music
-    if (lower.contains('music.apple.com')) {
-      try {
-        final trackIdMatch = RegExp(r'[?&]i=(\d+)').firstMatch(url);
-        final pathIdMatch = RegExp(r'/(\d+)(?:[?#/]|$)').allMatches(url).lastOrNull;
-        final lookupId = trackIdMatch?.group(1) ?? pathIdMatch?.group(1);
-        if (lookupId != null) {
-          final resp = await http.get(Uri.parse(
-            'https://itunes.apple.com/lookup?id=$lookupId&entity=song',
-          ));
-          if (resp.statusCode == 200) {
-            final data = json.decode(resp.body) as Map<String, dynamic>;
-            final results = data['results'] as List?;
-            if (results != null && results.isNotEmpty) {
-              final track = results.firstWhere(
-                    (r) => r['wrapperType'] == 'track',
-                    orElse: () => results.first,
-                  ) as Map<String, dynamic>;
-              return {
-                'title': track['trackName'] as String?,
-                'artist': track['artistName'] as String?,
-                'cover': track['artworkUrl100'] as String?,
-              };
-            }
-          }
-        }
-      } catch (e) {
-        debugPrint('Apple Music meta fetch error: $e');
-      }
-    }
-
-    // Tidal
-    if (lower.contains('tidal.com')) {
-      try {
-        final pageResp = await http.get(
-          Uri.parse(url),
-          headers: {'User-Agent': 'Twitterbot/1.0'},
-        );
-        if (pageResp.statusCode == 200) {
-          final ogTitleMatch = RegExp(
-            r'property="og:title"\s+content="([^"]+)"',
-            caseSensitive: false,
-          ).firstMatch(pageResp.body);
-          final ogImageMatch = RegExp(
-            r'property="og:image"\s+content="([^"]+)"',
-            caseSensitive: false,
-          ).firstMatch(pageResp.body);
-          if (ogTitleMatch != null) {
-            final raw = _decodeHtmlEntities(ogTitleMatch.group(1) ?? '');
-            final sepIdx = raw.indexOf(' - ');
-            if (sepIdx != -1) {
-              return {
-                'title': raw.substring(sepIdx + 3).trim(),
-                'artist': raw.substring(0, sepIdx).trim(),
-                'cover': ogImageMatch?.group(1),
-              };
-            }
-            return {'title': raw.isNotEmpty ? raw : null, 'artist': null, 'cover': ogImageMatch?.group(1)};
-          }
-        }
-      } catch (e) {
-        debugPrint('Tidal meta fetch error: $e');
-      }
-    }
-
-    // Generic fallback via noembed.com
-    try {
-      final oembedResp = await http.get(
-        Uri.parse('https://noembed.com/embed?url=${Uri.encodeComponent(url)}'),
-      );
-      if (oembedResp.statusCode == 200) {
-        final data = json.decode(oembedResp.body) as Map<String, dynamic>;
-        if (data['error'] == null) {
-          return {
-            'title': data['title'] as String?,
-            'artist': data['author_name'] as String?,
-            'cover': data['thumbnail_url'] as String?,
-          };
-        }
-      }
-    } catch (_) {}
-
-    return {};
-  }
+  /// Метаданные трека по ссылке. Разбор живёт в [MusicMetaService] — одной
+  /// копией на оба экрана: пока копий было две, они разошлись, и в виджете
+  /// Яндекс.Музыка подставляла в поля мусор вместо названия.
+  Future<Map<String, String?>> _fetchMusicMeta(String url) =>
+      MusicMetaService.instance.fetch(url);
 
   void _showServicesInfo(BuildContext context) {
     final primary = widget.theme.primary;

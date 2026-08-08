@@ -9,6 +9,7 @@ import 'package:video_compress/video_compress.dart';
 
 import '../models/memory.dart';
 import '../services/locale_service.dart';
+import '../utils/photo_crop.dart';
 import '../theme/app_theme.dart';
 import '../theme/profile_theme.dart';
 
@@ -136,6 +137,22 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
     } catch (e) {
       _showError(LocaleService.current.failedSelectPhotos(e.toString()));
     }
+  }
+
+  /// Кадрирование уже выбранного снимка. Пачку кроппером не гоняем: человек
+  /// выбирает сразу несколько кадров, и открывать редактор на каждый — пытка.
+  /// Поэтому обрезка идёт по требованию: тап по плитке или кнопка на кадре.
+  ///
+  /// Координаты снимка к этому моменту уже прочитаны (`_tryExifGps` при
+  /// выборе), а кроппер EXIF не сохраняет — иначе метка места пропадала бы
+  /// у каждого обрезанного фото.
+  Future<void> _cropAt(int index) async {
+    if (index < 0 || index >= _media.length) return;
+    final item = _media[index];
+    if (_isVideo(item)) return;
+    final path = await cropPhoto(item.path, accentColor: _cs.primary);
+    if (path == null || !mounted) return;
+    setState(() => _media[index] = XFile(path));
   }
 
   Future<void> _generateVideoThumb(String path) async {
@@ -301,13 +318,31 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
                     onTap: () => Navigator.pop(context),
                   ),
                 ),
-                if (_media.length > 1)
+                // Счётчик кадров и кнопка кадрирования стоят одной строкой:
+                // обрезка нужна ровно тому кадру, который человек видит.
+                if (_media.isNotEmpty)
                   Positioned(
-                    top: media.padding.top + 12,
+                    top: media.padding.top + 6,
                     right: 16,
-                    child: _glassPill(
-                      cs,
-                      LocaleService.current.itemsShort(_media.length),
+                    child: Row(
+                      children: [
+                        if (_media.length > 1) ...[
+                          _glassPill(
+                            cs,
+                            LocaleService.current.itemsShort(_media.length),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        if (!_isVideo(_media.first))
+                          Tooltip(
+                            message: LocaleService.current.cropPhotoAction,
+                            child: _glassButton(
+                              cs,
+                              icon: Icons.crop_rounded,
+                              onTap: () => _cropAt(0),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 // Действие всегда на экране и всегда одной ширины: до кнопки в
@@ -478,6 +513,19 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
                 children: [
                   if (_media.isNotEmpty) ...[
                     _buildThumbRow(cs),
+                    // Про обрезку иначе не догадаются: тап по миниатюре
+                    // выглядит как выбор, а не как вход в редактор.
+                    if (_media.any((m) => !_isVideo(m))) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        LocaleService.current.cropPhotoHint,
+                        style: TextStyle(
+                          fontFamily: ProfileTheme.bodyFont,
+                          fontSize: 12,
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 14),
                   ],
                   _buildTitleField(s),
@@ -528,12 +576,16 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
             child: Stack(
               clipBehavior: Clip.none,
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(18),
-                  child: isVid
-                      ? _videoPreviewWidget(item.path, width: 64, height: 64)
-                      : Image.file(File(item.path),
-                          width: 64, height: 64, fit: BoxFit.cover),
+                GestureDetector(
+                  onTap: isVid ? null : () => _cropAt(i),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: isVid
+                        ? _videoPreviewWidget(item.path, width: 64, height: 64)
+                        : Image.file(File(item.path),
+                            key: ValueKey(item.path),
+                            width: 64, height: 64, fit: BoxFit.cover),
+                  ),
                 ),
                 if (isVid)
                   const Positioned.fill(

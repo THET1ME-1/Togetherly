@@ -834,6 +834,7 @@ abstract class AppStrings {
   String get fetched;
   String get pasteLinkFromService;
   String get autoFetchSongInfo;
+  String get musicMetaNotFound;
   String get orDivider;
   String get fileSelected;
   String get pickAudioFromDevice;
@@ -1801,6 +1802,8 @@ abstract class AppStrings {
   // ── Memory photo form ──
   String get newEntry;
   String get photoVideo;
+  String get cropPhotoAction;
+  String get cropPhotoHint;
   String get optionalTapToSelect;
   String itemsShort(int n);
 
@@ -3431,6 +3434,9 @@ class _RuStrings extends AppStrings {
   String get pasteLinkFromService => 'Вставьте ссылку с любого сервиса...';
   @override
   String get autoFetchSongInfo => 'Авто-получение данных по ссылке';
+  @override
+  String get musicMetaNotFound =>
+      'По ссылке ничего не нашлось — впишите название и исполнителя';
   @override
   String get orDivider => 'ИЛИ';
   @override
@@ -5498,6 +5504,10 @@ class _RuStrings extends AppStrings {
   @override
   String get photoVideo => 'Фото/Видео';
   @override
+  String get cropPhotoAction => 'Кадрировать';
+  @override
+  String get cropPhotoHint => 'Нажмите на снимок, чтобы обрезать';
+  @override
   String get optionalTapToSelect => 'Необязательно — нажмите чтобы выбрать';
   @override
   String itemsShort(int n) => '$n элем.';
@@ -7226,6 +7236,9 @@ class _EnStrings extends AppStrings {
   String get pasteLinkFromService => 'Paste link from any service...';
   @override
   String get autoFetchSongInfo => 'Auto-fetch song info from link';
+  @override
+  String get musicMetaNotFound =>
+      'Nothing found for that link — type the song and artist';
   @override
   String get orDivider => 'OR';
   @override
@@ -9216,6 +9229,10 @@ class _EnStrings extends AppStrings {
   String get newEntry => 'New entry';
   @override
   String get photoVideo => 'Photo/Video';
+  @override
+  String get cropPhotoAction => 'Crop';
+  @override
+  String get cropPhotoHint => 'Tap a photo to crop it';
   @override
   String get optionalTapToSelect => 'Optional — tap to select';
   @override
