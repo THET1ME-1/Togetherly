@@ -33,6 +33,7 @@ import '../theme/app_theme.dart';
 import '../theme/app_palettes.dart';
 import '../theme/theme_scope.dart';
 import '../theme/profile_theme.dart';
+import '../widgets/app_icon_sheet.dart';
 import '../widgets/app_sheet.dart';
 import '../widgets/morph_loader.dart';
 import '../widgets/mascot/mascot_sleep_sheet.dart';
@@ -210,6 +211,10 @@ class _ProfileScreenState extends State<ProfileScreen>
   // пин). См. [UiPrefs]; синхронно с удержанием кнопки на главной.
   bool _sideActionIsArrow = true;
 
+  // Иконка приложения на рабочем столе. Меняется только на Android
+  // (`activity-alias`), поэтому на iOS строки в настройках нет вовсе.
+  String _appIconId = AppIconService.defaultId;
+
   // Подсказка про колесо «Дни вместе» под полем «Годовщина».
   // Скрывается навсегда по крестику.
   int? _memoriesCount;
@@ -263,6 +268,11 @@ class _ProfileScreenState extends State<ProfileScreen>
     _dayTimer = Timer.periodic(const Duration(hours: 1), (_) {
       if (mounted) setState(() {});
     });
+    if (AppIconService.instance.isSupported) {
+      AppIconService.instance.currentIconId().then((id) {
+        if (mounted) setState(() => _appIconId = id);
+      });
+    }
     _loadStats();
     _loadNotifPrefs();
     // НЕ грузим rewarded на открытии профиля — это фоновый запрос, который
@@ -1630,6 +1640,18 @@ class _ProfileScreenState extends State<ProfileScreen>
               theme: widget.userData.theme,
               user: widget.userData,
             ),
+            appIconId:
+                AppIconService.instance.isSupported ? _appIconId : null,
+            onAppIcon: () async {
+              final picked = await showAppIconSheet(
+                ctx,
+                theme: widget.userData.theme,
+                currentId: _appIconId,
+              );
+              if (picked == null || !mounted) return;
+              setState(() => _appIconId = picked);
+              setSheetState(() {});
+            },
           ),
         ),
       ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/locale_service.dart';
 import '../theme/profile_theme.dart';
+import '../widgets/app_icon_sheet.dart';
 import '../widgets/settings_scaffold.dart';
 
 /// Экран настроек.
@@ -45,6 +46,8 @@ class SettingsScreen extends StatelessWidget {
     this.onExportMyData,
     this.mascotSleepAvailable = false,
     this.onMascotSleep,
+    this.appIconId,
+    this.onAppIcon,
   });
 
   final ColorScheme scheme;
@@ -96,6 +99,11 @@ class SettingsScreen extends StatelessWidget {
 
   /// Архив «мои данные» — право забрать копию по закону 133/2011 и GDPR.
   final VoidCallback? onExportMyData;
+
+  /// Текущая иконка приложения; null — сменить её тут нельзя (iOS: alias'ы
+  /// живут только в Android-манифесте).
+  final String? appIconId;
+  final VoidCallback? onAppIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -155,6 +163,23 @@ class SettingsScreen extends StatelessWidget {
                   trailing: const SettingsChevron(),
                   onTap: onAppearance,
                 ),
+                if (appIconId != null) ...[
+                  const SettingsDivider(),
+                  SettingsRow(
+                    icon: Icons.apps_rounded,
+                    title: s.appIconTitle,
+                    subtitle: appIconNameOf(appIconId!),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        AppIconBadge(option: appIconOptionOf(appIconId!)),
+                        const SizedBox(width: 8),
+                        const SettingsChevron(),
+                      ],
+                    ),
+                    onTap: onAppIcon,
+                  ),
+                ],
                 if (mascotSleepAvailable) ...[
                   const SettingsDivider(),
                   SettingsRow(
