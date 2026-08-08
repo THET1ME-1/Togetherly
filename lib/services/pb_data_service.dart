@@ -1376,21 +1376,43 @@ class PbDataService {
   Future<bool> upsertWish(String groupId, Map<String, dynamic> wish) async {
     final id = wish['id'] as String?;
     if (id == null || id.isEmpty || groupId.isEmpty) return false;
-    return _upsertById('wishes', id, {
-      'group_id': groupId,
-      'author_uid': wish['author_uid'] ?? '',
-      'title': wish['title'] ?? '',
-      'note': wish['note'] ?? '',
-      'category': wish['category'] ?? 'other',
-      'symbol': wish['symbol'] ?? '',
-      'done': wish['done'] ?? false,
-      // Пустая строка стирает дату на сервере: отмена отметки должна убирать
-      // её целиком, иначе в архиве останется дата у вернувшегося желания.
-      'done_at': _iso(wish['done_at']) ?? '',
-      'done_by': wish['done_by'] ?? '',
-      'done_note': wish['done_note'] ?? '',
-    }, op: 'upsertWish');
+    return _upsertById('wishes', id, wishUpsertBody(groupId, wish),
+        op: 'upsertWish');
   }
+
+  /// Тело записи желания.
+  ///
+  /// Вынесено отдельно и под тесты, потому что тут уже терялась половина
+  /// желания: `Wish.toMap` клал поля вещи (`kind`, `price`, `currency`, `url`,
+  /// `image`, `shop`), а этот список их не знал — ссылка, цена, магазин и
+  /// фотография не уходили на сервер ни разу. Ставя новое поле в модель, ставить
+  /// его и сюда.
+  static Map<String, dynamic> wishUpsertBody(
+    String groupId,
+    Map<String, dynamic> wish,
+  ) =>
+      <String, dynamic>{
+        'group_id': groupId,
+        'author_uid': wish['author_uid'] ?? '',
+        'title': wish['title'] ?? '',
+        'note': wish['note'] ?? '',
+        'category': wish['category'] ?? 'other',
+        'symbol': wish['symbol'] ?? '',
+        'done': wish['done'] ?? false,
+        // Пустая строка стирает дату на сервере: отмена отметки должна убирать
+        // её целиком, иначе в архиве останется дата у вернувшегося желания.
+        'done_at': _iso(wish['done_at']) ?? '',
+        'done_by': wish['done_by'] ?? '',
+        'done_note': wish['done_note'] ?? '',
+        // Вещь: цена, ссылка, магазин, фотография. Пустое значение доезжает
+        // намеренно — иначе снятую ссылку или фото не убрать.
+        'kind': wish['kind'] ?? 'deed',
+        'price': wish['price'] ?? 0,
+        'currency': wish['currency'] ?? '',
+        'url': wish['url'] ?? '',
+        'image': wish['image'] ?? '',
+        'shop': wish['shop'] ?? '',
+      };
 
   /// Свои категории желаний, заведённые парой.
   Future<List<RecordModel>> loadWishCategories(String groupId) async {
