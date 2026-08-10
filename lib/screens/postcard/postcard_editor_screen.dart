@@ -376,15 +376,6 @@ class _PostcardEditorScreenState extends State<PostcardEditorScreen> {
                   color: isSelected ? _t.primary : _t.divider,
                   width: isSelected ? 2 : 1,
                 ),
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: _t.primary.withOpacity(0.3),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ]
-                    : [],
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,

@@ -243,13 +243,6 @@ class _MemoryLocationFormScreenState extends State<MemoryLocationFormScreen> {
           width: double.infinity,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(22),
-            boxShadow: [
-              BoxShadow(
-                color: _accent.withValues(alpha: 0.18),
-                blurRadius: 24,
-                offset: const Offset(0, 10),
-              ),
-            ],
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(22),
@@ -399,13 +392,6 @@ class _MemoryLocationFormScreenState extends State<MemoryLocationFormScreen> {
             color: _accent,
             shape: BoxShape.circle,
             border: Border.all(color: Colors.white, width: 2.5),
-            boxShadow: [
-              BoxShadow(
-                color: _accent.withValues(alpha: 0.5),
-                blurRadius: 12,
-                spreadRadius: 1,
-              ),
-            ],
           ),
           child: const Icon(Icons.location_on_rounded,
               color: Colors.white, size: 20),
@@ -425,12 +411,6 @@ class _MemoryLocationFormScreenState extends State<MemoryLocationFormScreen> {
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 8,
-          ),
-        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -530,13 +510,6 @@ class _MemoryLocationFormScreenState extends State<MemoryLocationFormScreen> {
         decoration: BoxDecoration(
           color: color,
           borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.25),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,

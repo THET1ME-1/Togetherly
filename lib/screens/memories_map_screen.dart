@@ -195,13 +195,6 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                             color: Colors.white,
                             width: isSelected ? 3 : 2,
                           ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: color.withValues(alpha: 0.45),
-                              blurRadius: isSelected ? 20 : 12,
-                              spreadRadius: isSelected ? 4 : 2,
-                            ),
-                          ],
                         ),
                         child: Center(
                           child: Text(
@@ -235,12 +228,6 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                         decoration: BoxDecoration(
                           color: t.cardSurface,
                           shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.12),
-                              blurRadius: 10,
-                            ),
-                          ],
                         ),
                         child: Icon(
                           Icons.arrow_back_rounded,
@@ -259,12 +246,6 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                         decoration: BoxDecoration(
                           color: t.cardSurface,
                           borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.1),
-                              blurRadius: 10,
-                            ),
-                          ],
                         ),
                         child: Row(
                           children: [
@@ -308,12 +289,6 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                 decoration: BoxDecoration(
                   color: t.cardSurface,
                   borderRadius: BorderRadius.circular(24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
-                      blurRadius: 20,
-                    ),
-                  ],
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -373,13 +348,6 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
         decoration: BoxDecoration(
           color: t.cardSurface,
           borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
-              blurRadius: 24,
-              offset: const Offset(0, -4),
-            ),
-          ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,

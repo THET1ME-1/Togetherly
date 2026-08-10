@@ -133,7 +133,7 @@ class HomeActionButtons extends StatelessWidget {
                           fit: BoxFit.cover,
                         ),
                       )
-                    : _svgIcon(svgIcon, 30, theme.navActiveIcon),
+                    : _svgIcon(svgIcon, 30, theme.primary),
               ),
             ),
           ),

@@ -234,12 +234,6 @@ class _MiniMoodCalendarState extends State<MiniMoodCalendar> {
                       decoration: BoxDecoration(
                         color: widget.theme.fillColor,
                         borderRadius: BorderRadius.circular(20),
-                        boxShadow: widget.theme.accentGlow(
-                          widget.theme.navActiveIcon,
-                          opacity: 0.30,
-                          blurRadius: 10,
-                          offset: const Offset(0, 3),
-                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -583,8 +577,12 @@ class _DayCellState extends State<_DayCell> with TickerProviderStateMixin {
             ? widget.theme.cardSurface
             : Colors.white.withOpacity(0.75));
 
-    final Color baseTextColor = widget.theme.navActiveIcon.withOpacity(0.8);
-    final Color baseNumColor = widget.theme.navActiveIcon;
+    // Число дня красится акцентом темы (`primary`): в светлой это винный или
+    // розовый тон на белой плитке, в тёмной — светлый. Раньше здесь стоял
+    // `navActiveIcon` — цвет ПОВЕРХ заливки, — и в тёмной теме числа 7, 8, 9
+    // становились тёмными на тёмном и пропадали.
+    final Color baseTextColor = widget.theme.primary.withValues(alpha: 0.75);
+    final Color baseNumColor = widget.theme.primary;
 
     // Текст поверх заливки «сегодня» (слой 2). Фон этого слоя = navActiveIcon,
     // поэтому цвет берём контрастным именно к нему: на тёмной теме заливка
@@ -605,7 +603,6 @@ class _DayCellState extends State<_DayCell> with TickerProviderStateMixin {
             // Свечение под сегодняшним днём убрано: цветная подсветка вокруг
             // капсулы читалась как ореол и спорила с заливкой внутри неё.
             // Сегодняшний день и без того выделен цветом и заполнением.
-            boxShadow: const [],
           ),
           clipBehavior: Clip.antiAlias,
           child: Stack(

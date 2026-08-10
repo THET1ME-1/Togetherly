@@ -728,13 +728,6 @@ class ParcelPostcard extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: _label,
                       borderRadius: BorderRadius.circular(w * .02),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF3C280A).withValues(alpha: .16),
-                          blurRadius: w * .03,
-                          offset: Offset(0, w * .008),
-                        ),
-                      ],
                     ),
                     padding: EdgeInsets.all(w * .05),
                     child: Column(

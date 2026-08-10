@@ -463,9 +463,6 @@ class _Knob extends StatelessWidget {
         color: color,
         shape: BoxShape.circle,
         border: Border.all(color: Colors.white, width: 3),
-        boxShadow: const [
-          BoxShadow(color: Color(0x40000000), blurRadius: 4, offset: Offset(0, 1)),
-        ],
       ),
     );
   }

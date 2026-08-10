@@ -324,12 +324,6 @@ class _LiveMapScreenState extends State<LiveMapScreen>
                   decoration: BoxDecoration(
                     color: widget.theme.cardSurface,
                     borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.12),
-                        blurRadius: 12,
-                      ),
-                    ],
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -404,13 +398,6 @@ class _AvatarMarker extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(color: ringColor, width: 3),
-              boxShadow: [
-                BoxShadow(
-                  color: ringColor.withValues(alpha: 0.45),
-                  blurRadius: 12,
-                  spreadRadius: 1,
-                ),
-              ],
             ),
             child: ClipOval(
               child: Container(
@@ -479,13 +466,6 @@ class _DistancePill extends StatelessWidget {
       decoration: BoxDecoration(
         color: t.cardSurface,
         borderRadius: BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -526,12 +506,6 @@ class _RoundIconButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: t.cardSurface,
           shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.13),
-              blurRadius: 10,
-            ),
-          ],
         ),
         child: Icon(icon, color: color ?? t.textPrimary, size: 22),
       ),

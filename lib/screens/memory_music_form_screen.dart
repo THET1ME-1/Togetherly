@@ -400,13 +400,6 @@ class _MemoryMusicFormScreenState extends State<MemoryMusicFormScreen>
       height: 150,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: accent.withValues(alpha: 0.30),
-            blurRadius: 28,
-            offset: const Offset(0, 12),
-          ),
-        ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),

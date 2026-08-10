@@ -319,13 +319,6 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                             color: primary,
                             shape: BoxShape.circle,
                             border: Border.all(color: Colors.white, width: 2.5),
-                            boxShadow: [
-                              BoxShadow(
-                                color: primary.withOpacity(0.45),
-                                blurRadius: 14,
-                                spreadRadius: 2,
-                              ),
-                            ],
                           ),
                           child: const Icon(
                             Icons.location_on_rounded,
@@ -366,12 +359,6 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                           decoration: BoxDecoration(
                             color: t.cardSurface,
                             shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.13),
-                                blurRadius: 8,
-                              ),
-                            ],
                           ),
                           child: Icon(
                             Icons.arrow_back_rounded,
@@ -388,13 +375,6 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                           decoration: BoxDecoration(
                             color: t.cardSurface,
                             borderRadius: BorderRadius.circular(22),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.12),
-                                blurRadius: 10,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
                           ),
                           child: TextField(
                             controller: _searchCtrl,
@@ -464,12 +444,6 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                         decoration: BoxDecoration(
                           color: t.cardSurface,
                           borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 8,
-                            ),
-                          ],
                         ),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 14,
@@ -508,13 +482,6 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                       decoration: BoxDecoration(
                         color: t.cardSurface,
                         borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.12),
-                            blurRadius: 16,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
                       ),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(16),
@@ -587,12 +554,6 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                 decoration: BoxDecoration(
                   color: t.cardSurface,
                   shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.13),
-                      blurRadius: 10,
-                    ),
-                  ],
                 ),
                 child: Icon(
                   Icons.my_location_rounded,
@@ -613,13 +574,6 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                 color: t.cardSurface,
                 borderRadius:
                     const BorderRadius.vertical(top: Radius.circular(24)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 20,
-                    offset: const Offset(0, -4),
-                  ),
-                ],
               ),
               padding: EdgeInsets.fromLTRB(20, 14, 20, bottom + 16),
               child: Column(

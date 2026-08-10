@@ -828,12 +828,6 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       decoration: BoxDecoration(
                         color: primary,
                         borderRadius: BorderRadius.circular(50),
-                        boxShadow: widget.theme.accentGlow(
-                          primary,
-                          opacity: 0.35,
-                          blurRadius: 20,
-                          offset: const Offset(0, 6),
-                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -1810,15 +1804,6 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       decoration: BoxDecoration(
         color: widget.theme.cardSurface,
         borderRadius: BorderRadius.circular(14),
-        boxShadow: floating
-            ? [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.12),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ]
-            : null,
         border: floating ? null : Border.all(color: widget.theme.divider),
       ),
       child: Row(
@@ -2468,12 +2453,6 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                             decoration: BoxDecoration(
                               color: Colors.white.withOpacity(0.92),
                               shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.20),
-                                  blurRadius: 6,
-                                ),
-                              ],
                             ),
                             child: Icon(
                               Icons.play_arrow_rounded,
@@ -6804,8 +6783,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      elevation: 8,
-                      shadowColor: primary.withOpacity(0.3),
+                      elevation: 0,
                     ),
                     child: Text(
                       LocaleService.current.addMemoryTitle,

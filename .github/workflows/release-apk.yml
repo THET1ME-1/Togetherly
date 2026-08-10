@@ -567,8 +567,14 @@ jobs:
           [ -z "$LATEST" ] && LATEST=0
           NEW=$((LATEST + 1))
           echo "ASC latest build = $LATEST → building with $NEW"
+          # STORE=github обязателен: при умолчании (`play`) константы
+          # `coins_10/50/120/300` и `togetherly_plus` попадают в бинарник, хотя
+          # покупок на iOS нет вовсе. Ровно это и ищет App Review при отказе
+          # 2.1(b) «products could not be found in the submitted binary».
+          # Донаты флаг включает, но на iOS их гасит `!Platform.isIOS` (3.1.1).
           flutter build ipa --release \
             --no-tree-shake-icons \
+            --dart-define=STORE=github \
             --build-number="$NEW" \
             --export-options-plist="$HOME/export_options.plist"
 

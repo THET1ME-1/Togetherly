@@ -161,13 +161,6 @@ class _SealedCapsuleCardState extends State<SealedCapsuleCard>
               end: Alignment.bottomRight,
               colors: [t.primary, t.primaryLight],
             ),
-            boxShadow: [
-              BoxShadow(
-                color: t.primary.withValues(alpha: 0.35),
-                blurRadius: 18,
-                offset: const Offset(0, 6),
-              ),
-            ],
           ),
           alignment: Alignment.center,
           child: Icon(Icons.card_giftcard_rounded,
@@ -187,12 +180,6 @@ class _SealedCapsuleCardState extends State<SealedCapsuleCard>
               color: t.cardSurface,
               shape: BoxShape.circle,
               border: Border.all(color: t.primary.withValues(alpha: 0.25)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.12),
-                  blurRadius: 6,
-                ),
-              ],
             ),
             alignment: Alignment.center,
             child: Icon(Icons.lock_rounded, size: 16, color: t.primary),

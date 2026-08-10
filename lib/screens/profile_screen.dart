@@ -1562,6 +1562,11 @@ class _ProfileScreenState extends State<ProfileScreen>
             caption(_s.themeStyleLabel),
             SizedBox(
               width: double.infinity,
+              // Раньше переключатель менял ВАРИАНТ схемы — то есть нейтральные
+              // поверхности на волосок, — а сам акцент считался мимо него, и
+              // экран не менялся вовсе. Теперь крутится насыщенность акцента:
+              // «мягко» — цвет темы как нарисован, «точь-в-точь» — предел,
+              // достижимый в sRGB на этом оттенке.
               child: SegmentedButton<SchemeFlavor>(
                 showSelectedIcon: false,
                 segments: [
@@ -2223,13 +2228,6 @@ class _ProfileScreenState extends State<ProfileScreen>
               Container(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  boxShadow: _t.accentGlow(
-                    _accent,
-                    opacity: 0.2,
-                    blurRadius: 32,
-                    spreadRadius: 4,
-                    offset: Offset.zero,
-                  ),
                 ),
                 child: LevelAvatar(
                   size: 100,
@@ -2761,7 +2759,6 @@ class _ProfileScreenState extends State<ProfileScreen>
             _showRelationshipTypePicker(context, selectedPartner?.connection),
       ),
       if (hasPaired) ...[
-        const SettingsDivider(),
         SettingsRow(
           icon: Icons.person_rounded,
           title: _s.partnerLabel,
@@ -2769,13 +2766,11 @@ class _ProfileScreenState extends State<ProfileScreen>
           trailing: const SettingsChevron(),
           onTap: () => _showPartnerPicker(context, allPartners),
         ),
-        const SettingsDivider(),
         SettingsRow(
           icon: Icons.calendar_month_rounded,
           title: _s.together,
           subtitle: daysString,
         ),
-        const SettingsDivider(),
         SettingsRow(
           icon: Icons.celebration_rounded,
           title: _s.anniversaryDate,
@@ -2786,7 +2781,6 @@ class _ProfileScreenState extends State<ProfileScreen>
           onTap: () =>
               _showAnniversaryDatePicker(context, selectedPartner?.connection),
         ),
-        const SettingsDivider(),
         SettingsRow(
           icon: Icons.favorite_rounded,
           title: _s.firstKissDate,
@@ -2798,7 +2792,6 @@ class _ProfileScreenState extends State<ProfileScreen>
               _showFirstKissDatePicker(context, selectedPartner?.connection),
         ),
       ],
-      const SettingsDivider(),
       SettingsRow(
         icon: widget.userData.isMale
             ? Icons.male_rounded
@@ -2810,7 +2803,6 @@ class _ProfileScreenState extends State<ProfileScreen>
         trailing: const SettingsChevron(),
         onTap: () => _showGenderPicker(context),
       ),
-      const SettingsDivider(),
       SettingsRow(
         icon: Icons.cake_rounded,
         title: _s.myBirthday,
@@ -2819,7 +2811,6 @@ class _ProfileScreenState extends State<ProfileScreen>
         onTap: () => _showBirthdayPicker(context),
       ),
       if (hasPaired) ...[
-        const SettingsDivider(),
         SettingsRow(
           icon: Icons.cake_outlined,
           title: _s.partnerBirthday,
@@ -2983,14 +2974,12 @@ class _ProfileScreenState extends State<ProfileScreen>
                   trailing: u.isMale ? const Icon(Icons.check_rounded) : null,
                   onTap: () => apply(ctx, Gender.male),
                 ),
-                const SettingsDivider(),
                 SettingsRow(
                   icon: Icons.female_rounded,
                   title: _s.female,
                   trailing: u.isFemale ? const Icon(Icons.check_rounded) : null,
                   onTap: () => apply(ctx, Gender.female),
                 ),
-                const SettingsDivider(),
                 SettingsRow(
                   icon: Icons.do_not_disturb_on_rounded,
                   title: _s.genderPreferNotSay,
@@ -3001,7 +2990,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                       : null,
                   onTap: () => apply(ctx, Gender.unspecified),
                 ),
-                const SettingsDivider(),
                 SettingsRow(
                   icon: Icons.edit_rounded,
                   title: _s.genderCustom,
@@ -3440,7 +3428,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                     _saveNotifPref(_kNotifMissYou, _notifMissYou);
                   },
                 ),
-                const SettingsDivider(),
                 SettingsRow(
                   icon: Icons.photo_library_rounded,
                   title: s.notifNewMemory,
@@ -3457,7 +3444,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                     _saveNotifPref(_kNotifNewMemory, _notifNewMemory);
                   },
                 ),
-                const SettingsDivider(),
                 SettingsRow(
                   icon: Icons.mood_rounded,
                   title: s.notifMood,
@@ -3474,7 +3460,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                     _saveNotifPref(_kNotifMood, _notifMood);
                   },
                 ),
-                const SettingsDivider(),
                 SettingsRow(
                   icon: Icons.chat_bubble_rounded,
                   title: s.notifChat,
@@ -3491,7 +3476,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                     _saveNotifPref(_kNotifChat, _notifChat);
                   },
                 ),
-                const SettingsDivider(),
                 // Постоянный счётчик «дней вместе» — локальное уведомление,
                 // не пуш: состоянием управляет DaysTogetherNotificationService.
                 SettingsRow(
@@ -3605,6 +3589,9 @@ class _ProfileScreenState extends State<ProfileScreen>
           // выбирает португальский, русского слова «Португальский» не знает.
           child: SettingsGroup([
             for (final lang in AppLanguage.values) ...[
+              // Разделитель между строками, а не условие на саму строку:
+              // раньше за ним пряталась первая строка списка, то есть
+              // русский, и выбрать его было нельзя вовсе.
               if (lang != AppLanguage.values.first) const SettingsDivider(),
               _languageRow(ctx, lang: lang),
             ],
@@ -4992,14 +4979,6 @@ class _ProfileScreenState extends State<ProfileScreen>
             color: isEquipped ? _accent : Colors.transparent,
             width: 2.5,
           ),
-          boxShadow: isEquipped
-              ? _t.accentGlow(
-                  _accent,
-                  opacity: 0.22,
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                )
-              : [],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -5014,13 +4993,6 @@ class _ProfileScreenState extends State<ProfileScreen>
               decoration: BoxDecoration(
                 color: _t.cardSurface,
                 borderRadius: BorderRadius.circular(15),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
               ),
               child: Opacity(
                 opacity: locked ? 0.5 : 1.0,
@@ -5181,12 +5153,6 @@ class _ProfileScreenState extends State<ProfileScreen>
           decoration: BoxDecoration(
             color: _t.cardSurface,
             borderRadius: BorderRadius.circular(28),
-            boxShadow: _t.accentGlow(
-              _accent,
-              opacity: 0.18,
-              blurRadius: 40,
-              offset: const Offset(0, 16),
-            ),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -5330,14 +5296,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                                 )
                               : null,
                           color: canAfford ? null : _t.surfaceMuted,
-                          boxShadow: canAfford
-                              ? _t.accentGlow(
-                                  _accent,
-                                  opacity: 0.35,
-                                  blurRadius: 14,
-                                  offset: const Offset(0, 6),
-                                )
-                              : null,
                         ),
                         child: Material(
                           color: Colors.transparent,

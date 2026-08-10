@@ -839,13 +839,6 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
       decoration: BoxDecoration(
         color: _primary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(6),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.10),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       clipBehavior: Clip.antiAlias,
       child: (url != null && url.isNotEmpty)
@@ -1035,12 +1028,6 @@ class _MoviePoster extends StatelessWidget {
               decoration: BoxDecoration(
                 color: Colors.black.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(40),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.10),
-                    blurRadius: 16,
-                  ),
-                ],
               ),
             ),
           ),
@@ -1049,13 +1036,6 @@ class _MoviePoster extends StatelessWidget {
             height: h,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: accent.withValues(alpha: 0.28),
-                  blurRadius: 26,
-                  offset: const Offset(0, 14),
-                ),
-              ],
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),

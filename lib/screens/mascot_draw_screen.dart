@@ -1001,13 +1001,6 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withAlpha(28),
-                    blurRadius: 20,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
@@ -1614,18 +1607,6 @@ class _ColorSwatch extends StatelessWidget {
                       : Colors.transparent,
                   width: 1,
                 ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha(selected ? 60 : 22),
-              blurRadius: selected ? 5 : 2,
-            ),
-            if (selected)
-              BoxShadow(
-                color: color.withAlpha(80),
-                blurRadius: 6,
-                spreadRadius: 1,
-              ),
-          ],
         ),
       ),
     );

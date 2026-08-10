@@ -180,8 +180,7 @@ class _CoinToastWidgetState extends State<_CoinToastWidget>
                       color: cs.inverseSurface,
                       // Плашка всплывает поверх любого экрана, поэтому тень тут
                       // уместна: одной тональности для отделения не хватает.
-                      elevation: 3,
-                      shadowColor: Colors.black26,
+                      elevation: 0,
                       shape: const StadiumBorder(),
                       clipBehavior: Clip.antiAlias,
                       child: ClipRect(

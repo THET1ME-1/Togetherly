@@ -404,13 +404,6 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
             child: Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(14),
-                boxShadow: [
-                  BoxShadow(
-                    color: p.withValues(alpha: 0.22),
-                    blurRadius: 14,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
               ),
               child: cover,
             ),
@@ -465,13 +458,6 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
         decoration: BoxDecoration(
           color: p,
           shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: p.withValues(alpha: 0.35),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
         ),
         child: _loading
             ? const SizedBox(
@@ -580,13 +566,6 @@ class _MiniMoviePoster extends StatelessWidget {
       height: h,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(6),
-        boxShadow: [
-          BoxShadow(
-            color: accent.withValues(alpha: 0.25),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       clipBehavior: Clip.antiAlias,
       child: Stack(
@@ -692,13 +671,6 @@ class _MiniBookCover extends StatelessWidget {
                 topLeft: Radius.circular(1.5),
                 bottomLeft: Radius.circular(1.5),
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: accent.withValues(alpha: 0.25),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
             ),
             child: ClipRRect(
               borderRadius: const BorderRadius.only(
@@ -1285,13 +1257,6 @@ class _MemoryMusicPlayerState extends State<MemoryMusicPlayer> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.18),
-                        blurRadius: 10,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
                   ),
                   child: _loading
                       ? Padding(

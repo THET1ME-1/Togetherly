@@ -405,12 +405,6 @@ class _LiveMapCardState extends State<LiveMapCard> {
       decoration: BoxDecoration(
         color: t.cardSurface,
         borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 8,
-          ),
-        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -549,13 +543,6 @@ class _MiniAvatar extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(color: ring, width: 2.5),
-        boxShadow: [
-          BoxShadow(
-            color: ring.withValues(alpha: 0.4),
-            blurRadius: 8,
-            spreadRadius: 1,
-          ),
-        ],
       ),
       child: ClipOval(
         child: Container(

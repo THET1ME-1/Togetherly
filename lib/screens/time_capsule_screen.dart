@@ -106,13 +106,6 @@ class _TimeCapsuleScreenState extends State<TimeCapsuleScreen> {
               end: Alignment.bottomRight,
               colors: [_t.primary, _t.primaryLight],
             ),
-            boxShadow: [
-              BoxShadow(
-                color: _t.primary.withValues(alpha: 0.35),
-                blurRadius: 22,
-                offset: const Offset(0, 8),
-              ),
-            ],
           ),
           alignment: Alignment.center,
           child: Icon(Icons.mail_rounded,

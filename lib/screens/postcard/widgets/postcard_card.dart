@@ -450,15 +450,6 @@ class _PolaroidCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(4),
-        boxShadow: isEditing
-            ? [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.12),
-                  blurRadius: 20,
-                  offset: const Offset(0, 6),
-                ),
-              ]
-            : null,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -540,13 +531,6 @@ class _BloomCard extends StatelessWidget {
                 color: Colors.white.withOpacity(0.78),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: Colors.white.withOpacity(0.9), width: 1.5),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFFE8A4C9).withOpacity(0.2),
-                    blurRadius: 20,
-                    spreadRadius: 2,
-                  ),
-                ],
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,

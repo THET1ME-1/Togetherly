@@ -500,12 +500,6 @@ class _YouTubeInlineCardState extends State<_YouTubeInlineCard> {
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.95),
                             shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.25),
-                                blurRadius: 12,
-                              ),
-                            ],
                           ),
                           child: Icon(
                             Icons.play_arrow_rounded,

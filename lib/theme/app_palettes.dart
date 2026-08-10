@@ -172,14 +172,122 @@ Color _darken(Color c, double f) => Color.lerp(c, Colors.black, f)!;
 /// Собирает [AppTheme] из палитры и режима. Все поверхности/текст — из M3-схемы
 /// (tonalSpot/vibrant/fidelity), а идентичность (primary, hero) — из самого
 /// акцента. В тёмном режиме тёмные акценты подсвечиваются, чтобы не тонуть.
+/// Насыщенность акцента под выбранную «сочность».
+///
+/// Крутится ТОЛЬКО хрома: оттенок и светлота остаются, поэтому вишня остаётся
+/// вишней, а не уезжает в малину. Почти нейтральное (хрома ниже шести) не
+/// трогаем вовсе — иначе «Монохром» на «сочно» перестал бы быть серым.
+Color _juice(Color c, SchemeFlavor f) {
+  if (f == SchemeFlavor.soft) return c;
+  final h = Hct.fromInt(c.toARGB32());
+  if (h.chroma < 6) return c;
+
+  // Одной хромы мало. Пастельный акцент вроде розового `#FF7E8B` уже стоит на
+  // пределе, достижимом в sRGB для своей светлоты, и множитель на нём не
+  // делает ничего — переключатель снова выглядел бы мёртвым. Густота цвета
+  // берётся тоном: чем ниже тон, тем выше достижимая насыщенность. Поэтому
+  // «сочно» и «точь-в-точь» сначала опускают светлоту, а уже на новом тоне
+  // выбирают предел.
+  final drop = f == SchemeFlavor.juicy ? 7.0 : 14.0;
+  // В тёмной теме опускать некуда: акцент там светлый именно для того, чтобы
+  // читаться на чёрном, и уводить его вниз значит топить надпись.
+  // Тон только опускаем и только до тридцати: ниже цвет перестаёт быть собой
+  // и становится почти чёрным. Порога «не ниже исходного» тут нет намеренно —
+  // у тёмных акцентов вроде угольной бирюзы насыщенность уже на пределе sRGB,
+  // и единственная оставшаяся густота берётся светлотой.
+  final tone = math.max(h.tone - drop, 30.0);
+  final limit = _maxChroma(h.hue, tone);
+  final chroma = f == SchemeFlavor.juicy
+      ? math.min(h.chroma * 1.35, limit)
+      : limit; // «точь-в-точь» — предел, достижимый в sRGB на этом оттенке
+  return Color(Hct.from(h.hue, chroma, tone).toInt());
+}
+
+/// Ручная тема с подкрученным акцентом.
+///
+/// Фон, карточки, текст и разделители не трогаем: «сочность» про цвет темы, а
+/// не про то, чтобы залить страницу. Меняются ровно те поля, которыми красятся
+/// цветные места — заливки, значки, круг, активная навигация.
+AppTheme _juiced(AppTheme t, SchemeFlavor f, Palette p) {
+  Color j(Color c) => _juice(c, f);
+  final accent = j(t.primary);
+  // Схема нужна даже когда цвета не меняются. `ProfileTheme` строит её из
+  // `AppTheme.primary`, а `fromSeed` отдаёт по сиду ПРОИЗВОДНЫЙ тон — из-за
+  // этого лист «Хочу с тобой» красился бледнее главной. Кладём схему рядом с
+  // темой и подменяем в ней акцентные роли своими цветами.
+  final scheme = ColorScheme.fromSeed(
+    seedColor: accent,
+    brightness: t.brightness,
+    dynamicSchemeVariant: p.variant,
+  ).copyWith(
+    primary: accent,
+    onPrimary: AppThemes.onColor(accent),
+    // Контейнер — светлая тональная подложка, а НЕ тот же акцент. Пока они
+    // совпадали, значок цветом `primary` на подложке `primaryContainer`
+    // становился цветом по цвету: в выборе типа связи иконок не было видно
+    // вовсе.
+    primaryContainer: j(t.primaryLight),
+    onPrimaryContainer: accent,
+  );
+  return AppTheme(
+    index: t.index,
+    name: t.name,
+    primary: accent,
+    accentFill: t.accentFill == null ? null : j(t.accentFill!),
+    primaryLight: j(t.primaryLight),
+    bgGradient: t.bgGradient,
+    bgImageUrl: t.bgImageUrl,
+    heroGradient: t.heroGradient.map(j).toList(),
+    heroGlassOpacity: t.heroGlassOpacity,
+    heroToggleBorder: t.heroToggleBorder,
+    heroToggleSelectedColor: j(t.heroToggleSelectedColor),
+    cardSurface: t.cardSurface,
+    cardBorder: t.cardBorder,
+    iconDraw: j(t.iconDraw),
+    iconMood: j(t.iconMood),
+    iconCalendar: j(t.iconCalendar),
+    iconPost: j(t.iconPost),
+    navActiveBg: j(t.navActiveBg),
+    navActiveIcon: j(t.navActiveIcon),
+    promptButtonColor: j(t.promptButtonColor),
+    timerDialBackground: j(t.timerDialBackground),
+    isPremium: t.isPremium,
+    price: t.price,
+    brightness: t.brightness,
+    scheme: scheme,
+    textPrimary: t.textPrimary,
+    textSecondary: t.textSecondary,
+    textMuted: t.textMuted,
+    surfaceMuted: t.surfaceMuted,
+    divider: t.divider,
+  );
+}
+
 AppTheme buildAppTheme(
   Palette p,
   Brightness brightness, {
   SchemeFlavor flavor = SchemeFlavor.soft,
   bool amoled = false,
 }) {
+  // Тема, нарисованная руками, выигрывает у вычисленной.
+  //
+  // Двадцать светлых и пять тёмных тем подобраны попарно: винная вишня на
+  // бледно-розовом, белые карточки, пыльно-розовый трек круга. Вычисленная
+  // схема этого не воспроизводит — она берёт из сида только оттенок, и
+  // вишнёвая уезжала в кричащую маджентовую. Поэтому там, где ручная тема
+  // есть в нужной яркости, отдаём её как есть; считаем только сочетания,
+  // которых до появления тёмного режима не существовало (тёмные версии
+  // двадцати светлых палитр и светлые версии пяти тёмных).
+  final legacy = AppThemes.byIndex(p.index);
+  if (legacy.brightness == brightness && !amoled) {
+    return _juiced(legacy, flavor, p);
+  }
+
+  // Сид считаем от акцента ручной темы, а не от цели палитры: так тёмная
+  // вишнёвая остаётся роднёй светлой вишнёвой, а не отдельным цветом.
+  final src = Hct.fromInt(legacy.primary.toARGB32());
   final s = ColorScheme.fromSeed(
-    seedColor: p.accent,
+    seedColor: legacy.primary,
     brightness: brightness,
     // «Мягкий» вариант палитра вправе уточнить: «Монохром» из холодно-серого
     // сида получал у tonalSpot голубую схему и серым не выглядел.
@@ -188,13 +296,17 @@ AppTheme buildAppTheme(
   );
   final dark = brightness == Brightness.dark;
 
-  // Акцентов ДВА, и это не прихоть. Пока он был один, тон приходилось держать
-  // на сорока ради контраста надписи — а на сороковом тоне персик становится
-  // коричневым, и схема вдобавок срезала хрому до 36 у всех палитр разом.
-  // Теперь заливка держит цвет темы (`fill`), а надпись и мелкие значки на
-  // фоне — контраст (`ink`). Оттенок у них общий, так что тема остаётся собой.
-  final fill = paletteFill(p, brightness);
-  final acc = paletteInk(p, brightness);
+  // Акцентов ДВА. Заливка держит цвет темы (`fill`), а надпись и мелкие
+  // значки на фоне — контраст (`ink`). Оттенок у них общий, так что тема
+  // остаётся собой. В тёмной заливка поднимается по тону: на чёрном фоне
+  // винный тон тонет, и цвет держится светлотой, а не насыщенностью.
+  final fillTone = dark ? math.min(math.max(src.tone + 24, 58.0), 80.0) : src.tone;
+  final fill = _juice(
+      Color(Hct.from(src.hue, src.chroma, fillTone).toInt()), flavor);
+  final acc = _juice(
+      Color(Hct.from(src.hue, math.min(src.chroma, 55), dark ? 86.0 : 36.0)
+          .toInt()),
+      flavor);
 
   final card = (dark && amoled) ? const Color(0xFF181818) : s.surfaceContainerHigh;
   final bg1 = (dark && amoled) ? const Color(0xFF000000) : s.surface;
@@ -229,8 +341,6 @@ AppTheme buildAppTheme(
     bgGradient: [bg1, bg2],
     // Hero — крупная заливка, ей нужен цвет темы, а не тон надписи.
     heroGradient: [_lighten(fill, 0.04), _darken(fill, 0.18)],
-    heroShadowBase: fill.withValues(alpha: 0.15),
-    heroShadowExpanded: fill.withValues(alpha: 0.25),
     heroGlassOpacity: 0.20,
     heroToggleBorder: !dark,
     heroToggleSelectedColor: acc,
@@ -247,17 +357,21 @@ AppTheme buildAppTheme(
     promptButtonColor: fill,
     // Лепестки занимают половину экрана, поэтому чистый `primaryContainer`
     // давал грязное пятно: охру у Медовой, хаки у Лимонной, ржавчину у
-    // Персиковой. Приглушаем его тональной поверхностью — цвет темы остаётся
-    // узнаваемым, а заполненный сектор акцентом выделяется на нём сильнее.
-    timerDialBackground: Color.alphaBlend(
-      fill.withValues(alpha: dark ? 0.26 : 0.34),
-      s.surfaceContainerHigh,
-    ),
+    // Персиковой. Приглушение тональной поверхностью спасло светлые темы, а
+    // тёмные — нет: на чёрном фоне светлый акцент, размешанный на четверть,
+    // даёт мутный `#64484E`, и это второй по площади цвет всего экрана.
+    // В тёмной теме трек берём чистой поверхностью: круг становится спокойным
+    // кольцом, на котором заполненный сектор читается цветом темы.
+    timerDialBackground: dark
+        ? s.surfaceContainerHigh
+        : Color.alphaBlend(
+            fill.withValues(alpha: 0.34),
+            s.surfaceContainerHigh,
+          ),
     textPrimary: s.onSurface,
     textSecondary: s.onSurfaceVariant,
     textMuted: s.outline,
     surfaceMuted: muted,
     divider: s.outlineVariant,
-    useGlow: !dark,
   );
 }

@@ -53,9 +53,15 @@ class HomeBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = LocaleService.current;
+    // Подложка активного пункта и значок на ней — заранее подобранная пара
+    // темы (`navActiveBg` + `navActiveIcon`), её и берём. Ошибка была в том,
+    // что подложку рисовали цветом ЗНАЧКА с прозрачностью: в тёмной теме он
+    // тёмный, и панель превращалась в тёмное на тёмном.
     final activeColor = theme.navActiveIcon;
-    final activeBg = theme.navActiveIcon.withValues(alpha:0.12);
-    final inactiveColor = Color.lerp(theme.navActiveIcon, theme.cardSurface, 0.5)!; // светлее, ближе к фону карточек
+    final activeBg = theme.navActiveBg;
+    // Неактивный значок — приглушённый акцент, а не нейтральный серый: чёрные
+    // значки на светлой панели выглядели чужими.
+    final inactiveColor = Color.lerp(theme.primary, theme.cardSurface, 0.5)!;
     final primary = theme.primary;
 
     final bottomInset = MediaQuery.of(context).viewPadding.bottom;
@@ -68,20 +74,6 @@ class HomeBottomNav extends StatelessWidget {
         decoration: BoxDecoration(
           color: theme.cardSurface,
           borderRadius: BorderRadius.circular(100),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.10),
-              blurRadius: 32,
-              spreadRadius: 0,
-              offset: const Offset(0, 8),
-            ),
-            BoxShadow(
-              color: primary.withValues(alpha: 0.05),
-              blurRadius: 12,
-              spreadRadius: -2,
-              offset: const Offset(0, 2),
-            ),
-          ],
         ),
         child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
@@ -194,8 +186,7 @@ class _CreatePinButton extends StatelessWidget {
       key: buttonKey,
       color: color,
       shape: const CircleBorder(),
-      elevation: 6,
-      shadowColor: color.withValues(alpha: 0.45),
+      elevation: 0,
       child: InkWell(
         onTap: onTap,
         onLongPress: onLongPress,

@@ -318,12 +318,6 @@ class _MemoryPhotoPickerState extends State<MemoryPhotoPicker> {
                           decoration: BoxDecoration(
                             color: t.primary,
                             shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.2),
-                                blurRadius: 4,
-                              ),
-                            ],
                           ),
                           child: const Icon(Icons.check_rounded,
                               size: 14, color: Colors.white),

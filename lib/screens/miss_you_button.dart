@@ -9,15 +9,19 @@ import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_sheet.dart';
 
-// ─── Layout ────────────────────────────────────────────────────────────────────
+// ─── Раскладка ─────────────────────────────────────────────────────────────────
 //
-//  [ 💕  Я скучаю  3 · 5 ]  [ ⌄ ]
-//         main pill           round expand button
+//  [ 295 / 155 ]  [ ♥ ]
+//     счёт пары   отправить
 //
-//  Tap main pill  → send miss_you directly (original behaviour).
-//  Tap round btn  → open/close vibe panel below.
-//  Panel options  : 💕 Я скучаю · 💭 Думаю о тебе · 🤗 Хочу обнять · ✏️ Своё…
-//  Custom option  → text-input dialog → sends as type 'custom'.
+//  Тап по счёту  → раскрыть панель вайбов (она же якорится на этой пилюле).
+//  Тап по сердцу → отправить «скучаю».
+//  Панель        : 💕 Я скучаю · 💭 Думаю о тебе · 🤗 Хочу обнять · ✏️ Своё…
+//
+//  Действие уехало с широкой пилюли на сердце намеренно: пилюля показывает
+//  СОСТОЯНИЕ, и случайный тап по ней больше не шлёт партнёру импульс. Заодно
+//  ушла надпись, лежавшая ровно на стыке заливки и трека прогресса, — читать
+//  её было нечем: половина букв приходилась на один фон, половина на другой.
 
 class MissYouButton extends StatefulWidget {
   final AppTheme theme;
@@ -25,12 +29,17 @@ class MissYouButton extends StatefulWidget {
   final String senderName;
   final bool enabled;
 
+  /// Рост обоих блоков. Задаёт шапка, чтобы вся строка стояла на одной линии.
+  final double height;
+
+
   const MissYouButton({
     super.key,
     required this.theme,
     required this.groupId,
     required this.senderName,
     this.enabled = true,
+    this.height = 34,
   });
 
   @override
@@ -53,7 +62,6 @@ class _MissYouButtonState extends State<MissYouButton>
   int _listenRetryAttempt = 0;
 
   // ── Animations ───────────────────────────────────────────────────────────────
-  late AnimationController _fillController;
   late AnimationController _scaleController;
   late Animation<double> _scaleAnimation;
 
@@ -82,13 +90,6 @@ class _MissYouButtonState extends State<MissYouButton>
   void initState() {
     super.initState();
     _loadCustomWishes();
-
-    _fillController = AnimationController(
-      vsync: this,
-      value: 0.5,
-      lowerBound: 0.0,
-      upperBound: 1.0,
-    );
 
     _scaleController = AnimationController(
       vsync: this,
@@ -139,7 +140,6 @@ class _MissYouButtonState extends State<MissYouButton>
 
         _myCount = newMyCount;
         _partnerCount = newPartnerCount;
-        _animateToCurrentRatio();
         if (mounted) setState(() {});
       },
       onError: (_) {
@@ -153,17 +153,6 @@ class _MissYouButtonState extends State<MissYouButton>
           if (mounted) _startListening();
         });
       },
-    );
-  }
-
-  void _animateToCurrentRatio() {
-    final displayMy = _myCount + _inFlightTaps;
-    final total = displayMy + _partnerCount;
-    final ratio = total == 0 ? 0.5 : (displayMy / total).clamp(0.0, 1.0);
-    _fillController.animateTo(
-      ratio,
-      duration: const Duration(milliseconds: 500),
-      curve: Curves.easeInOut,
     );
   }
 
@@ -250,7 +239,6 @@ class _MissYouButtonState extends State<MissYouButton>
     _spawnHearts();
 
     _inFlightTaps++;
-    _animateToCurrentRatio();
     if (mounted) setState(() {});
 
     try {
@@ -258,7 +246,6 @@ class _MissYouButtonState extends State<MissYouButton>
     } catch (_) {
       if (mounted) {
         setState(() => _inFlightTaps = max(0, _inFlightTaps - 1));
-        _animateToCurrentRatio();
       }
     }
   }
@@ -390,7 +377,6 @@ class _MissYouButtonState extends State<MissYouButton>
     // оверлей напрямую, без обновления состояния.
     _overlayEntry?.remove();
     _overlayEntry = null;
-    _fillController.dispose();
     _scaleController.dispose();
     _countSub?.cancel();
     _listenRetryTimer?.cancel();
@@ -406,41 +392,70 @@ class _MissYouButtonState extends State<MissYouButton>
   @override
   Widget build(BuildContext context) {
     final s = LocaleService.current;
-    final btnColor = widget.theme.promptButtonColor;
+    final t = widget.theme;
+    final fill = t.fillColor;
+    final onFill = AppThemes.onColor(fill);
     final displayMy = _myCount + _inFlightTaps;
-    final total = displayMy + _partnerCount;
-    final hasData = total > 0;
+    final radius = BorderRadius.circular(widget.height / 2);
 
     return Opacity(
       opacity: widget.enabled ? 1.0 : 0.4,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // ── Main pill button (sends miss_you directly) ──────────────────────
+          // ── Счёт пары: показывает состояние, тап раскрывает панель ──────────
+          GestureDetector(
+            key: _expandKey,
+            onTap: _togglePanel,
+            child: Container(
+              height: widget.height,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(color: fill, borderRadius: radius),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: _sentIcon != null
+                    ? [
+                        Icon(_sentIcon, size: 16, color: onFill),
+                        const SizedBox(width: 6),
+                        Text(s.vibeSent, style: _countStyle(onFill)),
+                      ]
+                    : [
+                        Text('$displayMy', style: _countStyle(onFill)),
+                        Text(' / ',
+                            style: _countStyle(
+                                onFill.withValues(alpha: 0.55))),
+                        Text('$_partnerCount', style: _countStyle(onFill)),
+                      ],
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 4),
+
+          // ── Сердце: отправляет «скучаю» ─────────────────────────────────────
           Stack(
             clipBehavior: Clip.none,
             alignment: Alignment.center,
             children: [
-              // Floating hearts
+              // Улетающие сердечки
               ..._hearts.map(
                 (h) => AnimatedBuilder(
                   animation: h.controller,
                   builder: (context, _) {
-                    final t = h.controller.value;
-                    final ct = Curves.easeOut.transform(t);
+                    final p = h.controller.value;
+                    final ct = Curves.easeOut.transform(p);
                     return Positioned(
-                      left: 20 + h.dx * ct,
-                      bottom: 22 + (-h.endDy * ct),
+                      left: widget.height / 2 + h.dx * ct,
+                      bottom: widget.height / 2 + (-h.endDy * ct),
                       child: Opacity(
-                        opacity: (1 - t).clamp(0.0, 1.0),
-                        child: Icon(h.icon,
-                            size: h.size, color: btnColor),
+                        opacity: (1 - p).clamp(0.0, 1.0),
+                        child: Icon(h.icon, size: h.size, color: fill),
                       ),
                     );
                   },
                 ),
               ),
-              // Pill
               AnimatedBuilder(
                 animation: _scaleAnimation,
                 builder: (_, child) => Transform.scale(
@@ -449,185 +464,36 @@ class _MissYouButtonState extends State<MissYouButton>
                 ),
                 child: GestureDetector(
                   onTap: _sendMissYou,
-                  child: AnimatedBuilder(
-                    animation: _fillController,
-                    builder: (context, _) {
-                      final ratio = _fillController.value;
-
-                      // Sent-vibe feedback
-                      if (_sentIcon != null) {
-                        return _SentFeedbackPill(
-                          icon: _sentIcon!,
-                          label: s.vibeSent,
-                          color: btnColor,
-                        );
-                      }
-
-                      return ClipRRect(
-                        borderRadius: BorderRadius.circular(22),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            gradient: hasData
-                                ? LinearGradient(
-                                    stops: [ratio, ratio],
-                                    colors: [
-                                      btnColor.withValues(alpha: 0.78),
-                                      btnColor.withValues(alpha: 0.28),
-                                    ],
-                                  )
-                                : null,
-                            color: hasData
-                                ? null
-                                : btnColor.withValues(alpha: 0.11),
-                            borderRadius: BorderRadius.circular(22),
-                            border: Border.all(
-                              color: btnColor.withValues(
-                                alpha: hasData ? 0.0 : 0.22,
-                              ),
-                            ),
-                            boxShadow: hasData
-                                ? [
-                                    BoxShadow(
-                                      color: btnColor.withValues(alpha: 0.18),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ]
-                                : null,
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _CountBadge(
-                                count: displayMy,
-                                color: btnColor,
-                                hasData: hasData,
-                                isOnDarkSide: hasData && ratio > 0.15,
-                              ),
-                              const SizedBox(width: 7),
-                              Text(
-                                s.iMissYou,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: hasData ? Colors.white : btnColor,
-                                ),
-                              ),
-                              const SizedBox(width: 7),
-                              _CountBadge(
-                                count: _partnerCount,
-                                color: btnColor,
-                                hasData: hasData,
-                                isOnDarkSide: hasData && ratio > 0.85,
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
+                  child: Container(
+                    width: widget.height,
+                    height: widget.height,
+                    decoration: BoxDecoration(
+                      color: fill,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.favorite_rounded,
+                      size: 16,
+                      color: onFill,
+                    ),
                   ),
                 ),
               ),
             ],
           ),
-
-          const SizedBox(width: 6),
-
-          // ── Round expand button ─────────────────────────────────────────────
-          GestureDetector(
-            key: _expandKey,
-            onTap: _togglePanel,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: _isExpanded
-                    ? btnColor.withValues(alpha: 0.20)
-                    : btnColor.withValues(alpha: 0.10),
-                border: Border.all(
-                  color: btnColor.withValues(
-                    alpha: _isExpanded ? 0.40 : 0.22,
-                  ),
-                  width: 1.0,
-                ),
-                boxShadow: _isExpanded
-                    ? [
-                        BoxShadow(
-                          color: btnColor.withValues(alpha: 0.18),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Center(
-                child: AnimatedRotation(
-                  turns: _isExpanded ? 0.5 : 0.0,
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeInOut,
-                  child: Icon(
-                    Icons.expand_more_rounded,
-                    size: 16,
-                    color: btnColor.withValues(
-                      alpha: _isExpanded ? 0.9 : 0.65,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
         ],
       ),
     );
   }
+
+  TextStyle _countStyle(Color color) => TextStyle(
+        fontFamily: 'Onest',
+        fontSize: 12,
+        fontWeight: FontWeight.w700,
+        color: color,
+      );
 }
 
-// ─── Sent-vibe feedback pill ───────────────────────────────────────────────────
-
-class _SentFeedbackPill extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-
-  const _SentFeedbackPill({
-    required this.icon,
-    required this.label,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.13),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: color.withValues(alpha: 0.28)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 15, color: color),
-          const SizedBox(width: 5),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 // ─── Overlay panel ─────────────────────────────────────────────────────────────
 
@@ -731,18 +597,6 @@ class _VibePanelOverlayState extends State<_VibePanelOverlay>
                     color: widget.theme.cardSurface,
                     borderRadius: BorderRadius.circular(18),
                     border: Border.all(color: widget.theme.cardBorder),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.09),
-                        blurRadius: 22,
-                        offset: const Offset(0, 6),
-                      ),
-                      BoxShadow(
-                        color: color.withValues(alpha: 0.07),
-                        blurRadius: 14,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(18),
@@ -1095,46 +949,6 @@ class _CustomVibeSheetState extends State<_CustomVibeSheet> {
   }
 }
 
-// ─── Count badge (main pill button) ───────────────────────────────────────────
-
-class _CountBadge extends StatelessWidget {
-  final int count;
-  final Color color;
-  final bool hasData;
-  final bool isOnDarkSide;
-
-  const _CountBadge({
-    required this.count,
-    required this.color,
-    required this.hasData,
-    required this.isOnDarkSide,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final textColor = isOnDarkSide ? Colors.white : color;
-    final bgColor = isOnDarkSide
-        ? Colors.white.withValues(alpha: 0.20)
-        : color.withValues(alpha: 0.12);
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Text(
-        '$count',
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-          color: textColor,
-        ),
-      ),
-    );
-  }
-}
 
 // ─── Floating heart particle ──────────────────────────────────────────────────
 

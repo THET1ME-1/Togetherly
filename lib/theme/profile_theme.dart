@@ -99,8 +99,13 @@ abstract final class ProfileTheme {
       // экран тональный и блёклый, хотя тема сочная.
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: scheme.primaryContainer,
-          foregroundColor: scheme.onPrimaryContainer,
+          // Стандартная пара M3: заливка `primary`, надпись `onPrimary`.
+          // Обход через контейнер завели, когда `primary` был тёмным тоном под
+          // контраст; у нарисованных руками палитр `primary` — сам цвет темы,
+          // и обход больше не нужен. Контейнер вернулся к своей роли: светлая
+          // тональная подложка под значки.
+          backgroundColor: scheme.primary,
+          foregroundColor: scheme.onPrimary,
           minimumSize: const Size(0, 56),
           padding: const EdgeInsets.symmetric(horizontal: 28),
           shape: const StadiumBorder(),

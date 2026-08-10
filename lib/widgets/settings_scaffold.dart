@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 
 /// Каркас экрана настроек.
 ///
-/// Эталон — Wickly: заголовок секции → скруглённая карточка-группа → строки с
-/// круглой иконкой-чипом, крупным заголовком и подписью. Разделитель между
-/// строками доходит до иконки, а не до края.
+/// Заголовок секции → группа блоков → блок с круглой иконкой-чипом, крупным
+/// заголовком и подписью. Каждый пункт лежит своим блоком, между ними зазор;
+/// внешние углы группы скруглены сильнее внутренних.
 ///
 /// До этого настройки жили внутри профиля и собирались из трёх разных наборов
 /// плиток: где-то плоская карточка, где-то сворачивающийся блок, где-то просто
@@ -59,26 +59,60 @@ class SettingsSection extends StatelessWidget {
   }
 }
 
-/// Скруглённая карточка-группа, в которую кладутся строки настроек.
+/// Группа настроек: каждый пункт — свой блок, разделённые зазором.
+///
+/// Одной карточкой со строками через разделитель группа была до 10 августа
+/// 2026. Форму блока задаёт его место в группе: первому большой верх,
+/// последнему большой низ, средним малый радиус со всех сторон. Единственный
+/// пункт скругляется целиком.
 class SettingsGroup extends StatelessWidget {
   final List<Widget> children;
 
   const SettingsGroup(this.children, {super.key});
 
+  /// Внешние углы группы — те же 28, что были у прежней карточки.
+  static const double outerRadius = 28;
+
+  /// Углы внутри группы: блоки читаются одним разделом, а не россыпью.
+  static const double innerRadius = 8;
+
+  /// Зазор между блоками — он же заменил разделитель.
+  static const double gap = 4;
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: scheme.surfaceContainerHigh,
-      borderRadius: BorderRadius.circular(28),
-      clipBehavior: Clip.antiAlias,
-      child: Column(children: children),
+    // Разделители остались в вызовах и молча отсеиваются: линию между блоками
+    // рисовать нечем, а пустой [SettingsDivider] посреди группы сдвинул бы
+    // формы соседей.
+    final rows = [for (final c in children) if (c is! SettingsDivider) c];
+
+    const outer = Radius.circular(outerRadius);
+    const inner = Radius.circular(innerRadius);
+
+    return Column(
+      children: [
+        for (var i = 0; i < rows.length; i++) ...[
+          if (i > 0) const SizedBox(height: gap),
+          Material(
+            color: scheme.surfaceContainerHigh,
+            clipBehavior: Clip.antiAlias,
+            borderRadius: BorderRadius.vertical(
+              top: i == 0 ? outer : inner,
+              bottom: i == rows.length - 1 ? outer : inner,
+            ),
+            child: rows[i],
+          ),
+        ],
+      ],
     );
   }
 }
 
-/// Разделитель между строками группы: начинается там же, где текст, — под
-/// иконкой его быть не должно.
+/// Разделитель прежнего вида — внутри [SettingsGroup] больше не рисуется.
+///
+/// Класс оставлен намеренно: в неслитых ветках вызовы с ним ещё живут, и
+/// группа их молча отсеивает. Убрать его можно, когда ветки сойдутся.
 class SettingsDivider extends StatelessWidget {
   const SettingsDivider({super.key});
 

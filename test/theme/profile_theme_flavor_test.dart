@@ -25,26 +25,26 @@ void main() {
       }
     }
 
-    test('вариант схемы правит поверхности, а не акцент', () {
-      // С 8 августа 2026 акцент задаёт сама палитра (оттенок и тон от предмета),
-      // поэтому «сочный» и «мягкий» дают ОДИН акцент — и это правильно:
-      // персик обязан быть персиком при любом варианте. Вариант остаётся у
-      // поверхностей, где он и работает: фон, карточки, разделители.
+    test('сочность правит акцент и доезжает до листов', () {
+      // Мерка перевернулась осознанно. Раньше «сочность» меняла ВАРИАНТ схемы,
+      // то есть нейтральные поверхности на волосок, а акцент считался мимо неё
+      // — переключатель стоял и не делал ничего, о чём и была жалоба. Теперь
+      // он крутит саму насыщенность акцента, и изменённый цвет обязан доехать
+      // до экранов на M3 ровно так же, как доезжает исходный.
       final juicy = buildAppTheme(cherry, Brightness.light,
           flavor: SchemeFlavor.juicy);
       final soft =
           buildAppTheme(cherry, Brightness.light, flavor: SchemeFlavor.soft);
 
-      expect(
-        ProfileTheme.themeFor(juicy).colorScheme.primary,
-        ProfileTheme.themeFor(soft).colorScheme.primary,
-        reason: 'акцент обязан держаться палитры, а не варианта',
-      );
-      expect(
-        ProfileTheme.themeFor(juicy).colorScheme.surfaceContainerHigh,
-        isNot(ProfileTheme.themeFor(soft).colorScheme.surfaceContainerHigh),
-        reason: 'поверхности вариант всё ещё различает',
-      );
+      expect(juicy.primary, isNot(soft.primary),
+          reason: 'сочность снова ничего не меняет');
+      expect(ProfileTheme.themeFor(juicy).colorScheme.primary, juicy.primary);
+      expect(ProfileTheme.themeFor(soft).colorScheme.primary, soft.primary);
+
+      // Фон и карточки при этом остаются прежними: «сочность» про цвет темы,
+      // а не про то, чтобы залить страницу.
+      expect(juicy.bgGradient, soft.bgGradient);
+      expect(juicy.cardSurface, soft.cardSurface);
     });
 
     test('все палитры доносят свой акцент до листов', () {
@@ -77,16 +77,23 @@ void main() {
 /// тон под контраст: экран выглядел блёклым при сочной теме. Ровно та жалоба
 /// от 8 августа 2026.
 void _filledButtonUsesFill() {
-  test('залитая кнопка красится заливкой темы', () {
+  test('залитая кнопка красится цветом темы, а не подложкой', () {
+    // Пара вернулась к стандартной M3: заливка `primary`, надпись `onPrimary`.
+    // Обход через контейнер завели, когда `primary` был тёмным тоном под
+    // контраст. У нарисованных руками палитр `primary` — сам цвет темы, а
+    // контейнер снова светлая подложка: пока он совпадал с акцентом, значок
+    // цветом `primary` на подложке `primaryContainer` был не виден вовсе.
     for (final p in kPalettes) {
       for (final b in Brightness.values) {
         final app = buildAppTheme(p, b);
         final style = ProfileTheme.themeFor(app).filledButtonTheme.style!;
-        expect(style.backgroundColor?.resolve(const {}),
-            app.scheme!.primaryContainer,
-            reason: '${p.name} (${b.name}): кнопка взяла надписной акцент');
-        expect(style.foregroundColor?.resolve(const {}),
-            app.scheme!.onPrimaryContainer);
+        expect(style.backgroundColor?.resolve(const {}), app.scheme!.primary,
+            reason: '${p.name} (${b.name}): кнопка взяла не цвет темы');
+        expect(style.foregroundColor?.resolve(const {}), app.scheme!.onPrimary);
+        // Значок на тональной подложке обязан читаться: это и есть выбор типа
+        // связи, где иконки пропадали.
+        expect(app.scheme!.primaryContainer, isNot(app.scheme!.primary),
+            reason: '${p.name} (${b.name}): подложка слилась с акцентом');
       }
     }
   });

@@ -124,13 +124,6 @@ class _RelationshipStatusScreenState extends State<RelationshipStatusScreen> {
           colors: [Colors.pink.shade100, Colors.purple.shade100],
         ),
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: Column(
         children: [

@@ -555,7 +555,7 @@ class _LoveAppState extends State<LoveApp> with WidgetsBindingObserver {
       dialogTheme: DialogThemeData(
         backgroundColor: menuSurface,
         surfaceTintColor: Colors.transparent,
-        elevation: 8,
+        elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
         titleTextStyle: TextStyle(
           fontFamily: ProfileTheme.displayFont,
@@ -574,7 +574,7 @@ class _LoveAppState extends State<LoveApp> with WidgetsBindingObserver {
         backgroundColor: menuSurface,
         modalBackgroundColor: menuSurface,
         surfaceTintColor: Colors.transparent,
-        elevation: 12,
+        elevation: 0,
         modalElevation: 12,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
@@ -589,13 +589,13 @@ class _LoveAppState extends State<LoveApp> with WidgetsBindingObserver {
           fontSize: 14,
         ),
         actionTextColor: scheme.inversePrimary,
-        elevation: 6,
+        elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
       popupMenuTheme: PopupMenuThemeData(
         color: menuSurface,
         surfaceTintColor: Colors.transparent,
-        elevation: 8,
+        elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
     );

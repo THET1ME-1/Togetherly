@@ -195,14 +195,6 @@ class _ColoringCatalogueScreenState extends State<ColoringCatalogueScreen> {
             decoration: BoxDecoration(
               color: active ? cs.surface : Colors.transparent,
               borderRadius: BorderRadius.circular(14),
-              boxShadow: active
-                  ? [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.06),
-                        blurRadius: 6,
-                      ),
-                    ]
-                  : null,
             ),
             child: Text(
               label,

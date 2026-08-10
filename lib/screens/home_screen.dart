@@ -1060,7 +1060,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 HomeHeader(
                   theme: _t,
                   isPaired: _pairData.isPaired,
-                  partnerCount: _pairData.partnerCount,
                   myAvatarUrl: widget.userData.avatarUrl,
                   myDisplayName: widget.userData.displayName,
                   partners: _pairData.partners,
@@ -1339,13 +1338,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         decoration: BoxDecoration(
                           color: primary,
                           borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.18),
-                              blurRadius: 16,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
                         ),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
@@ -1729,12 +1721,6 @@ class _HomeScreenState extends State<HomeScreen> {
           decoration: BoxDecoration(
             color: _t.cardSurface,
             borderRadius: BorderRadius.circular(20),
-            boxShadow: t.accentGlow(
-              t.primary,
-              opacity: 0.25,
-              blurRadius: 20,
-              offset: const Offset(0, 6),
-            ),
             border: Border.all(color: t.primary.withOpacity(0.15), width: 1),
           ),
           child: Row(

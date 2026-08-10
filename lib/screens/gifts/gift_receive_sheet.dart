@@ -435,13 +435,6 @@ class _CandleStage extends StatelessWidget {
                       end: Alignment.topCenter,
                       colors: [Color(0xFFF2A03C), Color(0xFFFFE08A)],
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFF2A03C).withValues(alpha: 0.55),
-                        blurRadius: 22,
-                        spreadRadius: 4,
-                      ),
-                    ],
                   ),
                 ),
               ),

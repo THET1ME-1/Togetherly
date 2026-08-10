@@ -164,7 +164,6 @@ class SettingsScreen extends StatelessWidget {
                   onTap: onAppearance,
                 ),
                 if (appIconId != null) ...[
-                  const SettingsDivider(),
                   SettingsRow(
                     icon: Icons.apps_rounded,
                     title: s.appIconTitle,
@@ -181,7 +180,6 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ],
                 if (mascotSleepAvailable) ...[
-                  const SettingsDivider(),
                   SettingsRow(
                     icon: Icons.bedtime_rounded,
                     title: s.mascotSleepTitle,
@@ -190,7 +188,6 @@ class SettingsScreen extends StatelessWidget {
                     onTap: onMascotSleep,
                   ),
                 ],
-                const SettingsDivider(),
                 SettingsRow(
                   icon: Icons.translate_rounded,
                   title: s.language,
@@ -211,7 +208,6 @@ class SettingsScreen extends StatelessWidget {
                   trailing: const SettingsChevron(),
                   onTap: onNotifications,
                 ),
-                const SettingsDivider(),
                 SettingsRow(
                   icon: Icons.lock_clock_rounded,
                   title: s.lockScreenMoodToggle,
@@ -222,7 +218,6 @@ class SettingsScreen extends StatelessWidget {
                   ),
                   onTap: () => onLockScreenMoodChanged(!lockScreenMood),
                 ),
-                const SettingsDivider(),
                 SettingsRow(
                   icon: Icons.touch_app_rounded,
                   title: s.sideActionTitle,
@@ -250,7 +245,6 @@ class SettingsScreen extends StatelessWidget {
                     ),
                     onTap: () => onCycleSharedChanged?.call(!cycleShared),
                   ),
-                  const SettingsDivider(),
                   SettingsRow(
                     icon: Icons.gpp_maybe_outlined,
                     title: s.cycleConsentWithdraw,
@@ -258,7 +252,6 @@ class SettingsScreen extends StatelessWidget {
                     trailing: const SettingsChevron(),
                     onTap: onCycleConsentWithdraw,
                   ),
-                  const SettingsDivider(),
                   SettingsRow(
                     icon: Icons.delete_outline_rounded,
                     title: s.cycleWipe,
@@ -280,7 +273,6 @@ class SettingsScreen extends StatelessWidget {
                   trailing: const SettingsChevron(),
                   onTap: onExportMyData,
                 ),
-                const SettingsDivider(),
                 SettingsRow(
                   icon: Icons.download_rounded,
                   title: s.exportMemories,
@@ -288,7 +280,6 @@ class SettingsScreen extends StatelessWidget {
                   trailing: const SettingsChevron(),
                   onTap: onExport,
                 ),
-                const SettingsDivider(),
                 SettingsRow(
                   icon: Icons.replay_rounded,
                   title: s.resetMissYouCount,
@@ -296,7 +287,6 @@ class SettingsScreen extends StatelessWidget {
                   trailing: const SettingsChevron(),
                   onTap: onResetMissYou,
                 ),
-                const SettingsDivider(),
                 SettingsRow(
                   icon: Icons.shield_rounded,
                   title: s.privacy,
@@ -326,14 +316,12 @@ class SettingsScreen extends StatelessWidget {
                   trailing: const SettingsChevron(),
                   onTap: onAbout,
                 ),
-                const SettingsDivider(),
                 SettingsRow(
                   icon: Icons.description_rounded,
                   title: s.termsOfUse,
                   trailing: const SettingsChevron(),
                   onTap: onTerms,
                 ),
-                const SettingsDivider(),
                 SettingsRow(
                   icon: Icons.mail_rounded,
                   title: s.supportTitle,
@@ -352,7 +340,6 @@ class SettingsScreen extends StatelessWidget {
                   iconFg: scheme.onSurfaceVariant,
                   onTap: onLogout,
                 ),
-                const SettingsDivider(),
                 SettingsRow(
                   icon: Icons.delete_forever_rounded,
                   title: s.deleteAccount,

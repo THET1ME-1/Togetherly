@@ -60,13 +60,6 @@ class _CelebrationBannerState extends State<CelebrationBanner>
             ],
           ),
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: widget.color.withValues(alpha: 0.4),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-          ],
         ),
         child: Stack(
           clipBehavior: Clip.antiAlias,

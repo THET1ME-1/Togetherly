@@ -2210,9 +2210,6 @@ class _DrawScreenState extends State<DrawScreen>
                     : Colors.transparent),
             width: sel ? 3 : 1.5,
           ),
-          boxShadow: sel
-              ? [BoxShadow(color: c.withValues(alpha: 0.5), blurRadius: 8)]
-              : null,
         ),
         child: sel
             ? Icon(
@@ -2979,12 +2976,6 @@ class _DrawScreenState extends State<DrawScreen>
                   decoration: BoxDecoration(
                     color: t.cardSurface,
                     shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.12),
-                        blurRadius: 8,
-                      ),
-                    ],
                   ),
                   child: Icon(
                     waiting ? Icons.schedule_rounded : Icons.lock_rounded,
@@ -3036,13 +3027,6 @@ class _DrawScreenState extends State<DrawScreen>
                 color: _eyedropperColor ?? t.cardSurface,
                 shape: BoxShape.circle,
                 border: Border.all(color: Colors.white, width: 3),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x59000000),
-                    blurRadius: 16,
-                    offset: Offset(0, 4),
-                  ),
-                ],
               ),
               alignment: Alignment.center,
               child: Container(
@@ -3151,12 +3135,6 @@ class _DrawScreenState extends State<DrawScreen>
                   decoration: BoxDecoration(
                     color: color.withValues(alpha: 0.9),
                     borderRadius: BorderRadius.circular(8),
-                    boxShadow: [
-                      BoxShadow(
-                        color: color.withValues(alpha: 0.4),
-                        blurRadius: 6,
-                      ),
-                    ],
                   ),
                   child: Text(
                     name.truncateGraphemes(8),
@@ -3177,9 +3155,6 @@ class _DrawScreenState extends State<DrawScreen>
               color: color.withValues(alpha: 0.85),
               shape: BoxShape.circle,
               border: Border.all(color: Colors.white, width: 2.5),
-              boxShadow: [
-                BoxShadow(color: color.withValues(alpha: 0.45), blurRadius: 10),
-              ],
             ),
             child: const Icon(
               Icons.brush_rounded,
@@ -3235,14 +3210,6 @@ class _DrawScreenState extends State<DrawScreen>
           decoration: BoxDecoration(
             color: color.withValues(alpha: isDrawing ? 0.9 : 0.4),
             borderRadius: BorderRadius.circular(14),
-            boxShadow: isDrawing
-                ? [
-                    BoxShadow(
-                      color: color.withValues(alpha: 0.4),
-                      blurRadius: 10,
-                    ),
-                  ]
-                : null,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -3284,12 +3251,6 @@ class _DrawScreenState extends State<DrawScreen>
           decoration: BoxDecoration(
             color: Colors.black.withValues(alpha: 0.72),
             borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.25),
-                blurRadius: 12,
-              ),
-            ],
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -3326,13 +3287,6 @@ class _DrawScreenState extends State<DrawScreen>
     return Container(
       decoration: BoxDecoration(
         color: t.cardSurface,
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x10000000),
-            blurRadius: 10,
-            offset: Offset(0, -2),
-          ),
-        ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -3771,12 +3725,6 @@ class _DrawScreenState extends State<DrawScreen>
                   color: _activeColor,
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white, width: 3),
-                  boxShadow: [
-                    BoxShadow(
-                      color: _activeColor.withValues(alpha: 0.4),
-                      blurRadius: 8,
-                    ),
-                  ],
                 ),
               ),
             ),
@@ -3818,15 +3766,6 @@ class _DrawScreenState extends State<DrawScreen>
                                       : Colors.transparent),
                             width: sel ? 2.5 : 1,
                           ),
-                          boxShadow: sel
-                              ? [
-                                  BoxShadow(
-                                    color: c.withValues(alpha: 0.5),
-                                    blurRadius: 8,
-                                    spreadRadius: 1,
-                                  ),
-                                ]
-                              : null,
                         ),
                       ),
                     );

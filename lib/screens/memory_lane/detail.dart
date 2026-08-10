@@ -956,13 +956,6 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.92),
                     shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
-                        blurRadius: 20,
-                        spreadRadius: 2,
-                      ),
-                    ],
                   ),
                   child: Icon(Icons.play_arrow_rounded, size: 42, color: p),
                 ),
@@ -1067,13 +1060,6 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.92),
                           shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.2),
-                              blurRadius: 20,
-                              spreadRadius: 2,
-                            ),
-                          ],
                         ),
                         child: Icon(
                           Icons.play_arrow_rounded,
@@ -1251,12 +1237,6 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                     colors: [p, p.withOpacity(0.75)],
                   ),
                   borderRadius: BorderRadius.circular(14),
-                  boxShadow: context.appTheme.accentGlow(
-                    p,
-                    opacity: 0.3,
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
                 ),
                 child: const Icon(
                   Icons.location_on_rounded,

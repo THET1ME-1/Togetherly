@@ -1613,13 +1613,6 @@ class _ChatScreenState extends State<ChatScreen> {
                         mine == entry.key ? _t.primary : _t.divider,
                     width: mine == entry.key ? 1.5 : 1,
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
-                      blurRadius: 4,
-                      offset: const Offset(0, 1),
-                    ),
-                  ],
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -2066,13 +2059,6 @@ class _ChatScreenState extends State<ChatScreen> {
                           decoration: BoxDecoration(
                             color: _t.cardSurface,
                             shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.15),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
                           ),
                           child: Icon(
                             Icons.keyboard_arrow_down_rounded,
@@ -2701,13 +2687,6 @@ class _ChatScreenState extends State<ChatScreen> {
     return Container(
       decoration: BoxDecoration(
         color: _t.cardSurface,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
-          ),
-        ],
       ),
       // Когда клавиатура открыта, Scaffold уже поднимает композер над ней —
       // добавлять инсет системной навигации не нужно (иначе двойной отступ
@@ -3545,7 +3524,6 @@ class _StyleSheetState extends State<_StyleSheet> {
               color: widget.theme.isDark
                   ? widget.theme.cardBorder
                   : Colors.black26),
-          boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 3)],
         ),
       );
 

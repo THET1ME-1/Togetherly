@@ -141,13 +141,6 @@ class _AchievementUnlockViewState extends State<_AchievementUnlockView>
         color: const Color(0xFF1F1B24),
         borderRadius: BorderRadius.circular(28),
         border: Border.all(color: a.tierColor.withValues(alpha: 0.55), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: a.tierColor.withValues(alpha: 0.45),
-            blurRadius: 40,
-            spreadRadius: 2,
-          ),
-        ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -174,13 +167,6 @@ class _AchievementUnlockViewState extends State<_AchievementUnlockView>
                 end: Alignment.bottomRight,
                 colors: a.tierGradient,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: a.tierColor.withValues(alpha: 0.6),
-                  blurRadius: 24,
-                  spreadRadius: 1,
-                ),
-              ],
             ),
             alignment: Alignment.center,
             child: Text(a.emoji, style: const TextStyle(fontSize: 56)),

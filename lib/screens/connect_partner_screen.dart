@@ -1772,9 +1772,6 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
           color: widget.theme.isDark ? widget.theme.cardBorder : Colors.white,
           width: 2,
         ),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 4),
-        ],
       ),
       child: ClipOval(
         child: url.isNotEmpty
@@ -2112,8 +2109,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  elevation: 8,
-                  shadowColor: primary.withOpacity(0.3),
+                  elevation: 0,
                 ),
                 child: Text(
                   LocaleService.current.joinGroup,
@@ -2144,13 +2140,6 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
               ? widget.theme.cardBorder
               : const Color(0x99FFFFFF),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: child,
     );
@@ -2200,13 +2189,6 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
         color: widget.theme.cardSurface,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: widget.theme.cardBorder, width: 0.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: child,
     );
@@ -2303,12 +2285,6 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(20),
-          boxShadow: widget.theme.accentGlow(
-            primary,
-            opacity: 0.25,
-            blurRadius: 14,
-            offset: const Offset(0, 6),
-          ),
         ),
         child: Row(
           children: [
@@ -2372,13 +2348,6 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
           color: widget.theme.cardSurface,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: widget.theme.cardBorder, width: 0.5),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 12,
-              offset: const Offset(0, 2),
-            ),
-          ],
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
