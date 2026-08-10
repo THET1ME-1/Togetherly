@@ -1,4 +1,5 @@
 import 'dart:io' show Platform;
+import '../utils/safe_launch.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -258,7 +259,7 @@ Future<void> buyMoodPack(
       say(ru ? 'Не удалось открыть оплату' : 'Could not open checkout');
       return;
     }
-    final ok = await launchUrl(Uri.parse(url),
+    final ok = await safeLaunchUrl(Uri.parse(url),
         mode: LaunchMode.externalApplication);
     if (!ok && context.mounted) {
       say(ru ? 'Не удалось открыть оплату' : 'Could not open checkout');

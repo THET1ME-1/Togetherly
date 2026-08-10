@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../utils/safe_launch.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:in_app_update/in_app_update.dart';
@@ -3137,7 +3138,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   Navigator.pop(ctx);
                   final uri = Uri.parse(upd.apkUrl);
                   try {
-                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    await safeLaunchUrl(uri, mode: LaunchMode.externalApplication);
                   } catch (e) {
                     debugPrint('GitHub update launch failed: $e');
                   }

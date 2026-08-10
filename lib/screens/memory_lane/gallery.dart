@@ -145,7 +145,7 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
                     // sb://gs:// → signed URL, иначе внешний плеер не откроет.
                     final playable = await PbMediaService()
                         .resolvePlayable(item.videoUrl!);
-                    await launchUrl(
+                    await safeLaunchUrl(
                       Uri.parse(playable),
                       mode: LaunchMode.externalApplication,
                     );
@@ -335,7 +335,7 @@ class _MapAppTile extends StatelessWidget {
       onTap: () async {
         final uri = Uri.parse(url);
         if (await canLaunchUrl(uri)) {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
+          await safeLaunchUrl(uri, mode: LaunchMode.externalApplication);
         } else {
           // Fallback: try web URL for native-scheme apps
           final webFallback = Uri.parse(

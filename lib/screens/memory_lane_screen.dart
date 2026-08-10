@@ -2421,7 +2421,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 onTap: () {
                   final url = memory.videoUrl;
                   if (url != null && url.isNotEmpty) {
-                    launchUrl(
+                    safeLaunchUrl(
                       Uri.parse(url),
                       mode: LaunchMode.externalApplication,
                     );
@@ -2583,7 +2583,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               onPressed: () {
                 final url = memory.videoUrl;
                 if (url != null && url.isNotEmpty) {
-                  launchUrl(
+                  safeLaunchUrl(
                     Uri.parse(url),
                     mode: LaunchMode.externalApplication,
                   );
@@ -3070,7 +3070,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                   onTap: () {
                                     final url = memory.videoUrl;
                                     if (url != null && url.isNotEmpty) {
-                                      launchUrl(
+                                      safeLaunchUrl(
                                         Uri.parse(url),
                                         mode: LaunchMode.externalApplication,
                                       );
@@ -3167,7 +3167,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                   onPressed: () {
                                     final url =
                                         'https://www.google.com/maps?q=${memory.latitude},${memory.longitude}';
-                                    launchUrl(
+                                    safeLaunchUrl(
                                       Uri.parse(url),
                                       mode: LaunchMode.externalApplication,
                                     );
@@ -3751,7 +3751,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         !url.contains('firebasestorage') &&
         !url.contains('firebase')) {
       if (await canLaunchUrl(Uri.parse(url))) {
-        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+        await safeLaunchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
       }
       return;
     }
@@ -7409,14 +7409,14 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     );
 
     if (await canLaunchUrl(geoUri)) {
-      await launchUrl(geoUri);
+      await safeLaunchUrl(geoUri);
     } else if (await canLaunchUrl(appleMapsUri)) {
-      await launchUrl(appleMapsUri, mode: LaunchMode.externalApplication);
+      await safeLaunchUrl(appleMapsUri, mode: LaunchMode.externalApplication);
     } else {
       final webUri = Uri.parse(
         'https://www.google.com/maps/search/?api=1&query=$lat,$lng',
       );
-      await launchUrl(webUri, mode: LaunchMode.externalApplication);
+      await safeLaunchUrl(webUri, mode: LaunchMode.externalApplication);
     }
   }
 

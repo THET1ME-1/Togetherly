@@ -1,4 +1,5 @@
 import 'dart:io';
+import '../utils/safe_launch.dart';
 
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -402,7 +403,7 @@ class _PlusScreenState extends State<PlusScreen> {
       return;
     }
     try {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
+      await safeLaunchUrl(url, mode: LaunchMode.externalApplication);
     } catch (_) {
       // Браузера нет или ссылка не открылась — молча возвращаем кнопку.
     }

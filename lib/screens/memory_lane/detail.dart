@@ -1056,7 +1056,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                       onTap: () {
                         final url = memory.videoUrl;
                         if (url != null && url.isNotEmpty) {
-                          launchUrl(
+                          safeLaunchUrl(
                             Uri.parse(url),
                             mode: LaunchMode.externalApplication,
                           );
@@ -1148,7 +1148,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                   onPressed: () {
                     final url = memory.videoUrl;
                     if (url != null && url.isNotEmpty) {
-                      launchUrl(
+                      safeLaunchUrl(
                         Uri.parse(url),
                         mode: LaunchMode.externalApplication,
                       );
@@ -1520,7 +1520,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () => launchUrl(
+                onPressed: () => safeLaunchUrl(
                   Uri.parse(memory.bookInfoUrl!),
                   mode: LaunchMode.externalApplication,
                 ),
@@ -1752,7 +1752,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () => launchUrl(
+                onPressed: () => safeLaunchUrl(
                   Uri.parse(memory.movieInfoUrl!),
                   mode: LaunchMode.externalApplication,
                 ),

@@ -331,7 +331,7 @@ class _MusicPlayerWidgetState extends State<_MusicPlayerWidget> {
               width: double.infinity,
               child: FilledButton.icon(
                 onPressed: () {
-                  launchUrl(
+                  safeLaunchUrl(
                     Uri.parse(memory.musicUrl!),
                     mode: LaunchMode.externalApplication,
                   );

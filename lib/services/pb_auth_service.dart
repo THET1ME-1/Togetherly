@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../utils/safe_launch.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
@@ -152,7 +153,7 @@ class PbAuthService {
           // In-app браузер держит приложение на переднем плане → realtime-
           // websocket OAuth-флоу PB выживает и сессия возвращается в приложение
           // (externalApplication уводил Flutter в фон → Completer висел).
-          await launchUrl(url, mode: LaunchMode.inAppBrowserView);
+          await safeLaunchUrl(url, mode: LaunchMode.inAppBrowserView);
         },
       );
       // OAuth завершён — закрыть in-app вьюху (iOS: SFSafariViewController;

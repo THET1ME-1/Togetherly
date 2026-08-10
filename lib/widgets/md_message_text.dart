@@ -1,4 +1,5 @@
 import 'package:flutter/gestures.dart';
+import '../utils/safe_launch.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -192,7 +193,7 @@ class _MdMessageTextState extends State<MdMessageText> {
     final uri = Uri.tryParse(url);
     if (uri == null) return;
     try {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      await safeLaunchUrl(uri, mode: LaunchMode.externalApplication);
     } catch (_) {/* нет обработчика ссылки — молча игнорируем */}
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/safe_launch.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/locale_service.dart';
@@ -38,7 +39,7 @@ class ForceUpdateScreen extends StatelessWidget {
 
   Future<bool> _launch(String url) async {
     try {
-      return await launchUrl(
+      return await safeLaunchUrl(
         Uri.parse(url),
         mode: LaunchMode.externalApplication,
       );

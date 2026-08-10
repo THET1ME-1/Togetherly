@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../utils/safe_launch.dart';
 import 'package:flutter/material.dart';
 import 'dart:io';
 
@@ -127,7 +128,7 @@ class _WatchHomeScreenState extends State<WatchHomeScreen> {
 
   Future<void> _openOnSite() async {
     if (_room.isEmpty) return;
-    await launchUrl(
+    await safeLaunchUrl(
       Uri.parse(WatchRoomService.siteUrl(_room)),
       mode: LaunchMode.externalApplication,
     );

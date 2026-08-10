@@ -597,7 +597,7 @@ class _YouTubeInlineCardState extends State<_YouTubeInlineCard> {
               onPressed: () {
                 final url = memory.videoUrl;
                 if (url != null && url.isNotEmpty) {
-                  launchUrl(
+                  safeLaunchUrl(
                     Uri.parse(url),
                     mode: LaunchMode.externalApplication,
                   );

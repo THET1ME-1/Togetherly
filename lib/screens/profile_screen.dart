@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../utils/safe_launch.dart';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'couple_stats_screen.dart';
@@ -438,7 +439,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
     final uri = Uri.parse('mailto:$supportEmail?subject=$subject');
     if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
+      await safeLaunchUrl(uri);
       return;
     }
     await Clipboard.setData(const ClipboardData(text: supportEmail));
@@ -644,7 +645,7 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Future<void> _openExternalUri(Uri uri) async {
     if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      await safeLaunchUrl(uri, mode: LaunchMode.externalApplication);
       return;
     }
 
@@ -3545,7 +3546,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   Future<void> _openSystemNotificationSettings() async {
     if (Platform.isAndroid) {
       try {
-        await launchUrl(
+        await safeLaunchUrl(
           Uri.parse(
             'intent:#Intent;'
             'action=android.settings.APP_NOTIFICATION_SETTINGS;'
@@ -3556,7 +3557,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         return;
       } catch (_) {
         try {
-          await launchUrl(
+          await safeLaunchUrl(
             Uri.parse(
               'intent:#Intent;'
               'action=android.settings.APPLICATION_DETAILS_SETTINGS;'
@@ -3572,7 +3573,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
 
     final iosUri = Uri.parse('app-settings:');
-    if (await canLaunchUrl(iosUri)) await launchUrl(iosUri);
+    if (await canLaunchUrl(iosUri)) await safeLaunchUrl(iosUri);
   }
 
   /// Счётчик дней в шторке: включение просит дату старта пары.

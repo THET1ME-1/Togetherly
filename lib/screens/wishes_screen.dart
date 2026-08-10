@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../utils/safe_launch.dart';
 
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -807,7 +808,7 @@ class _WishTile extends StatelessWidget {
                   onPressed: () async {
                     final uri = Uri.tryParse(wish.url);
                     if (uri == null) return;
-                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    await safeLaunchUrl(uri, mode: LaunchMode.externalApplication);
                   },
                   icon: Icon(Icons.open_in_new_rounded,
                       size: 18, color: scheme.onSurfaceVariant),
