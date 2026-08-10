@@ -1,0 +1,99 @@
+// Строки раздела. Одна запись — все языки сразу: так новый язык это
+// колонка в словаре, а не ещё один класс на полторы тысячи членов.
+//
+// Правится руками. Ключ без перевода на выбранный язык откатывается на
+// английский (см. `trDict` в ../dict_strings.dart), поэтому пустых мест
+// на экране не бывает.
+
+const Map<String, Map<String, String>> drawGalleryCanvasStrings = {
+  'palmTool': {
+    'ru': 'Ладонь',
+    'en': 'Palm',
+    'pt': 'Palma',
+    'it': 'Palmo',
+    'es': 'Palma',
+    'fr': 'Paume',
+    'de': 'Handfläche',
+  },
+  'drawingMode': {
+    'ru': 'Режим рисования',
+    'en': 'Drawing Mode',
+    'pt': 'Modo desenho',
+    'it': 'Modalità disegno',
+    'es': 'Modo dibujo',
+    'fr': 'Mode dessin',
+    'de': 'Zeichenmodus',
+  },
+  'newCanvas': {
+    'ru': 'Новый холст',
+    'en': 'New Canvas',
+    'pt': 'Tela nova',
+    'it': 'Nuova tela',
+    'es': 'Lienzo nuevo',
+    'fr': 'Nouvelle toile',
+    'de': 'Neue Leinwand',
+  },
+  'myDrawings': {
+    'ru': 'Мои рисунки',
+    'en': 'My Drawings',
+    'pt': 'Meus desenhos',
+    'it': 'I miei disegni',
+    'es': 'Mis dibujos',
+    'fr': 'Mes dessins',
+    'de': 'Meine Zeichnungen',
+  },
+  'untitledCanvas': {
+    'ru': 'Холст',
+    'en': 'Canvas',
+    'pt': 'Tela',
+    'it': 'Tela',
+    'es': 'Lienzo',
+    'fr': 'Toile',
+    'de': 'Leinwand',
+  },
+  'renameCanvas': {
+    'ru': 'Переименовать',
+    'en': 'Rename',
+    'pt': 'Renomear',
+    'it': 'Rinomina',
+    'es': 'Cambiar el nombre',
+    'fr': 'Renommer',
+    'de': 'Umbenennen',
+  },
+  'deleteCanvas': {
+    'ru': 'Удалить холст',
+    'en': 'Delete Canvas',
+    'pt': 'Excluir a tela',
+    'it': 'Elimina la tela',
+    'es': 'Borrar el lienzo',
+    'fr': 'Supprimer la toile',
+    'de': 'Leinwand löschen',
+  },
+  'deleteCanvasConfirm': {
+    'ru': 'Удалить этот холст? Это действие необратимо.',
+    'en': 'Delete this canvas? This action cannot be undone.',
+    'pt': 'Excluir esta tela? Não tem volta.',
+    'it': 'Eliminare questa tela? Non si torna indietro.',
+    'es': '¿Borrar este lienzo? No hay vuelta atrás.',
+    'fr': 'Supprimer cette toile ? C’est définitif.',
+    'de': 'Diese Leinwand löschen? Das lässt sich nicht rückgängig machen.',
+  },
+  'canvasNameLabel': {
+    'ru': 'Название холста',
+    'en': 'Canvas name',
+    'pt': 'Nome da tela',
+    'it': 'Nome della tela',
+    'es': 'Nombre del lienzo',
+    'fr': 'Nom de la toile',
+    'de': 'Name der Leinwand',
+  },
+  'noDrawingsYet': {
+    'ru': 'Рисунков пока нет',
+    'en': 'No drawings yet',
+    'pt': 'Ainda não tem desenhos',
+    'it': 'Ancora nessun disegno',
+    'es': 'Todavía no hay dibujos',
+    'fr': 'Pas encore de dessins',
+    'de': 'Noch keine Zeichnungen',
+  },
+};

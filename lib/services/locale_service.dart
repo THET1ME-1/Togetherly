@@ -1,14 +1,53 @@
 import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../dict_strings.dart';
+
 import 'package:love_app/config/update_notes.dart';
 import '../screens/postcard/models/postcard_template.dart';
+// Немецкий: словарь плюс свои числительные, подстановки и списки дат.
+part 'strings_de.dart';
+part 'strings_fr.dart';
+part 'strings_es.dart';
+part 'strings_it.dart';
+part 'strings_pt.dart';
 
-/// Supported languages
-enum AppLanguage { ru, en }
+/// Языки интерфейса. Набор тот же, что в Wickly и Kadr.
+///
+/// Порядок значений менять нельзя: язык хранится в prefs строкой, но `index`
+/// уезжает в аналитику и в снимки настроек.
+enum AppLanguage {
+  ru('ru', 'Русский'),
+  en('en', 'English'),
+  de('de', 'Deutsch'),
+  fr('fr', 'Français'),
+  es('es', 'Español'),
+  it('it', 'Italiano'),
+  pt('pt', 'Português');
 
-/// Singleton localization manager with Russian and English support.
-/// Determines default language from device locale, stores user choice.
+  const AppLanguage(this.code, this.label);
+
+  /// Код языка — он же колонка в словаре `kStrings`.
+  final String code;
+
+  /// Название на самом языке: список выбора читают те, кто нашего языка не знает.
+  final String label;
+
+  static AppLanguage? byCode(String code) {
+    for (final l in values) {
+      if (l.code == code) return l;
+    }
+    return null;
+  }
+}
+
+/// Язык интерфейса: выбор человека, иначе догадка по локали устройства.
+///
+/// Строки живут в словаре `kStrings` (см. `lib/dict_strings.dart`), поэтому язык
+/// без перевода не ломает экран: `trDict` откатывается на английский. Из-за
+/// этого новый язык добавляется записью в словаре, а не классом на полторы
+/// тысячи членов — семь таких классов файл бы не пережил.
 class LocaleService extends ChangeNotifier {
   LocaleService._();
   static final LocaleService _instance = LocaleService._();
@@ -24,8 +63,62 @@ class LocaleService extends ChangeNotifier {
   bool get isRussian => _language == AppLanguage.ru;
   bool get isEnglish => _language == AppLanguage.en;
 
-  AppStrings get strings =>
-      _language == AppLanguage.ru ? const _RuStrings() : const _EnStrings();
+  /// Что показывать в `MaterialApp.supportedLocales`: без этого системные части
+  /// (выбор даты, меню копирования) остаются английскими при любом переводе.
+  static List<ui.Locale> get supportedLocales => [
+    for (final l in AppLanguage.values) ui.Locale(l.code),
+  ];
+
+  static const Map<AppLanguage, AppStrings> _byLanguage = {
+    AppLanguage.ru: _RuStrings(),
+    AppLanguage.en: _EnStrings(),
+    AppLanguage.de: _DeStrings(),
+    AppLanguage.fr: _FrStrings(),
+    AppLanguage.es: _EsStrings(),
+    AppLanguage.it: _ItStrings(),
+    AppLanguage.pt: _PtStrings(),
+  };
+
+  AppStrings get strings => _byLanguage[_language] ?? const _EnStrings();
+
+  /// Язык устройства → наш язык. Регион важен там, где язык системы английский,
+  /// а страна говорит иначе: латиноамериканская `es-419`, бразильская `pt-BR`,
+  /// австрийская `de-AT` приходят разными кодами, а язык у них один.
+  static AppLanguage detect(ui.Locale locale) {
+    final byLang = AppLanguage.byCode(locale.languageCode.toLowerCase());
+    if (byLang != null) return byLang;
+    const byCountry = <String, AppLanguage>{
+      'RU': AppLanguage.ru,
+      'BY': AppLanguage.ru,
+      'KZ': AppLanguage.ru,
+      'KG': AppLanguage.ru,
+      'UA': AppLanguage.ru,
+      'DE': AppLanguage.de,
+      'AT': AppLanguage.de,
+      'CH': AppLanguage.de,
+      'LI': AppLanguage.de,
+      'FR': AppLanguage.fr,
+      'BE': AppLanguage.fr,
+      'LU': AppLanguage.fr,
+      'MC': AppLanguage.fr,
+      'ES': AppLanguage.es,
+      'MX': AppLanguage.es,
+      'AR': AppLanguage.es,
+      'CO': AppLanguage.es,
+      'CL': AppLanguage.es,
+      'PE': AppLanguage.es,
+      'VE': AppLanguage.es,
+      'EC': AppLanguage.es,
+      'GT': AppLanguage.es,
+      'IT': AppLanguage.it,
+      'SM': AppLanguage.it,
+      'PT': AppLanguage.pt,
+      'BR': AppLanguage.pt,
+      'AO': AppLanguage.pt,
+      'MZ': AppLanguage.pt,
+    };
+    return byCountry[locale.countryCode?.toUpperCase()] ?? AppLanguage.en;
+  }
 
   /// Initialize: load saved preference or detect from device locale.
   Future<void> init() async {
@@ -34,22 +127,16 @@ class LocaleService extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       final saved = prefs.getString('app_language');
       if (saved != null) {
-        _language = saved == 'ru' ? AppLanguage.ru : AppLanguage.en;
+        // Прежние сборки писали сюда 'ru' или 'en', новые — любой из семи кодов.
+        _language = AppLanguage.byCode(saved) ?? AppLanguage.en;
       } else {
-        // Detect from device locale
-        final locale = ui.PlatformDispatcher.instance.locale;
-        _language = locale.languageCode == 'ru'
-            ? AppLanguage.ru
-            : AppLanguage.en;
+        _language = detect(ui.PlatformDispatcher.instance.locale);
         // Персистим определённый по локали язык, чтобы фоновые изоляты
         // (WorkManager / foreground-сервис) читали конкретное значение из
         // prefs, а не дефолтный EN — иначе mood-виджет обновляется в фоне с
         // английскими метками. PlatformDispatcher.locale в headless-изоляте
         // ненадёжен, prefs шарятся между изолятами и надёжны.
-        await prefs.setString(
-          'app_language',
-          _language == AppLanguage.ru ? 'ru' : 'en',
-        );
+        await prefs.setString('app_language', _language.code);
       }
     } catch (_) {
       _language = AppLanguage.en;
@@ -64,16 +151,12 @@ class LocaleService extends ChangeNotifier {
     _language = lang;
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-        'app_language',
-        lang == AppLanguage.ru ? 'ru' : 'en',
-      );
+      await prefs.setString('app_language', lang.code);
     } catch (_) {}
     notifyListeners();
   }
 
-  String get languageLabel =>
-      _language == AppLanguage.ru ? 'Русский' : 'English';
+  String get languageLabel => _language.label;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1975,117 +2058,15 @@ String _ruPlural(int n, String one, String few, String many) {
   }
 }
 
-class _RuStrings extends AppStrings {
-  const _RuStrings();
+class _RuStrings extends DictStrings {
+  const _RuStrings() : super('ru');
 
   // ── Common ──
-  @override
-  String get save => 'Сохранить';
-  @override
-  String get cancel => 'Отмена';
-  @override
-  String get delete => 'Удалить';
-  @override
-  String get edit => 'Изменить';
-  @override
-  String get add => 'Добавить';
-  @override
-  String get done => 'Готово';
-  @override
-  String get loading => 'Загрузка...';
-  @override
-  String get error => 'Ошибка';
-  @override
-  String get ok => 'OK';
-  @override
-  String get yes => 'Да';
-  @override
-  String get no => 'Нет';
-  @override
-  String get close => 'Закрыть';
-  @override
-  String get back => 'Назад';
-  @override
-  String get reset => 'Сбросить';
-  @override
-  String get clear => 'Очистить';
 
   // ── Welcome ──
-  @override
-  String get welcomeTitle1 => 'Это пространство только\nдля ';
-  @override
-  String get welcomeTitle2 => 'вас двоих';
-  @override
-  String get welcomeSubtitle => 'Моменты, чувства, связь';
-  @override
-  String get welcomeFeatureMemories => 'Общие воспоминания, фото и заметки';
-  @override
-  String get welcomeFeatureMood => 'Настроение, статусы и маленькие ритуалы';
-  @override
-  String get welcomeFeatureWidgets => 'Таймеры, виджеты и карта ваших мест';
-  @override
-  String get welcomeStepCreateProfile => '1. Создайте профиль и войдите';
-  @override
-  String get welcomeStepConnectPartner =>
-      '2. Подключите партнёра по ссылке, коду или QR';
-  @override
-  String get welcomeStepStartTogether =>
-      '3. Добавьте первое воспоминание и настройте ваше пространство';
-  @override
-  String get createAccount => 'Создать аккаунт';
-  @override
-  String get alreadyHaveAccount => 'Уже есть аккаунт';
-  @override
-  String get privateSecure => 'ПРИВАТНО И БЕЗОПАСНО';
 
   // ── Login ──
-  @override
-  String get welcomeBack => 'С возвращением!';
-  @override
-  String get loginToAccount => 'Войдите в свой аккаунт';
-  @override
-  String get signInWithGoogle => 'Войти через Google';
-  @override
-  String get or => 'или';
-  @override
-  String get email => 'Email';
-  @override
-  String get yourEmail => 'Ваш email';
-  @override
-  String get password => 'Пароль';
-  @override
-  String get yourPassword => 'Ваш пароль';
-  @override
-  String get login => 'Войти';
-  @override
-  String get noAccount => 'Нет аккаунта? ';
-  @override
-  String get create => 'Создать';
-  @override
-  String get invalidEmail => 'Введите корректный email';
-  @override
-  String get enterPassword => 'Введите пароль';
-  @override
-  String get loginFailed => 'Не удалось войти. Попробуйте ещё раз.';
-  @override
-  String get profileNotFound => 'Профиль не найден. Зарегистрируйтесь заново.';
-  @override
-  String get userNotFound => 'Пользователь с таким email не найден';
-  @override
-  String get wrongPassword => 'Неверный пароль';
-  @override
-  String get invalidEmailFormat => 'Некорректный email';
-  @override
-  String get tooManyAttempts => 'Слишком много попыток. Попробуйте позже';
-  @override
-  String get serverNotResponding => 'Сервер не отвечает. Проверьте интернет.';
 
-  @override
-  String get connectionBlocked =>
-      'Соединение обрывается по пути. Чаще всего мешает провайдер: '
-      'попробуйте мобильный интернет, другую сеть или VPN.';
-  @override
-  String get googleNotResponding => 'Google не отвечает. Проверьте интернет.';
   @override
   String loginError(String e) => 'Ошибка входа: $e';
   @override
@@ -2093,106 +2074,13 @@ class _RuStrings extends AppStrings {
 
   // ── Setup ──
   @override
-  String get whoAreYou => 'Кто вы?';
-  @override
-  String get selectGenderForTheme => 'Выберите пол для настройки темы';
-  @override
-  String get boy => 'Парень';
-  @override
-  String get girl => 'Девушка';
-  @override
-  String get continueBtn => 'Продолжить';
-  @override
-  String get createProfile => 'Создайте профиль';
-  @override
-  String get signInGoogleOrManual =>
-      'Войдите через Google или\nзаполните вручную';
-  @override
-  String get orManually => 'или вручную';
-  @override
-  String get name => 'Имя';
-  @override
-  String get yourName => 'Ваше имя';
-  @override
-  String get minCharsPassword => 'Минимум 6 символов';
-  @override
-  String get start => 'Начать';
-  @override
-  String get alreadyHaveAccountQuestion => 'Уже есть аккаунт? ';
-  @override
-  String get enterYourName => 'Введите ваше имя';
-  @override
-  String get enterValidEmail => 'Введите корректный email';
-  @override
-  String get selectGender => 'Выберите пол';
-  @override
-  String get passwordMin6 => 'Пароль должен быть минимум 6 символов';
-  @override
-  String get accountExists => 'Аккаунт существует';
-  @override
-  String get emailAlreadyRegistered =>
-      'Этот email уже зарегистрирован. Хотите войти в существующий аккаунт?';
-  @override
   String registrationError(String e) => 'Ошибка регистрации: $e';
-  @override
-  String get agreeToTermsPrefix => 'Я принимаю ';
-  @override
-  String get termsOfUse => 'Условия использования';
-  @override
-  String get agreeToTermsAnd => ' и ';
-  @override
-  String get privacyPolicyLink => 'Политику конфиденциальности';
-  @override
-  String get forgotPassword => 'Забыли пароль?';
   @override
   String passwordResetSent(String email) =>
       'Письмо для сброса пароля отправлено на $email. '
       'Проверьте почту и папку «Спам».';
-  @override
-  String get passwordResetError =>
-      'Не удалось отправить письмо. Проверьте email и попробуйте позже.';
-  @override
-  String get showPassword => 'Показать';
-  @override
-  String get hidePassword => 'Скрыть';
-  @override
-  String get min8Chars => 'Минимум 8 символов';
-  @override
-  String get oneUppercase => '1 заглавная буква';
-  @override
-  String get oneSpecialChar => '1 спец. символ';
-  @override
-  String get fullName => 'Полное имя';
-  @override
-  String get createAccountBtn => 'Создать аккаунт';
-  @override
-  String get continueWithGoogle => 'Продолжить через Google';
-  @override
-  String get continueWithApple => 'Продолжить через Apple';
-  @override
-  String get signInWith => 'Войти через';
-  @override
-  String get signUpWith => 'Регистрация через';
-  @override
-  String get rememberMe => 'Запомнить меня';
-  @override
-  String get alreadyHaveAccountLogin => 'Уже есть аккаунт?';
-  @override
-  String get passwordRequirements => 'Требования к паролю';
 
   // ── Home ──
-  @override
-  String get home => 'Главная';
-  @override
-  String get widgets => 'Виджеты';
-  @override
-  String get connect => 'Связь';
-  @override
-  String get profile => 'Профиль';
-  @override
-  String get solo => 'Solo';
-  @override
-  String get waitingForConnection => 'ОЖИДАНИЕ ПОДКЛЮЧЕНИЯ';
   @override
   String daysLabel(String suffix) => 'ДНЕЙ $suffix';
   @override
@@ -2200,193 +2088,22 @@ class _RuStrings extends AppStrings {
   @override
   String timeLabel(String suffix) => 'ВРЕМЯ $suffix';
   @override
-  String get inLove => 'ВЛЮБЛЕНЫ';
-  @override
-  String get together => 'ВМЕСТЕ';
-  @override
-  String get days => 'Дни';
-  @override
-  String get months => 'Месяцы';
-  @override
-  String get time => 'Время';
-  @override
-  String get inviteYourPartner => 'Пригласить партнёра';
-  @override
-  String get shareLinkCodeQr => 'Поделитесь ссылкой, кодом или QR';
-  @override
-  String get relationshipMemoryLane => 'Лента воспоминаний';
-  @override
-  String get memoriesWillAppear => 'Воспоминания появятся здесь';
-  @override
-  String get connectWithPartnerToStart => 'Подключите партнёра, чтобы начать';
-  @override
   String partnerIsMood(String name, String mood) => '$name — $mood';
   @override
-  String get answerSent => 'Ответ отправлен!';
-  @override
-  String get dailyReflection => 'Ежедневная рефлексия';
-  @override
-  String get today => 'СЕГОДНЯ';
-  @override
-  String get answerPrompt => 'Ответить';
-  @override
-  String get editAnswer => 'Редакт. ответ';
-  @override
-  String get clearMood => 'Убрать настроение';
-  @override
-  String get removeMood => 'Убрать настроение';
-  @override
-  String get howAreYouFeeling => 'Как вы себя чувствуете?';
-  @override
-  String get partnerWillSeeMood => 'Партнёр увидит ваше настроение';
-  @override
-  String get moodBandBright => 'Светлое';
-  @override
-  String get moodBandEven => 'Ровное';
-  @override
-  String get moodBandSad => 'Грусть и тревога';
-  @override
-  String get moodBandHeavy => 'Тяжёлое';
-  @override
   String moodPackAuthor(String name) => 'Рисунки — $name';
-  @override
-  String get moodTabLabel => 'Настроение';
-  @override
-  String get ailmentTabLabel => 'Самочувствие';
-  @override
-  String get ailmentPickerSubtitle => 'Партнёр увидит, что вам нездоровится';
-  @override
-  String get clearAilment => 'Я здоров(а)';
   @override
   String partnerAilmentBanner(String name, String label) =>
       '$name приболел(а): $label';
   @override
   String moodDateLabel(String dateLabel) => 'Настроение — $dateLabel';
   @override
-  String get indicateMoodForDay => 'Укажите настроение для этого дня';
-  @override
-  String get relationshipStatus => 'Статус отношений';
-  @override
-  String get chooseHowToConnect => 'Выберите тип связи';
-  @override
-  String get inLoveStatus => 'Влюблённые';
-  @override
-  String get perfectForCouples => 'Для романтических пар';
-  @override
-  String get married => 'Женаты';
-  @override
-  String get forMarriedPartners => 'Для партнёров в браке';
-  @override
-  String get friends => 'Друзья';
-  @override
-  String get connectWithBestFriend => 'Связь с лучшим другом';
-  @override
-  String get bestBuddies => 'Лучшие друзья';
-  @override
-  String get forInseparableCompanions => 'Для неразлучных друзей';
-  @override
-  String get addCustomStatus => 'Добавить свой статус';
-  @override
-  String get editCustomStatus => 'Редактировать статус';
-  @override
-  String get addCaption => 'Добавить подпись';
-  @override
-  String get optionalDescribe => 'Необязательно — опишите момент';
-  @override
-  String get writeSmth => 'Напишите что-нибудь...';
-  @override
-  String get skip => 'Пропустить';
-  @override
-  String get post => 'Отправить';
-  @override
-  String get posting => 'Отправка...';
-  @override
-  String get failedUploadPhoto => 'Не удалось загрузить фото';
-  @override
-  String get memoryNotSaved =>
-      'Фото не попало в воспоминания. Проверьте вход и повторите.';
-  @override
-  String get achievementUnlocked => 'Достижение получено!';
-  @override
-  String get achMetricDays => 'Время вместе';
-  @override
-  String get achMetricMemories => 'Воспоминания';
-  @override
-  String get achMetricMessages => 'Переписка';
-  @override
-  String get achMetricDrawings => 'Рисунки';
-  @override
-  String get achMetricStreak => 'Серия дней';
-  @override
-  String get achFilterAll => 'Все';
-  @override
-  String get achFilterUnlocked => 'Получено';
-  @override
-  String get achFilterInProgress => 'В процессе';
-  @override
-  String get achNothingHere => 'Здесь пока пусто';
-  @override
   String achProgressOf(int value, int target) => '$value из $target';
-  @override
-  String get achievementsTitle => 'Достижения пары';
-  @override
-  String get achievementsShort => 'Достижения';
-  @override
-  String get achievementDone => 'Получено';
   @override
   String achievementsUnlockedOf(int unlocked, int total) =>
       'Открыто $unlocked из $total';
   @override
-  String get markSecret => 'Сделать секретным';
-  @override
-  String get unmarkSecret => 'Убрать из секретных';
-  @override
-  String get markedSecret => 'Скрыто в секретные 🔒';
-  @override
-  String get unmarkedSecret => 'Больше не секретное';
-  @override
-  String get secretMemories => 'Секретные';
-  @override
-  String get enterPinTitle => 'Введите PIN';
-  @override
-  String get setPinTitle => 'Задайте PIN';
-  @override
-  String get setPinHint =>
-      'Минимум 4 цифры. PIN хранится только на этом устройстве.';
-  @override
-  String get wrongPin => 'Неверный PIN';
-  @override
-  String get pinTooShort => 'Минимум 4 цифры';
-  @override
-  String get pinDone => 'Готово';
-  @override
-  String get timeCapsule => 'Капсула времени';
-  @override
-  String get capsuleIntro =>
-      'Запечатай письмо или фото — оно откроется в выбранный день 💌';
-  @override
-  String get capsuleLetterHint => 'Напиши письмо в будущее…';
-  @override
-  String get capsuleAttachPhoto => 'Добавить фото';
-  @override
-  String get capsuleOpenDate => 'Дата открытия';
-  @override
-  String get change => 'Изменить';
-  @override
   String capsuleOpensIn(int days) =>
       days <= 0 ? 'откроется сегодня' : 'через $days дн.';
-  @override
-  String get capsulePreset1m => 'через месяц';
-  @override
-  String get capsulePreset6m => 'через полгода';
-  @override
-  String get capsulePreset1y => 'через год';
-  @override
-  String get capsuleSeal => 'Запечатать';
-  @override
-  String get capsuleNeedsContent => 'Добавь письмо или фото';
-  @override
-  String get capsuleNeedsFutureDate => 'Дата открытия должна быть в будущем';
   @override
   String capsuleOpensOn(String date) => 'Откроется $date';
   @override
@@ -2394,576 +2111,42 @@ class _RuStrings extends AppStrings {
   @override
   String capsuleNotReady(String date) => 'Ещё рано 🙈 Откроется $date';
   @override
-  String get capsuleAddSub => 'Письмо в будущее';
-  @override
-  String get capsuleCreated => 'Капсула запечатана 💌';
-  @override
-  String get capsuleOpenedTitle => 'Капсула времени открылась! 💌';
-  @override
-  String get capsuleOpenedBody => 'Загляни в ленту воспоминаний';
-  @override
   String capsuleOpenedBodyNamed(String title) => '«$title» ждёт тебя в ленте';
-  @override
-  String get postedToMemoryLane => 'Добавлено в ленту воспоминаний! 📸';
-  @override
-  String get moodCalendar => 'Календарь настроений';
-  @override
-  String get seeAll => 'Все';
-  @override
-  String get addMemory => 'Добавить';
-  @override
-  String get viewAll => 'Все';
 
   // ── Widget Screen ──
   @override
-  String get widgetsTitle => 'Виджеты';
-  @override
-  String get resetBtn => 'Сбросить';
-  @override
-  String get desktopPreview => 'Превью на рабочем столе';
-  @override
-  String get me => 'Я';
-  @override
-  String get partner => 'Партнёр';
-  @override
-  String get noStatus => 'Нет статуса';
-  @override
-  String get myWidget => 'Мой виджет';
-  @override
-  String get tapToEdit => 'Нажми, чтобы изменить';
-  @override
-  String get editBtn => 'Изменить';
-  @override
   String widgetOfPartner(String name) => 'Виджет $name';
-  @override
-  String get emptyYet => 'Пока пусто';
-  @override
-  String get updated => 'Обновлено';
-  @override
-  String get live => 'Live';
-  @override
-  String get mood => 'Настроение';
-  @override
-  String get status => 'Статус';
-  @override
-  String get message => 'Сообщение';
-  @override
-  String get photo => 'Фото';
-  @override
-  String get photoUploaded => 'Фото загружено';
-  @override
-  String get widgetPhotoOwnerOnlyHint =>
-      'При добавлении выбери, куда отправить: парный виджет, «Фото партнёра», воспоминания';
-  @override
-  String get music => 'Музыка';
-  @override
-  String get addBtn => 'Добавить';
-  @override
-  String get widgetSettings => 'Настройки виджета';
-  @override
-  String get photoToMemoryLane => 'Фото → Лента воспоминаний';
-  @override
-  String get autoSavePhotoToMemories =>
-      'Автоматически сохранять фото в воспоминания';
-  @override
-  String get messagestoMemoryLane => 'Сообщения → Лента воспоминаний';
-  @override
-  String get autoSaveMessages => 'Автоматически сохранять сообщения';
-  @override
-  String get musicToMemoryLane => 'Музыка → Лента воспоминаний';
-  @override
-  String get autoSaveTracks => 'Автоматически сохранять треки';
-  @override
-  String get moodToCalendar => 'Настроение → Календарь';
-  @override
-  String get autoMarkMoodCalendar =>
-      'Автоматически отмечать в календаре настроений';
-  @override
-  String get connectPartnerForWidgets =>
-      'Подключи партнёра, чтобы начать\nобмениваться виджетами';
-  @override
-  String get chooseMood => 'Выбери настроение';
-  @override
-  String get statusHint => 'Что у тебя нового?';
-  @override
-  String get messageHint => 'Напиши что-нибудь приятное...';
-  @override
-  String get chooseSource => 'Выбери источник';
-  @override
-  String get camera => 'Камера';
-  @override
-  String get gallery => 'Галерея';
-  @override
-  String get musicTitle => 'Музыка';
-  @override
-  String get trackName => 'Название трека';
-  @override
-  String get artist => 'Исполнитель';
-  @override
-  String get linkOptional => 'Ссылка (необязательно)';
-  @override
-  String get uploadingPhoto => 'Загружаем фото...';
-  @override
-  String get resetWidget => 'Сбросить виджет?';
-  @override
-  String get resetWidgetConfirm => 'Все данные твоего виджета будут очищены.';
-  @override
-  String get notPairedWidgets => 'Виджеты';
-  @override
-  String get notPairedWidgetsDesc =>
-      'Подключи партнёра, чтобы начать\nобмениваться виджетами';
 
   // ── Profile ──
   @override
-  String get user => 'Пользователь';
-  @override
-  String get noEmail => 'Нет email';
-  @override
-  String get gender => 'Пол';
-  @override
-  String get male => 'Мужской';
-  @override
-  String get female => 'Женский';
-  @override
-  String get genderPreferNotSay => 'Не хочу указывать';
-  @override
-  String get genderCustom => 'Свой пол';
-  @override
-  String get genderCustomHint => 'Укажите свой пол';
-  @override
-  String get genderNotSet => 'Не указан';
-  @override
-  String get information => 'ИНФОРМАЦИЯ';
-  @override
-  String get theme => 'Тема';
-  @override
-  String get relationships => 'ОТНОШЕНИЯ';
-  @override
-  String get statusLabel => 'Статус';
-  @override
-  String get partnerLabel => 'Партнёр';
-  @override
-  String get notSelected => 'Не выбран';
-  @override
   String daysTogetherLabel(String days) => '$days дней';
-  @override
-  String get invitePartnerToCount =>
-      'Пригласите партнёра, чтобы начать\nсчитать дни вместе ❤️';
-  @override
-  String get anniversaryDate => 'Годовщина';
-  @override
-  String get anniversaryWheelHint =>
-      'Для напоминаний. Счётчик «Дни вместе» меняется отдельно — карандашом ✏️ на главном экране';
-  @override
-  String get firstKissDate => 'Первый поцелуй';
-  @override
-  String get myBirthday => 'Мой день рождения';
-  @override
-  String get partnerBirthday => 'День рождения партнёра';
-  @override
-  String get notifCelebrations => 'Уведомления о праздниках';
-  @override
-  String get notifCelebrationsHint =>
-      'Напомним за день и точно в день годовщины и дня рождения';
-  @override
-  String get anniversaryTodayTitle => '🎉 С годовщиной!';
-  @override
-  String get anniversaryTodayBody =>
-      'Поздравляем вас с годовщиной вместе! Откройте Togetherly, чтобы отметить этот день.';
-  @override
-  String get birthdayTodayTitle => '🎂 С днём рождения!';
-  @override
-  String get birthdayTodayBody =>
-      'Сегодня ваш особенный день! Откройте Togetherly, чтобы отметить его вместе.';
-  @override
-  String get anniversaryTomorrowTitle => '🌹 Завтра годовщина!';
-  @override
-  String get anniversaryTomorrowBody =>
-      'Не забудьте — завтра ваша годовщина. Придумайте что-то особенное!';
-  @override
-  String get birthdayTomorrowTitle => '🎈 Завтра день рождения!';
-  @override
-  String get birthdayTomorrowBody =>
-      'Завтра ваш день рождения. Откройте Togetherly заранее!';
-  @override
-  String get celebrationBannerAnniversary => 'С годовщиной! 🎉';
-  @override
-  String get celebrationBannerBirthday => 'С днём рождения! 🎂';
-  @override
-  String get daysUntilAnniversary => 'до годовщины';
-  @override
-  String get daysUntilBirthday => 'до дня рождения';
-  @override
-  String get inLoveRelType => 'Влюблённые';
-  @override
-  String get marriedRelType => 'Женаты';
-  @override
-  String get friendsRelType => 'Друзья';
-  @override
-  String get bestFriendsRelType => 'Лучшие друзья';
-  @override
-  String get customStatus => 'Свой статус';
-  @override
-  String get relationshipType => 'Тип отношений';
-  @override
-  String get selectPartner => 'Выберите партнёра';
-  @override
-  String get noConnectedPartners => 'Нет подключённых партнёров';
-  @override
-  String get settings => 'НАСТРОЙКИ';
-  @override
-  String get editProfile => 'Редактировать профиль';
-  @override
-  String get notifications => 'Уведомления';
-  @override
-  String get privacy => 'Конфиденциальность';
-  @override
-  String get aboutApp => 'О приложении';
-  @override
-  String get supportAuthors => 'Поддержать авторов';
-  @override
-  String get supportIntro =>
-      'Togetherly — бесплатное приложение с открытым кодом. '
-      'Любой донат помогает развивать проект.';
-  @override
-  String get logout => 'Выйти из аккаунта';
-  @override
-  String get logoutQuestion => 'Выйти?';
-  @override
-  String get logoutConfirm => 'Вы уверены, что хотите выйти из аккаунта?';
-  @override
-  String get logoutBtn => 'Выйти';
-  @override
-  String get deleteAccount => 'Удалить аккаунт';
-  @override
-  String get deleteAccountQuestion => 'Удалить аккаунт?';
-  @override
-  String get deleteAccountConfirm =>
-      'Аккаунт и все ваши данные будут удалены без возможности восстановления. '
-      'Пара будет разорвана. Это действие необратимо.';
-  @override
-  String get deleteAccountBtn => 'Удалить навсегда';
-  @override
-  String get deleteAccountReauth =>
-      'Для удаления аккаунта войдите заново и повторите.';
-  @override
-  String get deleteAccountError =>
-      'Не удалось удалить аккаунт. Попробуйте ещё раз.';
-  @override
-  String get chooseColorTheme => 'Выбери цветовую тему';
-  @override
-  String get appearanceTitle => 'Оформление';
-  @override
-  String get paletteLabel => 'Палитра';
-  @override
-  String get themeModeLabel => 'Режим';
-  @override
-  String get themeStyleLabel => 'Сочность';
-  @override
-  String get themeModeLight => 'Светлая';
-  @override
-  String get themeModeDark => 'Тёмная';
-  @override
-  String get themeModeSystem => 'Система';
-  @override
-  String get themeFlavorSoft => 'Мягко';
-  @override
-  String get themeFlavorJuicy => 'Сочно';
-  @override
-  String get themeFlavorExact => 'Точно';
-  @override
-  String get amoledLabel => 'AMOLED-чёрный';
-  @override
-  String get levelTasksGroup => 'Уровень и задания';
-  @override
-  String get themeNamePink => 'Розовая';
-  @override
-  String get themeNamePurple => 'Фиолетовая';
-  @override
-  String get themeNameBlue => 'Голубая';
-  @override
-  String get themeNamePeach => 'Персиковая';
-  @override
-  String get themeNameSage => 'Шалфейная';
-  @override
-  String get themeNameMidnight => 'Полуночная';
-  @override
-  String get themeNameLavender => 'Лавандовая';
-  @override
-  String get themeNameCherry => 'Вишнёвая';
-  @override
-  String get themeNameMint => 'Мятная';
-  @override
-  String get themeNameSunset => 'Закатная';
-  @override
-  String get themeNameMonochrome => 'Монохром';
-  @override
-  String get themeNameForest => 'Лесная';
-  @override
-  String get themeNameOcean => 'Океан';
-  @override
-  String get themeNameHoney => 'Медовая';
-  @override
-  String get themeNameLemon => 'Лимонная';
-  @override
-  String get themeNameSand => 'Песочная';
-  @override
-  String get themeNameAurora => 'Северное сияние';
-  @override
-  String get themeNameBordeaux => 'Бордовая';
-  @override
-  String get themeNameTeal => 'Бирюзовая';
-  @override
-  String get themeNameNord => 'Нордик';
-  @override
-  String get themeNameCharcoalTeal => 'Угольная бирюза';
-  @override
-  String get themeNameCoffee => 'Кофе';
-  @override
-  String get themeNameForestDark => 'Тёмный лес';
-  @override
-  String get themeNameGarnet => 'Гранат';
-  @override
-  String get themeNameDarkHoney => 'Тёмный мёд';
   @override
   String premiumThemeLocked(int price) =>
       'Премиум-тема за $price монет — открой в магазине';
-  @override
-  String get coinBalance => 'Коины';
-  @override
-  String get coinShopTitle => 'Магазин Коинов';
-  @override
-  String get coinShopSubtitle => 'Кастомизация и приятности';
 
-  @override
-  String get coinEarnTitle => 'Задания за монеты';
-
-  @override
-  String get coinEarnSubtitle => 'Как пополнить баланс';
-  @override
-  String get buyThemeTitle => 'Купить тему?';
   @override
   String buyThemeDescription(String themeName, int price) =>
       'Разблокировать тему «$themeName» за $price монет?';
   @override
-  String get buyThemeConfirm => 'Купить';
-  @override
-  String get notEnoughCoins => 'Недостаточно монет';
-  @override
-  String get themePurchased => 'Тема разблокирована';
-  @override
-  String get iconShopTitle => 'Иконки профиля';
-  @override
-  String get iconShopSubtitle => 'Укрась свой профиль';
-  @override
-  String get noIconOption => 'Без иконки';
-  @override
-  String get iconRewardOnly => 'Награда';
-  @override
-  String get iconRewardHint => 'Эта иконка выдаётся вручную за вклад в проект.';
-  @override
-  String get iconPurchased => 'Иконка разблокирована';
-  @override
-  String get watchAdTitle => 'Посмотреть рекламу';
-  @override
-  String get watchAdSubtitle => 'За просмотр, до 3 раз в день';
-  @override
-  String get adNotReady => 'Реклама ещё загружается — попробуй через секунду';
-  @override
-  String get adRewardLimitReached =>
-      'Лимит на сегодня исчерпан — заходи завтра';
-  @override
-  String get rewardPending => 'Награда зачисляется…';
-  @override
-  String get coinPacksSectionTitle => 'Купить монеты';
-  @override
   String coinPackTitle(int coins) => '$coins монет';
-  @override
-  String get coinPurchaseSuccess => 'Монеты начислены!';
   @override
   String coinPurchaseSuccessAmount(int coins) => '+$coins монет зачислено';
   @override
-  String get coinPurchasePending => 'Платёж обрабатывается…';
-  @override
-  String get coinPurchaseCancelled => 'Покупка отменена';
-  @override
-  String get coinPurchaseError => 'Ошибка покупки. Попробуй ещё раз';
-  @override
-  String get coinStoreUnavailable => 'Магазин недоступен';
-  @override
-  String get restorePurchasesTitle => 'Восстановить покупки';
-  @override
-  String get restorePurchasesSuccess => 'Покупки восстановлены';
-  @override
-  String get restorePurchasesError => 'Не удалось восстановить покупки';
-  @override
-  String get changesApplyImmediately => 'Изменения применяются сразу';
-  @override
-  String get dailyBonusTitle => 'Ежедневный вход';
-  @override
-  String get dailyBonusSubtitle => 'Каждый день при входе';
-  @override
   String coinEarned(int amount) => '+$amount монет получено!';
   @override
-  String get memoryRewardTitle => 'Добавь воспоминание';
-  @override
-  String get memoryRewardSubtitle => 'За новое воспоминание, раз в день';
-  @override
-  String get partnerInviteRewardTitle => 'Пригласи партнёра';
-  @override
-  String get partnerInviteRewardSubtitle => 'Единоразово при подключении';
-  @override
-  String get moodStreakRewardTitle => 'Стрик настроения';
-  @override
-  String get moodStreakRewardSubtitle => 'Оба заполняли 7 дней подряд';
-  @override
-  String get earnCoinsSection => 'Заработать бесплатно';
-  @override
-  String get editProfileTitle => 'Редактировать профиль';
-  @override
-  String get uploading => 'Загрузка...';
-  @override
-  String get userNotAuthorized => 'Ошибка: пользователь не авторизован';
-  @override
-  String get failedUploadImage => 'Не удалось загрузить изображение';
-  @override
-  String get avatarUpdated => 'Аватарка обновлена';
-  @override
-  String get nameUpdated => 'Имя обновлено';
-  @override
   String uploadError(String e) => 'Ошибка загрузки: $e';
-  @override
-  String get language => 'Язык';
-  @override
-  String get selectLanguage => 'Выберите язык';
-  @override
-  String get blobAnimation => 'Blob-анимация';
 
   // ── Mood Calendar ──
   @override
-  String get moodCalendarTitle => 'Календарь настроений';
-  @override
-  String get moodSettings => 'Настройки настроений';
-  @override
-  String get moodMultiplePerDay => 'Несколько настроений в день';
-  @override
-  String get moodMultiplePerDaySubtitle =>
-      'Записывать каждое настроение отдельно, а не заменять прежнее';
-  @override
-  String get zoomIn => 'Увеличить';
-  @override
-  String get zoomOut => 'Уменьшить';
-  @override
-  String get week => 'Неделя';
-  @override
-  String get month => 'Месяц';
-  @override
-  String get year => 'Год';
-  @override
-  String get myMood => 'Мои настроения';
-  @override
   String partnerMood(String name) => 'Настроения $name';
-  @override
-  String get moods => 'Настроения';
 
   // ── Home (continued) ──
-  @override
-  String get emoji => 'Эмодзи';
-  @override
-  String get label => 'Название';
-  @override
-  String get egSoulmates => 'напр., Родные души';
-  @override
-  String get shareYourThoughts => 'Поделитесь мыслями...';
-  @override
-  String get draw => 'Рисовать';
-  @override
-  String get calendar => 'Календарь';
-  @override
-  String get noMemoriesYet => 'Пока нет воспоминаний';
 
   // ── Draw Screen ──
   @override
-  String get drawTogether => 'Рисуем вместе';
-  @override
-  String get brush => 'Кисть';
-  @override
-  String get eraser => 'Ластик';
-  @override
-  String get panTool => 'Рука';
-  @override
-  String get fillBg => 'Заливка';
-  @override
-  String get rotateCanvas => 'Повернуть холст';
-  @override
-  String get drawLine => 'Линия';
-  @override
-  String get drawRect => 'Прямоугольник';
-  @override
-  String get drawCircle => 'Круг';
-  @override
-  String get drawTriangle => 'Треугольник';
-  @override
-  String get fillShapes => 'Заливка фигур';
-  @override
-  String get insertPhoto => 'Вставить фото';
-  @override
-  String get photoRequiresPartner =>
-      'Фото доступно только при совместном рисовании с партнёром';
-  @override
-  String get photoFromGallery => 'Из галереи';
-  @override
-  String get photoFromCamera => 'Сделать фото';
-  @override
-  String get undoAction => 'Отменить';
-  @override
-  String get redoAction => 'Повторить';
-  @override
-  String get clearCanvas => 'Очистить';
-  @override
-  String get clearCanvasConfirm =>
-      'Очистить весь холст? Это удалит рисунки обоих.';
-  @override
-  String get deletePhoto => 'Удалить фото';
-  @override
-  String get mascotBoyName => 'Пиксик';
-  @override
-  String get mascotGirlName => 'Пикси';
-  @override
-  String get mascotSpikyName => 'Спайки';
-  @override
-  String get mascotLuluName => 'Лулу';
-  @override
-  String get mascotIskrikName => 'Искрик';
-  @override
-  String get mascotZhuzhaName => 'Жужа';
-  @override
-  String get saveDrawing => 'Сохранить';
-  @override
-  String get shareDrawing => 'Поделиться';
-  @override
   String drawingSavedTo(String path) => 'Рисунок сохранён: $path';
   @override
-  String get failedToSaveDrawing => 'Не удалось сохранить рисунок';
-  @override
-  String get failedToShareDrawing => 'Не удалось поделиться рисунком';
-  @override
-  String get strokeThickness => 'Толщина';
-  @override
-  String get drawHint =>
-      'Начните рисовать! Партнёр увидит ваши штрихи в реальном времени.';
-  @override
   String partnerIsDrawing(String name) => '$name рисует…';
-  @override
-  String get addFirstMemory => 'Добавьте первое воспоминание в Ленту';
-  @override
-  String get video => 'Видео';
-  @override
-  String get videoLabel => 'Видео';
-  @override
-  String get location => 'Локация';
-  @override
-  String get audio => 'Аудио';
   @override
   List<String> get reflectionQuestions => [
     'Какая маленькая вещь, которую партнёр сделал сегодня, дала вам почувствовать себя ценным?',
@@ -2989,156 +2172,23 @@ class _RuStrings extends AppStrings {
   ];
 
   // ── Draw Gallery / Canvas ──
-  @override
-  String get palmTool => 'Ладонь';
-  @override
-  String get drawingMode => 'Режим рисования';
-  @override
-  String get newCanvas => 'Новый холст';
-  @override
-  String get myDrawings => 'Мои рисунки';
-  @override
-  String get untitledCanvas => 'Холст';
-  @override
-  String get renameCanvas => 'Переименовать';
-  @override
-  String get deleteCanvas => 'Удалить холст';
-  @override
-  String get deleteCanvasConfirm =>
-      'Удалить этот холст? Это действие необратимо.';
-  @override
-  String get canvasNameLabel => 'Название холста';
-  @override
-  String get noDrawingsYet => 'Рисунков пока нет';
 
   // ── Connect Partner ──
-  @override
-  String get newGroup => 'Новая';
-  @override
-  String get waiting => 'Ожидание...';
-  @override
-  String get deleteGroupConfirm => 'Удалить эту группу?';
-  @override
-  String get deleteGroupTitle => 'Удалить группу';
-  @override
-  String get removeGroup => 'Удалить';
-  @override
-  String get connected => 'Подключены';
   @override
   String groupOf(int count) => 'Группа из $count';
   @override
   String membersCount(int count) => 'УЧАСТНИКИ · $count';
   @override
-  String get member => 'Участник';
-  @override
-  String get online => 'Онлайн';
-  @override
-  String get offline => 'Не в сети';
-  @override
-  String get chatOnline => 'в сети';
-  @override
-  String get chatTypingShort => 'печатает';
-  @override
-  String get inviteMore => 'Пригласить ещё';
-  @override
-  String get scanQr => 'Скан QR';
-  @override
-  String get disconnect => 'Отключиться';
-  @override
-  String get connectYourPartner => 'Подключите партнёра';
-  @override
-  String get shareInviteCodeDesc =>
-      'Поделитесь кодом приглашения,\nчтобы партнёр присоединился';
-  @override
-  String get yourInviteCode => 'ВАШ КОД ПРИГЛАШЕНИЯ';
-  @override
-  String get copy => 'Копия';
-  @override
-  String get share => 'Поделиться';
-  @override
-  String get codeCopied => 'Код скопирован!';
-  @override
   String shareInviteText(String code, String link) =>
       'Присоединяйся ко мне в Togetherly! Используй код: $code\n\nИли нажми: $link';
-  @override
-  String get loveAppInvitation => 'Приглашение Togetherly';
-  @override
-  String get newCodeGenerated => 'Новый код сгенерирован';
-  @override
-  String get showQr => 'Показать QR';
-  @override
-  String get haveACode => 'Есть код?';
 
-  @override
-  String get inviteHeroTitle => 'Позовите свою половину';
-  @override
-  String get inviteHeroBody =>
-      'Приложение оживает, когда вас двое: общий чат, настроение, '
-      'виджет на экране и лента воспоминаний.';
-  @override
-  String get sendInvitation => 'Отправить приглашение';
-  @override
-  String get haveCode => 'Ввести код';
-  @override
-  String get staySolo => 'Пока побуду один';
-  @override
-  String get later => 'Позже';
-  @override
-  String get tapToCopy => 'Нажмите, чтобы скопировать';
-  @override
-  String get inviteCodeLoading => 'Готовим код';
-  @override
-  String get inviteQrTitle => 'Код для партнёра';
-  @override
-  String get inviteQrHint =>
-      'Пусть партнёр наведёт камеру — приложение откроется с готовым кодом';
-  @override
-  String get enterPartnerCode => 'Код партнёра';
-  @override
-  String get inviteCodeNotFound => 'Код не найден или уже использован';
-
-  @override
-  String get onboardingTitle => 'Обустройтесь';
   @override
   String onboardingLeft(int left) => left == 1
       ? 'Остался один шаг'
       : (left < 5 ? 'Осталось $left шага' : 'Осталось $left шагов');
   @override
-  String get onboardingDone => 'Всё готово';
-  @override
-  String get onboardingStepPhoto => 'Поставить фото профиля';
-  @override
-  String get onboardingStepMood => 'Отметить настроение';
-  @override
-  String get onboardingStepWidget => 'Поставить виджет на экран';
-  @override
   String onboardingNext(String step) => 'Остался шаг: $step';
-  @override
-  String get onboardingSkip => 'Пропустить';
 
-  @override
-  String get chatEmptyTitle => 'Начните разговор';
-  @override
-  String get chatEmptyBody =>
-      'Цвет пузыря, мордочку и фон можно будет настроить — когда будет что настраивать.';
-  @override
-  String get chatEmptyGhostTheirs => 'Тут появится её сообщение';
-  @override
-  String get chatEmptyGhostMine => 'А тут ваше';
-  @override
-  String get chatPinTooltip => 'Прикрепить воспоминание';
-  @override
-  String get chatStyleTooltip => 'Оформление сообщения';
-  @override
-  String get chatLookMaterial => 'Обычные пузыри';
-  @override
-  String get chatLookCozy => 'Наши пузыри';
-  @override
-  String get chatLookMaterialOn => 'Обычный вид Material';
-  @override
-  String get chatLookCozyOn => 'Вернули наш вид';
-  @override
-  String get titleFieldHint => 'Появится в ленте над фотографией';
   @override
   String memoryTypeName(String type) => switch (type) {
     'photo' => 'Фотография',
@@ -3151,62 +2201,9 @@ class _RuStrings extends AppStrings {
     _ => 'Кино',
   };
   @override
-  String get symbolPickerTitle => 'Символ';
-  @override
-  String get symbolPickerAll => 'Все';
-  @override
-  String get countdownModeHint => 'Считать до даты, а не от неё';
-  @override
-  String get setAsMainHint => 'Показывать на главной';
-  @override
   String timerDaysCount(int days) => '$days ${_daysWord(days)}';
   @override
-  String get symbolSearchHint => 'Найти символ';
-  @override
-  String get symbolSearchEmpty =>
-      'Ничего не нашлось — попробуйте английское имя';
-  @override
   String symbolSearchFound(int count) => 'Найдено: $count';
-  @override
-  String get symbolSetHint => 'Или найдите любой другой поиском';
-  @override
-  String get symbolSetLove => 'Про нас';
-  @override
-  String get symbolSetHolidays => 'Праздники';
-  @override
-  String get symbolSetHome => 'Дом';
-  @override
-  String get symbolSetRoad => 'Дорога';
-  @override
-  String get symbolSetWork => 'Дела';
-  @override
-  String get chatBgPlain => 'Гладкий';
-  @override
-  String get chatBgDawn => 'Рассвет';
-  @override
-  String get chatBgHearts => 'Сердца';
-  @override
-  String get chatBgWeave => 'Плетение';
-  @override
-  String get chatBgDots => 'Точки';
-  @override
-  String get chatBgBubbles => 'Пузыри';
-  @override
-  String get chatBgNight => 'Ночь';
-  @override
-  String get needsPartnerHint => 'Это работает вдвоём — позовите свою половину';
-  @override
-  String get inviteReminderTitle => 'Ваш код приглашения ещё активен';
-  @override
-  String get inviteReminderBody =>
-      'Напомните партнёру — вдвоём тут появятся чат, настроение и виджеты';
-  @override
-  String get invitePromptTitle => 'Позовите свою половину';
-  @override
-  String get invitePromptBody =>
-      'Чат, настроение, лента и виджеты появятся, когда вас станет двое';
-  @override
-  String get invitePromptAction => 'Пригласить партнёра';
 
   @override
   String quietPartnerTitle(String name, int days) {
@@ -3215,23 +2212,10 @@ class _RuStrings extends AppStrings {
   }
 
   @override
-  String get quietPartnerBody =>
-      'Напомните о себе — партнёр увидит это на своём экране';
-  @override
-  String get quietPartnerAction => 'Отправить «Скучаю»';
-  @override
-  String get quietPartnerSent => 'Отправили. Партнёр увидит, что вы скучаете';
-  @override
-  String get connectPartnerBtn => 'Подключить партнёра';
-  @override
-  String get inviteMoreMembers => 'Пригласить участников';
-  @override
   String membersOfMax(int current, int max) => '$current/$max участников';
   @override
   String shareGroupInviteText(String code, String link) =>
       'Присоединяйся к нашей группе в Togetherly! Используй код: $code\n\nИли нажми: $link';
-  @override
-  String get groupInvitation => 'Приглашение в группу Togetherly';
   @override
   String connectedWithCouple(String name) => 'Вы с $name теперь вместе!';
   @override
@@ -3244,85 +2228,18 @@ class _RuStrings extends AppStrings {
   String customRelWith(String label, String name) =>
       'Вы с $name теперь $label!';
   @override
-  String get joinAnotherGroup => 'Присоединиться к другой группе';
-  @override
-  String get enterCodeScanQr =>
-      'Введите код, сканируйте QR или перейдите по ссылке';
-  @override
-  String get enterCode => 'Ввести код';
-  @override
-  String get invalidCodeTryAgain =>
-      'Неверный код. Проверьте и попробуйте снова.';
-  @override
-  String get joinGroup => 'Присоединиться';
-  @override
-  String get cantInviteSelf => 'Вы не можете пригласить себя!';
-  @override
-  String get codeNotFound => 'Код не найден или уже использован';
-  @override
-  String get scanToConnect => 'Сканируйте для подключения';
-  @override
-  String get scanPartnersQr => 'Сканировать QR партнёра';
-  @override
-  String get addNewConnection => 'Новое подключение';
-  @override
-  String get chooseTypeForConnection => 'Выберите тип для нового подключения';
-  @override
-  String get yourCustomType => 'Ваш тип';
-  @override
-  String get newConnectionAdded => 'Новое подключение добавлено!';
-  @override
-  String get deleteConnection => 'Удалить подключение?';
-  @override
-  String get deleteConnectionDesc =>
-      'Это удалит подключение навсегда. Если есть подключённый партнёр, он будет отключён.';
-  @override
-  String get connectionRemoved => 'Подключение удалено';
-  @override
-  String get disconnectQuestion => 'Отключиться?';
-  @override
-  String get disconnectDesc => 'Это сбросит ваш таймер и отключит партнёра.';
-  @override
-  String get renamePartner => 'Переименовать участника';
-  @override
-  String get renamePartnerHint =>
-      'Имя видно только вам. Это не меняет имя партнёра у него.';
-  @override
-  String get resetNickname => 'Сбросить';
-  @override
   String joinMeLinkText(String link) =>
       'Присоединяйся ко мне в Togetherly! $link';
-  @override
-  String get custom => 'Свой';
   @override
   String membersCountBracket(int count) => 'УЧАСТНИКИ ($count)';
 
   // ── Memory Lane ──
-  @override
-  String get memoryLane => 'Лента воспоминаний';
-  @override
-  String get addMemoryBtn => 'Добавить';
-  @override
-  String get addMemoryToFeed => 'Добавить в ленту';
-  @override
-  String get pinned => 'Закреплено';
 
   // ── Timer Card ──
-  @override
-  String get timers => 'Таймеры';
-  @override
-  String get failedUploadBackground =>
-      'Не удалось загрузить фон. Проверьте подключение.';
 
   // ── Mini Mood Calendar ──
-  @override
-  String get todayLabel => 'Сегодня';
 
   // ── Date helpers ──
-  @override
-  String get todayDate => 'Сегодня';
-  @override
-  String get yesterday => 'Вчера';
   @override
   List<String> get shortMonths => [
     'янв',
@@ -3343,27 +2260,9 @@ class _RuStrings extends AppStrings {
 
   // ── I Miss You / Vibes ──
   @override
-  String get iMissYou => 'Я скучаю';
-  @override
-  String get iMissYouSent => 'Отправлено! 💕';
-  @override
   String missYouNotifTitle(String name) => '$name скучает по вам';
   @override
-  String get missYouNotifBody => 'Думает о вас и вспоминает 💭';
-  @override
   String missYouStreak(int count) => '🔥 $count';
-  @override
-  String get thinkingOfYou => 'Думаю о тебе';
-  @override
-  String get wantHug => 'Хочу обнять';
-  @override
-  String get vibeSent => 'Отправлено ✨';
-  @override
-  String get customVibe => 'Своё желание...';
-  @override
-  String get customVibeTitle => 'Своё сообщение';
-  @override
-  String get customVibeHint => 'Что ты хочешь сказать?';
   @override
   String thinkingOfYouNotifTitle(String name) => '$name думает о тебе 💭';
   @override
@@ -3373,13 +2272,7 @@ class _RuStrings extends AppStrings {
 
   // ── Photo Card ──
   @override
-  String get sharedAPicture => 'Поделился фото';
-  @override
   String kmFromYou(String km) => '$km от вас';
-  @override
-  String get openInMaps => 'Открыть в картах';
-  @override
-  String get justNow => 'только что';
   @override
   String minutesAgo(int m) => '$m мин. назад';
   @override
@@ -3388,124 +2281,12 @@ class _RuStrings extends AppStrings {
   String daysAgo(int d) => '$d д. назад';
 
   // ── Memory Lane Feed ──
-  @override
-  String get sharedAVideo => 'Поделился видео';
-  @override
-  String get sharedAVideoLink => 'Поделился видео по ссылке';
-  @override
-  String get sharedAThought => 'Поделился мыслями';
-  @override
-  String get sharedALocation => 'Отметил локацию';
-  @override
-  String get sharedMusic => 'Поделился музыкой';
-  @override
-  String get vibesTo => 'Вайбит под';
-  @override
-  String get setARoute => 'Маршрут';
-  @override
-  String get isListening => 'слушает';
-  @override
-  String get playTrack => 'Включить';
-  @override
-  String get note => 'Заметка';
 
   // ── Memory Lane (extended) ──
   @override
-  String get noMemoriesYetDesc =>
-      'Нажмите «Добавить», чтобы создать\nпервое общее воспоминание';
-  @override
-  String get unpinMemory => 'Открепить';
-  @override
-  String get pinMemory => 'Закрепить';
-  @override
-  String get saveToDevice => 'Сохранить';
-  @override
-  String get editMemory => 'Редактировать';
-  @override
-  String get deleteMemory => 'Удалить';
-  @override
-  String get deleteMemoryQuestion => 'Удалить воспоминание?';
-  @override
-  String get actionCannotBeUndone => 'Это действие нельзя отменить.';
-  @override
-  String get editMemoryTitle => 'Редактировать';
-  @override
-  String get titleOptional => 'Заголовок (необязательно)';
-  @override
-  String get description => 'Описание...';
-  @override
-  String get locationName => 'Название места...';
-  @override
-  String get changeLocationOnMap => 'Изменить место на карте';
-  @override
-  String get pickLocationOnMap => 'Выбрать место на карте';
-  @override
-  String get saveChanges => 'Сохранить изменения';
-  @override
-  String get addMemoryTitle => 'Добавить воспоминание';
-  @override
-  String get chooseWhatToShare => 'Выберите, чем поделиться';
-  @override
   String newMemory(String type) => 'Новое: $type';
   @override
-  String get memoryDetails => 'Детали';
-  @override
-  String get writeYourNote => 'Напишите заметку...';
-  @override
-  String get descriptionOptional => 'Описание (необязательно)';
-  @override
-  String get locationNameHint => 'Название места (напр. Парк Горького)';
-  @override
-  String get locationSet => 'Место выбрано ✓';
-  @override
-  String get useCurrent => 'Текущее';
-  @override
-  String get pickOnMap => 'На карте';
-  @override
-  String get songDetails => 'Детали трека';
-  @override
-  String get songName => 'Название песни';
-  @override
-  String get artistsCommaSeparated => 'Исполнители (через запятую)';
-  @override
-  String get egArtists => 'напр. Drake, The Weeknd';
-  @override
-  String get source => 'Источник';
-  @override
-  String get streamingLink => 'Ссылка на стриминг';
-  @override
-  String get fetched => 'Получено';
-  @override
-  String get pasteLinkFromService => 'Вставьте ссылку с любого сервиса...';
-  @override
-  String get autoFetchSongInfo => 'Авто-получение данных по ссылке';
-  @override
-  String get musicMetaNotFound =>
-      'По ссылке ничего не нашлось — впишите название и исполнителя';
-  @override
-  String get orDivider => 'ИЛИ';
-  @override
-  String get fileSelected => 'Файл выбран ✓';
-  @override
-  String get pickAudioFromDevice => 'Выбрать аудио с устройства';
-  @override
-  String get uploadingMemory => 'Загружаем воспоминание...';
-  @override
-  String get failedUploadPhotos =>
-      'Не удалось загрузить фото. Убедитесь, что Firebase Storage включён.';
-  @override
-  String get failedUploadVideo =>
-      'Не удалось загрузить видео. Убедитесь, что Firebase Storage включён.';
-  @override
-  String get memoryAddedSuccess => 'Воспоминание добавлено!';
-  @override
   String failedAddMemory(String e) => 'Не удалось добавить: $e';
-  @override
-  String get noMediaUrl => 'Нет доступной ссылки на медиа';
-  @override
-  String get downloading => 'Скачиваем...';
-  @override
-  String get savedToGallery => 'Сохранено в галерею 🖼️';
   @override
   String savedToPath(String path) => 'Сохранено: $path';
   @override
@@ -3515,213 +2296,11 @@ class _RuStrings extends AppStrings {
   @override
   String failedSelectVideo(String e) => 'Не удалось выбрать видео: $e';
   @override
-  String get locationServicesDisabled => 'Геолокация отключена';
-  @override
-  String get locationPermissionDenied => 'Доступ к геолокации запрещён';
-  @override
-  String get cameraPermissionDenied =>
-      'Нет доступа к камере. Разрешите его в настройках приложения.';
-  @override
-  String get failedGetLocation => 'Не удалось определить местоположение';
-  @override
-  String get tapToSelectPhotos => 'Нажмите, чтобы выбрать фото';
-  @override
-  String get tapToSelectVideo => 'Нажмите, чтобы выбрать видео';
-  @override
-  String get adultContent => 'Контент 18+';
-  @override
-  String get photoBlurred => 'Фото будет скрыто под блюром';
-  @override
-  String get fromGallery => 'Из галереи';
-  @override
-  String get byLink => 'По ссылке';
-  @override
-  String get videoLink => 'Ссылка на видео';
-  @override
-  String get books => 'Книги';
-  @override
-  String get bookSearchHint => 'Название книги или автор';
-  @override
-  String get searchBooksPrompt => 'Найдите книгу по названию или автору';
-  @override
-  String get noBooksFound => 'Книги не найдены';
-  @override
-  String get bookSearchFailed => 'Не удалось найти. Введите вручную';
-  @override
-  String get bookSearchFailedHint =>
-      'Поиск не ответил или книга отсутствует в базе.';
-  @override
-  String get bookEnterManually => 'Ввести вручную';
-  @override
-  String get bookManualEntryHint =>
-      'Заполните название и автора самостоятельно';
-  @override
-  String get sharedABook => 'Поделился(-ась) книгой';
-  @override
-  String get bookAuthorLabel => 'Автор';
-  @override
-  String get bookAuthorHint => 'Автор';
-  @override
-  String get bookTitleHint => 'Название книги';
-  @override
-  String get bookDetails => 'О книге';
-  @override
-  String get bookReadMore => 'Подробнее';
-  @override
-  String get bookSearchAgain => 'Искать';
-  @override
-  String get movies => 'Фильмы и сериалы';
-  @override
-  String get movieSearchHint => 'Название фильма или сериала';
-  @override
-  String get searchMoviesPrompt => 'Найдите фильм или сериал по названию';
-  @override
-  String get noMoviesFound => 'Ничего не найдено';
-  @override
-  String get movieSearchFailed => 'Не удалось найти. Введите вручную';
-  @override
-  String get movieSearchFailedHint =>
-      'Поиск не ответил или фильм отсутствует в базе.';
-  @override
-  String get movieEnterManually => 'Ввести вручную';
-  @override
-  String get movieManualEntryHint => 'Заполните название самостоятельно';
-  @override
-  String get movieNoToken => 'Поиск недоступен — впишите название вручную';
-  @override
-  String get sharedAMovie => 'Поделился(-ась) фильмом';
-  @override
-  String get movieTitleHint => 'Название';
-  @override
-  String get movieOriginalTitleHint => 'Оригинальное название';
-  @override
-  String get movieDetails => 'О фильме';
-  @override
-  String get movieReadMore => 'Открыть на Кинопоиске';
-  @override
-  String get movieSearchAgain => 'Искать';
-  @override
-  String get yourRating => 'Ваша оценка';
-  @override
-  String get ratingNotRated => 'Без оценки';
-  @override
-  String get ratingHint => 'Нажмите на цифру, чтобы оценить';
-  @override
-  String get ratingMasterpiece => 'Шедевр 🔥';
-  @override
-  String get ratingExcellent => 'Отлично';
-  @override
-  String get ratingGood => 'Хорошо';
-  @override
-  String get ratingMixed => 'Так себе';
-  @override
-  String get ratingBad => 'Плохо';
-  @override
-  String get ratingAwful => 'Ужасно';
-  @override
-  String get yourReview => 'Ваш отзыв';
-  @override
-  String get reviewHint => 'Что вы думаете? Поделитесь впечатлением…';
-  @override
-  String get memoryDateLabel => 'Когда это было';
-  @override
-  String get memoryDateNow => 'Сейчас (момент создания)';
-  @override
-  String get dateNowLabel => 'Сейчас';
-  @override
-  String get memoryDatePickDate => 'Дата';
-  @override
-  String get memoryDatePickTime => 'Время';
-  @override
-  String get memoryDateClear => 'Сбросить';
-  @override
-  String get fetchData => 'Получить данные';
-  @override
-  String get supportedPlatformsHint =>
-      'Поддерживаются: YouTube, Vimeo, Dailymotion,\nTikTok, Instagram, VK и другие';
-  @override
-  String get supportedPlatforms => 'Поддерживаемые платформы';
-  @override
-  String get pasteLinkSupported =>
-      'Вставьте ссылку с любой поддерживаемой платформы';
-  @override
-  String get gotIt => 'Понятно';
-  @override
-  String get sideActionTitle => 'Кнопка действия';
-  @override
-  String get sideActionOpenFeed => 'Открывать Ленту →';
-  @override
-  String get sideActionCreatePin => 'Создавать пин +';
-  @override
-  String get sideActionHint =>
-      'Удерживайте кнопку, чтобы переключать → (открыть Ленту) и + (создать пин)';
-  @override
-  String get supportedServices => 'Поддерживаемые сервисы';
-  @override
-  String get pasteLinkFromSupported =>
-      'Вставьте ссылку с любого поддерживаемого сервиса';
-  @override
-  String get selectTextAndPress => 'Выдели текст и нажми';
-  @override
-  String get spoiler => 'Spoiler';
-  @override
-  String get deleteComment => 'Удалить комментарий?';
-  @override
-  String get deleteCommentQuestion => 'Удалить этот комментарий?';
-  @override
-  String get comments => 'Комментарии';
-  @override
-  String get writeAComment => 'Написать комментарий…';
-  @override
-  String get noCommentsYet => 'Нет комментариев — будьте первым!';
-  @override
   String nPhotos(int count) => '$count фото';
-  @override
-  String get noPhotoAttached => 'Фото не прикреплено';
-  @override
-  String get unknownLocation => 'Неизвестная локация';
-  @override
-  String get openInGoogleMaps => 'Открыть в Google Картах';
-  @override
-  String get audioFile => 'Аудиофайл';
-  @override
-  String get unknownTrack => 'Неизвестный трек';
-  @override
-  String get noAudioUrl => 'Нет ссылки на аудио';
-  @override
-  String get cannotPlayAudio => 'Невозможно воспроизвести аудио';
   @override
   String openIn(String name) => 'Открыть в $name';
   @override
-  String get tapToOpen => 'Нажмите, чтобы открыть';
-  @override
-  String get videoBadge => 'ВИДЕО';
-  @override
-  String get updateAvailableTitle => 'Доступно обновление';
-  @override
-  String get updateAvailableSubtitle =>
-      'Настоятельно рекомендуем обновиться — иначе некоторые функции Ленты воспоминаний работать не будут';
-  @override
   String get updateWhatsNew => ruWhatsNew;
-  @override
-  String get updateButton => 'Обновить';
-  @override
-  String get updateLaterButton => 'Позже';
-  @override
-  String get updateRestartButton => 'Перезапустить и установить';
-  @override
-  String get forceUpdateTitle => 'Нужно обновить приложение';
-  @override
-  String get forceUpdateBody =>
-      'Вышла новая версия с важными изменениями. Чтобы продолжить пользоваться приложением, обновитесь до актуальной версии.';
-  @override
-  String get forceUpdateButton => 'Обновить';
-  @override
-  String get noteBadge => 'ЗАМЕТКА';
-  @override
-  String get youtubeBadge => 'YouTube';
-  @override
-  String get photoNotUploaded => 'Фото ещё не загружено';
   @override
   List<String> get fullMonths => [
     '',
@@ -3744,93 +2323,26 @@ class _RuStrings extends AppStrings {
 
   // ── Relationship Status Screen ──
   @override
-  String get noActiveConnection => 'Нет активного подключения';
-  @override
-  String get chooseAStatus => 'Выберите статус';
-  @override
-  String get customStatuses => 'Пользовательские статусы';
-  @override
-  String get currentStatus => 'Текущий статус';
-  @override
-  String get notSet => 'Не установлен';
-  @override
-  String get clearStatus => 'Очистить статус';
-  @override
   String statusSetTo(String status) => 'Статус: $status';
   @override
   String failedSetStatus(String e) => 'Ошибка установки статуса: $e';
   @override
-  String get statusCleared => 'Статус очищен';
-  @override
   String failedClearStatus(String e) => 'Ошибка очистки статуса: $e';
-  @override
-  String get customStatusAdded => 'Статус добавлен';
   @override
   String failedAddStatus(String e) => 'Ошибка добавления статуса: $e';
   @override
-  String get statusUpdated => 'Статус обновлён';
-  @override
   String failedUpdateStatus(String e) => 'Ошибка обновления статуса: $e';
-  @override
-  String get deleteStatus => 'Удалить статус';
   @override
   String deleteStatusConfirm(String label) =>
       'Вы уверены, что хотите удалить «$label»?';
   @override
-  String get statusDeleted => 'Статус удалён';
-  @override
   String failedDeleteStatus(String e) => 'Ошибка удаления статуса: $e';
-  @override
-  String get editStatus => 'Редактировать статус';
-  @override
-  String get emojiLabel => 'Эмодзи';
-  @override
-  String get emojiHint => '💕';
-  @override
-  String get labelField => 'Название';
-  @override
-  String get egLivingTogether => 'напр., Живём вместе';
-  @override
-  String get update => 'Обновить';
 
   // ── Map Picker Screen ──
-  @override
-  String get selectLocationOnMap => 'Выберите место на карте';
-  @override
-  String get selectedLocation => 'Выбранная локация';
-  @override
-  String get selectLocation => 'Выбрать место';
-  @override
-  String get confirm => 'Подтвердить';
-  @override
-  String get gettingAddress => 'Определяем адрес...';
-  @override
-  String get tapOnMapToSelect => 'Нажмите на карту, чтобы выбрать другое место';
-  @override
-  String get failedGetCurrentLocation =>
-      'Не удалось определить текущее местоположение';
 
   // ── Mood Calendar (extended) ──
   @override
-  String get averageMood => 'Среднее настроение';
-  @override
-  String get great => 'Отлично';
-  @override
-  String get good => 'Хорошо';
-  @override
-  String get okay => 'Нормально';
-  @override
-  String get bad => 'Плохо';
-  @override
-  String get awful => 'Ужасно';
-  @override
-  String get notEnoughData => 'Недостаточно данных для графика';
-  @override
   String moodRecorded(String label) => '$label записано!';
-  @override
-  String get noMoodRecorded => 'Настроение не отмечено';
-  @override
-  String get moodScorePrefix => 'Оценка';
   @override
   List<String> get shortWeekdaysSingleChar => [
     'П',
@@ -3854,95 +2366,13 @@ class _RuStrings extends AppStrings {
 
   // ── Timer / Expandable Timer Card ──
   @override
-  String get noTimers => 'Нет таймеров';
-  @override
-  String get createTimer => 'Создать таймер';
-  @override
-  String get editTimer => 'Редактировать таймер';
-  @override
-  String get timerNameLabel => 'НАЗВАНИЕ';
-  @override
-  String get egAnniversary => 'напр. Годовщина';
-  @override
-  String get targetDate => 'ЦЕЛЕВАЯ ДАТА';
-  @override
-  String get startDate => 'ДАТА НАЧАЛА';
-  @override
-  String get dateFormatHint => 'дд.мм.гггг';
-  @override
-  String get symbolLabel => 'СИМВОЛ';
-  @override
-  String get countdownMode => 'Режим отсчёта';
-  @override
-  String get countdownPastDateWarning =>
-      'Целевая дата уже прошла — таймер покажет нули. Выберите будущую дату.';
-  @override
-  String get setAsMain => 'Сделать основным';
-  @override
-  String get saveSettings => 'СОХРАНИТЬ';
-  @override
-  String get deleteTimerQuestion => 'Удалить таймер?';
-  @override
   String timerDeleteConfirm(String name) => '«$name» будет удалён навсегда.';
 
   // ── Petal Timer Dial ──
-  @override
-  String get yearsLabel => 'Лет';
-  @override
-  String get monthsShortLabel => 'Мес';
-  @override
-  String get daysShortLabel => 'Дней';
-  @override
-  String get hoursLabel => 'Час';
-  @override
-  String get minLabel => 'Мин';
-  @override
-  String get secLabel => 'Сек';
 
   // ── Widget Screen (extended) ──
   @override
-  String get homeScreenWidgets => 'Виджеты рабочего стола';
-  @override
-  String get addToHomeScreen => 'Добавить на рабочий стол';
-  @override
-  String get addWidgetFromHomeHint =>
-      'Долгий тап по рабочему столу → «+» → Togetherly';
-  @override
-  String get setAsPhotoOfDay => 'Установлено как фото дня';
-  @override
-  String get widgetAddedToHome => 'Виджет добавлен на рабочий стол';
-  @override
   String failedAddWidget(String e) => 'Не удалось добавить виджет: $e';
-  @override
-  String get daysTogetherStat => 'Дней вместе';
-  @override
-  String get memoriesStat => 'Воспоминаний';
-  @override
-  String get drawingsStat => 'Рисунков';
-  @override
-  String get missYousStat => 'Скучаю';
-  @override
-  String get daysLeft => 'дней осталось';
-  @override
-  String get daysElapsed => 'дней прошло';
-  @override
-  String get noTimersWidget => 'Нет таймеров';
-  @override
-  String get photoOfDay => 'Фото дня';
-  @override
-  String get mine => 'Моё';
-  @override
-  String get onWidget => 'На виджете';
-  @override
-  String get randomSource => 'Случайное';
-  @override
-  String get ownPhoto => 'Своё фото';
-  @override
-  String get saveToMemoryLane => 'Добавить в ленту воспоминаний';
-  @override
-  String get regenerate => 'Повторная генерация';
-  @override
-  String get none => 'Нет';
   @override
   String yearsAlready(int years) {
     String form;
@@ -3959,83 +2389,9 @@ class _RuStrings extends AppStrings {
   }
 
   @override
-  String get pairWidgetTitle => 'Парный виджет';
-  @override
-  String get pairWidgetSubtitle => 'Настроение, статус, сообщения и фото';
-  @override
-  String get daysCounterSubtitle => 'Системный счётчик дней отношений';
-  @override
-  String get timerWidgetTitle => 'Таймер';
-  @override
-  String get timerWidgetSubtitle => 'Выберите таймер для виджета';
-  @override
-  String get photoDayRandomSubtitle => 'Случайное фото из ленты';
-  @override
-  String get photoDayCustomSubtitle => 'Своё установленное фото';
-  @override
-  String get photoDayPartnerSubtitle => 'То, чем делится ваш партнёр';
-  @override
-  String get moodWidgetSubtitle => 'Горизонтальный виджет: моё и партнёра';
-  @override
-  String get relationshipStatsSubtitle =>
-      'Важные цифры: дни, фото, рисунки и «скучаю»';
-  @override
-  String get daysCounterLabel => 'дней';
-  @override
-  String get addTimerHint => 'Добавьте таймер в разделе «Таймеры»';
-  @override
-  String get noTimersAddHint =>
-      'Нет таймеров. Добавьте таймер в разделе «Таймеры».';
-  @override
-  String get soloTimerBannerTitle => 'Можно создать свой таймер';
-  @override
-  String get soloTimerBannerSubtitle =>
-      'Одиночные таймеры и их виджеты доступны даже без добавления пары.';
-  @override
-  String get selectTimerForWidget => 'Выберите таймер для виджета:';
-  @override
-  String get daysShortLeft => 'дн. осталось';
-  @override
-  String get daysShortElapsed => 'дн. прошло';
-  @override
-  String get partnerPhotoWillAppear =>
-      'Фото партнёра появится\nпосле его выбора';
-  @override
-  String get choosePhotoBelow => 'Выберите фото ниже';
-  @override
-  String get randomPhotoFromMemories => 'Случайное фото\nиз воспоминаний';
-  @override
-  String get photoSource => 'Источник фото:';
-  @override
-  String get fromMemories => 'из воспоминаний';
-  @override
-  String get fromGalleryLabel => 'из галереи';
-  @override
-  String get widgetModeMine => 'Мои фото';
-  @override
-  String get widgetModePartner => 'Фото партнёра';
-  @override
-  String get widgetInstances => 'Виджеты на рабочем столе';
-  @override
-  String get widgetNotAddedYet => 'Виджет ещё не добавлен';
-  @override
   String widgetSlotTitle(int index) => 'Виджет ${index + 1}';
-  @override
-  String get addedWidgetsWillAppearHere =>
-      'Добавленные фото-виджеты появятся здесь';
-  @override
-  String get addSeparateWidgetHint =>
-      'Добавляйте несколько виджетов: у каждого будет своё фото и свой режим';
-  @override
-  String get widgetDisplaySource => 'Что показывать на виджете:';
-  @override
-  String get widgetDisplayPhoto => 'Фото для виджета';
-  @override
-  String get noPhotoSelected => 'Фото не выбрано';
 
   // ── Profile (extended) ──
-  @override
-  String get cycleConsentTitle => 'Отметки цикла';
   String get cycleConsentBody =>
       'Даты цикла и самочувствия — данные о здоровье, поэтому спрашиваем '
       'отдельно. Они хранятся на нашем сервере, партнёру видны только если вы '
@@ -4051,34 +2407,9 @@ class _RuStrings extends AppStrings {
   String get exportMyDataFailed => 'Не получилось собрать архив';
   String get exportMemories => 'Экспорт воспоминаний';
   @override
-  String get resetMissYouCount => 'Сбросить мои нажатия «Скучаю»';
-  @override
-  String get resetMissYouConfirmTitle => 'Сбросить счётчик?';
-  @override
-  String get resetMissYouConfirmBody =>
-      'Твои нажатия «Я скучаю» обнулятся. Счётчик партнёра останется без изменений.';
-  @override
-  String get noActiveGroupForExport => 'Нет активной группы для экспорта';
-  @override
-  String get creatingArchive => 'Создаём архив...\nЭто займёт немного времени.';
-  @override
   String exportError(String e) => 'Ошибка при экспорте: $e';
-  @override
-  String get relationshipStats => 'СТАТИСТИКА ОТНОШЕНИЙ';
 
   // ── Home Screen (extended) ──
-  @override
-  String get startWithBlankCanvas => 'Начать с чистого холста';
-  @override
-  String get openSavedDrawing => 'Открыть сохранённый рисунок';
-  @override
-  String get newPhoto => 'Новое фото';
-  @override
-  String get titleHint => 'Заголовок…';
-  @override
-  String get descriptionOptionalHint => 'Описание (необязательно)…';
-  @override
-  String get setAsWidgetPhoto => 'Фото дня на виджете';
 
   // ── Mini Mood Calendar (extended) ──
   @override
@@ -4094,31 +2425,6 @@ class _RuStrings extends AppStrings {
 
   // ── Notification Settings ──
   @override
-  String get notifMissYou => '«Я скучаю»';
-  @override
-  String get notifMissYouSub => 'Когда партнёр нажимает кнопку «Я скучаю»';
-  @override
-  String get notifNewMemory => 'Новые воспоминания';
-  @override
-  String get notifNewMemorySub =>
-      'Когда партнёр добавляет в ленту воспоминаний';
-  @override
-  String get notifMood => 'Настроение партнёра';
-  @override
-  String get notifMoodSub => 'Когда партнёр обновляет своё настроение';
-  @override
-  String get notifChat => 'Сообщения в чате';
-  @override
-  String get notifChatSub => 'Когда партнёр пишет тебе в чат';
-  @override
-  String get notifDaysTogether => 'Счётчик дней вместе';
-  @override
-  String get notifDaysTogetherSub => 'Постоянный счётчик в шторке уведомлений';
-  @override
-  String get notifDaysTogetherSubIos => 'Каждое утро в 9:00';
-  @override
-  String get adLabel => 'Реклама';
-  @override
   String daysTogetherNotifBody(int days) {
     final mod10 = days % 10;
     final mod100 = days % 100;
@@ -4130,88 +2436,8 @@ class _RuStrings extends AppStrings {
     return 'Вы вместе уже $days $word ❤️';
   }
 
-  @override
-  String get daysTogetherNotifTagline => 'Каждый день вместе — особенный 💕';
-  @override
-  String get openSystemSettings => 'Системные настройки';
-  @override
-  String get notifSystemSettingsHint => 'Настройки хранятся на устройстве';
-
   // ── Chat ──
-  @override
-  String get chatTitle => 'Чат';
-  @override
-  String get chatHint => 'Сообщение…';
 
-  @override
-  String get voiceSlideHints => 'Влево — отмена, вверх — закрепить';
-  @override
-  String get voiceReleaseToCancel => 'Отпустите — запись сотрётся';
-  @override
-  String get voiceReleaseToLock => 'Отпустите — запись продолжится';
-  @override
-  String get voiceMessage => 'Голосовое';
-  @override
-  String get voiceTooShort => 'Подержите кнопку дольше';
-  @override
-  String get voiceNoPermission => 'Разрешите доступ к микрофону в настройках';
-  @override
-  String get voiceFailed => 'Записать не вышло, попробуйте ещё раз';
-  @override
-  String get voiceLimitReached => 'Три минуты — предел одного сообщения';
-  @override
-  String get voiceHeard => 'Послушал';
-
-  @override
-  String get waitingSetupTitle => 'Ждём человека';
-  @override
-  String get waitingEditTitle => 'Кого ждём';
-  @override
-  String get waitingSetupHint =>
-      'Пара заведётся сразу, на одного. Фото, настроения и «Скучаю» будут '
-      'копиться в ней с первого дня — он увидит всё, когда вернётся и введёт код.';
-  @override
-  String get waitingNameLabel => 'Его имя';
-  @override
-  String get waitingReturnDate => 'Дата возвращения';
-  @override
-  String get waitingCreateAction => 'Завести пару';
-  @override
-  String get waitingCreateFailed => 'Не получилось. Попробуйте ещё раз';
-  @override
-  String get waitingBadge => 'Ждём';
-  @override
-  String get waitingCodeTitle => 'Код второго места';
-  @override
-  String get waitingCodeHint =>
-      'Отдайте его, когда вернётся. Код не протухает — ни через год, ни через два.';
-  @override
-  String get waitingCodeCopied => 'Код скопирован';
-  @override
-  String get waitingResetCode => 'Сменить код';
-  @override
-  String get waitingResetCodeHint => 'Старый перестанет работать';
-  @override
-  String get waitingClaimTitle => 'Кто-то ввёл ваш код';
-  @override
-  String get waitingClaimAsk => 'Это он?';
-  @override
-  String get waitingClaimYes => 'Да, это он';
-  @override
-  String get waitingClaimNo => 'Нет, это чужой';
-  @override
-  String get waitingPendingTitle => 'Ждём подтверждения';
-  @override
-  String get waitingPendingHint =>
-      'Код принят. Осталось, чтобы вас подтвердили в приложении — тогда откроется вся история пары.';
-  @override
-  String get waitingRejected => 'Заявку отклонили';
-  @override
-  String get waitingApproved => 'Вас подтвердили — добро пожаловать';
-  @override
-  String get waitingUntilReturn => 'До возвращения';
-  @override
-  String get waitingHomeToday => 'Возвращается сегодня';
   @override
   String waitingDaysLeft(int days) {
     final n = days.abs();
@@ -4225,51 +2451,13 @@ class _RuStrings extends AppStrings {
   }
 
   @override
-  String get waitingWhoLabel => 'КОГО ЖДЁТЕ';
-  @override
-  String get waitingKnowWho => 'Знаю, кого';
-  @override
-  String get waitingDontKnowWho => 'Пока не знаю';
-  @override
-  String get waitingUnknownName => 'Половинка';
-  @override
-  String get waitingUnknownHint =>
-      'Место останется без имени — впишете, когда узнаете.';
-  @override
-  String get waitingSoloTitle => 'Позвать пока некого?';
-  @override
-  String get waitingSoloBody =>
-      'Заведите пару заранее и оставьте второе место свободным';
-  @override
-  String get waitingSoloAction => 'Оставить место';
-  @override
-  String get chatEmpty => 'Пока нет сообщений.\nНапишите первым 💬';
-  @override
-  String get chatEditMessage => 'Редактировать';
-  @override
-  String get chatDeleteMessage => 'Удалить';
-  @override
-  String get chatReply => 'Ответить';
-  @override
   String chatReplyingTo(String name) => 'В ответ $name';
   @override
   String chatTyping(String name) => '$name печатает…';
   @override
-  String get chatEdited => 'изменено';
-  @override
-  String get chatDeletedPlaceholder => 'Сообщение удалено';
-  @override
-  String get chatSendFailed => 'Не удалось отправить. Попробуйте ещё раз';
-  @override
-  String get chatAttachPin => 'Прикрепить пин';
-  @override
-  String get chatSave => 'Сохранить';
-  @override
   String chatNotifTitle(String name) => '$name пишет вам 💬';
   @override
   String moodNotifTitle(String name) => '$name сменил(а) настроение';
-  @override
-  String get chatNewMessages => 'Новые сообщения';
   @override
   String chatDateHeader(DateTime day) {
     final now = DateTime.now();
@@ -4298,27 +2486,8 @@ class _RuStrings extends AppStrings {
   @override
   String chatDeleteConfirm(String text) => 'Удалить это сообщение?';
   @override
-  String get pixelCanvasTitle => 'Пиксель-арт?';
-  @override
-  String get pixelCanvasHint =>
-      'Рисуйте по клеткам вдвоём. Размер сетки задаётся сейчас и потом не меняется.';
-  @override
-  String get pixelWidth => 'Ширина';
-  @override
-  String get pixelHeight => 'Высота';
-  @override
-  String get plainCanvas => 'Обычный холст';
-  @override
-  String get pixelCanvasCreate => 'По клеткам';
-  @override
   String pixelCanvasSummary(int cells, int px) =>
       '$cells клеток · пиксель $px px в выгрузке';
-  @override
-  String get pixelGridShow => 'Показать сетку';
-  @override
-  String get pixelGridHide => 'Скрыть сетку';
-  @override
-  String get canvasesTitle => 'ХОЛ\nСТЫ';
   @override
   String canvasesSubtitle(int count, String lastDate) {
     final word = count % 10 == 1 && count % 100 != 11
@@ -4332,54 +2501,11 @@ class _RuStrings extends AppStrings {
   }
 
   @override
-  String get pixelScreenTitle => 'ПИК\nСЕЛИ';
-  @override
-  String get pixelCanvasCreateAction => 'Создать холст';
-  @override
-  String get plainCanvasSubtitle => 'Кисть, фигуры, фото';
-  @override
-  String get pixelCanvasSubtitle => 'Рисуем по клеткам, сетку выберете сами';
-  @override
-  String get widgetsCurrentSection => 'Что уже есть';
-  @override
-  String get widgetsCurrentSubtitle => 'Виджеты прежнего вида';
-  @override
-  String get widgetsNewSection => 'Новые виджеты';
-  @override
-  String get widgetsNewSubtitle => 'Material 3, несколько размеров';
-  @override
-  String get tgTogetherTitle => 'Вместе';
-  @override
-  String get tgTogetherSubtitle => 'Дни вместе и ближайшая круглая дата';
-  @override
-  String get tgNoteTitle => 'Заметка';
-  @override
-  String get tgNoteSubtitle => 'Общий листик: пишет один — видит второй';
-  @override
-  String get tgNotePaperTitle => 'Заметка · стикер';
-  @override
-  String get tgNotePaperSubtitle =>
-      'Тот же листик, но бумажный и всегда жёлтый';
-  @override
-  String get tgMissTitle => 'Скучаю';
-  @override
-  String get tgMissSubtitle => 'Тап с рабочего стола — партнёр сразу узнает';
-  @override
-  String get tgSizeHintCompact => 'кратко';
-  @override
-  String get tgSizeHintWide => 'подробно';
-  @override
-  String get tgSizeHintLarge => 'всё сразу';
-  @override
-  String get tgSizeHintStrip => 'полоска';
-  @override
   String tgDaysTogetherCaption(int days) =>
       '${_ruPlural(days, 'день', 'дня', 'дней')} вместе';
   @override
   String tgMonthsCaption(int months) =>
       _ruPlural(months, 'месяц', 'месяца', 'месяцев');
-  @override
-  String get tgNextSection => 'ДАЛЬШЕ';
   @override
   String tgDaysMilestone(int days) =>
       '$days ${_ruPlural(days, 'день', 'дня', 'дней')}';
@@ -4395,54 +2521,10 @@ class _RuStrings extends AppStrings {
   @override
   String tgMissAddressee(String name) => name;
   @override
-  String get tgMissSend => 'Отправить';
-  @override
-  String get tgMissStripHint => 'Один тап — и партнёр узнает';
-  @override
-  String get tgMoodTitle => 'Настроение';
-  @override
-  String get tgMoodSubtitle => 'Настроение обоих и отметка одним тапом';
-  @override
-  String get tgMoodToday => 'СЕГОДНЯ';
-  @override
-  String get tgMoodMe => 'Я';
-  @override
-  String get tgMoodPartner => 'Партнёр';
-  @override
-  String get tgMoodNotSet => 'не отмечено';
-  @override
-  String get tgMoodWeekTitle => 'НЕДЕЛЯ НАСТРОЕНИЙ';
-  @override
   String tgMoodMatched(int days) => 'совпало $days из 7';
-  @override
-  String get tgCountdownTitle => 'До встречи';
-  @override
-  String get tgCountdownSubtitle => 'Обратный отсчёт до ближайшего события';
-  @override
-  String get tgCountdownEmpty => 'Нет ближайшего события';
   @override
   String tgCountdownDaysLeft(int days) =>
       '${_ruPlural(days, 'день', 'дня', 'дней')} до встречи';
-  @override
-  String get tgCountdownDays => 'дней';
-  @override
-  String get tgCountdownHours => 'часов';
-  @override
-  String get tgCountdownMinutes => 'минут';
-  @override
-  String get tgRingTitle => 'Кольцо года';
-  @override
-  String get tgRingSubtitle => 'Круг до годовщины и дни вместе';
-  @override
-  String get tgGridTitle => 'Календарь лет';
-  @override
-  String get tgGridSubtitle => 'Точка — месяц, ряд — год';
-  @override
-  String get tgYearNoStartDate => 'Укажите дату начала';
-  @override
-  String get tgYearMonthsLabel => 'МЕСЯЦЕВ';
-  @override
-  String get tgYearMemoriesLabel => 'ВОСПОМИНАНИЙ';
   @override
   String tgYearDaysWord(int days) => _ruPlural(days, 'День', 'Дня', 'Дней');
   @override
@@ -4487,81 +2569,12 @@ class _RuStrings extends AppStrings {
   @override
   String tgYearSince(String date) => 'С $date';
   @override
-  String get tgSizeHintToday => 'сегодня';
-  @override
-  String get tgSizeHintWeek => 'неделя';
-  @override
-  String get settingsTitle => 'Настройки';
-  @override
-  String get settingsOpen => 'Настройки';
-  @override
-  String get settingsOpenHint => 'оформление, уведомления, данные';
-  @override
-  String get settingsAppearanceHint => 'тема, палитра, насыщенность';
-  @override
-  String get settingsNotificationsHint => 'что и когда присылать';
-  @override
-  String get settingsLockMoodHint => 'настроение партнёра на экране блокировки';
-  @override
-  String get settingsDataSection => 'Данные';
-  @override
-  String get settingsExportHint => 'сохранить воспоминания файлом';
-  @override
-  String get settingsResetMissHint => 'обнулить счётчики «скучаю»';
-  @override
-  String get settingsPrivacyHint => 'политика конфиденциальности';
-  @override
-  String get settingsCoinsHint => 'баланс, покупки и награды';
-  @override
-  String get settingsSupportHint => 'написать нам';
-  @override
-  String get settingsAccountSection => 'Аккаунт';
-  @override
-  String get settingsDeleteHint => 'вместе со всеми записями, без возврата';
-  @override
-  String get mascotSleepTitle => 'Сон маскотов';
-  @override
-  String get mascotSleepHint => 'когда персонаж уходит на ночную сцену';
-  @override
-  String get mascotSleepEmpty =>
-      'Ночная сцена есть не у всех. Заведите персонажа, который умеет ночь, '
-      'и его время появится здесь.';
-  @override
-  String get mascotSleepFrom => 'Засыпает';
-  @override
-  String get mascotSleepTo => 'Просыпается';
-  @override
-  String get mascotSleepOff => 'Не спит совсем';
-  @override
-  String get mascotNightAwake => 'Ночью не спит — он ночной';
-  @override
   String mascotSleepRange(String from, String to) => 'Спит с $from до $to';
   @override
   String mascotNightRange(String from, String to) => 'Светит с $from до $to';
-  @override
-  String get cycleTitle => 'Цикл';
 
   @override
   String cycleOf(String name) => 'Цикл $name';
-  @override
-  String get cycleSettingsHint => 'календарь, прогноз и доступ партнёра';
-  @override
-  String get cycleShareWithPartner => 'Показывать партнёру';
-  @override
-  String get cycleShareHint => 'он увидит отметки и ожидаемые дни';
-  @override
-  String get cycleWipe => 'Удалить данные цикла';
-  @override
-  String get cycleWipeHint => 'все отметки и расчёты, без возврата';
-  @override
-  String get cycleWipeConfirm => 'Удалить все отметки цикла? Отменить нельзя.';
-  @override
-  String get cycleNoDataTitle => 'Отметьте первые дни';
-  @override
-  String get cycleNoDataHint =>
-      'Прогноз появится, когда наберутся два цикла подряд';
-  @override
-  String get cycleExpectedToday => 'Ожидаются сегодня';
   @override
   String cycleDaysLeft(int days) =>
       'Через ${_ruPlural(days, 'день', 'дня', 'дней')}';
@@ -4571,61 +2584,11 @@ class _RuStrings extends AppStrings {
   String cycleOverdue(int days) =>
       'Задержка ${_ruPlural(days, 'день', 'дня', 'дней')}';
   @override
-  String get cycleOverdueHint =>
-      'Отметьте, когда начнутся, — прогноз обновится';
-  @override
-  String get cycleIrregularWarning =>
-      'Цикл нерегулярный, прогноз приблизительный';
-  @override
-  String get cycleMarkPeriod => 'Менструация';
-  @override
-  String get cycleMarkPeriodHint => 'этот день войдёт в расчёт цикла';
-  @override
-  String get cycleMarkIntimacy => 'Секс';
-  @override
-  String get cycleMarkIntimacyHint => 'видно обоим, на прогноз не влияет';
-  @override
-  String get cycleAnalyticsTitle => 'Статистика';
-  @override
   String cycleAnalyticsHint(int cycles) =>
       'по ${_ruPlural(cycles, 'последнему циклу', 'последним циклам', 'последним циклам')}';
   @override
-  String get cycleAverageLength => 'Средняя длина цикла';
-  @override
-  String get cycleAveragePeriod => 'Средняя длительность';
-  @override
-  String get cycleNextPeriod => 'Следующие месячные';
-  @override
-  String get cycleFertileWindow => 'Фертильное окно';
-  @override
   String cycleDaysValue(int days) =>
       '$days ${_ruPlural(days, 'день', 'дня', 'дней')}';
-  @override
-  String get cycleDaysUnit => 'дней';
-  @override
-  String get cycleAverageShort => 'В среднем';
-  @override
-  String get cycleRangeShort => 'Разброс';
-  @override
-  String get cycleRegularity => 'Регулярность';
-  @override
-  String get cycleRegularityOk => 'Ровный';
-  @override
-  String get cycleRegularityLow => 'Скачет';
-  @override
-  String get cycleChartLengths => 'Длина последних циклов';
-  @override
-  String get cycleChartDurations => 'Сколько длились месячные';
-  @override
-  String get cycleLegendPeriod => 'месячные';
-  @override
-  String get cycleLegendPredicted => 'ожидаются';
-  @override
-  String get cycleLegendOvulation => 'овуляция';
-  @override
-  String get cycleLegendFertile => 'фертильные дни';
-  @override
-  String get cycleLegendIntimacy => 'секс';
   @override
   List<String> get cycleWeekdayShorts => const [
     'пн',
@@ -4667,49 +2630,6 @@ class _RuStrings extends AppStrings {
     'декабря',
   ];
   @override
-  String get cycleTipsTitle => 'Как себе помочь';
-  @override
-  String get cycleTipWarmTitle => 'Тепло на живот';
-  @override
-  String get cycleTipWarmBody =>
-      'Грелка или тёплый компресс на 15–20 минут расслабляет мышцы. '
-      'Тёплая, не горячая.';
-  @override
-  String get cycleTipFeetTitle => 'Ноги в тепле';
-  @override
-  String get cycleTipFeetBody =>
-      'Носки и плед. Когда ноги мёрзнут, спазмы чувствуются сильнее.';
-  @override
-  String get cycleTipPainTitle => 'Боль терпеть не надо';
-  @override
-  String get cycleTipPainBody =>
-      'Если мешает жить, подойдёт привычное обезболивающее. Когда каждый цикл '
-      'валит с ног — стоит показаться врачу.';
-  @override
-  String get cycleTipShowerTitle => 'Душ вместо ванны';
-  @override
-  String get cycleTipShowerBody =>
-      'Быстрый тёплый душ. Подмываться утром, вечером и после каждой смены '
-      'прокладки.';
-  @override
-  String get cycleTipChangeTitle => 'Каждые 3–4 часа';
-  @override
-  String get cycleTipChangeBody =>
-      'Менять прокладку или тампон, даже если кажется, что рано. Бельё — '
-      'после подмывания.';
-  @override
-  String get cycleTipIronTitle => 'Железо в тарелке';
-  @override
-  String get cycleTipIronBody =>
-      'Гречка, гранат, печень, орехи, яблоки, тёмный шоколад: за эти дни '
-      'железа уходит много.';
-  @override
-  String get cycleTipRestTitle => 'Ты справишься';
-  @override
-  String get cycleTipRestBody =>
-      'Тело сейчас делает большую работу. Отдохнуть сегодня — не лень, '
-      'а помощь себе.';
-  @override
   String dayLogDate(DateTime day) =>
       '${day.day} ${cycleMonthsGenitive[day.month - 1]}';
   @override
@@ -4723,38 +2643,13 @@ class _RuStrings extends AppStrings {
     'воскресенье',
   ][day.weekday - 1];
   @override
-  String get dayLogWhat => 'что отметим?';
-  @override
-  String get dayLogNotMarked => 'не отмечено';
-  @override
-  String get dayLogTodayOnly => 'только за сегодня';
-  @override
-  String get cycleSheetHint => 'отметка сохранится сразу';
-  @override
   String cyclePeriodDayLabel(int day) => 'месячные, $day-й день';
-  @override
-  String get cycleSexMarked => 'секс отмечен';
-  @override
-  String get drawLayers => 'Слои';
-  @override
-  String get drawLayerAdd => 'Добавить слой';
-  @override
-  String get drawLayerHide => 'Скрыть';
-  @override
-  String get drawLayerShow => 'Показать';
-  @override
-  String get drawLayerDelete => 'Удалить слой';
-  @override
-  String get drawLayerDeleteConfirm =>
-      'Удалить слой вместе со всем, что на нём нарисовано?';
   @override
   String drawLayerName(int index) => 'Слой $index';
   @override
   String drawLayerStrokes(int count) => count == 0
       ? 'пусто'
       : '$count ${_ruPlural(count, 'штрих', 'штриха', 'штрихов')}';
-  @override
-  String get drawBackgrounds => 'Фоны';
   @override
   String drawBackgroundName(String id) => switch (id) {
     'plain' => 'Чистый',
@@ -4772,95 +2667,8 @@ class _RuStrings extends AppStrings {
     _ => id,
   };
   @override
-  String get plusTitle => 'Togetherly+';
-  @override
-  String get plusHeroTitle => 'Один раз — и навсегда';
-  @override
-  String get plusHeroBody =>
-      'Не подписка: платите однажды, доступ остаётся за аккаунтом и '
-      'переезжает на любой телефон.';
-  @override
-  String get plusActiveTitle => 'Togetherly+ у вас есть';
-  @override
-  String get plusActiveBody => 'Спасибо. Всё ниже уже открыто.';
-  @override
-  String get plusNoAdsTitle => 'Без рекламы';
-  @override
-  String get plusNoAdsBody =>
-      'Баннеры исчезают, совместный просмотр запускается сразу — без ролика';
-  @override
-  String get plusWishesTitle => 'Свои категории желаний';
-  @override
-  String get plusWishesBody =>
-      'Заведите в «Хочу с тобой» свою категорию со значком на выбор';
-  @override
-  String get plusColoringTitle => 'Свои рисунки в раскрасках';
-  @override
-  String get plusColoringBody =>
-      'Загрузите свою картинку и раскрасьте её вдвоём';
-  @override
-  String get plusThemesTitle => 'Все темы и иконки';
-  @override
-  String get plusThemesBody => 'Платные палитры и иконки профиля разом';
-  @override
-  String get plusCycleTitle => 'Календарь цикла';
-  @override
-  String get plusCycleBody => 'Отметки, прогноз и статистика с графиками';
-  @override
-  String get plusWidgetsTitle => 'Новые виджеты';
-  @override
-  String get plusWidgetsBody =>
-      '«Вместе», «Скучаю», «Настроение», «До встречи» — в разных размерах';
-  @override
-  String get plusTipsTitle => 'Советы и статистика';
-  @override
-  String get plusTipsBody =>
-      'Что сделать сегодня и как меняются ваши отношения в цифрах';
-  @override
-  String get plusVideoTitle => 'Видео крупнее';
-  @override
-  String get plusVideoBody =>
-      '200 МБ в воспоминаниях и 300 МБ в совместном просмотре';
-  @override
-  String get plusBuy => 'Купить за \$10';
-  @override
-  String get plusHaveCode => 'У меня есть код';
-  @override
-  String get plusHowItWorks =>
-      'Платите почтой от аккаунта — доступ откроется сам. Платили с другой? '
-      'Бот @SnTAppsBot выдаст код.';
-  @override
-  String get plusPortableNote =>
-      'Доступ привязан к аккаунту: меняете телефон — просто входите под своей '
-      'почтой.';
-  @override
-  String get plusUnavailableHere =>
-      'В этой версии покупка недоступна. Купленный доступ работает — войдите '
-      'под своей почтой.';
-  @override
-  String get plusStoreUnavailable =>
-      'Магазин сейчас недоступен. Попробуйте позже.';
-  @override
   String memoryFileTooBig(int limitMb) =>
       'Файл тяжелее $limitMb МБ — такой не загрузится';
-  @override
-  String get statsTitle => 'Статистика пары';
-  @override
-  String get pickerDateTab => 'Дата';
-  @override
-  String get pcTicketRoute => 'рейс без пересадок';
-  @override
-  String get pcNameTicket => 'Билет';
-  @override
-  String get pcNameReceipt => 'Чек';
-  @override
-  String get pcNameTelegram => 'Телеграмма';
-  @override
-  String get pcNameParcel => 'Посылка';
-  @override
-  String get pcMsgTicket => 'Посадка закончена. Обратных билетов не выдаём.';
-  @override
-  String get pcReceiptTotal => 'итого';
   @override
   String pcReceiptShift(int days) => 'смена №$days';
   @override
@@ -4877,94 +2685,16 @@ class _RuStrings extends AppStrings {
   }
 
   @override
-  String get pcLabelReceiptItems => 'Строки чека';
-  @override
-  String get pcMsgReceipt => 'спасибо за покупку · возврату не подлежит';
-  @override
-  String get pcTelegramTitle => 'телеграмма';
-  @override
-  String get pcMsgTelegram => 'Люблю тчк\nЖду дома тчк\nНе опаздывай вскл';
-  @override
-  String get pcParcelCare => 'хрупкое · не кантовать';
-  @override
-  String get pcParcelTo => 'кому';
-  @override
   String pcMsgParcel(String from, int days) =>
       'От кого: ${from.isEmpty ? 'меня' : from}\n'
       'Содержимое: $days дней, всё целое';
   @override
-  String get redeemCodeAlphabet =>
-      'В коде нет нуля, единицы, O и I — их легко перепутать';
-  @override
-  String get pickerTimeTab => 'Время';
-  @override
-  String get statsDaysTogether => 'дней вместе';
-  @override
-  String get statsMemories => 'воспоминаний';
-  @override
-  String get statsDrawings => 'рисунков';
-  @override
-  String get statsStreak => 'дней подряд';
-  @override
-  String get statsXp => 'опыта пары';
-  @override
-  String get statsMoodMonth => 'Настроение за месяц';
-  @override
-  String get statsMoodMine => 'Ваше';
-  @override
-  String get statsMoodPartner => 'Партнёра';
-  @override
   String statsMoodMarks(int n) => 'Отметок за 30 дней: $n';
-  @override
-  String get statsTipsTitle => 'Что сделать сегодня';
-  @override
-  String get statsEntryTitle => 'Статистика пары';
-  @override
-  String get statsEntrySubtitle => 'Цифры, настроение и советы';
-  @override
-  String get statsFullLink => 'Посмотреть полностью';
-  @override
-  String get statsFullLinkHint => 'Графики, сравнения и прогнозы';
   @override
   String memoryFileTooBigPlusHint(int limitMb) =>
       'Файл тяжелее $limitMb МБ. С Togetherly+ потолок вдвое выше';
   @override
-  String get plusPurchased => 'Togetherly+ открыт';
-  @override
-  String get plusPurchasePending =>
-      'Платёж обрабатывается — доступ откроется сам.';
-  @override
-  String get plusPurchaseFailed => 'Покупка не прошла';
-  @override
-  String get plusCodeHint =>
-      'Код из письма или от бота. Регистр и дефисы не важны.';
-  @override
-  String get plusCodeApply => 'Активировать';
-  @override
-  String get plusCodeOk => 'Готово, Togetherly+ открыт';
-  @override
-  String get plusCodeFailed => 'Код не подошёл';
-  @override
-  String get plusLockedTipsTitle => 'Советы на сегодня';
-  @override
-  String get plusLockedTipsBody =>
-      'Подскажем, что сделать: по настроению, датам и тому, как давно вы не '
-      'писали друг другу.';
-  @override
-  String get plusUnlock => 'Открыть в Togetherly+';
-  @override
-  String get chatBgSharedHint => 'бесплатно, увидите оба';
-  @override
-  String get chatBgUploading => 'Загружаем фон…';
-  @override
-  String get chatBgSharedDone => 'Фон поставлен — он теперь у обоих';
-  @override
-  String get exportTakesTime =>
-      'Собираем воспоминания в архив. Можно отменить — ничего не пропадёт.';
-  @override
   String selectedCount(int n) => 'Выбрано $n';
-  @override
-  String get selectAll => 'Все';
   @override
   String deleteCanvasesTitle(int n) =>
       n == 1 ? 'Удалить холст?' : 'Удалить $n холстов?';
@@ -4973,91 +2703,15 @@ class _RuStrings extends AppStrings {
       ? 'Рисунок исчезнет у обоих. Вернуть его будет нельзя.'
       : 'Рисунки исчезнут у обоих. Вернуть их будет нельзя.';
   @override
-  String get chatStyleFace => 'Мордочка';
-  @override
-  String get chatStyleBackground => 'Фон';
-  @override
-  String get chatStyleTextColor => 'Текст';
-  @override
-  String get chatStyleAuto => 'Авто';
-  @override
-  String get chatStyleTheme => 'Тема';
-  @override
-  String get chatBgTitle => 'Фон чата';
-  @override
-  String get chatBgSet => 'Поставить своё фото';
-  @override
-  String get chatBgChange => 'Сменить фото';
-  @override
-  String get chatBgRemove => 'Убрать фон';
-  @override
   String chatBgConfirmBody(int price) =>
       'Установить своё фото на фон чата за $price 🪙?\n\n'
       'Каждая последующая смена фона тоже стоит $price 🪙.';
   @override
-  String get chatBgCharged => 'Фон обновлён';
-  @override
-  String get lockScreenMood => 'Настроение на экране блокировки';
-  @override
-  String get lockScreenMoodSubtitle => 'Моё и партнёра — на экране блокировки';
-  @override
-  String get lockScreenMoodToggle => 'Показывать на экране блокировки';
-  @override
-  String get lockScreenMoodToggleSub =>
-      'Настроение отображается при блокировке телефона';
-  @override
-  String get lockScreenMoodNoMood => 'Настроение не задано';
-  @override
-  String get lockScreenMoodSetHint =>
-      'Установите настроение в календаре настроений';
-  @override
-  String get photoGridWidget => 'Сетка фото';
-  @override
-  String get photoGridWidgetSubtitle => 'Несколько фото из воспоминаний';
-  @override
-  String get photoGridCount => 'Количество фото';
-  @override
-  String get photoGridSelectPhotos => 'Выберите фото';
-  @override
-  String get photoGridAddPhoto => 'Добавить фото';
-  @override
-  String get photoGridCountLabel => 'фото на виджете';
-  @override
-  String get goToPin => 'К воспоминанию';
-  @override
-  String get openPhotoGallery => 'Галерея фото';
-  @override
-  String get allMediaGallery => 'Все фото и видео';
-  @override
-  String get loadMore => 'Загрузить ещё';
-  @override
-  String get previewLabel => 'Предпросмотр';
-  @override
-  String get photoSent => 'Фото отправлено';
-  @override
-  String get partnerFallback => 'партнёр';
-  @override
-  String get captionDestMemories => 'Воспоминания';
-  @override
-  String get captionDestMemoriesSub => 'Добавить фото в ленту воспоминаний';
-  @override
-  String get captionDestPairWidget => 'Парный виджет';
-  @override
   String captionDestPairWidgetSub(String partner) =>
       'Фото в «Моём виджете» — видно тебе и $partner';
   @override
-  String get captionDestPartnerWidget => 'Виджет «Фото партнёра»';
-  @override
   String captionDestPartnerWidgetSub(String partner) =>
       'Отдельный виджет с фото для $partner';
-  @override
-  String get groupMascot => 'Маскот группы';
-  @override
-  String get tapForGallery => 'Нажмите для галереи';
-  @override
-  String get selectMascot => 'Выберите маскота';
-  @override
-  String get showLabel => 'Показать';
   @override
   String streakLabel(int days) {
     String unit;
@@ -5082,60 +2736,16 @@ class _RuStrings extends AppStrings {
 
   // ── Widget screen ──
   @override
-  String get widgetStreakTitle => 'Огонёк пары';
-  @override
-  String get widgetStreakSubtitle => 'Сколько дней подряд вы заходите вместе';
-  @override
-  String get widgetPetalTimerTitle => 'Лепестковый таймер';
-  @override
-  String get widgetPetalTimerSubtitle =>
-      'Живой циферблат — годы, мес, дни, ч, мин, сек';
-  @override
-  String get widgetPhotoTitle => 'Фото-виджет';
-  @override
-  String get widgetPhotoSubtitle => 'Личная карусель: 1–10 фото с автосменой';
-  @override
-  String get streakTogetherCaps => 'СЕРИЯ ВМЕСТЕ';
-  @override
-  String get daysInARow => 'дней подряд';
-  @override
-  String get keepItUp => 'Так держать!';
-  @override
-  String get ourPhotosInsteadOfDrawing => 'Наши фото вместо рисунка';
-  @override
-  String get daysPhotosDescription =>
-      'Замените нарисованную пару на ваши настоящие аватарки — '
-      'на превью и на виджете рабочего стола.';
-  @override
   String unlockForCoins(int price) => 'Разблокировать — $price 🪙';
-  @override
-  String get showOurPhotos => 'Показывать наши фото';
-  @override
-  String get partnerNoProfilePhoto =>
-      'У партнёра нет фото профиля — попросите добавить.';
-  @override
-  String get addYourProfilePhoto =>
-      'Добавьте своё фото профиля, чтобы оно появилось на виджете.';
   @override
   String notEnoughCoinsNeed(int price) =>
       'Недостаточно монет — нужно $price 🪙';
-  @override
-  String get daysPhotosDone => 'Готово! Ваши фото на виджете 💞';
-  @override
-  String get purchaseFailedTryLater => 'Не удалось купить — попробуйте позже';
   @override
   String personalPhotosHelp(String partner) =>
       'Личные фото — от 1 до 10 на каждый виджет. С двух фото включается '
       'карусель: смена при разблокировке или по таймеру.\n\nЭти фото видны '
       'только тебе. Чтобы поделиться с $partner, открой «Фото партнёра» → '
       '«Выбрать фото для партнёра».';
-  @override
-  String get personalPhotosHelpShort =>
-      'Личные фото — от 1 до 10 на каждый виджет. С двух фото включается '
-      'карусель: смена при разблокировке или по таймеру.';
-  @override
-  String get uploadedPhotosToMemoryLane =>
-      'Загруженные фото попадут в ленту воспоминаний';
   @override
   String partnerSharesPhotosHelp(String partner, int count) =>
       'Этот виджет показывает фото, которыми делится $partner '
@@ -5146,22 +2756,10 @@ class _RuStrings extends AppStrings {
       '$partner нужно открыть «Фото партнёра» и нажать «Выбрать фото для '
       'партнёра» — обычный «Фото-виджет» виден только владельцу.';
   @override
-  String get selectPhotosForPartner => 'Выбрать фото для партнёра';
-  @override
   String youSharePhotosWithPartner(String partner, int count) =>
       '$partner видит ваши фото: $count';
   @override
-  String get stopSharingPhotos => 'Убрать у партнёра';
-  @override
-  String get photosForPartnerRemoved => 'Фото у партнёра убраны';
-  @override
   String photosUnit(int n) => 'фото';
-  @override
-  String get noPhotosFromPartner => 'Нет фото от партнёра';
-  @override
-  String get noPhotosAdded => 'Фото не добавлены';
-  @override
-  String get onePhotoNoCarousel => '1 фото · без карусели';
   @override
   String photoCountOnUnlock(int count) => '$count фото · при разблокировке';
   @override
@@ -5184,470 +2782,70 @@ class _RuStrings extends AppStrings {
   }
 
   @override
-  String get partnerPhotoTitle => 'Фото партнёра';
-  @override
   String partnerSharedCountHelp(int count) =>
       'Партнёр поделился $count фото — выберите как они будут меняться на '
       'этом виджете.';
-  @override
-  String get partnerSharedOnePhoto =>
-      'Партнёр поделился 1 фото — без карусели.';
-  @override
-  String get partnerNotSharedYet => 'Партнёр ещё не поделился фото.';
-  @override
-  String get changePhotosLabel => 'Менять фото:';
-  @override
-  String get onUnlockOption => 'При разблокировке';
-  @override
-  String get byTimeOption => 'По времени';
-  @override
-  String get every15Minutes => 'Каждые 15 минут';
-  @override
-  String get every30Minutes => 'Каждые 30 минут';
-  @override
-  String get everyHourOption => 'Каждый час';
-  @override
-  String get every3HoursOption => 'Каждые 3 часа';
-  @override
-  String get createPostcardTitle => 'Создать открытку';
-  @override
-  String get createPostcardSubtitle =>
-      'Сколько дней вы вместе — красиво и со стилем';
-  @override
-  String get whereToSendPhoto => 'Куда отправить фото?';
-  @override
-  String get sendLabel => 'Отправить';
-  @override
-  String get widgetPhotoCaption => 'Из виджета';
 
   // ── Mascot gallery ──
-  @override
-  String get mascotSaveFailed =>
-      'Не удалось сохранить маскота. Проверьте соединение.';
-  @override
-  String get mascotLoadFailed => 'Не удалось загрузить. Проверьте соединение.';
-  @override
-  String get transparentBgTitle => 'Нужен прозрачный фон';
-  @override
-  String get transparentBgBody =>
-      'Маскот отображается без фона, поэтому загружай PNG-файл с '
-      'прозрачностью.\n\nВырежи фон заранее — например, через remove.bg, '
-      'Photoshop или Canva.';
-  @override
-  String get mascotNameTitle => 'Имя маскота';
-  @override
-  String get enterNameHint => 'Введите имя';
-  @override
-  String get mascotLimitReached =>
-      'Достигнут лимит. Удалите маскота из галереи.';
   @override
   String mascotDeactivated(String name) => '$name деактивирован';
   @override
   String mascotActivated(String name) => '$name теперь активен';
   @override
-  String get rename => 'Переименовать';
-  @override
-  String get deleteMascotTitle => 'Удалить маскота?';
-  @override
   String deleteMascotBody(String name) => '«$name» будет удалён навсегда.';
   @override
   String recordStreakDays(int days) => 'Рекорд: $days дн.';
   @override
-  String get deactivateLabel => 'Деактивировать';
-  @override
-  String get makeActiveLabel => 'Сделать активным';
-  @override
-  String get editLabel => 'Редактировать';
-  @override
-  String get exportPng => 'Экспортировать PNG';
-  @override
-  String get groupMascots => 'Маскоты группы';
-  @override
   String mascotsCount(int count, int max) => '$count / $max маскотов';
-  @override
-  String get limitLabel => 'Лимит';
-  @override
-  String get mascotsLoadFailedMultiline =>
-      'Маскоты не загрузились.\nПроверьте соединение.';
-  @override
-  String get artistCredit => 'Художница — Meller1';
-  @override
-  String get uploadPhotoTooltip => 'Загрузить фото';
-  @override
-  String get drawLabel => 'Нарисовать';
-  @override
-  String get streakBroken => 'Серия прервана';
-  @override
-  String get streakKeepHint => 'Заходите каждый день, чтобы не прерывать серию';
-  @override
-  String get streakStartHint => 'Зайдите сегодня, чтобы начать новую серию';
-  @override
-  String get fromUs => 'От нас';
   @override
   String recordStreakBadge(int days) => '$days дн.';
 
   // ── Mascot draw screen ──
   @override
-  String get drawSomethingFirst => 'Нарисуйте что-нибудь сначала';
-  @override
   String genericError(String e) => 'Ошибка: $e';
-  @override
-  String get drawMascotTitle => 'Нарисовать маскота';
-  @override
-  String get toolBrush => 'Кисть';
-  @override
-  String get toolPencil => 'Карандаш';
-  @override
-  String get toolMarker => 'Маркер';
-  @override
-  String get toolEraser => 'Ластик';
-  @override
-  String get toolFill => 'Заливка';
-  @override
-  String get toolLine => 'Линия';
-  @override
-  String get toolRect => 'Прямоуг.';
-  @override
-  String get toolCircle => 'Круг';
-  @override
-  String get toolTriangle => 'Треугол.';
-  @override
-  String get fillAction => 'Залить';
-  @override
-  String get resetSize => 'Сбросить размер';
-  @override
-  String get undoLabel => 'Отмена';
-  @override
-  String get redoLabel => 'Повтор';
-  @override
-  String get underlayLabel => 'Подложка';
-  @override
-  String get drawHintEdit =>
-      'Двойной тап — сбросить вид  •  2 пальца — зум/поворот';
-  @override
-  String get drawHintDraw =>
-      'Два пальца быстро — отменить  •  Двойной тап — сбросить вид';
-  @override
-  String get colorLabel => 'Цвет';
-  @override
-  String get coloringOwnAdd => 'Своя раскраска';
-  @override
-  String get coloringOwnProcessing => 'готовим';
-  @override
-  String get coloringOwnDefaultName => 'Моя раскраска';
-  @override
-  String get coloringTitle => 'Раскраска вдвоём';
-  @override
-  String get coloringSubtitle => 'Каждому — своя половина';
-  @override
-  String get coloringModeSurprise => 'Сюрприз';
-  @override
-  String get coloringModeTogether => 'Вместе';
-  @override
-  String get coloringModeSurpriseHint =>
-      'Половина партнёра откроется, когда оба нажмут «Готово»';
-  @override
-  String get coloringModeTogetherHint =>
-      'Видно, как партнёр красит свою половину';
-  @override
-  String get coloringOtherHalf => 'Это половина партнёра — её красит он';
-  @override
-  String get coloringMyHalf => 'твоя половина';
-  @override
-  String get coloringPartnerHalfHidden =>
-      'Половина партнёра\nоткроется в конце';
   @override
   String coloringPartnerColoring(String name) => '$name красит';
   @override
-  String get coloringDoneBtn => 'Готово';
-  @override
-  String get coloringNotDoneBtn => 'Вернуться и доделать';
-  @override
-  String get coloringWaitingTitle => 'Ты закончил(а)';
-  @override
   String coloringWaitingHint(String name) =>
       'откроем, как только $name нажмёт «Готово»';
-  @override
-  String get coloringRevealTitle => 'Готово вдвоём';
-  @override
-  String get coloringShare => 'Поделиться';
-  @override
-  String get coloringSave => 'Сохранить';
-  @override
-  String get coloringToMemories => 'В воспоминания';
-  @override
-  String get coloringSaved => 'Рисунок сохранён в галерею';
-  @override
-  String get coloringNew => 'Раскраска';
-  @override
-  String get eyedropper => 'Пипетка';
-  @override
-  String get eyedropperHint => 'Коснитесь рисунка — возьмём цвет';
-  @override
-  String get recentColors => 'Недавние';
-  @override
-  String get customColor => 'Свой цвет';
-  @override
-  String get hueLabel => 'Оттенок';
-  @override
-  String get saturationLabel => 'Насыщ.';
-  @override
-  String get brightnessLabel => 'Яркость';
-  @override
-  String get selectAction => 'Выбрать';
 
   // ── Postcard templates ──
-  @override
-  String get pcNamesFallback => 'Мы вместе';
-  @override
-  String get pcLabelNames => 'Имена';
-  @override
-  String get pcLabelDaysCaption => 'Подпись к числу';
-  @override
-  String get pcLabelMessage => 'Послание';
-  @override
-  String get pcLabelCaption => 'Подпись';
-  @override
-  String get pcLabelPolaroidCaption => 'Подпись на полароиде';
-  @override
-  String get pcLabelMessageAlt => 'Сообщение';
-  @override
-  String get pcDaysTogether => 'дней вместе';
-  @override
-  String get pcMsgTogether => 'Каждый день с тобой — подарок ❤️';
-  @override
-  String get pcDaysOfLove => 'дней любви';
-  @override
-  String get pcMsgPolaroid => 'Наш момент ✨';
-  @override
-  String get pcDaysNearby => 'дней рядом';
-  @override
-  String get pcMsgBloom => 'Ты моё любимое приключение 🌸';
-  @override
-  String get pcNightsUnderSky => 'ночей под одним небом';
-  @override
-  String get pcMsgNightSky => 'Ты — моя звезда ✨';
 
   // ── Photo carousel editor ──
   @override
-  String get addOneToTenPhotos => 'Добавьте от 1 до 10 фото';
-  @override
   String photoCountCarousel(int count) => '$count фото · карусель';
-  @override
-  String get addMorePhotosCarouselHint =>
-      'Добавьте ещё фото, чтобы появилась карусель — фото будут меняться '
-      'автоматически.';
-  @override
-  String get dragToReorder =>
-      'Удерживайте и перетаскивайте, чтобы изменить порядок';
   @override
   String photoNumber(int n) => 'Фото $n';
   @override
-  String get mainPhoto => 'Главное';
-  @override
   String positionNumber(int n) => 'Позиция $n';
-  @override
-  String get addMore => 'Добавить ещё';
-  @override
-  String get fromDevice => 'С устройства';
-  @override
-  String get fromFeed => 'Из ленты';
 
   // ── Profile screen ──
   @override
-  String get cropAvatarTitle => '✂️  Обрезка аватарки';
-  @override
-  String get avatarTitle => 'Аватарка';
-  @override
-  String get appIconTitle => 'Иконка приложения';
-  @override
-  String get appIconUpdateHint =>
-      'Иконка на рабочем столе может обновиться через пару секунд.';
-  @override
-  String get appIconChangeFailed => 'Не удалось сменить иконку';
-  @override
-  String get viewAction => 'Посмотреть';
-  @override
-  String get enterDateFormat => 'Введите дату в формате ДД.ММ.ГГГГ';
-  @override
   String yearRange(int first, int last) => 'Год от $first до $last';
   @override
-  String get enterTimeFormat => 'Время должно быть в формате ЧЧ:ММ';
-  @override
-  String get dateHintFormat => 'ДД.ММ.ГГГГ';
-  @override
-  String get timeHintFormat => 'ЧЧ:ММ';
-  @override
-  String get openCalendar => 'Открыть календарь';
-  @override
-  String get refreshTooltip => 'Обновить';
-  @override
-  String get memoriesMapTooltip => 'Карта воспоминаний';
-  @override
   String kpRating(String rating) => 'КП $rating';
-  @override
-  String get editLocation => 'Изменить геолокацию';
-  @override
-  String get addLocation => 'Добавить геолокацию';
-  @override
-  String get photoVideoNote => 'Фото / Видео / Заметка';
   @override
   String distanceLabel(double meters) => meters < 1000
       ? '${meters.round()} м'
       : '${(meters / 1000).toStringAsFixed(1)} км';
   @override
-  String get appNotInstalled => 'Приложение не установлено';
-  @override
-  String get watchTogether => 'Смотреть вместе';
-  @override
   String watchWithPartner(String name) => 'Смотреть с $name';
   @override
-  String get watchRoomOpensForBoth => 'Комната откроется у вас обоих';
-  @override
-  String get watchAfterShortAd => 'после короткой рекламы';
-  @override
-  String get watchOpenOnSite => 'Открыть на сайте';
-  @override
-  String get watchOnSiteHint => 'Если удобнее смотреть на компьютере';
-  @override
-  String get watchPartnerInBrowser => 'Партнёр смотрит в браузере?';
-  @override
-  String get watchRecent => 'Недавнее';
-  @override
-  String get watchOurVideos => 'Наши видео';
-  @override
   String watchVideoAdd(int mb) => 'Загрузить до $mb МБ';
-  @override
-  String get watchVideoUploading => 'Загружаю…';
   @override
   String watchVideoTooBig(int mb) =>
       'Видео больше $mb МБ: сожмите его или выберите короче';
   @override
-  String get watchVideoFormatUnsupported =>
-      'Такой формат вдвоём не играет. Подойдут MP4, MOV или WebM';
-  @override
-  String get watchPickFileAgain =>
-      'Это ваш файл с телефона: выберите его в комнате';
-  @override
-  String get watchHeroTitle => 'Одно кино на двоих';
-  @override
-  String get watchHeroText => 'Пауза у одного, пауза у обоих. Чат рядом.';
-  @override
-  String get linkCopied => 'Ссылка скопирована';
-  @override
-  String get copyLink => 'Скопировать ссылку';
-  @override
-  String get watchTogetherAdPrompt =>
-      'Чтобы открыть совместный просмотр, посмотри короткую рекламу — '
-      'поддержишь приложение и получишь коины 🪙';
-  @override
-  String get watchAction => 'Смотреть';
-  @override
-  String get youtubeLinkHint => 'Ссылка на YouTube';
-  @override
-  String get startAction => 'Начать';
-  @override
-  String get youtubeLinkInvalid => 'Не удалось распознать ссылку YouTube';
-  @override
   String invitesToWatchTogether(String hostName) =>
       '$hostName зовёт смотреть вместе';
   @override
-  String get joinAction => 'Присоединиться';
-  @override
-  String get partnerEndedWatchTogether =>
-      'Партнёр завершил совместный просмотр';
-  @override
-  String get videoCannotWatchTogether => 'Это видео нельзя смотреть вместе';
-  @override
-  String get videoEmbedBlockedHint =>
-      'Это видео нельзя встроить: автор запретил воспроизведение вне YouTube, '
-      'либо у ролика возрастное/региональное ограничение. Если видео не '
-      'открывается только на одном телефоне — обновите на нём «Android System '
-      'WebView» и Chrome в Google Play. Можно открыть ролик прямо на YouTube '
-      'или выбрать другое — большинство работает.';
-  @override
-  String get chooseAnother => 'Выбрать другое';
-  @override
-  String get openOnYoutube => 'Открыть на YouTube';
-  @override
-  String get watchingTogether => 'Смотрим вместе';
-  @override
-  String get partnerJoined => 'Партнёр подключился';
-  @override
-  String get waitingForPartner => 'Ожидаем партнёра…';
-  @override
-  String get syncedPlaying => 'Синхронизировано · играет';
-  @override
-  String get syncedPaused => 'Синхронизировано · пауза';
-  @override
-  String get writeFirstMessage => 'Напишите первое сообщение 💬';
-  @override
-  String get messageInputHint => 'Сообщение…';
-  @override
-  String get selectOnePhoto => 'Выберите 1 фото';
-  @override
-  String get maxSelected => 'Выбрано максимум';
-  @override
   String selectUpToPhotos(int n) => 'Выберите до $n фото';
-  @override
-  String get selectPhotosPrompt => 'Выберите фото';
   @override
   String addWithCount(int n) => 'Добавить ($n)';
   @override
-  String get failedToLoadMemories => 'Не удалось загрузить воспоминания';
-  @override
-  String get noPhotosInMemoryLane => 'Нет фото в ленте воспоминаний';
-  @override
-  String get inWidget => 'В виджете';
-  @override
-  String get postcardTitle => 'Открытка';
-  @override
   String failedToSave(Object e) => 'Не удалось сохранить: $e';
   @override
-  String get changePhoto => 'Сменить фото';
-  @override
-  String get addPhotoFromGallery => 'Добавить фото из галереи';
-  @override
-  String get tapAnyTextToEdit => 'Нажми на любой текст чтобы изменить';
-  @override
-  String get creating => 'Создаём...';
-  @override
-  String get sharePostcard => 'Поделиться открыткой';
-  @override
-  String get noGeoMemories => 'Нет воспоминаний с геолокацией';
-  @override
-  String get addLocationHint =>
-      'Добавьте место к воспоминанию\nчерез долгое нажатие';
-  @override
-  String get placeFallback => 'Место';
-  @override
-  String get welcomeSlide1Title => 'Только для\nвас двоих';
-  @override
-  String get welcomeSlide2Title => 'Фото и\nвоспоминания';
-  @override
-  String get welcomeSlide3Title => 'Ваш общий\nмир';
-  @override
-  String get newEntry => 'Новая запись';
-  @override
-  String get photoVideo => 'Фото/Видео';
-  @override
-  String get cropPhotoAction => 'Кадрировать';
-  @override
-  String get cropPhotoHint => 'Нажмите на снимок, чтобы обрезать';
-  @override
-  String get optionalTapToSelect => 'Необязательно — нажмите чтобы выбрать';
-  @override
   String itemsShort(int n) => '$n элем.';
-  @override
-  String get dragHint => 'потяни';
-  @override
-  String get addPhoto => 'Добавить фото';
-  @override
-  String get groupMascotBanner => 'Это маскот вашей группы! 🎉';
-  @override
-  String get goToGallery => 'Перейти в галерею';
-  @override
-  String get hide => 'Скрыть';
   @override
   String coinsPlus(int n) {
     // «+1 монет» резало глаз на каждой награде — считаем окончание по числу.
@@ -5680,17 +2878,6 @@ class _RuStrings extends AppStrings {
     'дек',
   ];
   @override
-  String get placeOrCoordsHint => 'Место или 55.751, 37.618';
-  @override
-  String get goToCoordinates => 'Перейти к координатам';
-  @override
-  String get chatBgSaveFailed => 'Не удалось сохранить фон';
-  @override
-  String get timeFormatHint => 'чч:мм';
-  @override
-  String get bookTitleLanguageHint =>
-      'Название на английском — можно переписать на русский';
-  @override
   String memoriesUnit(int n) {
     if (n % 10 == 1 && n % 100 != 11) return 'воспоминание';
     if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) {
@@ -5701,127 +2888,27 @@ class _RuStrings extends AppStrings {
 
   // ── Live location map ──
   @override
-  String get liveMapTitle => 'Где мы';
-  @override
-  String get liveMapEnableCta => 'Показывать мою геопозицию';
-  @override
-  String get liveMapEnableHint =>
-      'Включите, чтобы видеть друг друга на карте в реальном времени';
-  @override
-  String get liveMapPermissionDenied =>
-      'Нет доступа к геолокации. Разрешите его в настройках телефона.';
-  @override
-  String get liveMapWaitingPartner => 'Ждём геопозицию партнёра…';
-  @override
-  String get liveMapYou => 'Вы';
-  @override
-  String get liveMapCenterMe => 'Ко мне';
-  @override
-  String get liveMapShowBoth => 'Показать обоих';
-  @override
-  String get liveMapOpenFull => 'Открыть карту';
-  @override
-  String get liveMapNotPaired => 'Подключите партнёра, чтобы видеть карту';
-  @override
-  String get liveMapStopCta => 'Выключить';
-  @override
-  String get liveMapStopped => 'Геопозиция выключена';
-  @override
-  String get liveLocationServiceTitle => 'Геопозиция включена';
-  @override
-  String get liveLocationServiceText => 'Партнёр видит вас на карте «Где мы»';
-  @override
-  String get liveLocationJustNow => 'только что';
-  @override
   String liveLocationAgo(String value) => '$value назад';
-  @override
-  String get unitCm => 'см';
-  @override
-  String get unitM => 'м';
-  @override
-  String get unitKm => 'км';
-  @override
-  String get unitMinShort => 'мин';
-  @override
-  String get unitHourShort => 'ч';
-  @override
-  String get unitDayShort => 'д';
 
   // Получение подарка
   @override
   String giftFromPartner(String name) => 'Подарок от $name';
   @override
-  String get giftAccepted => 'Принято 💛';
-  @override
   String giftBunnyMisses(int misses) =>
       misses == 1 ? 'Ускользнул!' : 'Ускользнул ещё раз, лови!';
   @override
-  String get giftIncomingTitle => 'Тебе подарок';
-  @override
   String giftIncomingCount(int n) => n == 1 ? 'ждёт тебя' : 'ждут тебя: $n';
-  @override
-  String get giftNoteHint => 'Вложить записку (необязательно)';
-  @override
-  String get giftNoteSkip => 'Без записки';
-  @override
-  String get giftNoteSend => 'Отправить';
-  @override
-  String get giftWishHint => 'Загадай желание';
-  @override
-  String get giftWishSend => 'Загадать';
-  @override
-  String get giftWishEmpty => 'Сначала напиши желание';
   @override
   String giftMutualBonus(int coins) => 'Успели вовремя: обоим по $coins';
   @override
   String giftSunriseGreeting(String name) =>
       'Доброе утро! $name подарил тебе рассвет';
   @override
-  String get supportTitle => 'Написать в поддержку';
-  @override
   String supportCopied(String email) => 'Почта скопирована: $email';
   @override
-  String get redeemCodeTitle => 'У меня есть код';
-  @override
-  String get redeemCodeSubtitle => 'Пополнение через телеграм-бота';
-  @override
-  String get redeemCodeHint =>
-      'Код приходит в боте после оплаты. Введите его целиком — пробелы и регистр не важны.';
-  @override
-  String get redeemCodeApply => 'Применить';
-  @override
   String redeemCodeDone(int coins) => 'Зачислено $coins монет';
-  @override
-  String get redeemCodeAlready => 'Этот код уже был применён';
-  @override
-  String get redeemCodeFailed => 'Код не подошёл. Проверьте и попробуйте снова';
-  @override
-  String get giftAccept => 'Принимаю';
-  @override
-  String get giftDecline => 'Не сейчас';
-  @override
-  String get giftFlipCoin => 'Бросить монетку';
-  @override
-  String get giftFlipYou => 'Заказываешь ты 🍕';
-  @override
-  String get giftFlipPartner => 'Заказывает партнёр 🍕';
 
   // Профиль партнёра
-  @override
-  String get partnerGiftsTitle => 'Что дарили';
-  @override
-  String get partnerGiftsEmpty => 'Пока ничего не дарили. Самое время.';
-  @override
-  String get partnerMissTitle => 'Скучает по дням';
-  @override
-  String get partnerMissEmpty =>
-      'Статистика копится с этого обновления — загляните через недельку.';
-  @override
-  String get selfGiftsTitle => 'Что вам дарили';
-  @override
-  String get selfMissTitle => 'Когда вы скучаете';
-  @override
-  String get openPartnerProfile => 'Открыть профиль партнёра';
   @override
   String partnerGiftsChip(int count) => '$count';
   @override
@@ -5862,130 +2949,16 @@ class _RuStrings extends AppStrings {
   // Подарки
   @override
   String giftPushBody(String giftName) => 'Прислал подарок: $giftName';
-  @override
-  String get giftShopTitle => 'Подарки';
-  @override
-  String get giftSent => 'Подарок отправлен';
-  @override
-  String get giftNotEnoughCoins => 'Не хватает монет';
-  @override
-  String get giftNoConnection => 'Нет связи';
-  @override
-  String get giftFailed => 'Не получилось отправить';
 }
 
-class _EnStrings extends AppStrings {
-  const _EnStrings();
+class _EnStrings extends DictStrings {
+  const _EnStrings([super.langCode = 'en']);
 
   // ── Common ──
-  @override
-  String get save => 'Save';
-  @override
-  String get cancel => 'Cancel';
-  @override
-  String get delete => 'Delete';
-  @override
-  String get edit => 'Edit';
-  @override
-  String get add => 'Add';
-  @override
-  String get done => 'Done';
-  @override
-  String get loading => 'Loading...';
-  @override
-  String get error => 'Error';
-  @override
-  String get ok => 'OK';
-  @override
-  String get yes => 'Yes';
-  @override
-  String get no => 'No';
-  @override
-  String get close => 'Close';
-  @override
-  String get back => 'Back';
-  @override
-  String get reset => 'Reset';
-  @override
-  String get clear => 'Clear';
 
   // ── Welcome ──
-  @override
-  String get welcomeTitle1 => 'This space is just\nfor the ';
-  @override
-  String get welcomeTitle2 => 'two of you';
-  @override
-  String get welcomeSubtitle => 'Moments, feelings, connection';
-  @override
-  String get welcomeFeatureMemories => 'Shared memories, photos, and notes';
-  @override
-  String get welcomeFeatureMood => 'Mood tracking, statuses, and daily rituals';
-  @override
-  String get welcomeFeatureWidgets => 'Timers, widgets, and your places map';
-  @override
-  String get welcomeStepCreateProfile => '1. Create your profile and sign in';
-  @override
-  String get welcomeStepConnectPartner =>
-      '2. Connect your partner with a link, code, or QR';
-  @override
-  String get welcomeStepStartTogether =>
-      '3. Add your first memory and personalize the space';
-  @override
-  String get createAccount => 'Create Account';
-  @override
-  String get alreadyHaveAccount => 'Already have an account';
-  @override
-  String get privateSecure => 'PRIVATE & SECURE';
 
   // ── Login ──
-  @override
-  String get welcomeBack => 'Welcome back!';
-  @override
-  String get loginToAccount => 'Sign in to your account';
-  @override
-  String get signInWithGoogle => 'Sign in with Google';
-  @override
-  String get or => 'or';
-  @override
-  String get email => 'Email';
-  @override
-  String get yourEmail => 'Your email';
-  @override
-  String get password => 'Password';
-  @override
-  String get yourPassword => 'Your password';
-  @override
-  String get login => 'Sign In';
-  @override
-  String get noAccount => 'No account? ';
-  @override
-  String get create => 'Create';
-  @override
-  String get invalidEmail => 'Enter a valid email';
-  @override
-  String get enterPassword => 'Enter your password';
-  @override
-  String get loginFailed => 'Login failed. Please try again.';
-  @override
-  String get profileNotFound => 'Profile not found. Please register again.';
-  @override
-  String get userNotFound => 'No user found with this email';
-  @override
-  String get wrongPassword => 'Wrong password';
-  @override
-  String get invalidEmailFormat => 'Invalid email format';
-  @override
-  String get tooManyAttempts => 'Too many attempts. Try again later';
-  @override
-  String get serverNotResponding =>
-      'Server not responding. Check your internet.';
-  @override
-  String get connectionBlocked =>
-      'The connection is being cut on the way. Usually it is the network '
-      'provider: try mobile data, another network or a VPN.';
-  @override
-  String get googleNotResponding =>
-      'Google not responding. Check your internet.';
   @override
   String loginError(String e) => 'Login error: $e';
   @override
@@ -5993,105 +2966,13 @@ class _EnStrings extends AppStrings {
 
   // ── Setup ──
   @override
-  String get whoAreYou => 'Who are you?';
-  @override
-  String get selectGenderForTheme => 'Select gender to customize theme';
-  @override
-  String get boy => 'Boy';
-  @override
-  String get girl => 'Girl';
-  @override
-  String get continueBtn => 'Continue';
-  @override
-  String get createProfile => 'Create your profile';
-  @override
-  String get signInGoogleOrManual => 'Sign in with Google or\nfill in manually';
-  @override
-  String get orManually => 'or manually';
-  @override
-  String get name => 'Name';
-  @override
-  String get yourName => 'Your name';
-  @override
-  String get minCharsPassword => 'At least 6 characters';
-  @override
-  String get start => 'Start';
-  @override
-  String get alreadyHaveAccountQuestion => 'Already have an account? ';
-  @override
-  String get enterYourName => 'Enter your name';
-  @override
-  String get enterValidEmail => 'Enter a valid email';
-  @override
-  String get selectGender => 'Select your gender';
-  @override
-  String get passwordMin6 => 'Password must be at least 6 characters';
-  @override
-  String get accountExists => 'Account exists';
-  @override
-  String get emailAlreadyRegistered =>
-      'This email is already registered. Would you like to sign in?';
-  @override
   String registrationError(String e) => 'Registration error: $e';
-  @override
-  String get agreeToTermsPrefix => 'I agree to the ';
-  @override
-  String get termsOfUse => 'Terms of Use';
-  @override
-  String get agreeToTermsAnd => ' and the ';
-  @override
-  String get privacyPolicyLink => 'Privacy Policy';
-  @override
-  String get forgotPassword => 'Forgot password?';
   @override
   String passwordResetSent(String email) =>
       'Password reset email sent to $email. '
       'Check your inbox and spam folder.';
-  @override
-  String get passwordResetError =>
-      "Couldn't send the email. Check the address and try again later.";
-  @override
-  String get showPassword => 'Show';
-  @override
-  String get hidePassword => 'Hide';
-  @override
-  String get min8Chars => 'Minimum 8 characters';
-  @override
-  String get oneUppercase => '1 uppercase';
-  @override
-  String get oneSpecialChar => 'At least 1 special character';
-  @override
-  String get fullName => 'Full Name';
-  @override
-  String get createAccountBtn => 'Create Account';
-  @override
-  String get continueWithGoogle => 'Continue with Google';
-  @override
-  String get continueWithApple => 'Continue with Apple';
-  @override
-  String get signInWith => 'Sign in with';
-  @override
-  String get signUpWith => 'Sign up with';
-  @override
-  String get rememberMe => 'Remember me';
-  @override
-  String get alreadyHaveAccountLogin => 'Already have an account?';
-  @override
-  String get passwordRequirements => 'Password requirements';
 
   // ── Home ──
-  @override
-  String get home => 'Home';
-  @override
-  String get widgets => 'Widgets';
-  @override
-  String get connect => 'Connect';
-  @override
-  String get profile => 'Profile';
-  @override
-  String get solo => 'Solo';
-  @override
-  String get waitingForConnection => 'WAITING FOR CONNECTION';
   @override
   String daysLabel(String suffix) => 'DAYS $suffix';
   @override
@@ -6099,192 +2980,22 @@ class _EnStrings extends AppStrings {
   @override
   String timeLabel(String suffix) => 'TIME $suffix';
   @override
-  String get inLove => 'IN LOVE';
-  @override
-  String get together => 'TOGETHER';
-  @override
-  String get days => 'Days';
-  @override
-  String get months => 'Months';
-  @override
-  String get time => 'Time';
-  @override
-  String get inviteYourPartner => 'Invite Your Partner';
-  @override
-  String get shareLinkCodeQr => 'Share a link, code, or QR to connect';
-  @override
-  String get relationshipMemoryLane => 'Relationship Memory Lane';
-  @override
-  String get memoriesWillAppear => 'Memories will appear here';
-  @override
-  String get connectWithPartnerToStart => 'Connect with your partner to start';
-  @override
   String partnerIsMood(String name, String mood) => '$name is $mood';
   @override
-  String get answerSent => 'Answer sent!';
-  @override
-  String get dailyReflection => 'Daily Reflection';
-  @override
-  String get today => 'TODAY';
-  @override
-  String get answerPrompt => 'Answer Prompt';
-  @override
-  String get editAnswer => 'Edit Answer';
-  @override
-  String get clearMood => 'Clear Mood';
-  @override
-  String get removeMood => 'Remove Mood';
-  @override
-  String get howAreYouFeeling => 'How are you feeling?';
-  @override
-  String get partnerWillSeeMood => 'Your partner will see your mood';
-  @override
-  String get moodBandBright => 'Bright';
-  @override
-  String get moodBandEven => 'Steady';
-  @override
-  String get moodBandSad => 'Low and anxious';
-  @override
-  String get moodBandHeavy => 'Heavy';
-  @override
   String moodPackAuthor(String name) => 'Art by $name';
-  @override
-  String get moodTabLabel => 'Mood';
-  @override
-  String get ailmentTabLabel => 'Health';
-  @override
-  String get ailmentPickerSubtitle => "Your partner will see you're unwell";
-  @override
-  String get clearAilment => "I'm fine";
   @override
   String partnerAilmentBanner(String name, String label) =>
       '$name is unwell: $label';
   @override
   String moodDateLabel(String dateLabel) => 'Mood — $dateLabel';
   @override
-  String get indicateMoodForDay => 'Indicate your mood for this day';
-  @override
-  String get relationshipStatus => 'Relationship Status';
-  @override
-  String get chooseHowToConnect => 'Choose how you want to connect';
-  @override
-  String get inLoveStatus => 'In Love';
-  @override
-  String get perfectForCouples => 'Perfect for romantic couples';
-  @override
-  String get married => 'Married';
-  @override
-  String get forMarriedPartners => 'For married partners';
-  @override
-  String get friends => 'Friends';
-  @override
-  String get connectWithBestFriend => 'Connect with your best friend';
-  @override
-  String get bestBuddies => 'Best Buddies';
-  @override
-  String get forInseparableCompanions => 'For inseparable companions';
-  @override
-  String get addCustomStatus => 'Add Custom Status';
-  @override
-  String get editCustomStatus => 'Edit Custom Status';
-  @override
-  String get addCaption => 'Add a caption';
-  @override
-  String get optionalDescribe => 'Optional — describe this moment';
-  @override
-  String get writeSmth => 'Write something...';
-  @override
-  String get skip => 'Skip';
-  @override
-  String get post => 'Post';
-  @override
-  String get posting => 'Posting...';
-  @override
-  String get failedUploadPhoto => 'Failed to upload photo';
-  @override
-  String get memoryNotSaved =>
-      "Photo wasn't added to memories. Check sign-in and try again.";
-  @override
-  String get achievementUnlocked => 'Achievement unlocked!';
-  @override
-  String get achMetricDays => 'Time together';
-  @override
-  String get achMetricMemories => 'Memories';
-  @override
-  String get achMetricMessages => 'Chat';
-  @override
-  String get achMetricDrawings => 'Drawings';
-  @override
-  String get achMetricStreak => 'Streak';
-  @override
-  String get achFilterAll => 'All';
-  @override
-  String get achFilterUnlocked => 'Unlocked';
-  @override
-  String get achFilterInProgress => 'In progress';
-  @override
-  String get achNothingHere => 'Nothing here yet';
-  @override
   String achProgressOf(int value, int target) => '$value of $target';
-  @override
-  String get achievementsTitle => 'Couple achievements';
-  @override
-  String get achievementsShort => 'Achievements';
-  @override
-  String get achievementDone => 'Unlocked';
   @override
   String achievementsUnlockedOf(int unlocked, int total) =>
       'Unlocked $unlocked of $total';
   @override
-  String get markSecret => 'Make secret';
-  @override
-  String get unmarkSecret => 'Remove from secret';
-  @override
-  String get markedSecret => 'Hidden as secret 🔒';
-  @override
-  String get unmarkedSecret => 'No longer secret';
-  @override
-  String get secretMemories => 'Secret';
-  @override
-  String get enterPinTitle => 'Enter PIN';
-  @override
-  String get setPinTitle => 'Set a PIN';
-  @override
-  String get setPinHint => 'At least 4 digits. Stored only on this device.';
-  @override
-  String get wrongPin => 'Wrong PIN';
-  @override
-  String get pinTooShort => 'At least 4 digits';
-  @override
-  String get pinDone => 'Done';
-  @override
-  String get timeCapsule => 'Time capsule';
-  @override
-  String get capsuleIntro =>
-      'Seal a letter or a photo — it opens on the day you choose 💌';
-  @override
-  String get capsuleLetterHint => 'Write a letter to the future…';
-  @override
-  String get capsuleAttachPhoto => 'Add a photo';
-  @override
-  String get capsuleOpenDate => 'Opens on';
-  @override
-  String get change => 'Change';
-  @override
   String capsuleOpensIn(int days) =>
       days <= 0 ? 'opens today' : 'in $days days';
-  @override
-  String get capsulePreset1m => '1 month';
-  @override
-  String get capsulePreset6m => '6 months';
-  @override
-  String get capsulePreset1y => '1 year';
-  @override
-  String get capsuleSeal => 'Seal it';
-  @override
-  String get capsuleNeedsContent => 'Add a letter or a photo';
-  @override
-  String get capsuleNeedsFutureDate => 'Open date must be in the future';
   @override
   String capsuleOpensOn(String date) => 'Opens $date';
   @override
@@ -6292,575 +3003,43 @@ class _EnStrings extends AppStrings {
   @override
   String capsuleNotReady(String date) => 'Not yet 🙈 Opens $date';
   @override
-  String get capsuleAddSub => 'A letter to the future';
-  @override
-  String get capsuleCreated => 'Capsule sealed 💌';
-  @override
-  String get capsuleOpenedTitle => 'Your time capsule opened! 💌';
-  @override
-  String get capsuleOpenedBody => 'Take a peek in your memory lane';
-  @override
   String capsuleOpenedBodyNamed(String title) =>
       '"$title" is waiting in your feed';
-  @override
-  String get postedToMemoryLane => 'Posted to Memory Lane! 📸';
-  @override
-  String get moodCalendar => 'Mood Calendar';
-  @override
-  String get seeAll => 'See All';
-  @override
-  String get addMemory => 'Add';
-  @override
-  String get viewAll => 'View All';
 
   // ── Widget Screen ──
   @override
-  String get widgetsTitle => 'Widgets';
-  @override
-  String get resetBtn => 'Reset';
-  @override
-  String get desktopPreview => 'Desktop preview';
-  @override
-  String get me => 'Me';
-  @override
-  String get partner => 'Partner';
-  @override
-  String get noStatus => 'No status';
-  @override
-  String get myWidget => 'My Widget';
-  @override
-  String get tapToEdit => 'Tap to edit';
-  @override
-  String get editBtn => 'Edit';
-  @override
   String widgetOfPartner(String name) => '$name\'s Widget';
-  @override
-  String get emptyYet => 'Empty yet';
-  @override
-  String get updated => 'Updated';
-  @override
-  String get live => 'Live';
-  @override
-  String get mood => 'Mood';
-  @override
-  String get status => 'Status';
-  @override
-  String get message => 'Message';
-  @override
-  String get photo => 'Photo';
-  @override
-  String get photoUploaded => 'Photo uploaded';
-  @override
-  String get widgetPhotoOwnerOnlyHint =>
-      'When adding, choose where to send: paired widget, “Partner Photo”, memories';
-  @override
-  String get music => 'Music';
-  @override
-  String get addBtn => 'Add';
-  @override
-  String get widgetSettings => 'Widget Settings';
-  @override
-  String get photoToMemoryLane => 'Photo → Memory Lane';
-  @override
-  String get autoSavePhotoToMemories => 'Automatically save photos to memories';
-  @override
-  String get messagestoMemoryLane => 'Messages → Memory Lane';
-  @override
-  String get autoSaveMessages => 'Automatically save messages';
-  @override
-  String get musicToMemoryLane => 'Music → Memory Lane';
-  @override
-  String get autoSaveTracks => 'Automatically save tracks';
-  @override
-  String get moodToCalendar => 'Mood → Calendar';
-  @override
-  String get autoMarkMoodCalendar => 'Automatically mark in mood calendar';
-  @override
-  String get connectPartnerForWidgets =>
-      'Connect a partner to start\nexchanging widgets';
-  @override
-  String get chooseMood => 'Choose mood';
-  @override
-  String get statusHint => 'What\'s new with you?';
-  @override
-  String get messageHint => 'Write something nice...';
-  @override
-  String get chooseSource => 'Choose source';
-  @override
-  String get camera => 'Camera';
-  @override
-  String get gallery => 'Gallery';
-  @override
-  String get musicTitle => 'Music';
-  @override
-  String get trackName => 'Track name';
-  @override
-  String get artist => 'Artist';
-  @override
-  String get linkOptional => 'Link (optional)';
-  @override
-  String get uploadingPhoto => 'Uploading photo...';
-  @override
-  String get resetWidget => 'Reset widget?';
-  @override
-  String get resetWidgetConfirm => 'All your widget data will be cleared.';
-  @override
-  String get notPairedWidgets => 'Widgets';
-  @override
-  String get notPairedWidgetsDesc =>
-      'Connect a partner to start\nexchanging widgets';
 
   // ── Profile ──
   @override
-  String get user => 'User';
-  @override
-  String get noEmail => 'No email';
-  @override
-  String get gender => 'Gender';
-  @override
-  String get male => 'Male';
-  @override
-  String get female => 'Female';
-  @override
-  String get genderPreferNotSay => 'Prefer not to say';
-  @override
-  String get genderCustom => 'Custom';
-  @override
-  String get genderCustomHint => 'Enter your gender';
-  @override
-  String get genderNotSet => 'Not set';
-  @override
-  String get information => 'INFORMATION';
-  @override
-  String get theme => 'Theme';
-  @override
-  String get relationships => 'RELATIONSHIPS';
-  @override
-  String get statusLabel => 'Status';
-  @override
-  String get partnerLabel => 'Partner';
-  @override
-  String get notSelected => 'Not selected';
-  @override
   String daysTogetherLabel(String days) => '$days days';
-  @override
-  String get invitePartnerToCount =>
-      'Invite a partner to start\ncounting days together ❤️';
-  @override
-  String get anniversaryDate => 'Anniversary';
-  @override
-  String get anniversaryWheelHint =>
-      'For reminders. The “Days together” counter is set separately — tap the ✏️ on the home screen';
-  @override
-  String get firstKissDate => 'First Kiss';
-  @override
-  String get myBirthday => 'My Birthday';
-  @override
-  String get partnerBirthday => "Partner's Birthday";
-  @override
-  String get notifCelebrations => 'Celebration Notifications';
-  @override
-  String get notifCelebrationsHint =>
-      "We'll remind you the day before and on the day of anniversaries and birthdays";
-  @override
-  String get anniversaryTodayTitle => '🎉 Happy Anniversary!';
-  @override
-  String get anniversaryTodayBody =>
-      'Congratulations on your anniversary together! Open Togetherly to celebrate.';
-  @override
-  String get birthdayTodayTitle => '🎂 Happy Birthday!';
-  @override
-  String get birthdayTodayBody =>
-      "Today is your special day! Open Togetherly to celebrate together.";
-  @override
-  String get anniversaryTomorrowTitle => '🌹 Anniversary Tomorrow!';
-  @override
-  String get anniversaryTomorrowBody =>
-      "Don't forget — your anniversary is tomorrow. Plan something special!";
-  @override
-  String get birthdayTomorrowTitle => '🎈 Birthday Tomorrow!';
-  @override
-  String get birthdayTomorrowBody =>
-      'Your birthday is tomorrow. Open Togetherly to get ready!';
-  @override
-  String get celebrationBannerAnniversary => 'Happy Anniversary! 🎉';
-  @override
-  String get celebrationBannerBirthday => 'Happy Birthday! 🎂';
-  @override
-  String get daysUntilAnniversary => 'until anniversary';
-  @override
-  String get daysUntilBirthday => 'until birthday';
-  @override
-  String get inLoveRelType => 'In Love';
-  @override
-  String get marriedRelType => 'Married';
-  @override
-  String get friendsRelType => 'Friends';
-  @override
-  String get bestFriendsRelType => 'Best Friends';
-  @override
-  String get customStatus => 'Custom Status';
-  @override
-  String get relationshipType => 'Relationship Type';
-  @override
-  String get selectPartner => 'Select Partner';
-  @override
-  String get noConnectedPartners => 'No connected partners';
-  @override
-  String get settings => 'SETTINGS';
-  @override
-  String get editProfile => 'Edit Profile';
-  @override
-  String get notifications => 'Notifications';
-  @override
-  String get privacy => 'Privacy';
-  @override
-  String get aboutApp => 'About App';
-  @override
-  String get supportAuthors => 'Support the Authors';
-  @override
-  String get supportIntro =>
-      'Togetherly is a free, open-source app. '
-      'Any donation helps the project grow.';
-  @override
-  String get logout => 'Sign Out';
-  @override
-  String get logoutQuestion => 'Sign Out?';
-  @override
-  String get logoutConfirm => 'Are you sure you want to sign out?';
-  @override
-  String get logoutBtn => 'Sign out';
-  @override
-  String get deleteAccount => 'Delete account';
-  @override
-  String get deleteAccountQuestion => 'Delete account?';
-  @override
-  String get deleteAccountConfirm =>
-      'Your account and all your data will be permanently deleted and cannot '
-      'be recovered. Your pair will be disconnected. This cannot be undone.';
-  @override
-  String get deleteAccountBtn => 'Delete permanently';
-  @override
-  String get deleteAccountReauth =>
-      'Please sign in again and retry to delete your account.';
-  @override
-  String get deleteAccountError =>
-      'Could not delete the account. Please try again.';
-  @override
-  String get chooseColorTheme => 'Choose color theme';
-  @override
-  String get appearanceTitle => 'Appearance';
-  @override
-  String get paletteLabel => 'Palette';
-  @override
-  String get themeModeLabel => 'Mode';
-  @override
-  String get themeStyleLabel => 'Vibrancy';
-  @override
-  String get themeModeLight => 'Light';
-  @override
-  String get themeModeDark => 'Dark';
-  @override
-  String get themeModeSystem => 'System';
-  @override
-  String get themeFlavorSoft => 'Soft';
-  @override
-  String get themeFlavorJuicy => 'Juicy';
-  @override
-  String get themeFlavorExact => 'Exact';
-  @override
-  String get amoledLabel => 'AMOLED black';
-  @override
-  String get levelTasksGroup => 'Level & tasks';
-  @override
-  String get themeNamePink => 'Pink';
-  @override
-  String get themeNamePurple => 'Purple';
-  @override
-  String get themeNameBlue => 'Blue';
-  @override
-  String get themeNamePeach => 'Peach';
-  @override
-  String get themeNameSage => 'Sage';
-  @override
-  String get themeNameMidnight => 'Midnight';
-  @override
-  String get themeNameLavender => 'Lavender';
-  @override
-  String get themeNameCherry => 'Cherry';
-  @override
-  String get themeNameMint => 'Mint';
-  @override
-  String get themeNameSunset => 'Sunset';
-  @override
-  String get themeNameMonochrome => 'Monochrome';
-  @override
-  String get themeNameForest => 'Forest';
-  @override
-  String get themeNameOcean => 'Ocean';
-  @override
-  String get themeNameHoney => 'Honey';
-  @override
-  String get themeNameLemon => 'Lemon';
-  @override
-  String get themeNameSand => 'Sand';
-  @override
-  String get themeNameAurora => 'Aurora';
-  @override
-  String get themeNameBordeaux => 'Bordeaux';
-  @override
-  String get themeNameTeal => 'Teal';
-  @override
-  String get themeNameNord => 'Nord';
-  @override
-  String get themeNameCharcoalTeal => 'Charcoal Teal';
-  @override
-  String get themeNameCoffee => 'Coffee';
-  @override
-  String get themeNameForestDark => 'Dark Forest';
-  @override
-  String get themeNameGarnet => 'Garnet';
-  @override
-  String get themeNameDarkHoney => 'Dark Honey';
   @override
   String premiumThemeLocked(int price) =>
       'Premium theme — $price coins, unlock it in the Coin shop';
-  @override
-  String get coinBalance => 'Coins';
-  @override
-  String get coinShopTitle => 'Coin Shop';
-  @override
-  String get coinShopSubtitle => 'Customization & treats';
 
-  @override
-  String get coinEarnTitle => 'Coin tasks';
-
-  @override
-  String get coinEarnSubtitle => 'Ways to top up';
-  @override
-  String get buyThemeTitle => 'Buy this theme?';
   @override
   String buyThemeDescription(String themeName, int price) =>
       'Unlock the "$themeName" theme for $price coins?';
   @override
-  String get buyThemeConfirm => 'Buy';
-  @override
-  String get notEnoughCoins => 'Not enough coins';
-  @override
-  String get themePurchased => 'Theme unlocked';
-  @override
-  String get iconShopTitle => 'Profile Icons';
-  @override
-  String get iconShopSubtitle => 'Decorate your profile';
-  @override
-  String get noIconOption => 'No icon';
-  @override
-  String get iconRewardOnly => 'Reward';
-  @override
-  String get iconRewardHint =>
-      'This icon is granted manually for contributing to the project.';
-  @override
-  String get iconPurchased => 'Icon unlocked';
-  @override
-  String get watchAdTitle => 'Watch an ad';
-  @override
-  String get watchAdSubtitle => 'Per view, up to 3 a day';
-  @override
-  String get adNotReady => 'Ad still loading — try again in a second';
-  @override
-  String get adRewardLimitReached => 'Daily limit reached — come back tomorrow';
-  @override
-  String get rewardPending => 'Crediting your reward…';
-  @override
-  String get coinPacksSectionTitle => 'Buy Coins';
-  @override
   String coinPackTitle(int coins) => '$coins coins';
-  @override
-  String get coinPurchaseSuccess => 'Coins added!';
   @override
   String coinPurchaseSuccessAmount(int coins) => '+$coins coins credited';
   @override
-  String get coinPurchasePending => 'Payment is being processed…';
-  @override
-  String get coinPurchaseCancelled => 'Purchase cancelled';
-  @override
-  String get coinPurchaseError => 'Purchase failed. Please try again';
-  @override
-  String get coinStoreUnavailable => 'Store unavailable';
-  @override
-  String get restorePurchasesTitle => 'Restore Purchases';
-  @override
-  String get restorePurchasesSuccess => 'Purchases restored';
-  @override
-  String get restorePurchasesError => 'Failed to restore purchases';
-  @override
-  String get changesApplyImmediately => 'Changes apply immediately';
-  @override
-  String get dailyBonusTitle => 'Daily login';
-  @override
-  String get dailyBonusSubtitle => 'Every day on login';
-  @override
   String coinEarned(int amount) => '+$amount coins earned!';
   @override
-  String get memoryRewardTitle => 'Add a memory';
-  @override
-  String get memoryRewardSubtitle => 'Add a memory, once a day';
-  @override
-  String get partnerInviteRewardTitle => 'Invite your partner';
-  @override
-  String get partnerInviteRewardSubtitle => 'One-time on connection';
-  @override
-  String get moodStreakRewardTitle => 'Mood streak';
-  @override
-  String get moodStreakRewardSubtitle => 'Both filled mood 7 days in a row';
-  @override
-  String get earnCoinsSection => 'Earn for free';
-  @override
-  String get editProfileTitle => 'Edit Profile';
-  @override
-  String get uploading => 'Uploading...';
-  @override
-  String get userNotAuthorized => 'Error: user not authorized';
-  @override
-  String get failedUploadImage => 'Failed to upload image';
-  @override
-  String get avatarUpdated => 'Avatar updated';
-  @override
-  String get nameUpdated => 'Name updated';
-  @override
   String uploadError(String e) => 'Upload error: $e';
-  @override
-  String get language => 'Language';
-  @override
-  String get selectLanguage => 'Select Language';
-  @override
-  String get blobAnimation => 'Blob Animation';
 
   // ── Mood Calendar ──
   @override
-  String get moodCalendarTitle => 'Mood Calendar';
-  @override
-  String get moodSettings => 'Mood settings';
-  @override
-  String get moodMultiplePerDay => 'Multiple moods per day';
-  @override
-  String get moodMultiplePerDaySubtitle =>
-      'Save each mood separately instead of replacing the previous one';
-  @override
-  String get zoomIn => 'Zoom In';
-  @override
-  String get zoomOut => 'Zoom Out';
-  @override
-  String get week => 'Week';
-  @override
-  String get month => 'Month';
-  @override
-  String get year => 'Year';
-  @override
-  String get myMood => 'My Mood';
-  @override
   String partnerMood(String name) => '$name\'s Mood';
-  @override
-  String get moods => 'Moods';
 
   // ── Home (continued) ──
-  @override
-  String get emoji => 'Emoji';
-  @override
-  String get label => 'Label';
-  @override
-  String get egSoulmates => 'e.g., Soulmates';
-  @override
-  String get shareYourThoughts => 'Share your thoughts...';
-  @override
-  String get draw => 'Draw';
-  @override
-  String get calendar => 'Calendar';
-  @override
-  String get noMemoriesYet => 'No memories yet';
 
   // ── Draw Screen ──
   @override
-  String get drawTogether => 'Draw Together';
-  @override
-  String get brush => 'Brush';
-  @override
-  String get eraser => 'Eraser';
-  @override
-  String get panTool => 'Hand';
-  @override
-  String get fillBg => 'Fill';
-  @override
-  String get rotateCanvas => 'Rotate Canvas';
-  @override
-  String get drawLine => 'Line';
-  @override
-  String get drawRect => 'Rectangle';
-  @override
-  String get drawCircle => 'Circle';
-  @override
-  String get drawTriangle => 'Triangle';
-  @override
-  String get fillShapes => 'Fill Shapes';
-  @override
-  String get insertPhoto => 'Insert Photo';
-  @override
-  String get photoRequiresPartner =>
-      'Photo sharing is available only when drawing with a partner';
-  @override
-  String get photoFromGallery => 'From Gallery';
-  @override
-  String get photoFromCamera => 'Take Photo';
-  @override
-  String get undoAction => 'Undo';
-  @override
-  String get redoAction => 'Redo';
-  @override
-  String get clearCanvas => 'Clear';
-  @override
-  String get clearCanvasConfirm =>
-      'Clear the entire canvas? This removes both users\' drawings.';
-  @override
-  String get deletePhoto => 'Delete photo';
-  @override
-  String get mascotBoyName => 'Pixel';
-  @override
-  String get mascotGirlName => 'Pixie';
-  @override
-  String get mascotSpikyName => 'Spiky';
-  @override
-  String get mascotLuluName => 'Lulu';
-  @override
-  String get mascotIskrikName => 'Sparky';
-  @override
-  String get mascotZhuzhaName => 'Buzzy';
-  @override
-  String get saveDrawing => 'Save';
-  @override
-  String get shareDrawing => 'Share';
-  @override
   String drawingSavedTo(String path) => 'Drawing saved to: $path';
   @override
-  String get failedToSaveDrawing => 'Failed to save drawing';
-  @override
-  String get failedToShareDrawing => 'Failed to share drawing';
-  @override
-  String get strokeThickness => 'Thickness';
-  @override
-  String get drawHint =>
-      'Start drawing! Your partner will see your strokes in real time.';
-  @override
   String partnerIsDrawing(String name) => '$name is drawing…';
-  @override
-  String get addFirstMemory => 'Add your first memory in Memory Lane';
-  @override
-  String get video => 'Video';
-  @override
-  String get videoLabel => 'Video';
-  @override
-  String get location => 'Location';
-  @override
-  String get audio => 'Audio';
   @override
   List<String> get reflectionQuestions => [
     'What is one small thing your partner did today that made you feel appreciated?',
@@ -6886,155 +3065,22 @@ class _EnStrings extends AppStrings {
   ];
 
   // ── Draw Gallery / Canvas ──
-  @override
-  String get palmTool => 'Palm';
-  @override
-  String get drawingMode => 'Drawing Mode';
-  @override
-  String get newCanvas => 'New Canvas';
-  @override
-  String get myDrawings => 'My Drawings';
-  @override
-  String get untitledCanvas => 'Canvas';
-  @override
-  String get renameCanvas => 'Rename';
-  @override
-  String get deleteCanvas => 'Delete Canvas';
-  @override
-  String get deleteCanvasConfirm =>
-      'Delete this canvas? This action cannot be undone.';
-  @override
-  String get canvasNameLabel => 'Canvas name';
-  @override
-  String get noDrawingsYet => 'No drawings yet';
 
   // ── Connect Partner ──
-  @override
-  String get newGroup => 'New';
-  @override
-  String get waiting => 'Waiting...';
-  @override
-  String get deleteGroupConfirm => 'Delete this group?';
-  @override
-  String get deleteGroupTitle => 'Delete Group';
-  @override
-  String get removeGroup => 'Remove';
-  @override
-  String get connected => 'Connected';
   @override
   String groupOf(int count) => 'Group of $count';
   @override
   String membersCount(int count) => 'MEMBERS · $count';
   @override
-  String get member => 'Member';
-  @override
-  String get online => 'Online';
-  @override
-  String get offline => 'Offline';
-  @override
-  String get chatOnline => 'online';
-  @override
-  String get chatTypingShort => 'typing';
-  @override
-  String get inviteMore => 'Invite More';
-  @override
-  String get scanQr => 'Scan QR';
-  @override
-  String get disconnect => 'Disconnect';
-  @override
-  String get connectYourPartner => 'Connect Your Partner';
-  @override
-  String get shareInviteCodeDesc =>
-      'Share your invite code so your\npartner can join this space';
-  @override
-  String get yourInviteCode => 'YOUR INVITE CODE';
-  @override
-  String get copy => 'Copy';
-  @override
-  String get share => 'Share';
-  @override
-  String get codeCopied => 'Code copied!';
-  @override
   String shareInviteText(String code, String link) =>
       'Join me on Togetherly! Use code: $code\n\nOr click: $link';
-  @override
-  String get loveAppInvitation => 'Togetherly Invitation';
-  @override
-  String get newCodeGenerated => 'New code generated';
-  @override
-  String get showQr => 'Show QR';
-  @override
-  String get haveACode => 'Have a code?';
 
-  @override
-  String get inviteHeroTitle => 'Invite your other half';
-  @override
-  String get inviteHeroBody =>
-      'The app comes alive with two of you: a shared chat, moods, '
-      'a widget on the screen and a memory feed.';
-  @override
-  String get sendInvitation => 'Send an invitation';
-  @override
-  String get haveCode => 'Enter a code';
-  @override
-  String get staySolo => 'I will stay solo for now';
-  @override
-  String get later => 'Later';
-  @override
-  String get tapToCopy => 'Tap to copy';
-  @override
-  String get inviteCodeLoading => 'Preparing the code';
-  @override
-  String get inviteQrTitle => 'Code for your partner';
-  @override
-  String get inviteQrHint =>
-      'Let your partner point a camera at it — the app opens with the code ready';
-  @override
-  String get enterPartnerCode => "Partner's code";
-  @override
-  String get inviteCodeNotFound => 'Code not found or already used';
-
-  @override
-  String get onboardingTitle => 'Settle in';
   @override
   String onboardingLeft(int left) =>
       left == 1 ? 'One step left' : '$left steps left';
   @override
-  String get onboardingDone => 'All set';
-  @override
-  String get onboardingStepPhoto => 'Add a profile photo';
-  @override
-  String get onboardingStepMood => 'Mark your mood';
-  @override
-  String get onboardingStepWidget => 'Put a widget on the screen';
-  @override
   String onboardingNext(String step) => 'One step left: $step';
-  @override
-  String get onboardingSkip => 'Skip';
 
-  @override
-  String get chatEmptyTitle => 'Start the conversation';
-  @override
-  String get chatEmptyBody =>
-      'Bubble colour, the little face and the background are all adjustable — once there is something to adjust.';
-  @override
-  String get chatEmptyGhostTheirs => 'Their message goes here';
-  @override
-  String get chatEmptyGhostMine => 'And yours here';
-  @override
-  String get chatPinTooltip => 'Attach a memory';
-  @override
-  String get chatStyleTooltip => 'Message style';
-  @override
-  String get chatLookMaterial => 'Plain bubbles';
-  @override
-  String get chatLookCozy => 'Our bubbles';
-  @override
-  String get chatLookMaterialOn => 'Plain Material look';
-  @override
-  String get chatLookCozyOn => 'Our look is back';
-  @override
-  String get titleFieldHint => 'Shown in the feed above the photo';
   @override
   String memoryTypeName(String type) => switch (type) {
     'photo' => 'Photo',
@@ -7047,87 +3093,20 @@ class _EnStrings extends AppStrings {
     _ => 'Movie',
   };
   @override
-  String get symbolPickerTitle => 'Symbol';
-  @override
-  String get symbolPickerAll => 'All';
-  @override
-  String get countdownModeHint => 'Count towards the date, not from it';
-  @override
-  String get setAsMainHint => 'Show on the home screen';
-  @override
   String timerDaysCount(int days) => days == 1 ? '1 day' : '$days days';
   @override
-  String get symbolSearchHint => 'Find a symbol';
-  @override
-  String get symbolSearchEmpty => 'Nothing found — try another word';
-  @override
   String symbolSearchFound(int count) => 'Found: $count';
-  @override
-  String get symbolSetHint => 'Or search for any other one';
-  @override
-  String get symbolSetLove => 'About us';
-  @override
-  String get symbolSetHolidays => 'Holidays';
-  @override
-  String get symbolSetHome => 'Home';
-  @override
-  String get symbolSetRoad => 'Travel';
-  @override
-  String get symbolSetWork => 'Work';
-  @override
-  String get chatBgPlain => 'Plain';
-  @override
-  String get chatBgDawn => 'Dawn';
-  @override
-  String get chatBgHearts => 'Hearts';
-  @override
-  String get chatBgWeave => 'Weave';
-  @override
-  String get chatBgDots => 'Dots';
-  @override
-  String get chatBgBubbles => 'Bubbles';
-  @override
-  String get chatBgNight => 'Night';
-  @override
-  String get needsPartnerHint =>
-      'This one works in pairs — invite your other half';
-  @override
-  String get inviteReminderTitle => 'Your invite code is still active';
-  @override
-  String get inviteReminderBody =>
-      'Remind your partner — together you get chat, moods and widgets';
-  @override
-  String get invitePromptTitle => 'Invite your other half';
-  @override
-  String get invitePromptBody =>
-      'Chat, moods, the feed and widgets show up once there are two of you';
-  @override
-  String get invitePromptAction => 'Invite your partner';
 
   @override
   String quietPartnerTitle(String name, int days) => days == 1
       ? '$name has been away a day'
       : '$name has been away $days days';
-  @override
-  String get quietPartnerBody =>
-      'Remind them about you — they will see it on their screen';
-  @override
-  String get quietPartnerAction => 'Send "Miss you"';
-  @override
-  String get quietPartnerSent =>
-      'Sent. Your partner will see that you miss them';
 
-  @override
-  String get connectPartnerBtn => 'Connect Partner';
-  @override
-  String get inviteMoreMembers => 'Invite More Members';
   @override
   String membersOfMax(int current, int max) => '$current/$max members';
   @override
   String shareGroupInviteText(String code, String link) =>
       'Join our group on Togetherly! Use code: $code\n\nOr click: $link';
-  @override
-  String get groupInvitation => 'Togetherly Group Invitation';
   @override
   String connectedWithCouple(String name) => "You're connected with $name!";
   @override
@@ -7140,84 +3119,17 @@ class _EnStrings extends AppStrings {
   String customRelWith(String label, String name) =>
       "You're now $label with $name!";
   @override
-  String get joinAnotherGroup => 'Join Another Group';
-  @override
-  String get enterCodeScanQr => 'Enter code, scan QR, or use a link';
-  @override
-  String get enterCode => 'Enter Code';
-  @override
-  String get invalidCodeTryAgain => 'Invalid code. Please check and try again.';
-  @override
-  String get joinGroup => 'Join Group';
-  @override
-  String get cantInviteSelf => "You can't invite yourself!";
-  @override
-  String get codeNotFound => 'Code not found or already used';
-  @override
-  String get scanToConnect => 'Scan to Connect';
-  @override
-  String get scanPartnersQr => "Scan Partner's QR Code";
-  @override
-  String get addNewConnection => 'Add New Connection';
-  @override
-  String get chooseTypeForConnection =>
-      'Choose the type for your new connection';
-  @override
-  String get yourCustomType => 'Your custom type';
-  @override
-  String get newConnectionAdded => 'New connection added!';
-  @override
-  String get deleteConnection => 'Delete Connection?';
-  @override
-  String get deleteConnectionDesc =>
-      'This will remove this connection permanently. If paired, it will disconnect your partner.';
-  @override
-  String get connectionRemoved => 'Connection removed';
-  @override
-  String get disconnectQuestion => 'Disconnect?';
-  @override
-  String get disconnectDesc =>
-      'This will reset your timer and disconnect your partner.';
-  @override
-  String get renamePartner => 'Rename Member';
-  @override
-  String get renamePartnerHint =>
-      'Only visible to you. This does not change the partner\'s name for them.';
-  @override
-  String get resetNickname => 'Reset';
-  @override
   String joinMeLinkText(String link) => 'Join me on Togetherly! $link';
-  @override
-  String get custom => 'Custom';
   @override
   String membersCountBracket(int count) => 'MEMBERS ($count)';
 
   // ── Memory Lane ──
-  @override
-  String get memoryLane => 'Memory Lane';
-  @override
-  String get addMemoryBtn => 'Add Memory';
-  @override
-  String get addMemoryToFeed => 'Add to the feed';
-  @override
-  String get pinned => 'Pinned';
 
   // ── Timer Card ──
-  @override
-  String get timers => 'Timers';
-  @override
-  String get failedUploadBackground =>
-      'Failed to upload background. Check your connection.';
 
   // ── Mini Mood Calendar ──
-  @override
-  String get todayLabel => 'Today';
 
   // ── Date helpers ──
-  @override
-  String get todayDate => 'Today';
-  @override
-  String get yesterday => 'Yesterday';
   @override
   List<String> get shortMonths => [
     'Jan',
@@ -7246,27 +3158,9 @@ class _EnStrings extends AppStrings {
 
   // ── I Miss You / Vibes ──
   @override
-  String get iMissYou => 'I miss you';
-  @override
-  String get iMissYouSent => 'Sent! 💕';
-  @override
   String missYouNotifTitle(String name) => '$name misses you';
   @override
-  String get missYouNotifBody => 'Thinking about you right now 💭';
-  @override
   String missYouStreak(int count) => '🔥 $count';
-  @override
-  String get thinkingOfYou => 'Thinking of you';
-  @override
-  String get wantHug => 'Want a hug';
-  @override
-  String get vibeSent => 'Sent ✨';
-  @override
-  String get customVibe => 'Custom wish...';
-  @override
-  String get customVibeTitle => 'Custom message';
-  @override
-  String get customVibeHint => 'What do you want to say?';
   @override
   String thinkingOfYouNotifTitle(String name) => '$name is thinking of you 💭';
   @override
@@ -7276,13 +3170,7 @@ class _EnStrings extends AppStrings {
 
   // ── Photo Card ──
   @override
-  String get sharedAPicture => 'Shared a picture';
-  @override
   String kmFromYou(String km) => '$km from you';
-  @override
-  String get openInMaps => 'Open in maps';
-  @override
-  String get justNow => 'just now';
   @override
   String minutesAgo(int m) => '${m}m ago';
   @override
@@ -7291,124 +3179,12 @@ class _EnStrings extends AppStrings {
   String daysAgo(int d) => '${d}d ago';
 
   // ── Memory Lane Feed ──
-  @override
-  String get sharedAVideo => 'Shared a video';
-  @override
-  String get sharedAThought => 'Shared a thought';
-  @override
-  String get sharedALocation => 'Checked in';
-  @override
-  String get sharedMusic => 'Shared music';
-  @override
-  String get vibesTo => 'Vibes to';
-  @override
-  String get setARoute => 'Set a route';
-  @override
-  String get isListening => 'is listening';
-  @override
-  String get playTrack => 'Play';
-  @override
-  String get note => 'Note';
-  @override
-  String get sharedAVideoLink => 'Shared a video link';
 
   // ── Memory Lane (extended) ──
   @override
-  String get noMemoriesYetDesc =>
-      'Tap "Add Memory" to create your first\nshared memory together';
-  @override
-  String get unpinMemory => 'Unpin memory';
-  @override
-  String get pinMemory => 'Pin memory';
-  @override
-  String get saveToDevice => 'Save';
-  @override
-  String get editMemory => 'Edit memory';
-  @override
-  String get deleteMemory => 'Delete memory';
-  @override
-  String get deleteMemoryQuestion => 'Delete memory?';
-  @override
-  String get actionCannotBeUndone => 'This action cannot be undone.';
-  @override
-  String get editMemoryTitle => 'Edit Memory';
-  @override
-  String get titleOptional => 'Title (optional)';
-  @override
-  String get description => 'Description...';
-  @override
-  String get locationName => 'Location name...';
-  @override
-  String get changeLocationOnMap => 'Change Location on Map';
-  @override
-  String get pickLocationOnMap => 'Pick Location on Map';
-  @override
-  String get saveChanges => 'Save Changes';
-  @override
-  String get addMemoryTitle => 'Add Memory';
-  @override
-  String get chooseWhatToShare => 'Choose what you want to share';
-  @override
   String newMemory(String type) => 'New $type';
   @override
-  String get memoryDetails => 'Memory Details';
-  @override
-  String get writeYourNote => 'Write your note...';
-  @override
-  String get descriptionOptional => 'Description (optional)';
-  @override
-  String get locationNameHint => 'Location name (e.g. Central Park)';
-  @override
-  String get locationSet => 'Location set ✓';
-  @override
-  String get useCurrent => 'Use Current';
-  @override
-  String get pickOnMap => 'Pick on Map';
-  @override
-  String get songDetails => 'Song Details';
-  @override
-  String get songName => 'Song name';
-  @override
-  String get artistsCommaSeparated => 'Artists (comma separated)';
-  @override
-  String get egArtists => 'e.g. Drake, The Weeknd';
-  @override
-  String get source => 'Source';
-  @override
-  String get streamingLink => 'Streaming Link';
-  @override
-  String get fetched => 'Fetched';
-  @override
-  String get pasteLinkFromService => 'Paste link from any service...';
-  @override
-  String get autoFetchSongInfo => 'Auto-fetch song info from link';
-  @override
-  String get musicMetaNotFound =>
-      'Nothing found for that link — type the song and artist';
-  @override
-  String get orDivider => 'OR';
-  @override
-  String get fileSelected => 'File selected ✓';
-  @override
-  String get pickAudioFromDevice => 'Pick audio from device';
-  @override
-  String get uploadingMemory => 'Uploading memory...';
-  @override
-  String get failedUploadPhotos =>
-      'Failed to upload photos. Make sure Firebase Storage is enabled.';
-  @override
-  String get failedUploadVideo =>
-      'Failed to upload video. Make sure Firebase Storage is enabled.';
-  @override
-  String get memoryAddedSuccess => 'Memory added successfully!';
-  @override
   String failedAddMemory(String e) => 'Failed to add memory: $e';
-  @override
-  String get noMediaUrl => 'No media URL available';
-  @override
-  String get downloading => 'Downloading...';
-  @override
-  String get savedToGallery => 'Saved to gallery 🖼️';
   @override
   String savedToPath(String path) => 'Saved to $path';
   @override
@@ -7418,211 +3194,11 @@ class _EnStrings extends AppStrings {
   @override
   String failedSelectVideo(String e) => 'Failed to select video: $e';
   @override
-  String get locationServicesDisabled => 'Location services are disabled';
-  @override
-  String get locationPermissionDenied => 'Location permission denied';
-  @override
-  String get cameraPermissionDenied =>
-      'No camera access. Enable it in the app settings.';
-  @override
-  String get failedGetLocation => 'Failed to get location';
-  @override
-  String get tapToSelectPhotos => 'Tap to select photos';
-  @override
-  String get tapToSelectVideo => 'Tap to select video';
-  @override
-  String get adultContent => '18+ Content';
-  @override
-  String get photoBlurred => 'Photo will be blurred';
-  @override
-  String get fromGallery => 'From gallery';
-  @override
-  String get byLink => 'By link';
-  @override
-  String get videoLink => 'Video link';
-  @override
-  String get books => 'Books';
-  @override
-  String get bookSearchHint => 'Book title or author';
-  @override
-  String get searchBooksPrompt => 'Search a book by title or author';
-  @override
-  String get noBooksFound => 'No books found';
-  @override
-  String get bookSearchFailed => 'Search failed. Enter manually';
-  @override
-  String get bookSearchFailedHint =>
-      'The search did not respond or the book is not in the database.';
-  @override
-  String get bookEnterManually => 'Enter manually';
-  @override
-  String get bookManualEntryHint => 'Fill in the title and author yourself';
-  @override
-  String get sharedABook => 'Shared a book';
-  @override
-  String get bookAuthorLabel => 'Author';
-  @override
-  String get bookAuthorHint => 'Author';
-  @override
-  String get bookTitleHint => 'Book title';
-  @override
-  String get bookDetails => 'About the book';
-  @override
-  String get bookReadMore => 'Read more';
-  @override
-  String get bookSearchAgain => 'Search';
-  @override
-  String get movies => 'Movies & series';
-  @override
-  String get movieSearchHint => 'Movie or series title';
-  @override
-  String get searchMoviesPrompt => 'Search a movie or series by title';
-  @override
-  String get noMoviesFound => 'Nothing found';
-  @override
-  String get movieSearchFailed => 'Search failed. Enter manually';
-  @override
-  String get movieSearchFailedHint =>
-      'The search did not respond or the title is not in the database.';
-  @override
-  String get movieEnterManually => 'Enter manually';
-  @override
-  String get movieManualEntryHint => 'Fill in the title yourself';
-  @override
-  String get movieNoToken => 'Search unavailable — enter the title manually';
-  @override
-  String get sharedAMovie => 'Shared a movie';
-  @override
-  String get movieTitleHint => 'Title';
-  @override
-  String get movieOriginalTitleHint => 'Original title';
-  @override
-  String get movieDetails => 'About';
-  @override
-  String get movieReadMore => 'Open on Kinopoisk';
-  @override
-  String get movieSearchAgain => 'Search';
-  @override
-  String get yourRating => 'Your rating';
-  @override
-  String get ratingNotRated => 'Not rated';
-  @override
-  String get ratingHint => 'Tap a number to rate';
-  @override
-  String get ratingMasterpiece => 'Masterpiece 🔥';
-  @override
-  String get ratingExcellent => 'Excellent';
-  @override
-  String get ratingGood => 'Good';
-  @override
-  String get ratingMixed => 'So-so';
-  @override
-  String get ratingBad => 'Bad';
-  @override
-  String get ratingAwful => 'Awful';
-  @override
-  String get yourReview => 'Your review';
-  @override
-  String get reviewHint => 'What did you think? Share your impression…';
-  @override
-  String get memoryDateLabel => 'When was it';
-  @override
-  String get memoryDateNow => 'Now (at creation)';
-  @override
-  String get dateNowLabel => 'Now';
-  @override
-  String get memoryDatePickDate => 'Date';
-  @override
-  String get memoryDatePickTime => 'Time';
-  @override
-  String get memoryDateClear => 'Reset';
-  @override
-  String get fetchData => 'Fetch data';
-  @override
-  String get supportedPlatformsHint =>
-      'Supported: YouTube, Vimeo, Dailymotion,\nTikTok, Instagram, VK and more';
-  @override
-  String get supportedPlatforms => 'Supported Platforms';
-  @override
-  String get pasteLinkSupported => 'Paste a link from any supported platform';
-  @override
-  String get gotIt => 'Got it';
-  @override
-  String get sideActionTitle => 'Action button';
-  @override
-  String get sideActionOpenFeed => 'Open the feed →';
-  @override
-  String get sideActionCreatePin => 'Create a memory +';
-  @override
-  String get sideActionHint =>
-      'Long-press the button to switch between → (open feed) and + (create memory)';
-  @override
-  String get supportedServices => 'Supported Services';
-  @override
-  String get pasteLinkFromSupported =>
-      'Paste a link from any supported service';
-  @override
-  String get selectTextAndPress => 'Select text and press';
-  @override
-  String get spoiler => 'Spoiler';
-  @override
-  String get deleteComment => 'Delete comment?';
-  @override
-  String get deleteCommentQuestion => 'Delete this comment?';
-  @override
-  String get comments => 'Comments';
-  @override
-  String get writeAComment => 'Write a comment…';
-  @override
-  String get noCommentsYet => 'No comments yet — be the first!';
-  @override
   String nPhotos(int count) => '$count photos';
-  @override
-  String get noPhotoAttached => 'No photo attached';
-  @override
-  String get unknownLocation => 'Unknown location';
-  @override
-  String get openInGoogleMaps => 'Open in Google Maps';
-  @override
-  String get audioFile => 'Audio file';
-  @override
-  String get unknownTrack => 'Unknown Track';
-  @override
-  String get noAudioUrl => 'No audio URL';
-  @override
-  String get cannotPlayAudio => 'Cannot play this audio';
   @override
   String openIn(String name) => 'Open in $name';
   @override
-  String get tapToOpen => 'Tap to open';
-  @override
-  String get videoBadge => 'VIDEO';
-  @override
-  String get updateAvailableTitle => 'Update available';
-  @override
-  String get updateAvailableSubtitle =>
-      'Update is recommended — some Memory Lane features may not work without it';
-  @override
   String get updateWhatsNew => enWhatsNew;
-  @override
-  String get updateButton => 'Update';
-  @override
-  String get updateLaterButton => 'Later';
-  @override
-  String get updateRestartButton => 'Restart and install';
-  @override
-  String get forceUpdateTitle => 'App update required';
-  @override
-  String get forceUpdateBody =>
-      'A new version with important changes is out. Please update to the latest version to keep using the app.';
-  @override
-  String get forceUpdateButton => 'Update';
-  @override
-  String get noteBadge => 'NOTE';
-  @override
-  String get youtubeBadge => 'YouTube';
-  @override
-  String get photoNotUploaded => 'Photo not uploaded yet';
   @override
   List<String> get fullMonths => [
     '',
@@ -7645,93 +3221,26 @@ class _EnStrings extends AppStrings {
 
   // ── Relationship Status Screen ──
   @override
-  String get noActiveConnection => 'No active connection';
-  @override
-  String get chooseAStatus => 'Choose a Status';
-  @override
-  String get customStatuses => 'Custom Statuses';
-  @override
-  String get currentStatus => 'Current Status';
-  @override
-  String get notSet => 'Not Set';
-  @override
-  String get clearStatus => 'Clear Status';
-  @override
   String statusSetTo(String status) => 'Status set to: $status';
   @override
   String failedSetStatus(String e) => 'Failed to set status: $e';
   @override
-  String get statusCleared => 'Status cleared';
-  @override
   String failedClearStatus(String e) => 'Failed to clear status: $e';
-  @override
-  String get customStatusAdded => 'Custom status added';
   @override
   String failedAddStatus(String e) => 'Failed to add status: $e';
   @override
-  String get statusUpdated => 'Status updated';
-  @override
   String failedUpdateStatus(String e) => 'Failed to update status: $e';
-  @override
-  String get deleteStatus => 'Delete Status';
   @override
   String deleteStatusConfirm(String label) =>
       'Are you sure you want to delete "$label"?';
   @override
-  String get statusDeleted => 'Status deleted';
-  @override
   String failedDeleteStatus(String e) => 'Failed to delete status: $e';
-  @override
-  String get editStatus => 'Edit Status';
-  @override
-  String get emojiLabel => 'Emoji';
-  @override
-  String get emojiHint => '💕';
-  @override
-  String get labelField => 'Label';
-  @override
-  String get egLivingTogether => 'e.g., Living Together';
-  @override
-  String get update => 'Update';
 
   // ── Map Picker Screen ──
-  @override
-  String get selectLocationOnMap => 'Select a location on the map';
-  @override
-  String get selectedLocation => 'Selected location';
-  @override
-  String get selectLocation => 'Select Location';
-  @override
-  String get confirm => 'Confirm';
-  @override
-  String get gettingAddress => 'Getting address...';
-  @override
-  String get tapOnMapToSelect =>
-      'Tap on the map to select a different location';
-  @override
-  String get failedGetCurrentLocation => 'Failed to get current location';
 
   // ── Mood Calendar (extended) ──
   @override
-  String get averageMood => 'Average Mood';
-  @override
-  String get great => 'Great';
-  @override
-  String get good => 'Good';
-  @override
-  String get okay => 'Okay';
-  @override
-  String get bad => 'Bad';
-  @override
-  String get awful => 'Awful';
-  @override
-  String get notEnoughData => 'Not enough data for chart';
-  @override
   String moodRecorded(String label) => '$label recorded!';
-  @override
-  String get noMoodRecorded => 'No mood recorded';
-  @override
-  String get moodScorePrefix => 'Rating';
   @override
   List<String> get shortWeekdaysSingleChar => [
     'M',
@@ -7755,174 +3264,19 @@ class _EnStrings extends AppStrings {
 
   // ── Timer / Expandable Timer Card ──
   @override
-  String get noTimers => 'No timers';
-  @override
-  String get createTimer => 'Create Timer';
-  @override
-  String get editTimer => 'Edit Timer';
-  @override
-  String get timerNameLabel => 'NAME';
-  @override
-  String get egAnniversary => 'e.g. Anniversary';
-  @override
-  String get targetDate => 'TARGET DATE';
-  @override
-  String get startDate => 'START DATE';
-  @override
-  String get dateFormatHint => 'dd.mm.yyyy';
-  @override
-  String get symbolLabel => 'SYMBOL';
-  @override
-  String get countdownMode => 'Countdown Mode';
-  @override
-  String get countdownPastDateWarning =>
-      'Target date has already passed — the timer will show zeros. Please pick a future date.';
-  @override
-  String get setAsMain => 'Set as Main';
-  @override
-  String get saveSettings => 'SAVE SETTINGS';
-  @override
-  String get deleteTimerQuestion => 'Delete Timer?';
-  @override
   String timerDeleteConfirm(String name) => '"$name" will be gone forever.';
 
   // ── Petal Timer Dial ──
-  @override
-  String get yearsLabel => 'Years';
-  @override
-  String get monthsShortLabel => 'Months';
-  @override
-  String get daysShortLabel => 'Days';
-  @override
-  String get hoursLabel => 'Hours';
-  @override
-  String get minLabel => 'Min';
-  @override
-  String get secLabel => 'Sec';
 
   // ── Widget Screen (extended) ──
   @override
-  String get homeScreenWidgets => 'Home Screen Widgets';
-  @override
-  String get addToHomeScreen => 'Add to Home Screen';
-  @override
-  String get addWidgetFromHomeHint =>
-      'Long-press the Home Screen → “+” → Togetherly';
-  @override
-  String get setAsPhotoOfDay => 'Set as Photo of the Day';
-  @override
-  String get widgetAddedToHome => 'Widget added to home screen';
-  @override
   String failedAddWidget(String e) => 'Failed to add widget: $e';
-  @override
-  String get daysTogetherStat => 'Days Together';
-  @override
-  String get memoriesStat => 'Memories';
-  @override
-  String get drawingsStat => 'Drawings';
-  @override
-  String get missYousStat => 'Miss Yous';
-  @override
-  String get daysLeft => 'days left';
-  @override
-  String get daysElapsed => 'days elapsed';
-  @override
-  String get noTimersWidget => 'No timers';
-  @override
-  String get photoOfDay => 'Photo of the Day';
-  @override
-  String get mine => 'Mine';
-  @override
-  String get onWidget => 'On widget';
-  @override
-  String get randomSource => 'Random';
-  @override
-  String get ownPhoto => 'Own Photo';
-  @override
-  String get saveToMemoryLane => 'Save to Memory Lane';
-  @override
-  String get regenerate => 'Regenerate';
-  @override
-  String get none => 'None';
   @override
   String yearsAlready(int years) => '$years years already ❤️';
   @override
-  String get pairWidgetTitle => 'Pair Widget';
-  @override
-  String get pairWidgetSubtitle => 'Mood, status, messages & photos';
-  @override
-  String get daysCounterSubtitle => 'Relationship day counter';
-  @override
-  String get timerWidgetTitle => 'Timer';
-  @override
-  String get timerWidgetSubtitle => 'Choose a timer for the widget';
-  @override
-  String get photoDayRandomSubtitle => 'Random photo from Memory Lane';
-  @override
-  String get photoDayCustomSubtitle => 'Custom set photo';
-  @override
-  String get photoDayPartnerSubtitle => 'What your partner shares';
-  @override
-  String get moodWidgetSubtitle => 'Horizontal widget: mine & partner\'s';
-  @override
-  String get relationshipStatsSubtitle =>
-      'Important stats: days, photos, drawings & miss yous';
-  @override
-  String get daysCounterLabel => 'days';
-  @override
-  String get addTimerHint => 'Add a timer in the Timers section';
-  @override
-  String get noTimersAddHint => 'No timers. Add a timer in the Timers section.';
-  @override
-  String get soloTimerBannerTitle => 'You can create your own timer';
-  @override
-  String get soloTimerBannerSubtitle =>
-      'Solo timers and their widgets are available even without adding a partner.';
-  @override
-  String get selectTimerForWidget => 'Select timer for widget:';
-  @override
-  String get daysShortLeft => 'd. left';
-  @override
-  String get daysShortElapsed => 'd. elapsed';
-  @override
-  String get partnerPhotoWillAppear =>
-      'Partner\'s photo will appear\nafter they choose one';
-  @override
-  String get choosePhotoBelow => 'Choose a photo below';
-  @override
-  String get randomPhotoFromMemories => 'Random photo\nfrom memories';
-  @override
-  String get photoSource => 'Photo source:';
-  @override
-  String get fromMemories => 'from memories';
-  @override
-  String get fromGalleryLabel => 'from gallery';
-  @override
-  String get widgetModeMine => 'My photos';
-  @override
-  String get widgetModePartner => 'Partner photos';
-  @override
-  String get widgetInstances => 'Widgets on home screen';
-  @override
-  String get widgetNotAddedYet => 'Widget not added yet';
-  @override
   String widgetSlotTitle(int index) => 'Widget ${index + 1}';
-  @override
-  String get addedWidgetsWillAppearHere =>
-      'Added photo widgets will appear here';
-  @override
-  String get addSeparateWidgetHint =>
-      'Add multiple widgets: each one will have its own photo and mode';
-  @override
-  String get widgetDisplaySource => 'What to show on widget:';
-  @override
-  String get widgetDisplayPhoto => 'Widget photo';
-  @override
-  String get noPhotoSelected => 'No photo selected';
 
   // ── Profile (extended) ──
-  @override
-  String get cycleConsentTitle => 'Cycle tracking';
   String get cycleConsentBody =>
       'Cycle dates and well-being are health data, so we ask separately. They '
       'are stored on our server, your partner sees them only if you turn that '
@@ -7939,34 +3293,9 @@ class _EnStrings extends AppStrings {
   String get exportMyDataFailed => "Couldn't build the archive";
   String get exportMemories => 'Export Memories';
   @override
-  String get resetMissYouCount => 'Reset My Miss You Taps';
-  @override
-  String get resetMissYouConfirmTitle => 'Reset counter?';
-  @override
-  String get resetMissYouConfirmBody =>
-      'Your Miss You taps will be reset to zero. Your partner\'s count stays unchanged.';
-  @override
-  String get noActiveGroupForExport => 'No active group for export';
-  @override
-  String get creatingArchive => 'Creating archive...\nThis will take a moment.';
-  @override
   String exportError(String e) => 'Error during export: $e';
-  @override
-  String get relationshipStats => 'RELATIONSHIP STATS';
 
   // ── Home Screen (extended) ──
-  @override
-  String get startWithBlankCanvas => 'Start with a blank canvas';
-  @override
-  String get openSavedDrawing => 'Open a saved drawing';
-  @override
-  String get newPhoto => 'New Photo';
-  @override
-  String get titleHint => 'Title…';
-  @override
-  String get descriptionOptionalHint => 'Description (optional)…';
-  @override
-  String get setAsWidgetPhoto => 'Set as widget photo';
 
   // ── Mini Mood Calendar (extended) ──
   @override
@@ -7982,115 +3311,11 @@ class _EnStrings extends AppStrings {
 
   // ── Notification Settings ──
   @override
-  String get notifMissYou => '"Miss You"';
-  @override
-  String get notifMissYouSub => 'When your partner taps the Miss You button';
-  @override
-  String get notifNewMemory => 'New Memories';
-  @override
-  String get notifNewMemorySub => 'When your partner adds to the Memory Lane';
-  @override
-  String get notifMood => 'Partner Mood';
-  @override
-  String get notifMoodSub => 'When your partner updates their mood';
-  @override
-  String get notifChat => 'Chat Messages';
-  @override
-  String get notifChatSub => 'When your partner messages you';
-  @override
-  String get notifDaysTogether => 'Days-together counter';
-  @override
-  String get notifDaysTogetherSub =>
-      'Always-on counter in your notification shade';
-  @override
-  String get notifDaysTogetherSubIos => 'Every morning at 9:00';
-  @override
-  String get adLabel => 'Ad';
-  @override
   String daysTogetherNotifBody(int days) =>
       "You've been together $days ${days == 1 ? 'day' : 'days'} ❤️";
-  @override
-  String get daysTogetherNotifTagline => 'Every day together counts 💕';
-  @override
-  String get openSystemSettings => 'System Settings';
-  @override
-  String get notifSystemSettingsHint => 'Settings are stored on this device';
 
   // ── Chat ──
-  @override
-  String get chatTitle => 'Chat';
-  @override
-  String get chatHint => 'Message…';
 
-  @override
-  String get voiceSlideHints => 'Left to cancel, up to lock';
-  @override
-  String get voiceReleaseToCancel => 'Release to delete';
-  @override
-  String get voiceReleaseToLock => 'Release to keep recording';
-  @override
-  String get voiceMessage => 'Voice message';
-  @override
-  String get voiceTooShort => 'Hold the button a bit longer';
-  @override
-  String get voiceNoPermission => 'Allow microphone access in settings';
-  @override
-  String get voiceFailed => "Couldn't record, try again";
-  @override
-  String get voiceLimitReached => 'Three minutes is the limit for one message';
-  @override
-  String get voiceHeard => 'Heard';
-
-  @override
-  String get waitingSetupTitle => 'Waiting for someone';
-  @override
-  String get waitingEditTitle => 'Who we wait for';
-  @override
-  String get waitingSetupHint =>
-      'The pair starts right away, with just you. Photos, moods and "Miss you" '
-      'collect in it from day one — he sees everything once he enters the code.';
-  @override
-  String get waitingNameLabel => 'His name';
-  @override
-  String get waitingReturnDate => 'Return date';
-  @override
-  String get waitingCreateAction => 'Create the pair';
-  @override
-  String get waitingCreateFailed => "That didn't work. Try again";
-  @override
-  String get waitingBadge => 'Waiting';
-  @override
-  String get waitingCodeTitle => 'Code for the second seat';
-  @override
-  String get waitingCodeHint =>
-      'Give it to him when he is back. The code never expires.';
-  @override
-  String get waitingCodeCopied => 'Code copied';
-  @override
-  String get waitingResetCode => 'Change the code';
-  @override
-  String get waitingResetCodeHint => 'The old one stops working';
-  @override
-  String get waitingClaimTitle => 'Someone entered your code';
-  @override
-  String get waitingClaimAsk => 'Is this him?';
-  @override
-  String get waitingClaimYes => 'Yes, it is him';
-  @override
-  String get waitingClaimNo => 'No, a stranger';
-  @override
-  String get waitingPendingTitle => 'Waiting for approval';
-  @override
-  String get waitingPendingHint =>
-      'The code is accepted. Once you are approved in the app, the whole pair history opens up.';
-  @override
-  String get waitingRejected => 'The request was declined';
-  @override
-  String get waitingApproved => 'You are approved — welcome';
-  @override
-  String get waitingUntilReturn => 'Until return';
-  @override
-  String get waitingHomeToday => 'Comes home today';
   @override
   String waitingDaysLeft(int days) {
     final n = days.abs();
@@ -8098,50 +3323,13 @@ class _EnStrings extends AppStrings {
   }
 
   @override
-  String get waitingWhoLabel => 'WHO ARE YOU WAITING FOR';
-  @override
-  String get waitingKnowWho => 'I know who';
-  @override
-  String get waitingDontKnowWho => 'Not yet';
-  @override
-  String get waitingUnknownName => 'My other half';
-  @override
-  String get waitingUnknownHint =>
-      'The seat stays unnamed — you can fill it in later.';
-  @override
-  String get waitingSoloTitle => 'No one to invite yet?';
-  @override
-  String get waitingSoloBody => 'Start the pair now and keep the second seat';
-  @override
-  String get waitingSoloAction => 'Keep the seat';
-  @override
-  String get chatEmpty => 'No messages yet.\nSay hi first 💬';
-  @override
-  String get chatEditMessage => 'Edit';
-  @override
-  String get chatDeleteMessage => 'Delete';
-  @override
-  String get chatReply => 'Reply';
-  @override
   String chatReplyingTo(String name) => 'Replying to $name';
   @override
   String chatTyping(String name) => '$name is typing…';
   @override
-  String get chatEdited => 'edited';
-  @override
-  String get chatDeletedPlaceholder => 'Message deleted';
-  @override
-  String get chatSendFailed => 'Couldn\'t send. Please try again';
-  @override
-  String get chatAttachPin => 'Attach pin';
-  @override
-  String get chatSave => 'Save';
-  @override
   String chatNotifTitle(String name) => '$name messages you 💬';
   @override
   String moodNotifTitle(String name) => '$name changed their mood';
-  @override
-  String get chatNewMessages => 'New messages';
   @override
   String chatDateHeader(DateTime day) {
     final now = DateTime.now();
@@ -8170,78 +3358,16 @@ class _EnStrings extends AppStrings {
   @override
   String chatDeleteConfirm(String text) => 'Delete this message?';
   @override
-  String get pixelCanvasTitle => 'Pixel art?';
-  @override
-  String get pixelCanvasHint =>
-      'Draw cell by cell together. The grid size is set now and cannot be changed later.';
-  @override
-  String get pixelWidth => 'Width';
-  @override
-  String get pixelHeight => 'Height';
-  @override
-  String get plainCanvas => 'Plain canvas';
-  @override
-  String get pixelCanvasCreate => 'Pixel grid';
-  @override
   String pixelCanvasSummary(int cells, int px) =>
       '$cells cells · $px px per pixel on export';
   @override
-  String get pixelGridShow => 'Show grid';
-  @override
-  String get pixelGridHide => 'Hide grid';
-  @override
-  String get canvasesTitle => 'CAN\nVAS';
-  @override
   String canvasesSubtitle(int count, String lastDate) =>
       '$count drawing${count == 1 ? '' : 's'} · last $lastDate';
-  @override
-  String get pixelScreenTitle => 'PIX\nELS';
-  @override
-  String get pixelCanvasCreateAction => 'Create canvas';
-  @override
-  String get plainCanvasSubtitle => 'Brush, shapes, photos';
-  @override
-  String get pixelCanvasSubtitle => 'Cell by cell, you pick the grid';
-  @override
-  String get widgetsCurrentSection => 'Already there';
-  @override
-  String get widgetsCurrentSubtitle => 'Widgets in the old look';
-  @override
-  String get widgetsNewSection => 'New widgets';
-  @override
-  String get widgetsNewSubtitle => 'Material 3, several sizes';
-  @override
-  String get tgTogetherTitle => 'Together';
-  @override
-  String get tgTogetherSubtitle => 'Days together and the next milestone';
-  @override
-  String get tgNoteTitle => 'Note';
-  @override
-  String get tgNoteSubtitle => 'A shared sheet: one writes, the other sees it';
-  @override
-  String get tgNotePaperTitle => 'Note · sticker';
-  @override
-  String get tgNotePaperSubtitle =>
-      'The same sheet, but paper and always yellow';
-  @override
-  String get tgMissTitle => 'Miss you';
-  @override
-  String get tgMissSubtitle => 'One tap from the home screen';
-  @override
-  String get tgSizeHintCompact => 'brief';
-  @override
-  String get tgSizeHintWide => 'detailed';
-  @override
-  String get tgSizeHintLarge => 'full';
-  @override
-  String get tgSizeHintStrip => 'strip';
   @override
   String tgDaysTogetherCaption(int days) =>
       days == 1 ? 'day together' : 'days together';
   @override
   String tgMonthsCaption(int months) => months == 1 ? 'month' : 'months';
-  @override
-  String get tgNextSection => 'NEXT';
   @override
   String tgDaysMilestone(int days) => '$days ${days == 1 ? 'day' : 'days'}';
   @override
@@ -8255,58 +3381,10 @@ class _EnStrings extends AppStrings {
   @override
   String tgMissAddressee(String name) => 'To $name';
   @override
-  String get tgMissSend => 'Send';
-  @override
-  String get tgMissStripHint => 'One tap and they will know';
-  @override
-  String get tgMoodTitle => 'Mood';
-  @override
-  String get tgMoodSubtitle => 'Both moods, set yours in one tap';
-  @override
-  String get tgMoodToday => 'TODAY';
-  @override
-  String get tgMoodMe => 'Me';
-  @override
-  String get tgMoodPartner => 'Partner';
-  @override
-  String get tgMoodNotSet => 'not set';
-  @override
-  String get tgMoodWeekTitle => 'MOOD WEEK';
-  @override
   String tgMoodMatched(int days) => 'matched $days of 7';
-  @override
-  String get tgCountdownTitle => 'Until we meet';
-  @override
-  String get tgCountdownSubtitle => 'Countdown to the next event';
-  @override
-  String get tgCountdownEmpty => 'No upcoming event';
   @override
   String tgCountdownDaysLeft(int days) =>
       '${days == 1 ? 'day' : 'days'} until we meet';
-  @override
-  String get tgCountdownDays => 'days';
-  @override
-  String get tgCountdownHours => 'hours';
-  @override
-  String get tgCountdownMinutes => 'minutes';
-  @override
-  String get tgSizeHintToday => 'today';
-  @override
-  String get tgSizeHintWeek => 'week';
-  @override
-  String get tgRingTitle => 'Year ring';
-  @override
-  String get tgRingSubtitle => 'Circle to the anniversary and days together';
-  @override
-  String get tgGridTitle => 'Years calendar';
-  @override
-  String get tgGridSubtitle => 'A dot is a month, a row is a year';
-  @override
-  String get tgYearNoStartDate => 'Set the start date';
-  @override
-  String get tgYearMonthsLabel => 'MONTHS';
-  @override
-  String get tgYearMemoriesLabel => 'MEMORIES';
   @override
   String tgYearDaysWord(int days) => days == 1 ? 'Day' : 'Days';
   @override
@@ -8331,78 +3409,12 @@ class _EnStrings extends AppStrings {
   @override
   String tgYearSince(String date) => 'Since $date';
   @override
-  String get settingsTitle => 'Settings';
-  @override
-  String get settingsOpen => 'Settings';
-  @override
-  String get settingsOpenHint => 'appearance, notifications, data';
-  @override
-  String get settingsAppearanceHint => 'theme, palette, saturation';
-  @override
-  String get settingsNotificationsHint => 'what to send and when';
-  @override
-  String get settingsLockMoodHint => "partner's mood on the lock screen";
-  @override
-  String get settingsDataSection => 'Data';
-  @override
-  String get settingsExportHint => 'save memories to a file';
-  @override
-  String get settingsResetMissHint => 'reset the miss-you counters';
-  @override
-  String get settingsPrivacyHint => 'privacy policy';
-  @override
-  String get settingsCoinsHint => 'balance, purchases and rewards';
-  @override
-  String get settingsSupportHint => 'write to us';
-  @override
-  String get settingsAccountSection => 'Account';
-  @override
-  String get settingsDeleteHint => 'with every entry, no way back';
-  @override
-  String get mascotSleepTitle => 'Mascot sleep';
-  @override
-  String get mascotSleepHint => 'when a character switches to its night scene';
-  @override
-  String get mascotSleepEmpty =>
-      'Not every character has a night scene. Get one who does, and its hours '
-      'will show up here.';
-  @override
-  String get mascotSleepFrom => 'Falls asleep';
-  @override
-  String get mascotSleepTo => 'Wakes up';
-  @override
-  String get mascotSleepOff => 'Never sleeps';
-  @override
-  String get mascotNightAwake => 'Awake at night — it is nocturnal';
-  @override
   String mascotSleepRange(String from, String to) => 'Sleeps from $from to $to';
   @override
   String mascotNightRange(String from, String to) => 'Glows from $from to $to';
-  @override
-  String get cycleTitle => 'Cycle';
 
   @override
   String cycleOf(String name) => '$name\'s cycle';
-  @override
-  String get cycleSettingsHint => 'calendar, forecast and partner access';
-  @override
-  String get cycleShareWithPartner => 'Show to partner';
-  @override
-  String get cycleShareHint => 'they will see marks and expected days';
-  @override
-  String get cycleWipe => 'Delete cycle data';
-  @override
-  String get cycleWipeHint => 'every mark and calculation, no way back';
-  @override
-  String get cycleWipeConfirm =>
-      'Delete all cycle marks? This cannot be undone.';
-  @override
-  String get cycleNoDataTitle => 'Mark your first days';
-  @override
-  String get cycleNoDataHint =>
-      'The forecast appears after two cycles in a row';
-  @override
-  String get cycleExpectedToday => 'Expected today';
   @override
   String cycleDaysLeft(int days) => 'In $days ${days == 1 ? 'day' : 'days'}';
   @override
@@ -8410,59 +3422,10 @@ class _EnStrings extends AppStrings {
   @override
   String cycleOverdue(int days) => '$days ${days == 1 ? 'day' : 'days'} late';
   @override
-  String get cycleOverdueHint => 'Mark the start and the forecast will update';
-  @override
-  String get cycleIrregularWarning =>
-      'The cycle is irregular, the forecast is rough';
-  @override
-  String get cycleMarkPeriod => 'Period';
-  @override
-  String get cycleMarkPeriodHint => 'this day counts towards the cycle';
-  @override
-  String get cycleMarkIntimacy => 'Sex';
-  @override
-  String get cycleMarkIntimacyHint => 'visible to both, no effect on forecast';
-  @override
-  String get cycleAnalyticsTitle => 'Statistics';
-  @override
   String cycleAnalyticsHint(int cycles) =>
       'over the last $cycles ${cycles == 1 ? 'cycle' : 'cycles'}';
   @override
-  String get cycleAverageLength => 'Average cycle length';
-  @override
-  String get cycleAveragePeriod => 'Average period length';
-  @override
-  String get cycleNextPeriod => 'Next period';
-  @override
-  String get cycleFertileWindow => 'Fertile window';
-  @override
   String cycleDaysValue(int days) => '$days ${days == 1 ? 'day' : 'days'}';
-  @override
-  String get cycleDaysUnit => 'days';
-  @override
-  String get cycleAverageShort => 'Average';
-  @override
-  String get cycleRangeShort => 'Range';
-  @override
-  String get cycleRegularity => 'Regularity';
-  @override
-  String get cycleRegularityOk => 'Steady';
-  @override
-  String get cycleRegularityLow => 'Uneven';
-  @override
-  String get cycleChartLengths => 'Length of recent cycles';
-  @override
-  String get cycleChartDurations => 'How long periods lasted';
-  @override
-  String get cycleLegendPeriod => 'period';
-  @override
-  String get cycleLegendPredicted => 'expected';
-  @override
-  String get cycleLegendOvulation => 'ovulation';
-  @override
-  String get cycleLegendFertile => 'fertile days';
-  @override
-  String get cycleLegendIntimacy => 'intimacy';
   @override
   List<String> get cycleWeekdayShorts => const [
     'Mo',
@@ -8504,49 +3467,6 @@ class _EnStrings extends AppStrings {
     'Dec',
   ];
   @override
-  String get cycleTipsTitle => 'How to feel better';
-  @override
-  String get cycleTipWarmTitle => 'Warmth on the belly';
-  @override
-  String get cycleTipWarmBody =>
-      'A heating pad or warm compress for 15–20 minutes relaxes the muscles. '
-      'Warm, not hot.';
-  @override
-  String get cycleTipFeetTitle => 'Keep your feet warm';
-  @override
-  String get cycleTipFeetBody =>
-      'Socks and a blanket. Cold feet make cramps feel stronger.';
-  @override
-  String get cycleTipPainTitle => 'Pain is not to be endured';
-  @override
-  String get cycleTipPainBody =>
-      'If it gets in the way, your usual painkiller helps. When every cycle '
-      'knocks you down, see a doctor.';
-  @override
-  String get cycleTipShowerTitle => 'Shower, not a bath';
-  @override
-  String get cycleTipShowerBody =>
-      'A quick warm shower. Wash in the morning, in the evening and after '
-      'every change.';
-  @override
-  String get cycleTipChangeTitle => 'Every 3–4 hours';
-  @override
-  String get cycleTipChangeBody =>
-      'Change the pad or tampon even if it feels early. Underwear — after '
-      'washing.';
-  @override
-  String get cycleTipIronTitle => 'Iron on your plate';
-  @override
-  String get cycleTipIronBody =>
-      'Buckwheat, pomegranate, liver, nuts, apples, dark chocolate: these '
-      'days take a lot of iron.';
-  @override
-  String get cycleTipRestTitle => 'You will get through it';
-  @override
-  String get cycleTipRestBody =>
-      'Your body is doing hard work right now. Resting today is help, '
-      'not laziness.';
-  @override
   String dayLogDate(DateTime day) =>
       '${cycleMonthsGenitive[day.month - 1]} ${day.day}';
   @override
@@ -8560,37 +3480,12 @@ class _EnStrings extends AppStrings {
     'Sunday',
   ][day.weekday - 1];
   @override
-  String get dayLogWhat => 'what to log?';
-  @override
-  String get dayLogNotMarked => 'not logged';
-  @override
-  String get dayLogTodayOnly => 'today only';
-  @override
-  String get cycleSheetHint => 'saved as soon as you tap';
-  @override
   String cyclePeriodDayLabel(int day) => 'period, day $day';
-  @override
-  String get cycleSexMarked => 'sex logged';
-  @override
-  String get drawLayers => 'Layers';
-  @override
-  String get drawLayerAdd => 'Add layer';
-  @override
-  String get drawLayerHide => 'Hide';
-  @override
-  String get drawLayerShow => 'Show';
-  @override
-  String get drawLayerDelete => 'Delete layer';
-  @override
-  String get drawLayerDeleteConfirm =>
-      'Delete the layer with everything drawn on it?';
   @override
   String drawLayerName(int index) => 'Layer $index';
   @override
   String drawLayerStrokes(int count) =>
       count == 0 ? 'empty' : '$count ${count == 1 ? 'stroke' : 'strokes'}';
-  @override
-  String get drawBackgrounds => 'Backgrounds';
   @override
   String drawBackgroundName(String id) => switch (id) {
     'plain' => 'Plain',
@@ -8608,92 +3503,8 @@ class _EnStrings extends AppStrings {
     _ => id,
   };
   @override
-  String get plusTitle => 'Togetherly+';
-  @override
-  String get plusHeroTitle => 'Pay once, keep it';
-  @override
-  String get plusHeroBody =>
-      'Not a subscription: pay once and it stays with your account on any '
-      'phone.';
-  @override
-  String get plusActiveTitle => 'Togetherly+ is yours';
-  @override
-  String get plusActiveBody => 'Thank you. Everything below is unlocked.';
-  @override
-  String get plusNoAdsTitle => 'No ads';
-  @override
-  String get plusNoAdsBody =>
-      'Banners disappear and watching together starts right away';
-  @override
-  String get plusWishesTitle => 'Your own wish categories';
-  @override
-  String get plusWishesBody =>
-      'Add a category with an icon of your choice to «Want with you»';
-  @override
-  String get plusColoringTitle => 'Your own coloring pages';
-  @override
-  String get plusColoringBody => 'Upload your picture and color it together';
-  @override
-  String get plusThemesTitle => 'All themes and icons';
-  @override
-  String get plusThemesBody => 'Every paid palette and profile icon at once';
-  @override
-  String get plusCycleTitle => 'Cycle calendar';
-  @override
-  String get plusCycleBody => 'Marks, forecast and statistics with charts';
-  @override
-  String get plusWidgetsTitle => 'New widgets';
-  @override
-  String get plusWidgetsBody =>
-      'Together, Miss you, Mood and Countdown in several sizes';
-  @override
-  String get plusTipsTitle => 'Tips and statistics';
-  @override
-  String get plusTipsBody =>
-      'What to do today and how your relationship changes in numbers';
-  @override
-  String get plusVideoTitle => 'Bigger videos';
-  @override
-  String get plusVideoBody =>
-      '200 MB for memories, 300 MB for watching together';
-  @override
-  String get plusBuy => 'Buy for \$10';
-  @override
-  String get plusHaveCode => 'I have a code';
-  @override
-  String get plusHowItWorks =>
-      'Pay with the email of your account and it unlocks itself. Used another '
-      'one? The @SnTAppsBot will give you a code.';
-  @override
-  String get plusPortableNote =>
-      'Access belongs to your account: change the phone and just sign in.';
-  @override
-  String get plusUnavailableHere =>
-      'Purchase is unavailable in this build. Access bought elsewhere still '
-      'works — just sign in.';
-  @override
-  String get plusStoreUnavailable => 'The store is unavailable. Try later.';
-  @override
   String memoryFileTooBig(int limitMb) =>
       'The file is over $limitMb MB — it will not upload';
-  @override
-  String get statsTitle => 'Couple stats';
-  @override
-  String get pickerDateTab => 'Date';
-  @override
-  String get pcTicketRoute => 'non-stop flight';
-  @override
-  String get pcNameTicket => 'Ticket';
-  @override
-  String get pcNameReceipt => 'Receipt';
-  @override
-  String get pcNameTelegram => 'Telegram';
-  @override
-  String get pcNameParcel => 'Parcel';
-  @override
-  String get pcMsgTicket => 'Boarding closed. No return tickets issued.';
-  @override
-  String get pcReceiptTotal => 'total';
   @override
   String pcReceiptShift(int days) => 'shift #$days';
   @override
@@ -8708,94 +3519,16 @@ class _EnStrings extends AppStrings {
   }
 
   @override
-  String get pcLabelReceiptItems => 'Receipt lines';
-  @override
-  String get pcMsgReceipt => 'thank you for your purchase · no refunds';
-  @override
-  String get pcTelegramTitle => 'telegram';
-  @override
-  String get pcMsgTelegram =>
-      'Love you stop\nWaiting home stop\nDo not be late excl';
-  @override
-  String get pcParcelCare => 'fragile · handle with care';
-  @override
-  String get pcParcelTo => 'to';
-  @override
   String pcMsgParcel(String from, int days) =>
       'From: ${from.isEmpty ? 'me' : from}\n'
       'Contents: $days days, all intact';
   @override
-  String get redeemCodeAlphabet =>
-      'The code has no zero, one, O or I — too easy to mix up';
-  @override
-  String get pickerTimeTab => 'Time';
-  @override
-  String get statsDaysTogether => 'days together';
-  @override
-  String get statsMemories => 'memories';
-  @override
-  String get statsDrawings => 'drawings';
-  @override
-  String get statsStreak => 'days in a row';
-  @override
-  String get statsXp => 'couple XP';
-  @override
-  String get statsMoodMonth => 'Mood over the month';
-  @override
-  String get statsMoodMine => 'Yours';
-  @override
-  String get statsMoodPartner => "Partner's";
-  @override
   String statsMoodMarks(int n) => 'Marks in 30 days: $n';
-  @override
-  String get statsTipsTitle => 'What to do today';
-  @override
-  String get statsEntryTitle => 'Couple stats';
-  @override
-  String get statsEntrySubtitle => 'Numbers, mood and tips';
-  @override
-  String get statsFullLink => 'See the full picture';
-  @override
-  String get statsFullLinkHint => 'Charts, comparisons and forecasts';
   @override
   String memoryFileTooBigPlusHint(int limitMb) =>
       'The file is over $limitMb MB. Togetherly+ doubles the cap';
   @override
-  String get plusPurchased => 'Togetherly+ is unlocked';
-  @override
-  String get plusPurchasePending =>
-      'The payment is processing — access will open by itself.';
-  @override
-  String get plusPurchaseFailed => "The purchase didn't go through";
-  @override
-  String get plusCodeHint => 'The code from the email or the bot.';
-  @override
-  String get plusCodeApply => 'Activate';
-  @override
-  String get plusCodeOk => 'Done, Togetherly+ unlocked';
-  @override
-  String get plusCodeFailed => 'That code did not work';
-  @override
-  String get plusLockedTipsTitle => 'Tips for today';
-  @override
-  String get plusLockedTipsBody =>
-      'We will suggest what to do — based on mood, dates and how long you have '
-      'been silent.';
-  @override
-  String get plusUnlock => 'Unlock with Togetherly+';
-  @override
-  String get chatBgSharedHint => 'free, both of you will see it';
-  @override
-  String get chatBgUploading => 'Uploading the background…';
-  @override
-  String get chatBgSharedDone => 'Background set — both of you see it now';
-  @override
-  String get exportTakesTime =>
-      'Packing your memories. You can cancel — nothing will be lost.';
-  @override
   String selectedCount(int n) => 'Selected $n';
-  @override
-  String get selectAll => 'All';
   @override
   String deleteCanvasesTitle(int n) =>
       n == 1 ? 'Delete canvas?' : 'Delete $n canvases?';
@@ -8804,151 +3537,30 @@ class _EnStrings extends AppStrings {
       ? 'The drawing disappears for both of you. This cannot be undone.'
       : 'The drawings disappear for both of you. This cannot be undone.';
   @override
-  String get chatStyleFace => 'Face';
-  @override
-  String get chatStyleBackground => 'Bubble';
-  @override
-  String get chatStyleTextColor => 'Text';
-  @override
-  String get chatStyleAuto => 'Auto';
-  @override
-  String get chatStyleTheme => 'Theme';
-  @override
-  String get chatBgTitle => 'Chat background';
-  @override
-  String get chatBgSet => 'Set your photo';
-  @override
-  String get chatBgChange => 'Change photo';
-  @override
-  String get chatBgRemove => 'Remove background';
-  @override
   String chatBgConfirmBody(int price) =>
       'Set your photo as the chat background for $price 🪙?\n\n'
       'Every future change also costs $price 🪙.';
   @override
-  String get chatBgCharged => 'Background updated';
-  @override
-  String get lockScreenMood => 'Lock Screen Mood';
-  @override
-  String get lockScreenMoodSubtitle => 'Mine & partner\'s on the lock screen';
-  @override
-  String get lockScreenMoodToggle => 'Show on lock screen';
-  @override
-  String get lockScreenMoodToggleSub =>
-      'Mood is displayed when phone is locked';
-  @override
-  String get lockScreenMoodNoMood => 'No mood set';
-  @override
-  String get lockScreenMoodSetHint => 'Set mood in the mood calendar';
-  @override
-  String get photoGridWidget => 'Photo Grid';
-  @override
-  String get photoGridWidgetSubtitle => 'Multiple photos from memories';
-  @override
-  String get photoGridCount => 'Number of photos';
-  @override
-  String get photoGridSelectPhotos => 'Select photos';
-  @override
-  String get photoGridAddPhoto => 'Add photo';
-  @override
-  String get photoGridCountLabel => 'photos on widget';
-  @override
-  String get goToPin => 'Go to memory';
-  @override
-  String get openPhotoGallery => 'Photo gallery';
-  @override
-  String get allMediaGallery => 'All photos & videos';
-  @override
-  String get loadMore => 'Load more';
-  @override
-  String get previewLabel => 'Preview';
-  @override
-  String get photoSent => 'Photo sent';
-  @override
-  String get partnerFallback => 'partner';
-  @override
-  String get captionDestMemories => 'Memories';
-  @override
-  String get captionDestMemoriesSub => 'Add the photo to the memory lane';
-  @override
-  String get captionDestPairWidget => 'Pair widget';
-  @override
   String captionDestPairWidgetSub(String partner) =>
       'Photo in "My widget" — visible to you and $partner';
   @override
-  String get captionDestPartnerWidget => 'Partner photo widget';
-  @override
   String captionDestPartnerWidgetSub(String partner) =>
       'A separate widget with a photo for $partner';
-  @override
-  String get groupMascot => 'Group mascot';
-  @override
-  String get tapForGallery => 'Tap to open gallery';
-  @override
-  String get selectMascot => 'Choose a mascot';
-  @override
-  String get showLabel => 'Show';
   @override
   String streakLabel(int days) => 'Streak: $days ${days == 1 ? 'day' : 'days'}';
 
   // ── Widget screen ──
   @override
-  String get widgetStreakTitle => 'Couple streak';
-  @override
-  String get widgetStreakSubtitle =>
-      'How many days in a row you both open the app';
-  @override
-  String get widgetPetalTimerTitle => 'Petal timer';
-  @override
-  String get widgetPetalTimerSubtitle =>
-      'A living dial — years, months, days, h, min, sec';
-  @override
-  String get widgetPhotoTitle => 'Photo widget';
-  @override
-  String get widgetPhotoSubtitle =>
-      'Personal carousel: 1–10 photos with auto-rotation';
-  @override
-  String get streakTogetherCaps => 'STREAK TOGETHER';
-  @override
-  String get daysInARow => 'days in a row';
-  @override
-  String get keepItUp => 'Keep it up!';
-  @override
-  String get ourPhotosInsteadOfDrawing => 'Our photos instead of the drawing';
-  @override
-  String get daysPhotosDescription =>
-      'Replace the drawn couple with your real avatars — '
-      'in the preview and on the home screen widget.';
-  @override
   String unlockForCoins(int price) => 'Unlock — $price 🪙';
-  @override
-  String get showOurPhotos => 'Show our photos';
-  @override
-  String get partnerNoProfilePhoto =>
-      'Your partner has no profile photo — ask them to add one.';
-  @override
-  String get addYourProfilePhoto =>
-      'Add your profile photo so it appears on the widget.';
   @override
   String notEnoughCoinsNeed(int price) =>
       'Not enough coins — you need $price 🪙';
-  @override
-  String get daysPhotosDone => 'Done! Your photos are on the widget 💞';
-  @override
-  String get purchaseFailedTryLater => 'Purchase failed — try again later';
   @override
   String personalPhotosHelp(String partner) =>
       'Personal photos — 1 to 10 per widget. With two or more photos a '
       'carousel turns on: it changes on unlock or by timer.\n\nThese photos '
       'are visible only to you. To share with $partner, open “Partner photo” → '
       '“Choose photos for partner”.';
-  @override
-  String get personalPhotosHelpShort =>
-      'Personal photos — 1 to 10 per widget. With two or more photos a '
-      'carousel turns on: it changes on unlock or by timer.';
-  @override
-  String get uploadedPhotosToMemoryLane =>
-      'Uploaded photos will be added to the memory lane';
   @override
   String partnerSharesPhotosHelp(String partner, int count) =>
       'This widget shows photos shared by $partner '
@@ -8959,22 +3571,10 @@ class _EnStrings extends AppStrings {
       '$partner needs to open “Partner photo” and tap “Choose photos for '
       'partner” — the regular “Photo widget” is visible only to its owner.';
   @override
-  String get selectPhotosForPartner => 'Choose photos for partner';
-  @override
   String youSharePhotosWithPartner(String partner, int count) =>
       '$partner sees $count of your ${photosUnit(count)}';
   @override
-  String get stopSharingPhotos => 'Stop sharing';
-  @override
-  String get photosForPartnerRemoved => 'Photos removed from partner’s widget';
-  @override
   String photosUnit(int n) => n == 1 ? 'photo' : 'photos';
-  @override
-  String get noPhotosFromPartner => 'No photos from partner';
-  @override
-  String get noPhotosAdded => 'No photos added';
-  @override
-  String get onePhotoNoCarousel => '1 photo · no carousel';
   @override
   String photoCountOnUnlock(int count) => '$count photos · on unlock';
   @override
@@ -8997,470 +3597,71 @@ class _EnStrings extends AppStrings {
   }
 
   @override
-  String get partnerPhotoTitle => 'Partner photo';
-  @override
   String partnerSharedCountHelp(int count) =>
       'Your partner shared $count photos — choose how they rotate on this '
       'widget.';
-  @override
-  String get partnerSharedOnePhoto =>
-      'Your partner shared 1 photo — no carousel.';
-  @override
-  String get partnerNotSharedYet =>
-      'Your partner hasn’t shared any photos yet.';
-  @override
-  String get changePhotosLabel => 'Change photos:';
-  @override
-  String get onUnlockOption => 'On unlock';
-  @override
-  String get byTimeOption => 'By time';
-  @override
-  String get every15Minutes => 'Every 15 minutes';
-  @override
-  String get every30Minutes => 'Every 30 minutes';
-  @override
-  String get everyHourOption => 'Every hour';
-  @override
-  String get every3HoursOption => 'Every 3 hours';
-  @override
-  String get createPostcardTitle => 'Create a postcard';
-  @override
-  String get createPostcardSubtitle =>
-      'How long you’ve been together — beautifully and with style';
-  @override
-  String get whereToSendPhoto => 'Where to send the photo?';
-  @override
-  String get sendLabel => 'Send';
-  @override
-  String get widgetPhotoCaption => 'From widget';
 
   // ── Mascot gallery ──
-  @override
-  String get mascotSaveFailed =>
-      'Couldn’t save the mascot. Check your connection.';
-  @override
-  String get mascotLoadFailed => 'Couldn’t load. Check your connection.';
-  @override
-  String get transparentBgTitle => 'Transparent background required';
-  @override
-  String get transparentBgBody =>
-      'The mascot is shown without a background, so upload a PNG file with '
-      'transparency.\n\nRemove the background beforehand — for example with '
-      'remove.bg, Photoshop or Canva.';
-  @override
-  String get mascotNameTitle => 'Mascot name';
-  @override
-  String get enterNameHint => 'Enter a name';
-  @override
-  String get mascotLimitReached =>
-      'Limit reached. Delete a mascot from the gallery.';
   @override
   String mascotDeactivated(String name) => '$name deactivated';
   @override
   String mascotActivated(String name) => '$name is now active';
-  @override
-  String get rename => 'Rename';
-  @override
-  String get deleteMascotTitle => 'Delete mascot?';
   @override
   String deleteMascotBody(String name) =>
       '“$name” will be deleted permanently.';
   @override
   String recordStreakDays(int days) => 'Record: $days d.';
   @override
-  String get deactivateLabel => 'Deactivate';
-  @override
-  String get makeActiveLabel => 'Make active';
-  @override
-  String get editLabel => 'Edit';
-  @override
-  String get exportPng => 'Export PNG';
-  @override
-  String get groupMascots => 'Group mascots';
-  @override
   String mascotsCount(int count, int max) => '$count / $max mascots';
-  @override
-  String get limitLabel => 'Limit';
-  @override
-  String get mascotsLoadFailedMultiline =>
-      'Mascots didn’t load.\nCheck your connection.';
-  @override
-  String get artistCredit => 'Artist — Meller1';
-  @override
-  String get uploadPhotoTooltip => 'Upload photo';
-  @override
-  String get drawLabel => 'Draw';
-  @override
-  String get streakBroken => 'Streak broken';
-  @override
-  String get streakKeepHint => 'Open the app every day to keep your streak';
-  @override
-  String get streakStartHint => 'Open the app today to start a new streak';
-  @override
-  String get fromUs => 'From us';
   @override
   String recordStreakBadge(int days) => '$days d.';
 
   // ── Mascot draw screen ──
   @override
-  String get drawSomethingFirst => 'Draw something first';
-  @override
   String genericError(String e) => 'Error: $e';
-  @override
-  String get drawMascotTitle => 'Draw a mascot';
-  @override
-  String get toolBrush => 'Brush';
-  @override
-  String get toolPencil => 'Pencil';
-  @override
-  String get toolMarker => 'Marker';
-  @override
-  String get toolEraser => 'Eraser';
-  @override
-  String get toolFill => 'Fill';
-  @override
-  String get toolLine => 'Line';
-  @override
-  String get toolRect => 'Rect.';
-  @override
-  String get toolCircle => 'Circle';
-  @override
-  String get toolTriangle => 'Triangle';
-  @override
-  String get fillAction => 'Fill';
-  @override
-  String get resetSize => 'Reset size';
-  @override
-  String get undoLabel => 'Undo';
-  @override
-  String get redoLabel => 'Redo';
-  @override
-  String get underlayLabel => 'Underlay';
-  @override
-  String get drawHintEdit =>
-      'Double tap — reset view  •  2 fingers — zoom/rotate';
-  @override
-  String get drawHintDraw =>
-      'Two fingers quickly — undo  •  Double tap — reset view';
-  @override
-  String get colorLabel => 'Color';
-  @override
-  String get coloringOwnAdd => 'My picture';
-  @override
-  String get coloringOwnProcessing => 'preparing';
-  @override
-  String get coloringOwnDefaultName => 'My picture';
-  @override
-  String get coloringTitle => 'Colour it together';
-  @override
-  String get coloringSubtitle => 'One half each';
-  @override
-  String get coloringModeSurprise => 'Surprise';
-  @override
-  String get coloringModeTogether => 'Together';
-  @override
-  String get coloringModeSurpriseHint =>
-      'Your partner\u2019s half opens once you both tap Done';
-  @override
-  String get coloringModeTogetherHint =>
-      'You see your partner colouring their half';
-  @override
-  String get coloringOtherHalf => 'This half belongs to your partner';
-  @override
-  String get coloringMyHalf => 'your half';
-  @override
-  String get coloringPartnerHalfHidden =>
-      'Partner\u2019s half\nopens at the end';
   @override
   String coloringPartnerColoring(String name) => '$name is colouring';
   @override
-  String get coloringDoneBtn => 'Done';
-  @override
-  String get coloringNotDoneBtn => 'Back to colouring';
-  @override
-  String get coloringWaitingTitle => 'You are done';
-  @override
   String coloringWaitingHint(String name) =>
       'we will open it as soon as $name taps Done';
-  @override
-  String get coloringRevealTitle => 'Done together';
-  @override
-  String get coloringShare => 'Share';
-  @override
-  String get coloringSave => 'Save';
-  @override
-  String get coloringToMemories => 'To memories';
-  @override
-  String get coloringSaved => 'Saved to your gallery';
-  @override
-  String get coloringNew => 'Colouring';
-  @override
-  String get eyedropper => 'Eyedropper';
-  @override
-  String get eyedropperHint => 'Tap the drawing to pick a colour';
-  @override
-  String get recentColors => 'Recent';
-  @override
-  String get customColor => 'Custom colour';
-  @override
-  String get hueLabel => 'Hue';
-  @override
-  String get saturationLabel => 'Sat.';
-  @override
-  String get brightnessLabel => 'Brightness';
-  @override
-  String get selectAction => 'Select';
 
   // ── Postcard templates ──
-  @override
-  String get pcNamesFallback => 'Together';
-  @override
-  String get pcLabelNames => 'Names';
-  @override
-  String get pcLabelDaysCaption => 'Number caption';
-  @override
-  String get pcLabelMessage => 'Message';
-  @override
-  String get pcLabelCaption => 'Caption';
-  @override
-  String get pcLabelPolaroidCaption => 'Polaroid caption';
-  @override
-  String get pcLabelMessageAlt => 'Message';
-  @override
-  String get pcDaysTogether => 'days together';
-  @override
-  String get pcMsgTogether => 'Every day with you is a gift ❤️';
-  @override
-  String get pcDaysOfLove => 'days of love';
-  @override
-  String get pcMsgPolaroid => 'Our moment ✨';
-  @override
-  String get pcDaysNearby => 'days side by side';
-  @override
-  String get pcMsgBloom => 'You’re my favorite adventure 🌸';
-  @override
-  String get pcNightsUnderSky => 'nights under one sky';
-  @override
-  String get pcMsgNightSky => 'You’re my star ✨';
 
   // ── Photo carousel editor ──
   @override
-  String get addOneToTenPhotos => 'Add 1 to 10 photos';
-  @override
   String photoCountCarousel(int count) => '$count photos · carousel';
-  @override
-  String get addMorePhotosCarouselHint =>
-      'Add more photos to enable the carousel — photos will rotate '
-      'automatically.';
-  @override
-  String get dragToReorder => 'Hold and drag to reorder';
   @override
   String photoNumber(int n) => 'Photo $n';
   @override
-  String get mainPhoto => 'Main';
-  @override
   String positionNumber(int n) => 'Position $n';
-  @override
-  String get addMore => 'Add more';
-  @override
-  String get fromDevice => 'From device';
-  @override
-  String get fromFeed => 'From feed';
 
   // ── Profile screen ──
   @override
-  String get cropAvatarTitle => '✂️  Crop avatar';
-  @override
-  String get avatarTitle => 'Avatar';
-  @override
-  String get appIconTitle => 'App icon';
-  @override
-  String get appIconUpdateHint =>
-      'The home-screen icon may take a couple of seconds to refresh.';
-  @override
-  String get appIconChangeFailed => 'Could not change the icon';
-  @override
-  String get viewAction => 'View';
-  @override
-  String get enterDateFormat => 'Enter the date as DD.MM.YYYY';
-  @override
   String yearRange(int first, int last) => 'Year from $first to $last';
   @override
-  String get enterTimeFormat => 'Time must be in HH:MM format';
-  @override
-  String get dateHintFormat => 'DD.MM.YYYY';
-  @override
-  String get timeHintFormat => 'HH:MM';
-  @override
-  String get openCalendar => 'Open calendar';
-  @override
-  String get refreshTooltip => 'Refresh';
-  @override
-  String get memoriesMapTooltip => 'Memories map';
-  @override
   String kpRating(String rating) => 'KP $rating';
-  @override
-  String get editLocation => 'Edit location';
-  @override
-  String get addLocation => 'Add location';
-  @override
-  String get photoVideoNote => 'Photo / Video / Note';
   @override
   String distanceLabel(double meters) => meters < 1000
       ? '${meters.round()} m'
       : '${(meters / 1000).toStringAsFixed(1)} km';
   @override
-  String get appNotInstalled => 'App not installed';
-  @override
-  String get watchTogether => 'Watch together';
-  @override
   String watchWithPartner(String name) => 'Watch with $name';
   @override
-  String get watchRoomOpensForBoth => 'The room opens for both of you';
-  @override
-  String get watchAfterShortAd => 'after a short ad';
-  @override
-  String get watchOpenOnSite => 'Open on the website';
-  @override
-  String get watchOnSiteHint => 'If a computer is more convenient';
-  @override
-  String get watchPartnerInBrowser => 'Partner watching in a browser?';
-  @override
-  String get watchRecent => 'Recent';
-  @override
-  String get watchOurVideos => 'Our videos';
-  @override
   String watchVideoAdd(int mb) => 'Upload up to $mb MB';
-  @override
-  String get watchVideoUploading => 'Uploading…';
   @override
   String watchVideoTooBig(int mb) =>
       'The video is over $mb MB: compress it or pick a shorter one';
   @override
-  String get watchVideoFormatUnsupported =>
-      'That format will not play together. Use MP4, MOV or WebM';
-  @override
-  String get watchPickFileAgain =>
-      'That is a file from your phone: pick it inside the room';
-  @override
-  String get watchHeroTitle => 'One movie for two';
-  @override
-  String get watchHeroText => 'One pauses, it pauses for both. Chat alongside.';
-  @override
-  String get linkCopied => 'Link copied';
-  @override
-  String get copyLink => 'Copy link';
-  @override
-  String get watchTogetherAdPrompt =>
-      'To open watch together, watch a short ad — '
-      'support the app and earn coins 🪙';
-  @override
-  String get watchAction => 'Watch';
-  @override
-  String get youtubeLinkHint => 'YouTube link';
-  @override
-  String get startAction => 'Start';
-  @override
-  String get youtubeLinkInvalid => 'Could not recognize the YouTube link';
-  @override
   String invitesToWatchTogether(String hostName) =>
       '$hostName invites you to watch together';
   @override
-  String get joinAction => 'Join';
-  @override
-  String get partnerEndedWatchTogether => 'Partner ended the watch session';
-  @override
-  String get videoCannotWatchTogether =>
-      'This video can\'t be watched together';
-  @override
-  String get videoEmbedBlockedHint =>
-      'This video can\'t be embedded: the author disabled playback outside '
-      'YouTube, or it has an age/region restriction. If it fails on just one '
-      'phone, update "Android System WebView" and Chrome from Google Play on '
-      'that device. You can open it on YouTube directly or pick another — '
-      'most of them work.';
-  @override
-  String get chooseAnother => 'Choose another';
-  @override
-  String get openOnYoutube => 'Open on YouTube';
-  @override
-  String get watchingTogether => 'Watching together';
-  @override
-  String get partnerJoined => 'Partner joined';
-  @override
-  String get waitingForPartner => 'Waiting for partner…';
-  @override
-  String get syncedPlaying => 'Synced · playing';
-  @override
-  String get syncedPaused => 'Synced · paused';
-  @override
-  String get writeFirstMessage => 'Write the first message 💬';
-  @override
-  String get messageInputHint => 'Message…';
-  @override
-  String get selectOnePhoto => 'Select 1 photo';
-  @override
-  String get maxSelected => 'Maximum selected';
-  @override
   String selectUpToPhotos(int n) => 'Select up to $n ${photosUnit(n)}';
-  @override
-  String get selectPhotosPrompt => 'Select photos';
   @override
   String addWithCount(int n) => 'Add ($n)';
   @override
-  String get failedToLoadMemories => 'Failed to load memories';
-  @override
-  String get noPhotosInMemoryLane => 'No photos in Memory Lane';
-  @override
-  String get inWidget => 'On widget';
-  @override
-  String get postcardTitle => 'Postcard';
-  @override
   String failedToSave(Object e) => 'Failed to save: $e';
   @override
-  String get changePhoto => 'Change photo';
-  @override
-  String get addPhotoFromGallery => 'Add photo from gallery';
-  @override
-  String get tapAnyTextToEdit => 'Tap any text to edit';
-  @override
-  String get creating => 'Creating...';
-  @override
-  String get sharePostcard => 'Share postcard';
-  @override
-  String get noGeoMemories => 'No memories with location';
-  @override
-  String get addLocationHint => 'Add a place to a memory\nwith a long press';
-  @override
-  String get placeFallback => 'Place';
-  @override
-  String get welcomeSlide1Title => 'Just for\nthe two of you';
-  @override
-  String get welcomeSlide2Title => 'Photos &\nmemories';
-  @override
-  String get welcomeSlide3Title => 'Your shared\nworld';
-  @override
-  String get newEntry => 'New entry';
-  @override
-  String get photoVideo => 'Photo/Video';
-  @override
-  String get cropPhotoAction => 'Crop';
-  @override
-  String get cropPhotoHint => 'Tap a photo to crop it';
-  @override
-  String get optionalTapToSelect => 'Optional — tap to select';
-  @override
   String itemsShort(int n) => '$n items';
-  @override
-  String get dragHint => 'drag';
-  @override
-  String get addPhoto => 'Add photo';
-  @override
-  String get groupMascotBanner => 'This is your group mascot! 🎉';
-  @override
-  String get goToGallery => 'Go to gallery';
-  @override
-  String get hide => 'Hide';
   @override
   String coinsPlus(int n) => '+$n ${n == 1 ? 'coin' : 'coins'}';
   @override
@@ -9482,143 +3683,31 @@ class _EnStrings extends AppStrings {
     'Dec',
   ];
   @override
-  String get placeOrCoordsHint => 'Place or 55.751, 37.618';
-  @override
-  String get goToCoordinates => 'Go to coordinates';
-  @override
-  String get chatBgSaveFailed => 'Failed to save background';
-  @override
-  String get timeFormatHint => 'hh:mm';
-  @override
-  String get bookTitleLanguageHint =>
-      'Title may be in English — feel free to edit';
-  @override
   String memoriesUnit(int n) => n == 1 ? 'memory' : 'memories';
 
   // ── Live location map ──
   @override
-  String get liveMapTitle => 'Where we are';
-  @override
-  String get liveMapEnableCta => 'Share my location';
-  @override
-  String get liveMapEnableHint =>
-      'Turn on to see each other on the map in real time';
-  @override
-  String get liveMapPermissionDenied =>
-      'Location access denied. Enable it in your phone settings.';
-  @override
-  String get liveMapWaitingPartner => 'Waiting for partner\'s location…';
-  @override
-  String get liveMapYou => 'You';
-  @override
-  String get liveMapCenterMe => 'Center on me';
-  @override
-  String get liveMapShowBoth => 'Show both';
-  @override
-  String get liveMapOpenFull => 'Open map';
-  @override
-  String get liveMapNotPaired => 'Connect a partner to see the map';
-  @override
-  String get liveMapStopCta => 'Stop sharing';
-  @override
-  String get liveMapStopped => 'Location sharing off';
-  @override
-  String get liveLocationServiceTitle => 'Location sharing on';
-  @override
-  String get liveLocationServiceText =>
-      'Your partner can see you on the “Where we are” map';
-  @override
-  String get liveLocationJustNow => 'just now';
-  @override
   String liveLocationAgo(String value) => '$value ago';
-  @override
-  String get unitCm => 'cm';
-  @override
-  String get unitM => 'm';
-  @override
-  String get unitKm => 'km';
-  @override
-  String get unitMinShort => 'min';
-  @override
-  String get unitHourShort => 'h';
-  @override
-  String get unitDayShort => 'd';
 
   // Receiving a gift
   @override
   String giftFromPartner(String name) => 'A gift from $name';
   @override
-  String get giftAccepted => 'Accepted 💛';
-  @override
   String giftBunnyMisses(int misses) =>
       misses == 1 ? 'It slipped away!' : 'Slipped again, catch it!';
   @override
-  String get giftIncomingTitle => 'A gift for you';
-  @override
   String giftIncomingCount(int n) => n == 1 ? 'is waiting' : '$n are waiting';
-  @override
-  String get giftNoteHint => 'Add a note (optional)';
-  @override
-  String get giftNoteSkip => 'No note';
-  @override
-  String get giftNoteSend => 'Send';
-  @override
-  String get giftWishHint => 'Make a wish';
-  @override
-  String get giftWishSend => 'Wish';
-  @override
-  String get giftWishEmpty => 'Write your wish first';
   @override
   String giftMutualBonus(int coins) => 'Right on time: $coins each';
   @override
   String giftSunriseGreeting(String name) =>
       'Good morning! $name sent you a sunrise';
   @override
-  String get supportTitle => 'Contact support';
-  @override
   String supportCopied(String email) => 'Address copied: $email';
   @override
-  String get redeemCodeTitle => 'I have a code';
-  @override
-  String get redeemCodeSubtitle => 'Top up via Telegram bot';
-  @override
-  String get redeemCodeHint =>
-      'The bot sends the code after payment. Spaces and case do not matter.';
-  @override
-  String get redeemCodeApply => 'Apply';
-  @override
   String redeemCodeDone(int coins) => '$coins coins added';
-  @override
-  String get redeemCodeAlready => 'This code was already used';
-  @override
-  String get redeemCodeFailed => 'Code did not work. Check it and try again';
-  @override
-  String get giftAccept => 'Accept';
-  @override
-  String get giftDecline => 'Not now';
-  @override
-  String get giftFlipCoin => 'Flip a coin';
-  @override
-  String get giftFlipYou => 'You order 🍕';
-  @override
-  String get giftFlipPartner => 'Partner orders 🍕';
 
   // Partner profile
-  @override
-  String get partnerGiftsTitle => 'Gifts received';
-  @override
-  String get partnerGiftsEmpty => 'No gifts yet. Good moment to start.';
-  @override
-  String get partnerMissTitle => 'Misses you on';
-  @override
-  String get partnerMissEmpty =>
-      'Stats start with this update — come back in a week.';
-  @override
-  String get selfGiftsTitle => 'Gifts you received';
-  @override
-  String get selfMissTitle => 'When you miss them';
-  @override
-  String get openPartnerProfile => "Open partner's profile";
   @override
   String partnerGiftsChip(int count) => '$count';
   @override
@@ -9645,14 +3734,22 @@ class _EnStrings extends AppStrings {
   // Gifts
   @override
   String giftPushBody(String giftName) => 'Sent you a gift: $giftName';
-  @override
-  String get giftShopTitle => 'Gifts';
-  @override
-  String get giftSent => 'Gift sent';
-  @override
-  String get giftNotEnoughCoins => 'Not enough coins';
-  @override
-  String get giftNoConnection => 'No connection';
-  @override
-  String get giftFailed => 'Could not send';
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ЯЗЫКИ БЕЗ СВОЕЙ РЕАЛИЗАЦИИ
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// Простые строки эти языки берут из словаря по своему коду — там перевод и
+// живёт. Наследуют они английский, потому что кроме словаря в классе остаётся
+// то, что словарём не выражается: методы с числительными и списки месяцев и
+// дней недели. Пока их не перевели, немец увидит английское «3 days» и
+// «January» — надпись на месте, экран цел.
+//
+// Перевести числительные для языка значит переопределить здесь его методы; до
+// тех порядок такой: словарь наполняется первым, он закрывает 1419 строк из
+// 1600.
+
+
+
+

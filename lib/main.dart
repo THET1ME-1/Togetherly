@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_displaymode/flutter_displaymode.dart';
 import 'package:flutter/services.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
@@ -138,7 +139,8 @@ Future<void> _homeWidgetBackgroundCallback(Uri? uri) async {
       await PocketBaseService().init();
       final uid = PocketBaseService().userId ?? '';
       if (uid.isEmpty) return;
-      final groupId = uri.queryParameters['group']?.trim() ??
+      final groupId =
+          uri.queryParameters['group']?.trim() ??
           await HomeWidget.getWidgetData<String>('miss_latest_group') ??
           '';
       if (groupId.isEmpty || groupId == 'solo') return;
@@ -146,11 +148,15 @@ Future<void> _homeWidgetBackgroundCallback(Uri? uri) async {
       // local=1 — виджет уже посчитал отправку сам, чтобы кнопка отзывалась
       // мгновенно. Прибавлять второй раз нельзя.
       final countedLocally = uri.queryParameters['local'] == '1';
-      await HomeWidgetService.instance
-          .markMissSentFromWidget(groupId, alreadyCounted: countedLocally);
+      await HomeWidgetService.instance.markMissSentFromWidget(
+        groupId,
+        alreadyCounted: countedLocally,
+      );
       // Долг закрыт — снимаем отметку, чтобы приложение не отправило повторно.
       await HomeWidget.saveWidgetData<String>(
-          'miss_${groupId}_pending_send', '0');
+        'miss_${groupId}_pending_send',
+        '0',
+      );
     } catch (e) {
       debugPrint('miss from widget failed: $e');
     }
@@ -163,7 +169,8 @@ Future<void> _homeWidgetBackgroundCallback(Uri? uri) async {
     try {
       await PocketBaseService().init();
       if ((PocketBaseService().userId ?? '').isEmpty) return;
-      final groupId = uri.queryParameters['group']?.trim() ??
+      final groupId =
+          uri.queryParameters['group']?.trim() ??
           await HomeWidget.getWidgetData<String>('note_latest_group') ??
           '';
       if (groupId.isEmpty || groupId == 'solo') return;
@@ -185,12 +192,15 @@ Future<void> _homeWidgetBackgroundCallback(Uri? uri) async {
       if (moodId.isEmpty) return;
       await PocketBaseService().init();
       if ((PocketBaseService().userId ?? '').isEmpty) return;
-      final groupId = uri.queryParameters['group']?.trim() ??
+      final groupId =
+          uri.queryParameters['group']?.trim() ??
           await HomeWidget.getWidgetData<String>('tgmood_latest_group') ??
           '';
       if (groupId.isEmpty || groupId == 'solo') return;
-      await HomeWidgetService.instance
-          .applyMoodFromWidget(groupId: groupId, moodId: moodId);
+      await HomeWidgetService.instance.applyMoodFromWidget(
+        groupId: groupId,
+        moodId: moodId,
+      );
     } catch (e) {
       debugPrint('mood from widget failed: $e');
     }
@@ -214,8 +224,11 @@ Future<void> _homeWidgetBackgroundCallback(Uri? uri) async {
 
     // Единый источник логики обновления парного виджета из PB (та же, что в
     // изоляте foreground-сервиса PushBackgroundService).
-    await HomeWidgetService.instance
-        .refreshLoveWidgetFromServer(groupId, myUid, partnerUid);
+    await HomeWidgetService.instance.refreshLoveWidgetFromServer(
+      groupId,
+      myUid,
+      partnerUid,
+    );
   } catch (e) {
     debugPrint('_homeWidgetBackgroundCallback failed: $e');
   }
@@ -291,8 +304,7 @@ void main() async {
     // приложения, а они тонной забивали панель и топили реальные краши.
     options.beforeSend = (event, hint) {
       final t = event.throwable;
-      if (t != null &&
-          (isCrashNoise(t))) {
+      if (t != null && (isCrashNoise(t))) {
         return null; // выбросить событие
       }
       return event;
@@ -303,7 +315,9 @@ void main() async {
   );
   FlutterError.onError = (FlutterErrorDetails details) {
     FlutterError.presentError(details);
-    unawaited(Sentry.captureException(details.exception, stackTrace: details.stack));
+    unawaited(
+      Sentry.captureException(details.exception, stackTrace: details.stack),
+    );
   };
   WidgetsBinding.instance.platformDispatcher.onError = (error, stack) {
     // Возвращаем true → приложение НЕ падает, выполнение продолжается. Часть
@@ -311,12 +325,14 @@ void main() async {
     // крашами не являются: помечаем их level=warning, остальное — fatal, чтобы
     // не завышать счётчик падений.
     final fatal = !isBenignBackgroundError(error);
-    unawaited(Sentry.captureException(
-      error,
-      stackTrace: stack,
-      withScope: (scope) =>
-          scope.level = fatal ? SentryLevel.fatal : SentryLevel.warning,
-    ));
+    unawaited(
+      Sentry.captureException(
+        error,
+        stackTrace: stack,
+        withScope: (scope) =>
+            scope.level = fatal ? SentryLevel.fatal : SentryLevel.warning,
+      ),
+    );
     return true;
   };
 
@@ -428,17 +444,19 @@ void main() async {
   // списаны, роут начисления не вызван. Здесь слушатель живёт столько же,
   // сколько приложение, и зависшая покупка доезжает при следующем запуске.
   if (kCoinsPurchasable) {
-    unawaited(sharedCoinStore.init(
-      onGrantCoins: ({
-        required String productId,
-        required String purchaseToken,
-      }) async {
-        final res = await PbCoinsService()
-            .iapPurchase(productId: productId, purchaseToken: purchaseToken);
-        if (res == null || res['ok'] != true) return null;
-        return (res['coins'] as num?)?.toInt() ?? 0;
-      },
-    ));
+    unawaited(
+      sharedCoinStore.init(
+        onGrantCoins:
+            ({required String productId, required String purchaseToken}) async {
+              final res = await PbCoinsService().iapPurchase(
+                productId: productId,
+                purchaseToken: purchaseToken,
+              );
+              if (res == null || res['ok'] != true) return null;
+              return (res['coins'] as num?)?.toInt() ?? 0;
+            },
+      ),
+    );
   }
 
   // Synchronise Flutter's window with MainActivity's setDecorFitsSystemWindows(false).
@@ -492,8 +510,12 @@ class _LoveAppState extends State<LoveApp> with WidgetsBindingObserver {
   ThemeData _themeFor(AppTheme appTheme) {
     // Кэш по подписи, а не по индексу: режим/вариант/AMOLED меняют тему при том
     // же индексе, иначе меню осталось бы в старом стиле.
-    final sig = Object.hash(appTheme.index, appTheme.brightness,
-        appTheme.primary, appTheme.cardSurface);
+    final sig = Object.hash(
+      appTheme.index,
+      appTheme.brightness,
+      appTheme.primary,
+      appTheme.cardSurface,
+    );
     if (_lastTheme == null || _lastThemeSig != sig) {
       _lastThemeSig = sig;
       _lastTheme = _buildTheme(appTheme, _userData.themeFlavor);
@@ -520,8 +542,9 @@ class _LoveAppState extends State<LoveApp> with WidgetsBindingObserver {
     final menuSurface = appTheme.cardSurface;
     final titleColor = appTheme.textPrimary;
     final bodyColor = appTheme.textSecondary;
-    final scaffoldBg =
-        isDark ? appTheme.bgGradient.last : const Color(0xFFF7F3F0);
+    final scaffoldBg = isDark
+        ? appTheme.bgGradient.last
+        : const Color(0xFFF7F3F0);
 
     // База — M3-тема профиля (шрифты Unbounded/Onest, кнопки-пилюли, тональные
     // карточки радиусом 22) на всё приложение. Поверх — меню/диалоги/шиты в тех
@@ -737,6 +760,15 @@ class _LoveAppState extends State<LoveApp> with WidgetsBindingObserver {
         debugShowCheckedModeBanner: false,
         navigatorKey: LoveApp.rootNavigatorKey,
         theme: _themeFor(_userData.theme),
+        // Локаль задаём сами, а не отдаём системе: язык интерфейса — выбор
+        // человека в настройках, и системные диалоги обязаны идти за ним.
+        locale: Locale(LocaleService.instance.language.code),
+        supportedLocales: LocaleService.supportedLocales,
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
         navigatorObservers: [AnalyticsService.instance.observer],
         // Глобальная плашка «офлайн / ожидает синхронизации» поверх любого экрана.
         builder: (context, child) => ThemeScope(

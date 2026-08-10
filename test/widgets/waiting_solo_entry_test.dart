@@ -15,8 +15,9 @@ import 'package:flutter_test/flutter_test.dart';
 /// сервис жил, вход пропал, и жалоба звучала как «выбор удалили».
 void main() {
   test('экран приглашения открывает лист второго места', () {
-    final source =
-        File('lib/screens/invite_partner_screen.dart').readAsStringSync();
+    final source = File(
+      'lib/screens/invite_partner_screen.dart',
+    ).readAsStringSync();
 
     expect(
       source.contains('WaitingSetupSheet.show('),
@@ -31,8 +32,9 @@ void main() {
   });
 
   test('в листе есть развилка «знаю кого / пока не знаю»', () {
-    final source =
-        File('lib/widgets/waiting/waiting_setup_sheet.dart').readAsStringSync();
+    final source = File(
+      'lib/widgets/waiting/waiting_setup_sheet.dart',
+    ).readAsStringSync();
 
     for (final key in [
       'waitingKnowWho',
@@ -55,8 +57,15 @@ void main() {
     );
   });
 
-  test('обе локали знают строки второго места', () {
-    final source = File('lib/services/locale_service.dart').readAsStringSync();
+  test('строки второго места объявлены и переведены', () {
+    final api = File('lib/services/locale_service.dart').readAsStringSync();
+    // Значения живут в словаре, а не в классах: `lib/l10n/dict/<раздел>.dart`.
+    final dict = Directory('lib/l10n/dict')
+        .listSync()
+        .whereType<File>()
+        .where((f) => f.path.endsWith('.dart'))
+        .map((f) => f.readAsStringSync())
+        .join('\n');
 
     for (final key in [
       'waitingWhoLabel',
@@ -68,13 +77,23 @@ void main() {
       'waitingSoloBody',
       'waitingSoloAction',
     ]) {
-      // Объявление в AppStrings плюс реализации в _RuStrings и _EnStrings.
-      final hits = RegExp('\\b$key\\b').allMatches(source).length;
       expect(
-        hits,
-        greaterThanOrEqualTo(3),
-        reason: '$key объявлен, но реализован не во всех локалях',
+        api.contains('String get $key;'),
+        isTrue,
+        reason: '$key не объявлен в AppStrings',
       );
+      final entry = RegExp(
+        "'$key': \\{(.*?)\\}",
+        dotAll: true,
+      ).firstMatch(dict);
+      expect(entry, isNotNull, reason: '$key отсутствует в словаре');
+      for (final code in ['ru', 'en']) {
+        expect(
+          entry!.group(1)!.contains("'$code':"),
+          isTrue,
+          reason: '$key без перевода на $code',
+        );
+      }
     }
   });
 }

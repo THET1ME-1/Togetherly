@@ -108,20 +108,15 @@ class _ProfileScreenState extends State<ProfileScreen>
   final CoinStore _iap = sharedCoinStore;
   bool _iapLoading = false;
 
-
   // Политика и условия живут на PocketBase-VPS (Firebase Hosting гасится вместе
   // с проектом). Раздаются из pb_public, исходники — PRIVACY_POLICY.md и
   // TERMS_OF_USE.md в репо (регенерация: tool/gen_legal_html.py).
   static final Uri _privacyPolicyUri = Uri.parse(
     'https://togetherly.day/privacy-policy',
   );
-  static final Uri _termsUri = Uri.parse(
-    'https://togetherly.day/terms',
-  );
+  static final Uri _termsUri = Uri.parse('https://togetherly.day/terms');
   // Лендинг тоже переехал с Firebase Hosting на VPS (pb_public).
-  static final Uri _aboutAppUri = Uri.parse(
-    'https://togetherly.day/#download',
-  );
+  static final Uri _aboutAppUri = Uri.parse('https://togetherly.day/#download');
   static final Uri _boostyUri = Uri.parse('https://boosty.to/sntcompany');
 
   /// Разовый донат картой или СБП.
@@ -236,18 +231,18 @@ class _ProfileScreenState extends State<ProfileScreen>
   /// Дней вместе в активной паре — та же дата, что у счётчика на главной.
   /// null — пары нет (в шапке тогда показываем email).
   int? _daysTogetherActive() => coupleDaysTogether(
-        timerStart: widget.timerService.systemTimer?.startDate,
-        groupStart: widget.pairData.startDate,
-      );
+    timerStart: widget.timerService.systemTimer?.startDate,
+    groupStart: widget.pairData.startDate,
+  );
 
   /// Дней вместе в произвольной связи из «Друзей». Таймеры привязаны к активной
   /// группе, поэтому чужой связи достаётся только дата коннекта.
   int? _daysTogetherOf(Connection c) => coupleDaysTogether(
-        timerStart: c.pairId == widget.pairData.pairId
-            ? widget.timerService.systemTimer?.startDate
-            : null,
-        groupStart: c.startDate,
-      );
+    timerStart: c.pairId == widget.pairData.pairId
+        ? widget.timerService.systemTimer?.startDate
+        : null,
+    groupStart: c.startDate,
+  );
 
   @override
   void initState() {
@@ -283,8 +278,8 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Future<void> _loadNotifPrefs() async {
     final prefs = await SharedPreferences.getInstance();
-    final daysTogether =
-        await DaysTogetherNotificationService.instance.isEnabled();
+    final daysTogether = await DaysTogetherNotificationService.instance
+        .isEnabled();
     if (!mounted) return;
     setState(() {
       _notifMissYou = prefs.getBool(_kNotifMissYou) ?? true;
@@ -385,12 +380,11 @@ class _ProfileScreenState extends State<ProfileScreen>
     // Мои столбики «Я скучаю» по дням недели.
     final myUid = PocketBaseService().userId ?? '';
     if (myUid.isNotEmpty) {
-      PbDataService()
-          .fetchMissYouFor(groupId: gid, uid: myUid)
-          .then((miss) {
+      PbDataService().fetchMissYouFor(groupId: gid, uid: myUid).then((miss) {
         if (!mounted || _lastLoadedGroupId != gid) return;
         setState(
-            () => _ownWeek = parseWeekdays(miss?['by_weekday'] as String?));
+          () => _ownWeek = parseWeekdays(miss?['by_weekday'] as String?),
+        );
       });
     }
 
@@ -440,7 +434,8 @@ class _ProfileScreenState extends State<ProfileScreen>
   Future<void> _openSupportMail() async {
     final info = await PackageInfo.fromPlatform();
     final subject = Uri.encodeComponent(
-        'Togetherly ${info.version} (${info.buildNumber})');
+      'Togetherly ${info.version} (${info.buildNumber})',
+    );
     final uri = Uri.parse('mailto:$supportEmail?subject=$subject');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
@@ -448,9 +443,9 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
     await Clipboard.setData(const ClipboardData(text: supportEmail));
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(_s.supportCopied(supportEmail))),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(_s.supportCopied(supportEmail))));
   }
 
   Future<void> _openAboutApp() async {
@@ -495,11 +490,12 @@ class _ProfileScreenState extends State<ProfileScreen>
               Text(
                 ru ? 'Донат → монеты' : 'Donation → coins',
                 style: TextStyle(
-                    fontFamily: ProfileTheme.displayFont,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 22,
-                    letterSpacing: -0.4,
-                    color: cs.onSurface),
+                  fontFamily: ProfileTheme.displayFont,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 22,
+                  letterSpacing: -0.4,
+                  color: cs.onSurface,
+                ),
               ),
               const SizedBox(height: 10),
               Text(
@@ -507,10 +503,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                     ? 'Чтобы монеты пришли автоматически, укажи в сообщении к донату свой email:'
                     : 'To get coins automatically, put your email in the donation message:',
                 style: TextStyle(
-                    fontFamily: ProfileTheme.bodyFont,
-                    fontSize: 14.5,
-                    height: 1.35,
-                    color: cs.onSurfaceVariant),
+                  fontFamily: ProfileTheme.bodyFont,
+                  fontSize: 14.5,
+                  height: 1.35,
+                  color: cs.onSurfaceVariant,
+                ),
               ),
               const SizedBox(height: 14),
               Material(
@@ -520,23 +517,31 @@ class _ProfileScreenState extends State<ProfileScreen>
                   borderRadius: BorderRadius.circular(16),
                   onTap: () {
                     Clipboard.setData(ClipboardData(text: email));
-                    ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                        content: Text(ru ? 'Email скопирован' : 'Email copied')));
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      SnackBar(
+                        content: Text(ru ? 'Email скопирован' : 'Email copied'),
+                      ),
+                    );
                   },
                   child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
                     child: Row(
                       children: [
                         Expanded(
-                          child: Text(email,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                  fontFamily: ProfileTheme.bodyFont,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 15,
-                                  color: cs.onSurface)),
+                          child: Text(
+                            email,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: ProfileTheme.bodyFont,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                              color: cs.onSurface,
+                            ),
+                          ),
                         ),
                         const SizedBox(width: 10),
                         Icon(Icons.copy_rounded, size: 20, color: cs.primary),
@@ -546,20 +551,25 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ),
               ),
               const SizedBox(height: 16),
-              _daStep(cs, '1',
-                  ru ? 'Скопируй email кнопкой выше' : 'Copy the email above'),
               _daStep(
-                  cs,
-                  '2',
-                  ru
-                      ? 'Вставь его в сообщение к донату'
-                      : 'Paste it into the donation message'),
+                cs,
+                '1',
+                ru ? 'Скопируй email кнопкой выше' : 'Copy the email above',
+              ),
               _daStep(
-                  cs,
-                  '3',
-                  ru
-                      ? 'От 50 ₽ — монеты придут сами за пару минут'
-                      : 'From 50 ₽ — coins arrive on their own in a couple of minutes'),
+                cs,
+                '2',
+                ru
+                    ? 'Вставь его в сообщение к донату'
+                    : 'Paste it into the donation message',
+              ),
+              _daStep(
+                cs,
+                '3',
+                ru
+                    ? 'От 50 ₽ — монеты придут сами за пару минут'
+                    : 'From 50 ₽ — coins arrive on their own in a couple of minutes',
+              ),
               const SizedBox(height: 18),
               SizedBox(
                 width: double.infinity,
@@ -570,11 +580,13 @@ class _ProfileScreenState extends State<ProfileScreen>
                   },
                   icon: const Icon(Icons.open_in_new_rounded, size: 19),
                   label: Text(
-                      ru ? 'Открыть DonationAlerts' : 'Open DonationAlerts',
-                      style: const TextStyle(
-                          fontFamily: ProfileTheme.displayFont,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 15)),
+                    ru ? 'Открыть DonationAlerts' : 'Open DonationAlerts',
+                    style: const TextStyle(
+                      fontFamily: ProfileTheme.displayFont,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -585,38 +597,46 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _daStep(ColorScheme cs, String n, String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 24,
-              height: 24,
-              alignment: Alignment.center,
-              decoration:
-                  BoxDecoration(color: cs.primaryContainer, shape: BoxShape.circle),
-              child: Text(n,
-                  style: TextStyle(
-                      fontFamily: ProfileTheme.bodyFont,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 13,
-                      color: cs.onPrimaryContainer)),
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 24,
+          height: 24,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: cs.primaryContainer,
+            shape: BoxShape.circle,
+          ),
+          child: Text(
+            n,
+            style: TextStyle(
+              fontFamily: ProfileTheme.bodyFont,
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
+              color: cs.onPrimaryContainer,
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Text(text,
-                    style: TextStyle(
-                        fontFamily: ProfileTheme.bodyFont,
-                        fontSize: 14,
-                        height: 1.3,
-                        color: cs.onSurface)),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              text,
+              style: TextStyle(
+                fontFamily: ProfileTheme.bodyFont,
+                fontSize: 14,
+                height: 1.3,
+                color: cs.onSurface,
               ),
             ),
-          ],
+          ),
         ),
-      );
+      ],
+    ),
+  );
 
   Future<void> _openLava() async {
     await _openExternalUri(_lavaUri);
@@ -679,17 +699,24 @@ class _ProfileScreenState extends State<ProfileScreen>
                       // тяжёлые блоки ниже сворачиваются.
                       const SizedBox(height: 6),
                       _quickTiles(context),
-                      _m3Group('missweek', _s.selfMissTitle,
-                          Icons.calendar_view_week_rounded,
-                          child: _m3Card([
-                            Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: _missYouWeek())
-                          ])),
+                      _m3Group(
+                        'missweek',
+                        _s.selfMissTitle,
+                        Icons.calendar_view_week_rounded,
+                        child: _m3Card([
+                          Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: _missYouWeek(),
+                          ),
+                        ]),
+                      ),
                       if (paired) _buildPairGroup(context),
-                      _m3Group('stats', _s.relationshipStats,
-                          Icons.insights_rounded,
-                          child: _m3Stats(context)),
+                      _m3Group(
+                        'stats',
+                        _s.relationshipStats,
+                        Icons.insights_rounded,
+                        child: _m3Stats(context),
+                      ),
                       // Донатов на iOS нет: ссылки на Boosty, DonationAlerts
                       // и lava.top — оплата цифрового мимо биллинга Apple,
                       // ровно то, за что прилетел реджект 3.1.1 по 1.21.0
@@ -805,8 +832,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                 Positioned(
                   top: 0,
                   right: 0,
-                  child: Icon(Icons.chevron_right_rounded,
-                      size: 18, color: cs.onSurfaceVariant.withValues(alpha: .7)),
+                  child: Icon(
+                    Icons.chevron_right_rounded,
+                    size: 18,
+                    color: cs.onSurfaceVariant.withValues(alpha: .7),
+                  ),
                 ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -815,15 +845,19 @@ class _ProfileScreenState extends State<ProfileScreen>
                       width: 38,
                       height: 38,
                       decoration: BoxDecoration(
-                        color: accent ? cs.primaryContainer : cs.secondaryContainer,
+                        color: accent
+                            ? cs.primaryContainer
+                            : cs.secondaryContainer,
                         borderRadius: BorderRadius.circular(13),
                       ),
                       alignment: Alignment.center,
-                      child: Icon(icon,
-                          size: 20,
-                          color: accent
-                              ? cs.onPrimaryContainer
-                              : cs.onSecondaryContainer),
+                      child: Icon(
+                        icon,
+                        size: 20,
+                        color: accent
+                            ? cs.onPrimaryContainer
+                            : cs.onSecondaryContainer,
+                      ),
                     ),
                     const Spacer(),
                     FittedBox(
@@ -846,12 +880,12 @@ class _ProfileScreenState extends State<ProfileScreen>
                       label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
-                    if (extra != null) ...[
-                      const SizedBox(height: 8),
-                      extra,
-                    ],
+                    if (extra != null) ...[const SizedBox(height: 8), extra],
                   ],
                 ),
               ],
@@ -873,8 +907,9 @@ class _ProfileScreenState extends State<ProfileScreen>
       valueListenable: AchievementService.instance.stats,
       builder: (_, stats, __) {
         final total = PairAchievement.all.length;
-        final unlocked =
-            PairAchievement.all.where((a) => a.isUnlockedBy(stats)).length;
+        final unlocked = PairAchievement.all
+            .where((a) => a.isUnlockedBy(stats))
+            .length;
         final quiet = _spaOn;
         return _quickTile(
           icon: Icons.emoji_events_rounded,
@@ -929,8 +964,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                   borderRadius: BorderRadius.circular(13),
                 ),
                 alignment: Alignment.center,
-                child: Icon(Icons.palette_rounded,
-                    size: 20, color: cs.onPrimaryContainer),
+                child: Icon(
+                  Icons.palette_rounded,
+                  size: 20,
+                  color: cs.onPrimaryContainer,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -938,23 +976,31 @@ class _ProfileScreenState extends State<ProfileScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(_s.appearanceTitle,
-                        style:
-                            TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+                    Text(
+                      _s.appearanceTitle,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
                     Text(
                       '${palette.name} · $mode',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w600,
-                          color: cs.onSurface),
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                        color: cs.onSurface,
+                      ),
                     ),
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right_rounded,
-                  color: cs.onSurfaceVariant, size: 22),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: cs.onSurfaceVariant,
+                size: 22,
+              ),
             ],
           ),
         ),
@@ -1019,8 +1065,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                 AnimatedRotation(
                   turns: expanded ? 0.5 : 0.0,
                   duration: const Duration(milliseconds: 200),
-                  child: Icon(Icons.expand_more_rounded,
-                      color: cs.onSurfaceVariant),
+                  child: Icon(
+                    Icons.expand_more_rounded,
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -1031,10 +1079,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           curve: Curves.easeInOut,
           alignment: Alignment.topCenter,
           child: expanded
-              ? Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: child,
-                )
+              ? Padding(padding: const EdgeInsets.only(bottom: 4), child: child)
               : const SizedBox(width: double.infinity),
         ),
       ],
@@ -1043,16 +1088,16 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   /// Плоская M3-карточка: тональная поверхность, без тени/бордера/градиента.
   Widget _m3Card(List<Widget> children) => Container(
-        decoration: BoxDecoration(
-          color: _cs.surfaceContainerHigh,
-          borderRadius: BorderRadius.circular(22),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: children,
-        ),
-      );
+    decoration: BoxDecoration(
+      color: _cs.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(22),
+    ),
+    clipBehavior: Clip.antiAlias,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: children,
+    ),
+  );
 
   Widget _m3Divider() =>
       Divider(height: 1, indent: 16, endIndent: 16, color: _cs.outlineVariant);
@@ -1075,23 +1120,33 @@ class _ProfileScreenState extends State<ProfileScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: Icon(Icons.photo_camera_rounded,
-                  color: _cs.onSurfaceVariant),
-              title: Text(_s.photoFromCamera,
-                  style: TextStyle(
-                      fontFamily: ProfileTheme.bodyFont,
-                      fontWeight: FontWeight.w600,
-                      color: _cs.onSurface)),
+              leading: Icon(
+                Icons.photo_camera_rounded,
+                color: _cs.onSurfaceVariant,
+              ),
+              title: Text(
+                _s.photoFromCamera,
+                style: TextStyle(
+                  fontFamily: ProfileTheme.bodyFont,
+                  fontWeight: FontWeight.w600,
+                  color: _cs.onSurface,
+                ),
+              ),
               onTap: () => Navigator.pop(ctx, ImageSource.camera),
             ),
             ListTile(
-              leading: Icon(Icons.photo_library_rounded,
-                  color: _cs.onSurfaceVariant),
-              title: Text(_s.photoFromGallery,
-                  style: TextStyle(
-                      fontFamily: ProfileTheme.bodyFont,
-                      fontWeight: FontWeight.w600,
-                      color: _cs.onSurface)),
+              leading: Icon(
+                Icons.photo_library_rounded,
+                color: _cs.onSurfaceVariant,
+              ),
+              title: Text(
+                _s.photoFromGallery,
+                style: TextStyle(
+                  fontFamily: ProfileTheme.bodyFont,
+                  fontWeight: FontWeight.w600,
+                  color: _cs.onSurface,
+                ),
+              ),
               onTap: () => Navigator.pop(ctx, ImageSource.gallery),
             ),
             const SizedBox(height: 8),
@@ -1103,7 +1158,11 @@ class _ProfileScreenState extends State<ProfileScreen>
     final picker = ImagePicker();
     final image = await safePick(
       () => picker.pickImage(
-          source: source, imageQuality: 90, maxWidth: 1600, maxHeight: 1000),
+        source: source,
+        imageQuality: 90,
+        maxWidth: 1600,
+        maxHeight: 1000,
+      ),
     );
     if (image == null || !mounted) return;
     CroppedFile? cropped;
@@ -1120,7 +1179,10 @@ class _ProfileScreenState extends State<ProfileScreen>
             activeControlsWidgetColor: _accent,
             lockAspectRatio: true,
           ),
-          IOSUiSettings(title: _s.appearanceTitle, aspectRatioLockEnabled: true),
+          IOSUiSettings(
+            title: _s.appearanceTitle,
+            aspectRatioLockEnabled: true,
+          ),
         ],
       );
     } catch (e) {
@@ -1135,8 +1197,10 @@ class _ProfileScreenState extends State<ProfileScreen>
       return;
     }
     final ext = cropped.path.split('.').last;
-    final url = await MediaService()
-        .uploadFile(cropped.path, 'banners/$userId/profile.$ext');
+    final url = await MediaService().uploadFile(
+      cropped.path,
+      'banners/$userId/profile.$ext',
+    );
     if (url == null) {
       if (mounted) _showError(_s.failedUploadImage);
       return;
@@ -1176,11 +1240,14 @@ class _ProfileScreenState extends State<ProfileScreen>
   Widget _missYouWeek() {
     final w = _ownWeek;
     if (w == null || w.byDay.every((d) => d == 0)) {
-      return Text(_s.partnerMissEmpty,
-          style: TextStyle(
-              fontFamily: ProfileTheme.bodyFont,
-              fontSize: 13,
-              color: _cs.onSurfaceVariant));
+      return Text(
+        _s.partnerMissEmpty,
+        style: TextStyle(
+          fontFamily: ProfileTheme.bodyFont,
+          fontSize: 13,
+          color: _cs.onSurfaceVariant,
+        ),
+      );
     }
     return MissYouWeekChart(theme: _t, week: w);
   }
@@ -1357,8 +1424,10 @@ class _ProfileScreenState extends State<ProfileScreen>
     ][variant % 3];
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
-      decoration:
-          BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1434,15 +1503,17 @@ class _ProfileScreenState extends State<ProfileScreen>
     final cs = _cs;
     final ud = widget.userData;
     Widget caption(String t) => Padding(
-          padding: const EdgeInsets.only(bottom: 8, left: 2),
-          child: Text(t,
-              style: TextStyle(
-                fontFamily: ProfileTheme.bodyFont,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w700,
-                color: cs.onSurfaceVariant,
-              )),
-        );
+      padding: const EdgeInsets.only(bottom: 8, left: 2),
+      child: Text(
+        t,
+        style: TextStyle(
+          fontFamily: ProfileTheme.bodyFont,
+          fontSize: 12.5,
+          fontWeight: FontWeight.w700,
+          color: cs.onSurfaceVariant,
+        ),
+      ),
+    );
     return _m3Card([
       Padding(
         padding: const EdgeInsets.all(16),
@@ -1467,17 +1538,20 @@ class _ProfileScreenState extends State<ProfileScreen>
                 showSelectedIcon: false,
                 segments: [
                   ButtonSegment(
-                      value: AppThemeMode.light,
-                      icon: const Icon(Icons.light_mode_rounded),
-                      tooltip: _s.themeModeLight),
+                    value: AppThemeMode.light,
+                    icon: const Icon(Icons.light_mode_rounded),
+                    tooltip: _s.themeModeLight,
+                  ),
                   ButtonSegment(
-                      value: AppThemeMode.dark,
-                      icon: const Icon(Icons.dark_mode_rounded),
-                      tooltip: _s.themeModeDark),
+                    value: AppThemeMode.dark,
+                    icon: const Icon(Icons.dark_mode_rounded),
+                    tooltip: _s.themeModeDark,
+                  ),
                   ButtonSegment(
-                      value: AppThemeMode.system,
-                      icon: const Icon(Icons.brightness_auto_rounded),
-                      tooltip: _s.themeModeSystem),
+                    value: AppThemeMode.system,
+                    icon: const Icon(Icons.brightness_auto_rounded),
+                    tooltip: _s.themeModeSystem,
+                  ),
                 ],
                 selected: {ud.themeMode},
                 onSelectionChanged: (s) => ud.setThemeMode(s.first),
@@ -1491,13 +1565,17 @@ class _ProfileScreenState extends State<ProfileScreen>
                 showSelectedIcon: false,
                 segments: [
                   ButtonSegment(
-                      value: SchemeFlavor.soft, label: Text(_s.themeFlavorSoft)),
+                    value: SchemeFlavor.soft,
+                    label: Text(_s.themeFlavorSoft),
+                  ),
                   ButtonSegment(
-                      value: SchemeFlavor.juicy,
-                      label: Text(_s.themeFlavorJuicy)),
+                    value: SchemeFlavor.juicy,
+                    label: Text(_s.themeFlavorJuicy),
+                  ),
                   ButtonSegment(
-                      value: SchemeFlavor.exact,
-                      label: Text(_s.themeFlavorExact)),
+                    value: SchemeFlavor.exact,
+                    label: Text(_s.themeFlavorExact),
+                  ),
                 ],
                 selected: {ud.themeFlavor},
                 onSelectionChanged: (s) => ud.setThemeFlavor(s.first),
@@ -1508,13 +1586,15 @@ class _ProfileScreenState extends State<ProfileScreen>
       ),
       _m3Divider(),
       SwitchListTile(
-        title: Text(_s.amoledLabel,
-            style: TextStyle(
-              fontFamily: ProfileTheme.bodyFont,
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: cs.onSurface,
-            )),
+        title: Text(
+          _s.amoledLabel,
+          style: TextStyle(
+            fontFamily: ProfileTheme.bodyFont,
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: cs.onSurface,
+          ),
+        ),
         secondary: Icon(Icons.contrast_rounded, color: cs.onSurfaceVariant),
         value: ud.amoled,
         onChanged: (v) => ud.setAmoled(v),
@@ -1545,16 +1625,21 @@ class _ProfileScreenState extends State<ProfileScreen>
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Image.asset('assets/images/icons/coin.webp',
-                    width: 11, height: 11),
+                Image.asset(
+                  'assets/images/icons/coin.webp',
+                  width: 11,
+                  height: 11,
+                ),
                 const SizedBox(width: 2),
-                Text('${p.price}',
-                    style: TextStyle(
-                      fontFamily: ProfileTheme.bodyFont,
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w800,
-                      color: cs.onSurfaceVariant,
-                    )),
+                Text(
+                  '${p.price}',
+                  style: TextStyle(
+                    fontFamily: ProfileTheme.bodyFont,
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w800,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
               ],
             ),
           ),
@@ -1567,8 +1652,12 @@ class _ProfileScreenState extends State<ProfileScreen>
     final p = kPalettes[i];
     final locked = p.isPremium && !ud.hasTheme(i);
     if (locked) {
-      final t = buildAppTheme(p, _t.brightness,
-          flavor: ud.themeFlavor, amoled: ud.amoled);
+      final t = buildAppTheme(
+        p,
+        _t.brightness,
+        flavor: ud.themeFlavor,
+        amoled: ud.amoled,
+      );
       final result = await _confirmPurchaseTheme(context, t);
       if (result == false) return; // отмена
       if (result == null) {
@@ -1640,8 +1729,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               theme: widget.userData.theme,
               user: widget.userData,
             ),
-            appIconId:
-                AppIconService.instance.isSupported ? _appIconId : null,
+            appIconId: AppIconService.instance.isSupported ? _appIconId : null,
             onAppIcon: () async {
               final picked = await showAppIconSheet(
                 ctx,
@@ -1660,9 +1748,9 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   /// Экран Togetherly+.
   void _openPlus(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => PlusScreen(scheme: _cs)),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => PlusScreen(scheme: _cs)));
   }
 
   /// Отзыв согласия на обработку данных цикла.
@@ -1766,10 +1854,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-
-
-
-
   // ── Друзья / партнёры (все группы) ──
 
   List<_PartnerEntry> _allPartnerEntries() {
@@ -1830,54 +1914,58 @@ class _ProfileScreenState extends State<ProfileScreen>
   Widget _buildFriendsGroup(BuildContext context) {
     final entries = _allPartnerEntries();
     if (entries.isEmpty) return const SizedBox.shrink();
-    return _m3Group('friends', _s.friends, Icons.group_rounded,
-        child: _m3Card([
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-            child: SizedBox(
-              height: 86,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: entries.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 14),
-                itemBuilder: (c, i) {
-                  final m = entries[i].member;
-                  return GestureDetector(
-                    onTap: () => _openPartnerProfile(context, entries[i]),
-                    child: SizedBox(
-                      width: 62,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          AvatarWidget(
-                            uid: m.uid,
-                            liveUrl: m.avatar,
-                            name: m.name,
-                            size: 56,
-                            primary: _cs.primary,
+    return _m3Group(
+      'friends',
+      _s.friends,
+      Icons.group_rounded,
+      child: _m3Card([
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+          child: SizedBox(
+            height: 86,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: entries.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 14),
+              itemBuilder: (c, i) {
+                final m = entries[i].member;
+                return GestureDetector(
+                  onTap: () => _openPartnerProfile(context, entries[i]),
+                  child: SizedBox(
+                    width: 62,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        AvatarWidget(
+                          uid: m.uid,
+                          liveUrl: m.avatar,
+                          name: m.name,
+                          size: 56,
+                          primary: _cs.primary,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          m.name.isEmpty ? '—' : m.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: ProfileTheme.bodyFont,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: _cs.onSurface,
                           ),
-                          const SizedBox(height: 6),
-                          Text(
-                            m.name.isEmpty ? '—' : m.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontFamily: ProfileTheme.bodyFont,
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w600,
-                              color: _cs.onSurface,
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             ),
           ),
-        ]));
+        ),
+      ]),
+    );
   }
 
   /// «Отношения»: статус и даты (открывается в шите; партнёры — в «Друзьях»).
@@ -1889,8 +1977,9 @@ class _ProfileScreenState extends State<ProfileScreen>
   /// только для правки конкретного поля.
   /// Подарок «Отдых»: сутки без счётчиков — достижения на это время прячем.
   bool get _spaOn => isEffectActive(
-      (PocketBaseService().currentUser?.data['spa_until'] as num?)?.toInt(),
-      DateTime.now());
+    (PocketBaseService().currentUser?.data['spa_until'] as num?)?.toInt(),
+    DateTime.now(),
+  );
 
   /// «Отношения» — такой же сворачиваемый блок, как соседние: значок слева,
   /// заголовок акцентом, шеврон справа. Раньше это была секция без сворачивания
@@ -1948,8 +2037,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                   borderRadius: BorderRadius.circular(14),
                 ),
                 alignment: Alignment.center,
-                child: Icon(Icons.redeem_rounded,
-                    size: 24, color: cs.onPrimaryContainer),
+                child: Icon(
+                  Icons.redeem_rounded,
+                  size: 24,
+                  color: cs.onPrimaryContainer,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1963,8 +2055,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                   ),
                 ),
               ),
-              Icon(Icons.chevron_right_rounded,
-                  color: cs.onSurfaceVariant, size: 22),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: cs.onSurfaceVariant,
+                size: 22,
+              ),
             ],
           ),
         ),
@@ -1972,15 +2067,15 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-
   /// Заметная карточка доната (как в Kadr): заголовок + текст + три кнопки.
   /// Не сворачивается, стоит отдельным блоком над «О приложении».
   Widget _buildDonationCard(BuildContext context) {
     final cs = _cs;
     TextStyle btn() => const TextStyle(
-        fontFamily: ProfileTheme.displayFont,
-        fontWeight: FontWeight.w700,
-        fontSize: 15);
+      fontFamily: ProfileTheme.displayFont,
+      fontWeight: FontWeight.w700,
+      fontSize: 15,
+    );
     return Container(
       decoration: BoxDecoration(
         color: cs.primaryContainer.withValues(alpha: 0.35),
@@ -1992,26 +2087,35 @@ class _ProfileScreenState extends State<ProfileScreen>
         children: [
           Row(
             children: [
-              Icon(Icons.volunteer_activism_rounded,
-                  color: cs.primary, size: 22),
+              Icon(
+                Icons.volunteer_activism_rounded,
+                color: cs.primary,
+                size: 22,
+              ),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(_s.supportAuthors,
-                    style: TextStyle(
-                        fontFamily: ProfileTheme.displayFont,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 16,
-                        color: cs.onSurface)),
+                child: Text(
+                  _s.supportAuthors,
+                  style: TextStyle(
+                    fontFamily: ProfileTheme.displayFont,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                    color: cs.onSurface,
+                  ),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          Text(_s.supportIntro,
-              style: TextStyle(
-                  fontFamily: ProfileTheme.bodyFont,
-                  fontSize: 13.5,
-                  height: 1.35,
-                  color: cs.onSurfaceVariant)),
+          Text(
+            _s.supportIntro,
+            style: TextStyle(
+              fontFamily: ProfileTheme.bodyFont,
+              fontSize: 13.5,
+              height: 1.35,
+              color: cs.onSurfaceVariant,
+            ),
+          ),
           const SizedBox(height: 16),
           FilledButton.icon(
             onPressed: _openBoosty,
@@ -2034,7 +2138,6 @@ class _ProfileScreenState extends State<ProfileScreen>
       ),
     );
   }
-
 
   // ═══════════════════════════════════════════════════
   //  ВЕРХ СТРАНИЦЫ: ЛИЧНЫЙ ПРОФИЛЬ + ПАРТНЁР (M3 — см. _m3Header/_m3Stats)
@@ -2653,10 +2756,8 @@ class _ProfileScreenState extends State<ProfileScreen>
         iconBg: relColor.withValues(alpha: 0.16),
         iconFg: relColor,
         trailing: const SettingsChevron(),
-        onTap: () => _showRelationshipTypePicker(
-          context,
-          selectedPartner?.connection,
-        ),
+        onTap: () =>
+            _showRelationshipTypePicker(context, selectedPartner?.connection),
       ),
       if (hasPaired) ...[
         const SettingsDivider(),
@@ -2677,23 +2778,23 @@ class _ProfileScreenState extends State<ProfileScreen>
         SettingsRow(
           icon: Icons.celebration_rounded,
           title: _s.anniversaryDate,
-          subtitle: _formatCelebrationDate(selectedPartner?.connection.anniversaryDate),
-          trailing: const SettingsChevron(),
-          onTap: () => _showAnniversaryDatePicker(
-            context,
-            selectedPartner?.connection,
+          subtitle: _formatCelebrationDate(
+            selectedPartner?.connection.anniversaryDate,
           ),
+          trailing: const SettingsChevron(),
+          onTap: () =>
+              _showAnniversaryDatePicker(context, selectedPartner?.connection),
         ),
         const SettingsDivider(),
         SettingsRow(
           icon: Icons.favorite_rounded,
           title: _s.firstKissDate,
-          subtitle: _formatCelebrationDate(selectedPartner?.connection.firstKissDate),
-          trailing: const SettingsChevron(),
-          onTap: () => _showFirstKissDatePicker(
-            context,
-            selectedPartner?.connection,
+          subtitle: _formatCelebrationDate(
+            selectedPartner?.connection.firstKissDate,
           ),
+          trailing: const SettingsChevron(),
+          onTap: () =>
+              _showFirstKissDatePicker(context, selectedPartner?.connection),
         ),
       ],
       const SettingsDivider(),
@@ -2701,8 +2802,8 @@ class _ProfileScreenState extends State<ProfileScreen>
         icon: widget.userData.isMale
             ? Icons.male_rounded
             : widget.userData.isFemale
-                ? Icons.female_rounded
-                : Icons.transgender_rounded,
+            ? Icons.female_rounded
+            : Icons.transgender_rounded,
         title: _s.gender,
         subtitle: _genderLabel(),
         trailing: const SettingsChevron(),
@@ -2724,8 +2825,9 @@ class _ProfileScreenState extends State<ProfileScreen>
           subtitle: _formatCelebrationDate(
             selectedPartner == null
                 ? null
-                : selectedPartner.connection
-                    .memberBirthdays[selectedPartner.member.uid],
+                : selectedPartner.connection.memberBirthdays[selectedPartner
+                      .member
+                      .uid],
           ),
         ),
       ],
@@ -2736,12 +2838,13 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   String _formatCelebrationDate(DateTime? date) {
     if (date == null) return _s.notSet;
-    final d = '${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}.${date.year}';
+    final d =
+        '${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}.${date.year}';
     if (date.hour == 0 && date.minute == 0) return d;
-    final t = '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+    final t =
+        '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
     return '$d  $t';
   }
-
 
   /// Выбор даты и времени. Открывает полноэкранный [DateTimePickerScreen]:
   /// нижний лист с полем «ДД.ММ.ГГГГ» ушёл — крупная типографика в него не
@@ -2754,21 +2857,18 @@ class _ProfileScreenState extends State<ProfileScreen>
     required DateTime? initial,
     required int firstYear,
     required int lastYear,
-  }) =>
-      Navigator.of(context).push<DateTime>(
-        MaterialPageRoute<DateTime>(
-          builder: (_) => DateTimePickerScreen(
-            title: title,
-            theme: _t,
-            initial: initial,
-            firstYear: firstYear,
-            lastYear: lastYear,
-          ),
-          settings: const RouteSettings(name: '/date_picker'),
-        ),
-      );
-
-
+  }) => Navigator.of(context).push<DateTime>(
+    MaterialPageRoute<DateTime>(
+      builder: (_) => DateTimePickerScreen(
+        title: title,
+        theme: _t,
+        initial: initial,
+        firstYear: firstYear,
+        lastYear: lastYear,
+      ),
+      settings: const RouteSettings(name: '/date_picker'),
+    ),
+  );
 
   Future<void> _showAnniversaryDatePicker(
     BuildContext context,
@@ -2893,7 +2993,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                 SettingsRow(
                   icon: Icons.do_not_disturb_on_rounded,
                   title: _s.genderPreferNotSay,
-                  trailing: (u.gender == Gender.unspecified &&
+                  trailing:
+                      (u.gender == Gender.unspecified &&
                           (u.customGender ?? '').isEmpty)
                       ? const Icon(Icons.check_rounded)
                       : null,
@@ -2907,8 +3008,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                   trailing: customOpen
                       ? const Icon(Icons.keyboard_arrow_up_rounded)
                       : (u.customGender ?? '').isNotEmpty
-                          ? const Icon(Icons.check_rounded)
-                          : const SettingsChevron(),
+                      ? const Icon(Icons.check_rounded)
+                      : const SettingsChevron(),
                   onTap: () => setSheet(() => customOpen = !customOpen),
                 ),
               ]),
@@ -2938,7 +3039,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                   child: FilledButton(
                     onPressed: ctrl.text.trim().isEmpty
                         ? null
-                        : () => apply(ctx, Gender.unspecified, custom: ctrl.text),
+                        : () =>
+                              apply(ctx, Gender.unspecified, custom: ctrl.text),
                     child: Text(_s.save),
                   ),
                 ),
@@ -3050,7 +3152,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                       },
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 14),
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
                         child: Row(
                           children: [
                             Container(
@@ -3059,8 +3163,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
                                 color: isSelected
-                                    ? _cs.onSecondaryContainer
-                                        .withValues(alpha: 0.12)
+                                    ? _cs.onSecondaryContainer.withValues(
+                                        alpha: 0.12,
+                                      )
                                     : _cs.surfaceContainerHighest,
                                 borderRadius: BorderRadius.circular(16),
                               ),
@@ -3089,8 +3194,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                               ),
                             ),
                             if (isSelected)
-                              Icon(Icons.check_circle_rounded,
-                                  size: 22, color: _cs.primary),
+                              Icon(
+                                Icons.check_circle_rounded,
+                                size: 22,
+                                color: _cs.primary,
+                              ),
                           ],
                         ),
                       ),
@@ -3437,21 +3545,25 @@ class _ProfileScreenState extends State<ProfileScreen>
   Future<void> _openSystemNotificationSettings() async {
     if (Platform.isAndroid) {
       try {
-        await launchUrl(Uri.parse(
-          'intent:#Intent;'
-          'action=android.settings.APP_NOTIFICATION_SETTINGS;'
-          'S.android.provider.extra.APP_PACKAGE=com.togetherly.love;'
-          'end',
-        ));
+        await launchUrl(
+          Uri.parse(
+            'intent:#Intent;'
+            'action=android.settings.APP_NOTIFICATION_SETTINGS;'
+            'S.android.provider.extra.APP_PACKAGE=com.togetherly.love;'
+            'end',
+          ),
+        );
         return;
       } catch (_) {
         try {
-          await launchUrl(Uri.parse(
-            'intent:#Intent;'
-            'action=android.settings.APPLICATION_DETAILS_SETTINGS;'
-            'S.android.provider.extra.APP_PACKAGE=com.togetherly.love;'
-            'end',
-          ));
+          await launchUrl(
+            Uri.parse(
+              'intent:#Intent;'
+              'action=android.settings.APPLICATION_DETAILS_SETTINGS;'
+              'S.android.provider.extra.APP_PACKAGE=com.togetherly.love;'
+              'end',
+            ),
+          );
         } catch (e) {
           debugPrint('Open app settings failed: $e');
         }
@@ -3470,8 +3582,10 @@ class _ProfileScreenState extends State<ProfileScreen>
       timerStart: widget.timerService.systemTimer?.startDate,
       groupStart: widget.pairData.startDate,
     );
-    DaysTogetherNotificationService.instance
-        .setEnabled(value, startDate: start);
+    DaysTogetherNotificationService.instance.setEnabled(
+      value,
+      startDate: start,
+    );
   }
 
   // ═══════════════════════════════════════════════════
@@ -3485,31 +3599,33 @@ class _ProfileScreenState extends State<ProfileScreen>
         title: _s.selectLanguage,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+          // Список собирается из самого перечисления: новый язык появляется тут
+          // сам, без правки экрана. Название пишется на своём языке — тот, кто
+          // выбирает португальский, русского слова «Португальский» не знает.
           child: SettingsGroup([
-            _languageRow(ctx, code: 'ru', label: 'Русский', flag: '🇷🇺'),
-            const SettingsDivider(),
-            _languageRow(ctx, code: 'en', label: 'English', flag: '🇺🇸'),
+            for (final lang in AppLanguage.values) ...[
+              if (lang != AppLanguage.values.first) const SettingsDivider(),
+              _languageRow(ctx, lang: lang),
+            ],
           ]),
         ),
       ),
     );
   }
 
-  /// Строка языка: флаг вместо иконки-чипа, галочка у выбранного.
-  Widget _languageRow(
-    BuildContext ctx, {
-    required String code,
-    required String label,
-    required String flag,
-  }) {
-    final selected = LocaleService.instance.language ==
-        (code == 'ru' ? AppLanguage.ru : AppLanguage.en);
+  /// Строка языка: код языка в чипе, галочка у выбранного.
+  ///
+  /// Ни флага, ни значка: иконки отдельных языков в Material Symbols нет, а
+  /// эмодзи-флаг рисуется системным шрифтом, не красится ролью схемы и вдобавок
+  /// врёт — по-португальски говорят далеко не только в Португалии. Две буквы
+  /// кода решают то же самое и живут в теме.
+  Widget _languageRow(BuildContext ctx, {required AppLanguage lang}) {
+    final label = lang.label;
+    final selected = LocaleService.instance.language == lang;
 
     return InkWell(
       onTap: () {
-        LocaleService.instance.setLanguage(
-          code == 'ru' ? AppLanguage.ru : AppLanguage.en,
-        );
+        LocaleService.instance.setLanguage(lang);
         Navigator.pop(ctx);
         setState(() {});
       },
@@ -3522,10 +3638,23 @@ class _ProfileScreenState extends State<ProfileScreen>
               height: 44,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: selected ? _cs.primaryContainer : _cs.surfaceContainerHighest,
+                color: selected
+                    ? _cs.primaryContainer
+                    : _cs.surfaceContainerHighest,
                 shape: BoxShape.circle,
               ),
-              child: Text(flag, style: const TextStyle(fontSize: 20)),
+              child: Text(
+                lang.code.toUpperCase(),
+                style: TextStyle(
+                  fontFamily: ProfileTheme.displayFont,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                  color: selected
+                      ? _cs.onPrimaryContainer
+                      : _cs.onSurfaceVariant,
+                ),
+              ),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -3691,9 +3820,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
   }
 
-
-
-
   /// Магазин монет: баланс героем, две вкладки и список наград.
   ///
   /// Лист собран в M3-теме профиля, а не на старых цветах ([AppTheme]): раньше
@@ -3709,7 +3835,8 @@ class _ProfileScreenState extends State<ProfileScreen>
     // Список паков пуст в сборках без товаров (IPA, sideload) — обращение к
     // first там уронило бы лист монет целиком.
     if (kCoinPacks.isNotEmpty &&
-        (!_iap.isAvailable || _iap.priceLabel(kCoinPacks.first.productId) == null)) {
+        (!_iap.isAvailable ||
+            _iap.priceLabel(kCoinPacks.first.productId) == null)) {
       unawaited(_initIap());
     }
     // Паков нет на iOS: продукты там не заведены, а вести на оплату мимо
@@ -3801,7 +3928,11 @@ class _ProfileScreenState extends State<ProfileScreen>
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Image.asset('assets/images/icons/coin.webp', width: 34, height: 34),
+              Image.asset(
+                'assets/images/icons/coin.webp',
+                width: 34,
+                height: 34,
+              ),
               const SizedBox(width: 10),
               Text(
                 '${widget.userData.coins}',
@@ -3830,7 +3961,11 @@ class _ProfileScreenState extends State<ProfileScreen>
               children: [
                 _coinTab(_s.earnCoinsSection, !showPacks, () => onTab(false)),
                 const SizedBox(width: 8),
-                _coinTab(_s.coinPacksSectionTitle, showPacks, () => onTab(true)),
+                _coinTab(
+                  _s.coinPacksSectionTitle,
+                  showPacks,
+                  () => onTab(true),
+                ),
               ],
             ),
           ],
@@ -3872,8 +4007,11 @@ class _ProfileScreenState extends State<ProfileScreen>
         icon: Icons.add_reaction_rounded,
         title: _s.iconShopTitle,
         subtitle: _s.iconShopSubtitle,
-        trailing: Icon(Icons.chevron_right_rounded,
-            color: cs.onSurfaceVariant, size: 22),
+        trailing: Icon(
+          Icons.chevron_right_rounded,
+          color: cs.onSurfaceVariant,
+          size: 22,
+        ),
         onTap: () {
           Navigator.pop(ctx);
           _showIconPicker(context);
@@ -3895,8 +4033,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                 if (!mounted) return;
                 if (awarded) {
                   // ignore: use_build_context_synchronously
-                  CoinRewardToast.show(rootCtx,
-                      amount: 1, label: _s.dailyBonusTitle);
+                  CoinRewardToast.show(
+                    rootCtx,
+                    amount: 1,
+                    label: _s.dailyBonusTitle,
+                  );
                 }
               },
       ),
@@ -3916,8 +4057,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                   if (!mounted) return;
                   if (amount > 0) {
                     // ignore: use_build_context_synchronously
-                    CoinRewardToast.show(context,
-                        amount: amount, label: _s.memoryRewardTitle);
+                    CoinRewardToast.show(
+                      context,
+                      amount: amount,
+                      label: _s.memoryRewardTitle,
+                    );
                   }
                 },
         ),
@@ -3991,9 +4135,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                     shape: BoxShape.circle,
                   ),
                   alignment: Alignment.center,
-                  child: Icon(icon,
-                      size: 22,
-                      color: active ? cs.onPrimary : cs.onSurfaceVariant),
+                  child: Icon(
+                    icon,
+                    size: 22,
+                    color: active ? cs.onPrimary : cs.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -4014,8 +4160,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                         subtitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style:
-                            TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: cs.onSurfaceVariant,
+                        ),
                       ),
                     ],
                   ),
@@ -4035,18 +4183,18 @@ class _ProfileScreenState extends State<ProfileScreen>
                         shape: BoxShape.circle,
                       ),
                       alignment: Alignment.center,
-                      child: Icon(Icons.check_rounded,
-                          size: 19, color: cs.onPrimaryContainer),
+                      child: Icon(
+                        Icons.check_rounded,
+                        size: 19,
+                        color: cs.onPrimaryContainer,
+                      ),
                     ),
                   )
                 else if (reward != null) ...[
                   const SizedBox(width: 8),
                   _coinChip('+$reward', filled: active),
                 ],
-                if (trailing != null) ...[
-                  const SizedBox(width: 4),
-                  trailing,
-                ],
+                if (trailing != null) ...[const SizedBox(width: 4), trailing],
               ],
             ),
           ),
@@ -4142,8 +4290,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                             ],
                           ),
                         ),
-                        Image.asset('assets/images/icons/coin.webp',
-                            width: 22, height: 22),
+                        Image.asset(
+                          'assets/images/icons/coin.webp',
+                          width: 22,
+                          height: 22,
+                        ),
                       ],
                     ),
                     const Spacer(),
@@ -4201,8 +4352,11 @@ class _ProfileScreenState extends State<ProfileScreen>
           icon: Icons.confirmation_number_rounded,
           title: _s.redeemCodeTitle,
           subtitle: _s.redeemCodeSubtitle,
-          trailing: Icon(Icons.chevron_right_rounded,
-              color: cs.onSurfaceVariant, size: 22),
+          trailing: Icon(
+            Icons.chevron_right_rounded,
+            color: cs.onSurfaceVariant,
+            size: 22,
+          ),
           onTap: () {
             Navigator.pop(ctx);
             _askRedeemCode();
@@ -4218,8 +4372,11 @@ class _ProfileScreenState extends State<ProfileScreen>
           icon: Icons.restore_rounded,
           title: _s.restorePurchasesTitle,
           subtitle: _s.coinEarnSubtitle,
-          trailing: Icon(Icons.chevron_right_rounded,
-              color: cs.onSurfaceVariant, size: 22),
+          trailing: Icon(
+            Icons.chevron_right_rounded,
+            color: cs.onSurfaceVariant,
+            size: 22,
+          ),
           onTap: () {
             Navigator.pop(ctx);
             _restorePurchases();
@@ -4245,13 +4402,15 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
     return best;
   }
+
   Future<void> _initIap() async {
     await _iap.init(
-      onGrantCoins: ({required String productId, required String purchaseToken}) =>
-          widget.userData.purchaseCoins(
-        productId: productId,
-        purchaseToken: purchaseToken,
-      ),
+      onGrantCoins:
+          ({required String productId, required String purchaseToken}) =>
+              widget.userData.purchaseCoins(
+                productId: productId,
+                purchaseToken: purchaseToken,
+              ),
     );
     if (mounted) setState(() {});
   }
@@ -4360,8 +4519,11 @@ class _ProfileScreenState extends State<ProfileScreen>
       );
       if (mounted) {
         if (_rewardedAd.lastRewardGranted) {
-          CoinRewardToast.show(context,
-              amount: UserData.adRewardAmount, label: _s.watchAdTitle);
+          CoinRewardToast.show(
+            context,
+            amount: UserData.adRewardAmount,
+            label: _s.watchAdTitle,
+          );
         } else if (_rewardedAd.lastRateLimited) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -4377,7 +4539,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
     if (mounted) setState(() {});
   }
-
 
   String _themeDisplayName(int index) {
     final names = <String>[
@@ -4455,16 +4616,21 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
               const SizedBox(height: 16),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 14,
+                ),
                 decoration: BoxDecoration(
                   color: cs.surfaceContainerHigh,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
                   children: [
-                    Image.asset('assets/images/icons/coin.webp',
-                        width: 28, height: 28),
+                    Image.asset(
+                      'assets/images/icons/coin.webp',
+                      width: 28,
+                      height: 28,
+                    ),
                     const SizedBox(width: 10),
                     Text(
                       '${t.price}',
@@ -4482,7 +4648,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                         Text(
                           strings.coinBalance,
                           style: TextStyle(
-                              fontSize: 12, color: cs.onSurfaceVariant),
+                            fontSize: 12,
+                            color: cs.onSurfaceVariant,
+                          ),
                         ),
                         Text(
                           '$coins',
@@ -4520,13 +4688,17 @@ class _ProfileScreenState extends State<ProfileScreen>
                   style: FilledButton.styleFrom(
                     backgroundColor: cs.primary,
                     foregroundColor: cs.onPrimary,
-                    disabledBackgroundColor:
-                        cs.onSurface.withValues(alpha: .12),
-                    disabledForegroundColor:
-                        cs.onSurface.withValues(alpha: .38),
+                    disabledBackgroundColor: cs.onSurface.withValues(
+                      alpha: .12,
+                    ),
+                    disabledForegroundColor: cs.onSurface.withValues(
+                      alpha: .38,
+                    ),
                     shape: const StadiumBorder(),
                     textStyle: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w700),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   child: Text(strings.buyThemeConfirm),
                 ),
@@ -4543,7 +4715,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                     foregroundColor: cs.onSecondaryContainer,
                     shape: const StadiumBorder(),
                     textStyle: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w600),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
@@ -4562,7 +4736,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       ),
     );
     if (result == false) return false; // отмена
-    if (result == null) return null;   // предпросмотр
+    if (result == null) return null; // предпросмотр
     // result == true → покупка
     final ok = await widget.userData.purchaseTheme(t.index);
     if (!ok) return false;
@@ -4578,7 +4752,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     return true;
   }
 
-
   // ═══════════════════════════════════════════════════
   // Магазин профильных иконок
   // ═══════════════════════════════════════════════════
@@ -4593,7 +4766,8 @@ class _ProfileScreenState extends State<ProfileScreen>
           final equipped = widget.userData.equippedIcon;
           // Сортировка: сначала купленные/доступные, затем продаваемые
           // по возрастанию цены, в конце — награды (Sponsor/Helper).
-          final icons = [...ProfileIcon.all]..sort((a, b) {
+          final icons = [...ProfileIcon.all]
+            ..sort((a, b) {
               int rank(ProfileIcon i) {
                 if (widget.userData.ownsIcon(i.id)) return 0;
                 if (i.grantOnly) return 2;
@@ -4707,7 +4881,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                                   if (equipped == icon.id) {
                                     // Повторный тап по закреплённой иконке снимает её.
                                     await widget.userData.setBadgeIcon(null);
-                                  } else if (widget.userData.ownsIcon(icon.id)) {
+                                  } else if (widget.userData.ownsIcon(
+                                    icon.id,
+                                  )) {
                                     await widget.userData.setBadgeIcon(icon.id);
                                   } else if (icon.grantOnly) {
                                     // Награда — купить нельзя, показываем инфо.
@@ -4715,9 +4891,13 @@ class _ProfileScreenState extends State<ProfileScreen>
                                     return;
                                   } else {
                                     final bought = await _confirmPurchaseIcon(
-                                        context, icon);
+                                      context,
+                                      icon,
+                                    );
                                     if (bought) {
-                                      await widget.userData.setBadgeIcon(icon.id);
+                                      await widget.userData.setBadgeIcon(
+                                        icon.id,
+                                      );
                                     }
                                   }
                                   // После await шторка могла закрыться — setSheet
@@ -4767,11 +4947,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   color: _t.cardSurface,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  Icons.block_rounded,
-                  size: 18,
-                  color: _t.textMuted,
-                ),
+                child: Icon(Icons.block_rounded, size: 18, color: _t.textMuted),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -4873,8 +5049,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.lock_rounded,
-                      size: 11, color: _t.textMuted),
+                  Icon(Icons.lock_rounded, size: 11, color: _t.textMuted),
                   const SizedBox(width: 3),
                   Flexible(
                     child: Text(
@@ -4895,8 +5070,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                 mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Image.asset('assets/images/icons/coin.webp',
-                      width: 15, height: 15),
+                  Image.asset(
+                    'assets/images/icons/coin.webp',
+                    width: 15,
+                    height: 15,
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     '${icon.price}',
@@ -4969,7 +5147,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                   child: Text(
                     _s.ok,
                     style: const TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.w700),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ),
@@ -4981,14 +5161,21 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   /// Диалог подтверждения покупки иконки. Возвращает true при успешной покупке.
-  Future<bool> _confirmPurchaseIcon(BuildContext context, ProfileIcon icon) async {
+  Future<bool> _confirmPurchaseIcon(
+    BuildContext context,
+    ProfileIcon icon,
+  ) async {
     final canAfford = widget.userData.coins >= icon.price;
     final confirmed = await showAppSheet<bool>(
       context,
       background: Colors.transparent,
       builder: (ctx) => Padding(
         padding: EdgeInsets.fromLTRB(
-            12, 0, 12, MediaQuery.of(ctx).padding.bottom + 12),
+          12,
+          0,
+          12,
+          MediaQuery.of(ctx).padding.bottom + 12,
+        ),
         child: Container(
           decoration: BoxDecoration(
             color: _t.cardSurface,
@@ -5005,8 +5192,9 @@ class _ProfileScreenState extends State<ProfileScreen>
             children: [
               // ── Hero с иконкой ──
               ClipRRect(
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(28)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(28),
+                ),
                 child: Container(
                   height: 150,
                   width: double.infinity,
@@ -5054,16 +5242,15 @@ class _ProfileScreenState extends State<ProfileScreen>
                     Text(
                       icon.description,
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: _t.textMuted,
-                      ),
+                      style: TextStyle(fontSize: 13, color: _t.textMuted),
                     ),
                     const SizedBox(height: 16),
                     // ── Цена ──
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 18, vertical: 12),
+                        horizontal: 18,
+                        vertical: 12,
+                      ),
                       decoration: BoxDecoration(
                         color: _accentLight,
                         borderRadius: BorderRadius.circular(18),
@@ -5071,8 +5258,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Image.asset('assets/images/icons/coin.webp',
-                              width: 28, height: 28),
+                          Image.asset(
+                            'assets/images/icons/coin.webp',
+                            width: 28,
+                            height: 28,
+                          ),
                           const SizedBox(width: 10),
                           Text(
                             '${icon.price}',
@@ -5092,12 +5282,14 @@ class _ProfileScreenState extends State<ProfileScreen>
                       children: [
                         Text(
                           _s.coinBalance,
-                          style: TextStyle(
-                              fontSize: 13, color: _t.textMuted),
+                          style: TextStyle(fontSize: 13, color: _t.textMuted),
                         ),
                         const SizedBox(width: 6),
-                        Image.asset('assets/images/icons/coin.webp',
-                            width: 16, height: 16),
+                        Image.asset(
+                          'assets/images/icons/coin.webp',
+                          width: 16,
+                          height: 16,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           '${widget.userData.coins}',
@@ -5150,8 +5342,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                           color: Colors.transparent,
                           child: InkWell(
                             borderRadius: BorderRadius.circular(16),
-                            onTap:
-                                canAfford ? () => Navigator.pop(ctx, true) : null,
+                            onTap: canAfford
+                                ? () => Navigator.pop(ctx, true)
+                                : null,
                             child: Center(
                               child: Text(
                                 canAfford
@@ -5211,7 +5404,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
     return ok;
   }
-
 
   Future<void> _showLogoutDialog(BuildContext context) async {
     final ok = await AppDialog.confirm(
@@ -5282,9 +5474,9 @@ class _ProfileScreenState extends State<ProfileScreen>
       debugPrint('deleteAccount error: $e');
       if (!context.mounted) return;
       Navigator.of(context, rootNavigator: true).pop(); // закрыть индикатор
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_s.deleteAccountError)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_s.deleteAccountError)));
     }
   }
 }

@@ -1,0 +1,58 @@
+// Ранги пары. Пара ru/en жила в модели — немец видел английские.
+
+const Map<String, Map<String, String>> ranksStrings = {
+  'rank_1': {
+    'ru': 'Знакомство',
+    'en': 'Acquaintance',
+    'pt': 'Nos conhecendo',
+    'it': 'Conoscenza',
+    'es': 'Nos conocemos',
+    'fr': 'Rencontre',
+    'de': 'Kennenlernen',
+  },
+  'rank_3': {
+    'ru': 'Симпатия',
+    'en': 'Affection',
+    'pt': 'Atração',
+    'it': 'Simpatia',
+    'es': 'Atracción',
+    'fr': 'Attirance',
+    'de': 'Zuneigung',
+  },
+  'rank_6': {
+    'ru': 'Влюблённость',
+    'en': 'Infatuation',
+    'pt': 'Paixão',
+    'it': 'Innamoramento',
+    'es': 'Enamoramiento',
+    'fr': 'Amour naissant',
+    'de': 'Verliebtheit',
+  },
+  'rank_10': {
+    'ru': 'Гармония',
+    'en': 'Harmony',
+    'pt': 'Apego',
+    'it': 'Affetto',
+    'es': 'Apego',
+    'fr': 'Attachement',
+    'de': 'Harmonie',
+  },
+  'rank_15': {
+    'ru': 'Крепкая связь',
+    'en': 'Strong Bond',
+    'pt': 'Cumplicidade',
+    'it': 'Complicità',
+    'es': 'Complicidad',
+    'fr': 'Complicité',
+    'de': 'Feste Bindung',
+  },
+  'rank_20': {
+    'ru': 'Родственные души',
+    'en': 'Soulmates',
+    'pt': 'Almas gêmeas',
+    'it': 'Anime gemelle',
+    'es': 'Almas gemelas',
+    'fr': 'Âmes sœurs',
+    'de': 'Seelenverwandte',
+  },
+};
