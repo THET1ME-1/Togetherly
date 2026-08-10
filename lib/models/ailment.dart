@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../services/locale_service.dart';
+import '../dict_strings.dart';
 
 /// Насколько человеку плохо.
 ///
@@ -25,41 +25,38 @@ enum AilmentSeverity {
 }
 
 /// Один пункт каталога недомоганий («болячки»).
-/// Лейблы хранятся прямо здесь (ru/en) — отдельных строк в LocaleService на
-/// каждую болячку не заводим; [localizedLabel] выбирает язык на лету.
 class Ailment {
   final String id;
   final String emoji;
-  final String ru;
-  final String en;
 
   /// Насколько плохо. Задаёт цвет чипа.
   final AilmentSeverity severity;
 
-  const Ailment(this.id, this.emoji, this.ru, this.en, this.severity);
+  const Ailment(this.id, this.emoji, this.severity);
 
-  String get localizedLabel =>
-      LocaleService.instance.isRussian ? ru : en;
+  /// Название живёт в словаре (`lib/l10n/dict/ailments.dart`): язык там колонка,
+  /// а не пара полей в модели.
+  String get localizedLabel => trKey('ailment_$id');
 }
 
 /// Каталог недомоганий. Порядок = порядок отображения в пикере.
 const List<Ailment> kAilments = [
-  Ailment('unwell', '🤒', 'Нездоровится', 'Unwell', AilmentSeverity.hard),
-  Ailment('headache', '🤕', 'Голова болит', 'Headache', AilmentSeverity.medium),
-  Ailment('heartburn', '🔥', 'Изжога', 'Heartburn', AilmentSeverity.light),
-  Ailment('nausea', '🤢', 'Тошнит', 'Nausea', AilmentSeverity.medium),
-  Ailment('cold', '🤧', 'Простуда', 'Cold', AilmentSeverity.medium),
-  Ailment('fever', '🌡️', 'Температура', 'Fever', AilmentSeverity.hard),
-  Ailment('stomach', '😣', 'Живот болит', 'Stomachache', AilmentSeverity.medium),
-  Ailment('throat', '😷', 'Горло болит', 'Sore throat', AilmentSeverity.medium),
-  Ailment('cough', '🫁', 'Кашель', 'Cough', AilmentSeverity.medium),
-  Ailment('tooth', '🦷', 'Зуб болит', 'Toothache', AilmentSeverity.medium),
-  Ailment('back', '🦴', 'Спина болит', 'Back pain', AilmentSeverity.medium),
-  Ailment('cramps', '💢', 'Спазмы', 'Cramps', AilmentSeverity.medium),
-  Ailment('dizzy', '😵‍💫', 'Кружится голова', 'Dizzy', AilmentSeverity.light),
-  Ailment('fatigue', '😴', 'Усталость', 'Tired', AilmentSeverity.light),
-  Ailment('insomnia', '🌙', 'Бессонница', 'Insomnia', AilmentSeverity.light),
-  Ailment('allergy', '🌿', 'Аллергия', 'Allergy', AilmentSeverity.light),
+  Ailment('unwell', '🤒', AilmentSeverity.hard),
+  Ailment('headache', '🤕', AilmentSeverity.medium),
+  Ailment('heartburn', '🔥', AilmentSeverity.light),
+  Ailment('nausea', '🤢', AilmentSeverity.medium),
+  Ailment('cold', '🤧', AilmentSeverity.medium),
+  Ailment('fever', '🌡️', AilmentSeverity.hard),
+  Ailment('stomach', '😣', AilmentSeverity.medium),
+  Ailment('throat', '😷', AilmentSeverity.medium),
+  Ailment('cough', '🫁', AilmentSeverity.medium),
+  Ailment('tooth', '🦷', AilmentSeverity.medium),
+  Ailment('back', '🦴', AilmentSeverity.medium),
+  Ailment('cramps', '💢', AilmentSeverity.medium),
+  Ailment('dizzy', '😵‍💫', AilmentSeverity.light),
+  Ailment('fatigue', '😴', AilmentSeverity.light),
+  Ailment('insomnia', '🌙', AilmentSeverity.light),
+  Ailment('allergy', '🌿', AilmentSeverity.light),
 ];
 
 /// Найти болячку по id (для восстановления выбора из сохранённого статуса).

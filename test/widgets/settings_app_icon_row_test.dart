@@ -52,7 +52,7 @@ void main() {
     );
     final current = AppIconService.options.first;
     expect(
-      find.textContaining(RegExp('${current.nameRu}|${current.nameEn}')),
+      find.textContaining(RegExp(current.name)),
       findsOneWidget,
     );
   });

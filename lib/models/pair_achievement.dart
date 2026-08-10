@@ -1,6 +1,6 @@
 import 'dart:ui';
 
-import '../services/locale_service.dart';
+import '../dict_strings.dart';
 
 /// Что за счётчик проверяет достижение. Значения-снимки собираются на клиенте из
 /// уже доступных источников (см. [PairAchievement.evaluate]).
@@ -23,7 +23,6 @@ enum AchievementMetric {
 
 /// Визуальный «уровень» достижения — задаёт цвет медали и градиент карточки.
 enum AchievementTier { bronze, silver, gold, platinum }
-
 
 /// Строгая геометрическая фигура уровня.
 ///
@@ -50,15 +49,27 @@ class AchievementShape {
 /// Фигура для уровня. У каждого своя — по ней достижение узнаётся с одного
 /// взгляда, даже когда цвет приглушён.
 AchievementShape achievementShapeFor(AchievementTier tier) => switch (tier) {
-      AchievementTier.bronze =>
-        const AchievementShape(sides: 4, rotation: 0.7853981634, corner: 0.28),
-      AchievementTier.silver =>
-        const AchievementShape(sides: 6, rotation: 0.5235987756, corner: 0.22),
-      AchievementTier.gold =>
-        const AchievementShape(sides: 8, rotation: 0.3926990817, corner: 0.18),
-      AchievementTier.platinum =>
-        const AchievementShape(sides: 12, rotation: 0.2617993878, corner: 0.14),
-    };
+  AchievementTier.bronze => const AchievementShape(
+    sides: 4,
+    rotation: 0.7853981634,
+    corner: 0.28,
+  ),
+  AchievementTier.silver => const AchievementShape(
+    sides: 6,
+    rotation: 0.5235987756,
+    corner: 0.22,
+  ),
+  AchievementTier.gold => const AchievementShape(
+    sides: 8,
+    rotation: 0.3926990817,
+    corner: 0.18,
+  ),
+  AchievementTier.platinum => const AchievementShape(
+    sides: 12,
+    rotation: 0.2617993878,
+    corner: 0.14,
+  ),
+};
 
 /// Достижение ПАРЫ (не пользователя): общее для обоих партнёров, хранится на
 /// group-доке (JSON-поле `achievements`), переживает переустановку. Разблокируется
@@ -79,10 +90,6 @@ class PairAchievement {
   final AchievementTier tier;
 
   final String emoji;
-  final String _titleRu;
-  final String _titleEn;
-  final String _descRu;
-  final String _descEn;
 
   const PairAchievement({
     required this.id,
@@ -90,18 +97,12 @@ class PairAchievement {
     required this.threshold,
     required this.tier,
     required this.emoji,
-    required String titleRu,
-    required String titleEn,
-    required String descRu,
-    required String descEn,
-  })  : _titleRu = titleRu,
-        _titleEn = titleEn,
-        _descRu = descRu,
-        _descEn = descEn;
+  });
 
-  bool get _ru => LocaleService.instance.isRussian;
-  String get title => _ru ? _titleRu : _titleEn;
-  String get description => _ru ? _descRu : _descEn;
+  /// Название и описание живут в словаре: ключ считается из id, поэтому язык
+  /// добавляется колонкой в `lib/l10n/dict/achievements.dart`, а не полем тут.
+  String get title => trKey('ach_${id}_title');
+  String get description => trKey('ach_${id}_desc');
 
   /// Цвет медали/акцента уровня.
   Color get tierColor {
@@ -168,11 +169,9 @@ class PairAchievement {
   static List<PairAchievement> newlyUnlocked(
     AchievementStats stats,
     Set<String> alreadyUnlocked,
-  ) =>
-      all
-          .where((a) =>
-              !alreadyUnlocked.contains(a.id) && a.isUnlockedBy(stats))
-          .toList();
+  ) => all
+      .where((a) => !alreadyUnlocked.contains(a.id) && a.isUnlockedBy(stats))
+      .toList();
 
   /// Полный каталог, сгруппирован по темам (дни вместе → воспоминания → чат →
   /// активность), внутри — по возрастанию порога.
@@ -184,10 +183,6 @@ class PairAchievement {
       threshold: 7,
       tier: AchievementTier.bronze,
       emoji: '🌱',
-      titleRu: 'Неделя вместе',
-      titleEn: 'One week together',
-      descRu: '7 дней в паре',
-      descEn: '7 days as a couple',
     ),
     PairAchievement(
       id: 'together_30',
@@ -195,10 +190,6 @@ class PairAchievement {
       threshold: 30,
       tier: AchievementTier.bronze,
       emoji: '🌸',
-      titleRu: 'Месяц вместе',
-      titleEn: 'One month together',
-      descRu: '30 дней в паре',
-      descEn: '30 days as a couple',
     ),
     PairAchievement(
       id: 'together_100',
@@ -206,10 +197,6 @@ class PairAchievement {
       threshold: 100,
       tier: AchievementTier.silver,
       emoji: '💯',
-      titleRu: '100 дней вместе',
-      titleEn: '100 days together',
-      descRu: 'Три с лишним месяца рядом',
-      descEn: 'Over three months side by side',
     ),
     PairAchievement(
       id: 'together_182',
@@ -217,10 +204,6 @@ class PairAchievement {
       threshold: 182,
       tier: AchievementTier.silver,
       emoji: '🌗',
-      titleRu: 'Полгода вместе',
-      titleEn: 'Half a year together',
-      descRu: '182 дня в паре',
-      descEn: '182 days as a couple',
     ),
     PairAchievement(
       id: 'together_365',
@@ -228,10 +211,6 @@ class PairAchievement {
       threshold: 365,
       tier: AchievementTier.gold,
       emoji: '🎂',
-      titleRu: 'Год вместе',
-      titleEn: 'One year together',
-      descRu: 'Целый год любви',
-      descEn: 'A whole year of love',
     ),
     PairAchievement(
       id: 'together_500',
@@ -239,10 +218,6 @@ class PairAchievement {
       threshold: 500,
       tier: AchievementTier.gold,
       emoji: '🌄',
-      titleRu: 'Пятьсот дней',
-      titleEn: 'Five hundred days',
-      descRu: '500 дней в паре',
-      descEn: '500 days as a couple',
     ),
     PairAchievement(
       id: 'together_730',
@@ -250,10 +225,6 @@ class PairAchievement {
       threshold: 730,
       tier: AchievementTier.platinum,
       emoji: '💞',
-      titleRu: 'Два года вместе',
-      titleEn: 'Two years together',
-      descRu: '730 дней рядом',
-      descEn: '730 days side by side',
     ),
     PairAchievement(
       id: 'together_1000',
@@ -261,10 +232,6 @@ class PairAchievement {
       threshold: 1000,
       tier: AchievementTier.platinum,
       emoji: '🏔',
-      titleRu: 'Тысяча дней',
-      titleEn: 'A thousand days',
-      descRu: '1000 дней в паре',
-      descEn: '1000 days as a couple',
     ),
     PairAchievement(
       id: 'together_1095',
@@ -272,10 +239,6 @@ class PairAchievement {
       threshold: 1095,
       tier: AchievementTier.platinum,
       emoji: '🌠',
-      titleRu: 'Три года',
-      titleEn: 'Three years',
-      descRu: 'Три года вместе',
-      descEn: 'Three years together',
     ),
     PairAchievement(
       id: 'together_1825',
@@ -283,10 +246,6 @@ class PairAchievement {
       threshold: 1825,
       tier: AchievementTier.platinum,
       emoji: '🗻',
-      titleRu: 'Пять лет',
-      titleEn: 'Five years',
-      descRu: 'Пять лет вместе',
-      descEn: 'Five years together',
     ),
 
     // ── Воспоминания ──────────────────────────────────────────────────────
@@ -296,10 +255,6 @@ class PairAchievement {
       threshold: 1,
       tier: AchievementTier.bronze,
       emoji: '📸',
-      titleRu: 'Первое воспоминание',
-      titleEn: 'First memory',
-      descRu: 'Начало вашей ленты',
-      descEn: 'The start of your feed',
     ),
     PairAchievement(
       id: 'memories_10',
@@ -307,10 +262,6 @@ class PairAchievement {
       threshold: 10,
       tier: AchievementTier.bronze,
       emoji: '🗂️',
-      titleRu: '10 воспоминаний',
-      titleEn: '10 memories',
-      descRu: 'Лента набирает обороты',
-      descEn: 'Your feed is growing',
     ),
     PairAchievement(
       id: 'memories_25',
@@ -318,10 +269,6 @@ class PairAchievement {
       threshold: 25,
       tier: AchievementTier.bronze,
       emoji: '📷',
-      titleRu: 'Двадцать пять кадров',
-      titleEn: 'Twenty five shots',
-      descRu: '25 воспоминаний в ленте',
-      descEn: '25 memories in the feed',
     ),
     PairAchievement(
       id: 'memories_50',
@@ -329,10 +276,6 @@ class PairAchievement {
       threshold: 50,
       tier: AchievementTier.silver,
       emoji: '📚',
-      titleRu: '50 воспоминаний',
-      titleEn: '50 memories',
-      descRu: 'Целая коллекция моментов',
-      descEn: 'A whole collection of moments',
     ),
     PairAchievement(
       id: 'memories_100',
@@ -340,10 +283,6 @@ class PairAchievement {
       threshold: 100,
       tier: AchievementTier.gold,
       emoji: '🏛️',
-      titleRu: '100 воспоминаний',
-      titleEn: '100 memories',
-      descRu: 'Ваш маленький музей',
-      descEn: 'Your little museum',
     ),
 
     PairAchievement(
@@ -352,10 +291,6 @@ class PairAchievement {
       threshold: 250,
       tier: AchievementTier.gold,
       emoji: '🖼',
-      titleRu: 'Двести пятьдесят кадров',
-      titleEn: '250 shots',
-      descRu: '250 воспоминаний',
-      descEn: '250 memories',
     ),
     PairAchievement(
       id: 'memories_500',
@@ -363,10 +298,6 @@ class PairAchievement {
       threshold: 500,
       tier: AchievementTier.gold,
       emoji: '📚',
-      titleRu: 'Полтысячи моментов',
-      titleEn: 'Half a thousand moments',
-      descRu: '500 воспоминаний',
-      descEn: '500 memories',
     ),
     PairAchievement(
       id: 'memories_1000',
@@ -374,10 +305,6 @@ class PairAchievement {
       threshold: 1000,
       tier: AchievementTier.platinum,
       emoji: '🏛',
-      titleRu: 'Тысяча воспоминаний',
-      titleEn: 'A thousand memories',
-      descRu: '1000 моментов в ленте',
-      descEn: '1000 moments in the feed',
     ),
     // ── Чат ───────────────────────────────────────────────────────────────
     PairAchievement(
@@ -386,10 +313,6 @@ class PairAchievement {
       threshold: 1,
       tier: AchievementTier.bronze,
       emoji: '💬',
-      titleRu: 'Первое сообщение',
-      titleEn: 'First message',
-      descRu: 'Разговор начался',
-      descEn: 'The conversation begins',
     ),
     PairAchievement(
       id: 'messages_10',
@@ -397,10 +320,6 @@ class PairAchievement {
       threshold: 10,
       tier: AchievementTier.bronze,
       emoji: '💭',
-      titleRu: 'Первый разговор',
-      titleEn: 'First conversation',
-      descRu: '10 сообщений в чате',
-      descEn: '10 chat messages',
     ),
     PairAchievement(
       id: 'messages_25',
@@ -408,10 +327,6 @@ class PairAchievement {
       threshold: 25,
       tier: AchievementTier.bronze,
       emoji: '💌',
-      titleRu: 'Двадцать пять сообщений',
-      titleEn: 'Twenty five messages',
-      descRu: 'Переписка завязалась',
-      descEn: 'The conversation took off',
     ),
     PairAchievement(
       id: 'messages_100',
@@ -419,10 +334,6 @@ class PairAchievement {
       threshold: 100,
       tier: AchievementTier.silver,
       emoji: '🗨️',
-      titleRu: '100 сообщений',
-      titleEn: '100 messages',
-      descRu: 'Вам есть о чём поговорить',
-      descEn: "You've got plenty to talk about",
     ),
     PairAchievement(
       id: 'messages_500',
@@ -430,10 +341,6 @@ class PairAchievement {
       threshold: 500,
       tier: AchievementTier.silver,
       emoji: '💬',
-      titleRu: 'Пятьсот сообщений',
-      titleEn: 'Five hundred messages',
-      descRu: '500 сообщений в чате',
-      descEn: '500 chat messages',
     ),
     PairAchievement(
       id: 'messages_1000',
@@ -441,10 +348,6 @@ class PairAchievement {
       threshold: 1000,
       tier: AchievementTier.gold,
       emoji: '💌',
-      titleRu: '1000 сообщений',
-      titleEn: '1000 messages',
-      descRu: 'Болтушки года',
-      descEn: 'Chatterboxes of the year',
     ),
 
     PairAchievement(
@@ -453,10 +356,6 @@ class PairAchievement {
       threshold: 5000,
       tier: AchievementTier.gold,
       emoji: '📨',
-      titleRu: 'Пять тысяч',
-      titleEn: 'Five thousand',
-      descRu: '5000 сообщений',
-      descEn: '5000 messages',
     ),
     PairAchievement(
       id: 'messages_10000',
@@ -464,10 +363,6 @@ class PairAchievement {
       threshold: 10000,
       tier: AchievementTier.platinum,
       emoji: '📮',
-      titleRu: 'Десять тысяч',
-      titleEn: 'Ten thousand',
-      descRu: '10 000 сообщений',
-      descEn: '10,000 messages',
     ),
     PairAchievement(
       id: 'messages_50000',
@@ -475,10 +370,6 @@ class PairAchievement {
       threshold: 50000,
       tier: AchievementTier.platinum,
       emoji: '🗼',
-      titleRu: 'Полсотни тысяч',
-      titleEn: 'Fifty thousand',
-      descRu: '50 000 сообщений',
-      descEn: '50,000 messages',
     ),
     // ── Активность ────────────────────────────────────────────────────────
     PairAchievement(
@@ -487,10 +378,6 @@ class PairAchievement {
       threshold: 1,
       tier: AchievementTier.bronze,
       emoji: '🎨',
-      titleRu: 'Первый рисунок',
-      titleEn: 'First drawing',
-      descRu: 'Творчество на двоих',
-      descEn: 'Creativity for two',
     ),
     PairAchievement(
       id: 'drawings_5',
@@ -498,10 +385,6 @@ class PairAchievement {
       threshold: 5,
       tier: AchievementTier.bronze,
       emoji: '🖌',
-      titleRu: 'Пять холстов',
-      titleEn: 'Five canvases',
-      descRu: '5 рисунков вдвоём',
-      descEn: '5 drawings together',
     ),
     PairAchievement(
       id: 'drawings_10',
@@ -509,10 +392,6 @@ class PairAchievement {
       threshold: 10,
       tier: AchievementTier.silver,
       emoji: '🎨',
-      titleRu: 'Десять рисунков',
-      titleEn: 'Ten drawings',
-      descRu: '10 рисунков вдвоём',
-      descEn: '10 drawings together',
     ),
     PairAchievement(
       id: 'drawings_50',
@@ -520,10 +399,6 @@ class PairAchievement {
       threshold: 50,
       tier: AchievementTier.gold,
       emoji: '🖼',
-      titleRu: 'Полсотни рисунков',
-      titleEn: 'Fifty drawings',
-      descRu: '50 рисунков вдвоём',
-      descEn: '50 drawings together',
     ),
     PairAchievement(
       id: 'drawings_100',
@@ -531,10 +406,6 @@ class PairAchievement {
       threshold: 100,
       tier: AchievementTier.platinum,
       emoji: '🏆',
-      titleRu: 'Сто рисунков',
-      titleEn: 'A hundred drawings',
-      descRu: '100 рисунков вдвоём',
-      descEn: '100 drawings together',
     ),
     PairAchievement(
       id: 'streak_7',
@@ -542,10 +413,6 @@ class PairAchievement {
       threshold: 7,
       tier: AchievementTier.bronze,
       emoji: '🔥',
-      titleRu: 'Неделя подряд',
-      titleEn: '7-day streak',
-      descRu: '7 дней заходите оба',
-      descEn: 'Both of you showed up 7 days in a row',
     ),
     PairAchievement(
       id: 'streak_14',
@@ -553,10 +420,6 @@ class PairAchievement {
       threshold: 14,
       tier: AchievementTier.bronze,
       emoji: '🔥',
-      titleRu: 'Две недели подряд',
-      titleEn: 'Two weeks in a row',
-      descRu: '14 дней подряд вдвоём',
-      descEn: '14 days in a row',
     ),
     PairAchievement(
       id: 'streak_30',
@@ -564,10 +427,6 @@ class PairAchievement {
       threshold: 30,
       tier: AchievementTier.gold,
       emoji: '⚡',
-      titleRu: 'Месяц подряд',
-      titleEn: '30-day streak',
-      descRu: '30 дней вы оба на связи',
-      descEn: 'Both of you stayed connected 30 days',
     ),
     PairAchievement(
       id: 'streak_60',
@@ -575,10 +434,6 @@ class PairAchievement {
       threshold: 60,
       tier: AchievementTier.gold,
       emoji: '🌟',
-      titleRu: 'Два месяца подряд',
-      titleEn: 'Two months in a row',
-      descRu: '60 дней подряд вдвоём',
-      descEn: '60 days in a row',
     ),
     PairAchievement(
       id: 'streak_100',
@@ -586,10 +441,6 @@ class PairAchievement {
       threshold: 100,
       tier: AchievementTier.gold,
       emoji: '⚡️',
-      titleRu: 'Сто дней подряд',
-      titleEn: 'A hundred days in a row',
-      descRu: '100 дней подряд вдвоём',
-      descEn: '100 days in a row',
     ),
     PairAchievement(
       id: 'streak_365',
@@ -597,10 +448,6 @@ class PairAchievement {
       threshold: 365,
       tier: AchievementTier.platinum,
       emoji: '👑',
-      titleRu: 'Год без пропусков',
-      titleEn: 'A year without a miss',
-      descRu: '365 дней подряд вдвоём',
-      descEn: '365 days in a row',
     ),
   ];
 }

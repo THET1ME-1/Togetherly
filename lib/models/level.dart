@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/locale_service.dart';
+import '../dict_strings.dart';
 
 /// Чистая модель уровней/рангов ПАРЫ. Level и Rank выводятся из общего XP и
 /// нигде не хранятся — кривую/ранги/цвета можно менять без миграции данных.
@@ -71,30 +71,23 @@ class LevelProgress {
 /// (рисованная рамка) — UI отрисует её вместо цветного кольца.
 class Rank {
   final int minLevel;
-  final String _nameRu;
-  final String _nameEn;
   final Color color;
   final String? frameAsset;
 
-  const Rank({
-    required this.minLevel,
-    required String nameRu,
-    required String nameEn,
-    required this.color,
-    this.frameAsset,
-  })  : _nameRu = nameRu,
-        _nameEn = nameEn;
+  const Rank({required this.minLevel, required this.color, this.frameAsset});
 
-  String get name => LocaleService.instance.isRussian ? _nameRu : _nameEn;
+  /// Название ранга живёт в словаре: ключ считается из порога уровня, поэтому
+  /// новый язык добавляется колонкой в `lib/l10n/dict/ranks.dart`.
+  String get name => trKey('rank_$minLevel');
 
   /// Ранги по возрастанию minLevel. Добавить ранг = одна строка.
   static const List<Rank> all = [
-    Rank(minLevel: 1, nameRu: 'Знакомство', nameEn: 'Acquaintance', color: Color(0xFF9CA3AF)),
-    Rank(minLevel: 3, nameRu: 'Симпатия', nameEn: 'Affection', color: Color(0xFF22C55E)),
-    Rank(minLevel: 6, nameRu: 'Влюблённость', nameEn: 'Infatuation', color: Color(0xFFEC4899)),
-    Rank(minLevel: 10, nameRu: 'Гармония', nameEn: 'Harmony', color: Color(0xFFA855F7)),
-    Rank(minLevel: 15, nameRu: 'Крепкая связь', nameEn: 'Strong Bond', color: Color(0xFF3B82F6)),
-    Rank(minLevel: 20, nameRu: 'Родственные души', nameEn: 'Soulmates', color: Color(0xFFF59E0B)),
+    Rank(minLevel: 1, color: Color(0xFF9CA3AF)),
+    Rank(minLevel: 3, color: Color(0xFF22C55E)),
+    Rank(minLevel: 6, color: Color(0xFFEC4899)),
+    Rank(minLevel: 10, color: Color(0xFFA855F7)),
+    Rank(minLevel: 15, color: Color(0xFF3B82F6)),
+    Rank(minLevel: 20, color: Color(0xFFF59E0B)),
   ];
 
   static Rank forLevel(int level) {
@@ -150,26 +143,26 @@ class Unlock {
   final String currency;
 
   const Unlock.free()
-      : type = UnlockType.free,
-        requiredLevel = 0,
-        price = 0,
-        plusIncluded = false,
-        currency = '';
+    : type = UnlockType.free,
+      requiredLevel = 0,
+      price = 0,
+      plusIncluded = false,
+      currency = '';
   const Unlock.level(this.requiredLevel)
-      : type = UnlockType.level,
-        price = 0,
-        plusIncluded = false,
-        currency = '';
+    : type = UnlockType.level,
+      price = 0,
+      plusIncluded = false,
+      currency = '';
   const Unlock.premium({this.price = 0, this.plusIncluded = false})
-      : type = UnlockType.premium,
-        requiredLevel = 0,
-        currency = '';
+    : type = UnlockType.premium,
+      requiredLevel = 0,
+      currency = '';
 
   /// Покупка за деньги: [price] — сумма в [currency], а не в монетах.
   const Unlock.money({this.price = 0, this.currency = 'USD'})
-      : type = UnlockType.money,
-        requiredLevel = 0,
-        plusIncluded = false;
+    : type = UnlockType.money,
+      requiredLevel = 0,
+      plusIncluded = false;
 
   /// Разобрать поле `unlock` из манифеста каталога. null/неизвестное → free.
   factory Unlock.fromJson(Map<String, dynamic>? json) {

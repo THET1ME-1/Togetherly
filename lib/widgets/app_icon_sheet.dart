@@ -70,13 +70,13 @@ class AppIconBadge extends StatelessWidget {
 /// Опция по id — с откатом на первую, чтобы неизвестное значение из prefs не
 /// роняло экран.
 AppIconOption appIconOptionOf(String id) => AppIconService.options.firstWhere(
-      (o) => o.id == id,
-      orElse: () => AppIconService.options.first,
-    );
+  (o) => o.id == id,
+  orElse: () => AppIconService.options.first,
+);
 
 String appIconNameOf(String id) {
   final o = appIconOptionOf(id);
-  return LocaleService.instance.isRussian ? o.nameRu : o.nameEn;
+  return o.name;
 }
 
 class _AppIconBody extends StatefulWidget {
@@ -152,7 +152,9 @@ class _AppIconBodyState extends State<_AppIconBody> {
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 10),
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: scheme.errorContainer,
                   borderRadius: BorderRadius.circular(16),
@@ -173,8 +175,7 @@ class _AppIconBodyState extends State<_AppIconBody> {
               runSpacing: 16,
               alignment: WrapAlignment.center,
               children: [
-                for (final o in AppIconService.options)
-                  _choice(o, ru, scheme),
+                for (final o in AppIconService.options) _choice(o, ru, scheme),
               ],
             ),
           ],
@@ -207,7 +208,7 @@ class _AppIconBodyState extends State<_AppIconBody> {
             ),
             const SizedBox(height: 6),
             Text(
-              ru ? o.nameRu : o.nameEn,
+              o.name,
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontFamily: 'Onest',
