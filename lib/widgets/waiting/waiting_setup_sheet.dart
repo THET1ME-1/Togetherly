@@ -29,15 +29,11 @@ class WaitingSetupSheet extends StatefulWidget {
     required PairData pair,
     required AppTheme theme,
     bool editing = false,
-  }) =>
-      showAppSheet<bool>(
-        context,
-        builder: (_) => WaitingSetupSheet(
-          pair: pair,
-          theme: theme,
-          editing: editing,
-        ),
-      );
+  }) => showAppSheet<bool>(
+    context,
+    builder: (_) =>
+        WaitingSetupSheet(pair: pair, theme: theme, editing: editing),
+  );
 
   @override
   State<WaitingSetupSheet> createState() => _WaitingSetupSheetState();
@@ -49,6 +45,13 @@ class _WaitingSetupSheetState extends State<WaitingSetupSheet> {
   );
   DateTime? _returnDate;
   bool _saving = false;
+
+  /// Ждут не только вернувшегося из армии: половина одиночек вообще никого не
+  /// зовёт, и им нечего вписать в имя. Тогда место заводится без имени и без
+  /// срока, а пара работает так же — записи копятся с первого дня.
+  ///
+  /// При правке заглушки развилки нет: имя там уже стоит.
+  bool _unknown = false;
 
   /// Отказ показываем ВНУТРИ листа. Снекбар живёт в Scaffold, а лист — маршрутом
   /// поверх него: сообщение уезжало под лист, и отказ сервера выглядел как
@@ -82,7 +85,10 @@ class _WaitingSetupSheetState extends State<WaitingSetupSheet> {
 
   Future<void> _save() async {
     final s = LocaleService.current;
-    final name = _name.text.trim();
+    // Пустое имя сервер не принимает («Впишите имя»), поэтому безымянное место
+    // подписывается словом из локали. Карточка пары рисует по нему первую
+    // букву — с пустой строкой там стоял бы вопросительный знак.
+    final name = _unknown ? s.waitingUnknownName : _name.text.trim();
     if (name.isEmpty) return;
     setState(() {
       _saving = true;
@@ -96,9 +102,8 @@ class _WaitingSetupSheetState extends State<WaitingSetupSheet> {
           )
         : (await widget.pair.createWaitingPair(
             name: name,
-            returnDate: _returnDate,
-          ))
-            .isNotEmpty;
+            returnDate: _unknown ? null : _returnDate,
+          )).isNotEmpty;
     if (!mounted) return;
     if (ok) {
       setState(() => _saving = false);
@@ -118,9 +123,14 @@ class _WaitingSetupSheetState extends State<WaitingSetupSheet> {
     final days = _returnDate == null
         ? null
         : DateTime(_returnDate!.year, _returnDate!.month, _returnDate!.day)
-            .difference(DateTime(
-                DateTime.now().year, DateTime.now().month, DateTime.now().day))
-            .inDays;
+              .difference(
+                DateTime(
+                  DateTime.now().year,
+                  DateTime.now().month,
+                  DateTime.now().day,
+                ),
+              )
+              .inDays;
 
     return SheetScaffold(
       title: widget.editing ? s.waitingEditTitle : s.waitingSetupTitle,
@@ -139,84 +149,140 @@ class _WaitingSetupSheetState extends State<WaitingSetupSheet> {
                 color: cs.onSurfaceVariant,
               ),
             ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: _name,
-              textCapitalization: TextCapitalization.words,
-              decoration: InputDecoration(
-                labelText: s.waitingNameLabel,
-                filled: true,
-                fillColor: cs.surfaceContainerHigh,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(18),
-                  borderSide: BorderSide.none,
+            if (!widget.editing) ...[
+              const SizedBox(height: 20),
+              Text(
+                s.waitingWhoLabel,
+                style: TextStyle(
+                  fontFamily: ProfileTheme.bodyFont,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.06 * 11.5,
+                  color: cs.onSurfaceVariant,
                 ),
               ),
-              onChanged: (_) => setState(() {}),
-            ),
-            const SizedBox(height: 12),
-            InkWell(
-              onTap: _pickDate,
-              borderRadius: BorderRadius.circular(18),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                decoration: BoxDecoration(
-                  color: cs.surfaceContainerHigh,
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.event_rounded, size: 20, color: cs.primary),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        _returnDate == null
-                            ? s.waitingReturnDate
-                            : '${_returnDate!.day.toString().padLeft(2, '0')}.'
-                                '${_returnDate!.month.toString().padLeft(2, '0')}.'
-                                '${_returnDate!.year}',
-                        style: TextStyle(
-                          fontFamily: ProfileTheme.bodyFont,
-                          fontSize: 15,
-                          color: _returnDate == null
-                              ? cs.onSurfaceVariant
-                              : cs.onSurface,
-                        ),
-                      ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: _choice(
+                      cs,
+                      s.waitingKnowWho,
+                      !_unknown,
+                      () => setState(() => _unknown = false),
                     ),
-                    if (days != null)
-                      Text(
-                        s.waitingDaysLeft(days),
-                        style: TextStyle(
-                          fontFamily: ProfileTheme.bodyFont,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: cs.primary,
-                        ),
-                      ),
-                    if (_returnDate != null)
-                      IconButton(
-                        onPressed: () => setState(() => _returnDate = null),
-                        icon: const Icon(Icons.close_rounded, size: 18),
-                        visualDensity: VisualDensity.compact,
-                      ),
-                  ],
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _choice(
+                      cs,
+                      s.waitingDontKnowWho,
+                      _unknown,
+                      () => setState(() => _unknown = true),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            if (_unknown) ...[
+              const SizedBox(height: 14),
+              Text(
+                s.waitingUnknownHint,
+                style: TextStyle(
+                  fontFamily: ProfileTheme.bodyFont,
+                  fontSize: 13,
+                  height: 1.35,
+                  color: cs.onSurfaceVariant,
                 ),
               ),
-            ),
+            ] else ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: _name,
+                textCapitalization: TextCapitalization.words,
+                decoration: InputDecoration(
+                  labelText: s.waitingNameLabel,
+                  filled: true,
+                  fillColor: cs.surfaceContainerHigh,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 12),
+              InkWell(
+                onTap: _pickDate,
+                borderRadius: BorderRadius.circular(18),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 16,
+                  ),
+                  decoration: BoxDecoration(
+                    color: cs.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.event_rounded, size: 20, color: cs.primary),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          _returnDate == null
+                              ? s.waitingReturnDate
+                              : '${_returnDate!.day.toString().padLeft(2, '0')}.'
+                                    '${_returnDate!.month.toString().padLeft(2, '0')}.'
+                                    '${_returnDate!.year}',
+                          style: TextStyle(
+                            fontFamily: ProfileTheme.bodyFont,
+                            fontSize: 15,
+                            color: _returnDate == null
+                                ? cs.onSurfaceVariant
+                                : cs.onSurface,
+                          ),
+                        ),
+                      ),
+                      if (days != null)
+                        Text(
+                          s.waitingDaysLeft(days),
+                          style: TextStyle(
+                            fontFamily: ProfileTheme.bodyFont,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: cs.primary,
+                          ),
+                        ),
+                      if (_returnDate != null)
+                        IconButton(
+                          onPressed: () => setState(() => _returnDate = null),
+                          icon: const Icon(Icons.close_rounded, size: 18),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
             if (_error != null) ...[
               const SizedBox(height: 14),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: cs.errorContainer,
                   borderRadius: BorderRadius.circular(18),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.error_outline_rounded,
-                        size: 20, color: cs.onErrorContainer),
+                    Icon(
+                      Icons.error_outline_rounded,
+                      size: 20,
+                      color: cs.onErrorContainer,
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
@@ -235,7 +301,9 @@ class _WaitingSetupSheetState extends State<WaitingSetupSheet> {
             ],
             const SizedBox(height: 24),
             FilledButton(
-              onPressed: _name.text.trim().isEmpty || _saving ? null : _save,
+              onPressed: (!_unknown && _name.text.trim().isEmpty) || _saving
+                  ? null
+                  : _save,
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: const StadiumBorder(),
@@ -246,6 +314,36 @@ class _WaitingSetupSheetState extends State<WaitingSetupSheet> {
             ),
             const SizedBox(height: 8),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// Таблетка выбора по канону проекта: залитая, круглая, без обводки — обводка
+  /// у невыбранной читается как поле ввода. Две штуки делят строку поровну и
+  /// помещаются на 360 dp, поэтому прокрутки вбок здесь нет.
+  Widget _choice(ColorScheme cs, String label, bool on, VoidCallback onTap) {
+    return Material(
+      color: on ? cs.primaryContainer : cs.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(19),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(19),
+        child: Container(
+          height: 38,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: ProfileTheme.bodyFont,
+              fontSize: 13.5,
+              fontWeight: FontWeight.w600,
+              color: on ? cs.onPrimaryContainer : cs.onSurfaceVariant,
+            ),
+          ),
         ),
       ),
     );

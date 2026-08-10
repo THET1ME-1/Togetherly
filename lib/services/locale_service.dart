@@ -225,6 +225,7 @@ abstract class AppStrings {
   String get moodBandEven;
   String get moodBandSad;
   String get moodBandHeavy;
+
   /// Подпись художника под сеткой пака: «Рисунки — noia_aa».
   String moodPackAuthor(String name);
   // ── Самочувствие («болячки») ──
@@ -1123,6 +1124,7 @@ abstract class AppStrings {
   String get notifMoodSub;
   String get notifChat;
   String get notifChatSub;
+
   /// Подпись над рекламным блоком.
   String get adLabel;
 
@@ -1144,20 +1146,28 @@ abstract class AppStrings {
   // ── Голосовые сообщения ──
   /// Подсказка под полосой записи, пока палец держит микрофон.
   String get voiceSlideHints;
+
   /// Палец увели влево: отпустишь — запись пропадёт.
   String get voiceReleaseToCancel;
+
   /// Палец увели вверх: отпустишь — запись останется идти без пальца.
   String get voiceReleaseToLock;
+
   /// Подпись голосового там, где нужен текст (цитата ответа, список связей).
   String get voiceMessage;
+
   /// Отпустили слишком быстро — записывать нечего.
   String get voiceTooShort;
+
   /// Микрофон не дали.
   String get voiceNoPermission;
+
   /// Записать не вышло: микрофон занят или платформа отказала.
   String get voiceFailed;
+
   /// Дошли до предела длительности.
   String get voiceLimitReached;
+
   /// Партнёр послушал наше голосовое.
   String get voiceHeard;
 
@@ -1185,8 +1195,24 @@ abstract class AppStrings {
   String get waitingApproved;
   String get waitingUntilReturn;
   String get waitingHomeToday;
+
   /// Сколько дней осталось до возвращения.
   String waitingDaysLeft(int days);
+
+  /// Развилка в листе: ждём конкретного человека или пока некого назвать.
+  String get waitingWhoLabel;
+  String get waitingKnowWho;
+  String get waitingDontKnowWho;
+
+  /// Имя второго места, когда человек его не назвал. Пустым его не оставить:
+  /// сервер требует имя, а карточка пары рисует по нему первую букву.
+  String get waitingUnknownName;
+  String get waitingUnknownHint;
+
+  /// Вход в «пару заранее» с экрана приглашения — для тех, кому некого позвать.
+  String get waitingSoloTitle;
+  String get waitingSoloBody;
+  String get waitingSoloAction;
   String get chatEmpty;
   String get chatEditMessage;
   String get chatDeleteMessage;
@@ -1201,10 +1227,13 @@ abstract class AppStrings {
   String chatNotifTitle(String name);
   String moodNotifTitle(String name);
   String chatDeleteConfirm(String text);
+
   /// Разделитель непрочитанных в чате (как в Telegram).
   String get chatNewMessages;
+
   /// Заголовок-разделитель по дате в чате: «Сегодня»/«Вчера»/«5 июня».
   String chatDateHeader(DateTime day);
+
   /// Лист оформления сообщения: подписи слоёв и кнопок.
   /// Пиксель-арт: диалог выбора сетки при создании холста.
   String get pixelCanvasTitle;
@@ -1216,20 +1245,24 @@ abstract class AppStrings {
   String pixelCanvasSummary(int cells, int px);
   String get pixelGridShow;
   String get pixelGridHide;
+
   /// Галерея холстов: заголовок во весь верх и строка под ним.
   String get canvasesTitle;
   String canvasesSubtitle(int count, String lastDate);
+
   /// Экран выбора сетки пиксель-арта.
   String get pixelScreenTitle;
   String get pixelCanvasCreateAction;
   String get plainCanvasSubtitle;
   String get pixelCanvasSubtitle;
+
   /// Массовые действия в галерее холстов.
   /// Секции каталога виджетов.
   String get widgetsCurrentSection;
   String get widgetsCurrentSubtitle;
   String get widgetsNewSection;
   String get widgetsNewSubtitle;
+
   /// Виджет «Вместе» из нового каталога.
   String get tgTogetherTitle;
   String get tgTogetherSubtitle;
@@ -1239,6 +1272,7 @@ abstract class AppStrings {
   String get tgNotePaperSubtitle;
   String get tgMissTitle;
   String get tgMissSubtitle;
+
   /// Выбор размера в карточке каталога и подписи внутри превью.
   String get tgSizeHintCompact;
   String get tgSizeHintWide;
@@ -1254,6 +1288,7 @@ abstract class AppStrings {
   String tgMissAddressee(String name);
   String get tgMissSend;
   String get tgMissStripHint;
+
   /// Виджеты «Настроение» и «До встречи» из нового каталога.
   String get tgMoodTitle;
   String get tgMoodSubtitle;
@@ -1272,6 +1307,7 @@ abstract class AppStrings {
   String get tgCountdownMinutes;
   String get tgSizeHintToday;
   String get tgSizeHintWeek;
+
   /// Виджеты «Кольцо года» и «Календарь лет».
   String get tgRingTitle;
   String get tgRingSubtitle;
@@ -1289,6 +1325,7 @@ abstract class AppStrings {
   String tgYearOrdinalLabel(int year);
   String tgYearsAndDays(int years, int days);
   String tgYearSince(String date);
+
   /// Экран настроек, вынесенный из профиля.
   String get settingsTitle;
   String get settingsOpen;
@@ -1304,6 +1341,7 @@ abstract class AppStrings {
   String get settingsSupportHint;
   String get settingsAccountSection;
   String get settingsDeleteHint;
+
   /// Сон маскотов: у каждого персонажа своё окно ночной сцены.
   String get mascotSleepTitle;
   String get mascotSleepHint;
@@ -1314,6 +1352,7 @@ abstract class AppStrings {
   String get mascotNightAwake;
   String mascotSleepRange(String from, String to);
   String mascotNightRange(String from, String to);
+
   /// Календарь цикла.
   String get cycleTitle;
 
@@ -1370,6 +1409,7 @@ abstract class AppStrings {
   List<String> get cycleWeekdayShorts;
   List<String> get cycleMonthNames;
   List<String> get cycleMonthsGenitive;
+
   /// Советы на дни месячных (лента под блоком цикла).
   String get cycleTipsTitle;
   String get cycleTipWarmTitle;
@@ -1386,6 +1426,7 @@ abstract class AppStrings {
   String get cycleTipIronBody;
   String get cycleTipRestTitle;
   String get cycleTipRestBody;
+
   /// Лист дня в календаре: что отмечаем на этот день.
   String dayLogDate(DateTime day);
   String dayLogWeekday(DateTime day);
@@ -1395,6 +1436,7 @@ abstract class AppStrings {
   String get cycleSheetHint;
   String cyclePeriodDayLabel(int day);
   String get cycleSexMarked;
+
   /// Рисование: слои и фоны листа.
   String get drawLayers;
   String get drawLayerAdd;
@@ -1406,6 +1448,7 @@ abstract class AppStrings {
   String drawLayerStrokes(int count);
   String get drawBackgrounds;
   String drawBackgroundName(String id);
+
   /// Togetherly+ — разовая покупка через lava.top.
   String get plusTitle;
   String get plusHeroTitle;
@@ -1480,6 +1523,7 @@ abstract class AppStrings {
   String get plusLockedTipsTitle;
   String get plusLockedTipsBody;
   String get plusUnlock;
+
   /// Общий фон чата — часть Togetherly+.
   String get chatBgSharedHint;
   String get chatBgUploading;
@@ -1642,6 +1686,7 @@ abstract class AppStrings {
   String get underlayLabel;
   String get drawHintEdit;
   String get drawHintDraw;
+
   /// Раскраска вдвоём.
   String get coloringTitle;
   String get coloringSubtitle;
@@ -1667,6 +1712,7 @@ abstract class AppStrings {
   String get coloringSaved;
   String get coloringNew;
   String get colorLabel;
+
   /// Колор-пикер рисования.
   String get eyedropper;
   String get eyedropperHint;
@@ -2340,8 +2386,7 @@ class _RuStrings extends AppStrings {
   @override
   String get capsuleNeedsContent => 'Добавь письмо или фото';
   @override
-  String get capsuleNeedsFutureDate =>
-      'Дата открытия должна быть в будущем';
+  String get capsuleNeedsFutureDate => 'Дата открытия должна быть в будущем';
   @override
   String capsuleOpensOn(String date) => 'Откроется $date';
   @override
@@ -2725,7 +2770,8 @@ class _RuStrings extends AppStrings {
   @override
   String get adNotReady => 'Реклама ещё загружается — попробуй через секунду';
   @override
-  String get adRewardLimitReached => 'Лимит на сегодня исчерпан — заходи завтра';
+  String get adRewardLimitReached =>
+      'Лимит на сегодня исчерпан — заходи завтра';
   @override
   String get rewardPending => 'Награда зачисляется…';
   @override
@@ -3095,15 +3141,15 @@ class _RuStrings extends AppStrings {
   String get titleFieldHint => 'Появится в ленте над фотографией';
   @override
   String memoryTypeName(String type) => switch (type) {
-        'photo' => 'Фотография',
-        'video' => 'Видео',
-        'location' => 'Локация',
-        'music' => 'Музыка',
-        'text' => 'Заметка',
-        'videoLink' => 'Видео по ссылке',
-        'book' => 'Книга',
-        _ => 'Кино',
-      };
+    'photo' => 'Фотография',
+    'video' => 'Видео',
+    'location' => 'Локация',
+    'music' => 'Музыка',
+    'text' => 'Заметка',
+    'videoLink' => 'Видео по ссылке',
+    'book' => 'Книга',
+    _ => 'Кино',
+  };
   @override
   String get symbolPickerTitle => 'Символ';
   @override
@@ -3117,7 +3163,8 @@ class _RuStrings extends AppStrings {
   @override
   String get symbolSearchHint => 'Найти символ';
   @override
-  String get symbolSearchEmpty => 'Ничего не нашлось — попробуйте английское имя';
+  String get symbolSearchEmpty =>
+      'Ничего не нашлось — попробуйте английское имя';
   @override
   String symbolSearchFound(int count) => 'Найдено: $count';
   @override
@@ -3163,9 +3210,7 @@ class _RuStrings extends AppStrings {
 
   @override
   String quietPartnerTitle(String name, int days) {
-    final d = days == 1
-        ? 'день'
-        : (days > 1 && days < 5 ? 'дня' : 'дней');
+    final d = days == 1 ? 'день' : (days > 1 && days < 5 ? 'дня' : 'дней');
     return '$name не заходит $days $d';
   }
 
@@ -3540,11 +3585,9 @@ class _RuStrings extends AppStrings {
   @override
   String get movieEnterManually => 'Ввести вручную';
   @override
-  String get movieManualEntryHint =>
-      'Заполните название самостоятельно';
+  String get movieManualEntryHint => 'Заполните название самостоятельно';
   @override
-  String get movieNoToken =>
-      'Поиск недоступен — впишите название вручную';
+  String get movieNoToken => 'Поиск недоступен — впишите название вручную';
   @override
   String get sharedAMovie => 'Поделился(-ась) фильмом';
   @override
@@ -3656,7 +3699,8 @@ class _RuStrings extends AppStrings {
   @override
   String get updateAvailableTitle => 'Доступно обновление';
   @override
-  String get updateAvailableSubtitle => 'Настоятельно рекомендуем обновиться — иначе некоторые функции Ленты воспоминаний работать не будут';
+  String get updateAvailableSubtitle =>
+      'Настоятельно рекомендуем обновиться — иначе некоторые функции Ленты воспоминаний работать не будут';
   @override
   String get updateWhatsNew => ruWhatsNew;
   @override
@@ -3830,7 +3874,8 @@ class _RuStrings extends AppStrings {
   @override
   String get countdownMode => 'Режим отсчёта';
   @override
-  String get countdownPastDateWarning => 'Целевая дата уже прошла — таймер покажет нули. Выберите будущую дату.';
+  String get countdownPastDateWarning =>
+      'Целевая дата уже прошла — таймер покажет нули. Выберите будущую дату.';
   @override
   String get setAsMain => 'Сделать основным';
   @override
@@ -4068,8 +4113,7 @@ class _RuStrings extends AppStrings {
   @override
   String get notifDaysTogether => 'Счётчик дней вместе';
   @override
-  String get notifDaysTogetherSub =>
-      'Постоянный счётчик в шторке уведомлений';
+  String get notifDaysTogetherSub => 'Постоянный счётчик в шторке уведомлений';
   @override
   String get notifDaysTogetherSubIos => 'Каждое утро в 9:00';
   @override
@@ -4081,8 +4125,8 @@ class _RuStrings extends AppStrings {
     final word = (mod10 == 1 && mod100 != 11)
         ? 'день'
         : (mod10 >= 2 && mod10 <= 4 && !(mod100 >= 12 && mod100 <= 14))
-            ? 'дня'
-            : 'дней';
+        ? 'дня'
+        : 'дней';
     return 'Вы вместе уже $days $word ❤️';
   }
 
@@ -4175,10 +4219,29 @@ class _RuStrings extends AppStrings {
     final word = (mod10 == 1 && mod100 != 11)
         ? 'день'
         : (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14))
-            ? 'дня'
-            : 'дней';
+        ? 'дня'
+        : 'дней';
     return '$n $word';
   }
+
+  @override
+  String get waitingWhoLabel => 'КОГО ЖДЁТЕ';
+  @override
+  String get waitingKnowWho => 'Знаю, кого';
+  @override
+  String get waitingDontKnowWho => 'Пока не знаю';
+  @override
+  String get waitingUnknownName => 'Половинка';
+  @override
+  String get waitingUnknownHint =>
+      'Место останется без имени — впишете, когда узнаете.';
+  @override
+  String get waitingSoloTitle => 'Позвать пока некого?';
+  @override
+  String get waitingSoloBody =>
+      'Заведите пару заранее и оставьте второе место свободным';
+  @override
+  String get waitingSoloAction => 'Оставить место';
   @override
   String get chatEmpty => 'Пока нет сообщений.\nНапишите первым 💬';
   @override
@@ -4215,8 +4278,18 @@ class _RuStrings extends AppStrings {
     if (diff == 0) return 'Сегодня';
     if (diff == 1) return 'Вчера';
     const months = [
-      'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-      'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
+      'января',
+      'февраля',
+      'марта',
+      'апреля',
+      'мая',
+      'июня',
+      'июля',
+      'августа',
+      'сентября',
+      'октября',
+      'ноября',
+      'декабря',
     ];
     final base = '${day.day} ${months[day.month - 1]}';
     return day.year == now.year ? base : '$base ${day.year}';
@@ -4250,11 +4323,14 @@ class _RuStrings extends AppStrings {
   String canvasesSubtitle(int count, String lastDate) {
     final word = count % 10 == 1 && count % 100 != 11
         ? 'рисунок'
-        : (count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 10 || count % 100 >= 20)
-            ? 'рисунка'
-            : 'рисунков');
+        : (count % 10 >= 2 &&
+                  count % 10 <= 4 &&
+                  (count % 100 < 10 || count % 100 >= 20)
+              ? 'рисунка'
+              : 'рисунков');
     return '$count $word · последний $lastDate';
   }
+
   @override
   String get pixelScreenTitle => 'ПИК\nСЕЛИ';
   @override
@@ -4282,7 +4358,8 @@ class _RuStrings extends AppStrings {
   @override
   String get tgNotePaperTitle => 'Заметка · стикер';
   @override
-  String get tgNotePaperSubtitle => 'Тот же листик, но бумажный и всегда жёлтый';
+  String get tgNotePaperSubtitle =>
+      'Тот же листик, но бумажный и всегда жёлтый';
   @override
   String get tgMissTitle => 'Скучаю';
   @override
@@ -4386,10 +4463,20 @@ class _RuStrings extends AppStrings {
   @override
   String tgYearOrdinalLabel(int year) {
     const words = [
-      'ПЕРВЫЙ', 'ВТОРОЙ', 'ТРЕТИЙ', 'ЧЕТВЁРТЫЙ', 'ПЯТЫЙ',
-      'ШЕСТОЙ', 'СЕДЬМОЙ', 'ВОСЬМОЙ', 'ДЕВЯТЫЙ', 'ДЕСЯТЫЙ',
+      'ПЕРВЫЙ',
+      'ВТОРОЙ',
+      'ТРЕТИЙ',
+      'ЧЕТВЁРТЫЙ',
+      'ПЯТЫЙ',
+      'ШЕСТОЙ',
+      'СЕДЬМОЙ',
+      'ВОСЬМОЙ',
+      'ДЕВЯТЫЙ',
+      'ДЕСЯТЫЙ',
     ];
-    final word = year >= 1 && year <= words.length ? words[year - 1] : '$year-Й';
+    final word = year >= 1 && year <= words.length
+        ? words[year - 1]
+        : '$year-Й';
     return '$word ГОД ВМЕСТЕ';
   }
 
@@ -4484,7 +4571,8 @@ class _RuStrings extends AppStrings {
   String cycleOverdue(int days) =>
       'Задержка ${_ruPlural(days, 'день', 'дня', 'дней')}';
   @override
-  String get cycleOverdueHint => 'Отметьте, когда начнутся, — прогноз обновится';
+  String get cycleOverdueHint =>
+      'Отметьте, когда начнутся, — прогноз обновится';
   @override
   String get cycleIrregularWarning =>
       'Цикл нерегулярный, прогноз приблизительный';
@@ -4539,18 +4627,45 @@ class _RuStrings extends AppStrings {
   @override
   String get cycleLegendIntimacy => 'секс';
   @override
-  List<String> get cycleWeekdayShorts =>
-      const ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
+  List<String> get cycleWeekdayShorts => const [
+    'пн',
+    'вт',
+    'ср',
+    'чт',
+    'пт',
+    'сб',
+    'вс',
+  ];
   @override
   List<String> get cycleMonthNames => const [
-        'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
-        'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь',
-      ];
+    'Январь',
+    'Февраль',
+    'Март',
+    'Апрель',
+    'Май',
+    'Июнь',
+    'Июль',
+    'Август',
+    'Сентябрь',
+    'Октябрь',
+    'Ноябрь',
+    'Декабрь',
+  ];
   @override
   List<String> get cycleMonthsGenitive => const [
-        'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-        'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
-      ];
+    'января',
+    'февраля',
+    'марта',
+    'апреля',
+    'мая',
+    'июня',
+    'июля',
+    'августа',
+    'сентября',
+    'октября',
+    'ноября',
+    'декабря',
+  ];
   @override
   String get cycleTipsTitle => 'Как себе помочь';
   @override
@@ -4599,9 +4714,14 @@ class _RuStrings extends AppStrings {
       '${day.day} ${cycleMonthsGenitive[day.month - 1]}';
   @override
   String dayLogWeekday(DateTime day) => const [
-        'понедельник', 'вторник', 'среда', 'четверг',
-        'пятница', 'суббота', 'воскресенье',
-      ][day.weekday - 1];
+    'понедельник',
+    'вторник',
+    'среда',
+    'четверг',
+    'пятница',
+    'суббота',
+    'воскресенье',
+  ][day.weekday - 1];
   @override
   String get dayLogWhat => 'что отметим?';
   @override
@@ -4630,26 +4750,27 @@ class _RuStrings extends AppStrings {
   @override
   String drawLayerName(int index) => 'Слой $index';
   @override
-  String drawLayerStrokes(int count) =>
-      count == 0 ? 'пусто' : '$count ${_ruPlural(count, 'штрих', 'штриха', 'штрихов')}';
+  String drawLayerStrokes(int count) => count == 0
+      ? 'пусто'
+      : '$count ${_ruPlural(count, 'штрих', 'штриха', 'штрихов')}';
   @override
   String get drawBackgrounds => 'Фоны';
   @override
   String drawBackgroundName(String id) => switch (id) {
-        'plain' => 'Чистый',
-        'grid' => 'Клетка',
-        'dots' => 'Точки',
-        'notebook' => 'Тетрадь',
-        'millimeter' => 'Миллиметровка',
-        'kraft' => 'Крафт',
-        'chalkboard' => 'Доска',
-        'music' => 'Ноты',
-        'stars' => 'Звёзды',
-        'hearts' => 'Сердечки',
-        'watercolor' => 'Акварель',
-        'film' => 'Плёнка',
-        _ => id,
-      };
+    'plain' => 'Чистый',
+    'grid' => 'Клетка',
+    'dots' => 'Точки',
+    'notebook' => 'Тетрадь',
+    'millimeter' => 'Миллиметровка',
+    'kraft' => 'Крафт',
+    'chalkboard' => 'Доска',
+    'music' => 'Ноты',
+    'stars' => 'Звёзды',
+    'hearts' => 'Сердечки',
+    'watercolor' => 'Акварель',
+    'film' => 'Плёнка',
+    _ => id,
+  };
   @override
   String get plusTitle => 'Togetherly+';
   @override
@@ -4754,6 +4875,7 @@ class _RuStrings extends AppStrings {
     if (lines.isEmpty) lines.add('Всё только начинается — 1');
     return lines.join('\n');
   }
+
   @override
   String get pcLabelReceiptItems => 'Строки чека';
   @override
@@ -4844,7 +4966,8 @@ class _RuStrings extends AppStrings {
   @override
   String get selectAll => 'Все';
   @override
-  String deleteCanvasesTitle(int n) => n == 1 ? 'Удалить холст?' : 'Удалить $n холстов?';
+  String deleteCanvasesTitle(int n) =>
+      n == 1 ? 'Удалить холст?' : 'Удалить $n холстов?';
   @override
   String deleteCanvasesConfirm(int n) => n == 1
       ? 'Рисунок исчезнет у обоих. Вернуть его будет нельзя.'
@@ -5067,7 +5190,8 @@ class _RuStrings extends AppStrings {
       'Партнёр поделился $count фото — выберите как они будут меняться на '
       'этом виджете.';
   @override
-  String get partnerSharedOnePhoto => 'Партнёр поделился 1 фото — без карусели.';
+  String get partnerSharedOnePhoto =>
+      'Партнёр поделился 1 фото — без карусели.';
   @override
   String get partnerNotSharedYet => 'Партнёр ещё не поделился фото.';
   @override
@@ -5154,8 +5278,7 @@ class _RuStrings extends AppStrings {
   @override
   String get streakBroken => 'Серия прервана';
   @override
-  String get streakKeepHint =>
-      'Заходите каждый день, чтобы не прерывать серию';
+  String get streakKeepHint => 'Заходите каждый день, чтобы не прерывать серию';
   @override
   String get streakStartHint => 'Зайдите сегодня, чтобы начать новую серию';
   @override
@@ -5231,7 +5354,8 @@ class _RuStrings extends AppStrings {
   @override
   String get coloringMyHalf => 'твоя половина';
   @override
-  String get coloringPartnerHalfHidden => 'Половина партнёра\nоткроется в конце';
+  String get coloringPartnerHalfHidden =>
+      'Половина партнёра\nоткроется в конце';
   @override
   String coloringPartnerColoring(String name) => '$name красит';
   @override
@@ -5314,7 +5438,8 @@ class _RuStrings extends AppStrings {
       'Добавьте ещё фото, чтобы появилась карусель — фото будут меняться '
       'автоматически.';
   @override
-  String get dragToReorder => 'Удерживайте и перетаскивайте, чтобы изменить порядок';
+  String get dragToReorder =>
+      'Удерживайте и перетаскивайте, чтобы изменить порядок';
   @override
   String photoNumber(int n) => 'Фото $n';
   @override
@@ -5401,7 +5526,8 @@ class _RuStrings extends AppStrings {
   String get watchVideoFormatUnsupported =>
       'Такой формат вдвоём не играет. Подойдут MP4, MOV или WebM';
   @override
-  String get watchPickFileAgain => 'Это ваш файл с телефона: выберите его в комнате';
+  String get watchPickFileAgain =>
+      'Это ваш файл с телефона: выберите его в комнате';
   @override
   String get watchHeroTitle => 'Одно кино на двоих';
   @override
@@ -5428,7 +5554,8 @@ class _RuStrings extends AppStrings {
   @override
   String get joinAction => 'Присоединиться';
   @override
-  String get partnerEndedWatchTogether => 'Партнёр завершил совместный просмотр';
+  String get partnerEndedWatchTogether =>
+      'Партнёр завершил совместный просмотр';
   @override
   String get videoCannotWatchTogether => 'Это видео нельзя смотреть вместе';
   @override
@@ -5528,16 +5655,30 @@ class _RuStrings extends AppStrings {
     final ones = n % 10;
     final word = (tens >= 11 && tens <= 14)
         ? 'монет'
-        : (ones == 1 ? 'монета' : (ones >= 2 && ones <= 4 ? 'монеты' : 'монет'));
+        : (ones == 1
+              ? 'монета'
+              : (ones >= 2 && ones <= 4 ? 'монеты' : 'монет'));
     return '+$n $word';
   }
+
   @override
-  String moodScoreLabel(int score, int max) => '$moodScorePrefix $score из $max';
+  String moodScoreLabel(int score, int max) =>
+      '$moodScorePrefix $score из $max';
   @override
   List<String> get monthAbbrev => const [
-        'янв', 'фев', 'мар', 'апр', 'мая', 'июн',
-        'июл', 'авг', 'сен', 'окт', 'ноя', 'дек',
-      ];
+    'янв',
+    'фев',
+    'мар',
+    'апр',
+    'мая',
+    'июн',
+    'июл',
+    'авг',
+    'сен',
+    'окт',
+    'ноя',
+    'дек',
+  ];
   @override
   String get placeOrCoordsHint => 'Место или 55.751, 37.618';
   @override
@@ -5633,7 +5774,8 @@ class _RuStrings extends AppStrings {
   @override
   String giftMutualBonus(int coins) => 'Успели вовремя: обоим по $coins';
   @override
-  String giftSunriseGreeting(String name) => 'Доброе утро! $name подарил тебе рассвет';
+  String giftSunriseGreeting(String name) =>
+      'Доброе утро! $name подарил тебе рассвет';
   @override
   String get supportTitle => 'Написать в поддержку';
   @override
@@ -5693,14 +5835,14 @@ class _RuStrings extends AppStrings {
       const ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'][weekday - 1];
   @override
   String weekdayLong(int weekday) => const [
-        'по понедельникам',
-        'по вторникам',
-        'по средам',
-        'по четвергам',
-        'по пятницам',
-        'по субботам',
-        'по воскресеньям',
-      ][weekday - 1];
+    'по понедельникам',
+    'по вторникам',
+    'по средам',
+    'по четвергам',
+    'по пятницам',
+    'по субботам',
+    'по воскресеньям',
+  ][weekday - 1];
 
   String _daysWord(int n) {
     final t = n % 100;
@@ -6108,8 +6250,7 @@ class _EnStrings extends AppStrings {
   @override
   String get setPinTitle => 'Set a PIN';
   @override
-  String get setPinHint =>
-      'At least 4 digits. Stored only on this device.';
+  String get setPinHint => 'At least 4 digits. Stored only on this device.';
   @override
   String get wrongPin => 'Wrong PIN';
   @override
@@ -6130,7 +6271,8 @@ class _EnStrings extends AppStrings {
   @override
   String get change => 'Change';
   @override
-  String capsuleOpensIn(int days) => days <= 0 ? 'opens today' : 'in $days days';
+  String capsuleOpensIn(int days) =>
+      days <= 0 ? 'opens today' : 'in $days days';
   @override
   String get capsulePreset1m => '1 month';
   @override
@@ -6515,7 +6657,8 @@ class _EnStrings extends AppStrings {
   @override
   String get iconRewardOnly => 'Reward';
   @override
-  String get iconRewardHint => 'This icon is granted manually for contributing to the project.';
+  String get iconRewardHint =>
+      'This icon is granted manually for contributing to the project.';
   @override
   String get iconPurchased => 'Icon unlocked';
   @override
@@ -6894,15 +7037,15 @@ class _EnStrings extends AppStrings {
   String get titleFieldHint => 'Shown in the feed above the photo';
   @override
   String memoryTypeName(String type) => switch (type) {
-        'photo' => 'Photo',
-        'video' => 'Video',
-        'location' => 'Location',
-        'music' => 'Music',
-        'text' => 'Note',
-        'videoLink' => 'Video link',
-        'book' => 'Book',
-        _ => 'Movie',
-      };
+    'photo' => 'Photo',
+    'video' => 'Video',
+    'location' => 'Location',
+    'music' => 'Music',
+    'text' => 'Note',
+    'videoLink' => 'Video link',
+    'book' => 'Book',
+    _ => 'Movie',
+  };
   @override
   String get symbolPickerTitle => 'Symbol';
   @override
@@ -6946,7 +7089,8 @@ class _EnStrings extends AppStrings {
   @override
   String get chatBgNight => 'Night';
   @override
-  String get needsPartnerHint => 'This one works in pairs — invite your other half';
+  String get needsPartnerHint =>
+      'This one works in pairs — invite your other half';
   @override
   String get inviteReminderTitle => 'Your invite code is still active';
   @override
@@ -6961,15 +7105,17 @@ class _EnStrings extends AppStrings {
   String get invitePromptAction => 'Invite your partner';
 
   @override
-  String quietPartnerTitle(String name, int days) =>
-      days == 1 ? '$name has been away a day' : '$name has been away $days days';
+  String quietPartnerTitle(String name, int days) => days == 1
+      ? '$name has been away a day'
+      : '$name has been away $days days';
   @override
   String get quietPartnerBody =>
       'Remind them about you — they will see it on their screen';
   @override
   String get quietPartnerAction => 'Send "Miss you"';
   @override
-  String get quietPartnerSent => 'Sent. Your partner will see that you miss them';
+  String get quietPartnerSent =>
+      'Sent. Your partner will see that you miss them';
 
   @override
   String get connectPartnerBtn => 'Connect Partner';
@@ -7310,8 +7456,7 @@ class _EnStrings extends AppStrings {
   @override
   String get bookEnterManually => 'Enter manually';
   @override
-  String get bookManualEntryHint =>
-      'Fill in the title and author yourself';
+  String get bookManualEntryHint => 'Fill in the title and author yourself';
   @override
   String get sharedABook => 'Shared a book';
   @override
@@ -7455,7 +7600,8 @@ class _EnStrings extends AppStrings {
   @override
   String get updateAvailableTitle => 'Update available';
   @override
-  String get updateAvailableSubtitle => 'Update is recommended — some Memory Lane features may not work without it';
+  String get updateAvailableSubtitle =>
+      'Update is recommended — some Memory Lane features may not work without it';
   @override
   String get updateWhatsNew => enWhatsNew;
   @override
@@ -7629,7 +7775,8 @@ class _EnStrings extends AppStrings {
   @override
   String get countdownMode => 'Countdown Mode';
   @override
-  String get countdownPastDateWarning => 'Target date has already passed — the timer will show zeros. Please pick a future date.';
+  String get countdownPastDateWarning =>
+      'Target date has already passed — the timer will show zeros. Please pick a future date.';
   @override
   String get setAsMain => 'Set as Main';
   @override
@@ -7784,7 +7931,8 @@ class _EnStrings extends AppStrings {
   String get cycleConsentAgree => 'Agree and track';
   String get cycleConsentLater => 'Not now';
   String get cycleConsentWithdraw => 'Withdraw cycle consent';
-  String get cycleConsentWithdrawHint => 'the section closes, entries are erased';
+  String get cycleConsentWithdrawHint =>
+      'the section closes, entries are erased';
   String get exportMyData => 'My data';
   String get exportMyDataHint => 'download an archive of everything we store';
   String get exportMyDataReady => 'Archive ready';
@@ -7948,6 +8096,24 @@ class _EnStrings extends AppStrings {
     final n = days.abs();
     return n == 1 ? '1 day' : '$n days';
   }
+
+  @override
+  String get waitingWhoLabel => 'WHO ARE YOU WAITING FOR';
+  @override
+  String get waitingKnowWho => 'I know who';
+  @override
+  String get waitingDontKnowWho => 'Not yet';
+  @override
+  String get waitingUnknownName => 'My other half';
+  @override
+  String get waitingUnknownHint =>
+      'The seat stays unnamed — you can fill it in later.';
+  @override
+  String get waitingSoloTitle => 'No one to invite yet?';
+  @override
+  String get waitingSoloBody => 'Start the pair now and keep the second seat';
+  @override
+  String get waitingSoloAction => 'Keep the seat';
   @override
   String get chatEmpty => 'No messages yet.\nSay hi first 💬';
   @override
@@ -7984,8 +8150,18 @@ class _EnStrings extends AppStrings {
     if (diff == 0) return 'Today';
     if (diff == 1) return 'Yesterday';
     const months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December',
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
     ];
     final base = '${months[day.month - 1]} ${day.day}';
     return day.year == now.year ? base : '$base, ${day.year}';
@@ -8045,7 +8221,8 @@ class _EnStrings extends AppStrings {
   @override
   String get tgNotePaperTitle => 'Note · sticker';
   @override
-  String get tgNotePaperSubtitle => 'The same sheet, but paper and always yellow';
+  String get tgNotePaperSubtitle =>
+      'The same sheet, but paper and always yellow';
   @override
   String get tgMissTitle => 'Miss you';
   @override
@@ -8136,8 +8313,7 @@ class _EnStrings extends AppStrings {
   String tgYearDaysTogether(int days) =>
       '${days == 1 ? 'Day' : 'Days'} together';
   @override
-  String tgYearDaysLeft(int days) =>
-      '$days ${days == 1 ? 'day' : 'days'} left';
+  String tgYearDaysLeft(int days) => '$days ${days == 1 ? 'day' : 'days'} left';
   @override
   String tgYearToAnniversary(int year) => 'To year $year';
   @override
@@ -8199,11 +8375,9 @@ class _EnStrings extends AppStrings {
   @override
   String get mascotNightAwake => 'Awake at night — it is nocturnal';
   @override
-  String mascotSleepRange(String from, String to) =>
-      'Sleeps from $from to $to';
+  String mascotSleepRange(String from, String to) => 'Sleeps from $from to $to';
   @override
-  String mascotNightRange(String from, String to) =>
-      'Glows from $from to $to';
+  String mascotNightRange(String from, String to) => 'Glows from $from to $to';
   @override
   String get cycleTitle => 'Cycle';
 
@@ -8220,11 +8394,13 @@ class _EnStrings extends AppStrings {
   @override
   String get cycleWipeHint => 'every mark and calculation, no way back';
   @override
-  String get cycleWipeConfirm => 'Delete all cycle marks? This cannot be undone.';
+  String get cycleWipeConfirm =>
+      'Delete all cycle marks? This cannot be undone.';
   @override
   String get cycleNoDataTitle => 'Mark your first days';
   @override
-  String get cycleNoDataHint => 'The forecast appears after two cycles in a row';
+  String get cycleNoDataHint =>
+      'The forecast appears after two cycles in a row';
   @override
   String get cycleExpectedToday => 'Expected today';
   @override
@@ -8232,8 +8408,7 @@ class _EnStrings extends AppStrings {
   @override
   String cycleDayOfCycle(int day) => 'Day $day of the cycle';
   @override
-  String cycleOverdue(int days) =>
-      '$days ${days == 1 ? 'day' : 'days'} late';
+  String cycleOverdue(int days) => '$days ${days == 1 ? 'day' : 'days'} late';
   @override
   String get cycleOverdueHint => 'Mark the start and the forecast will update';
   @override
@@ -8289,18 +8464,45 @@ class _EnStrings extends AppStrings {
   @override
   String get cycleLegendIntimacy => 'intimacy';
   @override
-  List<String> get cycleWeekdayShorts =>
-      const ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+  List<String> get cycleWeekdayShorts => const [
+    'Mo',
+    'Tu',
+    'We',
+    'Th',
+    'Fr',
+    'Sa',
+    'Su',
+  ];
   @override
   List<String> get cycleMonthNames => const [
-        'January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December',
-      ];
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
   @override
   List<String> get cycleMonthsGenitive => const [
-        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-      ];
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
   @override
   String get cycleTipsTitle => 'How to feel better';
   @override
@@ -8349,9 +8551,14 @@ class _EnStrings extends AppStrings {
       '${cycleMonthsGenitive[day.month - 1]} ${day.day}';
   @override
   String dayLogWeekday(DateTime day) => const [
-        'Monday', 'Tuesday', 'Wednesday', 'Thursday',
-        'Friday', 'Saturday', 'Sunday',
-      ][day.weekday - 1];
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday',
+  ][day.weekday - 1];
   @override
   String get dayLogWhat => 'what to log?';
   @override
@@ -8386,20 +8593,20 @@ class _EnStrings extends AppStrings {
   String get drawBackgrounds => 'Backgrounds';
   @override
   String drawBackgroundName(String id) => switch (id) {
-        'plain' => 'Plain',
-        'grid' => 'Grid',
-        'dots' => 'Dots',
-        'notebook' => 'Notebook',
-        'millimeter' => 'Graph paper',
-        'kraft' => 'Kraft',
-        'chalkboard' => 'Chalkboard',
-        'music' => 'Sheet music',
-        'stars' => 'Stars',
-        'hearts' => 'Hearts',
-        'watercolor' => 'Watercolour',
-        'film' => 'Film',
-        _ => id,
-      };
+    'plain' => 'Plain',
+    'grid' => 'Grid',
+    'dots' => 'Dots',
+    'notebook' => 'Notebook',
+    'millimeter' => 'Graph paper',
+    'kraft' => 'Kraft',
+    'chalkboard' => 'Chalkboard',
+    'music' => 'Sheet music',
+    'stars' => 'Stars',
+    'hearts' => 'Hearts',
+    'watercolor' => 'Watercolour',
+    'film' => 'Film',
+    _ => id,
+  };
   @override
   String get plusTitle => 'Togetherly+';
   @override
@@ -8425,8 +8632,7 @@ class _EnStrings extends AppStrings {
   @override
   String get plusColoringTitle => 'Your own coloring pages';
   @override
-  String get plusColoringBody =>
-      'Upload your picture and color it together';
+  String get plusColoringBody => 'Upload your picture and color it together';
   @override
   String get plusThemesTitle => 'All themes and icons';
   @override
@@ -8448,7 +8654,8 @@ class _EnStrings extends AppStrings {
   @override
   String get plusVideoTitle => 'Bigger videos';
   @override
-  String get plusVideoBody => '200 MB for memories, 300 MB for watching together';
+  String get plusVideoBody =>
+      '200 MB for memories, 300 MB for watching together';
   @override
   String get plusBuy => 'Buy for \$10';
   @override
@@ -8499,6 +8706,7 @@ class _EnStrings extends AppStrings {
     if (lines.isEmpty) lines.add('It is only starting — 1');
     return lines.join('\n');
   }
+
   @override
   String get pcLabelReceiptItems => 'Receipt lines';
   @override
@@ -8506,7 +8714,8 @@ class _EnStrings extends AppStrings {
   @override
   String get pcTelegramTitle => 'telegram';
   @override
-  String get pcMsgTelegram => 'Love you stop\nWaiting home stop\nDo not be late excl';
+  String get pcMsgTelegram =>
+      'Love you stop\nWaiting home stop\nDo not be late excl';
   @override
   String get pcParcelCare => 'fragile · handle with care';
   @override
@@ -8588,7 +8797,8 @@ class _EnStrings extends AppStrings {
   @override
   String get selectAll => 'All';
   @override
-  String deleteCanvasesTitle(int n) => n == 1 ? 'Delete canvas?' : 'Delete $n canvases?';
+  String deleteCanvasesTitle(int n) =>
+      n == 1 ? 'Delete canvas?' : 'Delete $n canvases?';
   @override
   String deleteCanvasesConfirm(int n) => n == 1
       ? 'The drawing disappears for both of you. This cannot be undone.'
@@ -8796,7 +9006,8 @@ class _EnStrings extends AppStrings {
   String get partnerSharedOnePhoto =>
       'Your partner shared 1 photo — no carousel.';
   @override
-  String get partnerNotSharedYet => 'Your partner hasn’t shared any photos yet.';
+  String get partnerNotSharedYet =>
+      'Your partner hasn’t shared any photos yet.';
   @override
   String get changePhotosLabel => 'Change photos:';
   @override
@@ -8852,7 +9063,8 @@ class _EnStrings extends AppStrings {
   @override
   String get deleteMascotTitle => 'Delete mascot?';
   @override
-  String deleteMascotBody(String name) => '“$name” will be deleted permanently.';
+  String deleteMascotBody(String name) =>
+      '“$name” will be deleted permanently.';
   @override
   String recordStreakDays(int days) => 'Record: $days d.';
   @override
@@ -9128,7 +9340,8 @@ class _EnStrings extends AppStrings {
   String get watchVideoFormatUnsupported =>
       'That format will not play together. Use MP4, MOV or WebM';
   @override
-  String get watchPickFileAgain => 'That is a file from your phone: pick it inside the room';
+  String get watchPickFileAgain =>
+      'That is a file from your phone: pick it inside the room';
   @override
   String get watchHeroTitle => 'One movie for two';
   @override
@@ -9157,7 +9370,8 @@ class _EnStrings extends AppStrings {
   @override
   String get partnerEndedWatchTogether => 'Partner ended the watch session';
   @override
-  String get videoCannotWatchTogether => 'This video can\'t be watched together';
+  String get videoCannotWatchTogether =>
+      'This video can\'t be watched together';
   @override
   String get videoEmbedBlockedHint =>
       'This video can\'t be embedded: the author disabled playback outside '
@@ -9250,12 +9464,23 @@ class _EnStrings extends AppStrings {
   @override
   String coinsPlus(int n) => '+$n ${n == 1 ? 'coin' : 'coins'}';
   @override
-  String moodScoreLabel(int score, int max) => '$moodScorePrefix $score of $max';
+  String moodScoreLabel(int score, int max) =>
+      '$moodScorePrefix $score of $max';
   @override
   List<String> get monthAbbrev => const [
-        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-      ];
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
   @override
   String get placeOrCoordsHint => 'Place or 55.751, 37.618';
   @override
@@ -9346,7 +9571,8 @@ class _EnStrings extends AppStrings {
   @override
   String giftMutualBonus(int coins) => 'Right on time: $coins each';
   @override
-  String giftSunriseGreeting(String name) => 'Good morning! $name sent you a sunrise';
+  String giftSunriseGreeting(String name) =>
+      'Good morning! $name sent you a sunrise';
   @override
   String get supportTitle => 'Contact support';
   @override
@@ -9407,14 +9633,14 @@ class _EnStrings extends AppStrings {
       const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][weekday - 1];
   @override
   String weekdayLong(int weekday) => const [
-        'Mondays',
-        'Tuesdays',
-        'Wednesdays',
-        'Thursdays',
-        'Fridays',
-        'Saturdays',
-        'Sundays',
-      ][weekday - 1];
+    'Mondays',
+    'Tuesdays',
+    'Wednesdays',
+    'Thursdays',
+    'Fridays',
+    'Saturdays',
+    'Sundays',
+  ][weekday - 1];
 
   // Gifts
   @override
