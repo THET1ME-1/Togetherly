@@ -659,10 +659,17 @@ class _ProfileScreenState extends State<ProfileScreen>
     _showError(_s.error);
   }
 
+  /// Версия для строки «О приложении» — вместе с номером сборки.
+  ///
+  /// Раньше здесь стоял голый `packageInfo.version`, то есть «1.24.0» и у
+  /// вчерашней сборки, и у сегодняшней: проверить, какая именно стоит на
+  /// телефоне, было нельзя вообще. Номер сборки как раз и отличает их — он
+  /// растёт с каждой выкладкой.
   Future<String> _getAppVersion() async {
     try {
-      final packageInfo = await PackageInfo.fromPlatform();
-      return packageInfo.version;
+      final info = await PackageInfo.fromPlatform();
+      final build = info.buildNumber.trim();
+      return build.isEmpty ? info.version : '${info.version} ($build)';
     } catch (e) {
       return '1.1.4';
     }
