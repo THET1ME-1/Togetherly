@@ -8,7 +8,6 @@ import 'package:flutter/services.dart';
 
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
-import '../utils/readable_text.dart';
 
 /// Цвет цифры и подписи внутри лепестка.
 ///
@@ -17,9 +16,10 @@ import '../utils/readable_text.dart';
 /// белые «0 Сек», «1 Лет» на нём пропали. Подложек две: незаполненная часть
 /// лепестка и та, что налилась акцентом, — какая под текстом, решает [factor]
 /// (доля заполнения, текст стоит на середине лепестка).
-Color petalTextColor(AppTheme theme, double factor) => factor > 0.5
-    ? AppThemes.onColor(theme.fillColor, mode: theme.brightness)
-    : readableTextOn(theme.timerDialBackground);
+Color petalTextColor(AppTheme theme, double factor) => AppThemes.onColor(
+      factor > 0.5 ? theme.fillColor : theme.dialTrack,
+      mode: theme.brightness,
+    );
 
 /// Data for a single petal segment.
 class _PetalData {
@@ -536,11 +536,11 @@ class _PetalDialPainter extends CustomPainter {
       final textAlpha = pres.clamp(0.0, 1.0);
 
       final bgPaintFill = Paint()
-        ..color = theme.timerDialBackground.withValues(alpha: petalAlpha)
+        ..color = theme.dialTrack.withValues(alpha: petalAlpha)
         ..style = PaintingStyle.fill;
 
       final bgPaintStroke = Paint()
-        ..color = theme.timerDialBackground.withValues(alpha: petalAlpha)
+        ..color = theme.dialTrack.withValues(alpha: petalAlpha)
         ..style = PaintingStyle.stroke
         ..strokeJoin = StrokeJoin.round
         ..strokeWidth = cr * 2;
