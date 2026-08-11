@@ -403,6 +403,9 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
 
   Widget _buildGrid(AppStrings s, AppTheme t) {
     return GridView.builder(
+      // Запас прогрева: без него ряд за краем экрана начинал готовиться
+      // ровно тогда, когда его уже листают.
+      cacheExtent: 600,
       padding: EdgeInsets.zero,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,

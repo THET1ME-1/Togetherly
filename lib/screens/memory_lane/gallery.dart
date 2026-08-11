@@ -29,6 +29,10 @@ class _PhotoGalleryScreen extends StatelessWidget {
       ),
       body: GridView.builder(
         padding: EdgeInsets.only(bottom: botPad + 8),
+        // Запас в пол-экрана: плитки тянут картинки из сети, и без прогрева
+        // ряд за краем начинал грузиться ровно в тот момент, когда его уже
+        // листают — вместо снимков ехали пустые квадраты.
+        cacheExtent: 600,
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 3,
           mainAxisSpacing: 2,

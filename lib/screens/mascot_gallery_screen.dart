@@ -681,6 +681,9 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
       ));
       if (open) {
         folders.add(GridView.builder(
+          // Запас прогрева: без него ряд за краем экрана начинал готовиться
+          // ровно тогда, когда его уже листают.
+          cacheExtent: 600,
           padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),

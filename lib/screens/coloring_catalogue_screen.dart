@@ -152,6 +152,9 @@ class _ColoringCatalogueScreenState extends State<ColoringCatalogueScreen> {
             ),
             const SizedBox(height: 18),
             GridView.builder(
+              // Запас прогрева: без него ряд за краем экрана начинал готовиться
+              // ровно тогда, когда его уже листают.
+              cacheExtent: 600,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(

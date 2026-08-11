@@ -38,6 +38,7 @@ import 'memory_lane_screen.dart';
 import '../widgets/common/m3_loading.dart';
 import '../models/widget_data.dart';
 import '../widgets/common/plus_badge.dart';
+import '../widgets/common/scaled_asset.dart';
 
 /// Цена смены фона чата в монетах (зеркало CONSUMABLE_PRICES на сервере).
 const int _kChatBgPrice = 20;
@@ -256,6 +257,21 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Последний полученный срез — фолбэк, пока пересоздаём поток при пагинации
   /// (иначе StreamBuilder на миг показал бы спиннер вместо списка).
   List<ChatMsg> _lastMessages = const [];
+
+  /// Готовый список строк — сообщения вперемешку с датами и меткой «Новые».
+  ///
+  /// Собирался заново на КАЖДОМ перестроении экрана, а их тут за полсотни:
+  /// смена фона, реакция, тап по кнопке — и проход по всей истории с
+  /// разбором дат. Пересобираем только когда приехал новый срез или сдвинулась
+  /// граница непрочитанного; ссылку на срез сравниваем по тождеству, поэтому
+  /// правка или удаление сообщения (у потока это новый список) кэш не переживёт.
+  List<Object>? _items;
+  List<ChatMsg>? _itemsOf;
+  int _itemsOpenLastRead = -1;
+
+  /// До какого сообщения уже отметились прочитавшими. Без этого `markRead`
+  /// открывал SharedPreferences на каждое перестроение чата.
+  int _markedReadTs = 0;
 
   /// Минимальный ts прочтения среди остальных участников. Своё сообщение
   /// «прочитано» (✓✓), если его ts ≤ этого значения, иначе «отправлено» (✓).
@@ -1176,12 +1192,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: Image.asset(
-                      'assets/images/logo/logo.jpg',
-                      width: 30,
-                      height: 30,
-                      fit: BoxFit.cover,
-                    ),
+                    child: ScaledAsset('assets/images/logo/logo.jpg', side: 30, fit: BoxFit.cover),
                   ),
                   const SizedBox(width: 10),
                   Text(
@@ -1208,8 +1219,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   : Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Image.asset('assets/images/icons/coin.webp',
-                            width: 18, height: 18),
+                        ScaledAsset('assets/images/icons/coin.webp', side: 18),
                         const SizedBox(width: 3),
                         Text('$_kChatBgPrice',
                             style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -1702,7 +1712,6 @@ class _ChatScreenState extends State<ChatScreen> {
                   height: 44,
                   fit: BoxFit.cover,
                   memCacheWidth: 132,
-                  memCacheHeight: 132,
                   placeholder: (_, __) => _avatarLetter(cs, name),
                   errorWidget: (_, __, ___) => _avatarLetter(cs, name),
                 )
@@ -2006,9 +2015,12 @@ class _ChatScreenState extends State<ChatScreen> {
                 if (messages.isNotEmpty) {
                   _lastMessageTs = messages.last.ts;
                   _lastIsMine = messages.last.uid == _myUid;
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    _chat.markRead(_groupId, _lastMessageTs);
-                  });
+                  if (_markedReadTs != _lastMessageTs) {
+                    _markedReadTs = _lastMessageTs;
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      _chat.markRead(_groupId, _lastMessageTs);
+                    });
+                  }
                 }
                 // Меньше, чем просили → достигли начала истории.
                 _hasMore = messages.length >= _limit;
@@ -2027,11 +2039,11 @@ class _ChatScreenState extends State<ChatScreen> {
                   return Center(child: M3Loading(color: _t.primaryLight));
                 }
 
-                final items = _buildItems(messages);
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  _afterMessagesLayout();
-                });
+                final items = _itemsFor(messages);
                 return ListView.builder(
+                  // Запас прогрева: без него ряд за краем экрана начинал готовиться
+                  // ровно тогда, когда его уже листают.
+                  cacheExtent: 600,
                   controller: _scrollController,
                   padding: const EdgeInsets.fromLTRB(10, 12, 10, 8),
                   itemCount: items.length,
@@ -2086,6 +2098,28 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// Превращает плоский список сообщений в список элементов с разделителями:
   /// заголовки дат (как в Telegram) и маркер «Новые сообщения».
+  /// Строки списка для этого среза сообщений.
+  ///
+  /// Пересборка идёт только при новых данных; тогда же планируется разбор
+  /// раскладки — он держит позицию прокрутки при подгрузке старых сообщений и
+  /// доводит список до низа при новом. Гонять его на каждое перестроение
+  /// экрана незачем: раскладка от смены фона или реакции не меняется.
+  List<Object> _itemsFor(List<ChatMsg> messages) {
+    final ready = _items;
+    if (ready != null &&
+        identical(_itemsOf, messages) &&
+        _itemsOpenLastRead == _openLastRead) {
+      return ready;
+    }
+    _itemsOf = messages;
+    _itemsOpenLastRead = _openLastRead;
+    final items = _items = _buildItems(messages);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _afterMessagesLayout();
+    });
+    return items;
+  }
+
   List<Object> _buildItems(List<ChatMsg> messages) {
     final items = <Object>[];
     DateTime? lastDay;
@@ -2596,7 +2630,6 @@ class _ChatScreenState extends State<ChatScreen> {
           imageUrl: thumb,
           fit: BoxFit.cover,
           memCacheWidth: 120,
-          memCacheHeight: 120,
           errorWidget: (_, _, _) => fallback,
         ),
       ),
