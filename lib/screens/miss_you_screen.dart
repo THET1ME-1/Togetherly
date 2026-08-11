@@ -73,6 +73,15 @@ class _MissYouScreenState extends State<MissYouScreen>
   final Random _random = Random();
 
   ColorScheme get _cs => ProfileTheme.schemeFor(widget.theme);
+
+  /// Заливка темы и чернила по ней.
+  ///
+  /// Не `primaryContainer`: у тем, нарисованных руками, он берётся из
+  /// «чуть тонированного фона» (`primaryLight`), и на светлой теме залитое
+  /// пропадало со страницы — контраст к фону 1,00–1,07 по всем светлым
+  /// палитрам. Заливка видна везде, худший случай 2,05.
+  Color get _fill => widget.theme.fillColor;
+  Color get _onFill => AppThemes.onColor(widget.theme.fillColor);
   AppStrings get _s => LocaleService.current;
 
   @override
@@ -394,8 +403,7 @@ class _MissYouScreenState extends State<MissYouScreen>
                         offset: Offset(h.dx * eased, -h.rise * eased),
                         child: Opacity(
                           opacity: (1 - p).clamp(0.0, 1.0),
-                          child: Icon(h.icon,
-                              size: h.size, color: cs.primaryContainer),
+                          child: Icon(h.icon, size: h.size, color: _fill),
                         ),
                       );
                     },
@@ -416,8 +424,7 @@ class _MissYouScreenState extends State<MissYouScreen>
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: cs.primaryContainer
-                                .withValues(alpha: 0.42 * (1 - p)),
+                            color: _fill.withValues(alpha: 0.42 * (1 - p)),
                             width: 3,
                           ),
                         ),
@@ -427,7 +434,11 @@ class _MissYouScreenState extends State<MissYouScreen>
                 ),
                 ScaleTransition(
                   scale: _pulseScale,
-                  child: _HeartButton(scheme: cs, onTap: _sendMissYou),
+                  child: _HeartButton(
+                    fill: _fill,
+                    onFill: _onFill,
+                    onTap: _sendMissYou,
+                  ),
                 ),
               ],
             ),
@@ -454,6 +465,8 @@ class _MissYouScreenState extends State<MissYouScreen>
               Expanded(
                 child: _Tally(
                   scheme: cs,
+                  fill: _fill,
+                  onFill: _onFill,
                   uid: widget.myUid,
                   name: _s.missYouYou,
                   count: myCount,
@@ -464,6 +477,8 @@ class _MissYouScreenState extends State<MissYouScreen>
               Expanded(
                 child: _Tally(
                   scheme: cs,
+                  fill: _fill,
+                  onFill: _onFill,
                   uid: widget.partnerUid,
                   avatarUrl: widget.partnerAvatarUrl,
                   name: widget.partnerName.isEmpty
@@ -512,6 +527,8 @@ class _MissYouScreenState extends State<MissYouScreen>
           icon: Icons.add_rounded,
           label: _s.customVibe,
           accent: true,
+          accentFill: _fill,
+          accentInk: _onFill,
           onTap: _addWish,
         ),
       ],
@@ -579,8 +596,8 @@ class _MissYouScreenState extends State<MissYouScreen>
             icon: Icon(vibeIcon(_replyVibe), size: 17),
             label: Text(_s.missYouReplyBack),
             style: FilledButton.styleFrom(
-              backgroundColor: cs.primaryContainer,
-              foregroundColor: cs.onPrimaryContainer,
+              backgroundColor: _fill,
+              foregroundColor: _onFill,
               shape: const StadiumBorder(),
               padding: const EdgeInsets.symmetric(horizontal: 14),
               textStyle: const TextStyle(
@@ -632,6 +649,7 @@ class _MissYouScreenState extends State<MissYouScreen>
                     Expanded(
                       child: _WeekColumn(
                         scheme: cs,
+                        fill: _fill,
                         bar: b,
                         label: _s.shortWeekdays[b.weekday - 1],
                         isToday: b.weekday == today,
@@ -690,9 +708,14 @@ String lastSeenLabel(int? seenAtMs, String yesterdayWord) {
 }
 
 class _HeartButton extends StatefulWidget {
-  const _HeartButton({required this.scheme, required this.onTap});
+  const _HeartButton({
+    required this.fill,
+    required this.onFill,
+    required this.onTap,
+  });
 
-  final ColorScheme scheme;
+  final Color fill;
+  final Color onFill;
   final VoidCallback onTap;
 
   @override
@@ -704,7 +727,6 @@ class _HeartButtonState extends State<_HeartButton> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = widget.scheme;
     return GestureDetector(
       onTap: widget.onTap,
       onTapDown: (_) => setState(() => _down = true),
@@ -718,13 +740,13 @@ class _HeartButtonState extends State<_HeartButton> {
           width: 132,
           height: 132,
           decoration: BoxDecoration(
-            color: cs.primaryContainer,
+            color: widget.fill,
             shape: BoxShape.circle,
           ),
           child: Icon(
             Icons.favorite_rounded,
             size: 58,
-            color: cs.onPrimaryContainer,
+            color: widget.onFill,
           ),
         ),
       ),
@@ -735,6 +757,8 @@ class _HeartButtonState extends State<_HeartButton> {
 class _Tally extends StatelessWidget {
   const _Tally({
     required this.scheme,
+    required this.fill,
+    required this.onFill,
     required this.uid,
     required this.name,
     required this.count,
@@ -743,6 +767,8 @@ class _Tally extends StatelessWidget {
   });
 
   final ColorScheme scheme;
+  final Color fill;
+  final Color onFill;
   final String uid;
   final String name;
   final int count;
@@ -751,11 +777,10 @@ class _Tally extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = filled ? scheme.primaryContainer : scheme.surfaceContainerHigh;
-    final ink = filled ? scheme.onPrimaryContainer : scheme.onSurface;
-    final muted = filled
-        ? scheme.onPrimaryContainer.withValues(alpha: 0.75)
-        : scheme.onSurfaceVariant;
+    final bg = filled ? fill : scheme.surfaceContainerHigh;
+    final ink = filled ? onFill : scheme.onSurface;
+    final muted =
+        filled ? onFill.withValues(alpha: 0.75) : scheme.onSurfaceVariant;
 
     return Container(
       decoration:
@@ -818,6 +843,8 @@ class _VibeChip extends StatelessWidget {
     required this.onTap,
     this.onRemove,
     this.accent = false,
+    this.accentFill,
+    this.accentInk,
   });
 
   final ColorScheme scheme;
@@ -826,11 +853,16 @@ class _VibeChip extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onRemove;
   final bool accent;
+  final Color? accentFill;
+  final Color? accentInk;
 
   @override
   Widget build(BuildContext context) {
-    final bg = accent ? scheme.primaryContainer : scheme.surfaceContainerHigh;
-    final ink = accent ? scheme.onPrimaryContainer : scheme.onSurface;
+    final bg = accent
+        ? (accentFill ?? scheme.primary)
+        : scheme.surfaceContainerHigh;
+    final ink =
+        accent ? (accentInk ?? scheme.onPrimary) : scheme.onSurface;
 
     return Material(
       color: bg,
@@ -886,12 +918,14 @@ class _VibeChip extends StatelessWidget {
 class _WeekColumn extends StatelessWidget {
   const _WeekColumn({
     required this.scheme,
+    required this.fill,
     required this.bar,
     required this.label,
     required this.isToday,
   });
 
   final ColorScheme scheme;
+  final Color fill;
   final WeekBar bar;
   final String label;
   final bool isToday;
@@ -912,8 +946,7 @@ class _WeekColumn extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              _bar(h(bar.mineFraction, bar.mine), scheme.primaryContainer,
-                  top: true),
+              _bar(h(bar.mineFraction, bar.mine), fill, top: true),
               const SizedBox(height: 2),
               _bar(h(bar.partnerFraction, bar.partner),
                   scheme.secondaryContainer),

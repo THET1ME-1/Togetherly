@@ -7158,11 +7158,20 @@ class _WidgetScreenState extends State<WidgetScreen>
           settings: const RouteSettings(name: '/postcard_editor'),
         ),
       ),
-      child: Container(
+      // Заливка темы, а НЕ `primaryContainer`. У тем, нарисованных руками,
+      // контейнер берётся из `primaryLight` — «чуть тонированного фона», — и на
+      // светлой теме баннер сливался со страницей: контраст 1,00 у Фиолетовой,
+      // 1,04 у Вишнёвой. Замер по всем 25 палитрам в обеих яркостях: заливка
+      // единственная роль, которую видно везде (худший случай 2,05), у
+      // контейнера 1,00, у secondaryContainer 1,05, у surfaceContainerHigh 1,01.
+      child: Builder(builder: (context) {
+        final fill = _t.fillColor;
+        final ink = AppThemes.onColor(fill);
+        return Container(
         width: double.infinity,
         padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
         decoration: BoxDecoration(
-          color: _cs.primaryContainer,
+          color: fill,
           borderRadius: BorderRadius.circular(30),
         ),
         child: Row(
@@ -7171,12 +7180,11 @@ class _WidgetScreenState extends State<WidgetScreen>
               width: 52,
               height: 52,
               decoration: BoxDecoration(
-                color: _cs.onPrimaryContainer.withValues(alpha: 0.12),
+                color: ink.withValues(alpha: 0.16),
                 borderRadius: BorderRadius.circular(17),
               ),
               child: Center(
-                child: Icon(Icons.mail_rounded,
-                    color: _cs.onPrimaryContainer, size: 26),
+                child: Icon(Icons.mail_rounded, color: ink, size: 26),
               ),
             ),
             const SizedBox(width: 14),
@@ -7191,7 +7199,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                       fontSize: 17,
                       fontWeight: FontWeight.w800,
         fontVariations: const [FontVariation('wght', 800)],
-                      color: _cs.onPrimaryContainer,
+                      color: ink,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -7201,29 +7209,29 @@ class _WidgetScreenState extends State<WidgetScreen>
                       fontFamily: 'Onest',
         fontVariations: const [FontVariation('wght', 400)],
                       fontSize: 12.5,
-                      color: _cs.onPrimaryContainer.withValues(alpha: 0.82),
+                      color: ink.withValues(alpha: 0.82),
                     ),
                   ),
                 ],
               ),
             ),
             const SizedBox(width: 8),
+            // Кружок наоборот: чернила заливкой, стрелка цветом баннера. На
+            // насыщенном фоне `primary` тонул — он и сам тёмный тон акцента.
             Container(
               width: 40,
               height: 40,
-              decoration: BoxDecoration(
-                color: _cs.primary,
-                shape: BoxShape.circle,
-              ),
+              decoration: BoxDecoration(color: ink, shape: BoxShape.circle),
               child: Icon(
                 Icons.arrow_forward_ios_rounded,
-                color: _cs.onPrimary,
+                color: fill,
                 size: 15,
               ),
             ),
           ],
         ),
-      ),
+      );
+      }),
     );
   }
 
