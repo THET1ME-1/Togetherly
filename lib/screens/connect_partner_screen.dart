@@ -16,8 +16,12 @@ import '../models/profile_icon.dart';
 import '../models/user_data.dart';
 import '../services/chat_service.dart';
 import '../services/deep_link_service.dart';
+import '../services/coin_store.dart' show kStore;
 import '../services/mlkit_module_service.dart';
+import '../utils/qr_frame.dart' show kQrWindowFraction;
 import '../widgets/common/m3_loading.dart';
+import '../widgets/qr/qr_viewfinder.dart';
+import '../widgets/qr/zxing_scan_view.dart';
 import '../widgets/waiting/waiting_card.dart';
 import '../widgets/waiting/waiting_setup_sheet.dart';
 import '../services/pb_data_service.dart';
@@ -2906,6 +2910,17 @@ class QRScannerScreen extends StatefulWidget {
 class _QRScannerScreenState extends State<QRScannerScreen> {
   bool _codeDetected = false;
 
+  /// Движков распознавания два, и выбор между ними не про вкус.
+  ///
+  /// В сборке для Google Play читает ML Kit — он точнее и на телефонах с
+  /// сервисами Google стоит бесплатно, модель приезжает по требованию. Везде
+  /// ещё (RuStore, сайдлоад) сервисов Google может не быть вовсе, и там
+  /// работает свой декодер на чистом Dart: качать ему нечего.
+  ///
+  /// Play-сборка на телефоне без сервисов Google тоже падает во второй путь —
+  /// тупика «сканировать нечем» не остаётся нигде.
+  bool get _mlkitBuild => kStore == 'play';
+
   /// Модель распознавания приезжает из сервисов Google, а не лежит в APK.
   /// Пока её ставят, показываем загрузку: наводить камеру в пустоту и гадать,
   /// почему код не читается, человек не должен.
@@ -2913,10 +2928,22 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   int _percent = -1;
   StreamSubscription<MlkitInstallProgress>? _progressSub;
 
+  /// Свой декодер вместо ML Kit: либо сборка не гугловая, либо сервисов Google
+  /// на телефоне не оказалось.
+  bool _ownDecoder = false;
+
+  /// Камера не поднялась: нет разрешения, занята другим приложением, нет самой
+  /// камеры. Показываем то же окно, что и при отсутствии сканера.
+  bool _cameraFailed = false;
+
   @override
   void initState() {
     super.initState();
-    _prepareModule();
+    if (_mlkitBuild) {
+      _prepareModule();
+    } else {
+      _ownDecoder = true;
+    }
   }
 
   @override
@@ -2931,6 +2958,11 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   Future<void> _prepareModule() async {
     final state = await MlkitModuleService.status();
     if (!mounted) return;
+    // Сервисов Google нет — не упираемся в стену, а читаем сами.
+    if (state == MlkitModuleState.unavailable) {
+      setState(() => _ownDecoder = true);
+      return;
+    }
     setState(() => _module = state);
     if (state != MlkitModuleState.needsInstall) return;
 
@@ -2944,7 +2976,19 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     });
     final started = await MlkitModuleService.install();
     if (!mounted || started) return;
-    setState(() => _module = MlkitModuleState.unavailable);
+    setState(() => _ownDecoder = true);
+  }
+
+  /// Строка из кода: сканер отдаёт либо шесть символов, либо ссылку-приглашение.
+  void _onScanned(String raw) {
+    if (_codeDetected) return;
+    var code = raw;
+    if (raw.contains('/invite/')) {
+      code = raw.split('/invite/').last;
+    }
+    if (code.length != 6) return;
+    _codeDetected = true;
+    Navigator.pop(context, code.toUpperCase());
   }
 
   @override
@@ -2963,11 +3007,30 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
           style: const TextStyle(color: Colors.white),
         ),
       ),
-      body: switch (_module) {
-        MlkitModuleState.ready => _scanner(),
-        MlkitModuleState.unavailable => _unavailable(),
-        _ => _preparing(),
-      },
+      body: _ownDecoder
+          ? _framed(
+              ZxingScanView(
+                onCode: _onScanned,
+                onUnavailable: () {
+                  if (mounted) setState(() => _cameraFailed = true);
+                },
+              ),
+            )
+          : switch (_module) {
+              MlkitModuleState.ready => _framed(_scanner()),
+              MlkitModuleState.unavailable => _unavailable(),
+              _ => _preparing(),
+            },
+    );
+  }
+
+  /// Камера плюс окно наведения. Рамка одна на оба движка: читают они одну и
+  /// ту же область кадра, и человеку разница между ними видна быть не должна.
+  Widget _framed(Widget camera) {
+    if (_cameraFailed) return _unavailable();
+    return Stack(
+      fit: StackFit.expand,
+      children: [camera, const QrViewfinder()],
     );
   }
 
@@ -3065,32 +3128,30 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   }
 
   Widget _scanner() {
-    return MobileScanner(
-        // Камера может отказать и при готовой модели: нет разрешения, занята
-        // другой программой. Показываем то же понятное окно, а не голый текст
-        // ошибки от плагина.
-        errorBuilder: (context, error) => _unavailable(),
-        onDetect: (capture) {
-          if (_codeDetected) return;
-
-          final List<Barcode> barcodes = capture.barcodes;
-          for (final barcode in barcodes) {
-            final String? rawValue = barcode.rawValue;
-            if (rawValue != null) {
-              String code = rawValue;
-
-              if (rawValue.contains('/invite/')) {
-                code = rawValue.split('/invite/').last;
-              }
-
-              if (code.length == 6) {
-                _codeDetected = true;
-                Navigator.pop(context, code.toUpperCase());
-                return;
-              }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final size = constraints.biggest;
+        final side = size.shortestSide * kQrWindowFraction;
+        return MobileScanner(
+          // ML Kit тоже читает только окно наведения: рамка на экране одна, и
+          // вести себя оба движка обязаны одинаково.
+          scanWindow: Rect.fromCenter(
+            center: Offset(size.width / 2, size.height / 2),
+            width: side,
+            height: side,
+          ),
+          // Камера может отказать и при готовой модели: нет разрешения, занята
+          // другой программой. Показываем то же понятное окно, а не голый
+          // текст ошибки от плагина.
+          errorBuilder: (context, error) => _unavailable(),
+          onDetect: (capture) {
+            for (final barcode in capture.barcodes) {
+              final raw = barcode.rawValue;
+              if (raw != null) _onScanned(raw);
             }
-          }
-        },
+          },
+        );
+      },
     );
   }
 }

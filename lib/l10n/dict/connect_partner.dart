@@ -864,6 +864,15 @@ const Map<String, Map<String, String>> connectPartnerStrings = {
     'fr': 'Scanner le QR du partenaire',
     'de': 'QR-Code des Partners scannen',
   },
+  'qrPointAtCode': {
+    'ru': 'Наведите на код партнёра',
+    'en': 'Point at your partner\'s code',
+    'pt': 'Aponte para o código do seu par',
+    'it': 'Inquadra il codice del partner',
+    'es': 'Apunta al código de tu pareja',
+    'fr': 'Vise le code du partenaire',
+    'de': 'Auf den Code deiner Hälfte richten',
+  },
   'qrPreparingScanner': {
     'ru': 'Готовим сканер',
     'en': 'Getting the scanner ready',

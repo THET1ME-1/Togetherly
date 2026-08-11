@@ -1187,6 +1187,8 @@ abstract class DictStrings extends AppStrings {
   @override
   String get scanPartnersQr => _t('scanPartnersQr');
   @override
+  String get qrPointAtCode => _t('qrPointAtCode');
+  @override
   String get qrPreparingScanner => _t('qrPreparingScanner');
   @override
   String get qrPreparingHint => _t('qrPreparingHint');

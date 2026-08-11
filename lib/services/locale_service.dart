@@ -809,6 +809,7 @@ abstract class AppStrings {
   String get codeNotFound;
   String get scanToConnect;
   String get scanPartnersQr;
+  String get qrPointAtCode;
   String get qrPreparingScanner;
   String get qrPreparingHint;
   String get qrScannerUnavailable;
