@@ -15,6 +15,26 @@ abstract final class ProfileTheme {
   static const String displayFont = 'Unbounded';
   static const String bodyFont = 'Onest';
 
+  /// Заголовок секции — один на всё приложение.
+  ///
+  /// До 11 августа 2026 их было шесть: Unbounded 16 в профиле, Unbounded 18 в
+  /// настройках, капс Onest 12 в достижениях, Onest 13 в заданиях уровня и в
+  /// ленте воспоминаний, Unbounded 14 на экране «Скучаю». Соседние экраны
+  /// выглядели собранными из разных приложений.
+  ///
+  /// Капс с разрядкой, а не крупный набор: заголовок здесь — метка над списком,
+  /// а не заявление. Текст поднимает регистр на месте отрисовки
+  /// (`title.toUpperCase()`), в словаре строки остаются обычными — они же ходят
+  /// и в другие места.
+  static TextStyle sectionLabel(ColorScheme scheme, {Color? color}) =>
+      TextStyle(
+        fontFamily: bodyFont,
+        fontSize: 12,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 1.1,
+        color: color ?? scheme.primary,
+      );
+
   /// M3-схема темы. Тёмные темы Togetherly дают тёмную схему.
   ///
   /// Готовую схему берём как есть: `AppTheme.primary` — это уже `scheme.primary`,

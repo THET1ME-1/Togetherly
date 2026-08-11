@@ -1775,14 +1775,10 @@ class _WidgetScreenState extends State<WidgetScreen>
         fontVariations: const [FontVariation('wght', 700)],
                   ),
                 ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: _cs.primary,
-                  foregroundColor: _cs.onPrimary,
-                  padding: EdgeInsets.zero,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
+                // Форму и цвет берёт тема: залитая кнопка в приложении —
+                // пилюля. Свой прямоугольник с радиусом 14 выбивался из
+                // единственного канона на весь проект.
+                style: FilledButton.styleFrom(padding: EdgeInsets.zero),
               ),
             ),
           ],
@@ -4314,12 +4310,11 @@ class _WidgetScreenState extends State<WidgetScreen>
                   _s.plusUnlock,
                   style: AppFonts.onest(size: 14, weight: 700),
                 ),
+                // Тональная заливка оставлена намеренно (восемь ярких кнопок
+                // подряд превращают каталог в рекламный щит), форма — общая.
                 style: FilledButton.styleFrom(
                   backgroundColor: _cs.secondaryContainer,
                   foregroundColor: _cs.onSecondaryContainer,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
                 ),
               ),
             ),
@@ -4341,13 +4336,7 @@ class _WidgetScreenState extends State<WidgetScreen>
         fontVariations: const [FontVariation('wght', 700)],
                   ),
                 ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: _cs.primary,
-                  foregroundColor: _cs.onPrimary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
+                style: FilledButton.styleFrom(padding: EdgeInsets.zero),
               ),
             ),
           ] else if (Platform.isIOS) ...[

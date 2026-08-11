@@ -1049,18 +1049,12 @@ class _ProfileScreenState extends State<ProfileScreen>
             padding: const EdgeInsets.fromLTRB(6, 18, 6, 10),
             child: Row(
               children: [
-                Icon(icon, size: 20, color: cs.primary),
+                Icon(icon, size: 18, color: cs.primary),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    title,
-                    style: TextStyle(
-                      fontFamily: ProfileTheme.displayFont,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
-                      letterSpacing: 0.2,
-                      color: cs.primary,
-                    ),
+                    title.toUpperCase(),
+                    style: ProfileTheme.sectionLabel(cs),
                   ),
                 ),
                 AnimatedRotation(

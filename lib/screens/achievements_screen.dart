@@ -232,13 +232,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
         padding: const EdgeInsets.only(left: 4),
         child: Text(
           title.toUpperCase(),
-          style: TextStyle(
-            fontFamily: 'Onest',
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.6,
-            color: cs.onSurfaceVariant,
-          ),
+          style: ProfileTheme.sectionLabel(cs),
         ),
       );
 

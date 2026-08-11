@@ -7,6 +7,7 @@ import '../services/catalog_service.dart';
 import '../services/level_service.dart';
 import '../services/locale_service.dart';
 import '../theme/theme_scope.dart';
+import '../theme/profile_theme.dart';
 
 /// Экран «Уровень и задания»: прогресс пары, что даёт XP и какие маскоты
 /// открываются на каких уровнях. Данные — целиком из [LevelService] и
@@ -222,12 +223,8 @@ class _LevelTasksScreenState extends State<LevelTasksScreen> {
     return Padding(
       padding: const EdgeInsets.only(left: 4),
       child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w700,
-          color: t.textSecondary,
-        ),
+        text.toUpperCase(),
+        style: ProfileTheme.sectionLabel(ProfileTheme.schemeFor(t)),
       ),
     );
   }

@@ -666,8 +666,8 @@ class _MissYouScreenState extends State<MissYouScreen>
   Widget _sectionLabel(ColorScheme cs, String text) => Padding(
         padding: const EdgeInsets.only(left: 6),
         child: Text(
-          text,
-          style: AppFonts.unbounded(size: 14, weight: 700, color: cs.onSurface),
+          text.toUpperCase(),
+          style: ProfileTheme.sectionLabel(cs),
         ),
       );
 }

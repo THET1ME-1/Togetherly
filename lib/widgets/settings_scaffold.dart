@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/profile_theme.dart';
 
 /// Каркас экрана настроек.
 ///
@@ -45,15 +46,8 @@ class SettingsSection extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 24, 8, 10),
       child: Text(
-        title,
-        style: TextStyle(
-          fontFamily: 'Unbounded',
-          fontWeight: FontWeight.w700,
-          fontVariations: const [FontVariation('wght', 700)],
-          fontSize: 18,
-          letterSpacing: -0.3,
-          color: color ?? scheme.primary,
-        ),
+        title.toUpperCase(),
+        style: ProfileTheme.sectionLabel(scheme, color: color),
       ),
     );
   }

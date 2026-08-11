@@ -1186,18 +1186,18 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   /// подставляли 📌 прямо в строку, и заголовок зависел от эмодзи-набора
   /// системы.
   SliverToBoxAdapter _sectionHeader(String title, {IconData? icon}) {
-    final style = AppFonts.onest(
-        size: 13, weight: 700, letterSpacing: 0.3, color: widget.theme.textMuted);
+    final style = ProfileTheme.sectionLabel(
+        ProfileTheme.schemeFor(widget.theme));
     return SliverToBoxAdapter(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
         child: icon == null
-            ? Text(title, style: style)
+            ? Text(title.toUpperCase(), style: style)
             : Row(
                 children: [
-                  Icon(icon, size: 15, color: widget.theme.textMuted),
+                  Icon(icon, size: 15, color: style.color),
                   const SizedBox(width: 7),
-                  Text(title, style: style),
+                  Text(title.toUpperCase(), style: style),
                 ],
               ),
       ),
