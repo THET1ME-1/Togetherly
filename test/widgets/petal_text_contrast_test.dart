@@ -22,19 +22,29 @@ void main() {
       }
     });
 
-    test('читается на заполненной части', () {
+    /// На заполненной части подпись подчиняется общему правилу чернил
+    /// (`AppThemes.onColor`): в светлых темах белым по решению заказчика от
+    /// 11 августа 2026, даже когда чёрный контрастнее. Исключение — совсем
+    /// светлые заливки (мятная, медовая). В тёмных темах по-прежнему считаем
+    /// контраст: там заливки пастельные.
+    test('на заполненной части следует правилу чернил', () {
       for (final p in kPalettes) {
-        for (final b in Brightness.values) {
-          final t = buildAppTheme(p, b);
-          expect(
-            contrastRatio(petalTextColor(t, 1), t.fillColor),
-            // 4.3, а не 4.5: у ручного «Северного сияния» заливка даёт 4.35.
-            // Полторы сотых — цена подобранного руками цвета, ронять из-за
-            // них палитру не за что. Порог держит настоящий провал.
-            greaterThanOrEqualTo(4.3),
-            reason: '${p.name} (${b.name})',
-          );
-        }
+        final light = buildAppTheme(p, Brightness.light);
+        final veryLight = light.fillColor.computeLuminance() >= 0.407;
+        expect(
+          petalTextColor(light, 1),
+          veryLight
+              ? isNot(const Color(0xFFFFFFFF))
+              : const Color(0xFFFFFFFF),
+          reason: '${p.name} (light)',
+        );
+
+        final dark = buildAppTheme(p, Brightness.dark);
+        expect(
+          contrastRatio(petalTextColor(dark, 1), dark.fillColor),
+          greaterThanOrEqualTo(4.3),
+          reason: '${p.name} (dark)',
+        );
       }
     });
 

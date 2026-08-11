@@ -41,22 +41,34 @@ void main() {
         reason: 'заливка сливается с фоном: ${offenders.join(', ')}');
   });
 
-  /// Порог ниже канонических 4,5 не по лени: две ручные палитры стоят ровно на
-  /// границе — «Северное сияние» светлая даёт 4,35 (заливка `#7C5CFF`),
-  /// «Нордик» светлая 4,48. Подписи на заливке у нас крупные и жирные, для них
-  /// WCAG просит 3,0, так что читаются обе. Сторож здесь про другое: поймать
-  /// заливку, у которой чернила проваливаются по-настоящему.
-  test('чернила на заливке читаются', () {
-    for (final brightness in [Brightness.light, Brightness.dark]) {
-      for (final palette in kPalettes) {
-        final theme = buildAppTheme(palette, brightness);
-        final ink = AppThemes.onColor(theme.fillColor);
-        expect(
-          contrastRatio(ink, theme.fillColor),
-          greaterThanOrEqualTo(4.3),
-          reason: '${palette.name} ${brightness.name}: подпись на заливке',
-        );
-      }
+  /// Правило чернил задано, а не вычислено (решение заказчика 11 августа
+  /// 2026): в светлых темах поверх цветного пишем белым, даже когда чёрный
+  /// контрастнее. Чёрные подписи на персиковой и закатной заливке выглядели
+  /// дёшево, а контраст там и с белым остаётся в районе 2,4–3,2.
+  ///
+  /// Исключение — совсем светлые заливки (яркость 0,41 и выше, это тон 70 по
+  /// HCT): мятная и медовая, где белым не разобрать даже вывеску.
+  ///
+  /// Тёмные темы считают по контрасту, как раньше: их заливки пастельные,
+  /// белый по ним даёт 1,7.
+  test('чернила на заливке подчиняются правилу', () {
+    for (final palette in kPalettes) {
+      final light = buildAppTheme(palette, Brightness.light);
+      final ink = AppThemes.onColor(light.fillColor, mode: Brightness.light);
+      final veryLight = light.fillColor.computeLuminance() >= 0.407;
+      expect(
+        ink,
+        veryLight ? isNot(const Color(0xFFFFFFFF)) : const Color(0xFFFFFFFF),
+        reason: '${palette.name}: заливка ${light.fillColor}',
+      );
+
+      final dark = buildAppTheme(palette, Brightness.dark);
+      final darkInk = AppThemes.onColor(dark.fillColor, mode: Brightness.dark);
+      expect(
+        contrastRatio(darkInk, dark.fillColor),
+        greaterThanOrEqualTo(4.3),
+        reason: '${palette.name} тёмная: подпись на заливке',
+      );
     }
   });
 }

@@ -81,7 +81,8 @@ class _MissYouScreenState extends State<MissYouScreen>
   /// пропадало со страницы — контраст к фону 1,00–1,07 по всем светлым
   /// палитрам. Заливка видна везде, худший случай 2,05.
   Color get _fill => widget.theme.fillColor;
-  Color get _onFill => AppThemes.onColor(widget.theme.fillColor);
+  Color get _onFill =>
+      AppThemes.onColor(widget.theme.fillColor, mode: widget.theme.brightness);
   AppStrings get _s => LocaleService.current;
 
   @override

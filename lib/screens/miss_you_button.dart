@@ -224,7 +224,7 @@ class _MissYouButtonState extends State<MissYouButton>
   Widget build(BuildContext context) {
     final t = widget.theme;
     final fill = t.fillColor;
-    final onFill = AppThemes.onColor(fill);
+    final onFill = AppThemes.onColor(fill, mode: t.brightness);
     final displayMy = _myCount + _inFlightTaps;
     final radius = BorderRadius.circular(widget.height / 2);
 

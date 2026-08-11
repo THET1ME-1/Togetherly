@@ -221,7 +221,7 @@ AppTheme _juiced(AppTheme t, SchemeFlavor f, Palette p) {
     dynamicSchemeVariant: p.variant,
   ).copyWith(
     primary: accent,
-    onPrimary: AppThemes.onColor(accent),
+    onPrimary: AppThemes.onColor(accent, mode: t.brightness),
     // Контейнер — светлая тональная подложка, а НЕ тот же акцент. Пока они
     // совпадали, значок цветом `primary` на подложке `primaryContainer`
     // становился цветом по цвету: в выборе типа связи иконок не было видно
@@ -328,9 +328,9 @@ AppTheme buildAppTheme(
     // экранов на ролях M3 без обхода полутысячи мест руками.
     scheme: s.copyWith(
       primary: acc,
-      onPrimary: AppThemes.onColor(acc),
+      onPrimary: AppThemes.onColor(acc, mode: brightness),
       primaryContainer: fill,
-      onPrimaryContainer: AppThemes.onColor(fill),
+      onPrimaryContainer: AppThemes.onColor(fill, mode: brightness),
     ),
     primary: acc,
     accentFill: fill,
@@ -352,7 +352,7 @@ AppTheme buildAppTheme(
     iconPost: acc,
     // Подложка активного пункта — заливка, значок поверх неё считает onColor.
     navActiveBg: fill,
-    navActiveIcon: AppThemes.onColor(fill),
+    navActiveIcon: AppThemes.onColor(fill, mode: brightness),
     // Кнопка подсказки — заливка с текстом поверх.
     promptButtonColor: fill,
     // Лепестки занимают половину экрана, поэтому чистый `primaryContainer`

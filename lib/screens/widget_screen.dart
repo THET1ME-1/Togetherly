@@ -7155,7 +7155,7 @@ class _WidgetScreenState extends State<WidgetScreen>
       // контейнера 1,00, у secondaryContainer 1,05, у surfaceContainerHigh 1,01.
       child: Builder(builder: (context) {
         final fill = _t.fillColor;
-        final ink = AppThemes.onColor(fill);
+        final ink = AppThemes.onColor(fill, mode: _t.brightness);
         return Container(
         width: double.infinity,
         padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),

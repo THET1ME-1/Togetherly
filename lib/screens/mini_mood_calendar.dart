@@ -240,7 +240,8 @@ class _MiniMoodCalendarState extends State<MiniMoodCalendar> {
                         children: [
                           Icon(
                             Icons.today_rounded,
-                            color: AppThemes.onColor(widget.theme.fillColor),
+                            color: AppThemes.onColor(widget.theme.fillColor,
+                                mode: widget.theme.brightness),
                             size: 14,
                           ),
                           const SizedBox(width: 5),
@@ -587,7 +588,8 @@ class _DayCellState extends State<_DayCell> with TickerProviderStateMixin {
     // Текст поверх заливки «сегодня» (слой 2). Фон этого слоя = navActiveIcon,
     // поэтому цвет берём контрастным именно к нему: на тёмной теме заливка
     // светлая → текст тёмный, на светлых темах → белый (как было).
-    final Color fillTextColor = AppThemes.onColor(widget.theme.fillColor);
+    final Color fillTextColor = AppThemes.onColor(widget.theme.fillColor,
+        mode: widget.theme.brightness);
 
     return GestureDetector(
       onTap: isFuture || widget.onTap == null ? null : () => widget.onTap!(widget.date),

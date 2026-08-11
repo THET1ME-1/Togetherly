@@ -17,9 +17,9 @@ import '../utils/readable_text.dart';
 /// белые «0 Сек», «1 Лет» на нём пропали. Подложек две: незаполненная часть
 /// лепестка и та, что налилась акцентом, — какая под текстом, решает [factor]
 /// (доля заполнения, текст стоит на середине лепестка).
-Color petalTextColor(AppTheme theme, double factor) => readableTextOn(
-      factor > 0.5 ? theme.fillColor : theme.timerDialBackground,
-    );
+Color petalTextColor(AppTheme theme, double factor) => factor > 0.5
+    ? AppThemes.onColor(theme.fillColor, mode: theme.brightness)
+    : readableTextOn(theme.timerDialBackground);
 
 /// Data for a single petal segment.
 class _PetalData {

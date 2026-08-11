@@ -109,7 +109,8 @@ class _TimeCapsuleScreenState extends State<TimeCapsuleScreen> {
           ),
           alignment: Alignment.center,
           child: Icon(Icons.mail_rounded,
-              size: 44, color: AppThemes.onColor(_t.primary)),
+              size: 44,
+              color: AppThemes.onColor(_t.primary, mode: _t.brightness)),
         ),
         const SizedBox(height: 14),
         Text(

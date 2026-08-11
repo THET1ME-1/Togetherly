@@ -1293,7 +1293,11 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 26, 24, 30),
       decoration: BoxDecoration(
-        color: cs.primaryContainer,
+        // Не `primaryContainer`: у тем, нарисованных руками, он равен фону
+        // страницы, и карточка кода пропадала совсем (разница по цвету ΔE 0,0
+        // у Фиолетовой). `surfaceContainerHighest` — единственная поверхность,
+        // которую видно во всех палитрах: худший случай ΔE 4,3.
+        color: cs.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(40),
       ),
       child: Column(

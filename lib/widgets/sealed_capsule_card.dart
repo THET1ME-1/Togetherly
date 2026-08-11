@@ -164,7 +164,8 @@ class _SealedCapsuleCardState extends State<SealedCapsuleCard>
           ),
           alignment: Alignment.center,
           child: Icon(Icons.card_giftcard_rounded,
-              size: 38, color: AppThemes.onColor(t.primary)),
+              size: 38,
+              color: AppThemes.onColor(t.primary, mode: t.brightness)),
         )
             .animate(onPlay: (c) => c.repeat(reverse: true))
             .scaleXY(begin: 1, end: 1.06, duration: 1400.ms, curve: Curves.easeInOut)
