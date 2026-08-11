@@ -293,6 +293,9 @@ class _AnimatedInviteCodeState extends State<AnimatedInviteCode>
 
   @override
   void dispose() {
+    // Останавливаем явно: уничтожение и так гасит тикер, но молча, а тут
+    // видно, что бег глифов кончился вместе с экраном.
+    _ticker?.stop();
     _ticker?.dispose();
     super.dispose();
   }

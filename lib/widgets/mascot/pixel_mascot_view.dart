@@ -123,6 +123,10 @@ class _PixelMascotViewState extends State<PixelMascotView>
 
   @override
   void dispose() {
+    // Останавливаем явно, а не полагаемся на уничтожение: `Ticker.dispose`
+    // гасит бегущий тикер молча, и в коде не видно, что персонаж перестал
+    // двигаться. Стережёт `test/widgets/mascot_ticker_dispose_test.dart`.
+    _ticker?.stop();
     _ticker?.dispose();
     _cel.dispose();
     if (_listener != null) _stream?.removeListener(_listener!);
