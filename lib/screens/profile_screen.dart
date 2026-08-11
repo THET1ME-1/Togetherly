@@ -152,6 +152,10 @@ class _ProfileScreenState extends State<ProfileScreen>
   ColorScheme? _csCache;
 
   /// Свёрнутость секций «Оформление»-стиля (по ключу секции).
+  ///
+  /// Живёт в prefs (`UiPrefs.collapsedSections`), а не только в памяти экрана:
+  /// свернувший «Отношения» хочет видеть их свёрнутыми и завтра, а раньше
+  /// решение сбрасывалось на первом же выходе из профиля.
   final Map<String, bool> _expanded = {};
 
   /// Локальный путь к фото-баннеру профиля (пока без синка на сервер).
@@ -261,6 +265,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         setState(() => _bannerPath = b);
       }
     });
+    _loadCollapsedSections();
     // Refresh every hour so the day count updates when crossing midnight
     _dayTimer = Timer.periodic(const Duration(hours: 1), (_) {
       if (mounted) setState(() {});
@@ -1032,6 +1037,20 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   /// Секция как в Kadr: заголовок СНАРУЖИ карточки — иконка + акцентный текст +
   /// сворачивание. Содержимое [child] обычно [_m3Card] (плоская карточка).
+  /// Поднимает свёрнутые секции из prefs. Ключи те же, что у [_m3Group], с
+  /// приставкой экрана — настройки хранят свои в том же списке.
+  Future<void> _loadCollapsedSections() async {
+    final collapsed = await UiPrefs.collapsedSections();
+    if (!mounted || collapsed.isEmpty) return;
+    setState(() {
+      for (final key in collapsed) {
+        if (key.startsWith('profile:')) {
+          _expanded[key.substring('profile:'.length)] = false;
+        }
+      }
+    });
+  }
+
   Widget _m3Group(
     String key,
     String title,
@@ -1049,6 +1068,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           onTap: () {
             HapticFeedback.selectionClick();
             setState(() => _expanded[key] = !expanded);
+            unawaited(UiPrefs.setSectionCollapsed('profile:$key', expanded));
           },
           child: Padding(
             padding: const EdgeInsets.fromLTRB(6, 18, 6, 10),
@@ -2221,9 +2241,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           child: Stack(
             children: [
               Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                ),
+                decoration: BoxDecoration(shape: BoxShape.circle),
                 child: LevelAvatar(
                   size: 100,
                   ring: 4,
@@ -4796,7 +4814,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                               ),
                             ),
                             const SizedBox(width: 10),
-                            ScaledAsset('assets/images/icons/coin.webp', side: 16),
+                            ScaledAsset(
+                              'assets/images/icons/coin.webp',
+                              side: 16,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               '${widget.userData.coins}',
@@ -5161,9 +5182,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                           ),
                         ),
                       ),
-                      Center(
-                        child: ScaledAsset(icon.asset, side: 76),
-                      ),
+                      Center(child: ScaledAsset(icon.asset, side: 76)),
                     ],
                   ),
                 ),
@@ -5200,7 +5219,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          ScaledAsset('assets/images/icons/coin.webp', side: 28),
+                          ScaledAsset(
+                            'assets/images/icons/coin.webp',
+                            side: 28,
+                          ),
                           const SizedBox(width: 10),
                           Text(
                             '${icon.price}',

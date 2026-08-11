@@ -144,8 +144,9 @@ class SettingsScreen extends StatelessWidget {
                     icon: Icons.workspace_premium_rounded,
                     title: s.plusTitle,
                     subtitle: plusActive ? s.plusActiveBody : s.plusHeroBody,
-                    iconBg:
-                        plusActive ? scheme.primary : scheme.primaryContainer,
+                    iconBg: plusActive
+                        ? scheme.primary
+                        : scheme.primaryContainer,
                     iconFg: plusActive
                         ? scheme.onPrimary
                         : scheme.onPrimaryContainer,
@@ -154,202 +155,231 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ]),
 
-              SettingsSection(s.appearanceTitle),
-              SettingsGroup([
-                SettingsRow(
-                  icon: Icons.palette_rounded,
-                  title: s.appearanceTitle,
-                  subtitle: s.settingsAppearanceHint,
-                  trailing: const SettingsChevron(),
-                  onTap: onAppearance,
-                ),
-                if (appIconId != null) ...[
+              SettingsCollapsible(
+                prefsKey: 'appearance',
+                title: s.appearanceTitle,
+                icon: Icons.brush_rounded,
+                children: [
                   SettingsRow(
-                    icon: Icons.apps_rounded,
-                    title: s.appIconTitle,
-                    subtitle: appIconNameOf(appIconId!),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        AppIconBadge(option: appIconOptionOf(appIconId!)),
-                        const SizedBox(width: 8),
-                        const SettingsChevron(),
-                      ],
-                    ),
-                    onTap: onAppIcon,
-                  ),
-                ],
-                if (mascotSleepAvailable) ...[
-                  SettingsRow(
-                    icon: Icons.bedtime_rounded,
-                    title: s.mascotSleepTitle,
-                    subtitle: s.mascotSleepHint,
+                    icon: Icons.palette_rounded,
+                    title: s.appearanceTitle,
+                    subtitle: s.settingsAppearanceHint,
                     trailing: const SettingsChevron(),
-                    onTap: onMascotSleep,
+                    onTap: onAppearance,
+                  ),
+                  if (appIconId != null) ...[
+                    SettingsRow(
+                      icon: Icons.apps_rounded,
+                      title: s.appIconTitle,
+                      subtitle: appIconNameOf(appIconId!),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          AppIconBadge(option: appIconOptionOf(appIconId!)),
+                          const SizedBox(width: 8),
+                          const SettingsChevron(),
+                        ],
+                      ),
+                      onTap: onAppIcon,
+                    ),
+                  ],
+                  if (mascotSleepAvailable) ...[
+                    SettingsRow(
+                      icon: Icons.bedtime_rounded,
+                      title: s.mascotSleepTitle,
+                      subtitle: s.mascotSleepHint,
+                      trailing: const SettingsChevron(),
+                      onTap: onMascotSleep,
+                    ),
+                  ],
+                  SettingsRow(
+                    icon: Icons.translate_rounded,
+                    title: s.language,
+                    subtitle: LocaleService.instance.isRussian
+                        ? 'Русский'
+                        : 'English',
+                    trailing: const SettingsChevron(),
+                    onTap: onLanguage,
                   ),
                 ],
-                SettingsRow(
-                  icon: Icons.translate_rounded,
-                  title: s.language,
-                  subtitle: LocaleService.instance.isRussian
-                      ? 'Русский'
-                      : 'English',
-                  trailing: const SettingsChevron(),
-                  onTap: onLanguage,
-                ),
-              ]),
+              ),
 
-              SettingsSection(s.notifications),
-              SettingsGroup([
-                SettingsRow(
-                  icon: Icons.notifications_rounded,
-                  title: s.notifications,
-                  subtitle: s.settingsNotificationsHint,
-                  trailing: const SettingsChevron(),
-                  onTap: onNotifications,
-                ),
-                SettingsRow(
-                  icon: Icons.lock_clock_rounded,
-                  title: s.lockScreenMoodToggle,
-                  subtitle: s.settingsLockMoodHint,
-                  trailing: Switch(
-                    value: lockScreenMood,
-                    onChanged: onLockScreenMoodChanged,
+              SettingsCollapsible(
+                prefsKey: 'notifications',
+                title: s.notifications,
+                icon: Icons.campaign_rounded,
+                children: [
+                  SettingsRow(
+                    icon: Icons.notifications_rounded,
+                    title: s.notifications,
+                    subtitle: s.settingsNotificationsHint,
+                    trailing: const SettingsChevron(),
+                    onTap: onNotifications,
                   ),
-                  onTap: () => onLockScreenMoodChanged(!lockScreenMood),
-                ),
-                SettingsRow(
-                  icon: Icons.touch_app_rounded,
-                  title: s.sideActionTitle,
-                  subtitle: sideActionIsArrow
-                      ? s.sideActionOpenFeed
-                      : s.sideActionCreatePin,
-                  trailing: Icon(
-                    Icons.swap_horiz_rounded,
-                    color: scheme.onSurfaceVariant,
+                  SettingsRow(
+                    icon: Icons.lock_clock_rounded,
+                    title: s.lockScreenMoodToggle,
+                    subtitle: s.settingsLockMoodHint,
+                    trailing: Switch(
+                      value: lockScreenMood,
+                      onChanged: onLockScreenMoodChanged,
+                    ),
+                    onTap: () => onLockScreenMoodChanged(!lockScreenMood),
                   ),
-                  onTap: onToggleSideAction,
-                ),
-              ]),
+                  SettingsRow(
+                    icon: Icons.touch_app_rounded,
+                    title: s.sideActionTitle,
+                    subtitle: sideActionIsArrow
+                        ? s.sideActionOpenFeed
+                        : s.sideActionCreatePin,
+                    trailing: Icon(
+                      Icons.swap_horiz_rounded,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                    onTap: onToggleSideAction,
+                  ),
+                ],
+              ),
 
               if (cycleAvailable) ...[
-                SettingsSection(s.cycleTitle),
-                SettingsGroup([
-                  SettingsRow(
-                    icon: Icons.visibility_rounded,
-                    title: s.cycleShareWithPartner,
-                    subtitle: s.cycleShareHint,
-                    trailing: Switch(
-                      value: cycleShared,
-                      onChanged: onCycleSharedChanged,
+                SettingsCollapsible(
+                  prefsKey: 'cycle',
+                  title: s.cycleTitle,
+                  icon: Icons.water_drop_rounded,
+                  children: [
+                    SettingsRow(
+                      icon: Icons.visibility_rounded,
+                      title: s.cycleShareWithPartner,
+                      subtitle: s.cycleShareHint,
+                      trailing: Switch(
+                        value: cycleShared,
+                        onChanged: onCycleSharedChanged,
+                      ),
+                      onTap: () => onCycleSharedChanged?.call(!cycleShared),
                     ),
-                    onTap: () => onCycleSharedChanged?.call(!cycleShared),
-                  ),
+                    SettingsRow(
+                      icon: Icons.gpp_maybe_outlined,
+                      title: s.cycleConsentWithdraw,
+                      subtitle: s.cycleConsentWithdrawHint,
+                      trailing: const SettingsChevron(),
+                      onTap: onCycleConsentWithdraw,
+                    ),
+                    SettingsRow(
+                      icon: Icons.delete_outline_rounded,
+                      title: s.cycleWipe,
+                      subtitle: s.cycleWipeHint,
+                      iconBg: scheme.errorContainer,
+                      iconFg: scheme.onErrorContainer,
+                      titleColor: scheme.error,
+                      onTap: onCycleWipe,
+                    ),
+                  ],
+                ),
+              ],
+
+              SettingsCollapsible(
+                prefsKey: 'data',
+                title: s.settingsDataSection,
+                icon: Icons.storage_rounded,
+                children: [
                   SettingsRow(
-                    icon: Icons.gpp_maybe_outlined,
-                    title: s.cycleConsentWithdraw,
-                    subtitle: s.cycleConsentWithdrawHint,
+                    icon: Icons.folder_zip_outlined,
+                    title: s.exportMyData,
+                    subtitle: s.exportMyDataHint,
                     trailing: const SettingsChevron(),
-                    onTap: onCycleConsentWithdraw,
+                    onTap: onExportMyData,
                   ),
                   SettingsRow(
-                    icon: Icons.delete_outline_rounded,
-                    title: s.cycleWipe,
-                    subtitle: s.cycleWipeHint,
+                    icon: Icons.download_rounded,
+                    title: s.exportMemories,
+                    subtitle: s.settingsExportHint,
+                    trailing: const SettingsChevron(),
+                    onTap: onExport,
+                  ),
+                  SettingsRow(
+                    icon: Icons.replay_rounded,
+                    title: s.resetMissYouCount,
+                    subtitle: s.settingsResetMissHint,
+                    trailing: const SettingsChevron(),
+                    onTap: onResetMissYou,
+                  ),
+                  SettingsRow(
+                    icon: Icons.shield_rounded,
+                    title: s.privacy,
+                    subtitle: s.settingsPrivacyHint,
+                    trailing: const SettingsChevron(),
+                    onTap: onPrivacyPolicy,
+                  ),
+                ],
+              ),
+
+              SettingsCollapsible(
+                prefsKey: 'coins',
+                title: s.coinShopTitle,
+                icon: Icons.shopping_bag_rounded,
+                children: [
+                  SettingsRow(
+                    icon: Icons.monetization_on_rounded,
+                    title: s.coinShopTitle,
+                    subtitle: s.settingsCoinsHint,
+                    trailing: const SettingsChevron(),
+                    onTap: onCoinShop,
+                  ),
+                ],
+              ),
+
+              SettingsCollapsible(
+                prefsKey: 'about',
+                title: s.aboutApp,
+                icon: Icons.help_rounded,
+                children: [
+                  SettingsRow(
+                    icon: Icons.info_rounded,
+                    title: s.aboutApp,
+                    subtitle: appVersion.isEmpty ? null : appVersion,
+                    trailing: const SettingsChevron(),
+                    onTap: onAbout,
+                  ),
+                  SettingsRow(
+                    icon: Icons.description_rounded,
+                    title: s.termsOfUse,
+                    trailing: const SettingsChevron(),
+                    onTap: onTerms,
+                  ),
+                  SettingsRow(
+                    icon: Icons.mail_rounded,
+                    title: s.supportTitle,
+                    subtitle: s.settingsSupportHint,
+                    trailing: const SettingsChevron(),
+                    onTap: onSupport,
+                  ),
+                ],
+              ),
+
+              SettingsCollapsible(
+                prefsKey: 'account',
+                title: s.settingsAccountSection,
+                icon: Icons.person_rounded,
+                color: scheme.error,
+                children: [
+                  SettingsRow(
+                    icon: Icons.logout_rounded,
+                    title: s.logout,
+                    iconBg: scheme.surfaceContainerHighest,
+                    iconFg: scheme.onSurfaceVariant,
+                    onTap: onLogout,
+                  ),
+                  SettingsRow(
+                    icon: Icons.delete_forever_rounded,
+                    title: s.deleteAccount,
+                    subtitle: s.settingsDeleteHint,
                     iconBg: scheme.errorContainer,
                     iconFg: scheme.onErrorContainer,
                     titleColor: scheme.error,
-                    onTap: onCycleWipe,
+                    onTap: onDeleteAccount,
                   ),
-                ]),
-              ],
-
-              SettingsSection(s.settingsDataSection),
-              SettingsGroup([
-                SettingsRow(
-                  icon: Icons.folder_zip_outlined,
-                  title: s.exportMyData,
-                  subtitle: s.exportMyDataHint,
-                  trailing: const SettingsChevron(),
-                  onTap: onExportMyData,
-                ),
-                SettingsRow(
-                  icon: Icons.download_rounded,
-                  title: s.exportMemories,
-                  subtitle: s.settingsExportHint,
-                  trailing: const SettingsChevron(),
-                  onTap: onExport,
-                ),
-                SettingsRow(
-                  icon: Icons.replay_rounded,
-                  title: s.resetMissYouCount,
-                  subtitle: s.settingsResetMissHint,
-                  trailing: const SettingsChevron(),
-                  onTap: onResetMissYou,
-                ),
-                SettingsRow(
-                  icon: Icons.shield_rounded,
-                  title: s.privacy,
-                  subtitle: s.settingsPrivacyHint,
-                  trailing: const SettingsChevron(),
-                  onTap: onPrivacyPolicy,
-                ),
-              ]),
-
-              SettingsSection(s.coinShopTitle),
-              SettingsGroup([
-                SettingsRow(
-                  icon: Icons.monetization_on_rounded,
-                  title: s.coinShopTitle,
-                  subtitle: s.settingsCoinsHint,
-                  trailing: const SettingsChevron(),
-                  onTap: onCoinShop,
-                ),
-              ]),
-
-              SettingsSection(s.aboutApp),
-              SettingsGroup([
-                SettingsRow(
-                  icon: Icons.info_rounded,
-                  title: s.aboutApp,
-                  subtitle: appVersion.isEmpty ? null : appVersion,
-                  trailing: const SettingsChevron(),
-                  onTap: onAbout,
-                ),
-                SettingsRow(
-                  icon: Icons.description_rounded,
-                  title: s.termsOfUse,
-                  trailing: const SettingsChevron(),
-                  onTap: onTerms,
-                ),
-                SettingsRow(
-                  icon: Icons.mail_rounded,
-                  title: s.supportTitle,
-                  subtitle: s.settingsSupportHint,
-                  trailing: const SettingsChevron(),
-                  onTap: onSupport,
-                ),
-              ]),
-
-              SettingsSection(s.settingsAccountSection, color: scheme.error),
-              SettingsGroup([
-                SettingsRow(
-                  icon: Icons.logout_rounded,
-                  title: s.logout,
-                  iconBg: scheme.surfaceContainerHighest,
-                  iconFg: scheme.onSurfaceVariant,
-                  onTap: onLogout,
-                ),
-                SettingsRow(
-                  icon: Icons.delete_forever_rounded,
-                  title: s.deleteAccount,
-                  subtitle: s.settingsDeleteHint,
-                  iconBg: scheme.errorContainer,
-                  iconFg: scheme.onErrorContainer,
-                  titleColor: scheme.error,
-                  onTap: onDeleteAccount,
-                ),
-              ]),
+                ],
+              ),
             ],
           ),
         ),

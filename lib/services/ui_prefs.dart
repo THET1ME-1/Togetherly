@@ -148,4 +148,31 @@ class UiPrefs {
     final p = await SharedPreferences.getInstance();
     await p.setInt(kQuietNudgeAt, atMs);
   }
+
+  /// Свёрнутые секции экранов — ключи вида `profile:pair`, `settings:about`.
+  ///
+  /// Храним именно СВЁРНУТЫЕ, а не развёрнутые: раскрытая секция — состояние по
+  /// умолчанию, и человек, который ничего не сворачивал, не должен получить
+  /// схлопнутый экран из-за пустого списка.
+  ///
+  /// Решение переживает выход с экрана: свернувший «Отношения» один раз хочет
+  /// видеть их свёрнутыми и завтра, а не сворачивать заново на каждый заход.
+  static const String kCollapsedSections = 'collapsed_sections';
+
+  static Future<Set<String>> collapsedSections() async {
+    final p = await SharedPreferences.getInstance();
+    return (p.getStringList(kCollapsedSections) ?? const <String>[]).toSet();
+  }
+
+  static Future<void> setSectionCollapsed(String key, bool collapsed) async {
+    final p = await SharedPreferences.getInstance();
+    final saved = (p.getStringList(kCollapsedSections) ?? const <String>[])
+        .toSet();
+    if (collapsed) {
+      saved.add(key);
+    } else {
+      saved.remove(key);
+    }
+    await p.setStringList(kCollapsedSections, saved.toList());
+  }
 }
