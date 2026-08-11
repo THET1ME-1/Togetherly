@@ -1034,6 +1034,12 @@ abstract class AppStrings {
   String get sideActionOpenFeed;
   String get sideActionCreatePin;
   String get sideActionHint;
+
+  /// Подсказка про удержание кнопки фото (запись ролика).
+  String get snapHoldHint;
+
+  /// Подсказка про счётчик «Скучаю» — он открывает экран.
+  String get missScreenHint;
   String get supportedServices;
   String get pasteLinkFromSupported;
   String get selectTextAndPress;

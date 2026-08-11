@@ -40,6 +40,9 @@ class HomeHeader extends StatelessWidget {
   final VoidCallback? onRelationshipTap;
   final String pairId;
 
+  /// Ключ счётчика «Скучаю» — за него держится подсказка про новый экран.
+  final GlobalKey? missKey;
+
   const HomeHeader({
     super.key,
     required this.theme,
@@ -53,6 +56,7 @@ class HomeHeader extends StatelessWidget {
     required this.statusBadgeEmoji,
     this.onRelationshipTap,
     required this.pairId,
+    this.missKey,
   });
 
   @override
@@ -72,6 +76,7 @@ class HomeHeader extends StatelessWidget {
             if (isPaired) ...[
               const SizedBox(width: 6),
               MissYouButton(
+                key: missKey,
                 theme: theme,
                 groupId: pairId,
                 senderName: myDisplayName,

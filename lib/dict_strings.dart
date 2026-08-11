@@ -1540,6 +1540,12 @@ abstract class DictStrings extends AppStrings {
   String get sideActionCreatePin => _t('sideActionCreatePin');
   @override
   String get sideActionHint => _t('sideActionHint');
+
+  @override
+  String get snapHoldHint => _t('snapHoldHint');
+
+  @override
+  String get missScreenHint => _t('missScreenHint');
   @override
   String get supportedServices => _t('supportedServices');
   @override

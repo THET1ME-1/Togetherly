@@ -6,6 +6,25 @@
 // на экране не бывает.
 
 const Map<String, Map<String, String>> homeStrings = {
+  // ── Одноразовые подсказки о новых функциях (см. HintQueue) ────────────────
+  'snapHoldHint': {
+    'ru': 'Задержите палец на кнопке фото — снимется ролик на три секунды и уедет партнёру живым фото на рабочий стол',
+    'en': 'Hold the photo button — it records a three-second clip and lands on your partner’s home screen as a live photo',
+    'pt': 'Segure o botão de foto — grava um clipe de três segundos que chega à tela inicial do parceiro como foto viva',
+    'it': 'Tieni premuto il pulsante foto — registra un video di tre secondi che arriva sulla schermata del partner come foto viva',
+    'es': 'Mantén pulsado el botón de foto: graba un clip de tres segundos que llega a la pantalla de tu pareja como foto viva',
+    'fr': 'Maintiens le bouton photo : il enregistre un clip de trois secondes qui arrive en photo vivante sur l’écran de ton partenaire',
+    'de': 'Halte den Fotoknopf gedrückt — er nimmt drei Sekunden Video auf und landet als Lebendfoto auf dem Startbildschirm deines Partners',
+  },
+  'missScreenHint': {
+    'ru': 'Нажмите счётчик — покажем, в какие дни вы скучали друг по другу, и дадим ответить',
+    'en': 'Tap the counter — see which days you missed each other and answer right there',
+    'pt': 'Toque no contador — veja em que dias vocês sentiram saudade e responda ali mesmo',
+    'it': 'Tocca il contatore — guarda in quali giorni vi siete mancati e rispondi lì',
+    'es': 'Toca el contador: mira en qué días os echasteis de menos y responde ahí mismo',
+    'fr': 'Touche le compteur : vois les jours où vous vous êtes manqué et réponds sur place',
+    'de': 'Tippe auf den Zähler — sieh, an welchen Tagen ihr euch vermisst habt, und antworte gleich dort',
+  },
   'home': {
     'ru': 'Главная',
     'en': 'Home',

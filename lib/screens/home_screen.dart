@@ -59,6 +59,7 @@ import '../services/presence_service.dart';
 import '../services/centrifugo_service.dart';
 import '../services/locale_service.dart';
 import '../services/rate_limiter_service.dart';
+import '../services/hint_queue.dart';
 import '../services/ui_prefs.dart';
 import '../services/update_service.dart';
 import '../theme/app_theme.dart';
@@ -68,6 +69,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'canvas_create_flow.dart';
 import '../widgets/common/ad_banner.dart';
 import '../widgets/common/animations.dart';
+import '../widgets/common/hint_bubble.dart';
 import '../widgets/common/m3_loading.dart';
 import 'home/widgets/mood_picker_dialog.dart';
 import 'home/widgets/relationship_type_dialog.dart';
@@ -171,7 +173,10 @@ class _HomeScreenState extends State<HomeScreen> {
   // одноразовой подсказки про удержание.
   bool _sideActionIsArrow = true;
   final GlobalKey _sideBtnKey = GlobalKey();
-  OverlayEntry? _sideHintEntry;
+
+  /// Цели подсказок: кнопка фото (удержание пишет ролик) и счётчик «Скучаю».
+  final GlobalKey _postBtnKey = GlobalKey();
+  final GlobalKey _missKey = GlobalKey();
   // Одноразовый флаг: открыть настройки парного виджета при входе на вкладку
   // «Виджеты» (тап по парному виджету рабочего стола). Гасится в _buildWidgetsTab.
   bool _openPairEditorOnWidgetsTab = false;
@@ -311,7 +316,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // Одноразовая подсказка про удержание боковой кнопки — после первого кадра
     // и небольшой задержки (даём навбару отрисоваться и паре загрузиться).
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Future.delayed(const Duration(milliseconds: 1600), _maybeShowSideHint);
+      Future.delayed(const Duration(milliseconds: 1600), _queueHints);
       // Просьба исключить из оптимизации батареи — без неё Android рвёт фоновый
       // сокет и виджеты/уведомления приходят только при открытии приложения.
       // Показываем с задержкой, чтобы не перекрыть подсказку и дать паре
@@ -386,7 +391,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final giftsOff = _giftsUnsub;
     _giftsUnsub = null;
     if (giftsOff != null) unawaited(giftsOff());
-    _dismissSideHint();
     _syncWidgetsDebounce?.cancel();
     _syncMoodWidgetDebounce?.cancel();
     _moodStreakRewardDebounce?.cancel();
@@ -518,7 +522,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     unawaited(_handlePairChanged());
     // Появилась пара → можно показать одноразовую подсказку про боковую кнопку.
-    unawaited(_maybeShowSideHint());
+    unawaited(_queueHints());
   }
 
   /// Когда меняется дефолтный таймер — синхронизируем все виджеты,
@@ -1063,6 +1067,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               children: [
                 HomeHeader(
+                  missKey: _missKey,
                   theme: _t,
                   isPaired: _pairData.isPaired,
                   myAvatarUrl: widget.userData.avatarUrl,
@@ -1245,8 +1250,7 @@ class _HomeScreenState extends State<HomeScreen> {
     HapticFeedback.selectionClick();
     await UiPrefs.setSideActionIsArrow(next);
     // Если подсказку ещё не закрывали — удержание её закрывает (юзер всё понял).
-    _dismissSideHint();
-    unawaited(UiPrefs.markSideActionHintSeen());
+    unawaited(HintQueue.instance.markSeen('side_action'));
     if (!mounted) return;
     final s = LocaleService.current;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -1287,137 +1291,58 @@ class _HomeScreenState extends State<HomeScreen> {
   void _openCreatePin() => _openMemoryLane(openCreateOnStart: true);
 
   // ── Одноразовая подсказка про удержание боковой кнопки ──────────────────────
-  bool _sideHintResolved = false;
 
   /// Показывает подсказку один раз: пара есть, мы на главной, кнопка отрисована
   /// и юзер ещё её не видел. Идемпотентно — безопасно дёргать много раз.
-  Future<void> _maybeShowSideHint() async {
-    if (_sideHintResolved || _sideHintEntry != null) return;
+  /// Ставит в очередь одноразовые подсказки о новых функциях.
+  ///
+  /// Разом их показывать нельзя: три пузыря на экране — это завал, а не
+  /// объяснение. [HintQueue] показывает по одной, следующая начинается после
+  /// того, как закрыли предыдущую. Порядок здесь и есть порядок показа: сперва
+  /// боковая кнопка (она старше всех), потом запись ролика, потом экран
+  /// «Скучаю».
+  Future<void> _queueHints() async {
     if (!mounted || !_pairData.isPaired || _selectedNavIndex != 0) return;
-    if (await UiPrefs.sideActionHintSeen()) {
-      _sideHintResolved = true;
-      return;
-    }
-    if (!mounted || !_pairData.isPaired || _selectedNavIndex != 0) return;
-    if (_sideBtnKey.currentContext == null) return; // ещё не отрисована — позже
-    _sideHintResolved = true;
-    _showSideHint();
-  }
-
-  void _showSideHint() {
-    final ctx = _sideBtnKey.currentContext;
-    if (ctx == null) return;
-    final box = ctx.findRenderObject() as RenderBox?;
-    if (box == null || !box.hasSize) return;
-    final overlay = Overlay.of(context);
-    final pos = box.localToGlobal(Offset.zero);
-    final screen = MediaQuery.of(context).size;
     final s = LocaleService.current;
-    const bubbleW = 244.0;
-    double left = screen.width - 16 - bubbleW;
-    if (left < 12) left = 12;
-    final bottom = screen.height - pos.dy + 6; // чуть выше кнопки
-    // Стрелка-указатель примерно под центром кнопки (правый край экрана).
-    final arrowRight = (screen.width - (pos.dx + box.size.width / 2) - 18)
-        .clamp(8.0, bubbleW - 36);
+    bool onHome() => mounted && _pairData.isPaired && _selectedNavIndex == 0;
 
-    _sideHintEntry = OverlayEntry(
-      builder: (_) => Positioned.fill(
-        child: GestureDetector(
-          behavior: HitTestBehavior.translucent,
-          onTap: _dismissSideHint,
-          child: Stack(
-            children: [
-              Positioned(
-                left: left,
-                bottom: bottom,
-                width: bubbleW,
-                child: Material(
-                  color: Colors.transparent,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.fromLTRB(14, 12, 12, 6),
-                        decoration: BoxDecoration(
-                          color: primary,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Icon(Icons.touch_app_rounded,
-                                    color: Colors.white, size: 18),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    s.sideActionHint,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 13,
-                                      height: 1.25,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton(
-                                onPressed: _dismissSideHint,
-                                style: TextButton.styleFrom(
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, vertical: 4),
-                                  minimumSize: Size.zero,
-                                  tapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
-                                ),
-                                child: Text(
-                                  s.gotIt,
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w700),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Padding(
-                        padding: EdgeInsets.only(right: arrowRight),
-                        child: Align(
-                          alignment: Alignment.centerRight,
-                          child: Transform.translate(
-                            offset: const Offset(0, -6),
-                            child: Icon(Icons.arrow_drop_down,
-                                color: primary, size: 38),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    HintQueue.instance.enqueue(
+      context: context,
+      key: 'side_action',
+      targetKey: _sideBtnKey,
+      text: s.sideActionHint,
+      gotIt: s.gotIt,
+      icon: Icons.touch_app_rounded,
+      theme: _t,
+      ready: onHome,
     );
-    overlay.insert(_sideHintEntry!);
-    unawaited(UiPrefs.markSideActionHintSeen());
-    Future.delayed(const Duration(seconds: 9), _dismissSideHint);
+    HintQueue.instance.enqueue(
+      context: context,
+      key: 'snap_hold',
+      targetKey: _postBtnKey,
+      text: s.snapHoldHint,
+      gotIt: s.gotIt,
+      icon: Icons.videocam_rounded,
+      theme: _t,
+      ready: onHome,
+    );
+    HintQueue.instance.enqueue(
+      context: context,
+      key: 'miss_screen',
+      targetKey: _missKey,
+      text: s.missScreenHint,
+      gotIt: s.gotIt,
+      icon: Icons.favorite_rounded,
+      theme: _t,
+      side: HintSide.below,
+      ready: onHome,
+    );
   }
 
-  void _dismissSideHint() {
-    _sideHintEntry?.remove();
-    _sideHintEntry = null;
-  }
+
+
+
+
 
   // =============================================
   // HOME TAB
@@ -1516,6 +1441,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     delay: const Duration(milliseconds: 120),
                     child: _pairData.isPaired
                         ? HomeActionButtons(
+                            postButtonKey: _postBtnKey,
                             theme: _t,
                             isPaired: true,
                             // Единый источник правды — календарь (myMoodToday),
@@ -2284,6 +2210,8 @@ class _HomeScreenState extends State<HomeScreen> {
   /// (`tools/widget_anim.py`), поэтому место занимает одна картинка на сотню
   /// килобайт, сколько бы ни весила съёмка.
   Future<void> _postSnap() async {
+    // Жест нашли сами — подсказка про него больше не нужна.
+    unawaited(HintQueue.instance.markSeen('snap_hold'));
     if (!_pairData.isPaired || _pairData.pairId.isEmpty) return;
 
     final path = await Navigator.of(context).push<String>(

@@ -24,6 +24,9 @@ class HomeActionButtons extends StatelessWidget {
   /// фото в парный виджет. Тап остаётся обычным снимком.
   final VoidCallback? onPostHold;
 
+  /// Ключ кнопки фото — за него держится подсказка про удержание.
+  final GlobalKey? postButtonKey;
+
   const HomeActionButtons({
     super.key,
     required this.theme,
@@ -34,6 +37,7 @@ class HomeActionButtons extends StatelessWidget {
     required this.onCalendar,
     required this.onPost,
     this.onPostHold,
+    this.postButtonKey,
   });
 
   static const String _drawSvg =
@@ -90,6 +94,7 @@ class HomeActionButtons extends StatelessWidget {
           enabled: isPaired,
           onTap: onPost,
           onLongPress: onPostHold,
+          key: postButtonKey,
         ),
         ],
       ),
@@ -103,6 +108,7 @@ class HomeActionButtons extends StatelessWidget {
     VoidCallback? onTap,
     VoidCallback? onLongPress,
     String? moodImagePath,
+    Key? key,
   }) {
     final opacity = enabled ? 1.0 : 0.4;
     final hasMoodImage = moodImagePath != null && moodImagePath.isNotEmpty;
@@ -111,6 +117,7 @@ class HomeActionButtons extends StatelessWidget {
     final double dy = (index == 1 || index == 2) ? _bend : 0.0;
 
     return Transform.translate(
+      key: key,
       offset: Offset(0, dy),
       child: Opacity(
         opacity: opacity,

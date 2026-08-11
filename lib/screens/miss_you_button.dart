@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/miss_you_repository.dart';
+import '../services/hint_queue.dart';
 import '../services/pocketbase_service.dart';
 import '../theme/app_theme.dart';
 import 'miss_you_screen.dart';
@@ -148,6 +149,8 @@ class _MissYouButtonState extends State<MissYouButton>
 
   void _openScreen() {
     if (!widget.enabled || widget.groupId.isEmpty) return;
+    // Экран нашли сами — подсказку про него не показываем.
+    unawaited(HintQueue.instance.markSeen('miss_screen'));
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         // Имя маршрута — единственный способ попасть в статистику экранов:

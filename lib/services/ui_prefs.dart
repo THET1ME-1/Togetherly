@@ -149,6 +149,26 @@ class UiPrefs {
     await p.setInt(kQuietNudgeAt, atMs);
   }
 
+  /// Одноразовые подсказки о новых функциях.
+  ///
+  /// Ключ у каждой свой (`snap_hold`, `miss_screen`, `side_action`), очередь
+  /// показа держит [HintQueue]. Отметка ставится в момент показа, а не по
+  /// кнопке «Понятно»: закрытый тапом мимо пузырь возвращаться не должен.
+  /// У подсказки про боковую кнопку ключ старше самой очереди, и менять его
+  /// нельзя: те, кто её уже видел, получили бы её заново.
+  static String hintKey(String name) =>
+      name == 'side_action' ? kSideActionHintSeen : 'hint_${name}_seen';
+
+  static Future<bool> hintSeen(String name) async {
+    final p = await SharedPreferences.getInstance();
+    return p.getBool(hintKey(name)) ?? false;
+  }
+
+  static Future<void> markHintSeen(String name) async {
+    final p = await SharedPreferences.getInstance();
+    await p.setBool(hintKey(name), true);
+  }
+
   /// Свёрнутые секции экранов — ключи вида `profile:pair`, `settings:about`.
   ///
   /// Храним именно СВЁРНУТЫЕ, а не развёрнутые: раскрытая секция — состояние по
