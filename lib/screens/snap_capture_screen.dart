@@ -38,6 +38,9 @@ class _SnapCaptureScreenState extends State<SnapCaptureScreen>
   bool _recording = false;
   bool _failed = false;
 
+  /// Палец ушёл раньше, чем камера подняла запись.
+  bool _stopRequested = false;
+
   /// Кольцо вокруг кнопки: три секунды на полный круг.
   late final AnimationController _ring = AnimationController(
     vsync: this,
@@ -110,12 +113,17 @@ class _SnapCaptureScreenState extends State<SnapCaptureScreen>
   Future<void> _hold() async {
     final cam = _cam;
     if (cam == null || _recording || !cam.value.isInitialized) return;
+    _stopRequested = false;
     HapticFeedback.mediumImpact();
     try {
       await cam.startVideoRecording();
       if (!mounted) return;
       setState(() => _recording = true);
       _ring.forward(from: 0);
+      // Камера поднимается не мгновенно, и палец успевает уйти раньше. Без
+      // этой проверки отпускание пропадало впустую, кольцо докручивало свои
+      // три секунды и закрывало экран роликом, которого никто не просил.
+      if (_stopRequested) await _stop();
     } catch (e) {
       debugPrint('SnapCapture: запись не началась — $e');
     }
@@ -123,7 +131,13 @@ class _SnapCaptureScreenState extends State<SnapCaptureScreen>
 
   Future<void> _stop() async {
     final cam = _cam;
-    if (cam == null || !_recording) return;
+    if (cam == null) return;
+    if (!_recording) {
+      // Запись ещё стартует — остановит её сам `_hold`, как только дождётся.
+      _stopRequested = true;
+      return;
+    }
+    _stopRequested = false;
     _ring.stop();
     setState(() => _recording = false);
     try {
@@ -137,6 +151,7 @@ class _SnapCaptureScreenState extends State<SnapCaptureScreen>
       Navigator.of(context).pop(file.path);
     } catch (e) {
       debugPrint('SnapCapture: запись не остановилась — $e');
+      _ring.value = 0;
     }
   }
 
