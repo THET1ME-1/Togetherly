@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:material_new_shapes/material_new_shapes.dart';
 
 /// Набор символов кода-приглашения (как у сервера: без 0/1/I/O,
@@ -218,18 +217,17 @@ class AnimatedInviteCode extends StatefulWidget {
   State<AnimatedInviteCode> createState() => _AnimatedInviteCodeState();
 }
 
-class _AnimatedInviteCodeState extends State<AnimatedInviteCode>
-    with SingleTickerProviderStateMixin {
+class _AnimatedInviteCodeState extends State<AnimatedInviteCode> {
   static const int _len = 6;
 
-  /// Сколько держится один глиф. Шаг остался прежним — сменился только
-  /// источник времени: тикер кадров вместо `Timer.periodic`. Таймер на 65 мс
-  /// не кратен кадру экрана (16,7 мс), поэтому глифы менялись то через три
-  /// кадра, то через четыре, и ровный бег превращался в подёргивание.
+  /// Сколько держится один глиф.
+  ///
+  /// Смена идёт по таймеру, а не по тикеру кадров: тикер требует кадр на
+  /// каждом шаге развёртки — сто двадцать отрисовок в секунду ради пятнадцати
+  /// смен глифа, и экран перестаёт простаивать вообще.
   static const Duration _spinStep = Duration(milliseconds: 65);
 
-  Ticker? _ticker;
-  Duration _shown = Duration.zero;
+  Timer? _ticker;
   int _tick = 0;
   late List<bool> _settled;
 
@@ -245,24 +243,16 @@ class _AnimatedInviteCodeState extends State<AnimatedInviteCode>
   }
 
   void _startSpin() {
-    _ticker ??= createTicker(_onTick);
-    if (!_ticker!.isActive) {
-      _shown = Duration.zero;
-      _ticker!.start();
-    }
-  }
-
-  void _onTick(Duration elapsed) {
-    if (elapsed - _shown < _spinStep) return;
-    // Шаг прибавляем, чтобы глифы шли по своей сетке; после долгой паузы
-    // (экран уходил в фон) сетку сбрасываем, иначе код отыграет пропущенное
-    // очередью.
-    _shown = (elapsed - _shown > _spinStep * 2) ? elapsed : _shown + _spinStep;
-    if (mounted) setState(() => _tick++);
+    _ticker ??= Timer.periodic(_spinStep, (_) {
+      if (mounted) setState(() => _tick++);
+    });
   }
 
   void _stopIfDone() {
-    if (_settled.every((s) => s)) _ticker?.stop();
+    if (_settled.every((s) => s)) {
+      _ticker?.cancel();
+      _ticker = null;
+    }
   }
 
   void _scheduleSettle({int initialDelayMs = 0}) {
@@ -293,10 +283,7 @@ class _AnimatedInviteCodeState extends State<AnimatedInviteCode>
 
   @override
   void dispose() {
-    // Останавливаем явно: уничтожение и так гасит тикер, но молча, а тут
-    // видно, что бег глифов кончился вместе с экраном.
-    _ticker?.stop();
-    _ticker?.dispose();
+    _ticker?.cancel();
     super.dispose();
   }
 

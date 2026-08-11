@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -77,6 +78,7 @@ class _PetalTimerDialState extends State<PetalTimerDial>
 
   late AnimationController _flingCtrl;
   late Ticker _chaseTicker;
+  Timer? _wakeTimer;
   List<double> _displayFactors = List.filled(6, 0.0);
 
   /// Доля вступления 0…1. Пока идёт от нуля к единице, числа на лепестках
@@ -101,8 +103,10 @@ class _PetalTimerDialState extends State<PetalTimerDial>
     _currentPetals = _computePetals();
     _displayFactors = List.filled(6, 0.0);
 
-    // Запускаем ticker для плавной анимации
+    // Тикер догоняет цель и засыпает; секундный таймер будит его, когда
+    // набежала новая цифра.
     _chaseTicker = createTicker(_onChaseTick)..start();
+    _wakeTimer = Timer.periodic(const Duration(seconds: 1), (_) => _wake());
   }
 
   void _onChaseTick(Duration elapsed) {
@@ -139,11 +143,33 @@ class _PetalTimerDialState extends State<PetalTimerDial>
     }
     if (changed && mounted) {
       setState(() {});
+      return;
+    }
+    // Всё сошлось — тикер спит до следующей секунды.
+    //
+    // Он требует кадр на КАЖДОМ шаге развёртки, то есть держал экран в
+    // непрерывной перерисовке даже когда на круге ничего не менялось: сто
+    // двадцать кадров в секунду ради цифры, которая меняется раз в секунду.
+    // Рядом на главной живут маскот и календарь, и им от этого доставались
+    // рывки.
+    _chaseTicker.stop();
+  }
+
+  /// Раз в секунду проверяем, разошлась ли заливка с целью, и будим тикер.
+  void _wake() {
+    if (!mounted || _chaseTicker.isActive) return;
+    final petals = _petalsNow();
+    for (var i = 0; i < 6; i++) {
+      if ((petals[i].factor - _displayFactors[i]).abs() > 0.0005) {
+        _chaseTicker.start();
+        return;
+      }
     }
   }
 
   @override
   void dispose() {
+    _wakeTimer?.cancel();
     _flingCtrl.dispose();
     _chaseTicker.dispose();
     super.dispose();
@@ -404,6 +430,7 @@ class _PetalTimerDialState extends State<PetalTimerDial>
     if (old.startDate != widget.startDate ||
         old.isCountdown != widget.isCountdown) {
       _petalsSec = -1;
+      _wake();
     }
   }
 

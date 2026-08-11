@@ -358,6 +358,7 @@ class _DayCellState extends State<_DayCell> with TickerProviderStateMixin {
 
   double _displayFactor = 0.0;
   Ticker? _chaseTicker;
+  Timer? _wakeTimer;
   DateTime? _lastProcessedDate;
 
   // Анимация пульсации при наступлении нового дня
@@ -409,6 +410,8 @@ class _DayCellState extends State<_DayCell> with TickerProviderStateMixin {
 
     // Останавливаем старый ticker если дата больше не "сегодня"
     if (!isToday && _chaseTicker != null) {
+      _wakeTimer?.cancel();
+      _wakeTimer = null;
       _chaseTicker?.stop();
       _chaseTicker?.dispose();
       _chaseTicker = null;
@@ -419,6 +422,9 @@ class _DayCellState extends State<_DayCell> with TickerProviderStateMixin {
     if (isToday && _chaseTicker == null) {
       try {
         _chaseTicker = createTicker(_onChaseTick)..start();
+        _wakeTimer?.cancel();
+        _wakeTimer =
+            Timer.periodic(const Duration(seconds: 10), (_) => _wakeChase());
         debugPrint(
           '_DayCell: Ticker started for date=${widget.date}, theme=${widget.theme.name}',
         );
@@ -505,10 +511,28 @@ class _DayCellState extends State<_DayCell> with TickerProviderStateMixin {
 
     // Проверяем, есть ли заметное изменение
     if ((oldDisplayFactor - _displayFactor).abs() > 0.0001) {
-      if (mounted) {
-        setState(() {});
-      }
+      if (mounted) setState(() {});
+      return;
     }
+    // Заливка догнала сегодняшнее время — тикер спит.
+    //
+    // Он требует кадр на КАЖДОМ шаге развёртки, а доля прошедшего дня растёт
+    // на одну восьмидесятитысячную в секунду: экран перерисовывался сто
+    // двадцать раз в секунду ради невидимого глазу приращения, и соседним
+    // анимациям главной доставались рывки.
+    _chaseTicker?.stop();
+  }
+
+  /// Раз в десять секунд смотрим, набежало ли заметное время, и будим тикер.
+  void _wakeChase() {
+    if (!mounted || !isToday) return;
+    final t = _chaseTicker;
+    if (t == null || t.isActive) return;
+    final now = DateTime.now();
+    final secToday =
+        now.hour * 3600 + now.minute * 60 + now.second + (now.millisecond / 1000.0);
+    final target = (secToday / 86400.0).clamp(0.0, 1.0);
+    if ((target - _displayFactor).abs() > 0.0005) t.start();
   }
 
   @override
@@ -557,6 +581,7 @@ class _DayCellState extends State<_DayCell> with TickerProviderStateMixin {
   @override
   void dispose() {
     _timer?.cancel();
+    _wakeTimer?.cancel();
     _chaseTicker?.dispose();
     _newDayPulseController?.dispose();
     super.dispose();

@@ -3,11 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:love_app/models/mascot_anim.dart';
 import 'package:love_app/widgets/mascot/pixel_mascot_view.dart';
 
-/// Кадры маскота гонит `Ticker`, и жизнь у него длиннее одного кадра: он
-/// переживает уход с экрана, если забыть его убрать. `SingleTickerProviderState`
-/// ловит забытый тикер ассертом только в отладке, поэтому тест проверяет оба
-/// конца — что виджет уходит с экрана без единой ошибки и что живой тикер
-/// крутит кадры, не роняя экран по дороге.
+/// Кадры маскота гонит таймер, и он переживает уход с экрана, если забыть его
+/// отменить: дальше идут `setState` у мёртвого состояния. Тест держит оба
+/// конца — виджет уходит с экрана без единой ошибки и полторы секунды крутит
+/// кадры, не роняя экран по дороге.
 void main() {
   const anim = MascotAnim(
     id: 'test',
@@ -20,7 +19,7 @@ void main() {
     rows: ['live'],
   );
 
-  testWidgets('уход с экрана гасит тикер, а не роняет его', (tester) async {
+  testWidgets('уход с экрана гасит кадры, а не роняет экран', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: PixelMascotView(anim: anim, state: MascotAnimState.live),
