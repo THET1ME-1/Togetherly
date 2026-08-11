@@ -703,7 +703,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                       _m3Group(
                         'missweek',
                         _s.selfMissTitle,
-                        Icons.calendar_view_week_rounded,
+                        // Часы, а не календарная сетка: блок отвечает на
+                        // «когда», а не показывает календарь. График рядом
+                        // занят «Статистикой» (`insights`), столбики повторяли
+                        // бы её.
+                        Icons.schedule_rounded,
                         child: _m3Card([
                           Padding(
                             padding: const EdgeInsets.all(16),
