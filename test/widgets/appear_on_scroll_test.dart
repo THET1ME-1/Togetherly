@@ -9,7 +9,8 @@ import 'package:love_app/widgets/common/animations.dart';
 /// ячейки. Тесты держат оба конца — верхняя появляется сама, нижняя ждёт
 /// прокрутки.
 void main() {
-  /// Смещение блока: пока идёт появление, оно не нулевое.
+  /// Насколько блок ещё не на месте. Пружина финиширует с микроскопическим
+  /// остатком, поэтому «стоит на месте» — это доли точки, а не побитовый ноль.
   Offset offsetOf(WidgetTester tester, String label) {
     final transform = tester.widget<Transform>(
       find
@@ -44,7 +45,7 @@ void main() {
     await pumpList(tester);
     await tester.pumpAndSettle(const Duration(seconds: 2));
 
-    expect(offsetOf(tester, 'строка 0'), Offset.zero);
+    expect(offsetOf(tester, 'строка 0').dy.abs(), lessThan(0.5));
   });
 
   testWidgets('дальняя ячейка ждёт, пока до неё долистают', (tester) async {
@@ -61,7 +62,7 @@ void main() {
     expect(offsetOf(tester, 'строка 15').dy, greaterThan(0));
 
     await tester.pumpAndSettle(const Duration(seconds: 2));
-    expect(offsetOf(tester, 'строка 15'), Offset.zero);
+    expect(offsetOf(tester, 'строка 15').dy.abs(), lessThan(0.5));
   });
 
   testWidgets('системный запрет анимаций ставит блок сразу', (tester) async {
@@ -81,6 +82,6 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(offsetOf(tester, 'без движения'), Offset.zero);
+    expect(offsetOf(tester, 'без движения').dy.abs(), lessThan(0.5));
   });
 }

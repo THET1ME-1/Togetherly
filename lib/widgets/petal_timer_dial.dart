@@ -79,6 +79,11 @@ class _PetalTimerDialState extends State<PetalTimerDial>
   late AnimationController _flingCtrl;
   late Ticker _chaseTicker;
   Timer? _wakeTimer;
+
+  /// Дёргается, когда заливка или поворот сдвинулись: по нему перерисовывается
+  /// painter, а дерево виджетов при этом не трогается вовсе — раньше каждый
+  /// кадр анимации шёл через `setState` со сборкой всего поддерева круга.
+  final _Repaint _repaint = _Repaint();
   List<double> _displayFactors = List.filled(6, 0.0);
 
   /// Доля вступления 0…1. Пока идёт от нуля к единице, числа на лепестках
@@ -142,7 +147,7 @@ class _PetalTimerDialState extends State<PetalTimerDial>
       }
     }
     if (changed && mounted) {
-      setState(() {});
+      _repaint.ping();
       return;
     }
     // Всё сошлось — тикер спит до следующей секунды.
@@ -172,13 +177,13 @@ class _PetalTimerDialState extends State<PetalTimerDial>
     _wakeTimer?.cancel();
     _flingCtrl.dispose();
     _chaseTicker.dispose();
+    _repaint.dispose();
     super.dispose();
   }
 
   void _onFlingTick() {
-    setState(() {
-      _rotationAngle = _flingCtrl.value;
-    });
+    _rotationAngle = _flingCtrl.value;
+    _repaint.ping();
   }
 
   Offset _center = Offset.zero;
@@ -195,9 +200,8 @@ class _PetalTimerDialState extends State<PetalTimerDial>
     var delta = newAngle - _prevAngle;
     if (delta > math.pi) delta -= 2 * math.pi;
     if (delta < -math.pi) delta += 2 * math.pi;
-    setState(() {
-      _rotationAngle += delta;
-    });
+    _rotationAngle += delta;
+    _repaint.ping();
     _prevAngle = newAngle;
   }
 
@@ -238,10 +242,21 @@ class _PetalTimerDialState extends State<PetalTimerDial>
   /// где нужен ровный кадр.
   List<_PetalData> _petalsNow() {
     final sec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    if (sec != _petalsSec) {
-      _petalsSec = sec;
-      _currentPetals = _computePetals();
+    if (sec == _petalsSec) return _currentPetals;
+    _petalsSec = sec;
+    final fresh = _computePetals();
+    // Обновляем НА МЕСТЕ: painter держит ссылку на список, полученный в
+    // `build`, а сам `build` теперь идёт редко. Подменить ссылку значило бы
+    // оставить круг с прошлыми цифрами до следующей перестройки дерева.
+    if (_currentPetals.length == fresh.length) {
+      for (var i = 0; i < fresh.length; i++) {
+        _currentPetals[i] = fresh[i];
+      }
+    } else {
+      _currentPetals = fresh;
     }
+    // Новая секунда — новые цифры, даже если заливке двигаться некуда.
+    _repaint.ping();
     return _currentPetals;
   }
 
@@ -476,6 +491,7 @@ class _PetalTimerDialState extends State<PetalTimerDial>
             child: RepaintBoundary(
               child: CustomPaint(
                 painter: _PetalDialPainter(
+                  repaint: _repaint,
                   petals: petals,
                   displayFactors: factors,
                   presenceFactors: presence,
@@ -494,6 +510,12 @@ class _PetalTimerDialState extends State<PetalTimerDial>
   }
 }
 
+/// Сигнал «перерисуй»: круг двигают тикер и палец, а дерево виджетов при этом
+/// не меняется вовсе.
+class _Repaint extends ChangeNotifier {
+  void ping() => notifyListeners();
+}
+
 class _PetalDialPainter extends CustomPainter {
   final List<_PetalData> petals;
   final List<double> displayFactors;
@@ -506,6 +528,16 @@ class _PetalDialPainter extends CustomPainter {
   /// Доля вступления: на входе числа набегают от нуля вместе с заливкой.
   final double intro;
 
+  /// Сигнал перерисовки.
+  ///
+  /// Сравнивать списки в [shouldRepaint] бесполезно: `displayFactors` и
+  /// `presenceFactors` мутируются НА МЕСТЕ, поэтому у старого и нового
+  /// painter'а это один и тот же объект, и сравнение по ссылке всегда даёт
+  /// «ничего не изменилось». Пока петали пересчитывались на каждом кадре,
+  /// круг спасал новый список `petals` — он и заставлял перерисовку. Стоило
+  /// закэшировать петали по секунде, как заливка между секундами перестала
+  /// рисоваться вовсе: цифры прыгали раз в секунду, а плавного набега не было.
+  /// Теперь о смене сообщает тикер сам.
   _PetalDialPainter({
     required this.petals,
     required this.displayFactors,
@@ -514,8 +546,9 @@ class _PetalDialPainter extends CustomPainter {
     required this.theme,
     required this.scale,
     required this.totalPresence,
+    required Listenable repaint,
     this.intro = 1,
-  });
+  }) : super(repaint: repaint);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -763,6 +796,39 @@ class _PetalDialPainter extends CustomPainter {
     return path;
   }
 
+  /// Готовые раскладки подписей.
+  ///
+  /// На круге двенадцать надписей, и каждая раскладывалась заново на КАЖДОМ
+  /// кадре: полторы тысячи `TextPainter.layout` в секунду при 120 Гц — шейпинг
+  /// шрифта, а не рисование. Меняются они раз в секунду, поэтому раскладка
+  /// живёт в кэше по своему виду. Предел в сто записей с запасом покрывает
+  /// шесть лепестков во всех темах и кеглях.
+  static final Map<String, TextPainter> _texts = {};
+
+  static TextPainter _laidOut(
+    String text,
+    double fontSize,
+    FontWeight fontWeight,
+    Color color,
+  ) {
+    final key = '$text|$fontSize|${fontWeight.value}|${color.toARGB32()}';
+    final ready = _texts[key];
+    if (ready != null) return ready;
+    if (_texts.length >= 100) _texts.remove(_texts.keys.first);
+    final tp = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: AppFonts.onest(
+          size: fontSize,
+          color: color,
+        ).copyWith(fontWeight: fontWeight),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    _texts[key] = tp;
+    return tp;
+  }
+
   void _drawText(
     Canvas canvas, {
     required String text,
@@ -773,14 +839,7 @@ class _PetalDialPainter extends CustomPainter {
     required Color color,
     required double counterRotation,
   }) {
-    final tp = TextPainter(
-      text: TextSpan(
-        text: text,
-        style: AppFonts.onest(size: fontSize, color: color).copyWith(fontWeight: fontWeight),
-      ),
-      textDirection: TextDirection.ltr,
-    );
-    tp.layout();
+    final tp = _laidOut(text, fontSize, fontWeight, color);
 
     canvas.save();
     canvas.translate(x, y);
@@ -789,13 +848,9 @@ class _PetalDialPainter extends CustomPainter {
     canvas.restore();
   }
 
+  // Внутренние изменения (заливка, поворот от инерции) приходят сигналом
+  // `repaint`; здесь остаётся только то, что задаёт снаружи сам экран.
   @override
   bool shouldRepaint(_PetalDialPainter old) =>
-      old.rotationAngle != rotationAngle ||
-      old.petals != petals ||
-      old.displayFactors != displayFactors ||
-      old.presenceFactors != presenceFactors ||
-      old.scale != scale ||
-      old.totalPresence != totalPresence ||
-      old.intro != intro;
+      old.theme != theme || old.scale != scale;
 }

@@ -53,7 +53,13 @@ class _AnimatedSlideInState extends State<AnimatedSlideIn>
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: widget.duration);
+    // Верхняя граница выше единицы — иначе контроллер срезает перелёт, и
+    // пружина превращается в обычный подъём.
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: widget.duration,
+      upperBound: Motion.spatialOvershoot,
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) => _schedule());
   }
 
@@ -93,8 +99,10 @@ class _AnimatedSlideInState extends State<AnimatedSlideIn>
           return Opacity(
             // Прозрачность догоняет раньше движения: блок не должен мигать на
             // перелёте, поэтому к середине пути он уже непрозрачный.
-            opacity: t.clamp(0.0, 1.0) < 0.55 ? (t / 0.55).clamp(0.0, 1.0) : 1.0,
+            opacity: t < 0.55 ? (t / 0.55).clamp(0.0, 1.0) : 1.0,
             child: Transform.translate(
+              // Выше единицы блок уходит за своё место — это и есть перелёт,
+              // после которого пружина возвращает его назад.
               offset: Offset(0, widget.beginOffset * (1 - t)),
               child: child,
             ),
@@ -171,8 +179,10 @@ class _AppearOnScrollState extends State<AppearOnScroll>
     _ctrl = AnimationController(
       vsync: this,
       duration: widget.duration,
+      // Ниже нуля — пауза каскада, выше единицы — перелёт пружины. Обычный
+      // диапазон 0…1 срезал бы и то, и другое.
       lowerBound: -_staggerStep * _staggerCap,
-      upperBound: 1,
+      upperBound: Motion.spatialOvershoot,
       value: 0,
     );
   }
@@ -237,9 +247,9 @@ class _AppearOnScrollState extends State<AppearOnScroll>
       child: AnimatedBuilder(
         animation: _ctrl,
         builder: (context, child) {
-          // Отрицательные значения — это пауза каскада: блок ещё стоит на
-          // месте старта и невидим.
-          final t = _ctrl.value.clamp(0.0, 1.0);
+          // Отрицательные значения — пауза каскада: блок ещё стоит на месте
+          // старта и невидим. Выше единицы — перелёт, его не срезаем.
+          final t = _ctrl.value < 0 ? 0.0 : _ctrl.value;
           return Opacity(
             // Прозрачность догоняет раньше движения: на перелёте блок уже
             // непрозрачен, иначе он мигал бы у самой точки остановки.
