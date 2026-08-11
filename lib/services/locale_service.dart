@@ -201,6 +201,8 @@ abstract class AppStrings {
   String get snapSending;
   String get snapSent;
   String get snapFailed;
+  String get snapNew;
+  String get snapSavedToFeed;
   String get welcomeNext;
 
   // ── Login Screen ──

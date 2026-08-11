@@ -2299,34 +2299,75 @@ class _HomeScreenState extends State<HomeScreen> {
           SnackBar(content: Text(text), behavior: SnackBarBehavior.floating),
         );
 
+    // Тот же лист, что у фото: куда отправить. Третьего тумблера тут нет —
+    // виджет «Фото партнёра» показывает снимок, видео ему отдать нечем.
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    final result = await _showCaptionDialog(
+      initToMemories: _widgetService.autoSendPhotoToMemory,
+      initToPairWidget: prefs.getBool('widget_sendPhotoToPairWidget') ?? true,
+      initToPartnerWidget: false,
+      partnerName: _pairData.partnerName,
+      showPartnerWidget: false,
+      heading: s.snapNew,
+    );
+    if (!mounted || result == null) return;
+    if (!result.toMemories && !result.toPairWidget) return;
+    await _widgetService.setAutoSendPhotoToMemory(result.toMemories);
+    await prefs.setBool('widget_sendPhotoToPairWidget', result.toPairWidget);
+
     say(s.snapSending);
     try {
-      // Прежняя раскадровка больше не нужна, а её файл занимает место.
-      await WidgetAnimService.instance.clear();
-      final ref = await PbMediaService().uploadFile(
-        path,
-        uid: PocketBaseService().userId ?? '',
-        groupId: _pairData.pairId,
-        kind: 'widget_anim',
-      );
-      // Ссылка приходит как pb://media/<id>/<file> — нужен только id записи.
-      final parts = (ref ?? '').split('/');
-      final mediaId = parts.length > 3 ? parts[3] : '';
-      if (mediaId.isEmpty) throw Exception('upload failed');
+      // В ленту ролик уходит обычным воспоминанием: файл живёт в хранилище и
+      // остаётся с парой навсегда.
+      if (result.toMemories) {
+        final ext = path.split('.').last;
+        final dest = 'memories/${_pairData.pairId}/'
+            '${DateTime.now().millisecondsSinceEpoch}.$ext';
+        final url = await _fb.uploadFile(path, dest);
+        if (url != null) {
+          final me = PbAuthService().currentProfile();
+          await MemoryRepository().add(
+            groupId: _pairData.pairId,
+            authorName: (me?['displayName'] as String?) ?? '',
+            authorAvatar: (me?['avatarUrl'] as String?) ?? '',
+            type: MemoryType.video,
+            videoUrl: url,
+            title: result.title,
+            caption: result.caption,
+          );
+        }
+      }
 
-      final ready = await WidgetAnimService.instance.fetch(mediaId);
-      if (ready == null) throw Exception('prepare failed');
+      // В виджет — живым фото. Тут наоборот: сервер режет ролик на кадры и
+      // удаляет исходник, поэтому загрузка своя, а не переиспользованная.
+      if (result.toPairWidget) {
+        await WidgetAnimService.instance.clear();
+        final ref = await PbMediaService().uploadFile(
+          path,
+          uid: PocketBaseService().userId ?? '',
+          groupId: _pairData.pairId,
+          kind: 'widget_anim',
+        );
+        // Ссылка приходит как pb://media/<id>/<file> — нужен только id записи.
+        final parts = (ref ?? '').split('/');
+        final mediaId = parts.length > 3 ? parts[3] : '';
+        if (mediaId.isEmpty) throw Exception('upload failed');
 
-      await HomeWidget.saveWidgetData<String>(
-        WidgetAnimService.keyPath,
-        ready.path,
-      );
-      await HomeWidget.saveWidgetData<String>(
-        WidgetAnimService.keyManifest,
-        ready.manifest,
-      );
-      await HomeWidget.updateWidget(name: 'LoveWidgetProvider');
-      if (mounted) say(s.snapSent);
+        final ready = await WidgetAnimService.instance.fetch(mediaId);
+        if (ready == null) throw Exception('prepare failed');
+
+        await HomeWidget.saveWidgetData<String>(
+          WidgetAnimService.keyPath,
+          ready.path,
+        );
+        await HomeWidget.saveWidgetData<String>(
+          WidgetAnimService.keyManifest,
+          ready.manifest,
+        );
+        await HomeWidget.updateWidget(name: 'LoveWidgetProvider');
+      }
+      if (mounted) say(result.toPairWidget ? s.snapSent : s.snapSavedToFeed);
     } catch (e) {
       debugPrint('_postSnap failed: $e');
       if (mounted) say(s.snapFailed);
@@ -2651,6 +2692,10 @@ class _HomeScreenState extends State<HomeScreen> {
     required bool initToPairWidget,
     required bool initToPartnerWidget,
     required String partnerName,
+    /// Ролику этот тумблер не нужен: виджет «Фото партнёра» показывает
+    /// снимок, видео ему отдать нечем.
+    bool showPartnerWidget = true,
+    String? heading,
   }) async {
     final titleController = TextEditingController();
     final controller = TextEditingController();
@@ -2673,8 +2718,9 @@ class _HomeScreenState extends State<HomeScreen> {
             final partner = partnerName.isNotEmpty
                 ? partnerName
                 : LocaleService.current.partnerFallback;
-            final nothingSelected =
-                !toMemories && !toPairWidget && !toPartnerWidget;
+            final nothingSelected = !toMemories &&
+                !toPairWidget &&
+                !(showPartnerWidget && toPartnerWidget);
             return SheetScaffold(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
@@ -2695,7 +2741,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          LocaleService.current.newPhoto,
+                          heading ?? LocaleService.current.newPhoto,
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w800,
@@ -2768,13 +2814,15 @@ class _HomeScreenState extends State<HomeScreen> {
                       value: toPairWidget,
                       onChanged: (v) => setDlgState(() => toPairWidget = v),
                     ),
-                    _captionDestRow(
-                      title: LocaleService.current.captionDestPartnerWidget,
-                      subtitle: LocaleService.current
-                          .captionDestPartnerWidgetSub(partner),
-                      value: toPartnerWidget,
-                      onChanged: (v) => setDlgState(() => toPartnerWidget = v),
-                    ),
+                    if (showPartnerWidget)
+                      _captionDestRow(
+                        title: LocaleService.current.captionDestPartnerWidget,
+                        subtitle: LocaleService.current
+                            .captionDestPartnerWidgetSub(partner),
+                        value: toPartnerWidget,
+                        onChanged: (v) =>
+                            setDlgState(() => toPartnerWidget = v),
+                      ),
                     const SizedBox(height: 12),
                     Row(
                       children: [

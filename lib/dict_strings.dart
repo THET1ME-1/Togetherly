@@ -179,6 +179,10 @@ abstract class DictStrings extends AppStrings {
   @override
   String get snapFailed => _t('snapFailed');
   @override
+  String get snapNew => _t('snapNew');
+  @override
+  String get snapSavedToFeed => _t('snapSavedToFeed');
+  @override
   String get welcomeNext => _t('welcomeNext');
   @override
   String get welcomeBack => _t('welcomeBack');

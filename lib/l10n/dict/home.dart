@@ -1010,4 +1010,22 @@ const Map<String, Map<String, String>> homeStrings = {
     'fr': 'Le clip n’est pas parti',
     'de': 'Der Clip ging nicht raus',
   },
+  'snapNew': {
+    'ru': 'Новый ролик',
+    'en': 'New clip',
+    'pt': 'Clipe novo',
+    'it': 'Nuovo clip',
+    'es': 'Clip nuevo',
+    'fr': 'Nouveau clip',
+    'de': 'Neuer Clip',
+  },
+  'snapSavedToFeed': {
+    'ru': 'Ролик в ленте воспоминаний',
+    'en': 'The clip is in your memory feed',
+    'pt': 'O clipe está no mural de lembranças',
+    'it': 'Il clip è nel diario dei ricordi',
+    'es': 'El clip está en el muro de recuerdos',
+    'fr': 'Le clip est dans le fil des souvenirs',
+    'de': 'Der Clip ist im Erinnerungspfad',
+  },
 };
