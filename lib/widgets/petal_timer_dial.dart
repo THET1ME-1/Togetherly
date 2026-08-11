@@ -106,7 +106,7 @@ class _PetalTimerDialState extends State<PetalTimerDial>
   }
 
   void _onChaseTick(Duration elapsed) {
-    _currentPetals = _computePetals();
+    _currentPetals = _petalsNow();
     bool changed = false;
 
     if (_intro < 1) {
@@ -199,6 +199,24 @@ class _PetalTimerDialState extends State<PetalTimerDial>
   double _tangentSign(Offset velocity) {
     final cross = -velocity.dx * 0.5 + velocity.dy * 0.5;
     return cross >= 0 ? 1.0 : -1.0;
+  }
+
+  /// Секунда, на которую посчитаны [_currentPetals].
+  int _petalsSec = -1;
+
+  /// Петали за текущую секунду.
+  ///
+  /// Календарная арифметика даёт один и тот же ответ всю секунду, а тикер
+  /// заходит сюда на каждом кадре: пересчёт на месте означал бы шесть новых
+  /// объектов сто двадцать раз в секунду и работу сборщику мусора ровно там,
+  /// где нужен ровный кадр.
+  List<_PetalData> _petalsNow() {
+    final sec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    if (sec != _petalsSec) {
+      _petalsSec = sec;
+      _currentPetals = _computePetals();
+    }
+    return _currentPetals;
   }
 
   List<_PetalData> _computePetals() {
@@ -379,8 +397,19 @@ class _PetalTimerDialState extends State<PetalTimerDial>
   }
 
   @override
+  void didUpdateWidget(covariant PetalTimerDial old) {
+    super.didUpdateWidget(old);
+    // Дату таймера правят руками, и ждать смены секунды тут нельзя: круг
+    // обязан отозваться на правку сразу.
+    if (old.startDate != widget.startDate ||
+        old.isCountdown != widget.isCountdown) {
+      _petalsSec = -1;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    _currentPetals = _computePetals();
+    _currentPetals = _petalsNow();
     final petals = _currentPetals;
     final factors = _displayFactors;
     final presence = _presenceFactors;
@@ -414,16 +443,21 @@ class _PetalTimerDialState extends State<PetalTimerDial>
           child: SizedBox(
             width: size,
             height: size,
-            child: CustomPaint(
-              painter: _PetalDialPainter(
-                petals: petals,
-                displayFactors: factors,
-                presenceFactors: presence,
-                rotationAngle: _rotationAngle,
-                theme: widget.theme,
-                scale: scale,
-                totalPresence: presence.reduce((a, b) => a + b),
-                intro: _intro,
+            // Круг занимает половину главной и перерисовывается на каждом
+            // кадре, пока заливка догоняет цель. Без своего слоя он тянул за
+            // собой фон, карточки и календарь под собой.
+            child: RepaintBoundary(
+              child: CustomPaint(
+                painter: _PetalDialPainter(
+                  petals: petals,
+                  displayFactors: factors,
+                  presenceFactors: presence,
+                  rotationAngle: _rotationAngle,
+                  theme: widget.theme,
+                  scale: scale,
+                  totalPresence: presence.reduce((a, b) => a + b),
+                  intro: _intro,
+                ),
               ),
             ),
           ),

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:material_new_shapes/material_new_shapes.dart';
 
 /// Набор символов кода-приглашения (как у сервера: без 0/1/I/O,
@@ -217,9 +218,18 @@ class AnimatedInviteCode extends StatefulWidget {
   State<AnimatedInviteCode> createState() => _AnimatedInviteCodeState();
 }
 
-class _AnimatedInviteCodeState extends State<AnimatedInviteCode> {
+class _AnimatedInviteCodeState extends State<AnimatedInviteCode>
+    with SingleTickerProviderStateMixin {
   static const int _len = 6;
-  Timer? _timer;
+
+  /// Сколько держится один глиф. Шаг остался прежним — сменился только
+  /// источник времени: тикер кадров вместо `Timer.periodic`. Таймер на 65 мс
+  /// не кратен кадру экрана (16,7 мс), поэтому глифы менялись то через три
+  /// кадра, то через четыре, и ровный бег превращался в подёргивание.
+  static const Duration _spinStep = Duration(milliseconds: 65);
+
+  Ticker? _ticker;
+  Duration _shown = Duration.zero;
   int _tick = 0;
   late List<bool> _settled;
 
@@ -235,16 +245,24 @@ class _AnimatedInviteCodeState extends State<AnimatedInviteCode> {
   }
 
   void _startSpin() {
-    _timer ??= Timer.periodic(const Duration(milliseconds: 65), (_) {
-      if (mounted) setState(() => _tick++);
-    });
+    _ticker ??= createTicker(_onTick);
+    if (!_ticker!.isActive) {
+      _shown = Duration.zero;
+      _ticker!.start();
+    }
+  }
+
+  void _onTick(Duration elapsed) {
+    if (elapsed - _shown < _spinStep) return;
+    // Шаг прибавляем, чтобы глифы шли по своей сетке; после долгой паузы
+    // (экран уходил в фон) сетку сбрасываем, иначе код отыграет пропущенное
+    // очередью.
+    _shown = (elapsed - _shown > _spinStep * 2) ? elapsed : _shown + _spinStep;
+    if (mounted) setState(() => _tick++);
   }
 
   void _stopIfDone() {
-    if (_settled.every((s) => s)) {
-      _timer?.cancel();
-      _timer = null;
-    }
+    if (_settled.every((s) => s)) _ticker?.stop();
   }
 
   void _scheduleSettle({int initialDelayMs = 0}) {
@@ -275,7 +293,7 @@ class _AnimatedInviteCodeState extends State<AnimatedInviteCode> {
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _ticker?.dispose();
     super.dispose();
   }
 

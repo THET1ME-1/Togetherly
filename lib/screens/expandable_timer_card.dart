@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../models/timer_item.dart';
 import '../services/timer_service.dart';
 import '../theme/app_theme.dart';
+import '../theme/motion.dart';
 import '../services/locale_service.dart';
 import '../models/symbol_catalog.dart';
 import '../theme/profile_theme.dart';
@@ -42,7 +43,6 @@ class ExpandableTimerCard extends StatefulWidget {
 class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
   late PageController _pageController;
   int _currentIndex = 0;
-  Timer? _ticker;
 
   AppTheme get _t => widget.theme;
 
@@ -56,13 +56,11 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
 
     _pageController = PageController(initialPage: _currentIndex);
     widget.timerService.addListener(_onTimerChanged);
-    _startTicker();
   }
 
   @override
   void dispose() {
     _pageController.dispose();
-    _ticker?.cancel();
     widget.timerService.removeListener(_onTimerChanged);
     super.dispose();
   }
@@ -83,19 +81,17 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
     setState(() {});
   }
 
-  void _startTicker() {
-    _ticker?.cancel();
-    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() {});
-    });
-  }
+  // Секундного тика здесь больше нет. Он перестраивал всю карточку — рамку,
+  // карусель, оба соседних круга и дугу кнопок, — хотя от времени в ней не
+  // зависит ничего: цифры на лепестках считает сам `PetalTimerDial`, у него
+  // свой тикер на каждый кадр.
 
   void _goToPage(int page) {
     if (page >= 0 && page < widget.timerService.timers.length) {
       _pageController.animateToPage(
         page,
-        duration: const Duration(milliseconds: 400),
-        curve: Curves.easeInOutCubic,
+        duration: Motion.screen,
+        curve: Motion.emphasized,
       );
     }
   }
