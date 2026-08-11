@@ -109,6 +109,9 @@ import '../services/mood_notification_service.dart';
 import '../widgets/celebration_banner.dart';
 import '../widgets/app_sheet.dart';
 import '../widgets/note_editor_sheet.dart';
+import '../services/pb_media_service.dart';
+import '../services/widget_anim_service.dart';
+import 'snap_capture_screen.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -1522,6 +1525,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             onMood: _showMoodPicker,
                             onCalendar: _openMoodCalendar,
                             onPost: _postPhoto,
+                            onPostHold: _postSnap,
                           )
                         : const SizedBox.shrink(),
                   ),
@@ -2275,6 +2279,60 @@ class _HomeScreenState extends State<HomeScreen> {
   // =============================================
   // POST PHOTO (camera > upload > Memory Lane)
   // =============================================
+  /// Снап: удержание кнопки фото пишет ролик и отправляет его живым фото в
+  /// парный виджет — партнёр увидит его на своём рабочем столе.
+  ///
+  /// Ролик не хранится: сервер режет его на раскадровку 6×3 и удаляет исходник
+  /// (`tools/widget_anim.py`), поэтому место занимает одна картинка на сотню
+  /// килобайт, сколько бы ни весила съёмка.
+  Future<void> _postSnap() async {
+    if (!_pairData.isPaired || _pairData.pairId.isEmpty) return;
+
+    final path = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => SnapCaptureScreen(theme: _t)),
+    );
+    if (path == null || !mounted) return;
+
+    final s = LocaleService.current;
+    final messenger = ScaffoldMessenger.of(context);
+    void say(String text) => messenger.showSnackBar(
+          SnackBar(content: Text(text), behavior: SnackBarBehavior.floating),
+        );
+
+    say(s.snapSending);
+    try {
+      // Прежняя раскадровка больше не нужна, а её файл занимает место.
+      await WidgetAnimService.instance.clear();
+      final ref = await PbMediaService().uploadFile(
+        path,
+        uid: PocketBaseService().userId ?? '',
+        groupId: _pairData.pairId,
+        kind: 'widget_anim',
+      );
+      // Ссылка приходит как pb://media/<id>/<file> — нужен только id записи.
+      final parts = (ref ?? '').split('/');
+      final mediaId = parts.length > 3 ? parts[3] : '';
+      if (mediaId.isEmpty) throw Exception('upload failed');
+
+      final ready = await WidgetAnimService.instance.fetch(mediaId);
+      if (ready == null) throw Exception('prepare failed');
+
+      await HomeWidget.saveWidgetData<String>(
+        WidgetAnimService.keyPath,
+        ready.path,
+      );
+      await HomeWidget.saveWidgetData<String>(
+        WidgetAnimService.keyManifest,
+        ready.manifest,
+      );
+      await HomeWidget.updateWidget(name: 'LoveWidgetProvider');
+      if (mounted) say(s.snapSent);
+    } catch (e) {
+      debugPrint('_postSnap failed: $e');
+      if (mounted) say(s.snapFailed);
+    }
+  }
+
   Future<void> _postPhoto() async {
     if (!_pairData.isPaired || _pairData.pairId.isEmpty) return;
 

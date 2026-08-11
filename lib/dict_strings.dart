@@ -169,6 +169,16 @@ abstract class DictStrings extends AppStrings {
   @override
   String get privateSecure => _t('privateSecure');
   @override
+  String get snapHoldToRecord => _t('snapHoldToRecord');
+  @override
+  String get snapRecording => _t('snapRecording');
+  @override
+  String get snapSending => _t('snapSending');
+  @override
+  String get snapSent => _t('snapSent');
+  @override
+  String get snapFailed => _t('snapFailed');
+  @override
   String get welcomeNext => _t('welcomeNext');
   @override
   String get welcomeBack => _t('welcomeBack');

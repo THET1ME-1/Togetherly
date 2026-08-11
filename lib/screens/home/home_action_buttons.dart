@@ -20,6 +20,10 @@ class HomeActionButtons extends StatelessWidget {
   final VoidCallback onCalendar;
   final VoidCallback onPost;
 
+  /// Удержание кнопки фото: снимается ролик на пару секунд и уходит живым
+  /// фото в парный виджет. Тап остаётся обычным снимком.
+  final VoidCallback? onPostHold;
+
   const HomeActionButtons({
     super.key,
     required this.theme,
@@ -29,6 +33,7 @@ class HomeActionButtons extends StatelessWidget {
     required this.onMood,
     required this.onCalendar,
     required this.onPost,
+    this.onPostHold,
   });
 
   static const String _drawSvg =
@@ -84,6 +89,7 @@ class HomeActionButtons extends StatelessWidget {
           svgIcon: _postSvg,
           enabled: isPaired,
           onTap: onPost,
+          onLongPress: onPostHold,
         ),
         ],
       ),
@@ -95,6 +101,7 @@ class HomeActionButtons extends StatelessWidget {
     required String svgIcon,
     bool enabled = true,
     VoidCallback? onTap,
+    VoidCallback? onLongPress,
     String? moodImagePath,
   }) {
     final opacity = enabled ? 1.0 : 0.4;
@@ -109,6 +116,7 @@ class HomeActionButtons extends StatelessWidget {
         opacity: opacity,
         child: QuickTapScale(
           onTap: enabled ? (onTap ?? () {}) : null,
+          onLongPress: enabled ? onLongPress : null,
           scale: 0.92,
           child: Container(
             width: 74,

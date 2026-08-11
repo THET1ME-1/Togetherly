@@ -196,6 +196,11 @@ abstract class AppStrings {
   String get createAccount;
   String get alreadyHaveAccount;
   String get privateSecure;
+  String get snapHoldToRecord;
+  String get snapRecording;
+  String get snapSending;
+  String get snapSent;
+  String get snapFailed;
   String get welcomeNext;
 
   // ── Login Screen ──

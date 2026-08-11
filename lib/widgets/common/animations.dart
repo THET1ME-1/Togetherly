@@ -113,6 +113,10 @@ class _AnimatedSlideInState extends State<AnimatedSlideIn>
 class TapScale extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
+
+  /// Долгое нажатие. Нужно кнопке фото на главной: тап снимает кадр,
+  /// удержание пишет ролик.
+  final VoidCallback? onLongPress;
   final double scale;
   final Duration duration;
 
@@ -120,6 +124,7 @@ class TapScale extends StatefulWidget {
     super.key,
     required this.child,
     this.onTap,
+    this.onLongPress,
     this.scale = 0.95,
     this.duration = const Duration(milliseconds: 150),
   });
@@ -168,6 +173,10 @@ class _TapScaleState extends State<TapScale>
 class QuickTapScale extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
+
+  /// Долгое нажатие. Нужно кнопке фото на главной: тап снимает кадр,
+  /// удержание пишет ролик.
+  final VoidCallback? onLongPress;
   final double scale;
   final Duration duration;
 
@@ -175,6 +184,7 @@ class QuickTapScale extends StatefulWidget {
     super.key,
     required this.child,
     this.onTap,
+    this.onLongPress,
     this.scale = 0.95,
     this.duration = const Duration(milliseconds: 150),
   });
@@ -225,6 +235,7 @@ class _QuickTapScaleState extends State<QuickTapScale>
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: _handleTap,
+      onLongPress: widget.onLongPress,
       behavior: HitTestBehavior.opaque,
       child: ScaleTransition(scale: _scale, child: widget.child),
     );
