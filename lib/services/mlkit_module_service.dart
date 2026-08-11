@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
@@ -48,7 +46,10 @@ class MlkitModuleService {
   static const EventChannel _progress =
       EventChannel('love_app/mlkit_module/progress');
 
-  static bool get _isAndroid => !kIsWeb && Platform.isAndroid;
+  /// Платформу берём из `defaultTargetPlatform`, а не из `Platform.isAndroid`:
+  /// так тест подменяет её и проверяет разбор ответов канала на любом хосте.
+  static bool get _isAndroid =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
   static Future<MlkitModuleState> status() async {
     if (!_isAndroid) return MlkitModuleState.ready;
