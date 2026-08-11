@@ -9,6 +9,7 @@ import '../../services/gifts_service.dart';
 import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/profile_theme.dart';
+import '../../widgets/common/scaled_asset.dart';
 
 /// Витрина подарков: выбрал — списались монеты, партнёру улетел значок.
 ///
@@ -295,8 +296,7 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Image.asset('assets/images/icons/coin.webp',
-                      width: 18, height: 18),
+                  ScaledAsset('assets/images/icons/coin.webp', side: 18),
                   const SizedBox(width: 6),
                   Text(
                     '$_coins',
@@ -504,6 +504,9 @@ class _ShelfGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GridView.builder(
+      // Запас прогрева: без него ряд за краем экрана начинал готовиться
+      // ровно тогда, когда его уже листают.
+      cacheExtent: 600,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -678,8 +681,7 @@ class _GiftCardState extends State<_GiftCard> with TickerProviderStateMixin {
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Image.asset('assets/images/icons/coin.webp',
-                    width: 14, height: 14),
+                ScaledAsset('assets/images/icons/coin.webp', side: 14),
                 const SizedBox(width: 4),
                 Text(
                   '${gift.price}',
@@ -787,7 +789,7 @@ class _GiftMark extends StatelessWidget {
               child: Center(
                 child: Opacity(
                   opacity: affordable ? 1 : 0.45,
-                  child: Image.asset(asset, width: 56, height: 56),
+                  child: ScaledAsset(asset, side: 56),
                 ),
               ),
             ),

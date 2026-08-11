@@ -408,7 +408,6 @@ class _AvatarMarker extends StatelessWidget {
                         imageUrl: avatarUrl,
                         fit: BoxFit.cover,
                         memCacheWidth: 160,
-                        memCacheHeight: 160,
                         errorWidget: (_, _, _) => fallback,
                       ),
               ),

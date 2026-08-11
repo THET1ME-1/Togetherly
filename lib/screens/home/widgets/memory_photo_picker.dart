@@ -258,6 +258,9 @@ class _MemoryPhotoPickerState extends State<MemoryPhotoPicker> {
     }
 
     return GridView.builder(
+      // Запас прогрева: без него ряд за краем экрана начинал готовиться
+      // ровно тогда, когда его уже листают.
+      cacheExtent: 600,
       controller: scrollController,
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -283,7 +286,6 @@ class _MemoryPhotoPickerState extends State<MemoryPhotoPicker> {
                 imageUrl: photo.url,
                 fit: BoxFit.cover,
                 memCacheWidth: 300,
-                memCacheHeight: 300,
                 placeholder: (_, __) => Container(
                   color: t.surfaceMuted,
                 ),

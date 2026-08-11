@@ -71,8 +71,11 @@ class AvatarWidget extends StatelessWidget {
               width: size,
               height: size,
               fit: BoxFit.cover,
+              // Предел ставится по одной стороне. С обоими разом снимок
+              // декодировался в квадрат, и вытянутый кадр приезжал в кружок
+              // сплющенным — лицо на аватаре становилось шире, чем на самом
+              // фото. Вторую сторону досчитает сам декодер, пропорции целы.
               memCacheWidth: (size * 2).toInt(),
-              memCacheHeight: (size * 2).toInt(),
               placeholder: (_, __) => _placeholder(),
               errorWidget: (_, __, ___) => _placeholder(),
             )

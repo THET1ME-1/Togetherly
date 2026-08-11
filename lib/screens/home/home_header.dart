@@ -161,7 +161,6 @@ class HomeHeader extends StatelessWidget {
                       imageUrl: url,
                       fit: BoxFit.cover,
                       memCacheWidth: 120,
-                      memCacheHeight: 120,
                       errorWidget: (context, url, error) =>
                           _avatarPlaceholder(name),
                     )

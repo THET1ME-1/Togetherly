@@ -34,6 +34,7 @@ import 'home/widgets/relationship_type_dialog.dart';
 import '../widgets/app_sheet.dart';
 import '../models/widget_data.dart';
 import '../widgets/common/plus_badge.dart';
+import '../widgets/common/scaled_asset.dart';
 
 class ConnectPartnerScreen extends StatefulWidget {
   final PairData pairData;
@@ -1692,11 +1693,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
       offset: const Offset(-4, 0),
       child: GestureDetector(
         onTap: icon == null ? null : () => _showBadgeInfo(icon),
-        child: Image.asset(
-          icon?.asset ?? 'assets/images/icons/$badge.webp',
-          width: 38,
-          height: 38,
-        ),
+        child: ScaledAsset(icon?.asset ?? 'assets/images/icons/$badge.webp', side: 38),
       ),
     );
   }
@@ -1714,7 +1711,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
             children: [
               Row(
                 children: [
-                  Image.asset(icon.asset, width: 40, height: 40),
+                  ScaledAsset(icon.asset, side: 40),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(

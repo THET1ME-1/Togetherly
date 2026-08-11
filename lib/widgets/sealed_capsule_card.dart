@@ -204,7 +204,6 @@ class _SealedCapsuleCardState extends State<SealedCapsuleCard>
                     imageUrl: widget.authorAvatar,
                     fit: BoxFit.cover,
                     memCacheWidth: 64,
-                    memCacheHeight: 64,
                     errorWidget: (_, __, ___) => _avatarFallback(t, name),
                   )
                 : _avatarFallback(t, name),

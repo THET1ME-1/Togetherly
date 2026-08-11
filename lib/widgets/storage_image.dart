@@ -83,21 +83,46 @@ class _StorageImageState extends State<StorageImage> {
   // ключом из-за бага переиспользования элементов ленты (FutureBuilder ниже
   // отдавал предыдущий resolved-URL на connectionState=waiting). Смена префикса
   // разово сбрасывает потенциально «отравленные» записи кэша на устройствах.
-  Widget _buildCached(String url) => CachedNetworkImage(
-        imageUrl: url,
-        cacheKey: 'v2|${widget.imageUrl}',
-        // Долгоживущий кэш → уже виденное фото гарантированно открывается офлайн.
-        cacheManager: OfflineImageCacheManager.instance,
-        width: widget.width,
-        height: widget.height,
-        fit: widget.fit,
-        placeholder: widget.placeholder,
-        progressIndicatorBuilder: widget.progressIndicatorBuilder,
-        errorWidget: widget.errorWidget,
-        memCacheWidth: widget.memCacheWidth,
-        memCacheHeight: widget.memCacheHeight,
-        fadeInDuration: widget.fadeInDuration,
-      );
+  /// Во сколько пикселей разворачивать кадр.
+  ///
+  /// Явный предел уважаем как есть; если его не передали — считаем по размеру
+  /// на экране. Снимок с телефона это 4000×3000, то есть 48 МБ в памяти на
+  /// плитку в сто двадцать точек: лента из десяти таких плиток раньше
+  /// разворачивала полгигабайта картинок, и слабые телефоны на этом сдавались.
+  ///
+  /// Предел ставится ОДИН, по заданной стороне. С двумя разом кадр
+  /// декодируется в прямоугольник и сплющивается — на этом обжигались
+  /// миниатюры админки.
+  (int?, int?) get _decode {
+    if (widget.memCacheWidth != null || widget.memCacheHeight != null) {
+      return (widget.memCacheWidth, widget.memCacheHeight);
+    }
+    final dpr = MediaQuery.maybeDevicePixelRatioOf(context) ?? 1.0;
+    final w = widget.width;
+    final h = widget.height;
+    if (w != null && w.isFinite) return ((w * dpr).ceil(), null);
+    if (h != null && h.isFinite) return (null, (h * dpr).ceil());
+    return (null, null);
+  }
+
+  Widget _buildCached(String url) {
+    final (decodeWidth, decodeHeight) = _decode;
+    return CachedNetworkImage(
+      imageUrl: url,
+      cacheKey: 'v2|${widget.imageUrl}',
+      // Долгоживущий кэш → уже виденное фото гарантированно открывается офлайн.
+      cacheManager: OfflineImageCacheManager.instance,
+      width: widget.width,
+      height: widget.height,
+      fit: widget.fit,
+      placeholder: widget.placeholder,
+      progressIndicatorBuilder: widget.progressIndicatorBuilder,
+      errorWidget: widget.errorWidget,
+      memCacheWidth: decodeWidth,
+      memCacheHeight: decodeHeight,
+      fadeInDuration: widget.fadeInDuration,
+    );
+  }
 
   Widget _empty() =>
       widget.errorWidget?.call(context, widget.imageUrl, 'empty') ??
@@ -113,10 +138,13 @@ class _StorageImageState extends State<StorageImage> {
     if (MediaCache.instance.isLocalRef(url)) {
       final p = MediaCache.instance.localPath(url);
       if (p != null && File(p).existsSync()) {
+        final (decodeWidth, decodeHeight) = _decode;
         return Image.file(
           File(p),
           width: widget.width,
           height: widget.height,
+          cacheWidth: decodeWidth,
+          cacheHeight: decodeHeight,
           fit: widget.fit,
           errorBuilder: (_, _, _) => _empty(),
         );

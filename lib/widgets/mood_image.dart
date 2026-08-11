@@ -31,9 +31,29 @@ class MoodImage extends StatelessWidget {
   static bool _isRemote(String p) =>
       p.startsWith('http://') || p.startsWith('https://');
 
+  /// Во сколько пикселей разворачивать картинку.
+  ///
+  /// Стикеры паков — квадраты 512, а на экране они живут в 28–64 точках. Без
+  /// подсказки Flutter держит в памяти полный кадр (512×512×4 — мегабайт на
+  /// стикер), и сетка календаря на тридцать дней уносила тридцать мегабайт
+  /// ради картинок размером с ноготь.
+  ///
+  /// Предел ставится ОДИН, по заданной стороне: с двумя разом кадр
+  /// декодируется в прямоугольник и стикер сплющивается.
+  (int?, int?) _decodeLimits(BuildContext context) {
+    final dpr = MediaQuery.maybeDevicePixelRatioOf(context) ?? 1.0;
+    if (width != null && width!.isFinite) return ((width! * dpr).ceil(), null);
+    if (height != null && height!.isFinite) {
+      return (null, (height! * dpr).ceil());
+    }
+    return (null, null);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (imagePath.isEmpty) return SizedBox(width: width, height: height);
+
+    final (decodeWidth, decodeHeight) = _decodeLimits(context);
 
     if (!_isRemote(imagePath)) {
       return Image.asset(
@@ -41,6 +61,8 @@ class MoodImage extends StatelessWidget {
         fit: fit,
         width: width,
         height: height,
+        cacheWidth: decodeWidth,
+        cacheHeight: decodeHeight,
         errorBuilder: (ctx, __, ___) => _fallback(ctx),
       );
     }
@@ -52,6 +74,8 @@ class MoodImage extends StatelessWidget {
       fit: fit,
       width: width,
       height: height,
+      memCacheWidth: decodeWidth,
+      memCacheHeight: decodeHeight,
       fadeInDuration: const Duration(milliseconds: 150),
       placeholder: (_, __) => SizedBox(width: width, height: height),
       errorWidget: (ctx, __, ___) => _fallback(ctx),
@@ -62,11 +86,14 @@ class MoodImage extends StatelessWidget {
   Widget _fallback(BuildContext context) {
     final classic = MoodOption.classicFallbackFor(imagePath);
     if (classic != null) {
+      final (decodeWidth, decodeHeight) = _decodeLimits(context);
       return Image.asset(
         classic,
         fit: fit,
         width: width,
         height: height,
+        cacheWidth: decodeWidth,
+        cacheHeight: decodeHeight,
         errorBuilder: (ctx, __, ___) => _icon(ctx),
       );
     }

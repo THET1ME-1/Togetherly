@@ -70,6 +70,7 @@ import '../services/celebration_notification_service.dart';
 import '../services/days_together_notification_service.dart';
 import 'date_time_picker_screen.dart';
 import '../widgets/common/redeem_code_sheet.dart';
+import '../widgets/common/scaled_asset.dart';
 
 /// Entry for a partner across all connections
 class _PartnerEntry {
@@ -1629,11 +1630,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Image.asset(
-                  'assets/images/icons/coin.webp',
-                  width: 11,
-                  height: 11,
-                ),
+                ScaledAsset('assets/images/icons/coin.webp', side: 11),
                 const SizedBox(width: 2),
                 Text(
                   '${p.price}',
@@ -3914,11 +3911,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Image.asset(
-                'assets/images/icons/coin.webp',
-                width: 34,
-                height: 34,
-              ),
+              ScaledAsset('assets/images/icons/coin.webp', side: 34),
               const SizedBox(width: 10),
               Text(
                 '${widget.userData.coins}',
@@ -4276,11 +4269,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                             ],
                           ),
                         ),
-                        Image.asset(
-                          'assets/images/icons/coin.webp',
-                          width: 22,
-                          height: 22,
-                        ),
+                        ScaledAsset('assets/images/icons/coin.webp', side: 22),
                       ],
                     ),
                     const Spacer(),
@@ -4612,11 +4601,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ),
                 child: Row(
                   children: [
-                    Image.asset(
-                      'assets/images/icons/coin.webp',
-                      width: 28,
-                      height: 28,
-                    ),
+                    ScaledAsset('assets/images/icons/coin.webp', side: 28),
                     const SizedBox(width: 10),
                     Text(
                       '${t.price}',
@@ -4811,11 +4796,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                               ),
                             ),
                             const SizedBox(width: 10),
-                            Image.asset(
-                              'assets/images/icons/coin.webp',
-                              width: 16,
-                              height: 16,
-                            ),
+                            ScaledAsset('assets/images/icons/coin.webp', side: 16),
                             const SizedBox(width: 4),
                             Text(
                               '${widget.userData.coins}',
@@ -4994,7 +4975,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
               child: Opacity(
                 opacity: locked ? 0.5 : 1.0,
-                child: Image.asset(icon.asset, width: 42, height: 42),
+                child: ScaledAsset(icon.asset, side: 42),
               ),
             ),
             const SizedBox(height: 7),
@@ -5041,11 +5022,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Image.asset(
-                    'assets/images/icons/coin.webp',
-                    width: 15,
-                    height: 15,
-                  ),
+                  ScaledAsset('assets/images/icons/coin.webp', side: 15),
                   const SizedBox(width: 4),
                   Text(
                     '${icon.price}',
@@ -5075,7 +5052,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             children: [
               Row(
                 children: [
-                  Image.asset(icon.asset, width: 40, height: 40),
+                  ScaledAsset(icon.asset, side: 40),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
@@ -5185,7 +5162,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                         ),
                       ),
                       Center(
-                        child: Image.asset(icon.asset, width: 76, height: 76),
+                        child: ScaledAsset(icon.asset, side: 76),
                       ),
                     ],
                   ),
@@ -5223,11 +5200,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Image.asset(
-                            'assets/images/icons/coin.webp',
-                            width: 28,
-                            height: 28,
-                          ),
+                          ScaledAsset('assets/images/icons/coin.webp', side: 28),
                           const SizedBox(width: 10),
                           Text(
                             '${icon.price}',
@@ -5250,11 +5223,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                           style: TextStyle(fontSize: 13, color: _t.textMuted),
                         ),
                         const SizedBox(width: 6),
-                        Image.asset(
-                          'assets/images/icons/coin.webp',
-                          width: 16,
-                          height: 16,
-                        ),
+                        ScaledAsset('assets/images/icons/coin.webp', side: 16),
                         const SizedBox(width: 4),
                         Text(
                           '${widget.userData.coins}',
