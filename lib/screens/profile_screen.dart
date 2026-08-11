@@ -1638,7 +1638,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       mainAxisSize: MainAxisSize.min,
       children: [
         SeedSwatch(
-          seed: p.accent,
+          palette: p,
           selected: selected,
           size: 46,
           flavor: ud.themeFlavor,

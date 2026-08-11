@@ -7,14 +7,14 @@ import '../theme/app_palettes.dart';
 /// [SchemeFlavor]. Квадранты: primaryContainer / primary / tertiaryContainer /
 /// tertiary.
 class SeedSwatch extends StatelessWidget {
-  final Color seed;
+  final Palette palette;
   final bool selected;
   final double size;
   final SchemeFlavor flavor;
   final VoidCallback? onTap;
   const SeedSwatch({
     super.key,
-    required this.seed,
+    required this.palette,
     this.selected = false,
     this.size = 46,
     this.flavor = SchemeFlavor.soft,
@@ -23,11 +23,13 @@ class SeedSwatch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Светлая схема из seed (пастельные, читаемые тона), с выбранной сочностью.
+    // Светлая схема из акцента палитры — ровно та, что достанется экрану:
+    // вариант считается общим правилом [variantOf], иначе кружок показывает
+    // одно, а тема даёт другое.
     final s = ColorScheme.fromSeed(
-      seedColor: seed,
+      seedColor: palette.accent,
       brightness: Brightness.light,
-      dynamicSchemeVariant: flavor.variant,
+      dynamicSchemeVariant: variantOf(palette, flavor),
     );
     final scheme = Theme.of(context).colorScheme;
     final quads = <Color>[

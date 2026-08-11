@@ -162,6 +162,17 @@ const List<Palette> kPalettes = [
   Palette(24, 'Тёмный мёд', Color(0xFFC8912E), isPremium: true, price: 30, target: PaletteTarget('тёмный мёд', 68, 60, 0.92)),
 ];
 
+/// Вариант схемы для палитры при выбранной насыщенности.
+///
+/// «Мягкий» вариант палитра вправе уточнить: «Монохром» из холодно-серого сида
+/// получает у `tonalSpot` голубую схему и серым не выглядит. Правило живёт
+/// здесь одно на всех — кружок в ленте палитр обязан показывать ровно ту
+/// схему, которую человек получит, иначе он врёт: до 11 августа 2026 кружок
+/// считал вариант только по насыщенности, и «Монохром» рисовался копией
+/// «Нордика» — все четыре квадранта совпадали до пикселя.
+DynamicSchemeVariant variantOf(Palette p, SchemeFlavor flavor) =>
+    flavor == SchemeFlavor.soft ? p.variant : flavor.variant;
+
 Palette paletteByIndex(int index) =>
     (index >= 0 && index < kPalettes.length) ? kPalettes[index] : kPalettes[0];
 
@@ -289,10 +300,7 @@ AppTheme buildAppTheme(
   final s = ColorScheme.fromSeed(
     seedColor: legacy.primary,
     brightness: brightness,
-    // «Мягкий» вариант палитра вправе уточнить: «Монохром» из холодно-серого
-    // сида получал у tonalSpot голубую схему и серым не выглядел.
-    dynamicSchemeVariant:
-        flavor == SchemeFlavor.soft ? p.variant : flavor.variant,
+    dynamicSchemeVariant: variantOf(p, flavor),
   );
   final dark = brightness == Brightness.dark;
 
