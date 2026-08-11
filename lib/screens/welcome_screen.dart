@@ -414,6 +414,29 @@ class _BlobPainter extends CustomPainter {
   bool shouldRepaint(_BlobPainter old) => old.t != t || old.scheme != scheme;
 }
 
+// ─── Кейфреймы ────────────────────────────────────────────────────────────────
+
+/// Значение по опорным точкам, как в CSS-кейфреймах: список (доля цикла,
+/// значение) и кривая на каждом отрезке.
+///
+/// Сцены перенесены из макета один в один, поэтому и опорные точки те же —
+/// проценты из `@keyframes` стали долями.
+double _at(double t, List<(double, double)> stops, Curve curve) {
+  for (var i = 0; i < stops.length - 1; i++) {
+    final (ta, va) = stops[i];
+    final (tb, vb) = stops[i + 1];
+    if (t < ta || t > tb) continue;
+    if (tb <= ta) return vb;
+    final k = curve.transform(((t - ta) / (tb - ta)).clamp(0.0, 1.0));
+    return va + (vb - va) * k;
+  }
+  return stops.last.$2;
+}
+
+/// Кривая M3 «emphasized decelerate» — та же `cubic-bezier(.05,.7,.1,1)`, что
+/// стоит в макете.
+const Curve _emphasized = Cubic(0.05, 0.7, 0.1, 1);
+
 // ─── Сцена 1: двое сходятся ───────────────────────────────────────────────────
 
 class _DuoScene extends StatefulWidget {
@@ -433,11 +456,28 @@ class _DuoSceneState extends State<_DuoScene>
     duration: const Duration(milliseconds: 3400),
   );
 
+  /// Кружки разъезжаются и снова сходятся: 0—12% стоят врозь, к 42% съезжаются
+  /// с лёгким перелётом по размеру, до 80% держат пару, дальше расходятся.
+  static const _gapStops = <(double, double)>[
+    (0, 118), (0.12, 118), (0.42, 31), (0.5, 31),
+    (0.8, 31), (0.92, 118), (1, 118),
+  ];
+  static const _scaleStops = <(double, double)>[
+    (0, 0.92), (0.12, 0.92), (0.42, 1.04), (0.5, 1),
+    (0.8, 1), (0.92, 0.92), (1, 0.92),
+  ];
+  static const _sparkFade = <(double, double)>[
+    (0, 0), (0.4, 0), (0.52, 1), (0.7, 1), (0.88, 0), (1, 0),
+  ];
+  static const _sparkScale = <(double, double)>[
+    (0, 0.4), (0.4, 0.4), (0.52, 1.15), (0.7, 1), (0.88, 0.6), (1, 0.6),
+  ];
+
   @override
   void initState() {
     super.initState();
     if (widget.still) {
-      _ctrl.value = 0.6;
+      _ctrl.value = 0.6; // кадр, где двое вместе и светится сердце
     } else {
       _ctrl.repeat();
     }
@@ -457,11 +497,8 @@ class _DuoSceneState extends State<_DuoScene>
         animation: _ctrl,
         builder: (context, _) {
           final t = _ctrl.value;
-          // Кружки СТОЯТ рядом и лишь дышат: раньше они разъезжались на
-          // полэкрана и половину времени сцена выглядела пустой.
-          final breathe = math.sin(t * math.pi * 2);
-          final gap = 31 + breathe * 5;
-          final ringT = ((t * 2) % 1.0);
+          final gap = _at(t, _gapStops, _emphasized);
+          final scale = _at(t, _scaleStops, _emphasized);
 
           return SizedBox(
             width: 260,
@@ -471,7 +508,7 @@ class _DuoSceneState extends State<_DuoScene>
               children: [
                 CustomPaint(
                   size: const Size(260, 260),
-                  painter: _RingPainter(color: cs.primary, t: ringT),
+                  painter: _RingPainter(color: cs.primary, t: t),
                 ),
                 Transform.translate(
                   offset: Offset(-gap, 0),
@@ -479,7 +516,7 @@ class _DuoSceneState extends State<_DuoScene>
                     letter: 'Т',
                     bg: cs.primary,
                     ink: cs.onPrimary,
-                    scale: 1 + 0.03 * breathe,
+                    scale: scale,
                   ),
                 ),
                 Transform.translate(
@@ -488,10 +525,17 @@ class _DuoSceneState extends State<_DuoScene>
                     letter: 'А',
                     bg: cs.secondaryContainer,
                     ink: cs.onSecondaryContainer,
-                    scale: 1 - 0.03 * breathe,
+                    scale: scale,
                   ),
                 ),
-
+                Opacity(
+                  opacity: _at(t, _sparkFade, Curves.easeOut).clamp(0.0, 1.0),
+                  child: Transform.scale(
+                    scale: _at(t, _sparkScale, Curves.easeOut),
+                    child: Icon(Icons.favorite_rounded,
+                        size: 34, color: cs.primary),
+                  ),
+                ),
               ],
             ),
           );
@@ -519,38 +563,48 @@ class _Avatar extends StatelessWidget {
     return Transform.scale(
       scale: scale,
       child: Container(
-        width: 86,
-        height: 86,
+        width: 82,
+        height: 82,
         decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
         alignment: Alignment.center,
         child: Text(
           letter,
-          style: AppFonts.unbounded(size: 27, weight: 700, color: ink),
+          style: AppFonts.unbounded(size: 26, weight: 700, color: ink),
         ),
       ),
     );
   }
 }
 
+/// Два кольца расходятся от места встречи: второе с задержкой 0,18 секунды —
+/// те же 180 мс, что в макете.
 class _RingPainter extends CustomPainter {
   _RingPainter({required this.color, required this.t});
 
   final Color color;
   final double t;
 
+  static const _fade = <(double, double)>[
+    (0, 0), (0.45, 0), (0.55, 0.5), (1, 0),
+  ];
+  static const _scale = <(double, double)>[
+    (0, 0.7), (0.45, 0.7), (1, 2.1),
+  ];
+
   @override
   void paint(Canvas canvas, Size size) {
     final center = size.center(Offset.zero);
     for (var i = 0; i < 2; i++) {
-      final p = (t + i * 0.18).clamp(0.0, 1.0);
-      if (p <= 0 || p >= 1) continue;
+      final rt = (t - i * 0.053) % 1.0;
+      final opacity = _at(rt, _fade, Curves.easeOut);
+      if (opacity <= 0.001) continue;
       canvas.drawCircle(
         center,
-        48 + 62 * p,
+        48 * _at(rt, _scale, Curves.easeOut),
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.5
-          ..color = color.withValues(alpha: 0.45 * (1 - p)),
+          ..color = color.withValues(alpha: opacity.clamp(0.0, 1.0)),
       );
     }
   }
@@ -559,7 +613,7 @@ class _RingPainter extends CustomPainter {
   bool shouldRepaint(_RingPainter old) => old.t != t;
 }
 
-// ─── Сцена 2: фигура течёт ────────────────────────────────────────────────────
+// ─── Сцена 2: фигура течёт и меняет содержимое ────────────────────────────────
 
 class _MorphScene extends StatefulWidget {
   const _MorphScene({
@@ -580,16 +634,41 @@ class _MorphSceneState extends State<_MorphScene>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl = AnimationController(
     vsync: this,
-    duration: const Duration(seconds: 6),
+    duration: const Duration(seconds: 9),
   );
+
+  /// Три фазы по три секунды: капля, карточка, круг. Доли скругления взяты из
+  /// макета (46/54/50% → 28 px → 50%), поворот тоже.
+  static const _radius = <(double, double)>[
+    (0, 0.48), (0.22, 0.48), (0.33, 0.13), (0.55, 0.13),
+    (0.66, 0.5), (0.88, 0.5), (1, 0.48),
+  ];
+  static const _turn = <(double, double)>[
+    (0, 0), (0.22, 0), (0.33, -0.105), (0.55, -0.105),
+    (0.66, 0.07), (0.88, 0.07), (1, 0),
+  ];
+
+  /// Значок держится свои три секунды и уходит: `show` из макета.
+  static const _iconFade = <(double, double)>[
+    (0, 0), (0.02, 0), (0.06, 1), (0.28, 1), (0.33, 0), (1, 0),
+  ];
+  static const _iconScale = <(double, double)>[
+    (0, 0.7), (0.02, 0.7), (0.06, 1), (0.28, 1), (0.33, 0.7), (1, 0.7),
+  ];
+
+  static const _icons = [
+    Icons.favorite_border_rounded,
+    Icons.photo_library_rounded,
+    Icons.auto_awesome_rounded,
+  ];
 
   @override
   void initState() {
     super.initState();
     if (widget.still) {
-      _ctrl.value = 0.25;
+      _ctrl.value = 0.44; // карточка с сердцем — узнаваемая поза
     } else {
-      _ctrl.repeat(reverse: true);
+      _ctrl.repeat();
     }
   }
 
@@ -603,27 +682,46 @@ class _MorphSceneState extends State<_MorphScene>
   Widget build(BuildContext context) {
     final fill = widget.theme.fillColor;
     final ink = AppThemes.onColor(fill, mode: widget.theme.brightness);
+    const side = 210.0;
 
     return Center(
       child: AnimatedBuilder(
         animation: _ctrl,
         builder: (context, _) {
-          final t = Curves.easeInOut.transform(_ctrl.value);
-          // Это КАРТОЧКА с наклоном, и она ею остаётся: скругление гуляет в
-          // узких пределах, до круга не доходя. Прежний размах от 48 до 104
-          // превращал фигуру в розовое пятно, и половину времени сцена не
-          // читалась вовсе.
+          final t = _ctrl.value;
+          final r = _at(t, _radius, Curves.easeInOut) * side;
           return Transform.rotate(
-            angle: -0.10 + 0.05 * t,
+            angle: _at(t, _turn, Curves.easeInOut),
             child: Container(
-              width: 212,
-              height: 212,
+              width: side,
+              height: side,
               decoration: BoxDecoration(
                 color: fill,
-                borderRadius: BorderRadius.circular(34 + 16 * t),
+                // Углы разной величины — та самая «капля» из макета, где
+                // радиусы 46% и 54% чередуются по кругу.
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(r * 0.92),
+                  topRight: Radius.circular(r * 1.08),
+                  bottomRight: Radius.circular(r * 0.96),
+                  bottomLeft: Radius.circular(r * 1.04),
+                ),
               ),
               alignment: Alignment.center,
-              child: Icon(Icons.favorite_border_rounded, size: 92, color: ink),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  for (var i = 0; i < _icons.length; i++)
+                    Opacity(
+                      opacity: _at((t - i / 3) % 1.0, _iconFade, Curves.easeInOut)
+                          .clamp(0.0, 1.0),
+                      child: Transform.scale(
+                        scale: _at((t - i / 3) % 1.0, _iconScale,
+                            Curves.easeInOut),
+                        child: Icon(_icons[i], size: 86, color: ink),
+                      ),
+                    ),
+                ],
+              ),
             ),
           );
         },
@@ -632,7 +730,7 @@ class _MorphSceneState extends State<_MorphScene>
   }
 }
 
-// ─── Сцена 3: круг наливается ─────────────────────────────────────────────────
+// ─── Сцена 3: круг наливается секторами ───────────────────────────────────────
 
 class _DialScene extends StatefulWidget {
   const _DialScene({
@@ -653,14 +751,14 @@ class _DialSceneState extends State<_DialScene>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 4200),
+    duration: const Duration(milliseconds: 4800),
   );
 
   @override
   void initState() {
     super.initState();
     if (widget.still) {
-      _ctrl.value = 1;
+      _ctrl.value = 0.95;
     } else {
       _ctrl.repeat();
     }
@@ -683,9 +781,12 @@ class _DialSceneState extends State<_DialScene>
         animation: _ctrl,
         builder: (context, _) {
           // Шесть секторов наливаются по одному, потом круг гаснет и начинает
-          // заново: тот же круг, что встретит человека на главной.
-          final filled = (_ctrl.value * 6).floor().clamp(0, 6);
-          final part = (_ctrl.value * 6) - filled;
+          // заново — в макете то же делал палец, здесь идёт само.
+          final phase = _ctrl.value;
+          final grow = (phase / 0.85).clamp(0.0, 1.0);
+          final done = _emphasized.transform(grow) * 6;
+          final filled = done.floor().clamp(0, 6);
+
           return SizedBox(
             width: 250,
             height: 250,
@@ -693,36 +794,41 @@ class _DialSceneState extends State<_DialScene>
               alignment: Alignment.center,
               children: [
                 CustomPaint(
-                  size: const Size(250, 250),
+                  size: const Size(225, 225),
                   painter: _DialPainter(
                     track: widget.theme.timerDialBackground,
                     fill: fill,
                     hole: widget.theme.bgGradient.first,
-                    filled: filled,
-                    part: part,
+                    done: done,
                   ),
                 ),
                 Text(
                   '$filled',
-                  style:
-                      AppFonts.unbounded(size: 40, weight: 800, color: ink),
+                  style: AppFonts.unbounded(
+                      size: 30, weight: 800, color: cs.onSurface),
                 ),
                 Positioned(
-                  bottom: 2,
+                  bottom: 6,
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       _Pill(
-                          icon: Icons.mood_rounded,
-                          label: LocaleService.current.mood,
-                          bg: cs.surfaceContainerLowest,
-                          ink: cs.onSurface),
+                        icon: Icons.mood_rounded,
+                        label: LocaleService.current.mood,
+                        bg: cs.surfaceContainerLowest,
+                        ink: cs.onSurface,
+                        delay: 0,
+                        t: phase,
+                      ),
                       const SizedBox(width: 7),
                       _Pill(
-                          icon: Icons.widgets_rounded,
-                          label: LocaleService.current.widgets,
-                          bg: fill,
-                          ink: ink),
+                        icon: Icons.widgets_rounded,
+                        label: LocaleService.current.widgets,
+                        bg: fill,
+                        ink: ink,
+                        delay: 0.025,
+                        t: phase,
+                      ),
                     ],
                   ),
                 ),
@@ -735,34 +841,50 @@ class _DialSceneState extends State<_DialScene>
   }
 }
 
+/// Пилюля всплывает снизу — `pop` из макета, со сдвигом по времени.
 class _Pill extends StatelessWidget {
   const _Pill({
     required this.icon,
     required this.label,
     required this.bg,
     required this.ink,
+    required this.delay,
+    required this.t,
   });
 
   final IconData icon;
   final String label;
   final Color bg;
   final Color ink;
+  final double delay;
+  final double t;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 32,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration:
-          BoxDecoration(color: bg, borderRadius: BorderRadius.circular(99)),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 15, color: ink),
-          const SizedBox(width: 6),
-          Text(label,
-              style: AppFonts.onest(size: 12, weight: 600, color: ink)),
-        ],
+    final k = _at(
+      (t - delay).clamp(0.0, 1.0),
+      const [(0.0, 0.0), (0.1, 1.0), (1.0, 1.0)],
+      _emphasized,
+    );
+    return Opacity(
+      opacity: k.clamp(0.0, 1.0),
+      child: Transform.translate(
+        offset: Offset(0, 10 * (1 - k)),
+        child: Container(
+          height: 32,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration:
+              BoxDecoration(color: bg, borderRadius: BorderRadius.circular(99)),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 15, color: ink),
+              const SizedBox(width: 6),
+              Text(label,
+                  style: AppFonts.onest(size: 12, weight: 600, color: ink)),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -773,54 +895,36 @@ class _DialPainter extends CustomPainter {
     required this.track,
     required this.fill,
     required this.hole,
-    required this.filled,
-    required this.part,
+    required this.done,
   });
 
   final Color track;
   final Color fill;
   final Color hole;
-  final int filled;
-  final double part;
+
+  /// Сколько секторов налито, дробью: 2.5 — два с половиной.
+  final double done;
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = size.center(Offset.zero);
     final r = size.width / 2;
+    final rect = Rect.fromCircle(center: center, radius: r);
 
-    // Сплошной круг, а не пирог со спицами. Разрезанный белыми линиями круг
-    // на онбординге читался дёшево: человек ещё не знает, что это таймер, и
-    // видит просто фигуру, порубленную на куски.
-    canvas.drawCircle(center, r, Paint()..color = fill);
-
-    // Заполнение показывает тонкое кольцо по краю — оно и живёт, и не спорит
-    // с числом в середине.
-    final ringRect = Rect.fromCircle(center: center, radius: r - 7);
-    canvas.drawCircle(
-      center,
-      r - 7,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 6
-        ..color = track.withValues(alpha: 0.55),
-    );
-    final done = (filled + part) / 6;
+    canvas.drawCircle(center, r, Paint()..color = track);
     if (done > 0) {
       canvas.drawArc(
-        ringRect,
+        rect,
         -math.pi / 2,
-        math.pi * 2 * done,
-        false,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round
-          ..strokeWidth = 6
-          ..color = track,
+        math.pi * 2 * (done / 6),
+        true,
+        Paint()..color = fill,
       );
     }
+    // Дырка в середине — как в макете: `inset: 36%`.
+    canvas.drawCircle(center, r * 0.28, Paint()..color = hole);
   }
 
   @override
-  bool shouldRepaint(_DialPainter old) =>
-      old.filled != filled || old.part != part || old.fill != fill;
+  bool shouldRepaint(_DialPainter old) => old.done != done || old.fill != fill;
 }

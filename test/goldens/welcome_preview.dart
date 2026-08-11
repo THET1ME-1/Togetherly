@@ -71,16 +71,18 @@ void main() {
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 700));
       }
-      // Ждём момент, когда сцены в живой фазе: двое сошлись, круг налит.
-      await tester.pump(const Duration(milliseconds: 1500));
-      await tester.runAsync(() async {
-        final boundary =
-            key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
-        final image = await boundary.toImage(pixelRatio: 1);
-        final data = await image.toByteData(format: ui.ImageByteFormat.png);
-        File('${dir.path}/slide${i + 1}.png')
-            .writeAsBytesSync(data!.buffer.asUint8List());
-      });
+      // Три кадра подряд: по ним видно, что сцена движется, а не стоит.
+      for (var f = 0; f < 3; f++) {
+        await tester.pump(const Duration(milliseconds: 900));
+        await tester.runAsync(() async {
+          final boundary =
+              key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+          final image = await boundary.toImage(pixelRatio: 1);
+          final data = await image.toByteData(format: ui.ImageByteFormat.png);
+          File('${dir.path}/slide${i + 1}_$f.png')
+              .writeAsBytesSync(data!.buffer.asUint8List());
+        });
+      }
     }
   });
 }
