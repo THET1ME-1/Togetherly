@@ -62,6 +62,7 @@ import '../services/rate_limiter_service.dart';
 import '../services/ui_prefs.dart';
 import '../services/update_service.dart';
 import '../theme/app_theme.dart';
+import '../theme/motion.dart';
 import '../theme/theme_scope.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'canvas_create_flow.dart';
@@ -112,6 +113,7 @@ import '../widgets/note_editor_sheet.dart';
 import '../services/pb_media_service.dart';
 import '../services/widget_anim_service.dart';
 import 'snap_capture_screen.dart';
+import '../widgets/common/scaled_asset.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -1476,8 +1478,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 8),
                 // Shift dial UP closer to calendar (disabled when Today button is visible)
                 AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOut,
+                  duration: Motion.nudge,
+                  curve: Motion.standard,
                   transform: Matrix4.translationValues(
                     0,
                     _showTodayButton ? 0 : -20,
@@ -1499,8 +1501,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 // Restore buttons offset to -15 for tighter layout
                 AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOut,
+                  duration: Motion.nudge,
+                  curve: Motion.standard,
                   transform: Matrix4.translationValues(
                     0,
                     _showTodayButton ? 0 : -15,
@@ -1789,11 +1791,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Image.asset(
-                        'assets/images/icons/coin.webp',
-                        width: 16,
-                        height: 16,
-                      ),
+                      ScaledAsset('assets/images/icons/coin.webp', side: 16),
                       const SizedBox(width: 4),
                       Text(
                         '${t.price}',
@@ -2208,7 +2206,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         child: Row(
           children: [
-            if (sun != null) Image.asset(sun.asset, width: 40, height: 40),
+            if (sun != null) ScaledAsset(sun.asset, side: 40),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -2246,7 +2244,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           child: Row(
             children: [
-              Image.asset(gift.asset, width: 46, height: 46),
+              ScaledAsset(gift.asset, side: 46),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(

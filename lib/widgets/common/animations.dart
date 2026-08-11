@@ -2,6 +2,7 @@ import 'package:flutter/physics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../../theme/motion.dart';
 import '../../theme/theme_scope.dart';
 
 /// Появление блока при входе: пружина на 16 логических точек.
@@ -32,7 +33,7 @@ class AnimatedSlideIn extends StatefulWidget {
     super.key,
     required this.child,
     this.delay = Duration.zero,
-    this.duration = const Duration(milliseconds: 520),
+    this.duration = Motion.entrance,
     this.beginOffset = 16,
   });
 
@@ -45,13 +46,9 @@ class _AnimatedSlideInState extends State<AnimatedSlideIn>
   late final AnimationController _ctrl;
   bool _started = false;
 
-  /// Пружина: слегка недодемпфирована, поэтому даёт перелёт на пару точек и
-  /// мягкий возврат. Жёстче — и получится щелчок, мягче — кисель.
-  static final SpringDescription _spring = SpringDescription.withDampingRatio(
-    mass: 1,
-    stiffness: 260,
-    ratio: 0.72,
-  );
+  /// Пружина входа берётся из общего набора: этими же числами теперь движется
+  /// всё, что встаёт на место, — см. [Motion.spatial].
+  static final SpringDescription _spring = Motion.spatial;
 
   @override
   void initState() {
@@ -126,7 +123,7 @@ class TapScale extends StatefulWidget {
     this.onTap,
     this.onLongPress,
     this.scale = 0.95,
-    this.duration = const Duration(milliseconds: 150),
+    this.duration = Motion.tap,
   });
 
   @override
@@ -186,7 +183,7 @@ class QuickTapScale extends StatefulWidget {
     this.onTap,
     this.onLongPress,
     this.scale = 0.95,
-    this.duration = const Duration(milliseconds: 150),
+    this.duration = Motion.tap,
   });
 
   @override
@@ -288,7 +285,7 @@ class _NavBarItemState extends State<NavBarItem>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 420),
+      duration: Motion.medium4,
     );
     _scale = TweenSequence<double>([
       TweenSequenceItem(
@@ -334,7 +331,7 @@ class _NavBarItemState extends State<NavBarItem>
       child: ScaleTransition(
         scale: _scale,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 260),
+          duration: Motion.medium1,
           curve: Curves.easeOutCubic,
           // Пунктов пять, а панель узкая: на экране 360 dp прежние отступы
           // (18/12) не помещались.
@@ -354,7 +351,7 @@ class _NavBarItemState extends State<NavBarItem>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 260),
+                    duration: Motion.medium1,
                     transitionBuilder: (child, anim) => ScaleTransition(
                       scale: CurvedAnimation(
                         parent: anim,
@@ -381,7 +378,7 @@ class _NavBarItemState extends State<NavBarItem>
                   ),
                   const SizedBox(height: 3),
                   AnimatedDefaultTextStyle(
-                    duration: const Duration(milliseconds: 260),
+                    duration: Motion.medium1,
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: widget.isActive
@@ -465,7 +462,7 @@ class BounceButton extends StatefulWidget {
     required this.child,
     this.onTap,
     this.scale = 0.9,
-    this.duration = const Duration(milliseconds: 300),
+    this.duration = Motion.medium2,
   });
 
   @override
@@ -540,7 +537,7 @@ class RotatingIcon extends StatefulWidget {
     this.size = 24,
     this.color,
     this.onTap,
-    this.duration = const Duration(milliseconds: 600),
+    this.duration = Motion.long4,
   });
 
   @override
@@ -612,7 +609,7 @@ class _HeartAnimationState extends State<HeartAnimation>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 600),
+      duration: Motion.long4,
     );
     _scale = TweenSequence<double>([
       TweenSequenceItem(
