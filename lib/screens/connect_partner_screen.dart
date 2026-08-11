@@ -16,6 +16,8 @@ import '../models/profile_icon.dart';
 import '../models/user_data.dart';
 import '../services/chat_service.dart';
 import '../services/deep_link_service.dart';
+import '../services/mlkit_module_service.dart';
+import '../widgets/common/m3_loading.dart';
 import '../widgets/waiting/waiting_card.dart';
 import '../widgets/waiting/waiting_setup_sheet.dart';
 import '../services/pb_data_service.dart';
@@ -97,6 +99,10 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   void initState() {
     super.initState();
     _loadShapes();
+    // Просим сервисы Google заранее подтянуть модель распознавания QR: экран
+    // сканера открывают через несколько нажатий отсюда, и к тому моменту она
+    // обычно уже стоит. Загрузка тихая, момент выбирает сам GMS.
+    MlkitModuleService.warmUp();
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -2900,6 +2906,47 @@ class QRScannerScreen extends StatefulWidget {
 class _QRScannerScreenState extends State<QRScannerScreen> {
   bool _codeDetected = false;
 
+  /// Модель распознавания приезжает из сервисов Google, а не лежит в APK.
+  /// Пока её ставят, показываем загрузку: наводить камеру в пустоту и гадать,
+  /// почему код не читается, человек не должен.
+  MlkitModuleState _module = MlkitModuleState.checking;
+  int _percent = -1;
+  StreamSubscription<MlkitInstallProgress>? _progressSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _prepareModule();
+  }
+
+  @override
+  void dispose() {
+    _progressSub?.cancel();
+    super.dispose();
+  }
+
+  /// Уход с экрана загрузку НЕ отменяет: качает её GMS в своём процессе, мы
+  /// только слушаем. Поэтому подписку гасим спокойно — вернувшись, спросим
+  /// состояние заново и застанем либо готовую модель, либо ту же загрузку.
+  Future<void> _prepareModule() async {
+    final state = await MlkitModuleService.status();
+    if (!mounted) return;
+    setState(() => _module = state);
+    if (state != MlkitModuleState.needsInstall) return;
+
+    setState(() => _module = MlkitModuleState.installing);
+    _progressSub = MlkitModuleService.watchProgress().listen((p) {
+      if (!mounted) return;
+      setState(() {
+        _module = p.state;
+        _percent = p.percent;
+      });
+    });
+    final started = await MlkitModuleService.install();
+    if (!mounted || started) return;
+    setState(() => _module = MlkitModuleState.unavailable);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -2916,7 +2963,113 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
           style: const TextStyle(color: Colors.white),
         ),
       ),
-      body: MobileScanner(
+      body: switch (_module) {
+        MlkitModuleState.ready => _scanner(),
+        MlkitModuleState.unavailable => _unavailable(),
+        _ => _preparing(),
+      },
+    );
+  }
+
+  Widget _preparing() {
+    final s = LocaleService.current;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const M3Loading(color: Colors.white, size: 56),
+            const SizedBox(height: 22),
+            Text(
+              _percent >= 0
+                  ? '${s.qrPreparingScanner} · $_percent%'
+                  : s.qrPreparingScanner,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: 'Unbounded',
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              s.qrPreparingHint,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Onest',
+                fontSize: 13.5,
+                height: 1.4,
+                color: Colors.white.withValues(alpha: 0.72),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _unavailable() {
+    final s = LocaleService.current;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.qr_code_scanner_rounded,
+                size: 56, color: Colors.white54),
+            const SizedBox(height: 18),
+            Text(
+              s.qrScannerUnavailable,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: 'Unbounded',
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              s.qrScannerUnavailableHint,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Onest',
+                fontSize: 13.5,
+                height: 1.4,
+                color: Colors.white.withValues(alpha: 0.72),
+              ),
+            ),
+            const SizedBox(height: 22),
+            FilledButton(
+              onPressed: () => Navigator.pop(context),
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black,
+                shape: const StadiumBorder(),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 26, vertical: 14),
+              ),
+              child: Text(
+                s.qrEnterCodeManually,
+                style: const TextStyle(
+                    fontSize: 14.5, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _scanner() {
+    return MobileScanner(
+        // Камера может отказать и при готовой модели: нет разрешения, занята
+        // другой программой. Показываем то же понятное окно, а не голый текст
+        // ошибки от плагина.
+        errorBuilder: (context, error) => _unavailable(),
         onDetect: (capture) {
           if (_codeDetected) return;
 
@@ -2938,7 +3091,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
             }
           }
         },
-      ),
     );
   }
 }
