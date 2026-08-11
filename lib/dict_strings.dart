@@ -169,6 +169,8 @@ abstract class DictStrings extends AppStrings {
   @override
   String get privateSecure => _t('privateSecure');
   @override
+  String get welcomeNext => _t('welcomeNext');
+  @override
   String get welcomeBack => _t('welcomeBack');
   @override
   String get loginToAccount => _t('loginToAccount');

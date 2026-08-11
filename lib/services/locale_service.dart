@@ -196,6 +196,7 @@ abstract class AppStrings {
   String get createAccount;
   String get alreadyHaveAccount;
   String get privateSecure;
+  String get welcomeNext;
 
   // ── Login Screen ──
   String get welcomeBack;

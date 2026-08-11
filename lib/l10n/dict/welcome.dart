@@ -114,4 +114,13 @@ const Map<String, Map<String, String>> welcomeStrings = {
     'fr': 'PRIVÉ ET SÉCURISÉ',
     'de': 'PRIVAT UND SICHER',
   },
+  'welcomeNext': {
+    'ru': 'Дальше',
+    'en': 'Next',
+    'pt': 'Avançar',
+    'it': 'Avanti',
+    'es': 'Siguiente',
+    'fr': 'Suivant',
+    'de': 'Weiter',
+  },
 };
