@@ -118,7 +118,8 @@ class _Home extends StatelessWidget {
                           style: TextStyle(
                               fontSize: 12.5,
                               fontWeight: FontWeight.w700,
-                              color: AppThemes.onColor(theme.fillColor))),
+                              color: AppThemes.onColor(theme.fillColor,
+                                  mode: theme.brightness))),
                     ),
                   ),
                 ],
