@@ -16,12 +16,7 @@ import '../models/profile_icon.dart';
 import '../models/user_data.dart';
 import '../services/chat_service.dart';
 import '../services/deep_link_service.dart';
-import '../services/coin_store.dart' show kStore;
-import '../services/mlkit_module_service.dart';
-import '../utils/qr_frame.dart' show kQrWindowFraction;
-import '../widgets/common/m3_loading.dart';
 import '../widgets/qr/qr_viewfinder.dart';
-import '../widgets/qr/zxing_scan_view.dart';
 import '../widgets/waiting/waiting_card.dart';
 import '../widgets/waiting/waiting_setup_sheet.dart';
 import '../services/pb_data_service.dart';
@@ -103,10 +98,6 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   void initState() {
     super.initState();
     _loadShapes();
-    // Просим сервисы Google заранее подтянуть модель распознавания QR: экран
-    // сканера открывают через несколько нажатий отсюда, и к тому моменту она
-    // обычно уже стоит. Загрузка тихая, момент выбирает сам GMS.
-    MlkitModuleService.warmUp();
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
@@ -2910,74 +2901,10 @@ class QRScannerScreen extends StatefulWidget {
 class _QRScannerScreenState extends State<QRScannerScreen> {
   bool _codeDetected = false;
 
-  /// Движков распознавания два, и выбор между ними не про вкус.
-  ///
-  /// В сборке для Google Play читает ML Kit — он точнее и на телефонах с
-  /// сервисами Google стоит бесплатно, модель приезжает по требованию. Везде
-  /// ещё (RuStore, сайдлоад) сервисов Google может не быть вовсе, и там
-  /// работает свой декодер на чистом Dart: качать ему нечего.
-  ///
-  /// Play-сборка на телефоне без сервисов Google тоже падает во второй путь —
-  /// тупика «сканировать нечем» не остаётся нигде.
-  bool get _mlkitBuild => kStore == 'play';
-
-  /// Модель распознавания приезжает из сервисов Google, а не лежит в APK.
-  /// Пока её ставят, показываем загрузку: наводить камеру в пустоту и гадать,
-  /// почему код не читается, человек не должен.
-  MlkitModuleState _module = MlkitModuleState.checking;
-  int _percent = -1;
-  StreamSubscription<MlkitInstallProgress>? _progressSub;
-
-  /// Свой декодер вместо ML Kit: либо сборка не гугловая, либо сервисов Google
-  /// на телефоне не оказалось.
-  bool _ownDecoder = false;
-
   /// Камера не поднялась: нет разрешения, занята другим приложением, нет самой
-  /// камеры. Показываем то же окно, что и при отсутствии сканера.
+  /// камеры. Показываем понятное окно вместо чёрного экрана.
   bool _cameraFailed = false;
 
-  @override
-  void initState() {
-    super.initState();
-    if (_mlkitBuild) {
-      _prepareModule();
-    } else {
-      _ownDecoder = true;
-    }
-  }
-
-  @override
-  void dispose() {
-    _progressSub?.cancel();
-    super.dispose();
-  }
-
-  /// Уход с экрана загрузку НЕ отменяет: качает её GMS в своём процессе, мы
-  /// только слушаем. Поэтому подписку гасим спокойно — вернувшись, спросим
-  /// состояние заново и застанем либо готовую модель, либо ту же загрузку.
-  Future<void> _prepareModule() async {
-    final state = await MlkitModuleService.status();
-    if (!mounted) return;
-    // Сервисов Google нет — не упираемся в стену, а читаем сами.
-    if (state == MlkitModuleState.unavailable) {
-      setState(() => _ownDecoder = true);
-      return;
-    }
-    setState(() => _module = state);
-    if (state != MlkitModuleState.needsInstall) return;
-
-    setState(() => _module = MlkitModuleState.installing);
-    _progressSub = MlkitModuleService.watchProgress().listen((p) {
-      if (!mounted) return;
-      setState(() {
-        _module = p.state;
-        _percent = p.percent;
-      });
-    });
-    final started = await MlkitModuleService.install();
-    if (!mounted || started) return;
-    setState(() => _ownDecoder = true);
-  }
 
   /// Строка из кода: сканер отдаёт либо шесть символов, либо ссылку-приглашение.
   void _onScanned(String raw) {
@@ -3007,20 +2934,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
           style: const TextStyle(color: Colors.white),
         ),
       ),
-      body: _ownDecoder
-          ? _framed(
-              ZxingScanView(
-                onCode: _onScanned,
-                onUnavailable: () {
-                  if (mounted) setState(() => _cameraFailed = true);
-                },
-              ),
-            )
-          : switch (_module) {
-              MlkitModuleState.ready => _framed(_scanner()),
-              MlkitModuleState.unavailable => _unavailable(),
-              _ => _preparing(),
-            },
+      body: _framed(_scanner()),
     );
   }
 
@@ -3031,45 +2945,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     return Stack(
       fit: StackFit.expand,
       children: [camera, const QrViewfinder()],
-    );
-  }
-
-  Widget _preparing() {
-    final s = LocaleService.current;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const M3Loading(color: Colors.white, size: 56),
-            const SizedBox(height: 22),
-            Text(
-              _percent >= 0
-                  ? '${s.qrPreparingScanner} · $_percent%'
-                  : s.qrPreparingScanner,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontFamily: 'Unbounded',
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              s.qrPreparingHint,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'Onest',
-                fontSize: 13.5,
-                height: 1.4,
-                color: Colors.white.withValues(alpha: 0.72),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 

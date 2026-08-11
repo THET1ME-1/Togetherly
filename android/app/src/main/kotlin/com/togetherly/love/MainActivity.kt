@@ -91,10 +91,6 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        // Модель распознавания QR ставится сервисами Google по требованию —
-        // канал показывает её состояние и прогресс загрузки.
-        MlkitModuleChannel(this, flutterEngine.dartExecutor.binaryMessenger)
-
         sharedTextChannel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             "love_app/shared_text"

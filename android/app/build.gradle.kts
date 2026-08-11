@@ -95,11 +95,6 @@ flutter {
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 
-    // Установка модели распознавания QR по требованию (MlkitModuleChannel).
-    // Версия та же, что тянет mobile_scanner в режиме useUnbundled: разойдутся —
-    // Gradle возьмёт старшую, и класс сканера в двух вариантах не появится.
-    implementation("com.google.android.gms:play-services-mlkit-barcode-scanning:18.3.1")
-
     // Google Play Billing тянет плагин in_app_purchase_android (0.5.x = billing 8.x).
     // Свою версию сюда не прописывать: Play отклоняет обновления на библиотеке ниже 8.
 }

@@ -810,8 +810,6 @@ abstract class AppStrings {
   String get scanToConnect;
   String get scanPartnersQr;
   String get qrPointAtCode;
-  String get qrPreparingScanner;
-  String get qrPreparingHint;
   String get qrScannerUnavailable;
   String get qrScannerUnavailableHint;
   String get qrEnterCodeManually;

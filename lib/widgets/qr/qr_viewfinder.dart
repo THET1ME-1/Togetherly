@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 
 import '../../services/locale_service.dart';
-import '../../utils/qr_frame.dart' show kQrWindowFraction;
 
 /// Окно наведения поверх камеры: тёмная вуаль с чистым квадратом в середине,
 /// уголки по углам и бегущая полоса.
 ///
-/// Квадрат тут не украшение — декодер читает ровно эту область кадра
-/// ([kQrWindowFraction] от короткой стороны, число живёт в `utils/qr_frame`).
-/// Пока рамки не было, человек наводил код куда придётся, а разбирался центр:
-/// код у края экрана не читался, и выглядело это как сломанный сканер.
+/// Квадрат тут не украшение: по [kQrWindowFraction] и рисуется рамка, и
+/// режется область распознавания (`scanWindow` у сканера). Разъедутся — человек
+/// наводит код в одну область, а читается другая.
+///
+/// Доля короткой стороны, которую занимает окно наведения.
+const double kQrWindowFraction = 0.72;
 
 class QrViewfinder extends StatefulWidget {
   const QrViewfinder({super.key, this.hint});
