@@ -24,11 +24,13 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  static const Color _accent = Color(0xFFFF6B9D);
-  static const List<Color> _btnGradient = [
-    Color(0xFFFF8FA3),
-    Color(0xFFFF6B9D),
-  ];
+  /// Акцент берётся у активной темы, а не прибит розовым.
+  ///
+  /// До 11 августа 2026 здесь лежал `#FF6B9D`: на персиковой теме «Забыли
+  /// пароль?», «Создать» и галочка «Запомнить меня» светились чужим цветом, а
+  /// кнопка «Войти» рядом была персиковой — экран выглядел собранным из двух
+  /// приложений. Градиент кнопки заодно ушёл: он не использовался.
+  Color get _accent => ProfileTheme.schemeFor(context.appTheme).primary;
 
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -400,7 +402,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               onTap: _isLoading ? null : _sendPasswordReset,
                               child: Text(
                                 s.forgotPassword,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w700,
                                   color: _accent,
@@ -439,7 +441,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               onTap: _isLoading ? null : _goToSetup,
                               child: Text(
                                 s.create,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w800,
                                   color: _accent,

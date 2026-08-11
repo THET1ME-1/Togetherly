@@ -463,14 +463,17 @@ class _SetupScreenState extends State<SetupScreen>
               fit: BoxFit.cover,
               width: double.infinity,
               height: double.infinity,
+              // Заглушка под обои — фон активной темы, а не прибитый
+              // персиковый: пока картинка едет, экран не должен быть чужого
+              // цвета.
               placeholder: (_, __) => ColoredBox(
                   color: theme.isDark
                       ? theme.surfaceMuted
-                      : const Color(0xFFFFF0EA)),
+                      : theme.bgGradient.first),
               errorWidget: (_, __, ___) => ColoredBox(
                   color: theme.isDark
                       ? theme.surfaceMuted
-                      : const Color(0xFFFFF0EA)),
+                      : theme.bgGradient.first),
             ),
           ),
           SafeArea(
