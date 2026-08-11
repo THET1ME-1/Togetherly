@@ -106,6 +106,156 @@ class _AnimatedSlideInState extends State<AnimatedSlideIn>
   }
 }
 
+/// Блок, который встаёт на место, когда экран доезжает до него.
+///
+/// [AnimatedSlideIn] запускается сразу, поэтому в длинном списке половина
+/// движения происходит за нижней кромкой экрана: человек долистывает до
+/// ячейки, а она уже стоит. Здесь пружина та же (см. [Motion.spatial]), но
+/// старт назначает первая встреча с областью видимости.
+///
+/// Каскад даётся только тому, что было на экране с самого начала: при заходе
+/// на настройки ячейки встают по очереди, а долистанная снизу появляется без
+/// ожидания — иначе прокрутка выглядела бы залипающей. Границу держит
+/// [_staggerWindow]: видимость, случившаяся позже, считается прокруткой.
+class AppearOnScroll extends StatefulWidget {
+  const AppearOnScroll({
+    super.key,
+    required this.child,
+    this.index = 0,
+    this.step = const Duration(milliseconds: 40),
+    this.beginOffset = 24,
+    this.duration = Motion.entrance,
+  });
+
+  final Widget child;
+
+  /// Место в группе — по нему считается задержка каскада.
+  final int index;
+
+  /// Задержка между соседями.
+  final Duration step;
+
+  /// Путь снизу вверх, в логических точках.
+  final double beginOffset;
+  final Duration duration;
+
+  @override
+  State<AppearOnScroll> createState() => _AppearOnScrollState();
+}
+
+class _AppearOnScrollState extends State<AppearOnScroll>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  bool _started = false;
+  ScrollPosition? _position;
+
+  /// Сколько ждём после первого кадра, прежде чем считать появление
+  /// прокруткой, а не заходом на экран.
+  static const Duration _staggerWindow = Duration(milliseconds: 400);
+
+  /// Насколько «ниже нуля» стартует соседняя ячейка. Пока значение
+  /// отрицательное, блок стоит на месте старта — это и есть задержка каскада,
+  /// только без единого таймера: `Future.delayed` пережил бы конец
+  /// виджет-теста и уронил бы чужие прогоны на «pending timers».
+  static const double _staggerStep = 0.14;
+
+  /// Дальше пятой ячейки каскад не растёт: иначе низ списка ждал бы секунду.
+  static const int _staggerCap = 5;
+
+  late final DateTime _born;
+
+  @override
+  void initState() {
+    super.initState();
+    _born = DateTime.now();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: widget.duration,
+      lowerBound: -_staggerStep * _staggerCap,
+      upperBound: 1,
+      value: 0,
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Ждём кромку экрана своими силами: `VisibilityDetector` держит на каждый
+    // блок собственный таймер, а он переживает конец виджет-теста и роняет
+    // чужие прогоны на «pending timers». Здесь ни одного таймера нет —
+    // положение считается по прокрутке и по первому кадру.
+    _position?.removeListener(_check);
+    _position = Scrollable.maybeOf(context)?.position;
+    _position?.addListener(_check);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _check());
+  }
+
+  @override
+  void dispose() {
+    _position?.removeListener(_check);
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  /// Доехал ли экран до блока.
+  void _check() {
+    if (_started || !mounted) return;
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return;
+    final top = box.localToGlobal(Offset.zero).dy;
+    final bottom = top + box.size.height;
+    final screen = MediaQuery.sizeOf(context).height;
+    // Блок считается дошедшим, когда его верхняя кромка вошла в экран. Нижнюю
+    // границу тоже проверяем: то, что уже уехало вверх, показывать поздно.
+    // Нулевая высота экрана бывает только в странной среде — там показываем
+    // сразу, лучше без анимации, чем невидимая ячейка навсегда.
+    if (screen > 0 && (top >= screen || bottom <= 0)) return;
+
+    _started = true;
+    _position?.removeListener(_check);
+    // Каскад достаётся только тому, что было на экране с самого начала:
+    // долистанная снизу ячейка появляется без ожидания, иначе прокрутка
+    // выглядела бы залипающей.
+    final scrolled = DateTime.now().difference(_born) > _staggerWindow;
+    final steps = scrolled ? 0 : widget.index.clamp(0, _staggerCap);
+    _run(-_staggerStep * steps);
+  }
+
+  void _run(double from) {
+    if (!mounted) return;
+    // Системный запрет анимаций уважаем: блок просто оказывается на месте.
+    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
+      _ctrl.value = 1;
+      return;
+    }
+    _ctrl.animateWith(SpringSimulation(Motion.spatial, from, 1, 0));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _ctrl,
+        builder: (context, child) {
+          // Отрицательные значения — это пауза каскада: блок ещё стоит на
+          // месте старта и невидим.
+          final t = _ctrl.value.clamp(0.0, 1.0);
+          return Opacity(
+            // Прозрачность догоняет раньше движения: на перелёте блок уже
+            // непрозрачен, иначе он мигал бы у самой точки остановки.
+            opacity: t < 0.55 ? (t / 0.55).clamp(0.0, 1.0) : 1.0,
+            child: Transform.translate(
+              offset: Offset(0, widget.beginOffset * (1 - t)),
+              child: child,
+            ),
+          );
+        },
+        child: widget.child,
+      ),
+    );
+  }
+}
+
 /// Tap Scale wrapper for press animations
 class TapScale extends StatefulWidget {
   final Widget child;

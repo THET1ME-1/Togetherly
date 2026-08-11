@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../services/ui_prefs.dart';
 import '../theme/motion.dart';
 import '../theme/profile_theme.dart';
+import 'common/animations.dart';
 
 /// Каркас экрана настроек.
 ///
@@ -218,14 +219,21 @@ class SettingsGroup extends StatelessWidget {
       children: [
         for (var i = 0; i < rows.length; i++) ...[
           if (i > 0) const SizedBox(height: gap),
-          Material(
-            color: scheme.surfaceContainerHigh,
-            clipBehavior: Clip.antiAlias,
-            borderRadius: BorderRadius.vertical(
-              top: i == 0 ? outer : inner,
-              bottom: i == rows.length - 1 ? outer : inner,
+          // Ячейка встаёт на место, когда экран доезжает до неё. При заходе на
+          // настройки видимые идут каскадом, дальние ждут своей очереди у
+          // кромки — иначе половина движения проходит там, где её никто не
+          // видит.
+          AppearOnScroll(
+            index: i,
+            child: Material(
+              color: scheme.surfaceContainerHigh,
+              clipBehavior: Clip.antiAlias,
+              borderRadius: BorderRadius.vertical(
+                top: i == 0 ? outer : inner,
+                bottom: i == rows.length - 1 ? outer : inner,
+              ),
+              child: rows[i],
             ),
-            child: rows[i],
           ),
         ],
       ],
