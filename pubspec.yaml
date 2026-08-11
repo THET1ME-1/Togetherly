@@ -16,7 +16,6 @@ dependencies:
   flutter_localizations:
     sdk: flutter
 
-  cupertino_icons: ^1.0.8
   characters: ^1.4.0 # графемы для безопасной работы с эмодзи (utils/safe_text)
   shared_preferences: ^2.3.4
   crypto: ^3.0.7 # SHA-256 для PIN секретных воспоминаний (secret_pin_service)

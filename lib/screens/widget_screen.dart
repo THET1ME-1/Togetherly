@@ -4544,7 +4544,7 @@ class _WidgetScreenState extends State<WidgetScreen>
                 child: Transform.scale(
                   scaleX: flipCouple ? -1.0 : 1.0,
                   child: Image.asset(
-                    'assets/images/widget/$imgName.png',
+                    'assets/images/widget/$imgName.webp',
                     fit: BoxFit.contain,
                   ),
                 ),
