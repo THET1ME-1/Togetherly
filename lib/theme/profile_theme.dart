@@ -52,12 +52,18 @@ abstract final class ProfileTheme {
   /// фиолетовой. На тёмном фоне это выглядело кислотной кнопкой, и половину
   /// тем справедливо называли некачественными. У розовой и фиолетовой
   /// `tonalSpot` даёт практически тот же результат, что и раньше.
-  static ColorScheme schemeOf(Color accent, Brightness brightness) =>
-      ColorScheme.fromSeed(
-        seedColor: accent,
-        brightness: brightness,
-        dynamicSchemeVariant: variantFor(accent),
-      );
+  static ColorScheme schemeOf(Color accent, Brightness brightness) {
+    final key = (accent.toARGB32(), brightness);
+    final ready = _schemes[key];
+    if (ready != null) return ready;
+    final made = ColorScheme.fromSeed(
+      seedColor: accent,
+      brightness: brightness,
+      dynamicSchemeVariant: variantFor(accent),
+    );
+    _remember(_schemes, key, made);
+    return made;
+  }
 
   /// Вариант берётся у палитры с этим акцентом; акцент, которого нет в
   /// каталоге (свои цвета из паков), разворачивается спокойным `tonalSpot`.
@@ -72,7 +78,37 @@ abstract final class ProfileTheme {
 
   /// ThemeData (шрифты Unbounded/Onest, кнопки-пилюли, карточки) поверх готовой
   /// M3-схемы. Схему передаёт экран, чтобы она совпадала с вариантом приложения.
-  static ThemeData data(ColorScheme scheme) => _fromScheme(scheme);
+  ///
+  /// Ответ запоминается: экраны зовут это прямо из `build` — чат восемь раз за
+  /// кадр, главная пять, — а сборка тянет `ThemeData` со всеми подтемами. Схема
+  /// и тема неизменяемы, поэтому один объект на одинаковые входы ничем не
+  /// отличается от свежесобранного, кроме цены.
+  static ThemeData data(ColorScheme scheme) {
+    final ready = _themes[scheme];
+    if (ready != null) return ready;
+    final made = _fromScheme(scheme);
+    _remember(_themes, scheme, made);
+    return made;
+  }
+
+  /// Кэши держат столько тем, сколько человек может встретить за сеанс: свои
+  /// двадцать пять палитр в двух яркостях плюс схемы из паков и превью. Дальше
+  /// вытесняем самое старое — приложение живёт часами, и расти без предела
+  /// такому кэшу нельзя.
+  static const int _cacheLimit = 64;
+  static final Map<(int, Brightness), ColorScheme> _schemes = {};
+  static final Map<ColorScheme, ThemeData> _themes = {};
+
+  static void _remember<K, V>(Map<K, V> cache, K key, V value) {
+    if (cache.length >= _cacheLimit) cache.remove(cache.keys.first);
+    cache[key] = value;
+  }
+
+  @visibleForTesting
+  static int get debugCachedSchemes => _schemes.length;
+
+  @visibleForTesting
+  static int get debugCachedThemes => _themes.length;
 
   static ThemeData _fromScheme(ColorScheme scheme) {
     final base = ThemeData(
