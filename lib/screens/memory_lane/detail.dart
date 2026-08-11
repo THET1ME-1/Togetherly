@@ -942,7 +942,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => _InAppVideoPlayerPage(
+                        builder: (_) => InAppVideoPlayerPage(
                           url: url,
                           title: memory.title,
                         ),

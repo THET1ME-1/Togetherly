@@ -721,17 +721,22 @@ class _WaveBarsPainter extends CustomPainter {
 // In-app video player for uploaded video memories
 // ─────────────────────────────────────────────────────────────
 
-class _InAppVideoPlayerPage extends StatefulWidget {
+/// Свой проигрыватель: полный экран, ползунок, пауза.
+///
+/// Публичный намеренно. Полноэкранная галерея раньше отдавала видео системе
+/// (`safeLaunchUrl` с `externalApplication`), и снятый в приложении ролик
+/// открывался в браузере — притом что плеер лежал рядом, только приватным.
+class InAppVideoPlayerPage extends StatefulWidget {
   final String url;
   final String? title;
 
-  const _InAppVideoPlayerPage({required this.url, this.title});
+  const InAppVideoPlayerPage({super.key, required this.url, this.title});
 
   @override
-  State<_InAppVideoPlayerPage> createState() => _InAppVideoPlayerPageState();
+  State<InAppVideoPlayerPage> createState() => _InAppVideoPlayerPageState();
 }
 
-class _InAppVideoPlayerPageState extends State<_InAppVideoPlayerPage> {
+class _InAppVideoPlayerPageState extends State<InAppVideoPlayerPage> {
   VideoPlayerController? _controller;
   bool _isInitialized = false;
   bool _hasError = false;
@@ -760,7 +765,7 @@ class _InAppVideoPlayerPageState extends State<_InAppVideoPlayerPage> {
     try {
       await controller.initialize();
     } catch (e) {
-      debugPrint('_InAppVideoPlayerPage: init failed for $playable: $e');
+      debugPrint('InAppVideoPlayerPage: init failed for $playable: $e');
       if (mounted) setState(() => _hasError = true);
       return;
     }

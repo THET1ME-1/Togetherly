@@ -141,15 +141,16 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
               final item = widget.items[i];
               if (item.isVideo) {
                 return GestureDetector(
-                  onTap: () async {
-                    // sb://gs:// → signed URL, иначе внешний плеер не откроет.
-                    final playable = await PbMediaService()
-                        .resolvePlayable(item.videoUrl!);
-                    await safeLaunchUrl(
-                      Uri.parse(playable),
-                      mode: LaunchMode.externalApplication,
-                    );
-                  },
+                  // Свой плеер, а не система: ролик, снятый в приложении,
+                  // открывался в браузере. Ссылку он разбирает сам
+                  // (`resolvePlayable` внутри), поэтому её сюда тащить не надо.
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) =>
+                          InAppVideoPlayerPage(url: item.videoUrl!),
+                      settings: const RouteSettings(name: '/video_player'),
+                    ),
+                  ),
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
