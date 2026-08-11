@@ -1249,6 +1249,26 @@ abstract class DictStrings extends AppStrings {
   @override
   String get customVibeHint => _t('customVibeHint');
   @override
+  String get missYouTitle => _t('missYouTitle');
+  @override
+  String get missYouSendHint => _t('missYouSendHint');
+  @override
+  String get missYouYou => _t('missYouYou');
+  @override
+  String get missYouPartner => _t('missYouPartner');
+  @override
+  String get missYouMore => _t('missYouMore');
+  @override
+  String get missYouLatest => _t('missYouLatest');
+  @override
+  String get missYouReplyBack => _t('missYouReplyBack');
+  @override
+  String get missYouWeekTitle => _t('missYouWeekTitle');
+  @override
+  String get missYouWeekEmpty => _t('missYouWeekEmpty');
+  @override
+  String get missYouWishRemoved => _t('missYouWishRemoved');
+  @override
   String get sharedAPicture => _t('sharedAPicture');
   @override
   String get openInMaps => _t('openInMaps');

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import '../models/miss_you_state.dart';
 import 'analytics_service.dart';
 import 'pb_data_service.dart';
 import 'pb_realtime_service.dart';
@@ -28,6 +29,13 @@ class MissYouRepository {
   /// Живой словарь {uid: count} по группе.
   Stream<Map<String, int>> watchCounts(String groupId) =>
       _rt.watchMissYou(groupId);
+
+  /// То же живьём, но целыми записями: счётчик, последний импульс с его
+  /// временем и карта дней недели. Свою запись отделяет от партнёрской.
+  Stream<MissYouState> watchState(String groupId) =>
+      _rt.watchMissYouRows(groupId).map(
+            (rows) => MissYouState.fromRows(rows, myUid: _uid ?? ''),
+          );
 
   /// Тап «Я скучаю»: +1 в счётчик. Без рейт-лимита (как было). Аналитика.
   Future<void> sendMissYou(String groupId) async {

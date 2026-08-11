@@ -792,14 +792,20 @@ class PbRealtimeService {
           });
 
   /// Счётчики «Я скучаю» {uid: count} — live.
-  Stream<Map<String, int>> watchMissYou(String groupId) => watchList(
+  Stream<Map<String, int>> watchMissYou(String groupId) =>
+      watchMissYouRows(groupId).map((rows) => {
+            for (final row in rows)
+              (row['user_uid'] ?? '').toString():
+                  (row['count'] as num?)?.toInt() ?? 0,
+          });
+
+  /// Записи `miss_you` целиком: кроме счётчика в них лежат последний импульс и
+  /// карта «день недели → сколько раз», на которых стоит экран «Скучаю».
+  Stream<List<Map<String, dynamic>>> watchMissYouRows(String groupId) =>
+      watchList(
         'miss_you',
         filter: _pb.filter('group_id = {:g}', {'g': groupId}),
         scope: RecordScope('missyou:g=$groupId', equals: {'group_id': groupId}),
         rtChannel: 'pair:$groupId',
-      ).map((rows) => {
-            for (final r in rows)
-              (r.data['user_uid'] ?? '').toString():
-                  (r.data['count'] as num?)?.toInt() ?? 0,
-          });
+      ).map((rows) => [for (final r in rows) r.data]);
 }

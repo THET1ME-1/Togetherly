@@ -862,6 +862,18 @@ abstract class AppStrings {
   String wantHugNotifTitle(String name);
   String customVibeNotifTitle(String name);
 
+  // ── Экран «Скучаю» ──
+  String get missYouTitle;
+  String get missYouSendHint;
+  String get missYouYou;
+  String get missYouPartner;
+  String get missYouMore;
+  String get missYouLatest;
+  String get missYouReplyBack;
+  String get missYouWeekTitle;
+  String get missYouWeekEmpty;
+  String get missYouWishRemoved;
+
   // ── Photo Card ──
   String get sharedAPicture;
   String kmFromYou(String km);
@@ -2400,9 +2412,9 @@ class _RuStrings extends DictStrings {
   String get cycleConsentAgree => 'Согласен, вести цикл';
   String get cycleConsentLater => 'Не сейчас';
   String get cycleConsentWithdraw => 'Отозвать согласие на цикл';
-  String get cycleConsentWithdrawHint => 'раздел закроется, отметки сотрутся';
+  String get cycleConsentWithdrawHint => 'Раздел закроется, отметки сотрутся';
   String get exportMyData => 'Мои данные';
-  String get exportMyDataHint => 'скачать архив со всем, что мы храним';
+  String get exportMyDataHint => 'Скачать архив со всем, что мы храним';
   String get exportMyDataReady => 'Архив готов';
   String get exportMyDataFailed => 'Не получилось собрать архив';
   String get exportMemories => 'Экспорт воспоминаний';
@@ -3286,9 +3298,9 @@ class _EnStrings extends DictStrings {
   String get cycleConsentLater => 'Not now';
   String get cycleConsentWithdraw => 'Withdraw cycle consent';
   String get cycleConsentWithdrawHint =>
-      'the section closes, entries are erased';
+      'The section closes, entries are erased';
   String get exportMyData => 'My data';
-  String get exportMyDataHint => 'download an archive of everything we store';
+  String get exportMyDataHint => 'Download an archive of everything we store';
   String get exportMyDataReady => 'Archive ready';
   String get exportMyDataFailed => "Couldn't build the archive";
   String get exportMemories => 'Export Memories';
