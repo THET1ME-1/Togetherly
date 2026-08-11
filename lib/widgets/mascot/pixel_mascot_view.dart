@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/mascot_anim.dart';
@@ -17,18 +16,6 @@ import '../../models/mascot_sleep.dart';
 ///
 /// Разовые состояния (подрос, обрадовался, приземлился) проигрываются один раз
 /// и возвращают маскота к обычной жизни: об этом сообщает [onOneShotDone].
-///
-/// Кадры идут по таймеру, и это осознанно. `Ticker` выглядел точнее — он
-/// попадает ровно в развёртку экрана, — но требует кадр НА КАЖДОМ шаге
-/// развёртки: ради десяти смен картинки в секунду приложение принималось
-/// рисовать сто двадцать кадров и не отпускало процессор вовсе. На главной
-/// рядом живут лепестковый круг и календарь со своими анимациями, и им от
-/// этого доставались рывки. Таймер будит отрисовку ровно десять раз в
-/// секунду.
-///
-/// Кадр уезжает в painter значением [ValueNotifier], поэтому дерево виджетов
-/// не перестраивается вовсе: идёт только перерисовка, и та заперта в
-/// [RepaintBoundary].
 class PixelMascotView extends StatefulWidget {
   const PixelMascotView({
     super.key,
@@ -62,13 +49,6 @@ class _PixelMascotViewState extends State<PixelMascotView> {
   ImageStreamListener? _listener;
   Timer? _ticker;
   int _frame = 0;
-
-  /// Что рисовать прямо сейчас: строка атласа и номер кадра в ней. Запись, а
-  /// не свой класс, — у записей структурное равенство, поэтому повтор того же
-  /// кадра слушателей не будит.
-  final ValueNotifier<(String, int)> _cel = ValueNotifier<(String, int)>(
-    ('', 0),
-  );
 
   /// Своя сцена, которую персонаж разыгрывает прямо сейчас. Пусто — обычная
   /// жизнь. Ночная сцена включается по часам и не сменяется, пока ночь.
@@ -120,7 +100,6 @@ class _PixelMascotViewState extends State<PixelMascotView> {
   @override
   void dispose() {
     _ticker?.cancel();
-    _cel.dispose();
     if (_listener != null) _stream?.removeListener(_listener!);
     super.dispose();
   }
@@ -142,71 +121,47 @@ class _PixelMascotViewState extends State<PixelMascotView> {
     _ticker?.cancel();
     _frame = 0;
     final fps = widget.anim.fps <= 0 ? 10 : widget.anim.fps;
-    _cel.value = (_row, 0);
-    _ticker = Timer.periodic(
-      Duration(milliseconds: (1000 / fps).round()),
-      (_) => _advance(),
-    );
-  }
-
-  /// Следующий кадр петли.
-  void _advance() {
-    if (!mounted) return;
-    var next = _frame + 1;
-    if (next >= widget.anim.cols) {
-      if (_state.oneShot) {
-        _ticker?.cancel();
-        widget.onOneShotDone?.call();
-        return;
+    _ticker = Timer.periodic(Duration(milliseconds: (1000 / fps).round()), (_) {
+      if (!mounted) return;
+      setState(() => _frame++);
+      if (_frame >= widget.anim.cols) {
+        if (_state.oneShot) {
+          _ticker?.cancel();
+          widget.onOneShotDone?.call();
+          return;
+        }
+        // Петля закончилась: решаем, чем персонаж займётся на следующем круге.
+        _frame = 0;
+        if (_state == MascotAnimState.live) _pickScene();
       }
-      // Петля закончилась: решаем, чем персонаж займётся на следующем круге.
-      next = 0;
-      if (_state == MascotAnimState.live) _pickScene();
-    }
-    _frame = next;
-    _cel.value = (_row, _frame);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final sheet = _sheet;
     if (sheet == null) return SizedBox.square(dimension: widget.size);
-    return RepaintBoundary(
-      child: CustomPaint(
-        size: Size.square(widget.size),
-        painter: _MascotPainter(
-          sheet: sheet,
-          anim: widget.anim,
-          level: widget.level,
-          cel: _cel,
-        ),
+    return CustomPaint(
+      size: Size.square(widget.size),
+      painter: _MascotPainter(
+        sheet: sheet,
+        src: widget.anim.rectRow(_row, _frame, level: widget.level),
       ),
     );
   }
 }
 
 class _MascotPainter extends CustomPainter {
-  _MascotPainter({
-    required this.sheet,
-    required this.anim,
-    required this.level,
-    required this.cel,
-  }) : super(repaint: cel);
+  const _MascotPainter({required this.sheet, required this.src});
 
   final ui.Image sheet;
-  final MascotAnim anim;
-  final int level;
-
-  /// Кадр приходит сюда напрямую: смена кадра перерисовывает картинку, не
-  /// трогая дерево виджетов.
-  final ValueListenable<(String, int)> cel;
+  final ui.Rect src;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final (row, frame) = cel.value;
     canvas.drawImageRect(
       sheet,
-      anim.rectRow(row, frame, level: level),
+      src,
       Offset.zero & size,
       Paint()
         ..filterQuality = FilterQuality.none
@@ -216,5 +171,5 @@ class _MascotPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _MascotPainter old) =>
-      old.sheet != sheet || old.anim != anim || old.level != level;
+      old.sheet != sheet || old.src != src;
 }

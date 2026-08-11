@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:material_new_shapes/material_new_shapes.dart';
 
-/// Набор символов кода-приглашения (как у сервера: без 0/1/I/O,
+/// Набор символов кода-приглашения (== Connection.generateLocalCode: без 0/1/I/O,
 /// чтобы не путались). «Дешифратор» гоняет именно эти глифы, поэтому бегущие
 /// символы выглядят настоящими и корректно замирают на коде.
 const String kInviteAlphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -219,15 +219,7 @@ class AnimatedInviteCode extends StatefulWidget {
 
 class _AnimatedInviteCodeState extends State<AnimatedInviteCode> {
   static const int _len = 6;
-
-  /// Сколько держится один глиф.
-  ///
-  /// Смена идёт по таймеру, а не по тикеру кадров: тикер требует кадр на
-  /// каждом шаге развёртки — сто двадцать отрисовок в секунду ради пятнадцати
-  /// смен глифа, и экран перестаёт простаивать вообще.
-  static const Duration _spinStep = Duration(milliseconds: 65);
-
-  Timer? _ticker;
+  Timer? _timer;
   int _tick = 0;
   late List<bool> _settled;
 
@@ -243,15 +235,15 @@ class _AnimatedInviteCodeState extends State<AnimatedInviteCode> {
   }
 
   void _startSpin() {
-    _ticker ??= Timer.periodic(_spinStep, (_) {
+    _timer ??= Timer.periodic(const Duration(milliseconds: 65), (_) {
       if (mounted) setState(() => _tick++);
     });
   }
 
   void _stopIfDone() {
     if (_settled.every((s) => s)) {
-      _ticker?.cancel();
-      _ticker = null;
+      _timer?.cancel();
+      _timer = null;
     }
   }
 
@@ -283,7 +275,7 @@ class _AnimatedInviteCodeState extends State<AnimatedInviteCode> {
 
   @override
   void dispose() {
-    _ticker?.cancel();
+    _timer?.cancel();
     super.dispose();
   }
 
