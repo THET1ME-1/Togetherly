@@ -150,6 +150,10 @@ class _MissYouButtonState extends State<MissYouButton>
     if (!widget.enabled || widget.groupId.isEmpty) return;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
+        // Имя маршрута — единственный способ попасть в статистику экранов:
+        // наблюдатель навигатора считает по `RouteSettings.name`, безымянные
+        // маршруты пропускает намеренно (нижних листов сотни).
+        settings: const RouteSettings(name: '/miss_you'),
         builder: (_) => MissYouScreen(
           theme: widget.theme,
           groupId: widget.groupId,
