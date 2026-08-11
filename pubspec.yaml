@@ -2,7 +2,7 @@ name: love_app
 description: "Togetherly — a private space for couples with shared memories, mood tracking, timers, drawings, and widgets."
 publish_to: "none"
 
-version: 1.24.0+178
+version: 1.24.0+179
 
 environment:
   sdk: ^3.10.4

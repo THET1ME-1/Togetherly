@@ -269,9 +269,15 @@ class _ChatScreenState extends State<ChatScreen> {
   List<ChatMsg>? _itemsOf;
   int _itemsOpenLastRead = -1;
 
-  /// До какого сообщения уже отметились прочитавшими. Без этого `markRead`
-  /// открывал SharedPreferences на каждое перестроение чата.
-  int _markedReadTs = 0;
+  /// Срез, по которому уже отметились прочитавшими.
+  ///
+  /// Сравниваем именно срез, а не время последнего сообщения: `markRead`
+  /// ходит на сервер, и при сбое сети повторить должно следующее же событие
+  /// потока — реакция, прочтение партнёром, что угодно. По времени попытка
+  /// была бы одна на сообщение, и упавшая отметка ждала бы нового письма.
+  /// Перестроения экрана при этом отметку больше не дёргают: раньше она
+  /// открывала SharedPreferences на каждое касание.
+  List<ChatMsg>? _readOf;
 
   /// Минимальный ts прочтения среди остальных участников. Своё сообщение
   /// «прочитано» (✓✓), если его ts ≤ этого значения, иначе «отправлено» (✓).
@@ -2015,8 +2021,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 if (messages.isNotEmpty) {
                   _lastMessageTs = messages.last.ts;
                   _lastIsMine = messages.last.uid == _myUid;
-                  if (_markedReadTs != _lastMessageTs) {
-                    _markedReadTs = _lastMessageTs;
+                  if (!identical(_readOf, messages)) {
+                    _readOf = messages;
                     WidgetsBinding.instance.addPostFrameCallback((_) {
                       _chat.markRead(_groupId, _lastMessageTs);
                     });
