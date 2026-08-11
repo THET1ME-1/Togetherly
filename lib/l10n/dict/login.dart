@@ -186,6 +186,15 @@ const Map<String, Map<String, String>> loginStrings = {
     'fr': 'Le serveur ne répond pas. Vérifie ta connexion.',
     'de': 'Der Server antwortet nicht. Prüfe deine Verbindung.',
   },
+  'retry': {
+    'ru': 'Ещё раз',
+    'en': 'Try again',
+    'pt': 'Tentar de novo',
+    'it': 'Riprova',
+    'es': 'Reintentar',
+    'fr': 'Réessayer',
+    'de': 'Nochmal',
+  },
   'connectionBlocked': {
     'ru':
         'Соединение обрывается по пути. Чаще всего мешает провайдер: попробуйте мобильный интернет, другую сеть или VPN.',

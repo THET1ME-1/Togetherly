@@ -229,6 +229,9 @@ abstract class AppStrings {
 
   /// Соединение ломают по дороге (TLS не доходит целым).
   String get connectionBlocked;
+
+  /// Кнопка повтора в сообщении об оборванной связи.
+  String get retry;
   String get googleNotResponding;
   String loginError(String e);
   String googleLoginError(String e);

@@ -226,6 +226,9 @@ abstract class DictStrings extends AppStrings {
   String get serverNotResponding => _t('serverNotResponding');
   @override
   String get connectionBlocked => _t('connectionBlocked');
+
+  @override
+  String get retry => _t('retry');
   @override
   String get googleNotResponding => _t('googleNotResponding');
   @override

@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter/services.dart';
 import 'package:pocketbase/pocketbase.dart' show ClientException;
 import '../models/user_data.dart';
@@ -42,10 +44,29 @@ class _LoginScreenState extends State<LoginScreen> {
   AppLifecycleListener? _lifecycle;
   bool _oauthInFlight = false;
 
+  /// Версия сборки подписью внизу экрана.
+  String _appVersion = '';
+
   @override
   void initState() {
     super.initState();
     _lifecycle = AppLifecycleListener(onResume: _onOAuthResume);
+    unawaited(_loadVersion());
+  }
+
+  Future<void> _loadVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      final build = info.buildNumber.trim();
+      if (!mounted) return;
+      setState(() {
+        _appVersion = build.isEmpty
+            ? info.version
+            : '${info.version} ($build)';
+      });
+    } catch (_) {
+      // Версию не достали — подписи просто не будет.
+    }
   }
 
   @override
@@ -234,7 +255,18 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       _oauthInFlight = false;
       if (mounted) setState(() => _isLoading = false);
-      _showError(_authErrorMessage(e));
+      // Обрыв связи предлагаем повторить прямо из сообщения: сам вход в
+      // порядке, ему просто не хватило соединения.
+      final broke = switch (AuthFailure.of(e)) {
+        AuthFailure.noConnection ||
+        AuthFailure.timeout ||
+        AuthFailure.blockedConnection => true,
+        _ => false,
+      };
+      _showError(
+        _authErrorMessage(e),
+        retry: broke ? () => _oauthSignIn(provider) : null,
+      );
     }
   }
 
@@ -276,7 +308,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _showError(String msg) {
+  void _showError(String msg, {VoidCallback? retry}) {
     if (!mounted) return;
     // maybeOf + mounted: _showError зовётся из catch-блоков после async-гэпа,
     // когда экран мог быть снят с дерева → ScaffoldMessenger.of делает `!` по
@@ -288,6 +320,19 @@ class _LoginScreenState extends State<LoginScreen> {
         backgroundColor: Colors.red.shade400,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+        duration: retry == null
+            ? const Duration(seconds: 4)
+            : const Duration(seconds: 8),
+        // Оборванная связь — не приговор входу: вход через провайдера держит
+        // долгое соединение, и в мобильной сети оно рвётся на ровном месте.
+        // Одноразовый отказ заставлял человека искать кнопку заново.
+        action: retry == null
+            ? null
+            : SnackBarAction(
+                label: LocaleService.current.retry,
+                textColor: Colors.white,
+                onPressed: retry,
+              ),
       ),
     );
   }
@@ -450,6 +495,20 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ],
                         ),
+                        // Версия прямо здесь: «О приложении» лежит за входом, и
+                        // человек, который войти как раз НЕ может, назвать свою
+                        // сборку не в состоянии — а без неё разбор жалобы идёт
+                        // вслепую.
+                        if (_appVersion.isNotEmpty) ...[
+                          const SizedBox(height: 18),
+                          Text(
+                            _appVersion,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: t.textMuted,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
