@@ -14,11 +14,8 @@ void main() {
         for (final b in Brightness.values) {
           final t = buildAppTheme(p, b);
           expect(
-            contrastRatio(petalTextColor(t, 0), t.dialTrack),
-            // 3.0, а не 4.5: подписи лепестков крупные и жирные, для таких
-            // WCAG просит именно три. Трек притемнён ровно до этой планки —
-            // темнее делать незачем, круг занимает половину экрана.
-            greaterThanOrEqualTo(3.0),
+            contrastRatio(petalTextColor(t, 0), t.timerDialBackground),
+            greaterThanOrEqualTo(4.5),
             reason: '${p.name} (${b.name})',
           );
         }

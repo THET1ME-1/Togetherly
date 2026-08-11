@@ -963,7 +963,7 @@ class HomeWidgetService {
           '#${(argb & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}';
       await HomeWidget.saveWidgetData<String>(
         'timer_${g}_petal_bg',
-        petalHex(pt.dialTrack.value),
+        petalHex(pt.timerDialBackground.value),
       );
       await HomeWidget.saveWidgetData<String>(
         'timer_${g}_petal_fg',
