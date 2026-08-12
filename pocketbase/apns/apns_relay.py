@@ -33,6 +33,52 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import jwt
 
+# Второе дело этого сервиса — проверка нативного входа через Apple.
+#
+# Вход через веб-страницу отказывает у части людей: системный браузер не может
+# загрузить appleid.apple.com, и за сутки таких обрывов 77 против 33 удачных
+# входов на 57 разных телефонах. Нативный вход браузера не открывает вовсе, но
+# отдаёт подписанный Apple identityToken, и его надо проверить: подпись по JWKS
+# Apple, аудитория, срок, nonce. RS256 и JWKS в JSVM PocketBase недоступны,
+# поэтому проверка живёт здесь, рядом с подписью пушей.
+APPLE_JWKS = "https://appleid.apple.com/auth/keys"
+APPLE_ISSUER = "https://appleid.apple.com"
+# Нативный вход приходит с bundle id, вход через веб — с Services ID. Один и тот
+# же человек в обоих случаях получает один `sub`, поэтому старые аккаунты
+# находятся по нему без переносов.
+APPLE_AUDIENCES = [
+    a.strip()
+    for a in os.environ.get(
+        "APPLE_AUDIENCES", "com.togetherly.love,com.togetherly.love.signin"
+    ).split(",")
+    if a.strip()
+]
+
+_jwk_client = None
+
+
+def verify_apple_identity(token: str, nonce: str = "") -> dict:
+    """Возвращает разобранные утверждения токена или бросает исключение."""
+    global _jwk_client
+    if _jwk_client is None:
+        _jwk_client = jwt.PyJWKClient(APPLE_JWKS, cache_keys=True)
+    signing_key = _jwk_client.get_signing_key_from_jwt(token)
+    claims = jwt.decode(
+        token,
+        signing_key.key,
+        algorithms=["RS256"],
+        audience=APPLE_AUDIENCES,
+        issuer=APPLE_ISSUER,
+    )
+    if nonce:
+        # Nonce защищает от переигрывания чужого токена: приложение шлёт сырое
+        # значение, а в токене лежит его SHA-256 — сверяет вызывающий.
+        if str(claims.get("nonce") or "") != nonce:
+            raise ValueError("nonce не совпал")
+    if not claims.get("sub"):
+        raise ValueError("в токене нет sub")
+    return claims
+
 KEY_ID = os.environ.get("APNS_KEY_ID", "LQ52U2LRSR")
 TEAM_ID = os.environ.get("APNS_TEAM_ID", "Y2Z9V86248")
 TOPIC = os.environ.get("APNS_TOPIC", "com.togetherly.love")
@@ -133,13 +179,31 @@ class Handler(BaseHTTPRequestHandler):
         self._reply(404, {"ok": False, "reason": "NotFound"})
 
     def do_POST(self):
-        if self.path != "/push":
+        if self.path not in ("/push", "/apple/verify"):
             return self._reply(404, {"ok": False, "reason": "NotFound"})
         try:
             length = int(self.headers.get("Content-Length") or 0)
             req = json.loads(self.rfile.read(length) or b"{}")
         except (ValueError, TypeError):
             return self._reply(400, {"ok": False, "reason": "BadRequest"})
+
+        if self.path == "/apple/verify":
+            token = str(req.get("token") or "").strip()
+            if not token:
+                return self._reply(400, {"ok": False, "reason": "NoToken"})
+            try:
+                claims = verify_apple_identity(token, str(req.get("nonce") or ""))
+            except Exception as e:
+                return self._reply(
+                    200, {"ok": False, "reason": type(e).__name__ + ": " + str(e)[:120]}
+                )
+            return self._reply(200, {
+                "ok": True,
+                "sub": claims.get("sub"),
+                "email": claims.get("email") or "",
+                "email_verified": str(claims.get("email_verified", "")).lower() == "true",
+                "is_private_email": str(claims.get("is_private_email", "")).lower() == "true",
+            })
 
         token = str(req.get("token") or "").strip()
         if not token:

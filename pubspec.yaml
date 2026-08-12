@@ -19,6 +19,10 @@ dependencies:
   characters: ^1.4.0 # графемы для безопасной работы с эмодзи (utils/safe_text)
   shared_preferences: ^2.3.4
   crypto: ^3.0.7 # SHA-256 для PIN секретных воспоминаний (secret_pin_service)
+  # Нативный вход через Apple: системный диалог вместо веб-страницы.
+  # Через браузер вход отказывал у части людей — SFSafariViewController не мог
+  # загрузить appleid.apple.com (77 обрывов против 33 входов за сутки).
+  sign_in_with_apple: ^6.1.4
   google_sign_in: ^6.2.2
   sentry_flutter: ^9.0.0
   qr_flutter: ^4.1.0
