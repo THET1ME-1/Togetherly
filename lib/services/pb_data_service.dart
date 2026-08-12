@@ -879,6 +879,33 @@ class PbDataService {
     }
   }
 
+  /// Живёт ли [code] на сервере и принадлежит ли он [ownerUid].
+  ///
+  /// Нужен, чтобы поймать фантомный код: сборки до 24 июля при недоступном
+  /// сервере рисовали код сами, и он осел в памяти телефона навсегда —
+  /// перевыпуск идёт только на пустом поле. Партнёр вводил такой код и получал
+  /// «Код не найден» при живом с виду коде (95 отказов в сутки на 33 человека).
+  ///
+  /// `null` — ответа нет (офлайн, таймаут): звонящий НЕ должен трогать код,
+  /// иначе рабочий код заменится на пустой при первом же обрыве связи.
+  Future<bool?> inviteCodeIsMine(String code, {required String ownerUid}) async {
+    if (code.isEmpty || ownerUid.isEmpty) return null;
+    try {
+      final rec = await _pb
+          .collection('invite_codes')
+          .getFirstListItem(_pb.filter('code = {:c}', {'c': code}))
+          .timeout(const Duration(seconds: 10));
+      return rec.getStringValue('owner_uid') == ownerUid;
+    } on ClientException catch (e) {
+      // 404 — записи нет: код фантомный. Правило listRule у коллекции
+      // owner-only, так что свой код виден всегда, и 404 здесь однозначен.
+      if (e.statusCode == 404) return false;
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> deleteInviteCode(String code) async {
     if (code.isEmpty) return;
     try {

@@ -631,6 +631,24 @@ class Connection {
     onChanged?.call();
   }
 
+  /// Сверяет показанный код с сервером и перевыпускает, если такого кода там
+  /// нет. Лечит фантомы: код, нарисованный старой сборкой на устройстве, и код,
+  /// оставшийся от чужого аккаунта после смены владельца телефона. Партнёр,
+  /// вводя такой код, видит «Код не найден», и человек ничего не может понять —
+  /// код-то у него на экране.
+  ///
+  /// Молчаливые случаи: пустой код (его перевыпустит экран), состоявшаяся пара
+  /// (код уже привязан к группе) и потерянная связь (сервер не ответил —
+  /// трогать код нельзя, иначе обрыв сети сотрёт рабочий).
+  Future<void> ensureInviteCodeIsReal() async {
+    if (inviteCode.isEmpty || _uid.isEmpty) return;
+    final mine = await PbDataService()
+        .inviteCodeIsMine(inviteCode, ownerUid: _uid);
+    if (mine != false) return;
+    debugPrint('Connection: код $inviteCode на сервере не найден — перевыпуск');
+    await regenerateCode();
+  }
+
   Future<void> regenerateCode() async {
     final code = await PbDataService().generateInviteCode(
       ownerUid: _uid,

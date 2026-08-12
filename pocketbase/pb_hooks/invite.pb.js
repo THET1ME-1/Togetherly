@@ -23,7 +23,32 @@
 routerAdd("POST", "/api/invite/accept", (e) => {
   const myUid = e.auth.id;
   const raw = (e.requestInfo().body || {}).code;
-  const code = String(raw || "").toUpperCase().trim();
+
+  // В это поле приносят не только код. Вставляют ссылку-приглашение целиком
+  // («…/invite/HQ792S» — так бывает, когда её переслали текстом и она не
+  // кликнулась), набирают в русской раскладке (кириллические А, В, Е, К, М, Н,
+  // О, Р, С, Т, У, Х от латинских не отличить), приводят кавычку от автозамены
+  // на iPhone. Всё это раньше упиралось в «Код не найден» на ровном месте.
+  // Чистим на сервере, а не в приложении: выпущенные сборки получают правку
+  // сразу, без обновления в сторах.
+  const normalizeCode = (input) => {
+    let s = String(input || "").toUpperCase().trim();
+    const marker = s.lastIndexOf("/INVITE/");
+    if (marker !== -1) s = s.slice(marker + 8);
+    s = s.split("?")[0].split("#")[0];
+    const cyr = {
+      "А": "A", "В": "B", "Е": "E", "К": "K", "М": "M", "Н": "H",
+      "О": "O", "Р": "P", "С": "C", "Т": "T", "У": "Y", "Х": "X",
+    };
+    let out = "";
+    for (let i = 0; i < s.length; i++) {
+      const ch = cyr[s[i]] || s[i];
+      if ((ch >= "A" && ch <= "Z") || (ch >= "0" && ch <= "9")) out += ch;
+    }
+    return out;
+  };
+
+  const code = normalizeCode(raw);
 
   // Отказы этого роута НЕ попадают в _logs сами: PocketBase пишет туда только
   // ошибки уровня middleware, а `e.json(400, …)` из тела хука проходит мимо
@@ -35,7 +60,15 @@ routerAdd("POST", "/api/invite/accept", (e) => {
   //     where message like '%invite accept%' order by created desc limit 30;"
   const deny = (status, message, why) => {
     try {
-      $app.logger().warn("invite accept: отказ", "why", why, "code", code, "uid", myUid);
+      // Пишем и исходную строку, если чистка что-то изменила: по ней видно,
+      // чем на самом деле пользуются люди — ссылкой, кириллицей, кавычкой.
+      const rawStr = String(raw || "");
+      if (rawStr.toUpperCase().trim() !== code) {
+        $app.logger().warn("invite accept: отказ", "why", why, "code", code,
+          "raw", rawStr, "uid", myUid);
+      } else {
+        $app.logger().warn("invite accept: отказ", "why", why, "code", code, "uid", myUid);
+      }
     } catch (_) { /* журнал не должен ронять приём кода */ }
     return e.json(status, { success: false, message: message });
   };
@@ -101,7 +134,16 @@ routerAdd("POST", "/api/invite/accept", (e) => {
     if (waiting) {
       return e.json(200, { success: true, waiting: true, pairId: waiting.id, code: code });
     }
-    return deny(404, "Код не найден", "кода нет ни в invite_codes, ни в claim_token");
+    // Чаще всего код не поддельный, а фантомный: сборки до 24 июля рисовали
+    // его на устройстве сами, когда сервер был недоступен, и такой код осел в
+    // памяти телефона навсегда (перевыпуск идёт только на пустом поле). Просить
+    // партнёра перевыпустить — единственное, что человек может сделать сам, не
+    // дожидаясь обновления приложения.
+    return deny(
+      404,
+      "Код не найден. Пусть партнёр нажмёт «Новый код» и продиктует заново",
+      "кода нет ни в invite_codes, ни в claim_token"
+    );
   }
   const ownerUid = String(codeRec.getString("owner_uid") || "");
   if (!ownerUid) return deny(400, "Код повреждён", "у кода пустой owner_uid");

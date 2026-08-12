@@ -270,6 +270,15 @@ class PairData extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Сверить показанный код с сервером и перевыпустить, если его там нет.
+  /// Зовётся при открытии экрана приглашения — см. `Connection`.
+  Future<void> ensureInviteCodeIsReal() async {
+    if (_active == null) return;
+    final before = _active!.inviteCode;
+    await _active!.ensureInviteCodeIsReal();
+    if (_active!.inviteCode != before) notifyListeners();
+  }
+
   /// Generate group invite code (for adding more members)
   Future<String> generateGroupInvite() async {
     if (_active == null) return '';

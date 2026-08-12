@@ -35,6 +35,7 @@ import '../widgets/app_sheet.dart';
 import '../models/widget_data.dart';
 import '../widgets/common/plus_badge.dart';
 import '../widgets/common/scaled_asset.dart';
+import '../utils/invite_code.dart';
 
 class ConnectPartnerScreen extends StatefulWidget {
   final PairData pairData;
@@ -132,10 +133,18 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     // Переподписываемся при изменении состава группы
     widget.pairData.addListener(_onPairDataChanged);
 
-    // Если код пустой (генерация не удалась при запуске без сети) — пробуем снова
-    if (widget.pairData.inviteCode.isEmpty && !widget.pairData.isPaired) {
+    // Пустой код перевыпускаем (генерация не удалась при запуске без сети), а
+    // непустой сверяем с сервером. Сборки до 24 июля рисовали код на устройстве
+    // сами, когда сервер молчал: на экране он выглядит живым, а партнёру
+    // отвечает «Код не найден», и понять это со стороны невозможно.
+    if (!widget.pairData.isPaired) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) widget.pairData.regenerateCode();
+        if (!mounted) return;
+        if (widget.pairData.inviteCode.isEmpty) {
+          widget.pairData.regenerateCode();
+        } else {
+          widget.pairData.ensureInviteCodeIsReal();
+        }
       });
     }
   }
@@ -2460,7 +2469,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   }
 
   Future<void> _submitCodeOnce() async {
-    final code = _codeController.text.trim().toUpperCase();
+    final code = normalizeInviteCode(_codeController.text);
     if (pair.isSelfCode(code)) {
       setState(() => _codeError = true);
       _showSnack(LocaleService.current.cantInviteSelf);
