@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:file_picker/file_picker.dart';
+import '../utils/audio_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../services/locale_service.dart';
@@ -177,7 +177,7 @@ class _MemoryMusicFormScreenState extends State<MemoryMusicFormScreen>
 
   Future<void> _pickAudioFile() async {
     try {
-      final result = await FilePicker.platform.pickFiles(type: FileType.audio);
+      final result = await pickAudioFile();
       if (result == null || result.files.isEmpty) return;
       final f = result.files.first;
       if (!mounted) return;

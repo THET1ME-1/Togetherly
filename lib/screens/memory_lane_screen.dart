@@ -11,6 +11,7 @@ import '../widgets/storage_image.dart';
 import '../utils/safe_text.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
+import '../utils/audio_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -6684,8 +6685,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                           width: double.infinity,
                           child: OutlinedButton.icon(
                             onPressed: () async {
-                              final result = await FilePicker.platform
-                                  .pickFiles(type: FileType.audio);
+                              final result = await pickAudioFile();
                               if (result != null && result.files.isNotEmpty) {
                                 if (!context.mounted) return;
                                 setState(
