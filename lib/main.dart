@@ -342,10 +342,11 @@ void main() async {
   // FirebaseService продолжает работать на Firebase до полного перехода на PB.
   // Force-update порог теперь читается из PocketBase (`app_config.min_build`).
 
-  // Google UMP + AdMob — consent должен быть получен ДО инициализации SDK
-  if (Platform.isAndroid || Platform.isIOS) {
-    await _initConsentAndAds();
-  }
+  // Google UMP + AdMob перенесены за первый кадр (`_LoveAppState`): форма
+  // согласия — модальное окно, а до runApp сцены ещё нет. iOS такому окну
+  // показаться не даёт, Future не завершается, и старт замирает на белом
+  // экране — жалобы «просто белый экран» после выхода в App Store были про
+  // это. Сторож: test/startup_no_modal_before_runapp_test.dart.
 
   // При первом запуске после установки — принудительно выходим из сессии
   // и очищаем SharedPreferences. На iOS Firebase Auth хранит токен в Keychain,
@@ -407,9 +408,9 @@ void main() async {
   // раньше, чем смонтируется главная.
   unawaited(SharedLinkService.instance.init());
 
-  // Локальное напоминание, если пользователь долго не открывает приложение
-  await MascotInactivityNotificationService.instance.init();
-  await MascotInactivityNotificationService.instance.markAppOpened();
+  // Локальное напоминание о простое поднимается за первым кадром: на iOS его
+  // init просит разрешение на уведомления, а системное окно до runApp показать
+  // некому — старт вставал белым намертво. См. `_initDeferredStartup`.
 
   // Locale — инициализация (определяет язык по региону или сохранённым настройкам)
   await LocaleService.instance.init();
@@ -607,6 +608,11 @@ class _LoveAppState extends State<LoveApp> with WidgetsBindingObserver {
     // Наблюдатель ОС-яркости: в режиме «система» тема идёт за темой телефона.
     WidgetsBinding.instance.addObserver(this);
     _init();
+    // Шаги старта, открывающие системные окна, ждут первого кадра — раньше
+    // сцены нет и окно показать некому.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_initDeferredStartup());
+    });
     // Отслеживаем жизненный цикл приложения для обновления статуса присутствия
     _lifecycleListener = AppLifecycleListener(
       onResume: () {
@@ -641,6 +647,27 @@ class _LoveAppState extends State<LoveApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _lifecycleListener?.dispose();
     super.dispose();
+  }
+
+  /// Часть старта, которую нельзя делать до первого кадра: согласие на рекламу
+  /// (UMP) и разрешение на уведомления открывают системные окна. Пока сцена не
+  /// живая, iOS такое окно не показывает, а Future остаётся незавершённым — и
+  /// приложение стоит на белом launch-экране, сколько бы его ни перезапускали.
+  /// Ошибки здесь глушим: реклама и напоминания не стоят сорванного запуска.
+  Future<void> _initDeferredStartup() async {
+    if (Platform.isAndroid || Platform.isIOS) {
+      try {
+        await _initConsentAndAds();
+      } catch (e) {
+        debugPrint('Старт: согласие и реклама не поднялись — $e');
+      }
+    }
+    try {
+      await MascotInactivityNotificationService.instance.init();
+      await MascotInactivityNotificationService.instance.markAppOpened();
+    } catch (e) {
+      debugPrint('Старт: напоминание о простое не поднялось — $e');
+    }
   }
 
   Future<void> _init() async {
