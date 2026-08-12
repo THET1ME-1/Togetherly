@@ -946,6 +946,21 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
           ),
           if (badgeUid != null)
             Positioned(top: 0, right: 0, child: _badgeIcon(badgeUid)),
+          // Своя подпись для человека: раньше карандаш стоял в карточке
+          // участников, а её редизайн убрал с экрана — вместе с ней пропала и
+          // возможность переименовать. Возвращаем туда, где имя и показывается.
+          if (badgeUid != null)
+            Positioned(
+              bottom: -6,
+              right: -6,
+              child: IconButton(
+                onPressed: () => _renamePartnerByUid(badgeUid),
+                tooltip: LocaleService.current.renamePartner,
+                visualDensity: VisualDensity.compact,
+                icon: Icon(Icons.edit_rounded,
+                    size: 18, color: cs.onSecondaryContainer.withValues(alpha: 0.7)),
+              ),
+            ),
           if (badgeUid != null && (_partnerPlus[badgeUid] ?? false))
             Positioned(
               top: 0,
@@ -2752,6 +2767,13 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
         );
       },
     );
+  }
+
+  /// Открыть подпись по идентификатору — плитка имени знает только его.
+  Future<void> _renamePartnerByUid(String uid) async {
+    final member = pair.partners.where((m) => m.uid == uid).firstOrNull;
+    if (member == null) return;
+    await _showRenameDialog(member);
   }
 
   Future<void> _showRenameDialog(GroupMember member) async {
