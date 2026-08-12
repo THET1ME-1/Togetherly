@@ -20,87 +20,10 @@
 /// Мёртвый токен (Apple отвечает Unregistered/BadDeviceToken) вычищаем из
 /// профиля сразу, иначе будем стучать в него вечно.
 
-const APNS_RELAY = "http://127.0.0.1:8096/push";
-const ONLINE_WINDOW_MS = 2 * 60 * 1000;
-
-/// Общая рассылка. Объявлена так, чтобы каждый хук поднимал свою копию: в JSVM
-/// функции уровня файла хендлерам не видны.
-function togetherlyPushFactory() {
-  const membersOf = (g) => {
-    try { return JSON.parse(g.getString("members") || "[]") || []; }
-    catch (_) { return []; }
-  };
-
-  const isOnline = (uid) => {
-    try {
-      const p = $app.findFirstRecordByFilter(
-        "user_presence", "user_uid = {:u}", { u: uid });
-      const seen = p.getString("seen_at") || p.getString("updated") || "";
-      if (!seen) return false;
-      const ms = new Date(seen.replace(" ", "T")).getTime();
-      if (!ms) return false;
-      return (Date.now() - ms) < ONLINE_WINDOW_MS;
-    } catch (_) {
-      return false; // записи нет — считаем, что не на связи
-    }
-  };
-
-  const forget = (user) => {
-    try {
-      user.set("apns_token", "");
-      $app.save(user);
-    } catch (_) { /* не критично, попробуем в следующий раз */ }
-  };
-
-  const sendTo = (uid, title, body, thread) => {
-    let user;
-    try { user = $app.findRecordById("users", uid); } catch (_) { return; }
-    const token = String(user.getString("apns_token") || "");
-    if (!token) return;
-    if (isOnline(uid)) return;
-    try {
-      const res = $http.send({
-        url: APNS_RELAY,
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          token: token,
-          title: title,
-          body: body,
-          thread: thread,
-          sandbox: !!user.get("apns_sandbox"),
-          data: { kind: thread },
-        }),
-        timeout: 10,
-      });
-      const answer = res.json || {};
-      if (answer.gone) forget(user);
-      if (!answer.ok) {
-        $app.logger().warn("apns: не доставлено", "uid", uid,
-          "reason", String(answer.reason || res.statusCode));
-      }
-    } catch (e) {
-      $app.logger().warn("apns: релей не ответил", "err", String(e));
-    }
-  };
-
-  /// Всем участникам группы, кроме автора.
-  const notifyGroup = (groupId, authorUid, title, body, thread) => {
-    if (!groupId) return;
-    let group;
-    try { group = $app.findRecordById("groups", groupId); } catch (_) { return; }
-    if (group.get("disbanded")) return;
-    const members = membersOf(group);
-    for (let i = 0; i < members.length; i++) {
-      const uid = String(members[i] || "");
-      if (!uid || uid === authorUid) continue;
-      sendTo(uid, title, body, thread);
-    }
-  };
-
-  return { notifyGroup: notifyGroup, sendTo: sendTo };
-}
-
+/// Общая рассылка живёт в `apns_push.js`: хендлеры в JSVM исполняются
+/// изолированно и функции уровня файла не видят — попытка позвать такую функцию
+/// дала 285 `ReferenceError` на живых событиях, прежде чем это заметили.
+///
 /// Проверка доставки: `POST /api/apns/test {token, sandbox?, title?, body?}`.
 ///
 /// Нужна, чтобы отличать «пуши не работают» от «телефон не отдал токен». Ответ
@@ -134,7 +57,7 @@ routerAdd("POST", "/api/apns/test", (e) => {
 /// Новое сообщение в чате пары.
 onRecordAfterCreateSuccess((e) => {
   try {
-    const push = togetherlyPushFactory();
+    const push = require(`${__hooks}/apns_push.js`);
     const rec = e.record;
     if (rec.get("deleted")) return;
     const name = String(rec.getString("user_name") || "Партнёр");
@@ -156,7 +79,7 @@ onRecordAfterCreateSuccess((e) => {
 /// «Скучаю»: счётчик растёт у того, кто нажал, — уведомить нужно второго.
 onRecordAfterUpdateSuccess((e) => {
   try {
-    const push = togetherlyPushFactory();
+    const push = require(`${__hooks}/apns_push.js`);
     const rec = e.record;
     push.notifyGroup(
       String(rec.getString("group_id") || ""),
@@ -173,7 +96,7 @@ onRecordAfterUpdateSuccess((e) => {
 /// Настроение дня.
 onRecordAfterCreateSuccess((e) => {
   try {
-    const push = togetherlyPushFactory();
+    const push = require(`${__hooks}/apns_push.js`);
     const rec = e.record;
     const label = String(rec.getString("label") || "").trim();
     push.notifyGroup(
@@ -191,7 +114,7 @@ onRecordAfterCreateSuccess((e) => {
 /// Новое воспоминание в ленте.
 onRecordAfterCreateSuccess((e) => {
   try {
-    const push = togetherlyPushFactory();
+    const push = require(`${__hooks}/apns_push.js`);
     const rec = e.record;
     if (rec.get("deleted")) return;
     const who = String(rec.getString("author_name") || "Партнёр");
