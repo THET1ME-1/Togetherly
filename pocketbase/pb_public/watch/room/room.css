@@ -299,8 +299,20 @@
   aspect-ratio: auto;
   border-radius: 0;
 }
-.room-body.cinema .manual,
-.room-body.cinema .source { display: none; }
+.room-body.cinema .manual { display: none; }
+/* Строка ссылки в этом режиме ни к чему, а вот выйти из него нужно — поэтому
+   от неё остаётся одна кнопка, поверх кадра. */
+.room-body.cinema .source {
+  grid-area: player;
+  align-self: start;
+  justify-self: end;
+  z-index: 4;
+  margin: 10px;
+  background: none;
+}
+.room-body.cinema .source__input,
+.room-body.cinema #pick,
+.room-body.cinema #apply { display: none; }
 .room-body.cinema .side {
   grid-area: player;
   align-self: end;

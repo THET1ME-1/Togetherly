@@ -782,9 +782,24 @@
     }
   }
 
+  /// Кадр во всю площадь, чат поверх.
+  ///
+  /// Полноэкранный режим самого плеера отдаёт экран площадке целиком, и чат туда
+  /// не положить — «нету чата при просмотре на весь экран». Разворачиваем своими
+  /// силами: тогда и видео крупное, и переписка на месте.
+  function cinemaToggle() {
+    const btn = $('#cinema');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      const on = document.body.classList.toggle('cinema');
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  }
+
   window.addEventListener('load', () => {
     I18N.mount();
     followKeyboard();
+    cinemaToggle();
     $('#chat').dataset.empty = I18N.t('room.chatEmpty');
 
     const room = roomFromHash();
