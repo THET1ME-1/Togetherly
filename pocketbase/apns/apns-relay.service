@@ -1,0 +1,19 @@
+[Unit]
+Description=Togetherly APNs relay
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/apns/apns_relay.py
+Restart=always
+RestartSec=3
+# Ключ читается только root, поэтому и сервис под root — как PocketBase рядом.
+User=root
+Environment=APNS_KEY_ID=LQ52U2LRSR
+Environment=APNS_TEAM_ID=Y2Z9V86248
+Environment=APNS_TOPIC=com.togetherly.love
+Environment=APNS_KEY_PATH=/opt/pocketbase/keys/AuthKey_LQ52U2LRSR.p8
+Environment=APNS_PORT=8096
+
+[Install]
+WantedBy=multi-user.target

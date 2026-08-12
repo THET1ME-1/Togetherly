@@ -56,6 +56,71 @@ import UserNotifications
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     setupWidgetMediaChannel(engineBridge.pluginRegistry)
+    setupApnsChannel(engineBridge.pluginRegistry)
+  }
+
+  // MARK: - Токен APNs
+
+  /// Канал токена устройства.
+  ///
+  /// Уведомления рисует приложение по своему сокету, а iOS выгружает процесс —
+  /// вместе с ним умирает и сокет, поэтому с закрытым приложением человек не
+  /// узнаёт ни о сообщении, ни о «скучаю». Единственный путь — пуш от Apple, а
+  /// для него нужен токен устройства. Забираем его здесь и отдаём в Dart, тот
+  /// кладёт в профиль (`users.apns_token`), откуда его берёт серверный хук.
+  private var apnsChannel: FlutterMethodChannel?
+
+  /// Токен может прийти раньше, чем Dart успеет попросить: держим последний.
+  private var lastApnsToken: String?
+
+  private func setupApnsChannel(_ registry: FlutterPluginRegistry) {
+    guard let messenger = registry
+      .registrar(forPlugin: "TogetherlyApns")?
+      .messenger()
+    else { return }
+
+    let channel = FlutterMethodChannel(
+      name: "love_app/apns",
+      binaryMessenger: messenger
+    )
+    channel.setMethodCallHandler { [weak self] call, result in
+      switch call.method {
+      case "register":
+        DispatchQueue.main.async {
+          UIApplication.shared.registerForRemoteNotifications()
+        }
+        result(self?.lastApnsToken)
+      case "token":
+        result(self?.lastApnsToken)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
+    apnsChannel = channel
+  }
+
+  override func application(
+    _ application: UIApplication,
+    didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+  ) {
+    let hex = deviceToken.map { String(format: "%02x", $0) }.joined()
+    lastApnsToken = hex
+    apnsChannel?.invokeMethod("token", arguments: hex)
+    super.application(
+      application,
+      didRegisterForRemoteNotificationsWithDeviceToken: deviceToken
+    )
+  }
+
+  override func application(
+    _ application: UIApplication,
+    didFailToRegisterForRemoteNotificationsWithError error: Error
+  ) {
+    NSLog("APNs: устройство не зарегистрировалось — %@", error.localizedDescription)
+    super.application(
+      application,
+      didFailToRegisterForRemoteNotificationsWithError: error
+    )
   }
 
   // MARK: - Мост медиа виджетов

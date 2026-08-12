@@ -24,6 +24,7 @@ import 'services/analytics_service.dart';
 import 'services/deep_link_service.dart';
 import 'services/shared_link_service.dart';
 import 'services/pb_push_service.dart';
+import 'services/apns_service.dart';
 import 'services/catalog_service.dart';
 import 'services/live_location_service.dart';
 import 'models/symbol_catalog.dart';
@@ -667,6 +668,14 @@ class _LoveAppState extends State<LoveApp> with WidgetsBindingObserver {
       await MascotInactivityNotificationService.instance.markAppOpened();
     } catch (e) {
       debugPrint('Старт: напоминание о простое не поднялось — $e');
+    }
+    // Токен устройства для пушей Apple: без него закрытое приложение молчит —
+    // сокет, по которому приходят уведомления, iOS убивает вместе с процессом.
+    // Просить его нужно после разрешения на уведомления, поэтому идём следом.
+    try {
+      await ApnsService.instance.start();
+    } catch (e) {
+      debugPrint('Старт: токен пушей не получен — $e');
     }
   }
 
