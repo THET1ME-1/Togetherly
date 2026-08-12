@@ -680,6 +680,17 @@ class _LoveAppState extends State<LoveApp> with WidgetsBindingObserver {
   }
 
   Future<void> _init() async {
+    // Последняя страховка от «бесконечной загрузки»: что бы ни повисло внутри —
+    // сеть, чтение профиля, серверный конфиг, — заставка уходит через десять
+    // секунд, и человек попадает в приложение с локальными данными. Жалобы
+    // «бесконечная загрузка» приходили именно про этот экран, а перезапуск от
+    // него не спасал.
+    Timer(const Duration(seconds: 10), () {
+      if (mounted && _loading) {
+        debugPrint('Старт: заставка снята по страховке, инициализация затянулась');
+        setState(() => _loading = false);
+      }
+    });
     try {
       // Force-update kill-switch: если сборка ниже min_build из PocketBase
       // (`app_config`) — дальше покажем блокирующий ForceUpdateScreen. Только
@@ -723,7 +734,15 @@ class _LoveAppState extends State<LoveApp> with WidgetsBindingObserver {
       if (!wasLoggedIn &&
           _userData.isRegistered &&
           PocketBaseService().isLoggedIn) {
-        await _userData.syncFromServer();
+        // С таймаутом: этот запрос держит заставку, и на медленной связи люди
+        // видели «бесконечную загрузку» вместо приложения. Локальные данные уже
+        // прочитаны, поэтому не дождаться сервера не страшно — свежие значения
+        // подтянутся на главной.
+        await _userData
+            .syncFromServer()
+            .timeout(const Duration(seconds: 6), onTimeout: () {
+          debugPrint('Старт: сервер не ответил за 6 с, идём с локальными данными');
+        });
       }
 
       // Онлайн-презенс ведёт PresenceService (стартует на home-экране).

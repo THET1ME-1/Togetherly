@@ -309,8 +309,17 @@ class _WidgetScreenState extends State<WidgetScreen>
   }
 
   Future<bool> _checkPinSupportSilent() async {
+    // На iPhone программного «закрепить» не существует: виджеты добавляет сама
+    // система с рабочего стола. Кнопка «Добавить на рабочий стол» там только
+    // вводила в заблуждение — «через приложение не работает, только через
+    // рабочий стол». Вместо неё карточка показывает, как добавить вручную
+    // (ветка `Platform.isIOS` ниже), но `|| true` перекрывал ответ системы и
+    // не давал этой подсказке появиться.
+    if (!Platform.isAndroid) return false;
     try {
       final supported = await HomeWidget.isRequestPinWidgetSupported();
+      // Часть лончеров Android отвечает false, хотя закрепление умеет, поэтому
+      // здесь ответ системы не считаем окончательным.
       return (supported ?? false) || true;
     } catch (_) {
       return true;
