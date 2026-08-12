@@ -150,6 +150,15 @@ const Map<String, Map<String, String>> loginStrings = {
     'fr': 'Aucun compte avec cet e-mail',
     'de': 'Kein Konto mit dieser E-Mail gefunden',
   },
+  'providerPageFailed': {
+    'ru': 'Страница входа не открылась. Попробуйте снова или войдите по почте',
+    'en': "The sign-in page didn't open. Try again or use your email",
+    'pt': 'A página de login não abriu. Tente de novo ou use o e-mail',
+    'it': 'La pagina di accesso non si è aperta. Riprova o usa l’e-mail',
+    'es': 'La página de acceso no se abrió. Inténtalo otra vez o usa el correo',
+    'fr': 'La page de connexion ne s’est pas ouverte. Réessaie ou utilise l’e-mail',
+    'de': 'Die Anmeldeseite ging nicht auf. Versuche es erneut oder nimm die E-Mail',
+  },
   'wrongPassword': {
     'ru': 'Неверный пароль',
     'en': 'Wrong password',

@@ -227,6 +227,9 @@ abstract class AppStrings {
   String get tooManyAttempts;
   String get serverNotResponding;
 
+  /// Страница провайдера входа не открылась (встроенный браузер).
+  String get providerPageFailed;
+
   /// Соединение ломают по дороге (TLS не доходит целым).
   String get connectionBlocked;
 

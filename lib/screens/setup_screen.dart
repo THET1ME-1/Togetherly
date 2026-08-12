@@ -221,6 +221,7 @@ class _SetupScreenState extends State<SetupScreen>
           AuthFailure.serverDown =>
             s.serverNotResponding,
           AuthFailure.tooManyAttempts => s.tooManyAttempts,
+          AuthFailure.providerPageFailed => s.providerPageFailed,
           _ => s.googleLoginError(e.toString()),
         });
       }
@@ -339,6 +340,8 @@ class _SetupScreenState extends State<SetupScreen>
             _showError(s.tooManyAttempts);
           case AuthFailure.badCredentials:
             _showError(s.invalidEmailFormat);
+          case AuthFailure.providerPageFailed:
+            _showError(s.providerPageFailed);
           case AuthFailure.unknown:
             _showError(s.registrationError(e.toString()));
         }

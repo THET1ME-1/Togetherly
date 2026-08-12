@@ -34,12 +34,21 @@ enum AuthFailure {
   /// Сервер отвечает ошибкой на своей стороне.
   serverDown,
 
+  /// Страница провайдера не открылась. Вход через Apple и Google идёт через
+  /// встроенный браузер, и он иногда возвращает провал загрузки — сервер тут не
+  /// при чём, до него дело не доходит (за сутки 59 таких обрывов против 31
+  /// удачного входа, а в журнале сервера при этом одна ошибка). Человек видел
+  /// вместо объяснения строку `PlatformException(Error, Error while launching
+  /// https://appleid.apple.com/auth/authorize?client_id=…`.
+  providerPageFailed,
+
   /// Причина не опознана — только в этом случае показываем подробности.
   unknown;
 
   /// Разбирает исключение слоя данных.
   static AuthFailure of(Object error) {
     if (error is TimeoutException) return timeout;
+    if (_isProviderPageFailure(error)) return providerPageFailed;
     if (error is HandshakeException) return blockedConnection;
     if (error is SocketException) return noConnection;
 
@@ -60,6 +69,16 @@ enum AuthFailure {
     }
 
     return unknown;
+  }
+
+  /// Провал открытия страницы провайдера. Приходит от url_launcher: встроенный
+  /// браузер сообщил, что страница не загрузилась, или контроллер для показа не
+  /// нашёлся. Тип не импортируем — иначе слой данных потянет за собой Flutter.
+  static bool _isProviderPageFailure(Object error) {
+    final text = error.toString();
+    if (!text.startsWith('PlatformException')) return false;
+    return text.contains('Error while launching') ||
+        text.contains('no view controller present');
   }
 
   /// Дубль почты PocketBase отдаёт кодом поля, а не текстом сообщения: текст

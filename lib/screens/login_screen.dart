@@ -193,6 +193,10 @@ class _LoginScreenState extends State<LoginScreen> {
       AuthFailure.tooManyAttempts => s.tooManyAttempts,
       // PB отвечает одинаково и на чужую почту, и на неверный пароль —
       // различить их нельзя, это защита от перебора адресов.
+      // Встроенный браузер не открыл страницу Apple или Google. До сервера дело
+      // не дошло, повтор обычно проходит — так и говорим, вместо технической
+      // строки PlatformException.
+      AuthFailure.providerPageFailed => s.providerPageFailed,
       AuthFailure.badCredentials || AuthFailure.emailTaken => s.wrongPassword,
       AuthFailure.unknown => s.loginError(e.toString()),
     };
