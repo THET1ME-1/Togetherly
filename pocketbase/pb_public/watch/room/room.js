@@ -755,7 +755,11 @@
     const vv = window.visualViewport;
     if (!vv) return;
     const apply = () => {
-      document.documentElement.style.setProperty('--vph', vv.height + 'px');
+      const root = document.documentElement.style;
+      root.setProperty('--vph', vv.height + 'px');
+      // Клавиатура не только урезает видимое, но и прокручивает документ:
+      // без этого сдвига страница уезжает вверх, а прокрутки у комнаты нет.
+      root.setProperty('--vpt', vv.offsetTop + 'px');
     };
     apply();
     vv.addEventListener('resize', apply);
@@ -764,8 +768,10 @@
       const el = $(id);
       if (!el) continue;
       el.addEventListener('focus', () => {
-        // Ждём, пока клавиатура доедет и высота пересчитается.
-        setTimeout(() => el.scrollIntoView({ block: 'center', behavior: 'smooth' }), 250);
+        // Safari сам прокручивает документ к полю, а комната прибита к видимой
+        // области — от такой прокрутки она только уезжает. Возвращаем на место,
+        // когда клавиатура доехала.
+        setTimeout(() => window.scrollTo(0, 0), 300);
       });
     }
   }
