@@ -84,7 +84,7 @@ private struct NoteCardView: View {
             data: data,
             textColor: t.onPrimaryContainer,
             captionColor: t.onContainerSoft,
-            placeholder: "Напишите что-нибудь друг другу"
+            placeholder: "Нажмите, чтобы написать друг другу"
         )
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -121,7 +121,7 @@ private struct NotePaperView: View {
                 data: data,
                 textColor: ink,
                 captionColor: pencil,
-                placeholder: "Напишите что-нибудь друг другу"
+                placeholder: "Нажмите, чтобы написать друг другу"
             )
             .padding(16)
 
