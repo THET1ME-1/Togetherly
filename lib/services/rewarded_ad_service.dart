@@ -216,12 +216,26 @@ class RewardedAdService {
       },
     );
 
-    ad.show(
-      onUserEarnedReward: (_, reward) {
-        earned = true;
+    try {
+      ad.show(
+        onUserEarnedReward: (_, reward) {
+          earned = true;
+        },
+      );
+    } catch (e) {
+      debugPrint('AdMob rewarded show() бросил — $e');
+      if (!completer.isCompleted) completer.complete(false);
+    }
+    // Предохранитель: если ни onAdDismissed, ни onAdFailedToShow не пришли
+    // (нативный показ не состоялся молча), ожидание иначе не кончается никогда
+    // и запирает экран, который его ждёт.
+    final result = await completer.future.timeout(
+      const Duration(minutes: 2),
+      onTimeout: () {
+        debugPrint('AdMob rewarded: событий закрытия нет, выходим по таймауту');
+        return false;
       },
     );
-    final result = await completer.future;
     if (result) {
       // У AdMob на PocketBase серверного SSV-callback нет (adSsvCallback не
       // портирован), поэтому начисляем тем же авторитетным роутом, что и Яндекс
@@ -268,8 +282,24 @@ class RewardedAdService {
         },
       ),
     );
-    await ad.show();
-    await dismissed.future;
+    // Показ может не начаться вовсе: на iOS SDK Яндекса отвечает
+    // «no view controller present», и тогда ни одного события не приходит —
+    // ни onAdShown, ни onAdFailedToShow. Раньше на этом месте ожидание висело
+    // навсегда, и вход в совместный просмотр замирал на спиннере у обоих
+    // партнёров. Ошибку показа считаем закрытием без награды, а на само
+    // ожидание ставим предохранитель.
+    try {
+      await ad.show();
+    } catch (e) {
+      debugPrint('Yandex rewarded show() бросил — $e');
+      finish();
+    }
+    await dismissed.future.timeout(
+      const Duration(minutes: 2),
+      onTimeout: () {
+        debugPrint('Yandex rewarded: событий закрытия нет, выходим по таймауту');
+      },
+    );
     // onRewarded может прийти вплотную к закрытию (или сразу после) — даём ему
     // долететь, прежде чем решить, что награды не было. Окно щедрое: грант всё
     // равно идёт внутри колбэка, лишнего ожидания на успешном пути нет.

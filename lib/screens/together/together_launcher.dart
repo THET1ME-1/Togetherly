@@ -117,7 +117,14 @@ class TogetherLauncher {
     if (agreed != true) return false;
 
     final uid = PocketBaseService().userId ?? '';
-    await _ads.show(uid: uid);
+    // Сорванный показ не должен запирать просмотр: на iOS реклама иногда не
+    // открывается вовсе (SDK не находит контроллер), и раньше пара застревала
+    // на этом шаге вдвоём. Ролик не показался — просто пускаем в комнату.
+    try {
+      await _ads.show(uid: uid);
+    } catch (e) {
+      debugPrint('Совместный просмотр: реклама не показалась — $e');
+    }
     unawaited(_ads.load()); // грузим следующий
     return true;
   }
