@@ -2139,6 +2139,7 @@ class PbDataService {
       int? clearVersion,
       String? coloringId,
       String? coloringMode,
+      bool? coloringSwap,
       Map<String, dynamic>? coloringDone}) async {
     if (groupId.isEmpty) return false;
     final body = <String, dynamic>{
@@ -2153,6 +2154,8 @@ class PbDataService {
     if (coloringId != null) body['coloring_id'] = coloringId;
     if (coloringMode != null) body['coloring_mode'] = coloringMode;
     if (coloringDone != null) body['coloring_done'] = coloringDone;
+    // Половины поменяны местами — общее решение пары, иначе стороны разъедутся.
+    if (coloringSwap != null) body['coloring_swap'] = coloringSwap;
     return _upsertByFilter('canvas_meta',
         'group_id = {:g} && canvas_id = {:c}', {'g': groupId, 'c': canvasId},
         body, op: 'upsertCanvasMeta');

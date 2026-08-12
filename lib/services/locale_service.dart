@@ -1807,6 +1807,9 @@ abstract class AppStrings {
   String get drawHintDraw;
 
   /// Раскраска вдвоём.
+  /// Кнопка «поменяться половинами» в раскраске.
+  String get coloringSwapSides;
+
   String get coloringTitle;
   String get coloringSubtitle;
   String get coloringOwnAdd;

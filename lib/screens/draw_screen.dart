@@ -223,6 +223,10 @@ class _DrawScreenState extends State<DrawScreen>
   String? _coloringId;
 
   ColoringMode _coloringMode = ColoringMode.surprise;
+  /// Половины поменяны местами. Общее решение пары: на картинке бывает мальчик
+  /// слева и девочка справа, а порядок uid об этом не знает — «у меня выходит
+  /// сторона мальчика, а у него наоборот».
+  bool _coloringSwap = false;
 
   /// Кто уже нажал «Готово»: uid → true.
   Map<String, bool> _coloringDone = const {};
@@ -233,8 +237,11 @@ class _DrawScreenState extends State<DrawScreen>
   bool get _isColoring => _coloring != null;
 
   /// Моя половина листа.
-  ColoringSide get _mySide =>
-      coloringSideFor(_myUid, widget.pairData.partnerUid);
+  ColoringSide get _mySide => coloringSideFor(
+        _myUid,
+        widget.pairData.partnerUid,
+        swapped: _coloringSwap,
+      );
 
   bool get _iAmDone => _coloringDone[_myUid] == true;
 
@@ -693,6 +700,11 @@ class _DrawScreenState extends State<DrawScreen>
         _coloringMode = next;
         coloringChanged = true;
       }
+    }
+    final remoteSwap = meta.coloringSwap;
+    if (remoteSwap != null && remoteSwap != _coloringSwap) {
+      _coloringSwap = remoteSwap;
+      coloringChanged = true;
     }
     final done = meta.coloringDone;
     if (done != null) {
@@ -2560,6 +2572,18 @@ class _DrawScreenState extends State<DrawScreen>
     );
   }
 
+  /// Меняет половины местами у обоих сразу.
+  Future<void> _swapColoringSides() async {
+    final next = !_coloringSwap;
+    setState(() => _coloringSwap = next);
+    if (_groupId.isEmpty) return;
+    try {
+      await _canvas.setColoringSwap(_groupId, _canvasId, swapped: next);
+    } catch (e) {
+      debugPrint('Раскраска: обмен половин не сохранился — $e');
+    }
+  }
+
   /// Полоса раскраски: чья половина, отметка «Готово» и вход в итог.
   Widget _buildColoringBar(AppStrings s, AppTheme t) {
     final bothDone = _iAmDone && (_partnerIsDone || _groupId.isEmpty);
@@ -2615,6 +2639,16 @@ class _DrawScreenState extends State<DrawScreen>
             ),
           ),
           const SizedBox(width: 8),
+          // Поменяться половинами: пока никто не закончил, это безобидно —
+          // мазки остаются на своих местах, меняется лишь то, кому какая
+          // сторона принадлежит.
+          if (!bothDone && !_iAmDone && _groupId.isNotEmpty)
+            IconButton(
+              tooltip: s.coloringSwapSides,
+              onPressed: _swapColoringSides,
+              icon: const Icon(Icons.swap_horiz_rounded, size: 22),
+              color: t.textSecondary,
+            ),
           if (bothDone)
             FilledButton(
               onPressed: _openColoringResult,

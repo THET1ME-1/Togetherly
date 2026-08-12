@@ -2656,6 +2656,8 @@ abstract class DictStrings extends AppStrings {
   @override
   String get coloringMyHalf => _t('coloringMyHalf');
   @override
+  String get coloringSwapSides => _t('coloringSwapSides');
+  @override
   String get coloringPartnerHalfHidden => _t('coloringPartnerHalfHidden');
   @override
   String get coloringDoneBtn => _t('coloringDoneBtn');

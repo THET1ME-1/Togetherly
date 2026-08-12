@@ -767,7 +767,13 @@
     for (const id of ['#link', '#message']) {
       const el = $(id);
       if (!el) continue;
+      el.addEventListener('blur', () => {
+        document.body.classList.remove('typing');
+      });
       el.addEventListener('focus', () => {
+        // Пока печатают, кадру достаётся меньше места: иначе клавиатура и видео
+        // занимают экран целиком, и ни строки ввода, ни чата не видно.
+        document.body.classList.add('typing');
         // Safari сам прокручивает документ к полю, а комната прибита к видимой
         // области — от такой прокрутки она только уезжает. Возвращаем на место,
         // когда клавиатура доехала.

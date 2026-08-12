@@ -36,11 +36,19 @@ enum ColoringMode {
 /// стороне, а касания туда не проходят, потому что сторона по умолчанию левая.
 bool coloringSplitApplies(String partnerUid) => partnerUid.trim().isNotEmpty;
 
-ColoringSide coloringSideFor(String myUid, String partnerUid) {
+ColoringSide coloringSideFor(String myUid, String partnerUid,
+    {bool swapped = false}) {
   if (partnerUid.isEmpty) return ColoringSide.left;
-  return myUid.toLowerCase().compareTo(partnerUid.toLowerCase()) <= 0
+  final base = myUid.toLowerCase().compareTo(partnerUid.toLowerCase()) <= 0
       ? ColoringSide.left
       : ColoringSide.right;
+  // Порядок uid ничего не знает о картинке: на одной половине бывает нарисован
+  // мальчик, на другой девочка, и пара получает их наугад — «у меня выходит
+  // сторона мальчика, а у него наоборот». Обмен половин пара включает сама, и
+  // он общий на двоих (хранится в `canvas_meta.coloring_swap`), иначе половины
+  // разъедутся.
+  if (!swapped) return base;
+  return base == ColoringSide.left ? ColoringSide.right : ColoringSide.left;
 }
 
 /// Раскраска из каталога.

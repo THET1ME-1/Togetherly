@@ -272,6 +272,15 @@ const Map<String, Map<String, String>> mascotDrawScreenStrings = {
     'fr': 'Cette moitié est à ton partenaire — c’est lui qui la colorie',
     'de': 'Diese Hälfte gehört deinem Partner — er malt sie aus',
   },
+  'coloringSwapSides': {
+    'ru': 'Поменяться половинами',
+    'en': 'Swap halves',
+    'pt': 'Trocar de metades',
+    'it': 'Scambia le metà',
+    'es': 'Intercambiar mitades',
+    'fr': 'Échanger les moitiés',
+    'de': 'Hälften tauschen',
+  },
   'coloringMyHalf': {
     'ru': 'Твоя половина',
     'en': 'Your half',

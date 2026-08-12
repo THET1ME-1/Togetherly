@@ -18,6 +18,10 @@ class CanvasMetaUpdate {
   /// режиме её красят и кто уже нажал «Готово» (uid → true).
   final String? coloringId;
   final String? coloringMode;
+
+  /// Половины поменяны местами: на картинке бывает мальчик слева и девочка
+  /// справа, и порядок uid об этом не знает — пара меняется сама.
+  final bool? coloringSwap;
   final Map<String, dynamic>? coloringDone;
 
   const CanvasMetaUpdate({
@@ -26,6 +30,7 @@ class CanvasMetaUpdate {
     this.rotationMilliRadians,
     this.coloringId,
     this.coloringMode,
+    this.coloringSwap,
     this.coloringDone,
   });
 }
@@ -138,6 +143,7 @@ class CanvasRepository {
           rotationMilliRadians: nz(d['canvas_rotation']),
           coloringId: (d['coloring_id'] as String?)?.trim(),
           coloringMode: (d['coloring_mode'] as String?)?.trim(),
+          coloringSwap: d['coloring_swap'] == true,
           coloringDone: done is Map ? Map<String, dynamic>.from(done) : null,
         );
       });
@@ -162,6 +168,14 @@ class CanvasRepository {
 
   /// Отмечает готовность одного из двоих. Карта целиком, а не поле: правку
   /// одного ключа PocketBase в json-поле не умеет.
+  /// Поменять половины местами — у обоих сразу.
+  Future<void> setColoringSwap(
+    String groupId,
+    String canvasId, {
+    required bool swapped,
+  }) =>
+      _data.upsertCanvasMeta(groupId, canvasId, coloringSwap: swapped);
+
   Future<void> setColoringDone(
     String groupId,
     String canvasId,

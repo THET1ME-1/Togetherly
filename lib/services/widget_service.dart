@@ -208,6 +208,7 @@ class WidgetService extends ChangeNotifier {
   }
 
   Future<void> unbindFromGroup({bool clearNativeWidget = true}) async {
+    final hadGroup = _groupId.isNotEmpty;
     _bindGeneration++;
     _mySub?.cancel();
     _mySub = null;
@@ -221,10 +222,15 @@ class WidgetService extends ChangeNotifier {
     _myPhotoSig = null;
     _partnerPhotoSigs.clear();
 
-    // Clear native group/partner keys so background isolates don't
-    // read stale group references after unbind.
-    await HomeWidget.saveWidgetData<String>('love_widget_group_id', '');
-    await HomeWidget.saveWidgetData<String>('love_widget_partner_uid', '');
+    // Признак пары держим до тех пор, пока пара действительно не распалась.
+    // Раньше он затирался на каждом техническом переподключении — а их случается
+    // много, — и виджет успевал показать «Подключите партнёра» при живой паре.
+    // Закрыли приложение в эту секунду, и надпись оставалась насовсем: обновить
+    // её на iPhone некому, фонового обновления там нет.
+    if (clearNativeWidget && hadGroup) {
+      await HomeWidget.saveWidgetData<String>('love_widget_group_id', '');
+      await HomeWidget.saveWidgetData<String>('love_widget_partner_uid', '');
+    }
 
     if (clearNativeWidget) {
       await _syncToNativeWidget();

@@ -38,4 +38,23 @@ void main() {
           coloringSideFor('aaa111', 'ZZZ999'));
     });
   });
+
+  group('обмен половинами', () {
+    const a = 'aaa111';
+    const b = 'zzz999';
+
+    test('обмен переворачивает сторону', () {
+      expect(coloringSideFor(a, b, swapped: true),
+          isNot(coloringSideFor(a, b)));
+    });
+
+    test('после обмена половины остаются зеркальными', () {
+      expect(coloringSideFor(a, b, swapped: true),
+          isNot(coloringSideFor(b, a, swapped: true)));
+    });
+
+    test('без партнёра обмен ничего не меняет: делить не на кого', () {
+      expect(coloringSideFor(a, '', swapped: true), coloringSideFor(a, ''));
+    });
+  });
 }
