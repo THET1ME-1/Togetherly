@@ -7,6 +7,10 @@ webp, а он перекодирует такую миниатюру в PNG, и 
 оригинала. Здесь Pillow из того же окружения, что делает HEIC-копии, и на
 выходе webp: плитка 20–30 КБ, полноэкранный кадр 150–250 КБ.
 
+Сюда же попадают снимки с айфонов: HEIC читается через pillow-heif и отдаётся
+таким же webp, что и всё прочее, поэтому в админке он ничем не отличается от
+обычной фотографии.
+
 Два размера на файл, и оба нужны:
   512  — плитка сетки, обрезка по центру в квадрат (365 css × dpr 2 — 360 мылит);
   1600 — полноэкранный просмотр, вписано по длинной стороне.
@@ -23,13 +27,19 @@ import sqlite3
 import sys
 
 from PIL import Image, ImageOps
+import pillow_heif
 
 DB = "/opt/pocketbase/pb_data/data.db"
 STORE = "/opt/pocketbase/pb_data/storage/pbc_2708086759"
 CACHE = "/opt/pocketbase/pb_data/thumb_cache"
 NEWEST = 600  # прогрев кроном: свежие записи и есть то, что смотрят
 SIZES = {512: 74, 1600: 82}  # ширина → качество webp
-SKIP_EXT = (".heic", ".heif", ".mp4", ".mov", ".m4a", ".aac", ".webm", ".mp3", ".wav")
+SKIP_EXT = (".mp4", ".mov", ".m4a", ".aac", ".webm", ".mp3", ".wav")
+
+# Снимки с айфонов (HEIC) браузеры, кроме Safari, не рисуют вовсе, и раньше их
+# обходил отдельный кэш. Теперь они идут общим путём: libheif читает исходник,
+# наружу уходит тот же webp, что у остальных фотографий.
+pillow_heif.register_heif_opener()
 
 rebuild = "--rebuild" in sys.argv
 only_ids = []
