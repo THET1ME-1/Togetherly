@@ -385,7 +385,15 @@ void main() async {
   // launch intent + явных updateWidget(), поэтому не регистрируем
   // background interactivity callback и не провоцируем enqueueWork crash.
   if (!Platform.isAndroid) {
-    HomeWidget.registerInteractivityCallback(_homeWidgetBackgroundCallback);
+    // На iOS ниже 17 интерактивности у виджетов нет вовсе, и плагин отвечает
+    // отказом («Interactivity is only available on iOS 17.0»). Без перехвата это
+    // исключение прилетает прямо в main(), то есть до первого кадра — а там его
+    // некому поймать.
+    try {
+      HomeWidget.registerInteractivityCallback(_homeWidgetBackgroundCallback);
+    } catch (e) {
+      debugPrint('Старт: интерактивность виджетов недоступна — $e');
+    }
   } else {
     // Android: живучий фолбэк обновления виджетов через WorkManager. Foreground-
     // сервис (PushBackgroundService) даёт мгновенность, но его душат OEM-киллеры
