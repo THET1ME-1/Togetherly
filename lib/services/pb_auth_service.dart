@@ -60,11 +60,22 @@ class PbAuthService {
         'display_name': displayName,
         'emailVisibility': true,
       }).timeout(netTimeout);
-      // Сразу входим (create не авторизует).
-      await _pb
-          .collection(_usersCol)
-          .authWithPassword(email, password)
-          .timeout(netTimeout);
+      // Сразу входим (create не авторизует). Если сервер задумался, пробуем
+      // ещё раз: аккаунт уже создан, и терять его из-за одной медленной минуты
+      // нельзя — человек получал ошибку и уходил, а почта оставалась занятой.
+      // За сутки таких обрывов 18.
+      try {
+        await _pb
+            .collection(_usersCol)
+            .authWithPassword(email, password)
+            .timeout(netTimeout);
+      } on TimeoutException {
+        debugPrint('PbAuth: вход после регистрации не успел, пробуем ещё раз');
+        await _pb
+            .collection(_usersCol)
+            .authWithPassword(email, password)
+            .timeout(netTimeout);
+      }
       await _ensureProfile(displayName: displayName);
       return _svc.currentUser;
     } on ClientException catch (e) {

@@ -28,6 +28,14 @@ enum ColoringMode {
 /// Считается на каждом телефоне отдельно и должно давать зеркальный ответ,
 /// поэтому никаких «кто первый зашёл»: только порядок uid. Регистр приводим —
 /// иначе `ABC` и `abc` разошлись бы, и оба взяли бы одну половину.
+/// Делится ли лист на половины.
+///
+/// Половины нужны только вдвоём. Пока партнёра нет — пара ещё не собралась или
+/// её данные не доехали, — делить лист не на кого, и весь холст остаётся
+/// рисующему. Иначе выходит «кисти не работают»: человек ведёт по правой
+/// стороне, а касания туда не проходят, потому что сторона по умолчанию левая.
+bool coloringSplitApplies(String partnerUid) => partnerUid.trim().isNotEmpty;
+
 ColoringSide coloringSideFor(String myUid, String partnerUid) {
   if (partnerUid.isEmpty) return ColoringSide.left;
   return myUid.toLowerCase().compareTo(partnerUid.toLowerCase()) <= 0

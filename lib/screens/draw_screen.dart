@@ -2306,6 +2306,9 @@ class _DrawScreenState extends State<DrawScreen>
   /// Моя ли это половина холста (в долях 0..1 по ширине).
   bool _inMySide(Offset canvasPoint) {
     if (!_isColoring || _canvasSize.isEmpty) return true;
+    // Пока партнёра нет, лист делить не на кого: весь холст мой. Без этого
+    // касания по правой половине молча пропадали — «кисти не работают».
+    if (!coloringSplitApplies(widget.pairData.partnerUid)) return true;
     final half = _canvasSize.width / 2;
     return _mySide == ColoringSide.left
         ? canvasPoint.dx <= half
@@ -2362,6 +2365,8 @@ class _DrawScreenState extends State<DrawScreen>
   /// линию он не перельётся.
   Offset _clampToMySide(Offset localPoint) {
     if (_canvasSize.isEmpty) return localPoint;
+    // Без партнёра половин нет — мазок никуда не прижимаем.
+    if (!coloringSplitApplies(widget.pairData.partnerUid)) return localPoint;
     final canvasPoint = _screenToCanvas(localPoint);
     final half = _canvasSize.width / 2;
     final margin = _strokeWidth / 2 + 1;

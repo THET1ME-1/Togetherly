@@ -6,6 +6,7 @@ import 'package:pocketbase/pocketbase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'centrifugo_service.dart';
+import 'pb_data_service.dart';
 
 /// Ядро клиента PocketBase — единая точка доступа к нашему self-hosted бэкенду
 /// на VPS (миграция Firebase→PocketBase, Этап 6).
@@ -114,5 +115,10 @@ class PocketBaseService {
   void signOut() {
     _pb?.authStore.clear();
     unawaited(CentrifugoService.instance.reset());
+    // Записи, которые мы обновляем по запомненному id (гео, присутствие,
+    // «печатает»), принадлежали прошлому аккаунту — забываем их вместе с сессией.
+    try {
+      PbDataService().forgetCachedRecordIds();
+    } catch (_) { /* сервис мог быть ещё не создан */ }
   }
 }

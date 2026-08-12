@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
 
 import 'pocketbase_service.dart';
+import 'upsert_id_cache.dart';
 
 /// Результат вызова серверного атомарного group-роута: [ok] — выполнен;
 /// [missing] — роута нет (404) → легитимный локальный RMW-фолбэк; [backpressure]
@@ -77,6 +78,14 @@ class PbDataService {
   }
 
   /// Upsert по известному id: update → при 404 create с этим id.
+  /// Забыть, где лежали записи прошлого владельца телефона: после смены
+  /// аккаунта его id нам не принадлежат.
+  void forgetCachedRecordIds() => _upsertIds.clear();
+
+  /// Где лежат записи, которые мы обновляем постоянно (гео, присутствие,
+  /// «печатает», данные виджета). См. [UpsertIdCache].
+  final UpsertIdCache _upsertIds = UpsertIdCache();
+
   Future<bool> _upsertById(
     String col,
     String id,
@@ -126,19 +135,40 @@ class PbDataService {
   }) async {
     try {
       final f = _pb.filter(filter, params);
+      // Записи вроде геопозиции обновляются постоянно, а ищутся фильтром: без
+      // памяти о найденном id каждое обновление стоило трёх запросов — поиск,
+      // отказ на создании по уникальному ключу и только потом обновление.
+      final cacheKey = UpsertIdCache.keyOf(col, f);
+      final knownId = _upsertIds[cacheKey];
+      if (knownId != null) {
+        try {
+          await _pb.collection(col).update(knownId, body: body);
+          return true;
+        } on ClientException catch (e) {
+          // Запись удалили или сменился аккаунт — забываем и идём общим путём.
+          if (e.statusCode == 404) {
+            _upsertIds.forget(cacheKey);
+          } else {
+            rethrow;
+          }
+        }
+      }
       try {
         final existing = await _pb.collection(col).getFirstListItem(f);
+        _upsertIds.remember(cacheKey, existing.id);
         await _pb.collection(col).update(existing.id, body: body);
       } on ClientException catch (e) {
         if (e.statusCode == 404) {
           try {
-            await _pb.collection(col).create(body: body);
+            final made = await _pb.collection(col).create(body: body);
+            _upsertIds.remember(cacheKey, made.id);
           } on ClientException catch (_) {
             // DATA-3: TOCTOU — между getFirstListItem(404) и create параллельный
             // вызов уже создал запись по тому же уникальному ключу (create падает
             // на unique-индексе). Перечитываем и обновляем существующую вместо
             // потери записи.
             final existing = await _pb.collection(col).getFirstListItem(f);
+            _upsertIds.remember(cacheKey, existing.id);
             await _pb.collection(col).update(existing.id, body: body);
           }
         } else {
