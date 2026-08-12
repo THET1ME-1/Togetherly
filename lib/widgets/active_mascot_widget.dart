@@ -7,6 +7,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/mascot.dart';
+import '../utils/mascot_bounds.dart';
 import '../services/locale_service.dart';
 import '../models/mascot_anim.dart';
 import '../models/mascot_sleep.dart';
@@ -288,11 +289,10 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
 
   void _clampPosition() {
     if (!mounted) return;
-    final size = MediaQuery.of(context).size;
-    final half = 40.0 * _scale;
-    _position = Offset(
-      _position.dx.clamp(half, size.width - half),
-      _position.dy.clamp(half, size.height - half),
+    _position = clampMascotPosition(
+      _position,
+      MediaQuery.of(context).size,
+      40.0 * _scale,
     );
   }
 
