@@ -32,6 +32,32 @@ class DeepLinkService {
   Stream<Map<String, String>> get emailLinkStream =>
       _emailLinkController.stream;
 
+  // Действия с виджетов рабочего стола: отметить настроение, сказать «скучаю»,
+  // открыть листик. Виджет шлёт их ссылкой `loveapp://mood?id=…`, и на Android
+  // её ловит home_widget. На iPhone так не выходит: схему `loveapp://` первым
+  // разбирает app_links, цепочка на этом кончается, и до `widgetClicked` ссылка
+  // не доезжает — приложение просто открывалось, а настроение не ставилось.
+  // Поэтому раздаём такие ссылки отсюда, из единственного места, куда они
+  // приходят наверняка.
+  static const _widgetHosts = {'mood', 'miss', 'note', 'memories', 'widgets'};
+
+  /// Ссылка с виджета рабочего стола, а не приглашение и не письмо.
+  static bool isWidgetAction(Uri uri) =>
+      uri.scheme == 'loveapp' && _widgetHosts.contains(uri.host);
+
+  final _widgetActionController = StreamController<Uri>.broadcast();
+  Stream<Uri> get widgetActionStream => _widgetActionController.stream;
+
+  // На холодном старте главная монтируется позже, чем приходит ссылка, а
+  // broadcast-поток прошлых событий не отдаёт: без буфера тап по виджету на
+  // закрытом приложении терялся целиком.
+  Uri? _pendingWidgetAction;
+  Uri? consumePendingWidgetAction() {
+    final u = _pendingWidgetAction;
+    _pendingWidgetAction = null;
+    return u;
+  }
+
   /// Инициализация — проверяем начальную ссылку и слушаем новые
   Future<void> init() async {
     try {
@@ -61,6 +87,12 @@ class DeepLinkService {
     // https://togetherly-d4856.web.app/invite/ABC123   ← основной рабочий домен
     // https://togetherly.app/invite/ABC123             ← будущий домен
     // https://togetherly-d4856.web.app/?oobCode=...    ← email link
+
+    if (isWidgetAction(uri)) {
+      _pendingWidgetAction = uri;
+      _widgetActionController.add(uri);
+      return;
+    }
 
     if (uri.scheme == 'loveapp' && uri.host == 'invite') {
       // loveapp://invite/ABC123

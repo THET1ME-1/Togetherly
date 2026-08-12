@@ -184,6 +184,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   StreamSubscription? _deepLinkSub;
   StreamSubscription<String>? _sharedLinkSub;
+  StreamSubscription<Uri>? _widgetActionSub;
 
   // -- Pair data --
   final PairData _pairData = PairData();
@@ -283,6 +284,14 @@ class _HomeScreenState extends State<HomeScreen> {
     // Check if launched from homescreen widget > open Widgets tab
     _checkWidgetLaunch();
     HomeWidget.widgetClicked.listen(_onWidgetClicked);
+    // Тот же тап по виджету, пришедший ссылкой: на iPhone схему `loveapp://`
+    // разбирает app_links, и до `widgetClicked` она не доходит.
+    _widgetActionSub =
+        DeepLinkService().widgetActionStream.listen(_handleWidgetUri);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final pending = DeepLinkService().consumePendingWidgetAction();
+      if (pending != null && mounted) _handleWidgetUri(pending);
+    });
 
     // Listen to deep link invites
     _sharedLinkSub = SharedLinkService.instance.linkStream.listen(_openSharedLink);
@@ -397,6 +406,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _moodStreakRewardDebounce?.cancel();
     _deepLinkSub?.cancel();
     _sharedLinkSub?.cancel();
+    _widgetActionSub?.cancel();
     _memorySub?.cancel();
     _achievementSub?.cancel();
     _partnerPresenceSub?.cancel();
