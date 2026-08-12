@@ -55,6 +55,14 @@ mixin RememberedTheme<T extends StatefulWidget> on State<T> {
 
   AppTheme get rememberedTheme {
     if (!mounted) return _rememberedTheme ?? AppThemes.pink;
-    return _rememberedTheme = context.appTheme;
+    try {
+      return _rememberedTheme = context.appTheme;
+    } catch (_) {
+      // `mounted` ещё true, а элемент уже деактивирован: подписка на
+      // InheritedWidget в этот момент доходит до `!` внутри Flutter. Профиль так
+      // падал 31 раз за десять часов уже с этой заплаткой — проверки `mounted`
+      // мало, нужен перехват.
+      return _rememberedTheme ?? AppThemes.pink;
+    }
   }
 }

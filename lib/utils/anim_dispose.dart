@@ -11,6 +11,13 @@ import 'package:flutter/animation.dart';
 /// Писать `_ctrl = disposeAnim(_ctrl)` вместо `_ctrl?.dispose()`: поле само
 /// становится пустым, и повторный вызов уже никого не трогает.
 AnimationController? disposeAnim(AnimationController? controller) {
-  controller?.dispose();
+  try {
+    controller?.dispose();
+  } catch (_) {
+    // Обнулённого поля мало: до контроллера дотягиваются и в обход — из
+    // замыкания анимации, из второго поля, из `dispose()` экрана следом за
+    // «показать обоих». Карта пары так и падала, 59 раз за десять часов на
+    // текущей сборке. Погасить дважды безвредно, уронить экран — нет.
+  }
   return null;
 }
