@@ -92,6 +92,7 @@ import '../services/daily_task_service.dart';
 import '../services/platform_tag.dart';
 import '../services/plus_service.dart';
 import '../services/home_widget_service.dart';
+import '../services/catalog_widget_sync.dart';
 import '../services/mood_service.dart';
 import '../services/timer_service.dart';
 import '../services/widget_service.dart';
@@ -798,6 +799,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Sync the mood widget from today's Mood Calendar entries
     await _syncMoodWidget();
+
+    // Виджеты нового каталога («Вместе», плитки настроения, кольцо и календарь
+    // лет) раньше наполнялись только экраном «Виджеты». Кто ставил их из
+    // системной галереи, видел пустые плитки — на iOS насовсем, там фонового
+    // обновления нет.
+    await CatalogWidgetSync.sync(
+      pair: _pairData,
+      moods: _moodService,
+      myName: widget.userData.displayName,
+      myAvatarUrl: widget.userData.avatarUrl,
+      systemTimer: _timerService.systemTimer,
+      defaultTimer: _timerService.defaultTimer,
+      memoriesCount: _recentMemories.length,
+    );
   }
 
   /// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (MoodWidgetProvider) пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ

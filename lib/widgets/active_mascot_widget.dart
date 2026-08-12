@@ -523,7 +523,31 @@ Widget buildMascotAssetImage(
   double? width,
   double? height,
 }) {
-  if (assetPath.toLowerCase().endsWith('.svg')) {
+  // Персонажи и их кадры приезжают двумя путями: часть лежит в сборке, часть —
+  // записью в `catalog_items` (новый маскот появляется без обновления
+  // приложения). Второй путь даёт полный адрес, и раньше он уходил в
+  // `Image.asset` — «Unable to load asset: https://…» в панели крашей, а на
+  // экране вместо персонажа заглушка.
+  final lower = assetPath.toLowerCase();
+  if (lower.startsWith('http://') || lower.startsWith('https://')) {
+    if (lower.endsWith('.svg')) {
+      return SvgPicture.network(
+        assetPath,
+        fit: fit,
+        width: width,
+        height: height,
+      );
+    }
+    return CachedNetworkImage(
+      imageUrl: assetPath,
+      fit: fit,
+      width: width,
+      height: height,
+      placeholder: (_, _) => const SizedBox.shrink(),
+      errorWidget: (_, _, _) => const Icon(Icons.face, size: 40),
+    );
+  }
+  if (lower.endsWith('.svg')) {
     return SvgPicture.asset(assetPath, fit: fit, width: width, height: height);
   }
   return Image.asset(
