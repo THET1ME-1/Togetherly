@@ -78,17 +78,38 @@ def main(path: str) -> int:
         check(f"{title}: номер сборки совпадает с приложением",
               ext_build == app_build, f"{ext_build} против {app_build}")
 
-    print("\nФреймворки")
-    frameworks = {
-        n.split("/")[-2] for n in names
-        if re.fullmatch(r"Payload/[^/]+\.app/Frameworks/[^/]+\.framework/.*", n)
-    }
-    note(f"всего фреймворков: {len(frameworks)}")
-    check("нативный вход Apple собран",
-          any("sign_in_with_apple" in f for f in frameworks),
-          ", ".join(sorted(f for f in frameworks if "sign_in" in f)) or "не найден")
-    check("реклама Яндекса на месте",
-          any("yandex" in f.lower() or "YandexMobileAds" in f for f in frameworks))
+    print("\nПлагины")
+    # Плагины линкуются статически (Podfile: use_frameworks! :linkage => :static),
+    # поэтому отдельными .framework они не лежат — ищем их символы в бинаре.
+    runner_bins = [
+        n for n in names
+        if re.fullmatch(r"Payload/([^/]+)\.app/\1", n)
+    ]
+    if runner_bins:
+        blob = zf.read(runner_bins[0])
+        def has(sym: str) -> bool:
+            return sym.encode() in blob
+        check("нативный вход Apple вкомпилирован", has("SignInWithApplePlugin"))
+        check("реклама Яндекса вкомпилирована", has("YandexMobileAds"))
+    # Свой Dart-код живёт отдельно, в App.framework: там и ищем то, что писали мы.
+    dart_bins = [n for n in names
+                 if re.fullmatch(r"Payload/[^/]+\.app/Frameworks/App\.framework/App", n)]
+    if dart_bins:
+        dart = zf.read(dart_bins[0])
+        check("канал токена пушей на месте", b"love_app/apns" in dart)
+        check("поле токена в профиле известно", b"apns_token" in dart)
+        check("обмен половин раскраски собран", b"coloring_swap" in dart)
+    else:
+        check("бинарь приложения найден", False)
+
+    ext_bins = [
+        n for n in names
+        if re.fullmatch(r"Payload/[^/]+\.app/PlugIns/([^/]+)\.appex/\1", n)
+    ]
+    if ext_bins:
+        ext_blob = zf.read(ext_bins[0])
+        check("виджет знает общий контейнер",
+              b"group.com.togetherly.love" in ext_blob)
 
     print("\nИтог")
     if FAILURES:
