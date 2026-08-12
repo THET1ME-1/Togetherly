@@ -321,6 +321,21 @@
             </intent-filter>
         </activity-alias>
 
+        <!-- Отрисовку ведёт Skia, не Impeller.
+
+             На экранах выбора даты текст разваливался на глазах: глифы рвались,
+             цифры налезали друг на друга, портился весь экран целиком — и
+             лечилось это только перезапуском приложения. Так выглядит порча
+             атласа глифов, а он общий на всё окно, поэтому и «везде, где нужно
+             выбирать дату». Колёса пикера рисуются с прозрачностью краёв и
+             перспективой, то есть ровно тем, на чём эта поломка и всплывает.
+
+             Вернуть Impeller стоит, когда будет чем проверить на живом
+             устройстве: строку достаточно удалить. -->
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableImpeller"
+            android:value="false" />
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

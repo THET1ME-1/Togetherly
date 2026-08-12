@@ -252,6 +252,7 @@
     gap: 10px;
     padding: 12px;
   }
+  .side { max-height: calc(var(--vph, 100dvh) * 0.34); }
   .player {
     width: 100%;
     border-radius: 18px;
@@ -275,3 +276,68 @@
    строк чата, иначе человек печатает вслепую. Класс ставит room.js по фокусу. */
 .room-body.typing .player { max-height: calc(var(--vph, 100dvh) * 0.28); }
 .room-body.typing .side { min-height: 0; }
+
+/* ── кино: кадр во всю площадь, чат поверх ────────────────────────────────── */
+/*
+ * Полноэкранный режим самого плеера отдаёт экран площадке целиком, и чат туда
+ * не положить — «нету чата при просмотре на весь экран». Поэтому разворачиваем
+ * своими силами: кадр занимает всю площадь страницы, а чат ложится поверх
+ * снизу, полупрозрачной полосой, и его видно, не выходя из просмотра.
+ */
+.room-body.cinema .top--room { display: none; }
+.room-body.cinema .stage-wrap {
+  padding: 0;
+  gap: 0;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-areas: 'player';
+}
+.room-body.cinema .player {
+  width: 100%;
+  max-height: none;
+  height: 100%;
+  aspect-ratio: auto;
+  border-radius: 0;
+}
+.room-body.cinema .manual,
+.room-body.cinema .source { display: none; }
+.room-body.cinema .side {
+  grid-area: player;
+  align-self: end;
+  z-index: 3;
+  max-height: 42%;
+  margin: 0 10px 74px;
+  background: color-mix(in srgb, var(--bg-warm) 82%, transparent);
+  backdrop-filter: blur(8px);
+}
+.room-body.cinema .composer {
+  grid-area: player;
+  align-self: end;
+  z-index: 3;
+  margin: 0 10px 12px;
+}
+#cinema { flex: none; }
+.room-body.cinema #cinema { position: fixed; top: 10px; right: 10px; z-index: 4; }
+
+/* ── телефон лёжа ─────────────────────────────────────────────────────────── */
+/*
+ * В альбомной ориентации одна колонка не годится: кадр сплющивается, а чат
+ * уезжает вниз — «при повороте горизонтально не очень удобно смотреть». Ставим
+ * кадр слева во всю высоту, чат узкой колонкой справа.
+ */
+@media (max-width: 950px) and (orientation: landscape) {
+  .top--room { padding: 6px 10px; }
+  .stage-wrap {
+    grid-template-columns: minmax(0, 1fr) minmax(180px, 34%);
+    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'player chat'
+      'source composer';
+    align-content: stretch;
+    gap: 8px;
+    padding: 8px;
+  }
+  .player { max-height: none; height: 100%; width: auto; margin-inline: 0; }
+  .source__input, .input--flat, .btn--compact, .btn--icon { min-height: 44px; }
+  .side__head { padding: 10px 12px 4px; }
+}

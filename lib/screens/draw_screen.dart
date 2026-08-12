@@ -664,7 +664,10 @@ class _DrawScreenState extends State<DrawScreen>
     }
 
     bool rotationChanged = false;
-    final rot = meta.rotationMilliRadians;
+    // Поворот листа в раскраске — дело личное. Раньше он ехал к обоим, и пара
+    // сидела с одним экраном на двоих: партнёр повернул картинку — повернулась и
+    // у тебя, посреди твоего же мазка. Общими остаются только штрихи.
+    final rot = _isColoring ? null : meta.rotationMilliRadians;
     if (rot != null) {
       final remoteRotation = rot / 1000.0;
       if ((_canvasRotation - remoteRotation).abs() >= 0.001) {
