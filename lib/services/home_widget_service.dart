@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show ColorScheme;
 import 'package:flutter/services.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
@@ -827,9 +828,11 @@ class HomeWidgetService {
       String myPath = '';
       String partnerPath = '';
       if (enabled) {
-        myPath = await _cachePhotoFromUrl(myAvatarUrl, 'days_avatar_my_$g');
+        myPath = await _cachePhotoFromUrl(myAvatarUrl, 'days_avatar_my_$g',
+            maxSide: 400);
         partnerPath =
-            await _cachePhotoFromUrl(partnerAvatarUrl, 'days_avatar_partner_$g');
+            await _cachePhotoFromUrl(partnerAvatarUrl, 'days_avatar_partner_$g',
+                maxSide: 400);
       }
       // Включаем только когда обе аватарки реально закэшировались.
       final usePhotos = enabled && myPath.isNotEmpty && partnerPath.isNotEmpty;
@@ -1015,11 +1018,13 @@ class HomeWidgetService {
       if (myAvatarUrl.isNotEmpty || partnerAvatarUrl.isNotEmpty) {
         final myPath = myAvatarUrl.isEmpty
             ? ''
-            : await _cachePhotoFromUrl(myAvatarUrl, 'together_avatar_my_$g');
+            : await _cachePhotoFromUrl(myAvatarUrl, 'together_avatar_my_$g',
+                maxSide: 400);
         final partnerPath = partnerAvatarUrl.isEmpty
             ? ''
             : await _cachePhotoFromUrl(
-                partnerAvatarUrl, 'together_avatar_partner_$g');
+                partnerAvatarUrl, 'together_avatar_partner_$g',
+                maxSide: 400);
         await HomeWidget.saveWidgetData<String>(
             'together_${g}_my_avatar_path', myPath);
         await HomeWidget.saveWidgetData<String>(
@@ -2711,7 +2716,35 @@ class HomeWidgetService {
   }
 
   // ── Скачать фото по URL или gs:// пути в локальный кэш ──
-  Future<String> _cachePhotoFromUrl(String url, String key) async {
+  /// Уменьшает картинку до [maxSide] по длинной стороне.
+  ///
+  /// Расширению виджета памяти дают мало (десятки мегабайт на отрисовку), а
+  /// снимок с камеры в разжатом виде занимает больше: система молча убивает
+  /// расширение, и вместо виджета остаётся серый прямоугольник. На глаз разницы
+  /// нет — виджет всё равно размером с пару сантиметров.
+  Future<Uint8List> _shrinkForWidget(Uint8List bytes, int maxSide) async {
+    if (!Platform.isAndroid && !Platform.isIOS) return bytes;
+    try {
+      final smaller = await FlutterImageCompress.compressWithList(
+        bytes,
+        minWidth: maxSide,
+        minHeight: maxSide,
+        quality: 85,
+      );
+      // Пустой ответ — формат не по зубам компрессору (например, ставший
+      // популярным avif): отдаём исходник, лучше большой, чем никакой.
+      return smaller.isEmpty ? bytes : smaller;
+    } catch (e) {
+      debugPrint('HomeWidgetService._shrinkForWidget failed: $e');
+      return bytes;
+    }
+  }
+
+  Future<String> _cachePhotoFromUrl(
+    String url,
+    String key, {
+    int maxSide = 1200,
+  }) async {
     if (url.isEmpty) return '';
     final dir = await getApplicationSupportDirectory();
     final file = File('${dir.path}/widget_$key.jpg');
@@ -2737,7 +2770,7 @@ class HomeWidgetService {
           .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
-        await file.writeAsBytes(response.bodyBytes);
+        await file.writeAsBytes(await _shrinkForWidget(response.bodyBytes, maxSide));
         debugPrint('HomeWidgetService: photo cached → ${file.path}');
         return await _toWidgetReadablePath(file.path, 'cache_$key');
       }
