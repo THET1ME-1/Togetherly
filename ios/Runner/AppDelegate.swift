@@ -15,6 +15,28 @@ import UserNotifications
   /// Подкаталог внутри контейнера App Group, куда складываем медиа виджетов.
   private static let widgetMediaDir = "widget_media"
 
+  /// Окно активной сцены.
+  ///
+  /// Приложение живёт на UIScene (`FlutterSceneDelegate` в Info.plist), поэтому
+  /// окно принадлежит сцене, а делегат приложения о нём не знает. Плагины,
+  /// которые ищут контроллер старым путём —
+  /// `UIApplication.shared.delegate?.window??.rootViewController`, — получают
+  /// nil. Так у нас молча не работала вся полноэкранная реклама Яндекса на
+  /// iPhone: SDK отвечала «no view controller present» десятки раз в час, а
+  /// показ ни разу не начинался. Отдаём таким плагинам окно сцены.
+  private var activeSceneWindow: UIWindow? {
+    let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+    let foreground = scenes.filter { $0.activationState == .foregroundActive }
+    let candidates = foreground.isEmpty ? scenes : foreground
+    return candidates.flatMap { $0.windows }.first { $0.isKeyWindow }
+      ?? candidates.flatMap { $0.windows }.first
+  }
+
+  override var window: UIWindow? {
+    get { super.window ?? activeSceneWindow }
+    set { super.window = newValue }
+  }
+
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
