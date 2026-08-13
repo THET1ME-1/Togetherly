@@ -26,6 +26,7 @@ import 'l10n/dict/petal_timer_dial.dart';
 import 'l10n/dict/photo_card.dart';
 import 'l10n/dict/photo_carousel_editor.dart';
 import 'l10n/dict/custom_moods.dart';
+import 'l10n/dict/mascot_source.dart';
 import 'l10n/dict/memory_sort.dart';
 import 'l10n/dict/plus_promo.dart';
 import 'l10n/dict/moods.dart';
@@ -48,6 +49,7 @@ import 'l10n/dict/widget_screen.dart';
 const Map<String, Map<String, String>> kStrings = {
   ...achievementsStrings,
   ...customMoodsStrings,
+  ...mascotSourceStrings,
   ...memorySortStrings,
   ...plusPromoStrings,
   ...ailmentsStrings,
@@ -447,6 +449,16 @@ abstract class DictStrings extends AppStrings {
   String get memorySortByAdded => _t('memorySortByAdded');
   @override
   String get memorySortByAddedHint => _t('memorySortByAddedHint');
+  @override
+  String get mascotSourceTitle => _t('mascotSourceTitle');
+  @override
+  String get mascotSourceGallery => _t('mascotSourceGallery');
+  @override
+  String get mascotSourceGalleryHint => _t('mascotSourceGalleryHint');
+  @override
+  String get mascotSourceFile => _t('mascotSourceFile');
+  @override
+  String get mascotSourceFileHint => _t('mascotSourceFileHint');
   @override
   String get moodTabLabel => _t('moodTabLabel');
   @override

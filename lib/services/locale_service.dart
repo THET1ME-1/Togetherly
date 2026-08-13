@@ -365,6 +365,13 @@ abstract class AppStrings {
   String get memorySortByAdded;
   String get memorySortByAddedHint;
 
+  // Источник картинки своего маскота
+  String get mascotSourceTitle;
+  String get mascotSourceGallery;
+  String get mascotSourceGalleryHint;
+  String get mascotSourceFile;
+  String get mascotSourceFileHint;
+
   /// Подпись художника под сеткой пака: «Рисунки — noia_aa».
   String moodPackAuthor(String name);
   // ── Самочувствие («болячки») ──

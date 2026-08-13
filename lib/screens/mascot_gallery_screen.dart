@@ -4,6 +4,8 @@ import '../widgets/storage_image.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import '../utils/safe_pick.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:path_provider/path_provider.dart';
@@ -213,19 +215,45 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
       if (!ok || !mounted) return;
     }
 
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['png'],
-      withData: true,
-    );
-    if (result == null || result.files.isEmpty) return;
+    // Откуда брать картинку. Раньше был только выбор файла с расширением png,
+    // и на iPhone это открывало «Файлы» — фотоплёнка туда не попадает вовсе
+    // («из фото можно только из файлов, фотографии нельзя выбрать», жалоба
+    // 13 августа 2026). Файлы остаются: только там лежит png с прозрачным
+    // фоном, а он для персонажа и нужен.
+    if (!mounted) return;
+    final fromGallery = await _askMascotSource();
+    if (fromGallery == null || !mounted) return;
 
-    final file = result.files.first;
-    final bytes = file.bytes;
+    List<int>? bytes;
+    String rawName = '';
+
+    if (fromGallery) {
+      final shot = await safePick(
+        () => ImagePicker().pickImage(
+          source: ImageSource.gallery,
+          maxWidth: 1024,
+          maxHeight: 1024,
+        ),
+      );
+      if (shot == null) return;
+      bytes = await shot.readAsBytes();
+      rawName = shot.name;
+    } else {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['png'],
+        withData: true,
+      );
+      if (result == null || result.files.isEmpty) return;
+      final file = result.files.first;
+      bytes = file.bytes;
+      rawName = file.name;
+    }
+
     if (bytes == null || bytes.isEmpty) return;
 
-    final defaultName = file.name
-        .replaceAll(RegExp(r'\.png$', caseSensitive: false), '')
+    final defaultName = rawName
+        .replaceAll(RegExp(r'\.(png|jpe?g|heic|webp)$', caseSensitive: false), '')
         .replaceAll('_', ' ')
         .replaceAll('-', ' ');
 
@@ -251,6 +279,44 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
     } finally {
       if (mounted) setState(() => _uploading = false);
     }
+  }
+
+  /// Откуда берём картинку: true — из фотографий, false — из файлов.
+  Future<bool?> _askMascotSource() async {
+    final s = LocaleService.current;
+    final cs = ProfileTheme.schemeFor(widget.theme);
+    return showAppSheet<bool>(
+      context,
+      builder: (ctx) => SheetScaffold(
+        title: s.mascotSourceTitle,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                leading: Icon(Icons.photo_library_rounded, color: cs.primary),
+                title: Text(s.mascotSourceGallery),
+                subtitle: Text(s.mascotSourceGalleryHint),
+                onTap: () => Navigator.of(ctx).pop(true),
+              ),
+              ListTile(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                leading: Icon(Icons.folder_open_rounded, color: cs.primary),
+                title: Text(s.mascotSourceFile),
+                subtitle: Text(s.mascotSourceFileHint),
+                onTap: () => Navigator.of(ctx).pop(false),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<bool> _showBgHintSheet() async {
