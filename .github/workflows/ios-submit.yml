@@ -1,0 +1,85 @@
+name: iOS → App Store review
+
+# Отправляет уже залитый в TestFlight билд на ревью App Store.
+#
+# Загрузка в TestFlight сама по себе НИЧЕГО не выпускает: сборка лежит у
+# тестировщиков, а люди в App Store остаются на прежней версии, пока кто-то
+# руками не создаст версию, не привяжет билд и не отправит на ревью. Так и
+# застряла 1.25.0 — залита 12 августа, у всех на телефонах 1.24.x, а вместе с
+# ней не доехал APNs: на iPhone молчали все пуши до единого.
+#
+# Раннер обычный: submit ходит только в API App Store Connect, Xcode ему не
+# нужен, а минута macOS стоит вдесятеро.
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'Версия приложения, например 1.26.0'
+        required: true
+        type: string
+      build_number:
+        description: 'Номер билда в App Store Connect'
+        required: true
+        type: string
+    secrets:
+      APP_STORE_CONNECT_ISSUER_ID:
+        required: true
+      APP_STORE_CONNECT_KEY_IDENTIFIER:
+        required: true
+      APP_STORE_CONNECT_PRIVATE_KEY:
+        required: true
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Версия приложения, например 1.26.0'
+        required: true
+        type: string
+      build_number:
+        description: 'Номер билда в App Store Connect (виден в TestFlight)'
+        required: true
+        type: string
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    env:
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_KEY_IDENTIFIER: ${{ secrets.APP_STORE_CONNECT_KEY_IDENTIFIER }}
+      APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+      APP_STORE_APP_ID: "6781019737"
+      VERSION: ${{ inputs.version }}
+      BUILD_NUMBER: ${{ inputs.build_number }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install codemagic-cli-tools
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet codemagic-cli-tools \
+            || python3 -m pip install --quiet --break-system-packages codemagic-cli-tools
+          echo "$(python3 -m site --user-base)/bin" >> "$GITHUB_PATH"
+
+      - name: Submit build for App Store review
+        run: |
+          set -euo pipefail
+          echo "Версия $VERSION, билд $BUILD_NUMBER"
+          BUILD_ID=$(app-store-connect builds list \
+            --application-id "$APP_STORE_APP_ID" \
+            --build-version-number "$BUILD_NUMBER" \
+            --json | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d[0]["id"] if d else "")')
+          if [ -z "$BUILD_ID" ]; then
+            echo "Билд $BUILD_NUMBER в App Store Connect не найден"; exit 1
+          fi
+          echo "build id = $BUILD_ID"
+          # Ждём, пока Apple обработает бинарник: раньше отправлять нечего.
+          # AFTER_APPROVAL — версия уходит людям сразу после одобрения, без
+          # второго захода руками. Прежние висящие заявки снимаем, иначе новая
+          # не создастся.
+          app-store-connect builds submit-to-app-store "$BUILD_ID" \
+            --version-string "$VERSION" \
+            --release-type AFTER_APPROVAL \
+            --cancel-previous-submissions \
+            --max-build-processing-wait 60 \
+            --locale ru \
+            --whats-new @file:distribution/whatsnew/whatsnew-ru-RU

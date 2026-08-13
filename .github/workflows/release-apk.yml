@@ -480,6 +480,9 @@ jobs:
     needs: check-ios
     if: needs.check-ios.outputs.enabled == 'true'
     runs-on: macos-latest
+    outputs:
+      build_number: ${{ steps.ipa.outputs.build_number }}
+      version: ${{ steps.ipa.outputs.version }}
     env:
       # Эти три имени codemagic-cli-tools читает из окружения сам.
       APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
@@ -558,6 +561,7 @@ jobs:
           rm -f /tmp/cert_key.pem
 
       - name: Build IPA
+        id: ipa
         run: |
           set -euo pipefail
           # build-name (1.16.x) берём из pubspec, а build-NUMBER спрашиваем у
@@ -567,6 +571,10 @@ jobs:
           [ -z "$LATEST" ] && LATEST=0
           NEW=$((LATEST + 1))
           echo "ASC latest build = $LATEST → building with $NEW"
+          echo "build_number=$NEW" >> "$GITHUB_OUTPUT"
+          # Версия приложения — из pubspec, до знака «+».
+          VER=$(grep -m1 '^version:' pubspec.yaml | sed 's/version:[[:space:]]*//; s/+.*//')
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
           # STORE=github обязателен: при умолчании (`play`) константы
           # `coins_10/50/120/300` и `togetherly_plus` попадают в бинарник, хотя
           # покупок на iOS нет вовсе. Ровно это и ищет App Review при отказе
@@ -590,3 +598,16 @@ jobs:
           name: togetherly-ios-ipa
           path: build/ios/ipa/*.ipa
           if-no-files-found: ignore
+
+  # ── Отправка версии в App Store ────────────────────────────────────────────
+  # Загрузка в TestFlight ничего не выпускает: версию в App Store надо создать,
+  # привязать к ней билд и отправить на ревью. Делает это отдельный воркфлоу —
+  # его же можно запустить руками, когда билд уже залит (см. ios-submit.yml).
+  submit-ios:
+    needs: publish-ios
+    if: ${{ needs.publish-ios.result == 'success' }}
+    uses: ./.github/workflows/ios-submit.yml
+    with:
+      version: ${{ needs.publish-ios.outputs.version }}
+      build_number: ${{ needs.publish-ios.outputs.build_number }}
+    secrets: inherit
