@@ -29,16 +29,17 @@ def size_mb(path):
         return 0.0
 
 
-def checkpoint(db):
+def checkpoint(db, mode="PASSIVE"):
     wal = db + "-wal"
     before = size_mb(wal)
-    if before < 32:
+    if before < 32 and mode == "PASSIVE":
         return None  # мелкий лог трогать незачем
-    con = sqlite3.connect(db, timeout=20)
-    con.execute("PRAGMA busy_timeout = 20000")
+    timeout = 60 if mode == "TRUNCATE" else 20
+    con = sqlite3.connect(db, timeout=timeout)
+    con.execute("PRAGMA busy_timeout = %d" % (timeout * 1000))
     try:
         busy, written, moved = con.execute(
-            "PRAGMA wal_checkpoint(PASSIVE)").fetchone()
+            "PRAGMA wal_checkpoint(%s)" % mode).fetchone()
     except Exception as e:
         con.close()
         return "%s: не вышло — %s" % (os.path.basename(db), e)
@@ -50,8 +51,13 @@ def checkpoint(db):
 
 
 def main():
+    # Раз в сутки, в самый тихий час, лог усекается целиком: PASSIVE только
+    # переносит страницы, а файл остаётся прежнего размера и продолжает расти.
+    # TRUNCATE под нагрузкой вернул бы busy и ничего не сломал; ночью он прошёл
+    # за 21 секунду и сжал файл со 144 МБ до нуля.
+    mode = "TRUNCATE" if "--truncate" in sys.argv else "PASSIVE"
     stamp = time.strftime("%Y-%m-%d %H:%M:%S")
-    lines = [x for x in (checkpoint(DB), checkpoint(AUX)) if x]
+    lines = [x for x in (checkpoint(DB, mode), checkpoint(AUX, mode)) if x]
     if lines:
         print(stamp, "|", "; ".join(lines))
     return 0
