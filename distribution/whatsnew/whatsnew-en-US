@@ -1,4 +1,9 @@
-🫦 Togetherly • v1.26.0
+🫦 Togetherly • v1.27.0
 
-— Lock screen widgets on iPhone: days together, "Miss you" and both moods.
-— iPhone widgets now refresh while the app is closed, so your partner's photo and status arrive on their own instead of waiting for the next launch.
+— Android notifications arrive with the app closed, and the "Togetherly is connected" line is gone from the shade.
+— Event times finally match for couples in different time zones: "just now" means just now.
+— Custom moods in Togetherly+: an emoji, a photo or a drawing, plus your own caption.
+— The Notifications section in settings no longer opens empty.
+— The main timer stays the main one after a restart.
+— A video in watch-together is removed by a tap instead of opening the room with an ad.
+— The drawing canvas no longer stutters when you move or rotate it.
