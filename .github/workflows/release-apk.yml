@@ -159,8 +159,13 @@ jobs:
           # Заметки едут вместе с версией: попап обновления показывал текст,
           # зашитый в УСТАНОВЛЕННУЮ сборку, и человек видел один и тот же
           # список раз за разом («второй или третий раз вижу», 13.08.2026).
+          # Переменные оболочки в heredoc с одинарными кавычками НЕ
+          # подставляются — раньше в JSON так и уезжало «$APK_ARM64», и
+          # самообновление получало битую ссылку (поймано в ночь на 14 августа
+          # 2026 на релизе 1.28.1). Передаём их окружением и читаем в питоне.
+          export APK_ARM64 APK_ARM
           python3 - <<'PY' > dist/version.json
-          import json, pathlib
+          import json, os, pathlib
 
           def notes(path):
               p = pathlib.Path(path)
@@ -174,8 +179,8 @@ jobs:
           print(json.dumps({
               "versionCode": ${{ steps.ver.outputs.code }},
               "versionName": "${{ steps.ver.outputs.name }}",
-              "apk": "$APK_ARM64",
-              "apkArm": "$APK_ARM",
+              "apk": os.environ.get("APK_ARM64", ""),
+              "apkArm": os.environ.get("APK_ARM", ""),
               "tag": "${{ steps.ver.outputs.tag }}",
               "notes": notes("distribution/whatsnew/whatsnew-ru-RU"),
               "notesEn": notes("distribution/whatsnew/whatsnew-en-US"),
