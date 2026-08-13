@@ -97,6 +97,10 @@ docs/superpowers/
 hosting/mod-memories.html
 pocketbase/pb_public/mod-memories.html
 pocketbase/pb_hooks/moderation.pb.js
+pocketbase/pb_hooks/income.pb.js
+pocketbase/pb_hooks/income_collect.js
+tools/admob_oauth.py
+tools/play_income.py
 tools/admin_groups.js
 pocketbase/pb_hooks/admin_gate.pb.js
 
