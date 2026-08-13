@@ -101,12 +101,20 @@ jobs:
         run: |
           set -euo pipefail
           echo "Версия $VERSION, билд $BUILD_NUMBER"
-          BUILD_ID=$(app-store-connect builds list \
-            --application-id "$APP_STORE_APP_ID" \
-            --build-version-number "$BUILD_NUMBER" \
-            --json | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d[0]["id"] if d else "")')
+          # Билд появляется в списке не сразу: между заливкой и первой записью
+          # в App Store Connect проходит несколько минут, и релиз 1.28.0 упал
+          # ровно на этом — «Did not find any Builds matching specified
+          # filters» через 18 секунд после успешной публикации. Ждём до
+          # двадцати минут, проверяя раз в полминуты.
+          BUILD_ID=""
+          for attempt in $(seq 1 40); do
+            BUILD_ID=$(app-store-connect builds list --application-id "$APP_STORE_APP_ID" --build-version-number "$BUILD_NUMBER" --json 2>/dev/null | jq -r '.[0].id // empty' 2>/dev/null || true)
+            [ -n "$BUILD_ID" ] && break
+            echo "  билда $BUILD_NUMBER ещё нет в App Store Connect, жду (попытка $attempt из 40)"
+            sleep 30
+          done
           if [ -z "$BUILD_ID" ]; then
-            echo "Билд $BUILD_NUMBER в App Store Connect не найден"; exit 1
+            echo "Билд $BUILD_NUMBER не появился в App Store Connect за двадцать минут"; exit 1
           fi
           echo "build id = $BUILD_ID"
           # Ждём, пока Apple обработает бинарник: раньше отправлять нечего.
