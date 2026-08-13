@@ -302,7 +302,11 @@ class _LiveMapCardState extends State<LiveMapCard> {
           width: double.infinity,
           child: Stack(
             children: [
-              FlutterMap(
+              // Карта живёт на главной постоянно и перерисовывается на каждом
+              // обновлении геопозиции. Без своей границы её перерисовка метила
+              // грязным весь экран — фон, карточки, ленту заданий.
+              RepaintBoundary(
+                child: FlutterMap(
                 mapController: _mapController,
                 options: MapOptions(
                   initialCenter:
@@ -323,6 +327,11 @@ class _LiveMapCardState extends State<LiveMapCard> {
                         'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                     userAgentPackageName: 'com.togetherly.love',
                     maxNativeZoom: 19,
+                    // Превью не двигают пальцем (взаимодействие выключено),
+                    // поэтому запас тайлов за краем держать незачем: каждый
+                    // лишний тайл — это картинка в памяти телефона.
+                    keepBuffer: 0,
+                    panBuffer: 0,
                   ),
                   if (me != null && partner != null)
                     PolylineLayer(
@@ -363,6 +372,7 @@ class _LiveMapCardState extends State<LiveMapCard> {
                   ),
                 ],
               ),
+            ),
 
               // Дистанция.
               if (me != null && partner != null)

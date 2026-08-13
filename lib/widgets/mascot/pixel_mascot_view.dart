@@ -1,11 +1,12 @@
-import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../../models/mascot_anim.dart';
+import '../../models/mascot_frame.dart';
 import '../../models/mascot_sleep.dart';
 
 /// Проигрыватель пиксельного маскота: рисует кадр из атласа.
@@ -43,12 +44,31 @@ class PixelMascotView extends StatefulWidget {
   State<PixelMascotView> createState() => _PixelMascotViewState();
 }
 
-class _PixelMascotViewState extends State<PixelMascotView> {
+class _PixelMascotViewState extends State<PixelMascotView>
+    with SingleTickerProviderStateMixin {
   ui.Image? _sheet;
   ImageStream? _stream;
   ImageStreamListener? _listener;
-  Timer? _ticker;
+
+  /// Кадры гонит тикер, а не таймер.
+  ///
+  /// `Timer.periodic` живёт по своим часам: он тикал десять раз в секунду и
+  /// тогда, когда главная скрыта под чужим экраном, и каждый тик перестраивал
+  /// виджет через `setState`. Тикер будит нас там, где рисуется кадр, и
+  /// замирает вместе с экраном (`TickerMode`), а перерисовка идёт мимо дерева —
+  /// прямо в painter. Анимация при этом та же: те же кадры, та же скорость,
+  /// те же сцены.
+  Ticker? _ticker;
+  final ValueNotifier<int> _repaint = ValueNotifier<int>(0);
+  Duration _lastStep = Duration.zero;
   int _frame = 0;
+
+  /// Прокрутка списка, в котором живёт персонаж.
+  ///
+  /// Галерея строит всех разом (`GridView` с `shrinkWrap` не ленивый), поэтому
+  /// без этой проверки тридцать персонажей тикали бы одновременно, включая
+  /// тех, кого не видно.
+  ScrollPosition? _scroll;
 
   /// Своя сцена, которую персонаж разыгрывает прямо сейчас. Пусто — обычная
   /// жизнь. Ночная сцена включается по часам и не сменяется, пока ночь.
@@ -86,6 +106,34 @@ class _PixelMascotViewState extends State<PixelMascotView> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _scroll?.removeListener(_syncPlayback);
+    _scroll = Scrollable.maybeOf(context)?.position;
+    _scroll?.addListener(_syncPlayback);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncPlayback());
+  }
+
+  /// Персонаж за краем экрана замирает, у края — снова играет.
+  void _syncPlayback() {
+    final ticker = _ticker;
+    if (!mounted || ticker == null) return;
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return;
+    final top = box.localToGlobal(Offset.zero).dy;
+    final visible = mascotOnScreen(
+      top: top,
+      bottom: top + box.size.height,
+      screenHeight: MediaQuery.sizeOf(context).height,
+    );
+    if (visible && !ticker.isActive && !_state.oneShot) {
+      ticker.start();
+    } else if (!visible && ticker.isActive) {
+      ticker.stop();
+    }
+  }
+
+  @override
   void didUpdateWidget(covariant PixelMascotView old) {
     super.didUpdateWidget(old);
     if (old.anim.sheetUrl != widget.anim.sheetUrl) _load();
@@ -99,7 +147,9 @@ class _PixelMascotViewState extends State<PixelMascotView> {
 
   @override
   void dispose() {
-    _ticker?.cancel();
+    _scroll?.removeListener(_syncPlayback);
+    _ticker?.dispose();
+    _repaint.dispose();
     if (_listener != null) _stream?.removeListener(_listener!);
     super.dispose();
   }
@@ -118,23 +168,33 @@ class _PixelMascotViewState extends State<PixelMascotView> {
   }
 
   void _restart() {
-    _ticker?.cancel();
     _frame = 0;
-    final fps = widget.anim.fps <= 0 ? 10 : widget.anim.fps;
-    _ticker = Timer.periodic(Duration(milliseconds: (1000 / fps).round()), (_) {
-      if (!mounted) return;
-      setState(() => _frame++);
-      if (_frame >= widget.anim.cols) {
-        if (_state.oneShot) {
-          _ticker?.cancel();
-          widget.onOneShotDone?.call();
-          return;
-        }
-        // Петля закончилась: решаем, чем персонаж займётся на следующем круге.
-        _frame = 0;
-        if (_state == MascotAnimState.live) _pickScene();
-      }
-    });
+    _lastStep = Duration.zero;
+    _repaint.value++;
+    _ticker ??= createTicker(_onTick);
+    if (!_ticker!.isActive) _ticker!.start();
+  }
+
+  void _onTick(Duration elapsed) {
+    final step = mascotFrameStep(widget.anim.fps);
+    if (elapsed - _lastStep < step) return;
+    _lastStep = elapsed;
+
+    final next = nextMascotFrame(
+      frame: _frame,
+      cols: widget.anim.cols,
+      oneShot: _state.oneShot,
+    );
+    _frame = next.frame;
+    // Петля закончилась: решаем, чем персонаж займётся на следующем круге.
+    if (next.looped && !next.finished && _state == MascotAnimState.live) {
+      _pickScene();
+    }
+    _repaint.value++;
+    if (next.finished) {
+      _ticker?.stop();
+      widget.onOneShotDone?.call();
+    }
   }
 
   @override
@@ -143,25 +203,32 @@ class _PixelMascotViewState extends State<PixelMascotView> {
     if (sheet == null) return SizedBox.square(dimension: widget.size);
     return CustomPaint(
       size: Size.square(widget.size),
+      // Кадр painter берёт сам на каждой перерисовке: дерево виджетов при
+      // смене кадра не трогаем вовсе.
       painter: _MascotPainter(
         sheet: sheet,
-        src: widget.anim.rectRow(_row, _frame, level: widget.level),
+        srcOf: () => widget.anim.rectRow(_row, _frame, level: widget.level),
+        repaint: _repaint,
       ),
     );
   }
 }
 
 class _MascotPainter extends CustomPainter {
-  const _MascotPainter({required this.sheet, required this.src});
+  _MascotPainter({
+    required this.sheet,
+    required this.srcOf,
+    required Listenable repaint,
+  }) : super(repaint: repaint);
 
   final ui.Image sheet;
-  final ui.Rect src;
+  final ui.Rect Function() srcOf;
 
   @override
   void paint(Canvas canvas, Size size) {
     canvas.drawImageRect(
       sheet,
-      src,
+      srcOf(),
       Offset.zero & size,
       Paint()
         ..filterQuality = FilterQuality.none
@@ -170,6 +237,5 @@ class _MascotPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _MascotPainter old) =>
-      old.sheet != sheet || old.src != src;
+  bool shouldRepaint(covariant _MascotPainter old) => old.sheet != sheet;
 }
