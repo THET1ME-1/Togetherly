@@ -51,13 +51,20 @@ class OptimisticCount {
   /// сервер обогнал прежнее подтверждение; остальные ожидания доживают свой
   /// срок и уходят сами.
   OptimisticCount confirm(int serverCount, {required DateTime now}) {
-    final grew = serverCount - confirmed;
+    // Счётчик пары только растёт, поэтому значение меньше подтверждённого —
+    // это устаревший снимок: офлайн-кэш отдал своё раньше сервера, подписка
+    // переподнялась со старым числом, ответ пришёл не по порядку. Принимать
+    // такое нельзя, иначе число прыгает назад у человека на глазах — жалоба
+    // «Скучаю откатывается на предыдущие состояния» (13 августа 2026).
+    // Настоящий сброс приходит не отсюда: другую пару начинает [reset].
+    final accepted = serverCount > confirmed ? serverCount : confirmed;
+    final grew = accepted - confirmed;
     var rest = _pending;
     if (grew > 0) {
       rest = rest.length <= grew ? const [] : rest.sublist(grew);
     }
     rest = rest.where((t) => now.difference(t) < ttl).toList();
-    return OptimisticCount(confirmed: serverCount, pending: rest);
+    return OptimisticCount(confirmed: accepted, pending: rest);
   }
 
   /// Другая пара — всё старое здесь ни при чём.

@@ -12,6 +12,7 @@ import 'voice_recorder_service.dart';
 import 'offline/local_store.dart';
 import 'offline/outbox_service.dart';
 import 'offline/pb_id.dart';
+import 'centrifugo_service.dart';
 import 'pb_data_service.dart';
 import 'pb_realtime_service.dart';
 import 'pocketbase_service.dart';
@@ -325,26 +326,83 @@ class ChatService {
 
   // ── «Печатает…» (эфемерный презенс на PB heartbeat+TTL) ─────────────────────
 
-  /// Пометить «я печатаю» / снять. Маркер обновляется клиентом раз в ~3с пока
-  /// идёт ввод (typing_at=now) и снимается при отправке/уходе (typing_at=0).
+  /// Пометить «я печатаю» / снять.
+  ///
+  /// Уходит публикацией в канал пары и на диск не попадает: пока это была
+  /// запись в `chat_typing` раз в три секунды на каждого печатающего, она
+  /// стояла в общей очереди единственного писателя базы наравне с самими
+  /// сообщениями (разбор ночи 14 августа 2026).
   Future<void> setTyping(String groupId, bool typing) async {
     if (groupId.isEmpty || _uid.isEmpty) return;
-    await _data.setTyping(
-        groupId, _uid, typing ? DateTime.now().millisecondsSinceEpoch : 0);
+    final at = typing ? DateTime.now().millisecondsSinceEpoch : 0;
+    await CentrifugoService().publish(
+      'pair:$groupId',
+      {'t': 'typing', 'uid': _uid, 'at': at},
+    );
   }
 
-  /// true — партнёр сейчас печатает (его маркер свежий, < 8с). Свой маркер не
-  /// считаем. Метка протухает по времени → onDisconnect не нужен.
+  /// true — партнёр сейчас печатает (его отметка свежее восьми секунд).
+  ///
+  /// Слушаем и канал, и коллекцию: партнёр может сидеть на сборке постарше,
+  /// которая пишет отметку в базу. Пока такие сборки живы, «печатает» у них
+  /// работает по-прежнему.
   Stream<bool> watchTyping(String groupId) {
     if (groupId.isEmpty) return Stream.value(false);
-    return _rt.watchTyping(groupId).map((marks) {
+
+    late StreamController<bool> ctrl;
+    StreamSubscription<Map<String, int>>? dbSub;
+    RtUnsub? unsub;
+    Timer? ticker;
+    final marks = <String, int>{};
+    bool? last;
+
+    void emit() {
       final now = DateTime.now().millisecondsSinceEpoch;
+      var typing = false;
       for (final entry in marks.entries) {
         if (entry.key == _uid) continue; // свой маркер не считаем
-        if (now - entry.value < _typingFreshMs) return true;
+        if (now - entry.value < _typingFreshMs) {
+          typing = true;
+          break;
+        }
       }
-      return false;
-    });
+      if (typing != last) {
+        last = typing;
+        if (!ctrl.isClosed) ctrl.add(typing);
+      }
+    }
+
+    ctrl = StreamController<bool>(
+      onListen: () async {
+        dbSub = _rt.watchTyping(groupId).listen((fromDb) {
+          fromDb.forEach((uid, at) {
+            final known = marks[uid] ?? 0;
+            if (at > known) marks[uid] = at;
+            if (at == 0) marks[uid] = 0;
+          });
+          emit();
+        }, onError: (_) {});
+
+        unsub = await CentrifugoService().subscribeRaw('pair:$groupId', (data) {
+          if (data['t'] != 'typing') return;
+          final uid = (data['uid'] ?? '').toString();
+          if (uid.isEmpty || uid == _uid) return;
+          final at = data['at'];
+          marks[uid] = at is num ? at.toInt() : 0;
+          emit();
+        });
+
+        // Отметка протухает молча, без нового события — гасим сами.
+        ticker = Timer.periodic(const Duration(seconds: 2), (_) => emit());
+        emit();
+      },
+      onCancel: () async {
+        await dbSub?.cancel();
+        await unsub?.call();
+        ticker?.cancel();
+      },
+    );
+    return ctrl.stream;
   }
 
   // ── Непрочитанные ──────────────────────────────────────────────────────────

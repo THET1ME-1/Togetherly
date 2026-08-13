@@ -276,8 +276,11 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadIncomingGifts();
     _listenGifts();
 
-    // Онлайн-презенс: heartbeat в PocketBase, пока приложение активно.
-    PresenceService().start();
+    // Присутствие: «я жив» летит в канал пары через Centrifugo, а в базу
+    // уходит редкая отметка «был в сети». До 14 августа 2026 это была запись
+    // каждые двенадцать секунд с каждого телефона — почти весь поток записи
+    // сервера уходил на неё.
+    PresenceService().start(groupId: _pairData.pairId);
 
     // Платформа последнего входа. Нужна поддержке: на iOS Togetherly+ не
     // существует, и человек с покупкой видит открытые фичи, ни разу не
@@ -541,6 +544,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _onPairChanged() {
     if (!mounted) return;
+    // Пара появилась или сменилась — присутствию нужен её канал. Вызов
+    // идемпотентный: тот же groupId ничего не перезапускает.
+    PresenceService().start(groupId: _pairData.pairId);
     unawaited(_handlePairChanged());
     // Появилась пара → можно показать одноразовую подсказку про боковую кнопку.
     unawaited(_queueHints());

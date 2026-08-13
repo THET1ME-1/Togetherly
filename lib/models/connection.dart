@@ -649,6 +649,18 @@ class Connection {
     await regenerateCode();
   }
 
+  /// Что оставить на экране после попытки перевыпуска.
+  ///
+  /// Пустой ответ означает «сервер не смог», а не «кода больше нет»: прежний
+  /// код в `invite_codes` жив и партнёр его примет. Затирать поле пустотой
+  /// нельзя — экран тут же просит новый перевыпуск, тот снова не проходит, и
+  /// человек остаётся в бесконечной генерации без единого кода на руках.
+  static String codeAfterRegenerate({
+    required String current,
+    required String fresh,
+  }) =>
+      fresh.isEmpty ? current : fresh;
+
   Future<void> regenerateCode() async {
     final code = await PbDataService().generateInviteCode(
       ownerUid: _uid,
@@ -656,9 +668,16 @@ class Connection {
       oldCode: inviteCode.isNotEmpty ? inviteCode : null,
     );
     // НЕ подставляем фейковый локальный код при провале серверного создания
-    // (его нет в invite_codes → партнёру «код не найден»). Пусто → UI даст
-    // перевыпустить; серверный create само-лечит протухший токен (authRefresh).
-    inviteCode = code;
+    // (его нет в invite_codes → партнёру «код не найден»). Серверный create
+    // само-лечит протухший токен (authRefresh).
+    //
+    // И НЕ затираем рабочий код пустотой: экран, увидев пустое поле, тут же
+    // просит перевыпуск, тот снова не проходит на медленном сервере — и человек
+    // сидит в бесконечной генерации, а партнёру нечего вводить. Не вышло —
+    // остаёмся с прежним кодом, он на сервере жив.
+    final next = codeAfterRegenerate(current: inviteCode, fresh: code);
+    if (next == inviteCode) return;
+    inviteCode = next;
     onChanged?.call();
   }
 

@@ -18,7 +18,7 @@
   const $ = (sel) => document.querySelector(sel);
   const state = {
     room: '', channel: '', me: '', centrifuge: null, sub: null,
-    player: null, kind: '', applying: false, lastSent: 0, viewers: 1,
+    player: null, kind: '', applying: false, lead: false, actedAt: 0, lastSent: 0, viewers: 1,
     // Что показывать пришедшему позже: ссылка, переписка этой вкладки и
     // отложенная команда для плеера, который ещё грузится.
     url: '', log: [], synced: false, pending: null, joinedAt: 0,
@@ -227,10 +227,18 @@
     state.player = { video: v };
     setManual(false);
 
-    const tell = (cmd) => { if (!state.applying) send(cmd, v.currentTime); };
+    const tell = (cmd) => {
+      if (state.applying) return;
+      leadHere();
+      send(cmd, v.currentTime);
+    };
     v.addEventListener('play', () => tell('play'));
     v.addEventListener('pause', () => tell('pause'));
-    v.addEventListener('seeked', () => tell(v.paused ? 'pause' : 'play'));
+    // Из перемотки уходит только «играем». Браузер держит `paused`, пока
+    // догружает кусок после прыжка, и прежнее `tell(v.paused ? …)` рассылало
+    // партнёру ложную паузу — у обоих ролик замирал. Настоящую паузу шлёт
+    // событие `pause`, оно никуда не делось.
+    v.addEventListener('seeked', () => { if (!v.paused) tell('play'); });
 
     if (state.pending) {
       const p = state.pending;
@@ -332,8 +340,8 @@
           },
           onStateChange: (e) => {
             if (state.applying) return;
-            if (e.data === YT.PlayerState.PLAYING) send('play', ytTime());
-            if (e.data === YT.PlayerState.PAUSED) send('pause', ytTime());
+            if (e.data === YT.PlayerState.PLAYING) { leadHere(); send('play', ytTime()); }
+            if (e.data === YT.PlayerState.PAUSED) { leadHere(); send('pause', ytTime()); }
           },
         },
       });
@@ -419,7 +427,11 @@
         state.remote.time = at;
       }
     } catch (_) { /* плеер ещё не готов — команда придёт со следующим тактом */ }
-    setTimeout(() => { state.applying = false; }, state.kind === 'video' ? 300 : 900);
+    // Пока флаг стоит, свои же события плеера в комнату не уходят. Прежние
+    // 300 мс были короче буферизации после прыжка: `seeked` приходил уже с
+    // опущенным флагом, и ответ улетал партнёру — начиналось эхо. Ставим с
+    // запасом на догрузку куска.
+    setTimeout(() => { state.applying = false; }, state.kind === 'video' ? 1500 : 2500);
   }
 
   /** Рассказывает приложению, что сейчас включили: комната живёт во встроенном
@@ -552,6 +564,38 @@
     state.sub.publish(payload).catch(() => {});
   }
 
+  // ── кто кого догоняет ────────────────────────────────────────────────────
+  //
+  // Своё время раз в три секунды шлёт ТОЛЬКО ведущий. Пока это делали оба,
+  // выходила качель: у двоих время всегда немного разное (буфер, сеть, разные
+  // телефоны), и каждый, увидев расхождение больше DRIFT, перематывал себя к
+  // чужому. Перемотка добавляет буферизацию, расхождение растёт — и дальше они
+  // возят друг друга по кругу. Жалоба звучит как «видео само отматывается на
+  // несколько секунд, и так очень много раз».
+  //
+  // Ведущим становится тот, кто сам тронул плеер; получивший чужую команду
+  // уступает. Одновременное нажатие оставляет комнату без ведущего до
+  // следующего действия — это лучше, чем двое, тянущие друг друга.
+
+  /** Я тронул плеер: дальше комната равняется на меня. */
+  function leadHere() { state.lead = true; state.actedAt = Date.now(); }
+
+  /** Скомандовал кто-то другой: равняюсь на него. */
+  function followHere() { state.lead = false; }
+
+  /** Команда пришла от соседа — решаем, кто теперь ведёт.
+   *
+   *  Обычно уступаю: он только что нажал, ему и вести. Но если я нажал
+   *  секунду назад (оба включили ролик разом — так и бывает, когда садятся
+   *  смотреть), уступать обоим нельзя: комната останется без ведущего, время
+   *  никто не выравнивает и партнёры незаметно расходятся на десяток секунд.
+   *  Спор разрешаем по идентификатору — он у каждого свой, и оба приходят к
+   *  одному ответу без переговоров. */
+  function yieldTo(from) {
+    if (Date.now() - (state.actedAt || 0) > 3000) { state.lead = false; return; }
+    state.lead = String(state.me) < String(from);
+  }
+
   /** Включает ссылку у себя и рассказывает о ней комнате. */
   function applySource(raw) {
     const src = parseSource(raw);
@@ -560,6 +604,8 @@
     // поле: партнёр получает ссылку тем же путём и разбирает её так же.
     const url = cleanLink(raw);
     $('#link').value = url;
+    // Включил ролик — значит и веду: комната равняется на моё время.
+    leadHere();
     mountPlayer(src, url);
     send('source', 0, { url: url });
     return true;
@@ -570,11 +616,12 @@
     switch (data.t) {
       case 'play':
       case 'pause':
+        yieldTo(data.from);
         apply(data.t, data.at);
         break;
       case 'source': {
         const src = parseSource(data.url);
-        if (src) { $('#link').value = data.url; mountPlayer(src, data.url); }
+        if (src) { yieldTo(data.from); $('#link').value = data.url; mountPlayer(src, data.url); }
         break;
       }
       case 'chat':
@@ -597,6 +644,9 @@
         adoptState(data);
         break;
       case 'sync':
+        // Ведущий чужое время не догоняет: иначе двое подтягивают друг друга
+        // по очереди и ролик дёргается у обоих.
+        if (state.lead) break;
         if (state.kind && Math.abs(ytTime() - data.at) > DRIFT) {
           apply(data.playing ? 'play' : 'pause', data.at);
         }
@@ -635,6 +685,8 @@
   function adoptState(data) {
     if (state.synced || data.to !== state.me) return;
     state.synced = true;
+    // Пришёл в комнату, где уже смотрят: веду не я.
+    followHere();
 
     (data.log || []).forEach((m) => {
       remember(m.from, m.name, m.text);
@@ -755,9 +807,10 @@
     state.sub = sub;
 
     // Ведущий — тот, кто последним трогал плеер: он раз в три секунды шлёт
-    // своё время, чтобы вылечить накопленный дрейф.
+    // своё время, чтобы вылечить накопленный дрейф. Остальные молчат — до
+    // 13 августа 2026 проверки ведущего тут не было, и время слали ОБА.
     setInterval(() => {
-      if (!state.kind || !isPlaying()) return;
+      if (!state.lead || !state.kind || !isPlaying()) return;
       send('sync', ytTime(), { playing: true });
     }, HEARTBEAT);
   }

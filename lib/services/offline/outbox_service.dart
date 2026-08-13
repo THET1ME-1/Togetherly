@@ -329,6 +329,8 @@ class OutboxService {
         return k('mood_entries', (p['entry'] as Map?)?['id']);
       case 'moodDelete':
         return k('mood_entries', p['id']);
+      case 'strokeDelete':
+        return k('canvas_strokes', p['id']);
       case 'cycleUpsert':
         return k('cycle_entries', (p['entry'] as Map?)?['id']);
       case 'cycleDelete':
@@ -602,6 +604,12 @@ class OutboxService {
           }
         }
         return data.deleteMemory(p['id'] as String? ?? '', hard: true);
+      case 'strokeDelete':
+        // Отмена штриха в общей раскраске. Раньше она уходила прямым запросом,
+        // и отказ сервера возвращал штрих на холст — жалоба «отменённые штрихи
+        // могут восстановиться». Очередь доводит удаление до конца сама и
+        // переживает перезапуск приложения.
+        return data.deleteStroke(p['id'] as String? ?? '');
       case 'memorySetSaved':
         return _applySetSaved(
           p['memoryId'] as String? ?? '',

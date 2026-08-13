@@ -4,8 +4,11 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
 
+import '../utils/date_only.dart';
 import '../utils/pair_time.dart';
+import 'pb_errors.dart';
 import 'pocketbase_service.dart';
+import 'upsert_backoff.dart';
 import 'upsert_id_cache.dart';
 
 /// Результат вызова серверного атомарного group-роута: [ok] — выполнен;
@@ -38,6 +41,17 @@ class PbDataService {
     }
     if (v is List) return v.map(_jsonSafe).toList();
     return v;
+  }
+
+  /// Карта «участник → день рождения» в виде календарных дат.
+  static dynamic _birthdaysForServer(dynamic raw) {
+    if (raw is! Map) return _jsonSafe(raw ?? {});
+    final out = <String, dynamic>{};
+    raw.forEach((key, value) {
+      final day = value is DateTime ? value : DateOnly.parse(value);
+      out[key.toString()] = day == null ? null : DateOnly.store(day);
+    });
+    return out;
   }
 
   /// DateTime/String → ISO-строка для date-колонок, или null.
@@ -86,11 +100,16 @@ class PbDataService {
   /// Upsert по известному id: update → при 404 create с этим id.
   /// Забыть, где лежали записи прошлого владельца телефона: после смены
   /// аккаунта его id нам не принадлежат.
-  void forgetCachedRecordIds() => _upsertIds.clear();
+  void forgetCachedRecordIds() {
+    _upsertIds.clear();
+    _upsertQuiet.clear();
+  }
 
   /// Где лежат записи, которые мы обновляем постоянно (гео, присутствие,
   /// «печатает», данные виджета). См. [UpsertIdCache].
   final UpsertIdCache _upsertIds = UpsertIdCache();
+  /// Кому сейчас нельзя стучаться: запись, только что получившая отказ, ждёт.
+  final UpsertBackoff _upsertQuiet = UpsertBackoff();
 
   Future<bool> _upsertById(
     String col,
@@ -118,6 +137,16 @@ class PbDataService {
                   const Duration(seconds: 15));
           return true;
         } catch (e2) {
+          // «Value must be unique» по id означает, что запись всё-таки есть:
+          // предыдущая попытка дошла до сервера, а ответ до нас — нет. Цель
+          // достигнута, повторять нечего. Пока это считалось провалом, очередь
+          // слала одно и то же сообщение пять раз подряд: за двадцать минут
+          // 229 отказов только по чату, и каждый занимал единственного писателя
+          // базы (разбор ночи 14 августа 2026).
+          if (alreadyExists(e2)) {
+            debugPrint('PbData.$op($col/$id): запись уже на сервере');
+            return true;
+          }
           debugPrint('PbData.$op create($col/$id) failed: $e2');
           return false;
         }
@@ -139,12 +168,17 @@ class PbDataService {
     Map<String, dynamic> body, {
     String op = 'upsert',
   }) async {
+    final f = _pb.filter(filter, params);
+    // Записи вроде геопозиции обновляются постоянно, а ищутся фильтром: без
+    // памяти о найденном id каждое обновление стоило трёх запросов — поиск,
+    // отказ на создании по уникальному ключу и только потом обновление.
+    final cacheKey = UpsertIdCache.keyOf(col, f);
+    // Отказ на записи повторяем не сразу. Пока у человека пуст список пар,
+    // правила не отдают ему собственную запись: поиск отвечает 404, создание
+    // упирается в уникальный индекс, и без паузы это долбится каждые несколько
+    // секунд — так 13 августа встал единственный писатель базы.
+    if (!_upsertQuiet.allows(cacheKey, now: DateTime.now())) return false;
     try {
-      final f = _pb.filter(filter, params);
-      // Записи вроде геопозиции обновляются постоянно, а ищутся фильтром: без
-      // памяти о найденном id каждое обновление стоило трёх запросов — поиск,
-      // отказ на создании по уникальному ключу и только потом обновление.
-      final cacheKey = UpsertIdCache.keyOf(col, f);
       final knownId = _upsertIds[cacheKey];
       if (knownId != null) {
         try {
@@ -168,11 +202,12 @@ class PbDataService {
           try {
             final made = await _pb.collection(col).create(body: body);
             _upsertIds.remember(cacheKey, made.id);
-          } on ClientException catch (_) {
+          } on ClientException catch (e2) {
             // DATA-3: TOCTOU — между getFirstListItem(404) и create параллельный
             // вызов уже создал запись по тому же уникальному ключу (create падает
             // на unique-индексе). Перечитываем и обновляем существующую вместо
             // потери записи.
+            if (!alreadyExists(e2)) rethrow;
             final existing = await _pb.collection(col).getFirstListItem(f);
             _upsertIds.remember(cacheKey, existing.id);
             await _pb.collection(col).update(existing.id, body: body);
@@ -181,8 +216,10 @@ class PbDataService {
           rethrow;
         }
       }
+      _upsertQuiet.succeeded(cacheKey);
       return true;
     } catch (e) {
+      _upsertQuiet.failed(cacheKey, now: DateTime.now());
       debugPrint('PbData.$op($col) failed: $e');
       return false;
     }
@@ -242,7 +279,11 @@ class PbDataService {
       'start_date': _iso(raw['startDate']),
       'anniversary_date': _iso(raw['anniversaryDate']),
       'first_kiss_date': _iso(raw['firstKissDate']),
-      'member_birthdays': _jsonSafe(raw['memberBirthdays'] ?? {}),
+      // День рождения кладём календарной датой, без часа и пояса. Пока он
+      // хранился моментом времени (`2004-10-25T20:54:00.000Z` — час взят из
+      // минуты сохранения), у соседних поясов день уезжал: жалоба 14 августа
+      // 2026 «перепутались именно дни, месяцы и годы те же».
+      'member_birthdays': _birthdaysForServer(raw['memberBirthdays']),
       'member_moods': _jsonSafe(raw['memberMoods'] ?? {}),
       'current_status': _jsonSafe(raw['currentStatus']),
       'custom_statuses': _jsonSafe(raw['customStatuses'] ?? []),
@@ -450,7 +491,10 @@ class PbDataService {
     Map<String, DateTime?>? birthdays() {
       final raw = data['member_birthdays'];
       if (raw is! Map) return null;
-      return Map<String, dynamic>.from(raw).map((k, v) => MapEntry(k, _date(v)));
+      // Читаем календарным днём: у старых записей внутри лежит время, и
+      // разворачивать его надо в местный день, а не в UTC.
+      return Map<String, dynamic>.from(raw)
+          .map((k, v) => MapEntry(k, DateOnly.parse(v)));
     }
 
     return {
@@ -479,8 +523,8 @@ class PbDataService {
       'customRelationshipTypes': data['custom_relationship_types'] is List
           ? data['custom_relationship_types'] as List
           : null,
-      'anniversaryDate': _date(data['anniversary_date']),
-      'firstKissDate': _date(data['first_kiss_date']),
+      'anniversaryDate': DateOnly.parse(data['anniversary_date']),
+      'firstKissDate': DateOnly.parse(data['first_kiss_date']),
       'memberBirthdays': birthdays(),
       // Пара с пустым местом («он в армии»): второго участника ещё нет, его
       // место держит заглушка, а `claim_token` ждёт своего человека.
@@ -963,7 +1007,12 @@ class PbDataService {
     String? oldCode,
   }) async {
     if (ownerUid.isEmpty) return '';
-    if (oldCode != null && oldCode.isNotEmpty) await deleteInviteCode(oldCode);
+    // Старый код сносим ТОЛЬКО после того, как новый лёг на сервер. Пока
+    // удаление шло первым, любой тяжёлый вечер оставлял человека вообще без
+    // кода: восемь попыток создания падали по таймауту, прежний код был уже
+    // стёрт, экран видел пустоту и запускал перевыпуск заново — «код
+    // генерируется бесконечно», а партнёру нечего вводить. В базе от этого
+    // осело 60 тысяч кодов на 26 тысяч владельцев.
     var refreshedSession = false;
     for (var attempt = 0; attempt < 8; attempt++) {
       final code = _newCode();
@@ -977,6 +1026,9 @@ class PbDataService {
           'owner_uid': ownerUid,
           if (groupId != null && groupId.isNotEmpty) 'group_id': groupId,
         });
+        if (oldCode != null && oldCode.isNotEmpty && oldCode != code) {
+          await deleteInviteCode(oldCode);
+        }
         return code;
       } catch (e) {
         debugPrint('PbData.generateInviteCode attempt ${attempt + 1} failed: $e');

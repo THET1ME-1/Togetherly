@@ -116,7 +116,11 @@ class CanvasRepository {
   Future<void> patchStroke(String strokeId, Map<String, dynamic> updates) =>
       _data.patchStroke(strokeId, updates);
 
-  Future<void> deleteStroke(String strokeId) => _data.deleteStroke(strokeId);
+  /// Отдаёт результат, а не проглатывает его: отмена штриха обязана знать,
+  /// дошла ли она до сервера. Пока метод возвращал `void`, неудачное удаление
+  /// терялось молча — штрих исчезал с экрана, оставался в базе и возвращался
+  /// при следующей загрузке («отменённые штрихи восстанавливаются»).
+  Future<bool> deleteStroke(String strokeId) => _data.deleteStroke(strokeId);
 
   Future<void> clear(
     String groupId,

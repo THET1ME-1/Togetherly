@@ -32,6 +32,7 @@ import '../models/user_data.dart';
 import '../services/analytics_service.dart';
 import '../services/canvas_storage_service.dart';
 import '../services/canvas_repository.dart';
+import '../services/offline/outbox_service.dart';
 import '../services/media_service.dart';
 import '../services/locale_service.dart';
 import '../utils/canvas_pinch.dart';
@@ -1511,7 +1512,10 @@ class _DrawScreenState extends State<DrawScreen>
         .then((remoteId) async {
           if (remoteId.isEmpty) throw Exception('Empty stroke id');
           if (_cancelledPendingStrokeIds.remove(localId)) {
-            await _canvas.deleteStroke(remoteId);
+            if (!await _canvas.deleteStroke(remoteId)) {
+              await OutboxService.instance
+                  .enqueue('strokeDelete', {'id': remoteId});
+            }
           }
         })
         .catchError((e) {
@@ -1594,7 +1598,10 @@ class _DrawScreenState extends State<DrawScreen>
         .then((remoteId) async {
           if (remoteId.isEmpty) throw Exception('Empty stroke id');
           if (_cancelledPendingStrokeIds.remove(stroke.id)) {
-            await _canvas.deleteStroke(remoteId);
+            if (!await _canvas.deleteStroke(remoteId)) {
+              await OutboxService.instance
+                  .enqueue('strokeDelete', {'id': remoteId});
+            }
           }
         })
         .catchError((e) {
@@ -1645,17 +1652,21 @@ class _DrawScreenState extends State<DrawScreen>
 
     if (!_hasSharedCanvas || remoteIdForDelete == null) return;
 
+    // Отмена не отыгрывается назад. Человек убрал штрих — значит его нет, а
+    // сервер догоняет очередью: она повторяет с паузами и переживает
+    // перезапуск приложения. Прежний код при отказе возвращал штрих на холст,
+    // и это читалось как «отменённые штрихи восстанавливаются»; хуже того,
+    // репозиторий отказ проглатывал, поэтому чаще всего штрих оставался в базе
+    // молча и всплывал при следующей загрузке.
+    var done = false;
     try {
-      await _canvas.deleteStroke(remoteIdForDelete);
+      done = await _canvas.deleteStroke(remoteIdForDelete);
     } catch (e) {
-      debugPrint('[Draw] undo error: $e');
-      if (!mounted) return;
-      _myStrokeIds.add(undoKey);
-      _redoStack.removeLast();
-      setState(() {
-        _remoteStrokes = [..._remoteStrokes, removed!]..sort(_compareStrokes);
-        _visibleStrokes = _composeVisibleStrokes();
-      });
+      debugPrint('[Draw] undo: удаление не прошло ($e)');
+    }
+    if (!done) {
+      await OutboxService.instance
+          .enqueue('strokeDelete', {'id': remoteIdForDelete});
     }
   }
 
@@ -1704,9 +1715,19 @@ class _DrawScreenState extends State<DrawScreen>
       _saveSoloStrokes();
       return;
     }
-    unawaited(_canvas.deleteStroke(id).catchError((Object e) {
-      debugPrint('[Draw] не удалось удалить штрих $id: $e');
-    }));
+    unawaited(() async {
+      var done = false;
+      try {
+        done = await _canvas.deleteStroke(id);
+      } catch (e) {
+        debugPrint('[Draw] не удалось удалить штрих $id: $e');
+      }
+      // Не дошло до сервера — доведёт очередь. Иначе штрих остаётся в базе и
+      // всплывает при следующей загрузке холста.
+      if (!done) {
+        await OutboxService.instance.enqueue('strokeDelete', {'id': id});
+      }
+    }());
   }
 
   /// Запоминает выбранный фон.
@@ -1780,17 +1801,14 @@ class _DrawScreenState extends State<DrawScreen>
       _visibleStrokes = _composeVisibleStrokes();
     });
 
+    var imageGone = false;
     try {
-      await _canvas.deleteStroke(id);
+      imageGone = await _canvas.deleteStroke(id);
     } catch (e) {
       debugPrint('[Draw] deleteImage error: $e');
-      if (!mounted) return;
-      _remoteStrokes = [..._remoteStrokes, removed]..sort(_compareStrokes);
-      _myStrokeIds.add(id);
-      setState(() {
-        _selectedImageId = id;
-        _visibleStrokes = _composeVisibleStrokes();
-      });
+    }
+    if (!imageGone) {
+      await OutboxService.instance.enqueue('strokeDelete', {'id': id});
     }
   }
 
