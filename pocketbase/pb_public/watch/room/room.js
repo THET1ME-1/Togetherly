@@ -96,11 +96,33 @@
 
   // ── источники видео ───────────────────────────────────────────────────────
 
+  /** Достаёт из введённого настоящий адрес: первый и без соседей.
+   *
+   *  В поле уже лежит ссылка (приложение кладёт её параметром `?src=`), и
+   *  вставка добавляется к ней, а не заменяет: в историю за 12–13 августа
+   *  легло 49 включений вида `<ссылка> <та же ссылка>`, `<ютуб><ivi>` и
+   *  `hhttps://…`. Человек при этом смотрит прежний ролик и думает, что кнопка
+   *  сломана. Само поле теперь выделяется при нажатии, но выпущенные сборки
+   *  открывают комнату с прежним адресом, поэтому чистим и здесь. */
+  function cleanLink(raw) {
+    let s = String(raw == null ? '' : raw).trim();
+    if (!s) return '';
+    // Лишняя буква перед схемой — палец задел клавишу мимо поля.
+    s = s.replace(/(^|\s)[a-z](https?:\/\/)/i, '$1$2');
+    const at = s.search(/https?:\/\//i);
+    if (at < 0) return s;
+    let one = s.slice(at).split(/\s/)[0];
+    // Вторая ссылка прилипла без пробела: режем по её схеме.
+    const more = one.slice(1).search(/https?:\/\//i);
+    if (more >= 0) one = one.slice(0, more + 1);
+    return one;
+  }
+
   /** Разбирает ссылку в описание источника или null, если площадка чужая. */
   function parseSource(raw) {
     let url;
     try {
-      url = new URL(raw.trim());
+      url = new URL(cleanLink(raw));
     } catch (_) {
       return null;
     }
@@ -534,7 +556,9 @@
   function applySource(raw) {
     const src = parseSource(raw);
     if (!src) { setStatus(I18N.t('room.badLink')); return false; }
-    const url = raw.trim();
+    // В комнату и в историю уходит очищенный адрес, а не всё, что набралось в
+    // поле: партнёр получает ссылку тем же путём и разбирает её так же.
+    const url = cleanLink(raw);
     $('#link').value = url;
     mountPlayer(src, url);
     send('source', 0, { url: url });
@@ -832,6 +856,18 @@
     connect(room).catch(() => setStatus(I18N.t('room.lost')));
 
     $('#apply').addEventListener('click', () => applySource($('#link').value));
+
+    // Первое нажатие по строке выделяет прежнюю ссылку целиком: вставка тогда
+    // заменяет её, а не дописывается в хвост. Второе нажатие (поле уже в
+    // фокусе) ставит курсор как обычно — правку руками это не мешает.
+    $('#link').addEventListener('focus', () => {
+      const el = $('#link');
+      if (!el.value) return;
+      el.select();
+      // Safari на iPhone снимает выделение сразу после focus, поэтому просим
+      // ещё раз следующим тактом.
+      setTimeout(() => { if (document.activeElement === el) el.select(); }, 0);
+    });
 
     $('#together').addEventListener('click', () => {
       send('countdown', 0);
