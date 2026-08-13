@@ -60,6 +60,20 @@ jobs:
             || python3 -m pip install --quiet --break-system-packages codemagic-cli-tools
           echo "$(python3 -m site --user-base)/bin" >> "$GITHUB_PATH"
 
+      - name: Collect release notes
+        run: |
+          set -euo pipefail
+          # «Что нового» обязателен для ОСНОВНОЙ локали приложения — без него
+          # Apple отвергает саму заявку: «You must provide a value for the
+          # attribute whatsNew» (проверено на 1.26.0, где текст был только для
+          # русской). Основную локаль спрашиваем у App Store Connect, а не
+          # угадываем.
+          PRIMARY=$(app-store-connect apps get "$APP_STORE_APP_ID" --json \
+            | python3 -c 'import sys,json; print(json.load(sys.stdin)["attributes"]["primaryLocale"])')
+          echo "Основная локаль приложения: $PRIMARY"
+          python3 tools/asc_release_notes.py "$PRIMARY" > /tmp/localizations.json
+          python3 -c 'import json;print("Локали заявки:", [x["locale"] for x in json.load(open("/tmp/localizations.json"))])'
+
       - name: Submit build for App Store review
         run: |
           set -euo pipefail
@@ -81,5 +95,4 @@ jobs:
             --release-type AFTER_APPROVAL \
             --cancel-previous-submissions \
             --max-build-processing-wait 60 \
-            --locale ru \
-            --whats-new @file:distribution/whatsnew/whatsnew-ru-RU
+            --app-store-version-localizations @file:/tmp/localizations.json
