@@ -182,3 +182,36 @@ WeekStats parseWeekdays(String? raw) {
   }
   return WeekStats(days);
 }
+
+/// Кто отправитель подарка с точки зрения того, кто смотрит.
+enum GiftSender {
+  /// Дарил я.
+  me,
+
+  /// Дарил тот, с кем я в паре.
+  counterpart,
+
+  /// Понять нельзя — подписываем обезличенно.
+  unknown,
+}
+
+/// Кем подписать подарок на полке.
+///
+/// Жалоба 14 августа 2026: «приложение показывает мой подарок партнёру так,
+/// будто это он мне его отправил». Подпись держалась на сравнении с моим uid, а
+/// он бывает пустым: полумёртвая сессия отдаёт пустую личность, и любой подарок
+/// становился «от партнёра». Полка при этом знает своего владельца — этого
+/// достаточно, чтобы не соврать: на чужой полке отправитель, не совпадающий с
+/// её владельцем, это я.
+GiftSender giftSenderOf({
+  required String senderUid,
+  required String myUid,
+  String shelfOwnerUid = '',
+}) {
+  if (senderUid.isEmpty) return GiftSender.unknown;
+  if (myUid.isNotEmpty) {
+    return senderUid == myUid ? GiftSender.me : GiftSender.counterpart;
+  }
+  if (shelfOwnerUid.isEmpty) return GiftSender.unknown;
+  return senderUid == shelfOwnerUid ? GiftSender.unknown : GiftSender.me;
+}

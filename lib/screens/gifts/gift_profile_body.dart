@@ -119,6 +119,7 @@ class GiftProfileBodyState extends State<GiftProfileBody> {
       gift: tally.gift,
       memos: memosOfKey(_gifts, tally.key),
       myUid: PocketBaseService().userId ?? '',
+      shelfOwnerUid: widget.uid,
       counterpartName: widget.counterpartName,
     );
   }

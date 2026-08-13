@@ -19,6 +19,7 @@ Future<void> showGiftMemoSheet(
   required List<GiftMemo> memos,
   required String myUid,
   String? counterpartName,
+  String shelfOwnerUid = '',
 }) {
   // Тему и строки снимаем ДО открытия листа: он переживает экран, и обращение
   // к мёртвому состоянию уже стоило проекту сотен падений.
@@ -35,6 +36,7 @@ Future<void> showGiftMemoSheet(
         gift: gift,
         memos: memos,
         myUid: myUid,
+        shelfOwnerUid: shelfOwnerUid,
         counterpartName: counterpartName,
         scheme: scheme,
         ru: ru,
@@ -49,6 +51,7 @@ class _MemoList extends StatelessWidget {
     required this.gift,
     required this.memos,
     required this.myUid,
+    this.shelfOwnerUid = '',
     required this.counterpartName,
     required this.scheme,
     required this.ru,
@@ -58,6 +61,11 @@ class _MemoList extends StatelessWidget {
   final Gift gift;
   final List<GiftMemo> memos;
   final String myUid;
+
+  /// Чья это полка. Нужна, когда своя личность неизвестна: полумёртвая сессия
+  /// отдаёт пустой uid, и подпись «от вас» превращалась в «от партнёра» —
+  /// человек видел свой подарок как присланный ему (жалоба 14 августа 2026).
+  final String shelfOwnerUid;
   final String? counterpartName;
   final ColorScheme scheme;
   final bool ru;
@@ -74,12 +82,19 @@ class _MemoList extends StatelessWidget {
   }
 
   String _senderLabel(String uid) {
-    if (uid.isNotEmpty && uid == myUid) return _tr('от вас', 'from you');
-    final name = counterpartName?.trim();
-    if (name != null && name.isNotEmpty) {
-      return _tr('от $name', 'from $name');
+    switch (giftSenderOf(
+        senderUid: uid, myUid: myUid, shelfOwnerUid: shelfOwnerUid)) {
+      case GiftSender.me:
+        return _tr('от вас', 'from you');
+      case GiftSender.counterpart:
+        final name = counterpartName?.trim();
+        if (name != null && name.isNotEmpty) {
+          return _tr('от $name', 'from $name');
+        }
+        return _tr('от партнёра', 'from your partner');
+      case GiftSender.unknown:
+        return _tr('от партнёра', 'from your partner');
     }
-    return _tr('от партнёра', 'from your partner');
   }
 
   @override
