@@ -111,9 +111,16 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
     setState(() {});
   }
 
+  /// Секундный тик карточки.
+  ///
+  /// Раньше он раз в секунду пересобирал ВСЮ карточку: карусель, круг, кнопки,
+  /// подписи. Цифры на круге обновляет сам круг (`PetalTimerDial` тикает своим
+  /// тикером и рисует мимо дерева), поэтому карточке остаётся редкая работа —
+  /// подписи с днями, а они меняются раз в сутки. Минута вместо секунды даёт
+  /// шестьдесят перестроек в час вместо трёх с половиной тысяч.
   void _startTicker() {
     _ticker?.cancel();
-    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+    _ticker = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted) setState(() {});
     });
   }

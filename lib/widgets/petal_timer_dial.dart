@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+
+import '../utils/petal_clock.dart';
 import '../theme/fonts.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/scheduler.dart';
@@ -66,6 +68,14 @@ class PetalTimerDial extends StatefulWidget {
     this.onPetalTap,
   });
 
+  /// Угол, с которым круг отрисовался в последний раз.
+  ///
+  /// Нужен тесту вращения: painter не должен хранить угол снимком — именно
+  /// снимок 11 августа 2026 заморозил круг на нуле. По этому полю видно, что
+  /// до отрисовки доехало живое значение.
+  @visibleForTesting
+  static double debugLastPaintedRotation = 0;
+
   @override
   State<PetalTimerDial> createState() => _PetalTimerDialState();
 }
@@ -82,6 +92,22 @@ class _PetalTimerDialState extends State<PetalTimerDial>
   /// Доля вступления 0…1. Пока идёт от нуля к единице, числа на лепестках
   /// набегают; дальше показываются как есть.
   double _intro = 0;
+
+  /// Сигнал «перерисовать круг».
+  ///
+  /// Кадр анимации шёл через `setState`, то есть пересобирал всё поддерево
+  /// круга шестьдесят раз в секунду. Теперь перерисовка идёт прямо в painter, а
+  /// он читает состояние В МОМЕНТ отрисовки — снимок в `build` однажды уже
+  /// стоил вращения: угол застыл на нуле, и круг перестал крутиться пальцем
+  /// (откат 11 августа 2026).
+  final ValueNotifier<int> _repaint = ValueNotifier<int>(0);
+
+  void _ping() => _repaint.value++;
+
+  /// Расчёт лепестков держится до смены секунды: цифры меняются раз в секунду,
+  /// а кадров за неё проходит шестьдесят.
+  int _petalsSecond = -1;
+  List<_PetalData>? _petalsCache;
   List<double> _presenceFactors = List.filled(6, 1.0);
   List<_PetalData> _currentPetals = [];
   final Set<int> _hiddenIndices = {};
@@ -138,7 +164,19 @@ class _PetalTimerDialState extends State<PetalTimerDial>
       }
     }
     if (changed && mounted) {
-      setState(() {});
+      _ping();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant PetalTimerDial old) {
+    super.didUpdateWidget(old);
+    // Дату таймера правят руками — ждать смены секунды тут нельзя.
+    if (old.startDate != widget.startDate ||
+        old.isCountdown != widget.isCountdown) {
+      _petalsSecond = -1;
+      _petalsCache = null;
+      _ping();
     }
   }
 
@@ -146,13 +184,13 @@ class _PetalTimerDialState extends State<PetalTimerDial>
   void dispose() {
     _flingCtrl.dispose();
     _chaseTicker.dispose();
+    _repaint.dispose();
     super.dispose();
   }
 
   void _onFlingTick() {
-    setState(() {
-      _rotationAngle = _flingCtrl.value;
-    });
+    _rotationAngle = _flingCtrl.value;
+    _ping();
   }
 
   Offset _center = Offset.zero;
@@ -169,9 +207,8 @@ class _PetalTimerDialState extends State<PetalTimerDial>
     var delta = newAngle - _prevAngle;
     if (delta > math.pi) delta -= 2 * math.pi;
     if (delta < -math.pi) delta += 2 * math.pi;
-    setState(() {
-      _rotationAngle += delta;
-    });
+    _rotationAngle += delta;
+    _ping();
     _prevAngle = newAngle;
   }
 
@@ -203,6 +240,16 @@ class _PetalTimerDialState extends State<PetalTimerDial>
 
   List<_PetalData> _computePetals() {
     final now = DateTime.now();
+    final second = petalSecondKey(now);
+    final cached = _petalsCache;
+    if (cached != null && second == _petalsSecond) return cached;
+    final fresh = _computePetalsAt(now);
+    _petalsSecond = second;
+    _petalsCache = fresh;
+    return fresh;
+  }
+
+  List<_PetalData> _computePetalsAt(DateTime now) {
     final DateTime from, to;
     if (widget.isCountdown) {
       from = now;
@@ -324,7 +371,8 @@ class _PetalTimerDialState extends State<PetalTimerDial>
     if (distance < innerR) {
       if (_hiddenIndices.isNotEmpty) {
         HapticFeedback.selectionClick();
-        setState(() => _hiddenIndices.clear());
+        _hiddenIndices.clear();
+        _ping();
       }
       return;
     }
@@ -372,18 +420,14 @@ class _PetalTimerDialState extends State<PetalTimerDial>
       if (_hiddenIndices.length >= 5) return;
 
       HapticFeedback.mediumImpact();
-      setState(() {
-        _hiddenIndices.add(tappedIdx);
-      });
+      _hiddenIndices.add(tappedIdx);
+      _ping();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     _currentPetals = _computePetals();
-    final petals = _currentPetals;
-    final factors = _displayFactors;
-    final presence = _presenceFactors;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -416,14 +460,18 @@ class _PetalTimerDialState extends State<PetalTimerDial>
             height: size,
             child: CustomPaint(
               painter: _PetalDialPainter(
-                petals: petals,
-                displayFactors: factors,
-                presenceFactors: presence,
-                rotationAngle: _rotationAngle,
+                // Значения читаются В МОМЕНТ отрисовки, а не берутся снимком:
+                // именно снимок однажды заморозил вращение круга.
+                read: () => _DialFrame(
+                  petals: _computePetals(),
+                  displayFactors: _displayFactors,
+                  presenceFactors: _presenceFactors,
+                  rotationAngle: _rotationAngle,
+                  intro: _intro,
+                ),
                 theme: widget.theme,
                 scale: scale,
-                totalPresence: presence.reduce((a, b) => a + b),
-                intro: _intro,
+                repaint: _repaint,
               ),
             ),
           ),
@@ -433,31 +481,49 @@ class _PetalTimerDialState extends State<PetalTimerDial>
   }
 }
 
-class _PetalDialPainter extends CustomPainter {
-  final List<_PetalData> petals;
-  final List<double> displayFactors;
-  final List<double> presenceFactors;
-  final double rotationAngle;
-  final AppTheme theme;
-  final double scale;
-  final double totalPresence;
-
-  /// Доля вступления: на входе числа набегают от нуля вместе с заливкой.
-  final double intro;
-
-  _PetalDialPainter({
+/// Снимок круга на один кадр отрисовки.
+class _DialFrame {
+  const _DialFrame({
     required this.petals,
     required this.displayFactors,
     required this.presenceFactors,
     required this.rotationAngle,
+    required this.intro,
+  });
+
+  final List<_PetalData> petals;
+  final List<double> displayFactors;
+  final List<double> presenceFactors;
+  final double rotationAngle;
+
+  /// Доля вступления: на входе числа набегают от нуля вместе с заливкой.
+  final double intro;
+}
+
+class _PetalDialPainter extends CustomPainter {
+  final _DialFrame Function() read;
+  final AppTheme theme;
+  final double scale;
+
+  _PetalDialPainter({
+    required this.read,
     required this.theme,
     required this.scale,
-    required this.totalPresence,
-    this.intro = 1,
-  });
+    required Listenable repaint,
+  }) : super(repaint: repaint);
 
   @override
   void paint(Canvas canvas, Size size) {
+    // Кадр берём здесь: пока дерево не перестраивается, только так значения
+    // остаются живыми.
+    final frame = read();
+    final petals = frame.petals;
+    final displayFactors = frame.displayFactors;
+    final presenceFactors = frame.presenceFactors;
+    final rotationAngle = frame.rotationAngle;
+    PetalTimerDial.debugLastPaintedRotation = rotationAngle;
+    final intro = frame.intro;
+    final totalPresence = presenceFactors.reduce((a, b) => a + b);
     final cx = size.width / 2;
     final cy = size.height / 2;
 
@@ -729,12 +795,8 @@ class _PetalDialPainter extends CustomPainter {
   }
 
   @override
+  // Перерисовку ведёт `repaint`: тик анимации и жест пингуют его напрямую.
+  // Здесь остаётся то, что меняется вместе с деревом, — размер и тема.
   bool shouldRepaint(_PetalDialPainter old) =>
-      old.rotationAngle != rotationAngle ||
-      old.petals != petals ||
-      old.displayFactors != displayFactors ||
-      old.presenceFactors != presenceFactors ||
-      old.scale != scale ||
-      old.totalPresence != totalPresence ||
-      old.intro != intro;
+      old.scale != scale || old.theme != theme;
 }

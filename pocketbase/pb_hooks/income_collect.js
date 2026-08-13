@@ -145,7 +145,11 @@ module.exports = function collectIncome() {
 
     // Витринные покупки идут мимо нашего ключа и в контрактах не видны —
     // сводку по продуктам за всё время берём отдельным методом.
-    let products = [];
+    // ВАЖНО: строка ответа несёт СТАТУС, и оплаченные лежат вперемешку с
+    // брошенными. Продажей считается только `completed`; `new` — человек открыл
+    // оплату и ушёл, `failed` — платёж отклонён. Без этой проверки у Моти
+    // выходило 16 «продаж» на 80 $, хотя её не купил никто.
+    let products = [], pending = [];
     try {
       const r = $http.send({ url: "https://gate.lava.top/api/v1/sales/?size=50", method: "GET", headers: { "X-Api-Key": key }, timeout: 25 });
       if (r.statusCode === 200) {
@@ -153,16 +157,19 @@ module.exports = function collectIncome() {
         const list = j.items || [];
         for (let i = 0; i < list.length; i++) {
           const sales = list[i].sales || [];
+          const done = String(list[i].status || "").toLowerCase() === "completed";
           for (let k = 0; k < sales.length; k++) {
-            products.push({
+            (done ? products : pending).push({
               name: String(list[i].title || "—"),
+              status: String(list[i].status || ""),
               count: Number(sales[k].count) || 0,
               amount: Number(sales[k].amountTotal) || 0,
               currency: String(sales[k].currency || "RUB"),
             });
           }
         }
-        products.sort((a, b) => toUsd(b.amount, b.currency) - toUsd(a.amount, a.currency));
+        const byMoney = (a, b) => toUsd(b.amount, b.currency) - toUsd(a.amount, a.currency);
+        products.sort(byMoney); pending.sort(byMoney);
       }
     } catch (_) {}
 
@@ -170,7 +177,7 @@ module.exports = function collectIncome() {
       ok: true, currency: "USD", title: "lava, Togetherly+",
       today: todayNet, yesterday: yestNet, month: monthNet,
       d40_gross: gross, d40_fee: fee, d40_net: gross - fee, count: count,
-      days: days, products: products,
+      days: days, products: products, pending: pending,
     };
   })();
 
