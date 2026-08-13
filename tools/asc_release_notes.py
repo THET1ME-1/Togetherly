@@ -18,7 +18,9 @@ import re
 import sys
 import unicodedata
 
-NOTES_DIR = pathlib.Path("distribution/whatsnew")
+# Путь считаем от самого файла: скрипт зовут и из корня (релизный прогон), и
+# из каталога tools (тесты).
+NOTES_DIR = pathlib.Path(__file__).resolve().parent.parent / "distribution" / "whatsnew"
 
 
 def strip_unsupported(text: str) -> str:
@@ -64,15 +66,23 @@ def notes_for(locale: str) -> str:
     raise SystemExit(f"нет заметок ни для {locale}, ни для английского")
 
 
+def build_localizations(primary: str) -> list:
+    """Заметки для заявки — только для основной локали приложения.
+
+    Заводить новую локаль нельзя: у неё Apple тут же требует описание,
+    ключевые слова и адрес поддержки, а без них версия становится невалидной
+    («You must provide a value for the attribute description»). Ровно так
+    сорвалась третья попытка отправить 1.26.0, когда рядом с русской завелась
+    пустая английская страница. Основная локаль уже заполнена целиком, и
+    трогать её безопасно.
+    """
+    locale = (primary or "en-US").strip()
+    return [{"locale": locale, "whats_new": notes_for(locale)}]
+
+
 def main() -> None:
-    primary = (sys.argv[1] if len(sys.argv) > 1 else "en-US").strip()
-    # Порядок важен только для читаемости: dict.fromkeys снимает повторы,
-    # когда основная локаль совпала с русской или английской.
-    locales = list(dict.fromkeys([primary, "ru", "en-US"]))
-    payload = [
-        {"locale": locale, "whats_new": notes_for(locale)} for locale in locales
-    ]
-    json.dump(payload, sys.stdout, ensure_ascii=False)
+    primary = sys.argv[1] if len(sys.argv) > 1 else "en-US"
+    json.dump(build_localizations(primary), sys.stdout, ensure_ascii=False)
 
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@
 
 import unittest
 
-from asc_release_notes import strip_unsupported
+from asc_release_notes import build_localizations, strip_unsupported
 
 
 class StripUnsupported(unittest.TestCase):
@@ -47,6 +47,26 @@ class StripUnsupported(unittest.TestCase):
             strip_unsupported("— Первое\n— Второе"),
             "— Первое\n— Второе",
         )
+
+
+class BuildLocalizations(unittest.TestCase):
+    def test_заполняет_только_основную_локаль(self):
+        # Новая локаль App Store требует ещё описание, ключевые слова и адрес
+        # поддержки: заявка 1.26.0 упала именно на этом, когда мы завели
+        # английскую страницу с одним лишь «Что нового». Трогаем ту, что уже
+        # заполнена целиком, — основную.
+        built = build_localizations("ru")
+        self.assertEqual([item["locale"] for item in built], ["ru"])
+        self.assertIn("Виджеты", built[0]["whats_new"])
+
+    def test_для_чужой_локали_берёт_английский_текст(self):
+        built = build_localizations("de-DE")
+        self.assertEqual([item["locale"] for item in built], ["de-DE"])
+        self.assertIn("Lock screen widgets", built[0]["whats_new"])
+
+    def test_заметки_приходят_без_эмодзи(self):
+        built = build_localizations("ru")
+        self.assertNotIn("🫦", built[0]["whats_new"])
 
 
 if __name__ == "__main__":

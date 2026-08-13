@@ -74,6 +74,29 @@ jobs:
           python3 tools/asc_release_notes.py "$PRIMARY" > /tmp/localizations.json
           python3 -c 'import json;print("Локали заявки:", [x["locale"] for x in json.load(open("/tmp/localizations.json"))])'
 
+      - name: Drop incomplete localizations
+        run: |
+          set -euo pipefail
+          # Локаль, у которой заполнено только «Что нового», делает версию
+          # невалидной: Apple требует у неё ещё описание и ключевые слова.
+          # Такие страницы заводила ранняя версия этого воркфлоу — убираем их,
+          # иначе заявку не создать вовсе.
+          VERSION_ID=$(app-store-connect apps app-store-versions "$APP_STORE_APP_ID" \
+            --app-store-version-state PREPARE_FOR_SUBMISSION --json \
+            | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d[0]["id"] if d else "")')
+          if [ -z "$VERSION_ID" ]; then
+            echo "Версии в состоянии PREPARE_FOR_SUBMISSION нет — чистить нечего"
+            exit 0
+          fi
+          echo "Версия $VERSION_ID"
+          app-store-connect app-store-versions localizations "$VERSION_ID" --json \
+            | python3 tools/asc_incomplete_locales.py > /tmp/drop.txt
+          while read -r ID LOCALE; do
+            [ -z "$ID" ] && continue
+            echo "Убираю неполную локализацию $LOCALE ($ID)"
+            app-store-connect app-store-version-localizations delete "$ID" --ignore-not-found
+          done < /tmp/drop.txt
+
       - name: Submit build for App Store review
         run: |
           set -euo pipefail
