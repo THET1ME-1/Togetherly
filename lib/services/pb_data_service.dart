@@ -111,13 +111,39 @@ class PbDataService {
   /// Кому сейчас нельзя стучаться: запись, только что получившая отказ, ждёт.
   final UpsertBackoff _upsertQuiet = UpsertBackoff();
 
+  /// Запись по известному id: обновить, а если её нет — создать.
+  ///
+  /// [expectNew] переворачивает порядок для того, что почти всегда создаётся
+  /// впервые (сообщение, отметка настроения, воспоминание). Прежний порядок
+  /// стоил лишнего запроса на каждую такую запись: сервер отвечал 404 на
+  /// обновление несуществующего, и только потом шло создание. За двенадцать
+  /// минут это давало 850 холостых запросов только по чату и настроениям.
   Future<bool> _upsertById(
     String col,
     String id,
     Map<String, dynamic> body, {
     String op = 'upsert',
+    bool expectNew = false,
   }) async {
     body.remove('id');
+    if (expectNew) {
+      try {
+        await _pb
+            .collection(col)
+            .create(body: {'id': id, ...body}).timeout(
+                const Duration(seconds: 15));
+        return true;
+      } on ClientException catch (e) {
+        // Запись уже есть — значит это правка, а не создание.
+        if (!alreadyExists(e)) {
+          debugPrint('PbData.$op create($col/$id) failed: $e');
+          return false;
+        }
+      } catch (e) {
+        debugPrint('PbData.$op create($col/$id) failed: $e');
+        return false;
+      }
+    }
     try {
       // Таймаут: под нагрузкой запись на PB может висеть очень долго (один
       // SQLite-writer). Без него flush очереди залипал на одной операции →
@@ -1338,7 +1364,7 @@ class PbDataService {
       'label': entry['label'],
       'timestamp': _iso(entry['timestamp']) ?? PairTime.write(DateTime.now()),
       'tz': entry['tz'] ?? PairTime.zoneNow(),
-    }, op: 'upsertMood');
+    }, op: 'upsertMood', expectNew: true);
   }
 
   /// Создаёт запись настроения (PB генерирует id, как [createMemory]). [entry] —
@@ -2620,7 +2646,8 @@ class PbDataService {
       'voice_ms': msg['voiceMs'],
       'voice_peaks': msg['voicePeaks'],
     }..removeWhere((k, v) => v == null);
-    return _upsertById('chat_messages', id, body, op: 'chatSend');
+    return _upsertById('chat_messages', id, body,
+        op: 'chatSend', expectNew: true);
   }
 
   /// Создаёт сообщение (PB генерирует id, как [createMemory]). [msg] —
