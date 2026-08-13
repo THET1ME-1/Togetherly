@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'locale_service.dart';
+import 'centrifugo_service.dart';
 import 'pb_data_service.dart';
 import 'pb_realtime_service.dart';
 import 'pocketbase_service.dart';
@@ -211,18 +212,38 @@ class LiveLocationService {
     }
   }
 
+  /// Как часто точка ложится на диск.
+  ///
+  /// Живая точка идёт в канал и хранения не требует. Запись нужна только тому,
+  /// кто откроет карту позже, и виджету на рабочем столе — им хватает свежести
+  /// в пару минут. Пока каждая точка писалась в базу, геопозиция стояла в общей
+  /// очереди единственного писателя вместе с сообщениями и настроениями.
+  static const Duration _storeEvery = Duration(minutes: 2);
+  int? _storedAtMs;
+
   Future<void> _push(String channel, Position pos) async {
     if (_uid.isEmpty) return;
     // Пишем только конечные числа (heading/accuracy бывают NaN/Infinity, когда
     // значение недоступно).
     final acc = pos.accuracy.isFinite ? pos.accuracy : 0.0;
-    await _data.setLivePoint(channel, _uid, {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final point = {
       'lat': pos.latitude,
       'lng': pos.longitude,
       'accuracy': acc,
       if (pos.heading.isFinite && pos.heading >= 0) 'heading': pos.heading,
-      'updatedAt': DateTime.now().millisecondsSinceEpoch,
-    });
+      'updatedAt': now,
+    };
+
+    // Партнёру — сразу через канал, минуя диск.
+    await CentrifugoService()
+        .publish('loc:$channel', {'t': 'point', 'uid': _uid, ...point});
+
+    final stored = _storedAtMs;
+    if (stored == null || now - stored >= _storeEvery.inMilliseconds) {
+      _storedAtMs = now;
+      await _data.setLivePoint(channel, _uid, point);
+    }
   }
 
   Future<void> _cancelStream() async {
@@ -268,15 +289,57 @@ class LiveLocationService {
     return _watchPoint(_channel(pairId, partnerUid), _uid);
   }
 
+  /// Точка участника: сначала канал, база — как опора и совместимость.
+  ///
+  /// Живые точки летят публикацией в `loc:<канал>` и на диск не попадают, но
+  /// партнёр может сидеть на сборке постарше — она по-прежнему пишет их в
+  /// коллекцию. Читаем оба источника и показываем тот, что свежее; заодно
+  /// запись из базы отдаёт последнюю точку тому, кто открыл карту только что.
   Stream<LivePoint?> _watchPoint(String channel, String uid) {
-    return _rt
-        .watchLivePoint(channel, uid)
-        .handleError((e) => debugPrint('live location point error: $e'))
-        .map((rec) {
-      final v = rec?.data['data'];
-      if (v is! Map) return null;
-      return LivePoint.fromMap(v);
-    });
+    late StreamController<LivePoint?> ctrl;
+    StreamSubscription? dbSub;
+    RtUnsub? unsub;
+    LivePoint? fromDb;
+    LivePoint? fromChannel;
+
+    void emit() {
+      final a = fromChannel;
+      final b = fromDb;
+      LivePoint? best;
+      if (a == null) {
+        best = b;
+      } else if (b == null) {
+        best = a;
+      } else {
+        best = a.updatedAt >= b.updatedAt ? a : b;
+      }
+      if (!ctrl.isClosed) ctrl.add(best);
+    }
+
+    ctrl = StreamController<LivePoint?>(
+      onListen: () async {
+        dbSub = _rt
+            .watchLivePoint(channel, uid)
+            .handleError((e) => debugPrint('live location point error: $e'))
+            .listen((rec) {
+          final v = rec?.data['data'];
+          fromDb = v is Map ? LivePoint.fromMap(v) : null;
+          emit();
+        });
+
+        unsub = await CentrifugoService().subscribeRaw('loc:$channel', (data) {
+          if (data['t'] != 'point') return;
+          if ((data['uid'] ?? '').toString() != uid) return;
+          fromChannel = LivePoint.fromMap(data);
+          emit();
+        });
+      },
+      onCancel: () async {
+        await dbSub?.cancel();
+        await unsub?.call();
+      },
+    );
+    return ctrl.stream;
   }
 
   // ── Настройки геолокации (фон) ────────────────────────────────────────────
