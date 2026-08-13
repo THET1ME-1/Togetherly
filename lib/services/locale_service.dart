@@ -1911,6 +1911,9 @@ abstract class AppStrings {
   String watchVideoTooBig(int mb);
   String get watchVideoFormatUnsupported;
   String get watchPickFileAgain;
+  String get watchVideoRemoveTitle;
+  String get watchVideoRemoveBody;
+  String get watchVideoRemoved;
   String get watchHeroTitle;
   String get watchHeroText;
   String get linkCopied;

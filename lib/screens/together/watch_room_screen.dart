@@ -6,6 +6,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../services/locale_service.dart';
+import '../../services/pocketbase_service.dart';
 import '../../services/watch_history_service.dart';
 import '../../services/watch_room_service.dart';
 import '../../utils/share_origin.dart';
@@ -40,12 +41,16 @@ class WatchRoomScreen extends StatefulWidget {
 class _WatchRoomScreenState extends State<WatchRoomScreen> {
   bool _loading = true;
 
-  /// Адрес открытой комнаты: с роликом, если пришли из карточки или карусели.
-  String get _url =>
-      WatchRoomService.siteUrl(widget.room, src: widget.videoUrl);
+  /// Адрес открытой комнаты: с роликом, если пришли из карточки или карусели,
+  /// и со своим именем — иначе страница подписывает обоих «Гость».
+  String get _url => WatchRoomService.siteUrl(
+        widget.room,
+        src: widget.videoUrl,
+        name: PocketBaseService().userName,
+      );
 
-  /// Ссылка для партнёра — без ролика: он войдёт в ту же комнату и получит
-  /// источник от нас по каналу.
+  /// Ссылка для партнёра — без ролика и без имени: он войдёт в ту же комнату,
+  /// получит источник от нас по каналу и подпишется своим именем.
   String get _inviteUrl => WatchRoomService.siteUrl(widget.room);
 
   Future<void> _share() async {

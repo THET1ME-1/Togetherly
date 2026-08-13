@@ -240,10 +240,7 @@ private struct TogetherLargeView: View {
                     Spacer()
                 }
                 .padding(12)
-                .background(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(t.tertiaryContainer)
-                )
+                .tgBlock(t.tertiaryContainer, radius: 18)
             }
         }
         .padding(16)

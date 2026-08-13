@@ -18,3 +18,18 @@ Offset clampMascotPosition(Offset position, Size screen, double half) {
     position.dy.clamp(half, screen.height - half),
   );
 }
+
+/// Тап это был или перетаскивание.
+///
+/// Жест по маскоту разбирает `onScale*`: распознаватель масштаба забирает
+/// касание себе на первом же микродвижении пальца, поэтому `onTap` у
+/// `GestureDetector` до арены не доживал — маскот таскался, но не открывал
+/// ничего (жалоба 13 августа 2026). Решение простое: короткое касание, за
+/// которое палец почти не сдвинулся, считаем тапом сами.
+bool mascotGestureIsTap({
+  required double travel,
+  required Duration held,
+  double slop = 12,
+  Duration limit = const Duration(milliseconds: 400),
+}) =>
+    travel <= slop && held < limit;

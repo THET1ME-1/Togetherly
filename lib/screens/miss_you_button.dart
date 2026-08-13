@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../models/optimistic_count.dart';
 import '../services/miss_you_repository.dart';
 import '../services/hint_queue.dart';
 import '../services/pocketbase_service.dart';
@@ -60,11 +61,16 @@ class _MissYouButtonState extends State<MissYouButton>
   final MissYouRepository _missYou = MissYouRepository();
 
   // ── Счётчик ──────────────────────────────────────────────────────────────────
-  int _myCount = 0;
+  //
+  // Свой счёт держит [OptimisticCount]: тап виден мгновенно, отказ отправки
+  // снимает надбавку сразу, а неподтверждённое ожидание протухает само. Пока
+  // это была голая пара `_myCount + _inFlightTaps`, число прыгало — надбавку
+  // снимала только положительная дельта живого снимка.
+  OptimisticCount _mine = const OptimisticCount();
   int _partnerCount = 0;
-  int _inFlightTaps = 0;
   StreamSubscription? _countSub;
   Timer? _listenRetryTimer;
+  Timer? _staleTimer;
   int _listenRetryAttempt = 0;
 
   // ── Анимации ─────────────────────────────────────────────────────────────────
@@ -104,7 +110,7 @@ class _MissYouButtonState extends State<MissYouButton>
     super.didUpdateWidget(old);
     if (old.groupId != widget.groupId) {
       _countSub?.cancel();
-      _inFlightTaps = 0;
+      _mine = _mine.reset();
       _startListening();
     }
   }
@@ -123,12 +129,10 @@ class _MissYouButtonState extends State<MissYouButton>
             .where((e) => e.key != myUid)
             .fold(0, (sum, e) => sum + e.value);
 
-        final confirmed = newMyCount - _myCount;
-        if (confirmed > 0) _inFlightTaps = max(0, _inFlightTaps - confirmed);
-
-        _myCount = newMyCount;
+        _mine = _mine.confirm(newMyCount, now: DateTime.now());
         _partnerCount = newPartnerCount;
         if (mounted) setState(() {});
+        _scheduleStaleSweep();
       },
       onError: (_) {
         // SSE-подписка PB может отвалиться (сеть/перезапуск процесса) —
@@ -143,6 +147,21 @@ class _MissYouButtonState extends State<MissYouButton>
         });
       },
     );
+  }
+
+  /// Убирает протухшие ожидания, когда живых событий больше не приходит.
+  /// Иначе последняя надбавка висела бы до следующего импульса — а он может не
+  /// случиться до завтра.
+  void _scheduleStaleSweep() {
+    _staleTimer?.cancel();
+    if (_mine.pending == 0) return;
+    _staleTimer = Timer(OptimisticCount.ttl, () {
+      if (!mounted) return;
+      setState(() {
+        _mine = _mine.confirm(_mine.confirmed, now: DateTime.now());
+      });
+      _scheduleStaleSweep();
+    });
   }
 
   // ── Действия ─────────────────────────────────────────────────────────────────
@@ -175,15 +194,19 @@ class _MissYouButtonState extends State<MissYouButton>
     _scaleController.forward(from: 0);
     _spawnHearts();
 
-    _inFlightTaps++;
-    if (mounted) setState(() {});
+    setState(() => _mine = _mine.tap(DateTime.now()));
+    _scheduleStaleSweep();
 
+    var ok = false;
     try {
-      await _missYou.sendMissYou(widget.groupId);
+      ok = await _missYou.sendMissYou(widget.groupId);
     } catch (_) {
-      if (mounted) {
-        setState(() => _inFlightTaps = max(0, _inFlightTaps - 1));
-      }
+      ok = false;
+    }
+    if (!ok && mounted) {
+      // Сорванная отправка снимает свою надбавку сразу: сервер её не примет,
+      // а ждать нечего.
+      setState(() => _mine = _mine.failed());
     }
   }
 
@@ -219,6 +242,7 @@ class _MissYouButtonState extends State<MissYouButton>
     _scaleController.dispose();
     _countSub?.cancel();
     _listenRetryTimer?.cancel();
+    _staleTimer?.cancel();
     for (final h in _hearts) {
       h.controller.dispose();
     }
@@ -232,7 +256,7 @@ class _MissYouButtonState extends State<MissYouButton>
     final t = widget.theme;
     final fill = t.fillColor;
     final onFill = AppThemes.onColor(fill, mode: t.brightness);
-    final displayMy = _myCount + _inFlightTaps;
+    final displayMy = _mine.display;
     final radius = BorderRadius.circular(widget.height / 2);
 
     return Opacity(

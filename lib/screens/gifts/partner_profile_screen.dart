@@ -45,7 +45,7 @@ class _PartnerProfileScreenState extends State<PartnerProfileScreen> {
   }
 
   Future<void> _loadBanner() async {
-    final m = await PbDataService().loadUserProfileMap(widget.partnerUid);
+    final m = await PbDataService().loadPartnerCard(widget.partnerUid);
     if (!mounted || m == null) return;
     final b = (m['bannerUrl'] as String?) ?? '';
     if (b != _bannerUrl) setState(() => _bannerUrl = b);

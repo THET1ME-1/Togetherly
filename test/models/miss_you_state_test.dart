@@ -34,6 +34,33 @@ void main() {
       expect(e.byWeekday, {4: 6});
     });
 
+    test('читает разбивку по импульсам', () {
+      final e = MissYouEntry.fromRow({
+        'user_uid': 'me',
+        'count': 90,
+        'by_vibe': '{"miss_you":50,"want_hug":"12","thinking_of_you":28}',
+      });
+      expect(e.byVibe['miss_you'], 50);
+      expect(e.byVibe['want_hug'], 12);
+      expect(e.byVibe['thinking_of_you'], 28);
+    });
+
+    test('старая запись без by_vibe отдаёт весь счёт «скучаю»', () {
+      // Карту завели 13 августа 2026, у всех прежних импульсов её нет вовсе.
+      // Показать нули у каждой строки было бы враньём: до этого дня любой
+      // импульс шёл в общий счётчик.
+      final e = MissYouEntry.fromRow({'user_uid': 'me', 'count': 402});
+      expect(e.byVibe, {'miss_you': 402});
+    });
+
+    test('кривая карта импульсов не роняет разбор', () {
+      for (final raw in ['', 'не json', '[]', 'null']) {
+        final e =
+            MissYouEntry.fromRow({'user_uid': 'u', 'count': 5, 'by_vibe': raw});
+        expect(e.byVibe, {'miss_you': 5}, reason: raw);
+      }
+    });
+
     test('пустое время остаётся пустым, а не сегодняшним днём', () {
       final e = MissYouEntry.fromRow({'user_uid': 'u', 'updated_at': ''});
       expect(e.updatedAt, isNull);

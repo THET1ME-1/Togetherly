@@ -26,27 +26,62 @@ private enum PhotoStyle {
     static let placeholderSubtitle = Color(hex: 0xCCCCCC)
 }
 
+/// Какой это фото-виджет. От этого зависит подпись пустого состояния: одна на
+/// три виджета врала — в галерее у «Фото партнёра» стояло «Фото дня · Нет
+/// воспоминаний», и человек считал, что поставил не тот виджет (жалоба с
+/// разбором скриншотов 13 августа 2026).
+enum PhotoWidgetKind {
+    case mine
+    case partner
+    case day
+    case grid
+
+    var emptyTitle: String {
+        switch self {
+        case .mine: return "Моё фото"
+        case .partner: return "Фото партнёра"
+        case .day: return "Фото дня"
+        case .grid: return "Сетка фото"
+        }
+    }
+
+    var emptyHint: String {
+        switch self {
+        case .mine: return "Выберите фото в приложении"
+        case .partner: return "Партнёр ещё не поделился"
+        case .day: return "Нет воспоминаний"
+        case .grid: return "Соберите фото в приложении"
+        }
+    }
+}
+
 /// Одно фото на всю площадь с centerCrop-обрезкой (как scaleType=centerCrop).
 private struct PhotoFill: View {
     let image: UIImage?
+    var kind: PhotoWidgetKind = .day
     var body: some View {
         GeometryReader { geo in
             if let img = image {
                 Image(uiImage: img)
                     .resizable()
+                    .tgFullColorImage()
                     .scaledToFill()
                     .frame(width: geo.size.width, height: geo.size.height)
                     .clipped()
             } else {
-                PhotoPlaceholder(emojiSize: min(geo.size.width, geo.size.height) * 0.28)
-                    .frame(width: geo.size.width, height: geo.size.height)
+                PhotoPlaceholder(
+                    kind: kind,
+                    emojiSize: min(geo.size.width, geo.size.height) * 0.28
+                )
+                .frame(width: geo.size.width, height: geo.size.height)
             }
         }
     }
 }
 
-/// Плейсхолдер «нет фото» — серый фон + 📷 + подпись (как в Android photo_day_widget).
+/// Плейсхолдер «нет фото» — серый фон + 📷 + подпись своего виджета.
 private struct PhotoPlaceholder: View {
+    var kind: PhotoWidgetKind = .day
     var emojiSize: CGFloat = 34
     var showText: Bool = true
     var body: some View {
@@ -55,12 +90,19 @@ private struct PhotoPlaceholder: View {
             VStack(spacing: 4) {
                 Text("📷").font(.system(size: emojiSize))
                 if showText {
-                    Text("Фото дня")
+                    Text(kind.emptyTitle)
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(PhotoStyle.placeholderTitle)
-                    Text("Нет воспоминаний")
+                        .multilineTextAlignment(.center)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    Text(kind.emptyHint)
                         .font(.system(size: 10))
                         .foregroundColor(PhotoStyle.placeholderSubtitle)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)
+                        .padding(.horizontal, 6)
                 }
             }
         }
@@ -74,7 +116,7 @@ private struct PhotoWidgetContainer<Content: View>: View {
     var body: some View {
         if #available(iOS 17.0, *) {
             content()
-                .containerBackground(PhotoStyle.placeholderBg, for: .widget)
+                .tgContainerBackground(PhotoStyle.placeholderBg)
         } else {
             content()
         }
@@ -137,11 +179,13 @@ private struct PhotoFillCell: View {
             if let img = image {
                 Image(uiImage: img)
                     .resizable()
+                    .tgFullColorImage()
                     .scaledToFill()
                     .frame(width: geo.size.width, height: geo.size.height)
                     .clipped()
             } else {
                 PhotoPlaceholder(
+                    kind: .grid,
                     emojiSize: min(geo.size.width, geo.size.height) * 0.3,
                     showText: false
                 )
@@ -344,10 +388,11 @@ struct PhotoConfigProvider<I: PhotoSelectionIntent>: AppIntentTimelineProvider {
 @available(iOS 17.0, *)
 private struct SinglePhotoPathView: View {
     let path: String
+    let kind: PhotoWidgetKind
     var body: some View {
         let image = path.isEmpty ? nil : UIImage(contentsOfFile: path)
         PhotoWidgetContainer {
-            PhotoFill(image: image)
+            PhotoFill(image: image, kind: kind)
                 .clipShape(RoundedRectangle(cornerRadius: PhotoStyle.corner, style: .continuous))
         }
     }
@@ -363,7 +408,7 @@ struct SelfPhotoWidgetConfigurable: Widget {
             intent: SelectSelfPhotoIntent.self,
             provider: PhotoConfigProvider<SelectSelfPhotoIntent>()
         ) { entry in
-            SinglePhotoPathView(path: entry.path)
+            SinglePhotoPathView(path: entry.path, kind: .mine)
         }
         .configurationDisplayName("Моё фото")
         .description("Фото, которым вы делитесь с партнёром.")
@@ -379,7 +424,7 @@ struct PartnerPhotoWidgetConfigurable: Widget {
             intent: SelectPartnerPhotoIntent.self,
             provider: PhotoConfigProvider<SelectPartnerPhotoIntent>()
         ) { entry in
-            SinglePhotoPathView(path: entry.path)
+            SinglePhotoPathView(path: entry.path, kind: .partner)
         }
         .configurationDisplayName("Фото партнёра")
         .description("Фото, которым с вами поделился партнёр.")
@@ -395,7 +440,7 @@ struct PhotoDayWidgetConfigurable: Widget {
             intent: SelectPhotoDayIntent.self,
             provider: PhotoConfigProvider<SelectPhotoDayIntent>()
         ) { entry in
-            SinglePhotoPathView(path: entry.path)
+            SinglePhotoPathView(path: entry.path, kind: .day)
         }
         .configurationDisplayName("Фото дня")
         .description("Тёплое фото из ваших воспоминаний.")

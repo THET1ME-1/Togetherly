@@ -102,12 +102,30 @@ extension View {
             endPoint: .bottomTrailing
         )
         if #available(iOS 17.0, *) {
-            self.containerBackground(for: .widget) { gradient }
+            self.modifier(TgWidgetCardBackground(gradient: gradient))
         } else {
             ZStack {
                 gradient
                 self
             }
+        }
+    }
+}
+
+/// Тонированный режим («Прозрачные» на экране «Домой») красит содержимое одним
+/// цветом поверх нашего градиента, и виджет читался как пустая белая форма.
+/// Там фон отдаём системе.
+@available(iOS 17.0, *)
+private struct TgWidgetCardBackground: ViewModifier {
+    @Environment(\.widgetRenderingMode) private var mode
+    let gradient: LinearGradient
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if mode == .fullColor {
+            content.containerBackground(for: .widget) { gradient }
+        } else {
+            content.containerBackground(.clear, for: .widget)
         }
     }
 }

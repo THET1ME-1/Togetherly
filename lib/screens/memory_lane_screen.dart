@@ -27,6 +27,10 @@ import 'package:exif/exif.dart';
 import 'package:gal/gal.dart';
 import 'package:http/http.dart' as http;
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+// PlayerState объявлен и в just_audio, и в плеере YouTube: разводим
+// импортом с префиксом, иначе сборка падает на неоднозначности.
+import 'package:youtube_player_iframe/youtube_player_iframe.dart' as ytp
+    show PlayerState;
 import 'package:video_compress/video_compress.dart';
 import 'package:video_player/video_player.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';

@@ -111,6 +111,40 @@ class _WatchHomeScreenState extends State<WatchHomeScreen> {
     await _loadVideos();
   }
 
+  /// Убрать свой ролик. До этого удаления не было вовсе: тестеру отвечали
+  /// «сделаем вручную, пока только через 30 дней», хотя сервис умел это с
+  /// самого начала — не хватало кнопки.
+  Future<void> _removeVideo(WatchVideo video) async {
+    final s = LocaleService.current;
+    final messenger = ScaffoldMessenger.of(context);
+    final agreed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(s.watchVideoRemoveTitle),
+        content: Text(s.watchVideoRemoveBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(s.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(s.delete),
+          ),
+        ],
+      ),
+    );
+    if (agreed != true) return;
+
+    final ok = await WatchVideosService.remove(video.id);
+    if (!mounted) return;
+    messenger.showSnackBar(SnackBar(
+      content: Text(ok ? s.watchVideoRemoved : s.error),
+      behavior: SnackBarBehavior.floating,
+    ));
+    if (ok) await _loadVideos();
+  }
+
   Future<void> _loadRecent() async {
     final items = await WatchHistoryService.recent(widget.pairData.pairId);
     if (!mounted) return;
@@ -217,7 +251,11 @@ class _WatchHomeScreenState extends State<WatchHomeScreen> {
                     ) ~/
                     (1024 * 1024),
               ),
-              for (final v in _videos) _VideoTile(video: v),
+              for (final v in _videos)
+                _VideoTile(
+                  video: v,
+                  onRemove: v.uploaded ? () => _removeVideo(v) : null,
+                ),
             ],
           ),
         ),
@@ -647,7 +685,11 @@ class _RecentCard extends StatelessWidget {
 class _VideoTile extends StatelessWidget {
   final WatchVideo video;
 
-  const _VideoTile({required this.video});
+  /// Убрать свой ролик. У видео из ленты воспоминаний кнопки нет: оно живёт
+  /// своей записью, и удалять его надо там же.
+  final VoidCallback? onRemove;
+
+  const _VideoTile({required this.video, this.onRemove});
 
   String _duration(int s) {
     if (s <= 0) return '';
@@ -714,6 +756,27 @@ class _VideoTile extends StatelessWidget {
             ),
           ),
         ),
+        if (onRemove != null)
+          Positioned(
+            top: 6,
+            left: 6,
+            child: Material(
+              color: const Color(0x6B000000),
+              shape: const CircleBorder(),
+              clipBehavior: Clip.antiAlias,
+              child: IconButton(
+                onPressed: onRemove,
+                icon: const Icon(Icons.delete_outline_rounded),
+                iconSize: 18,
+                color: Colors.white,
+                visualDensity: VisualDensity.compact,
+                constraints:
+                    const BoxConstraints.tightFor(width: 34, height: 34),
+                padding: EdgeInsets.zero,
+                tooltip: LocaleService.current.delete,
+              ),
+            ),
+          ),
         if (dur.isNotEmpty)
           Positioned(
             top: 10,

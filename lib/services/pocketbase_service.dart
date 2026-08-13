@@ -106,6 +106,18 @@ class PocketBaseService {
 
   String? get userEmail => _pb?.authStore.record?.data['email'] as String?;
 
+  /// Своё имя из профиля. Пусто, пока профиль не подтянулся: подставлять почту
+  /// вместо имени нельзя — она уедет в чат комнаты просмотра.
+  String get userName {
+    final rec = _pb?.authStore.record;
+    if (rec == null) return '';
+    for (final key in const ['display_name', 'name']) {
+      final v = rec.data[key];
+      if (v is String && v.trim().isNotEmpty) return v.trim();
+    }
+    return '';
+  }
+
   /// Запись текущего юзера (профиль из коллекции users) или null.
   RecordModel? get currentUser => _pb?.authStore.record;
 

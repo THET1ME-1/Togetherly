@@ -22,6 +22,10 @@ class MissYouEntry {
   /// Дни недели 1 (понедельник) … 7 (воскресенье) → сколько импульсов.
   final Map<int, int> byWeekday;
 
+  /// Тип импульса (`miss_you`, `thinking_of_you`, `want_hug`, `custom`) →
+  /// сколько раз его отправили. Копит тот же роут `/api/group/miss-you`.
+  final Map<String, int> byVibe;
+
   const MissYouEntry({
     required this.uid,
     this.count = 0,
@@ -29,17 +33,20 @@ class MissYouEntry {
     this.lastVibeText = '',
     this.updatedAt,
     this.byWeekday = const {},
+    this.byVibe = const {},
   });
 
   factory MissYouEntry.fromRow(Map<String, dynamic> row) {
     final rawTime = (row['updated_at'] ?? '').toString();
+    final count = (row['count'] as num?)?.toInt() ?? 0;
     return MissYouEntry(
       uid: (row['user_uid'] ?? '').toString(),
-      count: (row['count'] as num?)?.toInt() ?? 0,
+      count: count,
       lastVibe: (row['last_vibe'] ?? '').toString(),
       lastVibeText: (row['last_vibe_text'] ?? '').toString(),
       updatedAt: rawTime.isEmpty ? null : DateTime.tryParse(rawTime),
       byWeekday: parseByWeekday(row['by_weekday']),
+      byVibe: parseByVibe(row['by_vibe'], total: count),
     );
   }
 }
@@ -67,6 +74,39 @@ Map<int, int> parseByWeekday(Object? raw) {
     if (day < 1 || day > 7) return;
     out[day] = n;
   });
+  return out;
+}
+
+/// Разбор карты «импульс → сколько раз». Приезжает такой же строкой с json
+/// внутри, как и карта дней.
+///
+/// Пустая карта у записи с непустым счётчиком означает не ноль, а «этих чисел
+/// сервер ещё не копил»: до 13 августа 2026 любой импульс шёл в общий счётчик
+/// без разбора. Такой записи весь накопленный счёт отдаём «скучаю» — иначе у
+/// пары с четырьмя сотнями импульсов все строки показали бы нули.
+Map<String, int> parseByVibe(Object? raw, {int total = 0}) {
+  Object? decoded = raw;
+  if (raw is String) {
+    if (raw.trim().isEmpty) {
+      decoded = null;
+    } else {
+      try {
+        decoded = jsonDecode(raw);
+      } catch (_) {
+        decoded = null;
+      }
+    }
+  }
+  final out = <String, int>{};
+  if (decoded is Map) {
+    decoded.forEach((k, v) {
+      final key = k.toString();
+      final n = v is num ? v.toInt() : int.tryParse(v.toString());
+      if (key.isEmpty || n == null || n <= 0) return;
+      out[key] = n;
+    });
+  }
+  if (out.isEmpty && total > 0) return {'miss_you': total};
   return out;
 }
 

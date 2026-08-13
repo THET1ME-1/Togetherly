@@ -23,14 +23,18 @@ void main() {
       expect(WidgetService.pairPhotoOfPartner(d), 'pb://media/new/fresh.webp');
     });
 
-    test('падает на фото «для партнёра», когда своего фото нет', () {
+    test('фото «для партнёра» в парный виджет не протекает', () {
+      // Жалоба 2026-08-13: «отправил фото партнёру — оно само встало и в
+      // парный виджет, хотя в его настройках фото не прикреплено». Фолбэк на
+      // `photoForPartnerUrl` убран, а 1983 старые записи, где своего фото
+      // никогда не было, перенесены на сервере разовым UPDATE.
       final d = _data(forPartner: 'pb://media/old/june.webp');
-      expect(WidgetService.pairPhotoOfPartner(d), 'pb://media/old/june.webp');
+      expect(WidgetService.pairPhotoOfPartner(d), '');
     });
 
-    test('пустая строка фото парного виджета тоже пускает фолбэк', () {
+    test('пустая строка означает пусто, а не «возьми у соседа»', () {
       final d = _data(photo: '', forPartner: 'pb://media/old/june.webp');
-      expect(WidgetService.pairPhotoOfPartner(d), 'pb://media/old/june.webp');
+      expect(WidgetService.pairPhotoOfPartner(d), '');
     });
 
     test('без фото вовсе отдаёт пусто', () {

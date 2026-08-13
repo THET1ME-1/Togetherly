@@ -7,6 +7,8 @@ import '../../services/locale_service.dart';
 import '../../services/pocketbase_service.dart';
 import '../../services/rewarded_ad_service.dart';
 import '../../services/watch_room_service.dart';
+import '../../services/watch_videos_service.dart';
+import 'watch_player_screen.dart';
 import 'watch_room_screen.dart';
 import '../../widgets/common/m3_loading.dart';
 
@@ -179,6 +181,24 @@ class TogetherLauncher {
 
     final navigator = LoveApp.rootNavigatorKey.currentState;
     if (navigator == null) return;
+
+    // Файл воспоминания вкладке комнаты не отдать: там анонимный гость без
+    // нашей сессии и без файлового токена. Раньше такую ссылку всё равно
+    // клали в `?src=`, и оба смотрели на вечный спиннер — жалоба «видео не
+    // прогружается, переносит в такое окно». Играем сами.
+    final hasVideo = videoUrl != null && videoUrl.isNotEmpty;
+    if (hasVideo && !WatchVideosService.playsInRoom(videoUrl)) {
+      await navigator.push(
+        MaterialPageRoute<void>(
+          builder: (_) => WatchPlayerScreen(
+            room: room,
+            pairId: pairId,
+            url: videoUrl,
+          ),
+        ),
+      );
+      return;
+    }
 
     await navigator.push(
       MaterialPageRoute<void>(

@@ -193,7 +193,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
       // Бейдж — разово из профиля PB.
       if (!_badgeLoadedUids.contains(member.uid)) {
         _badgeLoadedUids.add(member.uid);
-        PbDataService().loadUserProfileMap(member.uid).then((p) {
+        PbDataService().loadPartnerCard(member.uid).then((p) {
           if (!mounted || p == null) return;
           setState(() => _partnerBadges[member.uid] = p['badge'] as String?);
         });

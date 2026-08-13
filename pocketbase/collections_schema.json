@@ -1131,6 +1131,11 @@
           "name": "by_weekday",
           "type": "text",
           "required": false
+        },
+        {
+          "name": "by_vibe",
+          "type": "text",
+          "required": false
         }
       ],
       "indexes": [

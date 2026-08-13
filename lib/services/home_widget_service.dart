@@ -1752,6 +1752,27 @@ class HomeWidgetService {
           viewerName,
         );
       }
+      // iPhone читает «Фото дня» своим ключом: у виджета там нет экземпляров с
+      // настройками, как на Android, — есть один снимок и каталог выбора.
+      if (Platform.isIOS) {
+        await HomeWidget.saveWidgetData<String>('ios_photo_day_path', localPath);
+        await HomeWidget.saveWidgetData<String>(
+          'ios_photo_day_author',
+          authorName,
+        );
+        await HomeWidget.saveWidgetData<String>(
+          'ios_photo_catalog_day',
+          localPath.isEmpty
+              ? '[]'
+              : jsonEncode([
+                  {
+                    'id': 'ios_day_0',
+                    'label': caption.isEmpty ? 'Фото дня' : caption,
+                    'path': localPath,
+                  }
+                ]),
+        );
+      }
       await _updateAllPhotoWidgetProviders();
       debugPrint(
         'HomeWidgetService: photo of day synced — $memoryId (path=$localPath)',
@@ -2952,6 +2973,108 @@ class HomeWidgetService {
       );
     } catch (e) {
       debugPrint('HomeWidgetService.refreshPhotoGrid failed: $e');
+    }
+  }
+
+  // ── Фото-виджеты iPhone ──────────────────────────────────────────────────
+  //
+  // Расширение виджета читает СВОИ ключи: `ios_self_photo_path`,
+  // `ios_partner_photo_path`, `ios_photo_day_path`, сетку `ios_photo_grid_*` и
+  // каталоги `ios_photo_catalog_*` (из них человек выбирает снимок в «Изменить
+  // виджет»). Ни одного из них приложение не писало — их не было в Dart вовсе,
+  // поэтому все четыре фото-виджета на iPhone стояли пустыми с самого выхода в
+  // App Store: белый прямоугольник, у которого даже подпись была чужая.
+  //
+  // Android эти виджеты наполняет по экземплярам (`photo_day_widget_<id>_*`),
+  // и переносить сюда ту же схему нельзя: на iOS экземпляр выбирает фото сам,
+  // через AppIntent, а приложение обязано лишь выложить каталог и умолчание.
+  Future<void> syncIosPhotoWidgets({
+    required List<String> myPhotos,
+    required List<String> partnerPhotos,
+    String partnerName = '',
+    String dayPhotoUrl = '',
+    String dayAuthor = '',
+    List<String> gridPhotos = const [],
+  }) async {
+    if (!Platform.isIOS) return;
+    try {
+      // Каталог: скачиваем до пяти снимков каждого вида. Больше в списке
+      // «Изменить виджет» человек всё равно не разглядывает, а каждый файл
+      // лежит в общем контейнере и занимает место.
+      Future<List<Map<String, String>>> catalog(
+        List<String> urls,
+        String prefix,
+        String label,
+      ) async {
+        final out = <Map<String, String>>[];
+        for (var i = 0; i < urls.length && i < 5; i++) {
+          final url = urls[i];
+          if (url.isEmpty) continue;
+          final path = await _cachePhotoFromUrl(url, '${prefix}_$i');
+          if (path.isEmpty) continue;
+          out.add({
+            'id': '${prefix}_$i',
+            'label': out.isEmpty ? label : '$label ${out.length + 1}',
+            'path': path,
+          });
+        }
+        return out;
+      }
+
+      final mine = await catalog(myPhotos, 'ios_self', 'Моё фото');
+      final theirs = await catalog(
+        partnerPhotos,
+        'ios_partner',
+        partnerName.isEmpty ? 'Фото партнёра' : 'Фото · $partnerName',
+      );
+      final day = dayPhotoUrl.isEmpty
+          ? <Map<String, String>>[]
+          : await catalog([dayPhotoUrl], 'ios_day', 'Фото дня');
+
+      Future<void> put(String key, String value) =>
+          HomeWidget.saveWidgetData<String>(key, value);
+
+      await put('ios_self_photo_path', mine.isEmpty ? '' : mine.first['path']!);
+      await put('ios_partner_photo_path',
+          theirs.isEmpty ? '' : theirs.first['path']!);
+      await put('ios_partner_photo_author', partnerName);
+      await put('ios_photo_day_path', day.isEmpty ? '' : day.first['path']!);
+      await put('ios_photo_day_author', dayAuthor);
+
+      await put('ios_photo_catalog_self', jsonEncode(mine));
+      await put('ios_photo_catalog_partner', jsonEncode(theirs));
+      await put('ios_photo_catalog_day', jsonEncode(day));
+
+      // Сетка: до четырёх плиток, счётчик пишем числом — Store читает и число,
+      // и строку, но число честнее.
+      final grid = <String>[];
+      for (var i = 0; i < 4; i++) {
+        final url = i < gridPhotos.length ? gridPhotos[i] : '';
+        final path =
+            url.isEmpty ? '' : await _cachePhotoFromUrl(url, 'ios_grid_$i');
+        grid.add(path);
+        await put('ios_photo_grid_$i', path);
+      }
+      final filled = grid.where((p) => p.isNotEmpty).length;
+      await HomeWidget.saveWidgetData<int>(
+        'ios_photo_grid_count',
+        filled == 0 ? 1 : filled,
+      );
+
+      for (final name in const [
+        'SelfPhotoWidgetProvider',
+        'PartnerPhotoWidgetProvider',
+        'PhotoDayWidgetProvider',
+        'PhotoGridWidgetProvider',
+      ]) {
+        await HomeWidget.updateWidget(name: name, androidName: name);
+      }
+      debugPrint(
+        'HomeWidgetService.syncIosPhotoWidgets: свои ${mine.length}, '
+        'партнёрские ${theirs.length}, сетка $filled',
+      );
+    } catch (e) {
+      debugPrint('HomeWidgetService.syncIosPhotoWidgets failed: $e');
     }
   }
 

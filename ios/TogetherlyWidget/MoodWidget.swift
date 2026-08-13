@@ -48,10 +48,7 @@ private struct MoodHalfView: View {
                         .shadow(color: Color.black.opacity(0.6), radius: 3, x: 0, y: 1)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(Color.black.opacity(0.4))
-                        )
+                        .tgBlock(Color.black.opacity(0.4), radius: 10)
                         .padding(.bottom, 8)
                 }
             }

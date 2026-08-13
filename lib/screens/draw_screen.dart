@@ -10,6 +10,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/coloring_picture.dart';
+import '../utils/stroke_layer_cache.dart';
 import 'coloring_result_screen.dart';
 import '../services/memory_repository.dart';
 import '../models/memory.dart';
@@ -4221,6 +4222,11 @@ class _CanvasScene extends StatefulWidget {
 class _CanvasSceneState extends State<_CanvasScene> {
   late Listenable _repaint;
 
+  /// Закоммиченные штрихи держим готовым слоем: без него каждое движение
+  /// пальца перерисовывало весь рисунок целиком — отсюда лаги на большом
+  /// холсте и при увеличении.
+  final StrokeLayerCache _layer = StrokeLayerCache();
+
   @override
   void initState() {
     super.initState();
@@ -4228,6 +4234,12 @@ class _CanvasSceneState extends State<_CanvasScene> {
       widget.repaintNotifier,
       widget.partnerNotifier,
     ]);
+  }
+
+  @override
+  void dispose() {
+    _layer.dispose();
+    super.dispose();
   }
 
   @override
@@ -4239,6 +4251,13 @@ class _CanvasSceneState extends State<_CanvasScene> {
         widget.repaintNotifier,
         widget.partnerNotifier,
       ]);
+    }
+    if (old.bgColor != widget.bgColor ||
+        old.background != widget.background ||
+        old.gridColor != widget.gridColor ||
+        old.pixelCols != widget.pixelCols ||
+        old.pixelRows != widget.pixelRows) {
+      _layer.invalidate();
     }
   }
 
@@ -4286,6 +4305,7 @@ class _CanvasSceneState extends State<_CanvasScene> {
             child: CustomPaint(
               painter: _DrawingPainter(
                 strokes: drawStrokes,
+                layer: _layer,
                 pixelCols: widget.pixelCols,
                 pixelRows: widget.pixelRows,
                 currentPoints: widget.currentPoints,
@@ -4422,8 +4442,12 @@ class _DrawingPainter extends CustomPainter {
   final int? pixelCols;
   final int? pixelRows;
 
+  /// Готовый слой закоммиченных штрихов (живёт в состоянии сцены).
+  final StrokeLayerCache layer;
+
   _DrawingPainter({
     required this.strokes,
+    required this.layer,
     this.pixelCols,
     this.pixelRows,
     required this.currentPoints,
@@ -4442,28 +4466,40 @@ class _DrawingPainter extends CustomPainter {
     if (size.isEmpty) return;
     // Removed saveLayer for performance. Simplified Eraser uses bgColor ink.
 
-    for (final s in strokes) {
-      if (s.shapeType != null) {
-        _drawShape(
-          canvas,
-          s.points,
-          s.colorValue,
-          s.strokeWidth,
-          s.shapeType!,
-          size,
-          isFilledShape: s.isFilledShape,
-        );
-      } else {
-        _drawStroke(
-          canvas,
-          s.points,
-          s.colorValue,
-          s.strokeWidth,
-          s.isEraser,
-          size,
-        );
+    // Закоммиченные штрихи выкладываем готовым слоем: заново их рисуем только
+    // когда штрихов стало больше или меньше. Разделять их на отдельный слой
+    // поверх нельзя — ластик работает по общему полотну, — поэтому картинка
+    // остаётся одна, меняется только цена кадра.
+    var picture = layer.pictureFor(strokes.length, size);
+    if (picture == null) {
+      final recorder = ui.PictureRecorder();
+      final buffer = Canvas(recorder);
+      for (final s in strokes) {
+        if (s.shapeType != null) {
+          _drawShape(
+            buffer,
+            s.points,
+            s.colorValue,
+            s.strokeWidth,
+            s.shapeType!,
+            size,
+            isFilledShape: s.isFilledShape,
+          );
+        } else {
+          _drawStroke(
+            buffer,
+            s.points,
+            s.colorValue,
+            s.strokeWidth,
+            s.isEraser,
+            size,
+          );
+        }
       }
+      picture = recorder.endRecording();
+      layer.save(picture, strokes.length, size);
     }
+    canvas.drawPicture(picture);
 
     if (currentPoints.isNotEmpty) {
       if (currentShapeType != null && currentPoints.length >= 2) {

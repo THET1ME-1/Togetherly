@@ -100,10 +100,7 @@ private struct MoodTilesSmallView: View {
             .font(.system(size: 17))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 7)
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(active ? t.primaryContainer : t.surfaceContainer)
-            )
+            .tgBlock(active ? t.primaryContainer : t.surfaceContainer, radius: 14)
     }
 }
 
@@ -179,10 +176,7 @@ private struct MoodTilesMediumView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 7)
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(active ? t.primaryContainer : t.surfaceContainer)
-            )
+            .tgBlock(active ? t.primaryContainer : t.surfaceContainer, radius: 14)
         }
     }
 

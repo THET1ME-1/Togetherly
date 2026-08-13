@@ -351,6 +351,23 @@ class _YouTubeInlineCardState extends State<_YouTubeInlineCard> {
   YoutubePlayerController? _controller;
   bool _isPlaying = false;
 
+  /// Подписка на состояние плеера: она чинит паузу после выхода из
+  /// полноэкранного режима.
+  StreamSubscription<YoutubePlayerValue>? _playerSub;
+
+  /// Ролик играл до того, как режим экрана сменился.
+  bool _playedBeforeFullscreen = false;
+
+  /// Полноэкранный режим прошлого кадра — по нему видно сам переход.
+  bool _wasFullscreen = false;
+
+  /// Пока идёт перекладка WebView, плеер присылает ложную паузу. Пакет
+  /// перекрывает окно в 600 мс, но на медленных телефонах перекладка длится
+  /// дольше, и ролик оставался стоять (жалоба: «при выходе из видео во весь
+  /// экран ставится на паузу»).
+  Timer? _fullscreenSettle;
+  bool _settling = false;
+
   @override
   void initState() {
     super.initState();
@@ -362,8 +379,32 @@ class _YouTubeInlineCardState extends State<_YouTubeInlineCard> {
 
   @override
   void dispose() {
+    _fullscreenSettle?.cancel();
+    unawaited(_playerSub?.cancel());
     _controller?.close();
     super.dispose();
+  }
+
+  /// Возвращает воспроизведение, если пауза пришла ровно на смене режима.
+  void _onPlayerValue(YoutubePlayerValue value) {
+    final fullscreen = value.fullScreenOption.enabled;
+    if (fullscreen != _wasFullscreen) {
+      _wasFullscreen = fullscreen;
+      _playedBeforeFullscreen = value.playerState == ytp.PlayerState.playing ||
+          value.playerState == ytp.PlayerState.buffering;
+      _settling = true;
+      _fullscreenSettle?.cancel();
+      _fullscreenSettle = Timer(const Duration(milliseconds: 2500), () {
+        _settling = false;
+      });
+      return;
+    }
+    if (_settling &&
+        _playedBeforeFullscreen &&
+        value.playerState == ytp.PlayerState.paused) {
+      _controller?.playVideo();
+    }
+    if (value.playerState == ytp.PlayerState.playing) _settling = false;
   }
 
   void _startInlinePlay() {
@@ -377,16 +418,19 @@ class _YouTubeInlineCardState extends State<_YouTubeInlineCard> {
       }
       return;
     }
+    final controller = YoutubePlayerController.fromVideoId(
+      videoId: videoId,
+      autoPlay: true,
+      params: const YoutubePlayerParams(
+        showControls: true,
+        showFullscreenButton: true,
+        enableCaption: false,
+      ),
+    );
+    unawaited(_playerSub?.cancel());
+    _playerSub = controller.stream.listen(_onPlayerValue);
     setState(() {
-      _controller = YoutubePlayerController.fromVideoId(
-        videoId: videoId,
-        autoPlay: true,
-        params: const YoutubePlayerParams(
-          showControls: true,
-          showFullscreenButton: true,
-          enableCaption: false,
-        ),
-      );
+      _controller = controller;
       _isPlaying = true;
     });
   }

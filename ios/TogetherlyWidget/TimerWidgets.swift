@@ -150,11 +150,14 @@ struct PetalTimerWidget: Widget {
 
 extension View {
     /// Фон-карточка как у Android drawable (градиент + 1pt-штрих + скругление).
+    ///
+    /// В тонированном режиме («Прозрачные» на экране «Домой») градиент система
+    /// красит своим цветом поверх цифр, поэтому там остаётся только обводка.
     @ViewBuilder
     func androidCard(gradient: LinearGradient, stroke: Color, corner: CGFloat) -> some View {
         if #available(iOS 17.0, *) {
             self
-                .containerBackground(gradient, for: .widget)
+                .modifier(TgCardBackground(gradient: gradient))
                 .overlay(
                     RoundedRectangle(cornerRadius: corner, style: .continuous)
                         .strokeBorder(stroke, lineWidth: 1)
@@ -179,6 +182,21 @@ extension View {
             self.containerBackground(.clear, for: .widget)
         } else {
             self
+        }
+    }
+}
+
+@available(iOS 17.0, *)
+private struct TgCardBackground: ViewModifier {
+    @Environment(\.widgetRenderingMode) private var mode
+    let gradient: LinearGradient
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if mode == .fullColor {
+            content.containerBackground(gradient, for: .widget)
+        } else {
+            content.containerBackground(.clear, for: .widget)
         }
     }
 }

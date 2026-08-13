@@ -22,6 +22,10 @@ class WatchVideo {
   /// откроет, а партнёр в браузере нет, там нет сессии.
   final bool appOnly;
 
+  /// Ролик залит во вкладке «Смотрим» — такой можно убрать. Видео из ленты
+  /// воспоминаний удаляется в самой ленте, вместе с записью.
+  final bool uploaded;
+
   const WatchVideo({
     required this.id,
     required this.title,
@@ -29,6 +33,7 @@ class WatchVideo {
     required this.seconds,
     this.thumbUrl = '',
     this.appOnly = false,
+    this.uploaded = false,
   });
 }
 
@@ -70,6 +75,75 @@ class WatchVideosService {
     'ogv',
     'ogg',
   ];
+
+  /// Площадки, которые страница комнаты открывает своим плеером
+  /// (зеркало `parseSource` в `pb_public/watch/room/room.js`).
+  static const List<String> _roomHosts = [
+    'youtu.be',
+    'youtube.com',
+    'vimeo.com',
+    'vk.com',
+    'vkvideo.ru',
+    'rutube.ru',
+    'disk.yandex.ru',
+    'disk.yandex.com',
+    'yadi.sk',
+    'dropbox.com',
+    'mega.nz',
+    'mega.io',
+    'drive.google.com',
+  ];
+
+  /// Откроет ли ссылку вкладка комнаты. Там анонимный гость: ни нашей сессии,
+  /// ни файлового токена у него нет.
+  ///
+  /// Заведено по жалобе «воспоминание-видео не прогружается»: приложение
+  /// отдавало комнате ссылку на защищённый файл воспоминания, страница честно
+  /// вставляла её в плеер, и оба смотрели на вечный спиннер. Признаком
+  /// «своего» файла был один префикс `pb://`, а у записей после миграции и у
+  /// свежих загрузок ссылка обычная — https на `/api/files/media/...`.
+  static bool playsInRoom(String url) {
+    final raw = url.trim();
+    if (raw.isEmpty) return false;
+    final lower = raw.toLowerCase();
+
+    // Свои схемы и локальные файлы: комнате их не передать.
+    if (lower.startsWith('pb://') ||
+        lower.startsWith('sb://') ||
+        lower.startsWith('gs://') ||
+        lower.startsWith('localfile://') ||
+        lower.startsWith('file://') ||
+        lower.startsWith('content://')) {
+      return false;
+    }
+
+    final uri = Uri.tryParse(raw);
+    if (uri == null || !uri.hasScheme || !uri.hasAuthority) return false;
+    if (uri.scheme != 'http' && uri.scheme != 'https') return false;
+
+    final host = uri.host.toLowerCase().replaceFirst(RegExp(r'^www\.'), '');
+
+    // Хранилища прошлых лет: Firebase на Spark и Supabase у нас выключены, их
+    // ссылки не открываются нигде — играть такое можно только своим плеером,
+    // у которого остаётся кэш.
+    if (host.endsWith('firebasestorage.googleapis.com') ||
+        host.endsWith('supabase.co') ||
+        host.endsWith('supabase.in')) {
+      return false;
+    }
+
+    // Файлы PocketBase: `watch_videos` лежат открыто (`protected: false`),
+    // всё остальное — только с токеном, живущим полторы минуты.
+    if (uri.path.contains('/api/files/')) {
+      return uri.path.contains('/api/files/watch_videos/');
+    }
+
+    for (final known in _roomHosts) {
+      if (host == known || host.endsWith('.$known')) return true;
+    }
+
+    return isPlayable(uri.path);
+  }
 
   /// Проиграется ли файл с таким именем у обоих.
   static bool isPlayable(String fileName) {
@@ -117,6 +191,7 @@ class WatchVideosService {
         url: _fileUrl(r),
         thumbUrl: _thumbUrl(r),
         seconds: ((r.data['seconds'] ?? 0) as num).round(),
+        uploaded: true,
       );
 
   /// Все ролики пары: сначала загруженные во вкладке «Смотрим», затем видео из
@@ -167,7 +242,9 @@ class WatchVideosService {
           url: url,
           thumbUrl: (raw['imageUrl'] ?? raw['thumbnailUrl'] ?? '').toString(),
           seconds: 0,
-          appOnly: url.startsWith('pb://'),
+          // Не «начинается на pb://», а «откроет ли это вкладка комнаты»:
+          // защищённый файл по обычному https туда уезжал и висел спиннером.
+          appOnly: !playsInRoom(url),
         ));
       }
       return out;
@@ -250,11 +327,16 @@ class WatchVideosService {
     }
   }
 
-  static Future<void> remove(String id) async {
+  /// Убирает свой ролик. Отвечает, получилось ли: экран показывает отказ, а не
+  /// делает вид, что ролик исчез.
+  static Future<bool> remove(String id) async {
+    if (id.isEmpty) return false;
     try {
       await _pb.collection(_col).delete(id);
-    } catch (_) {
-      // Удаление не критично: пусть остаётся, чем ронять экран.
+      return true;
+    } catch (e) {
+      debugPrint('WatchVideos.remove failed: $e');
+      return false;
     }
   }
 }

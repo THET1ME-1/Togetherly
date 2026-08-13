@@ -24,6 +24,9 @@
     url: '', log: [], synced: false, pending: null, joinedAt: 0,
     // Ролик из адреса комнаты (?src=): включаем его, как только канал ожил.
     wanted: '',
+    // Как подписывать свои сообщения. Приложение присылает имя (?name=), у
+    // гостя из браузера его нет — он остаётся «Гостем».
+    name: '',
     // Файл с диска: сам он никуда не уходит, партнёру достаётся только имя,
     // чтобы он открыл у себя такой же.
     file: null,
@@ -814,11 +817,17 @@
     if (navigator.share) $('#share').hidden = false;
 
     // Приложение открывает комнату сразу с роликом: /watch/room/?src=<адрес>#код.
-    const wanted = new URLSearchParams(location.search).get('src');
+    const params = new URLSearchParams(location.search);
+    const wanted = params.get('src');
     if (wanted) {
       state.wanted = wanted;
       $('#link').value = wanted;
     }
+
+    // Имя приходит от приложения (?name=). Без него обе стороны подписывались
+    // «Гость», и человек не понимал, кто с ним в комнате. Гость из браузера
+    // остаётся гостем: своего имени у него нет.
+    state.name = (params.get('name') || '').trim().slice(0, 32);
 
     connect(room).catch(() => setStatus(I18N.t('room.lost')));
 
@@ -843,9 +852,10 @@
     $('#send').addEventListener('click', () => {
       const text = $('#message').value.trim();
       if (!text) return;
+      const myName = state.name || I18N.t('room.guest');
       addMessage(I18N.t('room.you'), text, true);
-      remember(state.me, I18N.t('room.guest'), text);
-      send('chat', 0, { text, name: I18N.t('room.guest') });
+      remember(state.me, myName, text);
+      send('chat', 0, { text, name: myName });
       $('#message').value = '';
     });
     $('#message').addEventListener('keydown', (e) => {

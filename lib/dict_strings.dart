@@ -2794,6 +2794,12 @@ abstract class DictStrings extends AppStrings {
   @override
   String get watchPickFileAgain => _t('watchPickFileAgain');
   @override
+  String get watchVideoRemoveTitle => _t('watchVideoRemoveTitle');
+  @override
+  String get watchVideoRemoveBody => _t('watchVideoRemoveBody');
+  @override
+  String get watchVideoRemoved => _t('watchVideoRemoved');
+  @override
   String get watchHeroTitle => _t('watchHeroTitle');
   @override
   String get watchHeroText => _t('watchHeroText');

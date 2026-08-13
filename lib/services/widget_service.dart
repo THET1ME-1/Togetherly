@@ -82,19 +82,22 @@ class WidgetService extends ChangeNotifier {
   /// виджета. Фото «для партнёра» — другая функция и сюда не протекает.
   static String pairPhotoOfMine(WidgetData? d) => d?.photoUrl ?? '';
 
-  /// Фото на половине ПАРТНЁРА. Сначала его фото парного виджета, и только если
-  /// он там ничего не ставил — фото из виджета «Фото партнёра».
+  /// Фото на половине ПАРТНЁРА — только его фото парного виджета.
   ///
-  /// Порядок был обратным, и это ломало виджет у пар, которые однажды отправили
-  /// фото сразу по обоим направлениям (оба тумблера включены по умолчанию):
-  /// `photo_for_partner_url` больше не менялся и навсегда перекрывал свежее
-  /// фото парного виджета. Жалоба 2026-07-26: «стоит самая первая фотка, хотя
-  /// менялась пару раз», при этом текст и музыка обновлялись.
-  static String pairPhotoOfPartner(WidgetData? d) {
-    final own = d?.photoUrl ?? '';
-    if (own.isNotEmpty) return own;
-    return d?.photoForPartnerUrl ?? '';
-  }
+  /// Фолбэка на `photo_for_partner_url` больше нет (13 августа 2026). Он стоял
+  /// ради 1983 записей, где своего фото не было вовсе, но чинил меньше, чем
+  /// ломал: снимок, отправленный через «Фото партнёра», сам появлялся у
+  /// человека в парном виджете, хотя в настройках виджета фото не прикреплено.
+  /// Тестер разобрал это по шагам и сформулировал точнее всех: «работает не
+  /// фото партнёра — фото партнёра, а фото партнёра — парный виджет».
+  ///
+  /// Старым записям фото не потеряли: `photo_for_partner_url` перенесён им в
+  /// `photo_url` разовым UPDATE на сервере, поэтому у этих пар в виджете
+  /// осталось ровно то же, что и было.
+  ///
+  /// Обратная сторона фолбэка того же поля описана ниже, у
+  /// [clearPairPhotoFields]: до 7 августа фото нельзя было убрать вовсе.
+  static String pairPhotoOfPartner(WidgetData? d) => d?.photoUrl ?? '';
 
   /// Поля записи, когда фото «для партнёра» ставят или убирают.
   ///
@@ -779,6 +782,16 @@ class WidgetService extends ChangeNotifier {
         pairPhotoOfMine(my),
         pairPhotoOfPartner(partner),
       );
+
+      // iPhone: у фото-виджетов свои ключи и свой каталог выбора. Пока их никто
+      // не писал, «Моё фото», «Фото партнёра», «Фото дня» и «Сетка» стояли на
+      // рабочем столе пустыми белыми прямоугольниками.
+      unawaited(HomeWidgetService.instance.syncIosPhotoWidgets(
+        myPhotos: _iosPhotosOf(my, own: true),
+        partnerPhotos: _iosPhotosOf(partner, own: false),
+        partnerName: partner?.displayName ?? '',
+        gridPhotos: partner?.photoGridUrls ?? const [],
+      ));
       _cacheAvatarsForLoveWidget(my?.avatarUrl, partner?.avatarUrl);
       _cacheGroupAvatarsForWidget(limitedMembers);
 
@@ -789,6 +802,23 @@ class WidgetService extends ChangeNotifier {
     } catch (e) {
       debugPrint('WidgetService._syncToNativeWidget failed: $e');
     }
+  }
+
+  /// Какие снимки показывать в фото-виджетах iPhone.
+  ///
+  /// «Моё фото» — то, чем делюсь я: сначала своя карусель «для партнёра»,
+  /// потом снимок парного виджета. «Фото партнёра» — зеркально его выбор.
+  static List<String> _iosPhotosOf(WidgetData? d, {required bool own}) {
+    if (d == null) return const [];
+    final out = <String>[];
+    for (final url in d.photoForPartnerUrls) {
+      if (url.isNotEmpty && !out.contains(url)) out.add(url);
+    }
+    final single = d.photoForPartnerUrl ?? '';
+    if (single.isNotEmpty && !out.contains(single)) out.add(single);
+    final pair = own ? pairPhotoOfMine(d) : pairPhotoOfPartner(d);
+    if (pair.isNotEmpty && !out.contains(pair)) out.add(pair);
+    return out;
   }
 
   /// Скачивает фото в локальный кэш и обновляет нативный виджет (LoveWidget).

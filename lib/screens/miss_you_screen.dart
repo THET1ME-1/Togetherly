@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../models/miss_you_state.dart';
+import '../models/optimistic_count.dart';
 import '../services/custom_wishes_store.dart';
 import '../services/locale_service.dart';
 import '../services/miss_you_repository.dart';
@@ -57,8 +58,10 @@ class _MissYouScreenState extends State<MissYouScreen>
   StreamSubscription<MissYouState>? _sub;
 
   /// Свои нажатия, ещё не подтверждённые сервером: счётчик обязан отзываться
-  /// сразу, иначе кнопка кажется мёртвой на плохой сети.
-  int _inFlight = 0;
+  /// сразу, иначе кнопка кажется мёртвой на плохой сети. Правило снятия
+  /// надбавки держит [OptimisticCount] — то же, что у кнопки в шапке.
+  OptimisticCount _mine = const OptimisticCount();
+  Timer? _staleTimer;
 
   List<String> _wishes = const [];
 
@@ -114,16 +117,31 @@ class _MissYouScreenState extends State<MissYouScreen>
     if (widget.groupId.isNotEmpty) {
       _sub = _repo.watchState(widget.groupId).listen((s) {
         if (!mounted) return;
-        final confirmed = s.myCount - _state.myCount;
-        if (confirmed > 0) _inFlight = max(0, _inFlight - confirmed);
+        _mine = _mine.confirm(s.myCount, now: DateTime.now());
         setState(() => _state = s);
+        _scheduleStaleSweep();
       });
     }
+  }
+
+  /// Протухшие ожидания уходят сами: без этого последняя надбавка висела бы до
+  /// следующего импульса, а он может не случиться до завтра.
+  void _scheduleStaleSweep() {
+    _staleTimer?.cancel();
+    if (_mine.pending == 0) return;
+    _staleTimer = Timer(OptimisticCount.ttl, () {
+      if (!mounted) return;
+      setState(() {
+        _mine = _mine.confirm(_mine.confirmed, now: DateTime.now());
+      });
+      _scheduleStaleSweep();
+    });
   }
 
   @override
   void dispose() {
     _sub?.cancel();
+    _staleTimer?.cancel();
     _pulse.dispose();
     _intro.dispose();
     for (final h in _hearts) {
@@ -144,12 +162,15 @@ class _MissYouScreenState extends State<MissYouScreen>
     HapticFeedback.mediumImpact();
     _pulse.forward(from: 0);
     _spawnHearts();
-    setState(() => _inFlight++);
+    setState(() => _mine = _mine.tap(DateTime.now()));
+    _scheduleStaleSweep();
+    var ok = false;
     try {
-      await _repo.sendMissYou(widget.groupId);
+      ok = await _repo.sendMissYou(widget.groupId);
     } catch (_) {
-      if (mounted) setState(() => _inFlight = max(0, _inFlight - 1));
+      ok = false;
     }
+    if (!ok && mounted) setState(() => _mine = _mine.failed());
   }
 
   Future<void> _sendVibe(String type, {String? text}) async {
@@ -379,7 +400,7 @@ class _MissYouScreenState extends State<MissYouScreen>
   // ── Герой: круг с сердцем и оба счёта ───────────────────────────────────────
 
   Widget _hero(ColorScheme cs) {
-    final myCount = _state.myCount + _inFlight;
+    final myCount = _mine.display;
     return Container(
       decoration: BoxDecoration(
         color: cs.surfaceContainer,
@@ -496,6 +517,14 @@ class _MissYouScreenState extends State<MissYouScreen>
     );
   }
 
+  /// Сколько раз этот импульс отправляли. Своё пожелание считается одной
+  /// строкой `custom` — на чипах его не показываем: их у человека несколько, а
+  /// число на сервере одно на все.
+  int _vibeCount(String type, {required bool mine}) {
+    final e = mine ? _state.mine : _state.partner;
+    return e?.byVibe[type] ?? 0;
+  }
+
   // ── Чипы: вайбы и свои пожелания ────────────────────────────────────────────
 
   Widget _chips(ColorScheme cs) {
@@ -507,12 +536,16 @@ class _MissYouScreenState extends State<MissYouScreen>
           scheme: cs,
           icon: Icons.cloud_rounded,
           label: _s.thinkingOfYou,
+          mine: _vibeCount('thinking_of_you', mine: true),
+          partner: _vibeCount('thinking_of_you', mine: false),
           onTap: () => _sendVibe('thinking_of_you'),
         ),
         _VibeChip(
           scheme: cs,
           icon: Icons.volunteer_activism_rounded,
           label: _s.wantHug,
+          mine: _vibeCount('want_hug', mine: true),
+          partner: _vibeCount('want_hug', mine: false),
           onTap: () => _sendVibe('want_hug'),
         ),
         for (final w in _wishes)
@@ -846,6 +879,8 @@ class _VibeChip extends StatelessWidget {
     this.accent = false,
     this.accentFill,
     this.accentInk,
+    this.mine = 0,
+    this.partner = 0,
   });
 
   final ColorScheme scheme;
@@ -856,6 +891,12 @@ class _VibeChip extends StatelessWidget {
   final bool accent;
   final Color? accentFill;
   final Color? accentInk;
+
+  /// Сколько раз этот импульс отправляли: свои и партнёрские. Просьба тестера
+  /// («было бы классно добавить счёт в остальные пункты») — до этого число
+  /// стояло только у «Скучаю», хотя сервер считает каждый импульс.
+  final int mine;
+  final int partner;
 
   @override
   Widget build(BuildContext context) {
@@ -895,6 +936,17 @@ class _VibeChip extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (mine > 0 || partner > 0) ...[
+                  const SizedBox(width: 8),
+                  _VibeTally(
+                    mine: mine,
+                    partner: partner,
+                    ink: ink,
+                    muted: accent
+                        ? ink.withValues(alpha: 0.62)
+                        : scheme.onSurfaceVariant,
+                  ),
+                ],
                 if (onRemove != null) ...[
                   const SizedBox(width: 2),
                   IconButton(
@@ -912,6 +964,40 @@ class _VibeChip extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Два числа у импульса: свои и партнёрские, тем же порядком, что в шапке
+/// («мои / её»). Ноль не рисуется вовсе — пустая пилюля читалась бы поломкой.
+class _VibeTally extends StatelessWidget {
+  const _VibeTally({
+    required this.mine,
+    required this.partner,
+    required this.ink,
+    required this.muted,
+  });
+
+  final int mine;
+  final int partner;
+  final Color ink;
+  final Color muted;
+
+  @override
+  Widget build(BuildContext context) {
+    TextStyle style(Color color) => TextStyle(
+          fontFamily: ProfileTheme.bodyFont,
+          fontSize: 12.5,
+          fontWeight: FontWeight.w700,
+          color: color,
+        );
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('$mine', style: style(ink)),
+        Text(' · ', style: style(muted)),
+        Text('$partner', style: style(muted)),
+      ],
     );
   }
 }

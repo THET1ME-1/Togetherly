@@ -202,7 +202,7 @@ private extension View {
     @ViewBuilder
     func loveContainerBackground() -> some View {
         if #available(iOS 17.0, *) {
-            self.containerBackground(Color.white, for: .widget)
+            self.tgContainerBackground(Color.white)
         } else {
             ZStack { Color.white; self }
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))

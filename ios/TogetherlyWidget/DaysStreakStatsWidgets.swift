@@ -244,11 +244,7 @@ private struct StatCard: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(12 * scale)
-        .background(
-            RoundedRectangle(cornerRadius: 16 * scale, style: .continuous)
-                .fill(LinearGradient(colors: [gradStart, gradEnd],
-                                     startPoint: .topLeading, endPoint: .bottomTrailing))
-        )
+        .tgGradientBlock(colors: [gradStart, gradEnd], radius: 16 * scale)
     }
 }
 
@@ -309,7 +305,7 @@ private extension View {
     func pinkBorderCard() -> some View {
         if #available(iOS 17.0, *) {
             self
-                .containerBackground(Color.white, for: .widget)
+                .tgContainerBackground(Color.white)
                 .overlay(
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
                         .strokeBorder(Color(hex: 0xFFD1DC), lineWidth: 3)
@@ -328,7 +324,7 @@ private extension View {
     @ViewBuilder
     func statsContainerBackground() -> some View {
         if #available(iOS 17.0, *) {
-            self.containerBackground(Color.white, for: .widget)
+            self.tgContainerBackground(Color.white)
         } else {
             ZStack { Color.white; self }
                 .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))

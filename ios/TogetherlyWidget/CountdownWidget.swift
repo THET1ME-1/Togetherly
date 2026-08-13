@@ -93,9 +93,7 @@ private struct CountdownView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous).fill(t.surfaceContainer)
-        )
+        .tgBlock(t.surfaceContainer, radius: 16)
     }
 }
 

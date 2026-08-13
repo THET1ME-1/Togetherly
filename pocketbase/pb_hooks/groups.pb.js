@@ -237,11 +237,29 @@ routerAdd("POST", "/api/group/miss-you", (e) => {
         const d = new Date().getUTCDay(); // 0=вс
         weekday = d === 0 ? 7 : d;
       }
+      // Своё число у каждого импульса: «Думаю о тебе» и «Хочу обнять» до
+      // 13 августа 2026 копились в общий счётчик, и в меню у них не было
+      // цифр вовсе. Ключом берём тип импульса; чужие типы отсекаем, чтобы
+      // подделанное тело не растило карту без края. Своё пожелание считаем
+      // одной строкой `custom` — текстов у людей сотни.
+      const VIBES = { miss_you: 1, thinking_of_you: 1, want_hug: 1, custom: 1 };
+      const vibeKey = VIBES[vibe] ? vibe : "miss_you";
       if (rec) {
         const next = (rec.getInt("count") || 0) + 1;
         let week = {};
         try { week = JSON.parse(rec.getString("by_weekday") || "{}") || {}; } catch (_) { week = {}; }
         week[weekday] = (parseInt(week[weekday], 10) || 0) + 1;
+        let vibes = {};
+        try { vibes = JSON.parse(rec.getString("by_vibe") || "{}") || {}; } catch (_) { vibes = {}; }
+        // Первая запись карты у старой пары: весь прежний счёт был «скучаю» —
+        // ровно так его показывает и клиент, пока карты нет.
+        if (!vibes || typeof vibes !== "object" || Array.isArray(vibes) || Object.keys(vibes).length === 0) {
+          vibes = {};
+          const before = rec.getInt("count") || 0;
+          if (before > 0) vibes.miss_you = before;
+        }
+        vibes[vibeKey] = (parseInt(vibes[vibeKey], 10) || 0) + 1;
+        rec.set("by_vibe", JSON.stringify(vibes));
         rec.set("by_weekday", JSON.stringify(week));
         rec.set("count", next);
         rec.set("updated_at", nowIso);
@@ -256,6 +274,7 @@ routerAdd("POST", "/api/group/miss-you", (e) => {
         r.set("user_uid", uid);
         r.set("count", 1);
         r.set("by_weekday", JSON.stringify({ [weekday]: 1 }));
+        r.set("by_vibe", JSON.stringify({ [vibeKey]: 1 }));
         r.set("updated_at", nowIso);
         r.set("last_vibe", vibe);
         r.set("last_vibe_text", text);

@@ -219,18 +219,52 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
 
   // ── Gestures ─────────────────────────────────────────────────────────────
 
+  /// Сколько пальцем прошли за жест — по нему тап отличается от перетаскивания.
+  double _travel = 0;
+
+  /// Смещение, накопленное до порога: применяем разом, когда стало ясно, что
+  /// это перетаскивание.
+  Offset _pendingDelta = Offset.zero;
+
+  /// Когда жест начался.
+  DateTime? _gestureStartedAt;
+
+  /// Лист уже открыт — второй раз не открываем (тап может прийти и с арены
+  /// жестов, и из нашей проверки в конце жеста).
+  bool _menuOpen = false;
+
+  /// Насколько палец может уехать, чтобы жест всё ещё считался тапом.
+  /// Правило целиком — в `mascotGestureIsTap` (под тестами).
+  static const double _kTapSlop = 12;
+
   void _onScaleStart(ScaleStartDetails d) {
     _isInteracting = true;
     _baseScale = _scale;
+    _travel = 0;
+    _pendingDelta = Offset.zero;
+    _gestureStartedAt = DateTime.now();
     _setAnim(MascotAnimState.grab);
   }
 
   void _onScaleUpdate(ScaleUpdateDetails d) {
+    // Тап по маскоту не открывал ничего: `onScaleUpdate` двигает его на любое
+    // микродвижение пальца, распознаватель масштаба забирает жест себе, и
+    // `onTap` до арены не доживает. Жалоба: «тыкаешь — ничего, а перемещать
+    // можно». Поэтому пока палец не ушёл дальше порога, маскот стоит на месте,
+    // а короткое касание в конце жеста открывает меню.
+    _travel += d.focalPointDelta.distance;
+    final dragging = _travel > _kTapSlop || (d.scale - 1.0).abs() > 0.02;
+    if (!dragging) {
+      _pendingDelta += d.focalPointDelta;
+      return;
+    }
+
     setState(() {
       // Нижняя граница — обычный размер: уменьшенного до точки маскота
       // потом не поймать пальцем, и вернуть его было нечем.
       _scale = (_baseScale * d.scale).clamp(_kMinScale, _kMaxScale);
-      _position += d.focalPointDelta;
+      _position += _pendingDelta + d.focalPointDelta;
+      _pendingDelta = Offset.zero;
       _clampPosition();
     });
     // Пальцем тянут или щиплют: маскот реагирует по-разному, поэтому одно
@@ -247,6 +281,18 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
 
   void _onScaleEnd(ScaleEndDetails _) {
     _isInteracting = false;
+    final started = _gestureStartedAt;
+    final tap = started != null &&
+        mascotGestureIsTap(
+          travel: _travel,
+          held: DateTime.now().difference(started),
+          slop: _kTapSlop,
+        );
+    if (tap) {
+      _setAnim(MascotAnimState.live);
+      _onTap();
+      return;
+    }
     _setAnim(MascotAnimState.drop);
     _scheduleSync();
   }
@@ -314,6 +360,8 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
   // ── Menu ─────────────────────────────────────────────────────────────────
 
   void _onTap() {
+    if (_menuOpen || !mounted) return;
+    _menuOpen = true;
     showModalBottomSheet(
       context: context,
       backgroundColor: widget.theme.cardSurface,
@@ -399,7 +447,9 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
           ),
         ),
       ),
-    );
+    ).whenComplete(() {
+      if (mounted) _menuOpen = false;
+    });
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────

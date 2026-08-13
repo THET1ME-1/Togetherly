@@ -114,9 +114,7 @@ private struct MissMediumView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous).fill(t.blockOnPrimary)
-        )
+        .tgBlock(t.blockOnPrimary, radius: 14)
     }
 }
 

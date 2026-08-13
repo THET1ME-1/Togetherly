@@ -42,4 +42,46 @@ void main() {
       expect(clampMascotPosition(p, screen, 0), p);
     });
   });
+
+  group('mascotGestureIsTap', () {
+    test('короткое касание почти без движения — тап', () {
+      expect(
+        mascotGestureIsTap(
+          travel: 4,
+          held: const Duration(milliseconds: 120),
+        ),
+        isTrue,
+      );
+    });
+
+    test('палец уехал — это перетаскивание', () {
+      expect(
+        mascotGestureIsTap(
+          travel: 40,
+          held: const Duration(milliseconds: 120),
+        ),
+        isFalse,
+      );
+    });
+
+    test('долгое удержание на месте тапом не считается', () {
+      expect(
+        mascotGestureIsTap(
+          travel: 2,
+          held: const Duration(seconds: 1),
+        ),
+        isFalse,
+      );
+    });
+
+    test('дрожание руки на пороге ещё тап', () {
+      expect(
+        mascotGestureIsTap(
+          travel: 12,
+          held: const Duration(milliseconds: 200),
+        ),
+        isTrue,
+      );
+    });
+  });
 }

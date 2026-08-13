@@ -38,23 +38,29 @@ class MissYouRepository {
           );
 
   /// Тап «Я скучаю»: +1 в счётчик. Без рейт-лимита (как было). Аналитика.
-  Future<void> sendMissYou(String groupId) async {
+  ///
+  /// Отвечает, дошёл ли импульс: кнопка рисует тап раньше сервера и без этого
+  /// ответа не знает, что отправка сорвалась (`incrementMissYou` возвращает
+  /// false и при таймауте, и при отказе роута). Раньше надбавка в такой
+  /// ситуации оставалась висеть — число «жило своей жизнью».
+  Future<bool> sendMissYou(String groupId) async {
     final uid = _uid;
-    if (uid == null || groupId.isEmpty) return;
+    if (uid == null || groupId.isEmpty) return false;
     final ok = await _data.incrementMissYou(groupId, uid, vibe: 'miss_you');
     if (ok) unawaited(AnalyticsService.instance.logMissYouSent());
+    return ok;
   }
 
   /// Вайб (думаю о тебе / хочу обнять / custom). Без рейт-лимита, как и тап
   /// «Я скучаю». Инкрементит счётчик (см. док класса) + пишет
   /// last_vibe/last_vibe_text для текста пуша.
-  Future<void> sendVibe({
+  Future<bool> sendVibe({
     required String groupId,
     required String vibeType,
     String? customText,
   }) async {
     final uid = _uid;
-    if (uid == null || groupId.isEmpty) return;
+    if (uid == null || groupId.isEmpty) return false;
     final ok = await _data.incrementMissYou(
       groupId,
       uid,
@@ -64,5 +70,6 @@ class MissYouRepository {
     if (ok) {
       unawaited(AnalyticsService.instance.logVibeSent(vibeType: vibeType));
     }
+    return ok;
   }
 }

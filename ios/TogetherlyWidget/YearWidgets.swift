@@ -188,9 +188,7 @@ private struct YearRingView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous).fill(t.blockOnPrimary)
-        )
+        .tgBlock(t.blockOnPrimary, radius: 14)
     }
 }
 

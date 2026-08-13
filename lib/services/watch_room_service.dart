@@ -14,15 +14,34 @@ class WatchRoomService {
 
   static final Map<String, String> _cache = {};
 
+  /// Сколько букв имени доезжает до комнаты. Длиннее в строке сообщения всё
+  /// равно не помещается, а адрес раздувает.
+  static const int maxNameLength = 32;
+
   /// Адрес комнаты на сайте для кода [room].
   ///
   /// [src] — ссылка на ролик, который надо включить сразу после входа. Комната
   /// применит её, когда поднимется канал, и объявит партнёру. Ссылку для
   /// партнёра (копирование, «поделиться») берём без [src] — там свой выбор.
-  static String siteUrl(String room, {String? src}) {
+  ///
+  /// [name] — как подписывать свои сообщения в чате комнаты. Без него страница
+  /// подставляет «Гость» обоим, и человек не понимает, кто с ним смотрит
+  /// (жалоба тестера: «партнёр отображается как гость»).
+  static String siteUrl(String room, {String? src, String? name}) {
     final base = 'https://togetherly.day/watch/room/';
-    if (src == null || src.isEmpty) return '$base#$room';
-    return '$base?src=${Uri.encodeQueryComponent(src)}#$room';
+    final query = <String, String>{};
+    if (src != null && src.isNotEmpty) query['src'] = src;
+    final trimmed = (name ?? '').trim();
+    if (trimmed.isNotEmpty) {
+      query['name'] = trimmed.length > maxNameLength
+          ? trimmed.substring(0, maxNameLength)
+          : trimmed;
+    }
+    if (query.isEmpty) return '$base#$room';
+    final encoded = query.entries
+        .map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}')
+        .join('&');
+    return '$base?$encoded#$room';
   }
 
   /// Код комнаты пары. Пустая строка означает отказ сервера — вызывающий

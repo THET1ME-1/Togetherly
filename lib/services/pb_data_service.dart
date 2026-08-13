@@ -2676,9 +2676,43 @@ class PbDataService {
     }
   }
 
+  /// Публичная карточка человека из своей пары.
+  ///
+  /// Читать чужую запись `users` нельзя: правило коллекции пускает только к
+  /// себе (`id = @request.auth.id`), и `getOne(partnerUid)` всегда отвечал 404.
+  /// Из-за этого баннер партнёра не появлялся ни у кого, хотя его поставили
+  /// 2372 человека, и значок партнёра тоже оставался пустым. Отдаёт роут
+  /// `/api/user/card` (`pb_hooks/user_card.pb.js`) — только те поля, которые и
+  /// так видно на экране пары.
+  Future<Map<String, dynamic>?> loadPartnerCard(String uid) async {
+    if (uid.isEmpty) return null;
+    try {
+      final res = await _pb
+          .send('/api/user/card', method: 'GET', query: {'uid': uid})
+          .timeout(const Duration(seconds: 10));
+      if (res is! Map || res['ok'] != true) return null;
+      return {
+        'displayName': res['display_name'],
+        'avatarUrl': res['avatar_url'],
+        'bannerUrl': res['banner_url'],
+        'badge': res['badge'],
+        'gender': res['gender'],
+        'birthDate': res['birth_date'],
+        'mascotSleep': res['mascot_sleep'],
+        'grantedBadges': res['granted_badges'],
+      };
+    } catch (e) {
+      debugPrint('PbData.loadPartnerCard($uid) failed: $e');
+      return null;
+    }
+  }
+
   /// Профиль users как camelCase-карта (зеркало прежнего Firestore-формата) —
   /// чтобы UserData._syncFromFirestore/refreshCoinsFromServer читали без правок.
   /// json-поля Dart SDK уже отдаёт списками; birth_date — ISO-строка.
+  ///
+  /// Чужой uid сюда передавать бесполезно — правила отдадут 404. Для партнёра
+  /// есть [loadPartnerCard].
   Future<Map<String, dynamic>?> loadUserProfileMap(String uid) async {
     final rec = await loadUserProfile(uid);
     if (rec == null) return null;
