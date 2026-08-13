@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../services/locale_service.dart';
 import '../theme/profile_theme.dart';
@@ -18,6 +19,7 @@ class SettingsScreen extends StatelessWidget {
   const SettingsScreen({
     super.key,
     required this.scheme,
+    required this.accountEmail,
     required this.onAppearance,
     required this.onNotifications,
     required this.onLanguage,
@@ -51,6 +53,14 @@ class SettingsScreen extends StatelessWidget {
   });
 
   final ColorScheme scheme;
+
+  /// Почта, на которую заведён аккаунт.
+  ///
+  /// В приложении её было видно только в шапке профиля и только у тех, у кого
+  /// нет пары: как только пара собирается, там встают «дни вместе». Покупателю
+  /// Togetherly+ почта нужна, а взять её негде — вопрос в поддержку
+  /// 13 августа 2026 звучал ровно так.
+  final String accountEmail;
 
   final VoidCallback onAppearance;
   final VoidCallback onNotifications;
@@ -362,6 +372,23 @@ class SettingsScreen extends StatelessWidget {
                 icon: Icons.person_rounded,
                 color: scheme.error,
                 children: [
+                  if (accountEmail.isNotEmpty)
+                    SettingsRow(
+                      icon: Icons.alternate_email_rounded,
+                      title: accountEmail,
+                      subtitle: s.settingsAccountEmailHint,
+                      iconBg: scheme.surfaceContainerHighest,
+                      iconFg: scheme.onSurfaceVariant,
+                      onTap: () {
+                        Clipboard.setData(ClipboardData(text: accountEmail));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(s.accountEmailCopied),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      },
+                    ),
                   SettingsRow(
                     icon: Icons.logout_rounded,
                     title: s.logout,

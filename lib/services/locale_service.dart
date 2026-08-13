@@ -372,6 +372,10 @@ abstract class AppStrings {
   String get mascotSourceFile;
   String get mascotSourceFileHint;
 
+  // Почта аккаунта в настройках
+  String get settingsAccountEmailHint;
+  String get accountEmailCopied;
+
   /// Подпись художника под сеткой пака: «Рисунки — noia_aa».
   String moodPackAuthor(String name);
   // ── Самочувствие («болячки») ──

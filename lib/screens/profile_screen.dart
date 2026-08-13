@@ -1712,6 +1712,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       MaterialPageRoute<void>(
         builder: (_) => StatefulBuilder(
           builder: (ctx, setSheetState) => SettingsScreen(
+            accountEmail: widget.userData.email,
             scheme: _cs,
             appVersion: 'Togetherly $version',
             onAppearance: () => _openAppearance(ctx),
