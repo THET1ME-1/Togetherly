@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
 
+import '../utils/pair_time.dart';
 import 'pocketbase_service.dart';
 import 'upsert_id_cache.dart';
 
@@ -40,9 +41,14 @@ class PbDataService {
   }
 
   /// DateTime/String → ISO-строка для date-колонок, или null.
+  ///
+  /// Время уходит в UTC. Пока тут стоял голый `toIso8601String()`, на сервер
+  /// уезжали ЛОКАЛЬНЫЕ часы без зоны, а PocketBase принимал их за UTC — время
+  /// партнёра в другом поясе уезжало ровно на разницу (разбор 13 августа 2026,
+  /// см. [PairTime]).
   static String? _iso(dynamic v) {
     if (v == null) return null;
-    if (v is DateTime) return v.toIso8601String();
+    if (v is DateTime) return PairTime.write(v);
     if (v is String) return v.isEmpty ? null : v;
     return null;
   }
@@ -780,7 +786,7 @@ class PbDataService {
   /// Распустить группу для всех (soft-delete: disbanded=true, восстановимо).
   Future<bool> disbandGroup(String groupId) => updateGroupFields(groupId, {
         'disbanded': true,
-        'disbanded_at': DateTime.now().toIso8601String(),
+        'disbanded_at': PairTime.write(DateTime.now()),
       });
 
   /// Убрать [uid] из группы (members + имена + аватары + настроения + недуги).
@@ -834,7 +840,7 @@ class PbDataService {
         };
         if (members.isEmpty) {
           body['disbanded'] = true;
-          body['disbanded_at'] = DateTime.now().toIso8601String();
+          body['disbanded_at'] = PairTime.write(DateTime.now());
         }
         await _pb.collection('groups').update(rec.id, body: body);
         return true;
@@ -1147,6 +1153,9 @@ class PbDataService {
       'author_avatar': data['authorAvatar'],
       'created_at': _iso(data['createdAt']),
       'edited_at': _iso(data['editedAt']),
+      // Пояс автора идёт рядом со временем: по нему читатель отличает новую
+      // запись (время абсолютное) от старой, где лежат часы автора.
+      'tz': data['tz'] ?? PairTime.zoneNow(),
       'is_pinned': data['isPinned'] ?? false,
       'deleted': data['deleted'] ?? false,
       'data': _jsonSafe(data),
@@ -1158,7 +1167,12 @@ class PbDataService {
     final cols = <String, dynamic>{};
     if (fb.containsKey('isPinned')) cols['is_pinned'] = fb['isPinned'];
     if (fb.containsKey('editedAt')) cols['edited_at'] = _iso(fb['editedAt']);
-    if (fb.containsKey('createdAt')) cols['created_at'] = _iso(fb['createdAt']);
+    if (fb.containsKey('createdAt')) {
+      cols['created_at'] = _iso(fb['createdAt']);
+      // Время переписали — пояс обязан переехать вместе с ним, иначе правка
+      // старой записи оставит её без пояса и время уедет.
+      cols['tz'] = fb['tz'] ?? PairTime.zoneNow();
+    }
     if (cols.isEmpty) return true;
     return _upsertById('memories', id, cols, op: 'patchMemory');
   }
@@ -1227,6 +1241,7 @@ class PbDataService {
         'author_avatar': data['authorAvatar'],
         'created_at': _iso(data['createdAt']),
         'edited_at': _iso(data['editedAt']),
+        'tz': data['tz'] ?? PairTime.zoneNow(),
         'is_pinned': data['isPinned'] ?? false,
         'deleted': data['deleted'] ?? false,
         'data': _jsonSafe(data),
@@ -1266,7 +1281,8 @@ class PbDataService {
       'mood_id': entry['moodId'],
       'image_path': entry['imagePath'],
       'label': entry['label'],
-      'timestamp': _iso(entry['timestamp']) ?? DateTime.now().toIso8601String(),
+      'timestamp': _iso(entry['timestamp']) ?? PairTime.write(DateTime.now()),
+      'tz': entry['tz'] ?? PairTime.zoneNow(),
     }, op: 'upsertMood');
   }
 
@@ -1287,7 +1303,8 @@ class PbDataService {
         'image_path': entry['imagePath'],
         'label': entry['label'],
         'timestamp':
-            _iso(entry['timestamp']) ?? DateTime.now().toIso8601String(),
+            _iso(entry['timestamp']) ?? PairTime.write(DateTime.now()),
+        'tz': entry['tz'] ?? PairTime.zoneNow(),
       });
     } catch (e) {
       debugPrint('PbData.createMood failed: $e');
@@ -1349,7 +1366,7 @@ class PbDataService {
     return _upsertById('cycle_entries', id, {
       'group_id': groupId,
       'user_uid': uid,
-      'day': _iso(entry['day']) ?? DateTime.now().toIso8601String(),
+      'day': _iso(entry['day']) ?? PairTime.write(DateTime.now()),
       'kind': entry['kind'],
       'flow': entry['flow'],
       'shared': entry['shared'] ?? false,
@@ -1845,7 +1862,8 @@ class PbDataService {
       'author_name': data['authorName'],
       'author_avatar': data['authorAvatar'],
       'text': data['text'],
-      'created_at': _iso(data['createdAt']) ?? DateTime.now().toIso8601String(),
+      'created_at': _iso(data['createdAt']) ?? PairTime.write(DateTime.now()),
+      'tz': data['tz'] ?? PairTime.zoneNow(),
     }, op: 'upsertComment');
   }
 
@@ -1865,7 +1883,8 @@ class PbDataService {
         'author_avatar': data['authorAvatar'],
         'text': data['text'],
         'created_at':
-            _iso(data['createdAt']) ?? DateTime.now().toIso8601String(),
+            _iso(data['createdAt']) ?? PairTime.write(DateTime.now()),
+        'tz': data['tz'] ?? PairTime.zoneNow(),
       });
     } catch (e) {
       debugPrint('PbData.createComment failed: $e');
@@ -1939,7 +1958,7 @@ class PbDataService {
         'photo_grid_count': d['photoGridCount'],
         'photo_grid_urls': _jsonSafe(d['photoGridUrls']),
         'data': _jsonSafe(d['data']),
-        'updated_at': DateTime.now().toIso8601String(),
+        'updated_at': PairTime.write(DateTime.now()),
       }..removeWhere((k, v) => v == null);
 
   Future<bool> upsertWidget(
@@ -2121,7 +2140,7 @@ class PbDataService {
         'group_id': groupId,
         'canvas_id': canvasId,
         'clear_version': version,
-        'updated_at': DateTime.now().toIso8601String(),
+        'updated_at': PairTime.write(DateTime.now()),
       };
       if (bgColor != null) body['bg_color'] = bgColor;
       return _upsertByFilter('canvas_meta',
@@ -2145,7 +2164,7 @@ class PbDataService {
     final body = <String, dynamic>{
       'group_id': groupId,
       'canvas_id': canvasId,
-      'updated_at': DateTime.now().toIso8601String(),
+      'updated_at': PairTime.write(DateTime.now()),
     };
     if (bgColor != null) body['bg_color'] = bgColor;
     if (rotation != null) body['canvas_rotation'] = rotation;
@@ -2466,7 +2485,7 @@ class PbDataService {
           final cur = (rec.data['count'] as num?)?.toInt() ?? 0;
           await _pb.collection('miss_you').update(rec.id, body: {
             'count': cur + 1,
-            'updated_at': DateTime.now().toIso8601String(),
+            'updated_at': PairTime.write(DateTime.now()),
             ...extra,
           });
         } on ClientException catch (e) {
@@ -2475,7 +2494,7 @@ class PbDataService {
             'group_id': groupId,
             'user_uid': uid,
             'count': 1,
-            'updated_at': DateTime.now().toIso8601String(),
+            'updated_at': PairTime.write(DateTime.now()),
             ...extra,
           });
         }
@@ -2498,7 +2517,7 @@ class PbDataService {
       'group_id': groupId,
       'user_uid': uid,
       'count': count,
-      'updated_at': DateTime.now().toIso8601String(),
+      'updated_at': PairTime.write(DateTime.now()),
     }, op: 'setMissYouCount');
   }
 
@@ -2592,7 +2611,7 @@ class PbDataService {
       'group_id': groupId,
       'user_uid': uid,
       'last_read_ts': ts,
-      'updated_at': DateTime.now().toIso8601String(),
+      'updated_at': PairTime.write(DateTime.now()),
     }, op: 'chatRead');
   }
 
@@ -2799,7 +2818,7 @@ class PbDataService {
     put('themeMode', 'theme_mode');
     put('themeId', 'theme_id');
     if (row.isEmpty) return true;
-    row['updated_at'] = DateTime.now().toIso8601String();
+    row['updated_at'] = PairTime.write(DateTime.now());
     return _upsertById('users', uid, row, op: 'updateUserProfile');
   }
 

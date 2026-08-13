@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pocketbase/pocketbase.dart';
 import '../dict_strings.dart';
 import '../services/locale_service.dart';
+import '../utils/pair_time.dart';
 
 /// Предустановленные настроения с цветами.
 class MoodOption {
@@ -597,7 +598,18 @@ class MoodEntry {
   final String moodId; // id из MoodOption
   final String imagePath;
   final String label;
+
+  /// Время отметки в часах читателя. У записей до 13 августа 2026 тут часы
+  /// автора: пояс тогда не сохранялся, см. [PairTime].
   final DateTime timestamp;
+
+  /// Пояс автора (`+03:00`). Пусто — запись старая.
+  final String zone;
+
+  /// Сутки, в которые отметился автор. Он ставил настроение «за сегодня»,
+  /// поэтому в календаре партнёра отметка лежит в дне автора, даже если у
+  /// читателя уже завтра.
+  final DateTime authorDate;
 
   MoodEntry({
     required this.id,
@@ -605,7 +617,10 @@ class MoodEntry {
     required this.imagePath,
     required this.label,
     required this.timestamp,
-  });
+    this.zone = '',
+    DateTime? authorDate,
+  }) : authorDate = authorDate ??
+            DateTime(timestamp.year, timestamp.month, timestamp.day);
 
   Color get color => MoodOption.byId(moodId)?.color ?? const Color(0xFF9CA3AF);
   int get score => MoodOption.byId(moodId)?.score ?? 3;
@@ -618,37 +633,45 @@ class MoodEntry {
     'moodId': moodId,
     'imagePath': imagePath,
     'label': label,
-    'timestamp': timestamp.toIso8601String(),
+    'timestamp': PairTime.write(timestamp),
+    'tz': zone.isEmpty ? PairTime.zoneNow() : zone,
   };
 
-  factory MoodEntry.fromJson(Map<String, dynamic> json) => MoodEntry(
-    id: json['id'] as String,
-    moodId: json['moodId'] as String,
-    imagePath: json['imagePath'] as String,
-    label: json['label'] as String,
-    timestamp: DateTime.parse(json['timestamp'] as String),
-  );
+  factory MoodEntry.fromJson(Map<String, dynamic> json) {
+    final zone = (json['tz'] ?? '').toString();
+    return MoodEntry(
+      id: json['id'] as String,
+      moodId: json['moodId'] as String,
+      imagePath: json['imagePath'] as String,
+      label: json['label'] as String,
+      timestamp: PairTime.read(json['timestamp'], zone) ?? DateTime.now(),
+      zone: zone,
+      authorDate: PairTime.authorDay(json['timestamp'], zone),
+    );
+  }
 
   /// PocketBase-запись (коллекция `mood_entries`) → модель. Плоские snake_case
-  /// колонки; id = id записи; timestamp — ISO-строка.
+  /// колонки; id = id записи; timestamp — ISO-строка в UTC, `tz` — пояс автора.
   factory MoodEntry.fromPb(RecordModel rec) {
     final d = rec.data;
+    final raw = (d['timestamp'] ?? '').toString();
+    final zone = (d['tz'] ?? '').toString();
     return MoodEntry(
       id: rec.id,
       moodId: (d['mood_id'] ?? '').toString(),
       imagePath: (d['image_path'] ?? '').toString(),
       label: (d['label'] ?? '').toString(),
-      timestamp:
-          DateTime.tryParse((d['timestamp'] ?? '').toString()) ??
-          DateTime.now(),
+      timestamp: PairTime.read(raw, zone) ?? DateTime.now(),
+      zone: zone,
+      authorDate: PairTime.authorDay(raw, zone),
     );
   }
 
-  /// Дневной ключ для группировки (yyyy-MM-dd)
+  /// Дневной ключ для группировки (yyyy-MM-dd) — по суткам автора.
   String get dayKey {
-    final y = timestamp.year.toString().padLeft(4, '0');
-    final m = timestamp.month.toString().padLeft(2, '0');
-    final d = timestamp.day.toString().padLeft(2, '0');
+    final y = authorDate.year.toString().padLeft(4, '0');
+    final m = authorDate.month.toString().padLeft(2, '0');
+    final d = authorDate.day.toString().padLeft(2, '0');
     return '$y-$m-$d';
   }
 }

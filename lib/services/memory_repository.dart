@@ -4,6 +4,7 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../models/comment.dart';
 import '../models/memory.dart';
+import '../utils/pair_time.dart';
 import 'analytics_service.dart';
 import 'daily_task_service.dart';
 import 'level_service.dart';
@@ -72,8 +73,10 @@ class MemoryRepository {
         'author_uid': m.authorUid,
         'author_name': m.authorName,
         'author_avatar': m.authorAvatar,
-        'created_at': m.createdAt.toIso8601String(),
-        'edited_at': m.editedAt?.toIso8601String(),
+        'created_at': PairTime.write(m.createdAt),
+        'edited_at':
+            m.editedAt == null ? null : PairTime.write(m.editedAt!),
+        'tz': m.zone.isEmpty ? PairTime.zoneNow() : m.zone,
         'is_pinned': m.isPinned,
         'deleted': false,
         'data': m.toJson(),
@@ -141,6 +144,7 @@ class MemoryRepository {
       authorAvatar: authorAvatar,
       type: type,
       createdAt: customDate ?? DateTime.now(),
+      zone: PairTime.zoneNow(),
       imageUrl: imageUrl,
       imageUrls: imageUrls,
       videoUrl: videoUrl,
@@ -239,13 +243,21 @@ class MemoryRepository {
     if (isPinned != null) map['isPinned'] = isPinned;
     if (isAdult != null) map['isAdult'] = isAdult;
     if (isSecret != null) map['isSecret'] = isSecret;
-    if (customDate != null) map['createdAt'] = customDate.toIso8601String();
-    map['editedAt'] = DateTime.now().toIso8601String();
+    if (customDate != null) {
+      map['createdAt'] = PairTime.write(customDate);
+      // Дату переписали — пояс переезжает вместе с ней, иначе правка старой
+      // записи оставит время без пояса и оно уедет у обоих.
+      map['tz'] = PairTime.zoneNow();
+    }
+    map['editedAt'] = PairTime.write(DateTime.now());
 
     // Синхронизируем индексные колонки кэш-ряда (для scope/сортировки/fromPb).
     row['data'] = map;
     if (isPinned != null) row['is_pinned'] = isPinned;
-    if (customDate != null) row['created_at'] = customDate.toIso8601String();
+    if (customDate != null) {
+      row['created_at'] = PairTime.write(customDate);
+      row['tz'] = map['tz'];
+    }
     row['edited_at'] = map['editedAt'];
 
     await _cache.upsertRaw('memories', memoryId, row);
@@ -333,7 +345,8 @@ class MemoryRepository {
     final name = rawName.isNotEmpty ? rawName : 'User';
     final avatar = authorAvatar ?? (profile?['avatarUrl'] as String? ?? '');
     final id = newPbId();
-    final createdAt = DateTime.now().toIso8601String();
+    final createdAt = PairTime.write(DateTime.now());
+    final zone = PairTime.zoneNow();
     // 1) оптимистично сам комментарий
     await _cache.upsertRaw('memory_comments', id, {
       'id': id,
@@ -345,6 +358,7 @@ class MemoryRepository {
       'author_avatar': avatar,
       'text': text,
       'created_at': createdAt,
+      'tz': zone,
     });
     // 2) оптимистично бейдж commentsCount в кэш-ряду воспоминания
     final memRec = await _cache.getRecord('memories', memoryId);
@@ -368,6 +382,7 @@ class MemoryRepository {
         'authorAvatar': avatar,
         'text': text,
         'createdAt': createdAt,
+        'tz': zone,
       },
     });
     await _outbox.enqueue('memoryBumpComments',

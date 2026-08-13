@@ -1,5 +1,7 @@
 import 'package:pocketbase/pocketbase.dart';
 
+import '../utils/pair_time.dart';
+
 /// A comment on a memory entry
 class MemoryComment {
   final String id;
@@ -28,8 +30,8 @@ class MemoryComment {
       authorName: (d['author_name'] ?? '').toString(),
       authorAvatar: (d['author_avatar'] ?? '').toString(),
       text: (d['text'] ?? '').toString(),
-      createdAt:
-          DateTime.tryParse((d['created_at'] ?? '').toString()) ?? DateTime.now(),
+      createdAt: PairTime.read(d['created_at'], (d['tz'] ?? '').toString()) ??
+          DateTime.now(),
     );
   }
 }

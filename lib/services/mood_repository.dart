@@ -6,6 +6,7 @@ import 'offline/outbox_service.dart';
 import 'offline/pb_id.dart';
 import 'pb_data_service.dart';
 import 'pb_realtime_service.dart';
+import '../utils/pair_time.dart';
 import 'pocketbase_service.dart';
 
 /// Репозиторий настроений (mood calendar) поверх PocketBase (миграция §3).
@@ -52,7 +53,10 @@ class MoodRepository {
     final uid = _uid;
     if (uid == null || groupId.isEmpty) return null;
     final id = newPbId();
-    final ts = timestamp.toIso8601String();
+    // Время уходит в UTC, пояс автора кладём рядом: без него партнёр в другом
+    // поясе видел чужие часы как свои (разбор 13 августа 2026, см. PairTime).
+    final ts = PairTime.write(timestamp);
+    final zone = PairTime.zoneNow(timestamp);
     await LocalStore.instance.upsertRaw('mood_entries', id, {
       'id': id,
       'group_id': groupId,
@@ -61,6 +65,7 @@ class MoodRepository {
       'image_path': imagePath,
       'label': label,
       'timestamp': ts,
+      'tz': zone,
     });
     await OutboxService.instance.enqueue('moodUpsert', {
       'groupId': groupId,
@@ -71,6 +76,7 @@ class MoodRepository {
         'imagePath': imagePath,
         'label': label,
         'timestamp': ts,
+        'tz': zone,
       },
     });
     return MoodEntry(
@@ -78,7 +84,8 @@ class MoodRepository {
         moodId: moodId,
         imagePath: imagePath,
         label: label,
-        timestamp: timestamp);
+        timestamp: timestamp,
+        zone: zone);
   }
 
   /// Удаляет запись настроения по id: оптимистично из кэша + в очередь.

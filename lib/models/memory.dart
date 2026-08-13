@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:pocketbase/pocketbase.dart';
 
+import '../utils/pair_time.dart';
+
 import '../services/locale_service.dart';
 
 /// Types of memory content
@@ -54,8 +56,13 @@ class Memory {
   final String authorName;
   final String authorAvatar;
   final MemoryType type;
+  /// Время создания в часах читателя. У записей до 13 августа 2026 тут часы
+  /// автора: пояс тогда не сохранялся, см. [PairTime].
   final DateTime createdAt;
   DateTime? editedAt;
+
+  /// Пояс автора (`+03:00`). Пусто — запись старая.
+  final String zone;
 
   // Content fields (used depending on type)
   String? imageUrl; // photo / video thumbnail
@@ -167,6 +174,7 @@ class Memory {
     this.isSecret = false,
     this.sealed = false,
     this.openAt,
+    this.zone = '',
     List<String>? savedBy,
     int? commentsCount,
   })  : savedBy = savedBy ?? <String>[],
@@ -231,8 +239,8 @@ class Memory {
       'authorName': authorName,
       'authorAvatar': authorAvatar,
       'type': type.name,
-      'createdAt': createdAt.toIso8601String(),
-      'editedAt': editedAt?.toIso8601String(),
+      'createdAt': PairTime.write(createdAt),
+      'editedAt': editedAt == null ? null : PairTime.write(editedAt!),
       'imageUrl': imageUrl,
       'imageUrls': imageUrls,
       'videoUrl': videoUrl,
@@ -263,13 +271,17 @@ class Memory {
       'isAdult': isAdult,
       'isSecret': isSecret,
       'sealed': sealed,
-      'openAt': openAt?.toIso8601String(),
+      'openAt': openAt == null ? null : PairTime.write(openAt!),
+      // Время уходит в UTC, значит пояс обязан быть рядом: иначе запись,
+      // прочитанная обратно, потеряет три часа (или сколько их у читателя).
+      'tz': zone.isEmpty ? PairTime.zoneNow() : zone,
       'savedBy': savedBy,
       'commentsCount': commentsCount,
     };
   }
 
   factory Memory.fromJson(Map<String, dynamic> json) {
+    final zone = (json['tz'] ?? '').toString();
     return Memory(
       id: json['id'] ?? '',
       groupId: json['groupId'] ?? '',
@@ -280,8 +292,9 @@ class Memory {
         (e) => e.name == json['type'],
         orElse: () => MemoryType.text,
       ),
-      createdAt: memoryDate(json['createdAt']) ?? DateTime.now(),
-      editedAt: memoryDate(json['editedAt']),
+      createdAt: PairTime.read(json['createdAt'], zone) ?? DateTime.now(),
+      editedAt: PairTime.read(json['editedAt'], zone),
+      zone: zone,
       imageUrl: json['imageUrl'],
       imageUrls: json['imageUrls'] != null
           ? List<String>.from(json['imageUrls'])
@@ -314,7 +327,7 @@ class Memory {
       isAdult: json['isAdult'] ?? false,
       isSecret: json['isSecret'] ?? false,
       sealed: json['sealed'] ?? false,
-      openAt: memoryDate(json['openAt']),
+      openAt: PairTime.read(json['openAt'], zone),
       savedBy: json['savedBy'] != null
           ? List<String>.from(json['savedBy'])
           : null,
@@ -341,6 +354,12 @@ class Memory {
       map['editedAt'] = rec.data['edited_at'];
     }
     map['isPinned'] ??= rec.data['is_pinned'];
+    // Пояс живёт колонкой: в json-карте его нет у записей, созданных до
+    // 13 августа 2026, и пустое значение как раз и означает «старая запись».
+    final colZone = (rec.data['tz'] ?? '').toString();
+    if ((map['tz'] ?? '').toString().isEmpty && colZone.isNotEmpty) {
+      map['tz'] = colZone;
+    }
     return Memory.fromJson(map);
   }
 }

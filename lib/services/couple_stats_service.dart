@@ -206,7 +206,11 @@ class CoupleStats {
       },
       weekdayMessages: _slots(rhythm['weekdayMessages'], 'd', 7),
       weekdayMemories: _slots(rhythm['weekdayMemories'], 'd', 7),
-      hourMessages: _slots(rhythm['hourMessages'], 'h', 24),
+      // Сервер считает часы по UTC — `chat_messages.ts` абсолютный. Гистограмму
+      // поворачиваем на пояс читателя, иначе у московской пары пик в 21:00
+      // рисуется на 18:00.
+      hourMessages: shiftHoursToLocal(
+          _slots(rhythm['hourMessages'], 'h', 24), DateTime.now().timeZoneOffset),
       moodDaily: [
         for (final p in (mood['daily'] as List? ?? const []))
           if (p is Map) MoodPoint.fromJson(p),
@@ -247,4 +251,14 @@ class MoodPoint {
         moodId: '${raw['id'] ?? ''}',
         count: (raw['c'] as num?)?.toInt() ?? 0,
       );
+}
+
+/// Гистограмму часов, посчитанную сервером в UTC, повернуть в часы читателя.
+///
+/// Получасовые пояса округляются до часа: столбик и так шириной в час.
+List<int> shiftHoursToLocal(List<int> utcHours, Duration offset) {
+  if (utcHours.isEmpty) return const [];
+  final shift = (offset.inMinutes / 60).round();
+  final n = utcHours.length;
+  return List<int>.generate(n, (i) => utcHours[((i - shift) % n + n) % n]);
 }
