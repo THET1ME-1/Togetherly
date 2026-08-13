@@ -77,6 +77,7 @@ class MemoryRepository {
         'edited_at':
             m.editedAt == null ? null : PairTime.write(m.editedAt!),
         'tz': m.zone.isEmpty ? PairTime.zoneNow() : m.zone,
+        'added_at': m.addedAt == null ? null : PairTime.write(m.addedAt!),
         'is_pinned': m.isPinned,
         'deleted': false,
         'data': m.toJson(),
@@ -145,6 +146,9 @@ class MemoryRepository {
       type: type,
       createdAt: customDate ?? DateTime.now(),
       zone: PairTime.zoneNow(),
+      // Когда запись реально занесли: `createdAt` человек может поставить
+      // задним числом, и по нему не узнать, что нового в ленте.
+      addedAt: DateTime.now(),
       imageUrl: imageUrl,
       imageUrls: imageUrls,
       videoUrl: videoUrl,

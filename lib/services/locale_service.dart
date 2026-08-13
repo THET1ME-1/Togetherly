@@ -358,6 +358,13 @@ abstract class AppStrings {
   String get plusPromoOpen;
   String get plusPromoLater;
 
+  // Порядок ленты воспоминаний
+  String get memorySortTitle;
+  String get memorySortByEvent;
+  String get memorySortByEventHint;
+  String get memorySortByAdded;
+  String get memorySortByAddedHint;
+
   /// Подпись художника под сеткой пака: «Рисунки — noia_aa».
   String moodPackAuthor(String name);
   // ── Самочувствие («болячки») ──

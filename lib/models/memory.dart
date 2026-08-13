@@ -64,6 +64,13 @@ class Memory {
   /// Пояс автора (`+03:00`). Пусто — запись старая.
   final String zone;
 
+  /// Когда запись занесли в приложение.
+  ///
+  /// Отдельно от [createdAt]: та хранит дату СОБЫТИЯ, и человек ставит её сам —
+  /// фотография со свадьбы 2019 года, добавленная сегодня, имеет обе даты
+  /// разом. Пусто у записей, созданных до 13 августа 2026.
+  final DateTime? addedAt;
+
   // Content fields (used depending on type)
   String? imageUrl; // photo / video thumbnail
   List<String>? imageUrls; // array of photos
@@ -175,6 +182,7 @@ class Memory {
     this.sealed = false,
     this.openAt,
     this.zone = '',
+    this.addedAt,
     List<String>? savedBy,
     int? commentsCount,
   })  : savedBy = savedBy ?? <String>[],
@@ -272,6 +280,7 @@ class Memory {
       'isSecret': isSecret,
       'sealed': sealed,
       'openAt': openAt == null ? null : PairTime.write(openAt!),
+      'addedAt': addedAt == null ? null : PairTime.write(addedAt!),
       // Время уходит в UTC, значит пояс обязан быть рядом: иначе запись,
       // прочитанная обратно, потеряет три часа (или сколько их у читателя).
       'tz': zone.isEmpty ? PairTime.zoneNow() : zone,
@@ -328,6 +337,7 @@ class Memory {
       isSecret: json['isSecret'] ?? false,
       sealed: json['sealed'] ?? false,
       openAt: PairTime.read(json['openAt'], zone),
+      addedAt: PairTime.read(json['addedAt'], zone),
       savedBy: json['savedBy'] != null
           ? List<String>.from(json['savedBy'])
           : null,
@@ -356,6 +366,7 @@ class Memory {
     map['isPinned'] ??= rec.data['is_pinned'];
     // Пояс живёт колонкой: в json-карте его нет у записей, созданных до
     // 13 августа 2026, и пустое значение как раз и означает «старая запись».
+    map['addedAt'] ??= rec.data['added_at'];
     final colZone = (rec.data['tz'] ?? '').toString();
     if ((map['tz'] ?? '').toString().isEmpty && colZone.isNotEmpty) {
       map['tz'] = colZone;

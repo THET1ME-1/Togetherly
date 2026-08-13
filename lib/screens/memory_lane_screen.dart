@@ -35,6 +35,8 @@ import 'package:video_compress/video_compress.dart';
 import 'package:video_player/video_player.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import '../models/memory.dart';
+import '../models/memory_sort.dart';
+import '../services/ui_prefs.dart';
 import '../models/comment.dart';
 import '../models/feed_ad_rule.dart';
 import '../models/pair_data.dart';
@@ -156,6 +158,63 @@ class MemoryLaneScreen extends StatefulWidget {
 }
 
 class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
+  /// Чем упорядочена лента. Выбор человека живёт в prefs: он про привычку, а
+  /// не про конкретный заход.
+  MemorySort _sortOrder = MemorySort.eventDate;
+
+  Future<void> _loadSortOrder() async {
+    final saved = await UiPrefs.memorySort();
+    if (mounted) setState(() => _sortOrder = memorySortFromName(saved));
+  }
+
+  /// Выбор порядка: по дате события или по дате добавления.
+  Future<void> _openSortSheet() async {
+    final s = LocaleService.current;
+    final cs = ProfileTheme.schemeFor(widget.theme);
+    final picked = await showAppSheet<MemorySort>(
+      context,
+      builder: (ctx) => SheetScaffold(
+        title: s.memorySortTitle,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final order in MemorySort.values)
+                ListTile(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  leading: Icon(
+                    order == MemorySort.eventDate
+                        ? Icons.event_rounded
+                        : Icons.playlist_add_rounded,
+                    color: cs.primary,
+                  ),
+                  title: Text(order == MemorySort.eventDate
+                      ? s.memorySortByEvent
+                      : s.memorySortByAdded),
+                  subtitle: Text(order == MemorySort.eventDate
+                      ? s.memorySortByEventHint
+                      : s.memorySortByAddedHint),
+                  trailing: _sortOrder == order
+                      ? Icon(Icons.check_rounded, color: cs.primary)
+                      : null,
+                  onTap: () => Navigator.of(ctx).pop(order),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (picked != null) await _setSortOrder(picked);
+  }
+
+  Future<void> _setSortOrder(MemorySort order) async {
+    setState(() => _sortOrder = order);
+    await UiPrefs.setMemorySort(order.name);
+  }
+
   Color get primary => widget.theme.primary;
 
   final MemoryRepository _memRepo = MemoryRepository();
@@ -260,6 +319,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   @override
   void initState() {
     super.initState();
+    _loadSortOrder();
     _subscribeMemories();
     _feedScroll.addListener(_onFeedScroll); // ленивая пагинация по скроллу
     _fetchUserLocation();
@@ -404,12 +464,22 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   }
 
   /// Все непин-воспоминания, прошедшие фильтр, новые первыми (без окна).
+  ///
+  /// Порядок выбирает человек: по дате события (когда это случилось) или по
+  /// дате добавления. Просьба тестера — «добавьте сортировку по указанной
+  /// дате»: фотография со свадьбы, занесённая сегодня, уезжала в конец ленты.
   List<Memory> get _nonPinnedSortedAll {
     if (widget.filterMode != MemoryFilterMode.none) return const [];
     return _memories
         .where((m) => !m.isPinned && _passesFeedFilter(m))
         .toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      ..sort((a, b) => compareMemories(
+            _sortOrder,
+            aEvent: a.createdAt,
+            bEvent: b.createdAt,
+            aAdded: a.addedAt,
+            bAdded: b.addedAt,
+          ));
   }
 
   /// Есть ли воспоминания за пределами текущего окна (для подгрузки по скроллу).
@@ -908,6 +978,19 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         ],
       ),
       actions: [
+        if (widget.filterMode == MemoryFilterMode.none)
+          IconButton(
+            onPressed: _openSortSheet,
+            icon: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: widget.theme.cardSurface.withOpacity(0.8),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.swap_vert_rounded, color: primary, size: 18),
+            ),
+            tooltip: LocaleService.current.memorySortTitle,
+          ),
         if (_memories.any((m) => m.isSecret))
           IconButton(
             onPressed: _toggleSecretLock,

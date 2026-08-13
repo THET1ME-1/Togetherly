@@ -222,4 +222,19 @@ class UiPrefs {
     await p.setInt(kFirstRunAt, nowMs);
     return nowMs;
   }
+
+  // ── Лента воспоминаний ──
+  /// Чем упорядочена лента: `eventDate` (когда это случилось) или `addedAt`
+  /// (когда занесли). Выбор человека, а не состояние экрана.
+  static const String kMemorySort = 'memory_sort';
+
+  static Future<String?> memorySort() async {
+    final p = await SharedPreferences.getInstance();
+    return p.getString(kMemorySort);
+  }
+
+  static Future<void> setMemorySort(String value) async {
+    final p = await SharedPreferences.getInstance();
+    await p.setString(kMemorySort, value);
+  }
 }

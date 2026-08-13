@@ -1156,6 +1156,8 @@ class PbDataService {
       // Пояс автора идёт рядом со временем: по нему читатель отличает новую
       // запись (время абсолютное) от старой, где лежат часы автора.
       'tz': data['tz'] ?? PairTime.zoneNow(),
+      // Дата занесения записи: `created_at` человек ставит сам, задним числом.
+      'added_at': _iso(data['addedAt']),
       'is_pinned': data['isPinned'] ?? false,
       'deleted': data['deleted'] ?? false,
       'data': _jsonSafe(data),
@@ -1242,6 +1244,7 @@ class PbDataService {
         'created_at': _iso(data['createdAt']),
         'edited_at': _iso(data['editedAt']),
         'tz': data['tz'] ?? PairTime.zoneNow(),
+        'added_at': _iso(data['addedAt']) ?? PairTime.write(DateTime.now()),
         'is_pinned': data['isPinned'] ?? false,
         'deleted': data['deleted'] ?? false,
         'data': _jsonSafe(data),
