@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
 import 'centrifugo_service.dart';
+import 'fcm_service.dart';
 import 'home_widget_service.dart';
 import 'pb_push_service.dart';
 import 'pocketbase_service.dart';
@@ -23,9 +24,15 @@ import 'pocketbase_service.dart';
 /// привязки пары) — иначе Android 12+ заблокировал бы старт foreground-сервиса
 /// из фона. Дальше он переживает сворачивание и свайп из недавних.
 ///
-/// iOS НЕ поддерживается: постоянный фоновый сокет там не выживает (нужен
-/// APNs — отдельная задача). На iOS пуши работают только пока приложение
-/// открыто, через главный изолят (см. `home_screen._updatePartnerPush`).
+/// С 13 августа 2026 это ЗАПАСНОЙ путь. Обычно уведомления доставляет FCM
+/// (`FcmService`), и тогда сервис не стартует вовсе: у Android 14 на сервисы
+/// типа dataSync шесть часов в сутки, после которых доставка молчала до утра,
+/// а строка «Togetherly на связи» висела в шторке у каждого. Сервис нужен там,
+/// где пуши не дойдут: прошивки без сервисов Google и телефоны, с которых не
+/// приехал токен.
+///
+/// iOS НЕ поддерживается: постоянный фоновый сокет там не выживает. Там пуши
+/// идут через APNs (`ApnsService` плюс релей на сервере).
 class PushBackgroundService {
   PushBackgroundService._();
   static final PushBackgroundService instance = PushBackgroundService._();
@@ -82,6 +89,16 @@ class PushBackgroundService {
   }) async {
     if (!Platform.isAndroid) return;
     if (groupId.isEmpty || myUid.isEmpty || partnerUid.isEmpty) return;
+    // Пуши FCM дошли — сокет в фоне держать незачем, и строка «Togetherly на
+    // связи» из шторки уходит совсем. Сервис остаётся только для прошивок без
+    // сервисов Google и для случая, когда токен так и не приехал.
+    if (!socketServiceNeeded(
+      hasGoogleServices: FcmService.instance.ready,
+      hasToken: FcmService.instance.ready,
+    )) {
+      await stop();
+      return;
+    }
     if (_starting) return; // параллельный старт уже идёт
     _starting = true;
     try {

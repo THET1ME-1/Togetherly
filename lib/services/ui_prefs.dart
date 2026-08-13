@@ -195,4 +195,31 @@ class UiPrefs {
     }
     await p.setStringList(kCollapsedSections, saved.toList());
   }
+
+  // ── Плашка Togetherly+ ──
+  /// Когда показывали в прошлый раз (epoch-ms).
+  static const String kPlusPromoAt = 'plus_promo_at';
+
+  /// Когда приложение впервые запустилось на этом телефоне (epoch-ms).
+  /// В первые сутки витрину не показываем: человек ещё не понял, за что платить.
+  static const String kFirstRunAt = 'first_run_at';
+
+  static Future<int> plusPromoAt() async {
+    final p = await SharedPreferences.getInstance();
+    return p.getInt(kPlusPromoAt) ?? 0;
+  }
+
+  static Future<void> setPlusPromoShown(int nowMs) async {
+    final p = await SharedPreferences.getInstance();
+    await p.setInt(kPlusPromoAt, nowMs);
+  }
+
+  /// Отметка первого запуска. Ставится один раз и дальше только читается.
+  static Future<int> firstRunAt(int nowMs) async {
+    final p = await SharedPreferences.getInstance();
+    final saved = p.getInt(kFirstRunAt) ?? 0;
+    if (saved > 0) return saved;
+    await p.setInt(kFirstRunAt, nowMs);
+    return nowMs;
+  }
 }

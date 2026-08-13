@@ -54,6 +54,35 @@ routerAdd("POST", "/api/apns/test", (e) => {
   }
 }, $apis.requireSuperuserAuth());
 
+/// Проверка доставки на Android: `POST /api/fcm/test {token, title?, body?}`.
+///
+/// Тот же смысл, что у apns/test: отличить «пуши не работают» от «телефон не
+/// отдал токен». Ответ Google приходит как есть: `UNREGISTERED` — токен мёртв,
+/// `INVALID_ARGUMENT` — токен не от этого проекта, `ok` — пуш ушёл.
+routerAdd("POST", "/api/fcm/test", (e) => {
+  const body = e.requestInfo().body || {};
+  const token = String(body.token || "").trim();
+  if (!token) return e.json(400, { ok: false, reason: "NoDeviceToken" });
+  try {
+    const res = $http.send({
+      url: "http://127.0.0.1:8100/push",
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token: token,
+        title: String(body.title || "Togetherly"),
+        body: String(body.body || "Проверка доставки"),
+        tag: "test",
+        data: { kind: "test" },
+      }),
+      timeout: 15,
+    });
+    return e.json(200, { relay: res.json || {}, status: res.statusCode });
+  } catch (err) {
+    return e.json(502, { ok: false, reason: String(err) });
+  }
+}, $apis.requireSuperuserAuth());
+
 /// Новое сообщение в чате пары.
 onRecordAfterCreateSuccess((e) => {
   try {

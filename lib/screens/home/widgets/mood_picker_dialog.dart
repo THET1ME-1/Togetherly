@@ -4,15 +4,22 @@ import '../../../theme/theme_scope.dart';
 import '../../../widgets/mood_image.dart';
 import 'package:flutter/services.dart';
 import '../../../models/ailment.dart';
+import '../../../models/custom_mood.dart';
 import '../../../models/mood_band.dart';
 import '../../../models/mood_entry.dart';
 import '../../../models/user_data.dart';
 import '../../../models/mood_pack.dart';
 import '../../../models/pair_data.dart';
 import '../../../services/locale_service.dart';
+import '../../../services/custom_mood_service.dart';
 import '../../../services/mood_pack_service.dart';
 import '../../../services/mood_service.dart';
+import '../../../services/plus_access.dart';
+import '../../../services/plus_service.dart';
 import '../../../services/widget_service.dart';
+import '../../../screens/plus_screen.dart';
+import '../../../widgets/common/app_dialog.dart';
+import '../../../widgets/mood/custom_mood_sheet.dart';
 import '../../../widgets/mood_pack_selector.dart';
 import '../../../widgets/mood_tile_shapes.dart';
 
@@ -49,6 +56,7 @@ void showMoodPicker({
         primary: primary,
         user: user,
         pairOwned: pairOwned,
+        groupId: moodService.groupId,
         title: LocaleService.current.howAreYouFeeling,
         subtitle: LocaleService.current.partnerWillSeeMood,
         onSelect: (mood) {
@@ -134,6 +142,7 @@ void showMoodPickerForDate({
         primary: primary,
         user: user,
         pairOwned: pairOwned,
+        groupId: moodService.groupId,
         title: s.moodDateLabel(dateLabel),
         subtitle: isToday ? s.partnerWillSeeMood : s.indicateMoodForDay,
         onSelect: (mood) {
@@ -239,6 +248,10 @@ class MoodPickerSheet extends StatefulWidget {
 
   /// Ключи `owned_features` группы: пак общий на пару, платит кто-то один.
   final Set<String> pairOwned;
+
+  /// Пара, чьи свои настроения показываем. Пусто — раздела «Свои» нет вовсе
+  /// (одиночка: настроения без группы никуда не сохраняются).
+  final String groupId;
   final String currentAilmentId;
   final void Function(Ailment)? onSelectAilment;
   final Future<void> Function()? onClearAilment;
@@ -253,6 +266,7 @@ class MoodPickerSheet extends StatefulWidget {
     required this.onClear,
     this.user,
     this.pairOwned = const {},
+    this.groupId = '',
     this.showAilmentTab = false,
     this.ailmentOnly = false,
     this.currentAilmentId = '',
@@ -272,12 +286,62 @@ class _MoodPickerSheetState extends State<MoodPickerSheet> {
   /// превращается из «Убрать настроение» в покупку. Пусто — показан свой.
   MoodPack? _preview;
 
+  /// Свои настроения пары. Пустой список означает и «ещё не загрузили», и
+  /// «не заводили» — разницы для сетки нет.
+  List<CustomMood> _custom = const [];
+
   @override
   void initState() {
     super.initState();
     // Загрузить сохранённый выбор пака (идемпотентно); AnimatedBuilder ниже
     // перестроит сетку, когда значение подгрузится/изменится.
     MoodPackService.instance.load();
+    _loadCustom();
+  }
+
+  Future<void> _loadCustom() async {
+    if (widget.groupId.isEmpty) return;
+    final list = await CustomMoodService.instance.load(widget.groupId);
+    if (mounted) setState(() => _custom = list);
+  }
+
+  /// Плитка «Своё»: заводит настроение или ведёт на экран Плюса.
+  Future<void> _addCustom() async {
+    final s = LocaleService.current;
+    switch (PlusService.instance.gate) {
+      case PlusGate.hidden:
+        return; // на iPhone Плюса нет — плитки тоже
+      case PlusGate.locked:
+        Navigator.of(context).push(MaterialPageRoute<void>(
+          builder: (_) => PlusScreen(scheme: ProfileTheme.schemeFor(context.appTheme)),
+        ));
+        return;
+      case PlusGate.open:
+        break;
+    }
+    if (_custom.length >= CustomMoodService.limit) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(s.customMoodLimitReached)),
+      );
+      return;
+    }
+    final made = await showCustomMoodSheet(context, widget.groupId);
+    if (made == true) await _loadCustom();
+  }
+
+  /// Долгое нажатие по своему настроению — убрать его из набора.
+  Future<void> _removeCustom(CustomMood mood) async {
+    final s = LocaleService.current;
+    final yes = await AppDialog.confirm(
+      context,
+      title: mood.label,
+      message: s.customMoodDeleteHint,
+      confirmLabel: s.customMoodDelete,
+      destructive: true,
+    );
+    if (yes != true) return;
+    await CustomMoodService.instance.remove(mood.id);
+    await _loadCustom();
   }
 
   @override
@@ -419,16 +483,94 @@ class _MoodPickerSheetState extends State<MoodPickerSheet> {
               // блоком под ним: иначе она висела бы на экране всё время, пока
               // человек листает эмоции, и спорила бы с кнопкой снизу.
               final signed = pack.author.isNotEmpty;
+              // Свои настроения показываем только у своего набора: пока человек
+              // разглядывает чужой пак, сетка целиком про этот пак.
+              final own = _preview == null &&
+                  widget.groupId.isNotEmpty &&
+                  PlusService.instance.visible;
+              final head = own ? 1 : 0;
               return ListView.builder(
                 controller: widget.scrollController,
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-                itemCount: sections.length + (signed ? 1 : 0),
-                itemBuilder: (_, i) => i < sections.length
-                    ? _bandSection(sections[i], pack, cs)
-                    : _authorLine(pack.author, cs),
+                itemCount: head + sections.length + (signed ? 1 : 0),
+                itemBuilder: (_, i) {
+                  if (own && i == 0) return _customSection(cs);
+                  final k = i - head;
+                  return k < sections.length
+                      ? _bandSection(sections[k], pack, cs)
+                      : _authorLine(pack.author, cs);
+                },
               );
             },
           ),
+        ),
+      ],
+    );
+  }
+
+  /// Раздел своих настроений: то, что пара завела сама, плюс плитка «Своё».
+  ///
+  /// Стоит первым — это короткий свой список, за которым не надо листать чужие
+  /// два десятка мордочек.
+  Widget _customSection(ColorScheme cs) {
+    final s = LocaleService.current;
+    final locked = PlusService.instance.gate == PlusGate.locked;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(2, 14, 2, 10),
+          child: Row(
+            children: [
+              Text(
+                s.customMoodBand,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.3,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: Divider(height: 1, color: cs.outlineVariant)),
+            ],
+          ),
+        ),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 5,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 8,
+            childAspectRatio: 0.62,
+          ),
+          itemCount: _custom.length + 1,
+          itemBuilder: (_, i) {
+            if (i == _custom.length) {
+              return _AddMoodTile(
+                label: s.customMoodNewTile,
+                locked: locked,
+                scheme: cs,
+                onTap: _addCustom,
+              );
+            }
+            final mood = _custom[i];
+            final option = mood.toMoodOption();
+            return _MoodTile(
+              mood: option,
+              isSelected: widget.currentEmoji == option.imagePath,
+              primary: widget.primary,
+              scheme: cs,
+              tileGradient: null,
+              onTap: () {
+                HapticFeedback.lightImpact();
+                widget.onSelect(option);
+              },
+              onLongPress: () => _removeCustom(mood),
+            );
+          },
         ),
       ],
     );
@@ -657,6 +799,9 @@ class _MoodTile extends StatelessWidget {
   final List<Color>? tileGradient;
   final VoidCallback onTap;
 
+  /// Есть только у своих настроений: удержание убирает настроение из набора.
+  final VoidCallback? onLongPress;
+
   const _MoodTile({
     required this.mood,
     required this.isSelected,
@@ -664,6 +809,7 @@ class _MoodTile extends StatelessWidget {
     required this.scheme,
     required this.onTap,
     this.tileGradient,
+    this.onLongPress,
   });
 
   @override
@@ -671,6 +817,7 @@ class _MoodTile extends StatelessWidget {
     final sticker = tileGradient != null;
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress,
       behavior: HitTestBehavior.opaque,
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -820,6 +967,63 @@ class _AilmentChip extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+
+/// Плитка «Своё» в конце раздела своих настроений.
+///
+/// Под замком она никуда не пропадает: человек должен узнать, что такое вообще
+/// бывает, — иначе возможность видна только тем, кто уже купил.
+class _AddMoodTile extends StatelessWidget {
+  final String label;
+  final bool locked;
+  final ColorScheme scheme;
+  final VoidCallback onTap;
+
+  const _AddMoodTile({
+    required this.label,
+    required this.locked,
+    required this.scheme,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AspectRatio(
+            aspectRatio: 1.0,
+            child: Container(
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Icon(
+                locked ? Icons.lock_outline : Icons.add,
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            maxLines: 2,
+            textAlign: TextAlign.center,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              height: 1.15,
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+        ],
       ),
     );
   }

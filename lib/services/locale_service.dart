@@ -323,6 +323,41 @@ abstract class AppStrings {
   String get moodBandSad;
   String get moodBandHeavy;
 
+  // Свои настроения пары (Togetherly+)
+  String get customMoodBand;
+  String get customMoodNewTile;
+  String get customMoodTitle;
+  String get customMoodSubtitle;
+  String get customMoodSourceEmoji;
+  String get customMoodSourcePhoto;
+  String get customMoodSourceDraw;
+  String get customMoodEmojiHint;
+  String get customMoodLabelHint;
+  String get customMoodScoreTitle;
+  String get customMoodScore1;
+  String get customMoodScore2;
+  String get customMoodScore3;
+  String get customMoodScore4;
+  String get customMoodScore5;
+  String get customMoodSave;
+  String get customMoodDelete;
+  String get customMoodDeleteHint;
+  String get customMoodDrawTitle;
+  String get customMoodDrawDone;
+  String get customMoodEraser;
+  String get customMoodUndo;
+  String get customMoodNeedPicture;
+  String get customMoodNeedLabel;
+  String get customMoodFailed;
+  String get customMoodLimitReached;
+  String get customMoodPlusLock;
+
+  // Плашка Togetherly+ на главной
+  String get plusPromoTitle;
+  String get plusPromoBody;
+  String get plusPromoOpen;
+  String get plusPromoLater;
+
   /// Подпись художника под сеткой пака: «Рисунки — noia_aa».
   String moodPackAuthor(String name);
   // ── Самочувствие («болячки») ──

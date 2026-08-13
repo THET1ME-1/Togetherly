@@ -644,6 +644,17 @@ class PbRealtimeService {
         rtMatch: (r) => r.data['user_uid'] == uid,
       );
 
+  /// Свои настроения пары (Togetherly+). Набор общий: завёл один — видят оба,
+  /// поэтому фильтр по группе, а не по автору.
+  Stream<List<RecordModel>> watchCustomMoods(String groupId) => watchList(
+        'custom_moods',
+        filter: _pb.filter('group_id = {:g}', {'g': groupId}),
+        scope: RecordScope('custom_moods:g=$groupId',
+            equals: {'group_id': groupId}),
+        compare: (a, b) => _numAsc(a.data['sort'], b.data['sort']),
+        rtChannel: 'pair:$groupId',
+      );
+
   /// Отметки календаря цикла [uid] в группе. Свои приходят все, партнёрские —
   /// только разрешённые: их отсекает правило чтения коллекции на сервере.
   Stream<List<RecordModel>> watchCycle(String groupId, String uid) => watchList(

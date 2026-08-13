@@ -326,6 +326,16 @@ class _DrawScreenState extends State<DrawScreen>
 
   // Pan / zoom / rotation
   Size _canvasSize = Size.zero;
+  /// Сигнал «вид холста поменялся»: масштаб, смещение или поворот.
+  ///
+  /// Пока панорама шла через `setState`, на каждом сэмпле жеста заново
+  /// строился ВЕСЬ экран рисования — панели инструментов, палитра, слои,
+  /// список кистей. Отсюда жалоба «двигаю экран, он очень лагает». Теперь
+  /// перестраивается только сам холст и табличка с процентом.
+  final ValueNotifier<int> _viewTick = ValueNotifier<int>(0);
+
+  void _bumpView() => _viewTick.value++;
+
   double _scale = 1.0;
 
   /// Щипок на паузе: пальцев стало меньше двух и холст ждёт возвращения
@@ -505,6 +515,7 @@ class _DrawScreenState extends State<DrawScreen>
     _resetCtrl?.dispose();
     _clearLiveStroke();
     _repaintNotifier.dispose();
+    _viewTick.dispose();
     _partnerNotifier.dispose();
     super.dispose();
   }
@@ -1110,7 +1121,8 @@ class _DrawScreenState extends State<DrawScreen>
     // Palm tool
     if (_activeTool == DrawTool.palm) {
       final delta = event.localPosition - _palmPanStart;
-      setState(() => _canvasOffset = _palmBaseOffset + delta);
+      _canvasOffset = _palmBaseOffset + delta;
+      _bumpView();
       return;
     }
 
@@ -1246,11 +1258,10 @@ class _DrawScreenState extends State<DrawScreen>
       baseRotation: _baseRotation,
       nextRotation: nextRotation,
     );
-    setState(() {
-      _scale = nextScale;
-      _canvasRotation = nextRotation;
-      _canvasOffset = nextOffset;
-    });
+    _scale = nextScale;
+    _canvasRotation = nextRotation;
+    _canvasOffset = nextOffset;
+    _bumpView();
   }
 
   void _onScaleEnd(ScaleEndDetails _) {
@@ -1309,11 +1320,10 @@ class _DrawScreenState extends State<DrawScreen>
     final fromRot = _canvasRotation;
     ctrl.addListener(() {
       final t = curve.value;
-      setState(() {
-        _scale = fromScale + (1.0 - fromScale) * t;
-        _canvasOffset = Offset.lerp(fromOffset, Offset.zero, t)!;
-        _canvasRotation = fromRot * (1 - t);
-      });
+      _scale = fromScale + (1.0 - fromScale) * t;
+      _canvasOffset = Offset.lerp(fromOffset, Offset.zero, t)!;
+      _canvasRotation = fromRot * (1 - t);
+      _bumpView();
     });
     ctrl.forward().whenComplete(() {
       ctrl.dispose();
@@ -2868,7 +2878,11 @@ class _DrawScreenState extends State<DrawScreen>
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(_kSheetRadius),
                 child: SizedBox.expand(
-                  child: Transform(
+                  // Вид холста слушает свой сигнал: жест перестраивает только
+                  // это поддерево, а не весь экран с панелями и палитрой.
+                  child: ValueListenableBuilder<int>(
+                    valueListenable: _viewTick,
+                    builder: (context, _, canvasChild) => Transform(
                     transform: Matrix4.identity()
                       ..setTranslationRaw(
                         _canvasOffset.dx,
@@ -2923,6 +2937,7 @@ class _DrawScreenState extends State<DrawScreen>
                         ),
                       ),
                       ],
+                    ),
                     ),
                   ),
                 ),
@@ -3211,6 +3226,13 @@ class _DrawScreenState extends State<DrawScreen>
   }
 
   Widget _buildScaleIndicator() {
+    return ValueListenableBuilder<int>(
+      valueListenable: _viewTick,
+      builder: (context, _, __) => _scaleIndicatorBody(),
+    );
+  }
+
+  Widget _scaleIndicatorBody() {
     final pct = (_scale * 100).round();
     final deg = (_canvasRotation * 180 / math.pi).round();
     final label = deg != 0 ? '$pct%  ${deg > 0 ? '+' : ''}$deg°' : '$pct%';

@@ -6,6 +6,7 @@ plugins {
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    id("com.google.gms.google-services")
 }
 
 val keyPropertiesFile = rootProject.file("key.properties")
@@ -94,6 +95,15 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+
+    // Пуши. Свой foreground-сервис держал сокет и стоил строки в шторке у
+    // каждого плюс шести часов в сутки лимита Android 14 на dataSync — с FCM
+    // сокет держит система. Версии тянет BOM, руками их не прописывать.
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    implementation("com.google.firebase:firebase-messaging")
+    // Проверка «есть ли на телефоне сервисы Google»: где их нет, остаётся
+    // прежний foreground-сервис.
+    implementation("com.google.android.gms:play-services-base:18.5.0")
 
     // Google Play Billing тянет плагин in_app_purchase_android (0.5.x = billing 8.x).
     // Свою версию сюда не прописывать: Play отклоняет обновления на библиотеке ниже 8.

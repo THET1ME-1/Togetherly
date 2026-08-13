@@ -13,10 +13,16 @@
 ///     двойной баннер раздражает сильнее, чем отсутствие пуша;
 ///   • тому, у кого нет `apns_token` (Android и те, кто не дал разрешение).
 ///
-/// Мёртвый токен (Apple отвечает Unregistered/BadDeviceToken) вычищаем из
-/// профиля сразу, иначе будем стучать в него вечно.
+/// Мёртвый токен (Apple отвечает Unregistered/BadDeviceToken, Google —
+/// UNREGISTERED) вычищаем из профиля сразу, иначе будем стучать в него вечно.
+///
+/// Каналов доставки два, и выбирает их не платформа, а наличие токена: iPhone
+/// приносит `apns_token`, Android — `fcm_token`. У кого есть оба (сменил
+/// телефон, а токен второго ещё жив) — получит в оба, дубль лучше тишины.
+/// Имя файла историческое: сначала здесь был только APNs.
 
 const APNS_RELAY = "http://127.0.0.1:8096/push";
+const FCM_RELAY = "http://127.0.0.1:8100/push";
 const ONLINE_WINDOW_MS = 2 * 60 * 1000;
 
 function membersOf(group) {
@@ -38,9 +44,9 @@ function isOnline(uid) {
   }
 }
 
-function forgetToken(user) {
+function forgetToken(user, field) {
   try {
-    user.set("apns_token", "");
+    user.set(field || "apns_token", "");
     $app.save(user);
   } catch (_) { /* попробуем в следующий раз */ }
 }
@@ -48,32 +54,63 @@ function forgetToken(user) {
 function sendTo(uid, title, body, thread) {
   let user;
   try { user = $app.findRecordById("users", uid); } catch (_) { return; }
-  const token = String(user.getString("apns_token") || "");
-  if (!token) return;
   if (isOnline(uid)) return;
-  try {
-    const res = $http.send({
-      url: APNS_RELAY,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        token: token,
-        title: title,
-        body: body,
-        thread: thread,
-        sandbox: !!user.get("apns_sandbox"),
-        data: { kind: thread },
-      }),
-      timeout: 10,
-    });
-    const answer = res.json || {};
-    if (answer.gone) forgetToken(user);
-    if (!answer.ok) {
-      $app.logger().warn("apns: не доставлено", "uid", uid,
-        "reason", String(answer.reason || res.statusCode));
+
+  const apnsToken = String(user.getString("apns_token") || "");
+  if (apnsToken) {
+    try {
+      const res = $http.send({
+        url: APNS_RELAY,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: apnsToken,
+          title: title,
+          body: body,
+          thread: thread,
+          sandbox: !!user.get("apns_sandbox"),
+          data: { kind: thread },
+        }),
+        timeout: 10,
+      });
+      const answer = res.json || {};
+      if (answer.gone) forgetToken(user, "apns_token");
+      if (!answer.ok) {
+        $app.logger().warn("apns: не доставлено", "uid", uid,
+          "reason", String(answer.reason || res.statusCode));
+      }
+    } catch (e) {
+      $app.logger().warn("apns: релей не ответил", "err", String(e));
     }
-  } catch (e) {
-    $app.logger().warn("apns: релей не ответил", "err", String(e));
+  }
+
+  const fcmToken = String(user.getString("fcm_token") || "");
+  if (fcmToken) {
+    try {
+      const res = $http.send({
+        url: FCM_RELAY,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: fcmToken,
+          title: title,
+          body: body,
+          // Одна строка на вид события: новое сообщение заменяет прежнее в
+          // шторке, а не копится десятком одинаковых баннеров.
+          tag: thread,
+          data: { kind: thread },
+        }),
+        timeout: 10,
+      });
+      const answer = res.json || {};
+      if (answer.gone) forgetToken(user, "fcm_token");
+      if (!answer.ok) {
+        $app.logger().warn("fcm: не доставлено", "uid", uid,
+          "reason", String(answer.reason || res.statusCode));
+      }
+    } catch (e) {
+      $app.logger().warn("fcm: релей не ответил", "err", String(e));
+    }
   }
 }
 
@@ -107,41 +144,73 @@ const MIN_WAKE_GAP_MS = 15 * 60 * 1000;
 function wakeUp(uid, kind) {
   let user;
   try { user = $app.findRecordById("users", uid); } catch (_) { return; }
-  const token = String(user.getString("apns_token") || "");
-  if (!token) return;
+  const apnsToken = String(user.getString("apns_token") || "");
+  const fcmToken = String(user.getString("fcm_token") || "");
+  if (!apnsToken && !fcmToken) return;
   if (isOnline(uid)) return;
 
   const now = Date.now();
   const last = Number(user.get("apns_bg_ms") || 0);
   if (last && now - last < MIN_WAKE_GAP_MS) return;
 
-  try {
-    const res = $http.send({
-      url: APNS_RELAY,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        token: token,
-        silent: true,
-        sandbox: !!user.get("apns_sandbox"),
-        data: { kind: kind || "widgets" },
-      }),
-      timeout: 10,
-    });
-    const answer = res.json || {};
-    if (answer.gone) { forgetToken(user); return; }
-    if (!answer.ok) {
-      $app.logger().warn("apns: тихий пуш не доставлен", "uid", uid,
-        "reason", String(answer.reason || res.statusCode));
-      return;
-    }
+  let woke = false;
+
+  if (apnsToken) {
     try {
-      user.set("apns_bg_ms", now);
-      $app.save(user);
-    } catch (_) { /* отметка не критична: в худшем случае разбудим раньше */ }
-  } catch (e) {
-    $app.logger().warn("apns: релей не ответил на тихий пуш", "err", String(e));
+      const res = $http.send({
+        url: APNS_RELAY,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: apnsToken,
+          silent: true,
+          sandbox: !!user.get("apns_sandbox"),
+          data: { kind: kind || "widgets" },
+        }),
+        timeout: 10,
+      });
+      const answer = res.json || {};
+      if (answer.gone) forgetToken(user, "apns_token");
+      else if (answer.ok) woke = true;
+      else {
+        $app.logger().warn("apns: тихий пуш не доставлен", "uid", uid,
+          "reason", String(answer.reason || res.statusCode));
+      }
+    } catch (e) {
+      $app.logger().warn("apns: релей не ответил на тихий пуш", "err", String(e));
+    }
   }
+
+  if (fcmToken) {
+    try {
+      const res = $http.send({
+        url: FCM_RELAY,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: fcmToken,
+          silent: true,
+          data: { kind: kind || "widgets" },
+        }),
+        timeout: 10,
+      });
+      const answer = res.json || {};
+      if (answer.gone) forgetToken(user, "fcm_token");
+      else if (answer.ok) woke = true;
+      else {
+        $app.logger().warn("fcm: тихий пуш не доставлен", "uid", uid,
+          "reason", String(answer.reason || res.statusCode));
+      }
+    } catch (e) {
+      $app.logger().warn("fcm: релей не ответил на тихий пуш", "err", String(e));
+    }
+  }
+
+  if (!woke) return;
+  try {
+    user.set("apns_bg_ms", now);
+    $app.save(user);
+  } catch (_) { /* отметка не критична: в худшем случае разбудим раньше */ }
 }
 
 /// Разбудить всех участников группы, кроме автора изменения.

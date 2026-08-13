@@ -25,6 +25,8 @@ import 'l10n/dict/notification_settings.dart';
 import 'l10n/dict/petal_timer_dial.dart';
 import 'l10n/dict/photo_card.dart';
 import 'l10n/dict/photo_carousel_editor.dart';
+import 'l10n/dict/custom_moods.dart';
+import 'l10n/dict/plus_promo.dart';
 import 'l10n/dict/moods.dart';
 import 'l10n/dict/postcard_templates.dart';
 import 'l10n/dict/profile.dart';
@@ -44,6 +46,8 @@ import 'l10n/dict/widget_screen.dart';
 /// одного экрана не требовала лезть в файл на полторы тысячи строк.
 const Map<String, Map<String, String>> kStrings = {
   ...achievementsStrings,
+  ...customMoodsStrings,
+  ...plusPromoStrings,
   ...ailmentsStrings,
   ...appIconsStrings,
   ...chatStrings,
@@ -369,6 +373,68 @@ abstract class DictStrings extends AppStrings {
   String get moodBandSad => _t('moodBandSad');
   @override
   String get moodBandHeavy => _t('moodBandHeavy');
+  @override
+  String get customMoodBand => _t('customMoodBand');
+  @override
+  String get customMoodNewTile => _t('customMoodNewTile');
+  @override
+  String get customMoodTitle => _t('customMoodTitle');
+  @override
+  String get customMoodSubtitle => _t('customMoodSubtitle');
+  @override
+  String get customMoodSourceEmoji => _t('customMoodSourceEmoji');
+  @override
+  String get customMoodSourcePhoto => _t('customMoodSourcePhoto');
+  @override
+  String get customMoodSourceDraw => _t('customMoodSourceDraw');
+  @override
+  String get customMoodEmojiHint => _t('customMoodEmojiHint');
+  @override
+  String get customMoodLabelHint => _t('customMoodLabelHint');
+  @override
+  String get customMoodScoreTitle => _t('customMoodScoreTitle');
+  @override
+  String get customMoodScore1 => _t('customMoodScore1');
+  @override
+  String get customMoodScore2 => _t('customMoodScore2');
+  @override
+  String get customMoodScore3 => _t('customMoodScore3');
+  @override
+  String get customMoodScore4 => _t('customMoodScore4');
+  @override
+  String get customMoodScore5 => _t('customMoodScore5');
+  @override
+  String get customMoodSave => _t('customMoodSave');
+  @override
+  String get customMoodDelete => _t('customMoodDelete');
+  @override
+  String get customMoodDeleteHint => _t('customMoodDeleteHint');
+  @override
+  String get customMoodDrawTitle => _t('customMoodDrawTitle');
+  @override
+  String get customMoodDrawDone => _t('customMoodDrawDone');
+  @override
+  String get customMoodEraser => _t('customMoodEraser');
+  @override
+  String get customMoodUndo => _t('customMoodUndo');
+  @override
+  String get customMoodNeedPicture => _t('customMoodNeedPicture');
+  @override
+  String get customMoodNeedLabel => _t('customMoodNeedLabel');
+  @override
+  String get customMoodFailed => _t('customMoodFailed');
+  @override
+  String get customMoodLimitReached => _t('customMoodLimitReached');
+  @override
+  String get customMoodPlusLock => _t('customMoodPlusLock');
+  @override
+  String get plusPromoTitle => _t('plusPromoTitle');
+  @override
+  String get plusPromoBody => _t('plusPromoBody');
+  @override
+  String get plusPromoOpen => _t('plusPromoOpen');
+  @override
+  String get plusPromoLater => _t('plusPromoLater');
   @override
   String get moodTabLabel => _t('moodTabLabel');
   @override

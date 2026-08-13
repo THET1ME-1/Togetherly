@@ -25,6 +25,7 @@ import 'services/deep_link_service.dart';
 import 'services/shared_link_service.dart';
 import 'services/pb_push_service.dart';
 import 'services/apns_service.dart';
+import 'services/fcm_service.dart';
 import 'services/catalog_service.dart';
 import 'services/live_location_service.dart';
 import 'models/symbol_catalog.dart';
@@ -207,6 +208,31 @@ Future<void> _homeWidgetBackgroundCallback(Uri? uri) async {
       );
     } catch (e) {
       debugPrint('miss from widget failed: $e');
+    }
+    return;
+  }
+
+  // Тихий пуш «у партнёра поменялись данные виджетов». Периодический
+  // WorkManager подобрал бы это сам, но через четверть часа, а пуш даёт
+  // обновить рабочий стол сразу (`FcmService.kt`).
+  if (host == 'refresh') {
+    try {
+      await PocketBaseService().init();
+      final myUid = PocketBaseService().userId ?? '';
+      final groupId =
+          await HomeWidget.getWidgetData<String>('love_widget_group_id') ?? '';
+      final partnerUid =
+          await HomeWidget.getWidgetData<String>('love_widget_partner_uid') ??
+              '';
+      if (myUid.isEmpty || groupId.isEmpty) return;
+      await HomeWidgetService.instance.backgroundRefreshAll(
+        groupId: groupId,
+        myUid: myUid,
+        partnerUid: partnerUid,
+        refreshPhotos: true,
+      );
+    } catch (e) {
+      debugPrint('refresh from push failed: $e');
     }
     return;
   }
@@ -731,6 +757,15 @@ class _LoveAppState extends State<LoveApp> with WidgetsBindingObserver {
       await ApnsService.instance.start();
     } catch (e) {
       debugPrint('Старт: токен пушей не получен — $e');
+    }
+    // То же для Android, только через FCM. Пока пуши держал свой
+    // foreground-сервис, в шторке у каждого висела строка «Togetherly на
+    // связи», а Android 14 давал такому сервису шесть часов в сутки — после
+    // них доставка молчала до утра.
+    try {
+      await FcmService.instance.start();
+    } catch (e) {
+      debugPrint('Старт: токен FCM не получен — $e');
     }
   }
 

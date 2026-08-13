@@ -89,7 +89,11 @@ import 'profile_screen.dart';
 import '../theme/profile_theme.dart';
 import '../services/cycle_service.dart';
 import '../services/daily_task_service.dart';
+import '../services/apns_service.dart';
+import '../services/fcm_service.dart';
 import '../services/platform_tag.dart';
+import '../widgets/plus/plus_promo_rule.dart';
+import '../widgets/plus/plus_promo_sheet.dart';
 import '../services/plus_service.dart';
 import '../services/home_widget_service.dart';
 import '../services/catalog_widget_sync.dart';
@@ -280,6 +284,12 @@ class _HomeScreenState extends State<HomeScreen> {
     // встретив её названия. Пары для этого не требуется, поэтому здесь, а не
     // в привязке к группе.
     unawaited(PlatformTag.sync());
+
+    // Токен пушей мог приехать раньше входа: на первом запуске система отдаёт
+    // его, пока человек ещё регистрируется, и записывать его тогда некуда.
+    // Здесь сессия уже есть.
+    unawaited(ApnsService.instance.syncAfterLogin());
+    unawaited(FcmService.instance.syncAfterLogin());
 
     // Check if launched from homescreen widget > open Widgets tab
     _checkWidgetLaunch();
@@ -1192,6 +1202,32 @@ class _HomeScreenState extends State<HomeScreen> {
     });
     await _maybeShowInviteScreen();
     await _maybePitchPlus();
+    await _maybeRemindPlus();
+  }
+
+  /// Плашка Togetherly+ — раз в семь часов тем, кто не купил.
+  ///
+  /// Раньше тут стоял только одноразовый рассказ после обновления, и заказчик
+  /// попросил напоминать регулярно («раз в 6–8 часов, попапом, а не экраном»).
+  /// Поэтому нижний лист, а не экран: человек открывал приложение ради своей
+  /// пары, и полноэкранная витрина на входе читается как «сначала заплати».
+  ///
+  /// Правило показа живёт в [shouldShowPlusPromo] под тестами: купившему не
+  /// показываем никогда, на iPhone Плюса не существует вовсе, а в первые сутки
+  /// после установки молчим.
+  Future<void> _maybeRemindPlus() async {
+    if (!mounted) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final show = shouldShowPlusPromo(
+      gate: PlusService.instance.gate,
+      nowMs: now,
+      lastShownMs: await UiPrefs.plusPromoAt(),
+      installedMs: await UiPrefs.firstRunAt(now),
+    );
+    if (!show || !mounted) return;
+    await UiPrefs.setPlusPromoShown(now);
+    if (!mounted) return;
+    await showPlusPromoSheet(context);
   }
 
   /// Рассказ про Togetherly+ — один раз после обновления.

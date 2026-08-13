@@ -1,0 +1,17 @@
+[Unit]
+Description=Togetherly FCM relay
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/fcm/fcm_relay.py
+Restart=always
+RestartSec=3
+# Ключ сервисного аккаунта читается только root, поэтому и сервис под root —
+# как релей APNs и PocketBase рядом.
+User=root
+Environment=FCM_KEY=/opt/pocketbase/keys/fcm-service-account.json
+Environment=FCM_RELAY_PORT=8100
+
+[Install]
+WantedBy=multi-user.target

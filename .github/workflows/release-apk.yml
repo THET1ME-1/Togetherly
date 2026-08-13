@@ -93,6 +93,15 @@ jobs:
           keyPassword=$KEY_PASSWORD
           EOF
 
+      # Пуши на Android идут через FCM, и плагин google-services требует этот
+      # файл на этапе сборки. В репозитории его нет (публичный, GPL-3.0),
+      # поэтому он приезжает секретом.
+      - name: Write google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+
       - name: Flutter pub get
         run: flutter pub get
 
@@ -287,6 +296,15 @@ jobs:
           keyPassword=$KEY_PASSWORD
           EOF
 
+      # Пуши на Android идут через FCM, и плагин google-services требует этот
+      # файл на этапе сборки. В репозитории его нет (публичный, GPL-3.0),
+      # поэтому он приезжает секретом.
+      - name: Write google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+
       - name: Flutter pub get
         run: flutter pub get
 
@@ -394,6 +412,15 @@ jobs:
           keyAlias=$KEY_ALIAS
           keyPassword=$KEY_PASSWORD
           EOF
+
+      # Пуши на Android идут через FCM, и плагин google-services требует этот
+      # файл на этапе сборки. В репозитории его нет (публичный, GPL-3.0),
+      # поэтому он приезжает секретом.
+      - name: Write google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
 
       - name: Flutter pub get
         run: flutter pub get
