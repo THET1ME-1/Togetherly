@@ -13,6 +13,7 @@ import 'package:love_app/services/app_icon_service.dart';
 Widget _app({String? appIconId}) => MaterialApp(
       home: SettingsScreen(
         scheme: ColorScheme.fromSeed(seedColor: const Color(0xFFE91E63)),
+        accountEmail: 'sasha@example.com',
         appIconId: appIconId,
         onAppIcon: () {},
         onAppearance: () {},
