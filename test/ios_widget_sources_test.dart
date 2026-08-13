@@ -40,14 +40,18 @@ void main() {
         .map((f) => f.readAsStringSync())
         .join('\n');
 
-    // Строки вида «TogetherWidget()» внутри @WidgetBundleBuilder.
-    final declared = RegExp(r'^\s{8}([A-Za-z]+Widget[A-Za-z]*)\(\)\s*$',
+    // Строки вида «TogetherWidget()» внутри @WidgetBundleBuilder. Отступ бывает
+    // и глубже: виджеты под `if #available` живут на двенадцати пробелах, и
+    // прежняя маска на восемь их не видела вовсе — конфигурируемые фото и
+    // виджеты экрана блокировки этот сторож молча пропускал.
+    final declared = RegExp(r'^\s{8,16}([A-Za-z]+Widget[A-Za-z]*)\(\)\s*$',
             multiLine: true)
         .allMatches(bundle)
         .map((m) => m.group(1)!)
         .toSet();
 
-    expect(declared, isNotEmpty, reason: 'Бандл не разобрался — проверьте отступы');
+    expect(declared.length, greaterThanOrEqualTo(20),
+        reason: 'Бандл разобрался не полностью: ${declared.length} виджетов');
 
     final undefined = declared
         .where((name) => !swift.contains('struct $name: Widget'))

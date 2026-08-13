@@ -12,6 +12,20 @@ struct TogetherlyWidgetBundle: WidgetBundle {
         coreWidgets
         photoWidgets
         newWidgets
+        lockWidgets
+    }
+
+    /// Экран блокировки (iOS 16+). Для него годятся только accessory-семейства,
+    /// а их в бандле не было вовсе — отсюда жалоба «виджетов на экране
+    /// блокировки нет». `WidgetBundleBuilder` поддерживает одиночный
+    /// `if #available`, поэтому весь блок закрыт одной проверкой.
+    @WidgetBundleBuilder
+    var lockWidgets: some Widget {
+        if #available(iOS 16.0, *) {
+            LockDaysWidget()
+            LockMissWidget()
+            LockMoodWidget()
+        }
     }
 
     @WidgetBundleBuilder
