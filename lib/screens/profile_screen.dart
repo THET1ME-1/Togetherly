@@ -1,6 +1,7 @@
 import 'dart:async';
 import '../utils/safe_launch.dart';
 import 'package:flutter/material.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'couple_stats_screen.dart';
 import 'profile/profile_hero.dart';
@@ -2591,12 +2592,31 @@ class _ProfileScreenState extends State<ProfileScreen>
         ],
       );
     } catch (e) {
+      // Кроппер отказал (на iPhone это случается молча) — раньше на этом месте
+      // мы просто выходили, и человек видел, что «аватарка не меняется»
+      // (жалоба 13 августа 2026). Снимок при этом уже выбран: ставим его как
+      // есть, а причину отправляем в панель падений — без неё разбирать нечего.
       debugPrint('_changeAvatar: cropImage failed: $e');
       croppedFile = null;
+      unawaited(Sentry.captureException(
+        'avatar crop failed: $e',
+        withScope: (scope) => scope.level = SentryLevel.warning,
+      ));
+      if (mounted) {
+        await _uploadAvatarFile(image.path);
+      }
+      return;
     }
 
     if (croppedFile == null || !mounted) return;
+    await _uploadAvatarFile(croppedFile.path);
+  }
 
+  /// Заливает выбранный снимок в аватар и освежает виджеты.
+  ///
+  /// Отдельным методом, потому что путь сюда два: обычный (после обрезки)
+  /// и запасной, когда кроппер отказал — на iPhone он это делает молча.
+  Future<void> _uploadAvatarFile(String path) async {
     // Show loading
     showDialog(
       context: context,
@@ -2640,9 +2660,9 @@ class _ProfileScreenState extends State<ProfileScreen>
         return;
       }
 
-      final ext = croppedFile.path.split('.').last;
+      final ext = path.split('.').last;
       final destination = 'avatars/$userId/profile.$ext';
-      final downloadUrl = await fb.uploadFile(croppedFile.path, destination);
+      final downloadUrl = await fb.uploadFile(path, destination);
 
       if (mounted) Navigator.of(context).pop();
 

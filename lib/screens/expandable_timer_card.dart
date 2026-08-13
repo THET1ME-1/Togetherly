@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
+import '../models/timer_page.dart';
+
 import '../models/timer_item.dart';
 import '../services/timer_service.dart';
 import '../theme/app_theme.dart';
@@ -44,6 +46,10 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
   int _currentIndex = 0;
   Timer? _ticker;
 
+  /// Листал ли человек карусель сам. Пока нет — держим основной таймер, даже
+  /// если список приехал уже после первого кадра.
+  bool _userSwiped = false;
+
   AppTheme get _t => widget.theme;
 
   @override
@@ -51,8 +57,12 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
     super.initState();
     final timers = widget.timerService.timers;
     final defaultT = widget.timerService.defaultTimer;
-    _currentIndex = timers.indexWhere((t) => t.id == defaultT?.id);
-    if (_currentIndex < 0) _currentIndex = 0;
+    _currentIndex = timerPageFor(
+      ids: [for (final t in timers) t.id],
+      defaultId: defaultT?.id,
+      current: 0,
+      userSwiped: false,
+    );
 
     _pageController = PageController(initialPage: _currentIndex);
     widget.timerService.addListener(_onTimerChanged);
@@ -79,6 +89,24 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
           _pageController.jumpToPage(_currentIndex);
         }
       });
+    } else {
+      // Список таймеров приезжает позже первого кадра, и до 13 августа 2026
+      // карусель так и оставалась на нулевой странице — человек каждый запуск
+      // доматывал до своего таймера рукой.
+      final want = timerPageFor(
+        ids: [for (final t in timers) t.id],
+        defaultId: widget.timerService.defaultTimer?.id,
+        current: _currentIndex,
+        userSwiped: _userSwiped,
+      );
+      if (want != _currentIndex) {
+        _currentIndex = want;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _pageController.hasClients) {
+            _pageController.jumpToPage(_currentIndex);
+          }
+        });
+      }
     }
     setState(() {});
   }
@@ -91,6 +119,9 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
   }
 
   void _goToPage(int page) {
+    // Листание руками: дальше карусель не возвращается к основному таймеру
+    // сама, даже если список обновится.
+    _userSwiped = true;
     if (page >= 0 && page < widget.timerService.timers.length) {
       _pageController.animateToPage(
         page,

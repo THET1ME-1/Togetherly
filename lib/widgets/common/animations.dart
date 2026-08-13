@@ -157,6 +157,16 @@ class _AppearOnScrollState extends State<AppearOnScroll>
   bool _started = false;
   ScrollPosition? _position;
 
+  /// Появление маршрута, внутри которого живёт блок.
+  ///
+  /// Нижний лист въезжает снизу, и на первом кадре его содержимое физически
+  /// ниже экрана: проверка «доехал ли» отвечает «нет», а второго повода
+  /// проверить не наступает — короткий список никто не прокручивает. Так
+  /// раздел «Уведомления» показывал заголовок, пустоту и кнопку внизу
+  /// (жалоба со скриншотом 13 августа 2026). Пока лист едет, эта анимация
+  /// тикает каждый кадр, и блок замечает, что попал на экран.
+  Animation<double>? _routeAnim;
+
   /// Сколько ждём после первого кадра, прежде чем считать появление
   /// прокруткой, а не заходом на экран.
   static const Duration _staggerWindow = Duration(milliseconds: 400);
@@ -197,12 +207,16 @@ class _AppearOnScrollState extends State<AppearOnScroll>
     _position?.removeListener(_check);
     _position = Scrollable.maybeOf(context)?.position;
     _position?.addListener(_check);
+    _routeAnim?.removeListener(_check);
+    _routeAnim = ModalRoute.of(context)?.animation;
+    _routeAnim?.addListener(_check);
     WidgetsBinding.instance.addPostFrameCallback((_) => _check());
   }
 
   @override
   void dispose() {
     _position?.removeListener(_check);
+    _routeAnim?.removeListener(_check);
     _ctrl.dispose();
     super.dispose();
   }
@@ -223,6 +237,7 @@ class _AppearOnScrollState extends State<AppearOnScroll>
 
     _started = true;
     _position?.removeListener(_check);
+    _routeAnim?.removeListener(_check);
     // Каскад достаётся только тому, что было на экране с самого начала:
     // долистанная снизу ячейка появляется без ожидания, иначе прокрутка
     // выглядела бы залипающей.

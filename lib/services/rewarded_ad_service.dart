@@ -262,6 +262,11 @@ class RewardedAdService {
     // вызывался, коины/счётчик не менялись (баг «посмотрел — монет нет»). Грант
     // внутри колбэка снимает гонку с таймингом закрытия полностью.
     bool earned = false;
+    // Показ и его длительность: без них «награды не было» ничего не объясняет —
+    // человек мог закрыть ролик на второй секунде, а мог досмотреть до конца и
+    // остаться без монет. В панели крашей это была одна и та же строка.
+    bool shown = false;
+    DateTime? shownAt;
     Future<void>? grantFuture;
     final dismissed = Completer<void>();
     void finish() {
@@ -270,6 +275,10 @@ class RewardedAdService {
 
     await ad.setAdEventListener(
       eventListener: yandex.RewardedAdEventListener(
+        onAdShown: () {
+          shown = true;
+          shownAt = DateTime.now();
+        },
         onRewarded: (reward) {
           if (earned) return; // защита от повторного события
           earned = true;
@@ -314,10 +323,18 @@ class RewardedAdService {
     if (!earned) {
       // Реклама показана и закрыта, но onRewarded так и не пришёл → грант не
       // вызывался, коинов нет. Это ядро жалоб «посмотрел рекламу — монет нет».
+      final seconds = shownAt == null
+          ? 0
+          : DateTime.now().difference(shownAt!).inSeconds;
       unawaited(Sentry.captureException(
         'Yandex rewarded shown but no reward earned (onRewarded missing)',
         withScope: (s) {
           s.setExtra('reason', 'rewarded ad shown without reward callback');
+          s.setExtra('ad_shown', shown);
+          s.setExtra('seconds_on_screen', seconds);
+          // Ролик короче пяти секунд — человек закрыл сам, это не поломка.
+          // Дольше — награда действительно потерялась по дороге.
+          s.setExtra('likely_user_skip', shown && seconds < 5);
           s.level = SentryLevel.warning;
         },
       ));

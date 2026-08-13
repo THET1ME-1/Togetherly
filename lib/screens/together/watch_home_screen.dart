@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../models/pair_data.dart';
 import '../../services/locale_service.dart';
+import '../../widgets/app_sheet.dart';
 import '../../services/watch_history_service.dart';
 import '../../services/watch_room_service.dart';
 import '../../services/plus_service.dart';
@@ -114,6 +115,59 @@ class _WatchHomeScreenState extends State<WatchHomeScreen> {
   /// Убрать свой ролик. До этого удаления не было вовсе: тестеру отвечали
   /// «сделаем вручную, пока только через 30 дней», хотя сервис умел это с
   /// самого начала — не хватало кнопки.
+  /// Нажатие по ролику: смотреть вместе или убрать.
+  ///
+  /// Кнопка-корзина на самой обложке не работала: ролики лежат в
+  /// `CarouselView`, а он ловит нажатие на весь элемент и до кнопки оно не
+  /// доходит. Человек жал корзину, попадал в комнату просмотра и встречал там
+  /// рекламу — «не работает кнопка удаления видео, просит посмотреть рекламу и
+  /// перекидывает на кинотеатр» (13 августа 2026). Стережёт
+  /// `test/widgets/carousel_delete_button_test.dart`.
+  Future<void> _tapVideo(WatchVideo video) async {
+    if (!video.uploaded) {
+      await _openVideo(video);
+      return;
+    }
+    final s = LocaleService.current;
+    final action = await showAppSheet<String>(
+      context,
+      builder: (ctx) => SheetScaffold(
+        title: video.title,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => Navigator.of(ctx).pop('play'),
+                  icon: const Icon(Icons.play_arrow_rounded),
+                  label: Text(s.watchTogether),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton.icon(
+                  onPressed: () => Navigator.of(ctx).pop('remove'),
+                  icon: const Icon(Icons.delete_outline_rounded),
+                  label: Text(s.delete),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!mounted || action == null) return;
+    if (action == 'play') {
+      await _openVideo(video);
+    } else if (action == 'remove') {
+      await _removeVideo(video);
+    }
+  }
+
   Future<void> _removeVideo(WatchVideo video) async {
     final s = LocaleService.current;
     final messenger = ScaffoldMessenger.of(context);
@@ -240,7 +294,7 @@ class _WatchHomeScreenState extends State<WatchHomeScreen> {
               if (i == 0) {
                 if (!_uploading) _uploadVideo();
               } else {
-                _openVideo(_videos[i - 1]);
+                _tapVideo(_videos[i - 1]);
               }
             },
             children: [
@@ -251,11 +305,7 @@ class _WatchHomeScreenState extends State<WatchHomeScreen> {
                     ) ~/
                     (1024 * 1024),
               ),
-              for (final v in _videos)
-                _VideoTile(
-                  video: v,
-                  onRemove: v.uploaded ? () => _removeVideo(v) : null,
-                ),
+              for (final v in _videos) _VideoTile(video: v),
             ],
           ),
         ),
@@ -687,9 +737,7 @@ class _VideoTile extends StatelessWidget {
 
   /// Убрать свой ролик. У видео из ленты воспоминаний кнопки нет: оно живёт
   /// своей записью, и удалять его надо там же.
-  final VoidCallback? onRemove;
-
-  const _VideoTile({required this.video, this.onRemove});
+  const _VideoTile({required this.video});
 
   String _duration(int s) {
     if (s <= 0) return '';
@@ -756,27 +804,6 @@ class _VideoTile extends StatelessWidget {
             ),
           ),
         ),
-        if (onRemove != null)
-          Positioned(
-            top: 6,
-            left: 6,
-            child: Material(
-              color: const Color(0x6B000000),
-              shape: const CircleBorder(),
-              clipBehavior: Clip.antiAlias,
-              child: IconButton(
-                onPressed: onRemove,
-                icon: const Icon(Icons.delete_outline_rounded),
-                iconSize: 18,
-                color: Colors.white,
-                visualDensity: VisualDensity.compact,
-                constraints:
-                    const BoxConstraints.tightFor(width: 34, height: 34),
-                padding: EdgeInsets.zero,
-                tooltip: LocaleService.current.delete,
-              ),
-            ),
-          ),
         if (dur.isNotEmpty)
           Positioned(
             top: 10,
