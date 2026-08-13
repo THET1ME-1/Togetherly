@@ -2451,6 +2451,7 @@ class PbDataService {
     String uid, {
     String vibe = 'miss_you',
     String? text,
+    int count = 1,
   }) async {
     if (groupId.isEmpty || uid.isEmpty) return false;
     // DATA-8: атомарный серверный инкремент; при недоступности — локальный RMW.
@@ -2462,6 +2463,9 @@ class PbDataService {
       'vibe': vibe,
       'text': text ?? '',
       'weekday': DateTime.now().weekday, // 1 = понедельник
+      // Частые нажатия приезжают пачкой: по одному запросу на тап человек
+      // упирался в ограничитель, и половина «скучаю» пропадала.
+      'count': count,
     });
     if (r == _GroupRouteResult.ok) return true;
     if (r == _GroupRouteResult.backpressure) return false;

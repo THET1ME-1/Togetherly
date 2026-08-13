@@ -43,10 +43,15 @@ class MissYouRepository {
   /// ответа не знает, что отправка сорвалась (`incrementMissYou` возвращает
   /// false и при таймауте, и при отказе роута). Раньше надбавка в такой
   /// ситуации оставалась висеть — число «жило своей жизнью».
-  Future<bool> sendMissYou(String groupId) async {
+  Future<bool> sendMissYou(String groupId, {int count = 1}) async {
     final uid = _uid;
     if (uid == null || groupId.isEmpty) return false;
-    final ok = await _data.incrementMissYou(groupId, uid, vibe: 'miss_you');
+    final ok = await _data.incrementMissYou(
+      groupId,
+      uid,
+      vibe: 'miss_you',
+      count: count,
+    );
     if (ok) unawaited(AnalyticsService.instance.logMissYouSent());
     return ok;
   }

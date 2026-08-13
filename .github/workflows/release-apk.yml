@@ -156,15 +156,31 @@ jobs:
           # 32-битных устройств (скачивается вручную со страницы релиза); при
           # abi=arm64 его в релизе нет, поэтому и ссылки на него нет.
           if [ "${{ inputs.abi }}" = "arm64" ]; then APK_ARM=""; fi
-          cat > dist/version.json <<EOF
-          {
-            "versionCode": ${{ steps.ver.outputs.code }},
-            "versionName": "${{ steps.ver.outputs.name }}",
-            "apk": "$APK_ARM64",
-            "apkArm": "$APK_ARM",
-            "tag": "${{ steps.ver.outputs.tag }}"
-          }
-          EOF
+          # Заметки едут вместе с версией: попап обновления показывал текст,
+          # зашитый в УСТАНОВЛЕННУЮ сборку, и человек видел один и тот же
+          # список раз за разом («второй или третий раз вижу», 13.08.2026).
+          python3 - <<'PY' > dist/version.json
+          import json, pathlib
+
+          def notes(path):
+              p = pathlib.Path(path)
+              if not p.exists():
+                  return ""
+              lines = p.read_text(encoding="utf-8").splitlines()
+              # Первая строка — «🫦 Togetherly • v1.27.0», её в попапе не надо.
+              body = "\n".join(lines[1:]).strip()
+              return body
+
+          print(json.dumps({
+              "versionCode": ${{ steps.ver.outputs.code }},
+              "versionName": "${{ steps.ver.outputs.name }}",
+              "apk": "$APK_ARM64",
+              "apkArm": "$APK_ARM",
+              "tag": "${{ steps.ver.outputs.tag }}",
+              "notes": notes("distribution/whatsnew/whatsnew-ru-RU"),
+              "notesEn": notes("distribution/whatsnew/whatsnew-en-US"),
+          }, ensure_ascii=False, indent=2))
+          PY
 
       - name: Generate changelog
         run: |

@@ -212,6 +212,12 @@ routerAdd("POST", "/api/group/miss-you", (e) => {
   const uid = String(body.uid || "").trim();
   const vibe = String(body.vibe || "miss_you");
   const text = String(body.text || "");
+  // Сколько нажатий приехало разом. Клиент копит частые тапы и шлёт их одним
+  // запросом: каждый тап отдельным запросом упирался в ограничитель, и человек
+  // видел, что «половина нажатий не регистрируется» (523 отказа 429 за сутки,
+  // 13 августа 2026). Потолок двадцать — дальше это зажатый палец.
+  let times = parseInt(body.count, 10);
+  if (!(times >= 1 && times <= 20)) times = 1;
   if (!groupId || !uid) return e.json(400, { ok: false, error: "bad params" });
   let out;
   try {
@@ -245,10 +251,10 @@ routerAdd("POST", "/api/group/miss-you", (e) => {
       const VIBES = { miss_you: 1, thinking_of_you: 1, want_hug: 1, custom: 1 };
       const vibeKey = VIBES[vibe] ? vibe : "miss_you";
       if (rec) {
-        const next = (rec.getInt("count") || 0) + 1;
+        const next = (rec.getInt("count") || 0) + times;
         let week = {};
         try { week = JSON.parse(rec.getString("by_weekday") || "{}") || {}; } catch (_) { week = {}; }
-        week[weekday] = (parseInt(week[weekday], 10) || 0) + 1;
+        week[weekday] = (parseInt(week[weekday], 10) || 0) + times;
         let vibes = {};
         try { vibes = JSON.parse(rec.getString("by_vibe") || "{}") || {}; } catch (_) { vibes = {}; }
         // Первая запись карты у старой пары: весь прежний счёт был «скучаю» —
@@ -258,7 +264,7 @@ routerAdd("POST", "/api/group/miss-you", (e) => {
           const before = rec.getInt("count") || 0;
           if (before > 0) vibes.miss_you = before;
         }
-        vibes[vibeKey] = (parseInt(vibes[vibeKey], 10) || 0) + 1;
+        vibes[vibeKey] = (parseInt(vibes[vibeKey], 10) || 0) + times;
         rec.set("by_vibe", JSON.stringify(vibes));
         rec.set("by_weekday", JSON.stringify(week));
         rec.set("count", next);
@@ -272,14 +278,14 @@ routerAdd("POST", "/api/group/miss-you", (e) => {
         const r = new Record(col);
         r.set("group_id", groupId);
         r.set("user_uid", uid);
-        r.set("count", 1);
-        r.set("by_weekday", JSON.stringify({ [weekday]: 1 }));
-        r.set("by_vibe", JSON.stringify({ [vibeKey]: 1 }));
+        r.set("count", times);
+        r.set("by_weekday", JSON.stringify({ [weekday]: times }));
+        r.set("by_vibe", JSON.stringify({ [vibeKey]: times }));
         r.set("updated_at", nowIso);
         r.set("last_vibe", vibe);
         r.set("last_vibe_text", text);
         txApp.save(r);
-        out = { s: 200, b: { ok: true, count: 1 } };
+        out = { s: 200, b: { ok: true, count: times } };
       }
     });
   } catch (err) { return e.json(500, { ok: false, error: "tx failed" }); }

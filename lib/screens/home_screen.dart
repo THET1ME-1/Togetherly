@@ -3208,6 +3208,31 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
+            if (upd.notes.isNotEmpty) ...[
+              const SizedBox(height: 20),
+              // Что нового именно в той версии, на которую зовём: раньше здесь
+              // не было ничего, и человек не понимал, ради чего обновляться.
+              Container(
+                width: double.infinity,
+                constraints: const BoxConstraints(maxHeight: 260),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: _t.surfaceMuted,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: SingleChildScrollView(
+                  child: Text(
+                    upd.notes,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: _t.textSecondary,
+                      fontWeight: FontWeight.w500,
+                      height: 1.6,
+                    ),
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
@@ -3809,7 +3834,11 @@ class _UpdateBottomSheetState extends State<_UpdateBottomSheet> {
                 Expanded(
                   child: SingleChildScrollView(
                     child: Text(
-                      LocaleService.current.updateWhatsNew,
+                      // Заметки НОВОЙ версии: они приезжают с version.json.
+                      // Текст из установленной сборки остаётся запасным — на
+                      // релизах, выпущенных до 13 августа 2026, поля ещё нет.
+                      UpdateService.cachedNotes ??
+                          LocaleService.current.updateWhatsNew,
                       style: TextStyle(
                         fontSize: 13,
                         color: t.textSecondary,

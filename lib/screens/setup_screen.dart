@@ -2,6 +2,8 @@ import 'dart:io';
 import '../widgets/storage_image.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+
+import '../utils/password_rules.dart';
 import 'package:flutter/services.dart';
 import '../utils/safe_launch.dart';
 import 'package:image_picker/image_picker.dart';
@@ -255,9 +257,7 @@ class _SetupScreenState extends State<SetupScreen>
       if (!auth.isLoggedIn) {
         // Проверяем пароль только для ручной регистрации: 8 символов +
         // заглавная буква + спецсимвол (те же правила, что индикаторы под полем).
-        final pwdOk = password.length >= 8 &&
-            password.contains(RegExp(r'[A-Z]')) &&
-            password.contains(RegExp(r'[!@#\$%^&*(),.?":{}|<>]'));
+        final pwdOk = passwordProblems(password).isEmpty;
         if (!pwdOk) {
           _showError(
             '${LocaleService.current.min8Chars}, '
@@ -1057,11 +1057,20 @@ class _SetupScreenState extends State<SetupScreen>
       spacing: 12,
       runSpacing: 6,
       children: [
-        _passwordCheckRow(s.min8Chars, pwd.length >= 8),
-        _passwordCheckRow(s.oneUppercase, pwd.contains(RegExp(r'[A-Z]'))),
+        // Правила живут в одном месте (`utils/password_rules.dart`): раньше
+        // индикаторы и проверка при отправке считали по своим регуляркам, и
+        // список знаков в них не совпадал ни с чем.
+        _passwordCheckRow(
+          s.min8Chars,
+          !passwordProblems(pwd).contains(PasswordProblem.tooShort),
+        ),
+        _passwordCheckRow(
+          s.oneUppercase,
+          !passwordProblems(pwd).contains(PasswordProblem.noUppercase),
+        ),
         _passwordCheckRow(
           s.oneSpecialChar,
-          pwd.contains(RegExp(r'[!@#\$%^&*(),.?":{}|<>]')),
+          !passwordProblems(pwd).contains(PasswordProblem.noSpecial),
         ),
       ],
     );

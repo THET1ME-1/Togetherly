@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 
+import 'locale_service.dart';
+
 /// Информация о доступном обновлении из публичного GitHub-репо релизов.
 class GithubUpdate {
   /// versionCode новой сборки (сравнивается с текущим buildNumber).
@@ -20,12 +22,36 @@ class GithubUpdate {
   /// Тег релиза, напр. «v1.12.9».
   final String tag;
 
+  /// Что нового в ЭТОЙ версии — то, ради чего человека зовут обновиться.
+  ///
+  /// Раньше попап печатал заметки установленной сборки: они лежат в ней
+  /// константой, поэтому список не менялся и человек видел его раз за разом
+  /// («второй или третий раз вижу», 13 августа 2026). Теперь заметки приезжают
+  /// вместе с version.json нового релиза.
+  final String notes;
+
   const GithubUpdate({
     required this.versionCode,
     required this.versionName,
     required this.apkUrl,
     required this.tag,
+    this.notes = '',
   });
+}
+
+/// Заметки новой версии из version.json.
+///
+/// Релизы до 13 августа 2026 поля не знают — там остаётся [fallback], текст из
+/// самой сборки: пустой попап хуже устаревшего.
+String updateNotesFrom(
+  Map<String, dynamic> data, {
+  required bool russian,
+  required String fallback,
+}) {
+  final ru = (data['notes'] as String?)?.trim() ?? '';
+  final en = (data['notesEn'] as String?)?.trim() ?? '';
+  final wanted = russian ? ru : (en.isNotEmpty ? en : ru);
+  return wanted.isNotEmpty ? wanted : fallback;
 }
 
 /// Проверка обновлений для **сайдлоад-сборок** (установленных не из Play Store).
@@ -59,6 +85,13 @@ class UpdateService {
     }
   }
 
+  /// Заметки последнего увиденного релиза.
+  ///
+  /// Их читает и попап Google Play: сам Play заметок приложению не отдаёт, а
+  /// показывать текст из установленной сборки — значит печатать человеку то,
+  /// что у него уже есть.
+  static String? cachedNotes;
+
   /// Возвращает [GithubUpdate], если в публичном репо лежит версия новее
   /// установленной, иначе `null` (нет обновления / ошибка сети / ошибка парсинга).
   static Future<GithubUpdate?> checkForUpdate() async {
@@ -80,6 +113,12 @@ class UpdateService {
 
       final info = await PackageInfo.fromPlatform();
       final currentCode = int.tryParse(info.buildNumber) ?? 0;
+      final notes = updateNotesFrom(
+        data,
+        russian: LocaleService.instance.isRussian,
+        fallback: '',
+      );
+      if (notes.isNotEmpty) cachedNotes = notes;
       if (remoteCode <= currentCode) return null;
 
       // Под архитектуру устройства: 64-битные → arm64-v8a, чисто 32-битные → v7a.
@@ -91,6 +130,11 @@ class UpdateService {
         apkUrl:
             'https://github.com/$_repo/releases/latest/download/$apk',
         tag: (data['tag'] as String?)?.trim() ?? '',
+        notes: updateNotesFrom(
+          data,
+          russian: LocaleService.instance.isRussian,
+          fallback: LocaleService.current.updateWhatsNew,
+        ),
       );
     } catch (e) {
       debugPrint('UpdateService.checkForUpdate failed: $e');

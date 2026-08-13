@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+
+import '../models/miss_you_batch.dart';
 import 'package:flutter/services.dart';
 import '../models/optimistic_count.dart';
 import '../services/miss_you_repository.dart';
@@ -58,6 +60,14 @@ class MissYouButton extends StatefulWidget {
 
 class _MissYouButtonState extends State<MissYouButton>
     with TickerProviderStateMixin {
+  /// Окно накопления нажатий: за это время серия тапов схлопывается в одну
+  /// отправку. Полсекунды человек не замечает, а запросов становится втрое
+  /// меньше на каждой серии.
+  static const Duration _kBatchWindow = Duration(milliseconds: 600);
+
+  final MissYouBatch _batch = MissYouBatch();
+  Timer? _flushTimer;
+
   final MissYouRepository _missYou = MissYouRepository();
 
   // ── Счётчик ──────────────────────────────────────────────────────────────────
@@ -188,7 +198,13 @@ class _MissYouButtonState extends State<MissYouButton>
     );
   }
 
-  Future<void> _sendMissYou() async {
+  /// Нажатие: отклик сразу, отправка пачкой.
+  ///
+  /// Каждый тап уходил своим запросом, и человек, нажимающий подряд, упирался в
+  /// ограничитель сервера — «половину нажатий не регистрирует» (жалоба с
+  /// iPhone, 13 августа 2026; 523 отказа 429 за сутки). Сердечки, вибрация и
+  /// счётчик по-прежнему мгновенные, а на сервер уходит одно число.
+  void _sendMissYou() {
     if (!widget.enabled || widget.groupId.isEmpty) return;
     HapticFeedback.mediumImpact();
     _scaleController.forward(from: 0);
@@ -197,16 +213,30 @@ class _MissYouButtonState extends State<MissYouButton>
     setState(() => _mine = _mine.tap(DateTime.now()));
     _scheduleStaleSweep();
 
+    _batch.add();
+    _flushTimer?.cancel();
+    _flushTimer = Timer(_kBatchWindow, _flushMissYou);
+  }
+
+  Future<void> _flushMissYou() async {
+    final count = _batch.take();
+    if (count <= 0) return;
     var ok = false;
     try {
-      ok = await _missYou.sendMissYou(widget.groupId);
+      ok = await _missYou.sendMissYou(widget.groupId, count: count);
     } catch (_) {
       ok = false;
     }
-    if (!ok && mounted) {
-      // Сорванная отправка снимает свою надбавку сразу: сервер её не примет,
-      // а ждать нечего.
-      setState(() => _mine = _mine.failed());
+    if (!ok) {
+      // Сорванная отправка снимает надбавку сразу: сервер её не принял.
+      _batch.giveBack(count);
+      if (mounted) setState(() => _mine = _mine.failed());
+      return;
+    }
+    // Пока шла отправка, человек мог нажать ещё — отправляем остаток.
+    if (_batch.pending > 0) {
+      _flushTimer?.cancel();
+      _flushTimer = Timer(_kBatchWindow, _flushMissYou);
     }
   }
 
@@ -239,6 +269,13 @@ class _MissYouButtonState extends State<MissYouButton>
 
   @override
   void dispose() {
+    _flushTimer?.cancel();
+    // Уходит экран — накопленное всё равно отправляем: человек нажимал, и
+    // терять эти «скучаю» нельзя.
+    final left = _batch.take();
+    if (left > 0) {
+      unawaited(_missYou.sendMissYou(widget.groupId, count: left));
+    }
     _scaleController.dispose();
     _countSub?.cancel();
     _listenRetryTimer?.cancel();
