@@ -181,6 +181,39 @@ module.exports = function collectIncome() {
     };
   })();
 
+  // ── сколько продано на самом деле ──────────────────────────────────────────
+  // Отчёты lava показывают ТОЛЬКО счета, заведённые нашим API-ключом: покупку
+  // с витрины (прямая ссылка app.lava.top) они не отдают вовсе, а таких
+  // большинство — их закрывает разбор почты продавца. Поэтому «сколько продано»
+  // считаем по своей базе, где выданный доступ виден при любом канале оплаты.
+  (() => {
+    const sold = { plus: {}, plus_total: 0, features: {} };
+    try {
+      const rows = arrayOf(new DynamicModel({ p: "", n: 0 }));
+      $app.db().newQuery(
+        "SELECT COALESCE(NULLIF(plus_platform, ''), 'неизвестно') AS p, COUNT(*) AS n " +
+        "FROM users WHERE plus = 1 GROUP BY p").all(rows);
+      for (let i = 0; i < rows.length; i++) {
+        sold.plus[String(rows[i].p)] = Number(rows[i].n) || 0;
+        sold.plus_total += Number(rows[i].n) || 0;
+      }
+
+      // Платные элементы каталога лежат в users.owned_features ключами «вид:id».
+      const feats = arrayOf(new DynamicModel({ f: "", n: 0 }));
+      $app.db().newQuery(
+        "SELECT 'mood_pack:moti' AS f, COUNT(*) AS n FROM users " +
+        "WHERE owned_features LIKE '%mood_pack:moti%'").all(feats);
+      for (let i = 0; i < feats.length; i++) {
+        if (Number(feats[i].n) > 0) sold.features[String(feats[i].f)] = Number(feats[i].n);
+      }
+      sold.ok = true;
+    } catch (err) {
+      sold.ok = false;
+      sold.reason = String(err).slice(0, 200);
+    }
+    result.sold = sold;
+  })();
+
   // ── AdMob ──────────────────────────────────────────────────────────────────
   (() => {
     let cfg = null;

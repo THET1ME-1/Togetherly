@@ -3381,7 +3381,14 @@ class _WidgetScreenState extends State<WidgetScreen>
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   _monthsGrid(p, dot: 8, gap: 4),
-                  Column(
+                  // Число дней растёт вместе с парой, и в тесном квадрате 2×2
+                  // подпись под ним налезала на строку ниже (скриншот тестера,
+                  // 13 августа 2026). Блок ужимается целиком, а не обрезается.
+                  Flexible(
+                    child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.bottomLeft,
+                    child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -3416,6 +3423,8 @@ class _WidgetScreenState extends State<WidgetScreen>
                         ),
                       ),
                     ],
+                    ),
+                  ),
                   ),
                 ],
               ),
