@@ -223,7 +223,7 @@ const Map<String, Map<String, String>> connectPartnerStrings = {
     'de': 'Code vorhanden?',
   },
   'inviteHeroTitle': {
-    'ru': 'Позовите свою половину',
+    'ru': 'Позовите свою половинку',
     'en': 'Invite your other half',
     'pt': 'Chame sua metade',
     'it': 'Chiama la tua metà',
@@ -673,7 +673,7 @@ const Map<String, Map<String, String>> connectPartnerStrings = {
     'de': 'Nacht',
   },
   'needsPartnerHint': {
-    'ru': 'Это работает вдвоём — позовите свою половину',
+    'ru': 'Это работает вдвоём — позовите свою половинку',
     'en': 'This one works in pairs — invite your other half',
     'pt': 'Isso funciona a dois — chame sua metade',
     'it': 'Funziona in due — chiama la tua metà',
@@ -702,7 +702,7 @@ const Map<String, Map<String, String>> connectPartnerStrings = {
         'Erinnere deinen Partner — zu zweit gibt es Chat, Stimmungen und Widgets',
   },
   'invitePromptTitle': {
-    'ru': 'Позовите свою половину',
+    'ru': 'Позовите свою половинку',
     'en': 'Invite your other half',
     'pt': 'Chame sua metade',
     'it': 'Chiama la tua metà',

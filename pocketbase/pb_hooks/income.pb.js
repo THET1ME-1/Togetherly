@@ -25,6 +25,43 @@ routerAdd("GET", "/modapi/income", (e) => {
   if (!want) { try { const b = $os.readFile("/opt/pocketbase/pb_data/.mod_secret"); want = (typeof b === "string" ? b : String.fromCharCode.apply(null, b)).trim(); } catch (_) {} }
   if (!want || got !== want) return e.json(401, { error: "unauthorized" });
 
+  // ?probe=1 — замер доступа к базе из хука. Заведён 13 августа 2026, когда
+  // вкладка «Продукт» перестала грузиться: те же запросы в sqlite3 отвечали за
+  // сотые доли секунды, а роут висел три минуты, и надо было понять, где время.
+  if (String(q["probe"] || "") === "1") {
+    const t = [];
+    const mark = (name, fn) => {
+      const at = Date.now();
+      let res = "";
+      try { res = String(fn()); } catch (err) { res = "ошибка: " + String(err).slice(0, 80); }
+      t.push({ шаг: name, мс: Date.now() - at, ответ: res });
+    };
+    mark("простой COUNT users", () => {
+      const m = new DynamicModel({ n: 0 });
+      $app.db().newQuery("SELECT COUNT(*) AS n FROM users").one(m);
+      return m.n;
+    });
+    mark("COUNT groups", () => {
+      const m = new DynamicModel({ n: 0 });
+      $app.db().newQuery("SELECT COUNT(*) AS n FROM groups WHERE disbanded = false").one(m);
+      return m.n;
+    });
+    mark("когорты (JOIN presence)", () => {
+      const rows = arrayOf(new DynamicModel({ wk: "", n: 0 }));
+      $app.db().newQuery(
+        "SELECT strftime('%Y-%m-%d', u.created) AS wk, COUNT(*) AS n FROM users u" +
+        " LEFT JOIN user_presence p ON p.user_uid = u.id GROUP BY wk").all(rows);
+      return rows.length + " строк";
+    });
+    mark("json_each по группам", () => {
+      const m = new DynamicModel({ n: 0 });
+      $app.db().newQuery("SELECT COUNT(DISTINCT je.value) AS n FROM groups g, json_each(g.members) je" +
+        " WHERE g.disbanded = false AND json_valid(g.members)").one(m);
+      return m.n;
+    });
+    return e.json(200, { probe: t });
+  }
+
   // ?force=1 собирает заново на месте: нужен сразу после заливки и после смены
   // ключей, когда ждать двадцать минут до крона незачем. Ходит в четыре чужих
   // API, поэтому по умолчанию отдаём готовый файл.

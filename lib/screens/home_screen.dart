@@ -1263,7 +1263,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Экран «позовите свою половину» — один раз после регистрации и только пока
+  /// Экран «позовите свою половинку» — один раз после регистрации и только пока
   /// пары нет. Дальше приглашение живёт первым шагом списка на главной.
   Future<void> _maybeShowInviteScreen() async {
     if (await UiPrefs.inviteScreenShown()) return;

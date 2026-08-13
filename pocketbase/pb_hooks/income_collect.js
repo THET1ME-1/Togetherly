@@ -246,6 +246,18 @@ module.exports = function collectIncome() {
     }
   })();
 
+  // ── история по месяцам и годам ─────────────────────────────────────────────
+  // Считает /opt/income/income_history.py раз в сутки: прошлые месяцы не
+  // меняются, а текущий и так виден в основной сводке.
+  (() => {
+    try {
+      const b = $os.readFile("/opt/pocketbase/pb_data/.income_history.json");
+      result.history = JSON.parse(typeof b === "string" ? b : String.fromCharCode.apply(null, b));
+    } catch (_) {
+      result.history = { months: [], years: [], note: "архив ещё не собран" };
+    }
+  })();
+
   // ── общий итог ─────────────────────────────────────────────────────────────
   const sum = (field) => {
     let t = 0;

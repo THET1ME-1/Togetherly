@@ -217,7 +217,7 @@ const Map<String, Map<String, String>> mascotDrawScreenStrings = {
     'de': 'Zu zweit ausmalen',
   },
   'coloringSubtitle': {
-    'ru': 'Каждому — своя половина',
+    'ru': 'Каждому — своя половинка',
     'en': 'One half each',
     'pt': 'Uma metade para cada um',
     'it': 'Una metà a testa',
@@ -244,7 +244,7 @@ const Map<String, Map<String, String>> mascotDrawScreenStrings = {
     'de': 'Zusammen',
   },
   'coloringModeSurpriseHint': {
-    'ru': 'Половина партнёра откроется, когда оба нажмут «Готово»',
+    'ru': 'Половинка партнёра откроется, когда оба нажмут «Готово»',
     'en': 'Your partner\\u2019s half opens once you both tap Done',
     'pt': 'A metade do seu par abre quando vocês dois tocarem em Pronto',
     'it': 'La metà del partner si apre quando toccate Fatto entrambi',
@@ -255,7 +255,7 @@ const Map<String, Map<String, String>> mascotDrawScreenStrings = {
         'Die Hälfte deines Partners öffnet sich, wenn ihr beide auf „Fertig“ tippt',
   },
   'coloringModeTogetherHint': {
-    'ru': 'Видно, как партнёр красит свою половину',
+    'ru': 'Видно, как партнёр красит свою половинку',
     'en': 'You see your partner colouring their half',
     'pt': 'Você vê seu par colorindo a metade dele',
     'it': 'Vedi il partner colorare la sua metà',
@@ -264,7 +264,7 @@ const Map<String, Map<String, String>> mascotDrawScreenStrings = {
     'de': 'Du siehst, wie dein Partner seine Hälfte ausmalt',
   },
   'coloringOtherHalf': {
-    'ru': 'Это половина партнёра — её красит он',
+    'ru': 'Это половинка партнёра — её красит он',
     'en': 'This half belongs to your partner',
     'pt': 'Esta metade é do seu par — ele que colore',
     'it': 'Questa metà è del partner — la colora lui',
@@ -273,7 +273,7 @@ const Map<String, Map<String, String>> mascotDrawScreenStrings = {
     'de': 'Diese Hälfte gehört deinem Partner — er malt sie aus',
   },
   'coloringSwapSides': {
-    'ru': 'Поменяться половинами',
+    'ru': 'Поменяться половинками',
     'en': 'Swap halves',
     'pt': 'Trocar de metades',
     'it': 'Scambia le metà',
@@ -282,7 +282,7 @@ const Map<String, Map<String, String>> mascotDrawScreenStrings = {
     'de': 'Hälften tauschen',
   },
   'coloringMyHalf': {
-    'ru': 'Твоя половина',
+    'ru': 'Твоя половинка',
     'en': 'Your half',
     'pt': 'Sua metade',
     'it': 'La tua metà',
@@ -291,7 +291,7 @@ const Map<String, Map<String, String>> mascotDrawScreenStrings = {
     'de': 'Deine Hälfte',
   },
   'coloringPartnerHalfHidden': {
-    'ru': 'Половина партнёра\nоткроется в конце',
+    'ru': 'Половинка партнёра\nоткроется в конце',
     'en': 'Partner\\u2019s half\nopens at the end',
     'pt': 'A metade do seu par\nabre no final',
     'it': 'La metà del partner\nsi apre alla fine',
