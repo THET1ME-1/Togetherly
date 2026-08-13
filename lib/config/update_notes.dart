@@ -11,27 +11,15 @@
 const String ruWhatsNew =
     'Что нового 💜\n'
     '\n'
-    '— Фото-виджеты на iPhone показывают фото, а не белый квадрат.\n'
-    '— Виджеты читаются и в «прозрачном» оформлении экрана.\n'
-    '— Счётчик «Скучаю» больше не прыгает, а у «Думаю о тебе» и «Хочу '
-    'обнять» появились свои числа.\n'
-    '— Баннер профиля партнёра стало видно.\n'
-    '— Видео-воспоминание открывается в приложении и играет сразу.\n'
-    '— В чате совместного просмотра видно имя, а не «Гость».\n'
-    '— Свой ролик можно убрать, а видео не встаёт на паузу после полного '
-    'экрана.\n'
-    '— Раскраска вдвоём рисуется плавнее.';
+    '— Виджеты на экране блокировки iPhone: дни вместе, «Скучаю» и настроение '
+    'обоих.\n'
+    '— Виджеты на iPhone обновляются, пока приложение закрыто: фото и статус '
+    'партнёра приезжают сами.';
 
 const String enWhatsNew =
     'What is new 💜\n'
     '\n'
-    '— Photo widgets on iPhone finally show your photos.\n'
-    '— Widgets stay readable in the tinted home screen style.\n'
-    '— The "Miss you" counter stopped jumping, and each nudge has its own '
-    'number now.\n'
-    '— Your partner\'s profile banner is visible again.\n'
-    '— Video memories open right in the app and start playing.\n'
-    '— The watch room chat shows names instead of "Guest".\n'
-    '— You can remove your own clip, and video no longer pauses after '
-    'fullscreen.\n'
-    '— Drawing together feels smoother.';
+    '— Lock screen widgets on iPhone: days together, "Miss you" and both '
+    'moods.\n'
+    '— iPhone widgets refresh while the app is closed, so your partner\'s '
+    'photo and status arrive on their own.';

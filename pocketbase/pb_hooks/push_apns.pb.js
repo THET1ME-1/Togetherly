@@ -127,3 +127,40 @@ onRecordAfterCreateSuccess((e) => {
   }
   e.next();
 }, "memories");
+
+/// Данные виджетов партнёра поменялись — будим его телефон тихим пушем.
+///
+/// На iOS у виджетов фонового обновления нет вовсе: пока приложение закрыто,
+/// фото и статус на рабочем столе застывают до следующего запуска (на Android
+/// это прикрывает WorkManager). `content-available` даёт приложению несколько
+/// секунд, чтобы переложить свежие данные в контейнер App Group.
+///
+/// Баннера человек не увидит: это не уведомление, а команда «обнови». Частоту
+/// держит `wakeUp` — Apple такие пуши лимитирует и лишние молча выбрасывает.
+onRecordAfterUpdateSuccess((e) => {
+  try {
+    const push = require(`${__hooks}/apns_push.js`);
+    const rec = e.record;
+    push.wakeGroup(
+      String(rec.getString("group_id") || ""),
+      String(rec.getString("user_uid") || ""),
+      "widgets");
+  } catch (err) {
+    $app.logger().warn("apns: пробуждение виджетов", "err", String(err));
+  }
+  e.next();
+}, "widget_data");
+
+onRecordAfterCreateSuccess((e) => {
+  try {
+    const push = require(`${__hooks}/apns_push.js`);
+    const rec = e.record;
+    push.wakeGroup(
+      String(rec.getString("group_id") || ""),
+      String(rec.getString("user_uid") || ""),
+      "widgets");
+  } catch (err) {
+    $app.logger().warn("apns: пробуждение виджетов", "err", String(err));
+  }
+  e.next();
+}, "widget_data");

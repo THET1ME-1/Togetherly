@@ -125,7 +125,11 @@ class HomeWidgetService {
     required String partnerUid,
     bool refreshPhotos = true,
   }) async {
-    if (!Platform.isAndroid) return;
+    // iOS сюда попадает из безголового движка, поднятого тихим пушем
+    // (`widgetPushRefresh`): своего фонового обновления у WidgetKit нет, и без
+    // этого фото партнёра на рабочем столе застывало до следующего запуска
+    // приложения.
+    if (!Platform.isAndroid && !Platform.isIOS) return;
     if (groupId.isEmpty || myUid.isEmpty) return;
     // Фоновый изолят (WorkManager / foreground-сервис) НЕ инициализирует
     // LocaleService — это делает только главный изолят в main.dart. Без этого
@@ -153,6 +157,48 @@ class HomeWidgetService {
     } catch (e) {
       debugPrint('HomeWidgetService.backgroundRefreshAll mood failed: $e');
     }
+    if (Platform.isIOS && refreshPhotos) {
+      try {
+        await _refreshIosPhotoWidgetsFromServer(groupId, myUid, partnerUid);
+      } catch (e) {
+        debugPrint('HomeWidgetService.backgroundRefreshAll ios photos: $e');
+      }
+    }
+  }
+
+  /// Фото-виджеты iPhone из записей `widget_data` — для фонового обновления,
+  /// где нет ни `WidgetService`, ни живых подписок.
+  Future<void> _refreshIosPhotoWidgetsFromServer(
+    String groupId,
+    String myUid,
+    String partnerUid,
+  ) async {
+    List<String> shared(WidgetData? d) {
+      if (d == null) return const [];
+      final out = <String>[];
+      for (final url in d.photoForPartnerUrls) {
+        if (url.isNotEmpty && !out.contains(url)) out.add(url);
+      }
+      final single = d.photoForPartnerUrl ?? '';
+      if (single.isNotEmpty && !out.contains(single)) out.add(single);
+      final pair = d.photoUrl ?? '';
+      if (pair.isNotEmpty && !out.contains(pair)) out.add(pair);
+      return out;
+    }
+
+    final myRec = await PbDataService().loadWidget(groupId, myUid);
+    final partnerRec = partnerUid.isEmpty
+        ? null
+        : await PbDataService().loadWidget(groupId, partnerUid);
+    final mine = myRec == null ? null : WidgetData.fromPb(myRec);
+    final theirs = partnerRec == null ? null : WidgetData.fromPb(partnerRec);
+
+    await syncIosPhotoWidgets(
+      myPhotos: shared(mine),
+      partnerPhotos: shared(theirs),
+      partnerName: theirs?.displayName ?? '',
+      gridPhotos: theirs?.photoGridUrls ?? const [],
+    );
   }
 
   /// Парный Love-виджет (LoveWidgetProvider): мои и партнёрские статус/

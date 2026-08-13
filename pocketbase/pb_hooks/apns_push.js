@@ -91,8 +91,77 @@ function notifyGroup(groupId, authorUid, title, body, thread) {
   }
 }
 
+/// Тихий пуш «проснись и обнови виджеты».
+///
+/// На iOS у виджетов нет фонового обновления: пока приложение закрыто, фото и
+/// статус партнёра на рабочем столе застывают до следующего запуска. Лечится
+/// только `content-available` — Apple будит приложение на несколько секунд, и
+/// оно перекладывает свежие данные в контейнер App Group.
+///
+/// Apple такие пуши ЛИМИТИРУЕТ (несколько штук в час на устройство) и молча
+/// выбрасывает лишние, поэтому будим не чаще, чем раз в [MIN_WAKE_GAP_MS], и
+/// только того, кто сейчас НЕ на связи: у живого приложения данные и так
+/// свежие. Отметка времени лежит в `users.apns_bg_ms`.
+const MIN_WAKE_GAP_MS = 15 * 60 * 1000;
+
+function wakeUp(uid, kind) {
+  let user;
+  try { user = $app.findRecordById("users", uid); } catch (_) { return; }
+  const token = String(user.getString("apns_token") || "");
+  if (!token) return;
+  if (isOnline(uid)) return;
+
+  const now = Date.now();
+  const last = Number(user.get("apns_bg_ms") || 0);
+  if (last && now - last < MIN_WAKE_GAP_MS) return;
+
+  try {
+    const res = $http.send({
+      url: APNS_RELAY,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token: token,
+        silent: true,
+        sandbox: !!user.get("apns_sandbox"),
+        data: { kind: kind || "widgets" },
+      }),
+      timeout: 10,
+    });
+    const answer = res.json || {};
+    if (answer.gone) { forgetToken(user); return; }
+    if (!answer.ok) {
+      $app.logger().warn("apns: тихий пуш не доставлен", "uid", uid,
+        "reason", String(answer.reason || res.statusCode));
+      return;
+    }
+    try {
+      user.set("apns_bg_ms", now);
+      $app.save(user);
+    } catch (_) { /* отметка не критична: в худшем случае разбудим раньше */ }
+  } catch (e) {
+    $app.logger().warn("apns: релей не ответил на тихий пуш", "err", String(e));
+  }
+}
+
+/// Разбудить всех участников группы, кроме автора изменения.
+function wakeGroup(groupId, authorUid, kind) {
+  if (!groupId) return;
+  let group;
+  try { group = $app.findRecordById("groups", groupId); } catch (_) { return; }
+  if (group.get("disbanded")) return;
+  const members = membersOf(group);
+  for (let i = 0; i < members.length; i++) {
+    const uid = String(members[i] || "");
+    if (!uid || uid === authorUid) continue;
+    wakeUp(uid, kind);
+  }
+}
+
 module.exports = {
   notifyGroup: notifyGroup,
   sendTo: sendTo,
   isOnline: isOnline,
+  wakeUp: wakeUp,
+  wakeGroup: wakeGroup,
 };

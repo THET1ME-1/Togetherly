@@ -112,6 +112,94 @@ import UserNotifications
     )
   }
 
+  // MARK: - Тихий пуш: обновление виджетов на закрытом телефоне
+
+  /// Движок фонового обновления. Держим ссылку, пока Dart работает: без неё
+  /// ARC убьёт его на выходе из метода, и обновление не случится.
+  private var backgroundEngine: FlutterEngine?
+
+  /// Страховка на случай, если Dart не ответил: iOS ругается на невызванный
+  /// completionHandler и в следующий раз даёт меньше времени.
+  private var backgroundTimeout: DispatchWorkItem?
+
+  /// Тихий пуш от сервера (`content-available`), которым мы будим приложение,
+  /// когда партнёр поменял данные виджетов.
+  ///
+  /// У WidgetKit нет фонового обновления: пока приложение закрыто, фото и
+  /// статус на рабочем столе застывают до следующего запуска (на Android то же
+  /// место закрывает WorkManager). Поэтому здесь поднимается отдельный
+  /// безголовый движок Flutter с точкой входа `widgetPushRefresh`: он тянет
+  /// свежие данные из PocketBase, перекладывает их в контейнер App Group и
+  /// сообщает «готово».
+  override func application(
+    _ application: UIApplication,
+    didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+    fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+  ) {
+    let aps = userInfo["aps"] as? [String: Any]
+    let silent = (aps?["content-available"] as? NSNumber)?.intValue == 1
+    guard silent else {
+      super.application(
+        application,
+        didReceiveRemoteNotification: userInfo,
+        fetchCompletionHandler: completionHandler
+      )
+      return
+    }
+
+    // Приложение на переднем плане обновляет виджеты само, по своему сокету.
+    if application.applicationState == .active {
+      completionHandler(.noData)
+      return
+    }
+
+    // Второй пуш, пока работает первый: молча пропускаем, иначе два движка
+    // начнут писать в один контейнер.
+    if backgroundEngine != nil {
+      completionHandler(.noData)
+      return
+    }
+
+    let engine = FlutterEngine(
+      name: "togetherly-widget-refresh",
+      project: nil,
+      allowHeadlessExecution: true
+    )
+    guard engine.run(withEntrypoint: "widgetPushRefresh") else {
+      completionHandler(.failed)
+      return
+    }
+    GeneratedPluginRegistrant.register(with: engine)
+    backgroundEngine = engine
+
+    var finished = false
+    let finish: (UIBackgroundFetchResult) -> Void = { [weak self] result in
+      guard let self, !finished else { return }
+      finished = true
+      self.backgroundTimeout?.cancel()
+      self.backgroundTimeout = nil
+      self.backgroundEngine?.destroyContext()
+      self.backgroundEngine = nil
+      completionHandler(result)
+    }
+
+    let channel = FlutterMethodChannel(
+      name: "love_app/widget_bg_refresh",
+      binaryMessenger: engine.binaryMessenger
+    )
+    channel.setMethodCallHandler { call, result in
+      result(nil)
+      guard call.method == "done" else { return }
+      let changed = (call.arguments as? Bool) ?? true
+      DispatchQueue.main.async { finish(changed ? .newData : .noData) }
+    }
+
+    // Apple даёт около тридцати секунд; на двадцати пяти закрываемся сами.
+    let timeout = DispatchWorkItem { finish(.noData) }
+    backgroundTimeout = timeout
+    DispatchQueue.main.asyncAfter(deadline: .now() + 25, execute: timeout)
+  }
+
   override func application(
     _ application: UIApplication,
     didFailToRegisterForRemoteNotificationsWithError error: Error

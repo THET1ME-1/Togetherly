@@ -114,15 +114,21 @@ def provider_token() -> str:
 
 
 def send(device_token: str, payload: dict, *, sandbox: bool, push_type: str = "alert"):
-    """Отдаёт (код ответа Apple, причина отказа)."""
+    """Отдаёт (код ответа Apple, причина отказа).
+
+    Тихий пуш (`background`) Apple принимает ТОЛЬКО с приоритетом 5: с 10 он
+    отвечает отказом, а не будит приложение. Этим пушем мы обновляем виджеты
+    на закрытом телефоне, поэтому цена ошибки — застывшее фото у партнёра.
+    """
     host = SANDBOX_HOST if sandbox else PROD_HOST
+    priority = "5" if push_type == "background" else "10"
     result = subprocess.run(
         [
             "curl", "-s", "--http2", "--max-time", "15",
             "-o", "-", "-w", "\n%{http_code}",
             "-H", "apns-topic: " + TOPIC,
             "-H", "apns-push-type: " + push_type,
-            "-H", "apns-priority: 10",
+            "-H", "apns-priority: " + priority,
             "-H", "authorization: bearer " + provider_token(),
             "-d", json.dumps(payload, ensure_ascii=False),
             "https://%s/3/device/%s" % (host, device_token),
@@ -144,6 +150,16 @@ def send(device_token: str, payload: dict, *, sandbox: bool, push_type: str = "a
 
 
 def build_payload(req: dict) -> dict:
+    # Тихий пуш: ни звука, ни баннера — только «проснись и обнови данные».
+    # Нужен виджетам: фоновых обновлений у WidgetKit нет, и без этого фото
+    # партнёра доезжало только при следующем открытии приложения.
+    if req.get("silent"):
+        payload = {"aps": {"content-available": 1}}
+        data = req.get("data")
+        if isinstance(data, dict):
+            payload.update(data)
+        return payload
+
     alert = {"title": req.get("title") or "Togetherly"}
     body = req.get("body")
     if body:
@@ -214,6 +230,7 @@ class Handler(BaseHTTPRequestHandler):
                 token,
                 build_payload(req),
                 sandbox=bool(req.get("sandbox")),
+                push_type="background" if req.get("silent") else "alert",
             )
         except Exception as e:  # сеть, curl, ключ — наружу отдаём причину
             return self._reply(502, {"ok": False, "reason": str(e)[:120]})

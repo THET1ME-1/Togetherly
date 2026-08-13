@@ -121,6 +121,53 @@ Future<void> _initConsentAndAds() async {
 
 // FCM-фоновый хендлер удалён: пуши на PocketBase (PbPushService).
 
+/// Точка входа безголового движка, который поднимает `AppDelegate` по тихому
+/// пушу (iOS).
+///
+/// У виджетов на iOS нет фонового обновления: пока приложение закрыто, фото и
+/// статус партнёра на рабочем столе застывают до следующего запуска — на
+/// Android то же место закрывает WorkManager. Сервер шлёт `content-available`,
+/// когда партнёр поменял данные виджетов, iOS даёт нам несколько секунд, и мы
+/// перекладываем свежие записи `widget_data` в контейнер App Group.
+///
+/// Имя функции прибито в Swift (`run(withEntrypoint: "widgetPushRefresh")`), а
+/// `vm:entry-point` не даёт выбросить её при сборке.
+@pragma('vm:entry-point')
+Future<void> widgetPushRefresh() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  const channel = MethodChannel('love_app/widget_bg_refresh');
+  var changed = false;
+  try {
+    await HomeWidget.setAppGroupId('group.com.togetherly.love');
+    // Сессия PocketBase лежит на диске: записи виджетов защищены, без токена
+    // их не прочитать.
+    await PocketBaseService().init();
+    final myUid = PocketBaseService().userId ?? '';
+    final groupId =
+        await HomeWidget.getWidgetData<String>('love_widget_group_id') ?? '';
+    final partnerUid =
+        await HomeWidget.getWidgetData<String>('love_widget_partner_uid') ?? '';
+    if (myUid.isNotEmpty && groupId.isNotEmpty) {
+      await HomeWidgetService.instance.backgroundRefreshAll(
+        groupId: groupId,
+        myUid: myUid,
+        partnerUid: partnerUid,
+        refreshPhotos: true,
+      );
+      changed = true;
+    }
+  } catch (e) {
+    debugPrint('widgetPushRefresh failed: $e');
+  }
+  // Отвечаем всегда: без этого iOS считает пробуждение неудачным и в
+  // следующий раз даёт меньше времени (а то и не будит вовсе).
+  try {
+    await channel.invokeMethod('done', changed);
+  } catch (_) {
+    // Движок уже погашен таймаутом — ничего страшного.
+  }
+}
+
 /// Вызывается нативным виджетом (LoveWidgetProvider.onUpdate) через
 /// HomeWidgetBackgroundReceiver, когда процесс Flutter мёртв.
 /// Тянет свежие данные из Firestore и обновляет SharedPreferences виджета,
