@@ -97,87 +97,38 @@ module.exports = function collectIncome() {
     }
   })();
 
-  // ── lava (Togetherly+ и разовые продажи) ───────────────────────────────────
+  // ── lava (Togetherly+, донаты, разовые продажи) ───────────────────────────
+  // Считаем по ПИСЬМАМ продавца, а не по API: отчёты lava видят только счета
+  // нашего ключа, а покупку с витрины не показывают вовсе — по ним доход был
+  // занижен впятеро. Письма разбирает /opt/income/lava_income.py, хук читает
+  // готовый файл.
   (() => {
-    let key = ""; try { key = $os.getenv("LAVA_API_KEY") || ""; } catch (_) {}
-    if (!key) { result.sources.lava = { ok: false, reason: "нет ключа" }; return; }
-
-    const begin = new Date(now.getTime() - 40 * 24 * 3600 * 1000).toISOString();
-    const items = [];
+    let raw = null;
     try {
-      let page = 1, total = 0;
-      while (page < 30) {
-        const url = "https://gate.lava.top/api/v1/invoices?beginDate=" + encodeURIComponent(begin) +
-          "&endDate=" + encodeURIComponent(now.toISOString()) + "&size=20&page=" + page;
-        const r = $http.send({ url: url, method: "GET", headers: { "X-Api-Key": key }, timeout: 25 });
-        if (r.statusCode !== 200) throw new Error("lava ответила " + r.statusCode);
-        const j = r.json || JSON.parse(String(r.raw || "{}"));
-        const part = j.items || [];
-        for (let i = 0; i < part.length; i++) items.push(part[i]);
-        total = Number(j.total) || items.length;
-        if (items.length >= total || !part.length) break;
-        page++;
-      }
-    } catch (err) {
-      result.sources.lava = { ok: false, reason: String(err).slice(0, 200) };
-      return;
-    }
-
-    const byDay = {};
-    let gross = 0, fee = 0, count = 0, monthNet = 0, todayNet = 0, yestNet = 0;
-    const today = iso(now), month = today.slice(0, 7);
-    const yest = iso(new Date(now.getTime() - 24 * 3600 * 1000));
-    for (let i = 0; i < items.length; i++) {
-      const it = items[i];
-      if (String(it.status).toUpperCase() !== "COMPLETED") continue;
-      const rec = it.receipt || {};
-      const cur = String(rec.currency || "RUB");
-      const g = toUsd(Number(rec.amount) || 0, cur);
-      const f = toUsd(Number(rec.fee) || 0, cur);
-      const d = String(it.datetime || "").slice(0, 10);
-      gross += g; fee += f; count++;
-      byDay[d] = (byDay[d] || 0) + (g - f);
-      if (d.slice(0, 7) === month) monthNet += g - f;
-      if (d === today) todayNet += g - f;
-      if (d === yest) yestNet += g - f;
-    }
-    const days = Object.keys(byDay).sort().map((d) => ({ d: d, v: byDay[d] }));
-
-    // Витринные покупки идут мимо нашего ключа и в контрактах не видны —
-    // сводку по продуктам за всё время берём отдельным методом.
-    // ВАЖНО: строка ответа несёт СТАТУС, и оплаченные лежат вперемешку с
-    // брошенными. Продажей считается только `completed`; `new` — человек открыл
-    // оплату и ушёл, `failed` — платёж отклонён. Без этой проверки у Моти
-    // выходило 16 «продаж» на 80 $, хотя её не купил никто.
-    let products = [], pending = [];
-    try {
-      const r = $http.send({ url: "https://gate.lava.top/api/v1/sales/?size=50", method: "GET", headers: { "X-Api-Key": key }, timeout: 25 });
-      if (r.statusCode === 200) {
-        const j = r.json || JSON.parse(String(r.raw || "{}"));
-        const list = j.items || [];
-        for (let i = 0; i < list.length; i++) {
-          const sales = list[i].sales || [];
-          const done = String(list[i].status || "").toLowerCase() === "completed";
-          for (let k = 0; k < sales.length; k++) {
-            (done ? products : pending).push({
-              name: String(list[i].title || "—"),
-              status: String(list[i].status || ""),
-              count: Number(sales[k].count) || 0,
-              amount: Number(sales[k].amountTotal) || 0,
-              currency: String(sales[k].currency || "RUB"),
-            });
-          }
-        }
-        const byMoney = (a, b) => toUsd(b.amount, b.currency) - toUsd(a.amount, a.currency);
-        products.sort(byMoney); pending.sort(byMoney);
-      }
+      const b = $os.readFile("/opt/pocketbase/pb_data/.lava_income.json");
+      raw = JSON.parse(typeof b === "string" ? b : String.fromCharCode.apply(null, b));
     } catch (_) {}
+    if (!raw) { result.sources.lava = { ok: false, reason: "сводка по письмам ещё не собрана" }; return; }
+    if (!raw.ok) { result.sources.lava = raw; return; }
+
+    const sumUsd = (byCur) => {
+      let t = 0;
+      for (const cur in (byCur || {})) t += toUsd(Number(byCur[cur]) || 0, cur);
+      return t;
+    };
+    const today = iso(now), yest = iso(new Date(now.getTime() - 24 * 3600 * 1000));
+    const days = [];
+    for (const d in (raw.by_day || {})) days.push({ d: d, v: sumUsd(raw.by_day[d]) });
+    days.sort((a, b) => a.d < b.d ? -1 : 1);
+    const dayOf = (d) => { const f = days.filter((x) => x.d === d)[0]; return f ? f.v : 0; };
 
     result.sources.lava = {
-      ok: true, currency: "USD", title: "lava, Togetherly+",
-      today: todayNet, yesterday: yestNet, month: monthNet,
-      d40_gross: gross, d40_fee: fee, d40_net: gross - fee, count: count,
-      days: days, products: products, pending: pending,
+      ok: true, currency: "USD", title: "lava, все каналы",
+      today: dayOf(today), yesterday: dayOf(yest),
+      month: sumUsd(raw.month_net), total: sumUsd(raw.total_net),
+      total_by_currency: raw.total_net, month_by_currency: raw.month_net,
+      count: raw.count || 0, fee: raw.fee, refunds: raw.refunds || [],
+      days: days, products: raw.products || [], source: raw.source, mail_updated: raw.updated,
     };
   })();
 

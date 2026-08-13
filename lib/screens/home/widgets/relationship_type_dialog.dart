@@ -446,8 +446,12 @@ void showAddCustomRelTypeSheet(
                             ? kRelEmojis[selectedIcon]
                             : customSymbol,
                       );
+                      // Пока шёл запрос, лист могли закрыть свайпом: его
+                      // контекст тогда мёртв, и `Navigator.of` падает с «Null
+                      // check operator used on a null value» — это одна из
+                      // самых частых записей в панели крашей.
+                      if (sheetCtx.mounted) Navigator.of(sheetCtx).pop();
                       if (!context.mounted) return;
-                      Navigator.of(sheetCtx).pop();
                       onChanged();
                       showRelationshipTypeSheet(context,
                           pair: pair, theme: theme, onChanged: onChanged);
