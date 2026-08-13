@@ -194,7 +194,7 @@ class ConnectionsManager extends ChangeNotifier {
       orElse: () => null,
     );
     if (existingConn != null) {
-      _activeConnectionIndex = _connections.indexOf(existingConn);
+      _activeConnectionIndex = _indexOfOrKeep(existingConn);
       await _saveLocal();
       notifyListeners();
       return true;
@@ -267,7 +267,7 @@ class ConnectionsManager extends ChangeNotifier {
     // перевыпустить; серверный create само-лечит протухший токен.
     target.inviteCode = newCode;
 
-    _activeConnectionIndex = _connections.indexOf(target);
+    _activeConnectionIndex = _indexOfOrKeep(target);
     target.startListening();
 
     await _saveLocal();
@@ -316,7 +316,7 @@ class ConnectionsManager extends ChangeNotifier {
     target.pairId = pairId;
     await target.refreshPairStatus();
     target.startListening();
-    _activeConnectionIndex = _connections.indexOf(target);
+    _activeConnectionIndex = _indexOfOrKeep(target);
     await _saveLocal();
     notifyListeners();
     return res['code'] ?? '';
@@ -381,7 +381,7 @@ class ConnectionsManager extends ChangeNotifier {
       orElse: () => null,
     );
     if (existing != null) {
-      _activeConnectionIndex = _connections.indexOf(existing);
+      _activeConnectionIndex = _indexOfOrKeep(existing);
       await existing.refreshPairStatus();
       await _saveLocal();
       notifyListeners();
@@ -401,7 +401,7 @@ class ConnectionsManager extends ChangeNotifier {
     target.pairId = pairId;
     await target.refreshPairStatus();
     target.startListening();
-    _activeConnectionIndex = _connections.indexOf(target);
+    _activeConnectionIndex = _indexOfOrKeep(target);
     await _saveLocal();
     notifyListeners();
   }
@@ -813,7 +813,7 @@ class ConnectionsManager extends ChangeNotifier {
       if (_loggedIn && existing.inviteCode.isEmpty) {
         await _ensureServerCode(existing);
       }
-      _activeConnectionIndex = _connections.indexOf(existing);
+      _activeConnectionIndex = _indexOfOrKeep(existing);
       await _saveLocal();
       notifyListeners();
       return existing;
@@ -910,12 +910,28 @@ class ConnectionsManager extends ChangeNotifier {
     notifyListeners();
   }
 
+
+  /// Куда встать после перестройки списка.
+  ///
+  /// `indexOf` отдаёт −1, когда связи в списке уже нет: за время `await` её
+  /// успели убрать. Класть −1 в активный индекс нельзя — на нём падает всё,
+  /// что обращается к списку по этому индексу.
+  int _indexOfOrKeep(Connection? target) {
+    if (target == null) return clampedActiveIndex(_activeConnectionIndex, _connections.length);
+    final found = _connections.indexOf(target);
+    if (found >= 0) return found;
+    return clampedActiveIndex(_activeConnectionIndex, _connections.length);
+  }
+
   Future<void> switchToNextConnection() async {
     if (_connections.length <= 1) return;
-    _activeConnectionIndex = (_activeConnectionIndex + 1) % _connections.length;
+    _activeConnectionIndex =
+        (clampedActiveIndex(_activeConnectionIndex, _connections.length) + 1) %
+            _connections.length;
 
     // Generate invite code if the connection doesn't have one.
-    final connection = _connections[_activeConnectionIndex];
+    final connection = _connections[
+        clampedActiveIndex(_activeConnectionIndex, _connections.length)];
     if (connection.inviteCode.isEmpty && !connection.isSolo && _loggedIn) {
       await _ensureServerCode(connection);
     }
@@ -939,8 +955,13 @@ class ConnectionsManager extends ChangeNotifier {
   /// Check if currently in solo mode
   bool get isSoloMode {
     if (_connections.isEmpty) return false;
-    if (_activeConnectionIndex >= _connections.length) return false;
-    return _connections[_activeConnectionIndex].isSolo;
+    // Через ту же меру, что и активная связь: индекс бывает −1 после неудачного
+    // `indexOf`, а прежняя проверка стерегла только верхнюю границу — и
+    // `_connections[-1]` ронял приложение (падения на 1.26.0+188 в ночь
+    // 14 августа 2026, тот же RangeError, что чинили в августе у геттера).
+    return _connections[
+            clampedActiveIndex(_activeConnectionIndex, _connections.length)]
+        .isSolo;
   }
 
   // ── Persistence ──
