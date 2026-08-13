@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -45,11 +46,14 @@ Future<void> showHintBubble(
   const bubbleWidth = 250.0;
 
   // Пузырь держится за центр цели, но не вылезает за края экрана.
+  //
+  // На узком экране правая граница уезжает левее левой (250 пузыря плюс два
+  // отступа не помещаются), и `clamp` падает с «Invalid argument(s): 12.0» —
+  // ровно это ловил Bugsink на 1.26. Держим границы в правильном порядке: если
+  // места нет вовсе, пузырь просто прижимается к левому краю.
   final targetCenterX = pos.dx + box.size.width / 2;
-  final left = (targetCenterX - bubbleWidth / 2).clamp(
-    12.0,
-    screen.width - bubbleWidth - 12,
-  );
+  final maxLeft = math.max(12.0, screen.width - bubbleWidth - 12);
+  final left = (targetCenterX - bubbleWidth / 2).clamp(12.0, maxLeft);
   // Стрелка остаётся под центром цели, куда бы ни съехал сам пузырь.
   final arrowLeft = (targetCenterX - left - 14).clamp(14.0, bubbleWidth - 42);
 
