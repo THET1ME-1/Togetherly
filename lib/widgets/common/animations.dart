@@ -224,6 +224,15 @@ class _AppearOnScrollState extends State<AppearOnScroll>
   /// Доехал ли экран до блока.
   void _check() {
     if (_started || !mounted) return;
+    // Ни прокрутки, ни анимации маршрута — ждать нечего и некого: блок стоит
+    // там, где стоит. Иначе он остался бы прозрачным навсегда, а нажатия при
+    // этом проходят: `Opacity(0)` их не блокирует. Так и выглядела жалоба
+    // «на всех попапах не отображается текст, хотя он есть и кликабельный».
+    if (_position == null && _routeAnim == null) {
+      _started = true;
+      _run(0);
+      return;
+    }
     final box = context.findRenderObject() as RenderBox?;
     if (box == null || !box.hasSize) return;
     final top = box.localToGlobal(Offset.zero).dy;
