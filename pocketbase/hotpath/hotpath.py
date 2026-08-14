@@ -45,6 +45,7 @@ import os
 import re
 import secrets
 import sqlite3
+import threading
 import time
 
 import asyncpg
@@ -307,6 +308,12 @@ lite_rw: sqlite3.Connection | None = None   # счётчики групп и ч�
 _bg_lock_fd: int | None = None             # замок роли фоновых задач
 auth_secret = ""
 _lite_lock = asyncio.Lock()
+# Соединение записи в SQLite ОДНО на процесс, а пишущих задач несколько:
+# зеркало пар, списки групп, счётчики, отметки присутствия, чистка токенов.
+# Они живут в разных потоках (asyncio.to_thread), и без общего замка их
+# транзакции наезжают друг на друга: «cannot start a transaction within a
+# transaction», после чего правка молча не доезжает до SQLite.
+_lite_rw_lock = threading.Lock()
 _counter_deltas: dict = {}                 # (group_id, поле) -> дельта
 
 # ── совместимость с PocketBase: время и ошибки ───────────────────────────────
@@ -614,8 +621,9 @@ async def _push_targets(group_id: str, author_uid: str) -> list[dict]:
 
 def _forget_token(uid: str, field: str) -> None:
     try:
-        lite_rw.execute(f"UPDATE users SET {field} = '' WHERE id = ?", (uid,))
-        lite_rw.commit()
+        with _lite_rw_lock:
+            lite_rw.execute(f"UPDATE users SET {field} = '' WHERE id = ?", (uid,))
+            lite_rw.commit()
     except sqlite3.Error:
         pass  # попробуем в следующий раз
 
@@ -757,6 +765,11 @@ def _count(group_id: str, delta: int, field: str = "messages_count") -> None:
 def _flush_counters_sync(deltas: dict) -> None:
     # BEGIN IMMEDIATE: наша транзакция только пишет, деферред-снапшот ей не
     # нужен, а мгновенный захват замка сводит окно к миллисекундам.
+    with _lite_rw_lock:
+        _flush_counters_пишем(deltas)
+
+
+def _flush_counters_пишем(deltas: dict) -> None:
     lite_rw.execute("BEGIN IMMEDIATE")
     try:
         for (gid, field), d in deltas.items():
@@ -771,7 +784,7 @@ def _flush_counters_sync(deltas: dict) -> None:
 
 
 ЗЕРКАЛО_ОТМЕТКА = "/opt/hotpath/.groups_mirror_at"
-ЗЕРКАЛО_ПАЧКА = 5000
+ЗЕРКАЛО_ПАЧКА = 1000
 
 
 def _прочитать_отметку() -> str:
@@ -942,16 +955,17 @@ def _mirror_presence_sync(rows: list) -> None:
     `user_presence` одним SQL — а users остались в PB. Держим там теневую
     копию: одна пачка раз в пять минут вместо сотни отдельных записей в
     минуту, которые эту базу и душили."""
-    lite_rw.execute("BEGIN IMMEDIATE")
-    try:
-        lite_rw.executemany(
-            "INSERT INTO user_presence (id, user_uid, seen_at) VALUES (?,?,?) "
-            "ON CONFLICT(user_uid) DO UPDATE SET seen_at = excluded.seen_at",
-            rows)
-        lite_rw.commit()
-    except BaseException:
-        lite_rw.rollback()
-        raise
+    with _lite_rw_lock:
+        lite_rw.execute("BEGIN IMMEDIATE")
+        try:
+            lite_rw.executemany(
+                "INSERT INTO user_presence (id, user_uid, seen_at) VALUES (?,?,?) "
+                "ON CONFLICT(user_uid) DO UPDATE SET seen_at = excluded.seen_at",
+                rows)
+            lite_rw.commit()
+        except BaseException:
+            lite_rw.rollback()
+            raise
 
 
 async def _presence_mirror_worker() -> None:
@@ -1177,6 +1191,7 @@ def _record_streak_sqlite(group_id: str, mascot_id: str, streak: int) -> None:
     """Рекорд серии живёт в коллекции mascots, а она осталась в PocketBase.
     Событие редкое — общий день засчитывается паре раз в сутки."""
     try:
+      with _lite_rw_lock:
         lite_rw.execute(
             "UPDATE mascots SET record_streak = ? "
             "WHERE group_id = ? AND mascot_id = ? AND COALESCE(record_streak, 0) < ?",
@@ -1275,6 +1290,7 @@ def _членство_в_sqlite(uids: list) -> None:
     if not uids:
         return
     try:
+      with _lite_rw_lock:
         for uid in uids:
             lite_rw.execute(
                 "UPDATE users SET group_ids = COALESCE((SELECT json_group_array(g.id) "
@@ -1305,6 +1321,11 @@ def _зеркало_группы_sync(строки: list) -> int:
     вставка = ", ".join(["id"] + [f"`{c}`" for c in ЗЕРКАЛО_КОЛОНКИ])
     места = ", ".join(["?"] * (len(ЗЕРКАЛО_КОЛОНКИ) + 1))
     поля = ", ".join(f"`{c}` = excluded.`{c}`" for c in ЗЕРКАЛО_КОЛОНКИ)
+    with _lite_rw_lock:
+        return _зеркало_группы_пишем(строки, вставка, места, поля)
+
+
+def _зеркало_группы_пишем(строки, вставка, места, поля) -> int:
     сделано = 0
     # BEGIN только если своей транзакции ещё нет: питоновский sqlite3 открывает
     # её сам перед первой правкой, и явный BEGIN поверх падает с «cannot start
