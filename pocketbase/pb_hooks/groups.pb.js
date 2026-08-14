@@ -139,6 +139,22 @@ routerAdd("POST", "/api/group/record-activity", (e) => {
   if (!groupId || !uid || !/^\d{4}-\d{2}-\d{2}$/.test(today)) {
     return e.json(400, { ok: false, error: "bad params" });
   }
+  // Клиент отмечается на каждом заходе, а день засчитывается один раз — восемь
+  // запросов в секунду вечером 14.08.2026, и почти все впустую открывали
+  // транзакцию, занимая соединение записи. Сначала дешёвое чтение: день уже
+  // отмечен — отвечаем сразу. Настоящая отметка идёт прежним путём, с
+  // перепроверкой внутри транзакции.
+  try {
+    const peek = $app.findRecordById("groups", groupId);
+    let peekMembers = [];
+    try { peekMembers = JSON.parse(peek.getString("members") || "[]") || []; } catch (_) { peekMembers = []; }
+    if (peekMembers.indexOf(e.auth.id) === -1) {
+      return e.json(403, { ok: false, error: "not a member" });
+    }
+    if (String(peek.getString("streak_last_opened_date") || "") === today) {
+      return e.json(200, { ok: true, already: true });
+    }
+  } catch (_) { /* не прочиталось — идём обычным путём через транзакцию */ }
   let out;
   try {
     $app.runInTransaction((txApp) => {
@@ -219,6 +235,51 @@ routerAdd("POST", "/api/group/miss-you", (e) => {
   let times = parseInt(body.count, 10);
   if (!(times >= 1 && times <= 20)) times = 1;
   if (!groupId || !uid) return e.json(400, { ok: false, error: "bad params" });
+
+  // ── Копилка нажатий ────────────────────────────────────────────────────────
+  //
+  // Вечером 14.08.2026 «Скучаю» жали 23 раза в СЕКУНДУ с полусотни устройств —
+  // у людей это игра «кто больше», один человек накопил 13 681 нажатие. Каждый
+  // запрос открывал транзакцию записи, очередь к базе выросла до семи тысяч, и
+  // вместе с ней встало всё остальное: регистрация висела по тридцать секунд.
+  //
+  // Поэтому пишем в базу не чаще раза в десять секунд на человека, а нажатия
+  // между записями складываем в память приложения. Первое нажатие серии уходит
+  // сразу — партнёр получает своё уведомление без задержки, а хвост зажатого
+  // пальца доезжает одной записью. Счёт не теряется: в базу уходит сумма.
+  //
+  // Store хранит СТРОКУ: значения бегают между разными машинами JSVM, и
+  // JS-объект из чужой машины там неживой.
+  const bufKey = "missbuf:" + groupId + ":" + uid;
+  const nowMs = Date.now();
+  let buffered = 0;
+  let bufWeek = {};
+  let bufVibes = {};
+  try {
+    const raw = $app.store().get(bufKey);
+    if (raw) {
+      const parsed = JSON.parse(String(raw));
+      if (nowMs - (parsed.at || 0) < 10000) {
+        // Окно ещё открыто — добавляем к накопленному и отвечаем сразу.
+        parsed.n = (parsed.n || 0) + times;
+        const wd = parseInt(body.weekday, 10);
+        const wk = wd >= 1 && wd <= 7 ? String(wd) : "0";
+        parsed.w = parsed.w || {};
+        parsed.w[wk] = (parsed.w[wk] || 0) + times;
+        parsed.v = parsed.v || {};
+        const vk = ["miss_you", "thinking_of_you", "want_hug", "custom"].indexOf(vibe) === -1
+          ? "miss_you" : vibe;
+        parsed.v[vk] = (parsed.v[vk] || 0) + times;
+        $app.store().set(bufKey, JSON.stringify(parsed));
+        return e.json(200, { ok: true, count: (parsed.base || 0) + parsed.n, buffered: true });
+      }
+      // Окно закрылось — забираем накопленное с собой в эту запись.
+      buffered = parsed.n || 0;
+      bufWeek = parsed.w || {};
+      bufVibes = parsed.v || {};
+    }
+  } catch (_) { buffered = 0; bufWeek = {}; bufVibes = {}; }
+
   let out;
   try {
     $app.runInTransaction((txApp) => {
@@ -251,10 +312,16 @@ routerAdd("POST", "/api/group/miss-you", (e) => {
       const VIBES = { miss_you: 1, thinking_of_you: 1, want_hug: 1, custom: 1 };
       const vibeKey = VIBES[vibe] ? vibe : "miss_you";
       if (rec) {
-        const next = (rec.getInt("count") || 0) + times;
+        // times — нажатия этого запроса, buffered — то, что скопилось в памяти
+        // за прошедшее окно (см. копилку выше).
+        const next = (rec.getInt("count") || 0) + times + buffered;
         let week = {};
         try { week = JSON.parse(rec.getString("by_weekday") || "{}") || {}; } catch (_) { week = {}; }
         week[weekday] = (parseInt(week[weekday], 10) || 0) + times;
+        for (const k in bufWeek) {
+          const day = k === "0" ? String(weekday) : k;
+          week[day] = (parseInt(week[day], 10) || 0) + bufWeek[k];
+        }
         let vibes = {};
         try { vibes = JSON.parse(rec.getString("by_vibe") || "{}") || {}; } catch (_) { vibes = {}; }
         // Первая запись карты у старой пары: весь прежний счёт был «скучаю» —
@@ -265,6 +332,9 @@ routerAdd("POST", "/api/group/miss-you", (e) => {
           if (before > 0) vibes.miss_you = before;
         }
         vibes[vibeKey] = (parseInt(vibes[vibeKey], 10) || 0) + times;
+        for (const k in bufVibes) {
+          vibes[k] = (parseInt(vibes[k], 10) || 0) + bufVibes[k];
+        }
         rec.set("by_vibe", JSON.stringify(vibes));
         rec.set("by_weekday", JSON.stringify(week));
         rec.set("count", next);
@@ -278,16 +348,25 @@ routerAdd("POST", "/api/group/miss-you", (e) => {
         const r = new Record(col);
         r.set("group_id", groupId);
         r.set("user_uid", uid);
-        r.set("count", times);
-        r.set("by_weekday", JSON.stringify({ [weekday]: times }));
-        r.set("by_vibe", JSON.stringify({ [vibeKey]: times }));
+        r.set("count", times + buffered);
+        r.set("by_weekday", JSON.stringify({ [weekday]: times + buffered }));
+        r.set("by_vibe", JSON.stringify({ [vibeKey]: times + buffered }));
         r.set("updated_at", nowIso);
         r.set("last_vibe", vibe);
         r.set("last_vibe_text", text);
         txApp.save(r);
-        out = { s: 200, b: { ok: true, count: times } };
+        out = { s: 200, b: { ok: true, count: times + buffered } };
       }
     });
   } catch (err) { return e.json(500, { ok: false, error: "tx failed" }); }
+  // Запись прошла — открываем новое окно: следующие десять секунд нажатия
+  // копятся в памяти, а в ответе человек видит их сразу (base + накопленное).
+  if (out && out.s === 200 && out.b && out.b.ok) {
+    try {
+      $app.store().set(bufKey, JSON.stringify({
+        at: nowMs, n: 0, w: {}, v: {}, base: out.b.count || 0,
+      }));
+    } catch (_) { /* копилка не обязательна: без неё просто пишем чаще */ }
+  }
   return e.json(out.s, out.b);
 }, $apis.requireAuth());
