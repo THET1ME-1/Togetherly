@@ -67,6 +67,11 @@ TABLES = {
         "mood_id": "text", "timestamp": "text", "user_uid": "text",
         "updated": "auto", "tz": "text",
     },
+    "miss_you": {
+        "group_id": "text", "user_uid": "text", "count": "num",
+        "updated_at": "text", "last_vibe": "text", "last_vibe_text": "text",
+        "by_weekday": "json", "by_vibe": "json", "updated": "auto",
+    },
 }
 
 
@@ -76,7 +81,13 @@ def conv(kind: str, v):
     if kind == "bool":
         return bool(v)
     if kind == "json":
-        return v if (v is None or isinstance(v, str)) else str(v)
+        # У старых записей json-поле бывает пустой строкой (PocketBase так
+        # хранит незаполненное), а Postgres на такое отвечает «input string
+        # ended unexpectedly» и роняет весь перенос. Пусто — значит NULL.
+        if v is None:
+            return None
+        s = v if isinstance(v, str) else str(v)
+        return s if s.strip() else None
     return str(v) if v is not None else ""
 
 

@@ -210,6 +210,26 @@ COLLECTIONS = {
         "after_delete": None,
         "default_sort": "id ASC",
     },
+    # «Скучаю» и его собратья. Самая горячая запись вечера 14.08.2026: люди жали
+    # кнопку 58 раз в секунду с полусотни устройств, каждый тап открывал в
+    # PocketBase транзакцию, очередь к SQLite выросла до семи тысяч и вместе с
+    # ней встала регистрация. В Postgres такой поток — обычное дело.
+    "miss_you": {
+        "collection_id": os.environ.get("CID_MISS_YOU", "pbc_1227645100"),
+        "columns": {
+            "group_id": "text", "user_uid": "text", "count": "num",
+            "updated_at": "text", "last_vibe": "text", "last_vibe_text": "text",
+            "by_weekday": "json", "by_vibe": "json", "updated": "auto",
+        },
+        "sortable": {"updated", "id"},
+        "filterable": {"id", "group_id", "user_uid", "updated"},
+        "create_owner_field": None,
+        "guard": None,
+        "delete_guard": None,
+        "after_create": None,
+        "after_delete": None,
+        "default_sort": "id ASC",
+    },
     "mood_entries": {
         "collection_id": os.environ.get("CID_MOOD_ENTRIES", "pbc_1148030965"),
         "columns": {
@@ -733,6 +753,97 @@ async def healthz():
     async with pg.acquire() as c:
         await c.fetchval("SELECT 1")
     return {"ok": True}
+
+
+@app.post("/api/group/miss-you")
+async def miss_you(request: Request):
+    """Импульс «Скучаю»: один запрос — одна строка вверх.
+
+    В PocketBase это был read-modify-write в транзакции: находим запись,
+    считаем новое значение, сохраняем. При 58 нажатиях в секунду очередь к
+    SQLite выросла до семи тысяч ожидающих. Здесь то же самое делает Postgres
+    одним `INSERT … ON CONFLICT DO UPDATE`: счётчик и обе карты прибавляются
+    прямо в базе, читать перед записью не нужно.
+
+    Форма ответа и канал рассылки повторяют прежний хук `groups.pb.js`, чтобы
+    приложению не пришлось ничего знать о переезде.
+    """
+    try:
+        auth = await _auth(request)
+    except Exception:
+        return _err(429, "Try again later.")
+    if auth is None:
+        return _err(401, "The request requires valid record authorization token.")
+    uid_auth, groups = auth
+
+    try:
+        body = await request.json()
+        assert isinstance(body, dict)
+    except Exception:
+        return _err(400, "bad params")
+
+    group_id = str(body.get("groupId") or "").strip()
+    uid = str(body.get("uid") or "").strip()
+    vibe = str(body.get("vibe") or "miss_you")
+    text = str(body.get("text") or "")
+    if not group_id or not uid:
+        return _err(400, "bad params")
+    if group_id not in groups:
+        return ORJSONResponse({"ok": False, "error": "not a member"}, status_code=403)
+
+    # Клиент копит частые тапы и шлёт их одним запросом; потолок двадцать —
+    # дальше это зажатый палец, а не человек.
+    try:
+        times = int(body.get("count"))
+    except Exception:
+        times = 1
+    if not 1 <= times <= 20:
+        times = 1
+
+    # День недели присылает клиент (1=пн … 7=вс): сервер живёт в UTC, и ночные
+    # нажатия попадали бы во вчерашний день.
+    try:
+        weekday = int(body.get("weekday"))
+    except Exception:
+        weekday = 0
+    if not 1 <= weekday <= 7:
+        weekday = (time.gmtime().tm_wday + 1)
+    wd = str(weekday)
+
+    # Свои типы импульсов; чужое имя не должно растить карту без края.
+    vibe_key = vibe if vibe in ("miss_you", "thinking_of_you", "want_hug", "custom") else "miss_you"
+
+    now_iso = now_pb()
+    rid = _new_id()
+    row = await pg.fetchrow(
+        """
+        INSERT INTO miss_you (id, group_id, user_uid, count, updated_at,
+                              last_vibe, last_vibe_text, by_weekday, by_vibe, updated)
+        VALUES ($1, $2, $3, $4::double precision, $5, $6, $7,
+                jsonb_build_object($8::text, to_jsonb($4::double precision)),
+                jsonb_build_object($9::text, to_jsonb($4::double precision)), $5)
+        ON CONFLICT (group_id, user_uid) DO UPDATE SET
+            count = miss_you.count + $4::double precision,
+            updated_at = $5,
+            updated = $5,
+            last_vibe = $6,
+            last_vibe_text = $7,
+            by_weekday = jsonb_set(
+                COALESCE(miss_you.by_weekday, '{}'::jsonb), ARRAY[$8::text],
+                to_jsonb(COALESCE((miss_you.by_weekday->>$8::text)::double precision, 0)
+                         + $4::double precision)),
+            by_vibe = jsonb_set(
+                COALESCE(miss_you.by_vibe, '{}'::jsonb), ARRAY[$9::text],
+                to_jsonb(COALESCE((miss_you.by_vibe->>$9::text)::double precision, 0)
+                         + $4::double precision))
+        RETURNING *
+        """,
+        rid, group_id, uid, float(times), now_iso, vibe, text, wd, vibe_key,
+    )
+
+    rec = _record_json("miss_you", row)
+    await _publish("miss_you", "update", rec)
+    return ORJSONResponse({"ok": True, "count": _num(row["count"])})
 
 
 @app.get("/internal/count")
