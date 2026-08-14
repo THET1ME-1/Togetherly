@@ -14,6 +14,7 @@ package main
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -24,14 +25,17 @@ import (
 	"sync"
 	"time"
 
+	"strings"
+
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/plugins/jsvm"
 	"github.com/pocketbase/pocketbase/plugins/migratecmd"
+	"github.com/pocketbase/pocketbase/tools/hook"
 
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/mattn/go-sqlite3"
 )
 
 // ── Рассылка изменений в Centrifugo ──────────────────────────────────────────
@@ -143,6 +147,118 @@ func centPublish(event string, rec *core.Record) {
 	}()
 }
 
+// ── Кэш авторизации ──────────────────────────────────────────────────────────
+//
+// PocketBase на КАЖДЫЙ запрос идёт в базу за записью пользователя по токену
+// (`loadAuthToken` → `FindAuthRecordByToken`). Профиль вечернего пика
+// 14.08.2026: 12,7% всего процессора PocketBase, при 1160 новых соединениях в
+// секунду это заметная доля. Держим найденную запись двадцать секунд и отдаём
+// обработчику её копию — общий объект трогать нельзя, запрос может его менять.
+//
+// Подпись токена к этому моменту уже проверена базой при первом попадании.
+// Инвалидация обязательна: запись пользователя изменилась или удалена — все его
+// токены выкидываем сразу, иначе правила доступа считали бы по старым
+// `group_ids` и человек не увидел бы пару (такое уже ломало приложение).
+//
+// Свой обработчик встаёт ПЕРЕД штатным и заполняет `e.Auth`; штатный видит
+// заполненное поле и молча пропускает запрос дальше — отвязывать его не нужно.
+const authCacheTTL = 20 * time.Second
+
+type authCacheItem struct {
+	rec *core.Record
+	uid string
+	exp time.Time
+}
+
+var (
+	authByToken sync.Map // токен → authCacheItem
+	authByUID   sync.Map // id пользователя → *sync.Map(токен → struct{})
+)
+
+func authCacheGet(token string, now time.Time) *core.Record {
+	v, ok := authByToken.Load(token)
+	if !ok {
+		return nil
+	}
+	item := v.(authCacheItem)
+	if !item.exp.After(now) {
+		authCacheForget(token, item.uid)
+		return nil
+	}
+	return item.rec
+}
+
+func authCachePut(token string, rec *core.Record, now time.Time) {
+	authByToken.Store(token, authCacheItem{rec: rec, uid: rec.Id, exp: now.Add(authCacheTTL)})
+	set, _ := authByUID.LoadOrStore(rec.Id, &sync.Map{})
+	set.(*sync.Map).Store(token, struct{}{})
+}
+
+func authCacheForget(token, uid string) {
+	authByToken.Delete(token)
+	if v, ok := authByUID.Load(uid); ok {
+		v.(*sync.Map).Delete(token)
+	}
+}
+
+// Пользователь изменился — его прежние токены больше не годятся.
+func authCacheDropUser(uid string) {
+	v, ok := authByUID.LoadAndDelete(uid)
+	if !ok {
+		return
+	}
+	v.(*sync.Map).Range(func(k, _ any) bool {
+		authByToken.Delete(k)
+		return true
+	})
+}
+
+// Уборка протухшего: без неё карта растёт на каждый новый токен.
+func authCacheSweeper() {
+	for range time.Tick(time.Minute) {
+		now := time.Now()
+		authByToken.Range(func(k, v any) bool {
+			item := v.(authCacheItem)
+			if !item.exp.After(now) {
+				authCacheForget(k.(string), item.uid)
+			}
+			return true
+		})
+	}
+}
+
+func authTokenFromRequest(e *core.RequestEvent) string {
+	token := e.Request.Header.Get("Authorization")
+	// Префикс «Bearer» PocketBase не требует, но клиенты его шлют.
+	if len(token) > 7 && strings.EqualFold(token[:7], "Bearer ") {
+		return token[7:]
+	}
+	return token
+}
+
+// Драйвер с отображением базы в память. Профиль вечернего пика 14.08.2026:
+// треть процессора PocketBase уходит внутрь SQLite, и заметная доля там — это
+// системные вызовы чтения. При `mmap_size` SQLite читает страницы прямо из
+// отображённой памяти, минуя `read()`; страницы общие на весь процесс, поэтому
+// память не дублируется по соединениям (в отличие от `cache_size`, который у
+// PocketBase множится на сто двадцать соединений чтения).
+// `temp_store=MEMORY` убирает временные файлы сортировок с диска.
+func init() {
+	sql.Register("sqlite3_tuned", &sqlite3.SQLiteDriver{
+		ConnectHook: func(c *sqlite3.SQLiteConn) error {
+			for _, pragma := range []string{
+				"PRAGMA mmap_size = 2147483648;", // 2 ГБ
+				"PRAGMA temp_store = MEMORY;",
+			} {
+				if _, err := c.Exec(pragma, nil); err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+	})
+}
+
 func main() {
 	// PocketBase зовёт DBConnect для каждой базы ДВАЖДЫ: сперва для пула чтения,
 	// затем для пула записи (core/base.go, initDataDB). Второму подключению
@@ -164,7 +280,7 @@ func main() {
 			if isWriter {
 				dsn += "&_txlock=immediate"
 			}
-			return dbx.Open("sqlite3", dsn)
+			return dbx.Open("sqlite3_tuned", dsn)
 		},
 	})
 
@@ -197,12 +313,20 @@ func main() {
 	})
 	app.OnRecordAfterUpdateSuccess().BindFunc(func(e *core.RecordEvent) error {
 		centPublish("update", e.Record)
+		if e.Record != nil && e.Record.Collection() != nil && e.Record.Collection().Name == "users" {
+			authCacheDropUser(e.Record.Id)
+		}
 		return e.Next()
 	})
 	app.OnRecordAfterDeleteSuccess().BindFunc(func(e *core.RecordEvent) error {
 		centPublish("delete", e.Record)
+		if e.Record != nil && e.Record.Collection() != nil && e.Record.Collection().Name == "users" {
+			authCacheDropUser(e.Record.Id)
+		}
 		return e.Next()
 	})
+
+	go authCacheSweeper()
 
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
 		// Пул записи: PocketBase даёт ему ОДНО соединение, и на нашей нагрузке
@@ -219,6 +343,36 @@ func main() {
 		} else {
 			log.Println("pocketbase-cgo: пул записи не удалось расширить")
 		}
+
+		// Кэш авторизации встаёт перед штатным `pbLoadAuthToken` и заполняет
+		// `e.Auth` из памяти. Штатный обработчик тогда ничего не делает —
+		// первым делом он проверяет, не загружен ли пользователь до него.
+		e.Router.Bind(&hook.Handler[*core.RequestEvent]{
+			Id:       "cachedLoadAuthToken",
+			Priority: apis.DefaultLoadAuthTokenMiddlewarePriority - 1,
+			Func: func(re *core.RequestEvent) error {
+				if re.Auth != nil {
+					return re.Next()
+				}
+				token := authTokenFromRequest(re)
+				if token == "" {
+					return re.Next()
+				}
+				now := time.Now()
+				if rec := authCacheGet(token, now); rec != nil {
+					re.Auth = rec.Clone()
+					return re.Next()
+				}
+				rec, err := re.App.FindAuthRecordByToken(token, core.TokenTypeAuth)
+				if err != nil {
+					re.App.Logger().Debug("cachedLoadAuthToken: токен не принят", "error", err)
+				} else if rec != nil {
+					authCachePut(token, rec.Clone(), now)
+					re.Auth = rec
+				}
+				return re.Next()
+			},
+		})
 
 		// Статика из pb_public: лендинг togetherly.day, страница комнаты
 		// просмотра, политика, страница админки mod-memories.html. Официальная

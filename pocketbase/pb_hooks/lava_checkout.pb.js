@@ -153,19 +153,32 @@ routerAdd("POST", "/api/lava/checkout", (e) => {
 /// Вебхук остаётся главным путём, этот крон закрывает дыру, если уведомление
 /// потерялось или наш сервер лежал в момент оплаты. Берём только свои счета,
 /// не старше трёх суток: дальше человек обратится сам.
-cronAdd("lavaInvoicePoll", "*/2 * * * *", () => {
+///
+/// Каждые шесть минут, а не две (14.08.2026). Проход синхронный: до двадцати
+/// счетов подряд, на каждый поход в lava. Раньше их было пятьдесят с таймаутом
+/// пятнадцать секунд, то есть один проход мог тянуться двенадцать минут и
+/// накладываться сам на себя, занимая машину JSVM у PocketBase. В профиле
+/// вечернего пика кроны съедали треть всего времени JS. Замок в `$app.store()`
+/// не пускает второй проход, пока идёт первый.
+cronAdd("lavaInvoicePoll", "*/6 * * * *", () => {
   const apiKey = $os.getenv("LAVA_API_KEY") || "";
   if (!apiKey) return;
+
+  const started = Date.now();
+  const busyUntil = Number($app.store().get("lavaPollBusyUntil") || 0);
+  if (busyUntil > started) return; // прошлый проход ещё идёт
+  $app.store().set("lavaPollBusyUntil", started + 5 * 60 * 1000);
 
   let pending = [];
   try {
     pending = $app.findRecordsByFilter(
       "lava_invoices",
       "granted = false && status != 'FAILED' && created > {:edge}",
-      "-created", 50, 0,
+      "-created", 20, 0,
       { edge: new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString().replace("T", " ") }
     );
   } catch (err) {
+    $app.store().set("lavaPollBusyUntil", 0);
     return;
   }
 
@@ -180,7 +193,7 @@ cronAdd("lavaInvoicePoll", "*/2 * * * *", () => {
         url: "https://gate.lava.top/api/v1/invoices/" + contractId,
         method: "GET",
         headers: { "X-Api-Key": apiKey },
-        timeout: 15,
+        timeout: 6,
       });
     } catch (_) { continue; }
     if (res.statusCode !== 200) continue;
@@ -237,4 +250,5 @@ cronAdd("lavaInvoicePoll", "*/2 * * * *", () => {
         "contract", contractId, "err", String(err));
     }
   }
+  $app.store().set("lavaPollBusyUntil", 0);
 });
