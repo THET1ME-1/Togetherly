@@ -36,6 +36,7 @@ PB принимает токен, подписанный этим же спос�
 
 import asyncio
 import base64
+import fcntl
 import hashlib
 import hmac
 import json
@@ -233,6 +234,7 @@ cent_client: httpx.AsyncClient | None = None
 push_client: httpx.AsyncClient | None = None
 lite: sqlite3.Connection | None = None      # read-only: auth, группы, presence
 lite_rw: sqlite3.Connection | None = None   # счётчики групп и чистка токенов
+_bg_lock_fd: int | None = None             # замок роли фоновых задач
 auth_secret = ""
 _lite_lock = asyncio.Lock()
 _counter_deltas: dict = {}                 # (group_id, поле) -> дельта
@@ -1274,6 +1276,23 @@ async def delete_record(col: str, rid: str, request: Request):
 # ── запуск ───────────────────────────────────────────────────────────────────
 
 
+def _claim_background_role() -> bool:
+    """Фоновые задачи (счётчики, зеркало присутствия) должен вести ОДИН процесс.
+
+    Сервис работает в несколько рабочих процессов — иначе один Python упирается
+    в одно ядро, а через него идёт всё присутствие (поймано живьём 14.08.2026:
+    процесс на 100% ядра, очередь запросов, 121 тысяча висящих потоков в Caddy).
+    Роль забирает тот, кому достался файловый замок; остальные только отвечают
+    на запросы."""
+    global _bg_lock_fd
+    try:
+        _bg_lock_fd = os.open("/tmp/hotpath.bg.lock", os.O_CREAT | os.O_RDWR, 0o600)
+        fcntl.flock(_bg_lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return True
+    except OSError:
+        return False
+
+
 @app.on_event("startup")
 async def _startup():
     global pg, cent_client, push_client, lite, lite_rw, auth_secret
@@ -1291,8 +1310,10 @@ async def _startup():
             "SELECT options FROM _collections WHERE name = 'users'"
         ).fetchone()[0]
     )["authToken"]["secret"]
-    asyncio.get_running_loop().create_task(_counter_worker())
-    asyncio.get_running_loop().create_task(_presence_mirror_worker())
+    if _claim_background_role():
+        log.info("этот процесс ведёт фоновые задачи")
+        asyncio.get_running_loop().create_task(_counter_worker())
+        asyncio.get_running_loop().create_task(_presence_mirror_worker())
 
 
 @app.on_event("shutdown")
@@ -1310,4 +1331,10 @@ async def _shutdown():
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=LISTEN_PORT, log_level="warning")
+    # Рабочих процессов по числу ядер минус два (PocketBase и Caddy тоже едят).
+    workers = int(os.environ.get("HOTPATH_WORKERS", "0")) or max(2, (os.cpu_count() or 4) - 2)
+    uvicorn.run("hotpath:app", host="127.0.0.1", port=LISTEN_PORT,
+                log_level="warning", workers=workers,
+                # Держим соединение открытым дольше: Caddy переиспользует его
+                # вместо того, чтобы плодить новые под каждый запрос.
+                timeout_keep_alive=30)
