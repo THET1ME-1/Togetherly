@@ -72,6 +72,31 @@ TABLES = {
         "updated_at": "text", "last_vibe": "text", "last_vibe_text": "text",
         "by_weekday": "json", "by_vibe": "json", "updated": "auto",
     },
+    # Запись пары. В отличие от прочих, строка на пару ОДНА и живёт правками,
+    # поэтому одного прохода по rowid тут мало — обязателен reconcile_table по
+    # колонке updated, иначе счётчики и карты участников приедут вчерашними.
+    "groups": {
+        "members": "json", "member_names": "json", "member_avatars": "json",
+        "member_birthdays": "json", "member_moods": "json",
+        "member_ailments": "json", "max_members": "num",
+        "relationship_type": "text", "custom_relationship_label": "text",
+        "custom_relationship_emoji": "text",
+        "custom_relationship_types": "json", "start_date": "text",
+        "anniversary_date": "text", "first_kiss_date": "text",
+        "current_status": "json", "custom_statuses": "json",
+        "memories_count": "num", "drawings_count": "num",
+        "messages_count": "num", "xp": "num", "streak_days": "num",
+        "streak_last_opened_date": "text", "streak_pending_date": "text",
+        "streak_pending_uid": "text", "daily_tasks": "json",
+        "active_mascot_id": "text", "mascot_position_x": "num",
+        "mascot_position_y": "num", "mascot_scale": "num", "mascots": "json",
+        "mascot_streaks": "json", "timers": "json", "active_session": "json",
+        "owned_features": "json", "waiting_mode": "bool",
+        "placeholder_name": "text", "placeholder_avatar": "text",
+        "return_date": "text", "claim_token": "text", "claim_uid": "text",
+        "claim_name": "text", "claim_at": "num", "disbanded": "bool",
+        "disbanded_at": "text", "created_at": "text", "updated": "auto",
+    },
 }
 
 

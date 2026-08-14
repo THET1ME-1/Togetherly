@@ -145,14 +145,25 @@ routerAdd("POST", "/api/coins/purchase-feature", (e) => {
     let groupIds = [];
     try { groupIds = rec.getStringSlice("group_ids") || []; } catch (_) { groupIds = []; }
     if (!groupIds.length) groupIds = parse(rec.getString("pair_ids"), []);
+    // Купленное открыто обоим, а запись пары живёт в Postgres: ключ владения
+    // добавляет hotpath одним запросом и идемпотентно — повтор чека, второй
+    // канал оплаты и восстановление покупки ничего не задваивают.
     for (let i = 0; i < groupIds.length; i++) {
-      let grp = null;
-      try { grp = txApp.findRecordById("groups", String(groupIds[i])); } catch (_) { grp = null; }
-      if (!grp) continue;
-      const gOwned = parse(grp.getString("owned_features"), []);
-      if (gOwned.indexOf(key) !== -1) continue;
-      grp.set("owned_features", JSON.stringify(gOwned.concat([key])));
-      txApp.save(grp);
+      try {
+        $http.send({
+          url: "http://127.0.0.1:8120/internal/group-write",
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            group_id: String(groupIds[i]),
+            arr_add: { owned_features: [key] },
+          }),
+          timeout: 10,
+        });
+      } catch (err) {
+        $app.logger().warn("владение не доехало до пары",
+          "group", String(groupIds[i]), "feature", String(key), "err", String(err));
+      }
     }
   };
 
@@ -611,14 +622,25 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
         let groupIds = [];
         try { groupIds = user.getStringSlice("group_ids") || []; } catch (_) { groupIds = []; }
         if (!groupIds.length) groupIds = parse(user.getString("pair_ids"), []);
+        // Купленное открыто обоим, а запись пары живёт в Postgres: ключ владения
+        // добавляет hotpath одним запросом и идемпотентно — повтор чека, второй
+        // канал оплаты и восстановление покупки ничего не задваивают.
         for (let i = 0; i < groupIds.length; i++) {
-          let grp = null;
-          try { grp = txApp.findRecordById("groups", String(groupIds[i])); } catch (_) { grp = null; }
-          if (!grp) continue;
-          const gOwned = parse(grp.getString("owned_features"), []);
-          if (gOwned.indexOf(featureKey) !== -1) continue;
-          grp.set("owned_features", JSON.stringify(gOwned.concat([featureKey])));
-          txApp.save(grp);
+          try {
+            $http.send({
+              url: "http://127.0.0.1:8120/internal/group-write",
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                group_id: String(groupIds[i]),
+                arr_add: { owned_features: [featureKey] },
+              }),
+              timeout: 10,
+            });
+          } catch (err) {
+            $app.logger().warn("владение не доехало до пары",
+              "group", String(groupIds[i]), "feature", String(featureKey), "err", String(err));
+          }
         }
 
         const nowOwned = parse(user.getString("owned_features"), []);

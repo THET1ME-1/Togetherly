@@ -172,150 +172,42 @@ routerAdd("POST", "/api/invite/accept", (e) => {
     } catch (_) { /* гонка/повтор — не критично */ }
   };
 
-  // ── операции над группой (все через $app — правила не применяются) ────────
-  // INV-1: мутации обёрнуты в $app.runInTransaction. PB исполняет транзакции на
-  // единственном неконкурентном write-коннекте → два параллельных accept
-  // сериализуются: второй читает уже обновлённый members → не превысит max_members
-  // и не создаст дубль-группу. Внутри tx — ТОЛЬКО txApp. bindCode() вызываем ПОСЛЕ
-  // коммита (если save упал — код инвайта не трогаем, см. INV-4). Решение «группа не
-  // найдена → создать» принимаем ВНЕ tx, чтобы не открыть вложенную транзакцию.
-  const createGroup = () => {
-    let result;
-    try {
-      $app.runInTransaction((txApp) => {
-        // Race-guard взаимного коннекта: уже есть живая группа с этим партнёром?
-        let mine = [];
-        try {
-          mine = txApp.findRecordsByFilter(
-            "groups", "members ~ {:u} && disbanded = false", "", 0, 0, { u: myUid });
-        } catch (_) {}
-        for (let i = 0; i < mine.length; i++) {
-          if (membersOf(mine[i]).indexOf(ownerUid) !== -1) {
-            result = { success: true, message: "Connected!", pairId: mine[i].id, _delCode: true };
-            return;
-          }
-        }
-        const g = new Record(groupsCol);
-        const names = {}; names[ownerUid] = owner.name; names[myUid] = me.name;
-        const avatars = {}; avatars[ownerUid] = owner.avatar; avatars[myUid] = me.avatar;
-        g.set("members", [ownerUid, myUid]);
-        g.set("member_names", names);
-        g.set("member_avatars", avatars);
-        g.set("max_members", 2);
-        g.set("relationship_type", "couple");
-        g.set("custom_relationship_types", []);
-        g.set("memories_count", 0);
-        g.set("drawings_count", 0);
-        g.set("start_date", nowIso);
-        g.set("created_at", nowIso);
-        g.set("disbanded", false);
-        txApp.save(g);
-        result = { success: true, message: "Connected!", pairId: g.id, _delCode: true };
-      });
-    } catch (err) { return { success: false, message: "Ошибка сохранения группы" }; }
-    if (result && result._delCode) { bindCode(result.pairId); delete result._delCode; }
-    return result;
-  };
-
-  const joinGroup = (groupId) => {
-    // Существование группы решаем ВНЕ tx (createGroup откроет свою транзакцию).
-    try { $app.findRecordById("groups", groupId); } catch (_) { return createGroup(); }
-    let result;
-    try {
-      $app.runInTransaction((txApp) => {
-        const g = txApp.findRecordById("groups", groupId); // свежее чтение внутри tx
-        const members = membersOf(g);
-        const maxM = Number(g.get("max_members")) || 2;
-        if (members.indexOf(myUid) !== -1) {
-          // Повтор приёма своего же кода: пара уже собрана, отвечаем успехом с тем
-          // же pairId — клиент просто заново покажет пару, а не ошибку.
-          result = { success: true, message: "Connected!", pairId: g.id };
-          return;
-        }
-        if (members.length >= maxM) {
-          result = { success: false, message: "Группа заполнена" };
-          return;
-        }
-        const names = mapOf(g, "member_names");
-        const avatars = mapOf(g, "member_avatars");
-        members.push(myUid);
-        names[myUid] = me.name;
-        avatars[myUid] = me.avatar;
-        g.set("members", members);
-        g.set("member_names", names);
-        g.set("member_avatars", avatars);
-        txApp.save(g);
-        result = { success: true, message: "Joined the group!", pairId: g.id, _full: members.length >= maxM };
-      });
-    } catch (err) { return { success: false, message: "Ошибка сохранения группы" }; }
-    if (result && result.success && result.pairId) bindCode(result.pairId);
-    if (result) delete result._full;
-    return result;
-  };
-
-  const restoreGroup = (groupId) => {
-    try { $app.findRecordById("groups", groupId); } catch (_) { return createGroup(); }
-    let result;
-    try {
-      $app.runInTransaction((txApp) => {
-        const g = txApp.findRecordById("groups", groupId);
-        const members = membersOf(g);
-        if (members.indexOf(ownerUid) === -1) members.push(ownerUid);
-        if (members.indexOf(myUid) === -1) members.push(myUid);
-        const names = mapOf(g, "member_names");
-        const avatars = mapOf(g, "member_avatars");
-        names[ownerUid] = owner.name; names[myUid] = me.name;
-        avatars[ownerUid] = owner.avatar; avatars[myUid] = me.avatar;
-        g.set("members", members);
-        g.set("member_names", names);
-        g.set("member_avatars", avatars);
-        g.set("disbanded", false);
-        g.set("disbanded_at", null);
-        txApp.save(g);
-        result = { success: true, message: "Reconnected!", pairId: g.id, restored: true };
-      });
-    } catch (err) { return { success: false, message: "Ошибка сохранения группы" }; }
-    if (result && result.success) bindCode(result.pairId);
-    return result;
-  };
-
-  // ── ветвление A/B/C/D (зеркало Dart acceptInviteCode) ────────────────────
-  let res;
-  if (codeGroupId) {
-    // A) код привязан к группе → войти в неё.
-    res = joinGroup(codeGroupId);
-  } else {
-    // B) у владельца уже есть активная группа с местом → войти.
-    const ownerGroup = liveGroupOf(ownerUid);
-    let handled = false;
-    if (ownerGroup) {
-      const members = membersOf(ownerGroup);
-      if (members.indexOf(myUid) !== -1 && members.indexOf(ownerUid) !== -1) {
-        // Мы уже в паре с владельцем кода — повторный ввод не ошибка. Отдаём
-        // успех с pairId: экран подключения покажет пару вместо красной плашки.
-        res = { success: true, message: "Connected!", pairId: ownerGroup.id };
-        handled = true;
-      } else {
-        const maxM = Number(ownerGroup.get("max_members")) || 2;
-        if (members.indexOf(ownerUid) !== -1 &&
-            members.indexOf(myUid) === -1 &&
-            members.length < maxM) {
-          res = joinGroup(ownerGroup.id);
-          handled = true;
-        }
-      }
-    }
-    if (!handled) {
-      // C) распущенная группа этих двоих → восстановить (старые данные целы).
-      const disbandedId = disbandedBetween(myUid, ownerUid);
-      // D) иначе создать новую пару.
-      res = disbandedId ? restoreGroup(disbandedId) : createGroup();
-    }
+  // ── пара живёт в Postgres: всё ветвление делает hotpath ──────────────────
+  // Раньше здесь было три функции (создать, войти, восстановить) поверх
+  // транзакций PocketBase: они сериализовали параллельные приёмы на
+  // единственном соединении записи, и приём кода стоял в общей очереди со
+  // всей остальной записью. Теперь запись пары лежит в Postgres, а решение
+  // «войти / поднять распущенную / завести новую» принимается там же одним
+  // запросом с блокировкой строки самой пары. PocketBase в этом пути больше
+  // не пишет ничего — за ним остались только коды приглашений.
+  let res = null;
+  try {
+    const hp = $http.send({
+      url: "http://127.0.0.1:8120/internal/pair-accept",
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        owner_uid: ownerUid,
+        my_uid: myUid,
+        code_group_id: codeGroupId,
+        owner_name: owner.name,
+        owner_avatar: owner.avatar,
+        my_name: me.name,
+        my_avatar: me.avatar,
+      }),
+      timeout: 15,
+    });
+    res = (hp && hp.json) || null;
+  } catch (err) {
+    return deny(500, "Не удалось принять код", "hotpath недоступен: " + String(err));
   }
 
   if (!res || res.success !== true) {
     return deny(400, (res && res.message) || "Не удалось принять код",
-      (res && res.message) || "ветвление вернуло пустоту");
+      (res && res.message) || "hotpath вернул отказ");
   }
+  // Код привязываем к получившейся паре ПОСЛЕ успеха — повтор того же кода
+  // тем же человеком попадёт во «вход в свою пару» и ответит успехом.
+  bindCode(res.pairId);
   return e.json(200, res);
 }, $apis.requireAuth());

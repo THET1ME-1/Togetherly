@@ -83,18 +83,36 @@ onRecordUpdateRequest((e) => {
   if (newAvatar !== prevAvatar || newName !== prevName) {
     try {
       const uid = e.record.id;
-      const groups = $app.findRecordsByFilter(
-        "groups", "members ~ {:u} && disbanded = false", "", 0, 0, { u: uid });
-      for (let i = 0; i < groups.length; i++) {
-        const g = groups[i];
-        let changed = false;
-        let avMap = {};
-        try { const v = JSON.parse(g.getString("member_avatars") || "{}"); if (v && typeof v === "object") avMap = v; } catch (_) { avMap = {}; }
-        if (newAvatar && avMap[uid] !== newAvatar) { avMap[uid] = newAvatar; g.set("member_avatars", avMap); changed = true; }
-        let nmMap = {};
-        try { const v = JSON.parse(g.getString("member_names") || "{}"); if (v && typeof v === "object") nmMap = v; } catch (_) { nmMap = {}; }
-        if (newName && nmMap[uid] !== newName) { nmMap[uid] = newName; g.set("member_names", nmMap); changed = true; }
-        if (changed) $app.save(g);
+      // Подписи участников лежат в записи пары, а пары живут в Postgres.
+      // Правим точечно две карты одним запросом на пару — вместо чтения
+      // записи и её сохранения через PocketBase.
+      const hp = (path, method, payload) => {
+        const r = $http.send({
+          url: "http://127.0.0.1:8120" + path,
+          method: method,
+          headers: { "content-type": "application/json" },
+          body: payload ? JSON.stringify(payload) : undefined,
+          timeout: 10,
+        });
+        return (r && r.json) || null;
+      };
+      const мои = hp("/internal/groups-of?uid=" + encodeURIComponent(uid) + "&live=1",
+                     "GET", null);
+      const items = (мои && мои.items) || [];
+      for (let i = 0; i < items.length; i++) {
+        const карты = {};
+        const av = items[i].member_avatars;
+        const nm = items[i].member_names;
+        if (newAvatar && (!av || typeof av !== "object" || av[uid] !== newAvatar)) {
+          const набор = {}; набор[uid] = newAvatar;
+          карты.member_avatars = набор;
+        }
+        if (newName && (!nm || typeof nm !== "object" || nm[uid] !== newName)) {
+          const набор = {}; набор[uid] = newName;
+          карты.member_names = набор;
+        }
+        if (!Object.keys(карты).length) continue;
+        hp("/internal/group-write", "POST", { group_id: items[i].id, map_set: карты });
       }
     } catch (err) {
       try { $app.logger().error("member profile sync failed: " + String(err)); } catch (_) {}

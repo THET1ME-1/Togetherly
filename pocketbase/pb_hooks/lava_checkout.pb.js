@@ -67,10 +67,18 @@ routerAdd("POST", "/api/lava/checkout", (e) => {
     if (!mine) {
       let groupIds = [];
       try { groupIds = user.getStringSlice("group_ids") || []; } catch (_) { groupIds = []; }
+      // Владения пары читаем из Postgres: в SQLite лежит зеркало, оно
+      // отстаёт на минуты, и человек успел бы оплатить уже купленное.
       for (let i = 0; i < groupIds.length && !mine; i++) {
         try {
-          const grp = $app.findRecordById("groups", String(groupIds[i]));
-          const g = JSON.parse(grp.getString("owned_features") || "[]") || [];
+          const r = $http.send({
+            url: "http://127.0.0.1:8120/internal/group-read?id="
+              + encodeURIComponent(String(groupIds[i])),
+            method: "GET",
+            timeout: 8,
+          });
+          const rec = (r && r.json && r.json.record) || null;
+          const g = (rec && Array.isArray(rec.owned_features)) ? rec.owned_features : [];
           if (g.indexOf(feature) !== -1) mine = true;
         } catch (_) {}
       }
@@ -227,14 +235,25 @@ cronAdd("lavaInvoicePoll", "*/6 * * * *", () => {
         }
         let groupIds = [];
         try { groupIds = user.getStringSlice("group_ids") || []; } catch (_) { groupIds = []; }
+        // Купленное открыто обоим, а запись пары живёт в Postgres: ключ владения
+        // добавляет hotpath одним запросом и идемпотентно — повтор чека, второй
+        // канал оплаты и восстановление покупки ничего не задваивают.
         for (let i = 0; i < groupIds.length; i++) {
-          let grp = null;
-          try { grp = $app.findRecordById("groups", String(groupIds[i])); } catch (_) { grp = null; }
-          if (!grp) continue;
-          const gOwned = parse(grp.getString("owned_features"), []);
-          if (gOwned.indexOf(feature) !== -1) continue;
-          grp.set("owned_features", JSON.stringify(gOwned.concat([feature])));
-          try { $app.save(grp); } catch (_) {}
+          try {
+            $http.send({
+              url: "http://127.0.0.1:8120/internal/group-write",
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                group_id: String(groupIds[i]),
+                arr_add: { owned_features: [feature] },
+              }),
+              timeout: 10,
+            });
+          } catch (err) {
+            $app.logger().warn("владение не доехало до пары",
+              "group", String(groupIds[i]), "feature", String(feature), "err", String(err));
+          }
         }
       } else if (!user.getBool("plus")) {
         user.set("plus", true);

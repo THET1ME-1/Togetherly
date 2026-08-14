@@ -83,12 +83,19 @@ routerAdd("POST", "/api/gifts/send", (e) => {
         return;
       }
 
-      const group = txApp.findRecordById("groups", groupId);
-      // members хранится JSON-строкой: get() отдаёт не JS-массив, и перебор
-      // молча даёт ноль участников. Так же читают groups.pb.js и coins.pb.js.
+      // Состав пары читаем из Postgres — с 15.08.2026 запись пары живёт там,
+      // а в SQLite остаётся зеркало, отстающее на минуты. Решать по нему, кто
+      // кому дарит, нельзя: у свежей пары партнёр определился бы пустым.
       let members = [];
       try {
-        members = JSON.parse(group.getString("members") || "[]") || [];
+        const r = $http.send({
+          url: "http://127.0.0.1:8120/internal/group-read?id="
+            + encodeURIComponent(groupId),
+          method: "GET",
+          timeout: 8,
+        });
+        const rec = (r && r.json && r.json.record) || null;
+        if (rec && Array.isArray(rec.members)) members = rec.members;
       } catch (_) {
         members = [];
       }
@@ -298,21 +305,29 @@ routerAdd("POST", "/api/gifts/react", (e) => {
       // роняла разбор всей ленты — семь пар видели «Пока нет воспоминаний»
       // при целой базе (разбор 3 августа).
       if (gift.getString("gift_key") === "salute") {
+        // Воспоминания живут в hotpath (Postgres) с 14.08.2026 — коллекции
+        // `memories` в этой базе больше нет, запись идёт служебным роутом.
         try {
-          const memCol = txApp.findCollectionByNameOrId("memories");
-          const mem = new Record(memCol);
           const nowIso = new Date(now).toISOString();
-          mem.set("group_id", gift.getString("group_id"));
-          mem.set("author_uid", gift.getString("sender_uid"));
-          mem.set("type", "gift");
-          mem.set("created_at", nowIso);
-          mem.set("data", JSON.stringify({
-            type: "gift",
-            giftKey: "salute",
-            title: "Салют",
-            createdAt: nowIso,
-          }));
-          txApp.save(mem);
+          $http.send({
+            url: "http://127.0.0.1:8120/internal/record",
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              collection: "memories",
+              group_id: gift.getString("group_id"),
+              author_uid: gift.getString("sender_uid"),
+              type: "gift",
+              created_at: nowIso,
+              data: JSON.stringify({
+                type: "gift",
+                giftKey: "salute",
+                title: "Салют",
+                createdAt: nowIso,
+              }),
+            }),
+            timeout: 5,
+          });
         } catch (_) {}
       }
 

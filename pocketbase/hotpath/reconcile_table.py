@@ -46,6 +46,7 @@ META = {
     "chat_typing": ("typing_at", ["group_id", "user_uid"]),
     "chat_reads": ("updated", ["group_id", "user_uid"]),
     "live_location": (None, ["channel", "user_uid"]),
+    "groups": ("updated", ["id"]),
 }
 
 

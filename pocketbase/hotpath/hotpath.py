@@ -65,6 +65,12 @@ FCM_RELAY = os.environ.get("FCM_RELAY", "http://127.0.0.1:8100/push")
 LISTEN_PORT = int(os.environ.get("HOTPATH_PORT", "8120"))
 ONLINE_WINDOW_MS = 2 * 60 * 1000
 
+# Где лежит ИСТОЧНИК ПРАВДЫ по записи пары: пока «sqlite» — правит PocketBase,
+# hotpath только читает; «pg» — правит hotpath, а в SQLite уходит зеркало.
+# Флаг отделён от маршрута Caddy намеренно: код выкатывается и проверяется
+# заранее, а переключение остаётся отдельным движением, которое можно отменить.
+GROUPS_SRC = os.environ.get("HOTPATH_GROUPS", "sqlite")
+
 # Типы колонок: text | num | bool | json | auto (updated, ведём сами).
 COLLECTIONS = {
     "canvas_strokes": {
@@ -230,6 +236,48 @@ COLLECTIONS = {
         "after_delete": None,
         "default_sort": "id ASC",
     },
+    # Запись пары. Отличий от прочих три, и все существенные:
+    # 1) ключ доступа — не колонка group_id, а членство в самой строке
+    #    (правило PB у всех пяти действий одно: members ?~ @request.auth.id);
+    # 2) id записи И ЕСТЬ id пары, поэтому канал — pair:<id>, а не pair:<group_id>;
+    # 3) событие уходит ещё и в личные каналы обоих: иначе приглашающий не
+    #    увидит появление пары до перезапуска приложения (разбор 02.08.2026).
+    "groups": {
+        "collection_id": os.environ.get("CID_GROUPS", "pbc_3346940990"),
+        "columns": {
+            "members": "json", "member_names": "json", "member_avatars": "json",
+            "member_birthdays": "json", "member_moods": "json",
+            "member_ailments": "json", "max_members": "num",
+            "relationship_type": "text", "custom_relationship_label": "text",
+            "custom_relationship_emoji": "text",
+            "custom_relationship_types": "json", "start_date": "text",
+            "anniversary_date": "text", "first_kiss_date": "text",
+            "current_status": "json", "custom_statuses": "json",
+            "memories_count": "num", "drawings_count": "num",
+            "messages_count": "num", "xp": "num", "streak_days": "num",
+            "streak_last_opened_date": "text", "streak_pending_date": "text",
+            "streak_pending_uid": "text", "daily_tasks": "json",
+            "active_mascot_id": "text", "mascot_position_x": "num",
+            "mascot_position_y": "num", "mascot_scale": "num",
+            "mascots": "json", "mascot_streaks": "json", "timers": "json",
+            "active_session": "json", "owned_features": "json",
+            "waiting_mode": "bool", "placeholder_name": "text",
+            "placeholder_avatar": "text", "return_date": "text",
+            "claim_token": "text", "claim_uid": "text", "claim_name": "text",
+            "claim_at": "num", "disbanded": "bool", "disbanded_at": "text",
+            "created_at": "text", "updated": "auto",
+        },
+        "sortable": {"updated", "id"},
+        "filterable": {"id", "members", "disbanded", "updated", "claim_token"},
+        "scope": "members",
+        "channel": "group_record",
+        "create_owner_field": None,
+        "guard": None,
+        "delete_guard": None,
+        "after_create": None,
+        "after_delete": None,
+        "default_sort": "id ASC",
+    },
     "mood_entries": {
         "collection_id": os.environ.get("CID_MOOD_ENTRIES", "pbc_1148030965"),
         "columns": {
@@ -253,6 +301,7 @@ app = FastAPI(openapi_url=None, docs_url=None, redoc_url=None,
 pg: asyncpg.Pool | None = None
 cent_client: httpx.AsyncClient | None = None
 push_client: httpx.AsyncClient | None = None
+pb_client: httpx.AsyncClient | None = None   # проксирование редких записей в PocketBase
 lite: sqlite3.Connection | None = None      # read-only: auth, группы, presence
 lite_rw: sqlite3.Connection | None = None   # счётчики групп и чистка токенов
 _bg_lock_fd: int | None = None             # замок роли фоновых задач
@@ -396,11 +445,16 @@ def _record_json(col: str, row) -> dict:
 
 
 _COND = re.compile(
-    r"""^\s*\(*\s*(\w+)\s*(!=|>=|<=|=|>|<)\s*"""
+    r"""^\s*\(*\s*(\w+)\s*(!=|>=|<=|=|>|<|~)\s*"""
     r"""(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)"|(true|false)|(-?\d+(?:\.\d+)?))"""
     r"""\s*\)*\s*$"""
 )
-_OPS = {"=": "=", "!=": "<>", ">": ">", "<": "<", ">=": ">=", "<=": "<="}
+# `~` у PocketBase — поиск подстроки, но приложение шлёт его ровно в одном
+# смысле: `members ~ '<uid>'`, то есть «состоит ли человек в паре». На jsonb
+# это containment, он же идёт по индексу; для остальных колонок оператор не
+# принимаем, чтобы случайный LIKE не превратился в скан 22 тысяч строк.
+_OPS = {"=": "=", "!=": "<>", ">": ">", "<": "<", ">=": ">=", "<=": "<=",
+        "~": "@>"}
 
 
 def _parse_filter(expr: str, allowed: set) -> list[tuple[str, str, object]]:
@@ -424,6 +478,11 @@ def _parse_filter(expr: str, allowed: set) -> list[tuple[str, str, object]]:
         else:
             raw = v_sq if v_sq is not None else (v_dq or "")
             val = raw.replace("\\'", "'").replace('\\"', '"')
+        if op == "~":
+            # только по json-колонке и только строкой: members ~ '<uid>'
+            if not isinstance(val, str):
+                raise ValueError(part)
+            val = json.dumps([val])
         out.append((field, _OPS[op], val))
     return out
 
@@ -445,42 +504,52 @@ def _coerce(col: str, field: str, val: object) -> object:
 
 
 async def _publish(col: str, event: str, record: dict) -> None:
-    # Каналы те же, что раздаёт centrifugo.pb.js: присутствие в user:<uid>,
-    # геопозиция в loc:<channel>, всё остальное в pair:<group_id>.
+    # Каналы те же, что раздаёт сборка PocketBase (centChannels в main.go):
+    # присутствие в user:<uid>, геопозиция в loc:<channel>, запись пары — в
+    # pair:<id> И в личные каналы обоих участников, остальное в pair:<group_id>.
     kind = COLLECTIONS[col].get("channel", "pair")
     if kind == "user":
-        chan = "user:" + (record.get("user_uid") or "")
+        chans = ["user:" + (record.get("user_uid") or "")]
     elif kind == "loc":
-        chan = "loc:" + (record.get("channel") or "")
+        chans = ["loc:" + (record.get("channel") or "")]
+    elif kind == "group_record":
+        chans = ["pair:" + (record.get("id") or "")]
+        участники = record.get("members")
+        if isinstance(участники, list):
+            chans += ["user:" + str(m) for m in участники if m]
     else:
-        chan = "pair:" + (record.get("group_id") or "")
-    if chan.endswith(":") or not CENT_KEY:
+        chans = ["pair:" + (record.get("group_id") or "")]
+    chans = [c for c in chans if not c.endswith(":")]
+    if not chans or not CENT_KEY:
         return
-    try:
-        await cent_client.post(
-            "/publish",
-            json={
-                "channel": chan,
-                "data": {"event": event, "collection": col, "record": record},
-            },
-            headers={"X-API-Key": CENT_KEY},
-        )
-    except httpx.HTTPError:
-        pass  # realtime — best effort, как и в хуке
+    data = {"event": event, "collection": col, "record": record}
+    for chan in chans:
+        try:
+            await cent_client.post(
+                "/publish",
+                json={"channel": chan, "data": data},
+                headers={"X-API-Key": CENT_KEY},
+            )
+        except httpx.HTTPError:
+            pass  # realtime — best effort, как и в хуке
 
 
-def _push_candidates(group_id: str, author_uid: str) -> list[dict]:
-    """Участники группы с их токенами — из SQLite PB (users и groups там же).
+def _push_candidates(group_id: str, author_uid: str,
+                     members: list | None = None) -> list[dict]:
+    """Участники группы с их токенами. Токены живут в users, то есть в SQLite
+    PocketBase, всегда. Состав пары приходит параметром, когда источник правды
+    уже переехал в Postgres; иначе читается тут же, рядом с токенами.
     Кто сейчас на связи, решается отдельно: присутствие живёт в Postgres."""
-    g = lite.execute(
-        "SELECT members, disbanded FROM groups WHERE id = ?", (group_id,)
-    ).fetchone()
-    if g is None or g[1]:
-        return []
-    try:
-        members = json.loads(g[0] or "[]") or []
-    except ValueError:
-        members = []
+    if members is None:
+        g = lite.execute(
+            "SELECT members, disbanded FROM groups WHERE id = ?", (group_id,)
+        ).fetchone()
+        if g is None or g[1]:
+            return []
+        try:
+            members = json.loads(g[0] or "[]") or []
+        except ValueError:
+            members = []
     out = []
     for uid in members:
         uid = str(uid or "")
@@ -513,9 +582,30 @@ async def _online_uids(uids: list[str]) -> set:
         return set()   # не знаем — лучше прислать пуш, чем промолчать
 
 
+async def _members_pg(group_id: str) -> list | None:
+    """Состав живой пары из Postgres. None — пары нет или она распущена."""
+    async with pg.acquire() as c:
+        row = await c.fetchrow(
+            "SELECT members, disbanded FROM groups WHERE id = $1", group_id)
+    if row is None or row["disbanded"]:
+        return None
+    m = row["members"]
+    if isinstance(m, str):
+        try:
+            m = json.loads(m)
+        except ValueError:
+            m = []
+    return [str(x) for x in (m or []) if x]
+
+
 async def _push_targets(group_id: str, author_uid: str) -> list[dict]:
     """Кому слать: участники группы, кроме автора и тех, кто сейчас на связи."""
-    cand = await asyncio.to_thread(_push_candidates, group_id, author_uid)
+    members = None
+    if GROUPS_SRC == "pg":
+        members = await _members_pg(group_id)
+        if members is None:
+            return []
+    cand = await asyncio.to_thread(_push_candidates, group_id, author_uid, members)
     if not cand:
         return []
     online = await _online_uids([t["uid"] for t in cand])
@@ -680,6 +770,142 @@ def _flush_counters_sync(deltas: dict) -> None:
         raise
 
 
+ЗЕРКАЛО_ОТМЕТКА = "/opt/hotpath/.groups_mirror_at"
+ЗЕРКАЛО_ПАЧКА = 5000
+
+
+def _прочитать_отметку() -> str:
+    try:
+        with open(ЗЕРКАЛО_ОТМЕТКА, encoding="utf-8") as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
+def _записать_отметку(v: str) -> None:
+    try:
+        with open(ЗЕРКАЛО_ОТМЕТКА, "w", encoding="utf-8") as f:
+            f.write(v)
+    except OSError as e:
+        log.warning("отметка зеркала не записалась: %s", e)
+
+
+def _чужие_правки_sync(ids: list) -> dict:
+    """Время правки этих пар в SQLite — чтобы понять, не писал ли туда кто-то
+    ещё. Любой писатель через PocketBase двигает autodate-поле updated, и это
+    единственный способ увидеть писателя, о котором мы не знали."""
+    out = {}
+    for i in range(0, len(ids), 500):
+        кусок = ids[i:i + 500]
+        места = ",".join("?" * len(кусок))
+        for gid, upd in lite.execute(
+                f"SELECT id, COALESCE(updated,'') FROM `groups` WHERE id IN ({места})",
+                кусок):
+            out[gid] = upd
+    return out
+
+
+async def _зеркало_воркер() -> None:
+    """Раз в две минуты складывает свежие пары из Postgres обратно в SQLite.
+
+    Пачкой, а не потоком: в этом вся выгода переезда. Отдельно — защита от
+    потери: если в SQLite строка оказалась СВЕЖЕЕ, значит её правил кто-то,
+    кого мы не перевели (хук, старый путь). Такую строку зеркало НЕ затирает,
+    а поднимает в Postgres и пишет тревогу в журнал.
+    """
+    while True:
+        await asyncio.sleep(120)
+        if GROUPS_SRC != "pg":
+            continue
+        try:
+            отметка = _прочитать_отметку()
+            if not отметка:
+                # Первый запуск: историю гнать незачем — базы уже сверены
+                # переносом, а проход по всем парам пачками только зря
+                # нагрузил бы запись в SQLite.
+                _записать_отметку(now_pb())
+                continue
+            async with pg.acquire() as c:
+                строки = await c.fetch(
+                    "SELECT * FROM groups WHERE updated > $1 "
+                    "ORDER BY updated LIMIT $2", отметка, ЗЕРКАЛО_ПАЧКА)
+            if not строки:
+                continue
+            свои = await asyncio.to_thread(
+                _чужие_правки_sync, [r["id"] for r in строки])
+            к_зеркалу, чужие = [], []
+            for r in строки:
+                было = свои.get(r["id"], "")
+                if было and было > (r["updated"] or ""):
+                    чужие.append(r["id"])
+                else:
+                    к_зеркалу.append(r)
+            if к_зеркалу:
+                await asyncio.to_thread(_зеркало_группы_sync, к_зеркалу)
+            if чужие:
+                log.warning(
+                    "ТРЕВОГА: %d пар правлены мимо Postgres (%s) — поднимаю "
+                    "их в Postgres, зеркало их не затирает", len(чужие),
+                    ", ".join(чужие[:5]))
+                await _поднять_из_sqlite(чужие)
+            _записать_отметку(строки[-1]["updated"] or отметка)
+        except Exception as e:  # воркер не должен умирать
+            log.warning("зеркало пар: %s", e)
+
+
+def _строки_из_sqlite(ids: list) -> list:
+    места = ",".join("?" * len(ids))
+    поля = ", ".join(ЗЕРКАЛО_КОЛОНКИ)
+    return lite.execute(
+        f"SELECT id, {поля} FROM `groups` WHERE id IN ({места})", ids).fetchall()
+
+
+async def _поднять_из_sqlite(ids: list) -> None:
+    """Залить в Postgres строки, которые кто-то поправил в SQLite мимо нас."""
+    строки = await asyncio.to_thread(_строки_из_sqlite, ids)
+    if not строки:
+        return
+    поля = ", ".join(ЗЕРКАЛО_КОЛОНКИ)
+    места = ", ".join(f"${i + 2}" for i in range(len(ЗЕРКАЛО_КОЛОНКИ)))
+    обнов = ", ".join(f"{c} = EXCLUDED.{c}" for c in ЗЕРКАЛО_КОЛОНКИ)
+    async with pg.acquire() as c:
+        for row in строки:
+            значения = []
+            for idx, имя in enumerate(ЗЕРКАЛО_КОЛОНКИ, start=1):
+                v = row[idx]
+                kind = COLLECTIONS["groups"]["columns"][имя]
+                if kind == "json":
+                    s = v if isinstance(v, str) or v is None else json.dumps(v)
+                    значения.append(s if (s or "").strip() else None)
+                elif kind == "num":
+                    значения.append(float(v or 0))
+                elif kind == "bool":
+                    значения.append(bool(v))
+                else:
+                    значения.append(str(v) if v is not None else "")
+            await c.execute(
+                f"INSERT INTO groups (id, {поля}) VALUES ($1, {места}) "
+                f"ON CONFLICT (id) DO UPDATE SET {обнов}", row[0], *значения)
+
+
+async def _flush_counters_pg(deltas: dict) -> None:
+    """То же, но в Postgres, где строка пары и лежит.
+
+    Тут ограничение «раз в минуту» ни к чему: это обычный UPDATE в своей базе,
+    он никому не протухает снапшоты. Поэтому при переехавших группах счётчик
+    сбрасывается каждые пять секунд и цифра в профиле почти не отстаёт.
+    """
+    отметка = now_pb()
+    async with pg.acquire() as c:
+        async with c.transaction():
+            for (gid, field), d in deltas.items():
+                # updated двигаем намеренно: по нему зеркало понимает, какие
+                # пары нести обратно в SQLite, а счётчики нужны отчётам.
+                await c.execute(
+                    f"UPDATE groups SET {field} = GREATEST(0, COALESCE({field}, 0) + $1), "
+                    "updated = $2 WHERE id = $3", float(d), отметка, gid)
+
+
 async def _counter_worker() -> None:
     """Копит дельты messages_count и раз в минуту пишет одной транзакцией.
 
@@ -691,13 +917,16 @@ async def _counter_worker() -> None:
     couple_stats и так считает чат из Postgres."""
     global _counter_deltas
     while True:
-        await asyncio.sleep(60)
+        await asyncio.sleep(5 if GROUPS_SRC == "pg" else 60)
         if not _counter_deltas:
             continue
         batch, _counter_deltas = _counter_deltas, {}
         try:
-            await asyncio.to_thread(_flush_counters_sync, batch)
-        except sqlite3.Error as e:
+            if GROUPS_SRC == "pg":
+                await _flush_counters_pg(batch)
+            else:
+                await asyncio.to_thread(_flush_counters_sync, batch)
+        except (sqlite3.Error, asyncpg.PostgresError, OSError) as e:
             log.warning("counters отложены (%s)", e)
             for key, d in batch.items():  # вернуть в очередь
                 _counter_deltas[key] = _counter_deltas.get(key, 0) + d
@@ -846,6 +1075,463 @@ async def miss_you(request: Request):
     return ORJSONResponse({"ok": True, "count": _num(row["count"])})
 
 
+# ── Разгрузка PocketBase: частые вопросы с редким ответом ────────────────────
+#
+# Вечер 14.08.2026: 400 запросов в секунду, из них 26 пишущих, а SQLite с
+# цепочкой JS-обработчиков вытягивает около восьми. Разница копилась в очередь,
+# и регистрация висела по тридцать секунд.
+#
+# Два самых частых пишущих запроса почти всегда ничего не меняют: «заходил
+# сегодня» приходит на каждый запуск приложения (9 в секунду), а день
+# засчитывается один раз; «дай ежедневную монетку» — тоже на каждый запуск
+# (5 в секунду), а бонус даётся раз в двадцать часов. Отвечаем на них здесь,
+# читая ответ прямо из базы PocketBase в режиме только чтения — это дёшево и
+# не занимает соединение записи. Настоящее изменение уходит в PocketBase как
+# раньше: логика серии дней и начисления остаётся там, где была.
+
+def _lite_group_streak(group_id: str) -> tuple[str, str] | None:
+    """(участники, дата последнего общего дня) из SQLite PocketBase."""
+    try:
+        row = lite.execute(
+            "SELECT members, COALESCE(streak_last_opened_date, '') FROM `groups` WHERE id = ?",
+            (group_id,),
+        ).fetchone()
+        return (row[0] or "", row[1] or "") if row else None
+    except sqlite3.Error:
+        return None
+
+
+def _lite_user_bonus(uid: str) -> tuple[int, int] | None:
+    """(время прошлого бонуса в мс, монеты) из SQLite PocketBase."""
+    try:
+        row = lite.execute(
+            "SELECT COALESCE(last_daily_bonus_ms, 0), COALESCE(coins, 0) FROM users WHERE id = ?",
+            (uid,),
+        ).fetchone()
+        return (int(row[0] or 0), int(row[1] or 0)) if row else None
+    except (sqlite3.Error, TypeError, ValueError):
+        return None
+
+
+async def _proxy_to_pb(path: str, request: Request, body: dict) -> Response:
+    """Отдать запрос PocketBase как есть и вернуть его ответ."""
+    try:
+        r = await pb_client.post(
+            path, json=body,
+            headers={"Authorization": request.headers.get("authorization", "")},
+        )
+        return Response(content=r.content, status_code=r.status_code,
+                        media_type=r.headers.get("content-type", "application/json"))
+    except httpx.HTTPError as e:
+        log.warning("прокси в PocketBase не удался: %s %s", path, e)
+        return _err(503, "Try again later.")
+
+
+@app.post("/api/group/record-activity")
+async def record_activity(request: Request):
+    try:
+        auth = await _auth(request)
+    except Exception:
+        return _err(429, "Try again later.")
+    if auth is None:
+        return _err(401, "The request requires valid record authorization token.")
+    uid_auth, groups = auth
+
+    try:
+        body = await request.json()
+        assert isinstance(body, dict)
+    except Exception:
+        return _err(400, "bad params")
+
+    group_id = str(body.get("groupId") or "").strip()
+    today = str(body.get("today") or "").strip()
+    if not group_id or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", today):
+        return _err(400, "bad params")
+    if group_id not in groups:
+        return ORJSONResponse({"ok": False, "error": "not a member"}, status_code=403)
+
+    if GROUPS_SRC != "pg":
+        row = await asyncio.to_thread(_lite_group_streak, group_id)
+        if row is not None and row[1] == today:
+            # День уже отмечен — PocketBase тут делать нечего.
+            return ORJSONResponse({"ok": True, "already": True})
+        return await _proxy_to_pb("/api/group/record-activity", request, body)
+
+    uid = str(body.get("uid") or "").strip() or uid_auth
+    return await _record_activity_pg(group_id, uid_auth, uid, today)
+
+
+def _день_подряд(сегодня: str, прошлый: str) -> bool:
+    """Прошлый общий день был ровно вчера (иначе серия начинается заново)."""
+    if not прошлый:
+        return False
+    try:
+        a = time.mktime(time.strptime(сегодня, "%Y-%m-%d"))
+        b = time.mktime(time.strptime(прошлый, "%Y-%m-%d"))
+    except ValueError:
+        return False
+    return round((a - b) / 86400) == 1
+
+
+def _record_streak_sqlite(group_id: str, mascot_id: str, streak: int) -> None:
+    """Рекорд серии живёт в коллекции mascots, а она осталась в PocketBase.
+    Событие редкое — общий день засчитывается паре раз в сутки."""
+    try:
+        lite_rw.execute(
+            "UPDATE mascots SET record_streak = ? "
+            "WHERE group_id = ? AND mascot_id = ? AND COALESCE(record_streak, 0) < ?",
+            (streak, group_id, mascot_id, streak))
+        lite_rw.commit()
+    except sqlite3.Error:
+        pass  # рекорд не критичен, серия уже записана
+
+
+async def _record_activity_pg(group_id: str, auth_uid: str, uid: str,
+                              today: str):
+    """Отметка общего дня целиком в Postgres.
+
+    Прежний путь открывал транзакцию PocketBase на КАЖДЫЙ заход в приложение
+    (восемь запросов в секунду вечером), и почти все впустую занимали
+    единственное соединение записи. Здесь блокируется одна строка пары, а не
+    вся база, поэтому пары не мешают друг другу вовсе.
+    """
+    async with pg.acquire() as c:
+        async with c.transaction():
+            row = await c.fetchrow(
+                "SELECT members, streak_days, streak_last_opened_date, "
+                "streak_pending_date, streak_pending_uid, active_mascot_id, "
+                "mascot_streaks FROM groups WHERE id = $1 FOR UPDATE", group_id)
+            if row is None:
+                return ORJSONResponse({"ok": False, "error": "not a member"},
+                                      status_code=403)
+            члены = row["members"]
+            if isinstance(члены, str):
+                try:
+                    члены = json.loads(члены)
+                except ValueError:
+                    члены = []
+            if auth_uid not in [str(m) for m in (члены or [])]:
+                return ORJSONResponse({"ok": False, "error": "not a member"},
+                                      status_code=403)
+
+            прошлый = row["streak_last_opened_date"] or ""
+            if прошлый == today:
+                return ORJSONResponse({"ok": True, "already": True})
+
+            ждёт_дату = row["streak_pending_date"] or ""
+            ждёт_кого = row["streak_pending_uid"] or ""
+            оба_сегодня = ждёт_дату == today and ждёт_кого and ждёт_кого != uid
+            if not оба_сегодня:
+                if ждёт_дату != today or not ждёт_кого:
+                    await c.execute(
+                        "UPDATE groups SET streak_pending_date = $1, "
+                        "streak_pending_uid = $2, updated = $3 WHERE id = $4",
+                        today, uid, now_pb(), group_id)
+                return ORJSONResponse({"ok": True, "pending": True})
+
+            # Оба были сегодня — день засчитан.
+            серия = (int(row["streak_days"] or 0) + 1
+                     if _день_подряд(today, прошлый) else 1)
+            маскот = row["active_mascot_id"] or ""
+            карта = row["mascot_streaks"]
+            if isinstance(карта, str):
+                try:
+                    карта = json.loads(карта)
+                except ValueError:
+                    карта = {}
+            карта = карта if isinstance(карта, dict) else {}
+            серия_маскота = 0
+            if маскот:
+                прежнее = карта.get(маскот) if isinstance(карта.get(маскот), dict) else {}
+                серия_маскота = (int(прежнее.get("s") or 0) + 1
+                                 if _день_подряд(today, str(прежнее.get("d") or ""))
+                                 else 1)
+                карта[маскот] = {"s": серия_маскота, "d": today}
+            await c.execute(
+                "UPDATE groups SET streak_days = $1, streak_last_opened_date = $2, "
+                "mascot_streaks = $3, updated = $4 WHERE id = $5",
+                float(серия), today, json.dumps(карта), now_pb(), group_id)
+
+    if маскот and серия_маскота:
+        await asyncio.to_thread(_record_streak_sqlite, group_id, маскот,
+                                серия_маскота)
+    return ORJSONResponse({"ok": True, "streak": серия,
+                           "mascotStreak": серия_маскота})
+
+
+КАРТЫ_УЧАСТНИКОВ = ("member_moods", "member_names", "member_avatars",
+                    "member_ailments")
+
+
+def _членство_в_sqlite(uids: list) -> None:
+    """Пересчитать users.group_ids по составу пар — то, что делал хук
+    groups_membership.pb.js на событиях коллекции groups.
+
+    Список ведём в SQLite: правила доступа ВСЕХ коллекций, оставшихся в
+    PocketBase, читают relation users.group_ids, и пустой список закрывает
+    человеку запись начисто (наступали 13.08.2026). Считаем по зеркалу groups
+    в SQLite — оно обновляется той же секундой, что и Postgres.
+    """
+    if not uids:
+        return
+    try:
+        for uid in uids:
+            lite_rw.execute(
+                "UPDATE users SET group_ids = COALESCE((SELECT json_group_array(g.id) "
+                "FROM `groups` g WHERE EXISTS (SELECT 1 FROM json_each("
+                "CASE WHEN json_valid(g.members) THEN g.members ELSE '[]' END) je "
+                "WHERE je.value = ?)), '[]') WHERE id = ?", (uid, uid))
+        lite_rw.commit()
+    except sqlite3.Error as e:
+        log.warning("группы участника не пересчитались (%s): %s", uids, e)
+
+
+ЗЕРКАЛО_КОЛОНКИ = [c for c in COLLECTIONS["groups"]["columns"]]
+
+
+def _зеркало_группы_sync(строки: list) -> int:
+    """Положить строки пар из Postgres обратно в SQLite PocketBase.
+
+    Зеркало нужно не ради красоты: правила доступа всех коллекций, оставшихся
+    в PocketBase, ходят через relation users.group_ids -> groups, отчёты
+    админки джойнят пары с пользователями, а хуки читают запись пары напрямую.
+    Пустая или устаревшая таблица тут означает закрытую запись у живых людей.
+    """
+    if not строки:
+        return 0
+    # Одним upsert'ом, а не «UPDATE, не вышло — INSERT»: рабочих процессов у
+    # hotpath несколько, и двое, взявшись за одну пару, ловили друг у друга
+    # UNIQUE constraint failed.
+    вставка = ", ".join(["id"] + [f"`{c}`" for c in ЗЕРКАЛО_КОЛОНКИ])
+    места = ", ".join(["?"] * (len(ЗЕРКАЛО_КОЛОНКИ) + 1))
+    поля = ", ".join(f"`{c}` = excluded.`{c}`" for c in ЗЕРКАЛО_КОЛОНКИ)
+    сделано = 0
+    # BEGIN только если своей транзакции ещё нет: питоновский sqlite3 открывает
+    # её сам перед первой правкой, и явный BEGIN поверх падает с «cannot start
+    # a transaction within a transaction» — зеркало тогда молча не обновляется.
+    своя = not lite_rw.in_transaction
+    if своя:
+        lite_rw.execute("BEGIN IMMEDIATE")
+    try:
+        for row in строки:
+            значения = []
+            for c in ЗЕРКАЛО_КОЛОНКИ:
+                v = row[c]
+                kind = COLLECTIONS["groups"]["columns"][c]
+                if kind == "json":
+                    значения.append(v if isinstance(v, str) or v is None
+                                    else json.dumps(v, ensure_ascii=False))
+                elif kind == "bool":
+                    значения.append(1 if v else 0)
+                elif kind == "num":
+                    значения.append(float(v or 0))
+                else:
+                    значения.append(v if v is not None else "")
+            lite_rw.execute(
+                f"INSERT INTO `groups` ({вставка}) VALUES ({места}) "
+                f"ON CONFLICT(id) DO UPDATE SET {поля}",
+                (row["id"], *значения))
+            сделано += 1
+        lite_rw.commit()
+    except BaseException:
+        lite_rw.rollback()
+        raise
+    return сделано
+
+
+async def _после_правки_пары(group_id: str, участники: list | None = None,
+                             событие: str = "update") -> None:
+    """Разослать событие пары и, если состав менялся, обновить зеркало и группы.
+
+    Порядок важен: сперва зеркало, потом пересчёт users.group_ids — иначе
+    пересчёт прочитает в SQLite прежний состав и вернёт человеку права на
+    пару, из которой он только что вышел.
+    """
+    async with pg.acquire() as c:
+        row = await c.fetchrow("SELECT * FROM groups WHERE id = $1", group_id)
+    if row is None:
+        return
+    rec = _record_json("groups", row)
+    await _publish("groups", событие, rec)
+    if участники:
+        for попытка in range(3):
+            try:
+                await asyncio.to_thread(_зеркало_группы_sync, [row])
+                break
+            except sqlite3.Error as e:
+                if попытка == 2:
+                    # Не беда: строку подберёт периодическое зеркало, а список
+                    # групп человека — подметальщик sweep_group_ids раз в минуту.
+                    log.warning("зеркало пары %s не обновилось: %s", group_id, e)
+                else:
+                    await asyncio.sleep(0.4 * (попытка + 1))
+        await asyncio.to_thread(_членство_в_sqlite, участники)
+
+
+@app.post("/api/group/patch-map")
+async def patch_map(request: Request):
+    """Правка карты участника: настроение, имя, аватар, недомогание.
+
+    Было чтение записи, правка карты в памяти и запись обратно внутри
+    транзакции PocketBase. Стало одно выражение над jsonb: гонки двух телефонов
+    больше нет в принципе, а строка блокируется на время самого UPDATE.
+    """
+    if GROUPS_SRC != "pg":
+        return await _proxy_to_pb("/api/group/patch-map", request,
+                                  await request.json())
+    try:
+        auth = await _auth(request)
+    except Exception:
+        return _err(429, "Try again later.")
+    if auth is None:
+        return _err(401, "The request requires valid record authorization token.")
+    auth_uid, _ = auth
+    try:
+        body = await request.json()
+        assert isinstance(body, dict)
+    except Exception:
+        return _err(400, "bad params")
+
+    group_id = str(body.get("groupId") or "").strip()
+    field = str(body.get("field") or "").strip()
+    uid = str(body.get("uid") or "").strip()
+    if not group_id or not uid or field not in КАРТЫ_УЧАСТНИКОВ:
+        return ORJSONResponse({"ok": False, "error": "bad params"}, status_code=400)
+
+    значение = body.get("value")
+    if значение is None:
+        sql = (f"UPDATE groups SET {field} = COALESCE({field}, '{{}}'::jsonb) - $1, "
+               "updated = $2 WHERE id = $3 AND members @> $4::jsonb RETURNING id")
+        args = [uid, now_pb(), group_id, json.dumps([auth_uid])]
+    else:
+        sql = (f"UPDATE groups SET {field} = jsonb_set("
+               f"COALESCE({field}, '{{}}'::jsonb), ARRAY[$1], $2::jsonb, true), "
+               "updated = $3 WHERE id = $4 AND members @> $5::jsonb RETURNING id")
+        args = [uid, json.dumps(значение), now_pb(), group_id,
+                json.dumps([auth_uid])]
+    async with pg.acquire() as c:
+        got = await c.fetchval(sql, *args)
+    if got is None:
+        return ORJSONResponse({"ok": False, "error": "not a member"}, status_code=403)
+    asyncio.get_running_loop().create_task(_после_правки_пары(group_id))
+    return ORJSONResponse({"ok": True})
+
+
+@app.post("/api/group/increment")
+async def increment_field(request: Request):
+    """Счётчик опыта пары. Остальные счётчики ведёт сервер по факту записи,
+    поэтому старым сборкам отвечаем «сделано» и ничего не трогаем."""
+    if GROUPS_SRC != "pg":
+        return await _proxy_to_pb("/api/group/increment", request,
+                                  await request.json())
+    try:
+        auth = await _auth(request)
+    except Exception:
+        return _err(429, "Try again later.")
+    if auth is None:
+        return _err(401, "The request requires valid record authorization token.")
+    auth_uid, _ = auth
+    try:
+        body = await request.json()
+        assert isinstance(body, dict)
+    except Exception:
+        return _err(400, "bad params")
+
+    field = str(body.get("field") or "").strip()
+    if field in ("drawings_count", "memories_count"):
+        return ORJSONResponse({"ok": True, "value": 0, "noop": True})
+    group_id = str(body.get("groupId") or "").strip()
+    try:
+        by = float(body.get("by"))
+    except (TypeError, ValueError):
+        return ORJSONResponse({"ok": False, "error": "bad params"}, status_code=400)
+    if not group_id or field != "xp":
+        return ORJSONResponse({"ok": False, "error": "bad params"}, status_code=400)
+
+    async with pg.acquire() as c:
+        value = await c.fetchval(
+            "UPDATE groups SET xp = COALESCE(xp, 0) + $1, updated = $2 "
+            "WHERE id = $3 AND members @> $4::jsonb RETURNING xp",
+            by, now_pb(), group_id, json.dumps([auth_uid]))
+    if value is None:
+        return ORJSONResponse({"ok": False, "error": "not a member"}, status_code=403)
+    asyncio.get_running_loop().create_task(_после_правки_пары(group_id))
+    return ORJSONResponse({"ok": True, "value": _num(value)})
+
+
+@app.post("/api/group/leave")
+async def leave_group(request: Request):
+    """Выход из пары: убрать человека из состава и из всех карт, а опустевшую
+    пару пометить распущенной. Записи пары остаются на месте — вернувшийся по
+    коду второго места находит историю там же, где оставил."""
+    if GROUPS_SRC != "pg":
+        return await _proxy_to_pb("/api/group/leave", request,
+                                  await request.json())
+    try:
+        auth = await _auth(request)
+    except Exception:
+        return _err(429, "Try again later.")
+    if auth is None:
+        return _err(401, "The request requires valid record authorization token.")
+    auth_uid, _ = auth
+    try:
+        body = await request.json()
+        assert isinstance(body, dict)
+    except Exception:
+        return _err(400, "bad params")
+
+    group_id = str(body.get("groupId") or "").strip()
+    uid = str(body.get("uid") or "").strip()
+    if not group_id or not uid:
+        return ORJSONResponse({"ok": False, "error": "bad params"}, status_code=400)
+
+    карты = ", ".join(
+        f"{f} = COALESCE({f}, '{{}}'::jsonb) - $1" for f in КАРТЫ_УЧАСТНИКОВ)
+    async with pg.acquire() as c:
+        row = await c.fetchrow(
+            "UPDATE groups SET members = COALESCE(members, '[]'::jsonb) - $1, "
+            f"{карты}, "
+            "disbanded = (jsonb_array_length(COALESCE(members, '[]'::jsonb) - $1) = 0), "
+            "disbanded_at = CASE WHEN jsonb_array_length("
+            "  COALESCE(members, '[]'::jsonb) - $1) = 0 THEN $2 ELSE disbanded_at END, "
+            "updated = $2 WHERE id = $3 AND members @> $4::jsonb "
+            "RETURNING members",
+            uid, now_pb(), group_id, json.dumps([auth_uid]))
+    if row is None:
+        return ORJSONResponse({"ok": False, "error": "not a member"}, status_code=403)
+    остались = row["members"]
+    if isinstance(остались, str):
+        try:
+            остались = json.loads(остались)
+        except ValueError:
+            остались = []
+    # Ушедшему группы пересчитываем тоже — иначе его правила доступа будут
+    # помнить пару, из которой он вышел.
+    затронуты = [str(m) for m in (остались or []) if m] + [uid]
+    asyncio.get_running_loop().create_task(
+        _после_правки_пары(group_id, затронуты))
+    return ORJSONResponse({"ok": True})
+
+
+@app.post("/api/coins/daily-bonus")
+async def daily_bonus(request: Request):
+    COOLDOWN_MS = 20 * 60 * 60 * 1000
+    try:
+        auth = await _auth(request)
+    except Exception:
+        return _err(429, "Try again later.")
+    if auth is None:
+        return _err(401, "The request requires valid record authorization token.")
+    uid, _groups = auth
+
+    seen = await asyncio.to_thread(_lite_user_bonus, uid)
+    if seen is not None:
+        last, coins = seen
+        if last and int(time.time() * 1000) - last < COOLDOWN_MS:
+            return ORJSONResponse({"ok": False, "cooldown": True, "coins": coins})
+    return await _proxy_to_pb("/api/coins/daily-bonus", request, {})
+
+
 @app.get("/internal/count")
 async def internal_count(col: str, group_id: str = "", mode: str = ""):
     """Счётчики для серверной кухни (couple_stats.pb.js, insights_aggregate.py).
@@ -924,9 +1610,559 @@ async def internal_record(request: Request):
             return _err(400, "Failed to create record.", {
                 "id": {"code": "validation_not_unique", "message": "Value must be unique."}})
     rec = _record_json(col, row)
-    asyncio.get_running_loop().create_task(_publish(col, "create", rec))
+    if col == "groups":
+        # у пары событие идёт вместе с пересчётом членства и зеркалом
+        участники = rec.get("members") if isinstance(rec.get("members"), list) else []
+        asyncio.get_running_loop().create_task(
+            _после_правки_пары(rid, [str(m) for m in участники], событие="create"))
+    else:
+        asyncio.get_running_loop().create_task(_publish(col, "create", rec))
     asyncio.get_running_loop().create_task(_after_create(col, rec))
     return rec
+
+
+@app.post("/internal/group-write")
+async def internal_group_write(request: Request):
+    """Правка записи пары для серверной кухни: хуки PocketBase, скрипты.
+
+    Нужен потому, что после переезда пары событий коллекции `groups` в
+    PocketBase больше не происходит: хук, сохраняющий запись у себя, попадёт в
+    зеркало, а зеркало односторонее. Поэтому все, кто раньше звал
+    findRecordById + save, зовут этот маршрут и пишут прямо в Postgres.
+
+    Тело: {group_id, mode: patch|create, set, inc, map_set, map_del, arr_add,
+    members_changed}. Доступ только с самой машины — наружу /internal Caddy не
+    маршрутизирует, но проверяем и здесь.
+    """
+    if (request.client.host if request.client else "") not in ("127.0.0.1", "::1"):
+        return _err(404, "The requested resource wasn't found.")
+    try:
+        body = await request.json()
+        assert isinstance(body, dict)
+    except Exception:
+        return _err(400, "bad body")
+
+    group_id = str(body.get("group_id") or "").strip()
+    if not group_id:
+        return ORJSONResponse({"ok": False, "error": "bad params"}, status_code=400)
+    колонки = COLLECTIONS["groups"]["columns"]
+
+    def тип(f):
+        return колонки.get(f)
+
+    sets, args = [], []
+
+    def добавить(v):
+        args.append(v)
+        return f"${len(args)}"
+
+    for f, v in (body.get("set") or {}).items():
+        k = тип(f)
+        if k is None or k == "auto":
+            continue
+        if k == "json":
+            sets.append(f"{f} = {добавить(json.dumps(v) if v is not None else None)}::jsonb")
+        elif k == "num":
+            sets.append(f"{f} = {добавить(float(v or 0))}")
+        elif k == "bool":
+            sets.append(f"{f} = {добавить(bool(v))}")
+        else:
+            sets.append(f"{f} = {добавить(str(v) if v is not None else '')}")
+    for f, v in (body.get("inc") or {}).items():
+        if тип(f) == "num":
+            sets.append(f"{f} = GREATEST(0, COALESCE({f}, 0) + {добавить(float(v or 0))})")
+    for f, карта in (body.get("map_set") or {}).items():
+        if тип(f) != "json" or not isinstance(карта, dict):
+            continue
+        выражение = f"COALESCE({f}, '{{}}'::jsonb)"
+        for ключ, значение in карта.items():
+            выражение = (f"jsonb_set({выражение}, ARRAY[{добавить(str(ключ))}], "
+                         f"{добавить(json.dumps(значение))}::jsonb, true)")
+        sets.append(f"{f} = {выражение}")
+    for f, ключи in (body.get("map_del") or {}).items():
+        if тип(f) != "json" or not isinstance(ключи, list):
+            continue
+        выражение = f"COALESCE({f}, '{{}}'::jsonb)"
+        for ключ in ключи:
+            выражение = f"({выражение} - {добавить(str(ключ))})"
+        sets.append(f"{f} = {выражение}")
+    for f, значения in (body.get("arr_add") or {}).items():
+        if тип(f) != "json" or not isinstance(значения, list):
+            continue
+        выражение = f"COALESCE({f}, '[]'::jsonb)"
+        for знач in значения:
+            один = добавить(json.dumps([знач]))
+            выражение = (f"(CASE WHEN {выражение} @> {один}::jsonb THEN {выражение} "
+                         f"ELSE {выражение} || {один}::jsonb END)")
+        sets.append(f"{f} = {выражение}")
+
+    sets.append(f"updated = {добавить(now_pb())}")
+    режим = str(body.get("mode") or "patch")
+    async with pg.acquire() as c:
+        if режим == "create":
+            есть = await c.fetchval("SELECT 1 FROM groups WHERE id = $1", group_id)
+            if not есть:
+                await c.execute(
+                    "INSERT INTO groups (id, created_at, updated) VALUES ($1, $2, $2)",
+                    group_id, now_pb())
+        row = await c.fetchrow(
+            f"UPDATE groups SET {', '.join(sets)} WHERE id = ${len(args) + 1} "
+            "RETURNING *", *args, group_id)
+    if row is None:
+        return ORJSONResponse({"ok": False, "error": "no group"}, status_code=404)
+
+    rec = _record_json("groups", row)
+    участники = rec.get("members") if body.get("members_changed") else None
+    участники = [str(m) for m in участники] if isinstance(участники, list) else None
+    if body.get("members_changed"):
+        # состав пары трогали — зеркало и списки групп людей обязаны догнать
+        # немедленно, от них зависят правила доступа в PocketBase
+        добавочные = [str(u) for u in (body.get("also_recount") or []) if u]
+        try:
+            await asyncio.to_thread(_зеркало_группы_sync, [row])
+        except sqlite3.Error as e:
+            log.warning("зеркало пары %s: %s", group_id, e)
+        await asyncio.to_thread(_членство_в_sqlite,
+                                (участники or []) + добавочные)
+    asyncio.get_running_loop().create_task(_publish("groups", "update", rec))
+    return ORJSONResponse({"ok": True, "record": rec})
+
+
+def _поля_пары_из_sqlite(group_id: str, поля: list) -> tuple | None:
+    строка = ", ".join(f"`{f}`" for f in поля)
+    return lite.execute(
+        f"SELECT {строка}, COALESCE(updated,'') FROM `groups` WHERE id = ?",
+        (group_id,)).fetchone()
+
+
+@app.post("/internal/group-sync")
+async def internal_group_sync(request: Request):
+    """Подтянуть в Postgres поля пары, которые только что записал хук PocketBase.
+
+    Хуки (приём приглашения, дни рождения, покупки, пара с пустым местом)
+    остались работать со своей записью в PocketBase: так сохраняются их
+    транзакции, событие realtime и пересчёт users.group_ids. Здесь мы лишь
+    переносим ИЗМЕНЁННЫЕ поля в Postgres, откуда их теперь читает приложение.
+
+    Переносим точечно, а не строку целиком: между сохранением хука и этим
+    вызовом приложение могло поправить в Postgres что-то своё (настроение,
+    счётчик), и полная заливка стёрла бы эту правку.
+    """
+    if (request.client.host if request.client else "") not in ("127.0.0.1", "::1"):
+        return _err(404, "The requested resource wasn't found.")
+    try:
+        body = await request.json()
+        assert isinstance(body, dict)
+    except Exception:
+        return _err(400, "bad body")
+
+    group_id = str(body.get("group_id") or "").strip()
+    колонки = COLLECTIONS["groups"]["columns"]
+    поля = [f for f in (body.get("fields") or [])
+            if f in колонки and колонки[f] != "auto"]
+    if not group_id or not поля:
+        return ORJSONResponse({"ok": False, "error": "bad params"}, status_code=400)
+
+    row = await asyncio.to_thread(_поля_пары_из_sqlite, group_id, поля)
+    if row is None:
+        return ORJSONResponse({"ok": False, "error": "no group"}, status_code=404)
+
+    значения, sets = [], []
+    for i, f in enumerate(поля):
+        v = row[i]
+        kind = колонки[f]
+        if kind == "json":
+            s = v if isinstance(v, str) or v is None else json.dumps(v)
+            значения.append(s if (s or "").strip() else None)
+            sets.append(f"{f} = ${len(значения)}::jsonb")
+        elif kind == "num":
+            значения.append(float(v or 0))
+            sets.append(f"{f} = ${len(значения)}")
+        elif kind == "bool":
+            значения.append(bool(v))
+            sets.append(f"{f} = ${len(значения)}")
+        else:
+            значения.append(str(v) if v is not None else "")
+            sets.append(f"{f} = ${len(значения)}")
+    # Время правки берём из SQLite: тогда зеркало видит, что базы согласованы,
+    # и не понесёт строку обратно.
+    значения.append(row[len(поля)] or now_pb())
+    sets.append(f"updated = ${len(значения)}")
+    значения.append(group_id)
+
+    async with pg.acquire() as c:
+        готово = await c.fetchval(
+            f"UPDATE groups SET {', '.join(sets)} WHERE id = ${len(значения)} "
+            "RETURNING id", *значения)
+        if готово is None:
+            # Пара только что заведена хуком — заносим её в Postgres целиком.
+            все_поля = list(колонки)
+            полная = await asyncio.to_thread(
+                _поля_пары_из_sqlite, group_id,
+                [f for f in все_поля if f != "updated"])
+            if полная is None:
+                return ORJSONResponse({"ok": False, "error": "no group"},
+                                      status_code=404)
+            await _поднять_из_sqlite([group_id])
+    return ORJSONResponse({"ok": True})
+
+
+АЗБУКА_КОДА = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+
+def _новый_код() -> str:
+    return "".join(secrets.choice(АЗБУКА_КОДА) for _ in range(8))
+
+
+@app.get("/internal/groups-of")
+async def internal_groups_of(request: Request, uid: str = "", live: int = 1):
+    """Пары человека — тем же смыслом, что фильтр members ~ uid у PocketBase."""
+    if (request.client.host if request.client else "") not in ("127.0.0.1", "::1"):
+        return _err(404, "The requested resource wasn't found.")
+    if not uid:
+        return ORJSONResponse({"ok": False, "error": "bad params"}, status_code=400)
+    условие = " AND disbanded = false" if live else ""
+    async with pg.acquire() as c:
+        rows = await c.fetch(
+            f"SELECT * FROM groups WHERE members @> $1::jsonb{условие} "
+            "ORDER BY updated DESC LIMIT 20", json.dumps([uid]))
+    return ORJSONResponse({"ok": True,
+                           "items": [_record_json("groups", r) for r in rows]})
+
+
+@app.post("/internal/waiting-create")
+async def internal_waiting_create(request: Request):
+    """Завести пару, где второго ещё нет: его место держит заглушка.
+
+    Проверка «живой пары ещё нет» и выдача свободного кода делаются здесь же,
+    одной транзакцией: иначе два быстрых нажатия заводили две пары.
+    """
+    if (request.client.host if request.client else "") not in ("127.0.0.1", "::1"):
+        return _err(404, "The requested resource wasn't found.")
+    try:
+        body = await request.json()
+        assert isinstance(body, dict)
+    except Exception:
+        return _err(400, "bad body")
+    uid = str(body.get("uid") or "").strip()
+    имя_заглушки = str(body.get("placeholder_name") or "").strip()[:60]
+    if not uid or not имя_заглушки:
+        return ORJSONResponse({"success": False, "message": "Впишите имя"},
+                              status_code=400)
+
+    async with pg.acquire() as c:
+        async with c.transaction():
+            свои = await c.fetch(
+                "SELECT members, claim_token FROM groups WHERE members @> $1::jsonb "
+                "AND disbanded = false LIMIT 5", json.dumps([uid]))
+            for r in свои:
+                состав = r["members"]
+                if isinstance(состав, str):
+                    try:
+                        состав = json.loads(состав)
+                    except ValueError:
+                        состав = []
+                if len(состав or []) > 1 or (r["claim_token"] or ""):
+                    return ORJSONResponse(
+                        {"success": False, "message": "У вас уже есть пара"},
+                        status_code=400)
+            код = ""
+            for _ in range(12):
+                кандидат = _новый_код()
+                занят = await c.fetchval(
+                    "SELECT 1 FROM groups WHERE claim_token = $1", кандидат)
+                if not занят:
+                    код = кандидат
+                    break
+            if not код:
+                return ORJSONResponse(
+                    {"success": False, "message": "Не удалось выдать код"},
+                    status_code=500)
+            gid = _new_id()
+            сейчас = now_pb()
+            await c.execute(
+                "INSERT INTO groups (id, members, member_names, member_avatars, "
+                "max_members, relationship_type, custom_relationship_types, "
+                "memories_count, drawings_count, start_date, created_at, "
+                "disbanded, waiting_mode, placeholder_name, placeholder_avatar, "
+                "return_date, claim_token, updated) VALUES "
+                "($1, $2::jsonb, $3::jsonb, $4::jsonb, 2, 'couple', '[]'::jsonb, "
+                "0, 0, $5, $5, false, true, $6, $7, $8, $9, $5)",
+                gid, json.dumps([uid]),
+                json.dumps({uid: str(body.get("my_name") or "")}),
+                json.dumps({uid: str(body.get("my_avatar") or "")}),
+                сейчас, имя_заглушки, str(body.get("placeholder_avatar") or ""),
+                str(body.get("return_date") or ""), код)
+    await _после_правки_пары(gid, [uid], событие="create")
+    return ORJSONResponse({"success": True, "pairId": gid, "code": код})
+
+
+@app.post("/internal/waiting-reset")
+async def internal_waiting_reset(request: Request):
+    """Выдать новый код второго места (код утёк, расставание).
+
+    Занятое место кодом не освобождается: это отдельное решение и отдельная
+    кнопка — роспуск пары.
+    """
+    if (request.client.host if request.client else "") not in ("127.0.0.1", "::1"):
+        return _err(404, "The requested resource wasn't found.")
+    try:
+        body = await request.json()
+        assert isinstance(body, dict)
+    except Exception:
+        return _err(400, "bad body")
+    group_id = str(body.get("group_id") or "").strip()
+    uid = str(body.get("uid") or "").strip()
+    if not group_id or not uid:
+        return ORJSONResponse({"success": False, "message": "Не указана пара"},
+                              status_code=400)
+
+    async with pg.acquire() as c:
+        async with c.transaction():
+            row = await c.fetchrow(
+                "SELECT members FROM groups WHERE id = $1 FOR UPDATE", group_id)
+            if row is None:
+                return ORJSONResponse({"success": False, "message": "Пара не найдена"},
+                                      status_code=404)
+            состав = row["members"]
+            if isinstance(состав, str):
+                try:
+                    состав = json.loads(состав)
+                except ValueError:
+                    состав = []
+            состав = [str(m) for m in (состав or []) if m]
+            if uid not in состав:
+                return ORJSONResponse({"success": False, "message": "Это не ваша пара"},
+                                      status_code=403)
+            if len(состав) > 1:
+                return ORJSONResponse({"success": False, "message": "Место уже занято"},
+                                      status_code=400)
+            код = ""
+            for _ in range(12):
+                кандидат = _новый_код()
+                занят = await c.fetchval(
+                    "SELECT 1 FROM groups WHERE claim_token = $1", кандидат)
+                if not занят:
+                    код = кандидат
+                    break
+            if not код:
+                return ORJSONResponse({"success": False, "message": "Не удалось выдать код"},
+                                      status_code=500)
+            await c.execute(
+                "UPDATE groups SET claim_token = $1, claim_uid = '', claim_name = '', "
+                "claim_at = 0, waiting_mode = true, updated = $2 WHERE id = $3",
+                код, now_pb(), group_id)
+    asyncio.get_running_loop().create_task(_после_правки_пары(group_id))
+    return ORJSONResponse({"success": True, "code": код})
+
+
+@app.get("/internal/group-read")
+async def internal_group_read(request: Request, id: str = "", claim_token: str = ""):
+    """Запись пары для серверной кухни: по id или по коду второго места.
+
+    Хуки читают пару отсюда, а не из SQLite: зеркало отстаёт на минуты, и
+    решение, принятое по нему (место занято, заявка уже есть), было бы принято
+    по вчерашним данным.
+    """
+    if (request.client.host if request.client else "") not in ("127.0.0.1", "::1"):
+        return _err(404, "The requested resource wasn't found.")
+    if id:
+        sql, args = "SELECT * FROM groups WHERE id = $1", [id]
+    elif claim_token:
+        # Код второго места ищем только у живых пар: у распущенных он остаётся
+        # формально годным и уводил вернувшегося в пару без участников.
+        sql = ("SELECT * FROM groups WHERE claim_token = $1 AND disbanded = false "
+               "LIMIT 1")
+        args = [claim_token]
+    else:
+        return ORJSONResponse({"ok": False, "error": "bad params"}, status_code=400)
+    async with pg.acquire() as c:
+        row = await c.fetchrow(sql, *args)
+    if row is None:
+        return ORJSONResponse({"ok": False, "error": "no group"}, status_code=404)
+    return ORJSONResponse({"ok": True, "record": _record_json("groups", row)})
+
+
+@app.post("/internal/pair-claim-approve")
+async def internal_pair_claim_approve(request: Request):
+    """Хозяйка пары подтверждает: «это он». Место занимается, код гасится.
+
+    Атомарно по строке пары: два одновременных подтверждения не пустят в пару
+    двоих, а повтор того же нажатия не задвоит участника.
+    """
+    if (request.client.host if request.client else "") not in ("127.0.0.1", "::1"):
+        return _err(404, "The requested resource wasn't found.")
+    try:
+        body = await request.json()
+        assert isinstance(body, dict)
+    except Exception:
+        return _err(400, "bad body")
+    group_id = str(body.get("group_id") or "").strip()
+    претендент = str(body.get("claim_uid") or "").strip()
+    имя = str(body.get("claim_name") or "")
+    аватар = str(body.get("claim_avatar") or "")
+    if not group_id or not претендент:
+        return ORJSONResponse({"ok": False, "error": "bad params"}, status_code=400)
+
+    async with pg.acquire() as c:
+        async with c.transaction():
+            row = await c.fetchrow(
+                "SELECT members, max_members FROM groups WHERE id = $1 FOR UPDATE",
+                group_id)
+            if row is None:
+                return ORJSONResponse({"ok": False, "error": "no group"},
+                                      status_code=404)
+            состав = row["members"]
+            if isinstance(состав, str):
+                try:
+                    состав = json.loads(состав)
+                except ValueError:
+                    состав = []
+            состав = [str(m) for m in (состав or []) if m]
+            if претендент not in состав:
+                предел = int(row["max_members"] or 2) or 2
+                if len(состав) >= предел:
+                    return ORJSONResponse({"ok": False, "error": "full"},
+                                          status_code=400)
+                состав.append(претендент)
+            await c.execute(
+                "UPDATE groups SET members = $1::jsonb, "
+                "member_names = jsonb_set(COALESCE(member_names, '{}'::jsonb), "
+                "  ARRAY[$2], $3::jsonb, true), "
+                "member_avatars = jsonb_set(COALESCE(member_avatars, '{}'::jsonb), "
+                "  ARRAY[$2], $4::jsonb, true), "
+                "waiting_mode = false, claim_token = '', claim_uid = '', "
+                "claim_name = '', claim_at = 0, updated = $5 WHERE id = $6",
+                json.dumps(состав), претендент, json.dumps(имя),
+                json.dumps(аватар), now_pb(), group_id)
+    await _после_правки_пары(group_id, состав)
+    return ORJSONResponse({"ok": True, "members": состав})
+
+
+@app.post("/internal/pair-accept")
+async def internal_pair_accept(request: Request):
+    """Приём кода приглашения целиком в Postgres.
+
+    Раньше это жило в invite.pb.js и держалось на транзакциях PocketBase: они
+    сериализовали параллельные приёмы на единственном соединении записи. В
+    Postgres та же гарантия даётся блокировкой одной строки пары, поэтому
+    приёмы разных пар больше не стоят друг за другом.
+
+    Ветвление сохранено один в один: код привязан к паре → войти; у
+    приглашающего есть живая пара с местом → войти; есть общая распущенная →
+    поднять; иначе завести новую.
+    """
+    if (request.client.host if request.client else "") not in ("127.0.0.1", "::1"):
+        return _err(404, "The requested resource wasn't found.")
+    try:
+        body = await request.json()
+        assert isinstance(body, dict)
+    except Exception:
+        return _err(400, "bad body")
+
+    хозяин = str(body.get("owner_uid") or "").strip()
+    я = str(body.get("my_uid") or "").strip()
+    код_группы = str(body.get("code_group_id") or "").strip()
+    имена = {хозяин: str(body.get("owner_name") or "Partner"),
+             я: str(body.get("my_name") or "")}
+    аватары = {хозяин: str(body.get("owner_avatar") or ""),
+               я: str(body.get("my_avatar") or "")}
+    if not хозяин or not я or хозяин == я:
+        return ORJSONResponse({"success": False, "message": "bad params"},
+                              status_code=400)
+
+    async with pg.acquire() as c:
+        async with c.transaction():
+            async def войти(gid: str):
+                row = await c.fetchrow(
+                    "SELECT members, max_members, disbanded FROM groups "
+                    "WHERE id = $1 FOR UPDATE", gid)
+                if row is None:
+                    return None
+                состав = row["members"]
+                if isinstance(состав, str):
+                    try:
+                        состав = json.loads(состав)
+                    except ValueError:
+                        состав = []
+                состав = [str(m) for m in (состав or []) if m]
+                if я in состав:
+                    # Повтор приёма своего же кода: пара уже собрана. Отвечаем
+                    # успехом с тем же id — раньше человек ловил тут «Код не
+                    # найден» поверх состоявшейся пары, 517 отказов за сутки.
+                    return {"success": True, "message": "Connected!", "pairId": gid}
+                предел = int(row["max_members"] or 2) or 2
+                if len(состав) >= предел:
+                    return {"success": False, "message": "Группа заполнена"}
+                состав.append(я)
+                await c.execute(
+                    "UPDATE groups SET members = $1::jsonb, "
+                    "member_names = jsonb_set(COALESCE(member_names, '{}'::jsonb), "
+                    "  ARRAY[$2], $3::jsonb, true), "
+                    "member_avatars = jsonb_set(COALESCE(member_avatars, '{}'::jsonb), "
+                    "  ARRAY[$2], $4::jsonb, true), "
+                    "disbanded = false, updated = $5 WHERE id = $6",
+                    json.dumps(состав), я, json.dumps(имена[я]),
+                    json.dumps(аватары[я]), now_pb(), gid)
+                return {"success": True, "message": "Joined the group!",
+                        "pairId": gid, "_members": состав}
+
+            итог = None
+            if код_группы:
+                итог = await войти(код_группы)
+            if итог is None:
+                # живая пара приглашающего, где есть место
+                строки = await c.fetch(
+                    "SELECT id FROM groups WHERE members @> $1::jsonb "
+                    "AND disbanded = false ORDER BY updated DESC LIMIT 5",
+                    json.dumps([хозяин]))
+                for r in строки:
+                    итог = await войти(r["id"])
+                    if итог and итог.get("success"):
+                        break
+                    итог = None
+            if итог is None:
+                # общая распущенная пара — поднимаем её со всей историей
+                строка = await c.fetchrow(
+                    "SELECT id FROM groups WHERE members @> $1::jsonb "
+                    "AND members @> $2::jsonb ORDER BY updated DESC LIMIT 1",
+                    json.dumps([хозяин]), json.dumps([я]))
+                if строка is not None:
+                    await c.execute(
+                        "UPDATE groups SET members = $1::jsonb, "
+                        "member_names = COALESCE(member_names, '{}'::jsonb) || $2::jsonb, "
+                        "member_avatars = COALESCE(member_avatars, '{}'::jsonb) || $3::jsonb, "
+                        "disbanded = false, disbanded_at = '', updated = $4 "
+                        "WHERE id = $5",
+                        json.dumps([хозяин, я]), json.dumps(имена),
+                        json.dumps(аватары), now_pb(), строка["id"])
+                    итог = {"success": True, "message": "Reconnected!",
+                            "pairId": строка["id"], "restored": True,
+                            "_members": [хозяин, я]}
+            if итог is None:
+                # заводим новую пару
+                gid = _new_id()
+                await c.execute(
+                    "INSERT INTO groups (id, members, member_names, member_avatars, "
+                    "max_members, relationship_type, custom_relationship_types, "
+                    "memories_count, drawings_count, start_date, created_at, "
+                    "disbanded, updated) VALUES ($1, $2::jsonb, $3::jsonb, $4::jsonb, "
+                    "2, 'couple', '[]'::jsonb, 0, 0, $5, $5, false, $5)",
+                    gid, json.dumps([хозяин, я]), json.dumps(имена),
+                    json.dumps(аватары), now_pb())
+                итог = {"success": True, "message": "Connected!", "pairId": gid,
+                        "_members": [хозяин, я], "_new": True}
+
+    участники = итог.pop("_members", None)
+    новая = итог.pop("_new", False)
+    if итог.get("success"):
+        # Событие обязано быть «create» именно у новой пары: клиент
+        # приглашающего ждёт появления записи, а правку существующей он
+        # отфильтрует — и пара не появится у него до перезапуска приложения
+        # (ровно та жалоба, что разбиралась 02.08.2026).
+        await _после_правки_пары(итог["pairId"], участники or [хозяин, я],
+                                 событие="create" if новая else "update")
+    return ORJSONResponse(итог)
 
 
 @app.get("/internal/online")
@@ -1135,6 +2371,12 @@ async def list_records(col: str, request: Request):
     where, args = [], []
     filtered_group = None
     for field, op, val in conds:
+        if op == "@>":
+            if meta["columns"].get(field) != "json":
+                return _err(400, "Something went wrong while processing your request.")
+            args.append(val)
+            where.append(f"{field} @> ${len(args)}::jsonb")
+            continue
         args.append(_coerce(col, field, val))
         where.append(f"{field} {op} ${len(args)}")
         if field == "group_id" and op == "=":
@@ -1150,6 +2392,12 @@ async def list_records(col: str, request: Request):
     }
     if scope == "authed":
         pass  # ограничений нет
+    elif scope == "members":
+        # Правило записи пары: members ?~ @request.auth.id. Условие ставим
+        # ВСЕГДА, даже когда клиент уже прислал такой фильтр сам, — дубль
+        # безвреден (тот же индекс), а забытая проверка отдала бы чужую пару.
+        args.append(json.dumps([uid]))
+        where.append(f"members @> ${len(args)}::jsonb")
     elif scope == "channel":
         chan = next((v for f, op, v in conds if f == "channel" and op == "="), None)
         if chan is not None:
@@ -1201,6 +2449,43 @@ async def list_records(col: str, request: Request):
     }
 
 
+@app.get("/api/collections/{col}/records/{rid}")
+async def get_record(col: str, rid: str, request: Request):
+    """Чтение одной записи (getOne у клиента).
+
+    Заведено ради записи пары: приём приглашения читает группу именно так
+    (`collection('groups').getOne(pairId)`), и без этого маршрута ответом на
+    вступление в пару приходил бы 404.
+    """
+    meta = COLLECTIONS.get(col)
+    if meta is None:
+        return _err(404, "The requested resource wasn't found.")
+    try:
+        auth = await _auth(request)
+    except Exception:
+        return _err(429, "Try again later.")
+    if auth is None:
+        return _err(401, "The request requires valid record authorization token.")
+    uid, groups = auth
+
+    scope = meta.get("scope", "group")
+    if scope == "authed":
+        cond, args = "TRUE", [rid]
+    elif scope == "members":
+        cond, args = "members @> $2::jsonb", [rid, json.dumps([uid])]
+    elif scope == "channel":
+        cond, args = "(channel LIKE '%' || $2 || '%' OR channel = ANY($3))", [
+            rid, uid, list(groups)]
+    else:
+        cond, args = "group_id = ANY($2)", [rid, list(groups)]
+    async with pg.acquire() as c:
+        row = await c.fetchrow(f"SELECT * FROM {col} WHERE id = $1 AND {cond}", *args)
+    if row is None:
+        # Чужое и несуществующее PocketBase прячет одним 404.
+        return _err(404, "The requested resource wasn't found.")
+    return _record_json(col, row)
+
+
 @app.post("/api/collections/{col}/records")
 async def create_record(col: str, request: Request):
     meta = COLLECTIONS.get(col)
@@ -1224,6 +2509,11 @@ async def create_record(col: str, request: Request):
     if scope == "group":
         if str(body.get("group_id") or "") not in groups:
             # createRule не прошёл — PB в этом случае тоже отвечает 400.
+            return _err(400, "Failed to create record.")
+    elif scope == "members":
+        # Завести пару можно только с собой внутри — как createRule у PB.
+        сам = body.get("members")
+        if not isinstance(сам, list) or uid not in [str(m) for m in сам]:
             return _err(400, "Failed to create record.")
     elif scope == "channel":
         chan = str(body.get("channel") or "")
@@ -1295,6 +2585,35 @@ async def update_record(col: str, rid: str, request: Request):
     except Exception:
         return _err(400, "Failed to update record.")
 
+    # Страж пары (перенос groups_guard.pb.js). Правило коллекции пускает
+    # участника писать в запись любое поле, поэтому обычным PATCH можно было
+    # вписать в пару третий аккаунт — и он получал переписку, ленту и карту.
+    # Клиент состав только СОКРАЩАЕТ (выход из пары), добавляют серверные пути.
+    if col == "groups":
+        ЗАКРЫТЫЕ = ("claim_token", "claim_uid", "claim_name", "claim_at",
+                    "waiting_mode")
+        for f in ЗАКРЫТЫЕ:
+            if f in body:
+                # Код второго места и заявку на него пишет только сервер:
+                # иначе участник подменит код своим и уведёт чужую заявку.
+                return _err(403, f"read-only pairing field: {f}")
+        if "members" in body:
+            новый = body.get("members")
+            if not isinstance(новый, list):
+                return _err(403, "members must be a list")
+            async with pg.acquire() as c:
+                текущий = await c.fetchval(
+                    "SELECT members FROM groups WHERE id = $1", rid)
+            if isinstance(текущий, str):
+                try:
+                    текущий = json.loads(текущий)
+                except ValueError:
+                    текущий = []
+            текущий = [str(m) for m in (текущий or [])]
+            for m in новый:
+                if str(m) not in текущий:
+                    return _err(403, "cannot add members directly")
+
     # Страж чата (перенос chat_guard.pb.js): не-автор правит только реакции
     # и отметку «послушал». Смотрим ТЕЛО запроса, как и хук.
     if meta["guard"] == "chat":
@@ -1334,6 +2653,9 @@ async def update_record(col: str, rid: str, request: Request):
     if owner_upd:
         args.append(uid)
         cond = f"{owner_upd} = ${len(args)}"
+    elif meta.get("scope") == "members":
+        args.append(json.dumps([uid]))
+        cond = f"members @> ${len(args)}::jsonb"
     else:
         args.append(list(groups))
         cond = f"group_id = ANY(${len(args)})"
@@ -1347,7 +2669,15 @@ async def update_record(col: str, rid: str, request: Request):
         # Чужое и несуществующее PB прячет одним 404.
         return _err(404, "The requested resource wasn't found.")
     rec = _record_json(col, row)
-    asyncio.get_running_loop().create_task(_publish(col, "update", rec))
+    if col == "groups" and "members" in body:
+        # Состав пары сократили (человек вышел сам, когда серверный роут не
+        # ответил) — зеркало и списки групп обязаны догнать сразу, иначе
+        # правила доступа в PocketBase будут помнить прежнюю пару.
+        участники = rec.get("members") if isinstance(rec.get("members"), list) else []
+        asyncio.get_running_loop().create_task(
+            _после_правки_пары(rid, [str(m) for m in участники] + [uid]))
+    else:
+        asyncio.get_running_loop().create_task(_publish(col, "update", rec))
     return rec
 
 
@@ -1373,6 +2703,10 @@ async def delete_record(col: str, rid: str, request: Request):
         if owner_del:
             row = await c.fetchrow(
                 f"DELETE FROM {col} WHERE id = $1 AND {owner_del} = $2 RETURNING *", rid, uid)
+        elif meta.get("scope") == "members":
+            row = await c.fetchrow(
+                f"DELETE FROM {col} WHERE id = $1 AND members @> $2::jsonb RETURNING *",
+                rid, json.dumps([uid]))
         else:
             row = await c.fetchrow(
                 f"DELETE FROM {col} WHERE id = $1 AND group_id = ANY($2) RETURNING *",
@@ -1407,9 +2741,13 @@ def _claim_background_role() -> bool:
 
 @app.on_event("startup")
 async def _startup():
-    global pg, cent_client, push_client, lite, lite_rw, auth_secret
+    global pg, cent_client, push_client, pb_client, lite, lite_rw, auth_secret
     pg = await asyncpg.create_pool(PG_DSN, min_size=2, max_size=10)
     cent_client = httpx.AsyncClient(base_url=CENT_API, timeout=3.0)
+    # Редкие записи уходят в PocketBase как есть. Таймаут щедрый: под
+    # нагрузкой он отвечает секунды, и обрывать раньше клиента незачем.
+    pb_client = httpx.AsyncClient(
+        base_url=os.environ.get("PB_URL", "http://127.0.0.1:8090"), timeout=40.0)
     push_client = httpx.AsyncClient(timeout=10.0)
     # read-only к базе PocketBase: tokenKey, group_ids, members, presence, токены.
     lite = sqlite3.connect(f"file:{PB_DB}?mode=ro", uri=True, check_same_thread=False)
@@ -1423,9 +2761,10 @@ async def _startup():
         ).fetchone()[0]
     )["authToken"]["secret"]
     if _claim_background_role():
-        log.info("этот процесс ведёт фоновые задачи")
+        log.info("этот процесс ведёт фоновые задачи (пары: %s)", GROUPS_SRC)
         asyncio.get_running_loop().create_task(_counter_worker())
         asyncio.get_running_loop().create_task(_presence_mirror_worker())
+        asyncio.get_running_loop().create_task(_зеркало_воркер())
 
 
 @app.on_event("shutdown")

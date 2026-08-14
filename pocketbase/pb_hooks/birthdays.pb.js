@@ -46,16 +46,29 @@ onRecordAfterUpdateSuccess((e) => {
     if (cur && cur !== old) {
       const uid = e.record.id;
       const iso = cur.replace(" ", "T");
-      const groups = $app.findRecordsByFilter(
-        "groups", "members ~ {:u} && disbanded = false", "", 0, 0, { u: uid });
-      for (const g of groups) {
-        let map = {};
-        try { map = JSON.parse(g.getString("member_birthdays") || "{}") || {}; }
-        catch (err) { map = {}; }
-        if (map[uid] === iso) continue; // уже актуально — не будим realtime зря
-        map[uid] = iso;
-        g.set("member_birthdays", map);
-        $app.save(g);
+      // Карта дней рождения лежит в записи пары, а та живёт в Postgres:
+      // спрашиваем пары человека и правим карту точечно, одним запросом на
+      // пару. Прежний путь открывал транзакцию PocketBase на каждую пару.
+      const hp = (path, method, payload) => {
+        const r = $http.send({
+          url: "http://127.0.0.1:8120" + path,
+          method: method,
+          headers: { "content-type": "application/json" },
+          body: payload ? JSON.stringify(payload) : undefined,
+          timeout: 10,
+        });
+        return (r && r.json) || null;
+      };
+      const мои = hp("/internal/groups-of?uid=" + encodeURIComponent(uid) + "&live=1",
+                     "GET", null);
+      const items = (мои && мои.items) || [];
+      for (let i = 0; i < items.length; i++) {
+        const карта = items[i].member_birthdays;
+        const было = (карта && typeof карта === "object") ? карта[uid] : null;
+        if (было === iso) continue; // уже актуально — не будим realtime зря
+        const набор = {}; набор[uid] = iso;
+        hp("/internal/group-write", "POST",
+           { group_id: items[i].id, map_set: { member_birthdays: набор } });
       }
     }
   } catch (err) {

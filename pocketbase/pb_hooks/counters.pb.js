@@ -28,12 +28,14 @@
 // groups.pb.js (роут /api/group/increment для них → no-op ok), иначе старые
 // версии, всё ещё дёргающие increment, задвоили бы счётчик с этим хуком.
 //
-// АТОМАРНО: read-modify-write в $app.runInTransaction — PB держит единственный
-// write-коннект, поэтому параллельные создания сообщений с двух устройств
-// сериализуются (без транзакции lost-update занижал бы счётчик к порогам
-// 100/1000). Хук onRecordAfter*Success срабатывает ПОСЛЕ коммита создания →
-// собственная транзакция безопасна (ср. birthdays.pb.js: $app.save в afterSuccess).
+// АТОМАРНО: инкремент считает сама база — параллельные создания сообщений с
+// двух устройств не занижают цифру к порогам 100/1000, как это делал бы
+// read-modify-write. Хук onRecordAfter*Success срабатывает ПОСЛЕ коммита.
 //
+// ПАРА ЖИВЁТ В POSTGRES (15.08.2026): счётчик правит hotpath одним запросом
+// `inc`, атомарным по строке пары. Прежняя транзакция PocketBase тут была
+// нужна ровно для атомарности — на единственном соединении записи она
+// сериализовала параллельные создания, но и всю прочую запись вместе с ними.
 // JSVM-грабли (см. groups.pb.js): хендлер сериализуется и файловых функций НЕ
 // видит → вся логика инлайн; сбой счётчика не должен ронять создание записи
 // (весь хендлер в try/catch); e.next() — всегда.
@@ -43,10 +45,12 @@ onRecordAfterCreateSuccess((e) => {
   try {
     const groupId = e.record.getString("group_id");
     if (groupId) {
-      $app.runInTransaction((txApp) => {
-        const g = txApp.findRecordById("groups", groupId);
-        g.set("messages_count", (g.getInt("messages_count") || 0) + 1);
-        txApp.save(g);
+      $http.send({
+        url: "http://127.0.0.1:8120/internal/group-write",
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ group_id: groupId, inc: { messages_count: 1 } }),
+        timeout: 10,
       });
     }
   } catch (err) {
@@ -60,10 +64,12 @@ onRecordAfterCreateSuccess((e) => {
   try {
     const groupId = e.record.getString("group_id");
     if (groupId) {
-      $app.runInTransaction((txApp) => {
-        const g = txApp.findRecordById("groups", groupId);
-        g.set("drawings_count", (g.getInt("drawings_count") || 0) + 1);
-        txApp.save(g);
+      $http.send({
+        url: "http://127.0.0.1:8120/internal/group-write",
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ group_id: groupId, inc: { drawings_count: 1 } }),
+        timeout: 10,
       });
     }
   } catch (err) {
@@ -77,11 +83,13 @@ onRecordAfterDeleteSuccess((e) => {
   try {
     const groupId = e.record.getString("group_id");
     if (groupId) {
-      $app.runInTransaction((txApp) => {
-        const g = txApp.findRecordById("groups", groupId);
-        const next = (g.getInt("drawings_count") || 0) - 1;
-        g.set("drawings_count", next < 0 ? 0 : next);
-        txApp.save(g);
+      // Ниже нуля счётчик не уходит: об этом заботится сам запрос.
+      $http.send({
+        url: "http://127.0.0.1:8120/internal/group-write",
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ group_id: groupId, inc: { drawings_count: -1 } }),
+        timeout: 10,
       });
     }
   } catch (err) {
@@ -97,10 +105,12 @@ onRecordAfterCreateSuccess((e) => {
   try {
     const groupId = e.record.getString("group_id");
     if (groupId && !e.record.getBool("deleted")) {
-      $app.runInTransaction((txApp) => {
-        const g = txApp.findRecordById("groups", groupId);
-        g.set("memories_count", (g.getInt("memories_count") || 0) + 1);
-        txApp.save(g);
+      $http.send({
+        url: "http://127.0.0.1:8120/internal/group-write",
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ group_id: groupId, inc: { memories_count: 1 } }),
+        timeout: 10,
       });
     }
   } catch (err) {
@@ -114,11 +124,13 @@ onRecordAfterDeleteSuccess((e) => {
   try {
     const groupId = e.record.getString("group_id");
     if (groupId && !e.record.getBool("deleted")) {
-      $app.runInTransaction((txApp) => {
-        const g = txApp.findRecordById("groups", groupId);
-        const next = (g.getInt("memories_count") || 0) - 1;
-        g.set("memories_count", next < 0 ? 0 : next);
-        txApp.save(g);
+      // Ниже нуля счётчик не уходит: об этом заботится сам запрос.
+      $http.send({
+        url: "http://127.0.0.1:8120/internal/group-write",
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ group_id: groupId, inc: { memories_count: -1 } }),
+        timeout: 10,
       });
     }
   } catch (err) {
@@ -138,11 +150,15 @@ onRecordAfterUpdateSuccess((e) => {
     const now = e.record.getBool("deleted");
     const was = e.record.original().getBool("deleted");
     if (groupId && now !== was) {
-      $app.runInTransaction((txApp) => {
-        const g = txApp.findRecordById("groups", groupId);
-        const next = (g.getInt("memories_count") || 0) + (now ? -1 : 1);
-        g.set("memories_count", next < 0 ? 0 : next);
-        txApp.save(g);
+      $http.send({
+        url: "http://127.0.0.1:8120/internal/group-write",
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          group_id: groupId,
+          inc: { memories_count: now ? -1 : 1 },
+        }),
+        timeout: 10,
       });
     }
   } catch (err) {

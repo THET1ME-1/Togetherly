@@ -233,14 +233,25 @@ routerAdd("POST", "/api/lava/webhook", (e) => {
           let groupIds = [];
           try { groupIds = user.getStringSlice("group_ids") || []; } catch (_) { groupIds = []; }
           if (!groupIds.length) groupIds = parse(user.getString("pair_ids"), []);
+          // Купленное открыто обоим, а запись пары живёт в Postgres: ключ
+          // владения добавляет hotpath одним идемпотентным запросом.
           for (let i = 0; i < groupIds.length; i++) {
-            let grp = null;
-            try { grp = txApp.findRecordById("groups", String(groupIds[i])); } catch (_) { grp = null; }
-            if (!grp) continue;
-            const gOwned = parse(grp.getString("owned_features"), []);
-            if (gOwned.indexOf(feature) !== -1) continue;
-            grp.set("owned_features", JSON.stringify(gOwned.concat([feature])));
-            txApp.save(grp);
+            try {
+              $http.send({
+                url: "http://127.0.0.1:8120/internal/group-write",
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({
+                  group_id: String(groupIds[i]),
+                  arr_add: { owned_features: [feature] },
+                }),
+                timeout: 10,
+              });
+            } catch (err) {
+              $app.logger().warn("владение не доехало до пары",
+                "group", String(groupIds[i]), "feature", String(feature),
+                "err", String(err));
+            }
           }
           out = { s: 200, b: { ok: true, feature: feature, direct: true } };
           return;
