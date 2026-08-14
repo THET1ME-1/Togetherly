@@ -49,6 +49,13 @@ TABLES = {
         "photo_url": "text", "status": "text", "updated_at": "text",
         "user_uid": "text", "updated": "auto", "plus": "bool",
     },
+    "user_presence": {"seen_at": "num", "user_uid": "text"},
+    "chat_typing": {"group_id": "text", "typing_at": "num", "user_uid": "text"},
+    "chat_reads": {
+        "group_id": "text", "last_read_ts": "num", "updated_at": "text",
+        "user_uid": "text", "updated": "auto",
+    },
+    "live_location": {"channel": "text", "data": "json", "user_uid": "text"},
     "canvas_meta": {
         "bg_color": "num", "canvas_id": "text", "canvas_rotation": "num",
         "clear_version": "num", "group_id": "text", "updated_at": "text",

@@ -42,6 +42,10 @@ META = {
     "widget_data": ("updated", ["group_id", "user_uid"]),
     "canvas_meta": ("updated_at", ["group_id", "canvas_id"]),
     "canvas_strokes": (None, ["id"]),   # штрихи не правятся, только id
+    "user_presence": ("seen_at", ["user_uid"]),
+    "chat_typing": ("typing_at", ["group_id", "user_uid"]),
+    "chat_reads": ("updated", ["group_id", "user_uid"]),
+    "live_location": (None, ["channel", "user_uid"]),
 }
 
 
@@ -70,8 +74,18 @@ async def main() -> None:
     for r in await pg.fetch(f"SELECT {sel} FROM {table}"):
         dst[tuple(r[k] for k in key)] = (r[tcol] if tcol else "")
 
+    def newer(a, b) -> bool:
+        """Свежесть: у presence и «печатает» время лежит числом (epoch-ms), у
+        остальных строкой ISO. Сравниваем в одном типе, иначе TypeError."""
+        if isinstance(a, (int, float)) or isinstance(b, (int, float)):
+            try:
+                return float(a or 0) > float(b or 0)
+            except (TypeError, ValueError):
+                return False
+        return str(a or "") > str(b or "")
+
     todo = [d for k, d in src.items()
-            if k not in dst or (tcol and (d.get(tcol) or "") > (dst[k] or ""))]
+            if k not in dst or (tcol and newer(d.get(tcol), dst[k]))]
     print(f"{table}: в SQLite {len(src)}, в Postgres {len(dst)}, к доливу {len(todo)}")
     if not args.commit or not todo:
         if not args.commit:

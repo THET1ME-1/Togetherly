@@ -140,6 +140,58 @@ COLLECTIONS = {
         "after_delete": None,
         "default_sort": "id ASC",
     },
+    "user_presence": {
+        "collection_id": os.environ.get("CID_USER_PRESENCE", "pbc_1624121044"),
+        "columns": {"seen_at": "num", "user_uid": "text"},
+        "sortable": {"seen_at", "id"},
+        "filterable": {"id", "user_uid", "seen_at"},
+        # listRule у presence — просто «залогинен»: партнёрское присутствие
+        # читают по user_uid, группы тут ни при чём.
+        "scope": "authed",
+        "create_owner_field": "user_uid",
+        "update_owner_field": "user_uid",
+        "channel": "user",          # публикуем в user:<user_uid>
+        "guard": None, "delete_guard": None,
+        "after_create": None, "after_delete": None,
+        "default_sort": "id ASC",
+    },
+    "chat_typing": {
+        "collection_id": os.environ.get("CID_CHAT_TYPING", "pbc_1175427710"),
+        "columns": {"group_id": "text", "typing_at": "num", "user_uid": "text"},
+        "sortable": {"typing_at", "id"},
+        "filterable": {"id", "group_id", "user_uid"},
+        "create_owner_field": "user_uid",
+        "guard": None, "delete_guard": None,
+        "after_create": None, "after_delete": None,
+        "default_sort": "id ASC",
+    },
+    "chat_reads": {
+        "collection_id": os.environ.get("CID_CHAT_READS", "pbc_932032954"),
+        "columns": {
+            "group_id": "text", "last_read_ts": "num", "updated_at": "date",
+            "user_uid": "text", "updated": "auto",
+        },
+        "sortable": {"updated", "id"},
+        "filterable": {"id", "group_id", "user_uid", "updated"},
+        "create_owner_field": "user_uid",
+        "guard": None, "delete_guard": None,
+        "after_create": None, "after_delete": None,
+        "default_sort": "id ASC",
+    },
+    "live_location": {
+        "collection_id": os.environ.get("CID_LIVE_LOCATION", "pbc_1895612750"),
+        "columns": {"channel": "text", "data": "json", "user_uid": "text"},
+        "sortable": {"id"},
+        "filterable": {"id", "channel", "user_uid"},
+        # канал — либо личный (содержит свой uid), либо id своей пары.
+        "scope": "channel",
+        "create_owner_field": "user_uid",
+        "update_owner_field": "user_uid",
+        "channel": "loc",           # публикуем в loc:<channel>
+        "guard": None, "delete_guard": None,
+        "after_create": None, "after_delete": None,
+        "default_sort": "id ASC",
+    },
     "canvas_meta": {
         "collection_id": os.environ.get("CID_CANVAS_META", "pbc_2121884867"),
         "columns": {
@@ -370,14 +422,22 @@ def _coerce(col: str, field: str, val: object) -> object:
 
 
 async def _publish(col: str, event: str, record: dict) -> None:
-    gid = record.get("group_id") or ""
-    if not gid or not CENT_KEY:
+    # Каналы те же, что раздаёт centrifugo.pb.js: присутствие в user:<uid>,
+    # геопозиция в loc:<channel>, всё остальное в pair:<group_id>.
+    kind = COLLECTIONS[col].get("channel", "pair")
+    if kind == "user":
+        chan = "user:" + (record.get("user_uid") or "")
+    elif kind == "loc":
+        chan = "loc:" + (record.get("channel") or "")
+    else:
+        chan = "pair:" + (record.get("group_id") or "")
+    if chan.endswith(":") or not CENT_KEY:
         return
     try:
         await cent_client.post(
             "/publish",
             json={
-                "channel": f"pair:{gid}",
+                "channel": chan,
                 "data": {"event": event, "collection": col, "record": record},
             },
             headers={"X-API-Key": CENT_KEY},
@@ -386,9 +446,9 @@ async def _publish(col: str, event: str, record: dict) -> None:
         pass  # realtime — best effort, как и в хуке
 
 
-def _push_targets(group_id: str, author_uid: str) -> list[dict]:
-    """Кому слать пуш: участники группы, кроме автора и тех, кто на связи.
-    Всё читается из SQLite PB одним заходом (тот же источник, что у хука)."""
+def _push_candidates(group_id: str, author_uid: str) -> list[dict]:
+    """Участники группы с их токенами — из SQLite PB (users и groups там же).
+    Кто сейчас на связи, решается отдельно: присутствие живёт в Postgres."""
     g = lite.execute(
         "SELECT members, disbanded FROM groups WHERE id = ?", (group_id,)
     ).fetchone()
@@ -398,26 +458,11 @@ def _push_targets(group_id: str, author_uid: str) -> list[dict]:
         members = json.loads(g[0] or "[]") or []
     except ValueError:
         members = []
-    now_ms = int(time.time() * 1000)
     out = []
     for uid in members:
         uid = str(uid or "")
         if not uid or uid == author_uid:
             continue
-        seen = lite.execute(
-            "SELECT seen_at FROM user_presence WHERE user_uid = ?", (uid,)
-        ).fetchone()
-        if seen and seen[0]:
-            raw = str(seen[0])
-            try:
-                ms = int(float(raw))
-            except ValueError:
-                try:
-                    ms = int(time.mktime(time.strptime(raw[:19], "%Y-%m-%d %H:%M:%S")) * 1000)
-                except ValueError:
-                    ms = 0
-            if ms and now_ms - ms < ONLINE_WINDOW_MS:
-                continue  # на связи — баннер нарисует живое приложение
         u = lite.execute(
             "SELECT apns_token, apns_sandbox, fcm_token, apns_bg_ms FROM users WHERE id = ?",
             (uid,),
@@ -427,6 +472,31 @@ def _push_targets(group_id: str, author_uid: str) -> list[dict]:
         out.append({"uid": uid, "apns": u[0] or "", "sandbox": bool(u[1]),
                     "fcm": u[2] or "", "bg_ms": int(u[3] or 0)})
     return out
+
+
+async def _online_uids(uids: list[str]) -> set:
+    """Кто из них на связи — по presence в Postgres (окно две минуты)."""
+    if not uids:
+        return set()
+    edge = int(time.time() * 1000) - ONLINE_WINDOW_MS
+    try:
+        async with pg.acquire() as c:
+            rows = await c.fetch(
+                "SELECT user_uid FROM user_presence WHERE user_uid = ANY($1) AND seen_at > $2",
+                uids, float(edge))
+        return {r["user_uid"] for r in rows}
+    except Exception as e:
+        log.warning("presence lookup: %s", e)
+        return set()   # не знаем — лучше прислать пуш, чем промолчать
+
+
+async def _push_targets(group_id: str, author_uid: str) -> list[dict]:
+    """Кому слать: участники группы, кроме автора и тех, кто сейчас на связи."""
+    cand = await asyncio.to_thread(_push_candidates, group_id, author_uid)
+    if not cand:
+        return []
+    online = await _online_uids([t["uid"] for t in cand])
+    return [t for t in cand if t["uid"] not in online]
 
 
 def _forget_token(uid: str, field: str) -> None:
@@ -440,7 +510,7 @@ def _forget_token(uid: str, field: str) -> None:
 async def _notify_group(group_id: str, author_uid: str, title: str, body: str, thread: str) -> None:
     """Пуш всем в группе, кроме автора — как notifyGroup в apns_push.js."""
     try:
-        targets = await asyncio.to_thread(_push_targets, group_id, author_uid)
+        targets = await _push_targets(group_id, author_uid)
     except Exception as e:
         log.warning("push targets %s: %s", group_id, e)
         return
@@ -484,7 +554,7 @@ async def _wake_group(group_id: str, author_uid: str, kind: str = "widgets") -> 
     apns_push.js. Apple лимитирует такие пуши, поэтому будим не чаще раза в
     15 минут на устройство и только тех, кто сейчас не на связи."""
     try:
-        targets = await asyncio.to_thread(_push_targets, group_id, author_uid)
+        targets = await _push_targets(group_id, author_uid)
     except Exception as e:
         log.warning("wake targets %s: %s", group_id, e)
         return
@@ -610,6 +680,48 @@ async def _counter_worker() -> None:
                 _counter_deltas[key] = _counter_deltas.get(key, 0) + d
 
 
+# ── зеркало присутствия в SQLite (для аналитики) ─────────────────────────────
+
+
+def _mirror_presence_sync(rows: list) -> None:
+    """Складывает свежие отметки присутствия обратно в SQLite PocketBase.
+
+    Зачем: когорты удержания и вкладка «Доход» джойнят `users` с
+    `user_presence` одним SQL — а users остались в PB. Держим там теневую
+    копию: одна пачка раз в пять минут вместо сотни отдельных записей в
+    минуту, которые эту базу и душили."""
+    lite_rw.execute("BEGIN IMMEDIATE")
+    try:
+        lite_rw.executemany(
+            "INSERT INTO user_presence (id, user_uid, seen_at) VALUES (?,?,?) "
+            "ON CONFLICT(user_uid) DO UPDATE SET seen_at = excluded.seen_at",
+            rows)
+        lite_rw.commit()
+    except BaseException:
+        lite_rw.rollback()
+        raise
+
+
+async def _presence_mirror_worker() -> None:
+    last = 0.0
+    while True:
+        await asyncio.sleep(300)
+        try:
+            async with pg.acquire() as c:
+                rows = await c.fetch(
+                    "SELECT id, user_uid, seen_at FROM user_presence WHERE seen_at > $1",
+                    last)
+            if not rows:
+                continue
+            last = max(float(r["seen_at"]) for r in rows)
+            await asyncio.to_thread(
+                _mirror_presence_sync,
+                [(r["id"], r["user_uid"], int(r["seen_at"])) for r in rows])
+            log.info("присутствие: зеркало %d строк", len(rows))
+        except Exception as e:
+            log.warning("зеркало присутствия отложено: %s", e)
+
+
 # ── маршруты ─────────────────────────────────────────────────────────────────
 
 
@@ -701,6 +813,14 @@ async def internal_record(request: Request):
     asyncio.get_running_loop().create_task(_publish(col, "create", rec))
     asyncio.get_running_loop().create_task(_after_create(col, rec))
     return rec
+
+
+@app.get("/internal/online")
+async def internal_online(uid: str):
+    """На связи ли человек — присутствие живёт в Postgres с 14.08.2026.
+    Спрашивает apns_push.js, чтобы не слать пуш тому, у кого открыт экран."""
+    online = await _online_uids([uid]) if uid else set()
+    return {"online": uid in online}
 
 
 @app.get("/internal/profiles")
@@ -883,7 +1003,7 @@ async def list_records(col: str, request: Request):
         return _err(429, "Try again later.")
     if auth is None:
         return _err(401, "The request requires valid record authorization token.")
-    _, groups = auth
+    uid, groups = auth
 
     q = request.query_params
     try:
@@ -905,16 +1025,30 @@ async def list_records(col: str, request: Request):
         where.append(f"{field} {op} ${len(args)}")
         if field == "group_id" and op == "=":
             filtered_group = val
-    # listRule PB: видны только группы из своего group_ids. Чужая группа в
-    # фильтре -> пустой список, фильтр без группы -> ограничение своими.
-    if filtered_group is not None:
+    # listRule PB. По умолчанию — «только свои группы»; у presence правило
+    # мягче (любой залогиненный), у геопозиции ключ не группа, а канал.
+    scope = meta.get("scope", "group")
+    empty = {
+        "page": page, "perPage": per_page,
+        "totalItems": -1 if skip_total else 0,
+        "totalPages": -1 if skip_total else 0,
+        "items": [],
+    }
+    if scope == "authed":
+        pass  # ограничений нет
+    elif scope == "channel":
+        chan = next((v for f, op, v in conds if f == "channel" and op == "="), None)
+        if chan is not None:
+            if uid not in str(chan) and str(chan) not in groups:
+                return empty
+        else:
+            # без явного канала отдаём только свои: личные плюс парные
+            args.append(list(groups))
+            where.append(f"(channel LIKE '%' || ${len(args) + 1} || '%' OR channel = ANY(${len(args)}))")
+            args.append(uid)
+    elif filtered_group is not None:
         if filtered_group not in groups:
-            return {
-                "page": page, "perPage": per_page,
-                "totalItems": -1 if skip_total else 0,
-                "totalPages": -1 if skip_total else 0,
-                "items": [],
-            }
+            return empty
     else:
         args.append(list(groups))
         where.append(f"group_id = ANY(${len(args)})")
@@ -972,10 +1106,15 @@ async def create_record(col: str, request: Request):
     except Exception:
         return _err(400, "Failed to create record.")
 
-    gid = str(body.get("group_id") or "")
-    if gid not in groups:
-        # createRule не прошёл — PB в этом случае тоже отвечает 400.
-        return _err(400, "Failed to create record.")
+    scope = meta.get("scope", "group")
+    if scope == "group":
+        if str(body.get("group_id") or "") not in groups:
+            # createRule не прошёл — PB в этом случае тоже отвечает 400.
+            return _err(400, "Failed to create record.")
+    elif scope == "channel":
+        chan = str(body.get("channel") or "")
+        if uid not in chan and chan not in groups:
+            return _err(400, "Failed to create record.")
     owner_field = meta.get("create_owner_field")
     if owner_field and str(body.get(owner_field) or "") != uid:
         # У memories и widget_data createRule требует авторства записи.
@@ -1077,10 +1216,16 @@ async def update_record(col: str, rid: str, request: Request):
             args.append(str(v) if v is not None else "")
         sets.append(f"{field} = ${len(args)}")
     args.append(rid)
-    args.append(list(groups))
+    owner_upd = meta.get("update_owner_field")
+    if owner_upd:
+        args.append(uid)
+        cond = f"{owner_upd} = ${len(args)}"
+    else:
+        args.append(list(groups))
+        cond = f"group_id = ANY(${len(args)})"
     sql = (
         f"UPDATE {col} SET {', '.join(sets) or 'id = id'} "
-        f"WHERE id = ${len(args) - 1} AND group_id = ANY(${len(args)}) RETURNING *"
+        f"WHERE id = ${len(args) - 1} AND {cond} RETURNING *"
     )
     async with pg.acquire() as c:
         row = await c.fetchrow(sql, *args)
@@ -1109,11 +1254,15 @@ async def delete_record(col: str, rid: str, request: Request):
             author = await c.fetchval(f"SELECT user_uid FROM {col} WHERE id = $1", rid)
         if author and author != uid:
             return _err(403, "only the author can delete this message")
+    owner_del = meta.get("update_owner_field")
     async with pg.acquire() as c:
-        row = await c.fetchrow(
-            f"DELETE FROM {col} WHERE id = $1 AND group_id = ANY($2) RETURNING *",
-            rid, list(groups),
-        )
+        if owner_del:
+            row = await c.fetchrow(
+                f"DELETE FROM {col} WHERE id = $1 AND {owner_del} = $2 RETURNING *", rid, uid)
+        else:
+            row = await c.fetchrow(
+                f"DELETE FROM {col} WHERE id = $1 AND group_id = ANY($2) RETURNING *",
+                rid, list(groups))
     if row is None:
         return _err(404, "The requested resource wasn't found.")
     rec = _record_json(col, row)
@@ -1143,6 +1292,7 @@ async def _startup():
         ).fetchone()[0]
     )["authToken"]["secret"]
     asyncio.get_running_loop().create_task(_counter_worker())
+    asyncio.get_running_loop().create_task(_presence_mirror_worker())
 
 
 @app.on_event("shutdown")
