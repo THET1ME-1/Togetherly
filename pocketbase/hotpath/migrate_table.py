@@ -33,6 +33,12 @@ TABLES = {
         "updated": "auto", "text_color": "num", "voice_url": "text",
         "voice_ms": "num", "voice_peaks": "text", "voice_heard_at": "num",
     },
+    "canvas_meta": {
+        "bg_color": "num", "canvas_id": "text", "canvas_rotation": "num",
+        "clear_version": "num", "group_id": "text", "updated_at": "text",
+        "coloring_id": "text", "coloring_mode": "text",
+        "coloring_done": "json", "coloring_swap": "bool",
+    },
     "mood_entries": {
         "group_id": "text", "image_path": "text", "label": "text",
         "mood_id": "text", "timestamp": "text", "user_uid": "text",

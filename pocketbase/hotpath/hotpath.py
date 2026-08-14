@@ -99,6 +99,22 @@ COLLECTIONS = {
         "after_delete": "chat",
         "default_sort": "id ASC",
     },
+    "canvas_meta": {
+        "collection_id": os.environ.get("CID_CANVAS_META", "pbc_2121884867"),
+        "columns": {
+            "bg_color": "num", "canvas_id": "text", "canvas_rotation": "num",
+            "clear_version": "num", "group_id": "text", "updated_at": "date",
+            "coloring_id": "text", "coloring_mode": "text",
+            "coloring_done": "json", "coloring_swap": "bool",
+        },
+        "sortable": {"updated_at", "id"},
+        "filterable": {"id", "group_id", "canvas_id"},
+        "guard": None,
+        "delete_guard": None,
+        "after_create": None,
+        "after_delete": None,
+        "default_sort": "id ASC",
+    },
     "mood_entries": {
         "collection_id": os.environ.get("CID_MOOD_ENTRIES", "pbc_1148030965"),
         "columns": {
@@ -541,6 +557,8 @@ async def couple_agg(group_id: str):
             return [dict(r) for r in await c.fetch(sql, *a)]
 
         out = {
+            "canvases": await val(
+                "SELECT COUNT(DISTINCT canvas_id) FROM canvas_meta WHERE group_id=$1", group_id),
             "messages": await val(
                 "SELECT COUNT(*) FROM chat_messages WHERE group_id=$1 AND NOT deleted", group_id),
             "moods": await val(
