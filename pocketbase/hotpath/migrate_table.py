@@ -33,6 +33,22 @@ TABLES = {
         "updated": "auto", "text_color": "num", "voice_url": "text",
         "voice_ms": "num", "voice_peaks": "text", "voice_heard_at": "num",
     },
+    "memories": {
+        "author_avatar": "text", "author_name": "text", "author_uid": "text",
+        "created_at": "text", "data": "json", "deleted": "bool",
+        "edited_at": "text", "group_id": "text", "is_pinned": "bool",
+        "type": "text", "updated": "auto", "tz": "text", "added_at": "text",
+    },
+    "widget_data": {
+        "avatar_url": "text", "data": "json", "display_name": "text",
+        "gender": "text", "group_id": "text", "message": "text",
+        "mood_emoji": "text", "mood_label": "text", "music_artist": "text",
+        "music_cover_url": "text", "music_title": "text", "music_url": "text",
+        "photo_for_partner_url": "text", "photo_for_partner_urls": "json",
+        "photo_grid_count": "num", "photo_grid_urls": "json",
+        "photo_url": "text", "status": "text", "updated_at": "text",
+        "user_uid": "text", "updated": "auto", "plus": "bool",
+    },
     "canvas_meta": {
         "bg_color": "num", "canvas_id": "text", "canvas_rotation": "num",
         "clear_version": "num", "group_id": "text", "updated_at": "text",

@@ -74,6 +74,7 @@ COLLECTIONS = {
         },
         "sortable": {"order_index", "id"},
         "filterable": {"id", "group_id", "canvas_id", "deleted"},
+        "create_owner_field": None,
         "guard": None,
         "delete_guard": None,
         "after_create": None,
@@ -93,10 +94,50 @@ COLLECTIONS = {
         },
         "sortable": {"ts", "updated", "id"},
         "filterable": {"id", "group_id", "user_uid", "deleted", "ts", "updated"},
+        "create_owner_field": None,
         "guard": "chat",
         "delete_guard": "author",
         "after_create": "chat",
         "after_delete": "chat",
+        "default_sort": "id ASC",
+    },
+    "memories": {
+        "collection_id": os.environ.get("CID_MEMORIES", "pbc_1337100956"),
+        "columns": {
+            "author_avatar": "text", "author_name": "text", "author_uid": "text",
+            "created_at": "date", "data": "json", "deleted": "bool",
+            "edited_at": "date", "group_id": "text", "is_pinned": "bool",
+            "type": "text", "updated": "auto", "tz": "text", "added_at": "date",
+        },
+        "sortable": {"created_at", "updated", "added_at", "id"},
+        "filterable": {"id", "group_id", "author_uid", "deleted", "type",
+                       "created_at", "updated", "is_pinned"},
+        "create_owner_field": "author_uid",   # createRule: автор — только сам
+        "guard": None,
+        "delete_guard": None,
+        "after_create": "memory",
+        "after_delete": "memory",
+        "default_sort": "id ASC",
+    },
+    "widget_data": {
+        "collection_id": os.environ.get("CID_WIDGET_DATA", "pbc_3321224104"),
+        "columns": {
+            "avatar_url": "text", "data": "json", "display_name": "text",
+            "gender": "text", "group_id": "text", "message": "text",
+            "mood_emoji": "text", "mood_label": "text", "music_artist": "text",
+            "music_cover_url": "text", "music_title": "text", "music_url": "text",
+            "photo_for_partner_url": "text", "photo_for_partner_urls": "json",
+            "photo_grid_count": "num", "photo_grid_urls": "json",
+            "photo_url": "text", "status": "text", "updated_at": "date",
+            "user_uid": "text", "updated": "auto", "plus": "bool",
+        },
+        "sortable": {"updated", "updated_at", "id"},
+        "filterable": {"id", "group_id", "user_uid", "updated"},
+        "create_owner_field": "user_uid",
+        "guard": None,
+        "delete_guard": None,
+        "after_create": "widget",
+        "after_delete": None,
         "default_sort": "id ASC",
     },
     "canvas_meta": {
@@ -109,6 +150,7 @@ COLLECTIONS = {
         },
         "sortable": {"updated_at", "id"},
         "filterable": {"id", "group_id", "canvas_id"},
+        "create_owner_field": None,
         "guard": None,
         "delete_guard": None,
         "after_create": None,
@@ -124,6 +166,7 @@ COLLECTIONS = {
         },
         "sortable": {"updated", "timestamp", "id"},
         "filterable": {"id", "group_id", "user_uid", "mood_id", "timestamp", "updated"},
+        "create_owner_field": None,
         "guard": None,
         "delete_guard": None,
         "after_create": "mood",
@@ -140,7 +183,7 @@ lite: sqlite3.Connection | None = None      # read-only: auth, группы, pre
 lite_rw: sqlite3.Connection | None = None   # счётчики групп и чистка токенов
 auth_secret = ""
 _lite_lock = asyncio.Lock()
-_counter_deltas: dict[str, int] = {}        # group_id -> набежавшая дельта
+_counter_deltas: dict = {}                 # (group_id, поле) -> дельта
 
 # ── совместимость с PocketBase: время и ошибки ───────────────────────────────
 
@@ -171,6 +214,14 @@ def _jwt_payload(token: str) -> dict:
         return json.loads(base64.urlsafe_b64decode(part))
     except Exception:
         return {}
+
+
+def _user_has_plus(uid: str) -> bool:
+    try:
+        row = lite.execute("SELECT plus FROM users WHERE id = ?", (uid,)).fetchone()
+        return bool(row and row[0])
+    except sqlite3.Error:
+        return False
 
 
 def _lite_user(uid: str) -> tuple[str, frozenset] | None:
@@ -368,11 +419,13 @@ def _push_targets(group_id: str, author_uid: str) -> list[dict]:
             if ms and now_ms - ms < ONLINE_WINDOW_MS:
                 continue  # на связи — баннер нарисует живое приложение
         u = lite.execute(
-            "SELECT apns_token, apns_sandbox, fcm_token FROM users WHERE id = ?", (uid,)
+            "SELECT apns_token, apns_sandbox, fcm_token, apns_bg_ms FROM users WHERE id = ?",
+            (uid,),
         ).fetchone()
         if u is None:
             continue
-        out.append({"uid": uid, "apns": u[0] or "", "sandbox": bool(u[1]), "fcm": u[2] or ""})
+        out.append({"uid": uid, "apns": u[0] or "", "sandbox": bool(u[1]),
+                    "fcm": u[2] or "", "bg_ms": int(u[3] or 0)})
     return out
 
 
@@ -415,6 +468,60 @@ async def _notify_group(group_id: str, author_uid: str, title: str, body: str, t
                 log.warning("fcm %s: %s", t["uid"], e)
 
 
+MIN_WAKE_GAP_MS = 15 * 60 * 1000
+
+
+def _mark_woke(uid: str, now_ms: int) -> None:
+    try:
+        lite_rw.execute("UPDATE users SET apns_bg_ms = ? WHERE id = ?", (now_ms, uid))
+        lite_rw.commit()
+    except sqlite3.Error:
+        pass  # отметка не критична: в худшем случае разбудим раньше
+
+
+async def _wake_group(group_id: str, author_uid: str, kind: str = "widgets") -> None:
+    """Тихий пуш «проснись и обнови виджеты» — перенос wakeGroup/wakeUp из
+    apns_push.js. Apple лимитирует такие пуши, поэтому будим не чаще раза в
+    15 минут на устройство и только тех, кто сейчас не на связи."""
+    try:
+        targets = await asyncio.to_thread(_push_targets, group_id, author_uid)
+    except Exception as e:
+        log.warning("wake targets %s: %s", group_id, e)
+        return
+    now_ms = int(time.time() * 1000)
+    for t in targets:
+        if not t["apns"] and not t["fcm"]:
+            continue
+        if t["bg_ms"] and now_ms - t["bg_ms"] < MIN_WAKE_GAP_MS:
+            continue
+        woke = False
+        if t["apns"]:
+            try:
+                r = await push_client.post(APNS_RELAY, json={
+                    "token": t["apns"], "silent": True,
+                    "sandbox": t["sandbox"], "data": {"kind": kind}})
+                a = r.json() or {}
+                if a.get("gone"):
+                    await asyncio.to_thread(_forget_token, t["uid"], "apns_token")
+                elif a.get("ok"):
+                    woke = True
+            except Exception as e:
+                log.warning("apns wake %s: %s", t["uid"], e)
+        if t["fcm"]:
+            try:
+                r = await push_client.post(FCM_RELAY, json={
+                    "token": t["fcm"], "silent": True, "data": {"kind": kind}})
+                a = r.json() or {}
+                if a.get("gone"):
+                    await asyncio.to_thread(_forget_token, t["uid"], "fcm_token")
+                elif a.get("ok"):
+                    woke = True
+            except Exception as e:
+                log.warning("fcm wake %s: %s", t["uid"], e)
+        if woke:
+            await asyncio.to_thread(_mark_woke, t["uid"], now_ms)
+
+
 def _chat_push_text(rec: dict) -> str:
     text = (rec.get("text") or "").strip()
     if text:
@@ -430,6 +537,15 @@ async def _after_create(col: str, rec: dict) -> None:
             await _notify_group(
                 rec.get("group_id") or "", rec.get("user_uid") or "",
                 (rec.get("user_name") or "Партнёр"), _chat_push_text(rec), "chat")
+    elif kind == "memory":
+        if not rec.get("deleted"):
+            _count(rec.get("group_id") or "", +1, field="memories_count")
+            await _notify_group(
+                rec.get("group_id") or "", rec.get("author_uid") or "",
+                (rec.get("author_name") or "Партнёр"), "Добавил воспоминание", "memory")
+    elif kind == "widget":
+        # Тихий пуш «обнови виджеты» — как wakeGroup в apns_push.js.
+        await _wake_group(rec.get("group_id") or "", rec.get("user_uid") or "")
     elif kind == "mood":
         label = (rec.get("label") or "").strip()
         await _notify_group(
@@ -439,26 +555,30 @@ async def _after_create(col: str, rec: dict) -> None:
 
 
 def _after_delete(col: str, rec: dict) -> None:
-    if COLLECTIONS[col]["after_delete"] == "chat":
+    kind = COLLECTIONS[col]["after_delete"]
+    if kind == "chat":
         _count(rec.get("group_id") or "", -1)
+    elif kind == "memory":
+        _count(rec.get("group_id") or "", -1, field="memories_count")
 
 
 # ── счётчик групп: батч-воркер поверх SQLite PB ──────────────────────────────
 
 
-def _count(group_id: str, delta: int) -> None:
+def _count(group_id: str, delta: int, field: str = "messages_count") -> None:
     if group_id:
-        _counter_deltas[group_id] = _counter_deltas.get(group_id, 0) + delta
+        key = (group_id, field)
+        _counter_deltas[key] = _counter_deltas.get(key, 0) + delta
 
 
-def _flush_counters_sync(deltas: dict[str, int]) -> None:
+def _flush_counters_sync(deltas: dict) -> None:
     # BEGIN IMMEDIATE: наша транзакция только пишет, деферред-снапшот ей не
     # нужен, а мгновенный захват замка сводит окно к миллисекундам.
     lite_rw.execute("BEGIN IMMEDIATE")
     try:
-        for gid, d in deltas.items():
+        for (gid, field), d in deltas.items():
             lite_rw.execute(
-                "UPDATE groups SET messages_count = MAX(0, COALESCE(messages_count, 0) + ?) "
+                f"UPDATE groups SET {field} = MAX(0, COALESCE({field}, 0) + ?) "
                 "WHERE id = ?", (d, gid),
             )
         lite_rw.commit()
@@ -486,8 +606,8 @@ async def _counter_worker() -> None:
             await asyncio.to_thread(_flush_counters_sync, batch)
         except sqlite3.Error as e:
             log.warning("counters отложены (%s)", e)
-            for gid, d in batch.items():  # вернуть в очередь
-                _counter_deltas[gid] = _counter_deltas.get(gid, 0) + d
+            for key, d in batch.items():  # вернуть в очередь
+                _counter_deltas[key] = _counter_deltas.get(key, 0) + d
 
 
 # ── маршруты ─────────────────────────────────────────────────────────────────
@@ -540,6 +660,104 @@ _MOOD_LOCAL = (
 _UTC_NOW = "(now() at time zone 'utc')"
 
 
+@app.post("/internal/record")
+async def internal_record(request: Request):
+    """Серверная запись без токена: для хуков PB, которые сами кладут записи
+    в вынесенные коллекции (салют из gifts.pb.js создаёт воспоминание).
+    Наружу закрыто — Caddy сюда не маршрутизирует, слушаем только петлю."""
+    try:
+        body = await request.json()
+        col = str(body.pop("collection", ""))
+        assert col in COLLECTIONS
+    except Exception:
+        return _err(400, "Failed to create record.")
+    meta = COLLECTIONS[col]
+    rid = str(body.get("id") or "") or _new_id()
+    cols, vals = ["id"], [rid]
+    for field, kind in meta["columns"].items():
+        v = body.get(field)
+        cols.append(field)
+        if kind == "auto":
+            vals.append(now_pb())
+        elif kind == "json":
+            vals.append(json.dumps(v) if not isinstance(v, (str, type(None))) else v)
+        elif kind == "num":
+            vals.append(float(v or 0))
+        elif kind == "bool":
+            vals.append(bool(v))
+        elif kind == "date":
+            vals.append(str(v).replace("T", " ") if v else "")
+        else:
+            vals.append(str(v) if v is not None else "")
+    ph = ", ".join(f"${i + 1}" for i in range(len(vals)))
+    async with pg.acquire() as c:
+        try:
+            row = await c.fetchrow(
+                f"INSERT INTO {col} ({', '.join(cols)}) VALUES ({ph}) RETURNING *", *vals)
+        except asyncpg.UniqueViolationError:
+            return _err(400, "Failed to create record.", {
+                "id": {"code": "validation_not_unique", "message": "Value must be unique."}})
+    rec = _record_json(col, row)
+    asyncio.get_running_loop().create_task(_publish(col, "create", rec))
+    asyncio.get_running_loop().create_task(_after_create(col, rec))
+    return rec
+
+
+@app.get("/internal/profiles")
+async def internal_profiles(group_ids: str = "", limit: int = 60, offset: int = 0):
+    """Лента профилей для админки (`/modapi/pb-profiles` в moderation.pb.js).
+
+    Фильтр по группам приходит уже развёрнутым списком: разворачивать огрызок id
+    по таблице groups остаётся на стороне PB — она живёт в SQLite."""
+    limit = max(1, min(200, limit))
+    offset = max(0, offset)
+    gids = [g for g in group_ids.split(",") if g]
+    async with pg.acquire() as c:
+        if group_ids and not gids:
+            return {"items": [], "total": 0}
+        where, args = "TRUE", []
+        if gids:
+            args.append(gids)
+            where = "group_id = ANY($1)"
+        rows = await c.fetch(
+            "SELECT group_id, user_uid, display_name, status, message, mood_label, "
+            f"music_title, music_artist, avatar_url, updated FROM widget_data WHERE {where} "
+            f"ORDER BY updated DESC LIMIT {limit} OFFSET {offset}", *args)
+        total = await c.fetchval(f"SELECT COUNT(*) FROM widget_data WHERE {where}", *args)
+    return {"items": [dict(r) for r in rows], "total": total}
+
+
+@app.get("/internal/product-stats")
+async def internal_product_stats():
+    """Продуктовые срезы по вынесенным коллекциям — для insights_aggregate.py."""
+    async with pg.acquire() as c:
+        async def val(sql):
+            return await c.fetchval(sql) or 0
+        moods = await c.fetch(
+            "SELECT mood_label AS k, COUNT(*)::int AS c FROM widget_data "
+            "WHERE mood_label <> '' GROUP BY 1 ORDER BY c DESC LIMIT 30")
+        return {
+            "memory_authors": await val(
+                "SELECT COUNT(DISTINCT author_uid) FROM memories WHERE NOT deleted"),
+            "memories_rows": await val("SELECT COUNT(*) FROM memories"),
+            "memories_groups": await val(
+                "SELECT COUNT(DISTINCT group_id) FROM memories WHERE NOT deleted"),
+            "widget_rows": await val("SELECT COUNT(*) FROM widget_data"),
+            "widget_groups": await val("SELECT COUNT(DISTINCT group_id) FROM widget_data"),
+            "widget_with_photo": await val(
+                "SELECT COUNT(*) FROM widget_data WHERE photo_url <> ''"),
+            "widget_with_message": await val(
+                "SELECT COUNT(*) FROM widget_data WHERE message <> ''"),
+            "widget_with_music": await val(
+                "SELECT COUNT(*) FROM widget_data WHERE music_title <> ''"),
+            "widget_with_mood": await val(
+                "SELECT COUNT(*) FROM widget_data WHERE mood_label <> ''"),
+            "widget_with_status": await val(
+                "SELECT COUNT(*) FROM widget_data WHERE status <> ''"),
+            "mood_labels": [dict(r) for r in moods],
+        }
+
+
 @app.get("/internal/couple-agg")
 async def couple_agg(group_id: str):
     """Агрегаты чата и настроений для couple_stats.pb.js — одним ответом.
@@ -557,6 +775,34 @@ async def couple_agg(group_id: str):
             return [dict(r) for r in await c.fetch(sql, *a)]
 
         out = {
+            "memories_total": await val(
+                "SELECT COUNT(*) FROM memories WHERE group_id=$1 AND NOT deleted", group_id),
+            "by_member_memories": await rows(
+                "SELECT author_uid AS uid, COUNT(*)::int AS c FROM memories "
+                "WHERE group_id=$1 AND NOT deleted GROUP BY 1", group_id),
+            "timeline_memories": await rows(
+                "SELECT substr(created_at,1,7) AS m, COUNT(*)::int AS c FROM memories "
+                "WHERE group_id=$1 AND NOT deleted "
+                f"AND replace(replace(created_at,'T',' '),'Z','')::timestamp >= {_UTC_NOW} - interval '12 months' "
+                "GROUP BY 1 ORDER BY 1", group_id),
+            "weekday_memories": await rows(
+                "SELECT extract(dow from replace(replace(created_at,'T',' '),'Z','')::timestamp)::int AS d, "
+                "COUNT(*)::int AS c FROM memories WHERE group_id=$1 AND NOT deleted "
+                "AND created_at ~ '^\\d{4}-\\d{2}-\\d{2}' GROUP BY 1", group_id),
+            "memory_types": await rows(
+                "SELECT COALESCE(type,'') AS k, COUNT(*)::int AS c FROM memories "
+                "WHERE group_id=$1 AND NOT deleted GROUP BY 1 ORDER BY c DESC", group_id),
+            "memories30": await val(
+                "SELECT COUNT(*) FROM memories WHERE group_id=$1 AND NOT deleted "
+                f"AND replace(replace(created_at,'T',' '),'Z','')::timestamp >= {_UTC_NOW} - interval '30 days'",
+                group_id),
+            "memories90": await val(
+                "SELECT COUNT(*) FROM memories WHERE group_id=$1 AND NOT deleted "
+                f"AND replace(replace(created_at,'T',' '),'Z','')::timestamp >= {_UTC_NOW} - interval '90 days'",
+                group_id),
+            "first_memory": await val(
+                "SELECT MIN(created_at) FROM memories WHERE group_id=$1 AND NOT deleted",
+                group_id) or "",
             "canvases": await val(
                 "SELECT COUNT(DISTINCT canvas_id) FROM canvas_meta WHERE group_id=$1", group_id),
             "messages": await val(
@@ -603,6 +849,17 @@ async def couple_agg(group_id: str):
             "moods30": await val(
                 f"SELECT COUNT(*) FROM mood_entries WHERE group_id=$1 AND {_TS_OK} "
                 f"AND {_TS_UTC} >= {_UTC_NOW} - interval '30 days'", group_id),
+            "active_days30_count": await val(
+                "SELECT COUNT(DISTINCT d) FROM ("
+                "  SELECT to_char(to_timestamp(ts/1000) at time zone 'utc','YYYY-MM-DD') AS d "
+                "  FROM chat_messages WHERE group_id=$1 AND NOT deleted "
+                "  AND ts >= (extract(epoch from now()) - 2592000)*1000 "
+                f" UNION SELECT to_char({ml},'YYYY-MM-DD') FROM mood_entries "
+                f" WHERE group_id=$1 AND {_TS_OK} AND {_TS_UTC} >= {_UTC_NOW} - interval '30 days' "
+                "  UNION SELECT substr(created_at,1,10) FROM memories "
+                "  WHERE group_id=$1 AND NOT deleted "
+                f" AND replace(replace(created_at,'T',' '),'Z','')::timestamp >= {_UTC_NOW} - interval '30 days'"
+                ") q", group_id),
             "active_days30": [r["d"] for r in await rows(
                 "SELECT DISTINCT to_char(to_timestamp(ts/1000) at time zone 'utc','YYYY-MM-DD') AS d "
                 "FROM chat_messages WHERE group_id=$1 AND NOT deleted "
@@ -707,7 +964,7 @@ async def create_record(col: str, request: Request):
         return _err(429, "Try again later.")
     if auth is None:
         return _err(401, "The request requires valid record authorization token.")
-    _, groups = auth
+    uid, groups = auth
 
     try:
         body = await request.json()
@@ -719,8 +976,16 @@ async def create_record(col: str, request: Request):
     if gid not in groups:
         # createRule не прошёл — PB в этом случае тоже отвечает 400.
         return _err(400, "Failed to create record.")
+    owner_field = meta.get("create_owner_field")
+    if owner_field and str(body.get(owner_field) or "") != uid:
+        # У memories и widget_data createRule требует авторства записи.
+        return _err(400, "Failed to create record.")
 
     rid = str(body.get("id") or "") or _new_id()
+    if col == "widget_data":
+        # widget_plus.pb.js: значок Togetherly+ на карточке ставит СЕРВЕР,
+        # иначе его можно приписать себе голым API.
+        body["plus"] = await asyncio.to_thread(_user_has_plus, uid)
     cols, vals = ["id"], [rid]
     for field, kind in meta["columns"].items():
         if kind == "auto":
@@ -789,6 +1054,8 @@ async def update_record(col: str, rid: str, request: Request):
                 if f not in ("reactions", "voice_heard_at", "id"):
                     return _err(403, "only the author can edit this message")
 
+    if col == "widget_data" and "plus" in body:
+        body["plus"] = await asyncio.to_thread(_user_has_plus, uid)
     sets, args = [], []
     for field, kind in meta["columns"].items():
         if kind == "auto":
