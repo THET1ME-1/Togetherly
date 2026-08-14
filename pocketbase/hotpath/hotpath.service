@@ -1,0 +1,15 @@
+# Togetherly hotpath — PB-совместимый API горячих коллекций поверх Postgres.
+# Лежит в /etc/systemd/system/hotpath.service, окружение в /opt/hotpath/env (600).
+[Unit]
+Description=Togetherly hotpath (hot collections -> Postgres)
+After=network.target docker.service
+
+[Service]
+EnvironmentFile=/opt/hotpath/env
+ExecStart=/opt/hotpath/venv/bin/python /opt/hotpath/hotpath.py
+Restart=always
+RestartSec=2
+User=root
+
+[Install]
+WantedBy=multi-user.target
