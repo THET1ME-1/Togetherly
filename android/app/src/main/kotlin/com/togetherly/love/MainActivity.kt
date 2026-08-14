@@ -180,6 +180,36 @@ class MainActivity : FlutterActivity() {
                     }
                 }
 
+                // Стереть всё, что виджеты знают о прошлом человеке.
+                //
+                // Данные виджетов лежат в общем хранилище устройства
+                // (HomeWidgetPreferences), а не внутри аккаунта, и привязки
+                // «этот виджет — эта пара» тоже. У человека с двумя аккаунтами
+                // виджет свежей пары показал фото из прежней: «почему на
+                // аккаунте где Настя не присылала ни одного фото, стоит фотка
+                // Вики из совсем другого аккаунта» (14.08.2026). После очистки
+                // рассылаем обновление всем провайдерам, чтобы на столе не
+                // осталось нарисованного кадра.
+                "wipeWidgetData" -> {
+                    getSharedPreferences("HomeWidgetPreferences", Context.MODE_PRIVATE)
+                        .edit().clear().apply()
+                    val awm = AppWidgetManager.getInstance(this)
+                    awm.installedProviders
+                        .filter { it.provider.packageName == packageName }
+                        .forEach { info ->
+                            val ids = awm.getAppWidgetIds(info.provider)
+                            if (ids.isNotEmpty()) {
+                                sendBroadcast(
+                                    Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE).apply {
+                                        component = info.provider
+                                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+                                    }
+                                )
+                            }
+                        }
+                    result.success(true)
+                }
+
                 else -> result.notImplemented()
             }
         }

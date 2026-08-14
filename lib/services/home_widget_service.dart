@@ -100,6 +100,46 @@ class HomeWidgetService {
   String get cachedMyGender => _cachedMyGender;
   String get cachedPartnerGender => _cachedPartnerGender;
 
+  /// Ключ владельца данных виджетов в настройках приложения.
+  static const _widgetOwnerKey = 'widget_data_owner_uid';
+
+  /// Стереть всё, что виджеты знают: значения, привязки к парам, картинки.
+  ///
+  /// Хранилище виджетов общее для устройства, а не для аккаунта: и
+  /// `HomeWidgetPreferences` на Android, и контейнер App Group на iOS живут
+  /// сами по себе. Без очистки виджет новой пары показывает прежнюю.
+  Future<void> wipeWidgetData() async {
+    try {
+      if (Platform.isAndroid) {
+        await _widgetChannel.invokeMethod('wipeWidgetData');
+      } else if (Platform.isIOS) {
+        await _iosMediaChannel.invokeMethod('wipeWidgetData');
+      }
+    } catch (e) {
+      debugPrint('HomeWidgetService.wipeWidgetData: не вышло — $e');
+    }
+    _cachedMyGender = '';
+    _cachedPartnerGender = '';
+    invalidateWidgetDataCache();
+  }
+
+  /// Привязывает данные виджетов к владельцу [uid]; сменился человек — стираем.
+  ///
+  /// Тот же приём, что у офлайн-кэша (`LocalStore.ensureOwner`). Ловит и явный
+  /// выход, и «тихую» смену аккаунта. Жалоба 14.08.2026: у человека два
+  /// аккаунта на одном телефоне, и виджет пары с Настей показал фото Вики из
+  /// другого аккаунта — данные прежнего владельца остались лежать на месте.
+  Future<void> ensureOwner(String? uid) async {
+    if (uid == null || uid.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    final previous = prefs.getString(_widgetOwnerKey);
+    if (previous != null && previous != uid) {
+      debugPrint('HomeWidgetService.ensureOwner: сменился человек, стираем виджеты');
+      await wipeWidgetData();
+    }
+    await prefs.setString(_widgetOwnerKey, uid);
+  }
+
   /// Сбросить кэш widget-данных (вызывать когда заведомо знаем, что фото поменялось).
   void invalidateWidgetDataCache() {
     _partnerDataCache.clear();

@@ -1,6 +1,7 @@
 import Flutter
 import UIKit
 import UserNotifications
+import WidgetKit
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
@@ -234,11 +235,37 @@ import UserNotifications
         let prefix = (call.arguments as? [String: Any])?["prefix"] as? String ?? ""
         self?.clearAppGroupMedia(prefix: prefix)
         result(nil)
+      // Стереть всё, что виджеты знают о прошлом человеке: и значения, и
+      // картинки. Общий контейнер App Group живёт на устройстве, а не внутри
+      // аккаунта, поэтому у человека с двумя аккаунтами виджет свежей пары
+      // показывал фото из прежней (жалоба 14.08.2026).
+      case "wipeWidgetData":
+        self?.wipeWidgetData()
+        result(true)
       default:
         result(FlutterMethodNotImplemented)
       }
     }
     widgetMediaChannel = channel
+  }
+
+  /// Полная очистка данных виджетов в App Group: значения и файлы.
+  ///
+  /// Ключи расширений пишет пакет home_widget в общий `UserDefaults`, а
+  /// картинки лежат в каталоге `widget_media`. При смене аккаунта нужно убрать
+  /// и то, и другое, иначе виджет рисует прежнюю пару. Таймлайны просим
+  /// перечитать, чтобы на экране не осталось нарисованного кадра.
+  private func wipeWidgetData() {
+    if let defaults = UserDefaults(suiteName: AppDelegate.appGroupId) {
+      for key in defaults.dictionaryRepresentation().keys {
+        defaults.removeObject(forKey: key)
+      }
+      defaults.synchronize()
+    }
+    clearAppGroupMedia(prefix: "")
+    if #available(iOS 14.0, *) {
+      WidgetCenter.shared.reloadAllTimelines()
+    }
   }
 
   /// Каталог `widget_media` внутри контейнера App Group (создаёт при отсутствии).

@@ -11,6 +11,8 @@ import 'package:pocketbase/pocketbase.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../utils/auth_failure.dart';
+import 'home_widget_service.dart';
 import 'pocketbase_service.dart';
 
 /// Аутентификация через PocketBase (миграция Firebase→PB, Этап 6, слой Auth).
@@ -51,15 +53,46 @@ class PbAuthService {
     // если запрос повисал без таймаута, спиннер регистрации крутился вечно.
     // По таймауту бросаем → экран входа покажет ошибку (а не вечный спиннер).
     const netTimeout = Duration(seconds: 20);
+    // Создание аккаунта тяжелее входа: сервер пишет запись и прогоняет свои
+    // обработчики. В вечер 14.08.2026, когда людей набежало тридцать в минуту,
+    // ответ шёл по двадцать пять секунд — клиент сдавался на двадцатой, а
+    // аккаунт при этом создавался. Человек видел «Сервер не отвечает», жал
+    // ещё раз и получал «почта занята»: 408 таких обрывов за десять минут.
+    const createTimeout = Duration(seconds: 45);
     try {
-      await _pb.collection(_usersCol).create(body: {
-        'email': email,
-        'password': password,
-        'passwordConfirm': password,
-        'name': displayName,
-        'display_name': displayName,
-        'emailVisibility': true,
-      }).timeout(netTimeout);
+      try {
+        await _pb.collection(_usersCol).create(body: {
+          'email': email,
+          'password': password,
+          'passwordConfirm': password,
+          'name': displayName,
+          'display_name': displayName,
+          'emailVisibility': true,
+        }).timeout(createTimeout);
+      } on TimeoutException {
+        // Ответа не дождались, но запись могла лечь. Проверяем это входом: если
+        // пускает — регистрация состоялась, и пугать человека нечем.
+        debugPrint('PbAuth: создание не ответило вовремя, проверяем входом');
+        await _pb
+            .collection(_usersCol)
+            .authWithPassword(email, password)
+            .timeout(netTimeout);
+        await _ensureProfile(displayName: displayName);
+        return _svc.currentUser;
+      } on ClientException catch (e) {
+        // «Почта занята» сразу после нашей же попытки — почти всегда наш
+        // предыдущий запрос, который доехал до базы, но не вернулся. Пароль тот
+        // же, поэтому пробуем войти; чужой аккаунт с этой почтой вход не пустит,
+        // и человек увидит привычный разговор про занятую почту.
+        if (AuthFailure.of(e) != AuthFailure.emailTaken) rethrow;
+        debugPrint('PbAuth: почта занята, пробуем войти своим же паролем');
+        await _pb
+            .collection(_usersCol)
+            .authWithPassword(email, password)
+            .timeout(netTimeout);
+        await _ensureProfile(displayName: displayName);
+        return _svc.currentUser;
+      }
       // Сразу входим (create не авторизует). Если сервер задумался, пробуем
       // ещё раз: аккаунт уже создан, и терять его из-за одной медленной минуты
       // нельзя — человек получал ошибку и уходил, а почта оставалась занятой.
@@ -365,7 +398,15 @@ class PbAuthService {
     return _svc.isLoggedIn ? _svc.currentUser : null;
   }
 
-  void signOut() => _svc.signOut();
+  /// Выход: рвём сессию и стираем данные виджетов рабочего стола.
+  ///
+  /// Виджеты хранят фото и подписи пары в общем хранилище устройства, и без
+  /// очистки они остаются висеть на столе после смены аккаунта — человек с
+  /// двумя аккаунтами видел в новой паре фото из прежней (14.08.2026).
+  void signOut() {
+    _svc.signOut();
+    unawaited(HomeWidgetService.instance.wipeWidgetData());
+  }
 
   /// Дозаполняет имя/аватар в профиле, если там пусто (id юзер не трогает —
   /// им управляет PocketBase). Патчит только недостающее.
