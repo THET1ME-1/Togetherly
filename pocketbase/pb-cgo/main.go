@@ -19,10 +19,12 @@ import (
 	"net/http"
 	_ "net/http/pprof" // профилировщик на локальном порту, см. ниже
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase"
+	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/plugins/jsvm"
 	"github.com/pocketbase/pocketbase/plugins/migratecmd"
@@ -174,7 +176,18 @@ func main() {
 	})
 
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
-		log.Println("pocketbase-cgo: нативный SQLite (mattn) вместо modernc")
+		// Статика из pb_public: лендинг togetherly.day, страница комнаты
+		// просмотра, политика, страница админки mod-memories.html. Официальная
+		// сборка вешает этот обработчик сама; в своей его надо повторить —
+		// иначе всё это отдаёт 404 (поймано живьём 14.08.2026).
+		publicDir := filepath.Join(filepath.Dir(os.Args[0]), "pb_public")
+		if wd, err := os.Getwd(); err == nil {
+			if _, statErr := os.Stat(publicDir); statErr != nil {
+				publicDir = filepath.Join(wd, "pb_public")
+			}
+		}
+		e.Router.GET("/{path...}", apis.Static(os.DirFS(publicDir), false))
+		log.Println("pocketbase-cgo: нативный SQLite, статика из", publicDir)
 		return e.Next()
 	})
 
