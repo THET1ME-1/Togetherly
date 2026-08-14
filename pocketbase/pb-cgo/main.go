@@ -20,6 +20,8 @@ import (
 	_ "net/http/pprof" // профилировщик на локальном порту, см. ниже
 	"os"
 	"path/filepath"
+	"strconv"
+	"sync"
 	"time"
 
 	"github.com/pocketbase/dbx"
@@ -57,6 +59,17 @@ var rtCollections = map[string]bool{
 }
 
 var centClient = &http.Client{Timeout: 5 * time.Second}
+
+// Сколько соединений отдаём под запись. Переопределяется переменной окружения
+// PB_WRITE_POOL — чтобы менять на живом сервере без пересборки.
+var writePoolSize = func() int {
+	if v := os.Getenv("PB_WRITE_POOL"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return 4
+}()
 
 func centChannels(rec *core.Record) []string {
 	col := rec.Collection().Name
@@ -131,11 +144,27 @@ func centPublish(event string, rec *core.Record) {
 }
 
 func main() {
+	// PocketBase зовёт DBConnect для каждой базы ДВАЖДЫ: сперва для пула чтения,
+	// затем для пула записи (core/base.go, initDataDB). Второму подключению
+	// добавляем `_txlock=immediate`: транзакция сразу берёт замок записи вместо
+	// того, чтобы начаться «мягко» и упереться в чужую при первой же вставке —
+	// именно такие откаты и повторы обваливали пропускную способность записи с
+	// 33 до 2,7 операций в секунду (замер 14.08.2026).
+	connSeen := map[string]int{}
+	var connMu sync.Mutex
+
 	app := pocketbase.NewWithConfig(pocketbase.Config{
 		DBConnect: func(dbPath string) (*dbx.DB, error) {
-			// Те же прагмы, что ставит сам PocketBase для modernc.
 			const params = "?_busy_timeout=10000&_journal_mode=WAL&_journal_size_limit=200000000&_synchronous=NORMAL&_foreign_keys=1&_cache_size=-16000"
-			return dbx.Open("sqlite3", dbPath+params)
+			connMu.Lock()
+			connSeen[dbPath]++
+			isWriter := connSeen[dbPath] == 2
+			connMu.Unlock()
+			dsn := dbPath + params
+			if isWriter {
+				dsn += "&_txlock=immediate"
+			}
+			return dbx.Open("sqlite3", dsn)
 		},
 	})
 
@@ -176,6 +205,21 @@ func main() {
 	})
 
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
+		// Пул записи: PocketBase даёт ему ОДНО соединение, и на нашей нагрузке
+		// этого мало — под вечерним пиком в очереди стояло 3262 запроса при
+		// 11 работающих, а перезапуск лишь смывал очередь на несколько минут.
+		// SQLite в режиме WAL сериализует писателей сам, а `_txlock=immediate`
+		// плюс `busy_timeout` превращают столкновение в ожидание, а не в откат.
+		// NonconcurrentDB отдаётся интерфейсом dbx.Builder — приводим к *dbx.DB,
+		// чтобы добраться до пула соединений.
+		if db, ok := e.App.NonconcurrentDB().(*dbx.DB); ok && db != nil {
+			db.DB().SetMaxOpenConns(writePoolSize)
+			db.DB().SetMaxIdleConns(writePoolSize)
+			log.Println("pocketbase-cgo: соединений записи —", writePoolSize)
+		} else {
+			log.Println("pocketbase-cgo: пул записи не удалось расширить")
+		}
+
 		// Статика из pb_public: лендинг togetherly.day, страница комнаты
 		// просмотра, политика, страница админки mod-memories.html. Официальная
 		// сборка вешает этот обработчик сама; в своей его надо повторить —
