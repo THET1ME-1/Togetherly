@@ -1,0 +1,80 @@
+name: iOS → статус заявки в App Store
+
+# Зачем: узнать, где сейчас версия, не открывая App Store Connect. Ключи
+# издателя живут только в секретах репозитория, поэтому с ноутбука статус не
+# посмотреть — а знать его нужно каждый раз, когда ждёшь выката (ночь на
+# 14 августа 2026: виджеты на iPhone не появятся, пока Apple не одобрит).
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Версия (пусто — покажет все свежие)'
+        required: false
+        default: ''
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    env:
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_KEY_IDENTIFIER: ${{ secrets.APP_STORE_CONNECT_KEY_IDENTIFIER }}
+      APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+      APP_STORE_APP_ID: ${{ secrets.APP_STORE_APP_ID || '6781019737' }}
+      WANTED: ${{ inputs.version }}
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install codemagic-cli-tools
+        run: pip install --quiet codemagic-cli-tools
+
+      - name: Показать статус версий
+        run: |
+          set -euo pipefail
+          echo "Приложение: $APP_STORE_APP_ID"
+          echo
+          app-store-connect app-store-versions list "$APP_STORE_APP_ID" --json > /tmp/versions.json || {
+            echo "не удалось получить список версий"; exit 1
+          }
+          python3 - <<'PY'
+          import json
+          import os
+
+          wanted = (os.environ.get("WANTED") or "").strip()
+          data = json.load(open("/tmp/versions.json"))
+          rows = []
+          for v in data:
+              attrs = v.get("attributes", v)
+              name = str(attrs.get("versionString", "?"))
+              state = str(attrs.get("appStoreState", attrs.get("state", "?")))
+              created = str(attrs.get("createdDate", ""))[:19]
+              if wanted and name != wanted:
+                  continue
+              rows.append((name, state, created))
+
+          if not rows:
+              print("версий не нашлось" + (" для " + wanted if wanted else ""))
+          else:
+              print("%-12s %-32s %s" % ("версия", "состояние", "заведена"))
+              for name, state, created in rows[:10]:
+                  print("%-12s %-32s %s" % (name, state, created))
+
+          # Расшифровка самых частых состояний — чтобы не лезть в документацию.
+          hints = {
+              "WAITING_FOR_REVIEW": "ждёт очереди на проверку",
+              "IN_REVIEW": "проверяют прямо сейчас",
+              "PENDING_DEVELOPER_RELEASE": "одобрено, ждёт вашей команды на выпуск",
+              "READY_FOR_SALE": "выпущено, доступно людям",
+              "REJECTED": "отклонено, читайте замечания в App Store Connect",
+              "METADATA_REJECTED": "отклонены описание или скриншоты",
+              "DEVELOPER_REJECTED": "заявку сняли вы сами",
+              "PREPARE_FOR_SUBMISSION": "черновик, ещё не отправлена",
+              "PROCESSING_FOR_APP_STORE": "сборка обрабатывается",
+          }
+          print()
+          for _, state, _ in rows[:10]:
+              if state in hints:
+                  print("%s — %s" % (state, hints[state]))
+          PY
