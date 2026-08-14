@@ -37,6 +37,29 @@ class MoodOption {
     return LocaleService.instance.isRussian ? label : (labelEn ?? label);
   }
 
+  /// Подпись с учётом пола того, чьё это настроение.
+  ///
+  /// «Устала» и «Устал» в русском — разные слова, и виджет показывал парню
+  /// женскую форму: «а еще нет разделения по полу… у парня тоже "устала"»
+  /// (14.08.2026). Формы лежат в словаре под ключами вида `ru_m` и `es_f`;
+  /// где их нет — язык рода не различает или слово общее, берётся обычная
+  /// подпись. Пустой [gender] — человек пол не указал, ему тоже общая.
+  String localizedLabelFor(String gender) {
+    final entry = kStrings['mood_$id'];
+    if (entry != null) {
+      final suffix = gender == 'male'
+          ? '_m'
+          : gender == 'female'
+              ? '_f'
+              : '';
+      if (suffix.isNotEmpty) {
+        final form = entry['${LocaleService.instance.language.code}$suffix'];
+        if (form != null && form.isNotEmpty) return form;
+      }
+    }
+    return localizedLabel;
+  }
+
   int get score {
     if (scoreOverride != null) return scoreOverride!;
     switch (id) {

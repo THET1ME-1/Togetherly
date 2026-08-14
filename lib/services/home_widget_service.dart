@@ -95,6 +95,11 @@ class HomeWidgetService {
   String _cachedMyGender = '';
   String _cachedPartnerGender = '';
 
+  /// Последний известный пол — для подписей, которые в русском меняют форму
+  /// («Устал» и «Устала»). Приходит вместе с синхронизацией счётчика дней.
+  String get cachedMyGender => _cachedMyGender;
+  String get cachedPartnerGender => _cachedPartnerGender;
+
   /// Сбросить кэш widget-данных (вызывать когда заведомо знаем, что фото поменялось).
   void invalidateWidgetDataCache() {
     _partnerDataCache.clear();
@@ -266,12 +271,15 @@ class HomeWidgetService {
     await syncMood(
       groupId: groupId,
       moodEmojiAssetPath: myOpt?.imagePath ?? (myWd?.moodEmoji ?? ''),
-      moodLabel: myOpt?.localizedLabel ?? (myWd?.moodLabel ?? ''),
+      // Подпись по полу владельца: у парня «Устал», а не «Устала».
+      moodLabel: myOpt?.localizedLabelFor(myWd?.gender ?? '') ??
+          (myWd?.moodLabel ?? ''),
       moodScore: myOpt?.score ?? 0,
       moodColor: hexOf(myOpt),
       userName: myWd?.displayName ?? '',
       partnerMoodEmojiAssetPath: pOpt?.imagePath ?? (partnerWd?.moodEmoji ?? ''),
-      partnerMoodLabel: pOpt?.localizedLabel ?? (partnerWd?.moodLabel ?? ''),
+      partnerMoodLabel: pOpt?.localizedLabelFor(partnerWd?.gender ?? '') ??
+          (partnerWd?.moodLabel ?? ''),
       partnerMoodScore: pOpt?.score ?? 0,
       partnerMoodColor: hexOf(pOpt),
       partnerUserName: partnerWd?.displayName ?? '',
@@ -1017,6 +1025,23 @@ class HomeWidgetService {
       await HomeWidget.saveWidgetData<String>(
         'timer_${g}_petal_fg',
         petalHex(pt.primary.value),
+      );
+      // Подписи лепестков отдаём готовыми: нативная сторона живёт без Flutter и
+      // до `locale_service` не дотягивается, поэтому «лет / мес / дн / ч / мин /
+      // сек» были зашиты по-русски и оставались русскими даже когда всё
+      // приложение на английском (жалоба 14.08.2026: «некоторые слова + ч, мин
+      // на виджете с лепестком таймером на русском, когда само приложение на
+      // англ»). Порядок фиксированный, разделитель — вертикальная черта.
+      await HomeWidget.saveWidgetData<String>(
+        'timer_${g}_petal_labels',
+        [
+          LocaleService.current.yearsLabel,
+          LocaleService.current.monthsShortLabel,
+          LocaleService.current.daysShortLabel,
+          LocaleService.current.hoursLabel,
+          LocaleService.current.minLabel,
+          LocaleService.current.secLabel,
+        ].join('|'),
       );
       // Save latest group for fallback binding (use 'solo' sentinel for solo mode)
       await HomeWidget.saveWidgetData<String>('timer_latest_group', g);

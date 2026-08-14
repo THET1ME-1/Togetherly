@@ -61,10 +61,15 @@ class PetalTimerWidgetProvider : HomeWidgetProvider() {
                     val fgHex = if (g.isEmpty()) ROMANTIC_FG[0]
                                 else widgetData.getString("timer_${g}_petal_fg", null) ?: ROMANTIC_FG[themeIdx]
 
+                    // Подписи лепестков на языке приложения (см. petalLabels).
+                    val labels = petalLabels(
+                        if (g.isEmpty()) null else widgetData.getString("timer_${g}_petal_labels", null)
+                    )
+
                     val bmpSize = resolveBitmapSize(context)
                     val bmp = Bitmap.createBitmap(bmpSize, bmpSize, Bitmap.Config.ARGB_8888)
                     drawDial(Canvas(bmp), bmpSize.toFloat(), startMs, countdown,
-                             Color.parseColor(bgHex), Color.parseColor(fgHex))
+                             Color.parseColor(bgHex), Color.parseColor(fgHex), labels)
                     setImageViewBitmap(R.id.petal_dial_image, bmp)
                 }
                 appWidgetManager.updateAppWidget(widgetId, views)
@@ -125,22 +130,39 @@ class PetalTimerWidgetProvider : HomeWidgetProvider() {
             if (maxValue > 0) (exact / maxValue).toFloat().coerceIn(0f, 1f) else 0f
     }
 
-    private fun zeroPetals() = listOf(
-        Petal("лет",  0, 100, 0.0),
-        Petal("мес",  0, 12,  0.0),
-        Petal("дн",   0, 30,  0.0),
-        Petal("ч",    0, 24,  0.0),
-        Petal("мин",  0, 60,  0.0),
-        Petal("сек",  0, 60,  0.0),
+    /**
+     * Подписи лепестков приходят из приложения строкой «лет|мес|дн|ч|мин|сек»
+     * (`timer_<группа>_petal_labels`): нативная сторона живёт без Flutter и до
+     * локализации не дотягивается, а зашитые русские слова оставались русскими
+     * даже когда всё приложение на английском. Пустое значение — старые данные
+     * до обновления, тогда работают прежние подписи.
+     */
+    private val RU_LABELS = listOf("лет", "мес", "дн", "ч", "мин", "сек")
+
+    private fun petalLabels(raw: String?): List<String> {
+        val parts = (raw ?: "").split("|")
+        if (parts.size < RU_LABELS.size) return RU_LABELS
+        return parts.mapIndexed { i, s ->
+            s.trim().ifEmpty { RU_LABELS[i] }
+        }
+    }
+
+    private fun zeroPetals(labels: List<String>) = listOf(
+        Petal(labels[0], 0, 100, 0.0),
+        Petal(labels[1], 0, 12,  0.0),
+        Petal(labels[2], 0, 30,  0.0),
+        Petal(labels[3], 0, 24,  0.0),
+        Petal(labels[4], 0, 60,  0.0),
+        Petal(labels[5], 0, 60,  0.0),
     )
 
-    private fun computePetals(startMs: Long, countdown: Boolean): List<Petal> {
-        if (startMs == 0L) return zeroPetals()
+    private fun computePetals(startMs: Long, countdown: Boolean, labels: List<String>): List<Petal> {
+        if (startMs == 0L) return zeroPetals(labels)
 
         val nowMs  = System.currentTimeMillis()
         val fromMs = if (countdown) nowMs   else startMs
         val toMs   = if (countdown) startMs else nowMs
-        if (toMs <= fromMs) return zeroPetals()
+        if (toMs <= fromMs) return zeroPetals(labels)
 
         val from = Calendar.getInstance().apply { timeInMillis = fromMs }
         val to   = Calendar.getInstance().apply { timeInMillis = toMs }
@@ -165,12 +187,12 @@ class PetalTimerWidgetProvider : HomeWidgetProvider() {
         val sI   = (diffMs / 1_000L)     % 60
 
         return listOf(
-            Petal("лет",  years.toLong(),  100, years  + months / 12.0),
-            Petal("мес",  months.toLong(), 12,  months + days   / 30.0),
-            Petal("дн",   days.toLong(),   30,  days   + hI     / 24.0),
-            Petal("ч",    hI,              24,  hI     + minI   / 60.0),
-            Petal("мин",  minI,            60,  minI   + sI     / 60.0),
-            Petal("сек",  sI,              60,  sI.toDouble()),
+            Petal(labels[0], years.toLong(),  100, years  + months / 12.0),
+            Petal(labels[1], months.toLong(), 12,  months + days   / 30.0),
+            Petal(labels[2], days.toLong(),   30,  days   + hI     / 24.0),
+            Petal(labels[3], hI,              24,  hI     + minI   / 60.0),
+            Petal(labels[4], minI,            60,  minI   + sI     / 60.0),
+            Petal(labels[5], sI,              60,  sI.toDouble()),
         )
     }
 
@@ -179,8 +201,9 @@ class PetalTimerWidgetProvider : HomeWidgetProvider() {
     // ─────────────────────────────────────────────────────────────────────────
 
     private fun drawDial(canvas: Canvas, size: Float, startMs: Long, countdown: Boolean,
-                         colorPetalBg: Int, colorPetalFg: Int) {
-        val petals = computePetals(startMs, countdown)
+                         colorPetalBg: Int, colorPetalFg: Int,
+                         labels: List<String> = RU_LABELS) {
+        val petals = computePetals(startMs, countdown, labels)
         val scale  = size / 280f
 
         canvas.translate(size / 2f, size / 2f)

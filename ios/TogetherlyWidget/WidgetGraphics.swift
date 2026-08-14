@@ -229,15 +229,32 @@ struct PetalInfo {
     let factor: CGFloat
 }
 
+/// Подписи лепестков по умолчанию. Приложение присылает свои в
+/// `timer_<группа>_petal_labels` строкой «лет|мес|дн|ч|мин|сек»: расширение
+/// живёт без Flutter и до локализации не дотягивается, а зашитые русские слова
+/// оставались русскими даже когда всё приложение на английском (жалоба
+/// 14.08.2026). Эти значения работают для данных, записанных до обновления.
+let petalFallbackLabels = ["лет", "мес", "дн", "ч", "мин", "сек"]
+
+/// Разбирает строку подписей; неполная или пустая — берём прежние.
+func petalLabels(_ raw: String?) -> [String] {
+    let parts = (raw ?? "").split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+    guard parts.count >= petalFallbackLabels.count else { return petalFallbackLabels }
+    return parts.enumerated().map { i, s in
+        let t = s.trimmingCharacters(in: .whitespaces)
+        return t.isEmpty ? petalFallbackLabels[i] : t
+    }
+}
+
 /// Вычисляет лепестки (порт PetalTimerWidgetProvider.computePetals).
-func computePetals(startMs: Int, countdown: Bool) -> [PetalInfo] {
+func computePetals(startMs: Int, countdown: Bool, labels: [String] = petalFallbackLabels) -> [PetalInfo] {
     let zero = [
-        PetalInfo(value: 0, label: "лет", factor: 0),
-        PetalInfo(value: 0, label: "мес", factor: 0),
-        PetalInfo(value: 0, label: "дн", factor: 0),
-        PetalInfo(value: 0, label: "ч", factor: 0),
-        PetalInfo(value: 0, label: "мин", factor: 0),
-        PetalInfo(value: 0, label: "сек", factor: 0),
+        PetalInfo(value: 0, label: labels[0], factor: 0),
+        PetalInfo(value: 0, label: labels[1], factor: 0),
+        PetalInfo(value: 0, label: labels[2], factor: 0),
+        PetalInfo(value: 0, label: labels[3], factor: 0),
+        PetalInfo(value: 0, label: labels[4], factor: 0),
+        PetalInfo(value: 0, label: labels[5], factor: 0),
     ]
     if startMs == 0 { return zero }
     let nowMs = Int(Date().timeIntervalSince1970 * 1000)
@@ -262,12 +279,12 @@ func computePetals(startMs: Int, countdown: Bool) -> [PetalInfo] {
         maxV > 0 ? CGFloat(min(max(exact / maxV, 0), 1)) : 0
     }
     return [
-        PetalInfo(value: years, label: "лет", factor: f(Double(years) + Double(months) / 12.0, 100)),
-        PetalInfo(value: months, label: "мес", factor: f(Double(months) + Double(days) / 30.0, 12)),
-        PetalInfo(value: days, label: "дн", factor: f(Double(days) + Double(hI) / 24.0, 30)),
-        PetalInfo(value: hI, label: "ч", factor: f(Double(hI) + Double(minI) / 60.0, 24)),
-        PetalInfo(value: minI, label: "мин", factor: f(Double(minI) + Double(sI) / 60.0, 60)),
-        PetalInfo(value: sI, label: "сек", factor: f(Double(sI), 60)),
+        PetalInfo(value: years, label: labels[0], factor: f(Double(years) + Double(months) / 12.0, 100)),
+        PetalInfo(value: months, label: labels[1], factor: f(Double(months) + Double(days) / 30.0, 12)),
+        PetalInfo(value: days, label: labels[2], factor: f(Double(days) + Double(hI) / 24.0, 30)),
+        PetalInfo(value: hI, label: labels[3], factor: f(Double(hI) + Double(minI) / 60.0, 24)),
+        PetalInfo(value: minI, label: labels[4], factor: f(Double(minI) + Double(sI) / 60.0, 60)),
+        PetalInfo(value: sI, label: labels[5], factor: f(Double(sI), 60)),
     ]
 }
 

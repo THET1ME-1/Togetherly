@@ -122,13 +122,18 @@ class CatalogWidgetSync {
 
     await HomeWidgetService.instance.syncMoodTiles(
       groupId: pair.pairId,
+      // Подпись по полу: «Устал» парню, «Устала» девушке.
       myLabel: myToday == null
           ? ''
-          : (MoodOption.byId(myToday.moodId)?.localizedLabel ?? ''),
+          : (MoodOption.byId(myToday.moodId)
+                  ?.localizedLabelFor(HomeWidgetService.instance.cachedMyGender) ??
+              ''),
       myMoodId: myToday?.moodId ?? '',
       partnerLabel: partnerToday == null
           ? ''
-          : (MoodOption.byId(partnerToday.moodId)?.localizedLabel ?? ''),
+          : (MoodOption.byId(partnerToday.moodId)?.localizedLabelFor(
+                  HomeWidgetService.instance.cachedPartnerGender) ??
+              ''),
       partnerName: pair.partnerDisplayName.trim(),
       week: week,
       matchedDays: matched,

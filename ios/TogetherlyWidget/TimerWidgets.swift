@@ -12,6 +12,8 @@ private struct TimerData {
     let startMs: Int
     let isRomantic: Bool
     let themeIndex: Int
+    /// Подписи лепестков на языке приложения: «лет|мес|дн|ч|мин|сек».
+    let petalLabels: [String]
 }
 
 private func loadTimer(pointer: String) -> TimerData {
@@ -24,7 +26,8 @@ private func loadTimer(pointer: String) -> TimerData {
         dateText: s.string("timer_\(g)_date"),
         startMs: s.int("timer_\(g)_start_ms"),
         isRomantic: s.string("timer_\(g)_is_romantic", "1") == "1",
-        themeIndex: s.int("timer_\(g)_petal_theme")
+        themeIndex: s.int("timer_\(g)_petal_theme"),
+        petalLabels: petalLabels(s.string("timer_\(g)_petal_labels"))
     )
 }
 
@@ -125,7 +128,8 @@ struct PetalTimerWidgetView: View {
         let idx = min(max(t.themeIndex, 0), ROMANTIC_BG.count - 1)
         let bg = Color(hex: t.isRomantic ? ROMANTIC_BG[idx] : NEUTRAL_BG)
         let fg = Color(hex: t.isRomantic ? ROMANTIC_FG[idx] : NEUTRAL_FG)
-        let petals = computePetals(startMs: t.startMs, countdown: t.isCountdown)
+        let petals = computePetals(startMs: t.startMs, countdown: t.isCountdown,
+                                   labels: t.petalLabels)
 
         PetalDial(petals: petals, bg: bg, fg: fg)
             .padding(2)
