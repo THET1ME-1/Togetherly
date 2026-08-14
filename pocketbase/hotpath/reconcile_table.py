@@ -46,7 +46,10 @@ META = {
     "chat_typing": ("typing_at", ["group_id", "user_uid"]),
     "chat_reads": ("updated", ["group_id", "user_uid"]),
     "live_location": (None, ["channel", "user_uid"]),
-    "groups": ("updated", ["id"]),
+    # groups здесь НЕТ намеренно. С 15.08.2026 источник правды по паре —
+    # Postgres, и долив SQLite → PG откатил бы там свежие правки. Для пар:
+    # verify_groups.py (сверка по значениям, --only-missing для долива) и
+    # check_membership.py (списки групп людей).
 }
 
 

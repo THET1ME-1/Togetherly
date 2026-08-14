@@ -88,6 +88,10 @@ async def main() -> None:
     ap.add_argument("--show", type=int, default=10)
     ap.add_argument("--fix", action="store_true",
                     help="долить в Postgres расхождения и недостающие пары")
+    ap.add_argument("--only-missing", action="store_true",
+                    help="долить ТОЛЬКО пары, которых нет в Postgres. После "
+                         "переключения источник правды — Postgres, и полный "
+                         "долив откатил бы там свежие правки")
     args = ap.parse_args()
     names = list(COLS)
 
@@ -137,10 +141,11 @@ async def main() -> None:
     for gid in нет_в_копии[:args.show]:
         print(f"  нет в Postgres: {gid} (updated {исходные[gid]['updated']})")
 
-    if args.fix:
-        строки = ([(gid, исходные[gid]) for gid in нет_в_копии]
-                  + [(gid, исходные[gid]) for gid, _ in расхождения]
-                  + [(gid, исходные[gid]) for gid, _ in свежее])
+    if args.fix or args.only_missing:
+        строки = [(gid, исходные[gid]) for gid in нет_в_копии]
+        if not args.only_missing:
+            строки += ([(gid, исходные[gid]) for gid, _ in расхождения]
+                       + [(gid, исходные[gid]) for gid, _ in свежее])
         сделано = await долить(pg, names, строки)
         print(f"\nдолито в Postgres: {сделано}")
     elif расхождения or нет_в_копии:
