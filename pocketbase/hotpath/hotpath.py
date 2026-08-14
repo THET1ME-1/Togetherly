@@ -51,7 +51,7 @@ import asyncpg
 import httpx
 import uvicorn
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import ORJSONResponse, JSONResponse, Response
 
 log = logging.getLogger("hotpath")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -228,7 +228,8 @@ COLLECTIONS = {
     },
 }
 
-app = FastAPI(openapi_url=None, docs_url=None, redoc_url=None)
+app = FastAPI(openapi_url=None, docs_url=None, redoc_url=None,
+              default_response_class=ORJSONResponse)
 pg: asyncpg.Pool | None = None
 cent_client: httpx.AsyncClient | None = None
 push_client: httpx.AsyncClient | None = None
@@ -247,8 +248,8 @@ def now_pb() -> str:
     return time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(t)) + f".{int(t * 1000) % 1000:03d}Z"
 
 
-def _err(code: int, message: str, data: dict | None = None) -> JSONResponse:
-    return JSONResponse(
+def _err(code: int, message: str, data: dict | None = None) -> ORJSONResponse:
+    return ORJSONResponse(
         {"code": code, "message": message, "data": data or {}}, status_code=code
     )
 
@@ -1335,6 +1336,9 @@ if __name__ == "__main__":
     workers = int(os.environ.get("HOTPATH_WORKERS", "0")) or max(2, (os.cpu_count() or 4) - 2)
     uvicorn.run("hotpath:app", host="127.0.0.1", port=LISTEN_PORT,
                 log_level="warning", workers=workers,
+                # Быстрый цикл событий и разбор HTTP на C вместо чистого
+                # Python: та же работа обходится примерно на четверть дешевле.
+                loop="uvloop", http="httptools",
                 # Держим соединение открытым дольше: Caddy переиспользует его
                 # вместо того, чтобы плодить новые под каждый запрос.
                 timeout_keep_alive=30)
