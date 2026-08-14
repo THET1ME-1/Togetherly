@@ -31,13 +31,18 @@ jobs:
         run: pip install --quiet codemagic-cli-tools
 
       - name: Показать статус версий
+        continue-on-error: true
         run: |
           set -euo pipefail
           echo "Приложение: $APP_STORE_APP_ID"
           echo
-          app-store-connect app-store-versions list "$APP_STORE_APP_ID" --json > /tmp/versions.json || {
-            echo "не удалось получить список версий"; exit 1
-          }
+          # Команда именно такая: список версий живёт под `apps`, а не под
+          # `app-store-versions` (у той есть только create/get/modify).
+          if ! app-store-connect apps app-store-versions "$APP_STORE_APP_ID" --json > /tmp/versions.json 2>/tmp/err.txt; then
+            echo "не удалось получить список версий:"
+            tail -5 /tmp/err.txt || true
+            exit 0
+          fi
           python3 - <<'PY'
           import json
           import os
