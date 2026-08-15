@@ -22,6 +22,15 @@
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<!-- Чужие приложения, о которых мы спрашиваем `canLaunchUrl`: карты из
+	     воспоминания. Без этого списка iOS отвечает false на любую чужую схему,
+	     и кнопка выглядит мёртвой даже при установленном приложении. http и
+	     https объявлять не нужно — их canOpenURL знает и так. -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>dgis</string>
+		<string>yandexmaps</string>
+	</array>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

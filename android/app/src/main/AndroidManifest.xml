@@ -777,6 +777,25 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Карты из воспоминания. Android 11+ прячет от приложения чужие
+             пакеты, и `canLaunchUrl` отвечает false по любой схеме, которой нет
+             в этом списке — даже если приложение стоит на телефоне. Лист выбора
+             карты показывал «приложение не установлено» человеку с открытым
+             2ГИС (жалоба 14.08.2026). Обычный https сюда входит на тех же
+             правах: без него не проходили ни Google Maps, ни Waze, ни Apple
+             Maps, то есть не работала ни одна из пяти кнопок. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="dgis" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="yandexmaps" />
+        </intent>
         <!-- Required by in_app_update to detect the Play Store package on Android 11+ -->
         <package android:name="com.android.vending" />
     </queries>
