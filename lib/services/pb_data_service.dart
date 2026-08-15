@@ -686,6 +686,32 @@ class PbDataService {
     }
   }
 
+  /// Передумала ждать: пара с пустым местом распускается, код гаснет.
+  ///
+  /// Сам клиент так не может — `claim_token` и `waiting_mode` ему закрыты
+  /// стражем, а без гашения кода вернувшийся попал бы в распущенную группу.
+  Future<bool> waitingCancel(String groupId) async {
+    lastWaitingError = null;
+    try {
+      final res = await _pb.send('/api/waiting/cancel',
+          method: 'POST', body: {'groupId': groupId});
+      final map =
+          res is Map ? Map<String, dynamic>.from(res) : <String, dynamic>{};
+      if (map['success'] != true) {
+        lastWaitingError = (map['message'] ?? '').toString();
+        return false;
+      }
+      return true;
+    } on ClientException catch (e) {
+      lastWaitingError = (e.response['message'] ?? '').toString();
+      debugPrint('PbData.waitingCancel ${e.statusCode}: $lastWaitingError');
+      return false;
+    } catch (e) {
+      debugPrint('PbData.waitingCancel failed: $e');
+      return false;
+    }
+  }
+
   /// Адреса STUN/TURN для голосовой связи в комнате просмотра. Пустой список
   /// не возвращаем: без STUN соединение не соберётся вовсе, поэтому при отказе
   /// сервера оставляем публичный.
@@ -2235,7 +2261,6 @@ class PbDataService {
 
   Future<bool> upsertCanvasMeta(String groupId, String canvasId,
       {int? bgColor,
-      int? rotation,
       int? clearVersion,
       String? coloringId,
       String? coloringMode,
@@ -2248,7 +2273,6 @@ class PbDataService {
       'updated_at': PairTime.write(DateTime.now()),
     };
     if (bgColor != null) body['bg_color'] = bgColor;
-    if (rotation != null) body['canvas_rotation'] = rotation;
     if (clearVersion != null) body['clear_version'] = clearVersion;
     // Раскраска вдвоём: какая картинка, режим и кто уже нажал «Готово».
     if (coloringId != null) body['coloring_id'] = coloringId;

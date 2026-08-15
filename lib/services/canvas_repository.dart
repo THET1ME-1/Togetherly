@@ -5,14 +5,17 @@ import 'centrifugo_service.dart';
 import 'pb_data_service.dart';
 import 'pb_realtime_service.dart';
 
-/// Срез мета холста (bg/rotation/clear) для draw_screen — замена
+/// Срез мета холста (bg/очистка/раскраска) для draw_screen — замена
 /// `RemoteCanvasMeta` из firebase_service (ноль Firebase). 0 трактуем как «не
 /// задано»→null (PB number-колонки дефолтят в 0; реальные значения: bgColor —
-/// ARGB>0, clearVersion — epoch-ms, rotation 0≡нет поворота).
+/// ARGB>0, clearVersion — epoch-ms).
+///
+/// Поворота листа тут нет намеренно: как человек держит лист — его личное дело,
+/// колонка `canvas_rotation` осталась только ради старых сборок, которые в неё
+/// ещё пишут (см. `_onCanvasMeta` в `draw_screen`).
 class CanvasMetaUpdate {
   final int? bgColor;
   final int? clearVersion;
-  final int? rotationMilliRadians;
 
   /// Раскраска вдвоём: какая картинка лежит контуром поверх холста, в каком
   /// режиме её красят и кто уже нажал «Готово» (uid → true).
@@ -27,7 +30,6 @@ class CanvasMetaUpdate {
   const CanvasMetaUpdate({
     this.bgColor,
     this.clearVersion,
-    this.rotationMilliRadians,
     this.coloringId,
     this.coloringMode,
     this.coloringSwap,
@@ -130,7 +132,7 @@ class CanvasRepository {
   }) =>
       _data.clearCanvas(groupId, canvasId, clearVersion, bgColor: bgColor);
 
-  // ── Рисование: мета (bg/rotation/clear) ───────────────────────────────────
+  // ── Рисование: мета (bg/очистка/раскраска) ────────────────────────────────
   Stream<CanvasMetaUpdate> watchMeta(String groupId, String canvasId) =>
       _rt.watchCanvasMeta(groupId, canvasId).map((rows) {
         if (rows.isEmpty) return const CanvasMetaUpdate();
@@ -144,7 +146,6 @@ class CanvasRepository {
         return CanvasMetaUpdate(
           bgColor: nz(d['bg_color']),
           clearVersion: nz(d['clear_version']),
-          rotationMilliRadians: nz(d['canvas_rotation']),
           coloringId: (d['coloring_id'] as String?)?.trim(),
           coloringMode: (d['coloring_mode'] as String?)?.trim(),
           coloringSwap: d['coloring_swap'] == true,
@@ -154,11 +155,6 @@ class CanvasRepository {
 
   Future<void> setBgColor(String groupId, String canvasId, int color) =>
       _data.upsertCanvasMeta(groupId, canvasId, bgColor: color);
-
-  Future<void> setRotation(
-          String groupId, String canvasId, int rotationMilliRadians) =>
-      _data.upsertCanvasMeta(groupId, canvasId,
-          rotation: rotationMilliRadians);
 
   /// Заводит на холсте раскраску: картинка и режим одни на двоих.
   Future<void> setColoring(

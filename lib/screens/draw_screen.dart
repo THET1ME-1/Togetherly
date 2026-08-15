@@ -676,18 +676,12 @@ class _DrawScreenState extends State<DrawScreen>
       _visibleStrokes = [];
     }
 
-    bool rotationChanged = false;
-    // Поворот листа в раскраске — дело личное. Раньше он ехал к обоим, и пара
-    // сидела с одним экраном на двоих: партнёр повернул картинку — повернулась и
-    // у тебя, посреди твоего же мазка. Общими остаются только штрихи.
-    final rot = _isColoring ? null : meta.rotationMilliRadians;
-    if (rot != null) {
-      final remoteRotation = rot / 1000.0;
-      if ((_canvasRotation - remoteRotation).abs() >= 0.001) {
-        _canvasRotation = remoteRotation;
-        rotationChanged = true;
-      }
-    }
+    // Как человек держит лист — его личное дело: масштаб, сдвиг и поворот
+    // никуда не уезжают. Раньше поворот ехал к обоим, и пара сидела с одним
+    // экраном на двоих: партнёр развернул лист щипком — лист развернулся и у
+    // тебя, посреди твоего же мазка. Сперва это сняли с раскрасок (там половина
+    // у каждого), теперь и с общего холста. Общими остаются штрихи, фон,
+    // очистка и раскраска — то, что видно в самом рисунке.
 
     bool bgChanged = false;
     final bg = meta.bgColor;
@@ -733,7 +727,7 @@ class _DrawScreenState extends State<DrawScreen>
       }
     }
 
-    if (version != null || rotationChanged || bgChanged || coloringChanged) {
+    if (version != null || bgChanged || coloringChanged) {
       setState(() {});
     }
   }
@@ -1278,13 +1272,7 @@ class _DrawScreenState extends State<DrawScreen>
       _drawingPointerId = null;
       if (_isDrawing) _cancelCurrentGesture();
     }
-
-    if (_hasSharedCanvas) {
-      unawaited(
-        _canvas.setRotation(
-            _groupId, _canvasId, (_canvasRotation * 1000).round()),
-      );
-    }
+    // Поворот листа партнёру не уходит: см. `_onCanvasMeta`.
   }
 
   /// Возврат листа на место — анимацией, а не прыжком: рывок сбивает с толку,
@@ -1329,9 +1317,6 @@ class _DrawScreenState extends State<DrawScreen>
     ctrl.forward().whenComplete(() {
       ctrl.dispose();
       if (identical(_resetCtrl, ctrl)) _resetCtrl = null;
-      if (_hasSharedCanvas) {
-        unawaited(_canvas.setRotation(_groupId, widget.canvasId, 0));
-      }
     });
   }
 
