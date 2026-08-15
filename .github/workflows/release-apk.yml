@@ -29,6 +29,11 @@ on:
         options:
           - all
           - arm64
+      ios_submit:
+        description: 'Отправлять iOS-сборку на ревью сразу. Выключите, чтобы билд лёг только в TestFlight — тот же самый потом уходит в App Store воркфлоу «iOS → App Store review», пересобирать не нужно'
+        type: boolean
+        required: false
+        default: true
 
 permissions:
   contents: read           # релиз публикуется в ДРУГОЙ репо через RELEASES_REPO_TOKEN,
@@ -612,13 +617,21 @@ jobs:
         id: ipa
         run: |
           set -euo pipefail
-          # build-name (1.16.x) берём из pubspec, а build-NUMBER спрашиваем у
-          # App Store Connect и делаем +1 — иначе публикация падает с 409
-          # «bundle version already used».
+          # Номер сборки берём ИЗ PUBSPEC — тот же, что у Android. Раньше тут
+          # стоял «последний из TestFlight + 1», и номера разъезжались: на
+          # Android 193, на iPhone 120. Одинаковый номер нужен, чтобы жалобу с
+          # телефона можно было привязать к сборке, не гадая, что за платформа.
+          # Apple повторный номер не принимает (409 «bundle version already
+          # used»), поэтому если в ASC уже есть номер больше — берём его +1.
           LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APP_ID" 2>/dev/null || echo 0)
           [ -z "$LATEST" ] && LATEST=0
-          NEW=$((LATEST + 1))
-          echo "ASC latest build = $LATEST → building with $NEW"
+          PUBSPEC_BUILD=$(grep -m1 '^version:' pubspec.yaml | sed 's/.*+//')
+          NEW=$PUBSPEC_BUILD
+          if [ "$LATEST" -ge "$PUBSPEC_BUILD" ]; then
+            NEW=$((LATEST + 1))
+            echo "В ASC уже есть билд $LATEST — берём $NEW вместо $PUBSPEC_BUILD"
+          fi
+          echo "ASC latest build = $LATEST, pubspec = $PUBSPEC_BUILD → building with $NEW"
           echo "build_number=$NEW" >> "$GITHUB_OUTPUT"
           # Версия приложения — из pubspec, до знака «+».
           VER=$(grep -m1 '^version:' pubspec.yaml | sed 's/version:[[:space:]]*//; s/+.*//')
@@ -651,9 +664,14 @@ jobs:
   # Загрузка в TestFlight ничего не выпускает: версию в App Store надо создать,
   # привязать к ней билд и отправить на ревью. Делает это отдельный воркфлоу —
   # его же можно запустить руками, когда билд уже залит (см. ios-submit.yml).
+  # Выключатель `ios_submit` оставляет билд в TestFlight: тот же самый билд
+  # потом уходит в App Store воркфлоу «iOS → App Store review» по номеру,
+  # пересобирать ничего не нужно.
   submit-ios:
     needs: publish-ios
-    if: ${{ needs.publish-ios.result == 'success' }}
+    # Сравниваем со строкой тоже: через `gh workflow run -f ios_submit=false`
+    # значение приезжает строкой, и голое `inputs.ios_submit` считает её за да.
+    if: ${{ needs.publish-ios.result == 'success' && inputs.ios_submit && inputs.ios_submit != 'false' }}
     uses: ./.github/workflows/ios-submit.yml
     with:
       version: ${{ needs.publish-ios.outputs.version }}
