@@ -606,23 +606,25 @@ class _LoveAppState extends State<LoveApp> with WidgetsBindingObserver {
     );
     if (_lastTheme == null || _lastThemeSig != sig) {
       _lastThemeSig = sig;
-      _lastTheme = _buildTheme(appTheme, _userData.themeFlavor);
+      _lastTheme = _buildTheme(appTheme);
     }
     return _lastTheme!;
   }
 
   /// Единый стиль для всех меню (диалоги, bottom-sheet, snackbar, popup-меню).
   /// Цвета — от акцента активной темы, форма/скругления — из общих токенов.
-  static ThemeData _buildTheme(AppTheme appTheme, SchemeFlavor flavor) {
-    final accent = appTheme.primary;
+  static ThemeData _buildTheme(AppTheme appTheme) {
     final brightness = appTheme.brightness;
     final isDark = brightness == Brightness.dark;
 
-    final scheme = ColorScheme.fromSeed(
-      seedColor: accent,
-      brightness: brightness,
-      dynamicSchemeVariant: flavor.variant,
-    ).copyWith(primary: accent);
+    // Схема берётся у самой темы, а НЕ собирается заново из её акцента.
+    // Повторный `fromSeed` от `appTheme.primary` — это сид из производного
+    // тона: он терял и сочность, и выбранный вариант, поэтому нижний лист
+    // выходил цветом чужой темы (жалоба 15 августа 2026 — «попап тему не
+    // берёт»). Расходились ВСЕ 25 палитр в обеих яркостях: у закатной
+    // primaryContainer #FFEBE2 против #FFDAD2, у монохрома схема уезжала в
+    // бирюзу. Та же грабля уже чинилась в `ProfileTheme.schemeFor`.
+    final scheme = ProfileTheme.schemeFor(appTheme);
 
     // Поверхности меню (диалоги/шиты/попапы) и цвета текста — из токенов активной
     // темы. На светлых темах: cardSurface=#FFFFFF, textPrimary/Secondary ≈ прежним
