@@ -340,7 +340,19 @@ def _err(code: int, message: str, data: dict | None = None) -> ORJSONResponse:
 
 _AUTH_TTL = 120.0
 _AUTH_CACHE_MAX = 30000
-_auth_cache: dict[str, tuple[float, str, frozenset]] = {}
+_auth_cache: dict[str, tuple[float, str]] = {}
+
+# Список пар человека живёт отдельно от подписи токена и обновляется быстро.
+#
+# Пока он лежал в общем кэше на две минуты, только что принятый в пару видел
+# ПУСТОЙ чат и пустую ленту: правила фильтруют записи по group_id, а сервер эти
+# две минуты помнил прежний состав. Ровно так же работало и наоборот — вышедший
+# из пары ещё две минуты читал чужую переписку. Дорогая часть проверки (HMAC по
+# токену) кэшируется по-прежнему надолго, состав пар — на несколько секунд:
+# это один SELECT по первичному ключу в SQLite, он дешевле переспросить.
+_GROUPS_TTL = 5.0
+_GROUPS_CACHE_MAX = 30000
+_groups_cache: dict[str, tuple[float, frozenset]] = {}
 _USERS_COLLECTION_ID = "_pb_users_auth_"
 
 
@@ -380,6 +392,24 @@ def _lite_user(uid: str) -> tuple[str, frozenset] | None:
     return row[0], frozenset(str(g) for g in groups if g)
 
 
+async def _группы_человека(uid: str, now: float) -> frozenset:
+    """Список пар человека — из SQLite, с коротким кэшем.
+
+    Живёт отдельно от подписи токена: состав пар меняется, пока человек сидит
+    с тем же токеном (его приняли в пару, он вышел из пары), и правила доступа
+    обязаны догонять это за секунды, а не за две минуты.
+    """
+    hit = _groups_cache.get(uid)
+    if hit and hit[0] > now:
+        return hit[1]
+    found = await asyncio.to_thread(_lite_user, uid)
+    groups = found[1] if found else frozenset()
+    if len(_groups_cache) >= _GROUPS_CACHE_MAX:
+        _groups_cache.clear()
+    _groups_cache[uid] = (now + _GROUPS_TTL, groups)
+    return groups
+
+
 async def _auth(request: Request) -> tuple[str, frozenset] | None:
     """Токен -> (uid, группы) или None. Подпись сверяется локально — той же
     формулой, что у PocketBase: HS256(tokenKey записи + секрет коллекции)."""
@@ -389,7 +419,7 @@ async def _auth(request: Request) -> tuple[str, frozenset] | None:
     now = time.monotonic()
     hit = _auth_cache.get(token)
     if hit and hit[0] > now:
-        return hit[1], hit[2]
+        return hit[1], await _группы_человека(hit[1], now)
 
     payload = _jwt_payload(token)
     uid = str(payload.get("id") or "")
@@ -414,7 +444,10 @@ async def _auth(request: Request) -> tuple[str, frozenset] | None:
         return None
     if len(_auth_cache) >= _AUTH_CACHE_MAX:
         _auth_cache.clear()
-    _auth_cache[token] = (now + _AUTH_TTL, uid, groups)
+    _auth_cache[token] = (now + _AUTH_TTL, uid)
+    if len(_groups_cache) >= _GROUPS_CACHE_MAX:
+        _groups_cache.clear()
+    _groups_cache[uid] = (now + _GROUPS_TTL, groups)
     return uid, groups
 
 
@@ -1401,6 +1434,10 @@ async def _после_правки_пары(group_id: str, участники: l
                 else:
                     await asyncio.sleep(0.4 * (попытка + 1))
         await asyncio.to_thread(_членство_в_sqlite, участники)
+        # Свой кэш состава сбрасываем сразу: этот воркер отдаёт новые права с
+        # первого же запроса. Соседним процессам хватит короткого TTL.
+        for uid in участники:
+            _groups_cache.pop(str(uid), None)
 
 
 @app.post("/api/group/patch-map")
