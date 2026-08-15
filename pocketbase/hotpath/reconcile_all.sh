@@ -17,5 +17,11 @@ echo "$(date -Is) $(/opt/hotpath/venv/bin/python /opt/hotpath/verify_groups.py -
 # PocketBase: пустой список означает «не удалось сохранить» при живой паре.
 echo "$(date -Is) $(/opt/hotpath/venv/bin/python /opt/hotpath/check_membership.py --fix 2>&1 | sed -n '2p')"
 
+# Догон зеркала. Периодический проход идёт по отметке времени и берёт строки
+# ПОСЛЕ неё: если пачка упала (SQLite был занят), а пара к тому времени больше
+# не правилась, расхождение застывает — зеркало её уже не выберет. Раз в сутки
+# доливаем все правки суток целиком, это секунды и несколько тысяч строк.
+echo "$(date -Is) $(/opt/hotpath/venv/bin/python /opt/hotpath/rollback_groups.py --since "$(date -u -d '25 hours ago' '+%Y-%m-%d %H:%M:%S')" --commit 2>&1 | tail -1)"
+
 # Счётчики приводим к фактическим записям — считать вернее, чем копировать.
 echo "$(date -Is) $(/opt/hotpath/venv/bin/python /opt/hotpath/recount_group_counters.py --commit 2>&1 | head -2 | tr '\n' ' ')"
