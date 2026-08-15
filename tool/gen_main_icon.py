@@ -33,6 +33,22 @@ DENSITIES = {
     "mipmap-xxxhdpi": 192,
 }
 
+# Передний слой адаптивной иконки: полотно 108dp, под маской остаются
+# центральные 72dp. Фигуру вписываем в 80% — маски лончеров срезают углы, но
+# не столько, сколько допускает спецификация, и на 66% маскот выглядел бы
+# потерянным среди полей.
+FG_DENSITIES = {
+    "mipmap-mdpi": 108,
+    "mipmap-hdpi": 162,
+    "mipmap-xhdpi": 216,
+    "mipmap-xxhdpi": 324,
+    "mipmap-xxxhdpi": 432,
+}
+FG_FILL = 0.8
+# Тот же цвет, что в values/colors.xml: слой кроет всё полотно, поэтому
+# background из XML под ним не виден, и края обязан закрыть сам foreground.
+FG_BG = (253, 227, 226)
+
 
 def square(img):
     """Квадрат по нижнему краю: фигура стоит на дне кадра, верх — фон."""
@@ -62,7 +78,18 @@ def main():
         rmaster.resize((px, px), Image.LANCZOS).save(
             os.path.join(d, "launcher_icon_round.png"))
 
-    print(f"готово: {ASSET}, {STORE} (512x512) + круглые mipmap x{len(DENSITIES)}")
+    for folder, px in FG_DENSITIES.items():
+        d = os.path.join(RES, folder)
+        os.makedirs(d, exist_ok=True)
+        layer = Image.new("RGBA", (px, px), FG_BG + (255,))
+        inner = max(1, round(px * FG_FILL))
+        fig = master.resize((inner, inner), Image.LANCZOS).convert("RGBA")
+        off = (px - inner) // 2
+        layer.paste(fig, (off, off), fig)
+        layer.save(os.path.join(d, "launcher_icon_fg.png"))
+
+    print(f"готово: {ASSET}, {STORE} (512x512), круглые mipmap x{len(DENSITIES)}, "
+          f"передний слой адаптивной иконки x{len(FG_DENSITIES)}")
 
 
 if __name__ == "__main__":
