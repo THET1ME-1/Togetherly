@@ -164,11 +164,19 @@ class WeekStats {
 ///
 /// История копится с релиза: у пар, заведённых раньше, поле пустое, и экран
 /// честно показывает, что данных пока нет.
-WeekStats parseWeekdays(String? raw) {
+///
+/// Принимает и строку, и готовую карту. Раньше стояло жёсткое приведение
+/// `as String?` в двух местах, и когда сервер начал отдавать это поле
+/// объектом, оба профиля — свой и партнёра — навсегда зависали на спиннере:
+/// исключение вылетало внутри `setState`, и загрузка не заканчивалась
+/// никогда (разбор 15.08.2026). Поле сервер вернул строкой, но полагаться на
+/// один вид ответа здесь больше нельзя.
+WeekStats parseWeekdays(Object? raw) {
   final days = List<int>.filled(7, 0);
-  if (raw == null || raw.trim().isEmpty) return WeekStats(days);
+  if (raw == null) return WeekStats(days);
+  if (raw is String && raw.trim().isEmpty) return WeekStats(days);
   try {
-    final decoded = jsonDecode(raw);
+    final decoded = raw is String ? jsonDecode(raw) : raw;
     if (decoded is Map) {
       decoded.forEach((k, v) {
         final day = int.tryParse(k.toString());

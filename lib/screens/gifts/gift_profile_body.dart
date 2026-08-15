@@ -102,7 +102,7 @@ class GiftProfileBodyState extends State<GiftProfileBody> {
       _gifts = gifts;
       _shelf = tallyGifts(gifts);
       _giftsTotal = gifts.length;
-      _week = parseWeekdays(miss?['by_weekday'] as String?);
+      _week = parseWeekdays(miss?['by_weekday']);
       _missTotal = (miss?['count'] as num?)?.toInt() ?? 0;
       _loading = false;
     });

@@ -226,7 +226,13 @@ COLLECTIONS = {
         "columns": {
             "group_id": "text", "user_uid": "text", "count": "num",
             "updated_at": "text", "last_vibe": "text", "last_vibe_text": "text",
-            "by_weekday": "json", "by_vibe": "json", "updated": "auto",
+            # ВНИМАНИЕ: отдаём эти две карты СТРОКОЙ, а не объектом. В
+            # PocketBase поле было text, и выпущенные сборки читают его как
+            # строку: `miss?['by_weekday'] as String?` в профиле партнёра
+            # падает на объекте прямо внутри setState, экран остаётся с
+            # вечным спиннером (жалоба 15.08.2026). Форму ответа менять
+            # нельзя, пока живы старые сборки.
+            "by_weekday": "jsontext", "by_vibe": "jsontext", "updated": "auto",
         },
         "sortable": {"updated", "id"},
         "filterable": {"id", "group_id", "user_uid", "updated"},
@@ -446,6 +452,14 @@ def _record_json(col: str, row) -> dict:
                 except ValueError:
                     v = None
             out[field] = v
+        elif kind == "jsontext":
+            # json в базе, строка в ответе — ради совместимости со сборками
+            if v is None:
+                out[field] = ""
+            elif isinstance(v, str):
+                out[field] = v
+            else:
+                out[field] = json.dumps(v, ensure_ascii=False)
         else:
             out[field] = v if v is not None else ""
     return out
@@ -2558,8 +2572,13 @@ async def create_record(col: str, request: Request):
             continue
         v = body.get(field)
         cols.append(field)
-        if kind == "json":
-            vals.append(json.dumps(v) if v is not None else None)
+        if kind in ("json", "jsontext"):
+            if v is None:
+                vals.append(None)
+            elif kind == "jsontext" and isinstance(v, str):
+                vals.append(v if v.strip() else None)
+            else:
+                vals.append(json.dumps(v))
         elif kind == "num":
             vals.append(float(v or 0))
         elif kind == "bool":
@@ -2658,8 +2677,13 @@ async def update_record(col: str, rid: str, request: Request):
         if field not in body:
             continue
         v = body[field]
-        if kind == "json":
-            args.append(json.dumps(v) if v is not None else None)
+        if kind in ("json", "jsontext"):
+            if v is None:
+                args.append(None)
+            elif kind == "jsontext" and isinstance(v, str):
+                args.append(v if v.strip() else None)
+            else:
+                args.append(json.dumps(v))
         elif kind == "num":
             args.append(float(v or 0))
         elif kind == "bool":

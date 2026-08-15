@@ -391,7 +391,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       PbDataService().fetchMissYouFor(groupId: gid, uid: myUid).then((miss) {
         if (!mounted || _lastLoadedGroupId != gid) return;
         setState(
-          () => _ownWeek = parseWeekdays(miss?['by_weekday'] as String?),
+          () => _ownWeek = parseWeekdays(miss?['by_weekday']),
         );
       });
     }

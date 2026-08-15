@@ -56,6 +56,23 @@ void main() {
       expect(w.isEmpty, isTrue);
     });
 
+    // Сервер отдавал это поле то строкой, то готовой картой: после переезда
+    // «Скучаю» в Postgres оно стало объектом, жёсткое приведение `as String?`
+    // упало внутри setState, и оба профиля — свой и партнёра — навсегда
+    // зависли на спиннере (15.08.2026).
+    test('карта приходит объектом, а не строкой', () {
+      final w = parseWeekdays({'4': 4, '5': 7});
+      expect(w.byDay, [0, 0, 0, 4, 7, 0, 0]);
+      expect(w.total, 11);
+      expect(w.topDay, 5);
+    });
+
+    test('объект с числами в ключах тоже разбирается', () {
+      final w = parseWeekdays({1: 3, 7: 2});
+      expect(w.byDay, [3, 0, 0, 0, 0, 0, 2]);
+      expect(w.total, 5);
+    });
+
     test('битые данные не роняют экран', () {
       final w = parseWeekdays('это не json');
       expect(w.total, 0);
