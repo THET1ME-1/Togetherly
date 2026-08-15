@@ -834,12 +834,20 @@
   function followKeyboard() {
     const vv = window.visualViewport;
     if (!vv) return;
+    // Клавиатура СЧИТАЕТСЯ открытой, когда видимая область заметно меньше окна.
+    // Раньше сжатие кадра включал сам фокус — и на десктопе, где никакая
+    // клавиатура не выезжает, страница всё равно подпрыгивала: кадр ужимался,
+    // нижний ряд уезжал вверх на 166 px, а палец бил в то место, где кнопка
+    // «Включить» была секунду назад. Отсюда жалобы «кнопка не работает» и
+    // «сообщение не отправляется» — нажатие промахивалось мимо уехавшей кнопки.
+    const keyboardOpen = () => vv.height < window.innerHeight * 0.8;
     const apply = () => {
       const root = document.documentElement.style;
       root.setProperty('--vph', vv.height + 'px');
       // Клавиатура не только урезает видимое, но и прокручивает документ:
       // без этого сдвига страница уезжает вверх, а прокрутки у комнаты нет.
       root.setProperty('--vpt', vv.offsetTop + 'px');
+      document.body.classList.toggle('typing', keyboardOpen());
     };
     apply();
     vv.addEventListener('resize', apply);
@@ -848,15 +856,15 @@
       const el = $(id);
       if (!el) continue;
       el.addEventListener('blur', () => {
-        document.body.classList.remove('typing');
+        // Класс снимет apply(), когда клавиатура уедет и вьюпорт вернёт высоту.
+        // Здесь его не трогаем: blur приходит и при переходе между полями.
+        if (!keyboardOpen()) document.body.classList.remove('typing');
       });
       el.addEventListener('focus', () => {
-        // Пока печатают, кадру достаётся меньше места: иначе клавиатура и видео
-        // занимают экран целиком, и ни строки ввода, ни чата не видно.
-        document.body.classList.add('typing');
         // Safari сам прокручивает документ к полю, а комната прибита к видимой
         // области — от такой прокрутки она только уезжает. Возвращаем на место,
-        // когда клавиатура доехала.
+        // когда клавиатура доехала. Сжатие кадра включает apply() по факту
+        // выехавшей клавиатуры, а не по самому фокусу.
         setTimeout(() => window.scrollTo(0, 0), 300);
       });
     }
