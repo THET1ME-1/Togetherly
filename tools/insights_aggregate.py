@@ -40,8 +40,37 @@ CREATED_MS = "(julianday(u.created) - 2440587.5) * 86400000"
 PLATFORM_KEY = "CASE WHEN platform IN ('android','ios') THEN platform ELSE 'unknown' END"
 
 
+def hotpath_stats() -> dict:
+    """Срезы по коллекциям, уехавшим в Postgres (memories, widget_data и др.).
+    Пустой словарь при недоступности — карточки покажут нули, а не сломаются."""
+    try:
+        import urllib.request
+        with urllib.request.urlopen(
+            "http://127.0.0.1:8120/internal/product-stats", timeout=15
+        ) as r:
+            return json.load(r)
+    except Exception:
+        return {}
+
+
 def build(db: sqlite3.Connection) -> dict:
+    hp = hotpath_stats()
+
     def one(sql: str, default=0):
+        # Горячие коллекции живут в hotpath (Postgres) с 14.08.2026 —
+        # их счётчики спрашиваем у него, остальное по-прежнему SQLite.
+        if sql.startswith("HP:"):
+            return hp.get(sql.split(":", 1)[1], default)
+        if sql.startswith("HOTPATH:"):
+            try:
+                import urllib.request
+                with urllib.request.urlopen(
+                    "http://127.0.0.1:8120/internal/count?" + ("col=" + sql.split(":", 1)[1] if "?" not in sql else "col=" + sql.split(":", 1)[1].replace("?", "&")),
+                    timeout=5,
+                ) as r:
+                    return json.load(r).get("n", default)
+            except Exception:
+                return default
         try:
             row = db.execute(sql).fetchone()
             return (row[0] if row and row[0] is not None else default)
@@ -78,8 +107,7 @@ def build(db: sqlite3.Connection) -> dict:
         {"k": "Сошлись в пару", "v": one(
             "SELECT COUNT(DISTINCT je.value) FROM groups g, json_each(g.members) je"
             f" WHERE g.disbanded = false AND json_valid(g.members) AND {MEMBERS} >= 2")},
-        {"k": "Написали воспоминание", "v": one(
-            "SELECT COUNT(DISTINCT author_uid) FROM memories WHERE deleted = false")},
+        {"k": "Написали воспоминание", "v": hp.get("memory_authors", 0)},
         {"k": "Вернулись через неделю", "v": one(
             "SELECT COUNT(*) FROM users u JOIN user_presence p ON p.user_uid = u.id"
             f" WHERE CAST(p.seen_at AS INTEGER) >= {CREATED_MS} + 604800000")},
@@ -189,13 +217,13 @@ def build(db: sqlite3.Connection) -> dict:
     #    нарисовать одна упорная пара, и фича выглядела бы народной.
     groups_all = one("SELECT COUNT(*) FROM groups") or 1
     features = [
-        ("Воспоминания", "SELECT COUNT(DISTINCT group_id) FROM memories WHERE deleted = false"),
-        ("Чат", "SELECT COUNT(DISTINCT group_id) FROM chat_messages WHERE deleted = false"),
-        ("Настроения", "SELECT COUNT(DISTINCT group_id) FROM mood_entries"),
-        ("Виджеты", "SELECT COUNT(DISTINCT group_id) FROM widget_data"),
+        ("Воспоминания", "HP:memories_groups"),
+        ("Чат", "HOTPATH:chat_messages"),  # чат в Postgres с 14.08.2026
+        ("Настроения", "HOTPATH:mood_entries"),
+        ("Виджеты", "HP:widget_groups"),
         ("Маскоты", "SELECT COUNT(DISTINCT group_id) FROM mascots"),
         ("«Скучаю»", "SELECT COUNT(DISTINCT group_id) FROM miss_you"),
-        ("Рисование", "SELECT COUNT(DISTINCT group_id) FROM canvas_strokes WHERE deleted = false"),
+        ("Рисование", "HOTPATH:canvas_strokes"),  # штрихи в Postgres с 14.08.2026
         ("Подарки", "SELECT COUNT(DISTINCT group_id) FROM gifts"),
         ("Совместный просмотр", "SELECT COUNT(DISTINCT group_id) FROM watch_history"),
         ("Цикл", "SELECT COUNT(DISTINCT group_id) FROM cycle_entries"),
@@ -206,11 +234,16 @@ def build(db: sqlite3.Connection) -> dict:
 
     # 6. Виджеты: что пары держат на рабочем столе.
     def filled(cond: str) -> int:
-        return one(f"SELECT COUNT(*) FROM widget_data WHERE {cond}")
+        # widget_data в Postgres: срезы приходят готовыми из hotpath.
+        return hp.get({"status != ''": "widget_with_status",
+                       "mood_label != ''": "widget_with_mood",
+                       "message != ''": "widget_with_message",
+                       "photo_url != ''": "widget_with_photo",
+                       "music_title != ''": "widget_with_music"}.get(cond, ""), 0)
 
     out["widgets"] = {
-        "records": one("SELECT COUNT(*) FROM widget_data"),
-        "groups": one("SELECT COUNT(DISTINCT group_id) FROM widget_data"),
+        "records": hp.get("widget_rows", 0),
+        "groups": hp.get("widget_groups", 0),
         "fields": [
             {"k": "Статус", "c": filled("status != ''")},
             {"k": "Настроение", "c": filled("mood_label != ''")},
@@ -230,7 +263,27 @@ def build(db: sqlite3.Connection) -> dict:
 def build_stats(db: sqlite3.Connection) -> dict:
     """Обзорная вкладка. Живой «онлайн» из Centrifugo сюда не входит — его
     хук спрашивает сам на каждом запросе, это дёшево."""
+    hp = hotpath_stats()
+
     def one(sql: str, default=0):
+        # Маркеры те же, что в build(): горячие коллекции живут в Postgres, и
+        # спрашивать их надо у hotpath. Без этой ветки строка «HOTPATH:…»
+        # уходила в SQLite как обычный SQL, падала и превращалась в ноль —
+        # сводка честно писала «сообщений 0» при живом чате (15.08.2026).
+        if sql.startswith("HP:"):
+            return hp.get(sql.split(":", 1)[1], default)
+        if sql.startswith("HOTPATH:"):
+            try:
+                import urllib.request
+                хвост = sql.split(":", 1)[1]
+                запрос = ("col=" + хвост.replace("?", "&")
+                          if "?" in хвост else "col=" + хвост)
+                with urllib.request.urlopen(
+                    "http://127.0.0.1:8120/internal/count?" + запрос, timeout=5,
+                ) as r:
+                    return json.load(r).get("n", default)
+            except Exception:
+                return default
         try:
             row = db.execute(sql).fetchone()
             return (row[0] if row and row[0] is not None else default)
@@ -260,11 +313,11 @@ def build_stats(db: sqlite3.Connection) -> dict:
         "newWeek": one("SELECT COUNT(*) FROM users WHERE created >= datetime('now','-7 days')"),
         "baselineUsers": one("SELECT COUNT(*) FROM users WHERE created < datetime('now','-30 days')"),
         "content": {
-            "memories": one("SELECT COUNT(*) FROM memories"),
-            "messages": one("SELECT COUNT(*) FROM chat_messages"),
+            "memories": hp.get("memories_rows", 0),
+            "messages": one("HOTPATH:chat_messages?mode=rows"),
             "media": one("SELECT COUNT(*) FROM media"),
             "videos": one(f"SELECT COUNT(*) FROM media WHERE {video}"),
-            "moods": one("SELECT COUNT(*) FROM mood_entries"),
+            "moods": one("HOTPATH:mood_entries?mode=rows"),
             "missYou": one("SELECT COALESCE(SUM(count),0) FROM miss_you"),
             "mascots": one("SELECT COUNT(*) FROM mascots"),
             "comments": one("SELECT COUNT(*) FROM memory_comments"),
@@ -274,9 +327,7 @@ def build_stats(db: sqlite3.Connection) -> dict:
             " WHERE created >= datetime('now','-30 days') GROUP BY 1 ORDER BY 1")],
         "mediaKinds": [{"k": r[0], "c": r[1]} for r in many(
             "SELECT kind, COUNT(*) FROM media GROUP BY 1 ORDER BY 2 DESC")],
-        "moods": [{"k": r[0], "c": r[1]} for r in many(
-            "SELECT mood_label, COUNT(*) FROM widget_data WHERE mood_label != ''"
-            " GROUP BY 1 ORDER BY 2 DESC LIMIT 10")],
+        "moods": [{"k": m["k"], "c": m["c"]} for m in hp.get("mood_labels", [])[:10]],
         "online": None,
     }
     out["content"]["photos"] = (out["content"]["media"] or 0) - (out["content"]["videos"] or 0)
