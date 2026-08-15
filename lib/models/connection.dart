@@ -628,7 +628,22 @@ class Connection {
     partnerAvatarUrl = '';
     pairId = '';
     members = [];
+    clearWaiting();
     onChanged?.call();
+  }
+
+  /// Забыть, что второе место кого-то ждало. Поля заглушки живут и в локальном
+  /// json, поэтому без чистки «Ждём человека» возвращалось бы на экран после
+  /// перезапуска — уже без самой пары.
+  void clearWaiting() {
+    waitingMode = false;
+    placeholderName = '';
+    placeholderAvatar = '';
+    returnDate = null;
+    claimToken = '';
+    claimUid = '';
+    claimName = '';
+    claimAt = 0;
   }
 
   /// Сверяет показанный код с сервером и перевыпускает, если такого кода там

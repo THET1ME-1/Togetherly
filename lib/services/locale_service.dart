@@ -355,6 +355,13 @@ abstract class AppStrings {
   // Плашка Togetherly+ на главной
   String get plusPromoTitle;
   String get plusPromoBody;
+
+  /// Витрина плашки построчно.
+  String get plusPromoPerkMoods;
+  String get plusPromoPerkCycle;
+  String get plusPromoPerkStats;
+  String get plusPromoPerkWidgets;
+  String get plusPromoPerkNoAds;
   String get plusPromoOpen;
   String get plusPromoLater;
 
@@ -885,6 +892,11 @@ abstract class AppStrings {
   String get yourCustomType;
   String get newConnectionAdded;
   String get deleteConnection;
+
+  /// Строка меню и заголовок подтверждения с именем: `{name}` подставляется на
+  /// месте вызова.
+  String get deleteConnectionAction;
+  String get deleteConnectionWith;
   String get deleteConnectionDesc;
   String get connectionRemoved;
   String get disconnectQuestion;
@@ -1357,6 +1369,12 @@ abstract class AppStrings {
   String get waitingCodeCopied;
   String get waitingResetCode;
   String get waitingResetCodeHint;
+
+  /// Передумали ждать: пара закрывается, код второго места гаснет.
+  String get waitingCancelAction;
+  String get waitingCancelTitle;
+  String get waitingCancelHint;
+  String get waitingCancelDone;
   String get waitingClaimTitle;
   String get waitingClaimAsk;
   String get waitingClaimYes;

@@ -253,6 +253,14 @@ class PairData extends ChangeNotifier {
     return code;
   }
 
+  /// Передумали ждать: пара с пустым местом закрывается, код гаснет.
+  Future<bool> cancelWaiting() async {
+    if (pairId.isEmpty) return false;
+    final ok = await _manager.cancelWaitingPair(pairId);
+    notifyListeners();
+    return ok;
+  }
+
   /// Проверить, подтвердили ли нашу заявку («ждём» → «мы в паре»).
   Future<String> checkWaitingClaim() => _manager.checkWaitingClaim();
 

@@ -233,6 +233,49 @@ const Map<String, Map<String, String>> chatStrings = {
     'fr': 'L’ancien ne marchera plus',
     'de': 'Der alte funktioniert dann nicht mehr',
   },
+  'waitingCancelAction': {
+    'ru': 'Больше не жду',
+    'en': 'Stop waiting',
+    'pt': 'Não espero mais',
+    'it': 'Non aspetto più',
+    'es': 'Ya no espero',
+    'fr': 'Je n’attends plus',
+    'de': 'Ich warte nicht mehr',
+  },
+  'waitingCancelTitle': {
+    'ru': 'Убрать ожидание?',
+    'en': 'Stop waiting?',
+    'pt': 'Parar de esperar?',
+    'it': 'Smettere di aspettare?',
+    'es': '¿Dejar de esperar?',
+    'fr': 'Arrêter d’attendre ?',
+    'de': 'Nicht mehr warten?',
+  },
+  'waitingCancelHint': {
+    'ru':
+        'Пара закроется вместе со всем, что в ней накопилось, а код второго места перестанет работать.',
+    'en':
+        'The pair closes with everything collected in it, and the code for the second seat stops working.',
+    'pt':
+        'O casal se fecha com tudo o que foi guardado nele, e o código do segundo lugar para de funcionar.',
+    'it':
+        'La coppia si chiude con tutto quello che ci si è accumulato, e il codice del secondo posto smette di funzionare.',
+    'es':
+        'La pareja se cierra con todo lo que se ha guardado en ella, y el código del segundo sitio deja de funcionar.',
+    'fr':
+        'Le couple se ferme avec tout ce qui s’y est accumulé, et le code de la deuxième place cesse de marcher.',
+    'de':
+        'Das Paar schließt sich mit allem, was sich darin angesammelt hat, und der Code für den zweiten Platz funktioniert nicht mehr.',
+  },
+  'waitingCancelDone': {
+    'ru': 'Ожидание убрано',
+    'en': 'No longer waiting',
+    'pt': 'Não espera mais',
+    'it': 'Non aspetti più',
+    'es': 'Ya no esperas',
+    'fr': 'Tu n’attends plus',
+    'de': 'Du wartest nicht mehr',
+  },
   'waitingClaimTitle': {
     'ru': 'Кто-то ввёл ваш код',
     'en': 'Someone entered your code',

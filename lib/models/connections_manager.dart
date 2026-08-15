@@ -349,6 +349,31 @@ class ConnectionsManager extends ChangeNotifier {
     return code;
   }
 
+  /// Передумали ждать: пара с пустым местом распускается, код гаснет.
+  ///
+  /// Завести ожидание человек мог, а убрать — нет: карточка «Ждём» висела на
+  /// экране связи вместе с кодом второго места, и деть её было некуда.
+  /// Распускает сервер (`/api/waiting/cancel`) — клиенту `claim_token` и
+  /// `waiting_mode` закрыты стражем.
+  ///
+  /// Освободившаяся связь ОСТАЁТСЯ на месте пустой, а не удаляется: в ней живёт
+  /// код приглашения, и человеку сразу есть куда позвать настоящего партнёра.
+  /// Удалить её насовсем можно как любую другую — долгим нажатием на пилюлю.
+  Future<bool> cancelWaitingPair(String pairId) async {
+    if (pairId.isEmpty) return false;
+    final ok = await PbDataService().waitingCancel(pairId);
+    if (!ok) return false;
+    final conn = _connections.cast<Connection?>().firstWhere(
+      (c) => c!.pairId == pairId,
+      orElse: () => null,
+    );
+    conn?.markUnpaired();
+    await conn?.regenerateCode();
+    await _saveLocal();
+    notifyListeners();
+    return true;
+  }
+
   /// Поправить заглушку: имя, фото, дату возвращения.
   Future<bool> updatePlaceholder({
     required String pairId,

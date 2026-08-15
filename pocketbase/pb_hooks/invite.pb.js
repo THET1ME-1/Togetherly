@@ -128,7 +128,12 @@ routerAdd("POST", "/api/invite/accept", (e) => {
   } catch (_) {
     let waiting = null;
     try {
-      const rows = $app.findRecordsByFilter("groups", "claim_token = {:t}", "", 1, 0, { t: code });
+      // `disbanded = false` обязателен: у распущенной пары код формально жив и
+      // уводил вернувшегося в группу без участников. Так лежали 52 мёртвые
+      // пары августа, а теперь ожидание ещё и отменяют руками
+      // (`/api/waiting/cancel`).
+      const rows = $app.findRecordsByFilter(
+        "groups", "claim_token = {:t} && disbanded = false", "", 1, 0, { t: code });
       waiting = rows && rows.length ? rows[0] : null;
     } catch (_) { waiting = null; }
     if (waiting) {

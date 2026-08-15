@@ -161,6 +161,33 @@ def main():
           f"{st} {r}")
     st, r = api("/api/waiting/claim", {"code": code2}, him["token"])
     check("прежний код после сброса не работает", st == 404, f"{st} {r.get('message')}")
+    st, g2 = api(f"/api/collections/groups/records/{pair2}", None, her2["token"])
+    code2b = g2.get("claim_token", "")
+
+    log("=== 9. она передумала ждать ===")
+    st, r = api("/api/waiting/cancel", {"groupId": pair2}, him["token"])
+    check("чужой чужое ожидание не отменит", st == 403, f"{st} {r.get('message')}")
+
+    st, r = api("/api/waiting/cancel", {"groupId": pair}, her["token"])
+    check("собравшуюся пару отменой ожидания не распустить", st == 400,
+          f"{st} {r.get('message')}")
+
+    st, r = api("/api/waiting/cancel", {"groupId": pair2}, her2["token"])
+    check("хозяйка убирает ожидание", st == 200 and r.get("success") is True, f"{st} {r}")
+
+    st, g2 = api(f"/api/collections/groups/records/{pair2}", None, her2["token"])
+    check("пара распущена, код погашен",
+          g2.get("disbanded") is True and not g2.get("claim_token"),
+          f"disbanded={g2.get('disbanded')} token={g2.get('claim_token')!r}")
+
+    st, r = api("/api/waiting/claim", {"code": code2b}, him["token"])
+    check("код убранного ожидания не работает", st == 404, f"{st} {r.get('message')}")
+    st, r = api("/api/invite/accept", {"code": code2b}, him["token"])
+    check("и общий приём кода его тоже не пускает", st == 404, f"{st} {r.get('message')}")
+
+    st, r = api("/api/waiting/cancel", {"groupId": pair2}, her2["token"])
+    check("повторная отмена отвечает успехом", st == 200 and r.get("success") is True,
+          f"{st} {r}")
 
     log("=== уборка ===")
     for gid, who in ((pair, her), (pair2, her2)):

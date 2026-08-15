@@ -438,6 +438,16 @@ abstract class DictStrings extends AppStrings {
   @override
   String get plusPromoBody => _t('plusPromoBody');
   @override
+  String get plusPromoPerkMoods => _t('plusPromoPerkMoods');
+  @override
+  String get plusPromoPerkCycle => _t('plusPromoPerkCycle');
+  @override
+  String get plusPromoPerkStats => _t('plusPromoPerkStats');
+  @override
+  String get plusPromoPerkWidgets => _t('plusPromoPerkWidgets');
+  @override
+  String get plusPromoPerkNoAds => _t('plusPromoPerkNoAds');
+  @override
   String get plusPromoOpen => _t('plusPromoOpen');
   @override
   String get plusPromoLater => _t('plusPromoLater');
@@ -1322,6 +1332,10 @@ abstract class DictStrings extends AppStrings {
   @override
   String get deleteConnection => _t('deleteConnection');
   @override
+  String get deleteConnectionAction => _t('deleteConnectionAction');
+  @override
+  String get deleteConnectionWith => _t('deleteConnectionWith');
+  @override
   String get deleteConnectionDesc => _t('deleteConnectionDesc');
   @override
   String get connectionRemoved => _t('connectionRemoved');
@@ -2021,6 +2035,14 @@ abstract class DictStrings extends AppStrings {
   String get waitingResetCode => _t('waitingResetCode');
   @override
   String get waitingResetCodeHint => _t('waitingResetCodeHint');
+  @override
+  String get waitingCancelAction => _t('waitingCancelAction');
+  @override
+  String get waitingCancelTitle => _t('waitingCancelTitle');
+  @override
+  String get waitingCancelHint => _t('waitingCancelHint');
+  @override
+  String get waitingCancelDone => _t('waitingCancelDone');
   @override
   String get waitingClaimTitle => _t('waitingClaimTitle');
   @override

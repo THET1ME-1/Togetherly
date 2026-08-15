@@ -5,6 +5,7 @@ import '../../models/pair_data.dart';
 import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/profile_theme.dart';
+import '../common/app_dialog.dart';
 import 'waiting_setup_sheet.dart';
 
 /// Карточка пары, где второе место пока пустует.
@@ -134,8 +135,64 @@ class WaitingCard extends StatelessWidget {
           ] else ...[
             const SizedBox(height: 16),
             _CodeRow(pair: pair, cs: cs),
+            const SizedBox(height: 4),
+            _CancelRow(pair: pair, cs: cs),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// «Больше не жду» — единственный выход из ожидания.
+///
+/// Завести пару на одного человек мог, а убрать её — нет: карточка висела на
+/// экране связи вместе с кодом, и деть её было некуда (жалоба 15 августа
+/// 2026 — «эту хуйню никак не убрать»). Кнопка стоит прямо тут, а не в листе
+/// правки: искать выход в форме редактирования никто не станет.
+class _CancelRow extends StatelessWidget {
+  final PairData pair;
+  final ColorScheme cs;
+
+  const _CancelRow({required this.pair, required this.cs});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = LocaleService.current;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: TextButton.icon(
+        onPressed: () async {
+          final ok = await AppDialog.confirm(
+            context,
+            title: s.waitingCancelTitle,
+            message: s.waitingCancelHint,
+            confirmLabel: s.waitingCancelAction,
+            destructive: true,
+            icon: Icons.person_remove_rounded,
+          );
+          if (!ok || !context.mounted) return;
+          final done = await pair.cancelWaiting();
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                  done ? s.waitingCancelDone : s.waitingCreateFailed),
+            ),
+          );
+        },
+        style: TextButton.styleFrom(
+          foregroundColor: cs.error,
+          shape: const StadiumBorder(),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          textStyle: const TextStyle(
+            fontFamily: ProfileTheme.bodyFont,
+            fontSize: 13.5,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        icon: const Icon(Icons.person_remove_rounded, size: 18),
+        label: Text(s.waitingCancelAction),
       ),
     );
   }

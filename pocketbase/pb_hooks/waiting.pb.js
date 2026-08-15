@@ -13,6 +13,7 @@
 ///   POST /api/waiting/claim    { code }        → заявка на второе место
 ///   POST /api/waiting/approve  { groupId, approve } → она подтверждает или отклоняет
 ///   POST /api/waiting/reset    { groupId }     → сбросить код (расставание)
+///   POST /api/waiting/cancel   { groupId }     → передумала ждать: пары больше нет
 ///   GET  /api/waiting/state?code=…             → статус заявки для ждущего
 ///
 /// РЕШЕНИЯ, которые нельзя молча поменять:
@@ -307,6 +308,79 @@ routerAdd("POST", "/api/waiting/reset", (e) => {
     $app.logger().warn("waiting reset: hotpath недоступен", "err", String(err));
     return e.json(500, { success: false, message: "Не сохранилось" });
   }
+}, $apis.requireAuth());
+
+// ── передумала ждать: убрать пару с пустым местом ───────────────────────────
+// Завести ожидание человек мог, а убрать — нет: карточка «Ждём» висела на
+// экране связи навсегда, вместе с кодом второго места. Отмена распускает пару
+// (мягко, `disbanded` — запись остаётся) и ГАСИТ код: иначе он продолжал бы
+// уводить вернувшегося в распущенную группу без участников. Клиент сам этого
+// сделать не может — `claim_token` и `waiting_mode` ему закрыты стражем.
+routerAdd("POST", "/api/waiting/cancel", (e) => {
+  const uid = e.auth.id;
+  const groupId = String((e.requestInfo().body || {}).groupId || "");
+  const deny = (status, message, why) => {
+    try {
+      $app.logger().warn("waiting cancel: отказ", "why", why, "group", groupId, "uid", uid);
+    } catch (_) {}
+    return e.json(status, { success: false, message: message });
+  };
+  if (!groupId) return deny(400, "Не указана пара", "пустой groupId");
+
+  const hp = (path, method, payload) => {
+    const r = $http.send({
+      url: "http://127.0.0.1:8120" + path,
+      method: method,
+      headers: { "content-type": "application/json" },
+      body: payload ? JSON.stringify(payload) : undefined,
+      timeout: 15,
+    });
+    return { code: r.statusCode, body: (r && r.json) || null };
+  };
+
+  let пара;
+  try {
+    const got = hp("/internal/group-read?id=" + encodeURIComponent(groupId), "GET", null);
+    пара = got.body && got.body.record;
+  } catch (err) {
+    $app.logger().warn("waiting cancel: hotpath недоступен", "err", String(err));
+    return deny(500, "Не получилось", "hotpath недоступен");
+  }
+  if (!пара) return deny(404, "Пара не найдена", "нет такой пары");
+
+  const members = Array.isArray(пара.members) ? пара.members : [];
+  if (members.indexOf(uid) === -1) {
+    return deny(403, "Это не ваша пара", "не участник");
+  }
+  // Место уже занято — это обычная пара, и расходятся из неё обычным путём
+  // (выход из связи), а не отменой ожидания.
+  if (!пара.waiting_mode) {
+    return deny(400, "Место уже занято", "waiting_mode выключен");
+  }
+  if (пара.disbanded === true) {
+    return e.json(200, { success: true, already: true });
+  }
+
+  try {
+    const r = hp("/internal/group-write", "POST", {
+      group_id: groupId,
+      set: {
+        disbanded: true,
+        disbanded_at: new Date().toISOString().replace("T", " ").slice(0, 23) + "Z",
+        claim_token: "",
+        claim_uid: "",
+        claim_name: "",
+        claim_at: 0,
+      },
+      members_changed: true,
+    });
+    if (!r.body || r.body.ok !== true) {
+      return deny(500, "Не получилось", "запись не прошла");
+    }
+  } catch (err) {
+    return deny(500, "Не получилось", "запись упала: " + String(err));
+  }
+  return e.json(200, { success: true });
 }, $apis.requireAuth());
 
 // ── статус заявки для ждущего ───────────────────────────────────────────────
