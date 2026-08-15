@@ -945,21 +945,41 @@ const Map<String, Map<String, String>> connectPartnerStrings = {
     'fr': 'Supprimer le lien ?',
     'de': 'Verbindung löschen?',
   },
+  'deleteConnectionAction': {
+    'ru': 'Удалить связь',
+    'en': 'Delete the connection',
+    'pt': 'Excluir a ligação',
+    'it': 'Elimina il legame',
+    'es': 'Borrar el vínculo',
+    'fr': 'Supprimer le lien',
+    'de': 'Verbindung löschen',
+  },
+  // Имя того, кого теряешь, стоит прямо в заголовке: без него человек нажимал
+  // «удалить», не понимая, какую пару уносит (разбор 15 августа 2026).
+  'deleteConnectionWith': {
+    'ru': 'Удалить связь с {name}?',
+    'en': 'Delete the connection with {name}?',
+    'pt': 'Excluir a ligação com {name}?',
+    'it': 'Eliminare il legame con {name}?',
+    'es': '¿Borrar el vínculo con {name}?',
+    'fr': 'Supprimer le lien avec {name} ?',
+    'de': 'Verbindung mit {name} löschen?',
+  },
   'deleteConnectionDesc': {
     'ru':
-        'Это удалит подключение навсегда. Если есть подключённый партнёр, он будет отключён.',
+        'Пара закроется у вас обоих. Переписка, воспоминания и общие даты пропадут из приложения — и у партнёра тоже.',
     'en':
-        'This will remove this connection permanently. If paired, it will disconnect your partner.',
+        'The pair closes for both of you. Messages, memories and shared dates disappear from the app — for your partner too.',
     'pt':
-        'A ligação vai ser removida para sempre. Se alguém estiver conectado, será desconectado.',
+        'O casal se fecha para vocês dois. Conversas, recordações e datas em comum somem do aplicativo — para a outra pessoa também.',
     'it':
-        'Il legame verrà rimosso per sempre. Se qualcuno è collegato, verrà scollegato.',
+        'La coppia si chiude per entrambi. Messaggi, ricordi e date comuni spariscono dall’app — anche per l’altra persona.',
     'es':
-        'El vínculo se quitará para siempre. Si hay alguien unido, se desconectará.',
+        'La pareja se cierra para los dos. Mensajes, recuerdos y fechas comunes desaparecen de la app — para la otra persona también.',
     'fr':
-        'Le lien sera retiré définitivement. Si quelqu’un est relié, il sera déconnecté.',
+        'Le couple se ferme pour vous deux. Messages, souvenirs et dates communes disparaissent de l’app — pour l’autre aussi.',
     'de':
-        'Die Verbindung wird endgültig entfernt. Falls jemand verbunden ist, wird er getrennt.',
+        'Das Paar schließt sich für euch beide. Nachrichten, Erinnerungen und gemeinsame Daten verschwinden aus der App — auch bei der anderen Person.',
   },
   'connectionRemoved': {
     'ru': 'Подключение удалено',

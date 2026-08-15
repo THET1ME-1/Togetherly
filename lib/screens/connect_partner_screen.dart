@@ -461,9 +461,16 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                     Expanded(
                       child: GestureDetector(
                         onTap: isSolo ? () => activate(activeIdx, 1) : null,
+                        // Удержание открывает СПИСОК действий, а не сразу
+                        // удаление. Раньше зажатая пилюля вела прямо в «удалить
+                        // подключение», и человек, разбираясь с каруселью, за
+                        // одиннадцать секунд снёс три живые пары — 102
+                        // сообщения и 53 воспоминания в одной из них (разбор 15
+                        // августа 2026). Он был уверен, что ничего не удалял:
+                        // ни жест, ни лист не говорили, какую пару уносят.
                         onLongPress: () {
                           if (mgr.connections.length > 1 && active != null) {
-                            _confirmDeleteConnection(active.id);
+                            _showConnectionActions(active);
                           }
                         },
                         child: AnimatedSwitcher(
@@ -2792,7 +2799,79 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     if (mounted) setState(() {});
   }
 
-  void _confirmDeleteConnection(String connectionId) {
+  /// Что можно сделать со связью: переименовать партнёра или расстаться.
+  ///
+  /// Появился потому, что удаление висело прямо на удержании пилюли: зажал —
+  /// и следующим касанием пары нет. Теперь удержание открывает список, а
+  /// удаление остаётся вторым шагом с именем того, кого теряешь.
+  Future<void> _showConnectionActions(Connection conn) async {
+    final cs = ProfileTheme.themeFor(widget.theme).colorScheme;
+    final s = LocaleService.current;
+    final partner = conn.partners.firstOrNull;
+    final name = partner == null
+        ? s.waiting
+        : NicknameService.instance.resolve(partner.uid, partner.name);
+
+    await showAppSheet<void>(
+      context,
+      builder: (sheetCtx) => SheetScaffold(
+        title: name,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (partner != null)
+                ListTile(
+                  shape: const StadiumBorder(),
+                  leading: CircleAvatar(
+                    backgroundColor: cs.secondaryContainer,
+                    child: Icon(Icons.edit_rounded,
+                        size: 20, color: cs.onSecondaryContainer),
+                  ),
+                  title: Text(
+                    s.renamePartner,
+                    style: TextStyle(
+                      fontFamily: 'Onest',
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurface,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.of(sheetCtx).pop();
+                    _showRenameDialog(partner);
+                  },
+                ),
+              ListTile(
+                shape: const StadiumBorder(),
+                leading: CircleAvatar(
+                  backgroundColor: cs.errorContainer,
+                  child: Icon(Icons.link_off_rounded,
+                      size: 20, color: cs.onErrorContainer),
+                ),
+                title: Text(
+                  s.deleteConnectionAction,
+                  style: TextStyle(
+                    fontFamily: 'Onest',
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w600,
+                    color: cs.error,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.of(sheetCtx).pop();
+                  _confirmDeleteConnection(conn.id, name: name);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _confirmDeleteConnection(String connectionId, {String name = ''}) {
     final cs = ProfileTheme.themeFor(widget.theme).colorScheme;
     showModalBottomSheet(
       context: context,
@@ -2833,7 +2912,10 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                 ),
                 const SizedBox(height: 22),
                 Text(
-                  LocaleService.current.deleteConnection,
+                  name.isEmpty
+                      ? LocaleService.current.deleteConnection
+                      : LocaleService.current.deleteConnectionWith
+                          .replaceAll('{name}', name),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                       fontFamily: 'Unbounded',
