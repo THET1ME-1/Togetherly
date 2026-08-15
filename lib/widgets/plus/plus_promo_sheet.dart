@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../screens/plus_screen.dart';
 import '../../services/locale_service.dart';
+import '../../services/plus_service.dart';
 import '../../theme/profile_theme.dart';
 import '../../theme/theme_scope.dart';
 import '../app_sheet.dart';
@@ -17,6 +18,13 @@ import '../app_sheet.dart';
 /// Пока схема там собиралась заново из акцента, лист выходил цветом чужой темы
 /// — серый заголовок, кнопка не в тон (жалоба 15 августа 2026).
 Future<void> showPlusPromoSheet(BuildContext context) async {
+  // На iPhone Togetherly+ не существует: продукта в App Store Connect нет, а
+  // вести на внешнюю оплату запрещает 3.1.1. Показ и так закрыт правилом
+  // `shouldShowPlusPromo` (gate там `hidden`), но лист обязан отвечать за себя
+  // сам: он один переживает любые перестановки на главной, а увидеть лишнюю
+  // витрину на Android невозможно — она вылезет только у ревьюера Apple.
+  if (!PlusService.instance.visible) return;
+
   final s = LocaleService.current;
   final t = context.appTheme;
   final cs = ProfileTheme.schemeFor(t);
