@@ -6,7 +6,8 @@ import '../theme/app_theme.dart';
 import '../theme/profile_theme.dart';
 import 'app_sheet.dart';
 
-/// Лист «Иконка приложения»: тринадцать значков под темы Togetherly.
+/// Лист «Иконка приложения»: основная (рисунок) плюс тринадцать значков под
+/// темы Togetherly.
 ///
 /// Жил внутри профиля и пропал при переезде настроек на отдельный экран: строку
 /// вырезали вместе со старой вёрсткой блоков, а в новый экран не перенесли.
@@ -30,10 +31,12 @@ Future<String?> showAppIconSheet(
   );
 }
 
-/// Значок «как на столе»: буквы «TY» цветом темы на её фоне.
+/// Значок «как на столе»: у основной иконки — сама картинка, у тем — буквы
+/// «TY» цветом темы на её фоне.
 ///
 /// Показывает ровно то, что нарисовано в `mipmap`, поэтому цвета берутся из
-/// той же таблицы, что и ассеты (`tool/gen_app_icons.py`).
+/// той же таблицы, что и ассеты (`tool/gen_app_icons.py`), а картинка — из того
+/// же файла, из которого сделаны launcher-иконки (`tool/gen_main_icon.py`).
 class AppIconBadge extends StatelessWidget {
   const AppIconBadge({super.key, required this.option, this.size = 28});
 
@@ -43,12 +46,32 @@ class AppIconBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final radius = BorderRadius.circular(size * 0.22);
+    final asset = option.asset;
+    if (asset != null) {
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: option.background,
+          borderRadius: radius,
+          border: Border.all(color: scheme.outlineVariant),
+        ),
+        clipBehavior: Clip.antiAlias,
+        // Ассет 512x512 в плитке 60: разворачиваем в её размер, не в свой.
+        child: Image.asset(
+          asset,
+          fit: BoxFit.cover,
+          cacheWidth: (size * MediaQuery.devicePixelRatioOf(context)).round(),
+        ),
+      );
+    }
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         color: option.background,
-        borderRadius: BorderRadius.circular(size * 0.22),
+        borderRadius: radius,
         border: Border.all(color: scheme.outlineVariant),
       ),
       alignment: Alignment.center,

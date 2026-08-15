@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Адаптивная иконка: без неё лончер не имеет права накладывать свою маску и
+     показывает PNG квадратом, тогда как соседние приложения становятся
+     круглыми. Рисунок кроет весь слой 108dp — под маской остаются центральные
+     72dp, то есть лицо маскота; края срезает сам лончер, как у всех. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/launcher_icon_fg" />
+</adaptive-icon>

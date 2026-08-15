@@ -7,6 +7,7 @@ import '../../services/locale_service.dart';
 import '../../services/wish_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/fonts.dart';
+import '../common/stable_stream_builder.dart';
 
 /// Вход в «Хочу с тобой» с главной: два ближайших желания и строка архива.
 ///
@@ -41,8 +42,9 @@ class WishesCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final ru = LocaleService.instance.isRussian;
 
-    return StreamBuilder<List<Wish>>(
-      stream: WishRepository.instance.watch(groupId),
+    return StableStreamBuilder<List<Wish>>(
+      create: () => WishRepository.instance.watch(groupId),
+      keys: [groupId],
       builder: (context, snapshot) {
         final all = snapshot.data ?? const <Wish>[];
         final dreaming = Wish.dreaming(all);

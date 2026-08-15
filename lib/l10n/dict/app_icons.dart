@@ -1,6 +1,15 @@
 // Названия иконок приложения (они же имена палитр).
 
 const Map<String, Map<String, String>> appIconsStrings = {
+  'appicon_default': {
+    'ru': 'Основная',
+    'en': 'Default',
+    'pt': 'Padrão',
+    'it': 'Principale',
+    'es': 'Principal',
+    'fr': 'Principale',
+    'de': 'Standard',
+  },
   'appicon_pink': {
     'ru': 'Розовая',
     'en': 'Pink',

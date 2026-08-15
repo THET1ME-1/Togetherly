@@ -34,6 +34,7 @@ import 'home/widgets/relationship_type_dialog.dart';
 import '../widgets/app_sheet.dart';
 import '../models/widget_data.dart';
 import '../widgets/common/plus_badge.dart';
+import '../widgets/common/stable_stream_builder.dart';
 import '../widgets/common/scaled_asset.dart';
 import '../utils/invite_code.dart';
 
@@ -1512,9 +1513,10 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                 ),
               ),
             ),
-            StreamBuilder<bool>(
-              stream:
+            StableStreamBuilder<bool>(
+              create: () =>
                   ChatService.instance.watchHasUnread(widget.pairData.pairId),
+              keys: [widget.pairData.pairId],
               builder: (context, snap) {
                 if (snap.data != true) return const SizedBox.shrink();
                 return Container(
@@ -2330,9 +2332,10 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                 Positioned(
                   right: -3,
                   top: -3,
-                  child: StreamBuilder<bool>(
-                    stream: ChatService.instance
+                  child: StableStreamBuilder<bool>(
+                    create: () => ChatService.instance
                         .watchHasUnread(widget.pairData.pairId),
+                    keys: [widget.pairData.pairId],
                     builder: (context, snap) {
                       if (snap.data != true) return const SizedBox.shrink();
                       return Container(

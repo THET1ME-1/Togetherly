@@ -293,6 +293,7 @@ class MainActivity : FlutterActivity() {
     companion object {
         // id (тема) -> суффикс android:name alias в манифесте.
         private val ICON_ALIASES = linkedMapOf(
+            "default" to ".IconDefault",
             "pink" to ".IconPink",
             "purple" to ".IconPurple",
             "blue" to ".IconBlue",

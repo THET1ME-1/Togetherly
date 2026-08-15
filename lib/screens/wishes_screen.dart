@@ -16,6 +16,7 @@ import '../theme/fonts.dart';
 import '../theme/profile_theme.dart';
 import '../widgets/avatar_widget.dart';
 import '../widgets/common/app_dialog.dart';
+import '../widgets/common/stable_stream_builder.dart';
 import '../widgets/storage_image.dart';
 import '../widgets/wishes/wish_category_sheet.dart';
 import '../widgets/wishes/wish_form_sheet.dart';
@@ -353,8 +354,9 @@ class _WishesScreenState extends State<WishesScreen> {
           style: AppFonts.unbounded(size: 17, weight: 600, color: _cs.onSurface),
         ),
       ),
-      body: StreamBuilder<List<Wish>>(
-        stream: _repo.watch(widget.groupId),
+      body: StableStreamBuilder<List<Wish>>(
+        create: () => _repo.watch(widget.groupId),
+        keys: [widget.groupId],
         builder: (context, snapshot) {
           final all = snapshot.data ?? const <Wish>[];
           final dreaming = Wish.dreaming(all);

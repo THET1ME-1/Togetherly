@@ -13,10 +13,15 @@ class AppIconOption {
   final Color background;
   final Color letters;
 
+  /// Значок нарисован картинкой, а не монограммой: превью тогда показывает сам
+  /// ассет. Так живёт основная иконка — рисунок, который под темы не красится.
+  final String? asset;
+
   const AppIconOption({
     required this.id,
     required this.background,
     required this.letters,
+    this.asset,
   });
 
   /// Название живёт в словаре (`lib/l10n/dict/app_icons.dart`): язык там
@@ -36,11 +41,20 @@ class AppIconService {
 
   static const MethodChannel _channel = MethodChannel('app_icon');
   static const String _prefKey = 'app_icon_id';
-  static const String defaultId = 'pink';
+  static const String defaultId = 'default';
 
-  /// Тестовый набор (5 тем). Расширяется добавлением alias в манифест +
-  /// ассетов в `tool/gen_app_icons.py` + записи здесь.
+  /// Основная иконка плюс тринадцать монограмм под темы. Набор расширяется
+  /// alias'ом в манифесте, строкой в `ICON_ALIASES` (MainActivity.kt), ассетами
+  /// генератора и записью здесь.
   static const List<AppIconOption> options = [
+    // Рисунок маскота: своя картинка, а не буквы цветом темы. Стоит в списке,
+    // чтобы к ней можно было вернуться, выбрав однажды цветную.
+    AppIconOption(
+      id: 'default',
+      background: Color(0xFFFDE3E2),
+      letters: Color(0xFFF6493A),
+      asset: 'assets/images/logo/app_icon.webp',
+    ),
     AppIconOption(
       id: 'pink',
       background: Color(0xFFFEEAF1),
@@ -111,7 +125,7 @@ class AppIconService {
   /// Поддерживается ли смена иконки на текущей платформе.
   bool get isSupported => !kIsWeb && Platform.isAndroid;
 
-  /// Текущая выбранная иконка (из локального хранилища; дефолт — pink).
+  /// Текущая выбранная иконка (из локального хранилища; дефолт — основная).
   Future<String> currentIconId() async {
     if (!isSupported) return defaultId;
     final prefs = await SharedPreferences.getInstance();

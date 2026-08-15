@@ -2037,8 +2037,10 @@ class _CommentsSectionState extends State<_CommentsSection> {
         const SizedBox(height: 12),
 
         // Comment list (real-time)
-        StreamBuilder<List<MemoryComment>>(
-          stream: MemoryRepository().watchComments(widget.groupId, widget.memoryId),
+        StableStreamBuilder<List<MemoryComment>>(
+          create: () =>
+              MemoryRepository().watchComments(widget.groupId, widget.memoryId),
+          keys: [widget.groupId, widget.memoryId],
           builder: (context, snap) {
             final comments = snap.data ?? [];
             if (comments.isEmpty) {

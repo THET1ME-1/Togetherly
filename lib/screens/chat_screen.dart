@@ -38,6 +38,7 @@ import 'memory_lane_screen.dart';
 import '../widgets/common/m3_loading.dart';
 import '../models/widget_data.dart';
 import '../widgets/common/plus_badge.dart';
+import '../widgets/common/stable_stream_builder.dart';
 import '../widgets/common/scaled_asset.dart';
 
 /// Цена смены фона чата в монетах (зеркало CONSUMABLE_PRICES на сервере).
@@ -1754,8 +1755,9 @@ class _ChatScreenState extends State<ChatScreen> {
         onTap: _showPartnerSheet,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-          child: StreamBuilder<bool>(
-            stream: PresenceService().watchOnline(uid),
+          child: StableStreamBuilder<bool>(
+            create: () => PresenceService().watchOnline(uid),
+            keys: [uid],
             builder: (context, presSnap) {
               final online = presSnap.data == true;
               return Row(
@@ -1804,8 +1806,9 @@ class _ChatScreenState extends State<ChatScreen> {
     required String uid,
   }) {
     final muted = cs.onPrimaryContainer.withValues(alpha: 0.7);
-    return StreamBuilder<bool>(
-      stream: _chat.watchTyping(_groupId),
+    return StableStreamBuilder<bool>(
+      create: () => _chat.watchTyping(_groupId),
+      keys: [_groupId],
       builder: (context, tSnap) {
         if (tSnap.data == true) {
           return _TypingStatus(
@@ -1825,8 +1828,9 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           );
         }
-        return StreamBuilder<int?>(
-          stream: PresenceService().watchLastSeen(uid),
+        return StableStreamBuilder<int?>(
+          create: () => PresenceService().watchLastSeen(uid),
+          keys: [uid],
           builder: (context, seenSnap) {
             final label = _lastSeenLabel(s, seenSnap.data);
             if (label.isEmpty) return const SizedBox.shrink();

@@ -149,11 +149,33 @@
         <!-- ───── Кастомизация иконки приложения (тестовый набор: 5 тем) ─────
              Каждый alias = вариант launcher-иконки, указывает на MainActivity.
              В рантайме включён ровно один (PackageManager.setComponentEnabledSetting
-             через MethodChannel 'app_icon'). Дефолт — pink (enabled=true), остальные
-             отключены. label у всех "Togetherly", меняется только icon/roundIcon. -->
+             через MethodChannel 'app_icon'). Дефолт — .IconDefault (enabled=true),
+             остальные отключены. label у всех "Togetherly", меняется только
+             icon/roundIcon.
+
+             ВНИМАНИЕ: `dart run flutter_launcher_icons` переписывает android:icon
+             у ВСЕХ alias'ов на @mipmap/launcher_icon — после его прогона манифест
+             возвращать (git checkout) и править руками. -->
+        <!-- Основная иконка приложения — рисунок маскота (@mipmap/launcher_icon,
+             делают tool/gen_main_icon.py + flutter_launcher_icons). Включена по
+             умолчанию; кто уже выбрал цветную, остаётся на своей — состояние
+             компонента переживает обновление. -->
+        <activity-alias
+            android:name=".IconDefault"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/launcher_icon"
+            android:roundIcon="@mipmap/launcher_icon_round"
+            android:label="Togetherly"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
         <activity-alias
             android:name=".IconPink"
-            android:enabled="true"
+            android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/ic_launcher_pink"
             android:roundIcon="@mipmap/ic_launcher_pink_round"

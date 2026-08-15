@@ -11,15 +11,21 @@
 const String ruWhatsNew =
     'Что нового 💜\n'
     '\n'
-    '— Виджеты на экране блокировки iPhone: дни вместе, «Скучаю» и настроение '
-    'обоих.\n'
-    '— Виджеты на iPhone обновляются, пока приложение закрыто: фото и статус '
-    'партнёра приезжают сами.';
+    '— У приложения новая иконка: рисованный маскот вместо букв.\n'
+    '— Пару не снести случайным нажатием: подтверждение называет партнёра и '
+    'предупреждает, что переписка пропадёт у обоих.\n'
+    '— Ожидание партнёра отменяется кнопкой «Больше не жду».\n'
+    '— Нижние листы и диалоги красятся темой пары.\n'
+    '— Приложение реже дёргает сервер: списки и аватарки перестали '
+    'перезагружаться по кругу.';
 
 const String enWhatsNew =
     'What is new 💜\n'
     '\n'
-    '— Lock screen widgets on iPhone: days together, "Miss you" and both '
-    'moods.\n'
-    '— iPhone widgets refresh while the app is closed, so your partner\'s '
-    'photo and status arrive on their own.';
+    '— New app icon: a drawn mascot instead of letters.\n'
+    '— A pair no longer disappears from one stray press: the confirmation '
+    'names your partner and warns that the chat goes for both of you.\n'
+    '— Waiting for a partner can be called off with "No longer waiting".\n'
+    '— Sheets and dialogs take the colours of your couple\'s theme.\n'
+    '— The app bothers the server less: lists and avatars stopped reloading '
+    'in circles.';

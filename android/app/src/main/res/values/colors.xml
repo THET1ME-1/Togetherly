@@ -2,4 +2,7 @@
 <resources>
     <!-- Цвет акцента для FCM-уведомлений -->
     <color name="notification_color">#EC4899</color>
+    <!-- Подложка адаптивной иконки: розовый фон самого рисунка. Виден только
+         по краям при параллаксе лончера — картинка кроет весь слой. -->
+    <color name="ic_launcher_background">#FDE3E2</color>
 </resources>

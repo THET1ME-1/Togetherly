@@ -13,6 +13,7 @@ import '../services/presence_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/fonts.dart';
 import '../theme/profile_theme.dart';
+import '../widgets/common/stable_stream_builder.dart';
 import '../widgets/avatar_widget.dart';
 import '../widgets/miss_you/custom_vibe_sheet.dart';
 
@@ -358,8 +359,9 @@ class _MissYouScreenState extends State<MissYouScreen>
   /// придумывать «был давно» не из чего.
   Widget _presence(ColorScheme cs) {
     if (widget.partnerUid.isEmpty) return const SizedBox.shrink();
-    return StreamBuilder<bool>(
-      stream: PresenceService().watchOnline(widget.partnerUid),
+    return StableStreamBuilder<bool>(
+      create: () => PresenceService().watchOnline(widget.partnerUid),
+      keys: [widget.partnerUid],
       builder: (context, onlineSnap) {
         if (onlineSnap.data == true) {
           return Row(
@@ -378,8 +380,9 @@ class _MissYouScreenState extends State<MissYouScreen>
             ],
           );
         }
-        return StreamBuilder<int?>(
-          stream: PresenceService().watchLastSeen(widget.partnerUid),
+        return StableStreamBuilder<int?>(
+          create: () => PresenceService().watchLastSeen(widget.partnerUid),
+          keys: [widget.partnerUid],
           builder: (context, seenSnap) {
             final label = lastSeenLabel(seenSnap.data, _s.yesterday);
             if (label.isEmpty) return const SizedBox.shrink();

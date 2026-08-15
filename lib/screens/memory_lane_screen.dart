@@ -72,6 +72,7 @@ import 'memory_movie_form_screen.dart';
 import '../theme/profile_theme.dart';
 import '../widgets/app_sheet.dart';
 import '../widgets/common/app_dialog.dart';
+import '../widgets/common/stable_stream_builder.dart';
 import '../widgets/memory_date_field.dart';
 import '../widgets/rating_widgets.dart';
 import '../services/movie_search_service.dart';

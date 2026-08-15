@@ -1,9 +1,11 @@
-🫦 Togetherly • v1.27.0
+🫦 Togetherly • v1.28.3
 
-— Android notifications arrive with the app closed, and the "Togetherly is connected" line is gone from the shade.
-— Event times finally match for couples in different time zones: "just now" means just now.
-— Custom moods in Togetherly+: an emoji, a photo or a drawing, plus your own caption.
-— The Notifications section in settings no longer opens empty.
-— The main timer stays the main one after a restart.
-— A video in watch-together is removed by a tap instead of opening the room with an ad.
-— The drawing canvas no longer stutters when you move or rotate it.
+— New app icon: a drawn mascot instead of letters.
+— A pair no longer disappears from one stray press: the confirmation names your partner and warns that the chat goes for both of you.
+— Waiting for a partner can be called off with "No longer waiting", and the second-seat code stops working.
+— Sheets and dialogs take the colours of your couple's theme.
+— Rotating and zooming the canvas stays yours: your partner turns the sheet, nothing moves on your side.
+— Maps in memories open again.
+— The partner profile no longer comes up empty.
+— The app bothers the server less: lists and avatars stopped reloading in circles.
+— A paid Togetherly+ unlocks on sign-in even when the payment e-mail differs from the account one.

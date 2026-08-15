@@ -122,7 +122,10 @@ dev_dependencies:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/images/logo/logo.jpg"
+  # Иконка приложения — рисунок 512x512 (кроп исходника из
+  # docs/branding/raw/app-icon-source.png, делает tool/gen_main_icon.py).
+  # Файл лежит вне assets намеренно: в сборку едет только webp-превью.
+  image_path: "docs/branding/app-icon-512.png"
   min_sdk_android: 21
 
 flutter:
