@@ -1,0 +1,101 @@
+name: iOS → видит ли система наши виджеты
+
+# Зачем: виджетов Togetherly нет в галерее ни в одной версии, при том что в
+# собранном IPA расширение на месте, идентификатор — префикс приложения,
+# версии совпадают, entitlements и права App ID в порядке. Значит смотреть
+# надо не файлы, а решение самой iOS: она либо регистрирует расширение, либо
+# молча отвергает.
+#
+# Симулятор для этого годится: `pluginkit` показывает ЗАРЕГИСТРИРОВАННЫЕ
+# расширения, а системный лог — причину отказа. Устройства у нас нет, а
+# гадать по исходникам мы уже пробовали.
+#
+# Ничего не публикует и не подписывает.
+on:
+  workflow_dispatch:
+
+jobs:
+  registry:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Версии инструментов
+        run: |
+          flutter --version
+          xcodebuild -version
+          echo "— доступные симуляторы —"
+          xcrun simctl list devices available | head -30
+
+      - name: Зависимости
+        run: |
+          flutter pub get
+          cd ios && pod install
+
+      - name: Сборка под симулятор
+        run: |
+          set -euo pipefail
+          # Debug: нам нужна регистрация расширения, а не скорость работы.
+          flutter build ios --simulator --debug --no-tree-shake-icons \
+            --dart-define=STORE=github
+          echo "— что внутри собранного .app —"
+          ls -la build/ios/iphonesimulator/Runner.app/PlugIns/ || echo "PlugIns НЕТ ВОВСЕ"
+
+      - name: Поднять симулятор и поставить приложение
+        run: |
+          set -euo pipefail
+          DEVICE=$(xcrun simctl list devices available -j | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)['devices']
+          best=None
+          for runtime, devs in d.items():
+              if 'iOS' not in runtime: continue
+              for dev in devs:
+                  if 'iPhone' in dev['name']:
+                      best=(runtime, dev['udid'], dev['name'])
+          print(best[1] if best else '')
+          ")
+          echo "симулятор: $DEVICE"
+          xcrun simctl boot "$DEVICE" || true
+          xcrun simctl bootstatus "$DEVICE" -b || true
+          echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"
+          xcrun simctl install "$DEVICE" build/ios/iphonesimulator/Runner.app
+          xcrun simctl launch "$DEVICE" com.togetherly.love || true
+          sleep 20
+
+      - name: Что система знает о расширении
+        run: |
+          set +e
+          echo "=============================================================="
+          echo "ЗАРЕГИСТРИРОВАННЫЕ РАСШИРЕНИЯ (pluginkit)"
+          echo "=============================================================="
+          xcrun simctl spawn "$DEVICE" pluginkit -m -v -A -D 2>&1 | grep -i "togetherly" || echo "  НИ ОДНОГО расширения Togetherly не зарегистрировано"
+          echo
+          echo "— только виджеты —"
+          xcrun simctl spawn "$DEVICE" pluginkit -m -v -p com.apple.widgetkit-extension 2>&1 | head -40
+          echo
+          echo "=============================================================="
+          echo "ЖУРНАЛ: что сказала система про наше расширение"
+          echo "=============================================================="
+          xcrun simctl spawn "$DEVICE" log show --last 5m --style compact \
+            --predicate 'process == "chronod" OR process == "pkd" OR process == "installd" OR subsystem CONTAINS "WidgetKit"' 2>&1 \
+            | grep -iE "togetherly|widget" | tail -80
+          echo
+          echo "=============================================================="
+          echo "СОДЕРЖИМОЕ УСТАНОВЛЕННОГО ПРИЛОЖЕНИЯ"
+          echo "=============================================================="
+          APP=$(xcrun simctl get_app_container "$DEVICE" com.togetherly.love 2>/dev/null)
+          echo "путь: $APP"
+          ls -la "$APP/PlugIns" 2>&1 || echo "  PlugIns нет"
+          for p in "$APP"/PlugIns/*.appex; do
+            echo "— $p"
+            plutil -p "$p/Info.plist" | grep -E "CFBundleIdentifier|CFBundleVersion|CFBundleShortVersion|NSExtensionPointIdentifier|MinimumOSVersion|UIDeviceFamily" || true
+          done
