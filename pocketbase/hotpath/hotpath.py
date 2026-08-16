@@ -1222,6 +1222,31 @@ async def record_activity(request: Request):
     return await _record_activity_pg(group_id, uid_auth, uid, today)
 
 
+def _общий_день(сегодня: str, ждём: str) -> bool:
+    """Считать ли отметку партнёра тем же общим днём.
+
+    Дату «сегодня» присылает клиент по своим часам, и у пары из разных поясов
+    она расходится каждый вечер: у неё уже 17-е, у него ещё 16-е. Полное
+    совпадение строк такую пару не засчитывало НИКОГДА — второй заход просто
+    перезаписывал ожидание своей датой. По живой базе 16.08.2026 в разных
+    поясах живут 22% активных пар (1799 из 8162), а серия дольше недели была
+    всего у 252 пар из 31 780.
+
+    Поэтому соседний день тоже считается общим — ровно на разницу поясов.
+    Дальше суток не идём: иначе «серия» перестанет значить «мы оба тут».
+    """
+    if not сегодня or not ждём:
+        return False
+    if сегодня == ждём:
+        return True
+    try:
+        a = time.mktime(time.strptime(сегодня, "%Y-%m-%d"))
+        b = time.mktime(time.strptime(ждём, "%Y-%m-%d"))
+    except ValueError:
+        return False
+    return abs(round((a - b) / 86400)) == 1
+
+
 def _день_подряд(сегодня: str, прошлый: str) -> bool:
     """Прошлый общий день был ровно вчера (иначе серия начинается заново)."""
     if not прошлый:
@@ -1282,9 +1307,12 @@ async def _record_activity_pg(group_id: str, auth_uid: str, uid: str,
 
             ждёт_дату = row["streak_pending_date"] or ""
             ждёт_кого = row["streak_pending_uid"] or ""
-            оба_сегодня = ждёт_дату == today and ждёт_кого and ждёт_кого != uid
+            # Соседний день тоже общий: у пары из разных поясов даты не
+            # совпадают никогда (см. `_общий_день`).
+            оба_сегодня = (bool(ждёт_кого) and ждёт_кого != uid
+                           and _общий_день(today, ждёт_дату))
             if not оба_сегодня:
-                if ждёт_дату != today or not ждёт_кого:
+                if not _общий_день(today, ждёт_дату) or not ждёт_кого:
                     await c.execute(
                         "UPDATE groups SET streak_pending_date = $1, "
                         "streak_pending_uid = $2, updated = $3 WHERE id = $4",

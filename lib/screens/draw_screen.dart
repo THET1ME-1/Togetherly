@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import '../models/coloring_clamp.dart';
 import '../models/coloring_picture.dart';
 import '../utils/stroke_layer_cache.dart';
 import 'coloring_result_screen.dart';
@@ -2397,11 +2398,15 @@ class _DrawScreenState extends State<DrawScreen>
     // Без партнёра половин нет — мазок никуда не прижимаем.
     if (!coloringSplitApplies(widget.pairData.partnerUid)) return localPoint;
     final canvasPoint = _screenToCanvas(localPoint);
-    final half = _canvasSize.width / 2;
-    final margin = _strokeWidth / 2 + 1;
-    final clampedX = _mySide == ColoringSide.left
-        ? canvasPoint.dx.clamp(0.0, half - margin)
-        : canvasPoint.dx.clamp(half + margin, _canvasSize.width);
+    // Границы считает `coloringClampX` под тестами: прежний расчёт на месте
+    // переворачивал диапазон при толстой кисти на узком листе, и `clamp`
+    // ронял приложение прямо посреди мазка («часто вылетает в раскрасках»).
+    final clampedX = coloringClampX(
+      canvasPoint.dx,
+      width: _canvasSize.width,
+      strokeWidth: _strokeWidth,
+      left: _mySide == ColoringSide.left,
+    );
     if ((clampedX - canvasPoint.dx).abs() < 0.01) return localPoint;
     // Обратно в экранные координаты — тем же преобразованием, что и вперёд.
     final delta = clampedX - canvasPoint.dx;
