@@ -18,6 +18,10 @@ on:
         description: 'Вырезать виджеты экрана блокировки (проверка подозреваемого)'
         required: false
         default: 'false'
+      ext_release:
+        description: 'Пересобрать расширение с -O, как в TestFlight'
+        required: false
+        default: 'false'
 
 jobs:
   registry:
@@ -69,6 +73,31 @@ jobs:
             --dart-define=STORE=github
           echo "— что внутри собранного .app —"
           ls -la build/ios/iphonesimulator/Runner.app/PlugIns/ || echo "PlugIns НЕТ ВОВСЕ"
+
+      - name: Расширение с -O вместо debug
+        if: ${{ inputs.ext_release == 'true' }}
+        # Людям уезжает Release: `SWIFT_OPTIMIZATION_LEVEL = -O`, символы
+        # вырезаны, бинарь втрое меньше debug-овского. Прошлая проверка гоняла
+        # debug и потому объявила фикс рабочим, хотя на телефонах ничего не
+        # изменилось. Само приложение в Release для симулятора Flutter собрать
+        # не даёт (AOT-снапшота под симулятор нет), но расширение от Flutter не
+        # зависит: собираем ТОЛЬКО его и кладём в debug-овский .app.
+        run: |
+          set -euxo pipefail
+          xcodebuild build \
+            -project ios/Runner.xcodeproj \
+            -target TogetherlyWidgetExtension \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -derivedDataPath /tmp/extrel \
+            CODE_SIGNING_ALLOWED=NO
+          APPEX=$(find /tmp/extrel -name "TogetherlyWidgetExtension.appex" -maxdepth 6 | head -1)
+          echo "собрано: $APPEX"
+          DEST=build/ios/iphonesimulator/Runner.app/PlugIns
+          rm -rf "$DEST/TogetherlyWidgetExtension.appex"
+          cp -R "$APPEX" "$DEST/"
+          echo "— размер бинаря (debug был бы ~2 МБ, release ~0,7 МБ) —"
+          ls -la "$DEST/TogetherlyWidgetExtension.appex/TogetherlyWidgetExtension"
 
       - name: Поднять симулятор и поставить приложение
         run: |
@@ -152,3 +181,40 @@ jobs:
             echo "— $p"
             plutil -p "$p/Info.plist" | grep -E "CFBundleIdentifier|CFBundleVersion|CFBundleShortVersion|NSExtensionPointIdentifier|MinimumOSVersion|UIDeviceFamily" || true
           done
+
+      - name: Приговор
+        # Читать полсотни строк журнала каждый раз — способ пропустить главное.
+        # Здесь два числа, по которым видно всё: падало ли расширение и дошли
+        # ли до системы описания виджетов.
+        run: |
+          set +e
+          DATA="$HOME/Library/Developer/CoreSimulator/Devices/$DEVICE/data"
+          CRASHES=$(xcrun simctl spawn "$DEVICE" log show --last 10m --style compact \
+            --predicate 'eventMessage CONTAINS "TogetherlyWidget"' 2>/dev/null \
+            | grep -ciE "SIGTRAP|SIGABRT|SIGSEGV|exited with context")
+          KINDS=0
+          for t in $(sqlite3 "$DATA/Library/chronod/chrono.sql" \
+              "select name from sqlite_master where type='table'" 2>/dev/null); do
+            n=$(sqlite3 "$DATA/Library/chronod/chrono.sql" \
+              "select count(*) from \"$t\"" 2>/dev/null)
+            [ -z "$n" ] && continue
+            m=$(sqlite3 "$DATA/Library/chronod/chrono.sql" "select * from \"$t\"" 2>/dev/null \
+              | grep -ci togetherly)
+            KINDS=$((KINDS + m))
+          done
+          PENDING=$(plutil -p "$DATA/Library/Preferences/com.apple.chronod.plist" 2>/dev/null \
+            | grep -c togetherly)
+          echo "=============================================================="
+          echo "ПРИГОВОР"
+          echo "=============================================================="
+          echo "аварийных завершений расширения: $CRASHES"
+          echo "строк про Togetherly в базе chronod: $KINDS"
+          echo "ждёт повторного опроса (extensionsPendingDescriptorRefetch): $PENDING"
+          echo
+          if [ "$CRASHES" -gt 0 ]; then
+            echo "РАСШИРЕНИЕ ПАДАЕТ — галерея будет пустой."
+          elif [ "$KINDS" -gt 0 ]; then
+            echo "Виджеты доехали до системы: chronod их знает."
+          else
+            echo "Расширение не падает, но описаний виджетов у системы нет."
+          fi
