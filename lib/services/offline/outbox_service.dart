@@ -329,6 +329,7 @@ class OutboxService {
         return k('mood_entries', (p['entry'] as Map?)?['id']);
       case 'moodDelete':
         return k('mood_entries', p['id']);
+      case 'strokeAdd':
       case 'strokeDelete':
         return k('canvas_strokes', p['id']);
       case 'cycleUpsert':
@@ -469,6 +470,13 @@ class OutboxService {
   Future<bool> _coalesce(
       Database db, String type, Map<String, dynamic> p) async {
     switch (type) {
+      // Человек отменил штрих, который ещё не улетел на сервер. Задача на его
+      // добавление снимается прямо здесь: иначе очередь пришлёт штрих позже, и
+      // он вернётся на холст сам собой — та самая жалоба «отменённые штрихи
+      // восстанавливаются», только с другого конца.
+      case 'strokeCancel':
+        return _dropQueued(
+            db, 'strokeAdd', p, (a, b) => a['id'] == b['id']);
       case 'counterInc':
         return _replaceOrMerge(
           db,
@@ -558,6 +566,30 @@ class OutboxService {
     }
   }
 
+  /// Убрать из очереди ещё не улетевшую задачу [type], опознав её по [sameKey].
+  /// Возвращает true, если что-то сняли (или снимать было нечего): вызывающая
+  /// операция сама в очередь не попадает — она гасит чужую, а не создаёт свою.
+  Future<bool> _dropQueued(
+    Database db,
+    String type,
+    Map<String, dynamic> payload,
+    bool Function(Map<String, dynamic> existing, Map<String, dynamic> incoming)
+        sameKey,
+  ) async {
+    final pend = await _store.find(db,
+        finder: Finder(sortOrders: [SortOrder(Field.key)]));
+    for (final s in pend) {
+      if (_inflightKeys.contains(s.key) || s.value['type'] != type) continue;
+      final parsed = _parseOp(s.value);
+      if (parsed == null) continue;
+      if (sameKey(parsed.payload, payload)) {
+        await _store.record(s.key).delete(db);
+        return true;
+      }
+    }
+    return true;
+  }
+
   Future<bool> _replaceOrMerge(
     Database db,
     String type,
@@ -610,6 +642,18 @@ class OutboxService {
         // могут восстановиться». Очередь доводит удаление до конца сама и
         // переживает перезапуск приложения.
         return data.deleteStroke(p['id'] as String? ?? '');
+      case 'strokeAdd':
+        // Коммит штриха, который не дошёл с первого раза. В пиксельной
+        // раскраске клетка — отдельный штрих, их десятки в секунду, и отказ
+        // сети стирал нарисованное прямо из-под руки. Очередь досылает штрих
+        // сама; повторная доставка не страшна — экран сопоставляет свой штрих
+        // с серверным по автору и порядковому номеру.
+        final rec = await data.createStroke(
+          p['groupId'] as String? ?? '',
+          p['canvasId'] as String? ?? '',
+          Map<String, dynamic>.from(p['stroke'] as Map? ?? const {}),
+        );
+        return rec != null;
       case 'memorySetSaved':
         return _applySetSaved(
           p['memoryId'] as String? ?? '',

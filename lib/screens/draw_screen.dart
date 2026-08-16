@@ -12,6 +12,7 @@ import 'package:image_picker/image_picker.dart';
 import '../models/coloring_clamp.dart';
 import '../models/coloring_picture.dart';
 import '../utils/stroke_layer_cache.dart';
+import '../utils/stroke_save_scheduler.dart';
 import 'coloring_result_screen.dart';
 import '../services/memory_repository.dart';
 import '../models/memory.dart';
@@ -466,14 +467,21 @@ class _DrawScreenState extends State<DrawScreen>
     });
   }
 
-  void _saveSoloStrokes() {
-    CanvasStorageService.instance.saveLocalStrokes(
+  /// Запись всего холста на диск: `jsonEncode` всех штрихов плюс поход в
+  /// SharedPreferences. На каждый штрих это терпимо в обычной раскраске, где
+  /// штрих — целый мазок, и убийственно в пиксельной, где штрих — одна клетка:
+  /// трёхсотая клетка сериализует триста штрихов. Планировщик склеивает правки
+  /// и пишет раз в интервал, а выход с экрана дописывает последнее.
+  late final StrokeSaveScheduler _soloSave = StrokeSaveScheduler(
+    save: () => CanvasStorageService.instance.saveLocalStrokes(
       _myUid,
       _canvasId,
       _visibleStrokes,
       groupId: _groupId,
-    );
-  }
+    ),
+  );
+
+  void _saveSoloStrokes() => _soloSave.schedule();
 
   //  Thumbnail capture
 
@@ -516,6 +524,9 @@ class _DrawScreenState extends State<DrawScreen>
     _pulseAnim.dispose();
     _resetCtrl?.dispose();
     _clearLiveStroke();
+    // Планировщик дописывает отложенный холст: закрытие экрана не должно
+    // съедать последние клетки.
+    _soloSave.dispose();
     _repaintNotifier.dispose();
     _viewTick.dispose();
     _partnerNotifier.dispose();
@@ -537,6 +548,9 @@ class _DrawScreenState extends State<DrawScreen>
       _activePointers.clear();
       _isZooming = false;
       _cancelCurrentGesture();
+      // Свёрнутое приложение система вправе выгрузить: отложенный холст
+      // дописываем сразу, иначе последние клетки пропадут.
+      _soloSave.flushNow();
       _markPresence(false);
     } else if (state == AppLifecycleState.resumed) {
       _markPresence(true);
@@ -1592,12 +1606,16 @@ class _DrawScreenState extends State<DrawScreen>
         })
         .catchError((e) {
           debugPrint('[Draw] commit error: $e');
-          if (!mounted) return;
-          setState(() {
-            _pendingLocalStrokes.remove(stroke.id);
-            _visibleStrokes = _composeVisibleStrokes();
-          });
-          _myStrokeIds.remove(stroke.id);
+          // Штрих остаётся на холсте, а доставку берёт очередь. Раньше отказ
+          // стирал нарисованное: в пиксельной раскраске клетки уходят
+          // десятками в секунду, часть запросов не проходит, и рисунок
+          // осыпался прямо под рукой («всё стирает»).
+          unawaited(OutboxService.instance.enqueue('strokeAdd', {
+            'id': stroke.id,
+            'groupId': _groupId,
+            'canvasId': _canvasId,
+            'stroke': stroke.toFirestore(),
+          }));
         });
   }
 
@@ -1613,6 +1631,10 @@ class _DrawScreenState extends State<DrawScreen>
     if (_pendingLocalStrokes.containsKey(undoKey)) {
       removed = _pendingLocalStrokes.remove(undoKey);
       _cancelledPendingStrokeIds.add(undoKey);
+      // Штрих мог не долететь с первого раза и ждать в очереди. Снимаем задачу,
+      // иначе очередь пришлёт его позже и отменённое вернётся на холст.
+      unawaited(
+          OutboxService.instance.enqueue('strokeCancel', {'id': undoKey}));
     } else {
       removed = _visibleStrokes.where((s) => s.id == undoKey).firstOrNull;
       if (removed != null && _hasSharedCanvas) {
