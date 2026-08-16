@@ -1986,6 +1986,10 @@ abstract class AppStrings {
   String get watchOpenOnSite;
   String get watchOnSiteHint;
   String get watchPartnerInBrowser;
+
+  /// Код комнаты не пришёл — предлагаем спросить заново, а не молчать
+  /// прочерком (жалоба «нет кода», 16.08.2026).
+  String get watchCodeRetry;
   String get watchRecent;
   String get watchOurVideos;
   String watchVideoAdd(int mb);

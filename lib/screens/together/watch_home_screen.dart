@@ -11,6 +11,7 @@ import '../../models/pair_data.dart';
 import '../../services/locale_service.dart';
 import '../../widgets/app_sheet.dart';
 import '../../services/watch_history_service.dart';
+import '../../models/watch_room_load.dart';
 import '../../services/watch_room_service.dart';
 import '../../services/plus_service.dart';
 import '../../services/watch_videos_service.dart';
@@ -205,13 +206,39 @@ class _WatchHomeScreenState extends State<WatchHomeScreen> {
     setState(() => _recent = items);
   }
 
-  Future<void> _loadRoom() async {
+  /// Спрашивает код комнаты и, если не вышло, пробует ещё.
+  ///
+  /// Один заход при открытии экрана оставлял человека с многоточием: сессия к
+  /// первому кадру бывает не поднята, id пары приезжает позже, а вечером
+  /// сервер отвечает дольше клиентского таймаута. Жалоба со снимком
+  /// 16.08.2026 звучала просто — «нет кода». Правило повторов и пауз живёт в
+  /// `models/watch_room_load.dart` под тестами.
+  Future<void> _loadRoom({int attempt = 0}) async {
+    if (attempt == 0 && mounted) setState(() => _loading = true);
     final room = await WatchRoomService.roomCode(widget.pairData.pairId);
     if (!mounted) return;
+
+    if (watchRoomShouldRetry(code: room, attempt: attempt)) {
+      await Future<void>.delayed(watchRoomRetryDelay(attempt));
+      if (!mounted) return;
+      return _loadRoom(attempt: attempt + 1);
+    }
+
     setState(() {
       _room = room;
       _loading = false;
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant WatchHomeScreen old) {
+    super.didUpdateWidget(old);
+    // Пара приехала (или сменилась) уже после первого кадра — код у прежней
+    // чужой, а у пустой его не было вовсе.
+    if (old.pairData.pairId != widget.pairData.pairId) {
+      _room = '';
+      _loadRoom();
+    }
   }
 
   Future<void> _openOnSite() async {
@@ -265,6 +292,7 @@ class _WatchHomeScreenState extends State<WatchHomeScreen> {
           code: _room,
           loading: _loading,
           onCopy: _copyCode,
+          onRetry: _loading ? null : () => _loadRoom(),
         ),
         const SizedBox(height: 20),
         Padding(
@@ -619,12 +647,17 @@ class _TonalCard extends StatelessWidget {
 class _CodeRow extends StatelessWidget {
   final String code;
   final bool loading;
+
+  /// Спросить код заново. Нужен, когда его так и не дали: без этого человек
+  /// смотрит на прочерк и не знает, что делать.
+  final VoidCallback? onRetry;
   final VoidCallback onCopy;
 
   const _CodeRow({
     required this.code,
     required this.loading,
     required this.onCopy,
+    this.onRetry,
   });
 
   @override
@@ -651,10 +684,35 @@ class _CodeRow extends StatelessWidget {
                   style: text.bodySmall?.copyWith(color: cs.onSurfaceVariant),
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  loading ? '…' : (code.isEmpty ? '—' : code),
-                  style: text.titleLarge?.copyWith(letterSpacing: 1.2),
-                ),
+                if (loading)
+                  Text('…', style: text.titleLarge?.copyWith(letterSpacing: 1.2))
+                else if (code.isEmpty)
+                  // Код не дали — говорим об этом словами и даём повторить.
+                  // Прежде тут стоял молчаливый прочерк, и человек писал в
+                  // поддержку «нет кода» (16.08.2026).
+                  InkWell(
+                    onTap: onRetry,
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.refresh_rounded, size: 18, color: cs.primary),
+                          const SizedBox(width: 6),
+                          Text(
+                            s.watchCodeRetry,
+                            style: text.titleSmall?.copyWith(color: cs.primary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  Text(
+                    code,
+                    style: text.titleLarge?.copyWith(letterSpacing: 1.2),
+                  ),
               ],
             ),
           ),
