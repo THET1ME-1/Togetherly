@@ -1533,6 +1533,13 @@ abstract class AppStrings {
   String get settingsPrivacyHint;
   String get settingsCoinsHint;
   String get settingsSupportHint;
+
+  /// Канал и бот для багов — строки настроек. Ссылку на канал спрашивают в
+  /// поддержке прямым текстом, а про бота знали только те, кому его присылали.
+  String get telegramChannelTitle;
+  String get telegramChannelHint;
+  String get bugBotTitle;
+  String get bugBotHint;
   String get settingsAccountSection;
   String get settingsDeleteHint;
 

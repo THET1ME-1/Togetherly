@@ -150,4 +150,42 @@ class AppIconService {
       return false;
     }
   }
+
+  /// Какие alias система считает включёнными сейчас.
+  Future<List<String>> enabledIcons() async {
+    if (!isSupported) return const [];
+    try {
+      final list = await _channel.invokeListMethod<String>('enabledIcons');
+      return list ?? const [];
+    } on PlatformException catch (e) {
+      debugPrint('AppIconService.enabledIcons failed: ${e.message}');
+      return const [];
+    }
+  }
+
+  /// Приводит ярлыки в порядок: на рабочем столе должен быть ровно один.
+  ///
+  /// Выбранную иконку приложение включает явно, и это переживает обновление,
+  /// а новый `.IconDefault` приехал включённым из манифеста — у выбиравших
+  /// цветную ярлыков стало два («обновил, стало два», жалоба со снимком
+  /// 16.08.2026). Правило, какой оставить, живёт в `models/app_icon_repair.dart`
+  /// под тестами: выбор человека важнее нового умолчания.
+  ///
+  /// Зовётся при запуске. Когда всё в порядке, не трогает ничего: лишний
+  /// `setComponentEnabledSetting` заставляет лаунчер перерисовать ярлык, а
+  /// некоторые ещё и теряют его положение на экране.
+  Future<void> repairIfNeeded() async {
+    if (!isSupported) return;
+    final enabled = await enabledIcons();
+    if (!appIconNeedsRepair(enabled)) return;
+    final saved = await currentIconId();
+    final keep = appIconToKeep(
+      enabled: enabled,
+      // currentIconId отдаёт умолчание, когда выбора не было: для правила это
+      // не то же самое, что осознанный выбор основной иконки.
+      saved: enabled.contains(saved) || saved != defaultId ? saved : null,
+    );
+    debugPrint('AppIconService: включено $enabled, оставляем $keep');
+    await setIcon(keep);
+  }
 }

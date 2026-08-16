@@ -118,6 +118,12 @@ class _ProfileScreenState extends State<ProfileScreen>
     'https://togetherly.day/privacy-policy',
   );
   static final Uri _termsUri = Uri.parse('https://togetherly.day/terms');
+
+  /// Канал в Telegram и бот для жалоб. Обе ссылки до 16.08.2026 жили только в
+  /// переписке с поддержкой: «не могу найти ссылку на тгк» — обычный вопрос,
+  /// а бот знали лишь те, кому его присылали в ответ на жалобу.
+  static final Uri _tgChannelUri = Uri.parse('https://t.me/sandtcompany');
+  static final Uri _bugBotUri = Uri.parse('https://t.me/TogetherlyBugsBot');
   // Лендинг тоже переехал с Firebase Hosting на VPS (pb_public).
   static final Uri _aboutAppUri = Uri.parse('https://togetherly.day/#download');
   static final Uri _boostyUri = Uri.parse('https://boosty.to/sntcompany');
@@ -435,6 +441,14 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Future<void> _openTerms() async {
     await _openExternalUri(_termsUri);
+  }
+
+  Future<void> _openTelegramChannel() async {
+    await _openExternalUri(_tgChannelUri);
+  }
+
+  Future<void> _openBugBot() async {
+    await _openExternalUri(_bugBotUri);
   }
 
   /// Письмо в поддержку: тема и версия подставляются сами, человеку остаётся
@@ -1724,6 +1738,8 @@ class _ProfileScreenState extends State<ProfileScreen>
             onResetMissYou: () => _handleResetMissYouCount(ctx),
             onTerms: _openTerms,
             onSupport: _openSupportMail,
+            onTelegramChannel: _openTelegramChannel,
+            onBugBot: _openBugBot,
             onAbout: _openAboutApp,
             onLogout: () => _showLogoutDialog(ctx),
             onDeleteAccount: () => _showDeleteAccountDialog(ctx),

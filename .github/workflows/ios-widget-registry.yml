@@ -84,14 +84,16 @@ jobs:
           echo "БАЗА CHRONO (список известных системе виджетов)"
           echo "=============================================================="
           find "$DATA/Library" -iname "*hrono*" -maxdepth 3 2>/dev/null | head -20
-          for f in $(find "$DATA/Library" -iname "*.plist" -path "*hrono*" 2>/dev/null | head -10); do
-            echo "— $f"
-            plutil -p "$f" 2>/dev/null | grep -iE "togetherly|kind|widget" | head -40
-          done
-          for db in $(find "$DATA/Library" -iname "*.sqlite" -o -iname "*.db" -path "*hrono*" 2>/dev/null | head -5); do
-            echo "— база $db"
-            sqlite3 "$db" ".tables" 2>/dev/null
-            sqlite3 "$db" "select * from sqlite_master where type='table'" 2>/dev/null | head -10
+          echo "— настройки chronod целиком —"
+          plutil -p "$DATA/Library/Preferences/com.apple.chronod.plist" 2>/dev/null | head -80
+          echo
+          echo "— база chrono.sql: таблицы —"
+          sqlite3 "$DATA/Library/chronod/chrono.sql" ".tables" 2>&1 | head -20
+          echo "— что в ней про наши виджеты —"
+          for t in $(sqlite3 "$DATA/Library/chronod/chrono.sql" "select name from sqlite_master where type='table'" 2>/dev/null); do
+            n=$(sqlite3 "$DATA/Library/chronod/chrono.sql" "select count(*) from \"$t\"" 2>/dev/null)
+            echo "  таблица $t: $n строк"
+            sqlite3 "$DATA/Library/chronod/chrono.sql" "select * from \"$t\"" 2>/dev/null | grep -i togetherly | head -5
           done
           echo
           echo "— поиск строки togetherly по контейнерам системы —"

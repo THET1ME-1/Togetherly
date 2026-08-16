@@ -2232,6 +2232,14 @@ abstract class DictStrings extends AppStrings {
   @override
   String get settingsSupportHint => _t('settingsSupportHint');
   @override
+  String get telegramChannelTitle => _t('telegramChannelTitle');
+  @override
+  String get telegramChannelHint => _t('telegramChannelHint');
+  @override
+  String get bugBotTitle => _t('bugBotTitle');
+  @override
+  String get bugBotHint => _t('bugBotHint');
+  @override
   String get settingsAccountSection => _t('settingsAccountSection');
   @override
   String get settingsDeleteHint => _t('settingsDeleteHint');

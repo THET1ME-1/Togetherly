@@ -29,6 +29,8 @@ class SettingsScreen extends StatelessWidget {
     required this.onResetMissYou,
     required this.onTerms,
     required this.onSupport,
+    required this.onTelegramChannel,
+    required this.onBugBot,
     required this.onAbout,
     required this.onLogout,
     required this.onDeleteAccount,
@@ -71,6 +73,12 @@ class SettingsScreen extends StatelessWidget {
   final VoidCallback onResetMissYou;
   final VoidCallback onTerms;
   final VoidCallback onSupport;
+
+  /// Канал в Telegram и бот, принимающий жалобы. Обе ссылки жили где угодно,
+  /// кроме приложения: «не могу найти ссылку на тгк» — обычный вопрос в
+  /// поддержке, а про бота знали только те, кому его присылали в ответ.
+  final VoidCallback onTelegramChannel;
+  final VoidCallback onBugBot;
   final VoidCallback onAbout;
   final VoidCallback onLogout;
   final VoidCallback onDeleteAccount;
@@ -362,6 +370,20 @@ class SettingsScreen extends StatelessWidget {
                     subtitle: s.settingsSupportHint,
                     trailing: const SettingsChevron(),
                     onTap: onSupport,
+                  ),
+                  SettingsRow(
+                    icon: Icons.campaign_rounded,
+                    title: s.telegramChannelTitle,
+                    subtitle: s.telegramChannelHint,
+                    trailing: const SettingsChevron(),
+                    onTap: onTelegramChannel,
+                  ),
+                  SettingsRow(
+                    icon: Icons.bug_report_rounded,
+                    title: s.bugBotTitle,
+                    subtitle: s.bugBotHint,
+                    trailing: const SettingsChevron(),
+                    onTap: onBugBot,
                   ),
                 ],
               ),

@@ -215,6 +215,7 @@ class MainActivity : FlutterActivity() {
         }
 
         // ── Кастомизация launcher-иконки через activity-alias ──
+        // (продолжение ниже; здесь же живёт опрос состояния)
         // Включает выбранный alias и гасит остальные. DONT_KILL_APP — чтобы по
         // возможности не убивать процесс при смене (поведение зависит от лаунчера).
         MethodChannel(
@@ -243,6 +244,34 @@ class MainActivity : FlutterActivity() {
                         result.success(true)
                     } catch (e: Exception) {
                         result.error("SET_ICON_FAILED", e.message, null)
+                    }
+                }
+
+                // Какие alias система считает включёнными ПРЯМО СЕЙЧАС.
+                //
+                // Нужно, чтобы поймать два ярлыка на рабочем столе: выбранную
+                // иконку приложение включает явно, и это переживает обновление,
+                // а новый `.IconDefault` приезжает включённым из манифеста —
+                // включённых становится два («обновил, стало два», 16.08.2026).
+                // Состояние DEFAULT означает «как в манифесте», поэтому его
+                // разбираем по нашей же карте: включён там только дефолтный.
+                "enabledIcons" -> {
+                    try {
+                        val pm = packageManager
+                        val on = mutableListOf<String>()
+                        for ((aliasId, suffix) in ICON_ALIASES) {
+                            val component = ComponentName(packageName, "$packageName$suffix")
+                            val state = pm.getComponentEnabledSetting(component)
+                            val enabled = when (state) {
+                                PackageManager.COMPONENT_ENABLED_STATE_ENABLED -> true
+                                PackageManager.COMPONENT_ENABLED_STATE_DISABLED -> false
+                                else -> aliasId == DEFAULT_ICON_ID
+                            }
+                            if (enabled) on.add(aliasId)
+                        }
+                        result.success(on)
+                    } catch (e: Exception) {
+                        result.error("ENABLED_ICONS_FAILED", e.message, null)
                     }
                 }
 
@@ -291,6 +320,10 @@ class MainActivity : FlutterActivity() {
     }
 
     companion object {
+        // Alias, включённый в манифесте. Всё, что в состоянии DEFAULT,
+        // считается включённым только для него.
+        private const val DEFAULT_ICON_ID = "default"
+
         // id (тема) -> суффикс android:name alias в манифесте.
         private val ICON_ALIASES = linkedMapOf(
             "default" to ".IconDefault",
