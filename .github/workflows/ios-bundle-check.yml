@@ -1,0 +1,120 @@
+name: iOS → что внутри залитой сборки
+
+# Зачем: понять, почему виджетов нет в галерее у людей.
+#
+# Артефакты из релизов GitHub проверяются с ноутбука (расширение на месте,
+# идентификатор и версии совпадают), а вот что реально принял App Store —
+# видно только через их API, и ключи живут в секретах репозитория.
+#
+# Спрашиваем две вещи:
+#   • состав каждой сборки (buildBundles) — есть ли рядом с приложением
+#     расширение `com.togetherly.love.TogetherlyWidget`;
+#   • права App ID приложения и расширения — на месте ли App Groups, без
+#     которых виджет системе не нужен.
+#
+# Только чтение, ничего не меняет.
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'Сколько последних сборок показать'
+        required: false
+        default: '8'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      ISSUER: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_IDENTIFIER }}
+      PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+      APP_ID: '6781019737'
+      LIMIT: ${{ inputs.limit }}
+    steps:
+      - name: Зависимости
+        run: pip install --quiet pyjwt cryptography requests
+
+      - name: Состав сборок и права идентификаторов
+        run: |
+          python3 - <<'PY'
+          import os, time, json, requests, jwt
+
+          key = os.environ['PRIVATE_KEY']
+          # Секрет хранится либо как PEM, либо base64 одной строкой.
+          if 'BEGIN' not in key:
+              import base64
+              key = base64.b64decode(key).decode()
+
+          token = jwt.encode(
+              {'iss': os.environ['ISSUER'], 'exp': int(time.time()) + 900,
+               'aud': 'appstoreconnect-v1'},
+              key, algorithm='ES256',
+              headers={'kid': os.environ['KEY_ID'], 'typ': 'JWT'})
+          H = {'Authorization': 'Bearer ' + token}
+          API = 'https://api.appstoreconnect.apple.com'
+
+          def get(path, **params):
+              r = requests.get(API + path, headers=H, params=params, timeout=60)
+              if r.status_code != 200:
+                  print(f'  !! {path} → {r.status_code} {r.text[:200]}')
+                  return {}
+              return r.json()
+
+          print('=' * 78)
+          print('СБОРКИ И ИХ СОСТАВ')
+          print('=' * 78)
+          builds = get('/v1/builds', **{
+              'filter[app]': os.environ['APP_ID'],
+              'limit': os.environ.get('LIMIT') or '8',
+              'sort': '-uploadedDate',
+              'include': 'preReleaseVersion',
+          })
+          versions = {i['id']: i['attributes'].get('version')
+                      for i in builds.get('included', [])
+                      if i['type'] == 'preReleaseVersions'}
+          for b in builds.get('data', []):
+              a = b['attributes']
+              rel = b.get('relationships', {}).get('preReleaseVersion', {}).get('data') or {}
+              ver = versions.get(rel.get('id'), '?')
+              print(f"\n● {ver} ({a.get('version')})  залита {str(a.get('uploadedDate'))[:19]}  "
+                    f"состояние {a.get('processingState')}  срок {str(a.get('expirationDate'))[:10]}")
+              bundles = get(f"/v1/builds/{b['id']}/buildBundles")
+              data = bundles.get('data', [])
+              if not data:
+                  print('    состав недоступен')
+                  continue
+              for bundle in data:
+                  ba = bundle['attributes']
+                  print(f"    — {ba.get('bundleId')}  тип {ba.get('bundleType')}  "
+                        f"sdk {ba.get('sdkBuild')}  платформа {ba.get('platformBuild')}")
+              ids = [x['attributes'].get('bundleId') for x in data]
+              есть_виджет = any(str(i).endswith('.TogetherlyWidget') for i in ids)
+              print(f"    ВИДЖЕТ-РАСШИРЕНИЕ: {'ЕСТЬ' if есть_виджет else 'НЕТ'}")
+
+          print()
+          print('=' * 78)
+          print('ПРАВА ИДЕНТИФИКАТОРОВ (App Groups и прочее)')
+          print('=' * 78)
+          bids = get('/v1/bundleIds', **{'limit': '200'})
+          for item in bids.get('data', []):
+              ident = item['attributes'].get('identifier', '')
+              if not ident.startswith('com.togetherly.love'):
+                  continue
+              print(f"\n● {ident}  ({item['attributes'].get('name')})")
+              caps = get(f"/v1/bundleIds/{item['id']}/bundleIdCapabilities")
+              names = [c['attributes'].get('capabilityType') for c in caps.get('data', [])]
+              print('    возможности:', ', '.join(sorted(filter(None, names))) or 'нет ни одной')
+              for c in caps.get('data', []):
+                  if c['attributes'].get('capabilityType') == 'APP_GROUPS':
+                      print('    настройки App Groups:',
+                            json.dumps(c['attributes'].get('settings'), ensure_ascii=False)[:300])
+
+          print()
+          print('=' * 78)
+          print('ГРУППЫ ПРИЛОЖЕНИЙ В АККАУНТЕ')
+          print('=' * 78)
+          groups = get('/v1/appGroups', **{'limit': '50'}) if True else {}
+          for g in groups.get('data', []) or []:
+              ga = g['attributes']
+              print(f"  {ga.get('identifier')}  имя «{ga.get('name')}»")
+          PY
