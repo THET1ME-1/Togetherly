@@ -108,19 +108,7 @@ extension View {
 
 }
 
-extension Image {
-    /// Картинка остаётся цветной и в тонированном режиме — иначе фотография
-    /// партнёра превращается в силуэт. Модификатор объявлен на `Image`, потому
-    /// звать его надо сразу после `resizable()`, до `frame`/`clipped`.
-    @ViewBuilder
-    func tgFullColorImage() -> some View {
-        if #available(iOS 18.0, *) {
-            self.widgetAccentedRenderingMode(.fullColor)
-        } else {
-            self
-        }
-    }
-}
+
 
 @available(iOS 17.0, *)
 private struct TgContainerBackground: ViewModifier {
@@ -180,6 +168,11 @@ private struct TgBlock: ViewModifier {
             )
         }
     }
+}
+
+extension Image {
+    /// ОТКЛЮЧЕНО проверкой: ветка iOS 18 убрана, картинка идёт как есть.
+    func tgFullColorImage() -> Image { self }
 }
 
 // MARK: - Мелочи вёрстки
