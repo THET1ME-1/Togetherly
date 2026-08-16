@@ -40,6 +40,7 @@ import 'l10n/dict/relationship_status_screen.dart';
 import 'l10n/dict/setup.dart';
 import 'l10n/dict/timer_card.dart';
 import 'l10n/dict/timer_expandable_timer_card.dart';
+import 'l10n/dict/watch_voice.dart';
 import 'l10n/dict/welcome.dart';
 import 'l10n/dict/widget_screen.dart';
 
@@ -89,6 +90,7 @@ const Map<String, Map<String, String>> kStrings = {
   ...timerCardStrings,
   ...timerExpandableTimerCardStrings,
   ...welcomeStrings,
+  ...watchVoiceStrings,
   ...widgetScreenStrings,
 };
 
@@ -126,6 +128,22 @@ abstract class DictStrings extends AppStrings {
 
   @override
   String get save => _t('save');
+  @override
+  String get watchVoiceCall => _t('watchVoiceCall');
+  @override
+  String get watchVoiceHangUp => _t('watchVoiceHangUp');
+  @override
+  String get watchVoiceConnecting => _t('watchVoiceConnecting');
+  @override
+  String get watchVoiceLive => _t('watchVoiceLive');
+  @override
+  String get watchVoiceFailed => _t('watchVoiceFailed');
+  @override
+  String get watchVoiceHint => _t('watchVoiceHint');
+  @override
+  String get watchVoiceMic => _t('watchVoiceMic');
+  @override
+  String get watchVoiceSpeaker => _t('watchVoiceSpeaker');
   @override
   String get cancel => _t('cancel');
   @override

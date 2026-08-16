@@ -1,0 +1,78 @@
+// Голос в комнате совместного просмотра. Полоса живёт под плеером и работает
+// без видео: позвонить можно в пустой комнате, поэтому подписи говорят про
+// разговор, а не про просмотр.
+
+const Map<String, Map<String, String>> watchVoiceStrings = {
+  'watchVoiceCall': {
+    'ru': 'Позвонить',
+    'en': 'Call',
+    'pt': 'Ligar',
+    'it': 'Chiama',
+    'es': 'Llamar',
+    'fr': 'Appeler',
+    'de': 'Anrufen',
+  },
+  'watchVoiceHangUp': {
+    'ru': 'Положить трубку',
+    'en': 'Hang up',
+    'pt': 'Desligar',
+    'it': 'Riaggancia',
+    'es': 'Colgar',
+    'fr': 'Raccrocher',
+    'de': 'Auflegen',
+  },
+  'watchVoiceConnecting': {
+    'ru': 'Соединяем…',
+    'en': 'Connecting…',
+    'pt': 'A ligar…',
+    'it': 'Connessione…',
+    'es': 'Conectando…',
+    'fr': 'Connexion…',
+    'de': 'Verbinden…',
+  },
+  'watchVoiceLive': {
+    'ru': 'Вы слышите друг друга',
+    'en': 'You can hear each other',
+    'pt': 'Vocês se ouvem',
+    'it': 'Vi sentite',
+    'es': 'Os oís',
+    'fr': 'Vous vous entendez',
+    'de': 'Ihr hört euch',
+  },
+  'watchVoiceFailed': {
+    'ru': 'Связь оборвалась, попробуйте снова',
+    'en': 'The call dropped, try again',
+    'pt': 'A chamada caiu, tente de novo',
+    'it': 'La chiamata è caduta, riprova',
+    'es': 'La llamada se cortó, inténtalo otra vez',
+    'fr': 'L’appel a coupé, réessayez',
+    'de': 'Die Verbindung brach ab, versuch es noch mal',
+  },
+  'watchVoiceHint': {
+    'ru': 'Говорите даже без видео',
+    'en': 'Talk even without a video',
+    'pt': 'Conversem mesmo sem vídeo',
+    'it': 'Parlate anche senza video',
+    'es': 'Hablad incluso sin vídeo',
+    'fr': 'Parlez même sans vidéo',
+    'de': 'Redet auch ohne Video',
+  },
+  'watchVoiceMic': {
+    'ru': 'Микрофон',
+    'en': 'Microphone',
+    'pt': 'Microfone',
+    'it': 'Microfono',
+    'es': 'Micrófono',
+    'fr': 'Micro',
+    'de': 'Mikrofon',
+  },
+  'watchVoiceSpeaker': {
+    'ru': 'Динамик',
+    'en': 'Speaker',
+    'pt': 'Altifalante',
+    'it': 'Altoparlante',
+    'es': 'Altavoz',
+    'fr': 'Haut-parleur',
+    'de': 'Lautsprecher',
+  },
+};

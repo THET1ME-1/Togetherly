@@ -12,6 +12,7 @@ import '../../services/watch_voice_service.dart';
 import '../../services/watch_channel_service.dart';
 import '../../services/watch_history_service.dart';
 import '../../widgets/common/m3_loading.dart';
+import '../../widgets/watch/watch_voice_bar.dart';
 
 /// Нативный просмотр своего видео вдвоём.
 ///
@@ -305,17 +306,24 @@ class _WatchPlayerScreenState extends State<WatchPlayerScreen>
                           onPlayPause: _togglePlay,
                           onSeek: _seekTo,
                           onClose: () => Navigator.of(context).maybePop(),
-                          voiceState: _voice?.state ?? VoiceCallState.off,
-                          micOn: _voice?.micOn ?? false,
-                          speakerOn: _voice?.speakerOn ?? true,
-                          onVoiceToggle: _toggleVoice,
-                          onMicToggle: () => _voice?.toggleMic(),
-                          onSpeakerToggle: () => _voice?.toggleSpeaker(),
                         ),
                       ],
                     ),
                   ),
       ),
+      // Голос стоит под кадром и не исчезает вместе со слоем управления: тот
+      // прячется через несколько секунд, и вместе с ним пропадала кнопка
+      // звонка. Говорить хотят и не глядя в экран, поэтому полоса постоянная.
+      bottomNavigationBar: _voice == null
+          ? null
+          : WatchVoiceBar(
+              state: _voice!.state,
+              micOn: _voice!.micOn,
+              speakerOn: _voice!.speakerOn,
+              onCallToggle: _toggleVoice,
+              onMicToggle: () => _voice?.toggleMic(),
+              onSpeakerToggle: () => _voice?.toggleSpeaker(),
+            ),
     );
   }
 }
@@ -382,13 +390,6 @@ class _Controls extends StatelessWidget {
   final ValueChanged<Duration> onSeek;
   final VoidCallback onClose;
 
-  // ── Голос ──
-  final VoiceCallState voiceState;
-  final bool micOn;
-  final bool speakerOn;
-  final VoidCallback onVoiceToggle;
-  final VoidCallback onMicToggle;
-  final VoidCallback onSpeakerToggle;
 
   const _Controls({
     required this.visible,
@@ -399,12 +400,6 @@ class _Controls extends StatelessWidget {
     required this.onPlayPause,
     required this.onSeek,
     required this.onClose,
-    required this.voiceState,
-    required this.micOn,
-    required this.speakerOn,
-    required this.onVoiceToggle,
-    required this.onMicToggle,
-    required this.onSpeakerToggle,
   });
 
   static String _stamp(Duration d) {
@@ -455,34 +450,10 @@ class _Controls extends StatelessWidget {
                       style: text.titleSmall?.copyWith(color: Colors.white),
                     ),
                   ),
-                  // Разговор во время просмотра. Пока связь не поднята, кнопка
-                  // одна; заговорили — рядом появляются «заглушить себя» и
-                  // «заглушить его», потому что нужны они порознь.
-                  if (voiceState != VoiceCallState.off) ...[
-                    _RoundAction(
-                      icon: micOn ? Icons.mic_rounded : Icons.mic_off_rounded,
-                      active: micOn,
-                      onTap: onMicToggle,
-                    ),
-                    const SizedBox(width: 6),
-                    _RoundAction(
-                      icon: speakerOn
-                          ? Icons.volume_up_rounded
-                          : Icons.volume_off_rounded,
-                      active: speakerOn,
-                      onTap: onSpeakerToggle,
-                    ),
-                    const SizedBox(width: 6),
-                  ],
-                  _RoundAction(
-                    icon: voiceState == VoiceCallState.off
-                        ? Icons.headset_mic_rounded
-                        : Icons.call_end_rounded,
-                    active: voiceState == VoiceCallState.live,
-                    busy: voiceState == VoiceCallState.connecting,
-                    danger: voiceState != VoiceCallState.off,
-                    onTap: onVoiceToggle,
-                  ),
+                  // Кнопок разговора здесь больше нет: они уехали в полосу
+                  // под кадром. Слой управления сам прячется через несколько
+                  // секунд, и вместе с ним пропадала возможность позвонить —
+                  // а поговорить люди хотят и не глядя в экран.
                   const SizedBox(width: 12),
                 ],
               ),

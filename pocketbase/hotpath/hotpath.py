@@ -767,6 +767,19 @@ async def _wake_group(group_id: str, author_uid: str, kind: str = "widgets") -> 
             await asyncio.to_thread(_mark_woke, t["uid"], now_ms)
 
 
+def _miss_you_push_text(вайб_текст: str | None) -> str:
+    """Тело уведомления об импульсе «Скучаю».
+
+    Повторяет прежний хук `push_apns.pb.js` слово в слово: своё пожелание
+    человека, а если его нет — «Обними в ответ». Длинное режем, как в чате:
+    в шторке всё равно видно только начало.
+    """
+    текст = (вайб_текст or "").strip()
+    if not текст:
+        return "Обними в ответ"
+    return текст[:117] + "…" if len(текст) > 120 else текст
+
+
 def _chat_push_text(rec: dict) -> str:
     text = (rec.get("text") or "").strip()
     if text:
@@ -1140,6 +1153,12 @@ async def miss_you(request: Request):
 
     rec = _record_json("miss_you", row)
     await _publish("miss_you", "update", rec)
+    # Уведомление второму. При переезде коллекции в hotpath оно пропало: пуш
+    # слал хук PocketBase на update записи, а хуки переехавших коллекций
+    # больше не срабатывают. Счётчик при этом обновлялся, и со стороны это
+    # выглядело как «сердечко прилетело, а телефон молчит» (жалоба 16.08.2026).
+    await _notify_group(group_id, uid, "Скучает по тебе",
+                        _miss_you_push_text(text), "miss")
     return ORJSONResponse({"ok": True, "count": _num(row["count"])})
 
 

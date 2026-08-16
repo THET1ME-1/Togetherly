@@ -1991,6 +1991,16 @@ abstract class AppStrings {
   /// прочерком (жалоба «нет кода», 16.08.2026).
   String get watchCodeRetry;
   String get watchRecent;
+
+  // ── Голос в комнате ──
+  String get watchVoiceCall;
+  String get watchVoiceHangUp;
+  String get watchVoiceConnecting;
+  String get watchVoiceLive;
+  String get watchVoiceFailed;
+  String get watchVoiceHint;
+  String get watchVoiceMic;
+  String get watchVoiceSpeaker;
   String get watchOurVideos;
   String watchVideoAdd(int mb);
   String get watchVideoUploading;
