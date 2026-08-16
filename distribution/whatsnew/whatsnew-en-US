@@ -1,11 +1,9 @@
-🫦 Togetherly • v1.28.3
+🫦 Togetherly • v1.28.4
 
-— New app icon: a drawn mascot instead of letters.
-— A pair no longer disappears from one stray press: the confirmation names your partner and warns that the chat goes for both of you.
-— Waiting for a partner can be called off with "No longer waiting", and the second-seat code stops working.
-— Sheets and dialogs take the colours of your couple's theme.
-— Rotating and zooming the canvas stays yours: your partner turns the sheet, nothing moves on your side.
-— Maps in memories open again.
-— The partner profile no longer comes up empty.
-— The app bothers the server less: lists and avatars stopped reloading in circles.
-— A paid Togetherly+ unlocks on sign-in even when the payment e-mail differs from the account one.
+— Widgets are back in the iPhone gallery. The extension crashed on launch, so the system could never learn which widgets the app has — and Togetherly was missing from the list entirely.
+— One icon on the home screen again: those who had picked a coloured icon ended up with two after an update.
+— The "Miss you" counter stops losing taps: a burst tapped out before you close the app now reaches your partner in full.
+— The "Days together" widget no longer says "0 years already" — before the first anniversary it counts in months.
+— The timer list for widgets shows the symbol itself, not its internal name.
+— A partner's comment on a memory now arrives as a notification.
+— Settings now link to our channel and to the bot that collects bug reports.
