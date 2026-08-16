@@ -38,7 +38,9 @@ jobs:
       - name: Зависимости
         run: |
           flutter pub get
-          cd ios && pod install
+          # Без --repo-update свежий раннер не находит спеки: локального
+          # зеркала CocoaPods у него нет вовсе.
+          cd ios && pod install --repo-update
 
       - name: Сборка под симулятор
         run: |
