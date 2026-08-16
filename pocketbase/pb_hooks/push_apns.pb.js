@@ -157,6 +157,35 @@ onRecordAfterCreateSuccess((e) => {
   e.next();
 }, "memories");
 
+/// Комментарий к воспоминанию.
+///
+/// Просьба из бота 16.08.2026: «сделайте пожалуйста, чтобы когда партнёр
+/// комментирует воспоминание, тоже приходило уведомление». Само воспоминание
+/// уведомление рождало с самого начала, а ответ на него — нет, и разговор под
+/// снимком человек замечал случайно, спустя сутки.
+///
+/// Коллекция живёт в PocketBase (в hotpath переехали только горячие), поэтому
+/// хук здесь и срабатывает.
+onRecordAfterCreateSuccess((e) => {
+  try {
+    const push = require(`${__hooks}/apns_push.js`);
+    const rec = e.record;
+    if (rec.get("deleted")) return;
+    const who = String(rec.getString("author_name") || "Партнёр");
+    const text = String(rec.getString("text") || "").trim();
+    const body = text
+      ? (text.length > 120 ? text.slice(0, 117) + "…" : text)
+      : "Комментарий к воспоминанию";
+    push.notifyGroup(
+      String(rec.getString("group_id") || ""),
+      String(rec.getString("author_uid") || ""),
+      who, body, "memory");
+  } catch (err) {
+    $app.logger().warn("apns: комментарий", "err", String(err));
+  }
+  e.next();
+}, "memory_comments");
+
 /// Данные виджетов партнёра поменялись — будим его телефон тихим пушем.
 ///
 /// На iOS у виджетов фонового обновления нет вовсе: пока приложение закрыто,
