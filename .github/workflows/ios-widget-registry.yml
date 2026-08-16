@@ -25,6 +25,8 @@ jobs:
       - name: Flutter
         uses: subosito/flutter-action@v2
         with:
+          # Та же версия, что собирает релизы: на другой ломаются поды.
+          flutter-version: 3.38.5
           channel: stable
           cache: true
 
@@ -38,9 +40,9 @@ jobs:
       - name: Зависимости
         run: |
           flutter pub get
-          # Без --repo-update свежий раннер не находит спеки: локального
-          # зеркала CocoaPods у него нет вовсе.
-          cd ios && pod install --repo-update
+          # Поды ставит сама сборка: отдельный `pod install` идёт раньше, чем
+          # Flutter разложит симлинки плагинов, и не находит их подспеки.
+          pod repo update --silent || true
 
       - name: Сборка под симулятор
         run: |
