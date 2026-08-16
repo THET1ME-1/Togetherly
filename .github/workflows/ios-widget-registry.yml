@@ -73,7 +73,29 @@ jobs:
           echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"
           xcrun simctl install "$DEVICE" build/ios/iphonesimulator/Runner.app
           xcrun simctl launch "$DEVICE" com.togetherly.love || true
-          sleep 20
+          # Дать системе просканировать расширения: chronod делает это не сразу.
+          sleep 60
+
+      - name: Что знает chronod — менеджер виджетов
+        run: |
+          set +e
+          DATA="$HOME/Library/Developer/CoreSimulator/Devices/$DEVICE/data"
+          echo "=============================================================="
+          echo "БАЗА CHRONO (список известных системе виджетов)"
+          echo "=============================================================="
+          find "$DATA/Library" -iname "*hrono*" -maxdepth 3 2>/dev/null | head -20
+          for f in $(find "$DATA/Library" -iname "*.plist" -path "*hrono*" 2>/dev/null | head -10); do
+            echo "— $f"
+            plutil -p "$f" 2>/dev/null | grep -iE "togetherly|kind|widget" | head -40
+          done
+          for db in $(find "$DATA/Library" -iname "*.sqlite" -o -iname "*.db" -path "*hrono*" 2>/dev/null | head -5); do
+            echo "— база $db"
+            sqlite3 "$db" ".tables" 2>/dev/null
+            sqlite3 "$db" "select * from sqlite_master where type='table'" 2>/dev/null | head -10
+          done
+          echo
+          echo "— поиск строки togetherly по контейнерам системы —"
+          grep -rl "TogetherlyWidget" "$DATA/Library" 2>/dev/null | head -10
 
       - name: Что система знает о расширении
         run: |
@@ -83,8 +105,8 @@ jobs:
           echo "=============================================================="
           xcrun simctl spawn "$DEVICE" pluginkit -m -v -A -D 2>&1 | grep -i "togetherly" || echo "  НИ ОДНОГО расширения Togetherly не зарегистрировано"
           echo
-          echo "— только виджеты —"
-          xcrun simctl spawn "$DEVICE" pluginkit -m -v -p com.apple.widgetkit-extension 2>&1 | head -40
+          echo "— подробности нашего плагина —"
+          xcrun simctl spawn "$DEVICE" pluginkit -m -v -A -D -i com.togetherly.love.TogetherlyWidget 2>&1 | head -30
           echo
           echo "=============================================================="
           echo "ЖУРНАЛ: что сказала система про наше расширение"
