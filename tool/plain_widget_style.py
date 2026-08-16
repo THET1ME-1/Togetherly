@@ -6,16 +6,18 @@
 четыре модификатора: фон карточки через `ViewModifier` с
 `@Environment(\\.widgetRenderingMode)`, плашки `tgBlock`/`tgGradientBlock` под
 `@available(iOS 16)` и `tgFullColorImage` с `widgetAccentedRenderingMode`
-(iOS 18). Каждый оставляет в типе виджета ветку условной доступности — ровно
-та форма, которая уже роняла расширение в бандле.
+(iOS 18). Каждый оставляет в типе виджета ветку условной доступности.
 
-Скрипт правит РЕАЛИЗАЦИЮ модификатора, а вызовы в виджетах не трогает: тогда
-две сборки отличаются одной конструкцией, и виноватую видно сразу.
+Симулятор эту поломку не воспроизводит: прогон на 1.25.0 и на 1.25.1 дал
+одинаковый приговор, хотя на телефоне первая показывает виджеты, а вторая нет.
+Значит делить приходится сборками в TestFlight.
+
+Скрипт переписывает секцию стилей целиком из шаблонов, а вызовы в двадцати двух
+виджетах не трогает: две сборки отличаются ровно одной конструкцией.
 
 Запуск: python3 tool/plain_widget_style.py image|block|container|all
 """
 
-import re
 import sys
 from pathlib import Path
 
@@ -24,14 +26,70 @@ THEME = ROOT / "WidgetTheme.swift"
 BUNDLE = ROOT / "TogetherlyWidgetBundle.swift"
 TIMER = ROOT / "TimerWidgets.swift"
 
-# Картинка: убираем iOS-18-only ветку целиком, картинка остаётся как есть.
-IMAGE_PLAIN = '''extension Image {
-    /// ОТКЛЮЧЕНО проверкой: ветка iOS 18 убрана, картинка идёт как есть.
-    func tgFullColorImage() -> Image { self }
-}'''
+SECTION_START = "extension View {"
+SECTION_END = "// MARK: - Мелочи вёрстки"
 
-# Плашки: безусловная заливка, как было до 13 августа.
-BLOCK_PLAIN = '''    @ViewBuilder
+CONTAINER_TINTED = '''    /// Сплошная заливка под виджет: на iOS 17+ только через
+    /// `containerBackground`, иначе система обрезает виджет по своим полям.
+    /// В тонированном режиме фон отдаём системе — своя заливка съедает текст.
+    @ViewBuilder
+    func tgContainerBackground(_ color: Color) -> some View {
+        if #available(iOS 17.0, *) {
+            self.modifier(TgContainerBackground(color: color))
+        } else {
+            ZStack {
+                color
+                self
+            }
+        }
+    }
+'''
+
+CONTAINER_PLAIN = '''    /// ОТКЛЮЧЕНО проверкой: фон как в 1.25.0, без опроса режима отрисовки.
+    @ViewBuilder
+    func tgContainerBackground(_ color: Color) -> some View {
+        if #available(iOS 17.0, *) {
+            self.containerBackground(color, for: .widget)
+        } else {
+            ZStack {
+                color
+                self
+            }
+        }
+    }
+'''
+
+BLOCK_TINTED = '''    /// Приподнятая плашка внутри виджета (числа, чипы, ячейки).
+    /// В тонированном режиме от неё остаётся только контур.
+    @ViewBuilder
+    func tgBlock(_ color: Color, radius: CGFloat) -> some View {
+        if #available(iOS 16.0, *) {
+            self.modifier(TgBlock(color: color, radius: radius))
+        } else {
+            self.background(
+                RoundedRectangle(cornerRadius: radius, style: .continuous).fill(color)
+            )
+        }
+    }
+
+    /// То же для градиентной плашки.
+    @ViewBuilder
+    func tgGradientBlock(colors: [Color], radius: CGFloat) -> some View {
+        if #available(iOS 16.0, *) {
+            self.modifier(TgGradientBlock(colors: colors, radius: radius))
+        } else {
+            self.background(
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .fill(LinearGradient(colors: colors,
+                                         startPoint: .topLeading,
+                                         endPoint: .bottomTrailing))
+            )
+        }
+    }
+'''
+
+BLOCK_PLAIN = '''    /// ОТКЛЮЧЕНО проверкой: плашки как в 1.25.0, безусловной заливкой.
+    @ViewBuilder
     func tgBlock(_ color: Color, radius: CGFloat) -> some View {
         self.background(
             RoundedRectangle(cornerRadius: radius, style: .continuous).fill(color)
@@ -49,86 +107,136 @@ BLOCK_PLAIN = '''    @ViewBuilder
     }
 '''
 
-# Фон карточки: прямой containerBackground под одиночным #available, как в 1.25.0.
-CONTAINER_PLAIN = '''    @ViewBuilder
-    func tgContainerBackground(_ color: Color) -> some View {
-        if #available(iOS 17.0, *) {
-            self.containerBackground(color, for: .widget)
+IMAGE_TINTED = '''extension Image {
+    /// Картинка остаётся цветной и в тонированном режиме — иначе фотография
+    /// партнёра превращается в силуэт. Звать сразу после `resizable()`.
+    @ViewBuilder
+    func tgFullColorImage() -> some View {
+        if #available(iOS 18.0, *) {
+            self.widgetAccentedRenderingMode(.fullColor)
         } else {
-            ZStack {
-                color
-                self
-            }
+            self
         }
     }
+}
+'''
+
+IMAGE_PLAIN = '''extension Image {
+    /// ОТКЛЮЧЕНО проверкой: ветки iOS 18 нет, картинка идёт как есть.
+    func tgFullColorImage() -> Image { self }
+}
+'''
+
+MODIFIER_CONTAINER = '''
+@available(iOS 17.0, *)
+private struct TgContainerBackground: ViewModifier {
+    @Environment(\\.widgetRenderingMode) private var mode
+    let color: Color
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if mode == .fullColor {
+            content.containerBackground(color, for: .widget)
+        } else {
+            content.containerBackground(.clear, for: .widget)
+        }
+    }
+}
+'''
+
+MODIFIER_BLOCK = '''
+@available(iOS 16.0, *)
+private struct TgGradientBlock: ViewModifier {
+    @Environment(\\.widgetRenderingMode) private var mode
+    let colors: [Color]
+    let radius: CGFloat
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if mode == .fullColor {
+            content.background(
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .fill(LinearGradient(colors: colors,
+                                         startPoint: .topLeading,
+                                         endPoint: .bottomTrailing))
+            )
+        } else {
+            content.background(
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .stroke(Color.white.opacity(0.35), lineWidth: 1)
+            )
+        }
+    }
+}
+
+@available(iOS 16.0, *)
+private struct TgBlock: ViewModifier {
+    @Environment(\\.widgetRenderingMode) private var mode
+    let color: Color
+    let radius: CGFloat
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if mode == .fullColor {
+            content.background(
+                RoundedRectangle(cornerRadius: radius, style: .continuous).fill(color)
+            )
+        } else {
+            content.background(
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .stroke(Color.white.opacity(0.35), lineWidth: 1)
+            )
+        }
+    }
+}
 '''
 
 
-def cut(text: str, start: str, end: str) -> tuple[str, str]:
-    """Возвращает (кусок, текст без куска). Границы ищутся буквально."""
-    i = text.index(start)
-    j = text.index(end, i) + len(end)
-    return text[i:j], text[:i] + text[j:]
-
-
-def strip_image(theme: str) -> str:
-    piece, rest = cut(theme, "extension Image {", "\n}")
-    return rest.replace("// MARK: - Мелочи вёрстки",
-                        IMAGE_PLAIN + "\n\n// MARK: - Мелочи вёрстки", 1)
-
-
-def strip_block(theme: str) -> str:
-    # Реализации-обёртки и сами типы модификаторов.
-    _, theme = cut(theme, "    /// Приподнятая плашка внутри виджета",
-                   "    }\n\n}")
-    theme = theme.replace("extension Image {", BLOCK_PLAIN + "\n}\n\nextension Image {", 1)
-    for name in ("TgBlock", "TgGradientBlock"):
-        marker = f"@available(iOS 16.0, *)\nprivate struct {name}: ViewModifier {{"
-        if marker in theme:
-            _, theme = cut(theme, marker, "\n}")
-    return theme
-
-
-def strip_container(theme: str, bundle: str, timer: str) -> tuple[str, str, str]:
-    _, theme = cut(theme, "    @ViewBuilder\n    func tgContainerBackground",
-                   "        }\n    }")
-    theme = theme.replace("    /// Приподнятая плашка внутри виджета",
-                          CONTAINER_PLAIN + "\n    /// Приподнятая плашка внутри виджета", 1)
-    marker = "@available(iOS 17.0, *)\nprivate struct TgContainerBackground: ViewModifier {"
-    if marker in theme:
-        _, theme = cut(theme, marker, "\n}")
-
-    bundle = bundle.replace("self.modifier(TgWidgetCardBackground(gradient: gradient))",
-                            "self.containerBackground(for: .widget) { gradient }")
-    marker = "@available(iOS 17.0, *)\nprivate struct TgWidgetCardBackground: ViewModifier {"
-    if marker in bundle:
-        _, bundle = cut(bundle, marker, "\n}")
-
-    timer = timer.replace(".modifier(TgCardBackground(gradient: gradient))",
-                          ".containerBackground(gradient, for: .widget)")
-    marker = "@available(iOS 17.0, *)\nprivate struct TgCardBackground: ViewModifier {"
-    if marker in timer:
-        _, timer = cut(timer, marker, "\n}")
-    return theme, bundle, timer
+def build_section(off: set) -> str:
+    parts = [SECTION_START, "\n"]
+    parts.append(CONTAINER_PLAIN if "container" in off else CONTAINER_TINTED)
+    parts.append("\n")
+    parts.append(BLOCK_PLAIN if "block" in off else BLOCK_TINTED)
+    parts.append("}\n\n")
+    parts.append(IMAGE_PLAIN if "image" in off else IMAGE_TINTED)
+    if "container" not in off:
+        parts.append(MODIFIER_CONTAINER)
+    if "block" not in off:
+        parts.append(MODIFIER_BLOCK)
+    parts.append("\n")
+    return "".join(parts)
 
 
 def main() -> None:
     what = sys.argv[1] if len(sys.argv) > 1 else "all"
-    theme, bundle, timer = THEME.read_text(), BUNDLE.read_text(), TIMER.read_text()
+    off = {"image", "block", "container"} if what == "all" else {what}
+    if not off <= {"image", "block", "container"}:
+        sys.exit("не знаю режим " + what)
 
-    if what in ("image", "all"):
-        theme = strip_image(theme)
-    if what in ("block", "all"):
-        theme = strip_block(theme)
-    if what in ("container", "all"):
-        theme, bundle, timer = strip_container(theme, bundle, timer)
+    theme = THEME.read_text()
+    i = theme.index(SECTION_START)
+    j = theme.index(SECTION_END)
+    THEME.write_text(theme[:i] + build_section(off) + theme[j:])
 
-    THEME.write_text(theme)
-    BUNDLE.write_text(bundle)
-    TIMER.write_text(timer)
+    if "container" in off:
+        bundle = BUNDLE.read_text().replace(
+            "self.modifier(TgWidgetCardBackground(gradient: gradient))",
+            "self.containerBackground(for: .widget) { gradient }")
+        k = bundle.find("@available(iOS 17.0, *)\nprivate struct TgWidgetCardBackground")
+        if k > 0:
+            bundle = bundle[:k].rstrip() + "\n"
+        BUNDLE.write_text(bundle)
 
-    left = len(re.findall(r"#available", theme + bundle + timer))
-    print(f"отключено: {what}; веток #available в стилях осталось: {left}")
+        timer = TIMER.read_text().replace(
+            ".modifier(TgCardBackground(gradient: gradient))",
+            ".containerBackground(gradient, for: .widget)")
+        k = timer.find("@available(iOS 17.0, *)\nprivate struct TgCardBackground")
+        if k > 0:
+            end = timer.index("\n}\n", k) + 3
+            timer = timer[:k].rstrip() + "\n" + timer[end:]
+        TIMER.write_text(timer)
+
+    print("отключено:", ", ".join(sorted(off)))
 
 
 if __name__ == "__main__":
