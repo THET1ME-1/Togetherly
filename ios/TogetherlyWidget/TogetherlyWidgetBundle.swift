@@ -5,36 +5,17 @@ import WidgetKit
 
 @main
 struct TogetherlyWidgetBundle: WidgetBundle {
-    // Разбито на под-блоки: один @WidgetBundleBuilder-блок поддерживает не
-    // более 10 виджетов, а у нас их 19.
-    // Виджеты экрана блокировки (iOS 16+, accessory-семейства) стоят ЗДЕСЬ, а
-    // не отдельным свойством, и это не вкусовщина.
+    // ЗОНД (17.08.2026): бандл урезан до семи базовых виджетов.
     //
-    // С 13.08.2026 они жили в своём `@WidgetBundleBuilder`-свойстве, целиком
-    // состоящем из `if #available`. Такое свойство роняет всё расширение:
-    // chronod запускает его, чтобы забрать список виджетов, процесс умирает с
-    // SIGTRAP, дескрипторы не приходят — и в галерее пропадает НЕ три виджета
-    // блокировки, а все двадцать два. Ровно с той сборки люди и пишут «нажимаю
-    // плюс, а приложения нет» (жалобы с 15.08). Проверено на симуляторе:
-    // с этим свойством — SIGTRAP и пустые `Descriptors`, без него — виджеты
-    // доезжают до системы.
+    // Прошлые зонды отключали стили поверх main и ничего не дали. Значит либо
+    // поломок несколько, либо дело не в стилях вовсе. Здесь не объявлены ни
+    // виджеты экрана блокировки, ни конфигурируемые фото (AppIntents), ни новый
+    // каталог — остаётся самое простое, что работало в 1.25.0.
     //
-    // Условная ветка обязана стоять рядом с безусловными виджетами в одном
-    // блоке — так же, как в `photoWidgets`, которая пережила это спокойно.
+    // Появились виджеты в галерее — виноват один из отключённых блоков, и делим
+    // дальше. Не появились — причина вне бандла, и искать надо в сборке.
     @WidgetBundleBuilder
     var body: some Widget {
-        coreWidgets
-        photoWidgets
-        newWidgets
-        if #available(iOS 16.0, *) {
-            LockDaysWidget()
-            LockMissWidget()
-            LockMoodWidget()
-        }
-    }
-
-    @WidgetBundleBuilder
-    var coreWidgets: some Widget {
         LoveWidget()
         DaysCounterWidget()
         TimerWidget()
@@ -42,37 +23,6 @@ struct TogetherlyWidgetBundle: WidgetBundle {
         MoodWidget()
         StreakWidget()
         RelationshipStatsWidget()
-    }
-
-    @WidgetBundleBuilder
-    var photoWidgets: some Widget {
-        // Self/Partner/PhotoDay — конфигурируемые (выбор фото на экземпляр),
-        // требуют iOS 17+ (AppIntentConfiguration). WidgetBundleBuilder
-        // поддерживает только одиночный `if #available` (buildLimitedAvailability);
-        // if/else и #unavailable он не компилирует, поэтому fallback на iOS ≤16
-        // для этих виджетов не делаем — там доступна только «Сетка фото».
-        PhotoGridWidget()
-        if #available(iOS 17.0, *) {
-            SelfPhotoWidgetConfigurable()
-            PartnerPhotoWidgetConfigurable()
-            PhotoDayWidgetConfigurable()
-        }
-    }
-
-    /// Новый каталог — восемь виджетов, до июля жившие только на Android.
-    /// Данные им пишет тот же `home_widget`, поэтому Dart-сторона не менялась:
-    /// ключи `together_*`, `note_*`, `miss_*`, `tgmood_*`, `tgcd_*`, `ring_*`
-    /// и `grid_*` уже лежат в общем контейнере App Group.
-    @WidgetBundleBuilder
-    var newWidgets: some Widget {
-        TogetherWidget()
-        NoteWidget()
-        NotePaperWidget()
-        MissWidget()
-        MoodTilesWidget()
-        CountdownWidget()
-        YearRingWidget()
-        YearGridWidget()
     }
 }
 
