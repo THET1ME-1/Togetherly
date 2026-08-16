@@ -161,7 +161,7 @@ extension View {
     func androidCard(gradient: LinearGradient, stroke: Color, corner: CGFloat) -> some View {
         if #available(iOS 17.0, *) {
             self
-                .modifier(TgCardBackground(gradient: gradient))
+                .containerBackground(gradient, for: .widget)
                 .overlay(
                     RoundedRectangle(cornerRadius: corner, style: .continuous)
                         .strokeBorder(stroke, lineWidth: 1)
@@ -186,21 +186,6 @@ extension View {
             self.containerBackground(.clear, for: .widget)
         } else {
             self
-        }
-    }
-}
-
-@available(iOS 17.0, *)
-private struct TgCardBackground: ViewModifier {
-    @Environment(\.widgetRenderingMode) private var mode
-    let gradient: LinearGradient
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if mode == .fullColor {
-            content.containerBackground(gradient, for: .widget)
-        } else {
-            content.containerBackground(.clear, for: .widget)
         }
     }
 }

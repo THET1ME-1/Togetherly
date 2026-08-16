@@ -54,20 +54,11 @@ struct WidgetTheme {
 // MARK: - Фон карточки
 
 extension View {
-    /// Сплошная заливка под виджет нового каталога.
-    ///
-    /// На iOS 17+ фон обязан идти через `containerBackground`, иначе система
-    /// обрезает виджет по своим полям и заливка не доходит до краёв.
-    ///
-    /// В тонированном режиме («Прозрачные» и «Однотонные» в настройке экрана
-    /// «Домой») система красит ВСЁ содержимое одним цветом по своей подложке.
-    /// Наша заливка там становится сплошным пятном поверх текста: у тестера
-    /// виджеты выглядели белыми формами без единой цифры. Поэтому в этих
-    /// режимах фон не рисуем вовсе — подложку даёт система.
+    /// ОТКЛЮЧЕНО проверкой: фон как в 1.25.0, без опроса режима отрисовки.
     @ViewBuilder
     func tgContainerBackground(_ color: Color) -> some View {
         if #available(iOS 17.0, *) {
-            self.modifier(TgContainerBackground(color: color))
+            self.containerBackground(color, for: .widget)
         } else {
             ZStack {
                 color
@@ -76,110 +67,28 @@ extension View {
         }
     }
 
-    /// Приподнятая плашка внутри виджета (числа, чипы, ячейки).
-    ///
-    /// В тонированном режиме заливка съедает свой же текст, поэтому от плашки
-    /// остаётся только контур.
+    /// ОТКЛЮЧЕНО проверкой: плашки как в 1.25.0, безусловной заливкой.
     @ViewBuilder
     func tgBlock(_ color: Color, radius: CGFloat) -> some View {
-        if #available(iOS 16.0, *) {
-            self.modifier(TgBlock(color: color, radius: radius))
-        } else {
-            self.background(
-                RoundedRectangle(cornerRadius: radius, style: .continuous).fill(color)
-            )
-        }
+        self.background(
+            RoundedRectangle(cornerRadius: radius, style: .continuous).fill(color)
+        )
     }
 
-    /// То же для градиентной плашки.
     @ViewBuilder
     func tgGradientBlock(colors: [Color], radius: CGFloat) -> some View {
-        if #available(iOS 16.0, *) {
-            self.modifier(TgGradientBlock(colors: colors, radius: radius))
-        } else {
-            self.background(
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .fill(LinearGradient(colors: colors,
-                                         startPoint: .topLeading,
-                                         endPoint: .bottomTrailing))
-            )
-        }
+        self.background(
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .fill(LinearGradient(colors: colors,
+                                     startPoint: .topLeading,
+                                     endPoint: .bottomTrailing))
+        )
     }
-
 }
 
 extension Image {
-    /// Картинка остаётся цветной и в тонированном режиме — иначе фотография
-    /// партнёра превращается в силуэт. Модификатор объявлен на `Image`, потому
-    /// звать его надо сразу после `resizable()`, до `frame`/`clipped`.
-    @ViewBuilder
-    func tgFullColorImage() -> some View {
-        if #available(iOS 18.0, *) {
-            self.widgetAccentedRenderingMode(.fullColor)
-        } else {
-            self
-        }
-    }
-}
-
-@available(iOS 17.0, *)
-private struct TgContainerBackground: ViewModifier {
-    @Environment(\.widgetRenderingMode) private var mode
-    let color: Color
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if mode == .fullColor {
-            content.containerBackground(color, for: .widget)
-        } else {
-            content.containerBackground(.clear, for: .widget)
-        }
-    }
-}
-
-@available(iOS 16.0, *)
-private struct TgGradientBlock: ViewModifier {
-    @Environment(\.widgetRenderingMode) private var mode
-    let colors: [Color]
-    let radius: CGFloat
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if mode == .fullColor {
-            content.background(
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .fill(LinearGradient(colors: colors,
-                                         startPoint: .topLeading,
-                                         endPoint: .bottomTrailing))
-            )
-        } else {
-            content.background(
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .stroke(Color.white.opacity(0.35), lineWidth: 1)
-            )
-        }
-    }
-}
-
-@available(iOS 16.0, *)
-private struct TgBlock: ViewModifier {
-    @Environment(\.widgetRenderingMode) private var mode
-    let color: Color
-    let radius: CGFloat
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if mode == .fullColor {
-            content.background(
-                RoundedRectangle(cornerRadius: radius, style: .continuous).fill(color)
-            )
-        } else {
-            content.background(
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .stroke(Color.white.opacity(0.35), lineWidth: 1)
-            )
-        }
-    }
+    /// ОТКЛЮЧЕНО проверкой: ветки iOS 18 нет, картинка идёт как есть.
+    func tgFullColorImage() -> Image { self }
 }
 
 // MARK: - Мелочи вёрстки
