@@ -202,7 +202,26 @@ class _MissYouButtonState extends State<MissYouButton>
           partnerAvatarUrl: widget.partnerAvatarUrl,
         ),
       ),
-    );
+    ).then((_) => _refreshCounts());
+  }
+
+  /// Перечитать счётчики после возвращения с экрана «Скучаю».
+  ///
+  /// Импульсы уходят прямо с того экрана, и на главную их приносит живое
+  /// событие. Если оно разминулось с пересозданием потока, кнопка оставалась
+  /// со старым числом — «вышел на главную, там прежний счёт» (16.08.2026).
+  /// Спрашиваем сервер один раз, по возвращении.
+  Future<void> _refreshCounts() async {
+    if (!mounted || widget.groupId.isEmpty) return;
+    final counts = await _missYou.counts(widget.groupId);
+    if (!mounted || counts.isEmpty) return;
+    final myUid = PocketBaseService().userId ?? '';
+    setState(() {
+      _mine = _mine.confirm(counts[myUid] ?? 0, now: DateTime.now());
+      _partnerCount = counts.entries
+          .where((e) => e.key != myUid)
+          .fold(0, (sum, e) => sum + e.value);
+    });
   }
 
   /// Нажатие: отклик сразу, отправка пачкой.

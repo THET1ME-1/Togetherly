@@ -877,6 +877,28 @@ async def _after_create(col: str, rec: dict) -> None:
             f"Сегодня: {label}" if label else "Партнёр отметил настроение", "mood")
 
 
+async def _after_update(col: str, rec: dict) -> None:
+    """Что делать после правки записи.
+
+    Пока это только настроение. Отметка за день у человека одна: первый раз
+    она создаётся, дальше правится — и уведомление уходило лишь на первую.
+    Человек менял настроение днём, а партнёр об этом не узнавал вовсе
+    (жалоба 16.08.2026). Антидребезг общий с «Скучаю»: подряд перебирать
+    эмоции — обычное дело, но шторка от этого захлёбываться не должна.
+    """
+    if COLLECTIONS[col]["after_create"] != "mood":
+        return
+    group_id = rec.get("group_id") or ""
+    if not group_id:
+        return
+    if not _пора_слать_miss("mood:" + group_id, int(time.time() * 1000)):
+        return
+    label = (rec.get("label") or "").strip()
+    await _notify_group(
+        group_id, rec.get("user_uid") or "", "Настроение партнёра",
+        f"Сегодня: {label}" if label else "Партнёр отметил настроение", "mood")
+
+
 def _after_delete(col: str, rec: dict) -> None:
     kind = COLLECTIONS[col]["after_delete"]
     if kind == "chat":
@@ -2880,6 +2902,7 @@ async def update_record(col: str, rid: str, request: Request):
             _после_правки_пары(rid, [str(m) for m in участники] + [uid]))
     else:
         asyncio.get_running_loop().create_task(_publish(col, "update", rec))
+        asyncio.get_running_loop().create_task(_after_update(col, rec))
     return rec
 
 
