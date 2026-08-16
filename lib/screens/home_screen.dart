@@ -80,6 +80,7 @@ import 'home/home_bottom_nav.dart';
 import 'connect_partner_screen.dart';
 import 'together/watch_home_screen.dart';
 import 'expandable_timer_card.dart';
+import 'chat_screen.dart';
 import 'memory_lane_screen.dart';
 import 'together/together_launcher.dart';
 import 'mini_mood_calendar.dart';
@@ -1160,6 +1161,9 @@ class _HomeScreenState extends State<HomeScreen> {
               sideIsArrow: _sideActionIsArrow,
               onSideLongPress: _pairData.isPaired ? _toggleSideAction : null,
               sideButtonKey: _sideBtnKey,
+              // Значок чата поверх круглой кнопки: до переписки было два шага —
+              // вкладка «Связь», а уже оттуда кнопка чата.
+              onChat: _pairData.isPaired ? _openChat : null,
             ),
           ),
         ],
@@ -1302,6 +1306,25 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Тап по боковой кнопке навбара. Стрелка → открывает Ленту (без авто-создания),
   /// плюс + сразу открывает создание пина.
+  /// Прямой вход в переписку со значка на круглой кнопке.
+  ///
+  /// Раньше до чата добирались через вкладку «Связь», а уже там жала кнопка —
+  /// два шага ради самого частого действия пары.
+  void _openChat() {
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        settings: const RouteSettings(name: '/chat'),
+        builder: (_) => ChatScreen(
+          pairData: _pairData,
+          theme: _t,
+          userData: widget.userData,
+          myDisplayName: widget.userData.displayName,
+        ),
+      ),
+    );
+  }
+
   void _onSideAction() {
     if (_sideActionIsArrow) {
       _openMemoryLane();

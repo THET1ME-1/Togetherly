@@ -23,6 +23,13 @@ class HomeBottomNav extends StatelessWidget {
   /// Ключ боковой кнопки — для позиционирования одноразовой подсказки.
   final Key? sideButtonKey;
 
+  /// Быстрый вход в переписку — маленький значок на углу круглой кнопки.
+  /// null прячет его: у одиночки чата не существует.
+  final VoidCallback? onChat;
+
+  /// Ключ значка чата — по нему его находят тесты.
+  static const Key chatBadgeKey = Key('nav_chat_badge');
+
   const HomeBottomNav({
     super.key,
     required this.selectedIndex,
@@ -33,6 +40,7 @@ class HomeBottomNav extends StatelessWidget {
     this.sideIsArrow = false,
     this.onSideLongPress,
     this.sideButtonKey,
+    this.onChat,
   });
 
   static const String _homeIcon =
@@ -146,18 +154,86 @@ class HomeBottomNav extends StatelessWidget {
             // Hero делает кнопку «непрерывной» при переходе главная↔Лента —
             // круг остаётся на месте, пока экраны сменяются, а иконка
             // оказывается уже «плюсом» в Ленте. Тег общий для обоих экранов.
-            Hero(
-              tag: 'home_side_action_button',
-              child: _CreatePinButton(
-                buttonKey: sideButtonKey,
-                color: theme.fillColor,
-                isArrow: sideIsArrow,
-                onTap: onCreatePin!,
-                onLongPress: onSideLongPress,
-              ),
+            // Значок чата сидит НАД круглой кнопкой и живёт вне Hero: иначе
+            // он улетал бы вместе с ней в Ленту, где переписки нет.
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Hero(
+                  tag: 'home_side_action_button',
+                  child: _CreatePinButton(
+                    buttonKey: sideButtonKey,
+                    color: theme.fillColor,
+                    isArrow: sideIsArrow,
+                    onTap: onCreatePin!,
+                    onLongPress: onSideLongPress,
+                  ),
+                ),
+                if (onChat != null)
+                  Positioned(
+                    top: -8,
+                    right: -6,
+                    child: _ChatBadgeButton(
+                      theme: theme,
+                      onTap: onChat!,
+                      label: s.chatTitle,
+                    ),
+                  ),
+              ],
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// Значок чата поверх круглой боковой кнопки.
+///
+/// С главной до переписки было два шага: вкладка «Связь», а уже оттуда кнопка
+/// чата. Значок ведёт прямо в чат и не мешает кнопке под собой: у него своя
+/// область нажатия и своя обводка цветом панели, чтобы круг читался отдельно.
+/// Тени тут нет намеренно — глубину даёт тональная поверхность и кольцо.
+class _ChatBadgeButton extends StatelessWidget {
+  final AppTheme theme;
+  final VoidCallback onTap;
+  final String label;
+
+  const _ChatBadgeButton({
+    required this.theme,
+    required this.onTap,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: label,
+      child: Tooltip(
+        message: label,
+        child: Material(
+          key: HomeBottomNav.chatBadgeKey,
+          color: theme.cardSurface,
+          shape: CircleBorder(
+            // Кольцо цветом самой круглой кнопки: значок лежит на ней и
+            // должен читаться отдельным элементом, а не пятном.
+            side: BorderSide(color: theme.fillColor, width: 2),
+          ),
+          child: InkWell(
+            onTap: onTap,
+            customBorder: const CircleBorder(),
+            child: SizedBox(
+              width: 28,
+              height: 28,
+              child: Icon(
+                Icons.chat_bubble_rounded,
+                size: 15,
+                color: theme.primary,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
