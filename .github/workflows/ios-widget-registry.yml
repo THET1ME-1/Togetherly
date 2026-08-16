@@ -26,6 +26,10 @@ on:
         description: 'Коммит, на котором проверять (пусто — как в ветке)'
         required: false
         default: ''
+      plain:
+        description: 'Отключить стилевую конструкцию: image | block | container | all'
+        required: false
+        default: ''
 
 jobs:
   registry:
@@ -80,6 +84,14 @@ jobs:
           python3 tool/strip_lock_widgets.py
           grep -n "lockWidgets" ios/TogetherlyWidget/TogetherlyWidgetBundle.swift \
             || echo "в бандле его больше нет"
+
+      - name: Отключить стилевую конструкцию
+        if: ${{ inputs.plain != '' }}
+        # Деление пополам внутри коммита 3cbb20d3: правится реализация одного
+        # модификатора, вызовы в виджетах остаются. См. tool/plain_widget_style.py.
+        run: |
+          set -euxo pipefail
+          python3 tool/plain_widget_style.py "${{ inputs.plain }}"
 
       - name: Сборка под симулятор
         run: |
