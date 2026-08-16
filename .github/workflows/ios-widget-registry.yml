@@ -13,6 +13,11 @@ name: iOS → видит ли система наши виджеты
 # Ничего не публикует и не подписывает.
 on:
   workflow_dispatch:
+    inputs:
+      strip_lock:
+        description: 'Вырезать виджеты экрана блокировки (проверка подозреваемого)'
+        required: false
+        default: 'false'
 
 jobs:
   registry:
@@ -43,6 +48,18 @@ jobs:
           # Поды ставит сама сборка: отдельный `pod install` идёт раньше, чем
           # Flutter разложит симлинки плагинов, и не находит их подспеки.
           pod repo update --silent || true
+
+      - name: Вырезать виджеты экрана блокировки
+        if: ${{ inputs.strip_lock == 'true' }}
+        run: |
+          set -euo pipefail
+          # Блок `lockWidgets` целиком состоит из `if #available(iOS 16.0, *)`,
+          # то есть тип свойства зависит от условной ветки. Подозрение: на нём
+          # ломается извлечение дескрипторов, и тогда галерея пуста не у трёх
+          # виджетов экрана блокировки, а у всех двадцати двух.
+          python3 tool/strip_lock_widgets.py
+          grep -n "lockWidgets" ios/TogetherlyWidget/TogetherlyWidgetBundle.swift \
+            || echo "в бандле его больше нет"
 
       - name: Сборка под симулятор
         run: |
@@ -75,6 +92,10 @@ jobs:
           xcrun simctl launch "$DEVICE" com.togetherly.love || true
           # Дать системе просканировать расширения: chronod делает это не сразу.
           sleep 60
+          # И подтолкнуть: перезапуск менеджера виджетов заставляет его заново
+          # спросить у расширений, что они умеют.
+          xcrun simctl spawn "$DEVICE" launchctl kickstart -k system/com.apple.chronod || true
+          sleep 90
 
       - name: Что знает chronod — менеджер виджетов
         run: |
@@ -113,9 +134,13 @@ jobs:
           echo "=============================================================="
           echo "ЖУРНАЛ: что сказала система про наше расширение"
           echo "=============================================================="
-          xcrun simctl spawn "$DEVICE" log show --last 5m --style compact \
-            --predicate 'process == "chronod" OR process == "pkd" OR process == "installd" OR subsystem CONTAINS "WidgetKit"' 2>&1 \
-            | grep -iE "togetherly|widget" | tail -80
+          xcrun simctl spawn "$DEVICE" log show --last 8m --style compact \
+            --predicate 'process == "chronod" OR process == "pkd" OR process == "installd"' 2>&1 \
+            | grep -iE "togetherly|descriptor" | tail -60
+          echo
+          echo "— всё, что система сказала про наше расширение —"
+          xcrun simctl spawn "$DEVICE" log show --last 8m --style compact \
+            --predicate 'eventMessage CONTAINS "TogetherlyWidget"' 2>&1 | tail -40
           echo
           echo "=============================================================="
           echo "СОДЕРЖИМОЕ УСТАНОВЛЕННОГО ПРИЛОЖЕНИЯ"
