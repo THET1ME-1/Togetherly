@@ -230,6 +230,10 @@ class _DeStrings extends _EnStrings {
       years == 1 ? 'Schon ein Jahr ❤️' : 'Schon $years Jahre ❤️';
 
   @override
+  String monthsAlready(int months) =>
+      months == 1 ? 'Schon ein Monat ❤️' : 'Schon $months Monate ❤️';
+
+  @override
   String timerDaysCount(int days) => days == 1 ? '1 Tag' : '$days Tage';
 
   @override

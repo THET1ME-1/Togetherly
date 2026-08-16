@@ -230,6 +230,10 @@ class _FrStrings extends _EnStrings {
       years <= 1 ? 'Déjà un an ❤️' : 'Déjà $years ans ❤️';
 
   @override
+  String monthsAlready(int months) =>
+      months <= 1 ? 'Déjà un mois ❤️' : 'Déjà $months mois ❤️';
+
+  @override
   String timerDaysCount(int days) => '$days ${_n(days, 'jour', 'jours')}';
 
   @override

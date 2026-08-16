@@ -29,6 +29,11 @@ struct Store {
         d?.string(forKey: key) ?? fallback
     }
 
+    /// То же, но без подстановки: nil означает «ключа нет вовсе» — виджет
+    /// поставлен сборкой, которая его ещё не писала. Пустая строка при этом
+    /// остаётся значащей: так приложение просит ничего не рисовать.
+    func stringOrNil(_ key: String) -> String? { d?.string(forKey: key) }
+
     /// home_widget пишет числа как через saveWidgetData<int>, так и строками
     /// (saveWidgetData<String>(n.toString())). Читаем устойчиво к обоим вариантам.
     func int(_ key: String, _ fallback: Int = 0) -> Int {

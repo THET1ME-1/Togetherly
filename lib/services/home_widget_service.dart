@@ -18,6 +18,8 @@ import '../theme/app_theme.dart';
 import 'pb_auth_service.dart';
 import '../models/timer_item.dart';
 import '../models/mood_entry.dart';
+import '../models/together_caption.dart';
+import '../models/year_progress.dart';
 import 'mood_repository.dart';
 import '../models/widget_data.dart';
 import 'locale_service.dart';
@@ -865,6 +867,7 @@ class HomeWidgetService {
     String startDate = '',
     String myGender = '',
     String partnerGender = '',
+    DateTime? start,
   }) async {
     try {
       // Solo mode uses 'solo' as sentinel so Kotlin WidgetGroupHelper
@@ -879,6 +882,18 @@ class HomeWidgetService {
       await HomeWidget.saveWidgetData<String>('days_${g}_start_date', startDate);
       await HomeWidget.saveWidgetData<String>('days_${g}_my_gender', myGender);
       await HomeWidget.saveWidgetData<String>('days_${g}_partner_gender', partnerGender);
+      // Верхняя подпись собирается здесь, а натив только рисует: у него нет ни
+      // локализации, ни календарных границ лет. Пустая строка — сознательное
+      // молчание в первый месяц, отсутствие ключа — виджет с прежней сборки.
+      if (start != null) {
+        await HomeWidget.saveWidgetData<String>(
+          'days_${g}_caption',
+          togetherAlreadyCaption(
+            YearProgress.between(start, DateTime.now()),
+            LocaleService.current,
+          ),
+        );
+      }
       // Кешируем для syncTimerAndDays — тот не имеет доступа к данным профиля
       if (myGender.isNotEmpty) _cachedMyGender = myGender;
       if (partnerGender.isNotEmpty) _cachedPartnerGender = partnerGender;
@@ -2682,6 +2697,7 @@ class HomeWidgetService {
         coupleNames: coupleNames,
         emoji: activeTimer.emoji,
         startDate: _formatDate(activeTimer.startDate),
+        start: activeTimer.startDate,
         myGender: myGender,
         partnerGender: partnerGender,
       );
@@ -2721,6 +2737,7 @@ class HomeWidgetService {
         coupleNames: coupleNames,
         emoji: customDefault.emoji,
         startDate: _formatDate(customDefault.startDate),
+        start: customDefault.startDate,
         myGender: myGender,
         partnerGender: partnerGender,
       );
@@ -2732,6 +2749,7 @@ class HomeWidgetService {
         coupleNames: coupleNames,
         emoji: activeSysTimer.emoji,
         startDate: _formatDate(start),
+        start: start,
         myGender: myGender,
         partnerGender: partnerGender,
       );
@@ -2742,6 +2760,7 @@ class HomeWidgetService {
         coupleNames: coupleNames,
         emoji: emoji,
         startDate: _formatDate(activeStartDate),
+        start: activeStartDate,
         myGender: myGender,
         partnerGender: partnerGender,
       );
@@ -2757,6 +2776,7 @@ class HomeWidgetService {
         coupleNames: coupleNames,
         emoji: timer.emoji,
         startDate: _formatDate(timer.startDate),
+        start: timer.startDate,
         myGender: myGender,
         partnerGender: partnerGender,
       );

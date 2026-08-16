@@ -231,6 +231,10 @@ class _EsStrings extends _EnStrings {
       years == 1 ? '¡Ya un año ❤️' : '¡Ya $years años ❤️';
 
   @override
+  String monthsAlready(int months) =>
+      months == 1 ? '¡Ya un mes ❤️' : '¡Ya $months meses ❤️';
+
+  @override
   String timerDaysCount(int days) => '$days ${_n(days, 'día', 'días')}';
 
   @override

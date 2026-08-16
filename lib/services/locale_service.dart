@@ -1243,6 +1243,10 @@ abstract class AppStrings {
   String get regenerate;
   String get none;
   String yearsAlready(int years);
+
+  /// Та же подпись для пары, не дожившей до первой годовщины: «11 месяцев
+  /// уже ❤️». Без неё виджет писал «0 лет уже ❤️» — жалоба 15.08.2026.
+  String monthsAlready(int months);
   String get pairWidgetTitle;
   String get pairWidgetSubtitle;
   String get daysCounterSubtitle;
@@ -2502,6 +2506,10 @@ class _RuStrings extends DictStrings {
   }
 
   @override
+  String monthsAlready(int months) =>
+      '$months ${_ruPlural(months, 'месяц', 'месяца', 'месяцев')} уже ❤️';
+
+  @override
   String widgetSlotTitle(int index) => 'Виджет ${index + 1}';
 
   // ── Profile (extended) ──
@@ -3386,6 +3394,9 @@ class _EnStrings extends DictStrings {
   String failedAddWidget(String e) => 'Failed to add widget: $e';
   @override
   String yearsAlready(int years) => '$years years already ❤️';
+  @override
+  String monthsAlready(int months) =>
+      '$months ${months == 1 ? 'month' : 'months'} already ❤️';
   @override
   String widgetSlotTitle(int index) => 'Widget ${index + 1}';
 

@@ -5,8 +5,12 @@ import UIKit
 // MARK: - Дней вместе (дизайн 1:1 с Android days_counter_widget.xml)
 // Данные: home_widget_service.dart syncDaysCounter / syncTimerAndDays.
 
-private func yearsText(_ totalDays: Int) -> String {
+/// Подпись для виджета, поставленного до обновления: готовой строки
+/// (`days_<группа>_caption`) у него ещё нет. Прежние слова, но без «0 лет
+/// уже ❤️» — у пары младше года строка молчит.
+private func legacyYearsText(_ totalDays: Int) -> String {
     let years = totalDays / 365
+    if years < 1 { return "" }
     let n100 = years % 100, n10 = years % 10
     let word: String
     if n10 == 1 && n100 != 11 { word = "год" }
@@ -62,12 +66,17 @@ struct DaysCounterWidgetView: View {
                 }
             }
 
-            // Верх: «N лет уже ❤️»
+            // Верх: подпись «сколько уже вместе». Строку собирает приложение
+            // (`days_<группа>_caption`) — у расширения нет ни локализации, ни
+            // календарных границ лет; пустая строка означает молчание.
+            let caption = s.stringOrNil("days_\(g)_caption") ?? legacyYearsText(count)
             VStack {
-                Text(yearsText(count))
-                    .font(.system(size: 12 * k, weight: .bold))
-                    .foregroundColor(brown)
-                    .padding(.top, 16 * k)
+                if !caption.isEmpty {
+                    Text(caption)
+                        .font(.system(size: 12 * k, weight: .bold))
+                        .foregroundColor(brown)
+                        .padding(.top, 16 * k)
+                }
                 Spacer(minLength: 0)
             }
 

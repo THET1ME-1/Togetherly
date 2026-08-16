@@ -85,14 +85,20 @@ class DaysCounterWidgetProvider : HomeWidgetProvider() {
                     setViewVisibility(R.id.couple_image, View.VISIBLE)
                 }
 
-                // ── Расчёт лет ──
-                val years = totalDays / 365
-                val yearsText = when {
-                    years % 10 == 1 && years % 100 != 11 -> "$years год уже ❤️"
-                    years % 10 in 2..4 && (years % 100 < 10 || years % 100 >= 20) -> "$years года уже ❤️"
-                    else -> "$years лет уже ❤️"
-                }
+                // ── Верхняя подпись ──
+                // Приложение присылает её готовой (`days_<группа>_caption`): у
+                // натива нет ни локализации, ни календарных границ лет, а
+                // деление «дни / 365» давало у пары младше года «0 лет уже ❤️».
+                // Пустая строка — сознательное молчание в первый месяц,
+                // отсутствие ключа — виджет, добавленный до обновления.
+                val caption = if (g.isEmpty()) null
+                              else widgetData.getString("days_${g}_caption", null)
+                val yearsText = caption ?: legacyYearsText(totalDays)
                 setTextViewText(R.id.years_label, yearsText)
+                setViewVisibility(
+                    R.id.years_label,
+                    if (yearsText.isEmpty()) View.GONE else View.VISIBLE,
+                )
 
                 // ── Дни и дата ──
                 setTextViewText(R.id.days_number, totalDays.toString())
@@ -112,6 +118,21 @@ class DaysCounterWidgetProvider : HomeWidgetProvider() {
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
         super.onDeleted(context, appWidgetIds)
         WidgetGroupHelper.clearBindings(context, "days_counter", appWidgetIds)
+    }
+
+    /**
+     * Подпись для виджета, поставленного до обновления: он ещё не получил
+     * готовую строку от приложения. Прежние слова, но без «0 лет уже» — у пары
+     * младше года строка просто молчит.
+     */
+    private fun legacyYearsText(totalDays: Int): String {
+        val years = totalDays / 365
+        if (years < 1) return ""
+        return when {
+            years % 10 == 1 && years % 100 != 11 -> "$years год уже ❤️"
+            years % 10 in 2..4 && (years % 100 < 10 || years % 100 >= 20) -> "$years года уже ❤️"
+            else -> "$years лет уже ❤️"
+        }
     }
 
     /**

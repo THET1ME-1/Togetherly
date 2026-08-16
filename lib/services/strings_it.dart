@@ -239,6 +239,10 @@ class _ItStrings extends _EnStrings {
       years == 1 ? 'Già un anno ❤️' : 'Già $years anni ❤️';
 
   @override
+  String monthsAlready(int months) =>
+      months == 1 ? 'Già un mese ❤️' : 'Già $months mesi ❤️';
+
+  @override
   String timerDaysCount(int days) => '$days ${_n(days, 'giorno', 'giorni')}';
 
   @override

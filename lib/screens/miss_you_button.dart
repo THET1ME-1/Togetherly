@@ -59,11 +59,15 @@ class MissYouButton extends StatefulWidget {
 }
 
 class _MissYouButtonState extends State<MissYouButton>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   /// Окно накопления нажатий: за это время серия тапов схлопывается в одну
   /// отправку. Полсекунды человек не замечает, а запросов становится втрое
   /// меньше на каждой серии.
   static const Duration _kBatchWindow = Duration(milliseconds: 600);
+
+  /// Пауза перед повтором сорванной отправки. Дольше окна накопления: сеть
+  /// только что отказала, и биться в неё сразу же смысла нет.
+  static const Duration _kRetryWindow = Duration(seconds: 3);
 
   final MissYouBatch _batch = MissYouBatch();
   Timer? _flushTimer;
@@ -94,6 +98,9 @@ class _MissYouButtonState extends State<MissYouButton>
   @override
   void initState() {
     super.initState();
+    // Слушаем уход в фон: накопленные нажатия надо успеть отправить до того,
+    // как система выгрузит процесс вместе с таймером.
+    WidgetsBinding.instance.addObserver(this);
 
     _scaleController = AnimationController(
       vsync: this,
@@ -231,6 +238,10 @@ class _MissYouButtonState extends State<MissYouButton>
       // Сорванная отправка снимает надбавку сразу: сервер её не принял.
       _batch.giveBack(count);
       if (mounted) setState(() => _mine = _mine.failed());
+      // И пробуем ещё раз сами. Пока повтор ждал следующего нажатия, серия,
+      // оборвавшаяся на неудаче, так и не доезжала до сервера.
+      _flushTimer?.cancel();
+      _flushTimer = Timer(_kRetryWindow, _flushMissYou);
       return;
     }
     // Пока шла отправка, человек мог нажать ещё — отправляем остаток.
@@ -267,15 +278,35 @@ class _MissYouButtonState extends State<MissYouButton>
     }
   }
 
+  /// Слить накопленное целиком: экран закрывается или приложение уходит в фон.
+  ///
+  /// Пачками по потолку роута, но ВСЕ: `take()` отдаёт не больше двадцати, и
+  /// остаток прежде оставался в памяти навсегда. На скринкасте 16.08.2026 это
+  /// выглядело так: человек натыкал 6687, свернул приложение, вернулся — 6670.
+  void _flushEverything() {
+    for (final count in _batch.takeAllChunks()) {
+      unawaited(_missYou.sendMissYou(widget.groupId, count: count));
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // Уходя в фон, отправляем всё: iOS выгружает процесс вместе с таймером
+    // накопления, и `dispose` в этом случае не случится вовсе.
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      _flushTimer?.cancel();
+      _flushEverything();
+    }
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _flushTimer?.cancel();
     // Уходит экран — накопленное всё равно отправляем: человек нажимал, и
     // терять эти «скучаю» нельзя.
-    final left = _batch.take();
-    if (left > 0) {
-      unawaited(_missYou.sendMissYou(widget.groupId, count: left));
-    }
+    _flushEverything();
     _scaleController.dispose();
     _countSub?.cancel();
     _listenRetryTimer?.cancel();

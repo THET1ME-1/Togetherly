@@ -26,6 +26,8 @@ import '../utils/safe_pick.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../logic/photo_day_widget_logic.dart';
 import '../models/pair_data.dart';
+import '../models/symbol_catalog.dart';
+import '../models/together_caption.dart';
 import '../models/timer_item.dart';
 import '../models/widget_data.dart';
 import '../models/year_progress.dart';
@@ -1082,6 +1084,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           coupleNames: names,
           emoji: emoji,
           startDate: startLabel,
+          start: start,
           myGender: widget.userData.gender?.name ?? '',
           partnerGender: _ws.firstPartnerData?.gender ?? '',
         );
@@ -4503,8 +4506,14 @@ class _WidgetScreenState extends State<WidgetScreen>
       flipCouple = true;
     }
 
-    final years = totalDays ~/ 365;
-    final yearsText = s.yearsAlready(years);
+    // Подпись считается тем же правилом, что и на самом виджете: годы
+    // календарные, а до первой годовщины счёт идёт на месяцы.
+    final yearsText = start != null
+        ? togetherAlreadyCaption(
+            YearProgress.between(start, DateTime.now()),
+            s,
+          )
+        : '';
 
     final myAvatar = widget.userData.avatarUrl;
     final partnerAvatar = _pair.partnerAvatarUrl;
@@ -4993,7 +5002,11 @@ class _WidgetScreenState extends State<WidgetScreen>
               ),
               child: Row(
                 children: [
-                  Text(timer.emoji, style: const TextStyle(fontSize: 20)),
+                  SymbolIcon(
+                    SymbolCatalog.nameFromStored(timer.emoji),
+                    size: 20,
+                    color: isSelected ? _t.primary : _t.textSecondary,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(

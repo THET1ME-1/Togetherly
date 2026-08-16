@@ -51,5 +51,30 @@ void main() {
       batch.giveBack(sent);
       expect(batch.take(), 2);
     });
+
+    test('уходя, накопитель отдаёт ВСЁ, а не первые двадцать', () {
+      // Жалоба со скринкастом 16.08.2026: «огромные проблемы со счётчиком».
+      // На записи человек натыкал до 6687, свернул приложение — и увидел 6670.
+      // Семнадцать нажатий не уехали никуда: экран закрывался, а `take()`
+      // отдаёт не больше двадцати за раз, и остаток оставался в памяти.
+      final batch = MissYouBatch();
+      for (var i = 0; i < 37; i++) {
+        batch.add();
+      }
+      expect(batch.takeAllChunks(), [20, 17]);
+      expect(batch.pending, 0, reason: 'в накопителе не должно остаться ничего');
+    });
+
+    test('пустой накопитель на выходе не шлёт ничего', () {
+      expect(MissYouBatch().takeAllChunks(), isEmpty);
+    });
+
+    test('ровно двадцать уходят одной пачкой', () {
+      final batch = MissYouBatch();
+      for (var i = 0; i < 20; i++) {
+        batch.add();
+      }
+      expect(batch.takeAllChunks(), [20]);
+    });
   });
 }

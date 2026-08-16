@@ -236,6 +236,10 @@ class _PtStrings extends _EnStrings {
       years == 1 ? 'Já um ano ❤️' : 'Já $years anos ❤️';
 
   @override
+  String monthsAlready(int months) =>
+      months == 1 ? 'Já um mês ❤️' : 'Já $months meses ❤️';
+
+  @override
   String timerDaysCount(int days) => '$days ${_n(days, 'dia', 'dias')}';
 
   @override
