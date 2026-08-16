@@ -76,6 +76,9 @@ class HomeBottomNav extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.fromLTRB(24, 0, 24, 20 + bottomInset),
       child: Row(
+        // По низу: кнопка чата растёт ВВЕРХ от круглой, а панель остаётся
+        // там же, где была.
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Expanded(
             child: Container(
@@ -154,11 +157,22 @@ class HomeBottomNav extends StatelessWidget {
             // Hero делает кнопку «непрерывной» при переходе главная↔Лента —
             // круг остаётся на месте, пока экраны сменяются, а иконка
             // оказывается уже «плюсом» в Ленте. Тег общий для обоих экранов.
-            // Значок чата сидит НАД круглой кнопкой и живёт вне Hero: иначе
-            // он улетал бы вместе с ней в Ленту, где переписки нет.
-            Stack(
-              clipBehavior: Clip.none,
+            // Кнопка чата стоит НАД круглой отдельной сущностью, столбиком.
+            // Не Positioned за границами: то, что вынесено за родителя,
+            // рисуется, но нажатий не ловит — проверено тестом.
+            // Обе живут вне общего Hero: круглая летит в Ленту сама,
+            // а чата там нет вовсе.
+            Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
+                if (onChat != null) ...[
+                  _ChatBadgeButton(
+                    theme: theme,
+                    onTap: onChat!,
+                    label: s.chatTitle,
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 Hero(
                   tag: 'home_side_action_button',
                   child: _CreatePinButton(
@@ -169,16 +183,6 @@ class HomeBottomNav extends StatelessWidget {
                     onLongPress: onSideLongPress,
                   ),
                 ),
-                if (onChat != null)
-                  Positioned(
-                    top: -8,
-                    right: -6,
-                    child: _ChatBadgeButton(
-                      theme: theme,
-                      onTap: onChat!,
-                      label: s.chatTitle,
-                    ),
-                  ),
               ],
             ),
           ],
@@ -188,12 +192,12 @@ class HomeBottomNav extends StatelessWidget {
   }
 }
 
-/// Значок чата поверх круглой боковой кнопки.
+/// Кнопка чата — отдельная, НАД круглой боковой.
 ///
 /// С главной до переписки было два шага: вкладка «Связь», а уже оттуда кнопка
-/// чата. Значок ведёт прямо в чат и не мешает кнопке под собой: у него своя
-/// область нажатия и своя обводка цветом панели, чтобы круг читался отдельно.
-/// Тени тут нет намеренно — глубину даёт тональная поверхность и кольцо.
+/// чата. Эта ведёт прямо в чат. Стоит выше круглой столбиком, со своим
+/// зазором: не значок на чужой кнопке, а самостоятельное действие. Тени нет
+/// намеренно — глубину даёт тональная поверхность и кольцо.
 class _ChatBadgeButton extends StatelessWidget {
   final AppTheme theme;
   final VoidCallback onTap;
@@ -216,19 +220,19 @@ class _ChatBadgeButton extends StatelessWidget {
           key: HomeBottomNav.chatBadgeKey,
           color: theme.cardSurface,
           shape: CircleBorder(
-            // Кольцо цветом самой круглой кнопки: значок лежит на ней и
-            // должен читаться отдельным элементом, а не пятном.
+            // Кольцо цветом круглой кнопки: две окружности столбиком читаются
+            // как пара, а не как случайный кружок над панелью.
             side: BorderSide(color: theme.fillColor, width: 2),
           ),
           child: InkWell(
             onTap: onTap,
             customBorder: const CircleBorder(),
             child: SizedBox(
-              width: 28,
-              height: 28,
+              width: 44,
+              height: 44,
               child: Icon(
                 Icons.chat_bubble_rounded,
-                size: 15,
+                size: 20,
                 color: theme.primary,
               ),
             ),

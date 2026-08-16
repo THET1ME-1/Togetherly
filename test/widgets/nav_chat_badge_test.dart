@@ -43,6 +43,19 @@ void main() {
     expect(laneTaps, 0, reason: 'значок не должен задевать кнопку под собой');
   });
 
+  testWidgets('кнопка чата стоит НАД круглой, а не на ней', (tester) async {
+    await tester.pumpWidget(_nav(onChat: () {}));
+    await tester.pump();
+
+    final chat = tester.getRect(find.byKey(HomeBottomNav.chatBadgeKey));
+    final side = tester.getRect(find.byIcon(Icons.arrow_forward_rounded));
+
+    expect(chat.bottom, lessThanOrEqualTo(side.top),
+        reason: 'это отдельная кнопка выше круглой, а не значок поверх неё');
+    expect((chat.center.dx - side.center.dx).abs(), lessThan(4),
+        reason: 'обе стоят по одной оси, столбиком');
+  });
+
   testWidgets('без обработчика значка нет', (tester) async {
     // У одиночки переписки не существует — значку неоткуда взяться.
     await tester.pumpWidget(_nav());
