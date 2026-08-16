@@ -22,6 +22,10 @@ on:
         description: 'Пересобрать расширение с -O, как в TestFlight'
         required: false
         default: 'false'
+      ref:
+        description: 'Коммит, на котором проверять (пусто — как в ветке)'
+        required: false
+        default: ''
 
 jobs:
   registry:
@@ -30,6 +34,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Взять указанный коммит
+        if: ${{ inputs.ref != '' }}
+        # Сам воркфлоу остаётся из ветки (его берёт Actions до чекаута), а код
+        # приложения — из указанного коммита. Так две проверки отличаются
+        # только кодом: это и есть сравнение рабочей сборки со сломанной.
+        run: |
+          set -euxo pipefail
+          git checkout --detach "${{ inputs.ref }}"
+          git log -1 --format='проверяем: %h %s'
 
       - name: Flutter
         uses: subosito/flutter-action@v2
