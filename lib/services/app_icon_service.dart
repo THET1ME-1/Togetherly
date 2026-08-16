@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../dict_strings.dart';
+import '../models/app_icon_repair.dart';
 
 /// Один вариант launcher-иконки приложения. Цвета совпадают с ассетами,
 /// сгенерированными `tool/gen_app_icons.py` (фон = primaryLight темы, буквы

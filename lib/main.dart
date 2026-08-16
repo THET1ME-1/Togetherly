@@ -30,6 +30,7 @@ import 'services/catalog_service.dart';
 import 'services/live_location_service.dart';
 import 'models/symbol_catalog.dart';
 import 'services/locale_service.dart';
+import 'services/app_icon_service.dart';
 import 'services/mascot_inactivity_notification_service.dart';
 import 'services/mood_pack_service.dart';
 import 'services/pocketbase_service.dart';
@@ -506,6 +507,12 @@ void main() async {
   // своего типа связи. Грузим заранее и не ждём — иначе на первом кадре вместо
   // выбранного значка мелькает запасной.
   unawaited(SymbolCatalog.load());
+
+  // Ярлык на рабочем столе должен быть ровно один. Выбранную иконку мы
+  // включаем явно, и это переживает обновление, а новая основная приехала
+  // включённой из манифеста — у выбиравших цветную ярлыков стало два
+  // («обновил, стало два», 16.08.2026). Чиним молча и только при расхождении.
+  unawaited(AppIconService.instance.repairIfNeeded());
 
   // Восстанавливаем флаг шеринга геопозиции (карта «Где мы»). Сам трекинг
   // стартует из home_screen после привязки к группе (resumeIfEnabled).
