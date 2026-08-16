@@ -9,7 +9,6 @@ import '../models/mood_entry.dart';
 import '../models/pair_data.dart';
 import '../models/user_data.dart';
 import '../services/cycle_service.dart';
-import '../services/plus_service.dart';
 import '../services/locale_service.dart';
 import '../services/mood_service.dart';
 import '../services/widget_service.dart';
@@ -584,10 +583,9 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
         if (!isPartner && CycleService.unlockedFor(widget.userData))
           _buildCycleBlock(scheme),
         // Цикл партнёрши: только когда она делится отметками и их хватило на
-        // прогноз. Своего пола тут не спрашиваем — цикл читают, а не ведут.
-        if (isPartner &&
-            PlusService.instance.active &&
-            CycleService.forecastOf(_cycle.partner) != null)
+        // прогноз. Ни своего пола, ни своей подписки тут не спрашиваем — цикл
+        // читают, а не ведут, и заплатила за него та, чей это календарь.
+        if (isPartner && CycleService.partnerCycleVisible(_cycle.partner))
           _buildCycleBlock(scheme, partner: true, ownerName: ownerName),
       ],
     );

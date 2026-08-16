@@ -171,7 +171,10 @@ class UserData extends ChangeNotifier {
 
   // Режим (свет/тьма/система), вариант («сочно»/«точь-в-точь»/мягкий) и AMOLED —
   // девайсовые настройки, хранятся локально и на сервер не синкаются.
-  AppThemeMode _themeMode = AppThemeMode.system;
+  /// Светлый по умолчанию, а не системный: приложение задумано светлым и
+  /// розовым, а системная ночная тема встречала половину новых людей тёмным
+  /// экраном. Свой выбор человека это не трогает — он лежит в prefs.
+  AppThemeMode _themeMode = AppThemeMode.light;
   SchemeFlavor _themeFlavor = SchemeFlavor.soft;
   bool _amoled = false;
 
@@ -719,7 +722,7 @@ class UserData extends ChangeNotifier {
       _themeId = prefs.getInt('themeId') ?? -1;
       final hadThemeMode = prefs.containsKey('themeMode');
       _themeMode = AppThemeMode.values[
-          (prefs.getInt('themeMode') ?? AppThemeMode.system.index)
+          (prefs.getInt('themeMode') ?? AppThemeMode.light.index)
               .clamp(0, AppThemeMode.values.length - 1)];
       // Миграция на модель «акцент × режим»: старые ТЁМНЫЕ темы (индексы 20–24)
       // теперь просто акценты. Кто на них сидел и ещё не выбирал режим — остаётся

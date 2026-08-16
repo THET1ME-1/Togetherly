@@ -57,6 +57,13 @@ from fastapi.responses import ORJSONResponse, JSONResponse, Response
 log = logging.getLogger("hotpath")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
+# httpx пишет INFO на КАЖДЫЙ запрос, а публикаций в Centrifugo идёт под сотню
+# в секунду: полмиллиона строк в час уходили в journald, тот пишет их на диск
+# синхронно и отъедает процессор ровно на пике. Отказы публикации видно и на
+# уровне WARNING, а поток «200 OK» не говорит ничего.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+
 PG_DSN = os.environ["HOTPATH_PG_DSN"]
 PB_DB = os.environ.get("PB_DB", "/opt/pocketbase/pb_data/data.db")
 CENT_API = os.environ.get("CENTRIFUGO_API", "http://127.0.0.1:9000/api")
@@ -2851,6 +2858,12 @@ def _claim_background_role() -> bool:
 
 @app.on_event("startup")
 async def _startup():
+    # Уровень ставится ЗДЕСЬ, а не рядом с basicConfig: uvicorn поднимает свою
+    # конфигурацию логов уже после импорта модуля и сбрасывает выставленное
+    # раньше. Публикаций в Centrifugo идёт под сотню в секунду, и поток
+    # «HTTP Request … 200 OK» забивал journald полумиллионом строк в час.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
     global pg, cent_client, push_client, pb_client, lite, lite_rw, auth_secret
     pg = await asyncpg.create_pool(PG_DSN, min_size=2, max_size=10)
     cent_client = httpx.AsyncClient(base_url=CENT_API, timeout=3.0)

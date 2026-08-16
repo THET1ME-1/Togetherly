@@ -108,6 +108,18 @@ class CycleService extends ChangeNotifier {
   static bool unlockedFor(UserData? user) =>
       availableFor(user) && PlusService.instance.active;
 
+  /// Показывать ли блок цикла партнёрши.
+  ///
+  /// Плюса смотрящего тут не спрашиваем намеренно: платит та, кто ВЕДЁТ
+  /// календарь, и показ партнёру входит в её покупку — так же, как купленный
+  /// маскот открывается обоим. В паре из двух девушек это значит, что каждая
+  /// покупает Плюс под свои отметки, а цикл другой видит бесплатно.
+  ///
+  /// Отметок мало — прогноза нет, и блок бесполезен: рисовать пустую карточку
+  /// с прочерками хуже, чем не рисовать ничего.
+  static bool partnerCycleVisible(Iterable<CycleEntry> partnerEntries) =>
+      forecastOf(partnerEntries) != null;
+
   /// Дни месячных из набора отметок. Близость в расчёт не идёт: она живёт в
   /// том же календаре, но к циклу отношения не имеет.
   static List<DateTime> _periodDaysOf(Iterable<CycleEntry> entries) => entries

@@ -10,14 +10,18 @@ import 'package:love_app/theme/app_theme.dart';
 /// чат; сама круглая кнопка при этом работает как раньше.
 Widget _nav({VoidCallback? onChat, VoidCallback? onSide}) => MaterialApp(
       home: Scaffold(
-        body: HomeBottomNav(
-          selectedIndex: 0,
-          theme: AppThemes.pink,
-          isPaired: true,
-          onTap: (_) {},
-          onCreatePin: onSide ?? () {},
-          sideIsArrow: true,
-          onChat: onChat,
+        // Как в приложении: панель прижата к низу экрана и растёт вверх.
+        body: Align(
+          alignment: Alignment.bottomCenter,
+          child: HomeBottomNav(
+            selectedIndex: 0,
+            theme: AppThemes.pink,
+            isPaired: true,
+            onTap: (_) {},
+            onCreatePin: onSide ?? () {},
+            sideIsArrow: true,
+            onChat: onChat,
+          ),
         ),
       ),
     );
@@ -54,6 +58,27 @@ void main() {
         reason: 'это отдельная кнопка выше круглой, а не значок поверх неё');
     expect((chat.center.dx - side.center.dx).abs(), lessThan(4),
         reason: 'обе стоят по одной оси, столбиком');
+  });
+
+  testWidgets('круглая кнопка не сдвинулась и не уменьшилась', (tester) async {
+    // Появление кнопки чата не должно трогать кнопку под ней: она стоит там
+    // же и того же размера, что и без чата.
+    await tester.pumpWidget(_nav());
+    await tester.pump();
+    final before = tester.getRect(find.byIcon(Icons.arrow_forward_rounded));
+
+    await tester.pumpWidget(_nav(onChat: () {}));
+    await tester.pump();
+    final after = tester.getRect(find.byIcon(Icons.arrow_forward_rounded));
+
+    expect((after.width - before.width).abs(), lessThan(0.5),
+        reason: 'размер прежний');
+    expect((after.height - before.height).abs(), lessThan(0.5),
+        reason: 'размер прежний');
+    expect((after.center.dy - before.center.dy).abs(), lessThan(1),
+        reason: 'по вертикали на том же месте');
+    expect((after.center.dx - before.center.dx).abs(), lessThan(1),
+        reason: 'и по горизонтали тоже');
   });
 
   testWidgets('без обработчика значка нет', (tester) async {

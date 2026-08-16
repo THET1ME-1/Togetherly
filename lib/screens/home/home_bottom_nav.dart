@@ -218,22 +218,20 @@ class _ChatBadgeButton extends StatelessWidget {
         message: label,
         child: Material(
           key: HomeBottomNav.chatBadgeKey,
-          color: theme.cardSurface,
-          shape: CircleBorder(
-            // Кольцо цветом круглой кнопки: две окружности столбиком читаются
-            // как пара, а не как случайный кружок над панелью.
-            side: BorderSide(color: theme.fillColor, width: 2),
-          ),
+          // Тот же цвет, что у круглой кнопки под ней, и белый значок:
+          // две окружности читаются как пара. Обводки нет намеренно.
+          color: theme.fillColor,
+          shape: const CircleBorder(),
           child: InkWell(
             onTap: onTap,
             customBorder: const CircleBorder(),
-            child: SizedBox(
+            child: const SizedBox(
               width: 44,
               height: 44,
               child: Icon(
                 Icons.chat_bubble_rounded,
                 size: 20,
-                color: theme.primary,
+                color: Colors.white,
               ),
             ),
           ),
