@@ -89,7 +89,7 @@ jobs:
             -target TogetherlyWidgetExtension \
             -configuration Release \
             -sdk iphonesimulator \
-            -derivedDataPath /tmp/extrel \
+            CONFIGURATION_BUILD_DIR=/tmp/extrel \
             CODE_SIGNING_ALLOWED=NO
           APPEX=$(find /tmp/extrel -name "TogetherlyWidgetExtension.appex" -maxdepth 6 | head -1)
           echo "собрано: $APPEX"
