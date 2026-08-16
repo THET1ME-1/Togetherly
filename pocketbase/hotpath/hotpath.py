@@ -617,13 +617,19 @@ def _push_candidates(group_id: str, author_uid: str,
         if not uid or uid == author_uid:
             continue
         u = lite.execute(
-            "SELECT apns_token, apns_sandbox, fcm_token, apns_bg_ms FROM users WHERE id = ?",
+            "SELECT apns_token, apns_sandbox, fcm_token, apns_bg_ms, "
+            "notif_chat, notif_mood, notif_new_memory, notif_miss_you "
+            "FROM users WHERE id = ?",
             (uid,),
         ).fetchone()
         if u is None:
             continue
         out.append({"uid": uid, "apns": u[0] or "", "sandbox": bool(u[1]),
-                    "fcm": u[2] or "", "bg_ms": int(u[3] or 0)})
+                    "fcm": u[2] or "", "bg_ms": int(u[3] or 0),
+                    # Выключатели уведомлений из приложения — их читает
+                    # `_уведомление_разрешено` перед отправкой.
+                    "notif_chat": u[4], "notif_mood": u[5],
+                    "notif_new_memory": u[6], "notif_miss_you": u[7]})
     return out
 
 
@@ -690,6 +696,12 @@ async def _notify_group(group_id: str, author_uid: str, title: str, body: str, t
         log.warning("push targets %s: %s", group_id, e)
         return
     for t in targets:
+        # Человек выключил этот вид уведомлений в приложении — молчим.
+        # Переключатели доезжали до сервера с самого начала, но их не читал
+        # никто: «Скучаю» было выключено у 16 507 человек, и все получали его
+        # по-прежнему (жалоба 16.08.2026).
+        if not _уведомление_разрешено(thread, t):
+            continue
         if t["apns"]:
             try:
                 r = await push_client.post(APNS_RELAY, json={
@@ -765,6 +777,59 @@ async def _wake_group(group_id: str, author_uid: str, kind: str = "widgets") -> 
                 log.warning("fcm wake %s: %s", t["uid"], e)
         if woke:
             await asyncio.to_thread(_mark_woke, t["uid"], now_ms)
+
+
+# Вид уведомления → колонка выключателя в users. Пустое поле означает
+# «включено»: у старых аккаунтов этих колонок нет вовсе, и молчать им нельзя.
+ВЫКЛЮЧАТЕЛИ = {
+    "chat": "notif_chat",
+    "mood": "notif_mood",
+    "memory": "notif_new_memory",
+    "miss": "notif_miss_you",
+}
+
+
+def _уведомление_разрешено(вид: str, человек: dict) -> bool:
+    """Не выключил ли человек этот вид уведомлений в приложении.
+
+    Переключатели доезжали до сервера с самого начала, но их никто не читал:
+    пуши уходили всем подряд. На 16.08.2026 «Скучаю» было выключено у 16 507
+    человек — и все они его получали (жалоба «уведомления не выключаются»).
+    """
+    колонка = ВЫКЛЮЧАТЕЛИ.get(вид)
+    if колонка is None:
+        return True
+    значение = человек.get(колонка)
+    if значение is None:
+        return True
+    return bool(значение)
+
+
+# Когда паре последний раз уходил пуш «Скучаю» — чтобы серия нажатий не
+# превратилась в лавину уведомлений. Держим в памяти процесса: точность тут не
+# нужна, важно снять поток.
+_МОЛЧАНИЕ_MISS_MS = 60_000
+_последний_miss: dict[str, int] = {}
+
+
+def _пора_слать_miss(group_id: str, теперь_мс: int) -> bool:
+    """Не чаще раза в минуту на пару.
+
+    Человек жмёт сердце подряд, клиент копит нажатия и шлёт их пачками по
+    двадцать — и на каждую пачку уходило отдельное уведомление. Со стороны
+    партнёра это «уведомления без остановки» (жалоба 16.08.2026). Счёт при
+    этом прибавляется весь, теряется только шум в шторке.
+    """
+    было = _последний_miss.get(group_id)
+    if было is not None and теперь_мс - было < _МОЛЧАНИЕ_MISS_MS:
+        return False
+    _последний_miss[group_id] = теперь_мс
+    # Карта не должна расти без края: чистим давние записи пачкой.
+    if len(_последний_miss) > 20_000:
+        порог = теперь_мс - _МОЛЧАНИЕ_MISS_MS
+        for k in [k for k, v in _последний_miss.items() if v < порог]:
+            _последний_miss.pop(k, None)
+    return True
 
 
 def _miss_you_push_text(вайб_текст: str | None) -> str:
@@ -1157,8 +1222,9 @@ async def miss_you(request: Request):
     # слал хук PocketBase на update записи, а хуки переехавших коллекций
     # больше не срабатывают. Счётчик при этом обновлялся, и со стороны это
     # выглядело как «сердечко прилетело, а телефон молчит» (жалоба 16.08.2026).
-    await _notify_group(group_id, uid, "Скучает по тебе",
-                        _miss_you_push_text(text), "miss")
+    if _пора_слать_miss(group_id, int(time.time() * 1000)):
+        await _notify_group(group_id, uid, "Скучает по тебе",
+                            _miss_you_push_text(text), "miss")
     return ORJSONResponse({"ok": True, "count": _num(row["count"])})
 
 

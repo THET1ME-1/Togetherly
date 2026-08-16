@@ -328,56 +328,6 @@ class _WatchPlayerScreenState extends State<WatchPlayerScreen>
   }
 }
 
-/// Круглая кнопка поверх кадра: тональная в покое, наливается цветом в работе.
-class _RoundAction extends StatelessWidget {
-  final IconData icon;
-  final bool active;
-  final bool busy;
-  final bool danger;
-  final VoidCallback onTap;
-
-  const _RoundAction({
-    required this.icon,
-    required this.onTap,
-    this.active = false,
-    this.busy = false,
-    this.danger = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final bg = danger
-        ? cs.errorContainer
-        : active
-            ? cs.primary
-            : Colors.white.withValues(alpha: .18);
-    final fg = danger
-        ? cs.onErrorContainer
-        : active
-            ? cs.onPrimary
-            : Colors.white;
-    return Material(
-      color: bg,
-      shape: const CircleBorder(),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: SizedBox(
-          width: 40,
-          height: 40,
-          child: busy
-              ? Padding(
-                  padding: const EdgeInsets.all(11),
-                  child: CircularProgressIndicator(strokeWidth: 2.2, color: fg),
-                )
-              : Icon(icon, size: 20, color: fg),
-        ),
-      ),
-    );
-  }
-}
-
 /// Слой управления: появляется и уходит плавно, кнопки — крупные и круглые,
 /// как велит язык форм Material 3.
 class _Controls extends StatelessWidget {

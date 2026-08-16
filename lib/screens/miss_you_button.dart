@@ -244,10 +244,13 @@ class _MissYouButtonState extends State<MissYouButton>
       _flushTimer = Timer(_kRetryWindow, _flushMissYou);
       return;
     }
-    // Пока шла отправка, человек мог нажать ещё — отправляем остаток.
+    // Пока шла отправка, человек мог нажать ещё — досылаем остаток сразу.
+    // Прежде тут стояла та же пауза, что и на первую пачку: серия из сотен
+    // нажатий растягивалась на минуты, и счётчик у партнёра всё это время
+    // «доезжал» сам собой (жалоба 16.08.2026).
     if (_batch.pending > 0) {
       _flushTimer?.cancel();
-      _flushTimer = Timer(_kBatchWindow, _flushMissYou);
+      unawaited(_flushMissYou());
     }
   }
 

@@ -51,10 +51,28 @@ function forgetToken(user, field) {
   } catch (_) { /* попробуем в следующий раз */ }
 }
 
+/// Вид уведомления → поле выключателя в users. Пустое поле означает
+/// «включено»: у старых аккаунтов его нет вовсе, и молчать им нельзя.
+const NOTIF_FIELD = {
+  chat: "notif_chat",
+  mood: "notif_mood",
+  memory: "notif_new_memory",
+  miss: "notif_miss_you",
+};
+
 function sendTo(uid, title, body, thread) {
   let user;
   try { user = $app.findRecordById("users", uid); } catch (_) { return; }
   if (isOnline(uid)) return;
+
+  // Человек выключил этот вид уведомлений в приложении. Переключатели
+  // доезжали сюда с самого начала, но их никто не читал: пуши уходили всем
+  // подряд, а «Скучаю» было выключено у 16 507 человек (жалоба 16.08.2026).
+  const field = NOTIF_FIELD[thread];
+  if (field) {
+    const raw = user.get(field);
+    if (raw === false || raw === 0) return;
+  }
 
   const apnsToken = String(user.getString("apns_token") || "");
   if (apnsToken) {
