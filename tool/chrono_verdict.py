@@ -28,8 +28,21 @@ import sqlite3
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-WIDGETS = ROOT / "ios" / "TogetherlyWidget"
+def _widgets_dir() -> Path:
+    """Папка расширения: рядом со скриптом или в текущем каталоге.
+
+    Проверка на симуляторе копирует разборщики в /tmp (в старом коммите их нет),
+    и путь «рядом со скриптом» тогда указывает в пустоту: приговор напечатал
+    «объявлено в исходниках: 0» и сравнивать стало нечего.
+    """
+    for root in (Path(__file__).resolve().parent.parent, Path.cwd()):
+        candidate = root / "ios" / "TogetherlyWidget"
+        if candidate.is_dir():
+            return candidate
+    raise SystemExit("не нашёл ios/TogetherlyWidget ни рядом со скриптом, ни в текущем каталоге")
+
+
+WIDGETS = _widgets_dir()
 KIND_RE = re.compile(r'kind:\s*"([^"]+)"')
 LOG_KIND_RE = re.compile(r"kind:\s*([A-Za-z0-9._]+)")
 

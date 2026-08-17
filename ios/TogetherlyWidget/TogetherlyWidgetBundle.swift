@@ -6,31 +6,33 @@ import WidgetKit
 @main
 struct TogetherlyWidgetBundle: WidgetBundle {
     // Разбито на под-блоки: один @WidgetBundleBuilder-блок поддерживает не
-    // более 10 виджетов, а у нас их 19.
-    // Виджеты экрана блокировки (iOS 16+, accessory-семейства) стоят ЗДЕСЬ, а
-    // не отдельным свойством, и это не вкусовщина.
+    // более 10 виджетов, а у нас их 22.
     //
-    // С 13.08.2026 они жили в своём `@WidgetBundleBuilder`-свойстве, целиком
-    // состоящем из `if #available`. Такое свойство роняет всё расширение:
-    // chronod запускает его, чтобы забрать список виджетов, процесс умирает с
-    // SIGTRAP, дескрипторы не приходят — и в галерее пропадает НЕ три виджета
-    // блокировки, а все двадцать два. Ровно с той сборки люди и пишут «нажимаю
-    // плюс, а приложения нет» (жалобы с 15.08). Проверено на симуляторе:
-    // с этим свойством — SIGTRAP и пустые `Descriptors`, без него — виджеты
-    // доезжают до системы.
+    // НИ ОДНОГО `if #available` здесь быть не может — ни отдельным свойством,
+    // ни рядом с безусловными виджетами. Каждая такая ветка компилируется в
+    // `WidgetBundleBuilder.buildLimitedAvailability`, и расширение падает
+    // внутри неё с SIGTRAP, когда chronod запускает его за списком виджетов.
+    // Дескрипторы не приходят, и в галерее пропадают ВСЕ виджеты, а не только
+    // условные. Ровно с этого люди пишут «нажимаю плюс, а приложения нет».
     //
-    // Условная ветка обязана стоять рядом с безусловными виджетами в одном
-    // блоке — так же, как в `photoWidgets`, которая пережила это спокойно.
+    // Стек падения, снятый с релизной сборки расширения (1.28.4+195):
+    //   libswiftCore  _assertionFailure(_:_:file:line:flags:)
+    //   Togetherly    WidgetBundleBuilder.buildLimitedAvailability(_:)
+    //   Togetherly    TogetherlyWidgetBundle.body.getter
+    //   SwiftUI       WidgetBundleBodyAccessor.updateBody(of:changed:)
+    //
+    // Перенос ветки из своего свойства в общий блок (5900fff2) поломку не
+    // вылечил именно поэтому: ветка осталась, а с ней и вызов. Вместо ветвей
+    // минимальная версия РАСШИРЕНИЯ поднята до iOS 17 — тогда и accessory
+    // экрана блокировки (iOS 16+), и конфигурируемые фото на AppIntents
+    // (iOS 17+) объявляются безусловно. Приложение по-прежнему живёт с iOS 15,
+    // просто на iOS 15–16 виджетов нет; до сих пор их не было ни у кого.
     @WidgetBundleBuilder
     var body: some Widget {
         coreWidgets
         photoWidgets
         newWidgets
-        if #available(iOS 16.0, *) {
-            LockDaysWidget()
-            LockMissWidget()
-            LockMoodWidget()
-        }
+        lockWidgets
     }
 
     @WidgetBundleBuilder
@@ -46,17 +48,21 @@ struct TogetherlyWidgetBundle: WidgetBundle {
 
     @WidgetBundleBuilder
     var photoWidgets: some Widget {
-        // Self/Partner/PhotoDay — конфигурируемые (выбор фото на экземпляр),
-        // требуют iOS 17+ (AppIntentConfiguration). WidgetBundleBuilder
-        // поддерживает только одиночный `if #available` (buildLimitedAvailability);
-        // if/else и #unavailable он не компилирует, поэтому fallback на iOS ≤16
-        // для этих виджетов не делаем — там доступна только «Сетка фото».
+        // Self/Partner/PhotoDay — конфигурируемые (выбор фото на экземпляр) на
+        // `AppIntentConfiguration`, то есть iOS 17+. Раз минимальная версия
+        // расширения теперь 17.0, ветка доступности им не нужна.
         PhotoGridWidget()
-        if #available(iOS 17.0, *) {
-            SelfPhotoWidgetConfigurable()
-            PartnerPhotoWidgetConfigurable()
-            PhotoDayWidgetConfigurable()
-        }
+        SelfPhotoWidgetConfigurable()
+        PartnerPhotoWidgetConfigurable()
+        PhotoDayWidgetConfigurable()
+    }
+
+    /// Экран блокировки: accessory-семейства, iOS 16+.
+    @WidgetBundleBuilder
+    var lockWidgets: some Widget {
+        LockDaysWidget()
+        LockMissWidget()
+        LockMoodWidget()
     }
 
     /// Новый каталог — восемь виджетов, до июля жившие только на Android.
