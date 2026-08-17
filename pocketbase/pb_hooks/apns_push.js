@@ -23,7 +23,7 @@
 
 const APNS_RELAY = "http://127.0.0.1:8096/push";
 const FCM_RELAY = "http://127.0.0.1:8100/push";
-const ONLINE_WINDOW_MS = 2 * 60 * 1000;
+const ONLINE_WINDOW_MS = 60 * 1000; // как свежесть присутствия у клиента
 
 function membersOf(group) {
   try { return JSON.parse(group.getString("members") || "[]") || []; }
@@ -34,10 +34,19 @@ function isOnline(uid) {
   try {
     const p = $app.findFirstRecordByFilter(
       "user_presence", "user_uid = {:u}", { u: uid });
-    const seen = p.getString("seen_at") || p.getString("updated") || "";
-    if (!seen) return false;
-    const ms = new Date(String(seen).replace(" ", "T")).getTime();
-    if (!ms) return false;
+    // `seen_at` — ЧИСЛО миллисекунд (см. схему user_presence), а не дата.
+    // Прежний разбор гнал его через `new Date("1755440000000")`, получал Invalid
+    // Date и возвращал «не на связи» всегда: пуш уходил даже тому, кто прямо
+    // сейчас в приложении, и дублировал локальное уведомление.
+    const raw = p.get("seen_at");
+    let ms = Number(raw);
+    if (!isFinite(ms) || ms <= 0) {
+      // Старые записи без seen_at: остаётся служебная дата обновления.
+      const seen = p.getString("updated") || "";
+      if (!seen) return false;
+      ms = new Date(String(seen).replace(" ", "T")).getTime();
+    }
+    if (!ms || !isFinite(ms)) return false;
     return (Date.now() - ms) < ONLINE_WINDOW_MS;
   } catch (_) {
     return false; // записи нет — считаем, что не на связи

@@ -71,7 +71,13 @@ CENT_KEY = os.environ.get("CENTRIFUGO_API_KEY", "")
 APNS_RELAY = os.environ.get("APNS_RELAY", "http://127.0.0.1:8096/push")
 FCM_RELAY = os.environ.get("FCM_RELAY", "http://127.0.0.1:8100/push")
 LISTEN_PORT = int(os.environ.get("HOTPATH_PORT", "8120"))
-ONLINE_WINDOW_MS = 2 * 60 * 1000
+# Окно «человек на связи» для пушей. Ровно как свежесть присутствия у клиента
+# (PresenceLiveness.freshness = 45 с при ударе раз в 20 с) плюс запас на дрожание
+# сети. Прежние две минуты давали тишину: приложение закрыли, интерфейс партнёра
+# уже показывал офлайн, а пуши всё ещё считались лишними — отсюда «уведомление
+# приходит через три-пять минут» (17.08.2026). Три пропущенных удара подряд
+# означают, что человека действительно нет.
+ONLINE_WINDOW_MS = 60 * 1000
 
 # Где лежит ИСТОЧНИК ПРАВДЫ по записи пары: пока «sqlite» — правит PocketBase,
 # hotpath только читает; «pg» — правит hotpath, а в SQLite уходит зеркало.
@@ -688,13 +694,20 @@ def _forget_token(uid: str, field: str) -> None:
         pass  # попробуем в следующий раз
 
 
-async def _notify_group(group_id: str, author_uid: str, title: str, body: str, thread: str) -> None:
-    """Пуш всем в группе, кроме автора — как notifyGroup в apns_push.js."""
+async def _notify_group(group_id: str, author_uid: str, title: str, body: str,
+                        thread: str) -> int:
+    """Пуш всем в группе, кроме автора — как notifyGroup в apns_push.js.
+
+    Возвращает, сколько пушей реально ушло. Это нужно гейту частоты: отметку
+    «уже отправляли» нельзя ставить, когда адресатов не осталось (например, все
+    сейчас в приложении), иначе проглоченная попытка крадёт следующую минуту.
+    """
     try:
         targets = await _push_targets(group_id, author_uid)
     except Exception as e:
         log.warning("push targets %s: %s", group_id, e)
-        return
+        return 0
+    отправлено = 0
     for t in targets:
         # Человек выключил этот вид уведомлений в приложении — молчим.
         # Переключатели доезжали до сервера с самого начала, но их не читал
@@ -710,6 +723,8 @@ async def _notify_group(group_id: str, author_uid: str, title: str, body: str, t
                 })
                 if (r.json() or {}).get("gone"):
                     await asyncio.to_thread(_forget_token, t["uid"], "apns_token")
+                else:
+                    отправлено += 1
             except Exception as e:
                 log.warning("apns %s: %s", t["uid"], e)
         if t["fcm"]:
@@ -721,8 +736,11 @@ async def _notify_group(group_id: str, author_uid: str, title: str, body: str, t
                 })
                 if (r.json() or {}).get("gone"):
                     await asyncio.to_thread(_forget_token, t["uid"], "fcm_token")
+                else:
+                    отправлено += 1
             except Exception as e:
                 log.warning("fcm %s: %s", t["uid"], e)
+    return отправлено
 
 
 MIN_WAKE_GAP_MS = 15 * 60 * 1000
@@ -812,24 +830,32 @@ _МОЛЧАНИЕ_MISS_MS = 60_000
 _последний_miss: dict[str, int] = {}
 
 
-def _пора_слать_miss(group_id: str, теперь_мс: int) -> bool:
-    """Не чаще раза в минуту на пару.
+def _можно_слать_miss(group_id: str, теперь_мс: int) -> bool:
+    """Не чаще раза в минуту на пару — только проверка, без отметки.
 
     Человек жмёт сердце подряд, клиент копит нажатия и шлёт их пачками по
     двадцать — и на каждую пачку уходило отдельное уведомление. Со стороны
     партнёра это «уведомления без остановки» (жалоба 16.08.2026). Счёт при
     этом прибавляется весь, теряется только шум в шторке.
+
+    Отметка вынесена в [_отметить_miss] и ставится ПОСЛЕ фактической отправки.
+    Пока она стояла здесь, минуту крала любая попытка, даже когда пуш никому не
+    ушёл: партнёр закрыл приложение, но его отметка присутствия ещё свежая —
+    адресатов ноль, зато следующее сердце уже молчит. Отсюда жалобы «приходит с
+    задержкой три-пять минут, а иногда вообще нет» (17.08.2026).
     """
     было = _последний_miss.get(group_id)
-    if было is not None and теперь_мс - было < _МОЛЧАНИЕ_MISS_MS:
-        return False
+    return было is None or теперь_мс - было >= _МОЛЧАНИЕ_MISS_MS
+
+
+def _отметить_miss(group_id: str, теперь_мс: int) -> None:
+    """Запомнить, что пуш этой паре ушёл."""
     _последний_miss[group_id] = теперь_мс
     # Карта не должна расти без края: чистим давние записи пачкой.
     if len(_последний_miss) > 20_000:
         порог = теперь_мс - _МОЛЧАНИЕ_MISS_MS
         for k in [k for k, v in _последний_miss.items() if v < порог]:
             _последний_miss.pop(k, None)
-    return True
 
 
 def _miss_you_push_text(вайб_текст: str | None) -> str:
@@ -891,12 +917,15 @@ async def _after_update(col: str, rec: dict) -> None:
     group_id = rec.get("group_id") or ""
     if not group_id:
         return
-    if not _пора_слать_miss("mood:" + group_id, int(time.time() * 1000)):
+    теперь_мс = int(time.time() * 1000)
+    if not _можно_слать_miss("mood:" + group_id, теперь_мс):
         return
     label = (rec.get("label") or "").strip()
-    await _notify_group(
+    ушло = await _notify_group(
         group_id, rec.get("user_uid") or "", "Настроение партнёра",
         f"Сегодня: {label}" if label else "Партнёр отметил настроение", "mood")
+    if ушло:
+        _отметить_miss("mood:" + group_id, теперь_мс)
 
 
 def _after_delete(col: str, rec: dict) -> None:
@@ -1244,9 +1273,12 @@ async def miss_you(request: Request):
     # слал хук PocketBase на update записи, а хуки переехавших коллекций
     # больше не срабатывают. Счётчик при этом обновлялся, и со стороны это
     # выглядело как «сердечко прилетело, а телефон молчит» (жалоба 16.08.2026).
-    if _пора_слать_miss(group_id, int(time.time() * 1000)):
-        await _notify_group(group_id, uid, "Скучает по тебе",
-                            _miss_you_push_text(text), "miss")
+    теперь_мс = int(time.time() * 1000)
+    if _можно_слать_miss(group_id, теперь_мс):
+        ушло = await _notify_group(group_id, uid, "Скучает по тебе",
+                                   _miss_you_push_text(text), "miss")
+        if ушло:
+            _отметить_miss(group_id, теперь_мс)
     return ORJSONResponse({"ok": True, "count": _num(row["count"])})
 
 
