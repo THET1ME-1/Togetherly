@@ -210,39 +210,72 @@ jobs:
             plutil -p "$p/Info.plist" | grep -E "CFBundleIdentifier|CFBundleVersion|CFBundleShortVersion|NSExtensionPointIdentifier|MinimumOSVersion|UIDeviceFamily" || true
           done
 
+      - name: Падало ли расширение на самом деле
+        # Прошлый счётчик крашей искал в журнале «exited with context» — а эта
+        # строка пишется и при НОРМАЛЬНОМ завершении расширения. Он краснел
+        # всегда, из-за чего стенд объявили негодным. Настоящее падение видно
+        # в отчёте .ips: симулятор кладёт их хосту в ~/Library/Logs.
+        run: |
+          set +e
+          echo "=============================================================="
+          echo "ОТЧЁТЫ О ПАДЕНИЯХ (.ips)"
+          echo "=============================================================="
+          FOUND=0
+          for d in "$HOME/Library/Logs/DiagnosticReports" \
+                   "$HOME/Library/Developer/CoreSimulator/Devices/$DEVICE/data/Library/Logs/DiagnosticReports"; do
+            [ -d "$d" ] || continue
+            for f in "$d"/*Togetherly*; do
+              [ -e "$f" ] || continue
+              FOUND=$((FOUND + 1))
+              echo "--------------------------------------------------------------"
+              echo "файл: $f"
+              # Причина остановки и верхушка стека упавшего потока: в .ips
+              # Swift кладёт туда текст fatalError с файлом и строкой.
+              python3 tool/ips_report.py "$f"
+            done
+          done
+          [ "$FOUND" = 0 ] && echo "отчётов о падении расширения НЕТ"
+          echo
+          echo "— что Swift сказал перед смертью (Fatal error / precondition) —"
+          xcrun simctl spawn "$DEVICE" log show --last 12m --style compact 2>/dev/null \
+            | grep -iE "fatal error|precondition|Swift runtime failure|dyld|Symbol not found" \
+            | grep -iE "togetherly|widget" | tail -30 \
+            || echo "  ничего"
+
       - name: Приговор
-        # Читать полсотни строк журнала каждый раз — способ пропустить главное.
-        # Здесь два числа, по которым видно всё: падало ли расширение и дошли
-        # ли до системы описания виджетов.
+        # Считаем ровно то, что видит человек в галерее: сколько наших `kind`
+        # система знает. Прошлый приговор искал в базе подстроку «togetherly»,
+        # которой в `kind` нет вовсе (`LoveWidgetProvider`, `MoodWidgetProvider`),
+        # и потому не отличал «22 из 22» от «ни одного».
         run: |
           set +e
           DATA="$HOME/Library/Developer/CoreSimulator/Devices/$DEVICE/data"
-          CRASHES=$(xcrun simctl spawn "$DEVICE" log show --last 10m --style compact \
-            --predicate 'eventMessage CONTAINS "TogetherlyWidget"' 2>/dev/null \
-            | grep -ciE "SIGTRAP|SIGABRT|SIGSEGV|exited with context")
-          KINDS=0
-          for t in $(sqlite3 "$DATA/Library/chronod/chrono.sql" \
-              "select name from sqlite_master where type='table'" 2>/dev/null); do
-            n=$(sqlite3 "$DATA/Library/chronod/chrono.sql" \
-              "select count(*) from \"$t\"" 2>/dev/null)
-            [ -z "$n" ] && continue
-            m=$(sqlite3 "$DATA/Library/chronod/chrono.sql" "select * from \"$t\"" 2>/dev/null \
-              | grep -ci togetherly)
-            KINDS=$((KINDS + m))
-          done
-          PENDING=$(plutil -p "$DATA/Library/Preferences/com.apple.chronod.plist" 2>/dev/null \
-            | grep -c togetherly)
-          echo "=============================================================="
-          echo "ПРИГОВОР"
-          echo "=============================================================="
-          echo "аварийных завершений расширения: $CRASHES"
-          echo "строк про Togetherly в базе chronod: $KINDS"
-          echo "ждёт повторного опроса (extensionsPendingDescriptorRefetch): $PENDING"
+          # Полный журнал без обрезки — приговор читает его целиком.
+          xcrun simctl spawn "$DEVICE" log show --last 12m --style compact 2>/dev/null \
+            > /tmp/simlog.txt
+          python3 tool/chrono_verdict.py "$DATA" /tmp/simlog.txt
           echo
-          if [ "$CRASHES" -gt 0 ]; then
-            echo "РАСШИРЕНИЕ ПАДАЕТ — галерея будет пустой."
-          elif [ "$KINDS" -gt 0 ]; then
-            echo "Виджеты доехали до системы: chronod их знает."
-          else
-            echo "Расширение не падает, но описаний виджетов у системы нет."
-          fi
+          echo "— ждёт повторного опроса (extensionsPendingDescriptorRefetch) —"
+          plutil -p "$DATA/Library/Preferences/com.apple.chronod.plist" 2>/dev/null \
+            | grep -A5 extensionsPendingDescriptorRefetch | head -12
+
+      - name: Сложить улики артефактом
+        if: always()
+        run: |
+          set +e
+          OUT=/tmp/uliki
+          mkdir -p "$OUT"
+          DATA="$HOME/Library/Developer/CoreSimulator/Devices/$DEVICE/data"
+          cp /tmp/simlog.txt "$OUT/" 2>/dev/null
+          cp "$DATA/Library/chronod/chrono.sql" "$OUT/" 2>/dev/null
+          cp "$HOME/Library/Logs/DiagnosticReports/"*Togetherly* "$OUT/" 2>/dev/null
+          cp "$DATA/Library/Logs/DiagnosticReports/"*Togetherly* "$OUT/" 2>/dev/null
+          ls -la "$OUT"
+
+      - name: Улики
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: uliki-${{ github.run_id }}-${{ github.run_attempt }}
+          path: /tmp/uliki
+          if-no-files-found: warn
