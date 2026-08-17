@@ -112,3 +112,7 @@ android/build/
 
 # Черновики макетов и разовые скрипты — в репозиторий не едут
 scratchpad/
+
+# Собранные бинари кастомной сборки PocketBase: 34 МБ на каждую, в репозиторий
+# им нельзя. Сборка описана в pocketbase/pb-cgo/README.md.
+pocketbase/pb-cgo/pocketbase-cgo*

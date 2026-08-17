@@ -60,6 +60,10 @@ var rtCollections = map[string]bool{
 	"widget_data": true, "chat_typing": true, "chat_reads": true, "groups": true,
 	"watch_history": true, "cycle_entries": true, "wishes": true,
 	"wish_categories": true, "custom_moods": true,
+	// Свои ролики раздела «Смотрим». Без рассылки список у партнёра оставался
+	// прежним, пока он не выйдет из раздела: жалоба «поставил видео, а партнёр
+	// не видит его» (16.08.2026). Канал берётся по умолчанию — pair:<group_id>.
+	"watch_videos": true,
 }
 
 var centClient = &http.Client{Timeout: 5 * time.Second}

@@ -47,7 +47,8 @@ class PbRealtimeService {
   static final _rnd = Random();
   static int _backoffMs(int attempt) {
     final base = 1000 * (1 << (attempt > 5 ? 5 : attempt)); // 1,2,4,…,32с
-    return base ~/ 2 + _rnd.nextInt(base ~/ 2 + 1); // равный джиттер: [base/2, base]
+    return base ~/ 2 +
+        _rnd.nextInt(base ~/ 2 + 1); // равный джиттер: [base/2, base]
   }
 
   // ── сравнители для сортировки ───────────────────────────────────────────
@@ -55,6 +56,7 @@ class PbRealtimeService {
   static int _strAsc(dynamic a, dynamic b) =>
       (a ?? '').toString().compareTo((b ?? '').toString());
   static int _strDesc(dynamic a, dynamic b) => _strAsc(b, a);
+
   /// RT-7: безопасное приведение к числу — PB-значение может прийти строкой
   /// (json-колонка, коэрсинг), поэтому жёсткий `as num?` падал. Не-числа → 0.
   static num _asNum(dynamic v) {
@@ -86,8 +88,16 @@ class PbRealtimeService {
     // новейших windowLimit записей (sort=windowSort), а не всей истории; догрузка
     // старых — повторная подписка с бо́льшим лимитом (см. chat_screen `_loadMore`).
     if (scope != null) {
-      return _watchCached(collection, filter, scope, compare, rtChannel, rtMatch,
-          windowLimit, windowSort);
+      return _watchCached(
+        collection,
+        filter,
+        scope,
+        compare,
+        rtChannel,
+        rtMatch,
+        windowLimit,
+        windowSort,
+      );
     }
     final byId = <String, RecordModel>{};
     UnsubscribeFunc? unsub;
@@ -114,8 +124,9 @@ class PbRealtimeService {
         // список заново — лишь переподписываемся. Убирает «перекачать всё» при
         // каждом обрыве и снимает часть нагрузки thundering herd после рестарта PB.
         if (byId.isEmpty) {
-          final initial =
-              await _pb.collection(collection).getFullList(filter: filter);
+          final initial = await _pb
+              .collection(collection)
+              .getFullList(filter: filter);
           if (cancelled) return;
           byId
             ..clear()
@@ -154,12 +165,15 @@ class PbRealtimeService {
         // RT-3: вместо «застрять в ошибке навсегда» — авто-ретрай с экспоненциальным
         // backoff (1,2,4,…,32с), пока стрим жив и не отменён. Транзиентные сетевые
         // сбои/недоступность PB самовосстанавливаются без ручного «обновить».
-        debugPrint('PbRealtime.watchList($collection) failed (attempt $attempt): $err');
+        debugPrint(
+          'PbRealtime.watchList($collection) failed (attempt $attempt): $err',
+        );
         if (cancelled || ctrl.isClosed || !ctrl.hasListener) return;
         // Фикс #1: backoff с джиттером (не синхронно); на 429 — длинный пол 30–60с.
         final is429 = err is ClientException && err.statusCode == 429;
-        final delayMs =
-            is429 ? 30000 + _rnd.nextInt(30000) : _backoffMs(attempt);
+        final delayMs = is429
+            ? 30000 + _rnd.nextInt(30000)
+            : _backoffMs(attempt);
         attempt++;
         Future.delayed(Duration(milliseconds: delayMs), () {
           if (!cancelled && !ctrl.isClosed && ctrl.hasListener) start();
@@ -180,13 +194,19 @@ class PbRealtimeService {
 
   /// Живой одиночный документ по id (напр. group-doc). delete → null.
   /// [useCache]=true → offline-first кэш-вариант (sembast + сеть в фоне).
-  Stream<RecordModel?> watchRecord(String collection, String id,
-      {bool useCache = false, String? rtChannel}) {
+  Stream<RecordModel?> watchRecord(
+    String collection,
+    String id, {
+    bool useCache = false,
+    String? rtChannel,
+  }) {
     if (useCache) return _watchRecordCached(collection, id, rtChannel);
     UnsubscribeFunc? unsub;
-    var cancelled = false; // та же гонка отписки-во-время-старта, что в watchList
+    var cancelled =
+        false; // та же гонка отписки-во-время-старта, что в watchList
     var attempt = 0; // RT-3: счётчик попыток для backoff-ретрая
-    var loaded = false; // Фикс #1: начальный getOne уже сделан — на ретрае пропускаем
+    var loaded =
+        false; // Фикс #1: начальный getOne уже сделан — на ретрае пропускаем
     late StreamController<RecordModel?> ctrl;
 
     Future<void> start() async {
@@ -237,12 +257,15 @@ class PbRealtimeService {
         attempt = 0; // успех — сбрасываем backoff
       } catch (err) {
         // RT-3: авто-ретрай с backoff (1,2,4,…,32с) вместо застревания в ошибке.
-        debugPrint('PbRealtime.watchRecord($collection/$id) failed (attempt $attempt): $err');
+        debugPrint(
+          'PbRealtime.watchRecord($collection/$id) failed (attempt $attempt): $err',
+        );
         if (cancelled || ctrl.isClosed || !ctrl.hasListener) return;
         // Фикс #1: backoff с джиттером; на 429 — длинный пол 30–60с.
         final is429 = err is ClientException && err.statusCode == 429;
-        final delayMs =
-            is429 ? 30000 + _rnd.nextInt(30000) : _backoffMs(attempt);
+        final delayMs = is429
+            ? 30000 + _rnd.nextInt(30000)
+            : _backoffMs(attempt);
         attempt++;
         Future.delayed(Duration(milliseconds: delayMs), () {
           if (!cancelled && !ctrl.isClosed && ctrl.hasListener) start();
@@ -398,11 +421,13 @@ class PbRealtimeService {
         attempt = 0;
       } catch (err) {
         debugPrint(
-            'PbRealtime._watchCached($collection) failed (attempt $attempt): $err');
+          'PbRealtime._watchCached($collection) failed (attempt $attempt): $err',
+        );
         if (cancelled || ctrl.isClosed || !ctrl.hasListener) return;
         final is429 = err is ClientException && err.statusCode == 429;
-        final delayMs =
-            is429 ? 30000 + _rnd.nextInt(30000) : _backoffMs(attempt);
+        final delayMs = is429
+            ? 30000 + _rnd.nextInt(30000)
+            : _backoffMs(attempt);
         attempt++;
         Future.delayed(Duration(milliseconds: delayMs), () {
           if (!cancelled && !ctrl.isClosed && ctrl.hasListener) startNetwork();
@@ -413,10 +438,11 @@ class PbRealtimeService {
     ctrl = StreamController<List<RecordModel>>.broadcast(
       onListen: () {
         cancelled = false;
-        cacheSub =
-            store.watchScope(collection, scope, compare: compare).listen((list) {
-          if (!ctrl.isClosed) ctrl.add(list);
-        });
+        cacheSub = store.watchScope(collection, scope, compare: compare).listen(
+          (list) {
+            if (!ctrl.isClosed) ctrl.add(list);
+          },
+        );
         startNetwork();
         // Переподключение сети → догоняем пропущенные изменения (дельта) и при
         // необходимости пере-подписываемся (закрывает RT-10 на офлайн-окне).
@@ -439,7 +465,10 @@ class PbRealtimeService {
 
   /// Кэш-бэкенд для [watchRecord] (одиночный документ, напр. группа).
   Stream<RecordModel?> _watchRecordCached(
-      String collection, String id, String? rtChannel) {
+    String collection,
+    String id,
+    String? rtChannel,
+  ) {
     final store = LocalStore.instance;
     final conn = ConnectivityService.instance;
     UnsubscribeFunc? unsub;
@@ -501,11 +530,13 @@ class PbRealtimeService {
         attempt = 0;
       } catch (err) {
         debugPrint(
-            'PbRealtime._watchRecordCached($collection/$id) failed (attempt $attempt): $err');
+          'PbRealtime._watchRecordCached($collection/$id) failed (attempt $attempt): $err',
+        );
         if (cancelled || ctrl.isClosed || !ctrl.hasListener) return;
         final is429 = err is ClientException && err.statusCode == 429;
-        final delayMs =
-            is429 ? 30000 + _rnd.nextInt(30000) : _backoffMs(attempt);
+        final delayMs = is429
+            ? 30000 + _rnd.nextInt(30000)
+            : _backoffMs(attempt);
         attempt++;
         Future.delayed(Duration(milliseconds: delayMs), () {
           if (!cancelled && !ctrl.isClosed && ctrl.hasListener) startNetwork();
@@ -539,24 +570,31 @@ class PbRealtimeService {
 
   // ── типизированные обёртки (фильтр+сортировка под каждую сущность) ───────
   /// Группа (метаданные пары) — live. Замена listenToPair.
-  Stream<RecordModel?> watchGroup(String groupId) =>
-      watchRecord('groups', groupId, useCache: true, rtChannel: 'pair:$groupId');
+  Stream<RecordModel?> watchGroup(String groupId) => watchRecord(
+    'groups',
+    groupId,
+    useCache: true,
+    rtChannel: 'pair:$groupId',
+  );
 
   /// Живой список всех активных групп пользователя — замена Firestore user-doc
   /// листенера (pairIds). Членство в PB = массив `groups.members`, поэтому новые
   /// пары и выход партнёра приезжают как create/delete в этом отфильтрованном
   /// списке. Используется ConnectionsManager для обнаружения пар.
   Stream<List<RecordModel>> watchMyGroups(String uid) => watchList(
-        'groups',
-        // Сетевой фильтр шире scope: тянем и распущенные (как надгробия), чтобы
-        // офлайн-роспуск долетал дельтой; из списка их прячет scope.
-        filter: _pb.filter('members ~ {:u}', {'u': uid}),
-        scope: RecordScope('mygroups:u=$uid',
-            contains: {'members': uid}, equals: {'disbanded': false}),
-        // Изменения групп сервер шлёт в user:<member> (см. centrifugo.pb.js) →
-        // появление новой пары/выход партнёра приезжает на свой user-канал.
-        rtChannel: 'user:$uid',
-      );
+    'groups',
+    // Сетевой фильтр шире scope: тянем и распущенные (как надгробия), чтобы
+    // офлайн-роспуск долетал дельтой; из списка их прячет scope.
+    filter: _pb.filter('members ~ {:u}', {'u': uid}),
+    scope: RecordScope(
+      'mygroups:u=$uid',
+      contains: {'members': uid},
+      equals: {'disbanded': false},
+    ),
+    // Изменения групп сервер шлёт в user:<member> (см. centrifugo.pb.js) →
+    // появление новой пары/выход партнёра приезжает на свой user-канал.
+    rtChannel: 'user:$uid',
+  );
 
   /// Состояние co-watch сеанса (id=pairId) → запись|null (null = сеанс завершён).
   Stream<RecordModel?> watchSession(String pairId) =>
@@ -564,60 +602,66 @@ class PbRealtimeService {
 
   /// Презенс сеанса — записи участников (свежесть оценивает вызывающий).
   Stream<List<RecordModel>> watchSessionPresence(String pairId) => watchList(
-        'live_session_presence',
-        filter: _pb.filter('pair_id = {:p}', {'p': pairId}),
-        rtChannel: 'pair:$pairId',
-      );
+    'live_session_presence',
+    filter: _pb.filter('pair_id = {:p}', {'p': pairId}),
+    rtChannel: 'pair:$pairId',
+  );
 
   /// Чат сеанса — старые сверху (по ts).
   Stream<List<RecordModel>> watchSessionChat(String pairId) => watchList(
-        'live_session_chat',
-        filter: _pb.filter('pair_id = {:p}', {'p': pairId}),
-        compare: (a, b) => _numAsc(a.data['ts'], b.data['ts']),
-        rtChannel: 'pair:$pairId',
-      );
+    'live_session_chat',
+    filter: _pb.filter('pair_id = {:p}', {'p': pairId}),
+    compare: (a, b) => _numAsc(a.data['ts'], b.data['ts']),
+    rtChannel: 'pair:$pairId',
+  );
 
   /// Точка live-локации участника [uid] в канале пары → запись|null.
   Stream<RecordModel?> watchLivePoint(String channel, String uid) => watchList(
-        'live_location',
-        filter: _pb.filter(
-            'channel = {:c} && user_uid = {:u}', {'c': channel, 'u': uid}),
-        rtChannel: 'loc:$channel',
-        rtMatch: (r) => r.data['user_uid'] == uid,
-      ).map((rows) => rows.isEmpty ? null : rows.first);
+    'live_location',
+    filter: _pb.filter('channel = {:c} && user_uid = {:u}', {
+      'c': channel,
+      'u': uid,
+    }),
+    rtChannel: 'loc:$channel',
+    rtMatch: (r) => r.data['user_uid'] == uid,
+  ).map((rows) => rows.isEmpty ? null : rows.first);
 
   /// Презенс «онлайн» пользователя [uid] → запись|null (seen_at, heartbeat+TTL).
   Stream<RecordModel?> watchPresence(String uid) => watchList(
-        'user_presence',
-        filter: _pb.filter('user_uid = {:u}', {'u': uid}),
-        rtChannel: 'user:$uid',
-      ).map((rows) => rows.isEmpty ? null : rows.first);
+    'user_presence',
+    filter: _pb.filter('user_uid = {:u}', {'u': uid}),
+    rtChannel: 'user:$uid',
+  ).map((rows) => rows.isEmpty ? null : rows.first);
 
   /// Активное приглашение co-watch (json-поле `groups.active_session`) → Map|null.
   /// Де-дуп по сырому значению: group-док шлёт событие на любое изменение, а
   /// баннер приглашения должен реагировать только на смену active_session.
   Stream<Map<String, dynamic>?> watchActiveSession(String groupId) {
     String? prevSig;
-    return watchGroup(groupId).map((rec) => rec?.data['active_session']).where((raw) {
-      final sig = raw?.toString() ?? '';
-      if (sig == prevSig) return false;
-      prevSig = sig;
-      return true;
-    }).map((raw) => raw is Map ? Map<String, dynamic>.from(raw) : null);
+    return watchGroup(groupId)
+        .map((rec) => rec?.data['active_session'])
+        .where((raw) {
+          final sig = raw?.toString() ?? '';
+          if (sig == prevSig) return false;
+          prevSig = sig;
+          return true;
+        })
+        .map((raw) => raw is Map ? Map<String, dynamic>.from(raw) : null);
   }
 
   /// Лента воспоминаний — БЕЗ лимита, новые сверху, soft-deleted скрыты.
   Stream<List<RecordModel>> watchMemories(String groupId) => watchList(
-        'memories',
-        // Шире scope (без deleted): мягкое удаление долетает дельтой как
-        // надгробие, из ленты его прячет scope (deleted=false).
-        filter: _pb.filter('group_id = {:g}', {'g': groupId}),
-        scope: RecordScope('memories:g=$groupId',
-            equals: {'group_id': groupId, 'deleted': false}),
-        compare: (a, b) =>
-            _strDesc(a.data['created_at'], b.data['created_at']),
-        rtChannel: 'pair:$groupId',
-      );
+    'memories',
+    // Шире scope (без deleted): мягкое удаление долетает дельтой как
+    // надгробие, из ленты его прячет scope (deleted=false).
+    filter: _pb.filter('group_id = {:g}', {'g': groupId}),
+    scope: RecordScope(
+      'memories:g=$groupId',
+      equals: {'group_id': groupId, 'deleted': false},
+    ),
+    compare: (a, b) => _strDesc(a.data['created_at'], b.data['created_at']),
+    rtChannel: 'pair:$groupId',
+  );
 
   /// Комментарии воспоминания — старые сверху. [groupId] нужен для канала пары
   /// (комменты группы летят на `pair:<groupId>`, нужный memory фильтруем клиентом).
@@ -625,8 +669,10 @@ class PbRealtimeService {
       watchList(
         'memory_comments',
         filter: _pb.filter('memory_id = {:m}', {'m': memoryId}),
-        scope: RecordScope('comments:m=$memoryId',
-            equals: {'memory_id': memoryId, 'deleted': false}),
+        scope: RecordScope(
+          'comments:m=$memoryId',
+          equals: {'memory_id': memoryId, 'deleted': false},
+        ),
         compare: (a, b) => _strAsc(a.data['created_at'], b.data['created_at']),
         rtChannel: 'pair:$groupId',
         rtMatch: (r) => r.data['memory_id'] == memoryId,
@@ -634,60 +680,87 @@ class PbRealtimeService {
 
   /// Настроения пользователя в группе.
   Stream<List<RecordModel>> watchMoods(String groupId, String uid) => watchList(
-        'mood_entries',
-        filter: _pb.filter(
-            'group_id = {:g} && user_uid = {:u}', {'g': groupId, 'u': uid}),
-        scope: RecordScope('moods:g=$groupId:u=$uid',
-            equals: {'group_id': groupId, 'user_uid': uid}),
-        compare: (a, b) => _strDesc(a.data['timestamp'], b.data['timestamp']),
-        rtChannel: 'pair:$groupId',
-        rtMatch: (r) => r.data['user_uid'] == uid,
-      );
+    'mood_entries',
+    filter: _pb.filter('group_id = {:g} && user_uid = {:u}', {
+      'g': groupId,
+      'u': uid,
+    }),
+    scope: RecordScope(
+      'moods:g=$groupId:u=$uid',
+      equals: {'group_id': groupId, 'user_uid': uid},
+    ),
+    compare: (a, b) => _strDesc(a.data['timestamp'], b.data['timestamp']),
+    rtChannel: 'pair:$groupId',
+    rtMatch: (r) => r.data['user_uid'] == uid,
+  );
 
   /// Свои настроения пары (Togetherly+). Набор общий: завёл один — видят оба,
   /// поэтому фильтр по группе, а не по автору.
   Stream<List<RecordModel>> watchCustomMoods(String groupId) => watchList(
-        'custom_moods',
-        filter: _pb.filter('group_id = {:g}', {'g': groupId}),
-        scope: RecordScope('custom_moods:g=$groupId',
-            equals: {'group_id': groupId}),
-        compare: (a, b) => _numAsc(a.data['sort'], b.data['sort']),
-        rtChannel: 'pair:$groupId',
-      );
+    'custom_moods',
+    filter: _pb.filter('group_id = {:g}', {'g': groupId}),
+    scope: RecordScope(
+      'custom_moods:g=$groupId',
+      equals: {'group_id': groupId},
+    ),
+    compare: (a, b) => _numAsc(a.data['sort'], b.data['sort']),
+    rtChannel: 'pair:$groupId',
+  );
 
   /// Отметки календаря цикла [uid] в группе. Свои приходят все, партнёрские —
   /// только разрешённые: их отсекает правило чтения коллекции на сервере.
   Stream<List<RecordModel>> watchCycle(String groupId, String uid) => watchList(
-        'cycle_entries',
-        filter: _pb.filter(
-            'group_id = {:g} && user_uid = {:u}', {'g': groupId, 'u': uid}),
-        scope: RecordScope('cycle:g=$groupId:u=$uid',
-            equals: {'group_id': groupId, 'user_uid': uid}),
-        compare: (a, b) => _strAsc(a.data['day'], b.data['day']),
-        rtChannel: 'pair:$groupId',
-        rtMatch: (r) => r.data['user_uid'] == uid,
-      );
+    'cycle_entries',
+    filter: _pb.filter('group_id = {:g} && user_uid = {:u}', {
+      'g': groupId,
+      'u': uid,
+    }),
+    scope: RecordScope(
+      'cycle:g=$groupId:u=$uid',
+      equals: {'group_id': groupId, 'user_uid': uid},
+    ),
+    compare: (a, b) => _strAsc(a.data['day'], b.data['day']),
+    rtChannel: 'pair:$groupId',
+    rtMatch: (r) => r.data['user_uid'] == uid,
+  );
 
   /// Общие желания пары — свежие сверху. Запись одна на двоих: отметку
   /// «сбылось» ставит любой из партнёров, и второму телефону она приезжает
   /// дельтой канала пары, без перезахода на экран.
   Stream<List<RecordModel>> watchWishes(String groupId) => watchList(
-        'wishes',
-        filter: _pb.filter('group_id = {:g}', {'g': groupId}),
-        scope: RecordScope('wishes:g=$groupId', equals: {'group_id': groupId}),
-        compare: (a, b) => _strDesc(a.data['created'], b.data['created']),
-        rtChannel: 'pair:$groupId',
-      );
+    'wishes',
+    filter: _pb.filter('group_id = {:g}', {'g': groupId}),
+    scope: RecordScope('wishes:g=$groupId', equals: {'group_id': groupId}),
+    compare: (a, b) => _strDesc(a.data['created'], b.data['created']),
+    rtChannel: 'pair:$groupId',
+  );
+
+  /// Свои ролики раздела «Смотрим» — свежие сверху.
+  ///
+  /// До 17.08.2026 коллекции не было в рассылке сборки PocketBase
+  /// (`rtCollections` в `pocketbase/pb-cgo/main.go`), и список читался ровно
+  /// один раз, при входе в раздел: пара сидела в «Смотрим» вдвоём, один
+  /// заливал ролик, а у второго оставалось пусто — жалоба «поставил видео, а
+  /// партнёр не видит его».
+  Stream<List<RecordModel>> watchWatchVideos(String groupId) => watchList(
+    'watch_videos',
+    filter: _pb.filter('group_id = {:g}', {'g': groupId}),
+    scope: RecordScope(
+      'watch_videos:g=$groupId',
+      equals: {'group_id': groupId},
+    ),
+    compare: (a, b) => _strDesc(a.data['updated'], b.data['updated']),
+    rtChannel: 'pair:$groupId',
+  );
 
   /// Свои категории желаний — в порядке заведения.
   Stream<List<RecordModel>> watchWishCategories(String groupId) => watchList(
-        'wish_categories',
-        filter: _pb.filter('group_id = {:g}', {'g': groupId}),
-        scope: RecordScope('wish_cats:g=$groupId',
-            equals: {'group_id': groupId}),
-        compare: (a, b) => _strAsc(a.data['created'], b.data['created']),
-        rtChannel: 'pair:$groupId',
-      );
+    'wish_categories',
+    filter: _pb.filter('group_id = {:g}', {'g': groupId}),
+    scope: RecordScope('wish_cats:g=$groupId', equals: {'group_id': groupId}),
+    compare: (a, b) => _strAsc(a.data['created'], b.data['created']),
+    rtChannel: 'pair:$groupId',
+  );
 
   /// Чат группы — старые сверху (по ts). [limit] (ленивый режим): начальная
   /// выборка лишь новейших [limit] сообщений (по убыванию ts), а не всей истории;
@@ -707,61 +780,71 @@ class PbRealtimeService {
 
   /// Маскоты группы — дефолтные первыми, затем по дате.
   Stream<List<RecordModel>> watchMascots(String groupId) => watchList(
-        'mascots',
-        filter: _pb.filter('group_id = {:g}', {'g': groupId}),
-        scope: RecordScope('mascots:g=$groupId', equals: {'group_id': groupId}),
-        compare: (a, b) {
-          final ad = a.data['is_default'] == true;
-          final bd = b.data['is_default'] == true;
-          if (ad != bd) return ad ? -1 : 1;
-          return _strAsc(a.data['created_at'], b.data['created_at']);
-        },
-        rtChannel: 'pair:$groupId',
-      );
+    'mascots',
+    filter: _pb.filter('group_id = {:g}', {'g': groupId}),
+    scope: RecordScope('mascots:g=$groupId', equals: {'group_id': groupId}),
+    compare: (a, b) {
+      final ad = a.data['is_default'] == true;
+      final bd = b.data['is_default'] == true;
+      if (ad != bd) return ad ? -1 : 1;
+      return _strAsc(a.data['created_at'], b.data['created_at']);
+    },
+    rtChannel: 'pair:$groupId',
+  );
 
   /// Штрихи холста — по order_index.
-  Stream<List<RecordModel>> watchCanvasStrokes(String groupId, String canvasId) =>
-      watchList(
-        'canvas_strokes',
-        filter: _pb.filter('group_id = {:g} && canvas_id = {:c}',
-            {'g': groupId, 'c': canvasId}),
-        compare: (a, b) => _numAsc(a.data['order_index'], b.data['order_index']),
-        rtChannel: 'pair:$groupId',
-        rtMatch: (r) => r.data['canvas_id'] == canvasId,
-      );
+  Stream<List<RecordModel>> watchCanvasStrokes(
+    String groupId,
+    String canvasId,
+  ) => watchList(
+    'canvas_strokes',
+    filter: _pb.filter('group_id = {:g} && canvas_id = {:c}', {
+      'g': groupId,
+      'c': canvasId,
+    }),
+    compare: (a, b) => _numAsc(a.data['order_index'], b.data['order_index']),
+    rtChannel: 'pair:$groupId',
+    rtMatch: (r) => r.data['canvas_id'] == canvasId,
+  );
 
   /// Виджет-данные группы (оба слота: свой + партнёрский).
   Stream<List<RecordModel>> watchWidgetData(String groupId) => watchList(
-        'widget_data',
-        filter: _pb.filter('group_id = {:g}', {'g': groupId}),
-        scope: RecordScope('widget:g=$groupId', equals: {'group_id': groupId}),
-        rtChannel: 'pair:$groupId',
-      );
+    'widget_data',
+    filter: _pb.filter('group_id = {:g}', {'g': groupId}),
+    scope: RecordScope('widget:g=$groupId', equals: {'group_id': groupId}),
+    rtChannel: 'pair:$groupId',
+  );
 
   /// Виджет-данные ОДНОГО участника (свой слот или партнёрский) → запись|null.
   Stream<RecordModel?> watchWidgetOne(String groupId, String uid) => watchList(
-        'widget_data',
-        filter: _pb.filter(
-            'group_id = {:g} && user_uid = {:u}', {'g': groupId, 'u': uid}),
-        scope: RecordScope('widget:g=$groupId:u=$uid',
-            equals: {'group_id': groupId, 'user_uid': uid}),
-        rtChannel: 'pair:$groupId',
-        rtMatch: (r) => r.data['user_uid'] == uid,
-      ).map((rows) => rows.isEmpty ? null : rows.first);
+    'widget_data',
+    filter: _pb.filter('group_id = {:g} && user_uid = {:u}', {
+      'g': groupId,
+      'u': uid,
+    }),
+    scope: RecordScope(
+      'widget:g=$groupId:u=$uid',
+      equals: {'group_id': groupId, 'user_uid': uid},
+    ),
+    rtChannel: 'pair:$groupId',
+    rtMatch: (r) => r.data['user_uid'] == uid,
+  ).map((rows) => rows.isEmpty ? null : rows.first);
 
   /// Каталог холстов группы.
   Stream<List<RecordModel>> watchCanvasCatalogue(String groupId) => watchList(
-        'canvas_catalogue',
-        filter: _pb.filter('group_id = {:g}', {'g': groupId}),
-        rtChannel: 'pair:$groupId',
-      );
+    'canvas_catalogue',
+    filter: _pb.filter('group_id = {:g}', {'g': groupId}),
+    rtChannel: 'pair:$groupId',
+  );
 
   /// Мета холста (bg/rotation/clear_version) — одна запись на (group,canvas).
   Stream<List<RecordModel>> watchCanvasMeta(String groupId, String canvasId) =>
       watchList(
         'canvas_meta',
-        filter: _pb.filter('group_id = {:g} && canvas_id = {:c}',
-            {'g': groupId, 'c': canvasId}),
+        filter: _pb.filter('group_id = {:g} && canvas_id = {:c}', {
+          'g': groupId,
+          'c': canvasId,
+        }),
         rtChannel: 'pair:$groupId',
         rtMatch: (r) => r.data['canvas_id'] == canvasId,
       );
@@ -771,44 +854,56 @@ class PbRealtimeService {
   Stream<List<RecordModel>> watchCanvasLive(String groupId, String canvasId) =>
       watchList(
         'canvas_live',
-        filter: _pb.filter('group_id = {:g} && canvas_id = {:c}',
-            {'g': groupId, 'c': canvasId}),
+        filter: _pb.filter('group_id = {:g} && canvas_id = {:c}', {
+          'g': groupId,
+          'c': canvasId,
+        }),
         rtChannel: 'pair:$groupId',
         rtMatch: (r) => r.data['canvas_id'] == canvasId,
       );
 
   /// Статусы прочтения чата {uid: lastReadTs} — live.
-  Stream<Map<String, int>> watchChatReads(String groupId) => watchList(
+  Stream<Map<String, int>> watchChatReads(String groupId) =>
+      watchList(
         'chat_reads',
         filter: _pb.filter('group_id = {:g}', {'g': groupId}),
-        scope:
-            RecordScope('chatreads:g=$groupId', equals: {'group_id': groupId}),
+        scope: RecordScope(
+          'chatreads:g=$groupId',
+          equals: {'group_id': groupId},
+        ),
         rtChannel: 'pair:$groupId',
-      ).map((rows) => {
-            for (final r in rows)
-              (r.data['user_uid'] ?? '').toString():
-                  (r.data['last_read_ts'] as num?)?.toInt() ?? 0,
-          });
+      ).map(
+        (rows) => {
+          for (final r in rows)
+            (r.data['user_uid'] ?? '').toString():
+                (r.data['last_read_ts'] as num?)?.toInt() ?? 0,
+        },
+      );
 
   /// Маркеры «печатает…» {uid: typing_at_ms} — live. Свежесть оценивает
   /// вызывающий (ChatService): партнёр печатает, если его метка моложе ~8с.
-  Stream<Map<String, int>> watchTyping(String groupId) => watchList(
+  Stream<Map<String, int>> watchTyping(String groupId) =>
+      watchList(
         'chat_typing',
         filter: _pb.filter('group_id = {:g}', {'g': groupId}),
         rtChannel: 'pair:$groupId',
-      ).map((rows) => {
-            for (final r in rows)
-              (r.data['user_uid'] ?? '').toString():
-                  (r.data['typing_at'] as num?)?.toInt() ?? 0,
-          });
+      ).map(
+        (rows) => {
+          for (final r in rows)
+            (r.data['user_uid'] ?? '').toString():
+                (r.data['typing_at'] as num?)?.toInt() ?? 0,
+        },
+      );
 
   /// Счётчики «Я скучаю» {uid: count} — live.
   Stream<Map<String, int>> watchMissYou(String groupId) =>
-      watchMissYouRows(groupId).map((rows) => {
-            for (final row in rows)
-              (row['user_uid'] ?? '').toString():
-                  (row['count'] as num?)?.toInt() ?? 0,
-          });
+      watchMissYouRows(groupId).map(
+        (rows) => {
+          for (final row in rows)
+            (row['user_uid'] ?? '').toString():
+                (row['count'] as num?)?.toInt() ?? 0,
+        },
+      );
 
   /// Записи `miss_you` целиком: кроме счётчика в них лежат последний импульс и
   /// карта «день недели → сколько раз», на которых стоит экран «Скучаю».

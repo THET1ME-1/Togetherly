@@ -6,6 +6,7 @@ import 'package:pocketbase/pocketbase.dart';
 import 'package:video_compress/video_compress.dart';
 
 import 'pocketbase_service.dart';
+import 'pb_realtime_service.dart';
 
 /// Своё видео пары: либо загруженное во вкладке «Смотрим», либо ролик из
 /// ленты воспоминаний.
@@ -149,7 +150,9 @@ class WatchVideosService {
   static bool isPlayable(String fileName) {
     final dot = fileName.lastIndexOf('.');
     if (dot < 0 || dot == fileName.length - 1) return false;
-    return playableExtensions.contains(fileName.substring(dot + 1).toLowerCase());
+    return playableExtensions.contains(
+      fileName.substring(dot + 1).toLowerCase(),
+    );
   }
 
   /// Убирает ролики старше [lifetime]. Зовётся при открытии раздела: отдельного
@@ -158,9 +161,9 @@ class WatchVideosService {
     if (groupId.isEmpty) return;
     try {
       final edge = DateTime.now().toUtc().subtract(lifetime);
-      final list = await _pb.collection(_col).getFullList(
-            filter: _pb.filter('group_id = {:g}', {'g': groupId}),
-          );
+      final list = await _pb
+          .collection(_col)
+          .getFullList(filter: _pb.filter('group_id = {:g}', {'g': groupId}));
       for (final rec in list) {
         final created = DateTime.tryParse(rec.created)?.toUtc();
         if (created == null || created.isAfter(edge)) continue;
@@ -186,26 +189,43 @@ class WatchVideosService {
   }
 
   static WatchVideo _fromRecord(RecordModel r) => WatchVideo(
-        id: r.id,
-        title: (r.data['title'] ?? '').toString(),
-        url: _fileUrl(r),
-        thumbUrl: _thumbUrl(r),
-        seconds: ((r.data['seconds'] ?? 0) as num).round(),
-        uploaded: true,
-      );
+    id: r.id,
+    title: (r.data['title'] ?? '').toString(),
+    url: _fileUrl(r),
+    thumbUrl: _thumbUrl(r),
+    seconds: ((r.data['seconds'] ?? 0) as num).round(),
+    uploaded: true,
+  );
 
   /// Все ролики пары: сначала загруженные во вкладке «Смотрим», затем видео из
   /// ленты воспоминаний — иначе люди не понимают, куда делись их записи.
   static Future<List<WatchVideo>> list(String groupId) async {
     if (groupId.isEmpty) return const [];
-    final own = await _uploaded(groupId);
-    final lane = await _fromMemoryLane(groupId);
+    final own = await uploaded(groupId);
+    final lane = await fromMemoryLane(groupId);
     return [...own, ...lane];
   }
 
-  static Future<List<WatchVideo>> _uploaded(String groupId) async {
+  /// Живой список своих роликов пары.
+  ///
+  /// Коллекция ходит в канале `pair:<groupId>` с 17.08.2026 (запись в
+  /// `rtCollections` сборки PocketBase), поэтому ролик партнёра появляется на
+  /// открытом экране сам. Видео из ленты воспоминаний сюда не входят: они
+  /// подтягиваются отдельным чтением и меняются несопоставимо реже.
+  static Stream<List<WatchVideo>> streamUploaded(String groupId) {
+    if (groupId.isEmpty) return const Stream.empty();
+    return PbRealtimeService()
+        .watchWatchVideos(groupId)
+        .map((list) => list.map(_fromRecord).toList());
+  }
+
+  /// Свои залитые ролики одним чтением: запасной путь, когда живая подписка
+  /// оборвалась (перезапуск PocketBase рвёт сокеты у всех разом).
+  static Future<List<WatchVideo>> uploaded(String groupId) async {
     try {
-      final res = await _pb.collection(_col).getList(
+      final res = await _pb
+          .collection(_col)
+          .getList(
             page: 1,
             perPage: 30,
             filter: 'group_id = "$groupId"',
@@ -219,9 +239,11 @@ class WatchVideosService {
 
   /// Видео-воспоминания. Ссылка на файл в них своя (`pb://media/...`), фильтра
   /// по вложенному json в PocketBase нет, поэтому отбираем на клиенте.
-  static Future<List<WatchVideo>> _fromMemoryLane(String groupId) async {
+  static Future<List<WatchVideo>> fromMemoryLane(String groupId) async {
     try {
-      final res = await _pb.collection('memories').getList(
+      final res = await _pb
+          .collection('memories')
+          .getList(
             page: 1,
             perPage: 60,
             filter: 'group_id = "$groupId"',
@@ -236,16 +258,18 @@ class WatchVideosService {
         if (raw is! Map) continue;
         final url = (raw['videoUrl'] ?? '').toString();
         if (url.isEmpty) continue;
-        out.add(WatchVideo(
-          id: r.id,
-          title: (raw['title'] ?? raw['text'] ?? '').toString(),
-          url: url,
-          thumbUrl: (raw['imageUrl'] ?? raw['thumbnailUrl'] ?? '').toString(),
-          seconds: 0,
-          // Не «начинается на pb://», а «откроет ли это вкладка комнаты»:
-          // защищённый файл по обычному https туда уезжал и висел спиннером.
-          appOnly: !playsInRoom(url),
-        ));
+        out.add(
+          WatchVideo(
+            id: r.id,
+            title: (raw['title'] ?? raw['text'] ?? '').toString(),
+            url: url,
+            thumbUrl: (raw['imageUrl'] ?? raw['thumbnailUrl'] ?? '').toString(),
+            seconds: 0,
+            // Не «начинается на pb://», а «откроет ли это вкладка комнаты»:
+            // защищённый файл по обычному https туда уезжал и висел спиннером.
+            appOnly: !playsInRoom(url),
+          ),
+        );
       }
       return out;
     } catch (_) {
@@ -277,8 +301,9 @@ class WatchVideosService {
       // неё, загрузку из-за этого не роняем.
       int seconds = 0;
       try {
-        final info = await VideoCompress.getMediaInfo(file.path)
-            .timeout(const Duration(seconds: 20));
+        final info = await VideoCompress.getMediaInfo(
+          file.path,
+        ).timeout(const Duration(seconds: 20));
         seconds = ((info.duration ?? 0) / 1000).round();
       } catch (e) {
         debugPrint('WatchVideos.upload: длительность не прочиталась: $e');
@@ -294,11 +319,13 @@ class WatchVideosService {
           position: -1,
         ).timeout(const Duration(seconds: 30), onTimeout: () => null);
         if (thumbBytes != null && thumbBytes.isNotEmpty) {
-          files.add(http.MultipartFile.fromBytes(
-            'thumb',
-            thumbBytes,
-            filename: 'thumb.jpg',
-          ));
+          files.add(
+            http.MultipartFile.fromBytes(
+              'thumb',
+              thumbBytes,
+              filename: 'thumb.jpg',
+            ),
+          );
         }
       } catch (_) {
         // Превью не обязательно — продолжаем без него.

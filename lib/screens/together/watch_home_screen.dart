@@ -44,8 +44,17 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
   String _room = '';
   bool _loading = true;
   List<WatchEntry> _recent = const [];
-  List<WatchVideo> _videos = const [];
+
+  /// Свои залитые ролики — живым потоком канала пары.
+  List<WatchVideo> _uploaded = const [];
+
+  /// Видео из ленты воспоминаний — отдельным чтением: они лежат в `memories`,
+  /// ссылка внутри json, и фильтра по вложенному полю у PocketBase нет.
+  List<WatchVideo> _lane = const [];
   bool _uploading = false;
+  StreamSubscription<List<WatchVideo>>? _videosSub;
+
+  List<WatchVideo> get _videos => [..._uploaded, ..._lane];
 
   @override
   void initState() {
@@ -53,7 +62,8 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
     WidgetsBinding.instance.addObserver(this);
     _loadRoom();
     _loadRecent();
-    _loadVideos();
+    _listenVideos();
+    _loadLane();
     // Ролики нужны на вечер, а лежали вечно. Убираем просроченные при заходе:
     // отдельный планировщик ради этого не нужен.
     unawaited(WatchVideosService.purgeExpired(widget.pairData.pairId));
@@ -61,29 +71,59 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
 
   @override
   void dispose() {
+    _videosSub?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
-  /// Ролик партнёра не приходит живым событием: `watch_videos` в рассылку пары
-  /// не входит, а список читается один раз, на входе в раздел. Пара сидит в
-  /// разделе вдвоём, один заливает — у второго пусто, и обновить нечем.
-  /// Отсюда жалоба «поставил видео, а партнёр не видит» (16.08.2026).
-  /// Перечитываем на возврате из фона и по жесту вниз.
+  /// Ролик партнёра приезжает живым событием: коллекция `watch_videos` ходит в
+  /// канале `pair:<groupId>` с 17.08.2026. До этого список читался ровно один
+  /// раз, на входе в раздел, и пара, сидящая в «Смотрим» вдвоём, не видела
+  /// только что залитый ролик — жалоба «поставил видео, а партнёр не видит»
+  /// (16.08.2026).
+  void _listenVideos() {
+    _videosSub?.cancel();
+    _videosSub = WatchVideosService.streamUploaded(widget.pairData.pairId)
+        .listen(
+          (items) {
+            if (!mounted) return;
+            setState(() => _uploaded = items);
+          },
+          // Поток сам переподнимается с бэкоффом; на всякий случай оставляем
+          // прежний список, а не чистим экран.
+          onError: (_) {},
+        );
+  }
+
+  /// Запасной путь на случай мёртвой подписки: возврат из фона и жест вниз.
+  /// Сокет рвётся у всех разом на каждом перезапуске PocketBase, и первым это
+  /// замечает как раз тот, кто ждёт ролик партнёра.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) unawaited(_refreshAll());
   }
 
   Future<void> _refreshAll() async {
-    await Future.wait([_loadVideos(), _loadRecent()]);
+    await Future.wait([_loadUploadedOnce(), _loadLane(), _loadRecent()]);
     if (_room.isEmpty) await _loadRoom();
   }
 
-  Future<void> _loadVideos() async {
-    final items = await WatchVideosService.list(widget.pairData.pairId);
+  Future<void> _loadUploadedOnce() async {
+    final items = await WatchVideosService.uploaded(widget.pairData.pairId);
     if (!mounted) return;
-    setState(() => _videos = items);
+    setState(() => _uploaded = items);
+  }
+
+  Future<void> _loadLane() async {
+    final items = await WatchVideosService.fromMemoryLane(
+      widget.pairData.pairId,
+    );
+    if (!mounted) return;
+    setState(() => _lane = items);
+  }
+
+  Future<void> _loadVideos() async {
+    await Future.wait([_loadUploadedOnce(), _loadLane()]);
   }
 
   /// Загрузка своего ролика: он ложится к нам, поэтому играет у обоих по
