@@ -23,7 +23,7 @@
 
 const APNS_RELAY = "http://127.0.0.1:8096/push";
 const FCM_RELAY = "http://127.0.0.1:8100/push";
-const ONLINE_WINDOW_MS = 60 * 1000; // как свежесть присутствия у клиента
+const ONLINE_WINDOW_MS = 25 * 1000; // один пропущенный удар присутствия
 
 function membersOf(group) {
   try { return JSON.parse(group.getString("members") || "[]") || []; }

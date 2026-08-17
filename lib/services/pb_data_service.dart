@@ -1898,6 +1898,21 @@ class PbDataService {
     }, op: 'touchPresence');
   }
 
+  /// «Я ушёл»: отметка присутствия сдвигается в прошлое при уходе в фон.
+  ///
+  /// Сервер не шлёт пуш тому, кто прямо сейчас в приложении: сердце партнёра он
+  /// и так видит на экране. Пока отметка гасла сама по истечении окна, сердце,
+  /// прилетевшее сразу после закрытия приложения, не давало уведомления вовсе —
+  /// с этим и пришли обе пары 17.08.2026. Гасим отметку сами, и следующий
+  /// импульс уходит пушем без задержки.
+  Future<bool> clearPresence(String uid) {
+    if (uid.isEmpty) return Future.value(false);
+    return _upsertByFilter('user_presence', 'user_uid = {:u}', {'u': uid}, {
+      'user_uid': uid,
+      'seen_at': 0,
+    }, op: 'clearPresence');
+  }
+
   Future<bool> removeSessionPresence(String pairId, String uid) async {
     if (pairId.isEmpty || uid.isEmpty) return false;
     try {

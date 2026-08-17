@@ -71,13 +71,18 @@ CENT_KEY = os.environ.get("CENTRIFUGO_API_KEY", "")
 APNS_RELAY = os.environ.get("APNS_RELAY", "http://127.0.0.1:8096/push")
 FCM_RELAY = os.environ.get("FCM_RELAY", "http://127.0.0.1:8100/push")
 LISTEN_PORT = int(os.environ.get("HOTPATH_PORT", "8120"))
-# Окно «человек на связи» для пушей. Ровно как свежесть присутствия у клиента
-# (PresenceLiveness.freshness = 45 с при ударе раз в 20 с) плюс запас на дрожание
-# сети. Прежние две минуты давали тишину: приложение закрыли, интерфейс партнёра
-# уже показывал офлайн, а пуши всё ещё считались лишними — отсюда «уведомление
-# приходит через три-пять минут» (17.08.2026). Три пропущенных удара подряд
-# означают, что человека действительно нет.
-ONLINE_WINDOW_MS = 60 * 1000
+# Окно «человек на связи» для пушей: один пропущенный удар присутствия.
+#
+# Клиент бьёт раз в 20 секунд и перестаёт сразу, как приложение уходит в фон.
+# Значит через 25 секунд после закрытия человек уже точно не смотрит в экран, и
+# сердце обязано прилететь пушем. Прежние две минуты давали ровно ту жалобу, с
+# которой пришли: «уведомление приходит через три-пять минут, а иногда вообще
+# нет» (17.08.2026).
+#
+# Цена ошибки в другую сторону мала: если удар потерялся в сети, человек в
+# приложении получит и баннер, и живое сердце на экране. Пропущенное
+# уведомление хуже лишнего.
+ONLINE_WINDOW_MS = 25 * 1000
 
 # Где лежит ИСТОЧНИК ПРАВДЫ по записи пары: пока «sqlite» — правит PocketBase,
 # hotpath только читает; «pg» — правит hotpath, а в SQLite уходит зеркало.
@@ -671,7 +676,20 @@ async def _members_pg(group_id: str) -> list | None:
     return [str(x) for x in (m or []) if x]
 
 
-async def _push_targets(group_id: str, author_uid: str) -> list[dict]:
+# Виды уведомлений, которые уходят ВСЕГДА, даже когда человек в приложении.
+#
+# «Скучаю» — это импульс внимания: его смысл в том, что он приходит в любой
+# момент. Отметка присутствия пишется на сервер редко (раз в пять минут, см.
+# PresenceLiveness.lastSeenWrite), поэтому по ней нельзя судить, смотрит человек
+# в экран или нет: она то устаревает у сидящего в приложении, то остаётся свежей
+# у закрывшего его. Ставка на такую отметку и давала «уведомления приходят
+# только при открытом приложении» (две пары, 17.08.2026). Пропущенное сердце
+# хуже лишнего баннера, поэтому здесь фильтр не применяется вовсе.
+БЕЗ_ФИЛЬТРА_ОНЛАЙНА = {"miss"}
+
+
+async def _push_targets(group_id: str, author_uid: str,
+                        thread: str = "") -> list[dict]:
     """Кому слать: участники группы, кроме автора и тех, кто сейчас на связи."""
     members = None
     if GROUPS_SRC == "pg":
@@ -681,6 +699,8 @@ async def _push_targets(group_id: str, author_uid: str) -> list[dict]:
     cand = await asyncio.to_thread(_push_candidates, group_id, author_uid, members)
     if not cand:
         return []
+    if thread in БЕЗ_ФИЛЬТРА_ОНЛАЙНА:
+        return cand
     online = await _online_uids([t["uid"] for t in cand])
     return [t for t in cand if t["uid"] not in online]
 
@@ -703,7 +723,7 @@ async def _notify_group(group_id: str, author_uid: str, title: str, body: str,
     сейчас в приложении), иначе проглоченная попытка крадёт следующую минуту.
     """
     try:
-        targets = await _push_targets(group_id, author_uid)
+        targets = await _push_targets(group_id, author_uid, thread)
     except Exception as e:
         log.warning("push targets %s: %s", group_id, e)
         return 0
