@@ -657,6 +657,26 @@ jobs:
             --build-number="$NEW" \
             --export-options-plist="$HOME/export_options.plist"
 
+      - name: Права подписи в собранном приложении
+        # Ровно тот факт, которого не хватает: есть ли в ПОДПИСАННОМ бинарнике
+        # доступ к общему контейнеру. Возможность APP_GROUPS у идентификатора
+        # включена, но привязки к самой группе Apple по API не показывает, а без
+        # неё профиль контейнер не даёт: приложение пишет данные в никуда, и
+        # виджеты стоят пустыми при живом приложении (iPhone, сборки 200 и 201).
+        run: |
+          set +e
+          APP=$(find build/ios/archive -name "Runner.app" -maxdepth 4 | head -1)
+          [ -z "$APP" ] && APP=$(find build/ios -name "Runner.app" -maxdepth 5 | head -1)
+          echo "приложение: $APP"
+          echo "── приложение ──"
+          codesign -d --entitlements :- "$APP" 2>/dev/null | grep -A3 -i "application-groups" \
+            || echo "  ГРУППЫ НЕТ В ПРАВАХ"
+          for ext in "$APP"/PlugIns/*.appex; do
+            echo "── расширение $(basename "$ext") ──"
+            codesign -d --entitlements :- "$ext" 2>/dev/null | grep -A3 -i "application-groups" \
+              || echo "  ГРУППЫ НЕТ В ПРАВАХ"
+          done
+
       - name: Upload to TestFlight
         run: |
           set -euo pipefail
