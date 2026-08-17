@@ -22,6 +22,7 @@ import '../models/memory.dart';
 import '../models/gift.dart';
 import '../models/gift_effect.dart';
 import '../services/pb_data_service.dart';
+import '../services/widget_diagnostics.dart';
 import 'gifts/gift_receive_sheet.dart';
 import '../services/achievement_service.dart';
 import '../widgets/achievement_unlock_overlay.dart';
@@ -359,6 +360,13 @@ class _HomeScreenState extends State<HomeScreen> {
       await CelebrationNotificationService.instance.rescheduleOnAppStart();
       // Постоянный счётчик «дней вместе» (если включён) — пересчитать число.
       await DaysTogetherNotificationService.instance.rescheduleOnAppStart();
+
+      // Самоотчёт о контейнере виджетов (только iPhone). Виджеты там стоят
+      // пустыми, а по снимкам экрана не понять, чего не хватает: записей,
+      // файлов фото или самого таймлайна. Телефон тестера далеко, поэтому
+      // сводка уезжает в Bugsink сама — человеку довольно открыть приложение.
+      // Ни текстов, ни ссылок, ни имён в ней нет, только длины и наличие файла.
+      unawaited(WidgetDiagnostics.report());
     });
 
     _appLifecycleListener = AppLifecycleListener(
