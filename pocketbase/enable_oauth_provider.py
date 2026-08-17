@@ -6,7 +6,7 @@ clientSecret}, ...]. Скрипт логинится суперюзером, д�
 провайдера и проверяет результат. Не трогает остальных провайдеров.
 
 Запуск (значения — из кабинета сервиса; redirect URI у всех:
-https://togetherly.duckdns.org/api/oauth2-redirect):
+https://togetherly.day/api/oauth2-redirect):
 
     PB_EMAIL=badzoff@gmail.com PB_PASSWORD=*** \
     PROVIDER=yandex \
@@ -19,7 +19,7 @@ import os
 import urllib.error
 import urllib.request
 
-PB_URL = os.environ.get("PB_URL", "https://togetherly.duckdns.org").rstrip("/")
+PB_URL = os.environ.get("PB_URL", "https://togetherly.day").rstrip("/")
 PB_EMAIL = os.environ["PB_EMAIL"]
 PB_PASSWORD = os.environ["PB_PASSWORD"]
 PROVIDER = os.environ["PROVIDER"]

@@ -12,6 +12,16 @@ void main() {
 
     test('достаёт код из пересланной ссылки', () {
       expect(
+        normalizeInviteCode('https://togetherly.day/invite/HQ792S'),
+        'HQ792S',
+      );
+    });
+
+    // Приглашения выдаются со своим доменом с 17.08.2026, но ссылки со старым
+    // именем разосланы людьми и живут в чужих переписках — их приложение
+    // обязано понимать столько же, сколько живёт сам поддомен.
+    test('понимает и старую ссылку с duckdns', () {
+      expect(
         normalizeInviteCode('https://togetherly.duckdns.org/invite/HQ792S'),
         'HQ792S',
       );

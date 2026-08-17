@@ -31,8 +31,8 @@ import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
-BASE = "https://togetherly.duckdns.org"
-WS = "wss://togetherly.duckdns.org:8443/connection/websocket"
+BASE = "https://togetherly.day"
+WS = "wss://rt.togetherly.day:8443/connection/websocket"
 T0 = time.time()
 OK, FAIL = [], []
 

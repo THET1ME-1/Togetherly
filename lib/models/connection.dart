@@ -214,8 +214,10 @@ class Connection {
     this.onChanged,
   }) : members = members ?? [];
 
-  // Firebase Hosting гасится → инвайт-ссылку обслуживает PocketBase-VPS.
-  String get inviteLink => 'https://togetherly.duckdns.org/invite/$inviteCode';
+  // Своё имя, а не служебный поддомен динамического DNS: эту ссылку человек
+  // отправляет партнёру, и она — лицо приложения. `togetherly.duckdns.org`
+  // остаётся живым только ради ссылок, разосланных раньше.
+  String get inviteLink => 'https://togetherly.day/invite/$inviteCode';
 
   /// Прямой deep link без веб-хоста (для QR).
   String get inviteDeepLink => 'loveapp://invite/$inviteCode';

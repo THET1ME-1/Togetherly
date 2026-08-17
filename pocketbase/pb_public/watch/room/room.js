@@ -24,8 +24,14 @@
   // Клиент перебирает список сам: не открылся первый — идёт ко второму. Так
   // прямой порт остаётся быстрым путём, а прокси прикрывает сети, где 8443
   // закрыт.
+  //
+  // Прямой адрес переехал на своё имя 17.08.2026: раньше тут стоял
+  // `togetherly.duckdns.org` — поддомен динамического DNS, который человек
+  // видел в адресной строке комнаты. `rt.togetherly.day` ведёт на ту же машину
+  // и покрыт тем же сертификатом (SAN на оба имени), поэтому вкладки,
+  // открытые со старым адресом, продолжают работать.
   const WS = [
-    { transport: 'websocket', endpoint: 'wss://togetherly.duckdns.org:8443/connection/websocket' },
+    { transport: 'websocket', endpoint: 'wss://rt.togetherly.day:8443/connection/websocket' },
     { transport: 'websocket', endpoint: 'wss://togetherly.day/connection/websocket' },
   ];
   const DRIFT = 1.5;          // допустимое расхождение, секунды

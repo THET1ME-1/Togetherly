@@ -62,6 +62,13 @@ function endpointsFromRoomJs() {
   console.log('1. комната объявляет запасной адрес');
   check('адресов больше одного', endpoints.length > 1, endpoints.join(' , '));
   check('первый — прямой, мимо прокси', /:8443\//.test(endpoints[0]), endpoints[0] || '');
+  // Своё имя вместо служебного поддомена динамического DNS (17.08.2026):
+  // адрес комнаты человек видит в строке браузера.
+  check(
+    'никаких чужих поддоменов в адресах',
+    endpoints.every((e) => !/duckdns/.test(e)),
+    endpoints.filter((e) => /duckdns/.test(e)).join(' , ') || 'чисто'
+  );
 
   console.log('2. токен на комнату');
   const res = await fetch(BASE + '/api/watch/token', {

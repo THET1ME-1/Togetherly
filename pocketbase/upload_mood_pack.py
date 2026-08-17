@@ -51,7 +51,7 @@ from pathlib import Path
 
 PB = "http://127.0.0.1:8090"
 PB_DIR = "/opt/pocketbase"
-PUBLIC = "https://togetherly.duckdns.org"
+PUBLIC = "https://togetherly.day"
 IMAGE_SUFFIXES = (".webp", ".png", ".gif", ".jpg", ".jpeg")
 
 

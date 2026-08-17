@@ -26,7 +26,7 @@ const rtdb = admin.database();
 const { AsyncLocalStorage } = require('async_hooks');
 const groupFail = new AsyncLocalStorage(); // пер-групповой счётчик провалов (для флага)
 
-const PB = 'https://togetherly.duckdns.org';
+const PB = 'https://togetherly.day';
 const PB_PW = process.env.PB_PW;
 let TOKEN = null;
 

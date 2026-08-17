@@ -19,11 +19,13 @@
 	</array>
 
 	<!-- Universal Links — паритет с Android App Links (приглашения по https://).
-	     togetherly.duckdns.org — живой VPS, обслуживает инвайт-лендинг и AASA
-	     (/.well-known/apple-app-site-association) после гашения Firebase Hosting.
-	     Firebase-хост оставлен для совместимости со старыми ссылками. -->
+	     Своё имя первым: AASA лежит на togetherly.day
+	     (/.well-known/apple-app-site-association), приглашения выдаются только
+	     с ним. duckdns и Firebase-хост оставлены ради ссылок, которые люди уже
+	     разослали и которые живут в чужих переписках. -->
 	<key>com.apple.developer.associated-domains</key>
 	<array>
+		<string>applinks:togetherly.day</string>
 		<string>applinks:togetherly.duckdns.org</string>
 		<string>applinks:togetherly-d4856.web.app</string>
 	</array>

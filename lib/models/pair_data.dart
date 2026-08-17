@@ -54,9 +54,11 @@ class PairData extends ChangeNotifier {
   RelationshipType get relationshipType =>
       _active?.relationshipType ?? RelationshipType.couple;
 
-  // Firebase Hosting выключается вместе с проектом → инвайт-ссылку теперь
-  // обслуживает PocketBase-VPS (pb_hooks/invite_web.pb.js: лендинг + assetlinks).
-  String get inviteLink => 'https://togetherly.duckdns.org/invite/$inviteCode';
+  // Лендинг приглашения отдаёт `pb_hooks/invite_web.pb.js` (страница,
+  // assetlinks, AASA), и на своём домене он уже живёт. Ссылку человек
+  // отправляет партнёру — в ней должно стоять наше имя, а не служебный
+  // поддомен duckdns.
+  String get inviteLink => 'https://togetherly.day/invite/$inviteCode';
 
   /// Прямой deep link без веб-хоста: партнёр сканирует QR камерой → сразу в
   /// приложение (App Links-верификация не нужна, работает офлайн от Firebase).

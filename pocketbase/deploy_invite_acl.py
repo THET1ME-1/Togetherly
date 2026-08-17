@@ -32,7 +32,7 @@ USER = os.environ.get("PB_SSH_USER", "root")
 PW = os.environ.get("SSHPASS", "")
 PB_DIR = "/opt/pocketbase"
 HOOKS = f"{PB_DIR}/pb_hooks"
-PB_URL = os.environ.get("PB_URL", "https://togetherly.duckdns.org").rstrip("/")
+PB_URL = os.environ.get("PB_URL", "https://togetherly.day").rstrip("/")
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 if not PW:

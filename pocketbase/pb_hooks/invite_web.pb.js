@@ -7,7 +7,7 @@
 ///                                      «скачать». Ничего в БД не читает (нет
 ///                                      энумерации кодов, нулевая нагрузка).
 ///   GET /.well-known/assetlinks.json → верификация Android App Links для домена
-///                                      togetherly.duckdns.org (те же отпечатки,
+///                                      togetherly.day (те же отпечатки,
 ///                                      что были на Firebase Hosting).
 ///
 /// Деплой: положить файл в /opt/pocketbase/pb_hooks/ на VPS и перезапустить
@@ -104,7 +104,7 @@ routerAdd("GET", "/invite/{code}", (e) => {
 // iOS Universal Links: apple-app-site-association. appID = TeamID.BundleID
 // (Y2Z9V86248.com.togetherly.love). Раздаётся как application/json (e.json),
 // без extension-файла — content-type тут гарантирован. Работает после того,
-// как выйдет iOS-сборка с applinks:togetherly.duckdns.org в entitlements.
+// как выйдет iOS-сборка с applinks:togetherly.day в entitlements.
 routerAdd("GET", "/.well-known/apple-app-site-association", (e) => {
   return e.json(200, {
     applinks: {

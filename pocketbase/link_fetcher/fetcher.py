@@ -33,7 +33,7 @@ PORT = 8110
 MAX_BYTES = 512 * 1024
 TIMEOUT = 8
 MAX_HOPS = 4
-UA = "Mozilla/5.0 (compatible; TogetherlyBot/1.0; +https://togetherly.duckdns.org)"
+UA = "Mozilla/5.0 (compatible; TogetherlyBot/1.0; +https://togetherly.day)"
 
 
 class Denied(Exception):

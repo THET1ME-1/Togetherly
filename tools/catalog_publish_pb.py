@@ -5,7 +5,7 @@ tools/catalog_publish.py (который лил в Supabase; миграция �
 
 Картинка маскота хранится ПРЯМО на записи `catalog_items` (file-поле `image`) —
 никакой примеси в коллекцию `media` (она для контента пар). URL вида
-    https://togetherly.duckdns.org/api/files/catalog_items/<id>/<file>
+    https://togetherly.day/api/files/catalog_items/<id>/<file>
 кладётся в `catalog_items.data.url`. Поле `image` создаётся идемпотентно при
 первом запуске. Файлы PB публичны (поле не protected), а у `catalog_items`
 viewRule='' → клиент читает каталог без входа, CachedNetworkImage грузит по URL.
@@ -15,7 +15,7 @@ viewRule='' → клиент читает каталог без входа, Cach
 с kind='catalog' (отдельно от пар-медиа по фильтру kind).
 
 Креды суперюзера — из окружения (НЕ хардкодить):
-    PB_URL=https://togetherly.duckdns.org   (по умолчанию)
+    PB_URL=https://togetherly.day   (по умолчанию)
     PB_EMAIL=...  PB_PASSWORD=...            (суперюзер PB)
 
 Запуск (все 4 маскота-награды за уровень — один прогон):
@@ -37,7 +37,7 @@ from collections import deque
 import requests
 from PIL import Image
 
-PB_URL = os.environ.get("PB_URL", "https://togetherly.duckdns.org").rstrip("/")
+PB_URL = os.environ.get("PB_URL", "https://togetherly.day").rstrip("/")
 PB_EMAIL = os.environ.get("PB_EMAIL", "")
 PB_PASSWORD = os.environ.get("PB_PASSWORD", "")
 SIZE = 512

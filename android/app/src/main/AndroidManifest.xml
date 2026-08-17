@@ -113,8 +113,21 @@
                 <data android:scheme="loveapp" android:host="invite" />
             </intent-filter>
             
-            <!-- Web link: PocketBase-VPS (новый рабочий домен, обслуживает
-                 assetlinks + /invite лендинг через pb_hooks/invite_web.pb.js) -->
+            <!-- Web link: свой домен. Приглашения выдаются только с ним
+                 (assetlinks.json и /invite лендинг отдаёт
+                 pb_hooks/invite_web.pb.js). -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https"
+                      android:host="togetherly.day"
+                      android:pathPrefix="/invite" />
+            </intent-filter>
+
+            <!-- Web link: duckdns — легаси. Ссылки с ним разосланы людьми и
+                 живут в чужих переписках, поэтому фильтр остаётся, пока живёт
+                 сам поддомен. Новые приглашения его не используют. -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

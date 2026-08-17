@@ -6,7 +6,7 @@ PB выдаёт только по viewRule коллекции (мы уже за�
 apply_acl.py). Клиент добавляет токен через PbMediaService.resolveUrlAuthed.
 
 Обновляет collections_schema.json + (если есть креды) PATCH-ит сервер.
-Креды: PB_URL (по умолч. https://togetherly.duckdns.org), PB_EMAIL, PB_PW.
+Креды: PB_URL (по умолч. https://togetherly.day), PB_EMAIL, PB_PW.
 Запуск: PB_EMAIL=.. PB_PW=.. python pocketbase/apply_media_protect.py
 """
 import json
@@ -17,7 +17,7 @@ import urllib.error
 
 HERE = os.path.dirname(__file__)
 SCHEMA = os.path.join(HERE, "collections_schema.json")
-PB_URL = os.environ.get("PB_URL", "https://togetherly.duckdns.org").rstrip("/")
+PB_URL = os.environ.get("PB_URL", "https://togetherly.day").rstrip("/")
 PB_EMAIL = os.environ.get("PB_EMAIL", "")
 PB_PW = os.environ.get("PB_PW", "")
 

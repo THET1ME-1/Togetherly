@@ -121,7 +121,7 @@ def main() -> None:
 
             # Ссылку на атлас дописываем в data вторым проходом: имя файла
             # известно только после загрузки.
-            url = f"https://togetherly.duckdns.org/api/files/catalog_items/{rec['id']}/{rec['image']}"
+            url = f"https://togetherly.day/api/files/catalog_items/{rec['id']}/{rec['image']}"
             manifest["sheet"] = url
             body, ctype = multipart({"data": json.dumps(manifest, ensure_ascii=False)}, {})
             send("PATCH", f"{PB}/api/collections/catalog_items/records/{rec['id']}",

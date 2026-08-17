@@ -12,7 +12,7 @@ PocketBase (миграция, закрытие блокера безопасно
 матчится). groups — по своему members; live_location — по подстроке channel.
 
 Креды (НЕ хардкодить):
-    PB_URL (по умолч. https://togetherly.duckdns.org), PB_EMAIL, PB_PW (суперюзер)
+    PB_URL (по умолч. https://togetherly.day), PB_EMAIL, PB_PW (суперюзер)
 Запуск (только файл, без сервера):   python pocketbase/apply_acl.py
 Запуск с раскаткой на сервер:        PB_EMAIL=.. PB_PW=.. python pocketbase/apply_acl.py
 """
@@ -24,7 +24,7 @@ import urllib.error
 
 HERE = os.path.dirname(__file__)
 SCHEMA = os.path.join(HERE, "collections_schema.json")
-PB_URL = os.environ.get("PB_URL", "https://togetherly.duckdns.org").rstrip("/")
+PB_URL = os.environ.get("PB_URL", "https://togetherly.day").rstrip("/")
 PB_EMAIL = os.environ.get("PB_EMAIL", "")
 PB_PW = os.environ.get("PB_PW", "")
 

@@ -20,7 +20,7 @@ admin.initializeApp({
 const db = admin.firestore();
 const rtdb = admin.database();
 
-const PB = 'https://togetherly.duckdns.org';
+const PB = 'https://togetherly.day';
 const PB_PW = process.env.PB_PW;
 const PB_EMAIL = process.env.PB_EMAIL || 'badzoff@gmail.com';
 let TOKEN = null;

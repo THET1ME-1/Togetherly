@@ -63,7 +63,7 @@ ssh root@77.91.95.34 systemctl restart pocketbase
 ## 4. Проверка
 
 ```
-curl -X POST https://togetherly.duckdns.org/api/lava/webhook \
+curl -X POST https://togetherly.day/api/lava/webhook \
   -H "X-Api-Key: $LAVA_WEBHOOK_KEY" -H "Content-Type: application/json" \
   -d '{"status":"success","email":"<почта тестового аккаунта>",
        "productId":"ec861b44-a4b7-49e3-aa0e-e4608abdb0f0","contractId":"test-1"}'

@@ -16,7 +16,9 @@
 routerAdd("GET", "/api/watch/rtc", (e) => {
   const user = $os.getenv("TURN_USER");
   const pass = $os.getenv("TURN_PASS");
-  const host = $os.getenv("TURN_HOST") || "togetherly.duckdns.org";
+  // Запасное имя — именно `rt.`: TURN живёт на первой машине, а `togetherly.day`
+  // с 17.08.2026 смотрит на вторую, где его нет.
+  const host = $os.getenv("TURN_HOST") || "rt.togetherly.day";
 
   // Публичные STUN оставляем даже без своего TURN: большинству пар хватает
   // прямого соединения, и ретранслятор им не нужен вовсе.

@@ -13,7 +13,7 @@ Apple «client secret» — это JWT (ES256), подписанный прив�
     APPLE_SERVICES_ID (clientId, по умолчанию com.togetherly.love.signin)
     APPLE_P8_PATH   (путь к .p8; по умолчанию ~/Загрузки/AuthKey_<KEY_ID>.p8)
 PB-доступ:
-    PB_URL (по умолчанию https://togetherly.duckdns.org), PB_EMAIL, PB_PASSWORD
+    PB_URL (по умолчанию https://togetherly.day), PB_EMAIL, PB_PASSWORD
 
 Зависимости: PyJWT + cryptography.
 Запуск:
@@ -29,7 +29,7 @@ import urllib.error
 
 import jwt
 
-PB_URL = os.environ.get("PB_URL", "https://togetherly.duckdns.org").rstrip("/")
+PB_URL = os.environ.get("PB_URL", "https://togetherly.day").rstrip("/")
 PB_EMAIL = os.environ["PB_EMAIL"]
 PB_PASSWORD = os.environ["PB_PASSWORD"]
 

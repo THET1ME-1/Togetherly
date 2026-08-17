@@ -17,7 +17,7 @@ import time
 import urllib.error
 import urllib.request
 
-BASE = "https://togetherly.duckdns.org"
+BASE = "https://togetherly.day"
 T0 = time.time()
 OK, FAIL = [], []
 

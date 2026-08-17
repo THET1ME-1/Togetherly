@@ -6,7 +6,7 @@
  */
 const { chromium } = require('/home/alelx/.hermes/hermes-agent/node_modules/playwright');
 
-const VIDEO = 'https://togetherly.duckdns.org/api/files/watch_videos/' +
+const VIDEO = 'https://togetherly.day/api/files/watch_videos/' +
   'e8e5yaidogj6r9x/2cd1b6a2ce095ced39d3ec5deaf74b5c_vygwrxdr49.mp4';
 const base = 'https://togetherly.day/watch/room/';
 const ROOM = 'srcp4k9m';

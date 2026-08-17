@@ -12,7 +12,7 @@
 синхронизирует индексы на лету (writer притормозит на ~1-2с на memories).
 
 Креды берутся из окружения (НЕ хардкодить в репо):
-    PB_URL=https://togetherly.duckdns.org   (по умолчанию)
+    PB_URL=https://togetherly.day   (по умолчанию)
     PB_EMAIL=...  PB_PASSWORD=...            (суперюзер)
 
 Запуск:
@@ -23,7 +23,7 @@ import os
 import urllib.request
 import urllib.error
 
-PB_URL = os.environ.get("PB_URL", "https://togetherly.duckdns.org").rstrip("/")
+PB_URL = os.environ.get("PB_URL", "https://togetherly.day").rstrip("/")
 PB_EMAIL = os.environ["PB_EMAIL"]
 PB_PASSWORD = os.environ["PB_PASSWORD"]
 
