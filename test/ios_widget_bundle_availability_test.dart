@@ -1,18 +1,28 @@
-// Блок виджетов не может состоять из одного `if #available`.
+// В бандле виджетов не может быть ни одной ветки `if #available`.
 //
-// 13.08.2026 виджеты экрана блокировки завели отдельным
-// `@WidgetBundleBuilder`-свойством, целиком закрытым `if #available(iOS 16)`.
-// Расширение после этого стало ПАДАТЬ: chronod запускает его, чтобы забрать
-// список виджетов, процесс умирает с SIGTRAP, дескрипторы не приходят — и в
-// галерее пропадают не три виджета блокировки, а все двадцать два. Люди пишут
-// «нажимаю плюс, а приложения нет», и по коду это не видно совсем: собирается,
-// подписывается, устанавливается, регистрируется.
+// Каждая такая ветка компилируется в
+// `WidgetBundleBuilder.buildLimitedAvailability`, и расширение падает внутри
+// неё с SIGTRAP, когда chronod запускает его за списком виджетов. Дескрипторы
+// не приходят, галерея пустеет у ВСЕХ виджетов, а не только у условных. Люди
+// пишут «нажимаю плюс, а приложения Togetherly нет» — и по коду это не видно
+// совсем: собирается, подписывается, устанавливается, регистрируется.
 //
-// Проверено двумя одинаковыми сборками на симуляторе: со свойством — SIGTRAP и
-// пустые Descriptors, без него — ноль падений и виджеты доезжают до системы.
+// Стек, снятый с релизной сборки расширения 1.28.4+195 (файл .ips из
+// симулятора, шаг «Падало ли расширение на самом деле» в ios-widget-registry):
+//   libswiftCore  _assertionFailure(_:_:file:line:flags:)
+//   Togetherly    WidgetBundleBuilder.buildLimitedAvailability(_:)
+//   Togetherly    TogetherlyWidgetBundle.body.getter
+//   SwiftUI       WidgetBundleBodyAccessor.updateBody(of:changed:)
 //
-// Правило: условная ветка живёт рядом с безусловными виджетами в одном блоке
-// (так устроены `body` и `photoWidgets`), а не составляет блок целиком.
+// Прежнее правило этого теста — «условная ветка живёт рядом с безусловными
+// виджетами, а не составляет блок целиком» — было слабее, чем нужно: ветку
+// перенесли в общий блок (5900fff2, уехало в 1.28.4+195), и на телефоне не
+// изменилось НИЧЕГО. Ветка осталась, а с ней и вызов.
+//
+// Вместо ветвей минимальная версия расширения поднята до iOS 17: тогда и
+// accessory экрана блокировки (iOS 16+), и конфигурируемые фото на AppIntents
+// (iOS 17+) объявляются безусловно. Внутри вьюх `if #available` разрешён — там
+// работает `ViewBuilder`, а не `WidgetBundleBuilder`, и он не падает.
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -20,38 +30,65 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   final raw =
       File('ios/TogetherlyWidget/TogetherlyWidgetBundle.swift').readAsStringSync();
-  // Комментарии выкидываем до разбора: в них те же слова, что в коде, и
-  // `if #available` из пояснения уводил вырезание за пределы настоящей ветки.
+  // Комментарии выкидываем до разбора: в них те же слова, что в коде.
   final source = raw
       .split('\n')
       .map((l) => l.trimLeft().startsWith('//') ? '' : l)
       .join('\n');
 
-  test('у каждого блока бандла есть безусловный виджет', () {
-    final blocks = _bundleBlocks(source);
-    expect(blocks, isNotEmpty, reason: 'не нашёл ни одного блока — разбор сломан');
-
+  test('в бандле нет ни одной ветки доступности', () {
     final offenders = <String>[];
-    for (final block in blocks.entries) {
-      if (!_hasUnconditionalWidget(block.value)) offenders.add(block.key);
+    for (final block in _bundleBlocks(source).entries) {
+      if (block.value.contains('#available')) offenders.add(block.key);
     }
 
     expect(
       offenders,
       isEmpty,
-      reason: 'блок целиком под `if #available` роняет расширение с SIGTRAP, '
-          'и галерея пустеет у всех виджетов: ${offenders.join(', ')}',
+      reason: 'ветка доступности в бандле роняет расширение с SIGTRAP внутри '
+          'buildLimitedAvailability, и галерея пустеет целиком: '
+          '${offenders.join(', ')}. Нужную версию задаёт '
+          'IPHONEOS_DEPLOYMENT_TARGET расширения, а не `if #available`.',
     );
   });
 
+  test('минимальная версия расширения не ниже 17.0', () {
+    // Без неё конфигурируемые фото (AppIntentConfiguration, iOS 17+) и
+    // accessory экрана блокировки (iOS 16+) не объявить безусловно, и ветка
+    // доступности вернётся в бандл.
+    final project =
+        File('ios/Runner.xcodeproj/project.pbxproj').readAsStringSync();
+    final targets = RegExp(
+      r'IPHONEOS_DEPLOYMENT_TARGET = (\d+)\.\d+;[\s\S]{0,400}?'
+      r'PRODUCT_BUNDLE_IDENTIFIER = com\.togetherly\.love\.TogetherlyWidget;',
+    ).allMatches(project);
+
+    expect(targets, isNotEmpty, reason: 'не нашёл настроек расширения — разбор сломан');
+    for (final m in targets) {
+      expect(
+        int.parse(m.group(1)!),
+        greaterThanOrEqualTo(17),
+        reason: 'у расширения минимальная версия ниже 17.0',
+      );
+    }
+  });
+
   test('виджеты экрана блокировки на месте', () {
-    // Здесь смотрим исходник как есть — комментарии не мешают.
     // Чинить падение выбрасыванием функции нельзя: их отсутствие — тоже
     // жалоба («виджетов на экране блокировки нет», 13.08.2026).
     for (final widget in ['LockDaysWidget', 'LockMissWidget', 'LockMoodWidget']) {
       expect(source, contains('$widget()'), reason: '$widget пропал из бандла');
     }
-    expect(raw, contains('if #available(iOS 16.0, *)'));
+  });
+
+  test('конфигурируемые фото на месте', () {
+    for (final widget in [
+      'SelfPhotoWidgetConfigurable',
+      'PartnerPhotoWidgetConfigurable',
+      'PhotoDayWidgetConfigurable',
+    ]) {
+      expect(source, contains('$widget()'), reason: '$widget пропал из бандла');
+    }
   });
 }
 
@@ -64,27 +101,6 @@ Map<String, String> _bundleBlocks(String source) {
     if (body != null) blocks[match.group(1)!] = body;
   }
   return blocks;
-}
-
-/// Есть ли в блоке виджет вне условной ветки.
-bool _hasUnconditionalWidget(String block) {
-  // Убираем всё, что стоит под `if #available { … }`, и смотрим на остаток:
-  // ссылка на другой блок (`coreWidgets`) годится так же, как `LoveWidget()`.
-  var rest = block;
-  final ifBlock = RegExp(r'if\s+#available[^{]*\{');
-  while (true) {
-    final match = ifBlock.firstMatch(rest);
-    if (match == null) break;
-    final body = _bracedBody(rest, match.end - 1);
-    if (body == null) break;
-    rest = rest.replaceRange(match.start, match.end + body.length + 1, '');
-  }
-  final code = rest
-      .split('\n')
-      .map((l) => l.trim())
-      .where((l) => l.isNotEmpty && !l.startsWith('//'))
-      .join(' ');
-  return RegExp(r'\w+\(\)').hasMatch(code) || RegExp(r'\b\w*[Ww]idgets\b').hasMatch(code);
 }
 
 /// Содержимое от открывающей скобки до парной ей закрывающей.

@@ -46,10 +46,22 @@ jobs:
         # Сам воркфлоу остаётся из ветки (его берёт Actions до чекаута), а код
         # приложения — из указанного коммита. Так две проверки отличаются
         # только кодом: это и есть сравнение рабочей сборки со сломанной.
+        #
+        # Разборщики уносим в /tmp заранее: в старом коммите их ещё нет, и
+        # приговор молча не печатался — сравнение вышло односторонним.
         run: |
           set -euxo pipefail
+          mkdir -p /tmp/verdict
+          cp tool/chrono_verdict.py tool/ips_report.py /tmp/verdict/
           git checkout --detach "${{ inputs.ref }}"
           git log -1 --format='проверяем: %h %s'
+
+      - name: Разборщики под рукой
+        run: |
+          set -euxo pipefail
+          mkdir -p /tmp/verdict
+          [ -f /tmp/verdict/chrono_verdict.py ] || cp tool/chrono_verdict.py /tmp/verdict/
+          [ -f /tmp/verdict/ips_report.py ] || cp tool/ips_report.py /tmp/verdict/
 
       - name: Flutter
         uses: subosito/flutter-action@v2
@@ -231,7 +243,7 @@ jobs:
               echo "файл: $f"
               # Причина остановки и верхушка стека упавшего потока: в .ips
               # Swift кладёт туда текст fatalError с файлом и строкой.
-              python3 tool/ips_report.py "$f"
+              python3 /tmp/verdict/ips_report.py "$f"
             done
           done
           [ "$FOUND" = 0 ] && echo "отчётов о падении расширения НЕТ"
@@ -253,7 +265,7 @@ jobs:
           # Полный журнал без обрезки — приговор читает его целиком.
           xcrun simctl spawn "$DEVICE" log show --last 12m --style compact 2>/dev/null \
             > /tmp/simlog.txt
-          python3 tool/chrono_verdict.py "$DATA" /tmp/simlog.txt
+          python3 /tmp/verdict/chrono_verdict.py "$DATA" /tmp/simlog.txt
           echo
           echo "— ждёт повторного опроса (extensionsPendingDescriptorRefetch) —"
           plutil -p "$DATA/Library/Preferences/com.apple.chronod.plist" 2>/dev/null \
