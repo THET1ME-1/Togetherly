@@ -56,6 +56,7 @@ import '../widgets/common/ad_banner.dart';
 import '../widgets/common/m3_loading.dart';
 import '../widgets/petal_timer_dial.dart';
 import '../widgets/mood_hearts_preview.dart';
+import '../widgets/pair_preview_divider.dart';
 import 'home/widgets/mood_picker_dialog.dart';
 import 'home/widgets/photo_day_carousel_editor.dart';
 import 'home/widgets/memory_photo_picker.dart';
@@ -1463,19 +1464,9 @@ class _WidgetScreenState extends State<WidgetScreen>
                       isLeft: true,
                     ),
                   ),
-                  // Разделитель с сердцем (как в нативном виджете)
-                  Container(
-                    width: 14,
-                    color: Colors.white,
-                    alignment: Alignment.center,
-                    child: const Text(
-                      '♥',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFFFF6B8A),
-                      ),
-                    ),
-                  ),
+                  // Разделитель с сердцем — те же числа, что в нативной
+                  // разметке; см. PairPreviewDivider.
+                  const PairPreviewDivider(),
                   Expanded(
                     child: _buildPreviewHalf(
                       data: partner,
