@@ -11,6 +11,7 @@ import '../models/memory.dart';
 import '../models/mood_entry.dart';
 import 'locale_service.dart';
 import 'widget_photo_cache.dart';
+import 'pair_widget_payload.dart';
 import 'media_service.dart';
 import 'home_widget_service.dart';
 import 'level_service.dart';
@@ -654,54 +655,22 @@ class WidgetService extends ChangeNotifier {
   Future<void> _syncToNativeWidget() async {
     final bindGeneration = _bindGeneration;
     try {
-      // ── Мои данные ──
+      // Текстовые поля обеих половин. Половину, про которую данных нет, не
+      // трогаем: подписка на свои данные идёт по uid из сессии, и пока сессия не
+      // восстановилась, `_myData` равно null — прежний код записывал пустые
+      // строки и обнулял свою половину виджета. Правило — в
+      // pair_widget_payload.dart, под тестами.
       final my = _myData;
-      // moodEmoji хранит путь к asset-файлу — для нативного виджета
-      // используем moodLabel (текстовая метка: «Счастлив», «Грустный» и т.д.)
-      await HomeWidget.saveWidgetData<String>(
-        'my_name',
-        my?.displayName.isNotEmpty == true ? my!.displayName : 'Я',
-      );
-      await HomeWidget.saveWidgetData<String>('my_mood', my?.moodLabel ?? '');
-      await HomeWidget.saveWidgetData<String>('my_status', my?.status ?? '');
-      await HomeWidget.saveWidgetData<String>('my_message', my?.message ?? '');
-      await HomeWidget.saveWidgetData<String>(
-        'my_music_title',
-        my?.musicTitle ?? '',
-      );
-      await HomeWidget.saveWidgetData<String>(
-        'my_music_artist',
-        my?.musicArtist ?? '',
-      );
-
-      // ── Данные партнёра ──
       final partner = firstPartnerData;
-      await HomeWidget.saveWidgetData<String>(
-        'partner_name',
-        partner?.displayName.isNotEmpty == true
-            ? partner!.displayName
-            : 'Партнёр',
+      final keys = pairWidgetPayload(
+        my: my,
+        partner: partner,
+        myFallbackName: 'Я',
+        partnerFallbackName: 'Партнёр',
       );
-      await HomeWidget.saveWidgetData<String>(
-        'partner_mood',
-        partner?.moodLabel ?? '',
-      );
-      await HomeWidget.saveWidgetData<String>(
-        'partner_status',
-        partner?.status ?? '',
-      );
-      await HomeWidget.saveWidgetData<String>(
-        'partner_message',
-        partner?.message ?? '',
-      );
-      await HomeWidget.saveWidgetData<String>(
-        'partner_music_title',
-        partner?.musicTitle ?? '',
-      );
-      await HomeWidget.saveWidgetData<String>(
-        'partner_music_artist',
-        partner?.musicArtist ?? '',
-      );
+      for (final e in keys.entries) {
+        await HomeWidget.saveWidgetData<String>(e.key, e.value);
+      }
 
       // ── Фото: сохраняем URL, кэшируем локально фоново ──
       // Правило выбора — в pairPhotoOfMine/pairPhotoOfPartner (под тестами
