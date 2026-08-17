@@ -108,6 +108,13 @@ jobs:
                   if c['attributes'].get('capabilityType') == 'APP_GROUPS':
                       print('    настройки App Groups:',
                             json.dumps(c['attributes'].get('settings'), ensure_ascii=False)[:300])
+              # Сама привязка к группе живёт отдельной связью. Включённая
+              # возможность APP_GROUPS ещё не значит, что группа выбрана: без
+              # неё профиль подписи не даёт доступа к общему контейнеру, запись
+              # уходит в никуда, и виджеты стоят пустыми при живом приложении.
+              rel = get(f"/v1/bundleIds/{item['id']}/appGroups", **{'limit': '20'})
+              ids = [g['attributes'].get('identifier') for g in rel.get('data', []) or []]
+              print('    привязанные группы:', ', '.join(filter(None, ids)) or 'НИ ОДНОЙ')
 
           print()
           print('=' * 78)
