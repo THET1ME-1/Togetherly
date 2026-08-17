@@ -250,6 +250,8 @@ jobs:
     uses: ./.github/workflows/ios-unsigned-ipa.yml
     with:
       tag: ${{ needs.build-apk.outputs.tag }}
+      draft: ${{ inputs.draft }}
+      prerelease: ${{ inputs.prerelease }}
 
   # ── Гейт: публикуем в Play только если задан секрет сервис-аккаунта ──────────
   # Без PLAY_SERVICE_ACCOUNT_JSON job publish-play пропускается (не краснеет),

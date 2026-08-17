@@ -932,23 +932,33 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
           borderRadius: BorderRadius.circular(28)),
       child: Stack(
         children: [
-          Align(
-            alignment: Alignment.bottomLeft,
-            child: _swap(
-              'name-$title',
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.bottomLeft,
-                child: Text(title,
-                    maxLines: 1,
-                    style: TextStyle(
-                        fontFamily: 'Unbounded',
-                        fontWeight: FontWeight.w800,
-        fontVariations: const [FontVariation('wght', 800)],
-                        fontSize: 44,
-                        height: 1.0,
-                        letterSpacing: -1.5,
-                        color: cs.onPrimaryContainer)),
+          // Место под карандаш и значок держим отступами, а не надеждой: имя
+          // лежит в том же Stack, и без запаса длинное («JB SHARAN») уезжало
+          // прямо под кнопку правки — на снимке от 17.08.2026 хвост имени
+          // перечёркнут карандашом. Сверху столько же: там значок и «Plus».
+          Padding(
+            padding: EdgeInsets.only(
+              right: badgeUid != null ? 40 : 0,
+              top: badgeUid != null ? 26 : 0,
+            ),
+            child: Align(
+              alignment: Alignment.bottomLeft,
+              child: _swap(
+                'name-$title',
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.bottomLeft,
+                  child: Text(title,
+                      maxLines: 1,
+                      style: TextStyle(
+                          fontFamily: 'Unbounded',
+                          fontWeight: FontWeight.w800,
+          fontVariations: const [FontVariation('wght', 800)],
+                          fontSize: 44,
+                          height: 1.0,
+                          letterSpacing: -1.5,
+                          color: cs.onPrimaryContainer)),
+                ),
               ),
             ),
           ),

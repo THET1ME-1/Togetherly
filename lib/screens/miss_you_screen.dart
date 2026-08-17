@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import '../models/miss_you_state.dart';
 import '../models/optimistic_count.dart';
+import '../models/tile_columns.dart';
 import '../services/custom_wishes_store.dart';
 import '../services/locale_service.dart';
 import '../services/miss_you_repository.dart';
@@ -540,11 +541,41 @@ class _MissYouScreenState extends State<MissYouScreen>
 
   // ── Чипы: вайбы и свои пожелания ────────────────────────────────────────────
 
+  /// Минимальная ширина чипа: короче него подписи вроде «Думаю о тебе 27 · 200»
+  /// начинают рваться на многоточие.
+  static const double _chipMinWidth = 190;
+  static const double _chipGap = 7;
+
   Widget _chips(ColorScheme cs) {
-    return Wrap(
-      spacing: 7,
-      runSpacing: 7,
-      children: [
+    // Ширина экрана у людей разная: 320 dp на старых Android, 393 на iPhone 15,
+    // за 700 на планшете. Чипы держали свою ширину и на узком экране вставали
+    // по одному, оставляя пустоту справа (жалоба 17.08.2026). Теперь колонки
+    // считаются, а плитки делят строку ровно — см. tile_columns.dart.
+    return LayoutBuilder(
+      builder: (context, box) {
+        final columns = tileColumns(
+          width: box.maxWidth,
+          minTileWidth: _chipMinWidth,
+        );
+        final width = tileWidth(
+          width: box.maxWidth,
+          columns: columns,
+          spacing: _chipGap,
+        );
+        return Wrap(
+          spacing: _chipGap,
+          runSpacing: _chipGap,
+          children: [
+            for (final chip in _chipList(cs))
+              SizedBox(width: width, child: chip),
+          ],
+        );
+      },
+    );
+  }
+
+  List<Widget> _chipList(ColorScheme cs) {
+    return [
         _VibeChip(
           scheme: cs,
           icon: Icons.cloud_rounded,
@@ -578,8 +609,7 @@ class _MissYouScreenState extends State<MissYouScreen>
           accentInk: _onFill,
           onTap: _addWish,
         ),
-      ],
-    );
+    ];
   }
 
   // ── Последнее от партнёра ───────────────────────────────────────────────────

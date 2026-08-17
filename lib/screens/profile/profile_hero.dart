@@ -4,6 +4,8 @@ import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/profile_theme.dart';
 import '../../widgets/common/plus_badge.dart';
+import '../../models/profile_icon.dart';
+import '../../widgets/common/scaled_asset.dart';
 import '../../widgets/avatar_widget.dart';
 import 'profile_banner.dart';
 
@@ -19,6 +21,11 @@ class ProfileHero extends StatelessWidget {
 
   /// Показывать ли значок Togetherly+ рядом с именем.
   final bool plus;
+
+  /// Значок из профиля («badge» в users). В карточке пары он у имени стоял с
+  /// самого начала, а в своём профиле его не было вовсе — просьба автора
+  /// 17.08.2026 показать значок рядом с «Plus».
+  final String badge;
 
   /// Тема приложения — значок Плюса красится её основным цветом.
   final AppTheme? theme;
@@ -39,6 +46,7 @@ class ProfileHero extends StatelessWidget {
     required this.uid,
     required this.avatarUrl,
     required this.name,
+    this.badge = '',
     this.plus = false,
     this.theme,
     required this.bannerUrl,
@@ -159,6 +167,14 @@ class ProfileHero extends StatelessWidget {
                   if (plus && theme != null) ...[
                     const SizedBox(width: 8),
                     PlusBadge(theme: theme!),
+                  ],
+                  if (badge.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    ScaledAsset(
+                      ProfileIcon.byId(badge)?.asset ??
+                          'assets/images/icons/$badge.webp',
+                      side: 26,
+                    ),
                   ],
                   if (onEdit != null) ...[
                     const SizedBox(width: 4),

@@ -103,7 +103,12 @@ class UpdateService {
         debugPrint('UpdateService: version.json HTTP ${resp.statusCode}');
         return null;
       }
-      final data = json.decode(resp.body) as Map<String, dynamic>;
+      // Читаем БАЙТЫ, а не resp.body: version.json лежит файлом релиза и
+      // отдаётся без charset в Content-Type, а пакет http в этом случае
+      // разбирает ответ как latin-1. Русские заметки к версии превращались в
+      // «â Ð Ð¸ÐÐ¶ÐµÑ» прямо в окне «Доступно обновление» (17.08.2026).
+      final data =
+          json.decode(utf8.decode(resp.bodyBytes)) as Map<String, dynamic>;
       final remoteCode = (data['versionCode'] as num?)?.toInt() ?? 0;
       // apk — сборка под arm64-v8a (основная), apkArm — под armeabi-v7a.
       // Старые релизы могли отдавать единый universal APK в поле apk.

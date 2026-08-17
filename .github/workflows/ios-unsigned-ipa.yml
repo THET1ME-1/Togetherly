@@ -12,6 +12,16 @@ on:
         description: 'Тег релиза, к которому прицепить IPA'
         required: true
         type: string
+      draft:
+        description: 'Релиз остаётся черновиком (иначе прикрепление его опубликует)'
+        required: false
+        default: false
+        type: boolean
+      prerelease:
+        description: 'Релиз остаётся тестовым'
+        required: false
+        default: false
+        type: boolean
   # Ручной запуск оставлен для случая «релиз уже есть, IPA не доехал».
   workflow_dispatch:
     inputs:
@@ -20,6 +30,16 @@ on:
         required: true
         type: string
         default: 'v1.18.1+126'
+      draft:
+        description: 'Релиз остаётся черновиком'
+        required: false
+        default: false
+        type: boolean
+      prerelease:
+        description: 'Релиз остаётся тестовым'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   ipa:
@@ -82,4 +102,11 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag }}
+          # Состояние релиза передаём явно. Без этого действие ставит draft:
+          # false и prerelease: false, то есть ПУБЛИКУЕТ черновик, который
+          # только что создала предыдущая работа: 17.08.2026 так уехало
+          # предложение обновиться до 1.29.0 всем людям.
+          draft: ${{ inputs.draft }}
+          prerelease: ${{ inputs.prerelease }}
+          make_latest: ${{ (inputs.draft || inputs.prerelease) && 'false' || 'true' }}
           files: togetherly-*-unsigned.ipa
