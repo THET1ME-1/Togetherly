@@ -885,6 +885,13 @@ class _DrawScreenState extends State<DrawScreen>
     return rotated / _scale;
   }
 
+  /// Лежит ли точка (уже в координатах холста) на самом холсте.
+  bool _insideCanvas(Offset canvasPoint) =>
+      canvasPoint.dx >= 0 &&
+      canvasPoint.dy >= 0 &&
+      canvasPoint.dx <= _canvasSize.width &&
+      canvasPoint.dy <= _canvasSize.height;
+
   //  Tool selection
 
   void _selectTool(DrawTool tool) {
@@ -914,6 +921,11 @@ class _DrawScreenState extends State<DrawScreen>
   void _startStroke(Offset localPoint) {
     if (_canvasSize.isEmpty) return;
 
+    // Мазок начинается только на холсте. Слой ввода лежит на всём листе, а холст
+    // при уменьшении меньше листа: без этой проверки касание в зазоре начинало
+    // штрих, который обрезка прижимала к краю, — по краю оставалась полоса.
+    if (!_insideCanvas(_screenToCanvas(localPoint))) return;
+
     // Раскраска: чужая половина не принимает касаний ни в каком режиме — даже
     // когда её видно. Каждый отвечает за свою.
     if (_isColoring && !_inMySide(_screenToCanvas(localPoint))) {
@@ -934,7 +946,10 @@ class _DrawScreenState extends State<DrawScreen>
     if (_showHint) setState(() => _showHint = false);
 
     if (_isShapeTool) {
-      final pt = DrawPoint.fromOffset(_screenToCanvas(localPoint), _canvasSize);
+      final pt = DrawPoint.clampedFromOffset(
+        _screenToCanvas(localPoint),
+        _canvasSize,
+      );
       setState(() {
         _currentPoints
           ..clear()
@@ -954,7 +969,7 @@ class _DrawScreenState extends State<DrawScreen>
     setState(() {
       _currentPoints
         ..clear()
-        ..add(DrawPoint.fromOffset(
+        ..add(DrawPoint.clampedFromOffset(
           _snapToCell(_screenToCanvas(localPoint)),
           _canvasSize,
         ));
@@ -974,7 +989,7 @@ class _DrawScreenState extends State<DrawScreen>
     if (!_isDrawing || _canvasSize.isEmpty) return;
     if (_isColoring) localPoint = _clampToMySide(localPoint);
     if (_currentShapeType != null) {
-      final end = DrawPoint.fromOffset(
+      final end = DrawPoint.clampedFromOffset(
         _screenToCanvas(localPoint),
         _canvasSize,
       );
@@ -984,7 +999,7 @@ class _DrawScreenState extends State<DrawScreen>
         _currentPoints.add(end);
       }
     } else {
-      final pt = DrawPoint.fromOffset(
+      final pt = DrawPoint.clampedFromOffset(
         _snapToCell(_screenToCanvas(localPoint)),
         _canvasSize,
       );
@@ -4318,8 +4333,13 @@ class _CanvasSceneState extends State<_CanvasScene> {
     final imageStrokes = widget.strokes.where((s) => s.isImageStroke).toList();
     final drawStrokes = widget.strokes.where((s) => !s.isImageStroke).toList();
 
+    // Ничего за краем холста не видно: у рисунков, сделанных до обрезки точек на
+    // вводе, штрихи уходят за лист, и заливка вслед за ними расползалась по
+    // столу. Клип чинит и их, не переписывая сами штрихи. Клип живёт на самом
+    // Container: ему нужна decoration вместо color, иначе clipBehavior молчит.
     return Container(
-      color: widget.bgColor,
+      clipBehavior: Clip.hardEdge,
+      decoration: BoxDecoration(color: widget.bgColor),
       child: Stack(
         fit: StackFit.expand,
         children: [

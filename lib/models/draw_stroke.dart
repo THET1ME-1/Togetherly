@@ -28,6 +28,22 @@ class DrawPoint {
     canvasSize.width > 0 ? offset.dx / canvasSize.width : 0,
     canvasSize.height > 0 ? offset.dy / canvasSize.height : 0,
   );
+
+  /// То же, но точка прижимается к холсту: доли остаются в пределах 0…1.
+  ///
+  /// Так рождаются ВСЕ точки, которые ведёт палец. Без обрезки за краем листа
+  /// получались доли меньше нуля и больше единицы, и рисунок вылезал из холста
+  /// («рисовать можно картину и выходить за контур холста», жалоба 17.08.2026):
+  /// холст при уменьшении меньше листа, а рисовать можно по всему листу.
+  /// Обрезка нужна именно здесь, на вводе, — такие точки уходят партнёру и в
+  /// хранилище, и потом рисунок уже не починить.
+  factory DrawPoint.clampedFromOffset(
+    Offset offset,
+    Size canvasSize,
+  ) => DrawPoint(
+    canvasSize.width > 0 ? (offset.dx / canvasSize.width).clamp(0.0, 1.0) : 0,
+    canvasSize.height > 0 ? (offset.dy / canvasSize.height).clamp(0.0, 1.0) : 0,
+  );
 }
 
 /// One complete or in-progress drawing stroke (brush, eraser, or image).
@@ -141,7 +157,9 @@ class DrawStroke {
   /// колонкой для сортировки, но читаем orderIndex из самой карты.
   factory DrawStroke.fromPb(RecordModel rec) {
     final raw = rec.data['data'];
-    final map = raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+    final map = raw is Map
+        ? Map<String, dynamic>.from(raw)
+        : <String, dynamic>{};
     return DrawStroke.fromFirestore(map, rec.id);
   }
 
