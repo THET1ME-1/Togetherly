@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../models/pixel_grid_style.dart';
 import 'package:flutter/services.dart';
 
 import '../services/locale_service.dart';
@@ -279,13 +281,16 @@ class _PreviewPainter extends CustomPainter {
     canvas.save();
     canvas.clipRRect(rrect);
 
-    // Мельче трёх точек на клетку сетка превращается в шум — не рисуем.
+    // Порог и вид линии — общее правило pixelGridStyle, то же, что на холсте:
+    // иначе предпросмотр и сам холст расходятся, и человек выбирает формат, где
+    // клеток потом не увидит.
     final cw = size.width / cols;
     final ch = size.height / rows;
-    if (cw >= 3 && ch >= 3) {
+    final style = pixelGridStyle(cw < ch ? cw : ch);
+    if (style.visible) {
       final p = Paint()
         ..color = line
-        ..strokeWidth = 1;
+        ..strokeWidth = style.strokeWidth;
       for (int i = 1; i < cols; i++) {
         final x = i * cw;
         canvas.drawLine(Offset(x, 0), Offset(x, size.height), p);

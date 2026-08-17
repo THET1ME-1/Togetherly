@@ -29,6 +29,7 @@ import '../utils/share_origin.dart';
 
 import '../models/canvas_background.dart';
 import '../models/draw_stroke.dart';
+import '../models/pixel_grid_style.dart';
 import '../models/pair_data.dart';
 import '../models/user_data.dart';
 import '../services/analytics_service.dart';
@@ -4089,10 +4090,14 @@ class _PixelGridPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final cw = size.width / cols;
     final ch = size.height / rows;
-    if (cw < 6 || ch < 6) return;
+    // Порог и вид линии — в pixelGridStyle (под тестами). Прежние жёсткие «6
+    // пикселей на клетку» отсекали сетку на 64×80: на телефоне клетка там
+    // около 4,4 dp, и человек видел пустой лист без клеток.
+    final style = pixelGridStyle(cw < ch ? cw : ch);
+    if (!style.visible) return;
     final paint = Paint()
-      ..color = const Color(0x14000000)
-      ..strokeWidth = 1;
+      ..color = Color.fromRGBO(0, 0, 0, style.opacity)
+      ..strokeWidth = style.strokeWidth;
     for (int i = 1; i < cols; i++) {
       final x = i * cw;
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
