@@ -106,7 +106,7 @@ struct TimerWidgetView: View {
 struct TimerWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "TimerWidgetProvider", provider: RefreshProvider()) { _ in
-            TimerWidgetView()
+            TimerWidgetView().unredacted()
         }
         .configurationDisplayName("Таймер")
         .description("Дни вместе или обратный отсчёт до события.")
@@ -141,7 +141,7 @@ struct PetalTimerWidgetView: View {
 struct PetalTimerWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "PetalTimerWidgetProvider", provider: RefreshProvider()) { _ in
-            PetalTimerWidgetView()
+            PetalTimerWidgetView().unredacted()
         }
         .configurationDisplayName("Лепестковый таймер")
         .description("Живой циферблат: годы, месяцы, дни, часы.")

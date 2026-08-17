@@ -300,7 +300,7 @@ struct TogetherWidget: Widget {
         // через `HomeWidget.updateWidget(name:)`, и на iOS это имя приезжает в
         // `WidgetCenter.reloadTimelines(ofKind:)`.
         StaticConfiguration(kind: "TogetherWidget4x2Provider", provider: RefreshProvider()) { _ in
-            TogetherWidgetView()
+            TogetherWidgetView().unredacted()
         }
         .configurationDisplayName("Вместе")
         .description("Дни вместе, ближайшая круглая дата и вы двое.")

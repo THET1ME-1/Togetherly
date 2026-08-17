@@ -221,7 +221,7 @@ struct MoodTilesWidgetView: View {
 struct MoodTilesWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "MoodTilesWidget2x2Provider", provider: RefreshProvider()) { _ in
-            MoodTilesWidgetView()
+            MoodTilesWidgetView().unredacted()
         }
         .configurationDisplayName("Настроение — плитки")
         .description("Отметить день в одно касание и увидеть неделю.")

@@ -100,7 +100,7 @@ struct MoodWidgetView: View {
 struct MoodWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "MoodWidgetProvider", provider: RefreshProvider()) { _ in
-            MoodWidgetView()
+            MoodWidgetView().unredacted()
         }
         .configurationDisplayName("Настроение пары")
         .description("Настроение и оценка дня вас обоих.")

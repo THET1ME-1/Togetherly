@@ -96,7 +96,7 @@ private struct NoteCardView: View {
 struct NoteWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "NoteWidget4x2Provider", provider: RefreshProvider()) { _ in
-            NoteCardView()
+            NoteCardView().unredacted()
         }
         .configurationDisplayName("Заметка")
         .description("Записка на двоих в цвете вашей темы.")
@@ -147,7 +147,7 @@ struct NotePaperWidget: Widget {
         // будит все три размера заметки, поэтому бумажный стикер обновляется
         // вместе с карточкой, своего вызова заводить не пришлось.
         StaticConfiguration(kind: "NoteWidget2x2Provider", provider: RefreshProvider()) { _ in
-            NotePaperView()
+            NotePaperView().unredacted()
         }
         .configurationDisplayName("Заметка — бумага")
         .description("Та же записка, но клочком бумаги.")

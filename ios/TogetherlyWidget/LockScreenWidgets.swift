@@ -83,7 +83,7 @@ struct LockDaysView: View {
 struct LockDaysWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "LockDaysWidget", provider: RefreshProvider()) { _ in
-            LockDaysView()
+            LockDaysView().unredacted()
                 .widgetURL(URL(string: "loveapp://home"))
                 .tgContainerBackground(Color.clear)
         }
@@ -143,7 +143,7 @@ struct LockMissView: View {
 struct LockMissWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "LockMissWidget", provider: RefreshProvider()) { _ in
-            LockMissView()
+            LockMissView().unredacted()
                 // Тап открывает приложение и отправляет импульс — фонового
                 // исполнения у виджетов на iOS нет, обещать отправку без
                 // открытия нельзя (тот же путь, что у большого «Скучаю»).
@@ -199,7 +199,7 @@ struct LockMoodView: View {
 struct LockMoodWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "LockMoodWidget", provider: RefreshProvider()) { _ in
-            LockMoodView()
+            LockMoodView().unredacted()
                 .widgetURL(URL(string: "loveapp://mood"))
                 .tgContainerBackground(Color.clear)
         }

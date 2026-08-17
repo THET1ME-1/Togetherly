@@ -139,7 +139,7 @@ struct MissWidgetView: View {
 struct MissWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "MissWidget4x2Provider", provider: RefreshProvider()) { _ in
-            MissWidgetView()
+            MissWidgetView().unredacted()
         }
         .configurationDisplayName("Скучаю")
         .description("Сказать «скучаю» с рабочего стола.")

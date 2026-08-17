@@ -113,7 +113,7 @@ struct DaysCounterWidgetView: View {
 struct DaysCounterWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "DaysCounterWidgetProvider", provider: RefreshProvider()) { _ in
-            DaysCounterWidgetView()
+            DaysCounterWidgetView().unredacted()
         }
         .configurationDisplayName("Дней вместе")
         .description("Сколько дней вы вместе.")
@@ -212,7 +212,7 @@ struct StreakWidgetView: View {
 struct StreakWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "StreakWidgetProvider", provider: RefreshProvider()) { _ in
-            StreakWidgetView()
+            StreakWidgetView().unredacted()
         }
         .configurationDisplayName("Огонёк пары")
         .description("Сколько дней подряд вы заходите вместе.")
@@ -297,7 +297,7 @@ struct RelationshipStatsWidgetView: View {
 struct RelationshipStatsWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "RelationshipStatsWidgetProvider", provider: RefreshProvider()) { _ in
-            RelationshipStatsWidgetView()
+            RelationshipStatsWidgetView().unredacted()
         }
         .configurationDisplayName("Статистика отношений")
         .description("Дни, моменты, рисунки и «я скучаю».")

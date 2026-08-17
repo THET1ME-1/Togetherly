@@ -190,7 +190,7 @@ private struct LoveEmptyState: View {
 struct LoveWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "LoveWidgetProvider", provider: RefreshProvider()) { _ in
-            LoveWidgetView()
+            LoveWidgetView().unredacted()
         }
         .configurationDisplayName("Парный виджет")
         .description("Статус, настроение и музыка вас обоих.")

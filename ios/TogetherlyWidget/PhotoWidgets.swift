@@ -198,7 +198,7 @@ private struct PhotoFillCell: View {
 struct PhotoGridWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "PhotoGridWidgetProvider", provider: RefreshProvider()) { _ in
-            PhotoGridView()
+            PhotoGridView().unredacted()
         }
         .configurationDisplayName("Сетка фото")
         .description("Несколько фото партнёра в одной сетке.")
@@ -408,7 +408,7 @@ struct SelfPhotoWidgetConfigurable: Widget {
             intent: SelectSelfPhotoIntent.self,
             provider: PhotoConfigProvider<SelectSelfPhotoIntent>()
         ) { entry in
-            SinglePhotoPathView(path: entry.path, kind: .mine)
+            SinglePhotoPathView(path: entry.path, kind: .mine).unredacted()
         }
         .configurationDisplayName("Моё фото")
         .description("Фото, которым вы делитесь с партнёром.")
@@ -424,7 +424,7 @@ struct PartnerPhotoWidgetConfigurable: Widget {
             intent: SelectPartnerPhotoIntent.self,
             provider: PhotoConfigProvider<SelectPartnerPhotoIntent>()
         ) { entry in
-            SinglePhotoPathView(path: entry.path, kind: .partner)
+            SinglePhotoPathView(path: entry.path, kind: .partner).unredacted()
         }
         .configurationDisplayName("Фото партнёра")
         .description("Фото, которым с вами поделился партнёр.")
@@ -440,7 +440,7 @@ struct PhotoDayWidgetConfigurable: Widget {
             intent: SelectPhotoDayIntent.self,
             provider: PhotoConfigProvider<SelectPhotoDayIntent>()
         ) { entry in
-            SinglePhotoPathView(path: entry.path, kind: .day)
+            SinglePhotoPathView(path: entry.path, kind: .day).unredacted()
         }
         .configurationDisplayName("Фото дня")
         .description("Тёплое фото из ваших воспоминаний.")

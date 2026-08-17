@@ -195,7 +195,7 @@ private struct YearRingView: View {
 struct YearRingWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "YearRingWidget4x2Provider", provider: RefreshProvider()) { _ in
-            YearRingView()
+            YearRingView().unredacted()
         }
         .configurationDisplayName("Кольцо года")
         .description("Сколько прошло от годовщины до годовщины.")
@@ -290,7 +290,7 @@ private struct MonthsGrid: View {
 struct YearGridWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "YearGridWidget4x2Provider", provider: RefreshProvider()) { _ in
-            YearGridView()
+            YearGridView().unredacted()
         }
         .configurationDisplayName("Календарь лет")
         .description("Каждый прожитый вместе месяц — точка.")

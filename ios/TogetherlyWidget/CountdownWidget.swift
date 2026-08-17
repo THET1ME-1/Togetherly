@@ -100,7 +100,7 @@ private struct CountdownView: View {
 struct CountdownWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "CountdownWidget2x2Provider", provider: RefreshProvider()) { _ in
-            CountdownView()
+            CountdownView().unredacted()
         }
         .configurationDisplayName("Обратный отсчёт")
         .description("Сколько осталось до вашего события.")
