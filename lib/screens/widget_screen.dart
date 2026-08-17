@@ -57,6 +57,7 @@ import '../widgets/common/m3_loading.dart';
 import '../widgets/petal_timer_dial.dart';
 import '../widgets/mood_hearts_preview.dart';
 import '../widgets/pair_preview_divider.dart';
+import '../models/mood_widget_payload.dart';
 import 'home/widgets/mood_picker_dialog.dart';
 import 'home/widgets/photo_day_carousel_editor.dart';
 import 'home/widgets/memory_photo_picker.dart';
@@ -1191,17 +1192,32 @@ class _WidgetScreenState extends State<WidgetScreen>
           final partnerEntry = partnerEntries.isNotEmpty
               ? partnerEntries.first
               : null;
+          // Записи за сегодня главнее, иначе последнее известное настроение из
+          // widget_data — то же правило, что на главном экране; см.
+          // moodHalfPayload.
+          final mine = moodHalfPayload(
+            entry: myEntry,
+            widgetMoodEmoji: _ws.myData?.moodEmoji ?? '',
+            widgetMoodLabel: _ws.myData?.moodLabel ?? '',
+            gender: widget.userData.gender?.name ?? '',
+          );
+          final theirs = moodHalfPayload(
+            entry: partnerEntry,
+            widgetMoodEmoji: _ws.firstPartnerData?.moodEmoji ?? '',
+            widgetMoodLabel: _ws.firstPartnerData?.moodLabel ?? '',
+            gender: _ws.firstPartnerData?.gender ?? '',
+          );
           await hws.syncMood(
             groupId: _pair.pairId,
-            moodEmojiAssetPath: myEntry?.imagePath ?? '',
-            moodLabel: myEntry?.localizedLabel ?? '',
-            moodScore: myEntry?.score ?? 0,
-            moodColor: myEntry != null ? '#${myEntry.color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}' : '',
+            moodEmojiAssetPath: mine.imagePath,
+            moodLabel: mine.label,
+            moodScore: mine.score,
+            moodColor: mine.colorHex,
             userName: _ws.myData?.displayName ?? '',
-            partnerMoodEmojiAssetPath: partnerEntry?.imagePath ?? '',
-            partnerMoodLabel: partnerEntry?.localizedLabel ?? '',
-            partnerMoodColor: partnerEntry != null ? '#${partnerEntry.color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}' : '',
-            partnerMoodScore: partnerEntry?.score ?? 0,
+            partnerMoodEmojiAssetPath: theirs.imagePath,
+            partnerMoodLabel: theirs.label,
+            partnerMoodColor: theirs.colorHex,
+            partnerMoodScore: theirs.score,
             partnerUserName: _pair.partnerName,
             noMoodText: _s.noMoodRecorded,
             nameFallbackMe: _s.me,

@@ -18,6 +18,7 @@ import '../theme/app_theme.dart';
 import 'pb_auth_service.dart';
 import '../models/timer_item.dart';
 import '../models/mood_entry.dart';
+import '../models/mood_widget_payload.dart';
 import '../models/together_caption.dart';
 import '../models/year_progress.dart';
 import 'mood_repository.dart';
@@ -301,29 +302,30 @@ class HomeWidgetService {
     final myWd = await _readWidgetData(groupId, myUid);
     final partnerWd =
         partnerUid.isEmpty ? null : await _readWidgetData(groupId, partnerUid);
-    MoodOption? optOf(WidgetData? wd) =>
-        (wd != null && wd.moodEmoji.isNotEmpty)
-            ? MoodOption.byImagePath(wd.moodEmoji)
-            : null;
-    final myOpt = optOf(myWd);
-    final pOpt = optOf(partnerWd);
-    String hexOf(MoodOption? o) => o == null
-        ? ''
-        : '#${o.color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}';
+    // Одно правило на все три места, где собирается виджет настроения:
+    // подпись по полу владельца («Устал», а не «Устала»), оценка и цвет — по
+    // картинке из каталога. См. moodHalfPayload.
+    final mine = moodHalfPayload(
+      widgetMoodEmoji: myWd?.moodEmoji ?? '',
+      widgetMoodLabel: myWd?.moodLabel ?? '',
+      gender: myWd?.gender ?? '',
+    );
+    final theirs = moodHalfPayload(
+      widgetMoodEmoji: partnerWd?.moodEmoji ?? '',
+      widgetMoodLabel: partnerWd?.moodLabel ?? '',
+      gender: partnerWd?.gender ?? '',
+    );
     await syncMood(
       groupId: groupId,
-      moodEmojiAssetPath: myOpt?.imagePath ?? (myWd?.moodEmoji ?? ''),
-      // Подпись по полу владельца: у парня «Устал», а не «Устала».
-      moodLabel: myOpt?.localizedLabelFor(myWd?.gender ?? '') ??
-          (myWd?.moodLabel ?? ''),
-      moodScore: myOpt?.score ?? 0,
-      moodColor: hexOf(myOpt),
+      moodEmojiAssetPath: mine.imagePath,
+      moodLabel: mine.label,
+      moodScore: mine.score,
+      moodColor: mine.colorHex,
       userName: myWd?.displayName ?? '',
-      partnerMoodEmojiAssetPath: pOpt?.imagePath ?? (partnerWd?.moodEmoji ?? ''),
-      partnerMoodLabel: pOpt?.localizedLabelFor(partnerWd?.gender ?? '') ??
-          (partnerWd?.moodLabel ?? ''),
-      partnerMoodScore: pOpt?.score ?? 0,
-      partnerMoodColor: hexOf(pOpt),
+      partnerMoodEmojiAssetPath: theirs.imagePath,
+      partnerMoodLabel: theirs.label,
+      partnerMoodScore: theirs.score,
+      partnerMoodColor: theirs.colorHex,
       partnerUserName: partnerWd?.displayName ?? '',
     );
   }

@@ -28,6 +28,7 @@ import '../widgets/achievement_unlock_overlay.dart';
 import '../models/pair_data.dart';
 import '../models/user_data.dart';
 import '../models/mood_entry.dart';
+import '../models/mood_widget_payload.dart';
 import '../models/onboarding_progress.dart';
 import '../models/quiet_partner.dart';
 import '../services/invite_reminder_service.dart';
@@ -863,7 +864,27 @@ class _HomeScreenState extends State<HomeScreen> {
         ? partnerEntries.first
         : null;
 
-    if (myEntry == null && partnerEntry == null) {
+    // Записи за сегодня главнее, но если их нет — берём последнее известное
+    // настроение из widget_data. Раньше пустой список MoodService означал ноль,
+    // и половина партнёра оставалась пустым контуром, хотя на экране «Виджеты»
+    // (он рисуется из widget_data) стояло «Оценка 5 из 5». Именно это увидела
+    // тестер на iPhone 17.08.2026. Правило — в moodHalfPayload, под тестами.
+    final myWd = _widgetService.myData;
+    final partnerWd = _widgetService.firstPartnerData;
+    final mine = moodHalfPayload(
+      entry: myEntry,
+      widgetMoodEmoji: myWd?.moodEmoji ?? '',
+      widgetMoodLabel: myWd?.moodLabel ?? '',
+      gender: widget.userData.gender?.name ?? '',
+    );
+    final theirs = moodHalfPayload(
+      entry: partnerEntry,
+      widgetMoodEmoji: partnerWd?.moodEmoji ?? '',
+      widgetMoodLabel: partnerWd?.moodLabel ?? '',
+      gender: partnerWd?.gender ?? '',
+    );
+
+    if (mine.isEmpty && theirs.isEmpty) {
       debugPrint(
         'HomeWidgetService.syncMood skipped in HomeScreen: no mood entries today',
       );
@@ -872,19 +893,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
     await HomeWidgetService.instance.syncMood(
       groupId: _pairData.pairId,
-      moodEmojiAssetPath: myEntry?.imagePath ?? '',
-      moodLabel: myEntry?.localizedLabel ?? '',
-      moodScore: myEntry?.score ?? 0,
-      moodColor: myEntry != null
-          ? '#${myEntry.color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}'
-          : '',
+      moodEmojiAssetPath: mine.imagePath,
+      moodLabel: mine.label,
+      moodScore: mine.score,
+      moodColor: mine.colorHex,
       userName: widget.userData.displayName,
-      partnerMoodEmojiAssetPath: partnerEntry?.imagePath ?? '',
-      partnerMoodLabel: partnerEntry?.localizedLabel ?? '',
-      partnerMoodColor: partnerEntry != null
-          ? '#${partnerEntry.color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}'
-          : '',
-      partnerMoodScore: partnerEntry?.score ?? 0,
+      partnerMoodEmojiAssetPath: theirs.imagePath,
+      partnerMoodLabel: theirs.label,
+      partnerMoodColor: theirs.colorHex,
+      partnerMoodScore: theirs.score,
       partnerUserName: _pairData.partnerDisplayName,
       noMoodText: LocaleService.current.noMoodRecorded,
       nameFallbackMe: LocaleService.current.me,
