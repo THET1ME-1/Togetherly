@@ -171,6 +171,16 @@ import WidgetKit
       return
     }
     GeneratedPluginRegistrant.register(with: engine)
+    // Мост медиа виджетов нужен и здесь, а не только в основном движке.
+    //
+    // Без него `copyToAppGroup` в этом изоляте падает с MissingPluginException,
+    // Dart эту ошибку глотает и пишет в ключ пустую строку — то есть каждый
+    // тихий пуш «обнови виджеты» СТИРАЛ фото с рабочего стола. На iOS
+    // приложение почти всегда выгружено, виджеты живут именно этими фоновыми
+    // проходами, поэтому у человека фотографии в парном виджете не появлялись
+    // вовсе, хотя в самом приложении и на Android у партнёра они были на месте
+    // (связка Android — iOS, 17.08.2026).
+    setupWidgetMediaChannel(engine)
     backgroundEngine = engine
 
     var finished = false

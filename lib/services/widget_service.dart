@@ -10,6 +10,7 @@ import '../models/widget_data.dart';
 import '../models/memory.dart';
 import '../models/mood_entry.dart';
 import 'locale_service.dart';
+import 'widget_photo_cache.dart';
 import 'media_service.dart';
 import 'home_widget_service.dart';
 import 'level_service.dart';
@@ -1009,8 +1010,18 @@ class WidgetService extends ChangeNotifier {
       final cachedUrl = prefs.getString('${key}_cached_url') ?? '';
       final cachedWPath = prefs.getString('${key}_cached_wpath') ?? '';
 
-      // URL не изменился и путь в контейнере уже записан — повторно не качаем.
-      if (cachedUrl == url && cachedWPath.isNotEmpty) {
+      // Кэш годится только если файл реально на месте: записи переживают
+      // очистку контейнера, а файл — нет, и виджет оставался с путём в пустоту.
+      // Правило — в widget_photo_cache.dart, под тестами.
+      final cachedExists =
+          cachedWPath.isNotEmpty && File(cachedWPath).existsSync();
+      if (photoCacheDecision(
+            url: url,
+            cachedUrl: cachedUrl,
+            cachedPath: cachedWPath,
+            cachedFileExists: cachedExists,
+          ) ==
+          PhotoCacheAction.useCached) {
         await HomeWidget.saveWidgetData<String>(key, cachedWPath);
         return;
       }
@@ -1029,7 +1040,15 @@ class WidgetService extends ChangeNotifier {
 
       if (response.statusCode != 200) {
         debugPrint('_downloadPhoto($key): HTTP ${response.statusCode} for $url');
-        await HomeWidget.saveWidgetData<String>(key, '');
+        // Прежнее живое фото лучше пустоты: один неудачный запрос не должен
+        // стирать снимок с рабочего стола.
+        await HomeWidget.saveWidgetData<String>(
+          key,
+          photoFallbackOnFailure(
+            cachedPath: cachedWPath,
+            cachedFileExists: cachedExists,
+          ),
+        );
         return;
       }
 
@@ -1049,8 +1068,18 @@ class WidgetService extends ChangeNotifier {
       await prefs.setString('${key}_cached_wpath', widgetPath);
       debugPrint('_downloadPhoto: $key → $widgetPath');
     } catch (e) {
+      // Сюда попадает и недоступный мост App Group (MissingPluginException в
+      // фоновом изоляте): затирать путь пустотой нельзя, иначе фото исчезает.
       debugPrint('_downloadPhoto($key) failed: $e');
-      await HomeWidget.saveWidgetData<String>(key, '');
+      final prefs = await SharedPreferences.getInstance();
+      final prev = prefs.getString('${key}_cached_wpath') ?? '';
+      await HomeWidget.saveWidgetData<String>(
+        key,
+        photoFallbackOnFailure(
+          cachedPath: prev,
+          cachedFileExists: prev.isNotEmpty && File(prev).existsSync(),
+        ),
+      );
     }
   }
 
