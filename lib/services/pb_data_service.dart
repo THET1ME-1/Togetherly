@@ -2956,6 +2956,7 @@ class PbDataService {
     put('notifMood', 'notif_mood');
     put('notifChat', 'notif_chat');
     put('notifDraw', 'notif_draw');
+    put('notifComments', 'notif_comments');
     put('soloTimers', 'solo_timers', json: true);
     // Оформление: нужно только статистике — какой палитрой и в каком режиме
     // пользуются. Локальный выбор от этого не зависит, он живёт в prefs.

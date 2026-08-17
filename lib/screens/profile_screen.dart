@@ -206,6 +206,8 @@ class _ProfileScreenState extends State<ProfileScreen>
   /// Зов порисовать: партнёр сел за холст. Пуш собирает сервер
   /// (`pb_hooks/draw_invite.pb.js`), здесь только выключатель.
   bool _notifDraw = true;
+  /// Комментарии под воспоминанием — отдельно от самой ленты.
+  bool _notifComments = true;
   // Постоянный счётчик «дней вместе» в шторке. Состояние хранит сам сервис
   // (DaysTogetherNotificationService), здесь — только зеркало для тумблера.
   bool _notifDaysTogether = false;
@@ -214,6 +216,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   static const _kNotifMood = 'notif_mood';
   static const _kNotifChat = 'notif_chat';
   static const _kNotifDraw = 'notif_draw';
+  static const _kNotifComments = 'notif_comments';
 
   // Lock screen mood
   bool _lockScreenMood = false;
@@ -305,6 +308,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       _notifMood = prefs.getBool(_kNotifMood) ?? true;
       _notifChat = prefs.getBool(_kNotifChat) ?? true;
       _notifDraw = prefs.getBool(_kNotifDraw) ?? true;
+      _notifComments = prefs.getBool(_kNotifComments) ?? true;
       _notifDaysTogether = daysTogether;
       _lockScreenMood = prefs.getBool(_kLockScreenMood) ?? false;
       _sideActionIsArrow = prefs.getBool(UiPrefs.kHomeSideActionArrow) ?? true;
@@ -319,6 +323,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         'notifMood': prefs.getBool(_kNotifMood) ?? true,
         'notifChat': prefs.getBool(_kNotifChat) ?? true,
         'notifDraw': prefs.getBool(_kNotifDraw) ?? true,
+        'notifComments': prefs.getBool(_kNotifComments) ?? true,
       });
     }
   }
@@ -354,6 +359,9 @@ class _ProfileScreenState extends State<ProfileScreen>
         break;
       case _kNotifDraw:
         PbDataService().updateUserProfile(uid, {'notifDraw': value});
+        break;
+      case _kNotifComments:
+        PbDataService().updateUserProfile(uid, {'notifComments': value});
         break;
     }
   }
@@ -3540,6 +3548,22 @@ class _ProfileScreenState extends State<ProfileScreen>
                   onTap: () {
                     setModal(() => _notifChat = !_notifChat);
                     _saveNotifPref(_kNotifChat, _notifChat);
+                  },
+                ),
+                SettingsRow(
+                  icon: Icons.mode_comment_rounded,
+                  title: s.notifComments,
+                  subtitle: s.notifCommentsSub,
+                  trailing: Switch(
+                    value: _notifComments,
+                    onChanged: (v) {
+                      setModal(() => _notifComments = v);
+                      _saveNotifPref(_kNotifComments, v);
+                    },
+                  ),
+                  onTap: () {
+                    setModal(() => _notifComments = !_notifComments);
+                    _saveNotifPref(_kNotifComments, _notifComments);
                   },
                 ),
                 SettingsRow(

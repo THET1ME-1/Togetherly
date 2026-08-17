@@ -28,6 +28,9 @@ PB_PW = os.environ.get("PB_PW", "")
 WANTED = [
     {"name": "notif_draw", "type": "bool"},
     {"name": "draw_invite_ms", "type": "number"},
+    # Комментарии под воспоминанием — свой выключатель. Пока они делили строку
+    # с лентой, выключенная лента забирала и разговор под снимком.
+    {"name": "notif_comments", "type": "bool"},
 ]
 
 

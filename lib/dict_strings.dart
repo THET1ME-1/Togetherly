@@ -2004,6 +2004,10 @@ abstract class DictStrings extends AppStrings {
   @override
   String get notifDrawInvite => _t('notifDrawInvite');
   @override
+  String get notifComments => _t('notifComments');
+  @override
+  String get notifCommentsSub => _t('notifCommentsSub');
+  @override
   String get notifDrawInviteSub => _t('notifDrawInviteSub');
   @override
   String get notifDaysTogether => _t('notifDaysTogether');

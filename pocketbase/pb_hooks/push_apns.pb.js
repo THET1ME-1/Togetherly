@@ -179,7 +179,7 @@ onRecordAfterCreateSuccess((e) => {
     push.notifyGroup(
       String(rec.getString("group_id") || ""),
       String(rec.getString("author_uid") || ""),
-      who, body, "memory");
+      who, body, "comment");
   } catch (err) {
     $app.logger().warn("apns: комментарий", "err", String(err));
   }

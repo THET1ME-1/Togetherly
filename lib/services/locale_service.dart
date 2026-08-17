@@ -1318,6 +1318,8 @@ abstract class AppStrings {
   String get notifChat;
   String get notifChatSub;
   String get notifDrawInvite;
+  String get notifComments;
+  String get notifCommentsSub;
   String get notifDrawInviteSub;
 
   /// Подпись над рекламным блоком.
