@@ -58,6 +58,7 @@ const NOTIF_FIELD = {
   mood: "notif_mood",
   memory: "notif_new_memory",
   miss: "notif_miss_you",
+  draw: "notif_draw",
 };
 
 function sendTo(uid, title, body, thread) {

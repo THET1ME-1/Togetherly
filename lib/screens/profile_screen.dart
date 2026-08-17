@@ -203,6 +203,9 @@ class _ProfileScreenState extends State<ProfileScreen>
   bool _notifNewMemory = true;
   bool _notifMood = true;
   bool _notifChat = true;
+  /// Зов порисовать: партнёр сел за холст. Пуш собирает сервер
+  /// (`pb_hooks/draw_invite.pb.js`), здесь только выключатель.
+  bool _notifDraw = true;
   // Постоянный счётчик «дней вместе» в шторке. Состояние хранит сам сервис
   // (DaysTogetherNotificationService), здесь — только зеркало для тумблера.
   bool _notifDaysTogether = false;
@@ -210,6 +213,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   static const _kNotifNewMemory = 'notif_new_memory';
   static const _kNotifMood = 'notif_mood';
   static const _kNotifChat = 'notif_chat';
+  static const _kNotifDraw = 'notif_draw';
 
   // Lock screen mood
   bool _lockScreenMood = false;
@@ -300,6 +304,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       _notifNewMemory = prefs.getBool(_kNotifNewMemory) ?? true;
       _notifMood = prefs.getBool(_kNotifMood) ?? true;
       _notifChat = prefs.getBool(_kNotifChat) ?? true;
+      _notifDraw = prefs.getBool(_kNotifDraw) ?? true;
       _notifDaysTogether = daysTogether;
       _lockScreenMood = prefs.getBool(_kLockScreenMood) ?? false;
       _sideActionIsArrow = prefs.getBool(UiPrefs.kHomeSideActionArrow) ?? true;
@@ -313,6 +318,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         'notifNewMemory': prefs.getBool(_kNotifNewMemory) ?? true,
         'notifMood': prefs.getBool(_kNotifMood) ?? true,
         'notifChat': prefs.getBool(_kNotifChat) ?? true,
+        'notifDraw': prefs.getBool(_kNotifDraw) ?? true,
       });
     }
   }
@@ -345,6 +351,9 @@ class _ProfileScreenState extends State<ProfileScreen>
         break;
       case _kNotifChat:
         PbDataService().updateUserProfile(uid, {'notifChat': value});
+        break;
+      case _kNotifDraw:
+        PbDataService().updateUserProfile(uid, {'notifDraw': value});
         break;
     }
   }
@@ -3531,6 +3540,22 @@ class _ProfileScreenState extends State<ProfileScreen>
                   onTap: () {
                     setModal(() => _notifChat = !_notifChat);
                     _saveNotifPref(_kNotifChat, _notifChat);
+                  },
+                ),
+                SettingsRow(
+                  icon: Icons.brush_rounded,
+                  title: s.notifDrawInvite,
+                  subtitle: s.notifDrawInviteSub,
+                  trailing: Switch(
+                    value: _notifDraw,
+                    onChanged: (v) {
+                      setModal(() => _notifDraw = v);
+                      _saveNotifPref(_kNotifDraw, v);
+                    },
+                  ),
+                  onTap: () {
+                    setModal(() => _notifDraw = !_notifDraw);
+                    _saveNotifPref(_kNotifDraw, _notifDraw);
                   },
                 ),
                 // Постоянный счётчик «дней вместе» — локальное уведомление,

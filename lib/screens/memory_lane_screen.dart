@@ -3515,6 +3515,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   // ── Секретные воспоминания (PIN) ──────────────────────────────────────────
   /// Кнопка-замок в шапке: заблокировать снова (мгновенно) либо разблокировать
   /// вводом PIN.
+  /// Что возвращает лист ввода, когда нажали «не помню пароль». Обычный PIN —
+  /// четыре цифры, так что спутать нельзя.
+  static const String _kPinForgot = 'forgot';
+
   Future<void> _toggleSecretLock() async {
     if (_secretUnlocked) {
       setState(() => _secretUnlocked = false);
@@ -3522,6 +3526,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     }
     final pin = await _askPin(create: false);
     if (pin == null || !mounted) return;
+    if (pin == _kPinForgot) {
+      await _resetPin();
+      return;
+    }
     final ok = await SecretPinService.verify(pin);
     if (!mounted) return;
     if (ok) {
@@ -3529,6 +3537,28 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     } else {
       _secretSnack(LocaleService.current.wrongPin, error: true);
     }
+  }
+
+  /// Задать новый пароль вместо забытого.
+  ///
+  /// Старый не восстановить: в хранилище лежит только соль и хэш, а сам PIN не
+  /// уходит ни на сервер, ни партнёру. Секретность тут не сейф, а ширма от
+  /// случайного взгляда, поэтому честнее дать сброс, чем запирать ленту навсегда.
+  Future<void> _resetPin() async {
+    final s = LocaleService.current;
+    final agreed = await AppDialog.confirm(
+      context,
+      title: s.pinResetTitle,
+      message: s.pinResetBody,
+      confirmLabel: s.setPinTitle,
+      icon: Icons.lock_reset_rounded,
+    );
+    if (!agreed || !mounted) return;
+    final fresh = await _askPin(create: true);
+    if (fresh == null || fresh == _kPinForgot || !mounted) return;
+    await SecretPinService.setPin(fresh);
+    if (!mounted) return;
+    setState(() => _secretUnlocked = true);
   }
 
   /// Пометить/снять «секретное». При первой пометке (нет PIN) — просим задать.
@@ -3590,8 +3620,18 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                     key: key,
                     create: create,
                     error: err,
+                    confirmHint: LocaleService.current.pinConfirmHint,
+                    mismatchError: LocaleService.current.pinMismatch,
                     onDone: (pin) => Navigator.pop(ctx, pin),
                   ),
+                  // Пароль лежит только на этом телефоне, и до 17.08.2026
+                  // забывший его терял секретные воспоминания навсегда: сменить
+                  // или сбросить их было нечем (письмо в поддержку).
+                  if (!create)
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, _kPinForgot),
+                      child: Text(LocaleService.current.pinForgot),
+                    ),
                 ],
               ),
             ),

@@ -586,6 +586,16 @@ abstract class DictStrings extends AppStrings {
   @override
   String get setPinHint => _t('setPinHint');
   @override
+  String get pinConfirmHint => _t('pinConfirmHint');
+  @override
+  String get pinMismatch => _t('pinMismatch');
+  @override
+  String get pinForgot => _t('pinForgot');
+  @override
+  String get pinResetTitle => _t('pinResetTitle');
+  @override
+  String get pinResetBody => _t('pinResetBody');
+  @override
   String get wrongPin => _t('wrongPin');
   @override
   String get pinTooShort => _t('pinTooShort');
@@ -1991,6 +2001,10 @@ abstract class DictStrings extends AppStrings {
   String get notifChat => _t('notifChat');
   @override
   String get notifChatSub => _t('notifChatSub');
+  @override
+  String get notifDrawInvite => _t('notifDrawInvite');
+  @override
+  String get notifDrawInviteSub => _t('notifDrawInviteSub');
   @override
   String get notifDaysTogether => _t('notifDaysTogether');
   @override

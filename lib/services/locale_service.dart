@@ -436,6 +436,11 @@ abstract class AppStrings {
   String get enterPinTitle;
   String get setPinTitle;
   String get setPinHint;
+  String get pinConfirmHint;
+  String get pinMismatch;
+  String get pinForgot;
+  String get pinResetTitle;
+  String get pinResetBody;
   String get wrongPin;
   String get pinTooShort;
   String get pinDone;
@@ -1312,6 +1317,8 @@ abstract class AppStrings {
   String get notifMoodSub;
   String get notifChat;
   String get notifChatSub;
+  String get notifDrawInvite;
+  String get notifDrawInviteSub;
 
   /// Подпись над рекламным блоком.
   String get adLabel;

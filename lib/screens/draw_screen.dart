@@ -34,6 +34,7 @@ import '../models/user_data.dart';
 import '../services/analytics_service.dart';
 import '../services/canvas_storage_service.dart';
 import '../services/canvas_repository.dart';
+import '../services/pb_data_service.dart';
 import '../services/offline/outbox_service.dart';
 import '../services/media_service.dart';
 import '../services/locale_service.dart';
@@ -441,6 +442,12 @@ class _DrawScreenState extends State<DrawScreen>
     unawaited(
       AnalyticsService.instance.logCanvasOpened(shared: _hasSharedCanvas),
     );
+    // Зов партнёру: «сел рисовать, давай вместе». Один запрос на вход, дальше
+    // всё решает сервер — и частоту, и выключатель, и то, что человеку в
+    // приложении звать незачем. В одиночном холсте звать некого.
+    if (_hasSharedCanvas) {
+      unawaited(PbDataService().inviteToDraw(_groupId));
+    }
   }
 
   // ── Solo stroke persistence ───────────────────────────────────────────────

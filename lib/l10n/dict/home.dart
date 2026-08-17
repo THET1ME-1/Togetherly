@@ -694,6 +694,59 @@ const Map<String, Map<String, String>> homeStrings = {
     'fr': 'Définis un code',
     'de': 'PIN festlegen',
   },
+  'pinConfirmHint': {
+    'ru': 'Повторите пароль',
+    'en': 'Repeat the code',
+    'pt': 'Repita o código',
+    'it': 'Ripeti il codice',
+    'es': 'Repite el código',
+    'fr': 'Répète le code',
+    'de': 'Code wiederholen',
+  },
+  'pinMismatch': {
+    'ru': 'Не совпал. Наберите заново',
+    'en': 'Codes differ. Start again',
+    'pt': 'Os códigos diferem. Comece de novo',
+    'it': 'I codici non combaciano. Riprova',
+    'es': 'Los códigos no coinciden. Empieza de nuevo',
+    'fr': 'Les codes diffèrent. Recommence',
+    'de': 'Codes stimmen nicht. Neu eingeben',
+  },
+  'pinForgot': {
+    'ru': 'Не помню пароль',
+    'en': 'Forgot the code',
+    'pt': 'Esqueci o código',
+    'it': 'Ho dimenticato il codice',
+    'es': 'Olvidé el código',
+    'fr': 'Code oublié',
+    'de': 'Code vergessen',
+  },
+  'pinResetTitle': {
+    'ru': 'Задать новый пароль?',
+    'en': 'Set a new code?',
+    'pt': 'Definir um novo código?',
+    'it': 'Impostare un nuovo codice?',
+    'es': '¿Establecer un código nuevo?',
+    'fr': 'Définir un nouveau code ?',
+    'de': 'Neuen Code setzen?',
+  },
+  'pinResetBody': {
+    'ru': 'Пароль живёт только на этом телефоне, восстановить старый нельзя. '
+        'Задайте новый — секретные воспоминания откроются им.',
+    'en': 'The code is stored on this phone only and cannot be recovered. Set a '
+        'new one and your secret memories will open with it.',
+    'pt': 'O código fica apenas neste telefone e não pode ser recuperado. '
+        'Defina um novo e suas memórias secretas abrirão com ele.',
+    'it': 'Il codice vive solo su questo telefono e non si può recuperare. '
+        'Impostane uno nuovo: i ricordi segreti si apriranno con quello.',
+    'es': 'El código solo vive en este teléfono y no se puede recuperar. '
+        'Establece uno nuevo y tus recuerdos secretos se abrirán con él.',
+    'fr': 'Le code n’existe que sur ce téléphone et ne peut pas être récupéré. '
+        'Définis-en un nouveau : tes souvenirs secrets s’ouvriront avec lui.',
+    'de': 'Der Code liegt nur auf diesem Telefon und lässt sich nicht '
+        'wiederherstellen. Setze einen neuen — damit öffnen sich die geheimen '
+        'Erinnerungen.',
+  },
   'setPinHint': {
     'ru': 'Минимум 4 цифры. PIN хранится только на этом устройстве.',
     'en': 'At least 4 digits. Stored only on this device.',

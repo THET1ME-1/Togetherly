@@ -252,6 +252,24 @@ class PbDataService {
   }
 
   /// POST на серверный АТОМАРНЫЙ group-роут (pb_hooks/groups.pb.js). true =
+  /// Зов партнёру: «зашёл на холст, порисуй со мной».
+  ///
+  /// Один запрос на вход в раскраску, всё остальное решает сервер
+  /// (`pb_hooks/draw_invite.pb.js`): и частоту, и выключатель, и то, что
+  /// партнёру в приложении звать незачем. Ошибки глотаем молча — зов не должен
+  /// мешать рисовать, а старый сервер про этот роут просто не знает.
+  Future<bool> inviteToDraw(String groupId) async {
+    if (groupId.isEmpty) return false;
+    try {
+      final res = await _pb
+          .send('/api/draw/invite', method: 'POST', body: {'group_id': groupId})
+          .timeout(const Duration(seconds: 8));
+      return res is Map && res['sent'] == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// сервер выполнил операцию в транзакции (ok:true). false на любой
   /// ошибке/недоступности роута → вызывающий откатывается на локальный RMW, так
   /// что версия-скью клиент/сервер безопасна. Закрывает гонки DATA-5/6/7/8/9.
@@ -2922,6 +2940,7 @@ class PbDataService {
     put('notifNewMemory', 'notif_new_memory');
     put('notifMood', 'notif_mood');
     put('notifChat', 'notif_chat');
+    put('notifDraw', 'notif_draw');
     put('soloTimers', 'solo_timers', json: true);
     // Оформление: нужно только статистике — какой палитрой и в каком режиме
     // пользуются. Локальный выбор от этого не зависит, он живёт в prefs.

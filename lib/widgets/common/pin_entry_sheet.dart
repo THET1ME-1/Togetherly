@@ -14,17 +14,26 @@ class PinEntry extends StatefulWidget {
     required this.create,
     required this.onDone,
     this.error,
+    this.confirmHint,
+    this.mismatchError,
   });
 
-  /// true — PIN задают впервые (нужны все четыре цифры),
-  /// false — вводят существующий.
+  /// true — PIN задают впервые (спрашиваем дважды),
+  /// false — вводят существующий (отдаём сразу).
   final bool create;
 
-  /// Зовётся ровно один раз, когда набрана последняя цифра.
+  /// Зовётся ровно один раз, когда пароль набран целиком: при создании — после
+  /// совпавшего повтора.
   final ValueChanged<String> onDone;
 
   /// Текст ошибки под ячейками («не тот PIN»).
   final String? error;
+
+  /// Подсказка на втором шаге создания («Повторите пароль»).
+  final String? confirmHint;
+
+  /// Что показать, когда повтор не совпал с первым вводом.
+  final String? mismatchError;
 
   static const int length = 4;
 
@@ -36,15 +45,53 @@ class _PinEntryState extends State<PinEntry> {
   String _value = '';
   bool _sent = false;
 
+  /// Первый набор при создании пароля. Пусто — идёт первый шаг.
+  ///
+  /// Повтор появился после письма в поддержку: человек «неправильно изначально
+  /// ввёл пароль», и четыре случайные цифры молча стали паролем, потому что
+  /// подтверждения не спрашивали.
+  String _first = '';
+
+  /// Ошибка расхождения — своя, поверх той, что пришла снаружи.
+  String? _mismatch;
+
   void _type(String digit) {
     if (_value.length >= PinEntry.length || _sent) return;
-    setState(() => _value += digit);
-    if (_value.length == PinEntry.length) {
+    setState(() {
+      _value += digit;
+      _mismatch = null;
+    });
+    if (_value.length != PinEntry.length) return;
+
+    if (!widget.create) {
       // Отдаём один раз: без этого лишние нажатия по заполненным ячейкам
       // вызывали бы проверку снова и снова.
       _sent = true;
       widget.onDone(_value);
+      return;
     }
+
+    if (_first.isEmpty) {
+      setState(() {
+        _first = _value;
+        _value = '';
+      });
+      return;
+    }
+
+    if (_first == _value) {
+      _sent = true;
+      widget.onDone(_value);
+      return;
+    }
+
+    // Не совпало — начинаем с первого шага, иначе непонятно, какой из двух
+    // наборов был опечаткой.
+    setState(() {
+      _mismatch = widget.mismatchError;
+      _first = '';
+      _value = '';
+    });
   }
 
   void _backspace() {
@@ -57,6 +104,8 @@ class _PinEntryState extends State<PinEntry> {
   void reset() => setState(() {
         _value = '';
         _sent = false;
+        _first = '';
+        _mismatch = null;
       });
 
   @override
@@ -76,11 +125,25 @@ class _PinEntryState extends State<PinEntry> {
               ),
           ],
         ),
-        if (widget.error != null) ...[
+        if (_mismatch != null) ...[
+          const SizedBox(height: 14),
+          Text(
+            _mismatch!,
+            style: TextStyle(fontSize: 13.5, color: cs.error),
+          ),
+        ] else if (widget.error != null) ...[
           const SizedBox(height: 14),
           Text(
             widget.error!,
             style: TextStyle(fontSize: 13.5, color: cs.error),
+          ),
+        ] else if (widget.create &&
+            _first.isNotEmpty &&
+            widget.confirmHint != null) ...[
+          const SizedBox(height: 14),
+          Text(
+            widget.confirmHint!,
+            style: TextStyle(fontSize: 13.5, color: cs.onSurfaceVariant),
           ),
         ],
         const SizedBox(height: 26),
