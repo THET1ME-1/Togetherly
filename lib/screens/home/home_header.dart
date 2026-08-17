@@ -81,6 +81,7 @@ class HomeHeader extends StatelessWidget {
                 groupId: pairId,
                 senderName: myDisplayName,
                 enabled: isPaired,
+                myAvatarUrl: myAvatarUrl,
                 partnerUid: partners.isEmpty ? '' : partners.first.uid,
                 partnerName: partners.isEmpty ? '' : partners.first.name,
                 partnerAvatarUrl:

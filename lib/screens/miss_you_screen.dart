@@ -35,6 +35,8 @@ class MissYouScreen extends StatefulWidget {
     required this.theme,
     required this.groupId,
     required this.myUid,
+    this.myName = '',
+    this.myAvatarUrl,
     required this.partnerUid,
     required this.partnerName,
     this.partnerAvatarUrl,
@@ -43,6 +45,12 @@ class MissYouScreen extends StatefulWidget {
   final AppTheme theme;
   final String groupId;
   final String myUid;
+
+  /// Своё имя и снимок — только для кружка в левой пилюле. Подпись под числом
+  /// остаётся словом «Ты»: человек ищет там себя, а не своё имя.
+  final String myName;
+  final String? myAvatarUrl;
+
   final String partnerUid;
   final String partnerName;
   final String? partnerAvatarUrl;
@@ -494,6 +502,8 @@ class _MissYouScreenState extends State<MissYouScreen>
                   onFill: _onFill,
                   uid: widget.myUid,
                   name: _s.missYouYou,
+                  avatarName: widget.myName,
+                  avatarUrl: widget.myAvatarUrl,
                   count: myCount,
                   filled: true,
                 ),
@@ -800,6 +810,7 @@ class _Tally extends StatelessWidget {
     required this.name,
     required this.count,
     required this.filled,
+    this.avatarName,
     this.avatarUrl,
   });
 
@@ -808,6 +819,12 @@ class _Tally extends StatelessWidget {
   final Color onFill;
   final String uid;
   final String name;
+
+  /// Имя для буквы в кружке, когда снимка нет. Отдельно от [name]: под своим
+  /// числом стоит слово «Ты», и заглушка из него давала букву «Т» вместо
+  /// первой буквы имени — жалоба со скриншотом от 16.08.2026.
+  final String? avatarName;
+
   final int count;
   final bool filled;
   final String? avatarUrl;
@@ -828,7 +845,7 @@ class _Tally extends StatelessWidget {
           AvatarWidget(
             uid: uid,
             fallbackUrl: avatarUrl,
-            name: name,
+            name: (avatarName?.trim().isNotEmpty == true) ? avatarName : name,
             size: 26,
             primary: ink,
           ),

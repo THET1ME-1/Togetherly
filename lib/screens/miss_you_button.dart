@@ -34,6 +34,10 @@ class MissYouButton extends StatefulWidget {
   final String senderName;
   final bool enabled;
 
+  /// Свой снимок — для кружка в левой пилюле экрана. Полагаться там на кэш
+  /// профиля нельзя: пока он пуст, кружок рисует букву от подписи «Ты».
+  final String? myAvatarUrl;
+
   /// Партнёр — для шапки экрана: аватар, имя и «в сети».
   final String partnerUid;
   final String partnerName;
@@ -48,6 +52,7 @@ class MissYouButton extends StatefulWidget {
     required this.groupId,
     required this.senderName,
     this.enabled = true,
+    this.myAvatarUrl,
     this.partnerUid = '',
     this.partnerName = '',
     this.partnerAvatarUrl,
@@ -197,6 +202,8 @@ class _MissYouButtonState extends State<MissYouButton>
           theme: widget.theme,
           groupId: widget.groupId,
           myUid: PocketBaseService().userId ?? '',
+          myName: widget.senderName,
+          myAvatarUrl: widget.myAvatarUrl,
           partnerUid: widget.partnerUid,
           partnerName: widget.partnerName,
           partnerAvatarUrl: widget.partnerAvatarUrl,

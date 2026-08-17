@@ -39,7 +39,8 @@ class WatchHomeScreen extends StatefulWidget {
   State<WatchHomeScreen> createState() => _WatchHomeScreenState();
 }
 
-class _WatchHomeScreenState extends State<WatchHomeScreen> {
+class _WatchHomeScreenState extends State<WatchHomeScreen>
+    with WidgetsBindingObserver {
   String _room = '';
   bool _loading = true;
   List<WatchEntry> _recent = const [];
@@ -49,12 +50,34 @@ class _WatchHomeScreenState extends State<WatchHomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadRoom();
     _loadRecent();
     _loadVideos();
     // Ролики нужны на вечер, а лежали вечно. Убираем просроченные при заходе:
     // отдельный планировщик ради этого не нужен.
     unawaited(WatchVideosService.purgeExpired(widget.pairData.pairId));
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Ролик партнёра не приходит живым событием: `watch_videos` в рассылку пары
+  /// не входит, а список читается один раз, на входе в раздел. Пара сидит в
+  /// разделе вдвоём, один заливает — у второго пусто, и обновить нечем.
+  /// Отсюда жалоба «поставил видео, а партнёр не видит» (16.08.2026).
+  /// Перечитываем на возврате из фона и по жесту вниз.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(_refreshAll());
+  }
+
+  Future<void> _refreshAll() async {
+    await Future.wait([_loadVideos(), _loadRecent()]);
+    if (_room.isEmpty) await _loadRoom();
   }
 
   Future<void> _loadVideos() async {
@@ -75,10 +98,12 @@ class _WatchHomeScreenState extends State<WatchHomeScreen> {
 
     final name = picked!.files.single.name;
     if (!WatchVideosService.isPlayable(name)) {
-      messenger.showSnackBar(SnackBar(
-        content: Text(s.watchVideoFormatUnsupported),
-        behavior: SnackBarBehavior.floating,
-      ));
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(s.watchVideoFormatUnsupported),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
       return;
     }
 
@@ -86,10 +111,12 @@ class _WatchHomeScreenState extends State<WatchHomeScreen> {
     final plus = PlusService.instance.active;
     final limit = WatchVideosService.limitFor(plus: plus);
     if (await file.length() > limit) {
-      messenger.showSnackBar(SnackBar(
-        content: Text(s.watchVideoTooBig(limit ~/ (1024 * 1024))),
-        behavior: SnackBarBehavior.floating,
-      ));
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(s.watchVideoTooBig(limit ~/ (1024 * 1024))),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
       return;
     }
 
@@ -104,10 +131,9 @@ class _WatchHomeScreenState extends State<WatchHomeScreen> {
     setState(() => _uploading = false);
 
     if (saved == null) {
-      messenger.showSnackBar(SnackBar(
-        content: Text(s.error),
-        behavior: SnackBarBehavior.floating,
-      ));
+      messenger.showSnackBar(
+        SnackBar(content: Text(s.error), behavior: SnackBarBehavior.floating),
+      );
       return;
     }
     await _loadVideos();
@@ -193,10 +219,12 @@ class _WatchHomeScreenState extends State<WatchHomeScreen> {
 
     final ok = await WatchVideosService.remove(video.id);
     if (!mounted) return;
-    messenger.showSnackBar(SnackBar(
-      content: Text(ok ? s.watchVideoRemoved : s.error),
-      behavior: SnackBarBehavior.floating,
-    ));
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(ok ? s.watchVideoRemoved : s.error),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
     if (ok) await _loadVideos();
   }
 
@@ -251,11 +279,16 @@ class _WatchHomeScreenState extends State<WatchHomeScreen> {
 
   Future<void> _copyCode() async {
     if (_room.isEmpty) return;
-    await Clipboard.setData(ClipboardData(text: WatchRoomService.siteUrl(_room)));
+    await Clipboard.setData(
+      ClipboardData(text: WatchRoomService.siteUrl(_room)),
+    );
     if (!mounted) return;
     final s = LocaleService.current;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(s.linkCopied), behavior: SnackBarBehavior.floating),
+      SnackBar(
+        content: Text(s.linkCopied),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 
@@ -266,103 +299,110 @@ class _WatchHomeScreenState extends State<WatchHomeScreen> {
     final text = Theme.of(context).textTheme;
     final partner = widget.pairData.partnerName;
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
-      children: [
-        _Hero(cs: cs, text: text),
-        const SizedBox(height: 14),
-        _PrimaryCard(
-          title: partner.isEmpty
-              ? s.watchTogether
-              : s.watchWithPartner(partner),
-          subtitle: s.watchRoomOpensForBoth,
-          note: s.watchAfterShortAd,
-          enabled: !_loading && _room.isNotEmpty,
-          onTap: _openInApp,
-        ),
-        const SizedBox(height: 12),
-        _TonalCard(
-          icon: Icons.open_in_new_rounded,
-          title: s.watchOpenOnSite,
-          subtitle: s.watchOnSiteHint,
-          onTap: _room.isEmpty ? null : _openOnSite,
-        ),
-        const SizedBox(height: 12),
-        _CodeRow(
-          code: _room,
-          loading: _loading,
-          onCopy: _copyCode,
-          onRetry: _loading ? null : () => _loadRoom(),
-        ),
-        const SizedBox(height: 20),
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 12),
-          child: Text(
-            s.watchOurVideos,
-            style: text.titleMedium?.copyWith(
-              color: cs.onSurface,
-              fontWeight: FontWeight.w700,
-            ),
+    return RefreshIndicator(
+      onRefresh: _refreshAll,
+      child: ListView(
+        // Тянуть вниз можно и на коротком списке: без этого жест не родится на
+        // экране, который помещается целиком.
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+        children: [
+          _Hero(cs: cs, text: text),
+          const SizedBox(height: 14),
+          _PrimaryCard(
+            title: partner.isEmpty
+                ? s.watchTogether
+                : s.watchWithPartner(partner),
+            subtitle: s.watchRoomOpensForBoth,
+            note: s.watchAfterShortAd,
+            enabled: !_loading && _room.isNotEmpty,
+            onTap: _openInApp,
           ),
-        ),
-        // M3 multi-browse карусель: контейнер каждого кадра сужается маской,
-        // а содержимое остаётся в полном размере (parallax). Первый слот —
-        // плитка загрузки, дальше свои ролики.
-        SizedBox(
-          height: 200,
-          child: CarouselView.weighted(
-            flexWeights: const [3, 2, 1],
-            itemSnapping: true,
-            shrinkExtent: 48,
-            backgroundColor: cs.surfaceContainerHighest,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(26),
-            ),
-            onTap: (i) {
-              if (i == 0) {
-                if (!_uploading) _uploadVideo();
-              } else {
-                _tapVideo(_videos[i - 1]);
-              }
-            },
-            children: [
-              _UploadTile(
-                busy: _uploading,
-                limitMb: WatchVideosService.limitFor(
-                      plus: PlusService.instance.active,
-                    ) ~/
-                    (1024 * 1024),
-              ),
-              for (final v in _videos) _VideoTile(video: v),
-            ],
+          const SizedBox(height: 12),
+          _TonalCard(
+            icon: Icons.open_in_new_rounded,
+            title: s.watchOpenOnSite,
+            subtitle: s.watchOnSiteHint,
+            onTap: _room.isEmpty ? null : _openOnSite,
           ),
-        ),
-        if (_recent.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _CodeRow(
+            code: _room,
+            loading: _loading,
+            onCopy: _copyCode,
+            onRetry: _loading ? null : () => _loadRoom(),
+          ),
           const SizedBox(height: 20),
           Padding(
             padding: const EdgeInsets.only(left: 4, bottom: 12),
             child: Text(
-              s.watchRecent,
+              s.watchOurVideos,
               style: text.titleMedium?.copyWith(
                 color: cs.onSurface,
                 fontWeight: FontWeight.w700,
               ),
             ),
           ),
+          // M3 multi-browse карусель: контейнер каждого кадра сужается маской,
+          // а содержимое остаётся в полном размере (parallax). Первый слот —
+          // плитка загрузки, дальше свои ролики.
           SizedBox(
-            height: 132,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: _recent.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 12),
-              itemBuilder: (_, i) => _RecentCard(
-                entry: _recent[i],
-                onTap: () => _openAgain(_recent[i]),
+            height: 200,
+            child: CarouselView.weighted(
+              flexWeights: const [3, 2, 1],
+              itemSnapping: true,
+              shrinkExtent: 48,
+              backgroundColor: cs.surfaceContainerHighest,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(26),
               ),
+              onTap: (i) {
+                if (i == 0) {
+                  if (!_uploading) _uploadVideo();
+                } else {
+                  _tapVideo(_videos[i - 1]);
+                }
+              },
+              children: [
+                _UploadTile(
+                  busy: _uploading,
+                  limitMb:
+                      WatchVideosService.limitFor(
+                        plus: PlusService.instance.active,
+                      ) ~/
+                      (1024 * 1024),
+                ),
+                for (final v in _videos) _VideoTile(video: v),
+              ],
             ),
           ),
+          if (_recent.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            Padding(
+              padding: const EdgeInsets.only(left: 4, bottom: 12),
+              child: Text(
+                s.watchRecent,
+                style: text.titleMedium?.copyWith(
+                  color: cs.onSurface,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            SizedBox(
+              height: 132,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: _recent.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 12),
+                itemBuilder: (_, i) => _RecentCard(
+                  entry: _recent[i],
+                  onTap: () => _openAgain(_recent[i]),
+                ),
+              ),
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 
@@ -398,13 +438,15 @@ class _WatchHomeScreenState extends State<WatchHomeScreen> {
 
     // Название и обложку знаем только мы: комната пришлёт в историю одну
     // ссылку, и «Недавнее» показало бы голый адрес сервера вместо ролика.
-    unawaited(WatchHistoryService.remember(
-      groupId: widget.pairData.pairId,
-      url: video.url,
-      kind: 'video',
-      title: video.title,
-      thumb: video.thumbUrl,
-    ));
+    unawaited(
+      WatchHistoryService.remember(
+        groupId: widget.pairData.pairId,
+        url: video.url,
+        kind: 'video',
+        title: video.title,
+        thumb: video.thumbUrl,
+      ),
+    );
 
     await TogetherLauncher.open(
       context,
@@ -523,57 +565,64 @@ class _PrimaryCard extends StatelessWidget {
           onTap: enabled ? onTap : null,
           borderRadius: BorderRadius.circular(28),
           child: Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: cs.primary,
-            borderRadius: BorderRadius.circular(28),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: cs.onPrimary.withValues(alpha: 0.22),
-                  shape: BoxShape.circle,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: cs.primary,
+              borderRadius: BorderRadius.circular(28),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: cs.onPrimary.withValues(alpha: 0.22),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.play_arrow_rounded,
+                    color: cs.onPrimary,
+                    size: 30,
+                  ),
                 ),
-                child: Icon(Icons.play_arrow_rounded, color: cs.onPrimary, size: 30),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      title,
-                      style: text.titleMedium?.copyWith(color: cs.onPrimary),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: text.bodySmall?.copyWith(
-                        color: cs.onPrimary.withValues(alpha: 0.86),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title,
+                        style: text.titleMedium?.copyWith(color: cs.onPrimary),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: cs.onPrimary.withValues(alpha: 0.22),
-                        borderRadius: BorderRadius.circular(999),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: text.bodySmall?.copyWith(
+                          color: cs.onPrimary.withValues(alpha: 0.86),
+                        ),
                       ),
-                      child: Text(
-                        note,
-                        style: text.labelSmall?.copyWith(color: cs.onPrimary),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 11,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: cs.onPrimary.withValues(alpha: 0.22),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          note,
+                          style: text.labelSmall?.copyWith(color: cs.onPrimary),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
           ),
         ),
       ),
@@ -605,39 +654,41 @@ class _TonalCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(28),
         child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: cs.surfaceContainerHigh,
-          borderRadius: BorderRadius.circular(28),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: cs.primaryContainer,
-                shape: BoxShape.circle,
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: cs.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(28),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: cs.primaryContainer,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: cs.onPrimaryContainer, size: 26),
               ),
-              child: Icon(icon, color: cs.onPrimaryContainer, size: 26),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(title, style: text.titleMedium),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: text.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-                  ),
-                ],
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(title, style: text.titleMedium),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: text.bodySmall?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
         ),
       ),
     );
@@ -685,7 +736,10 @@ class _CodeRow extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 if (loading)
-                  Text('…', style: text.titleLarge?.copyWith(letterSpacing: 1.2))
+                  Text(
+                    '…',
+                    style: text.titleLarge?.copyWith(letterSpacing: 1.2),
+                  )
                 else if (code.isEmpty)
                   // Код не дали — говорим об этом словами и даём повторить.
                   // Прежде тут стоял молчаливый прочерк, и человек писал в
@@ -698,7 +752,11 @@ class _CodeRow extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.refresh_rounded, size: 18, color: cs.primary),
+                          Icon(
+                            Icons.refresh_rounded,
+                            size: 18,
+                            color: cs.primary,
+                          ),
                           const SizedBox(width: 6),
                           Text(
                             s.watchCodeRetry,
@@ -767,9 +825,8 @@ class _RecentCard extends StatelessWidget {
                       : Image.network(
                           entry.thumb,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => Container(
-                            color: cs.surfaceContainerHighest,
-                          ),
+                          errorBuilder: (_, _, _) =>
+                              Container(color: cs.surfaceContainerHighest),
                         ),
                 ),
               ),
