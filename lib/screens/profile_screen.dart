@@ -176,7 +176,11 @@ class _ProfileScreenState extends State<ProfileScreen>
     // Схема профиля совпадает с темой приложения: тот же сырой акцент палитры,
     // тот же вариант (Мягко/Сочно/Точь-в-точь) и та же яркость.
     final ud = widget.userData;
-    final seed = paletteByIndex(ud.previewThemeId ?? ud.themeId).accent;
+    // `paletteByIndex` про свои темы не знает и на их индексе отдаёт первую
+    // готовую — из-за этого экран «Оформление» оставался розовым даже там,
+    // где человек уже выбрал свой цвет.
+    final seed = paletteFor(ud.previewThemeId ?? ud.themeId, ud.customThemes)
+        .accent;
     final b = _t.brightness;
     final flavor = ud.themeFlavor;
     final sig = Object.hash(seed.toARGB32(), b, flavor);
@@ -994,7 +998,8 @@ class _ProfileScreenState extends State<ProfileScreen>
   /// «Оформление» — тот же экран, что из настроек.
   Widget _appearanceTile(BuildContext context) {
     final cs = _cs;
-    final palette = paletteByIndex(widget.userData.themeId);
+    final palette = paletteFor(
+        widget.userData.themeId, widget.userData.customThemes);
     final ru = LocaleService.instance.isRussian;
     final mode = _t.brightness == Brightness.dark
         ? (ru ? 'тёмная' : 'dark')
@@ -1817,18 +1822,24 @@ class _ProfileScreenState extends State<ProfileScreen>
         await ud.addCustomThemeColor(theme.seed, name: theme.name);
         if (mounted) setState(() {});
       },
-      child: Container(
-        width: 46,
-        height: 46,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: cs.surfaceContainerHighest,
-          border: Border.all(color: cs.outlineVariant),
-        ),
-        child: Icon(
-          locked ? Icons.lock_rounded : Icons.add_rounded,
-          size: 22,
-          color: cs.onSurfaceVariant,
+      // Выравнивание то же, что у кружков палитр (`SeedSwatch`): лента раздаёт
+      // детям жёсткую высоту, и без Align кнопка стояла не на их линии.
+      child: Align(
+        alignment: Alignment.center,
+        widthFactor: 1,
+        child: Container(
+          width: 46,
+          height: 46,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: cs.surfaceContainerHighest,
+            border: Border.all(color: cs.outlineVariant),
+          ),
+          child: Icon(
+            locked ? Icons.lock_rounded : Icons.add_rounded,
+            size: 22,
+            color: cs.onSurfaceVariant,
+          ),
         ),
       ),
     );

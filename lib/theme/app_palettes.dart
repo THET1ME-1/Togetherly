@@ -289,16 +289,25 @@ AppTheme buildAppTheme(
   // есть в нужной яркости, отдаём её как есть; считаем только сочетания,
   // которых до появления тёмного режима не существовало (тёмные версии
   // двадцати светлых палитр и светлые версии пяти тёмных).
-  final legacy = AppThemes.byIndex(p.index);
-  if (legacy.brightness == brightness && !amoled) {
+  // У своей темы ручной пары нет вовсе, а `byIndex` на её индексе (за тысячей)
+  // молча отдаёт ПЕРВУЮ готовую палитру — розовую. Пока это не проверялось,
+  // цвет из фотографии и из пикера не доезжал никуда: кружок в ленте зелёный и
+  // с галочкой, а приложение оставалось розовым (снимки человека, 18.08.2026).
+  // Стережёт test/theme/custom_theme_applies_test.dart.
+  final own = isCustomPaletteIndex(p.index);
+  final legacy = own ? null : AppThemes.byIndex(p.index);
+  if (legacy != null && legacy.brightness == brightness && !amoled) {
     return _juiced(legacy, flavor, p);
   }
 
   // Сид считаем от акцента ручной темы, а не от цели палитры: так тёмная
-  // вишнёвая остаётся роднёй светлой вишнёвой, а не отдельным цветом.
-  final src = Hct.fromInt(legacy.primary.toARGB32());
+  // вишнёвая остаётся роднёй светлой вишнёвой, а не отдельным цветом. У своей
+  // темы ручного акцента нет — берём заливку, посчитанную из её цели: тон там
+  // уже зажат в читаемые границы, чистый чёрный и белый темой не станут.
+  final seedColor = legacy?.primary ?? paletteFill(p, Brightness.light);
+  final src = Hct.fromInt(seedColor.toARGB32());
   final s = ColorScheme.fromSeed(
-    seedColor: legacy.primary,
+    seedColor: seedColor,
     brightness: brightness,
     dynamicSchemeVariant: variantOf(p, flavor),
   );

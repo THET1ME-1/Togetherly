@@ -40,32 +40,44 @@ class SeedSwatch extends StatelessWidget {
     ];
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: selected ? scheme.onSurface : scheme.outlineVariant,
-            width: selected ? 3 : 1,
+      // Горизонтальный список раздаёт детям ЖЁСТКУЮ высоту (лента «Палитра»
+      // живёт в SizedBox на 62), и Container со своими 46 растягивался до неё —
+      // кружок выходил эллипсом. `widthFactor: 1` оставляет ширину по ребёнку,
+      // а высоту забирает Align, центруя кружок. Стережёт
+      // test/widgets/palette_strip_shape_test.dart.
+      child: Align(
+        alignment: Alignment.center,
+        widthFactor: 1,
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: selected ? scheme.onSurface : scheme.outlineVariant,
+              width: selected ? 3 : 1,
+            ),
           ),
-        ),
-        child: ClipOval(
-          child: CustomPaint(
-            painter: _QuadrantPainter(quads),
-            child: selected
-                ? Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(3),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.38),
-                        shape: BoxShape.circle,
+          child: ClipOval(
+            child: CustomPaint(
+              painter: _QuadrantPainter(quads),
+              child: selected
+                  ? Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.38),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.check_rounded,
+                          color: Colors.white,
+                          size: size * 0.34,
+                        ),
                       ),
-                      child: Icon(Icons.check_rounded,
-                          color: Colors.white, size: size * 0.34),
-                    ),
-                  )
-                : null,
+                    )
+                  : null,
+            ),
           ),
         ),
       ),
