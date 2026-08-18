@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'reconnect_detector.dart';
 import 'dart:convert';
 
 import 'package:centrifuge/centrifuge.dart' as centrifuge;
@@ -72,16 +73,34 @@ class CentrifugoService {
         },
       ),
     );
+    // Восстановление после обрыва: подписки, которым важна полнота (общий
+    // холст), по этому сигналу дотягивают пропущенное. Первое соединение сюда
+    // не попадает — там список только что загрузили (см. ReconnectDetector).
+    c.connected.listen((e) {
+      if (kDebugMode) debugPrint('Centrifugo connected: ${e.client}');
+      if (_reconnects.onConnected() && !_reconnected.isClosed) {
+        _reconnected.add(null);
+      }
+    });
+    c.disconnected.listen((e) {
+      if (kDebugMode) debugPrint('Centrifugo disconnected: ${e.reason}');
+      _reconnects.onDisconnected();
+    });
     if (kDebugMode) {
-      c.connected.listen((e) => debugPrint('Centrifugo connected: ${e.client}'));
-      c.disconnected
-          .listen((e) => debugPrint('Centrifugo disconnected: ${e.reason}'));
       c.error.listen((e) => debugPrint('Centrifugo error: ${e.error}'));
     }
     _client = c;
     c.connect(); // fire-and-forget; centrifuge сам реконнектится
     return c;
   }
+
+  final ReconnectDetector _reconnects = ReconnectDetector();
+  final StreamController<void> _reconnected =
+      StreamController<void>.broadcast();
+
+  /// Сокет ожил после обрыва. Подписки, где потеря событий видна человеку,
+  /// перечитывают по этому сигналу свой список.
+  Stream<void> get reconnected => _reconnected.stream;
 
   _ChannelHub _hub(String channel) {
     _ensureClient();

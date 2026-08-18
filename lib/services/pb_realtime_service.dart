@@ -78,6 +78,7 @@ class PbRealtimeService {
     bool Function(RecordModel)? rtMatch,
     int? windowLimit,
     String? windowSort,
+    bool refetchOnReconnect = false,
   }) {
     // Offline-first: при наличии [scope] поток обслуживается из локального кэша
     // (sembast), а сеть лишь досыпает изменения. Без [scope] — прежнее in-memory
@@ -108,6 +109,7 @@ class PbRealtimeService {
     // только что созданную подписку рвём и не сохраняем.
     var cancelled = false;
     var attempt = 0; // RT-3: счётчик попыток для backoff-ретрая
+    StreamSubscription<void>? reconnectSub;
     late StreamController<List<RecordModel>> ctrl;
 
     List<RecordModel> snapshot() {
@@ -161,6 +163,37 @@ class PbRealtimeService {
         }
         unsub = u;
         attempt = 0; // успех — сбрасываем backoff
+
+        // Подписка переживает обрыв сокета молча: события, случившиеся в
+        // разрыв, не придут никогда. Там, где это видно человеку (общий холст),
+        // после восстановления перечитываем список целиком. Задержка со
+        // случайным разбросом — чтобы все, кто рисовал в этот момент, не пошли
+        // за списком одной секундой.
+        if (refetchOnReconnect && reconnectSub == null) {
+          reconnectSub = CentrifugoService.instance.reconnected.listen((_) {
+            if (cancelled || ctrl.isClosed || !ctrl.hasListener) return;
+            Future.delayed(
+              Duration(milliseconds: 300 + _rnd.nextInt(1200)),
+              () async {
+                if (cancelled || ctrl.isClosed || !ctrl.hasListener) return;
+                try {
+                  final fresh = await _pb
+                      .collection(collection)
+                      .getFullList(filter: filter);
+                  if (cancelled || ctrl.isClosed) return;
+                  byId
+                    ..clear()
+                    ..addEntries(fresh.map((r) => MapEntry(r.id, r)));
+                  ctrl.add(snapshot());
+                } catch (e) {
+                  debugPrint(
+                    'PbRealtime.watchList($collection) догон после обрыва: $e',
+                  );
+                }
+              },
+            );
+          });
+        }
       } catch (err) {
         // RT-3: вместо «застрять в ошибке навсегда» — авто-ретрай с экспоненциальным
         // backoff (1,2,4,…,32с), пока стрим жив и не отменён. Транзиентные сетевые
@@ -185,6 +218,8 @@ class PbRealtimeService {
       onListen: start,
       onCancel: () async {
         cancelled = true;
+        await reconnectSub?.cancel();
+        reconnectSub = null;
         await unsub?.call();
         unsub = null;
       },
@@ -805,6 +840,9 @@ class PbRealtimeService {
     compare: (a, b) => _numAsc(a.data['order_index'], b.data['order_index']),
     rtChannel: 'pair:$groupId',
     rtMatch: (r) => r.data['canvas_id'] == canvasId,
+    // Холст — единственное место, где пропуск события виден сразу и обоим:
+    // у рисующих расходятся рисунки. После обрыва список перечитывается.
+    refetchOnReconnect: true,
   );
 
   /// Виджет-данные группы (оба слота: свой + партнёрский).
