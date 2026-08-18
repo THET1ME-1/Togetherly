@@ -3153,6 +3153,7 @@ abstract class DictStrings extends AppStrings {
   @override
   String get liveMapPermissionDenied => _t('liveMapPermissionDenied');
   @override
+  String get liveMapUpdated => _t('liveMapUpdated');
   String get liveMapWaitingPartner => _t('liveMapWaitingPartner');
   @override
   String get liveMapYou => _t('liveMapYou');

@@ -45,6 +45,17 @@ const Map<String, Map<String, String>> liveLocationMapStrings = {
     'de':
         'Kein Zugriff auf den Standort. Erlaube ihn in den Einstellungen deines Telefons.',
   },
+  // Склеивается с готовыми `minutesAgo`/`hoursAgo`/`daysAgo`: «обновлено
+  // 2 д. назад», «Updated 2d ago», «Aktualisiert vor 2 T».
+  'liveMapUpdated': {
+    'ru': 'обновлено',
+    'en': 'Updated',
+    'pt': 'Atualizado',
+    'it': 'Aggiornato',
+    'es': 'Actualizado',
+    'fr': 'Mis à jour',
+    'de': 'Aktualisiert',
+  },
   'liveMapWaitingPartner': {
     'ru': 'Ждём геопозицию партнёра…',
     'en': 'Waiting for partner\'s location…',

@@ -150,7 +150,7 @@ class UserData extends ChangeNotifier {
     if (uid.isEmpty) return;
     await PbDataService().updateUserProfile(
       uid,
-      {'mascot_sleep': MascotSleep.encode(_mascotSleep)},
+      {'mascotSleep': MascotSleep.encode(_mascotSleep)},
     );
   }
   String get uid => _uid;
@@ -1126,7 +1126,7 @@ class UserData extends ChangeNotifier {
     if (uid.isEmpty) return;
     await PbDataService().updateUserProfile(
       uid,
-      {'custom_themes': _customThemes.map((t) => t.toJson()).toList()},
+      {'customThemes': _customThemes.map((t) => t.toJson()).toList()},
     );
   }
 

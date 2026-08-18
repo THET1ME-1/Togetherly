@@ -2146,6 +2146,7 @@ abstract class AppStrings {
   String get liveMapStopCta;
   String get liveMapStopped;
   String get liveMapPermissionDenied;
+  String get liveMapUpdated;
   String get liveMapWaitingPartner;
   String get liveMapYou;
   String get liveMapCenterMe;

@@ -8,6 +8,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../models/live_point_age.dart';
 import '../services/live_location_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
@@ -280,7 +281,26 @@ class _LiveMapScreenState extends State<LiveMapScreen>
                     onTap: () => Navigator.pop(context),
                   ),
                   const Spacer(),
-                  _DistancePill(me: me, partner: partner?.latLng),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _DistancePill(me: me, partner: partner?.latLng),
+                      // Когда точка снята давно, об этом надо сказать словами:
+                      // бледная метка одинаково читается и как «партнёр дома».
+                      if (_ageCaption(partner) != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(
+                            _ageCaption(partner)!,
+                            style: AppFonts.onest(
+                              size: 12,
+                              weight: 600,
+                              color: widget.theme.textSecondary,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                   const Spacer(),
                   const SizedBox(width: 42),
                 ],
@@ -351,10 +371,27 @@ class _LiveMapScreenState extends State<LiveMapScreen>
     );
   }
 
+  /// «обновлено 2 д. назад» — или null, пока точка свежая.
+  String? _ageCaption(LivePoint? point) {
+    if (point == null) return null;
+    final age = LivePointAge.of(
+      point.updatedAt,
+      nowMs: DateTime.now().millisecondsSinceEpoch,
+    );
+    if (!age.needsCaption) return null;
+    final s = LocaleService.current;
+    final ago = switch (age.unit) {
+      LivePointAgeUnit.minutes => s.minutesAgo(age.value),
+      LivePointAgeUnit.hours => s.hoursAgo(age.value),
+      _ => s.daysAgo(age.value),
+    };
+    return '${s.liveMapUpdated} $ago';
+  }
+
   bool _isStale(int updatedAt) {
     if (updatedAt <= 0) return false;
     final now = DateTime.now().millisecondsSinceEpoch;
-    return now - updatedAt > 5 * 60 * 1000; // >5 минут
+    return LivePointAge.of(updatedAt, nowMs: now).needsCaption;
   }
 }
 

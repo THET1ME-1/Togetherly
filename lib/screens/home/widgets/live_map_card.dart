@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../services/pb_auth_service.dart';
 import '../../../services/pocketbase_service.dart';
+import '../../../models/live_point_age.dart';
 import '../../../services/live_location_service.dart';
 import '../../../services/locale_service.dart';
 import '../../../theme/app_theme.dart';
@@ -393,6 +394,18 @@ class _LiveMapCardState extends State<LiveMapCard> {
                   child: _stopChip(t),
                 ),
 
+              // Давность точки партнёра. Точка не удаляется, когда человек
+              // закрыл приложение, поэтому без подписи метка двухдневной
+              // свежести выглядит живой — жалоба «партнёр не заходил два дня,
+              // метка не сдвинулась» (18.08.2026).
+              if (sharing && partner != null && _partnerAge() != null)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 10,
+                  child: Center(child: _hintChip(t, _partnerAge()!)),
+                ),
+
               // Ждём партнёра (шеринг включён, но точки партнёра нет).
               if (sharing && partner == null)
                 Positioned(
@@ -406,6 +419,24 @@ class _LiveMapCardState extends State<LiveMapCard> {
         ),
       ),
     );
+  }
+
+  /// «обновлено 2 д. назад» — или null, пока точка свежая и подписывать нечего.
+  String? _partnerAge() {
+    final point = _partner;
+    if (point == null) return null;
+    final age = LivePointAge.of(
+      point.updatedAt,
+      nowMs: DateTime.now().millisecondsSinceEpoch,
+    );
+    if (!age.needsCaption) return null;
+    final s = LocaleService.current;
+    final ago = switch (age.unit) {
+      LivePointAgeUnit.minutes => s.minutesAgo(age.value),
+      LivePointAgeUnit.hours => s.hoursAgo(age.value),
+      _ => s.daysAgo(age.value),
+    };
+    return '${s.liveMapUpdated} $ago';
   }
 
   Widget _distancePill(AppTheme t, LatLng me, LatLng partner) {

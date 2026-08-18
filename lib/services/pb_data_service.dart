@@ -3014,6 +3014,16 @@ class PbDataService {
     // пользуются. Локальный выбор от этого не зависит, он живёт в prefs.
     put('themeMode', 'theme_mode');
     put('themeId', 'theme_id');
+    // Своя тема Togetherly+ (до пяти цветов) и окно сна маскотов. Оба поля
+    // человек правит сам, и оба обязаны переезжать вместе с аккаунтом.
+    //
+    // Список тут БЕЛЫЙ: незнакомый ключ выбрасывается молча, а функция
+    // отвечает успехом. Так `mascot_sleep` не уезжал на сервер НИ РАЗУ — на
+    // проде ноль непустых значений при ста тысячах аккаунтов, хотя настройка
+    // обещает переезд на новое устройство. Стережёт
+    // `test/services/user_profile_fields_test.dart`.
+    put('mascotSleep', 'mascot_sleep', json: true);
+    put('customThemes', 'custom_themes', json: true);
     if (row.isEmpty) return true;
     row['updated_at'] = PairTime.write(DateTime.now());
     return _upsertById('users', uid, row, op: 'updateUserProfile');
