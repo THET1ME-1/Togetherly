@@ -51,6 +51,50 @@ class CentrifugoService {
 
   PocketBase get _pb => PocketBaseService().pb;
 
+  /// Когда последний раз освежали сессию из-за 401. Centrifuge зовёт getToken
+  /// по кругу, и без этой отметки каждый круг бил бы по authRefresh.
+  static DateTime? _sessionRefreshedAt;
+
+  /// Берёт токен у PocketBase, а на 401 сперва освежает сессию приложения.
+  ///
+  /// Токен Centrifugo живёт сутки, но выдаёт его PocketBase — и когда сессия
+  /// приложения протухла, запрос отвечает 401. Раньше на этом всё кончалось:
+  /// getToken бросал, клиент уходил на новый круг с тем же ответом, канал пары
+  /// не подписывался, и сообщения появлялись только при перечитывании экрана —
+  /// «сообщения не доходят или приходят с большой задержкой» (жалоба
+  /// 18.08.2026; за два часа 149 отказов 401 на выдаче токена).
+  static Future<String> askToken(
+    PocketBase pb,
+    String path, {
+    Map<String, dynamic>? body,
+  }) async {
+    Future<dynamic> send() =>
+        pb.send(path, method: 'POST', body: body ?? const {});
+    dynamic res;
+    try {
+      res = await send();
+    } on ClientException catch (e) {
+      if (e.statusCode != 401) rethrow;
+      final now = DateTime.now();
+      final last = _sessionRefreshedAt;
+      if (last != null && now.difference(last) < const Duration(seconds: 30)) {
+        rethrow;
+      }
+      _sessionRefreshedAt = now;
+      // Сессию держит authStore: если её удалось освежить, повторяем запрос.
+      await pb
+          .collection('users')
+          .authRefresh()
+          .timeout(const Duration(seconds: 8));
+      res = await send();
+    }
+    final token = (res is Map ? res['token'] : null) as String?;
+    if (token == null || token.isEmpty) {
+      throw StateError('centrifugo: пустой ответ на $path');
+    }
+    return token;
+  }
+
   centrifuge.Client _ensureClient() {
     final existing = _client;
     if (existing != null) return existing;
@@ -62,15 +106,8 @@ class CentrifugoService {
         // автоматически при истечении. НЕ бросаем UnauthorizedException на
         // транзиентный «ещё не залогинен» — обычная ошибка даёт backoff-ретрай,
         // а Unauthorized навсегда отрубил бы реконнект.
-        getToken: (centrifuge.ConnectionTokenEvent e) async {
-          final res =
-              await _pb.send('/api/centrifugo/connection-token', method: 'POST');
-          final t = (res is Map ? res['token'] : null) as String?;
-          if (t == null || t.isEmpty) {
-            throw StateError('centrifugo: пустой connection-token');
-          }
-          return t;
-        },
+        getToken: (centrifuge.ConnectionTokenEvent e) async =>
+            askToken(_pb, '/api/centrifugo/connection-token'),
       ),
     );
     // Восстановление после обрыва: подписки, которым важна полнота (общий
@@ -186,18 +223,12 @@ class _ChannelHub {
     _sub = _client.newSubscription(
       channel,
       centrifuge.SubscriptionConfig(
-        getToken: (centrifuge.SubscriptionTokenEvent e) async {
-          final res = await _pb.send(
-            '/api/centrifugo/subscription-token',
-            method: 'POST',
-            body: {'channel': e.channel},
-          );
-          final t = (res is Map ? res['token'] : null) as String?;
-          if (t == null || t.isEmpty) {
-            throw StateError('centrifugo: пустой subscription-token для $channel');
-          }
-          return t;
-        },
+        getToken: (centrifuge.SubscriptionTokenEvent e) async =>
+            CentrifugoService.askToken(
+          _pb,
+          '/api/centrifugo/subscription-token',
+          body: {'channel': e.channel},
+        ),
       ),
     );
     _pubSub = _sub.publication.listen(_onPublication);
