@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
@@ -105,10 +106,43 @@ class LiveLocationService {
       if (Platform.isAndroid && perm == LocationPermission.whileInUse) {
         await Geolocator.requestPermission();
       }
+      // На iPhone geolocator «Всегда» не спрашивает вовсе — только свой канал.
+      if (Platform.isIOS && perm == LocationPermission.whileInUse) {
+        await requestAlwaysIOS();
+      }
       return true;
     } catch (e) {
       debugPrint('LiveLocationService.ensurePermission failed: $e');
       return false;
+    }
+  }
+
+  /// Канал разрешения «Всегда» (`AppDelegate.setupLocationAlwaysChannel`).
+  static const MethodChannel _alwaysChannel =
+      MethodChannel('love_app/location_always');
+
+  /// Просит на iPhone «Разрешить всегда».
+  ///
+  /// `Geolocator.requestPermission()` на iOS зовёт только
+  /// `requestWhenInUseAuthorization`, поэтому фон жил ровно столько, сколько
+  /// жил процесс: человек убил приложение — метка партнёра стоит до следующего
+  /// открытия. Диалог показывается поверх уже выданного «При использовании» и
+  /// ровно один раз: система на повторный запрос ничего не рисует, поэтому
+  /// отказ здесь не ошибка — шеринг работает и без «Всегда», просто без
+  /// пробуждения закрытого приложения.
+  ///
+  /// Возвращает состояние словом: `always`, `whenInUse`, `denied`,
+  /// `notDetermined`, `unknown`.
+  Future<String> requestAlwaysIOS() async {
+    if (!Platform.isIOS) return 'unknown';
+    try {
+      return await _alwaysChannel.invokeMethod<String>('request') ?? 'unknown';
+    } on MissingPluginException {
+      // Нативной части нет — так бывает у сборок до 1.29.6.
+      return 'unknown';
+    } catch (e) {
+      debugPrint('LiveLocationService: «Всегда» не запросилось: $e');
+      return 'unknown';
     }
   }
 

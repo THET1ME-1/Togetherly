@@ -1,3 +1,4 @@
+import CoreLocation
 import Flutter
 import UIKit
 import UserNotifications
@@ -58,6 +59,75 @@ import WidgetKit
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     setupWidgetMediaChannel(engineBridge.pluginRegistry)
     setupApnsChannel(engineBridge.pluginRegistry)
+    setupLocationAlwaysChannel(engineBridge.pluginRegistry)
+  }
+
+  // MARK: - Разрешение «Всегда» для карты «Где мы»
+
+  /// Менеджер живёт полем: запрос разрешения асинхронный, и у временного
+  /// объекта система успевает отпустить владельца раньше, чем человек ответит,
+  /// — диалог тогда не показывается вовсе.
+  private var alwaysLocationManager: CLLocationManager?
+  private var locationAlwaysChannel: FlutterMethodChannel?
+
+  /// Просит «Разрешить всегда» отдельным каналом.
+  ///
+  /// `geolocator` этого не умеет: на iOS его `requestPermission` зовёт только
+  /// `requestWhenInUseAuthorization` (ветка в `PermissionHandler.m`), а до
+  /// `requestAlwaysAuthorization` из Dart дотянуться нечем. Без «Всегда» iOS
+  /// отдаёт фоновую локацию, лишь пока процесс жив: человек убил приложение —
+  /// и метка партнёра стоит до следующего открытия.
+  ///
+  /// Порядок обязателен: сперва система должна выдать «При использовании»,
+  /// иначе Always-запрос молча ничего не покажет. Спрашивать имеет смысл один
+  /// раз — повторный вызов при уже принятом решении диалога не даёт.
+  private func setupLocationAlwaysChannel(_ registry: FlutterPluginRegistry) {
+    guard let messenger = registry
+      .registrar(forPlugin: "TogetherlyLocationAlways")?
+      .messenger()
+    else { return }
+
+    let channel = FlutterMethodChannel(
+      name: "love_app/location_always",
+      binaryMessenger: messenger
+    )
+    channel.setMethodCallHandler { [weak self] call, result in
+      switch call.method {
+      case "status":
+        result(self?.locationAlwaysStatus())
+      case "request":
+        guard let self else {
+          result("unknown")
+          return
+        }
+        let manager = self.alwaysLocationManager ?? CLLocationManager()
+        self.alwaysLocationManager = manager
+        // Запрос показывается только поверх «При использовании».
+        guard manager.authorizationStatus == .authorizedWhenInUse else {
+          result(self.locationAlwaysStatus())
+          return
+        }
+        DispatchQueue.main.async {
+          manager.requestAlwaysAuthorization()
+        }
+        result(self.locationAlwaysStatus())
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
+    locationAlwaysChannel = channel
+  }
+
+  private func locationAlwaysStatus() -> String {
+    let manager = alwaysLocationManager ?? CLLocationManager()
+    alwaysLocationManager = manager
+    switch manager.authorizationStatus {
+    case .authorizedAlways: return "always"
+    case .authorizedWhenInUse: return "whenInUse"
+    case .denied, .restricted: return "denied"
+    case .notDetermined: return "notDetermined"
+    @unknown default: return "unknown"
+    }
   }
 
   // MARK: - Токен APNs

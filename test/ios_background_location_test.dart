@@ -47,6 +47,27 @@ void main() {
     );
   });
 
+  test('канал разрешения «Всегда» одинаково назван в Swift и в Dart', () {
+    // Расхождение имён молчит: Dart получает MissingPluginException, мы его
+    // глотаем (иначе сборки без нативной части падали бы на каждом запросе), и
+    // «Всегда» не спрашивается больше никогда.
+    final appDelegate = File('ios/Runner/AppDelegate.swift').readAsStringSync();
+    final channel = RegExp(r"MethodChannel\(\s*'([a-z_/]+location_always)'")
+        .firstMatch(service)
+        ?.group(1);
+    expect(channel, isNotNull, reason: 'канал пропал из Dart');
+    expect(
+      appDelegate.contains('"$channel"'),
+      isTrue,
+      reason: 'AppDelegate не объявляет канал $channel',
+    );
+    expect(
+      appDelegate.contains('requestAlwaysAuthorization'),
+      isTrue,
+      reason: 'без requestAlwaysAuthorization канал ничего не спрашивает',
+    );
+  });
+
   test('запрос «Разрешить всегда» объяснён человеку', () {
     final always = valueOf('NSLocationAlwaysAndWhenInUseUsageDescription');
     expect(always, isNotEmpty);
