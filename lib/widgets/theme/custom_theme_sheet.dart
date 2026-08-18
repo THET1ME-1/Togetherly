@@ -140,6 +140,9 @@ class _CustomThemeSheetState extends State<_CustomThemeSheet> {
             const SizedBox(height: 16),
             if (_source == _Source.photo) _photoTab(cs) else _pickerTab(),
             const SizedBox(height: 16),
+            // Поле — такая же залитая таблетка, как ряд кнопок над ним:
+            // обводка здесь спорила бы с ними и с полями ввода в подключении
+            // пары, где рамки нет вовсе.
             TextField(
               controller: _name,
               maxLength: 24,
@@ -147,7 +150,13 @@ class _CustomThemeSheetState extends State<_CustomThemeSheet> {
                 labelText: _s.customThemeNameLabel,
                 hintText: _s.customThemeNameHint,
                 counterText: '',
-                border: const OutlineInputBorder(),
+                filled: true,
+                fillColor: cs.surfaceContainerHighest,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                border: _fieldShape,
+                enabledBorder: _fieldShape,
+                focusedBorder: _fieldShape,
               ),
             ),
           ],
@@ -155,6 +164,12 @@ class _CustomThemeSheetState extends State<_CustomThemeSheet> {
       ),
     );
   }
+
+  /// Форма поля ввода: таблетка без обводки.
+  static final OutlineInputBorder _fieldShape = OutlineInputBorder(
+    borderRadius: BorderRadius.circular(28),
+    borderSide: BorderSide.none,
+  );
 
   /// Кружок будущей темы и подпись. Показывает ровно ту схему, что достанется
   /// экранам: палитра собирается тем же [customPalette], что и при сохранении.
@@ -207,12 +222,15 @@ class _CustomThemeSheetState extends State<_CustomThemeSheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        FilledButton.tonalIcon(
-          onPressed: _reading ? null : _pickPhoto,
-          icon: const Icon(Icons.image_rounded),
-          label: Text(_fromPhoto.isEmpty
-              ? _s.customThemePickPhoto
-              : _s.customThemeAnotherPhoto),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.tonalIcon(
+            onPressed: _reading ? null : _pickPhoto,
+            icon: const Icon(Icons.image_rounded),
+            label: Text(_fromPhoto.isEmpty
+                ? _s.customThemePickPhoto
+                : _s.customThemeAnotherPhoto),
+          ),
         ),
         if (_reading)
           const Padding(

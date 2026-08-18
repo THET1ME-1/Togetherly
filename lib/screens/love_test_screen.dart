@@ -262,19 +262,20 @@ class _LoveTestScreenState extends State<LoveTestScreen> {
     );
   }
 
+  /// Вариант ответа — залитая таблетка во всю ширину, без обводки.
+  ///
+  /// Обводка вокруг залитой поверхности в M3 не ставится: роль контейнера уже
+  /// отделяет кнопку от фона, а рамка поверх заливки читается как поле ввода.
   Widget _answerButton(String label, int weight) {
     return Material(
-      color: _cs.surfaceContainerLow,
+      color: _cs.surfaceContainerHighest,
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
         onTap: () => _answer(weight),
         child: Container(
+          width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-          decoration: BoxDecoration(
-            border: Border.all(color: _cs.outlineVariant),
-            borderRadius: BorderRadius.circular(20),
-          ),
           child: Row(
             children: [
               Expanded(
