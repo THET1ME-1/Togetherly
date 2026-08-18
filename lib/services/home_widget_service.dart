@@ -174,11 +174,17 @@ class HomeWidgetService {
   /// тогда на столе оставались имя, настроение и фото прошлой пары (жалоба
   /// 18.08.2026). PocketBase шлёт событие на каждый вход, выход и обновление
   /// токена, поэтому слушаем его, а повторы с тем же uid отсеивает правило.
-  StreamSubscription<String>? _ownerSub;
+  StreamSubscription<String?>? _ownerSub;
 
   void watchOwner() {
     _ownerSub ??= PocketBaseService().authChanges.listen(
-      (uid) => unawaited(applyOwnerEvent(uid)),
+      (uid) {
+        // `null` — «не знаю, кто это»: запись сессии не восстановилась, а токен
+        // жив. Раньше такое событие читалось как выход и стирало виджеты у
+        // человека, который никуда не выходил (18.08.2026).
+        if (uid == null) return;
+        unawaited(applyOwnerEvent(uid));
+      },
       onError: (Object e) => debugPrint('HomeWidgetService.watchOwner: $e'),
     );
   }
@@ -2919,6 +2925,13 @@ class HomeWidgetService {
   /// снимок с камеры в разжатом виде занимает больше: система молча убивает
   /// расширение, и вместо виджета остаётся серый прямоугольник. На глаз разницы
   /// нет — виджет всё равно размером с пару сантиметров.
+  /// Ужать картинку до [maxSide] точек по большей стороне.
+  ///
+  /// Публичный: тем же путём идут картинки парного виджета и аватарки из
+  /// `WidgetService._downloadPhoto`, которые до 18.08.2026 клались оригиналом.
+  Future<Uint8List> shrinkForWidget(Uint8List bytes, int maxSide) =>
+      _shrinkForWidget(bytes, maxSide);
+
   Future<Uint8List> _shrinkForWidget(Uint8List bytes, int maxSide) async {
     if (!Platform.isAndroid && !Platform.isIOS) return bytes;
     try {

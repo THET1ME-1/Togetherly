@@ -1,5 +1,6 @@
 import SwiftUI
 import WidgetKit
+import ImageIO
 import UIKit
 
 // MARK: - App Group
@@ -52,7 +53,7 @@ struct Store {
     func uiImage(_ key: String) -> UIImage? {
         let path = string(key)
         guard !path.isEmpty else { return nil }
-        return UIImage(contentsOfFile: path)
+        return WidgetImage.load(path)
     }
 
     /// Возвращает groupId активной группы для конкретного семейства виджетов.
@@ -157,5 +158,43 @@ enum TimeMath {
         let start = Date(timeIntervalSince1970: Double(ms) / 1000.0)
         let secs = abs(Date().timeIntervalSince(start))
         return Int(secs / 86400)
+    }
+}
+
+// MARK: - Чтение картинок с оглядкой на память
+
+/// Расширению система отводит около 30 МБ на всё, а `UIImage(contentsOfFile:)`
+/// разжимает файл целиком: снимок с камеры на 4000×3000 съедает под пятьдесят,
+/// и расширение убивают до того, как оно нарисует хоть что-то. Человек видит
+/// серый прямоугольник и считает виджет сломанным.
+///
+/// Поэтому картинка читается через ImageIO с ограничением по большей стороне: в
+/// память попадает уже уменьшенный кадр. Приложение с 18.08.2026 и само кладёт
+/// в контейнер ужатые файлы, но снимки, положенные прежними сборками, лежат на
+/// столах у людей и никуда не денутся.
+enum WidgetImage {
+    /// Больше виджету не нужно: самый крупный на iPad около 780 точек, на
+    /// iPhone — 360; остальное запас на плотность экрана.
+    static let maxSide: CGFloat = 1200
+
+    static func load(_ path: String, maxSide: CGFloat = WidgetImage.maxSide) -> UIImage? {
+        let url = URL(fileURLWithPath: path)
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
+            return nil
+        }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxSide,
+        ]
+        guard let cg = CGImageSourceCreateThumbnailAtIndex(
+            source, 0, options as CFDictionary
+        ) else {
+            // Формат не по зубам ImageIO — читаем как раньше: лучше рискнуть
+            // памятью, чем показать пустоту.
+            return UIImage(contentsOfFile: path)
+        }
+        return UIImage(cgImage: cg)
     }
 }

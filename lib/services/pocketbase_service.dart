@@ -6,6 +6,7 @@ import 'package:pocketbase/pocketbase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'centrifugo_service.dart';
+import 'widget_owner.dart';
 import 'pb_data_service.dart';
 
 /// Ядро клиента PocketBase — единая точка доступа к нашему self-hosted бэкенду
@@ -122,11 +123,18 @@ class PocketBaseService {
   RecordModel? get currentUser => _pb?.authStore.record;
 
   /// Кто сейчас в сессии: uid при входе и обновлении токена, пустая строка при
-  /// выходе. Слушают те, кому надо реагировать на смену человека, не дожидаясь
-  /// перезапуска приложения (данные виджетов рабочего стола, например).
-  Stream<String> get authChanges =>
-      _pb?.authStore.onChange.map((e) => e.record?.id ?? '') ??
-      const Stream<String>.empty();
+  /// выходе, `null` — «не знаю». Слушают те, кому надо реагировать на смену
+  /// человека, не дожидаясь перезапуска (данные виджетов рабочего стола).
+  ///
+  /// Читать `record?.id` напрямую нельзя: он бывает пустым при живом токене
+  /// (полумёртвая сессия, см. [userId]). 18.08.2026 на этом стёрлись виджеты у
+  /// тестера — пустая запись прочиталась как выход. Правило и разбор токена —
+  /// `sessionUidOf` в widget_owner.dart, под тестами.
+  Stream<String?> get authChanges =>
+      _pb?.authStore.onChange.map(
+        (e) => sessionUidOf(token: e.token, recordId: e.record?.id),
+      ) ??
+      const Stream<String?>.empty();
 
   /// Сбрасывает сессию (выход). Чистит и persisted-копию (через AsyncAuthStore)
   /// и рвёт WebSocket-соединение Centrifugo (иначе оно бы зациклилось на

@@ -102,6 +102,7 @@ import '../services/home_widget_service.dart';
 import '../services/catalog_widget_sync.dart';
 import '../services/mood_service.dart';
 import '../services/timer_service.dart';
+import '../services/pair_widget_payload.dart';
 import '../services/widget_service.dart';
 import '../models/mascot.dart';
 import '../services/canvas_storage_service.dart';
@@ -749,6 +750,14 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     // Auto-navigate to home tab when user just joined a group.
+    // Пара распалась — виджет обязан забыть её целиком, вместе с картинками.
+    // Отвязка от группы этим признаком не является: экран зовёт её и при
+    // переключении между связями, и очистка на ней затирала имена с
+    // настроениями у человека с двумя связями (18.08.2026).
+    if (shouldClearPairWidget(wasPaired: _wasPaired, isPaired: isPaired)) {
+      unawaited(_widgetService.clearPairWidgetData());
+    }
+
     final justPaired = !_wasPaired && isPaired;
     _wasPaired = isPaired;
 

@@ -390,7 +390,9 @@ private struct SinglePhotoPathView: View {
     let path: String
     let kind: PhotoWidgetKind
     var body: some View {
-        let image = path.isEmpty ? nil : UIImage(contentsOfFile: path)
+        // Через ImageIO с уменьшением: полноразмерный снимок разжимается в
+        // десятки мегабайт и убивает расширение (см. WidgetImage).
+        let image = path.isEmpty ? nil : WidgetImage.load(path)
         PhotoWidgetContainer {
             PhotoFill(image: image, kind: kind)
                 .clipShape(RoundedRectangle(cornerRadius: PhotoStyle.corner, style: .continuous))

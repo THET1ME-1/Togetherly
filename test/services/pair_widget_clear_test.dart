@@ -6,6 +6,8 @@
 // путь перестал что-либо стирать: на рабочем столе оставались имя, настроение и
 // фото бывшего партнёра. Поэтому очистка теперь явная, и её список ключей
 // обязан покрывать всё, что виджет пишет при живой паре.
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:love_app/models/widget_data.dart';
 import 'package:love_app/services/pair_widget_payload.dart';
@@ -62,5 +64,29 @@ void main() {
     expect(kPairWidgetFileKeys, contains('partner_mood_emoji_path'));
     expect(kPairWidgetFileKeys.every(pairWidgetClearPayload().containsKey),
         isTrue);
+  });
+
+  group('связка на месте', () {
+    test('отвязка от группы больше не стирает виджет', () {
+      final src = File('lib/services/widget_service.dart').readAsStringSync();
+      final start = src.indexOf('Future<void> unbindFromGroup');
+      expect(start, isNot(-1));
+      // Берём только тело метода: следующее объявление уже чужое.
+      final body = src
+          .substring(start)
+          .split('\n')
+          .takeWhile((l) => !l.startsWith('  Future<void> clearPairWidgetData'))
+          .take(45)
+          .join('\n');
+      // Упоминание в комментарии допустимо, вызов — нет.
+      expect(body.contains('clearPairWidgetData()'), isFalse,
+          reason: 'экран зовёт отвязку и при переключении между связями');
+    });
+
+    test('распад пары чистит по правилу', () {
+      final home = File('lib/screens/home_screen.dart').readAsStringSync();
+      expect(home, contains('shouldClearPairWidget'));
+      expect(home, contains('clearPairWidgetData'));
+    });
   });
 }

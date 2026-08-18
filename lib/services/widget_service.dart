@@ -11,6 +11,7 @@ import '../models/memory.dart';
 import '../models/mood_entry.dart';
 import 'locale_service.dart';
 import 'widget_photo_cache.dart';
+import 'widget_image_limit.dart';
 import 'pair_widget_payload.dart';
 import 'media_service.dart';
 import 'home_widget_service.dart';
@@ -213,7 +214,6 @@ class WidgetService extends ChangeNotifier {
   }
 
   Future<void> unbindFromGroup({bool clearNativeWidget = true}) async {
-    final hadGroup = _groupId.isNotEmpty;
     _bindGeneration++;
     _mySub?.cancel();
     _mySub = null;
@@ -231,15 +231,14 @@ class WidgetService extends ChangeNotifier {
     // Раньше он затирался на каждом техническом переподключении — а их случается
     // много, — и виджет успевал показать «Подключите партнёра» при живой паре.
     // Закрыли приложение в эту секунду, и надпись оставалась насовсем: обновить
-    // её на iPhone некому, фонового обновления там нет.
-    if (clearNativeWidget && hadGroup) {
-      await HomeWidget.saveWidgetData<String>('love_widget_group_id', '');
-      await HomeWidget.saveWidgetData<String>('love_widget_partner_uid', '');
-    }
+    // её на iPhone некому, фонового обновления там нет. Отвязка таким признаком
+    // тоже не является: экран зовёт её и при переключении между связями.
 
-    if (clearNativeWidget) {
-      await _clearPairWidgetData();
-    }
+    // Стирать тут НЕЛЬЗЯ. Отвязка — это ещё и обычное переключение между
+    // связями: экран зовёт её перед привязкой к другой паре, и очистка
+    // затирала имена с настроениями у человека с двумя связями (18.08.2026).
+    // Распад пары чистит `clearPairWidgetData` по правилу
+    // `shouldClearPairWidget`, выход из аккаунта — `HomeWidgetService`.
     notifyListeners();
   }
 
@@ -250,11 +249,15 @@ class WidgetService extends ChangeNotifier {
   /// (иначе фото стиралось на каждом холодном старте), поэтому распад пары
   /// приходится отрабатывать отдельно. Список ключей — в
   /// pair_widget_payload.dart, сторож — test/services/pair_widget_clear_test.dart.
-  Future<void> _clearPairWidgetData() async {
+  Future<void> clearPairWidgetData() async {
     try {
       for (final e in pairWidgetClearPayload().entries) {
         await HomeWidget.saveWidgetData<String>(e.key, e.value);
       }
+      // Привязка к паре тоже уходит: пары больше нет, и виджет обязан это
+      // показать («Подключите партнёра»), а не держать прежнюю подпись.
+      await HomeWidget.saveWidgetData<String>('love_widget_group_id', '');
+      await HomeWidget.saveWidgetData<String>('love_widget_partner_uid', '');
       // Записи мало: картинки лежат файлами в общем контейнере и переживают её.
       for (final key in kPairWidgetFileKeys) {
         await HomeWidgetService.instance.clearAppGroupMedia(key);
@@ -268,7 +271,7 @@ class WidgetService extends ChangeNotifier {
         await HomeWidget.updateWidget(name: name, androidName: name);
       }
     } catch (e) {
-      debugPrint('WidgetService._clearPairWidgetData failed: $e');
+      debugPrint('WidgetService.clearPairWidgetData failed: $e');
     }
   }
 
@@ -1054,7 +1057,14 @@ class WidgetService extends ChangeNotifier {
 
       final dir = await getApplicationSupportDirectory();
       final file = File('${dir.path}/$uniqueName.jpg');
-      await file.writeAsBytes(response.bodyBytes);
+      // Ужимаем ДО записи: расширению виджета отводят около 30 МБ, а снимок с
+      // камеры в разжатом виде занимает под пятьдесят — расширение убивают, и
+      // вместо фотографии остаётся серый прямоугольник. Предел зависит от
+      // ключа: фото 1200 точек, аватарка 400 (widget_image_limit.dart).
+      await file.writeAsBytes(
+        await HomeWidgetService.instance
+            .shrinkForWidget(response.bodyBytes, widgetImageMaxSide(key)),
+      );
 
       // Старые файлы этого ключа (контейнер + локальные) убираем ДО записи нового
       // пути, чтобы не копились и не оставалось «залипшего» кэша по старому пути.
