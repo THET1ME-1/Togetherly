@@ -1,6 +1,6 @@
-🫦 Togetherly • v1.29.2
+🫦 Togetherly • v1.29.3
 
-— Photos in iPhone widgets no longer disappear. The app was wiping them itself when it woke for a couple of seconds and had not yet learned who you are.
-— The pair widget is rectangular only: in a square both halves were squeezed into narrow strips.
-— Widgets forget the previous account as soon as you sign out, not after the next app restart.
-— When a pair breaks up, the widget is cleared completely, photos included.
+— Widgets no longer go blank when you switch between connections: names and moods stay put.
+— Widgets are not wiped when the app wakes up with a session that has not warmed up yet.
+— Photos are resized before they reach the widget, so the extension has enough memory to show them.
+— Drawing together is smooth now: your partner's stroke appears at once and no longer disappears when they lift the finger.
