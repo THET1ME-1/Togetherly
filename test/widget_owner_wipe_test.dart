@@ -36,7 +36,16 @@ void main() {
       await HomeWidgetService.instance.ensureOwner('');
       await HomeWidgetService.instance.ensureOwner(null);
       final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getString(ownerKey), 'user-one');
+      expect(prefs.getString(ownerKey), 'user-one',
+          reason: 'на старте сессия восстанавливается позже, это не выход');
+    });
+
+    test('выход забывает владельца', () async {
+      SharedPreferences.setMockInitialValues({ownerKey: 'user-one'});
+      await HomeWidgetService.instance.applyOwnerEvent('');
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString(ownerKey), isNull,
+          reason: 'иначе следующий вход тем же ключом сочтёт человека прежним');
     });
   });
 
@@ -49,6 +58,24 @@ void main() {
     test('выход стирает данные виджетов', () {
       final auth = File('lib/services/pb_auth_service.dart').readAsStringSync();
       expect(auth, contains('wipeWidgetData'));
+    });
+
+    test('живой путь выхода тоже чистит', () {
+      // Проверка выше смотрела на обёртку `PbAuthService.signOut`, а её из
+      // приложения не зовут: выход идёт через `UserData.logout`, и виджеты
+      // переживали его целиком (жалоба 18.08.2026).
+      final userData = File('lib/models/user_data.dart').readAsStringSync();
+      final logout = userData.substring(userData.indexOf('Future<void> logout()'));
+      expect(logout.substring(0, 1200), contains('applyOwnerEvent'));
+    });
+
+    test('смена аккаунта ловится без перезапуска', () {
+      // Одной проверки в `main()` мало: человек выходит и входит в другой
+      // аккаунт, не убивая приложение.
+      final main = File('lib/main.dart').readAsStringSync();
+      expect(main, contains('watchOwner()'));
+      final svc = File('lib/services/home_widget_service.dart').readAsStringSync();
+      expect(svc, contains('authChanges.listen'));
     });
 
     test('Android умеет стирать', () {

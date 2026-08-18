@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/pb_coins_service.dart';
 import '../services/plus_access.dart';
+import '../services/home_widget_service.dart';
 import '../services/pb_data_service.dart';
 import '../services/pocketbase_service.dart';
 import '../services/push_background_service.dart';
@@ -1102,6 +1103,11 @@ class UserData extends ChangeNotifier {
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     PocketBaseService().signOut();
+    // Виджеты рабочего стола живут в хранилище УСТРОЙСТВА и выход бы пережили:
+    // на столе осталась бы прошлая пара, а на iPhone обновить её некому
+    // (жалоба 18.08.2026). Подписка на сессию сделает то же самое, но здесь
+    // очистка гарантирована, даже если её никто не завёл.
+    await HomeWidgetService.instance.applyOwnerEvent('');
     // Офлайн-кэш предыдущего юзера не должен пережить выход (иначе следующий
     // увидит чужие данные). Чистим локальную копию данных.
     await resetOfflineState();

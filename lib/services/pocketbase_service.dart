@@ -121,6 +121,13 @@ class PocketBaseService {
   /// Запись текущего юзера (профиль из коллекции users) или null.
   RecordModel? get currentUser => _pb?.authStore.record;
 
+  /// Кто сейчас в сессии: uid при входе и обновлении токена, пустая строка при
+  /// выходе. Слушают те, кому надо реагировать на смену человека, не дожидаясь
+  /// перезапуска приложения (данные виджетов рабочего стола, например).
+  Stream<String> get authChanges =>
+      _pb?.authStore.onChange.map((e) => e.record?.id ?? '') ??
+      const Stream<String>.empty();
+
   /// Сбрасывает сессию (выход). Чистит и persisted-копию (через AsyncAuthStore)
   /// и рвёт WebSocket-соединение Centrifugo (иначе оно бы зациклилось на
   /// рефреше токена с 401 после очистки сессии).

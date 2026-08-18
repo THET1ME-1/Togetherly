@@ -14,6 +14,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'pb_data_service.dart';
 import 'pb_media_service.dart';
 import 'pocketbase_service.dart';
+import 'widget_owner.dart';
 import '../theme/app_theme.dart';
 import 'pb_auth_service.dart';
 import '../models/timer_item.dart';
@@ -128,19 +129,58 @@ class HomeWidgetService {
 
   /// Привязывает данные виджетов к владельцу [uid]; сменился человек — стираем.
   ///
-  /// Тот же приём, что у офлайн-кэша (`LocalStore.ensureOwner`). Ловит и явный
-  /// выход, и «тихую» смену аккаунта. Жалоба 14.08.2026: у человека два
-  /// аккаунта на одном телефоне, и виджет пары с Настей показал фото Вики из
-  /// другого аккаунта — данные прежнего владельца остались лежать на месте.
+  /// Тот же приём, что у офлайн-кэша (`LocalStore.ensureOwner`). Жалоба
+  /// 14.08.2026: у человека два аккаунта на одном телефоне, и виджет пары с
+  /// Настей показал фото Вики из другого аккаунта.
+  ///
+  /// Правило — `widgetOwnerAction` (под тестами). Пустой uid означает выход, и
+  /// это тоже повод стереть: до 18.08.2026 такой вызов молча выходил, поэтому
+  /// после выхода пара оставалась висеть на столе.
   Future<void> ensureOwner(String? uid) async {
+    // Пустой uid тут означает «пока не знаю»: на холодном старте сессия
+    // восстанавливается позже, и стирать по такому вызову нельзя. Настоящий
+    // выход приходит событием сессии и разбирается в [applyOwnerEvent].
     if (uid == null || uid.isEmpty) return;
+    await applyOwnerEvent(uid);
+  }
+
+  /// Разобрать событие сессии: вход, смену человека или выход.
+  ///
+  /// Пустой [uid] здесь значит именно выход — PocketBase шлёт это событие,
+  /// когда сессию сбрасывают.
+  Future<void> applyOwnerEvent(String uid) async {
     final prefs = await SharedPreferences.getInstance();
     final previous = prefs.getString(_widgetOwnerKey);
-    if (previous != null && previous != uid) {
-      debugPrint('HomeWidgetService.ensureOwner: сменился человек, стираем виджеты');
-      await wipeWidgetData();
+    switch (widgetOwnerAction(previous: previous, current: uid)) {
+      case WidgetOwnerAction.none:
+        return;
+      case WidgetOwnerAction.remember:
+        await prefs.setString(_widgetOwnerKey, uid);
+      case WidgetOwnerAction.wipeAndRemember:
+        debugPrint('HomeWidgetService: сменился человек, стираем виджеты');
+        await wipeWidgetData();
+        await prefs.setString(_widgetOwnerKey, uid);
+      case WidgetOwnerAction.wipeAndForget:
+        debugPrint('HomeWidgetService: вышли из аккаунта, стираем виджеты');
+        await wipeWidgetData();
+        await prefs.remove(_widgetOwnerKey);
     }
-    await prefs.setString(_widgetOwnerKey, uid);
+  }
+
+  /// Следить за сменой человека, пока приложение живёт.
+  ///
+  /// Одной проверки в `main()` не хватало: она срабатывает только на холодном
+  /// старте, а человек выходит и входит в другой аккаунт без перезапуска —
+  /// тогда на столе оставались имя, настроение и фото прошлой пары (жалоба
+  /// 18.08.2026). PocketBase шлёт событие на каждый вход, выход и обновление
+  /// токена, поэтому слушаем его, а повторы с тем же uid отсеивает правило.
+  StreamSubscription<String>? _ownerSub;
+
+  void watchOwner() {
+    _ownerSub ??= PocketBaseService().authChanges.listen(
+      (uid) => unawaited(applyOwnerEvent(uid)),
+      onError: (Object e) => debugPrint('HomeWidgetService.watchOwner: $e'),
+    );
   }
 
   /// Сбросить кэш widget-данных (вызывать когда заведомо знаем, что фото поменялось).
