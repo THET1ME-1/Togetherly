@@ -15,6 +15,7 @@
 Крон на VPS: */10 * * * * python3 /opt/pocketbase/sweep_group_ids.py >> /var/log/sweep_group_ids.log 2>&1
 """
 import json
+from datetime import datetime, timedelta, timezone
 import sqlite3
 import sys
 import time
@@ -38,12 +39,23 @@ def missing():
             lists[uid] = json.loads(raw) if raw else []
         except Exception:
             lists[uid] = []
-    cur.execute("SELECT id, members FROM `groups`")
+    cur.execute("SELECT id, members, updated FROM `groups`")
     rows = cur.fetchall()
     con.close()
 
+    # Пара, собранная только что, ещё дописывается: hotpath сперва кладёт
+    # строку в зеркало, следом пересчитывает списки участников. Крон ходит раз
+    # в минуту и попадал в этот зазор — 18.08.2026 он отметил «отставшими»
+    # двоих через СЕКУНДУ после создания их пары, хотя через мгновение всё было
+    # на месте (сверка по 37 194 живым парам: ни одного закрытого доступа).
+    # Такие записи журнал раздувал и пугал разбором несуществующей поломки.
+    свежесть = (datetime.now(timezone.utc) - timedelta(seconds=90)) \
+        .strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] + "Z"
+
     need = {}
-    for gid, members in rows:
+    for gid, members, updated in rows:
+        if updated and str(updated) > свежесть:
+            continue
         try:
             mem = json.loads(members) if members else []
         except Exception:
