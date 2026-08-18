@@ -351,21 +351,31 @@
     holder.appendChild(frame);
 
     if (src.kind === 'youtube') {
-      state.player = new YT.Player('frame', {
-        events: {
-          onReady: () => {
-            // Позиция, доставшаяся от того, кто уже смотрит: применяем её,
-            // как только плеер готов принимать команды.
-            if (!state.pending) return;
-            apply(state.pending.cmd, state.pending.at);
-            state.pending = null;
+      whenYT((ready) => {
+        // Пока ждали API, могли включить другой ролик — тогда кадр уже не наш.
+        if (!frame.isConnected || state.kind !== 'youtube') return;
+        if (!ready) {
+          // API не доехал: командовать плеером нечем, зато ролик играет. Отдаём
+          // комнате пульт — смотреть по отсчёту всё равно можно.
+          setManual(true);
+          return;
+        }
+        state.player = new YT.Player('frame', {
+          events: {
+            onReady: () => {
+              // Позиция, доставшаяся от того, кто уже смотрит: применяем её,
+              // как только плеер готов принимать команды.
+              if (!state.pending) return;
+              apply(state.pending.cmd, state.pending.at);
+              state.pending = null;
+            },
+            onStateChange: (e) => {
+              if (state.applying) return;
+              if (e.data === YT.PlayerState.PLAYING) { leadHere(); send('play', ytTime()); }
+              if (e.data === YT.PlayerState.PAUSED) { leadHere(); send('pause', ytTime()); }
+            },
           },
-          onStateChange: (e) => {
-            if (state.applying) return;
-            if (e.data === YT.PlayerState.PLAYING) { leadHere(); send('play', ytTime()); }
-            if (e.data === YT.PlayerState.PAUSED) { leadHere(); send('pause', ytTime()); }
-          },
-        },
+        });
       });
     } else {
       state.player = { frame };
@@ -390,6 +400,52 @@
     }
     setStatus(I18N.t('room.playing', { name: labelOf(src.kind) }));
     reportSource(src, url || state.url);
+  }
+
+  // ── API ютуба ─────────────────────────────────────────────────────────────
+  //
+  // Скрипт `iframe_api` грузится по требованию, а не тегом в разметке. Пока он
+  // стоял обычным `<script src>`, страница целиком зависела от доступности
+  // ютуба: у операторов, которые его замедляют, запрос не отвечает и не рвётся,
+  // разбор документа до конца не доходит, room.js не выполняется — и комната
+  // открывается мёртвой. Снаружи это выглядит поломкой устройства: заголовок,
+  // поля и кнопки на месте, но ни одно нажатие не работает, ссылку не включить,
+  // в чат не написать (жалоба с айфона 18.08.2026; у партнёра на Android, где
+  // ютуб отвечал, всё работало). Замер: при зависшем youtube.com `load` не
+  // наступает и через 25 секунд.
+  //
+  // Теперь без ютуба живут и чат, и свои файлы, и остальные площадки, а сам он
+  // нужен ровно там, где включают его ролик. Стережёт
+  // tests/room-youtube-hang.test.js.
+  const YT_WAIT = 12000;      // сколько ждём API, прежде чем счесть его недоступным
+  let ytAsked = false;
+  const ytQueue = [];
+
+  function ytDone(ready) {
+    const ok = ready && !!(window.YT && window.YT.Player);
+    while (ytQueue.length) ytQueue.shift()(ok);
+  }
+
+  /** Зовёт `done(true)`, когда API ютуба готов, и `done(false)`, если он не
+   *  доехал: ролик тогда просто играет без синхронизации, под пультом. */
+  function whenYT(done) {
+    if (window.YT && window.YT.Player) { done(true); return; }
+    ytQueue.push(done);
+    if (ytAsked) return;
+    ytAsked = true;
+    // API зовёт эту функцию сам, когда поднимется.
+    const prev = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => {
+      if (typeof prev === 'function') { try { prev(); } catch (_) { /* чужой обработчик */ } }
+      ytDone(true);
+    };
+    const tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    tag.async = true;
+    tag.onerror = () => ytDone(false);
+    document.head.appendChild(tag);
+    // Ютуб чаще не отказывает, а молчит: без своего срока ждали бы вечно.
+    setTimeout(() => ytDone(false), YT_WAIT);
   }
 
   const labels = {
@@ -906,7 +962,13 @@
     });
   }
 
-  window.addEventListener('load', () => {
+  /// Запуск идёт по готовности РАЗМЕТКИ.
+  ///
+  /// `load` ждёт каждый подресурс страницы, в том числе чужой скрипт: пока
+  /// один такой запрос висит, обработчики кнопок не навешены, код комнаты не
+  /// проставлен и канал не поднят — комната открыта и мертва. Разметке для
+  /// работы хватает самой себя.
+  function start() {
     I18N.mount();
     followKeyboard();
     cinemaToggle();
@@ -995,5 +1057,11 @@
         setStatus(shareLink());
       }
     });
-  });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start);
+  } else {
+    start();
+  }
 })();
