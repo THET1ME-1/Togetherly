@@ -209,6 +209,22 @@ class UiPrefs {
     return p.getInt(kPlusPromoAt) ?? 0;
   }
 
+  // ── «Умение любить»: карточка на главной ──────────────────────────────────
+
+  static const _loveDismissedKey = 'love_test_prompt_dismissed';
+
+  /// Карточку показываем один раз: прошли или закрыли — она больше не
+  /// появится. Флаг локальный, у каждого свой: тест проходят по отдельности.
+  static Future<bool> loveTestPromptDismissed() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_loveDismissedKey) ?? false;
+  }
+
+  static Future<void> dismissLoveTestPrompt() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_loveDismissedKey, true);
+  }
+
   static Future<void> setPlusPromoShown(int nowMs) async {
     final p = await SharedPreferences.getInstance();
     await p.setInt(kPlusPromoAt, nowMs);

@@ -18,6 +18,7 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 import '../utils/photo_crop.dart';
 import '../utils/safe_pick.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/love_prompt.dart';
 import '../models/memory.dart';
 import '../models/gift.dart';
 import '../models/gift_effect.dart';
@@ -35,6 +36,7 @@ import '../models/quiet_partner.dart';
 import '../services/invite_reminder_service.dart';
 import '../services/miss_you_repository.dart';
 import '../services/pb_realtime_service.dart';
+import '../widgets/home/love_test_card.dart';
 import '../widgets/home/invite_prompt_card.dart';
 import '../widgets/home/waiting_home_card.dart';
 import '../widgets/home/onboarding_card.dart';
@@ -50,6 +52,7 @@ import 'wishes_screen.dart';
 import 'invite_partner_screen.dart';
 import '../services/deep_link_service.dart';
 import '../services/media_service.dart';
+import '../services/love_test_service.dart';
 import '../services/memory_repository.dart';
 import '../services/pocketbase_service.dart';
 import '../services/pb_push_service.dart';
@@ -83,6 +86,7 @@ import 'connect_partner_screen.dart';
 import 'together/watch_home_screen.dart';
 import 'expandable_timer_card.dart';
 import 'chat_screen.dart';
+import 'love_test_screen.dart';
 import 'memory_lane_screen.dart';
 import 'together/together_launcher.dart';
 import 'mini_mood_calendar.dart';
@@ -619,6 +623,7 @@ class _HomeScreenState extends State<HomeScreen> {
       // получения. Плюс перечитываем входящие: базовый список для сравнения
       // «пришло ли новое» в _onGiftEvent должен быть уже актуальным.
       unawaited(_listenGifts());
+      unawaited(_loadLoveTestState());
       unawaited(_loadIncomingGifts());
     }
 
@@ -2989,6 +2994,52 @@ class _HomeScreenState extends State<HomeScreen> {
   ///
   /// У напоминания о затихшем партнёре приоритет: оно про сейчас, а список
   /// подождёт.
+  // ── «Умение любить» ───────────────────────────────────────────────────────
+
+  bool _lovePartnerDone = false;
+  bool _loveMineDone = false;
+  bool _loveDismissed = true;
+
+  /// Узнаём, есть ли повод звать в тест. Тихо: раз за открытие главной, без
+  /// подписок — карточка появляется один раз и живёт до первого касания.
+  Future<void> _loadLoveTestState() async {
+    if (!_pairData.isPaired || _pairData.pairId.isEmpty) return;
+    final dismissed = await UiPrefs.loveTestPromptDismissed();
+    final pair = await LoveTestService.instance.load(
+      _pairData.pairId,
+      widget.userData.uid,
+    );
+    if (!mounted) return;
+    setState(() {
+      _loveDismissed = dismissed;
+      _lovePartnerDone = pair.partnerReady;
+      _loveMineDone = pair.mine != null;
+    });
+  }
+
+  void _openLoveTest() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        settings: const RouteSettings(name: '/love_test'),
+        builder: (_) => LoveTestScreen(
+          theme: _t,
+          groupId: _pairData.pairId,
+          myUid: widget.userData.uid,
+          partnerName: _pairData.partnerDisplayName,
+        ),
+      ),
+    ).then((_) {
+      // Открыли — карточка своё дело сделала, второй раз не зовём.
+      unawaited(UiPrefs.dismissLoveTestPrompt());
+      if (mounted) setState(() => _loveDismissed = true);
+    });
+  }
+
+  void _dismissLoveTest() {
+    unawaited(UiPrefs.dismissLoveTestPrompt());
+    setState(() => _loveDismissed = true);
+  }
+
   Widget? _homePrompt() {
     final cs = ProfileTheme.themeFor(_t).colorScheme;
 
@@ -3027,6 +3078,19 @@ class _HomeScreenState extends State<HomeScreen> {
         quietDays: _quietDays!,
         busy: _quietSending,
         onSend: _sendQuietNudge,
+      );
+    }
+
+    if (showLovePrompt(
+      partnerDone: _lovePartnerDone,
+      mineDone: _loveMineDone,
+      dismissed: _loveDismissed,
+    )) {
+      return LoveTestCard(
+        scheme: cs,
+        partnerName: _pairData.partnerDisplayName,
+        onOpen: _openLoveTest,
+        onDismiss: _dismissLoveTest,
       );
     }
 

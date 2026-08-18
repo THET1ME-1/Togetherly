@@ -44,6 +44,7 @@ import '../services/cycle_service.dart';
 import '../services/data_export_service.dart';
 import '../services/plus_access.dart';
 import '../services/plus_service.dart';
+import 'love_test_screen.dart';
 import 'plus_screen.dart';
 import 'settings_screen.dart';
 import '../widgets/common/coin_reward_toast.dart';
@@ -1351,6 +1352,8 @@ class _ProfileScreenState extends State<ProfileScreen>
         if (widget.pairData.isPaired && PlusService.instance.visible) ...[
           const SizedBox(height: 12),
           _fullStatsLink(context),
+          const SizedBox(height: 10),
+          _loveTestLink(context),
         ],
       ],
     );
@@ -1359,6 +1362,69 @@ class _ProfileScreenState extends State<ProfileScreen>
   /// Вход в полную статистику пары — раздел Togetherly+. Без покупки ведёт на
   /// страницу Plus: прятать нельзя, иначе о разделе никто не узнает. А там, где
   /// Плюса не существует (iOS), некупившему не показываем и вход.
+  /// «Умение любить» — рядом со статистикой: там уже собрано всё про пару, и
+  /// вход туда осознанный. На главной тест появляется отдельно и один раз,
+  /// когда партнёр прошёл, а человек ещё нет.
+  Widget _loveTestLink(BuildContext context) {
+    if (widget.pairData.pairId.isEmpty) return const SizedBox.shrink();
+    return Material(
+      color: _cs.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            settings: const RouteSettings(name: '/love_test'),
+            builder: (_) => LoveTestScreen(
+              theme: _t,
+              groupId: widget.pairData.pairId,
+              myUid: widget.userData.uid,
+              partnerName: widget.pairData.partnerName,
+            ),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Icon(Icons.favorite_rounded, size: 20, color: _cs.onSurface),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      LocaleService.instance.isRussian
+                          ? 'Умение любить'
+                          : 'How you love',
+                      style: TextStyle(
+                        fontFamily: ProfileTheme.displayFont,
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w700,
+                        color: _cs.onSurface,
+                      ),
+                    ),
+                    Text(
+                      LocaleService.instance.isRussian
+                          ? 'Двадцать вопросов и одна фигура на двоих'
+                          : 'Twenty questions, one shape for two',
+                      style: TextStyle(
+                        fontFamily: ProfileTheme.bodyFont,
+                        fontSize: 12,
+                        color: _cs.onSurface.withValues(alpha: 0.7),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, size: 20, color: _cs.onSurface),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _fullStatsLink(BuildContext context) {
     final gate = PlusService.instance.gate;
     if (gate == PlusGate.hidden) return const SizedBox.shrink();

@@ -1553,6 +1553,56 @@ class PbDataService {
     }
   }
 
+  // ══════════════════════════════════════════════ УМЕНИЕ ЛЮБИТЬ
+
+  /// Результаты теста «Умение любить» у пары: свой и партнёрский.
+  ///
+  /// Запись на человека одна — id складывается из пары и uid, поэтому повторное
+  /// прохождение правит её, а не плодит вторую. Realtime тут не нужен: экран
+  /// открывают руками, а фигура партнёра всё равно показывается только после
+  /// своих ответов.
+  Future<List<RecordModel>> loadLoveTests(String groupId) async {
+    if (groupId.isEmpty) return const [];
+    try {
+      return await _pb.collection('love_tests').getFullList(
+            filter: _pb.filter('group_id = {:g}', {'g': groupId}),
+          );
+    } catch (e) {
+      debugPrint('PbData.loadLoveTests($groupId) failed: $e');
+      return const [];
+    }
+  }
+
+  Future<bool> saveLoveTest(
+    String groupId,
+    String uid,
+    Map<String, dynamic> result,
+  ) async {
+    if (groupId.isEmpty || uid.isEmpty) return false;
+    // Id из пары и человека: одна запись на прохождение, без дублей после
+    // повторного теста и без гонки «создали дважды с двух устройств».
+    final id = _loveTestId(groupId, uid);
+    return _upsertById(
+      'love_tests',
+      id,
+      {
+        'group_id': groupId,
+        'user_uid': uid,
+        'data': result,
+        'total': result['total'] ?? 0,
+      },
+      op: 'saveLoveTest',
+      expectNew: true,
+    );
+  }
+
+  /// 15 символов, как у прочих id PocketBase: берём хвосты пары и человека.
+  String _loveTestId(String groupId, String uid) {
+    String tail(String v, int n) =>
+        v.length <= n ? v.padRight(n, '0') : v.substring(v.length - n);
+    return 'lt${tail(groupId, 7)}${tail(uid, 6)}';
+  }
+
   // ══════════════════════════════════════════════ WISHES
 
   /// Общие желания пары. Запись одна на двоих, поэтому фильтр только по
