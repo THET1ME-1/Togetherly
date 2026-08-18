@@ -197,6 +197,7 @@ class _LoginScreenState extends State<LoginScreen> {
       // не дошло, повтор обычно проходит — так и говорим, вместо технической
       // строки PlatformException.
       AuthFailure.providerPageFailed => s.providerPageFailed,
+      AuthFailure.providerUnreachable => s.providerUnreachable,
       AuthFailure.badCredentials || AuthFailure.emailTaken => s.wrongPassword,
       AuthFailure.unknown => s.loginError(e.toString()),
     };

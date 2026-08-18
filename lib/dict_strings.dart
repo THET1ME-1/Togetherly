@@ -261,6 +261,7 @@ abstract class DictStrings extends AppStrings {
   @override
   String get connectionBlocked => _t('connectionBlocked');
   @override
+  String get providerUnreachable => _t('providerUnreachable');
   String get providerPageFailed => _t('providerPageFailed');
 
   @override

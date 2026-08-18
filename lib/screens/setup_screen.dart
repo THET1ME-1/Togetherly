@@ -342,6 +342,8 @@ class _SetupScreenState extends State<SetupScreen>
             _showError(s.invalidEmailFormat);
           case AuthFailure.providerPageFailed:
             _showError(s.providerPageFailed);
+          case AuthFailure.providerUnreachable:
+            _showError(s.providerUnreachable);
           case AuthFailure.unknown:
             _showError(s.registrationError(e.toString()));
         }

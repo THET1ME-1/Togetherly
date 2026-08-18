@@ -15,6 +15,40 @@ import 'package:love_app/utils/auth_failure.dart';
 import 'package:pocketbase/pocketbase.dart';
 
 void main() {
+  test('сервер не дозвонился до Google — это не «неверный пароль»', () {
+    // Так выглядит запись в журнале прода 18.08.2026: PocketBase идёт за
+    // профилем в googleapis и не дожидается ответа. Человек при этом входил
+    // через Google и видел «Неверная почта или пароль».
+    final e = ClientException(
+      statusCode: 400,
+      response: const {
+        'message': 'Failed to authenticate.',
+        'data': {},
+        'details':
+            'Get "https://www.googleapis.com/oauth2/v3/userinfo": context deadline exceeded',
+      },
+    );
+    expect(AuthFailure.of(e), AuthFailure.providerUnreachable);
+  });
+
+  test('обрыв запроса к провайдеру опознаётся так же', () {
+    final e = ClientException(
+      statusCode: 400,
+      response: const {
+        'details': 'Get "https://oauth2.googleapis.com/token": context canceled',
+      },
+    );
+    expect(AuthFailure.of(e), AuthFailure.providerUnreachable);
+  });
+
+  test('обычный отказ по паролю остаётся отказом по паролю', () {
+    final e = ClientException(
+      statusCode: 400,
+      response: const {'message': 'Failed to authenticate.', 'details': 'invalid login credentials'},
+    );
+    expect(AuthFailure.of(e), AuthFailure.badCredentials);
+  });
+
   group('AuthFailure.of — что пошло не так', () {
     test('сломанный TLS по дороге', () {
       final e = ClientException(

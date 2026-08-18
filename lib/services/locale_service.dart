@@ -228,6 +228,7 @@ abstract class AppStrings {
   String get serverNotResponding;
 
   /// Страница провайдера входа не открылась (встроенный браузер).
+  String get providerUnreachable;
   String get providerPageFailed;
 
   /// Соединение ломают по дороге (TLS не доходит целым).

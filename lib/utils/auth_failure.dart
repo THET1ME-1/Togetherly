@@ -42,6 +42,14 @@ enum AuthFailure {
   /// https://appleid.apple.com/auth/authorize?client_id=…`.
   providerPageFailed,
 
+  /// Сервер не дозвонился до Google или Apple. Обмен кода на профиль идёт с
+  /// нашей машины, и когда связь до `googleapis.com` проседает, PocketBase
+  /// отвечает 400 с текстом вида `Get "…/userinfo": context deadline exceeded`.
+  /// Пока это считалось отказом по паролю, человек, вошедший через Google,
+  /// читал «Неверная почта или пароль» и ждал ответа десятки секунд
+  /// (жалоба 18.08.2026).
+  providerUnreachable,
+
   /// Причина не опознана — только в этом случае показываем подробности.
   unknown;
 
@@ -62,7 +70,9 @@ enum AuthFailure {
       if (code == 429) return tooManyAttempts;
       if (code >= 500) return serverDown;
       if (code == 400 || code == 403) {
-        return _saysEmailTaken(error) ? emailTaken : badCredentials;
+        if (_saysEmailTaken(error)) return emailTaken;
+        if (_saysProviderUnreachable(error)) return providerUnreachable;
+        return badCredentials;
       }
       // statusCode 0 — до сервера не дошли вовсе, а тип обрыва не опознан.
       if (code == 0) return noConnection;
@@ -79,6 +89,24 @@ enum AuthFailure {
     if (!text.startsWith('PlatformException')) return false;
     return text.contains('Error while launching') ||
         text.contains('no view controller present');
+  }
+
+  /// Сбой похода сервера к провайдеру. Go пишет такие ошибки одинаково —
+  /// `Get "<адрес>": <причина>`, — поэтому смотрим и на адрес провайдера, и на
+  /// характерные причины обрыва.
+  static bool _saysProviderUnreachable(ClientException e) {
+    final text = '${e.response} ${e}'.toLowerCase();
+    final aboutProvider = text.contains('googleapis.com') ||
+        text.contains('accounts.google.com') ||
+        text.contains('appleid.apple.com') ||
+        text.contains('oauth2');
+    if (!aboutProvider) return false;
+    return text.contains('context deadline exceeded') ||
+        text.contains('context canceled') ||
+        text.contains('timeout') ||
+        text.contains('no such host') ||
+        text.contains('connection refused') ||
+        text.contains('eof');
   }
 
   /// Дубль почты PocketBase отдаёт кодом поля, а не текстом сообщения: текст
