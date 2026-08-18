@@ -44,3 +44,70 @@ Map<String, String> pairWidgetPayload({
 
   return out;
 }
+
+/// Ссылки на картинки обеих половин: фото, аватар, значок настроения.
+///
+/// То же правило, что и у текстовых ключей, только для файлов — и оно было
+/// упущено 17.08.2026. Тексты половину без данных уже не трогали, а фото,
+/// аватар и значок настроения пересобирались из `my?.photoUrl` на каждом
+/// проходе: при `my == null` получалась пустая строка, ключ обнулялся, а файл
+/// удалялся из общего контейнера вместе с ним. Самоотчёт с iPhone тестера в
+/// ночь на 18.08 (сборка 1.29.1+202) показал именно эту картину: имена и
+/// настроения на месте, все пути к файлам пусты.
+///
+/// `null` — данных о половине нет, ключ не трогаем. Пустая строка — данные
+/// живые, а картинку человек убрал: тогда стираем.
+class PairWidgetMedia {
+  const PairWidgetMedia({
+    this.myPhoto,
+    this.partnerPhoto,
+    this.myAvatar,
+    this.partnerAvatar,
+    this.myMoodEmoji,
+    this.partnerMoodEmoji,
+    this.myIosPhotos,
+    this.partnerIosPhotos,
+  });
+
+  final String? myPhoto;
+  final String? partnerPhoto;
+  final String? myAvatar;
+  final String? partnerAvatar;
+  final String? myMoodEmoji;
+  final String? partnerMoodEmoji;
+
+  /// Снимки для фото-виджетов iPhone: `null` — половина не загружена.
+  final List<String>? myIosPhotos;
+  final List<String>? partnerIosPhotos;
+}
+
+PairWidgetMedia pairWidgetMedia({WidgetData? my, WidgetData? partner}) =>
+    PairWidgetMedia(
+      myPhoto: my == null ? null : pairPhotoOf(my),
+      partnerPhoto: partner == null ? null : pairPhotoOf(partner),
+      myAvatar: my?.avatarUrl,
+      partnerAvatar: partner?.avatarUrl,
+      myMoodEmoji: my?.moodEmoji,
+      partnerMoodEmoji: partner?.moodEmoji,
+      myIosPhotos: my == null ? null : iosPhotosOf(my),
+      partnerIosPhotos: partner == null ? null : iosPhotosOf(partner),
+    );
+
+/// Какое фото показывает половина парного виджета — своё и партнёрское правило
+/// одно и то же с 13.08.2026 (см. `WidgetService.pairPhotoOfPartner`).
+String pairPhotoOf(WidgetData? d) => d?.photoUrl ?? '';
+
+/// Какие снимки показывать в фото-виджетах iPhone: сначала карусель «для
+/// партнёра», затем снимок парного виджета.
+List<String> iosPhotosOf(WidgetData? d) {
+  if (d == null) return const [];
+  final out = <String>[];
+  for (final url in d.photoForPartnerUrls) {
+    if (url.isNotEmpty && !out.contains(url)) out.add(url);
+  }
+  final single = d.photoForPartnerUrl ?? '';
+  if (single.isNotEmpty && !out.contains(single)) out.add(single);
+  final pair = pairPhotoOf(d);
+  if (pair.isNotEmpty && !out.contains(pair)) out.add(pair);
+  return out;
+}

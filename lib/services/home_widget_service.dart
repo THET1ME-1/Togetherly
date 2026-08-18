@@ -241,11 +241,14 @@ class HomeWidgetService {
     final mine = myRec == null ? null : WidgetData.fromPb(myRec);
     final theirs = partnerRec == null ? null : WidgetData.fromPb(partnerRec);
 
+    // Запись не приехала (нет сети, отказ сервера, полумёртвая сессия) — это
+    // «не знаю», а не «фото нет»: половину не трогаем, иначе фоновый проход
+    // сотрёт снимок с рабочего стола. См. pair_widget_payload.dart.
     await syncIosPhotoWidgets(
-      myPhotos: shared(mine),
-      partnerPhotos: shared(theirs),
+      myPhotos: mine == null ? null : shared(mine),
+      partnerPhotos: theirs == null ? null : shared(theirs),
       partnerName: theirs?.displayName ?? '',
-      gridPhotos: theirs?.photoGridUrls ?? const [],
+      gridPhotos: theirs?.photoGridUrls,
     );
   }
 
@@ -3121,15 +3124,22 @@ class HomeWidgetService {
   // Android эти виджеты наполняет по экземплярам (`photo_day_widget_<id>_*`),
   // и переносить сюда ту же схему нельзя: на iOS экземпляр выбирает фото сам,
   // через AppIntent, а приложение обязано лишь выложить каталог и умолчание.
+  ///
+  /// `null` в списке снимков — половина ещё не загружена: её ключи и каталог
+  /// не трогаем вовсе. Пустой список — данные живые, а снимков нет: тогда
+  /// ключ честно стираем. Правило общее с парным виджетом, см.
+  /// pair_widget_payload.dart: без него холодный старт с невосстановленной
+  /// сессией стирал фото с рабочего стола iPhone.
   Future<void> syncIosPhotoWidgets({
-    required List<String> myPhotos,
-    required List<String> partnerPhotos,
+    required List<String>? myPhotos,
+    required List<String>? partnerPhotos,
     String partnerName = '',
     String dayPhotoUrl = '',
     String dayAuthor = '',
-    List<String> gridPhotos = const [],
+    List<String>? gridPhotos,
   }) async {
     if (!Platform.isIOS) return;
+    if (myPhotos == null && partnerPhotos == null && gridPhotos == null) return;
     try {
       // Каталог: скачиваем до пяти снимков каждого вида. Больше в списке
       // «Изменить виджет» человек всё равно не разглядывает, а каждый файл
@@ -3154,12 +3164,16 @@ class HomeWidgetService {
         return out;
       }
 
-      final mine = await catalog(myPhotos, 'ios_self', 'Моё фото');
-      final theirs = await catalog(
-        partnerPhotos,
-        'ios_partner',
-        partnerName.isEmpty ? 'Фото партнёра' : 'Фото · $partnerName',
-      );
+      final mine = myPhotos == null
+          ? null
+          : await catalog(myPhotos, 'ios_self', 'Моё фото');
+      final theirs = partnerPhotos == null
+          ? null
+          : await catalog(
+              partnerPhotos,
+              'ios_partner',
+              partnerName.isEmpty ? 'Фото партнёра' : 'Фото · $partnerName',
+            );
       final day = dayPhotoUrl.isEmpty
           ? <Map<String, String>>[]
           : await catalog([dayPhotoUrl], 'ios_day', 'Фото дня');
@@ -3167,32 +3181,41 @@ class HomeWidgetService {
       Future<void> put(String key, String value) =>
           HomeWidget.saveWidgetData<String>(key, value);
 
-      await put('ios_self_photo_path', mine.isEmpty ? '' : mine.first['path']!);
-      await put('ios_partner_photo_path',
-          theirs.isEmpty ? '' : theirs.first['path']!);
-      await put('ios_partner_photo_author', partnerName);
-      await put('ios_photo_day_path', day.isEmpty ? '' : day.first['path']!);
-      await put('ios_photo_day_author', dayAuthor);
-
-      await put('ios_photo_catalog_self', jsonEncode(mine));
-      await put('ios_photo_catalog_partner', jsonEncode(theirs));
-      await put('ios_photo_catalog_day', jsonEncode(day));
+      if (mine != null) {
+        await put(
+            'ios_self_photo_path', mine.isEmpty ? '' : mine.first['path']!);
+        await put('ios_photo_catalog_self', jsonEncode(mine));
+      }
+      if (theirs != null) {
+        await put('ios_partner_photo_path',
+            theirs.isEmpty ? '' : theirs.first['path']!);
+        await put('ios_partner_photo_author', partnerName);
+        await put('ios_photo_catalog_partner', jsonEncode(theirs));
+      }
+      if (dayPhotoUrl.isNotEmpty || day.isNotEmpty) {
+        await put('ios_photo_day_path', day.isEmpty ? '' : day.first['path']!);
+        await put('ios_photo_day_author', dayAuthor);
+        await put('ios_photo_catalog_day', jsonEncode(day));
+      }
 
       // Сетка: до четырёх плиток, счётчик пишем числом — Store читает и число,
       // и строку, но число честнее.
-      final grid = <String>[];
-      for (var i = 0; i < 4; i++) {
-        final url = i < gridPhotos.length ? gridPhotos[i] : '';
-        final path =
-            url.isEmpty ? '' : await _cachePhotoFromUrl(url, 'ios_grid_$i');
-        grid.add(path);
-        await put('ios_photo_grid_$i', path);
+      var filled = 0;
+      if (gridPhotos != null) {
+        final grid = <String>[];
+        for (var i = 0; i < 4; i++) {
+          final url = i < gridPhotos.length ? gridPhotos[i] : '';
+          final path =
+              url.isEmpty ? '' : await _cachePhotoFromUrl(url, 'ios_grid_$i');
+          grid.add(path);
+          await put('ios_photo_grid_$i', path);
+        }
+        filled = grid.where((p) => p.isNotEmpty).length;
+        await HomeWidget.saveWidgetData<int>(
+          'ios_photo_grid_count',
+          filled == 0 ? 1 : filled,
+        );
       }
-      final filled = grid.where((p) => p.isNotEmpty).length;
-      await HomeWidget.saveWidgetData<int>(
-        'ios_photo_grid_count',
-        filled == 0 ? 1 : filled,
-      );
 
       for (final name in const [
         'SelfPhotoWidgetProvider',
@@ -3203,8 +3226,8 @@ class HomeWidgetService {
         await HomeWidget.updateWidget(name: name, androidName: name);
       }
       debugPrint(
-        'HomeWidgetService.syncIosPhotoWidgets: свои ${mine.length}, '
-        'партнёрские ${theirs.length}, сетка $filled',
+        'HomeWidgetService.syncIosPhotoWidgets: свои ${mine?.length ?? '—'}, '
+        'партнёрские ${theirs?.length ?? '—'}, сетка $filled',
       );
     } catch (e) {
       debugPrint('HomeWidgetService.syncIosPhotoWidgets failed: $e');

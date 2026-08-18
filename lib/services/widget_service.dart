@@ -82,7 +82,7 @@ class WidgetService extends ChangeNotifier {
 
   /// Фото на МОЕЙ половине парного виджета: только то, что я выбрал для этого
   /// виджета. Фото «для партнёра» — другая функция и сюда не протекает.
-  static String pairPhotoOfMine(WidgetData? d) => d?.photoUrl ?? '';
+  static String pairPhotoOfMine(WidgetData? d) => pairPhotoOf(d);
 
   /// Фото на половине ПАРТНЁРА — только его фото парного виджета.
   ///
@@ -99,7 +99,7 @@ class WidgetService extends ChangeNotifier {
   ///
   /// Обратная сторона фолбэка того же поля описана ниже, у
   /// [clearPairPhotoFields]: до 7 августа фото нельзя было убрать вовсе.
-  static String pairPhotoOfPartner(WidgetData? d) => d?.photoUrl ?? '';
+  static String pairPhotoOfPartner(WidgetData? d) => pairPhotoOf(d);
 
   /// Поля записи, когда фото «для партнёра» ставят или убирают.
   ///
@@ -675,25 +675,30 @@ class WidgetService extends ChangeNotifier {
       // ── Фото: сохраняем URL, кэшируем локально фоново ──
       // Правило выбора — в pairPhotoOfMine/pairPhotoOfPartner (под тестами
       // test/services/pair_widget_photo_test.dart).
-      await HomeWidget.saveWidgetData<String>(
-        'my_photo_url',
-        pairPhotoOfMine(my),
-      );
-      await HomeWidget.saveWidgetData<String>(
-        'partner_photo_url',
-        pairPhotoOfPartner(partner),
-      );
+      if (my != null) {
+        await HomeWidget.saveWidgetData<String>(
+          'my_photo_url',
+          pairPhotoOfMine(my),
+        );
+      }
+      if (partner != null) {
+        await HomeWidget.saveWidgetData<String>(
+          'partner_photo_url',
+          pairPhotoOfPartner(partner),
+        );
+      }
 
       // ── Аватарки для 2-человечного виджета (LoveWidget) ──
       // LoveWidget всё ещё использует старые ключи для 2 людей
-      await HomeWidget.saveWidgetData<String>(
-        'my_avatar_url',
-        my?.avatarUrl ?? '',
-      );
-      await HomeWidget.saveWidgetData<String>(
-        'partner_avatar_url',
-        partner?.avatarUrl ?? '',
-      );
+      if (my != null) {
+        await HomeWidget.saveWidgetData<String>('my_avatar_url', my.avatarUrl);
+      }
+      if (partner != null) {
+        await HomeWidget.saveWidgetData<String>(
+          'partner_avatar_url',
+          partner.avatarUrl,
+        );
+      }
 
       // ── Обновить виджет на рабочем столе (текстовые данные сразу) ──
       await HomeWidget.updateWidget(
@@ -731,10 +736,15 @@ class WidgetService extends ChangeNotifier {
         );
       }
 
+      // Картинки половины без данных не трогаем — как и её тексты выше.
+      // Правило и причина в pair_widget_payload.dart, сторож
+      // test/services/pair_widget_media_test.dart.
+      final media = pairWidgetMedia(my: my, partner: partner);
+
       // Кэшируем эмодзи из assets → локальные файлы для нативного виджета (фоново)
       Future.wait([
-        _cacheEmojiForWidget(my?.moodEmoji, 'my_mood_emoji_path'),
-        _cacheEmojiForWidget(partner?.moodEmoji, 'partner_mood_emoji_path'),
+        _cacheEmojiForWidget(media.myMoodEmoji, 'my_mood_emoji_path'),
+        _cacheEmojiForWidget(media.partnerMoodEmoji, 'partner_mood_emoji_path'),
       ]).then((_) async {
         if (_isDisposed || bindGeneration != _bindGeneration) return;
         try {
@@ -748,21 +758,18 @@ class WidgetService extends ChangeNotifier {
       });
 
       // Скачиваем фото и аватарки локально в фоне и обновляем виджет повторно.
-      _cachePhotosForWidget(
-        pairPhotoOfMine(my),
-        pairPhotoOfPartner(partner),
-      );
+      _cachePhotosForWidget(media.myPhoto, media.partnerPhoto);
 
       // iPhone: у фото-виджетов свои ключи и свой каталог выбора. Пока их никто
       // не писал, «Моё фото», «Фото партнёра», «Фото дня» и «Сетка» стояли на
       // рабочем столе пустыми белыми прямоугольниками.
       unawaited(HomeWidgetService.instance.syncIosPhotoWidgets(
-        myPhotos: _iosPhotosOf(my, own: true),
-        partnerPhotos: _iosPhotosOf(partner, own: false),
+        myPhotos: media.myIosPhotos,
+        partnerPhotos: media.partnerIosPhotos,
         partnerName: partner?.displayName ?? '',
-        gridPhotos: partner?.photoGridUrls ?? const [],
+        gridPhotos: partner?.photoGridUrls,
       ));
-      _cacheAvatarsForLoveWidget(my?.avatarUrl, partner?.avatarUrl);
+      _cacheAvatarsForLoveWidget(media.myAvatar, media.partnerAvatar);
       _cacheGroupAvatarsForWidget(limitedMembers);
 
       // PhotoDay обновляется ТОЛЬКО при изменении фото-полей (photoUrl,
@@ -778,18 +785,6 @@ class WidgetService extends ChangeNotifier {
   ///
   /// «Моё фото» — то, чем делюсь я: сначала своя карусель «для партнёра»,
   /// потом снимок парного виджета. «Фото партнёра» — зеркально его выбор.
-  static List<String> _iosPhotosOf(WidgetData? d, {required bool own}) {
-    if (d == null) return const [];
-    final out = <String>[];
-    for (final url in d.photoForPartnerUrls) {
-      if (url.isNotEmpty && !out.contains(url)) out.add(url);
-    }
-    final single = d.photoForPartnerUrl ?? '';
-    if (single.isNotEmpty && !out.contains(single)) out.add(single);
-    final pair = own ? pairPhotoOfMine(d) : pairPhotoOfPartner(d);
-    if (pair.isNotEmpty && !out.contains(pair)) out.add(pair);
-    return out;
-  }
 
   /// Скачивает фото в локальный кэш и обновляет нативный виджет (LoveWidget).
   void _cachePhotosForWidget(String? myUrl, String? partnerUrl) {
@@ -858,7 +853,10 @@ class WidgetService extends ChangeNotifier {
   /// Копирует Flutter asset с эмодзи в файловый кэш и сохраняет путь
   /// под ключом [key] в SharedPreferences нативного виджета.
   Future<void> _cacheEmojiForWidget(String? assetPath, String key) async {
-    if (assetPath == null || assetPath.isEmpty) {
+    // null — данных о половине нет вовсе, ключ не трогаем (правило в
+    // pair_widget_payload.dart). Пустая строка — настроение сняли осознанно.
+    if (assetPath == null) return;
+    if (assetPath.isEmpty) {
       await HomeWidget.saveWidgetData<String>(key, '');
       return;
     }
@@ -951,7 +949,11 @@ class WidgetService extends ChangeNotifier {
   /// Скачивает изображение по [url] в файловый кэш и сохраняет путь
   /// под ключом [key] в SharedPreferences нативного виджета.
   Future<void> _downloadPhoto(String? url, String key) async {
-    if (url == null || url.isEmpty) {
+    // null — половина не загружена, трогать её картинку нельзя: иначе каждый
+    // холодный старт и каждый тихий пуш стирают фото с рабочего стола вместе с
+    // файлом в общем контейнере (правило в pair_widget_payload.dart).
+    if (url == null) return;
+    if (url.isEmpty) {
       await HomeWidget.saveWidgetData<String>(key, '');
       // Фото убрали → чистим старые файлы этого ключа в контейнере, иначе iOS
       // держал бы закэшированную картинку по прежнему пути.
