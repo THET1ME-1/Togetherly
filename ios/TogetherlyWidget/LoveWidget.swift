@@ -103,7 +103,8 @@ private struct LovePanel: View {
                         .lineLimit(1).padding(.top, 3)
                 }
             }
-            .padding(6)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 10)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             // Аватарка в нижнем углу
@@ -115,7 +116,9 @@ private struct LovePanel: View {
                         else { Spacer(); avatarView(avatar) }
                     }
                 }
-                .padding(4)
+                // Отступ больше прежних четырёх точек: у скруглённых углов
+                // виджета кружок аватара срезался нижним краем (18.08.2026).
+                .padding(8)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -124,7 +127,7 @@ private struct LovePanel: View {
 
     private func avatarView(_ image: UIImage) -> some View {
         Image(uiImage: image).resizable().scaledToFit()
-            .frame(width: 26, height: 26).clipShape(Circle())
+            .frame(width: 22, height: 22).clipShape(Circle())
     }
 }
 
