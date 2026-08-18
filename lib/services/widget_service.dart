@@ -238,9 +238,38 @@ class WidgetService extends ChangeNotifier {
     }
 
     if (clearNativeWidget) {
-      await _syncToNativeWidget();
+      await _clearPairWidgetData();
     }
     notifyListeners();
+  }
+
+  /// Стереть с виджета всё, что осталось от распавшейся пары.
+  ///
+  /// Раньше это делала обычная синхронизация: модель пуста, значит во все ключи
+  /// уходили пустые строки. С 17–18.08.2026 половина без данных не трогается
+  /// (иначе фото стиралось на каждом холодном старте), поэтому распад пары
+  /// приходится отрабатывать отдельно. Список ключей — в
+  /// pair_widget_payload.dart, сторож — test/services/pair_widget_clear_test.dart.
+  Future<void> _clearPairWidgetData() async {
+    try {
+      for (final e in pairWidgetClearPayload().entries) {
+        await HomeWidget.saveWidgetData<String>(e.key, e.value);
+      }
+      // Записи мало: картинки лежат файлами в общем контейнере и переживают её.
+      for (final key in kPairWidgetFileKeys) {
+        await HomeWidgetService.instance.clearAppGroupMedia(key);
+      }
+      for (final name in const [
+        'LoveWidgetProvider',
+        'MoodWidgetProvider',
+        'SelfPhotoWidgetProvider',
+        'PartnerPhotoWidgetProvider',
+      ]) {
+        await HomeWidget.updateWidget(name: name, androidName: name);
+      }
+    } catch (e) {
+      debugPrint('WidgetService._clearPairWidgetData failed: $e');
+    }
   }
 
   void _listenToMyData() {

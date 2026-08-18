@@ -111,3 +111,51 @@ List<String> iosPhotosOf(WidgetData? d) {
   if (pair.isNotEmpty && !out.contains(pair)) out.add(pair);
   return out;
 }
+
+/// Ключи с файлами: по ним чистится и запись, и сама картинка в контейнере.
+const List<String> kPairWidgetFileKeys = [
+  'my_photo_path',
+  'partner_photo_path',
+  'my_avatar_path',
+  'partner_avatar_path',
+  'my_mood_emoji_path',
+  'partner_mood_emoji_path',
+  'ios_self_photo_path',
+  'ios_partner_photo_path',
+];
+
+/// Что записать в контейнер, когда пара распалась.
+///
+/// Отвязка раньше обходилась обычной синхронизацией с пустой моделью: та писала
+/// пустые строки во все ключи и тем самым чистила виджет. Теперь половина без
+/// данных не трогается вовсе (иначе фото стиралось на каждом холодном старте),
+/// поэтому распад пары надо отрабатывать явно — иначе на рабочем столе остаются
+/// имя, настроение и фото бывшего партнёра, а на iPhone обновить их некому.
+Map<String, String> pairWidgetClearPayload() => {
+      for (final key in const [
+        'my_name',
+        'my_mood',
+        'my_status',
+        'my_message',
+        'my_music_title',
+        'my_music_artist',
+        'my_photo_url',
+        'my_avatar_url',
+        'partner_name',
+        'partner_mood',
+        'partner_status',
+        'partner_message',
+        'partner_music_title',
+        'partner_music_artist',
+        'partner_photo_url',
+        'partner_avatar_url',
+        'ios_partner_photo_author',
+        'ios_photo_day_path',
+        'ios_photo_day_author',
+        'ios_photo_catalog_self',
+        'ios_photo_catalog_partner',
+        'ios_photo_catalog_day',
+        ...kPairWidgetFileKeys,
+      ])
+        key: '',
+    };
