@@ -84,8 +84,21 @@ class _LoveTestScreenState extends State<LoveTestScreen> {
       _stage = _Stage.result;
       _saving = true;
     });
-    await LoveTestService.instance.save(widget.groupId, widget.myUid, result);
+    final saved =
+        await LoveTestService.instance.save(widget.groupId, widget.myUid, result);
     if (!mounted) return;
+    if (!saved) {
+      // Отказ сервера проходил молча: человек видел свою фигуру, закрывал
+      // приложение и обнаруживал, что тест снова непройден.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_tr(
+            'Результат не сохранился — попробуйте пройти ещё раз позже',
+            'Result was not saved — try again a bit later',
+          )),
+        ),
+      );
+    }
     // Фигуру партнёра забираем уже после сохранения: до этой минуты она была
     // под замком, и показывать её раньше собственного результата незачем.
     final pair = await LoveTestService.instance.load(

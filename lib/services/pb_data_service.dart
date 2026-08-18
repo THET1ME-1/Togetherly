@@ -6,6 +6,7 @@ import 'package:pocketbase/pocketbase.dart';
 
 import '../utils/date_only.dart';
 import '../utils/pair_time.dart';
+import 'love_test_id.dart';
 import 'pb_errors.dart';
 import 'pocketbase_service.dart';
 import 'upsert_backoff.dart';
@@ -1596,12 +1597,8 @@ class PbDataService {
     );
   }
 
-  /// 15 символов, как у прочих id PocketBase: берём хвосты пары и человека.
-  String _loveTestId(String groupId, String uid) {
-    String tail(String v, int n) =>
-        v.length <= n ? v.padRight(n, '0') : v.substring(v.length - n);
-    return 'lt${tail(groupId, 7)}${tail(uid, 6)}';
-  }
+  String _loveTestId(String groupId, String uid) =>
+      loveTestRecordId(groupId, uid);
 
   // ══════════════════════════════════════════════ WISHES
 
