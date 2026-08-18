@@ -1,9 +1,6 @@
-🫦 Togetherly • v1.28.4
+🫦 Togetherly • v1.29.2
 
-— Widgets are back in the iPhone gallery. The extension crashed on launch, so the system could never learn which widgets the app has — and Togetherly was missing from the list entirely.
-— One icon on the home screen again: those who had picked a coloured icon ended up with two after an update.
-— The "Miss you" counter stops losing taps: a burst tapped out before you close the app now reaches your partner in full.
-— The "Days together" widget no longer says "0 years already" — before the first anniversary it counts in months.
-— The timer list for widgets shows the symbol itself, not its internal name.
-— A partner's comment on a memory now arrives as a notification.
-— Settings now link to our channel and to the bot that collects bug reports.
+— Photos in iPhone widgets no longer disappear. The app was wiping them itself when it woke for a couple of seconds and had not yet learned who you are.
+— The pair widget is rectangular only: in a square both halves were squeezed into narrow strips.
+— Widgets forget the previous account as soon as you sign out, not after the next app restart.
+— When a pair breaks up, the widget is cleared completely, photos included.
