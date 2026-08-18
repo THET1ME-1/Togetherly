@@ -56,11 +56,30 @@ enum PhotoWidgetKind {
 
 /// Одно фото на всю площадь с centerCrop-обрезкой (как scaleType=centerCrop).
 private struct PhotoFill: View {
+    /// Путь к файлу: картинка читается уже под размер виджета.
+    ///
+    /// 18.08.2026: фотография разжималась исправно (901×1200 по журналу), файл
+    /// был на месте, памяти хватало — а на экране оставался чёрный квадрат.
+    /// Разница между работающими и чёрными виджетами свелась к тому, во сколько
+    /// раз картинка крупнее места, куда её кладут: в квадрат 158 точек ехал кадр
+    /// в 1200. Теперь читаем ровно под площадь, с запасом на плотность экрана.
+    let path: String
     let image: UIImage?
     var kind: PhotoWidgetKind = .day
+    var logAs: String = ""
+    var family: String = ""
     var body: some View {
         GeometryReader { geo in
-            if let img = image {
+            let side = max(geo.size.width, geo.size.height) * 3
+            let img = image ?? (path.isEmpty
+                ? nil
+                : WidgetImage.load(
+                    path,
+                    maxSide: max(120, side),
+                    logAs: logAs,
+                    family: family
+                ))
+            if let img {
                 Image(uiImage: img)
                     .resizable()
                     .tgFullColorImage()
@@ -133,49 +152,56 @@ private struct PhotoGridView: View {
     var body: some View {
         let store = Store()
         let count = max(1, min(4, store.int("ios_photo_grid_count", 1)))
-        let images: [UIImage?] = (0..<4).map { store.uiImage("ios_photo_grid_\($0)") }
+        // Пути, а не картинки: ячейка прочитает файл под свой размер. Здесь их
+        // четыре в одном виджете, и полноразмерные кадры бьют по памяти сильнее
+        // всего (расширению дают около 30 МБ).
+        let paths: [String] = (0..<4).map { store.string("ios_photo_grid_\($0)") }
 
         PhotoWidgetContainer {
-            grid(count: count, images: images)
+            grid(count: count, paths: paths)
                 .clipShape(RoundedRectangle(cornerRadius: PhotoStyle.corner, style: .continuous))
         }
     }
 
     @ViewBuilder
-    private func grid(count: Int, images: [UIImage?]) -> some View {
+    private func grid(count: Int, paths: [String]) -> some View {
         switch count {
         case 2:
             HStack(spacing: 1) {
-                cell(images[0])
-                cell(images[1])
+                cell(paths[0])
+                cell(paths[1])
             }
         case 3, 4:
             VStack(spacing: 1) {
                 HStack(spacing: 1) {
-                    cell(images[0])
-                    cell(images[1])
+                    cell(paths[0])
+                    cell(paths[1])
                 }
                 HStack(spacing: 1) {
-                    cell(images[2])
-                    cell(images[3])
+                    cell(paths[2])
+                    cell(paths[3])
                 }
             }
         default:
-            cell(images[0])
+            cell(paths[0])
         }
     }
 
-    private func cell(_ image: UIImage?) -> some View {
-        PhotoFillCell(image: image)
+    private func cell(_ path: String) -> some View {
+        PhotoFillCell(path: path)
     }
 }
 
 /// Ячейка сетки: фото centerCrop либо мелкий плейсхолдер без текста.
 private struct PhotoFillCell: View {
-    let image: UIImage?
+    let path: String
     var body: some View {
         GeometryReader { geo in
-            if let img = image {
+            let side = max(geo.size.width, geo.size.height) * 3
+            let img = path.isEmpty
+                ? nil
+                : WidgetImage.load(path, maxSide: max(120, side))
+            if let img {
                 Image(uiImage: img)
                     .resizable()
                     .tgFullColorImage()
@@ -231,17 +257,15 @@ private struct KeyPhotoView: View {
     let kind: PhotoWidgetKind
     @Environment(\.widgetFamily) private var family
     var body: some View {
-        let path = Store().string(storeKey)
-        let image = path.isEmpty
-            ? nil
-            : WidgetImage.load(
-                path,
+        PhotoWidgetContainer {
+            PhotoFill(
+                path: Store().string(storeKey),
+                image: nil,
+                kind: kind,
                 logAs: "photo-\(kind)",
                 family: WidgetRenderLog.familyName(family)
             )
-        PhotoWidgetContainer {
-            PhotoFill(image: image, kind: kind)
-                .clipShape(RoundedRectangle(cornerRadius: PhotoStyle.corner, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: PhotoStyle.corner, style: .continuous))
         }
     }
 }
