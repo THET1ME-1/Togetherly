@@ -75,6 +75,16 @@ class DrawStroke {
   /// Rotation of the image in radians.
   final double? imageRotation;
 
+  /// Идентификатор, придуманный телефоном автора ещё до записи на сервер.
+  ///
+  /// По нему свой оптимистичный штрих узнаёт пришедшую запись, а партнёр
+  /// заменяет мазок, зафиксированный из живого канала, на настоящий. До
+  /// 18.08.2026 этого поля не было, и штрихи сверялись на глаз — по автору,
+  /// номеру, цвету и координатам концов: ложное совпадение стирало штрих,
+  /// промах его задваивал. У записей прежних сборок поле пустое, для них
+  /// эвристика остаётся запасным путём.
+  final String? clientId;
+
   /// Номер слоя, на котором лежит штрих. 0 — нижний.
   ///
   /// У старых рисунков поля нет, и они читаются как нулевой слой: холст
@@ -83,6 +93,7 @@ class DrawStroke {
 
   const DrawStroke({
     required this.id,
+    this.clientId,
     required this.userId,
     required this.colorValue,
     required this.strokeWidth,
@@ -108,6 +119,7 @@ class DrawStroke {
   // ── Firestore serialisation ───────────────────────────────────────────────
 
   Map<String, dynamic> toFirestore() => {
+    if (clientId != null) 'clientId': clientId,
     'userId': userId,
     'colorValue': colorValue,
     'strokeWidth': strokeWidth,
@@ -132,6 +144,7 @@ class DrawStroke {
     final rawPoints = (data['points'] as List?) ?? [];
     return DrawStroke(
       id: id,
+      clientId: data['clientId'] as String?,
       userId: (data['userId'] as String?) ?? '',
       colorValue: (data['colorValue'] as num?)?.toInt() ?? 0xFF000000,
       strokeWidth: (data['strokeWidth'] as num?)?.toDouble() ?? 4.0,
@@ -140,7 +153,7 @@ class DrawStroke {
           .toList(),
       isEraser: (data['isEraser'] as bool?) ?? false,
       isFilledShape: (data['isFilledShape'] as bool?) ?? false,
-      shapeType: _parseShapeType(data['shapeType'] as String?),
+      shapeType: parseShapeType(data['shapeType'] as String?),
       orderIndex: (data['orderIndex'] as num?)?.toInt() ?? 0,
       imageUrl: data['imageUrl'] as String?,
       imageX: (data['imageX'] as num?)?.toDouble(),
@@ -187,13 +200,15 @@ class DrawStroke {
           .toList(),
       isEraser: (data['isEraser'] as bool?) ?? false,
       isFilledShape: (data['isFilledShape'] as bool?) ?? false,
-      shapeType: _parseShapeType(data['shapeType'] as String?),
+      shapeType: parseShapeType(data['shapeType'] as String?),
       orderIndex: -1,
     );
   }
 }
 
-DrawShapeType? _parseShapeType(String? value) {
+/// Разбор вида фигуры из строки. Публичный: тем же значением пользуется
+/// сборщик живых пакетов (`live_stroke_wire.dart`).
+DrawShapeType? parseShapeType(String? value) {
   if (value == null) return null;
   switch (value) {
     case 'line':
