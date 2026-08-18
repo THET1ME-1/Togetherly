@@ -1,7 +1,6 @@
 import SwiftUI
 import WidgetKit
 import UIKit
-import AppIntents
 
 // MARK: - Фото-виджеты (Self / Partner / PhotoDay / Grid)
 //
@@ -206,218 +205,33 @@ struct PhotoGridWidget: Widget {
     }
 }
 
-// MARK: ════════════════════════════════════════════════════════════════════
-// MARK: Конфигурируемые фото-виджеты (iOS 17+)
+// MARK: - Фото-виджеты: почему без выбора снимка
 //
-// На iOS 17+ Self/Partner/PhotoDay становятся настраиваемыми: при долгом тапе
-// «Изменить виджет» пользователь выбирает конкретное фото, поэтому несколько
-// экземпляров одного виджета могут показывать РАЗНЫЕ фото (как на Android).
+// До 18.08.2026 «Моё фото», «Фото партнёра» и «Фото дня» были конфигурируемыми:
+// AppIntent, каталог снимков в App Group, выбор в «Изменить виджет». На iPhone
+// тестера (iOS 26, сборка 1.29.3) они рисовались ЧЁРНЫМ и не оставляли в журнале
+// отрисовки ни одной записи — то есть система не доходила даже до построения
+// таймлайна, хотя парный виджет с обычной статической конфигурацией работал и
+// показывал те же фотографии.
 //
-// Список доступных фото Flutter публикует в App Group JSON-ключами
-// ios_photo_catalog_self / _partner / _day (см. HomeWidgetService
-// .syncIosPhotoWidgets). Если пользователь ничего не выбрал (photo == nil),
-// показываем фото по умолчанию из ios_*_photo_path (как раньше).
-//
-// Для iOS ≤16 в TogetherlyWidgetBundle остаются статические версии выше.
+// Поэтому вернулись к статике: виджет читает путь прямо из общего контейнера
+// (ios_self_photo_path и соседние). Выбор конкретного снимка пропал, зато
+// фотография показывается. Каталоги `ios_photo_catalog_*` приложение писать
+// продолжает — они понадобятся, когда выбор вернём.
 
-/// Одна запись каталога фото из App Group.
-private struct PhotoCatalogItem: Codable {
-    let id: String
-    let label: String
-    let path: String
-}
-
-@available(iOS 17.0, *)
-private func loadPhotoCatalog(_ key: String) -> [PhotoCatalogItem] {
-    guard let json = AppGroup.defaults?.string(forKey: key),
-          let data = json.data(using: .utf8),
-          let items = try? JSONDecoder().decode([PhotoCatalogItem].self, from: data)
-    else { return [] }
-    return items
-}
-
-// MARK: - AppEntity + EntityQuery на каждый scope (self / partner / day)
-
-@available(iOS 17.0, *)
-struct SelfPhotoEntity: AppEntity {
-    let id: String
-    let label: String
-    let path: String
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Моё фото"
-    var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\(label)") }
-    static var defaultQuery = SelfPhotoQuery()
-}
-
-@available(iOS 17.0, *)
-struct SelfPhotoQuery: EntityQuery {
-    func entities(for identifiers: [String]) async throws -> [SelfPhotoEntity] {
-        loadPhotoCatalog("ios_photo_catalog_self")
-            .filter { identifiers.contains($0.id) }
-            .map { SelfPhotoEntity(id: $0.id, label: $0.label, path: $0.path) }
-    }
-    func suggestedEntities() async throws -> [SelfPhotoEntity] {
-        loadPhotoCatalog("ios_photo_catalog_self")
-            .map { SelfPhotoEntity(id: $0.id, label: $0.label, path: $0.path) }
-    }
-}
-
-@available(iOS 17.0, *)
-struct PartnerPhotoEntity: AppEntity {
-    let id: String
-    let label: String
-    let path: String
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Фото партнёра"
-    var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\(label)") }
-    static var defaultQuery = PartnerPhotoQuery()
-}
-
-@available(iOS 17.0, *)
-struct PartnerPhotoQuery: EntityQuery {
-    func entities(for identifiers: [String]) async throws -> [PartnerPhotoEntity] {
-        loadPhotoCatalog("ios_photo_catalog_partner")
-            .filter { identifiers.contains($0.id) }
-            .map { PartnerPhotoEntity(id: $0.id, label: $0.label, path: $0.path) }
-    }
-    func suggestedEntities() async throws -> [PartnerPhotoEntity] {
-        loadPhotoCatalog("ios_photo_catalog_partner")
-            .map { PartnerPhotoEntity(id: $0.id, label: $0.label, path: $0.path) }
-    }
-}
-
-@available(iOS 17.0, *)
-struct PhotoDayEntity: AppEntity {
-    let id: String
-    let label: String
-    let path: String
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Фото дня"
-    var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\(label)") }
-    static var defaultQuery = PhotoDayQuery()
-}
-
-@available(iOS 17.0, *)
-struct PhotoDayQuery: EntityQuery {
-    func entities(for identifiers: [String]) async throws -> [PhotoDayEntity] {
-        loadPhotoCatalog("ios_photo_catalog_day")
-            .filter { identifiers.contains($0.id) }
-            .map { PhotoDayEntity(id: $0.id, label: $0.label, path: $0.path) }
-    }
-    func suggestedEntities() async throws -> [PhotoDayEntity] {
-        loadPhotoCatalog("ios_photo_catalog_day")
-            .map { PhotoDayEntity(id: $0.id, label: $0.label, path: $0.path) }
-    }
-}
-
-// MARK: - Intents (один на виджет), объединённые протоколом для общего провайдера
-
-@available(iOS 17.0, *)
-protocol PhotoSelectionIntent: WidgetConfigurationIntent {
-    /// Путь выбранного фото или nil — тогда берётся фото по умолчанию.
-    var selectedPath: String? { get }
-    /// Ключ App Group с фото по умолчанию (когда ничего не выбрано).
-    var fallbackKey: String { get }
-}
-
-@available(iOS 17.0, *)
-struct SelectSelfPhotoIntent: WidgetConfigurationIntent {
-    static var title: LocalizedStringResource = "Моё фото"
-    static var description = IntentDescription("Выберите, какое фото показывать в виджете.")
-    @Parameter(title: "Фото") var photo: SelfPhotoEntity?
-    init() {}
-}
-
-@available(iOS 17.0, *)
-extension SelectSelfPhotoIntent: PhotoSelectionIntent {
-    var selectedPath: String? { photo?.path }
-    var fallbackKey: String { "ios_self_photo_path" }
-}
-
-@available(iOS 17.0, *)
-struct SelectPartnerPhotoIntent: WidgetConfigurationIntent {
-    static var title: LocalizedStringResource = "Фото партнёра"
-    static var description = IntentDescription("Выберите, какое фото партнёра показывать в виджете.")
-    @Parameter(title: "Фото") var photo: PartnerPhotoEntity?
-    init() {}
-}
-
-@available(iOS 17.0, *)
-extension SelectPartnerPhotoIntent: PhotoSelectionIntent {
-    var selectedPath: String? { photo?.path }
-    var fallbackKey: String { "ios_partner_photo_path" }
-}
-
-@available(iOS 17.0, *)
-struct SelectPhotoDayIntent: WidgetConfigurationIntent {
-    static var title: LocalizedStringResource = "Фото дня"
-    static var description = IntentDescription("Выберите, какое фото показывать в виджете «Фото дня».")
-    @Parameter(title: "Фото") var photo: PhotoDayEntity?
-    init() {}
-}
-
-@available(iOS 17.0, *)
-extension SelectPhotoDayIntent: PhotoSelectionIntent {
-    var selectedPath: String? { photo?.path }
-    var fallbackKey: String { "ios_photo_day_path" }
-}
-
-// MARK: - Общий таймлайн-провайдер для конфигурируемых фото-виджетов
-
-@available(iOS 17.0, *)
-struct PhotoConfigEntry: TimelineEntry {
-    let date: Date
-    let path: String
-}
-
-@available(iOS 17.0, *)
-struct PhotoConfigProvider<I: PhotoSelectionIntent>: AppIntentTimelineProvider {
-    func placeholder(in context: Context) -> PhotoConfigEntry {
-        PhotoConfigEntry(date: Date(), path: "")
-    }
-    func snapshot(for configuration: I, in context: Context) async -> PhotoConfigEntry {
-        // Снимок система просит и для галереи добавления виджетов, поэтому след
-        // остаётся, даже если виджет ещё не поставлен на рабочий стол.
-        let entry = makeEntry(configuration)
-        var facts = WidgetRenderLog.fileFacts(entry.path)
-        facts["stage"] = "snapshot"
-        facts["preview"] = context.isPreview ? "1" : "0"
-        facts["mem"] = String(WidgetRenderLog.availableMemoryMB())
-        WidgetRenderLog.write(
-            family: WidgetRenderLog.familyName(context.family),
-            widget: configuration.fallbackKey,
-            fields: facts
-        )
-        return entry
-    }
-    func timeline(for configuration: I, in context: Context) async -> Timeline<PhotoConfigEntry> {
-        let entry = makeEntry(configuration)
-        // Запись до отрисовки: по ней видно, дошёл ли виджет до построения
-        // таймлайна на этом размере и что он собирался показывать.
-        var facts = WidgetRenderLog.fileFacts(entry.path)
-        facts["mem"] = String(WidgetRenderLog.availableMemoryMB())
-        facts["stage"] = "timeline"
-        WidgetRenderLog.write(
-            family: WidgetRenderLog.familyName(context.family),
-            widget: configuration.fallbackKey,
-            fields: facts
-        )
-        return Timeline(entries: [entry], policy: .atEnd)
-    }
-    private func makeEntry(_ c: I) -> PhotoConfigEntry {
-        let path = c.selectedPath ?? Store().string(c.fallbackKey)
-        return PhotoConfigEntry(date: Date(), path: path)
-    }
-}
-
-/// Рендер одиночного фото по абсолютному пути (для конфигурируемых виджетов).
-@available(iOS 17.0, *)
-private struct SinglePhotoPathView: View {
-    let path: String
+/// Фото по ключу контейнера — без выбора конкретного снимка.
+///
+/// 18.08.2026: конфигурируемые версии (AppIntent, iOS 17+) на iPhone тестера
+/// рисовались чёрным и не оставляли в журнале ни одной записи — то есть система
+/// не доходила даже до построения таймлайна. Парный виджет, объявленный обычной
+/// статической конфигурацией, при этом работал. Возвращаем статику: показать
+/// фотографию важнее, чем дать выбрать, какую именно.
+private struct KeyPhotoView: View {
+    let storeKey: String
     let kind: PhotoWidgetKind
     @Environment(\.widgetFamily) private var family
     var body: some View {
-        // Через ImageIO с уменьшением: полноразмерный снимок разжимается в
-        // десятки мегабайт и убивает расширение (см. WidgetImage). Заодно
-        // пишем журнал: 18.08.2026 фотография не появлялась ровно на квадрате
-        // 1×1, а на среднем и большом та же самая показывалась.
+        let path = Store().string(storeKey)
         let image = path.isEmpty
             ? nil
             : WidgetImage.load(
@@ -432,17 +246,12 @@ private struct SinglePhotoPathView: View {
     }
 }
 
-// MARK: - Конфигурируемые виджеты (тот же kind, что у статических версий)
+// MARK: - Виджеты фото
 
-@available(iOS 17.0, *)
 struct SelfPhotoWidgetConfigurable: Widget {
     var body: some WidgetConfiguration {
-        AppIntentConfiguration(
-            kind: "SelfPhotoWidgetProvider",
-            intent: SelectSelfPhotoIntent.self,
-            provider: PhotoConfigProvider<SelectSelfPhotoIntent>()
-        ) { entry in
-            SinglePhotoPathView(path: entry.path, kind: .mine).unredacted()
+        StaticConfiguration(kind: "SelfPhotoWidgetProvider", provider: RefreshProvider()) { _ in
+            KeyPhotoView(storeKey: "ios_self_photo_path", kind: .mine).unredacted()
         }
         .configurationDisplayName("Моё фото")
         .description("Фото, которым вы делитесь с партнёром.")
@@ -450,15 +259,10 @@ struct SelfPhotoWidgetConfigurable: Widget {
     }
 }
 
-@available(iOS 17.0, *)
 struct PartnerPhotoWidgetConfigurable: Widget {
     var body: some WidgetConfiguration {
-        AppIntentConfiguration(
-            kind: "PartnerPhotoWidgetProvider",
-            intent: SelectPartnerPhotoIntent.self,
-            provider: PhotoConfigProvider<SelectPartnerPhotoIntent>()
-        ) { entry in
-            SinglePhotoPathView(path: entry.path, kind: .partner).unredacted()
+        StaticConfiguration(kind: "PartnerPhotoWidgetProvider", provider: RefreshProvider()) { _ in
+            KeyPhotoView(storeKey: "ios_partner_photo_path", kind: .partner).unredacted()
         }
         .configurationDisplayName("Фото партнёра")
         .description("Фото, которым с вами поделился партнёр.")
@@ -466,15 +270,10 @@ struct PartnerPhotoWidgetConfigurable: Widget {
     }
 }
 
-@available(iOS 17.0, *)
 struct PhotoDayWidgetConfigurable: Widget {
     var body: some WidgetConfiguration {
-        AppIntentConfiguration(
-            kind: "PhotoDayWidgetProvider",
-            intent: SelectPhotoDayIntent.self,
-            provider: PhotoConfigProvider<SelectPhotoDayIntent>()
-        ) { entry in
-            SinglePhotoPathView(path: entry.path, kind: .day).unredacted()
+        StaticConfiguration(kind: "PhotoDayWidgetProvider", provider: RefreshProvider()) { _ in
+            KeyPhotoView(storeKey: "ios_photo_day_path", kind: .day).unredacted()
         }
         .configurationDisplayName("Фото дня")
         .description("Тёплое фото из ваших воспоминаний.")
