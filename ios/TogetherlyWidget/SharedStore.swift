@@ -1,6 +1,7 @@
 import SwiftUI
 import WidgetKit
 import ImageIO
+import os
 import UIKit
 
 // MARK: - App Group
@@ -177,9 +178,30 @@ enum WidgetImage {
     /// iPhone — 360; остальное запас на плотность экрана.
     static let maxSide: CGFloat = 1200
 
-    static func load(_ path: String, maxSide: CGFloat = WidgetImage.maxSide) -> UIImage? {
+    /// [logAs] — под каким именем записать в журнал отрисовки. Пусто — молча.
+    static func load(
+        _ path: String,
+        maxSide: CGFloat = WidgetImage.maxSide,
+        logAs widget: String = "",
+        family: String = ""
+    ) -> UIImage? {
+        // Пишем ДО разжатия: если процесс убьют на нём, в журнале останется
+        // начало без признака `decoded` — это и есть подпись нехватки памяти.
+        if !widget.isEmpty {
+            var facts = WidgetRenderLog.fileFacts(path)
+            facts["start"] = "1"
+            facts["mem"] = String(WidgetRenderLog.availableMemoryMB())
+            WidgetRenderLog.write(family: family, widget: widget, fields: facts)
+        }
         let url = URL(fileURLWithPath: path)
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
+            if !widget.isEmpty {
+                WidgetRenderLog.write(
+                    family: family,
+                    widget: widget,
+                    fields: ["decoded": "0", "reason": "no-source"]
+                )
+            }
             return nil
         }
         let options: [CFString: Any] = [
@@ -193,8 +215,109 @@ enum WidgetImage {
         ) else {
             // Формат не по зубам ImageIO — читаем как раньше: лучше рискнуть
             // памятью, чем показать пустоту.
-            return UIImage(contentsOfFile: path)
+            let fallback = UIImage(contentsOfFile: path)
+            if !widget.isEmpty {
+                WidgetRenderLog.write(
+                    family: family,
+                    widget: widget,
+                    fields: [
+                        "decoded": fallback == nil ? "0" : "1",
+                        "reason": "no-thumb",
+                        "mem": String(WidgetRenderLog.availableMemoryMB()),
+                    ]
+                )
+            }
+            return fallback
+        }
+        if !widget.isEmpty {
+            WidgetRenderLog.write(
+                family: family,
+                widget: widget,
+                fields: [
+                    "decoded": "1",
+                    "px": "\(cg.width)x\(cg.height)",
+                    "mem": String(WidgetRenderLog.availableMemoryMB()),
+                ]
+            )
         }
         return UIImage(cgImage: cg)
+    }
+}
+
+// MARK: - Журнал отрисовки виджета
+
+/// Виджет живёт отдельным процессом, и в наш Bugsink пишет приложение, а не он.
+/// Поэтому расширение оставляет короткие записи в общем контейнере, а приложение
+/// при запуске забирает их и отправляет вместе со сводкой (см.
+/// `lib/services/widget_render_log.dart`).
+///
+/// Ради этого журнал и заведён 18.08.2026: квадрат 1×1 не показывал фотографию,
+/// а средний и большой показывали ту же самую. Данные в контейнере при этом
+/// лежали на месте, то есть ломается что-то внутри расширения, куда снаружи не
+/// заглянуть.
+///
+/// Строка: `время|размер|виджет|ключ=значение;ключ=значение`. Запись, у которой
+/// есть `start`, но нет `decoded`, означает, что процесс убили посередине — это
+/// и есть подпись нехватки памяти (расширению дают около 30 МБ).
+enum WidgetRenderLog {
+    static let key = "widget_render_log"
+
+    /// Больше не храним: журнал читается приложением и чистится, а раздувать
+    /// общий контейнер строками незачем.
+    private static let maxLines = 40
+
+    /// Сколько памяти осталось процессу, в мегабайтах. По ней сразу видно,
+    /// упёрлись мы в потолок расширения или нет.
+    static func availableMemoryMB() -> Int {
+        Int(os_proc_available_memory()) / (1024 * 1024)
+    }
+
+    static func familyName(_ family: WidgetFamily) -> String {
+        switch family {
+        case .systemSmall: return "small"
+        case .systemMedium: return "medium"
+        case .systemLarge: return "large"
+        case .systemExtraLarge: return "xlarge"
+        case .accessoryCircular: return "circular"
+        case .accessoryRectangular: return "rect"
+        case .accessoryInline: return "inline"
+        @unknown default: return "other"
+        }
+    }
+
+    /// Дописать запись. Пишем сразу: если процесс убьют на следующей строке,
+    /// в контейнере останется начало — по нему и станет ясно, где оборвалось.
+    static func write(family: String, widget: String, fields: [String: String]) {
+        guard let d = AppGroup.defaults else { return }
+        let stamp = Int(Date().timeIntervalSince1970)
+        let body = fields
+            .map { "\($0.key)=\($0.value)" }
+            .sorted()
+            .joined(separator: ";")
+        let line = "\(stamp)|\(family)|\(widget)|\(body)"
+
+        var lines = (d.string(forKey: key) ?? "")
+            .split(separator: "\n", omittingEmptySubsequences: true)
+            .map(String.init)
+        lines.append(line)
+        if lines.count > maxLines {
+            lines = Array(lines.suffix(maxLines))
+        }
+        d.set(lines.joined(separator: "\n"), forKey: key)
+    }
+
+    /// Что известно про файл, ещё не разжимая его: есть ли он и сколько весит.
+    static func fileFacts(_ path: String) -> [String: String] {
+        if path.isEmpty { return ["path": "0"] }
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: path) else {
+            return ["path": "1", "missing": "1"]
+        }
+        var facts = ["path": "1", "missing": "0"]
+        if let attrs = try? fm.attributesOfItem(atPath: path),
+           let bytes = attrs[.size] as? NSNumber {
+            facts["bytes"] = String(bytes.intValue)
+        }
+        return facts
     }
 }

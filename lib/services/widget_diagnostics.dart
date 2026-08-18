@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:home_widget/home_widget.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
+import 'widget_render_log.dart';
+
 /// Самоотчёт о содержимом контейнера виджетов.
 ///
 /// Виджеты на iPhone стоят пустыми в сборках 1.28.9 и 1.29.0, и по снимкам
@@ -69,16 +71,43 @@ class WidgetDiagnostics {
     return out;
   }
 
+  /// Журнал, оставленный самим расширением виджета.
+  ///
+  /// Виджет — отдельный процесс, и в Bugsink пишем мы, а не он. Он оставляет
+  /// записи в общем контейнере, мы их забираем и чистим, чтобы один и тот же
+  /// журнал не уехал в отчёт десять раз. Формат и разбор —
+  /// widget_render_log.dart.
+  static Future<List<Map<String, String>>> _takeRenderLog() async {
+    try {
+      final raw =
+          await HomeWidget.getWidgetData<String>(kWidgetRenderLogKey) ?? '';
+      if (raw.isEmpty) return const [];
+      final rows = parseWidgetRenderLog(raw);
+      await HomeWidget.saveWidgetData<String>(kWidgetRenderLogKey, '');
+      return rows;
+    } catch (e) {
+      return const [];
+    }
+  }
+
   /// Отправляет сводку в Bugsink. Молча выходит на Android: там виджеты живут.
   static Future<void> report({bool onlyIos = true}) async {
     if (onlyIos && !Platform.isIOS) return;
     try {
       final data = await collect();
+      final render = await _takeRenderLog();
       await Sentry.captureMessage(
         'widget-diag',
         level: SentryLevel.info,
         withScope: (scope) {
           scope.setContexts('widget_container', data);
+          if (render.isNotEmpty) {
+            // Нумеруем: контекст Sentry — карта, а порядок записей важен.
+            scope.setContexts('widget_render', {
+              for (var i = 0; i < render.length; i++)
+                '${i + 1}'.padLeft(2, '0'): render[i],
+            });
+          }
         },
       );
     } catch (_) {

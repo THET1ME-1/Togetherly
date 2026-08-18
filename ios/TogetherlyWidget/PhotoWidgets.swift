@@ -376,7 +376,18 @@ struct PhotoConfigProvider<I: PhotoSelectionIntent>: AppIntentTimelineProvider {
         makeEntry(configuration)
     }
     func timeline(for configuration: I, in context: Context) async -> Timeline<PhotoConfigEntry> {
-        Timeline(entries: [makeEntry(configuration)], policy: .atEnd)
+        let entry = makeEntry(configuration)
+        // Запись до отрисовки: по ней видно, дошёл ли виджет до построения
+        // таймлайна на этом размере и что он собирался показывать.
+        var facts = WidgetRenderLog.fileFacts(entry.path)
+        facts["mem"] = String(WidgetRenderLog.availableMemoryMB())
+        facts["stage"] = "timeline"
+        WidgetRenderLog.write(
+            family: WidgetRenderLog.familyName(context.family),
+            widget: configuration.fallbackKey,
+            fields: facts
+        )
+        return Timeline(entries: [entry], policy: .atEnd)
     }
     private func makeEntry(_ c: I) -> PhotoConfigEntry {
         let path = c.selectedPath ?? Store().string(c.fallbackKey)
@@ -389,10 +400,19 @@ struct PhotoConfigProvider<I: PhotoSelectionIntent>: AppIntentTimelineProvider {
 private struct SinglePhotoPathView: View {
     let path: String
     let kind: PhotoWidgetKind
+    @Environment(\.widgetFamily) private var family
     var body: some View {
         // Через ImageIO с уменьшением: полноразмерный снимок разжимается в
-        // десятки мегабайт и убивает расширение (см. WidgetImage).
-        let image = path.isEmpty ? nil : WidgetImage.load(path)
+        // десятки мегабайт и убивает расширение (см. WidgetImage). Заодно
+        // пишем журнал: 18.08.2026 фотография не появлялась ровно на квадрате
+        // 1×1, а на среднем и большом та же самая показывалась.
+        let image = path.isEmpty
+            ? nil
+            : WidgetImage.load(
+                path,
+                logAs: "photo-\(kind)",
+                family: WidgetRenderLog.familyName(family)
+            )
         PhotoWidgetContainer {
             PhotoFill(image: image, kind: kind)
                 .clipShape(RoundedRectangle(cornerRadius: PhotoStyle.corner, style: .continuous))

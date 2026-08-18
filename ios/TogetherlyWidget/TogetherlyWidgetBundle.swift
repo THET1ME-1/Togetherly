@@ -102,6 +102,16 @@ struct RefreshProvider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<SimpleEntry>) -> Void) {
+        // Отметка о самом факте построения: если для какого-то размера её нет,
+        // значит система до нас не дошла или расширение умерло раньше.
+        WidgetRenderLog.write(
+            family: WidgetRenderLog.familyName(context.family),
+            widget: "static",
+            fields: [
+                "stage": "timeline",
+                "mem": String(WidgetRenderLog.availableMemoryMB()),
+            ]
+        )
         let now = Date()
         var entries: [SimpleEntry] = []
         // Обновляемся каждые 15 минут в течение часа, затем система запросит ещё.

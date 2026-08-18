@@ -142,8 +142,32 @@ private struct LoveDivider: View {
 }
 
 struct LoveWidgetView: View {
+    @Environment(\.widgetFamily) private var family
     var body: some View {
         let data = loadLove()
+        // Журнал отрисовки: 18.08.2026 виджет стоял пустым, и по снимку было не
+        // понять, чего именно нет — данных в контейнере или сил их показать.
+        let store = Store()
+        // `let _ =`, а не голый вызов: тело вьюхи собирает ViewBuilder, и
+        // выражение типа Void он принять не может — сборка бы не прошла.
+        let _ = WidgetRenderLog.write(
+            family: WidgetRenderLog.familyName(family),
+            widget: "love",
+            fields: [
+                "keys": String(
+                    [
+                        store.string("love_widget_group_id"),
+                        store.string("my_name"),
+                        store.string("my_mood"),
+                        store.string("partner_name"),
+                        store.string("partner_mood"),
+                        store.string("my_photo_path"),
+                        store.string("partner_photo_path"),
+                    ].filter { !$0.isEmpty }.count
+                ),
+                "mem": String(WidgetRenderLog.availableMemoryMB()),
+            ]
+        )
         // «Подключите партнёра» показываем ТОЛЬКО когда пары реально нет
         // (love_widget_group_id пуст = не привязаны к группе). Раньше подсказка
         // висела при любых пустых данных → удалил своё фото / нет настроения, и
