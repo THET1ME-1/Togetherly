@@ -9,18 +9,20 @@
 /// стоит рядом, а не вместо неё.
 library;
 
+import '../dict_strings.dart';
+
 enum LoveFacet {
-  interest('Интерес'),
-  trust('Доверие'),
-  gratitude('Благодарность'),
-  mutuality('Взаимность'),
-  passion('Страсть'),
-  acceptance('Принятие');
+  interest,
+  trust,
+  gratitude,
+  mutuality,
+  passion,
+  acceptance;
 
-  const LoveFacet(this.title);
-
-  /// Подпись у вершины и в разборе.
-  final String title;
+  /// Подпись у вершины и в разборе. Живёт в словаре (`love_facet_<грань>`), а
+  /// не в поле: пока названия лежали здесь строками, немец и испанец читали
+  /// русское слово.
+  String get title => trKey('love_facet_$name');
 
   static LoveFacet? byName(String name) {
     for (final f in LoveFacet.values) {
@@ -34,18 +36,18 @@ enum LoveFacet {
 const List<int> kLoveWeights = [0, 33, 67, 100];
 
 /// Подписи градаций в том же порядке, что и веса.
-const List<String> kLoveAnswers = [
-  'Почти никогда',
-  'Редко',
-  'Часто',
-  'Почти всегда',
-];
+List<String> get kLoveAnswers => [
+      for (var i = 0; i < kLoveWeights.length; i++) trKey('love_answer_$i'),
+    ];
 
 class LoveQuestion {
-  const LoveQuestion(this.text, this.facet);
+  const LoveQuestion(this.key, this.facet);
 
-  final String text;
+  /// Ключ словаря (`love_q1`…`love_q20`); сам текст приходит переводом.
+  final String key;
   final LoveFacet facet;
+
+  String get text => trKey(key);
 }
 
 /// Двадцать утверждений: по три-четыре на грань.
@@ -54,48 +56,36 @@ class LoveQuestion {
 /// себе человек отвечает честнее, чем угадывает за другого.
 const List<LoveQuestion> kLoveQuestions = [
   // Интерес
-  LoveQuestion('Я замечаю, что партнёру тяжело, раньше, чем он об этом скажет',
-      LoveFacet.interest),
-  LoveQuestion('Мне любопытно, что он думает о вещах, которые меня не касаются',
-      LoveFacet.interest),
-  LoveQuestion('Я помню, чем он был занят на этой неделе', LoveFacet.interest),
+  LoveQuestion('love_q1', LoveFacet.interest),
+  LoveQuestion('love_q2', LoveFacet.interest),
+  LoveQuestion('love_q3', LoveFacet.interest),
 
   // Доверие
-  LoveQuestion('Я рассказываю ему о своих неудачах, не смягчая', LoveFacet.trust),
-  LoveQuestion('Когда он задерживается, я не выстраиваю худших версий',
-      LoveFacet.trust),
-  LoveQuestion('Я могу молчать рядом с ним и не чувствовать неловкости',
-      LoveFacet.trust),
-  LoveQuestion('Я говорю о том, что меня задело, а не коплю', LoveFacet.trust),
+  LoveQuestion('love_q4', LoveFacet.trust),
+  LoveQuestion('love_q5', LoveFacet.trust),
+  LoveQuestion('love_q6', LoveFacet.trust),
+  LoveQuestion('love_q7', LoveFacet.trust),
 
   // Благодарность
-  LoveQuestion('Я говорю спасибо за мелочи, которые он делает каждый день',
-      LoveFacet.gratitude),
-  LoveQuestion('Я замечаю, что он для меня меняет', LoveFacet.gratitude),
-  LoveQuestion('Мне легко сказать вслух, за что я его ценю',
-      LoveFacet.gratitude),
+  LoveQuestion('love_q8', LoveFacet.gratitude),
+  LoveQuestion('love_q9', LoveFacet.gratitude),
+  LoveQuestion('love_q10', LoveFacet.gratitude),
 
   // Взаимность
-  LoveQuestion('Мы делим бытовые дела так, что никто не тянет всё',
-      LoveFacet.mutuality),
-  LoveQuestion('Мои планы учитывают его планы', LoveFacet.mutuality),
-  LoveQuestion('Он получает от меня столько же внимания, сколько я от него',
-      LoveFacet.mutuality),
-  LoveQuestion('Когда мы спорим, я ищу решение, а не победу',
-      LoveFacet.mutuality),
+  LoveQuestion('love_q11', LoveFacet.mutuality),
+  LoveQuestion('love_q12', LoveFacet.mutuality),
+  LoveQuestion('love_q13', LoveFacet.mutuality),
+  LoveQuestion('love_q14', LoveFacet.mutuality),
 
   // Страсть
-  LoveQuestion('Мне хочется прикасаться к нему без повода', LoveFacet.passion),
-  LoveQuestion('Я жду наших встреч, даже когда мы виделись вчера',
-      LoveFacet.passion),
-  LoveQuestion('Я придумываю, чем его удивить', LoveFacet.passion),
+  LoveQuestion('love_q15', LoveFacet.passion),
+  LoveQuestion('love_q16', LoveFacet.passion),
+  LoveQuestion('love_q17', LoveFacet.passion),
 
   // Принятие
-  LoveQuestion('Мне не хочется его переделывать', LoveFacet.acceptance),
-  LoveQuestion('Я спокойно отношусь к его увлечениям, которых не разделяю',
-      LoveFacet.acceptance),
-  LoveQuestion('Его слабости не портят моего отношения к нему',
-      LoveFacet.acceptance),
+  LoveQuestion('love_q18', LoveFacet.acceptance),
+  LoveQuestion('love_q19', LoveFacet.acceptance),
+  LoveQuestion('love_q20', LoveFacet.acceptance),
 ];
 
 /// Результат: шесть оценок 0…100, общее число и когда проходили.

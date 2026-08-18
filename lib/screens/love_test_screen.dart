@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/love_test.dart';
-import '../services/locale_service.dart';
+import '../dict_strings.dart';
 import '../services/love_test_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/profile_theme.dart';
@@ -44,9 +44,7 @@ class _LoveTestScreenState extends State<LoveTestScreen> {
 
   AppTheme get _t => widget.theme;
   ColorScheme get _cs => ProfileTheme.themeFor(_t).colorScheme;
-  bool get _ru => LocaleService.instance.isRussian;
 
-  String _tr(String ru, String en) => _ru ? ru : en;
 
   @override
   void initState() {
@@ -92,10 +90,7 @@ class _LoveTestScreenState extends State<LoveTestScreen> {
       // приложение и обнаруживал, что тест снова непройден.
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_tr(
-            'Результат не сохранился — попробуйте пройти ещё раз позже',
-            'Result was not saved — try again a bit later',
-          )),
+          content: Text(trKey('love_not_saved')),
         ),
       );
     }
@@ -122,7 +117,7 @@ class _LoveTestScreenState extends State<LoveTestScreen> {
           backgroundColor: _cs.surface,
           surfaceTintColor: Colors.transparent,
           title: Text(
-            _tr('Умение любить', 'How you love'),
+            trKey('love_title'),
             style: const TextStyle(
               fontFamily: 'Unbounded',
               fontWeight: FontWeight.w500,
@@ -163,19 +158,14 @@ class _LoveTestScreenState extends State<LoveTestScreen> {
             ),
           ),
           Text(
-            _tr(
-              'Двадцать утверждений о себе. Ответы складываются в шесть граней '
-                  'и в одну фигуру — она вытянута туда, где отношения сильнее.',
-              'Twenty statements about yourself. The answers add up to six '
-                  'facets and one shape, stretched where your bond is stronger.',
-            ),
+            trKey('love_intro'),
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 16, color: _cs.onSurfaceVariant),
           ),
           const SizedBox(height: 20),
           FilledButton(
             onPressed: () => setState(() => _stage = _Stage.quiz),
-            child: Text(_tr('Начать · две минуты', 'Start · two minutes')),
+            child: Text(trKey('love_start')),
           ),
         ],
       ),
@@ -211,10 +201,9 @@ class _LoveTestScreenState extends State<LoveTestScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                _tr(
-                  'Вопрос ${_index + 1} из ${kLoveQuestions.length}',
-                  'Question ${_index + 1} of ${kLoveQuestions.length}',
-                ),
+                trKey('love_progress')
+                    .replaceAll('{n}', '${_index + 1}')
+                    .replaceAll('{total}', '${kLoveQuestions.length}'),
                 style: TextStyle(fontSize: 13, color: _cs.onSurfaceVariant),
               ),
               Container(
@@ -340,8 +329,8 @@ class _LoveTestScreenState extends State<LoveTestScreen> {
               const SizedBox(height: 8),
               if (theirs != null)
                 Text(
-                  '${_tr('Вы', 'You')} ${mine.total} · '
-                  '${widget.partnerName.isEmpty ? _tr('Партнёр', 'Partner') : widget.partnerName} ${theirs.total}',
+                  '${trKey('love_you')} ${mine.total} · '
+                  '${widget.partnerName.isEmpty ? trKey('love_partner') : widget.partnerName} ${theirs.total}',
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     color: _cs.onPrimaryContainer,
@@ -349,10 +338,8 @@ class _LoveTestScreenState extends State<LoveTestScreen> {
                 )
               else
                 Text(
-                  _tr(
-                    'Держится на грани «${mine.strongest.title.toLowerCase()}»',
-                    'Strongest facet: ${mine.strongest.title.toLowerCase()}',
-                  ),
+                  trKey('love_strongest')
+                      .replaceAll('{facet}', mine.strongest.title.toLowerCase()),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
@@ -372,7 +359,7 @@ class _LoveTestScreenState extends State<LoveTestScreen> {
           const SizedBox(height: 14),
           Center(
             child: Text(
-              _tr('Сохраняем…', 'Saving…'),
+              trKey('love_saving'),
               style: TextStyle(color: _cs.onSurfaceVariant),
             ),
           ),
@@ -384,7 +371,7 @@ class _LoveTestScreenState extends State<LoveTestScreen> {
             _index = 0;
             _stage = _Stage.quiz;
           }),
-          child: Text(_tr('Пройти заново', 'Take it again')),
+          child: Text(trKey('love_retake')),
         ),
       ],
     );
@@ -401,7 +388,7 @@ class _LoveTestScreenState extends State<LoveTestScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            _tr('ШЕСТЬ ГРАНЕЙ', 'SIX FACETS'),
+            trKey('love_six_facets').toUpperCase(),
             style: TextStyle(
               fontSize: 12,
               letterSpacing: 1.2,
@@ -475,7 +462,7 @@ class _LoveTestScreenState extends State<LoveTestScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            _tr('Где сошлись', 'Closest'),
+            trKey('love_closest'),
             style: TextStyle(
               fontWeight: FontWeight.w600,
               color: _cs.onSecondaryContainer,
@@ -485,7 +472,7 @@ class _LoveTestScreenState extends State<LoveTestScreen> {
               style: TextStyle(color: _cs.onSecondaryContainer)),
           const SizedBox(height: 12),
           Text(
-            _tr('Где разошлись', 'Widest gap'),
+            trKey('love_widest'),
             style: TextStyle(
               fontWeight: FontWeight.w600,
               color: _cs.onSecondaryContainer,

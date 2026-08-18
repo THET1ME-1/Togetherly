@@ -13,6 +13,7 @@ import 'l10n/dict/home.dart';
 import 'l10n/dict/home_screen.dart';
 import 'l10n/dict/i_miss_you_vibes.dart';
 import 'l10n/dict/live_location_map.dart';
+import 'l10n/dict/love_test.dart';
 import 'l10n/dict/login.dart';
 import 'l10n/dict/map_picker_screen.dart';
 import 'l10n/dict/mascot_draw_screen.dart';
@@ -71,6 +72,7 @@ const Map<String, Map<String, String>> kStrings = {
   ...homeScreenStrings,
   ...iMissYouVibesStrings,
   ...liveLocationMapStrings,
+  ...loveTestStrings,
   ...loginStrings,
   ...mapPickerScreenStrings,
   ...mascotDrawScreenStrings,

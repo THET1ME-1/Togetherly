@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../services/locale_service.dart';
+import '../../dict_strings.dart';
 
 /// «Партнёр прошёл „Умение любить“» — карточка на главной.
 ///
@@ -23,8 +23,8 @@ class LoveTestCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ru = LocaleService.instance.isRussian;
-    final who = partnerName.isEmpty ? (ru ? 'Партнёр' : 'Your partner') : partnerName;
+    final who =
+        partnerName.isEmpty ? trKey('love_partner') : partnerName;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 18, 14, 20),
@@ -40,9 +40,7 @@ class LoveTestCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  ru
-                      ? '$who прошёл «Умение любить»'
-                      : '$who took “How you love”',
+                  trKey('love_partner_took').replaceAll('{who}', who),
                   style: TextStyle(
                     fontFamily: 'Unbounded',
                     fontSize: 17,
@@ -56,7 +54,7 @@ class LoveTestCard extends StatelessWidget {
                 onPressed: onDismiss,
                 icon: const Icon(Icons.close_rounded, size: 20),
                 color: scheme.onTertiaryContainer.withValues(alpha: .7),
-                tooltip: ru ? 'Скрыть' : 'Hide',
+                tooltip: trKey('love_hide'),
               ),
             ],
           ),
@@ -64,9 +62,7 @@ class LoveTestCard extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(right: 6),
             child: Text(
-              ru
-                  ? 'Его фигура откроется, когда ответите сами. Две минуты.'
-                  : 'Their shape opens once you answer too. Two minutes.',
+              trKey('love_card_hint'),
               style: TextStyle(
                 fontSize: 14,
                 color: scheme.onTertiaryContainer.withValues(alpha: .8),
@@ -78,7 +74,7 @@ class LoveTestCard extends StatelessWidget {
             padding: const EdgeInsets.only(right: 6),
             child: FilledButton(
               onPressed: onOpen,
-              child: Text(ru ? 'Пройти' : 'Take it'),
+              child: Text(trKey('love_take')),
             ),
           ),
         ],
