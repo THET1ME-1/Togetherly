@@ -75,17 +75,22 @@
 	<array>
 		<string>fetch</string>
 		<string>remote-notification</string>
+		<!-- Карта «Где мы»: без этого режима geolocator молча гасит
+		     allowBackgroundLocationUpdates, и метка партнёра замирает в секунду,
+		     когда он свернул приложение. Стережёт
+		     test/ios_background_location_test.dart. -->
+		<string>location</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>We need camera access to take photos for your memories</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>We need microphone access to record voice messages and sound for your video memories</string>
 	<key>NSLocationAlwaysUsageDescription</key>
-	<string>We need your location to add location-based memories</string>
+	<string>Togetherly keeps your pin on the shared map up to date for your partner, even when the app is closed. You can turn sharing off at any time.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>We need your location to add location-based memories</string>
+	<string>Togetherly keeps your pin on the shared map up to date for your partner, even when the app is closed. You can turn sharing off at any time.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>We need your location to add location-based memories</string>
+	<string>Togetherly shows your location to your partner on your shared map and adds places to your memories.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>We need access to save photos to your library</string>
 	<key>NSPhotoLibraryUsageDescription</key>
