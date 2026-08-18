@@ -206,7 +206,23 @@ class _DrawScreenState extends State<DrawScreen>
   final Set<int> _activePointers = <int>{};
 
   List<DrawStroke> _remoteStrokes = [];
-  List<DrawStroke> _visibleStrokes = [];
+
+  /// Видимые штрихи и ревизия их ОСНОВЫ.
+  ///
+  /// Ревизия двигается на всё, кроме дописывания в конец: отмену, замену,
+  /// пересортировку. Пока человек ведёт клетку за клеткой, она стоит на месте,
+  /// и готовый слой в `StrokeLayerCache` не пересобирается — свежие штрихи
+  /// рисуются поверх него. Правило — `appendOnly` в stroke_layer_cache.dart,
+  /// под тестами.
+  List<DrawStroke> _visibleStrokesValue = const [];
+  int _strokesBaseRevision = 0;
+
+  List<DrawStroke> get _visibleStrokes => _visibleStrokesValue;
+
+  set _visibleStrokes(List<DrawStroke> next) {
+    if (!appendOnly(_visibleStrokesValue, next)) _strokesBaseRevision++;
+    _visibleStrokesValue = next;
+  }
   final List<DrawPoint> _currentPoints = [];
 
   DrawTool _activeTool = DrawTool.brush;
@@ -1422,7 +1438,13 @@ class _DrawScreenState extends State<DrawScreen>
     // Solo canvas
     setState(() {
       final vi = _visibleStrokes.indexWhere((s) => s.id == id);
-      if (vi >= 0) _visibleStrokes[vi] = updated;
+      if (vi >= 0) {
+        // Через сеттер, а не правкой на месте: иначе ревизия основы не
+        // сдвинется и слой останется с прежней картинкой штриха.
+        final next = List<DrawStroke>.from(_visibleStrokes);
+        next[vi] = updated;
+        _visibleStrokes = next;
+      }
     });
   }
 
@@ -2959,6 +2981,7 @@ class _DrawScreenState extends State<DrawScreen>
                         pixelRows: _isPixel ? _pxRows : null,
                         showPixelGrid: _showPixelGrid,
                         strokes: _visibleStrokes,
+                        strokesRevision: _strokesBaseRevision,
                         currentPoints: _currentPoints,
                         currentColorValue: _currentColorValue,
                         currentStrokeWidth: _currentStrokeWidth,
@@ -4272,8 +4295,12 @@ class _CanvasScene extends StatefulWidget {
   /// Локальные файлы своих картинок-штрихов: id → путь.
   final Map<String, String> localImagePaths;
 
+  /// Ревизия основы: меняется на всё, кроме дописывания штрихов в конец.
+  final int strokesRevision;
+
   const _CanvasScene({
     required this.bgColor,
+    required this.strokesRevision,
     required this.background,
     this.gridColor,
     this.pixelCols,
@@ -4389,6 +4416,7 @@ class _CanvasSceneState extends State<_CanvasScene> {
             child: CustomPaint(
               painter: _DrawingPainter(
                 strokes: drawStrokes,
+                strokesRevision: widget.strokesRevision,
                 layer: _layer,
                 pixelCols: widget.pixelCols,
                 pixelRows: widget.pixelRows,
@@ -4512,6 +4540,9 @@ class _CanvasSceneState extends State<_CanvasScene> {
 
 //  _DrawingPainter
 
+/// Сколько свежих штрихов рисуем поверх слоя, прежде чем свернуть его заново.
+const int _tailLimit = 48;
+
 class _DrawingPainter extends CustomPainter {
   final List<DrawStroke> strokes;
   final List<DrawPoint> currentPoints;
@@ -4529,8 +4560,12 @@ class _DrawingPainter extends CustomPainter {
   /// Готовый слой закоммиченных штрихов (живёт в состоянии сцены).
   final StrokeLayerCache layer;
 
+  /// Ревизия основы: двигается на всё, кроме дописывания штрихов в конец.
+  final int strokesRevision;
+
   _DrawingPainter({
     required this.strokes,
+    required this.strokesRevision,
     required this.layer,
     this.pixelCols,
     this.pixelRows,
@@ -4550,11 +4585,28 @@ class _DrawingPainter extends CustomPainter {
     if (size.isEmpty) return;
     // Removed saveLayer for performance. Simplified Eraser uses bgColor ink.
 
-    // Закоммиченные штрихи выкладываем готовым слоем: заново их рисуем только
-    // когда штрихов стало больше или меньше. Разделять их на отдельный слой
-    // поверх нельзя — ластик работает по общему полотну, — поэтому картинка
-    // остаётся одна, меняется только цена кадра.
-    var picture = layer.pictureFor(strokes.length, size);
+    // Закоммиченные штрихи выкладываем готовым слоем. Слой держит ПРЕФИКС
+    // состава: пока штрихи только дописываются в конец, картинка не трогается
+    // вовсе, а свежие рисуются поверх неё. Раньше ключом было число штрихов, и
+    // каждая новая клетка пиксельной раскраски пересобирала весь рисунок — на
+    // холсте в тысячу штрихов это и есть «дёргается».
+    //
+    // Разделять слои по-настоящему нельзя: ластик работает по общему полотну.
+    // Поэтому картинка одна, меняется только цена кадра.
+    var picture = layer.prefixFor(
+      revision: strokesRevision,
+      available: strokes.length,
+      size: size,
+    );
+    var painted = picture == null ? 0 : layer.prefixCount;
+
+    // Хвост длиннее порога — дешевле свернуть его в слой, чем рисовать каждый
+    // кадр. Порог небольшой: полсотни путей рисуются за доли миллисекунды.
+    if (picture != null && strokes.length - painted > _tailLimit) {
+      picture = null;
+      painted = 0;
+    }
+
     if (picture == null) {
       final recorder = ui.PictureRecorder();
       final buffer = Canvas(recorder);
@@ -4581,9 +4633,40 @@ class _DrawingPainter extends CustomPainter {
         }
       }
       picture = recorder.endRecording();
-      layer.save(picture, strokes.length, size);
+      layer.save(
+        picture,
+        revision: strokesRevision,
+        size: size,
+        prefixCount: strokes.length,
+      );
+      painted = strokes.length;
     }
     canvas.drawPicture(picture);
+
+    // Хвост: штрихи, которых в слое ещё нет.
+    for (var i = painted; i < strokes.length; i++) {
+      final s = strokes[i];
+      if (s.shapeType != null) {
+        _drawShape(
+          canvas,
+          s.points,
+          s.colorValue,
+          s.strokeWidth,
+          s.shapeType!,
+          size,
+          isFilledShape: s.isFilledShape,
+        );
+      } else {
+        _drawStroke(
+          canvas,
+          s.points,
+          s.colorValue,
+          s.strokeWidth,
+          s.isEraser,
+          size,
+        );
+      }
+    }
 
     if (currentPoints.isNotEmpty) {
       if (currentShapeType != null && currentPoints.length >= 2) {
@@ -4787,6 +4870,8 @@ class _DrawingPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DrawingPainter old) =>
+      old.strokesRevision != strokesRevision ||
+      old.strokes.length != strokes.length ||
       old.strokes != strokes ||
       old.currentPoints != currentPoints ||
       old.currentColorValue != currentColorValue ||
