@@ -175,6 +175,25 @@ class LiveStrokeAssembler {
         .toList();
   }
 
+  /// Мазок, который партнёр ведёт прямо сейчас: рисуется поверх холста и в
+  /// состав рисунка ещё не входит, поэтому номера в порядке у него нет.
+  DrawStroke? buildLive(String userId) {
+    final meta = _meta;
+    if (meta == null || _points.isEmpty) return null;
+    return DrawStroke(
+      id: 'live_$userId',
+      clientId: _sid,
+      userId: userId,
+      colorValue: meta.colorValue,
+      strokeWidth: meta.strokeWidth,
+      points: List.unmodifiable(_points),
+      isEraser: meta.isEraser,
+      isFilledShape: meta.isFilledShape,
+      shapeType: meta.shapeType,
+      orderIndex: -1,
+    );
+  }
+
   /// Готовый штрих партнёра — только после финального пакета.
   ///
   /// Идентификатор строится из `sid`, поэтому пришедшая позже запись из базы

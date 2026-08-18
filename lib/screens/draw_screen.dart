@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,6 +11,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/coloring_clamp.dart';
+import '../models/live_stroke_wire.dart';
 import '../models/coloring_picture.dart';
 import '../utils/stroke_layer_cache.dart';
 import '../utils/stroke_save_scheduler.dart';
@@ -174,7 +176,17 @@ class _DrawScreenState extends State<DrawScreen>
   // drawing user — combined with the partner's snapshot listener that's
   // ~16 reads/sec on the other side. 150ms (~6.6 fps) still feels fluid for
   // a follow-along cursor and roughly halves both reads and writes.
-  static const int _liveThrottleMs = 150;
+  /// Как часто уходит прирост мазка в канал партнёра.
+  ///
+  /// Раньше здесь стояли 150 мс, и в канал каждый раз ехал ВЕСЬ мазок: партнёр
+  /// видел движение ступеньками, а сообщение росло вместе с линией. Теперь
+  /// сорок миллисекунд и только новые точки — сотня байт вместо килобайтов.
+  static const int _liveIncrementMs = 40;
+
+  /// Как часто среди приростов идёт ключевой кадр со всей линией. Его читают
+  /// сборки постарше (для них ничего не изменилось), и он чинит потерянный
+  /// пакет, не дожидаясь конца мазка.
+  static const int _liveKeyframeMs = 150;
   static const double _kMinScale = 0.2;
   /// Порог поворота: ниже него щипок считается чистым зумом.
   static const double _kRotationSlop = 0.16; // ≈9°
@@ -203,6 +215,13 @@ class _DrawScreenState extends State<DrawScreen>
   final Set<String> _cancelledPendingStrokeIds = {};
   final Map<String, DrawStroke> _partnerLiveMap = {};
   final Map<String, int> _partnerTimestamps = {};
+
+  /// Сборщики приростов: по одному на каждого рисующего партнёра.
+  final Map<String, LiveStrokeAssembler> _liveAssemblers = {};
+
+  /// Чужие мазки, уже законченные в канале, но ещё не приехавшие из базы.
+  /// Ключ — `clientId`: по нему пришедшая запись заменит эту копию.
+  final Map<String, DrawStroke> _partnerCommitted = {};
   final Set<int> _activePointers = <int>{};
 
   List<DrawStroke> _remoteStrokes = [];
@@ -214,14 +233,19 @@ class _DrawScreenState extends State<DrawScreen>
   /// и готовый слой в `StrokeLayerCache` не пересобирается — свежие штрихи
   /// рисуются поверх него. Правило — `appendOnly` в stroke_layer_cache.dart,
   /// под тестами.
-  List<DrawStroke> _visibleStrokesValue = const [];
+  ///
+  /// Состав едет в холст отдельным каналом, а не перестройкой экрана: коммит
+  /// штриха звал `setState`, и в пиксельной раскраске это перебирало панели,
+  /// палитру и список слоёв десятки раз в секунду.
+  final ValueNotifier<StrokesSnapshot> _strokesNotifier =
+      ValueNotifier<StrokesSnapshot>(const StrokesSnapshot(<DrawStroke>[], 0));
   int _strokesBaseRevision = 0;
 
-  List<DrawStroke> get _visibleStrokes => _visibleStrokesValue;
+  List<DrawStroke> get _visibleStrokes => _strokesNotifier.value.list;
 
   set _visibleStrokes(List<DrawStroke> next) {
-    if (!appendOnly(_visibleStrokesValue, next)) _strokesBaseRevision++;
-    _visibleStrokesValue = next;
+    if (!appendOnly(_strokesNotifier.value.list, next)) _strokesBaseRevision++;
+    _strokesNotifier.value = StrokesSnapshot(next, _strokesBaseRevision);
   }
   final List<DrawPoint> _currentPoints = [];
 
@@ -372,6 +396,14 @@ class _DrawScreenState extends State<DrawScreen>
   int? _drawingPointerId;
   int _orderCounter = 0;
   DateTime _lastLivePush = DateTime.fromMillisecondsSinceEpoch(0);
+  DateTime _lastLiveKeyframe = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// Идентификатор мазка, который ведёт палец прямо сейчас. Он же уезжает в
+  /// запись как `clientId`, поэтому партнёр узнаёт в пришедшей из базы записи
+  /// тот самый мазок, который уже нарисовал у себя из живого канала.
+  String? _liveSid;
+  int _liveSeq = 0;
+  int _liveSentPoints = 0;
 
   // Palm tool
   Offset _palmPanStart = Offset.zero;
@@ -419,6 +451,31 @@ class _DrawScreenState extends State<DrawScreen>
 
   bool get _canUndo => _myStrokeIds.isNotEmpty;
   bool get _canRedo => _redoStack.isNotEmpty;
+
+  bool _shownCanUndo = false;
+  bool _shownCanRedo = false;
+  int _shownLayerCount = 1;
+
+  /// Перестроить панели, только если в них что-то изменилось.
+  ///
+  /// Коммит штриха звал `setState` и перебирал весь экран — панели, палитру,
+  /// список слоёв, — а в пиксельной раскраске штрих это клетка, их десятки в
+  /// секунду. Сам рисунок едет в холст каналом `_strokesNotifier` и в
+  /// перестройке не нуждается; кнопкам «отменить» и «вернуть» она нужна ровно
+  /// в тот момент, когда они меняют доступность.
+  void _syncCanvasChrome() {
+    if (!mounted) return;
+    if (_shownCanUndo == _canUndo &&
+        _shownCanRedo == _canRedo &&
+        _shownLayerCount == _layerCount) {
+      return;
+    }
+    setState(() {
+      _shownCanUndo = _canUndo;
+      _shownCanRedo = _canRedo;
+      _shownLayerCount = _layerCount;
+    });
+  }
 
   @override
   void initState() {
@@ -554,6 +611,7 @@ class _DrawScreenState extends State<DrawScreen>
     _repaintNotifier.dispose();
     _viewTick.dispose();
     _partnerNotifier.dispose();
+    _strokesNotifier.dispose();
     super.dispose();
   }
 
@@ -632,9 +690,9 @@ class _DrawScreenState extends State<DrawScreen>
         .listen(_onRemoteStrokes);
 
     _liveSub = _canvas
-        .watchLive(_groupId, _canvasId, _myUid)
+        .watchLivePackets(_groupId, _canvasId, _myUid)
         .handleError((e) => debugPrint('[Draw] live error: $e'))
-        .listen(_onLiveStrokes);
+        .listen(_onLivePacket);
 
     // Мета холста (bgColor + clearVersion + rotation) одной подпиской на запись
     // canvas_meta — все три поля в одном документе.
@@ -665,10 +723,21 @@ class _DrawScreenState extends State<DrawScreen>
     final updatedMyIds = List<String>.from(_myStrokeIds);
 
     for (final remote in parsed) {
+      // Чужой мазок, который мы уже нарисовали из живого канала, заменяется
+      // настоящей записью: узнаём его по клиентскому идентификатору.
+      final clientId = remote.clientId;
+      if (clientId != null) _partnerCommitted.remove(clientId);
+
+      // Свой оптимистичный штрих сверяем сперва по идентификатору и только
+      // потом на глаз — эвристика осталась для записей прежних сборок.
       final matchKey = remainingPending.entries
-          .where((e) => _looksLikeSameStroke(remote, e.value))
-          .map((e) => e.key)
-          .firstOrNull;
+              .where((e) => clientId != null && e.value.clientId == clientId)
+              .map((e) => e.key)
+              .firstOrNull ??
+          remainingPending.entries
+              .where((e) => _looksLikeSameStroke(remote, e.value))
+              .map((e) => e.key)
+              .firstOrNull;
       if (matchKey != null) {
         remainingPending.remove(matchKey);
         for (int i = 0; i < updatedMyIds.length; i++) {
@@ -695,7 +764,8 @@ class _DrawScreenState extends State<DrawScreen>
       _orderCounter = maxOrder + 1;
     }
 
-    setState(() => _visibleStrokes = _composeVisibleStrokes());
+    _visibleStrokes = _composeVisibleStrokes();
+    _syncCanvasChrome();
   }
 
   void _onCanvasMeta(CanvasMetaUpdate meta) {
@@ -709,6 +779,8 @@ class _DrawScreenState extends State<DrawScreen>
       _pendingLocalStrokes.clear();
       _cancelledPendingStrokeIds.clear();
       _remoteStrokes = [];
+      _partnerCommitted.clear();
+      _liveAssemblers.clear();
       _partnerLiveMap.clear();
       _partnerTimestamps.clear();
       _partnerNotifier.value = const [];
@@ -771,49 +843,61 @@ class _DrawScreenState extends State<DrawScreen>
     }
   }
 
-  void _onLiveStrokes(Map<String, Map<String, dynamic>> liveMap) {
+  void _onLivePacket(LivePacket packet) {
     if (!mounted) return;
-    bool changed = false;
+    final uid = packet.uid;
+    final data = packet.data;
 
-    for (final entry in liveMap.entries) {
-      final uid = entry.key;
-      final data = entry.value;
-
-      if (data.isEmpty) {
-        if (_partnerLiveMap.containsKey(uid)) {
-          _partnerLiveMap.remove(uid);
-          _partnerTimestamps.remove(uid);
-          changed = true;
-        }
-        continue;
-      }
-
-      try {
-        final stroke = DrawStroke.fromLiveMap(data, uid);
-        _partnerLiveMap[uid] = stroke;
-        _partnerTimestamps[uid] =
-            (data['ts'] as num?)?.toInt() ??
-            DateTime.now().millisecondsSinceEpoch;
-        _partnerNotifier.value = List.of(_partnerLiveMap.values);
-        changed = true;
-      } catch (e) {
-        debugPrint('[Draw] parse live error: $e');
-      }
-    }
-
-    final missing = _partnerLiveMap.keys
-        .where((uid) => !liveMap.containsKey(uid))
-        .toList();
-    if (missing.isNotEmpty) {
-      for (final uid in missing) {
-        _partnerLiveMap.remove(uid);
+    // Надгробие: партнёр отпустил палец, живую копию убираем. Если мазок уже
+    // зафиксирован финальным пакетом, убирать нечего — он лежит среди штрихов.
+    if (data == null || data.isEmpty) {
+      _liveAssemblers.remove(uid);
+      if (_partnerLiveMap.remove(uid) != null) {
         _partnerTimestamps.remove(uid);
+        _publishPartnerLive();
       }
-      _partnerNotifier.value = List.of(_partnerLiveMap.values);
-      changed = true;
+      return;
     }
 
-    if (changed && mounted) setState(() {});
+    final assembler = _liveAssemblers.putIfAbsent(uid, LiveStrokeAssembler.new);
+    try {
+      assembler.accept(data);
+    } catch (e) {
+      debugPrint('[Draw] parse live error: $e');
+      return;
+    }
+
+    _partnerTimestamps[uid] =
+        (data['ts'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch;
+
+    if (assembler.done) {
+      final finished = assembler.buildStroke(uid);
+      _liveAssemblers.remove(uid);
+      _partnerLiveMap.remove(uid);
+      _partnerTimestamps.remove(uid);
+      if (finished != null) {
+        // Кладём мазок к себе НЕМЕДЛЕННО, не дожидаясь записи в базу: она
+        // приедет позже и заменит его по clientId, а до 18.08.2026 в этой яме
+        // линия партнёра просто отсутствовала.
+        _partnerCommitted[finished.clientId ?? finished.id] = finished;
+        _visibleStrokes = _composeVisibleStrokes();
+        _repaintNotifier.value++;
+      }
+      _publishPartnerLive();
+      return;
+    }
+
+    final live = assembler.buildLive(uid);
+    if (live == null) return;
+    _partnerLiveMap[uid] = live;
+    _publishPartnerLive();
+  }
+
+  /// Живые мазки партнёров едут в painter отдельным каналом, без перестройки
+  /// экрана: `setState` тут перебирал панели, палитру и список слоёв по
+  /// двадцать пять раз в секунду.
+  void _publishPartnerLive() {
+    _partnerNotifier.value = List.of(_partnerLiveMap.values);
   }
 
   void _removeStalePartners(Timer _) {
@@ -827,9 +911,9 @@ class _DrawScreenState extends State<DrawScreen>
     for (final uid in stale) {
       _partnerLiveMap.remove(uid);
       _partnerTimestamps.remove(uid);
+      _liveAssemblers.remove(uid);
     }
-    _partnerNotifier.value = List.of(_partnerLiveMap.values);
-    setState(() {});
+    _publishPartnerLive();
   }
 
   //  Stroke helpers
@@ -852,6 +936,9 @@ class _DrawScreenState extends State<DrawScreen>
     final combined = <DrawStroke>[
       ..._remoteStrokes,
       ..._pendingLocalStrokes.values,
+      // Мазки партнёра, законченные в живом канале, но ещё не приехавшие из
+      // базы. Без них линия пропадала на те 200–600 мс, что идёт запись.
+      ..._partnerCommitted.values,
     ];
     combined.sort(_compareStrokes);
     // Число слоёв выводим из самих штрихов: партнёр мог добавить слой, и его
@@ -964,6 +1051,10 @@ class _DrawScreenState extends State<DrawScreen>
 
     _redoStack.clear();
     _lastLivePush = DateTime.fromMillisecondsSinceEpoch(0);
+    _lastLiveKeyframe = DateTime.fromMillisecondsSinceEpoch(0);
+    _liveSid = _newStrokeId();
+    _liveSeq = 0;
+    _liveSentPoints = 0;
     _lastPushedPointsCount = 0;
     _lastPushedTipX = double.nan;
     _lastPushedTipY = double.nan;
@@ -1050,7 +1141,7 @@ class _DrawScreenState extends State<DrawScreen>
 
   void _pushLiveStrokeIfNeeded() {
     final now = DateTime.now();
-    if (now.difference(_lastLivePush).inMilliseconds >= _liveThrottleMs) {
+    if (now.difference(_lastLivePush).inMilliseconds >= _liveIncrementMs) {
       _lastLivePush = now;
       unawaited(_pushLiveStrokeAsync());
     }
@@ -1062,9 +1153,8 @@ class _DrawScreenState extends State<DrawScreen>
 
   Future<void> _pushLiveStrokeAsync() async {
     if (!_hasSharedCanvas || _currentPoints.isEmpty) return;
-    // Skip the write if the stroke is identical to the last one we pushed.
-    // For freehand strokes the point count grows, for shape tools the count
-    // stays at 2 but the endpoint moves — both cases need to be covered.
+    // Ничего не поменялось с прошлого пакета: у кривой растёт число точек, у
+    // фигуры их всегда две и двигается только конец — проверяем оба случая.
     final tip = _currentPoints.last;
     if (_currentPoints.length == _lastPushedPointsCount &&
         tip.x == _lastPushedTipX &&
@@ -1075,21 +1165,86 @@ class _DrawScreenState extends State<DrawScreen>
     _lastPushedTipX = tip.x;
     _lastPushedTipY = tip.y;
 
-    final stroke = DrawStroke(
-      id: 'live_$_myUid',
-      userId: _myUid,
-      colorValue: _currentColorValue,
-      strokeWidth: _currentStrokeWidth,
-      points: List<DrawPoint>.unmodifiable(_currentPoints),
-      isEraser: _currentIsEraser,
-      isFilledShape: _currentIsFilledShape,
-      shapeType: _currentShapeType,
-      orderIndex: -1,
-    );
+    final sid = _liveSid ??= _newStrokeId();
+    final now = DateTime.now();
+    // Фигура (линия, круг, прямоугольник) живёт двумя точками, и вторая
+    // ездит: приростом её не передать, шлём целиком.
+    final needKeyframe = _currentShapeType != null ||
+        _liveSentPoints == 0 ||
+        _liveSentPoints > _currentPoints.length ||
+        now.difference(_lastLiveKeyframe).inMilliseconds >= _liveKeyframeMs;
+
+    final Map<String, dynamic> packet;
+    if (needKeyframe) {
+      packet = LiveStrokeWire.keyframe(
+        sid: sid,
+        seq: _liveSeq++,
+        points: _currentPoints,
+        meta: _liveMeta(),
+      );
+      _lastLiveKeyframe = now;
+    } else {
+      packet = LiveStrokeWire.increment(
+        sid: sid,
+        seq: _liveSeq++,
+        from: _liveSentPoints,
+        points: _currentPoints.sublist(_liveSentPoints),
+        meta: _liveMeta(),
+      );
+    }
+    _liveSentPoints = _currentPoints.length;
+
     try {
-      await _canvas.setLive(_groupId, _canvasId, _myUid, stroke.toLiveMap());
+      await _canvas.setLive(_groupId, _canvasId, _myUid, packet);
     } catch (e) {
       debugPrint('[Draw] live push error: $e');
+    }
+  }
+
+  LiveStrokeMeta _liveMeta() => LiveStrokeMeta(
+        colorValue: _currentColorValue,
+        strokeWidth: _currentStrokeWidth,
+        isEraser: _currentIsEraser,
+        isFilledShape: _currentIsFilledShape,
+        shapeType: _currentShapeType,
+      );
+
+  /// Идентификатор мазка: время, номер в порядке рисования и хвост своего uid.
+  /// Хвост нужен, чтобы у двоих, рисующих в одну миллисекунду, не совпали
+  /// идентификаторы: по ним партнёр узнаёт мазок в пришедшей записи.
+  String _newStrokeId() {
+    final tail = _myUid.length > 4 ? _myUid.substring(_myUid.length - 4) : _myUid;
+    return 'local_${DateTime.now().millisecondsSinceEpoch}_${_orderCounter}_$tail';
+  }
+
+  /// Последний пакет мазка: партнёр кладёт линию к себе немедленно, не дожидаясь
+  /// записи в базу. До 18.08.2026 живую копию снимали сразу, а постоянная
+  /// приходила через 200–600 мс, и всё это время мазок у партнёра отсутствовал.
+  Future<void> _pushLiveDone(DrawStroke stroke) async {
+    if (!_hasSharedCanvas) return;
+    final sid = stroke.clientId;
+    if (sid == null) return;
+    try {
+      await _canvas.setLive(
+        _groupId,
+        _canvasId,
+        _myUid,
+        LiveStrokeWire.done(
+          sid: sid,
+          seq: _liveSeq++,
+          points: stroke.points,
+          meta: LiveStrokeMeta(
+            colorValue: stroke.colorValue,
+            strokeWidth: stroke.strokeWidth,
+            isEraser: stroke.isEraser,
+            isFilledShape: stroke.isFilledShape,
+            shapeType: stroke.shapeType,
+          ),
+          orderIndex: stroke.orderIndex,
+        ),
+      );
+    } catch (e) {
+      debugPrint('[Draw] live done error: $e');
     }
   }
 
@@ -1601,8 +1756,12 @@ class _DrawScreenState extends State<DrawScreen>
       }
     }
 
+    // Идентификатор мазка тот же, под которым он ехал в живом канале: партнёр
+    // уже нарисовал его у себя и по нему узнает пришедшую из базы запись.
+    final sid = _liveSid ?? _newStrokeId();
     final stroke = DrawStroke(
-      id: 'local_${DateTime.now().millisecondsSinceEpoch}_$_orderCounter',
+      id: sid,
+      clientId: sid,
       userId: _myUid,
       colorValue: _currentColorValue,
       strokeWidth: _currentStrokeWidth,
@@ -1616,7 +1775,10 @@ class _DrawScreenState extends State<DrawScreen>
 
     _currentPoints.clear();
     _currentShapeType = null;
-    _clearLiveStroke();
+    // Сперва финальный пакет — по нему партнёр оставляет мазок у себя сразу, —
+    // и только потом надгробие, которое снимает живую копию у сборок постарше.
+    unawaited(_pushLiveDone(stroke).then((_) => _clearLiveStroke()));
+    _liveSid = null;
     _repaintNotifier.value++;
     _orderCounter++;
     _submitStroke(stroke);
@@ -1624,19 +1786,17 @@ class _DrawScreenState extends State<DrawScreen>
 
   void _submitStroke(DrawStroke stroke) {
     if (!_hasSharedCanvas) {
-      setState(() {
-        _visibleStrokes = [..._visibleStrokes, stroke]..sort(_compareStrokes);
-      });
+      _visibleStrokes = [..._visibleStrokes, stroke]..sort(_compareStrokes);
       _myStrokeIds.add(stroke.id);
+      _syncCanvasChrome();
       _saveSoloStrokes();
       return;
     }
 
-    setState(() {
-      _pendingLocalStrokes[stroke.id] = stroke;
-      _visibleStrokes = _composeVisibleStrokes();
-    });
+    _pendingLocalStrokes[stroke.id] = stroke;
+    _visibleStrokes = _composeVisibleStrokes();
     _myStrokeIds.add(stroke.id);
+    _syncCanvasChrome();
 
     _canvas
         .addStroke(_groupId, _canvasId, stroke.toFirestore())
@@ -2980,8 +3140,7 @@ class _DrawScreenState extends State<DrawScreen>
                         pixelCols: _isPixel ? _pxCols : null,
                         pixelRows: _isPixel ? _pxRows : null,
                         showPixelGrid: _showPixelGrid,
-                        strokes: _visibleStrokes,
-                        strokesRevision: _strokesBaseRevision,
+                        strokes: _strokesNotifier,
                         currentPoints: _currentPoints,
                         currentColorValue: _currentColorValue,
                         currentStrokeWidth: _currentStrokeWidth,
@@ -4263,6 +4422,18 @@ class _ColoringOutlinePainter extends CustomPainter {
   bool shouldRepaint(_ColoringOutlinePainter old) => old.image != image;
 }
 
+/// Состав рисунка и ревизия его основы, одним значением.
+///
+/// Ревизия двигается на всё, кроме дописывания штрихов в конец: по ней слой
+/// готовых штрихов понимает, годится ли накопленная картинка (см.
+/// `StrokeLayerCache`).
+class StrokesSnapshot {
+  const StrokesSnapshot(this.list, this.revision);
+
+  final List<DrawStroke> list;
+  final int revision;
+}
+
 class _CanvasScene extends StatefulWidget {
   final Color bgColor;
 
@@ -4276,7 +4447,8 @@ class _CanvasScene extends StatefulWidget {
   final int? pixelRows;
   /// Показывать направляющие сетки поверх листа.
   final bool showPixelGrid;
-  final List<DrawStroke> strokes;
+  /// Состав рисунка: приезжает каналом, чтобы новый штрих не перестраивал экран.
+  final ValueListenable<StrokesSnapshot> strokes;
   final List<DrawPoint> currentPoints;
   final int currentColorValue;
   final double currentStrokeWidth;
@@ -4295,12 +4467,9 @@ class _CanvasScene extends StatefulWidget {
   /// Локальные файлы своих картинок-штрихов: id → путь.
   final Map<String, String> localImagePaths;
 
-  /// Ревизия основы: меняется на всё, кроме дописывания штрихов в конец.
-  final int strokesRevision;
 
   const _CanvasScene({
     required this.bgColor,
-    required this.strokesRevision,
     required this.background,
     this.gridColor,
     this.pixelCols,
@@ -4328,6 +4497,10 @@ class _CanvasScene extends StatefulWidget {
 class _CanvasSceneState extends State<_CanvasScene> {
   late Listenable _repaint;
 
+  /// Картинки-штрихи рисуются виджетами, поэтому их набор всё-таки требует
+  /// перестройки. Меняется он редко, в отличие от мазков.
+  List<DrawStroke> _imageStrokes = const [];
+
   /// Закоммиченные штрихи держим готовым слоем: без него каждое движение
   /// пальца перерисовывало весь рисунок целиком — отсюда лаги на большом
   /// холсте и при увеличении.
@@ -4339,24 +4512,51 @@ class _CanvasSceneState extends State<_CanvasScene> {
     _repaint = Listenable.merge([
       widget.repaintNotifier,
       widget.partnerNotifier,
+      widget.strokes,
     ]);
+    _imageStrokes = _imagesOf(widget.strokes.value.list);
+    widget.strokes.addListener(_onStrokes);
   }
 
   @override
   void dispose() {
+    widget.strokes.removeListener(_onStrokes);
     _layer.dispose();
     super.dispose();
+  }
+
+  static List<DrawStroke> _imagesOf(List<DrawStroke> all) =>
+      all.where((s) => s.isImageStroke).toList();
+
+  void _onStrokes() {
+    final next = _imagesOf(widget.strokes.value.list);
+    if (next.length == _imageStrokes.length) {
+      var same = true;
+      for (var i = 0; i < next.length; i++) {
+        if (!identical(next[i], _imageStrokes[i])) {
+          same = false;
+          break;
+        }
+      }
+      if (same) return;
+    }
+    setState(() => _imageStrokes = next);
   }
 
   @override
   void didUpdateWidget(covariant _CanvasScene old) {
     super.didUpdateWidget(old);
     if (old.repaintNotifier != widget.repaintNotifier ||
-        old.partnerNotifier != widget.partnerNotifier) {
+        old.partnerNotifier != widget.partnerNotifier ||
+        old.strokes != widget.strokes) {
+      old.strokes.removeListener(_onStrokes);
+      widget.strokes.addListener(_onStrokes);
       _repaint = Listenable.merge([
         widget.repaintNotifier,
         widget.partnerNotifier,
+        widget.strokes,
       ]);
+      _imageStrokes = _imagesOf(widget.strokes.value.list);
     }
     if (old.bgColor != widget.bgColor ||
         old.background != widget.background ||
@@ -4369,8 +4569,7 @@ class _CanvasSceneState extends State<_CanvasScene> {
 
   @override
   Widget build(BuildContext context) {
-    final imageStrokes = widget.strokes.where((s) => s.isImageStroke).toList();
-    final drawStrokes = widget.strokes.where((s) => !s.isImageStroke).toList();
+    final imageStrokes = _imageStrokes;
 
     // Ничего за краем холста не видно: у рисунков, сделанных до обрезки точек на
     // вводе, штрихи уходят за лист, и заливка вслед за ними расползалась по
@@ -4415,8 +4614,7 @@ class _CanvasSceneState extends State<_CanvasScene> {
           SizedBox.expand(
             child: CustomPaint(
               painter: _DrawingPainter(
-                strokes: drawStrokes,
-                strokesRevision: widget.strokesRevision,
+                strokes: widget.strokes,
                 layer: _layer,
                 pixelCols: widget.pixelCols,
                 pixelRows: widget.pixelRows,
@@ -4544,7 +4742,9 @@ class _CanvasSceneState extends State<_CanvasScene> {
 const int _tailLimit = 48;
 
 class _DrawingPainter extends CustomPainter {
-  final List<DrawStroke> strokes;
+  /// Состав рисунка каналом: painter берёт его в момент отрисовки, поэтому
+  /// новый штрих не заставляет пересобирать дерево виджетов.
+  final ValueListenable<StrokesSnapshot> strokes;
   final List<DrawPoint> currentPoints;
   final int currentColorValue;
   final double currentStrokeWidth;
@@ -4560,12 +4760,9 @@ class _DrawingPainter extends CustomPainter {
   /// Готовый слой закоммиченных штрихов (живёт в состоянии сцены).
   final StrokeLayerCache layer;
 
-  /// Ревизия основы: двигается на всё, кроме дописывания штрихов в конец.
-  final int strokesRevision;
 
   _DrawingPainter({
     required this.strokes,
-    required this.strokesRevision,
     required this.layer,
     this.pixelCols,
     this.pixelRows,
@@ -4583,6 +4780,10 @@ class _DrawingPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
+    final snapshot = strokes.value;
+    final strokesRevision = snapshot.revision;
+    final strokeList =
+        snapshot.list.where((s) => !s.isImageStroke).toList(growable: false);
     // Removed saveLayer for performance. Simplified Eraser uses bgColor ink.
 
     // Закоммиченные штрихи выкладываем готовым слоем. Слой держит ПРЕФИКС
@@ -4595,14 +4796,14 @@ class _DrawingPainter extends CustomPainter {
     // Поэтому картинка одна, меняется только цена кадра.
     var picture = layer.prefixFor(
       revision: strokesRevision,
-      available: strokes.length,
+      available: strokeList.length,
       size: size,
     );
     var painted = picture == null ? 0 : layer.prefixCount;
 
     // Хвост длиннее порога — дешевле свернуть его в слой, чем рисовать каждый
     // кадр. Порог небольшой: полсотни путей рисуются за доли миллисекунды.
-    if (picture != null && strokes.length - painted > _tailLimit) {
+    if (picture != null && strokeList.length - painted > _tailLimit) {
       picture = null;
       painted = 0;
     }
@@ -4610,7 +4811,7 @@ class _DrawingPainter extends CustomPainter {
     if (picture == null) {
       final recorder = ui.PictureRecorder();
       final buffer = Canvas(recorder);
-      for (final s in strokes) {
+      for (final s in strokeList) {
         if (s.shapeType != null) {
           _drawShape(
             buffer,
@@ -4637,15 +4838,15 @@ class _DrawingPainter extends CustomPainter {
         picture,
         revision: strokesRevision,
         size: size,
-        prefixCount: strokes.length,
+        prefixCount: strokeList.length,
       );
-      painted = strokes.length;
+      painted = strokeList.length;
     }
     canvas.drawPicture(picture);
 
     // Хвост: штрихи, которых в слое ещё нет.
-    for (var i = painted; i < strokes.length; i++) {
-      final s = strokes[i];
+    for (var i = painted; i < strokeList.length; i++) {
+      final s = strokeList[i];
       if (s.shapeType != null) {
         _drawShape(
           canvas,
@@ -4870,8 +5071,6 @@ class _DrawingPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DrawingPainter old) =>
-      old.strokesRevision != strokesRevision ||
-      old.strokes.length != strokes.length ||
       old.strokes != strokes ||
       old.currentPoints != currentPoints ||
       old.currentColorValue != currentColorValue ||

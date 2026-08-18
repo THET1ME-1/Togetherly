@@ -5,6 +5,14 @@ import 'centrifugo_service.dart';
 import 'pb_data_service.dart';
 import 'pb_realtime_service.dart';
 
+/// Один пакет живого мазка: чей он и что в нём. `data == null` — мазок снят.
+class LivePacket {
+  const LivePacket({required this.uid, required this.data});
+
+  final String uid;
+  final Map<String, dynamic>? data;
+}
+
 /// Срез мета холста (bg/очистка/раскраска) для draw_screen — замена
 /// `RemoteCanvasMeta` из firebase_service (ноль Firebase). 0 трактуем как «не
 /// задано»→null (PB number-колонки дефолтят в 0; реальные значения: bgColor —
@@ -191,28 +199,29 @@ class CanvasRepository {
   // canvas_strokes (durable). liveData — карта `DrawStroke.toLiveMap()`.
   String _liveChannel(String groupId) => 'draw:$groupId';
 
-  /// Live-штрихи партнёров {uid: liveData} для (group,canvas); СВОЙ uid исключён.
-  /// Состояние держим в памяти из публикаций Centrifugo (надгробие — data:null).
-  Stream<Map<String, Map<String, dynamic>>> watchLive(
+  /// Пакеты живого мазка партнёров: каждый по отдельности, в порядке прихода.
+  ///
+  /// Карта состояния (см. [watchLive]) годилась, пока в канал ездил весь мазок
+  /// целиком: достаточно было последнего снимка. С приростами так нельзя —
+  /// пропустишь пакет, и линия потеряет кусок, — поэтому подписчик видит каждое
+  /// сообщение. `data == null` означает, что мазок снят (надгробие).
+  Stream<LivePacket> watchLivePackets(
       String groupId, String canvasId, String myUid) {
-    final state = <String, Map<String, dynamic>>{};
     RtUnsub? unsub;
-    late StreamController<Map<String, Map<String, dynamic>>> ctrl;
-    ctrl = StreamController<Map<String, Map<String, dynamic>>>.broadcast(
+    late StreamController<LivePacket> ctrl;
+    ctrl = StreamController<LivePacket>.broadcast(
       onListen: () async {
-        if (!ctrl.isClosed) ctrl.add(Map.of(state));
         unsub = await CentrifugoService.instance
             .subscribeRaw(_liveChannel(groupId), (m) {
           final uid = (m['uid'] ?? '').toString();
           if (uid.isEmpty || uid == myUid) return;
           if ((m['canvasId'] ?? '').toString() != canvasId) return;
           final data = m['data'];
-          if (data == null) {
-            state.remove(uid);
-          } else if (data is Map) {
-            state[uid] = Map<String, dynamic>.from(data);
-          }
-          if (!ctrl.isClosed) ctrl.add(Map.of(state));
+          if (ctrl.isClosed) return;
+          ctrl.add(LivePacket(
+            uid: uid,
+            data: data is Map ? Map<String, dynamic>.from(data) : null,
+          ));
         });
       },
       onCancel: () async {

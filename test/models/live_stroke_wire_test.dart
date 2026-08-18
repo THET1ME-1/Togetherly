@@ -133,6 +133,25 @@ void main() {
       expect(stroke.colorValue, 0xFF112233);
     });
 
+    test('живой штрих отдаётся прямо во время мазка', () {
+      final a = LiveStrokeAssembler();
+      a.accept(LiveStrokeWire.keyframe(
+          sid: 's1', seq: 0, points: pts(3), meta: meta));
+      final live = a.buildLive('partner-uid');
+      expect(live, isNotNull);
+      expect(live!.points.length, 3);
+      expect(live.userId, 'partner-uid');
+      expect(live.strokeWidth, 6.5);
+      expect(live.orderIndex, -1, reason: 'мазок ещё не занял место в порядке');
+    });
+
+    test('пустой мазок живым штрихом не притворяется', () {
+      final a = LiveStrokeAssembler();
+      a.accept(LiveStrokeWire.keyframe(
+          sid: 's1', seq: 0, points: const [], meta: meta));
+      expect(a.buildLive('partner-uid'), isNull);
+    });
+
     test('без финала штрих не строится', () {
       final a = LiveStrokeAssembler();
       a.accept(LiveStrokeWire.keyframe(
