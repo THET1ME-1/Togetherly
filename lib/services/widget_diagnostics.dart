@@ -95,19 +95,27 @@ class WidgetDiagnostics {
     if (onlyIos && !Platform.isIOS) return;
     try {
       final data = await collect();
-      final render = await _takeRenderLog();
       await Sentry.captureMessage(
         'widget-diag',
         level: SentryLevel.info,
         withScope: (scope) {
           scope.setContexts('widget_container', data);
-          if (render.isNotEmpty) {
-            // Нумеруем: контекст Sentry — карта, а порядок записей важен.
-            scope.setContexts('widget_render', {
-              for (var i = 0; i < render.length; i++)
-                '${i + 1}'.padLeft(2, '0'): render[i],
-            });
-          }
+        },
+      );
+
+      // Журнал отрисовки уходит ОТДЕЛЬНЫМ событием, и вердикт стоит прямо в
+      // заголовке: в списке Bugsink видно, что случилось, без поиска по времени.
+      final render = await _takeRenderLog();
+      if (render.isEmpty) return;
+      await Sentry.captureMessage(
+        'widget-render: ${widgetRenderVerdict(render)}',
+        level: SentryLevel.info,
+        withScope: (scope) {
+          // Нумеруем: контекст Sentry — карта, а порядок записей важен.
+          scope.setContexts('widget_render', {
+            for (var i = 0; i < render.length; i++)
+              '${i + 1}'.padLeft(2, '0'): render[i],
+          });
         },
       );
     } catch (_) {

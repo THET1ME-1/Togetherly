@@ -46,6 +46,16 @@ void main() {
         reason: 'запись без конца означает, что расширение убили посередине');
   });
 
+  test('видно, галерея это или рабочий стол', () {
+    final rows = parseWidgetRenderLog(
+      '9|small|ios_partner_photo_path|stage=snapshot;preview=1;path=1;bytes=1024',
+    );
+    expect(rows.first['этап'], 'снимок');
+    expect(rows.first['галерея'], 'да',
+        reason: 'след остаётся, даже если виджет ещё не стоит на столе');
+    expect(rows.first['вес'], '1 КБ');
+  });
+
   test('мусор не роняет разбор', () {
     expect(parseWidgetRenderLog(''), isEmpty);
     expect(parseWidgetRenderLog('  \n\n'), isEmpty);

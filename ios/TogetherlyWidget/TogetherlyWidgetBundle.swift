@@ -98,6 +98,17 @@ struct RefreshProvider: TimelineProvider {
     func placeholder(in context: Context) -> SimpleEntry { SimpleEntry(date: Date()) }
 
     func getSnapshot(in context: Context, completion: @escaping (SimpleEntry) -> Void) {
+        // Снимок просят и для галереи добавления: так журнал наполняется даже
+        // тогда, когда виджет ещё не стоит на рабочем столе.
+        WidgetRenderLog.write(
+            family: WidgetRenderLog.familyName(context.family),
+            widget: "static",
+            fields: [
+                "stage": "snapshot",
+                "preview": context.isPreview ? "1" : "0",
+                "mem": String(WidgetRenderLog.availableMemoryMB()),
+            ]
+        )
         completion(SimpleEntry(date: Date()))
     }
 

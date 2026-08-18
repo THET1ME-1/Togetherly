@@ -66,9 +66,49 @@ Map<String, String>? _parseLine(String line) {
         row['памяти оставалось'] = '$value МБ';
       case 'keys':
         row['ключей с данными'] = value;
+      case 'stage':
+        row['этап'] = value == 'snapshot' ? 'снимок' : 'таймлайн';
+      case 'preview':
+        row['галерея'] = value == '1' ? 'да' : 'нет';
+      case 'reason':
+        row['причина'] = value;
       default:
         row[key] = value;
     }
   }
   return row;
+}
+
+/// Короткий вердикт по журналу — уходит прямо в заголовок события Bugsink,
+/// чтобы искать по названию, а не по времени.
+String widgetRenderVerdict(List<Map<String, String>> rows) {
+  if (rows.isEmpty) return 'журнал пуст';
+
+  for (final row in rows) {
+    final size = row['размер'] ?? '?';
+    if (row['файла нет на диске'] == 'да') return '$size: файла нет на диске';
+    if (row['разжато'] == 'нет') {
+      final why = row['причина'];
+      return why == null
+          ? '$size не разжал картинку'
+          : '$size не разжал картинку ($why)';
+    }
+  }
+
+  // Начал и не закончил: расширение убили посередине. Это подпись нехватки
+  // памяти — ей и место в заголовке.
+  for (var i = 0; i < rows.length; i++) {
+    if (rows[i]['начал'] != 'да') continue;
+    final size = rows[i]['размер'];
+    final finished = rows
+        .skip(i + 1)
+        .any((r) => r['размер'] == size && r.containsKey('разжато'));
+    if (!finished) {
+      final mem = rows[i]['памяти оставалось'];
+      return mem == null
+          ? '$size оборвался'
+          : '$size оборвался (память $mem)';
+    }
+  }
+  return 'ок';
 }

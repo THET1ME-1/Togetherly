@@ -373,7 +373,19 @@ struct PhotoConfigProvider<I: PhotoSelectionIntent>: AppIntentTimelineProvider {
         PhotoConfigEntry(date: Date(), path: "")
     }
     func snapshot(for configuration: I, in context: Context) async -> PhotoConfigEntry {
-        makeEntry(configuration)
+        // Снимок система просит и для галереи добавления виджетов, поэтому след
+        // остаётся, даже если виджет ещё не поставлен на рабочий стол.
+        let entry = makeEntry(configuration)
+        var facts = WidgetRenderLog.fileFacts(entry.path)
+        facts["stage"] = "snapshot"
+        facts["preview"] = context.isPreview ? "1" : "0"
+        facts["mem"] = String(WidgetRenderLog.availableMemoryMB())
+        WidgetRenderLog.write(
+            family: WidgetRenderLog.familyName(context.family),
+            widget: configuration.fallbackKey,
+            fields: facts
+        )
+        return entry
     }
     func timeline(for configuration: I, in context: Context) async -> Timeline<PhotoConfigEntry> {
         let entry = makeEntry(configuration)
