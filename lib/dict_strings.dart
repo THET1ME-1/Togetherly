@@ -26,6 +26,8 @@ import 'l10n/dict/petal_timer_dial.dart';
 import 'l10n/dict/photo_card.dart';
 import 'l10n/dict/photo_carousel_editor.dart';
 import 'l10n/dict/custom_moods.dart';
+import 'l10n/dict/custom_theme.dart';
+import 'l10n/dict/pair_book.dart';
 import 'l10n/dict/account_email.dart';
 import 'l10n/dict/mascot_source.dart';
 import 'l10n/dict/memory_sort.dart';
@@ -51,6 +53,8 @@ import 'l10n/dict/widget_screen.dart';
 const Map<String, Map<String, String>> kStrings = {
   ...achievementsStrings,
   ...customMoodsStrings,
+  ...customThemeStrings,
+  ...pairBookStrings,
   ...accountEmailStrings,
   ...mascotSourceStrings,
   ...memorySortStrings,
@@ -397,6 +401,73 @@ abstract class DictStrings extends AppStrings {
   String get moodBandSad => _t('moodBandSad');
   @override
   String get moodBandHeavy => _t('moodBandHeavy');
+  @override
+  String get bookTitle => _t('bookTitle');
+  @override
+  String get bookLead => _t('bookLead');
+  @override
+  String get bookPeriodAll => _t('bookPeriodAll');
+  @override
+  String get bookPeriodYear => _t('bookPeriodYear');
+  @override
+  String get bookPeriodMonth => _t('bookPeriodMonth');
+  @override
+  String get bookPeriodCustom => _t('bookPeriodCustom');
+  @override
+  String get bookPickDates => _t('bookPickDates');
+  @override
+  String get bookBuild => _t('bookBuild');
+  @override
+  String get bookBuilding => _t('bookBuilding');
+  @override
+  String get bookShare => _t('bookShare');
+  @override
+  String get bookEmpty => _t('bookEmpty');
+  @override
+  String get bookTooMany => _t('bookTooMany');
+  @override
+  String get bookReady => _t('bookReady');
+  @override
+  String get bookFailed => _t('bookFailed');
+  @override
+  String get bookSecretHint => _t('bookSecretHint');
+  @override
+  String get customThemeTitle => _t('customThemeTitle');
+  @override
+  String get customThemeFromPhoto => _t('customThemeFromPhoto');
+  @override
+  String get customThemeFromPicker => _t('customThemeFromPicker');
+  @override
+  String get customThemePickPhoto => _t('customThemePickPhoto');
+  @override
+  String get customThemeAnotherPhoto => _t('customThemeAnotherPhoto');
+  @override
+  String get customThemePhotoHint => _t('customThemePhotoHint');
+  @override
+  String get customThemeNoColors => _t('customThemeNoColors');
+  @override
+  String get customThemeNameLabel => _t('customThemeNameLabel');
+  @override
+  String get customThemeNameHint => _t('customThemeNameHint');
+  @override
+  String get customThemeUnnamed => _t('customThemeUnnamed');
+  @override
+  String get customThemeFull => _t('customThemeFull');
+  @override
+  String get customThemeDelete => _t('customThemeDelete');
+  @override
+  String get customThemeEdit => _t('customThemeEdit');
+  @override
+  String get customThemePreview => _t('customThemePreview');
+  @override
+  String get plusCustomThemeTitle => _t('plusCustomThemeTitle');
+  @override
+  String get plusCustomThemeBody => _t('plusCustomThemeBody');
+  @override
+  String get plusBookTitle => _t('plusBookTitle');
+  @override
+  String get plusBookBody => _t('plusBookBody');
+
   @override
   String get customMoodBand => _t('customMoodBand');
   @override

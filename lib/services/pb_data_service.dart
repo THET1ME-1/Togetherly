@@ -2954,6 +2954,8 @@ class PbDataService {
       // Когда каждый маскот уходит в ночную сцену. Поле правит сам человек,
       // разбирает его MascotSleep — оно бывает и картой, и строкой.
       'mascotSleep': d['mascot_sleep'],
+      // Свои темы Togetherly+ (до пяти цветов), см. models/custom_theme.dart
+      'customThemes': d['custom_themes'],
     };
   }
 

@@ -16,6 +16,7 @@ import '../services/plus_service.dart';
 import '../theme/app_palettes.dart';
 import '../utils/safe_text.dart';
 import 'level.dart';
+import 'custom_theme.dart';
 import 'mascot_sleep.dart';
 import 'profile_icon.dart';
 
@@ -179,8 +180,18 @@ class UserData extends ChangeNotifier {
   SchemeFlavor _themeFlavor = SchemeFlavor.soft;
   bool _amoled = false;
 
+  /// Свои темы Togetherly+: цвет из фотографии или из пикера, до пяти штук.
+  /// Живут на аккаунте (`users.custom_themes`) и переезжают вместе с ним.
+  List<CustomTheme> _customThemes = const [];
+
+  List<CustomTheme> get customThemes => List.unmodifiable(_customThemes);
+
   int get themeId {
     if (_themeId >= 0 && _themeId < kPalettes.length) return _themeId;
+    if (isCustomPaletteIndex(_themeId) &&
+        customPaletteSlot(_themeId) < _customThemes.length) {
+      return _themeId;
+    }
     return 0; // default = pink
   }
 
@@ -194,11 +205,14 @@ class UserData extends ChangeNotifier {
   AppTheme get theme {
     final b = _themeMode.resolve();
     final idx = _previewThemeId ?? themeId;
-    final sig = Object.hash(idx, b, _themeFlavor, _amoled);
+    final palette = paletteFor(idx, _customThemes);
+    // Свой цвет правится прямо в том же слоте, поэтому в подпись идёт он сам,
+    // а не только индекс: иначе после правки на экране остаётся прежняя тема.
+    final sig = Object.hash(idx, palette.accent, b, _themeFlavor, _amoled);
     if (_themeCache == null || _themeCacheSig != sig) {
       _themeCacheSig = sig;
-      _themeCache = buildAppTheme(paletteByIndex(idx), b,
-          flavor: _themeFlavor, amoled: _amoled);
+      _themeCache =
+          buildAppTheme(palette, b, flavor: _themeFlavor, amoled: _amoled);
     }
     return _themeCache!;
   }
@@ -721,6 +735,7 @@ class UserData extends ChangeNotifier {
       _uid = prefs.getString('uid') ?? '';
       _applyGenderString(prefs.getString('gender'));
       _themeId = prefs.getInt('themeId') ?? -1;
+      _customThemes = parseCustomThemes(prefs.getString('customThemes'));
       final hadThemeMode = prefs.containsKey('themeMode');
       _themeMode = AppThemeMode.values[
           (prefs.getInt('themeMode') ?? AppThemeMode.light.index)
@@ -849,6 +864,11 @@ class UserData extends ChangeNotifier {
         }
 
         _mascotSleep = MascotSleep.parse(data['mascotSleep']);
+        // Свои темы приезжают с аккаунтом: переустановил приложение —
+        // собранные цвета на месте. Пустой ответ прежних сборок ничего не
+        // затирает, иначе тема, заведённая офлайн, пропала бы на входе.
+        final serverThemes = parseCustomThemes(data['customThemes']);
+        if (serverThemes.isNotEmpty) _customThemes = serverThemes;
 
         await _saveLocal();
 
@@ -887,6 +907,7 @@ class UserData extends ChangeNotifier {
       await prefs.setString('uid', _uid);
       await prefs.setString('gender', genderToStorage());
       await prefs.setInt('themeId', _themeId);
+      await prefs.setString('customThemes', encodeCustomThemes(_customThemes));
       await prefs.setBool('blobAnimationEnabled', _blobAnimationEnabled);
       if (_birthDate != null) {
         await prefs.setInt('birthDate', _birthDate!.millisecondsSinceEpoch);
@@ -1060,11 +1081,53 @@ class UserData extends ChangeNotifier {
   }
 
   Future<void> setThemeId(int id) async {
-    if (id < 0 || id >= AppThemes.all.length) return;
+    final ownCustom =
+        isCustomPaletteIndex(id) && customPaletteSlot(id) < _customThemes.length;
+    if (!ownCustom && (id < 0 || id >= AppThemes.all.length)) return;
     _themeId = id;
     await _saveLocal();
     notifyListeners();
     unawaited(_syncAppearance());
+  }
+
+  /// Завести свою тему из выбранного цвета и сразу её включить.
+  ///
+  /// Возвращает false, когда набор полон: пять кружков в ленте — потолок, о
+  /// котором интерфейс обязан сказать заранее, а не молча проглотить выбор.
+  Future<bool> addCustomThemeColor(Color seed, {String name = ''}) async {
+    if (_customThemes.length >= kMaxCustomThemes) return false;
+    final next = addCustomTheme(_customThemes, CustomTheme(seed: seed, name: name));
+    _customThemes = next;
+    _themeId = customPaletteIndex(next.length - 1);
+    await _saveCustomThemes();
+    return true;
+  }
+
+  Future<void> updateCustomThemeAt(int slot, Color seed, {String? name}) async {
+    if (slot < 0 || slot >= _customThemes.length) return;
+    final was = _customThemes[slot];
+    _customThemes = replaceCustomTheme(_customThemes, slot,
+        CustomTheme(seed: seed, name: name ?? was.name));
+    await _saveCustomThemes();
+  }
+
+  Future<void> removeCustomThemeAt(int slot) async {
+    if (slot < 0 || slot >= _customThemes.length) return;
+    _customThemes = removeCustomTheme(_customThemes, slot);
+    _themeId = themeIdAfterRemoval(_themeId, slot);
+    await _saveCustomThemes();
+  }
+
+  Future<void> _saveCustomThemes() async {
+    _themeCacheSig = null;
+    notifyListeners();
+    await _saveLocal();
+    final uid = PocketBaseService().userId ?? '';
+    if (uid.isEmpty) return;
+    await PbDataService().updateUserProfile(
+      uid,
+      {'custom_themes': _customThemes.map((t) => t.toJson()).toList()},
+    );
   }
 
   Future<void> setBlobAnimationEnabled(bool value) async {

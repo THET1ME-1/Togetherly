@@ -1,3 +1,7 @@
+import '../services/plus_service.dart';
+import '../services/plus_access.dart';
+import 'plus_screen.dart';
+import 'pair_book_screen.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -1010,6 +1014,19 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               ),
             ),
             tooltip: LocaleService.current.secretMemories,
+          ),
+        if (PlusService.instance.visible)
+          IconButton(
+            onPressed: _openPairBook,
+            icon: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: widget.theme.cardSurface.withOpacity(0.8),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.menu_book_rounded, color: primary, size: 18),
+            ),
+            tooltip: LocaleService.current.bookTitle,
           ),
         IconButton(
           onPressed: _openPhotoGalleryScreen,
@@ -7455,6 +7472,36 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       }
     }
     return items;
+  }
+
+  /// Книга пары: PDF с воспоминаниями за выбранные даты.
+  ///
+  /// Список берётся тот же, что на экране, — вместе с состоянием замка
+  /// секретных записей: что человек сейчас видит, то и попадёт в книгу.
+  Future<void> _openPairBook() async {
+    if (PlusService.instance.gate != PlusGate.open) {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => PlusScreen(scheme: ProfileTheme.schemeFor(widget.theme)),
+        ),
+      );
+      return;
+    }
+    final me = widget.userData?.displayName ?? '';
+    final partner = widget.pairData.partnerName;
+    final title = [me, partner].where((n) => n.trim().isNotEmpty).join(' и ');
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PairBookScreen(
+          memories: _memories,
+          theme: widget.theme,
+          coupleTitle: title.isEmpty ? LocaleService.current.bookTitle : title,
+          secretUnlocked: _secretUnlocked,
+        ),
+        settings: const RouteSettings(name: '/pair_book'),
+      ),
+    );
   }
 
   void _openPhotoGalleryScreen() async {

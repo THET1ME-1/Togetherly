@@ -324,6 +324,43 @@ abstract class AppStrings {
   String get moodBandHeavy;
 
   // Свои настроения пары (Togetherly+)
+  // Книга пары — см. l10n/dict/pair_book.dart
+  String get bookTitle;
+  String get bookLead;
+  String get bookPeriodAll;
+  String get bookPeriodYear;
+  String get bookPeriodMonth;
+  String get bookPeriodCustom;
+  String get bookPickDates;
+  String get bookBuild;
+  String get bookBuilding;
+  String get bookShare;
+  String get bookEmpty;
+  String get bookTooMany;
+  String get bookReady;
+  String get bookFailed;
+  String get bookSecretHint;
+
+  // Своя тема Togetherly+ — см. l10n/dict/custom_theme.dart
+  String get customThemeTitle;
+  String get customThemeFromPhoto;
+  String get customThemeFromPicker;
+  String get customThemePickPhoto;
+  String get customThemeAnotherPhoto;
+  String get customThemePhotoHint;
+  String get customThemeNoColors;
+  String get customThemeNameLabel;
+  String get customThemeNameHint;
+  String get customThemeUnnamed;
+  String get customThemeFull;
+  String get customThemeDelete;
+  String get customThemeEdit;
+  String get customThemePreview;
+  String get plusCustomThemeTitle;
+  String get plusCustomThemeBody;
+  String get plusBookTitle;
+  String get plusBookBody;
+
   String get customMoodBand;
   String get customMoodNewTile;
   String get customMoodTitle;

@@ -60,7 +60,9 @@ import '../models/gift_effect.dart';
 import '../models/pair_achievement.dart';
 import '../services/achievement_service.dart';
 import '../widgets/avatar_widget.dart';
+import '../models/custom_theme.dart';
 import '../widgets/seed_swatch.dart';
+import '../widgets/theme/custom_theme_sheet.dart';
 import '../utils/share_origin.dart';
 import '../services/export_service.dart';
 import '../services/timer_service.dart';
@@ -1648,12 +1650,27 @@ class _ProfileScreenState extends State<ProfileScreen>
             caption(_s.paletteLabel),
             SizedBox(
               height: 62,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: kPalettes.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 12),
-                itemBuilder: (context, i) => _paletteSwatch(context, i),
-              ),
+              child: Builder(builder: (context) {
+                // Порядок кружков живёт в `paletteStripEntries` под тестами:
+                // сперва «своя тема», за ней собранные цвета, дальше готовые
+                // палитры. Своё не должно лежать за двадцатью пятью кружками.
+                final strip = paletteStripEntries(
+                  customCount: ud.customThemes.length,
+                  plusVisible: PlusService.instance.visible,
+                );
+                return ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: strip.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  itemBuilder: (context, i) => switch (strip[i].kind) {
+                    StripKind.add => _addCustomThemeSwatch(context),
+                    StripKind.custom =>
+                      _customThemeSwatch(context, strip[i].index),
+                    StripKind.palette =>
+                      _paletteSwatch(context, strip[i].index),
+                  },
+                );
+              }),
             ),
             const SizedBox(height: 18),
             caption(_s.themeModeLabel),
@@ -1770,6 +1787,116 @@ class _ProfileScreenState extends State<ProfileScreen>
             ),
           ),
       ],
+    );
+  }
+
+  /// Первый кружок ленты: завести свою тему.
+  ///
+  /// У некупившего он с замком и ведёт на витрину, а не открывает лист: иначе
+  /// человек собирает цвет и упирается в стену уже с готовым выбором. На
+  /// iPhone кружка нет вовсе — там Togetherly+ не существует.
+  Widget _addCustomThemeSwatch(BuildContext context) {
+    final cs = _cs;
+    final ud = widget.userData;
+    final locked = PlusService.instance.gate != PlusGate.open;
+    return GestureDetector(
+      onTap: () async {
+        if (locked) {
+          await Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => PlusScreen(scheme: cs)),
+          );
+          return;
+        }
+        if (ud.customThemes.length >= kMaxCustomThemes) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(_s.customThemeFull)));
+          return;
+        }
+        final theme = await showCustomThemeSheet(context);
+        if (theme == null) return;
+        await ud.addCustomThemeColor(theme.seed, name: theme.name);
+        if (mounted) setState(() {});
+      },
+      child: Container(
+        width: 46,
+        height: 46,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: cs.surfaceContainerHighest,
+          border: Border.all(color: cs.outlineVariant),
+        ),
+        child: Icon(
+          locked ? Icons.lock_rounded : Icons.add_rounded,
+          size: 22,
+          color: cs.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+
+  /// Своя тема в ленте. Долгое нажатие открывает правку и удаление — так же,
+  /// как у своих категорий желаний.
+  Widget _customThemeSwatch(BuildContext context, int slot) {
+    final ud = widget.userData;
+    final theme = ud.customThemes[slot];
+    final index = customPaletteIndex(slot);
+    return GestureDetector(
+      onLongPress: () => _customThemeActions(context, slot),
+      child: SeedSwatch(
+        palette: customPalette(theme.seed, slot: slot, name: theme.name),
+        selected: ud.themeId == index,
+        size: 46,
+        flavor: ud.themeFlavor,
+        onTap: () async {
+          await ud.setThemeId(index);
+          if (mounted) setState(() {});
+        },
+      ),
+    );
+  }
+
+  Future<void> _customThemeActions(BuildContext context, int slot) async {
+    final ud = widget.userData;
+    final theme = ud.customThemes[slot];
+    final cs = _cs;
+    await showAppSheet<void>(
+      context,
+      background: cs.surfaceContainerHigh,
+      builder: (ctx) => Theme(
+        data: ProfileTheme.data(cs),
+        child: SheetScaffold(
+          title: theme.name.isEmpty ? _s.customThemeUnnamed : theme.name,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.edit_rounded),
+                title: Text(_s.customThemeEdit),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final next =
+                      await showCustomThemeSheet(context, initial: theme);
+                  if (next == null) return;
+                  await ud.updateCustomThemeAt(slot, next.seed,
+                      name: next.name);
+                  if (mounted) setState(() {});
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.delete_outline_rounded, color: cs.error),
+                title: Text(_s.customThemeDelete,
+                    style: TextStyle(color: cs.error)),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await ud.removeCustomThemeAt(slot);
+                  if (mounted) setState(() {});
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

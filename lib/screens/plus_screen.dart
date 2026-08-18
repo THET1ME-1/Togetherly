@@ -188,12 +188,14 @@ class _PlusScreenState extends State<PlusScreen> {
     final items = <(IconData, String, String)>[
       (Icons.block_rounded, _s.plusNoAdsTitle, _s.plusNoAdsBody),
       (Icons.palette_rounded, _s.plusThemesTitle, _s.plusThemesBody),
+      (Icons.colorize_rounded, _s.plusCustomThemeTitle, _s.plusCustomThemeBody),
       (Icons.water_drop_rounded, _s.plusCycleTitle, _s.plusCycleBody),
       (Icons.widgets_rounded, _s.plusWidgetsTitle, _s.plusWidgetsBody),
       (Icons.lightbulb_rounded, _s.plusTipsTitle, _s.plusTipsBody),
       (Icons.videocam_rounded, _s.plusVideoTitle, _s.plusVideoBody),
       (Icons.brush_rounded, _s.plusColoringTitle, _s.plusColoringBody),
       (Icons.favorite_rounded, _s.plusWishesTitle, _s.plusWishesBody),
+      (Icons.menu_book_rounded, _s.plusBookTitle, _s.plusBookBody),
     ];
 
     return Container(

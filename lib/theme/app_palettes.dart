@@ -383,3 +383,58 @@ AppTheme buildAppTheme(
     divider: s.outlineVariant,
   );
 }
+
+// ═══════════════════════════════════════════════════
+//  СВОИ ТЕМЫ (Togetherly+)
+// ═══════════════════════════════════════════════════
+
+/// Сколько своих тем держит один человек. Пять — потому что лента палитр
+/// горизонтальная: больше просто не разглядеть, не пролистав готовые.
+const int kMaxCustomThemes = 5;
+
+/// Свои темы нумеруются с тысячи. Индексы готовых палитр трогать нельзя — на
+/// них висит владение (`owned_themes`), а сохранённый `theme_id` у людей уже
+/// лежит в базе. Тысяча оставляет запас на новые готовые палитры.
+const int _kCustomIndexBase = 1000;
+
+int customPaletteIndex(int slot) => _kCustomIndexBase + slot;
+
+bool isCustomPaletteIndex(int index) =>
+    index >= _kCustomIndexBase && index < _kCustomIndexBase + kMaxCustomThemes;
+
+int customPaletteSlot(int index) => index - _kCustomIndexBase;
+
+/// Палитра из цвета, который принёс человек.
+///
+/// Готовым палитрам цель пишут руками под предмет («мякоть персика»), здесь её
+/// снимают с самого цвета: оттенок и светлота берутся как есть, а `k` — доля
+/// от предельной насыщенности на этой паре. У чёрного и белого предел равен
+/// нулю, поэтому деление прикрыто: иначе `k` уходит в NaN и тема гаснет вся.
+Palette customPalette(Color seed, {required int slot, String name = ''}) {
+  final hct = Hct.fromInt(seed.toARGB32());
+  final tone = hct.tone.clamp(_kCustomToneFloor, _kCustomToneCeiling);
+  final limit = _maxChroma(hct.hue, tone);
+  final k = limit <= 0 ? 0.0 : (hct.chroma / limit).clamp(0.0, 1.0);
+  return Palette(
+    customPaletteIndex(slot),
+    name,
+    seed,
+    target: PaletteTarget('свой цвет', hct.hue, tone, k),
+    variant: k < _kCustomGreyK
+        ? DynamicSchemeVariant.neutral
+        : DynamicSchemeVariant.tonalSpot,
+  );
+}
+
+/// Границы светлоты для своего цвета.
+///
+/// Тоном красятся кнопки и активная навигация. Чистый чёрный делает их
+/// чёрными, чистый белый растворяет в фоне светлой темы: и то и другое
+/// перестаёт быть темой, оставаясь формально верным цветом.
+const double _kCustomToneFloor = 20.0;
+const double _kCustomToneCeiling = 88.0;
+
+/// Ниже этой доли насыщенности цвет считается обесцвеченным и разворачивается
+/// нейтральной схемой — иначе M3 дотягивает серое до голубого, как когда-то у
+/// «Монохрома».
+const double _kCustomGreyK = 0.12;

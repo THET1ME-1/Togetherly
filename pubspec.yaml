@@ -33,6 +33,14 @@ dependencies:
   image_picker_android: ^0.8.12
   image_picker_platform_interface: ^2.10.0
   image_cropper: ^12.2.1
+  # Свои темы Togetherly+: ручной пикер цвета (HSV-колесо и HEX).
+  # Цвета из фотографии считает material_color_utilities — тем же
+  # квантователем, которым Android берёт палитру из обоев; отдельный
+  # palette_generator для этого не нужен, он к тому же заброшен.
+  flutter_colorpicker: ^1.1.0
+  # Книга пары: воспоминания за выбранные даты одним PDF.
+  pdf: ^3.11.1
+  material_color_utilities: ^0.13.0
   flutter_local_notifications: ^21.0.0
   file_picker: ^8.0.7
   geolocator: ^13.0.2
