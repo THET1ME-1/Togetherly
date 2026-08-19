@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../theme/profile_theme.dart';
 import '../../../theme/theme_scope.dart';
@@ -22,6 +23,9 @@ import '../../../widgets/common/app_dialog.dart';
 import '../../../widgets/mood/custom_mood_sheet.dart';
 import '../../../widgets/mood_pack_selector.dart';
 import '../../../widgets/mood_tile_shapes.dart';
+import '../../../models/catalog_price.dart';
+import '../../../models/level.dart';
+import '../../../services/coin_store.dart';
 
 /// Shows mood picker bottom sheet for today's mood.
 ///
@@ -470,7 +474,19 @@ class _MoodPickerSheetState extends State<MoodPickerSheet> {
             pairOwned: widget.pairOwned,
             shownId: _preview?.id,
             onChanged: (_) => setState(() => _preview = null),
-            onPreview: (p) => setState(() => _preview = p),
+            onPreview: (p) {
+              setState(() => _preview = p);
+              // Цену на кнопке называет магазин, а описание товара приезжает
+              // по требованию: спрашиваем его сразу, как человек открыл набор,
+              // иначе кнопка секунду показывала бы цену из манифеста.
+              if (p.unlock.isMoney && kCatalogBuysInStore) {
+                final id = catalogProductId(
+                    Unlock.featureKey(kMoodPackFeatureKind, p.id));
+                unawaited(sharedCoinStore.ensureProduct(id).then((known) {
+                  if (known && mounted) setState(() {});
+                }));
+              }
+            },
           ),
         ),
         Expanded(
@@ -713,7 +729,15 @@ class _MoodPickerSheetState extends State<MoodPickerSheet> {
     final previewed = _preview;
     if (previewed != null && !onAilment) {
       final ru = LocaleService.instance.isRussian;
-      final price = previewed.unlock.priceLabel;
+      // Цена — от магазина: у Apple и Google свой налог и округление в каждой
+      // стране, и число из манифеста рядом с ними читалось бы как вторая цена.
+      final price = catalogPriceLabel(
+        storePrice: kCatalogBuysInStore
+            ? sharedCoinStore.priceLabel(catalogProductId(
+                Unlock.featureKey(kMoodPackFeatureKind, previewed.id)))
+            : null,
+        catalogPrice: previewed.unlock.priceLabel,
+      );
       final author = previewed.author;
       return SafeArea(
         top: false,

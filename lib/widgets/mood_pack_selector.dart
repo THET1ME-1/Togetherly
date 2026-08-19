@@ -14,6 +14,7 @@ import '../services/locale_service.dart';
 import '../services/mood_pack_service.dart';
 import '../theme/theme_scope.dart';
 import 'mood_image.dart';
+import '../models/catalog_price.dart';
 
 /// Выбор пака настроений в пикере: таблетки без обводки.
 ///
@@ -97,15 +98,17 @@ class MoodPackSelector extends StatelessWidget {
         // Подсвечиваем тот набор, который человек сейчас видит: у закрытого это
         // просмотр, а не выбор, поэтому галочки у него не будет — только замок.
         final shownId = this.shownId ?? selectedId;
-        // На iOS платного за деньги не показываем вовсе: вести на оплату мимо
-        // биллинга Apple запрещает 3.1.1, за это уже прилетал реджект 1.21.0.
-        // Купленный (в том числе партнёром с Android) остаётся видимым —
-        // отбирать оплаченное нельзя.
+        // Платный набор показывается там, где его можно купить: на iPhone это
+        // биллинг Apple (товар заведён 19.08.2026), в сборке Play — биллинг
+        // Google, в остальных — счёт на сайте. Купленный (в том числе
+        // партнёром с другой платформы) виден везде: отбирать оплаченное
+        // нельзя.
         final packs = CatalogService.instance.allPacks
             .where((p) => moodPackVisible(
                   isIOS: Platform.isIOS,
                   isMoney: p.unlock.isMoney,
                   isOpen: isOpen(p),
+                  buysInStore: kCatalogBuysInStore,
                 ))
             .toList();
         if (packs.isEmpty) return const SizedBox.shrink();
@@ -206,11 +209,11 @@ Future<void> buyMoodPack(
   // сервер на почту аккаунта — по витринной ссылке уведомление об оплате не
   // приходит вовсе, и набор пришлось бы выдавать руками.
   if (pack.unlock.isMoney) {
-    // Платный набор на iPhone не показывается вовсе (`moodPackVisible`), но и
-    // покупку отсюда не начинаем: биллинга Apple для него нет, а внешняя
-    // оплата — 3.1.1.
-    if (Platform.isIOS) return;
     final featureKey = Unlock.featureKey(kMoodPackFeatureKind, pack.id);
+    // На iPhone покупка идёт только через StoreKit: внешняя оплата — 3.1.1.
+    // Товара там нет (сборка старее самого товара) — молчим, а не ведём на
+    // сайт.
+    if (Platform.isIOS && !kCatalogBuysInStore) return;
 
     if (kCatalogBuysInStore) {
       final store = sharedCoinStore;
@@ -372,7 +375,15 @@ class _PackChip extends StatelessWidget {
                 Text(
                   // Монеты — голое число рядом со значком монеты, деньги — со
                   // знаком валюты: «150» и «5 $» не должны читаться одинаково.
-                  pack.unlock.priceLabel,
+                  // Цену называет магазин, каталог — запасной ответ, пока
+                  // товар не подгрузился (см. catalogPriceLabel).
+                  catalogPriceLabel(
+                    storePrice: kCatalogBuysInStore
+                        ? sharedCoinStore.priceLabel(catalogProductId(
+                            Unlock.featureKey(kMoodPackFeatureKind, pack.id)))
+                        : null,
+                    catalogPrice: pack.unlock.priceLabel,
+                  ),
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../models/catalog_price.dart';
 import 'iap_service.dart';
 import 'rustore_iap_service.dart';
 
@@ -47,9 +48,18 @@ const List<CoinPack> kCoinPacks = _storeHasProducts
 const String kPlusProductId = 'togetherly_plus';
 
 /// Продаётся ли платный элемент каталога через биллинг магазина, а не через
-/// сайт. В сборке для Google Play платить мимо Google нельзя — за это снимают
-/// приложение; в sideload и RuStore товаров Play нет, там остаётся lava.top.
-const bool kCatalogBuysInStore = kStore == 'play';
+/// сайт.
+///
+/// Решение считается в рантайме: IPA собирается с `STORE=github`, поэтому
+/// одного `kStore` мало — платформу знает только приложение. На iPhone товары
+/// каталога заведены в App Store Connect (`mood_pack.moti`, 19.08.2026), и
+/// внешняя оплата там запрещена 3.1.1. На Android магазин только в сборке для
+/// Google Play: в sideload и RuStore товаров Play нет, там остаётся lava.top.
+/// Само правило — в `models/catalog_price.dart` под тестами.
+bool get kCatalogBuysInStore => catalogBuysInStore(
+      isIOS: defaultTargetPlatform == TargetPlatform.iOS,
+      store: kStore,
+    );
 
 /// Товар магазина для ключа владения: `mood_pack:moti` → `mood_pack.moti`.
 ///
