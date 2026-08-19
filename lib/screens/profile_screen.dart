@@ -1356,10 +1356,16 @@ class _ProfileScreenState extends State<ProfileScreen>
             ),
           ],
         ),
-        if (widget.pairData.isPaired && PlusService.instance.visible) ...[
+        if (widget.pairData.isPaired) ...[
           const SizedBox(height: 12),
-          _fullStatsLink(context),
-          const SizedBox(height: 10),
+          // Полная статистика платная, и там, где Плюса не существует (iOS),
+          // её вход не рисуется вовсе. «Умение любить» бесплатное и стоит
+          // своим условием: под общим флагом тест пропадал на iPhone заодно с
+          // платным разделом, хотя ничего не стоит.
+          if (PlusService.instance.visible) ...[
+            _fullStatsLink(context),
+            const SizedBox(height: 10),
+          ],
           _loveTestLink(context),
         ],
       ],
