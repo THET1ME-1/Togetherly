@@ -1,0 +1,52 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+@font-face { font-family: Unbounded; src: url(FONT_UNBOUNDED); font-weight: 200 900; }
+@font-face { font-family: Onest; src: url(FONT_ONEST); font-weight: 100 900; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { width: 1280px; height: 440px; overflow: hidden; }
+.wrap {
+  width: 1280px; height: 440px; position: relative;
+  background:
+    radial-gradient(120% 140% at 12% 0%, #FFE3E6 0%, #FFD3D8 38%, #FFC2CB 68%, #FFB3BF 100%);
+  display: grid; grid-template-columns: 300px 1fr; align-items: center;
+  gap: 44px; padding: 0 72px;
+}
+/* Мягкие круги на фоне: те же формы, что у маскота, только едва различимые. */
+.blob { position: absolute; border-radius: 50%; background: #fff; opacity: .28; filter: blur(2px); }
+.b1 { width: 260px; height: 260px; right: -60px; top: -80px; }
+.b2 { width: 180px; height: 180px; right: 190px; bottom: -90px; opacity: .18; }
+.b3 { width: 90px; height: 90px; left: 44%; top: 26px; opacity: .16; }
+.icon {
+  width: 300px; height: 300px; border-radius: 68px; overflow: hidden;
+  box-shadow: 0 26px 60px rgba(190, 60, 80, .28);
+  position: relative; z-index: 2;
+}
+.icon img { width: 100%; height: 100%; display: block; }
+.text { position: relative; z-index: 2; }
+h1 {
+  font-family: Unbounded; font-weight: 800; font-size: 96px; line-height: 1;
+  letter-spacing: -.035em; color: #4A1220;
+}
+h1 span { color: #F0475F; }
+.sub {
+  font-family: Onest; font-weight: 600; font-size: 30px; color: #8E3346;
+  margin-top: 18px; letter-spacing: -.01em;
+}
+.dot { color: #F0475F; margin: 0 12px; }
+.tags { display: flex; gap: 10px; margin-top: 26px; }
+.tag {
+  font-family: Onest; font-weight: 600; font-size: 19px; color: #7A2A3B;
+  background: rgba(255,255,255,.62); border-radius: 999px; padding: 9px 20px;
+}
+</style></head><body><div class="wrap">
+  <div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>
+  <div class="icon"><img src="ICON"></div>
+  <div class="text">
+    <h1>Together<span>ly</span></h1>
+    <div class="sub">Приложение для двоих<span class="dot">·</span>An app for two</div>
+    <div class="tags">
+      <div class="tag">Flutter</div>
+      <div class="tag">Android · iOS</div>
+      <div class="tag">GPL-3.0</div>
+    </div>
+  </div>
+</div></body></html>

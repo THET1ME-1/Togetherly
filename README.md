@@ -1,8 +1,6 @@
 <div align="center">
 
-<img src="docs/branding/readme-banner.png" alt="Togetherly — an app for two" width="100%">
-
-# Togetherly
+<img src="docs/branding/readme-banner.png" alt="Togetherly — приложение для двоих · an app for two" width="100%">
 
 <br>
 
