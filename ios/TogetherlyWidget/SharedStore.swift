@@ -162,6 +162,60 @@ enum TimeMath {
     }
 }
 
+// MARK: - Кэш разжатых кадров
+
+/// Разжатая картинка живёт в процессе расширения, а не разбирается заново на
+/// каждый заход.
+///
+/// SwiftUI строит `body` многократно — снимок, таймлайн, каждое семейство,
+/// галерея выбора, — и `WidgetImage.load` внутри вьюхи декодировал файл столько
+/// же раз. По журналу ночи 19.08.2026: фото партнёра (453 КБ, 713×951)
+/// разжималось пять раз подряд, свободная память падала 25 → 20 МБ и не
+/// возвращалась, а на очередном заходе процесс убивали — виджет оставался
+/// пустым, и человек считал его сломанным.
+///
+/// Ключ включает время правки и размер файла: путь у нового снимка тот же
+/// самый, и без этого виджет застрял бы на прежней фотографии.
+enum WidgetImageCache {
+    /// Три кадра: больше одновременно не рисуется даже у большого виджета с
+    /// сеткой, а каждый занимает единицы мегабайт из наших тридцати.
+    private static let limit = 3
+
+    private static let lock = NSLock()
+    private static var order: [String] = []
+    private static var frames: [String: UIImage] = [:]
+
+    /// Ключ кадра: путь, запрошенный размер, время правки и вес файла.
+    static func key(path: String, maxSide: CGFloat) -> String {
+        let attrs = try? FileManager.default.attributesOfItem(atPath: path)
+        let modified = (attrs?[.modificationDate] as? Date)?
+            .timeIntervalSince1970 ?? 0
+        let size = (attrs?[.size] as? NSNumber)?.intValue ?? 0
+        return "\(path)|\(Int(maxSide))|\(Int(modified))|\(size)"
+    }
+
+    static func image(for key: String) -> UIImage? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let img = frames[key] else { return nil }
+        // Поднимаем в конец: вытеснять будем то, что дольше всех не спрашивали.
+        order.removeAll { $0 == key }
+        order.append(key)
+        return img
+    }
+
+    static func store(_ image: UIImage, for key: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        if frames[key] == nil { order.append(key) }
+        frames[key] = image
+        while order.count > limit {
+            let oldest = order.removeFirst()
+            frames.removeValue(forKey: oldest)
+        }
+    }
+}
+
 // MARK: - Чтение картинок с оглядкой на память
 
 /// Расширению система отводит около 30 МБ на всё, а `UIImage(contentsOfFile:)`
@@ -185,6 +239,20 @@ enum WidgetImage {
         logAs widget: String = "",
         family: String = ""
     ) -> UIImage? {
+        // Размер приходит из GeometryReader и гуляет на доли точки между
+        // построениями. Округляем вверх до ступени: иначе ключ каждый раз
+        // новый, и кэш промахивается ровно там, ради чего заведён.
+        let step: CGFloat = 64
+        let wanted = min(WidgetImage.maxSide, max(120, ceil(maxSide / step) * step))
+
+        // Тот же кадр мог уже разжиматься в этом процессе. Отдаём готовый и
+        // ничего не пишем в журнал: запись «начал» без «разжато» означает
+        // «процесс убили посередине», и лишние строки исказили бы вердикт.
+        let cacheKey = WidgetImageCache.key(path: path, maxSide: wanted)
+        if let cached = WidgetImageCache.image(for: cacheKey) {
+            return cached
+        }
+
         // Пишем ДО разжатия: если процесс убьют на нём, в журнале останется
         // начало без признака `decoded` — это и есть подпись нехватки памяти.
         if !widget.isEmpty {
@@ -208,7 +276,7 @@ enum WidgetImage {
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
             kCGImageSourceShouldCacheImmediately: true,
-            kCGImageSourceThumbnailMaxPixelSize: maxSide,
+            kCGImageSourceThumbnailMaxPixelSize: wanted,
         ]
         guard let cg = CGImageSourceCreateThumbnailAtIndex(
             source, 0, options as CFDictionary
@@ -227,6 +295,7 @@ enum WidgetImage {
                     ]
                 )
             }
+            if let fallback { WidgetImageCache.store(fallback, for: cacheKey) }
             return fallback
         }
         if !widget.isEmpty {
@@ -240,7 +309,9 @@ enum WidgetImage {
                 ]
             )
         }
-        return UIImage(cgImage: cg)
+        let image = UIImage(cgImage: cg)
+        WidgetImageCache.store(image, for: cacheKey)
+        return image
     }
 }
 
