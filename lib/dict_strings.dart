@@ -1467,6 +1467,21 @@ abstract class DictStrings extends AppStrings {
   String get failedUploadBackground => _t('failedUploadBackground');
   @override
   String get todayLabel => _t('todayLabel');
+
+  @override
+  String get moodYearNoMark => _t('moodYearNoMark');
+  @override
+  String get moodYearWorse => _t('moodYearWorse');
+  @override
+  String get moodYearBetter => _t('moodYearBetter');
+  @override
+  String get moodYearEmpty => _t('moodYearEmpty');
+  @override
+  String moodYearAverage(String avg) =>
+      _t('moodYearAverage').replaceAll('{avg}', avg);
+  @override
+  String moodYearMissing(int days) =>
+      _t('moodYearMissing').replaceAll('{days}', tgDaysMilestone(days));
   @override
   String get todayDate => _t('todayDate');
   @override

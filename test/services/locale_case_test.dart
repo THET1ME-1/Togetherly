@@ -24,6 +24,10 @@ const _lowercaseOnPurpose = <String>{
   'fromGalleryLabel', 'fromMemories',
   // Подпись справа от числа: «+12 к общему числу».
   'love_total_change',
+  // Легенда сетки года: подписи стоят внутри строки, рядом с образцами цвета
+  // и числом — «в среднем 3,7 из 5 · 45 дней без отметки».
+  'moodYearNoMark', 'moodYearWorse', 'moodYearBetter',
+  'moodYearAverage', 'moodYearMissing',
   // Подписи метрик под цифрой в профиле.
   'statsDaysTogether', 'statsDrawings', 'statsMemories', 'statsStreak',
   'statsXp',

@@ -966,6 +966,18 @@ abstract class AppStrings {
   // -- Mini Mood Calendar --
   String get todayLabel;
 
+  // ── Год настроений клетками ──────────────────────────────────────────────
+  String get moodYearNoMark;
+  String get moodYearWorse;
+  String get moodYearBetter;
+  String get moodYearEmpty;
+
+  /// «в среднем 3,7 из 5»
+  String moodYearAverage(String avg);
+
+  /// «45 дней без отметки» — число со склонением берётся из [tgDaysMilestone].
+  String moodYearMissing(int days);
+
   // ── Date helpers ──
   String get todayDate;
   String get yesterday;

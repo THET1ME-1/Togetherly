@@ -1,9 +1,9 @@
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import '../theme/fonts.dart';
 import 'package:flutter/services.dart';
 import 'package:fl_chart/fl_chart.dart';
+import '../widgets/mood/mood_year_sheet.dart';
 import '../models/cycle_entry.dart';
 import '../models/mood_entry.dart';
 import '../models/pair_data.dart';
@@ -1116,82 +1116,31 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
     );
   }
 
+  /// Год клетками: колонка — неделя, клетка — день, тон — оценка.
+  ///
+  /// Раньше здесь лежали двенадцать плиток с числом отметок за месяц. По ним
+  /// видно, часто ли человек отмечался, и совсем не видно, какими были дни;
+  /// сетка отвечает на второй вопрос. Раскладка и склейка серий живут в
+  /// `models/mood_year_grid.dart` под тестами.
   Widget _yearGrid(Map<String, List<MoodEntry>> byDay, ColorScheme scheme) {
-    // Число дней с настроением по месяцам года.
-    final counts = List<int>.filled(12, 0);
-    byDay.forEach((k, list) {
-      final d = DateTime.tryParse(k);
-      if (d != null && d.year == _calAnchor.year && list.isNotEmpty) {
-        counts[d.month - 1]++;
-      }
+    final scores = <DateTime, int>{};
+    byDay.forEach((key, list) {
+      final day = DateTime.tryParse(key);
+      if (day == null || day.year != _calAnchor.year || list.isEmpty) return;
+      // День бывает отмечен не раз — берём среднее, как и на графике тренда.
+      final avg = list.map((e) => e.score).reduce((a, b) => a + b) / list.length;
+      scores[DateTime(day.year, day.month, day.day)] = avg.round().clamp(1, 5);
     });
-    final maxCount = counts.fold<int>(1, (a, b) => math.max(a, b));
-    final short = LocaleService.current.shortMonths;
 
-    Widget monthCell(int m) {
-      final count = counts[m];
-      final has = count > 0;
-      final t = maxCount <= 1 ? 1.0 : (count / maxCount).clamp(0.0, 1.0);
-      final color = has
-          ? Color.alphaBlend(
-              scheme.primary.withValues(alpha: 0.12 + 0.22 * t),
-              scheme.surfaceContainerHighest)
-          : scheme.surfaceContainerHighest;
-      return GestureDetector(
-        onTap: () {
-          HapticFeedback.selectionClick();
-          setState(() {
-            _calMode = _CalMode.month;
-            _calAnchor = DateTime(_calAnchor.year, m + 1, 1);
-          });
-        },
-        child: Container(
-          margin: const EdgeInsets.all(4),
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            children: [
-              Text(
-                short[m],
-                style: TextStyle(
-                  fontFamily: 'Onest',
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-        fontVariations: const [FontVariation('wght', 700)],
-                  color: scheme.onSurface,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '$count',
-                style: TextStyle(
-                  fontFamily: 'Unbounded',
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-        fontVariations: const [FontVariation('wght', 800)],
-                  color: has
-                      ? scheme.primary
-                      : scheme.onSurfaceVariant.withValues(alpha: 0.5),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    final rows = <Widget>[];
-    for (var r = 0; r < 4; r++) {
-      rows.add(Row(
-        children: [
-          for (var c = 0; c < 3; c++) Expanded(child: monthCell(r * 3 + c)),
-        ],
-      ));
-    }
-    return Column(children: rows);
+    return MoodYearGridView(
+      year: _calAnchor.year,
+      scores: scores,
+      scheme: scheme,
+      onTapDay: (day) => setState(() {
+        _calMode = _CalMode.month;
+        _calAnchor = DateTime(day.year, day.month, 1);
+      }),
+    );
   }
 
   // ═══════════════════════════════════════════
