@@ -40,7 +40,11 @@ const List<CoinPack> kCoinPacks = _storeHasProducts
 /// `lifetime`, заведён 26 июля 2026). В отличие от монет это НЕрасходуемая
 /// покупка: купить второй раз нельзя, а восстанавливать доступ не нужно — флаг
 /// живёт на аккаунте в PocketBase и переезжает вместе с ним.
-const String kPlusProductId = _storeHasProducts ? 'togetherly_plus' : '';
+///
+/// Строка безусловная: товар заведён в обоих магазинах, и прятать её от
+/// сканера ревью больше не нужно. У монет иначе — их продуктов в App Store
+/// нет, и `coins_*` по-прежнему живут за [_storeHasProducts].
+const String kPlusProductId = 'togetherly_plus';
 
 /// Продаётся ли платный элемент каталога через биллинг магазина, а не через
 /// сайт. В сборке для Google Play платить мимо Google нельзя — за это снимают
@@ -137,11 +141,21 @@ abstract class CoinStore extends ChangeNotifier {
 /// По умолчанию (Google Play / App Store) — `play`.
 const String kStore = String.fromEnvironment('STORE', defaultValue: 'play');
 
-/// Заведены ли товары этой сборки в магазине. Только Google Play: в App Store
-/// продуктов нет вовсе, у RuStore биллинг не работает, в sideload платит
+/// Заведены ли ПАКИ МОНЕТ этой сборки в магазине. Только Google Play: в App
+/// Store продуктов монет нет, у RuStore биллинг не работает, в sideload платит
 /// lava.top. От этого флага зависит, попадут ли идентификаторы товаров в
 /// бинарник вообще — сканер ревью читает именно строки.
 const bool _storeHasProducts = kStore == 'play';
+
+/// Поднимать ли биллинг магазина ради Togetherly+ в ЭТОЙ сборке.
+///
+/// Товар `togetherly_plus` заведён и в Google Play (26.07.2026), и в App Store
+/// Connect (19.08.2026: разовая покупка, 9,99 $, 175 территорий). IPA собирается
+/// с `STORE=github`, поэтому одного `kStore` мало: платформу знает только
+/// рантайм, и на iPhone решение принимает [createCoinStore]. Монеты при этом
+/// остаются закрытыми — их продуктов в App Store нет, и строки `coins_*` снова
+/// притянули бы отказ по 2.1(b).
+const bool kPlusInStore = kStore == 'play' || kStore == 'github';
 
 /// Можно ли ПОКУПАТЬ монеты в этой сборке. Только Google Play: в sideload
 /// платёжный провайдер (lava.top) отклонил товары монет, у RuStore не работает
@@ -160,15 +174,15 @@ const bool kDonationsEnabled = kStore == 'github' || kStore == 'rustore';
 /// заглушку без покупок. [RuStoreIapService] лежит рядом нетронутым — вернуть
 /// его в строй, когда у RuStore заработает биллинг, будет одной строкой.
 ///
-/// На iOS StoreKit не трогаем совсем. Витрина паков там скрыта (см.
-/// `profile_screen`), но [IapService.init] всё равно спрашивал у стора
-/// `coins_10/50/120/300`, а эти продукты в App Store Connect лежат
-/// черновиками. App Review видел механику покупок без рабочих продуктов и
-/// отклонял версию по 2.1(b) — «products … could not be found in the
-/// submitted binary». Вернём паки на iPhone — сначала проводим продукты через
-/// ревью, потом снимаем эту ветку.
+/// На iPhone StoreKit поднимается ТОЛЬКО ради Togetherly+ (товар заведён
+/// 19.08.2026). Паки монет туда не идут: их продуктов в App Store Connect нет,
+/// а App Review сканирует бинарник и отклоняет версию по 2.1(b) —
+/// «products … could not be found in the submitted binary». Список товаров
+/// собирает [IapService], и на iPhone он состоит из одного Плюса.
 CoinStore createCoinStore() {
-  if (defaultTargetPlatform == TargetPlatform.iOS) return _DisabledCoinStore();
+  if (defaultTargetPlatform == TargetPlatform.iOS) {
+    return kPlusInStore ? IapService() : _DisabledCoinStore();
+  }
   // RuStore тоже получает заглушку: их биллинг не работает, монеты там не
   // продаются, а Togetherly+ покупается через lava.top. Поднимать
   // `flutter_rustore_billing` ради пустого списка товаров незачем — реализация

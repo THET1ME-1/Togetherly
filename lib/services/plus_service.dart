@@ -83,24 +83,28 @@ class PlusService extends ChangeNotifier {
   /// (заведён 26 июля 2026). На iOS остаётся false: продукта в App Store
   /// Connect нет, а витрина без рабочего продукта уже стоила реджекта 2.1(b)
   /// на паках монет.
-  static bool get buysInStore => kStore == 'play' && exists;
+  /// Google Play — товар `togetherly_plus` (заведён 26.07.2026), App Store —
+  /// он же (19.08.2026: разовая покупка, 9,99 $). На обеих платформах платить
+  /// мимо биллинга нельзя, поэтому внешняя ссылка там не показывается вовсе.
+  static bool get buysInStore =>
+      kStore == 'play' || defaultTargetPlatform == TargetPlatform.iOS;
 
   /// Можно ли предлагать покупку в этой сборке. GitHub и RuStore ведут на
   /// lava.top, Play — в свой биллинг (мимо него платить нельзя, забанят).
   static bool get canPurchase =>
-      kStore == 'github' || kStore == 'rustore' || buysInStore;
+      buysInStore || kStore == 'github' || kStore == 'rustore';
 
   /// Существует ли Togetherly+ на этой платформе.
   ///
-  /// На iOS его нет совсем: продукта в App Store Connect не заведено, а вести
-  /// на оплату мимо биллинга Apple запрещает 3.1.1. Поэтому там не показывают
-  /// ни витрину, ни замки, ни само название — платного раздела не существует.
-  /// Купленное это не отменяет: флаг живёт на аккаунте, и оплативший с Android
-  /// заходит с iPhone на всё открытое (см. [gate]).
+  /// До 19 августа 2026 на iPhone его не было совсем: продукта в App Store
+  /// Connect не заводили, а вести на оплату мимо биллинга запрещает 3.1.1 —
+  /// поэтому там прятали и витрину, и замки, и само название. Теперь товар
+  /// `togetherly_plus` заведён (разовая покупка, 9,99 $, 175 территорий), и
+  /// платить можно там же, через StoreKit.
   ///
   /// Считается по [defaultTargetPlatform], а не по `Platform.isIOS`, чтобы
   /// тест мог подменить платформу.
-  static bool get exists => defaultTargetPlatform != TargetPlatform.iOS;
+  static bool get exists => true;
 
   /// Что рисовать на месте платной вещи: открыто, под замком или не показывать
   /// вовсе. Правило одно на всё приложение — [PlusAccess.gate].

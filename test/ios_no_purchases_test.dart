@@ -1,8 +1,10 @@
-// Сторож: товары магазина живут только в сборке Google Play.
+// Сторож: паки монет живут только в сборке Google Play.
 //
-// В App Store продуктов нет вовсе, у RuStore не работает биллинг, в sideload
-// платит lava.top. Значит ни витрины монет, ни идентификаторов товаров в этих
-// сборках быть не должно — Togetherly+ там покупается по ссылке на сайт.
+// В App Store из товаров заведён ОДИН Togetherly+ (19.08.2026), продуктов
+// монет там нет; у RuStore не работает биллинг, в sideload платит lava.top.
+// Значит ни витрины монет, ни их идентификаторов в этих сборках быть не
+// должно. Про сам Плюс на iPhone — соседний тест
+// `ios_plus_only_purchase_test.dart`.
 //
 // Отказы по 2.1(b) прилетали трижды подряд: витрина монет была скрыта, но
 // приложение всё равно спрашивало у StoreKit `coins_10/50/120/300`, а сами
@@ -22,8 +24,7 @@ const _guarded = <String, String>{
   'IapService(': 'биллинг Google Play',
   'RuStoreIapService(': 'биллинг RuStore',
   'queryProductDetails': 'запрос товаров у стора',
-  'buyNonConsumable': 'покупка в сторе',
-  'buyConsumable': 'покупка в сторе',
+  'buyConsumable': 'покупка расходуемого в сторе',
   'checkoutUrl(': 'счёт на внешнюю оплату',
   'purchaseUrl': 'ссылка на внешнюю оплату',
 };
@@ -56,20 +57,17 @@ void main() {
     // Тест идёт с STORE по умолчанию (play) — там товары нужны и должны быть.
     expect(kStore, 'play', reason: 'тест рассчитан на сборку по умолчанию');
     expect(kCoinPacks, isNotEmpty);
-    expect(kPlusProductId, 'togetherly_plus');
 
     // А объявления обязаны быть условными: иначе строки товаров уедут в IPA.
     final src = File('lib/services/coin_store.dart').readAsStringSync();
     expect(src.contains('const List<CoinPack> kCoinPacks = _storeHasProducts'), isTrue,
         reason: 'список паков обязан зависеть от _storeHasProducts');
-    expect(src.contains("const String kPlusProductId = _storeHasProducts"), isTrue,
-        reason: 'идентификатор Togetherly+ обязан зависеть от _storeHasProducts');
     expect(src.contains("_storeHasProducts = kStore == 'play'"), isTrue,
         reason: 'товары заведены только в Google Play');
     expect(src.contains("kCoinsPurchasable = kStore == 'play'"), isTrue,
         reason: 'витрина монет живёт только там, где работает биллинг');
     expect(src.contains("'play' => IapService(),"), isTrue,
-        reason: 'биллинг поднимается только в сборке Play');
+        reason: 'на Android биллинг поднимается только в сборке Play');
   });
 
   test('каждое обращение к покупкам закрыто гейтом', () {
@@ -95,13 +93,14 @@ void main() {
         reason: 'на iPhone это недостижимо только по случайности:\n${offenders.join('\n')}');
   });
 
-  test('магазин на iPhone подменяется заглушкой', () {
-    // Единственная точка, где решается, трогать ли StoreKit вообще.
+  test('на iPhone магазин поднимается только ради Togetherly+', () {
+    // Единственная точка, где решается, трогать ли StoreKit вообще. Паки монет
+    // туда не попадают: kCoinPacks в этой сборке пуст.
     final src = File('lib/services/coin_store.dart').readAsStringSync();
     expect(
-      src.contains('if (defaultTargetPlatform == TargetPlatform.iOS) return _DisabledCoinStore();'),
+      src.contains('return kPlusInStore ? IapService() : _DisabledCoinStore();'),
       isTrue,
-      reason: 'createCoinStore обязан отдавать заглушку на iOS',
+      reason: 'createCoinStore на iOS обязан смотреть на kPlusInStore',
     );
   });
 

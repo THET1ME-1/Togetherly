@@ -125,7 +125,9 @@ class PbCoinsService {
     'productId': productId,
     'purchaseToken': purchaseToken,
     // Магазин нужен серверу, чтобы знать, у кого спрашивать чек: покупку Play
-    // он сверяет через Play Developer API, а токен RuStore тот не признает.
-    'store': kStore,
+    // он сверяет через Play Developer API, а токены RuStore и App Store тот не
+    // признает. Платформу берём из рантайма: IPA собирается с STORE=github, и
+    // по одной константе сборки чек с iPhone уехал бы на сверку к Google.
+    'store': defaultTargetPlatform == TargetPlatform.iOS ? 'appstore' : kStore,
   });
 }

@@ -50,11 +50,6 @@ class _PlusScreenState extends State<PlusScreen> {
   }
 
   Future<void> _initStore() async {
-    // На iPhone покупок нет ни в каком виде: продуктов в App Store Connect не
-    // заведено, а вести на внешнюю оплату запрещает 3.1.1. Экран сюда попасть
-    // не должен (вход закрыт `PlusAccess.gate`), но магазин не поднимаем и
-    // здесь — чтобы новый вход не притащил инициализацию покупок обратно.
-    if (Platform.isIOS) return;
     // Общий магазин на всё приложение: свой экземпляр отписывался бы от потока
     // покупок в `dispose`, и оплата, случившаяся при закрытом экране, до
     // сервера не доезжала (инцидент 30 июля).
@@ -296,9 +291,14 @@ class _PlusScreenState extends State<PlusScreen> {
           width: double.infinity,
           child: FilledButton.icon(
             onPressed: _busy ? null : _openPurchase,
-            icon: const Icon(Icons.open_in_new_rounded, size: 18),
+            icon: Icon(
+              PlusService.buysInStore
+                  ? Icons.lock_open_rounded
+                  : Icons.open_in_new_rounded,
+              size: 18,
+            ),
             label: Text(
-              _s.plusBuy,
+              _buyLabel,
               style: const TextStyle(
                 fontFamily: 'Onest',
                 fontSize: 15,
@@ -384,14 +384,31 @@ class _PlusScreenState extends State<PlusScreen> {
     );
   }
 
+  /// Подпись кнопки покупки.
+  ///
+  /// Цену берём у магазина, а не пишем в коде: у Apple и Google свои валюты,
+  /// округления и налоги в каждой стране, и захардкоженные «9,99 $» врали бы
+  /// всем, кроме США. Товар ещё не загрузился — показываем действие без цены,
+  /// а не пустое место.
+  String get _buyLabel {
+    final price = _store?.priceLabel(kPlusProductId);
+    if (price == null || price.isEmpty) return _s.plusBuy;
+    return '${_s.plusBuy} · $price';
+  }
+
   Future<void> _openPurchase() async {
-    // На iPhone Togetherly+ не продаётся никак: продукта в App Store Connect
-    // нет, а внешняя оплата — это 3.1.1, за которое версию уже отклоняли.
-    // Доступ там открывается только флагом на аккаунте: купили на Android или
-    // на сайте — Плюс работает и на iPhone.
-    if (Platform.isIOS) return;
+    // На iPhone и в Play покупка идёт ТОЛЬКО через биллинг магазина: внешняя
+    // оплата — это 3.1.1, за которое версию уже отклоняли. В остальных
+    // сборках остаётся счёт на lava.top.
     if (PlusService.buysInStore) {
       await _buyInStore();
+      return;
+    }
+    // Дальше идёт внешняя оплата, и на iPhone её быть не может: 3.1.1, за
+    // которое версию уже отклоняли. Сюда попадём только если биллинг магазина
+    // почему-то отвалился — тогда честнее сказать это, чем увести на сайт.
+    if (Platform.isIOS) {
+      _toast(_s.plusStoreUnavailable);
       return;
     }
     setState(() => _busy = true);

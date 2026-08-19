@@ -87,10 +87,14 @@ class IapService extends CoinStore {
     try {
       // Вместе с паками монет спрашиваем и Togetherly+: цена показывается на
       // экране Plus, а без загруженного ProductDetails покупку не начать.
+      // Пустой id спрашивать нельзя: стор ответит «нет такого товара», а в
+      // журнале это выглядит как поломка. На iPhone в наборе остаётся один
+      // Togetherly+ — паков монет в App Store нет (kCoinPacks там пуст).
       final ids = <String>{
         ...kCoinPacks.map((p) => p.productId),
-        kPlusProductId,
+        if (kPlusProductId.isNotEmpty) kPlusProductId,
       };
+      if (ids.isEmpty) return;
       final response = await _iap.queryProductDetails(ids);
       if (response.error != null) {
         debugPrint('IapService: queryProductDetails error: ${response.error}');
