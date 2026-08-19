@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'reconnect_detector.dart';
 import 'dart:convert';
 
 import 'package:centrifuge/centrifuge.dart' as centrifuge;
@@ -7,6 +6,8 @@ import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
 
 import 'pocketbase_service.dart';
+import 'publish_gate.dart';
+import 'reconnect_detector.dart';
 
 /// Транспорт realtime через Centrifugo (замена встроенного SSE PocketBase).
 ///
@@ -290,10 +291,26 @@ class _ChannelHub {
   void removeRaw(void Function(Map<String, dynamic>) l) =>
       _rawListeners.remove(l);
 
-  /// Публикация в канал (allow_publish_for_subscriber). Требует активной
-  /// подписки. Ошибки глотаем — эфемерные данные, потеря кадра некритична.
+  /// Публикация в канал (allow_publish_for_subscriber).
+  ///
+  /// Сервер пускает публиковать ТОЛЬКО подписчика, а подписка ставится
+  /// раундтрипом с токеном. Пока публиковали сразу после `subscribe()`,
+  /// Centrifugo отвечал `103 permission denied`: у себя сообщение появлялось,
+  /// до партнёра не доходило. Отсюда «чат в комнате перестал работать» и
+  /// пропадающие штрихи после каждого обрыва связи (19 августа 2026).
+  ///
+  /// Ошибки глотаем — данные эфемерные, потеря кадра некритична.
   Future<void> publish(Map<String, dynamic> data) async {
     _ensureSubscribed();
+    final ready = await awaitSubscribed(
+      isSubscribed: () =>
+          _sub.state == centrifuge.SubscriptionState.subscribed,
+      onSubscribed: () => _sub.subscribed.first,
+    );
+    if (!ready) {
+      debugPrint('Centrifugo publish($channel): подписки нет, пропускаем');
+      return;
+    }
     try {
       await _sub.publish(utf8.encode(jsonEncode(data)));
     } catch (e) {

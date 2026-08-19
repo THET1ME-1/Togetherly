@@ -41,6 +41,7 @@
   const state = {
     room: '', channel: '', me: '', centrifuge: null, sub: null,
     player: null, kind: '', applying: false, lead: false, actedAt: 0, lastSent: 0, viewers: 1,
+    subscribed: false, outbox: [],
     // Что показывать пришедшему позже: ссылка, переписка этой вкладки и
     // отложенная команда для плеера, который ещё грузится.
     url: '', log: [], synced: false, pending: null, joinedAt: 0,
@@ -636,10 +637,32 @@
 
   // ── обмен ────────────────────────────────────────────────────────────────
 
+  // Публиковать в канал разрешено ТОЛЬКО подписчику (allow_publish_for_subscriber),
+  // а подписка ставится раундтрипом с токеном. Отправка до неё — это
+  // «103 permission denied» на сервере и потерянное сообщение: у себя реплика
+  // появляется, до партнёра не доходит. Так и выглядела жалоба «чат в
+  // совместном просмотре перестал работать» (19 августа 2026): подписка рвётся
+  // при каждом обрыве связи, а send этого не проверял.
   function send(type, at, extra) {
     if (!state.sub) return;
     const payload = Object.assign({ t: type, at: at || 0, from: state.me }, extra || {});
-    state.sub.publish(payload).catch(() => {});
+    if (state.subscribed) {
+      state.sub.publish(payload).catch(() => {});
+      return;
+    }
+    // Реплику, ссылку на ролик и «я здесь» придержим до подписки, команды
+    // плеера отбросим: через секунду они уже врут о времени.
+    if (type === 'chat' || type === 'source' || type === 'file' || type === 'hello') {
+      state.outbox.push(payload);
+      if (state.outbox.length > 20) state.outbox.shift();
+    }
+  }
+
+  /** Слить придержанное — зовётся, когда подписка встала. */
+  function flushOutbox() {
+    if (!state.sub || !state.subscribed) return;
+    const queued = state.outbox.splice(0, state.outbox.length);
+    queued.forEach((payload) => state.sub.publish(payload).catch(() => {}));
   }
 
   // ── кто кого догоняет ────────────────────────────────────────────────────
@@ -858,8 +881,10 @@
 
     sub.on('publication', (ctx) => onMessage(ctx.data));
     sub.on('subscribed', () => {
+      state.subscribed = true;
       setStatus(I18N.t('room.ready'));
       refreshViewers();
+      flushOutbox();
       // Просим тех, кто уже внутри, прислать ссылку и переписку.
       send('hello');
       // Пришли с готовым роликом (приложение открывает комнату с ?src=):
@@ -873,6 +898,8 @@
     });
     sub.on('join', refreshViewers);
     sub.on('leave', refreshViewers);
+    sub.on('unsubscribed', () => { state.subscribed = false; });
+    sub.on('subscribing', () => { state.subscribed = false; });
     sub.on('error', () => setStatus(I18N.t('room.lost')));
 
     centrifuge.on('connected', () => setStatus(I18N.t('room.ready')));
