@@ -554,25 +554,22 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
   // RuStore проверяем не здесь: у него свой API, и его токен Google отвергнет.
   // Пока RuStore-сборка не выпущена, ветка нужна на будущее.
   const store = String(body.store || "").toLowerCase();
-  // Сверка чека идёт у Google: служба на 8097 ходит в Play Developer API.
-  // Токен RuStore и чек App Store она не признает, поэтому их пропускаем —
-  // но пишем об этом в журнал, чтобы дыра не забылась. Для App Store сверку
-  // надо ставить отдельно (App Store Server API, свой ключ In-App Purchase),
-  // до тех пор покупка с iPhone принимается на слово.
-  if (store === "appstore") {
-    try {
-      $app.logger().warn("iap: чек App Store принят без сверки",
-        "product", productId, "uid", e.auth.id);
-    } catch (_) {}
-  }
-  if (store !== "rustore" && store !== "appstore") {
+  // Чек сверяет служба на 8097: покупку Play — через Play Developer API, чек
+  // App Store — у Apple на verifyReceipt (общий секрет там нужен только
+  // подпискам, а Togetherly+ — разовая покупка). Токен RuStore не признаёт
+  // ни тот, ни другой, поэтому он идёт без сверки.
+  if (store !== "rustore") {
     let verdict = { ok: false, reason: "unreachable" };
     try {
       const res = $http.send({
         url: "http://127.0.0.1:8097/verify",
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ productId: productId, purchaseToken: purchaseToken }),
+        body: JSON.stringify({
+          productId: productId,
+          purchaseToken: purchaseToken,
+          store: store,
+        }),
         timeout: 20,
       });
       const parsed = res.json;

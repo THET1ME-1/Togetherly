@@ -42,6 +42,14 @@ SCOPE = "https://www.googleapis.com/auth/androidpublisher"
 
 log = logging.getLogger("play_verify")
 
+# ── App Store ──────────────────────────────────────────────────────────────
+# На iPhone чек — это base64 app receipt, и разбирает его сама Apple. Общий
+# секрет (`password`) нужен только авто-возобновляемым подпискам; Togetherly+ —
+# разовая покупка, поэтому отдельный ключ In-App Purchase не нужен вовсе.
+BUNDLE_ID = os.environ.get("APPLE_BUNDLE_ID", "com.togetherly.love")
+APPLE_PROD = "https://buy.itunes.apple.com/verifyReceipt"
+APPLE_SANDBOX = "https://sandbox.itunes.apple.com/verifyReceipt"
+
 _token: str | None = None
 _token_until: float = 0.0
 _lock = threading.Lock()
@@ -113,6 +121,57 @@ def verify(product_id: str, purchase_token: str) -> dict:
     }
 
 
+def apple_verdict(raw: dict, product_id: str) -> dict:
+    """Разбирает ответ `verifyReceipt`.
+
+    Коды Apple: 0 — чек разобран, 21007 — это чек песочницы (надо переспросить
+    у sandbox-адреса), остальное — отказ. Товар ищем в самом чеке: там лежат
+    ВСЕ покупки приложения, а засчитывать надо ровно ту, за которую пришли.
+    """
+    status = int(raw.get("status", -1))
+    if status == 21007:
+        return {"ok": True, "valid": False, "reason": "sandbox", "retry_sandbox": True}
+    if status != 0:
+        return {"ok": True, "valid": False, "reason": f"apple_{status}"}
+
+    bundle = str((raw.get("receipt") or {}).get("bundle_id") or "")
+    if bundle != BUNDLE_ID:
+        return {"ok": True, "valid": False, "reason": "bundle_mismatch"}
+
+    items = []
+    for key in ("in_app", "latest_receipt_info"):
+        part = raw.get(key) or (raw.get("receipt") or {}).get(key) or []
+        if isinstance(part, list):
+            items += part
+
+    mine = [i for i in items if str(i.get("product_id") or "") == product_id]
+    if not mine:
+        return {"ok": True, "valid": False, "reason": "product_not_in_receipt"}
+    # Возврат денег Apple помечает датой отмены — такую покупку не засчитываем.
+    if all(i.get("cancellation_date_ms") for i in mine):
+        return {"ok": True, "valid": False, "reason": "cancelled"}
+    return {"ok": True, "valid": True, "reason": ""}
+
+
+def verify_apple(product_id: str, receipt: str) -> dict:
+    """Спрашивает Apple про чек. Сперва прод, потом песочница (код 21007)."""
+    body = json.dumps({"receipt-data": receipt}).encode()
+    for url in (APPLE_PROD, APPLE_SANDBOX):
+        req = urllib.request.Request(
+            url, data=body, headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                raw = json.loads(r.read())
+        except urllib.error.HTTPError as exc:
+            return {"ok": False, "reason": f"http_{exc.code}"}
+        except Exception as exc:
+            return {"ok": False, "reason": type(exc).__name__}
+        verdict = apple_verdict(raw, product_id)
+        if not verdict.get("retry_sandbox"):
+            return verdict
+    return {"ok": True, "valid": False, "reason": "sandbox_failed"}
+
+
 class Handler(BaseHTTPRequestHandler):
     def _send(self, payload: dict) -> None:
         raw = json.dumps(payload).encode()
@@ -139,8 +198,12 @@ class Handler(BaseHTTPRequestHandler):
             self._send({"ok": False, "reason": "no_args"})
             return
 
-        result = verify(product, token)
-        log.info("%s → %s", product, result.get("reason") or "valid")
+        store = str(body.get("store") or "play").strip().lower()
+        if store == "appstore":
+            result = verify_apple(product, token)
+        else:
+            result = verify(product, token)
+        log.info("%s [%s] → %s", product, store, result.get("reason") or "valid")
         self._send(result)
 
     def do_GET(self) -> None:  # noqa: N802
