@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
 
+import '../models/scope_reconcile.dart';
 import 'centrifugo_service.dart';
 import 'offline/connectivity_service.dart';
 import 'offline/local_store.dart';
@@ -79,6 +80,7 @@ class PbRealtimeService {
     int? windowLimit,
     String? windowSort,
     bool refetchOnReconnect = false,
+    bool reconcile = false,
   }) {
     // Offline-first: при наличии [scope] поток обслуживается из локального кэша
     // (sembast), а сеть лишь досыпает изменения. Без [scope] — прежнее in-memory
@@ -98,6 +100,7 @@ class PbRealtimeService {
         rtMatch,
         windowLimit,
         windowSort,
+        reconcile,
       );
     }
     final byId = <String, RecordModel>{};
@@ -335,6 +338,7 @@ class PbRealtimeService {
     bool Function(RecordModel)? rtMatch,
     int? windowLimit,
     String? windowSort,
+    bool reconcile,
   ) {
     final store = LocalStore.instance;
     final conn = ConnectivityService.instance;
@@ -420,10 +424,49 @@ class PbRealtimeService {
       }
     }
 
+    /// Сверка состава: что есть на сервере, то и остаётся в кэше.
+    ///
+    /// Нужна там, где записи удаляются НАСОВСЕМ: инкремент по `updated`
+    /// удалённую строку не приносит, а событие `delete` мимо оборванного
+    /// сокета не догнать ничем. Пара удаляет воспоминание у себя, а у
+    /// партнёра оно живёт вечно — жалоба 19 августа 2026.
+    Future<void> reconcileOnce() async {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final last = await store.lastReconcileAt(scope.token);
+      if (!mayReconcileScope(nowMs: now, lastAtMs: last)) return;
+      final serverRecords = <RecordModel>[];
+      var page = 1;
+      while (!cancelled) {
+        final res = await _pb
+            .collection(collection)
+            .getList(
+              page: page,
+              perPage: 200,
+              filter: networkFilter ?? '',
+              sort: 'id',
+            )
+            .timeout(const Duration(seconds: 12));
+        serverRecords.addAll(res.items);
+        if (res.items.isEmpty || page >= res.totalPages) break;
+        page++;
+      }
+      if (cancelled) return;
+      // Своё, ещё не уехавшее на сервер, сверка сносить не имеет права.
+      final pending = <String>{
+        for (final r in await store.getScope(collection, scope))
+          if (OutboxService.instance.isPending(collection, r.id)) r.id,
+      };
+      await store.reconcileScope(collection, scope, serverRecords,
+          protectIds: pending);
+      await store.setReconcileAt(scope.token, now);
+    }
+
     Future<void> startNetwork() async {
       if (cancelled || !conn.isOnline) return;
       try {
         await syncOnce();
+        if (cancelled) return;
+        if (reconcile) await reconcileOnce();
         if (cancelled) return;
         if (unsub == null && rtChannel != null) {
           final u = await CentrifugoService.instance.subscribeDelta(
@@ -696,6 +739,9 @@ class PbRealtimeService {
     ),
     compare: (a, b) => _strDesc(a.data['created_at'], b.data['created_at']),
     rtChannel: 'pair:$groupId',
+    // Воспоминание удаляется насовсем: без сверки удалённое партнёром висит в
+    // ленте второго телефона вечно, и убрать его оттуда нечем.
+    reconcile: true,
   );
 
   /// Комментарии воспоминания — старые сверху. [groupId] нужен для канала пары
@@ -711,6 +757,7 @@ class PbRealtimeService {
         compare: (a, b) => _strAsc(a.data['created_at'], b.data['created_at']),
         rtChannel: 'pair:$groupId',
         rtMatch: (r) => r.data['memory_id'] == memoryId,
+        reconcile: true,
       );
 
   /// Настроения пользователя в группе.

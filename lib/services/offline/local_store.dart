@@ -352,6 +352,27 @@ class LocalStore {
     }
   }
 
+  /// Когда область последний раз сверялась с сервером (мс epoch), 0 — никогда.
+  ///
+  /// Отметка лежит рядом с водяным знаком: сверка нужна ровно там, где
+  /// инкремент по `updated` бессилен — при жёстком удалении на другом
+  /// устройстве (см. `scope_reconcile.dart`).
+  Future<int> lastReconcileAt(String token) async {
+    await init();
+    final db = _db;
+    if (db == null) return 0;
+    final m = await _meta.record(token).get(db);
+    final v = m?['reconciled'];
+    return v is int ? v : 0;
+  }
+
+  Future<void> setReconcileAt(String token, int nowMs) async {
+    await init();
+    final db = _db;
+    if (db == null) return;
+    await _meta.record(token).put(db, {'reconciled': nowMs}, merge: true);
+  }
+
   // ── инвалидация (logout / смена пользователя) ──────────────────────────────
   /// Полная очистка кэша — ОБЯЗАТЕЛЬНА при выходе/смене пользователя, иначе
   /// новый юзер увидит данные предыдущего.
