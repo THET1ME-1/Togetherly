@@ -2953,6 +2953,7 @@ class PbDataService {
       'mascotSleep': d['mascot_sleep'],
       // Свои темы Togetherly+ (до пяти цветов), см. models/custom_theme.dart
       'customThemes': d['custom_themes'],
+      'missYouWishes': d['miss_you_wishes'],
     };
   }
 
@@ -3021,6 +3022,10 @@ class PbDataService {
     // `test/services/user_profile_fields_test.dart`.
     put('mascotSleep', 'mascot_sleep', json: true);
     put('customThemes', 'custom_themes', json: true);
+    // Свои пожелания «Скучаю»: до 19.08.2026 жили только в prefs и пропадали
+    // при переустановке. Ключа здесь не было — а незнакомый ключ эта функция
+    // выбрасывает молча, отвечая успехом.
+    put('missYouWishes', 'miss_you_wishes', json: true);
     if (row.isEmpty) return true;
     row['updated_at'] = PairTime.write(DateTime.now());
     return _upsertById('users', uid, row, op: 'updateUserProfile');

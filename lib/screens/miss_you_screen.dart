@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -161,8 +162,15 @@ class _MissYouScreenState extends State<MissYouScreen>
   }
 
   Future<void> _loadWishes() async {
+    // Сперва телефонный список — он под рукой и рисуется сразу. Следом
+    // спрашиваем аккаунт: после переустановки или на втором устройстве список
+    // приедет оттуда (см. CustomWishesStore.pull).
     final saved = await CustomWishesStore.load();
     if (mounted) setState(() => _wishes = saved);
+    final merged = await CustomWishesStore.pull(saved);
+    if (mounted && !listEquals(merged, saved)) {
+      setState(() => _wishes = merged);
+    }
   }
 
   // ── Отправка ────────────────────────────────────────────────────────────────
