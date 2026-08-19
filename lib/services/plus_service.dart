@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'coin_store.dart' show kStore;
 import 'pb_auth_service.dart';
@@ -47,8 +50,32 @@ class PlusService extends ChangeNotifier {
 
   bool _active = false;
 
+  /// Чей ответ сервера лежит в [_active]. Пусто — не читали ни разу.
+  String _knownUid = '';
+
+  /// Где лежит последний известный ответ сервера про этот аккаунт.
+  static const String _cacheKey = 'plus_active';
+  static const String _cacheUidKey = 'plus_active_uid';
+
   /// Куплен ли Togetherly+.
   bool get active => _active;
+
+  /// Прочитан ли флаг `users.plus` ЭТОГО аккаунта — с сервера или из локальной
+  /// копии.
+  ///
+  /// До первого чтения `_active` равен false, то есть [gate] говорит «не
+  /// куплено» о человеке, который заплатил. Витрине этого хватало, чтобы
+  /// выскочить на входе купившему (жалоба тестировщицы 19 августа 2026),
+  /// поэтому всё, что ПРЕДЛАГАЕТ покупку, обязано сперва дождаться [known].
+  /// Замки на самих фичах ждать не должны: там ошибка стоит одного лишнего
+  /// касания, а не рекламы оплаченного.
+  ///
+  /// Считается по идентификатору аккаунта, а не флажком: сменился человек на
+  /// телефоне — прежний ответ к нему не относится, и спрашивать надо заново.
+  bool get known {
+    final uid = PocketBaseService().userId ?? '';
+    return uid.isNotEmpty && uid == _knownUid;
+  }
 
   /// Покупка идёт через биллинг магазина, а не по ссылке на lava.top.
   ///
@@ -85,6 +112,39 @@ class PlusService extends ChangeNotifier {
 
   /// Открыта ли возможность прямо сейчас.
   bool allows(PlusFeature feature) => _active;
+
+  /// Поднимает последний известный ответ сервера с диска, а если его нет —
+  /// ходит на сервер.
+  ///
+  /// Копия привязана к аккаунту: чужая (сменился человек на телефоне) не
+  /// годится и игнорируется.
+  Future<void> ensureLoaded() async {
+    if (known) return;
+    // Ответ, оставшийся от прежнего аккаунта, к этому человеку отношения не
+    // имеет: пока не прочитали свой, платного не открываем.
+    if (_active) {
+      _active = false;
+      notifyListeners();
+    }
+    try {
+      final uid = PocketBaseService().userId ?? '';
+      if (uid.isNotEmpty) {
+        final p = await SharedPreferences.getInstance();
+        if (p.getString(_cacheUidKey) == uid && p.containsKey(_cacheKey)) {
+          _knownUid = uid;
+          final cached = p.getBool(_cacheKey) ?? false;
+          if (cached != _active) {
+            _active = cached;
+            notifyListeners();
+          }
+          return;
+        }
+      }
+    } catch (e) {
+      debugPrint('PlusService.ensureLoaded failed: $e');
+    }
+    await refresh();
+  }
 
   /// Перечитывает флаг с аккаунта.
   ///
@@ -191,8 +251,23 @@ class PlusService extends ChangeNotifier {
   }
 
   void _setActive(bool value) {
+    _knownUid = PocketBaseService().userId ?? '';
+    unawaited(_remember(value));
     if (_active == value) return;
     _active = value;
     notifyListeners();
+  }
+
+  /// Кладёт ответ сервера рядом с аккаунтом, которому он принадлежит.
+  Future<void> _remember(bool value) async {
+    try {
+      final uid = PocketBaseService().userId ?? '';
+      if (uid.isEmpty) return;
+      final p = await SharedPreferences.getInstance();
+      await p.setBool(_cacheKey, value);
+      await p.setString(_cacheUidKey, uid);
+    } catch (e) {
+      debugPrint('PlusService._remember failed: $e');
+    }
   }
 }

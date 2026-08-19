@@ -1250,6 +1250,10 @@ class _HomeScreenState extends State<HomeScreen> {
       _quietNudgeAt = nudgeAt;
     });
     await _maybeShowInviteScreen();
+    // Флаг `users.plus` серверный, и до ответа сервера человек считается
+    // некупившим. Обе витрины ниже спрашивают его, поэтому сперва поднимаем
+    // последний известный ответ (а без копии ходим на сервер).
+    await PlusService.instance.ensureLoaded();
     await _maybePitchPlus();
     await _maybeRemindPlus();
   }
@@ -1269,6 +1273,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final now = DateTime.now().millisecondsSinceEpoch;
     final show = shouldShowPlusPromo(
       gate: PlusService.instance.gate,
+      plusKnown: PlusService.instance.known,
       nowMs: now,
       lastShownMs: await UiPrefs.plusPromoAt(),
       installedMs: await UiPrefs.firstRunAt(now),
@@ -1290,6 +1295,7 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Дальше Плюс продаёт себя по месту — там, где человек упирается в замок.
   Future<void> _maybePitchPlus() async {
     if (!mounted) return;
+    if (!PlusService.instance.known) return;
     if (!PlusService.instance.visible || PlusService.instance.active) return;
     if (await UiPrefs.isFirstLaunchEver()) return;
 

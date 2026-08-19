@@ -14,12 +14,18 @@ const int kPlusPromoQuietMs = 24 * 3600 * 1000;
 ///
 /// [gate] — `open` у купившего, `locked` у того, кому есть что предложить,
 /// `hidden` на iPhone, где Плюса не существует вовсе.
+///
+/// [plusKnown] — читали ли уже флаг `users.plus` (с сервера или из локальной
+/// копии). Пока не читали, `gate` врёт: холодный старт начинается с «не
+/// куплено», и витрина успевала выскочить купившему до ответа сервера.
 bool shouldShowPlusPromo({
   required PlusGate gate,
+  required bool plusKnown,
   required int nowMs,
   required int lastShownMs,
   required int installedMs,
 }) {
+  if (!plusKnown) return false;
   if (gate != PlusGate.locked) return false;
   if (installedMs > 0 && nowMs - installedMs < kPlusPromoQuietMs) return false;
   if (lastShownMs <= 0) return true;

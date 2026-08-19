@@ -14,6 +14,7 @@ void main() {
           gate: PlusGate.locked,
           nowMs: now,
           lastShownMs: now - 8 * hour,
+          plusKnown: true,
           installedMs: now - 30 * day,
         ),
         isTrue,
@@ -26,6 +27,7 @@ void main() {
           gate: PlusGate.open,
           nowMs: now,
           lastShownMs: 0,
+          plusKnown: true,
           installedMs: now - 30 * day,
         ),
         isFalse,
@@ -38,6 +40,7 @@ void main() {
           gate: PlusGate.hidden,
           nowMs: now,
           lastShownMs: 0,
+          plusKnown: true,
           installedMs: now - 30 * day,
         ),
         isFalse,
@@ -50,6 +53,7 @@ void main() {
           gate: PlusGate.locked,
           nowMs: now,
           lastShownMs: now - 3 * hour,
+          plusKnown: true,
           installedMs: now - 30 * day,
         ),
         isFalse,
@@ -64,6 +68,7 @@ void main() {
           gate: PlusGate.locked,
           nowMs: now,
           lastShownMs: 0,
+          plusKnown: true,
           installedMs: now - 3 * hour,
         ),
         isFalse,
@@ -76,6 +81,7 @@ void main() {
           gate: PlusGate.locked,
           nowMs: now,
           lastShownMs: 0,
+          plusKnown: true,
           installedMs: now - 2 * day,
         ),
         isTrue,
@@ -90,6 +96,23 @@ void main() {
           gate: PlusGate.locked,
           nowMs: now,
           lastShownMs: now + 5 * day,
+          plusKnown: true,
+          installedMs: now - 30 * day,
+        ),
+        isFalse,
+      );
+    });
+
+    test('флаг Плюса ещё не прочитан — молчим', () {
+      // Холодный старт: `users.plus` лежит на сервере, и до ответа приложение
+      // считает человека не купившим. Витрина в эту секунду показывалась тому,
+      // у кого Плюс есть, — жалоба тестировщицы 19 августа 2026.
+      expect(
+        shouldShowPlusPromo(
+          gate: PlusGate.locked,
+          nowMs: now,
+          plusKnown: false,
+          lastShownMs: 0,
           installedMs: now - 30 * day,
         ),
         isFalse,
