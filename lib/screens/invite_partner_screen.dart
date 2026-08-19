@@ -9,7 +9,6 @@ import '../theme/app_theme.dart';
 import '../theme/profile_theme.dart';
 import '../utils/share_origin.dart';
 import '../widgets/app_sheet.dart';
-import '../widgets/waiting/waiting_setup_sheet.dart';
 
 /// Первый экран после регистрации: позвать свою половину.
 ///
@@ -358,8 +357,11 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 18),
-                      _keepSeatCard(cs),
+                      // Карточка «пара заранее» убрана 19.08.2026: экран
+                      // показывается один раз, сразу после регистрации, и
+                      // новичок читал в её листе «Завести пару» — решал, что
+                      // это создание пары, а не ожидание того, кого ждать.
+                      // Вход остался на экране связи.
                       const SizedBox(height: 6),
                       Center(
                         child: TextButton(
@@ -382,101 +384,6 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  /// Пара заранее — для тех, кому позвать пока некого.
-  ///
-  /// Из 3 200 приходящих за неделю 1 220 не находят партнёра, и месяц из них
-  /// переживают 5%: приложение до пары показывает половину интерфейса.
-  /// Механика «второго места» это решает — пара заводится на одного, записи с
-  /// первого дня ложатся в неё, а пришедший по коду получает готовую историю.
-  Future<void> _keepSeat() async {
-    await WaitingSetupSheet.show(context, pair: _pair, theme: widget.theme);
-    if (!mounted) return;
-    // Закрываем экран сами, а не надеемся на слушателя: он мог отработать,
-    // пока лист был открыт, и закрыть только лист.
-    if (_pair.isPaired) Navigator.of(context).maybePop();
-  }
-
-  Widget _keepSeatCard(ColorScheme cs) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: cs.secondaryContainer,
-                  shape: BoxShape.circle,
-                ),
-                alignment: Alignment.center,
-                child: Icon(
-                  Icons.person_add_alt_1_rounded,
-                  size: 21,
-                  color: cs.onSecondaryContainer,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _s.waitingSoloTitle,
-                      style: TextStyle(
-                        fontFamily: ProfileTheme.bodyFont,
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w700,
-                        color: cs.onSurface,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      _s.waitingSoloBody,
-                      style: TextStyle(
-                        fontFamily: ProfileTheme.bodyFont,
-                        fontSize: 12.5,
-                        height: 1.35,
-                        color: cs.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.tonal(
-              onPressed: _keepSeat,
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                shape: const StadiumBorder(),
-                backgroundColor: cs.secondaryContainer,
-                foregroundColor: cs.onSecondaryContainer,
-              ),
-              child: Text(
-                _s.waitingSoloAction,
-                style: const TextStyle(
-                  fontFamily: ProfileTheme.bodyFont,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

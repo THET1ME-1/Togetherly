@@ -9,6 +9,7 @@ import '../services/pb_realtime_service.dart';
 import '../services/pocketbase_service.dart';
 import '../services/offline/offline_reset.dart';
 import 'connection.dart';
+import 'waiting_cancel.dart';
 
 /// Индекс активной связи, приведённый к границам списка.
 ///
@@ -361,12 +362,30 @@ class ConnectionsManager extends ChangeNotifier {
   /// Удалить её насовсем можно как любую другую — долгим нажатием на пилюлю.
   Future<bool> cancelWaitingPair(String pairId) async {
     if (pairId.isEmpty) return false;
-    final ok = await PbDataService().waitingCancel(pairId);
-    if (!ok) return false;
+    final data = PbDataService();
+    final ok = await data.waitingCancel(pairId);
+    final outcome = waitingCancelOutcome(
+      ok: ok,
+      message: data.lastWaitingError ?? '',
+    );
+    if (outcome == WaitingCancelOutcome.failed) return false;
+
     final conn = _connections.cast<Connection?>().firstWhere(
       (c) => c!.pairId == pairId,
       orElse: () => null,
     );
+    if (outcome == WaitingCancelOutcome.alreadyPaired) {
+      // Партнёр успел войти по коду, пока человек смотрел на карточку. Ждать
+      // больше некого: снимаем ожидание у себя и перечитываем пару, чтобы на
+      // экране появился живой партнёр, а не «Больше не жду», которое всё
+      // равно отобьётся (шесть отказов за секунду в журнале 18.08.2026).
+      conn?.clearWaiting();
+      await conn?.refreshPairStatus();
+      await _saveLocal();
+      notifyListeners();
+      return true;
+    }
+
     conn?.markUnpaired();
     await conn?.regenerateCode();
     await _saveLocal();
