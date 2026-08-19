@@ -60,6 +60,7 @@ struct DaysCounterWidgetView: View {
                 } else {
                     Image(coupleName)
                         .resizable()
+                        .tgFullColorImage()
                         .scaledToFit()
                         .frame(maxWidth: .infinity)
                         .scaleEffect(x: flip ? -1 : 1, y: 1)
@@ -84,6 +85,7 @@ struct DaysCounterWidgetView: View {
             VStack(spacing: 0) {
                 Text("\(count)")
                     .font(.system(size: 36 * k, weight: .bold))
+                    .widgetAccentable()
                     .foregroundColor(brown)
                 Text("дней")
                     .font(.system(size: 14 * k, weight: .bold))
@@ -104,6 +106,7 @@ struct DaysCounterWidgetView: View {
     private func avatarCircle(_ image: UIImage, size: CGFloat) -> some View {
         Image(uiImage: image)
             .resizable()
+            .tgFullColorImage()
             .scaledToFill()
             .frame(width: size, height: size)
             .clipShape(Circle())
@@ -183,6 +186,7 @@ struct StreakWidgetView: View {
                         .lineLimit(1)
                     Text("\(days)")
                         .font(.system(size: 46, weight: .bold))
+                        .widgetAccentable()
                         .foregroundColor(.white)
                         .minimumScaleFactor(20.0 / 46.0)
                         .lineLimit(1)
@@ -235,10 +239,15 @@ private struct StatCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ZStack {
-                Circle().fill(Color.white).frame(width: 32 * scale, height: 32 * scale)
+                // Подложка под значок только в обычном режиме: в тонированном
+                // она станет белым кружком поверх самого значка.
+                TgSurface(Color.white)
+                    .clipShape(Circle())
+                    .frame(width: 32 * scale, height: 32 * scale)
                 Image(systemName: symbol)
                     .font(.system(size: 16 * scale))
                     .foregroundColor(iconColor)
+                    .widgetAccentable()
             }
             Text("\(value)")
                 .font(.system(size: 22 * scale, weight: .bold))

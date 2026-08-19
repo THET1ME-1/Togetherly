@@ -106,6 +106,7 @@ private struct MissMediumView: View {
         VStack(alignment: .leading, spacing: 0) {
             Text("\(value)")
                 .font(.system(size: 20, weight: .heavy, design: .rounded))
+                .widgetAccentable()
                 .foregroundColor(t.onPrimary)
             Text(label)
                 .font(.system(size: 8, weight: .semibold))

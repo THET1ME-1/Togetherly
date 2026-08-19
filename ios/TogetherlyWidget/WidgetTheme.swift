@@ -108,6 +108,47 @@ extension View {
 
 }
 
+/// Сплошная подложка ВНУТРИ виджета: панель, полоска-разделитель, пустое
+/// состояние. Кладётся слоем в `ZStack`, а не модификатором.
+///
+/// В тонированном режиме («Тонированный» в настройке экрана «Домой») система
+/// НЕ показывает наши цвета вовсе: всё, что не помечено `widgetAccentable`,
+/// становится белым с сохранением альфы. Непрозрачная заливка превращается в
+/// белый прямоугольник во весь виджет, а текст поверх — в такой же белый, и
+/// виджет читается как пустая форма. Ровно это было на снимках 19.08.2026.
+/// Поэтому подложку там не рисуем: фон даёт система, содержимое остаётся
+/// поверх обоев.
+struct TgSurface: View {
+    @Environment(\.widgetRenderingMode) private var mode
+    let color: Color
+
+    init(_ color: Color) { self.color = color }
+
+    var body: some View {
+        if mode == .fullColor {
+            color
+        } else {
+            Color.clear
+        }
+    }
+}
+
+/// То же для градиентной подложки.
+struct TgGradientSurface: View {
+    @Environment(\.widgetRenderingMode) private var mode
+    let colors: [Color]
+    var startPoint: UnitPoint = .topLeading
+    var endPoint: UnitPoint = .bottomTrailing
+
+    var body: some View {
+        if mode == .fullColor {
+            LinearGradient(colors: colors, startPoint: startPoint, endPoint: endPoint)
+        } else {
+            Color.clear
+        }
+    }
+}
+
 extension Image {
     /// Картинка остаётся цветной и в тонированном режиме — иначе фотография
     /// партнёра превращается в силуэт. Модификатор объявлен на `Image`, потому

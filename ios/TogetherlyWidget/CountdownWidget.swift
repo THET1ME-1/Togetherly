@@ -83,6 +83,7 @@ private struct CountdownView: View {
         VStack(spacing: 0) {
             Text("\(value)")
                 .font(.system(size: 24, weight: .heavy, design: .rounded))
+                .widgetAccentable()
                 .foregroundColor(t.onSurface)
                 .minimumScaleFactor(0.5)
                 .lineLimit(1)

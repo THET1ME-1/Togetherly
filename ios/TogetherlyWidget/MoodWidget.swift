@@ -37,7 +37,10 @@ private struct MoodHalfView: View {
     var body: some View {
         ZStack {
             VStack(spacing: 0) {
+                // Сердце — смысловой центр виджета: в тонированной теме пусть
+                // красится выбранным цветом, а не становится белым пятном.
                 WaterHeart(fillLevel: half.fillLevel, color: half.color)
+                    .widgetAccentable()
                     .padding(14)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 if !half.label.isEmpty {
@@ -74,6 +77,7 @@ private struct MoodHalfView: View {
     private func avatarCircle(_ image: UIImage) -> some View {
         Image(uiImage: image)
             .resizable()
+            .tgFullColorImage()
             .scaledToFill()
             .frame(width: 24, height: 24)
             .clipShape(Circle())

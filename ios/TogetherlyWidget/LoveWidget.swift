@@ -73,17 +73,19 @@ private struct LovePanel: View {
             // + .clipped() на ZStack, иначе scaledToFill диктует ширину панели и
             // половины получаются неравными.
             if let photo = side.photo {
-                Image(uiImage: photo).resizable().scaledToFill()
+                Image(uiImage: photo).resizable().tgFullColorImage()
+                    .scaledToFill()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                Color.black.opacity(0.1)
+                TgSurface(Color.black.opacity(0.1))
             } else {
-                (isLeft ? Color(hex: 0xFFCDD9) : Color(hex: 0xE8DAFF))
+                TgSurface(isLeft ? Color(hex: 0xFFCDD9) : Color(hex: 0xE8DAFF))
             }
 
             // Центральный контент
             VStack(spacing: 0) {
                 if let emoji = side.moodEmoji {
-                    Image(uiImage: emoji).resizable().scaledToFit().frame(width: 36, height: 36)
+                    Image(uiImage: emoji).resizable().tgFullColorImage()
+                        .scaledToFit().frame(width: 36, height: 36)
                 } else if !side.moodText.isEmpty {
                     Text(side.moodText).font(.system(size: 24))
                 }
@@ -126,7 +128,7 @@ private struct LovePanel: View {
     }
 
     private func avatarView(_ image: UIImage) -> some View {
-        Image(uiImage: image).resizable().scaledToFit()
+        Image(uiImage: image).resizable().tgFullColorImage().scaledToFit()
             .frame(width: 22, height: 22).clipShape(Circle())
     }
 }
@@ -136,11 +138,12 @@ private struct LoveDivider: View {
         VStack(spacing: 2) {
             Rectangle().fill(Color.black.opacity(0.2)).frame(width: 1).frame(maxHeight: .infinity)
             Text("♥").font(.system(size: 12)).foregroundColor(Color(hex: 0xFF6B8A))
+                .widgetAccentable()
             Rectangle().fill(Color.black.opacity(0.2)).frame(width: 1).frame(maxHeight: .infinity)
         }
         .frame(width: 20)
         .frame(maxHeight: .infinity)
-        .background(Color.white)
+        .background(TgSurface(Color.white))
     }
 }
 
@@ -194,7 +197,7 @@ struct LoveWidgetView: View {
 private struct LoveEmptyState: View {
     var body: some View {
         ZStack {
-            LinearGradient(
+            TgGradientSurface(
                 colors: [Color(hex: 0xFFCDD9), Color(hex: 0xE8DAFF)],
                 startPoint: .leading, endPoint: .trailing
             )

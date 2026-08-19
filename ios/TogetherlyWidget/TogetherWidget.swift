@@ -89,6 +89,7 @@ private struct TogetherSmallView: View {
             VStack(spacing: 0) {
                 Text("\(data.days)")
                     .font(.system(size: 34, weight: .heavy, design: .rounded))
+                    .widgetAccentable()
                     .foregroundColor(t.onPrimary)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
@@ -121,6 +122,7 @@ private struct TogetherMediumView: View {
                     HStack(alignment: .lastTextBaseline, spacing: 6) {
                         Text("\(data.days)")
                             .font(.system(size: 36, weight: .heavy, design: .rounded))
+                            .widgetAccentable()
                             .foregroundColor(t.onPrimary)
                             .minimumScaleFactor(0.5)
                             .lineLimit(1)
@@ -194,6 +196,7 @@ private struct TogetherLargeView: View {
             VStack(alignment: .leading, spacing: 0) {
                 Text("\(data.days)")
                     .font(.system(size: 58, weight: .heavy, design: .rounded))
+                    .widgetAccentable()
                     .foregroundColor(t.onPrimary)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)

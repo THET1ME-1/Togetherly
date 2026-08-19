@@ -163,6 +163,7 @@ private struct YearRingView: View {
             VStack(spacing: 0) {
                 Text("\(math.daysTotal)")
                     .font(.system(size: 24, weight: .heavy, design: .rounded))
+                    .widgetAccentable()
                     .foregroundColor(t.onPrimary)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
@@ -220,6 +221,7 @@ private struct YearGridView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     Text("\(math.daysTotal)")
                         .font(.system(size: 30, weight: .heavy, design: .rounded))
+                        .widgetAccentable()
                         .foregroundColor(t.onSurface)
                         .minimumScaleFactor(0.5)
                         .lineLimit(1)
