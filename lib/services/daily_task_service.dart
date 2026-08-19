@@ -116,7 +116,12 @@ class DailyTaskService extends ChangeNotifier {
   ///
   /// Пин чужого типа и повторный пин уже закрытого задания не делают ничего —
   /// решает это [closeByMemory], а сервер сторожит суточный предел.
-  Future<DailyTask?> onMemoryCreated(MemoryType type) async {
+  ///
+  /// [fromTaskId] — задание, из которого открыли форму. Оно главнее типа: к
+  /// ответу на «Чем ты восхищаешься в {p}?» человек прикладывает снимок, и пин
+  /// становится `photo`, а текстовое задание оставалось незакрытым.
+  Future<DailyTask?> onMemoryCreated(MemoryType type,
+      {String? fromTaskId}) async {
     if (_groupId.isEmpty) return null;
     final now = DateTime.now();
     final tasks = today;
@@ -124,6 +129,7 @@ class DailyTaskService extends ChangeNotifier {
       tasks: tasks,
       alreadyDone: _progress.doneOn(now),
       type: type,
+      fromTaskId: fromTaskId,
     );
     if (closedId == null) return null;
 

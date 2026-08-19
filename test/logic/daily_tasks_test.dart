@@ -106,4 +106,51 @@ void main() {
       expect(back.done, {'a', 'b'});
     });
   });
+
+  group('пин из задания', () {
+    // Живой разбор пары tepngitgvren2b9 (19.08.2026): человек открыл задание
+    // «Чем ты восхищаешься в {p}?», написал текст И приложил фото. Тип пина
+    // стал photo, фото-задания в наборе не было — не закрылось ничего, и
+    // текстовое осталось с пустой галочкой. Жалоба звучала как «текстовые
+    // задания не отмечаются».
+    test('закрывает своё задание, даже если тип пина другой', () {
+      final tasks = dailyTasksFor(day: day, pairId: 'g1');
+      final target = tasks.firstWhere((t) => t.type == MemoryType.text,
+          orElse: () => tasks.first);
+      final other = MemoryType.values
+          .firstWhere((t) => tasks.every((task) => task.type != t));
+      final closed = closeByMemory(
+        tasks: tasks,
+        alreadyDone: const {},
+        type: other,
+        fromTaskId: target.id,
+      );
+      expect(closed, target.id);
+    });
+
+    test('уже закрытое задание уступает совпадению по типу', () {
+      final tasks = dailyTasksFor(day: day, pairId: 'g1');
+      final target = tasks.first;
+      final another = tasks.last;
+      final closed = closeByMemory(
+        tasks: tasks,
+        alreadyDone: {target.id},
+        type: another.type,
+        fromTaskId: target.id,
+      );
+      expect(closed, another.id);
+    });
+
+    test('чужой id задания не мешает старому правилу', () {
+      final tasks = dailyTasksFor(day: day, pairId: 'g1');
+      final target = tasks.first;
+      final closed = closeByMemory(
+        tasks: tasks,
+        alreadyDone: const {},
+        type: target.type,
+        fromTaskId: 'task_from_yesterday',
+      );
+      expect(closed, target.id);
+    });
+  });
 }

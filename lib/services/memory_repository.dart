@@ -122,6 +122,9 @@ class MemoryRepository {
     bool sealed = false,
     DateTime? openAt,
     DateTime? customDate,
+    /// Задание дня, из строки которого открыли форму: оно закроется даже если
+    /// тип пина оказался другим (текст плюс снимок — это уже `photo`).
+    String? dailyTaskId,
   }) async {
     final uid = _uid;
     if (uid == null || groupId.isEmpty) {
@@ -191,8 +194,10 @@ class MemoryRepository {
     // XP/аналитика — best-effort (онлайн); офлайн просто не начислится.
     unawaited(LevelService.instance.award(XpAction.addMemory));
     // Задание дня закрывается тем же пином: тип совпал — задание засчитано,
-    // монету выдаёт сервер. Пин чужого типа не делает ничего.
-    unawaited(DailyTaskService.instance.onMemoryCreated(type));
+    // монету выдаёт сервер. Пин чужого типа не делает ничего, но пин из самой
+    // строки задания закрывает её независимо от типа.
+    unawaited(DailyTaskService.instance
+        .onMemoryCreated(type, fromTaskId: dailyTaskId));
     unawaited(AnalyticsService.instance.logMemoryAdded(type: type.name));
     return memory;
   }

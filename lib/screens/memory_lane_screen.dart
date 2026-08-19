@@ -130,6 +130,10 @@ class MemoryLaneScreen extends StatefulWidget {
   /// не нужен, лист выбора не показывается.
   final MemoryType? openCreateType;
 
+  /// Из какой строки заданий дня пришли. Задание закроется этим пином, даже
+  /// если человек приложил к ответу снимок и тип стал `photo`.
+  final String? openCreateTaskId;
+
   /// Авто-открыть деталь конкретного пина после загрузки (переход из чата).
   final String? initialMemoryId;
 
@@ -152,6 +156,7 @@ class MemoryLaneScreen extends StatefulWidget {
     this.userData,
     this.openCreateOnStart = false,
     this.openCreateType,
+    this.openCreateTaskId,
     this.initialMemoryId,
     this.onNavTab,
     this.embedded = false,
@@ -166,6 +171,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   /// Чем упорядочена лента. Выбор человека живёт в prefs: он про привычку, а
   /// не про конкретный заход.
   MemorySort _sortOrder = MemorySort.eventDate;
+
+  /// Задание дня, из строки которого открыта форма. Живёт до сохранения пина:
+  /// форма сама решает тип по вложенному медиа, и без этой памяти ответ на
+  /// текстовое задание со снимком не закрывал ничего. Вход из листа выбора
+  /// типов ставит null — там человек выбирает сам, задание ни при чём.
+  String? _formTaskId;
 
   Future<void> _loadSortOrder() async {
     final saved = await UiPrefs.memorySort();
@@ -332,7 +343,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     final createType = widget.openCreateType;
     if (createType != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _openMemoryForm(createType);
+        if (mounted) {
+          _openMemoryForm(createType, taskId: widget.openCreateTaskId);
+        }
       });
     } else if (widget.openCreateOnStart) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -4579,7 +4592,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   /// Открыть форму создания записи выбранного типа. Раньше это ветвление жило
   /// внутри строки листа; теперь лист — сетка плиток, и переход вызывается
   /// отдельно.
-  void _openMemoryForm(MemoryType type) {
+  void _openMemoryForm(MemoryType type, {String? taskId}) {
+    _formTaskId = taskId;
         // Заметка живёт в той же форме, что фото: без выбранного медиа она сама
         // сохраняет пин типом text (`_effectiveType`). Отдельной плитки в листе
         // выбора у заметки нет, а задание дня приводит сюда напрямую.
@@ -7208,7 +7222,11 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         rating: rating,
         isAdult: isAdult,
         customDate: customDate,
+        dailyTaskId: _formTaskId,
       );
+      // Задание закрывается один раз: следующий пин, добавленный вручную,
+      // к этой строке отношения не имеет.
+      _formTaskId = null;
 
       if (mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();

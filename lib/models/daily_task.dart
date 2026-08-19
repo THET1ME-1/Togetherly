@@ -635,11 +635,28 @@ List<DailyTask> dailyTasksFor({required DateTime day, required String pairId}) {
 ///
 /// Возвращает id закрытого задания или null: пин чужого типа и повторный пин
 /// уже закрытого задания монету не приносят.
+///
+/// [fromTaskId] — задание, из которого человек пришёл в форму. Оно главнее
+/// типа: форма сама решает, чем считать запись (текст плюс фотография — это
+/// уже `photo`), и без этой связи ответ на «Чем ты восхищаешься в {p}?» с
+/// приложенным снимком не закрывал ничего. Так у пары tepngitgvren2b9 19
+/// августа 2026 текстовое задание осталось пустым при написанном ответе, а
+/// жалоба звучала как «текстовые задания не отмечаются».
 String? closeByMemory({
   required List<DailyTask> tasks,
   required Set<String> alreadyDone,
   required MemoryType type,
+  String? fromTaskId,
 }) {
+  if (fromTaskId != null) {
+    for (final task in tasks) {
+      if (task.id != fromTaskId) continue;
+      // Закрытое задание уступает обычному правилу: второй пин из той же
+      // строки пусть закроет задание своего типа, если такое ещё открыто.
+      if (!alreadyDone.contains(task.id)) return task.id;
+      break;
+    }
+  }
   for (final task in tasks) {
     if (task.type == type && !alreadyDone.contains(task.id)) return task.id;
   }

@@ -1406,6 +1406,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _openMemoryLane({
     bool openCreateOnStart = false,
     MemoryType? openCreateType,
+    String? openCreateTaskId,
   }) {
     Navigator.push(
       context,
@@ -1416,6 +1417,7 @@ class _HomeScreenState extends State<HomeScreen> {
           userData: widget.userData,
           openCreateOnStart: openCreateOnStart,
           openCreateType: openCreateType,
+          openCreateTaskId: openCreateTaskId,
           onNavTab: (i) {
             Navigator.of(context).pop();
             setState(() => _selectedNavIndex = i);
@@ -1650,8 +1652,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       partnerName: _pairData.partnerDisplayName,
                       // Задание знает свой тип пина, поэтому лист выбора
                       // пропускаем и открываем сразу нужную форму.
-                      onOpenTask: (task) =>
-                          _openMemoryLane(openCreateType: task.type),
+                      onOpenTask: (task) => _openMemoryLane(
+                        openCreateType: task.type,
+                        openCreateTaskId: task.id,
+                      ),
                     ),
                   ),
                   if (_wishesEnabled)
