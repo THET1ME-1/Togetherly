@@ -499,6 +499,17 @@ const Map<String, Map<String, String>> chatStrings = {
     'fr': 'Message supprimé',
     'de': 'Nachricht gelöscht',
   },
+  // Пары ещё нет: плитка чата на экране приглашения объясняет, чего ждать,
+  // вместо того чтобы вести в чат, из которого сообщение не уходит.
+  'chatWaitsForPartner': {
+    'ru': 'Откроется, когда партнёр подключится',
+    'en': 'Opens once your partner joins',
+    'pt': 'Abre quando seu par entrar',
+    'it': 'Si apre quando il partner si unisce',
+    'es': 'Se abre cuando tu pareja se una',
+    'fr': 'S’ouvrira quand ton partenaire aura rejoint',
+    'de': 'Öffnet sich, sobald dein Partner dabei ist',
+  },
   'chatSendFailed': {
     'ru': 'Не удалось отправить. Попробуйте ещё раз',
     'en': 'Couldn\'t send. Please try again',

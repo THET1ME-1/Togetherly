@@ -2219,6 +2219,8 @@ abstract class DictStrings extends AppStrings {
   @override
   String get chatSendFailed => _t('chatSendFailed');
   @override
+  String get chatWaitsForPartner => _t('chatWaitsForPartner');
+  @override
   String get chatAttachPin => _t('chatAttachPin');
   @override
   String get chatSave => _t('chatSave');

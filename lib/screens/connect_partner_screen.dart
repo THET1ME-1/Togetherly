@@ -1310,7 +1310,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                 const SizedBox(height: 14),
                 _actionsRow(cs),
                 const SizedBox(height: 14),
-                _chatTile(cs),
+                _chatTile(cs, locked: true),
                 const SizedBox(height: 14),
                 _connectTiles(cs),
                 const SizedBox(height: 14),
@@ -1489,13 +1489,17 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     );
   }
 
-  Widget _chatTile(ColorScheme cs) {
+  /// Плитка чата. [locked] — пары ещё нет: чат в этом состоянии открывался, но
+  /// сообщение из него не уходило («Не удалось отправить»), а в шапке вместо
+  /// имени партнёра стояла пустая пилюля. Теперь плитка приглушена и говорит,
+  /// чего ждать, — как приглушённые кнопки одиночки на главной.
+  Widget _chatTile(ColorScheme cs, {bool locked = false}) {
     return PressableScale(
-      onTap: _openChat,
+      onTap: locked ? _explainChatNeedsPartner : _openChat,
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: cs.secondaryContainer,
+          color: locked ? cs.surfaceContainerHigh : cs.secondaryContainer,
           borderRadius: BorderRadius.circular(28),
         ),
         child: Row(
@@ -1504,45 +1508,84 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
               width: 52,
               height: 52,
               decoration: BoxDecoration(
-                color: cs.primary,
+                color: locked ? cs.surfaceContainerHighest : cs.primary,
                 borderRadius: BorderRadius.circular(18),
               ),
-              child:
-                  Icon(Icons.chat_bubble_rounded, color: cs.onPrimary, size: 24),
+              child: Icon(
+                locked
+                    ? Icons.chat_bubble_outline_rounded
+                    : Icons.chat_bubble_rounded,
+                color: locked ? cs.onSurfaceVariant : cs.onPrimary,
+                size: 24,
+              ),
             ),
             const SizedBox(width: 16),
             Expanded(
-              child: Text(
-                LocaleService.current.chatTitle,
-                style: TextStyle(
-                  fontFamily: 'Unbounded',
-                  fontWeight: FontWeight.w700,
-        fontVariations: const [FontVariation('wght', 700)],
-                  fontSize: 17,
-                  color: cs.onSecondaryContainer,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    LocaleService.current.chatTitle,
+                    style: TextStyle(
+                      fontFamily: 'Unbounded',
+                      fontWeight: FontWeight.w700,
+                      fontVariations: const [FontVariation('wght', 700)],
+                      fontSize: 17,
+                      color: locked
+                          ? cs.onSurfaceVariant
+                          : cs.onSecondaryContainer,
+                    ),
+                  ),
+                  if (locked) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      LocaleService.current.chatWaitsForPartner,
+                      style: TextStyle(
+                        fontFamily: 'Onest',
+                        fontSize: 12.5,
+                        height: 1.25,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
-            StableStreamBuilder<bool>(
-              create: () =>
-                  ChatService.instance.watchHasUnread(widget.pairData.pairId),
-              keys: [widget.pairData.pairId],
-              builder: (context, snap) {
-                if (snap.data != true) return const SizedBox.shrink();
-                return Container(
-                  margin: const EdgeInsets.only(right: 8),
-                  width: 10,
-                  height: 10,
-                  decoration:
-                      BoxDecoration(color: cs.primary, shape: BoxShape.circle),
-                );
-              },
+            if (!locked)
+              StableStreamBuilder<bool>(
+                create: () =>
+                    ChatService.instance.watchHasUnread(widget.pairData.pairId),
+                keys: [widget.pairData.pairId],
+                builder: (context, snap) {
+                  if (snap.data != true) return const SizedBox.shrink();
+                  return Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    width: 10,
+                    height: 10,
+                    decoration:
+                        BoxDecoration(color: cs.primary, shape: BoxShape.circle),
+                  );
+                },
+              ),
+            Icon(
+              locked ? Icons.lock_outline_rounded : Icons.arrow_forward_rounded,
+              size: 22,
+              color: (locked ? cs.onSurfaceVariant : cs.onSecondaryContainer)
+                  .withValues(alpha: 0.5),
             ),
-            Icon(Icons.arrow_forward_rounded,
-                size: 22,
-                color: cs.onSecondaryContainer.withValues(alpha: 0.5)),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Тап по закрытой плитке: короткое объяснение, а не пустой чат.
+  void _explainChatNeedsPartner() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(LocaleService.current.chatWaitsForPartner),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
@@ -2300,6 +2343,10 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   }
 
   void _openChat() {
+    // Пары ещё нет — чат пуст и сообщение из него не уходит: `ChatService.send`
+    // выходит на пустом `groupId`, и человек получает «Не удалось отправить»
+    // вместо объяснения.
+    if (pair.pairId.isEmpty) return;
     Navigator.push(
       context,
       MaterialPageRoute(

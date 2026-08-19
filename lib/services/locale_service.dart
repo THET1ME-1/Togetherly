@@ -1475,6 +1475,7 @@ abstract class AppStrings {
   String get chatEdited;
   String get chatDeletedPlaceholder;
   String get chatSendFailed;
+  String get chatWaitsForPartner;
   String get chatAttachPin;
   String get chatSave;
   String chatNotifTitle(String name);
