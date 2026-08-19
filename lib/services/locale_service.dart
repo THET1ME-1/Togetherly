@@ -1279,6 +1279,7 @@ abstract class AppStrings {
   String get homeScreenWidgets;
   String get addToHomeScreen;
   String get addWidgetFromHomeHint;
+  String get iosWidgetsNeedIos17;
   String get setAsPhotoOfDay;
   String get widgetAddedToHome;
   String failedAddWidget(String e);

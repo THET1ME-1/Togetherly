@@ -93,4 +93,25 @@ void main() {
       expect(day.url, isEmpty);
     });
   });
+
+  group('iosWidgetsSupported', () {
+    // Расширение собрано с минимальной iOS 17 (ветку доступности в бандле
+    // держать нельзя, она роняет расширение целиком). На 15 и 16 система
+    // виджетов не показывает вовсе — жалоба с iPhone 7 Plus 19.08.2026:
+    // «с обновлением виджет пропал из каталога».
+    test('семнадцатая и выше — виджеты есть', () {
+      expect(iosWidgetsSupported('Version 17.0 (Build 21A329)'), isTrue);
+      expect(iosWidgetsSupported('Version 26.1 (Build 23B5044)'), isTrue);
+    });
+
+    test('пятнадцатая и шестнадцатая — виджетов нет', () {
+      expect(iosWidgetsSupported('Version 15.8.3 (Build 19H390)'), isFalse);
+      expect(iosWidgetsSupported('Version 16.7.10 (Build 20H350)'), isFalse);
+    });
+
+    test('версию не разобрали — молчим, а не пугаем', () {
+      expect(iosWidgetsSupported(''), isTrue);
+      expect(iosWidgetsSupported('Linux 6.17'), isFalse);
+    });
+  });
 }

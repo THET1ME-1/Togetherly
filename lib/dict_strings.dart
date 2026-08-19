@@ -1949,6 +1949,8 @@ abstract class DictStrings extends AppStrings {
   @override
   String get addWidgetFromHomeHint => _t('addWidgetFromHomeHint');
   @override
+  String get iosWidgetsNeedIos17 => _t('iosWidgetsNeedIos17');
+  @override
   String get setAsPhotoOfDay => _t('setAsPhotoOfDay');
   @override
   String get widgetAddedToHome => _t('widgetAddedToHome');

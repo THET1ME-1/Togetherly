@@ -45,3 +45,21 @@ bool supportsWidgetInteractivity(String osVersion) {
   }
   return (url: '', author: '');
 }
+
+/// Показывает ли система виджеты Togetherly.
+///
+/// Расширение виджетов собрано с минимальной версией iOS 17: ветку
+/// `if #available` внутри `WidgetBundle` держать нельзя — она роняет
+/// расширение целиком, и в галерее пропадают ВСЕ виджеты (разбор 17.08.2026).
+/// Плата за это — на iOS 15 и 16 расширения нет вовсе, и человек видит пустой
+/// каталог системы: «после обновления виджет пропал, как решить проблему»
+/// (iPhone 7 Plus, 19.08.2026). Пусть об этом говорит сам экран виджетов.
+///
+/// Версию не разобрали — считаем, что виджеты есть: пугать зря хуже, чем
+/// промолчать.
+bool iosWidgetsSupported(String osVersion) {
+  final match = RegExp(r'(\d+)').firstMatch(osVersion);
+  if (match == null) return true;
+  final major = int.tryParse(match.group(1) ?? '');
+  return major == null || major >= 17;
+}

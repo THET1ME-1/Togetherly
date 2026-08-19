@@ -65,6 +65,7 @@ import 'postcard/postcard_editor_screen.dart';
 import '../widgets/common/app_dialog.dart';
 import '../widgets/app_sheet.dart';
 import '../widgets/widget_content_view.dart';
+import '../models/ios_widget_gaps.dart';
 
 /// Экран виджетов — два тайла (мой / партнёра) + настройки автоотправки.
 class WidgetScreen extends StatefulWidget {
@@ -1373,6 +1374,8 @@ class _WidgetScreenState extends State<WidgetScreen>
                       20, 8, 20, 120 + MediaQuery.of(context).padding.bottom),
                   child: Column(
                     children: [
+                      // ── Виджетов нет у системы, а не у нас ──
+                      _buildIosWidgetsUnavailable(),
                       // ── Открытки ──
                       _buildPostcardBanner(),
                       const SizedBox(height: 16),
@@ -1386,6 +1389,48 @@ class _WidgetScreenState extends State<WidgetScreen>
           ),
         ),
       ],
+    );
+  }
+
+  /// Полоса для iPhone на iOS 15 и 16: у них расширения виджетов нет вовсе.
+  ///
+  /// Оно собрано с минимальной версией 17 — ветку `if #available` внутри
+  /// `WidgetBundle` держать нельзя, она роняет расширение целиком и уносит из
+  /// галереи ВСЕ виджеты (разбор 17.08.2026). На старых системах человек
+  /// открывает каталог, ставит виджет по инструкции и не находит Togetherly в
+  /// системном списке: «с обновлением виджет пропал» (iPhone 7 Plus,
+  /// 19.08.2026). Пусть каталог скажет это сам, а не оставляет искать поломку
+  /// в своём телефоне.
+  Widget _buildIosWidgetsUnavailable() {
+    if (!Platform.isIOS ||
+        iosWidgetsSupported(Platform.operatingSystemVersion)) {
+      return const SizedBox.shrink();
+    }
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _cs.secondaryContainer,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline_rounded,
+              size: 20, color: _cs.onSecondaryContainer),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              _s.iosWidgetsNeedIos17,
+              style: AppFonts.onest(
+                size: 13,
+                height: 1.35,
+                color: _cs.onSecondaryContainer,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
