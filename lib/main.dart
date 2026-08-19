@@ -34,7 +34,6 @@ import 'services/app_icon_service.dart';
 import 'services/mascot_inactivity_notification_service.dart';
 import 'services/mood_pack_service.dart';
 import 'services/pocketbase_service.dart';
-import 'models/ios_widget_gaps.dart';
 import 'services/pb_auth_service.dart';
 import 'services/pb_data_service.dart';
 import 'services/home_widget_service.dart';
@@ -474,18 +473,13 @@ void main() async {
   // background interactivity callback и не провоцируем enqueueWork crash.
   if (!Platform.isAndroid) {
     // На iOS ниже 17 интерактивности у виджетов нет вовсе, и плагин отвечает
-    // отказом («Interactivity is only available on iOS 17.0»). Отказ приходит
-    // ФЬЮЧЕРОМ, поэтому синхронный try его не ловил: 3649 событий в Bugsink за
-    // трое суток на 1.29.6. Ниже семнадцатой не зовём вовсе, а отказ гасим там,
-    // где он и рождается.
-    if (supportsWidgetInteractivity(Platform.operatingSystemVersion)) {
-      unawaited(
-        HomeWidget.registerInteractivityCallback(_homeWidgetBackgroundCallback)
-            .catchError((Object e) {
-          debugPrint('Старт: интерактивность виджетов недоступна — $e');
-          return null;
-        }),
-      );
+    // отказом («Interactivity is only available on iOS 17.0»). Без перехвата это
+    // исключение прилетает прямо в main(), то есть до первого кадра — а там его
+    // некому поймать.
+    try {
+      HomeWidget.registerInteractivityCallback(_homeWidgetBackgroundCallback);
+    } catch (e) {
+      debugPrint('Старт: интерактивность виджетов недоступна — $e');
     }
   } else {
     // Android: живучий фолбэк обновления виджетов через WorkManager. Foreground-
