@@ -44,7 +44,7 @@ class PushBackgroundService {
   // разрешения уведомлений. См. Bugsink: push_background_service.dart:start.
   bool _starting = false;
 
-  void _ensureConfigured() {
+  void _ensureConfigured({required bool autoRunOnBoot}) {
     if (_configured) return;
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
@@ -70,8 +70,12 @@ class PushBackgroundService {
         // объявлен в манифесте). Контекст пары persist'ится через saveData, а
         // PB-сессия восстанавливается из SharedPreferences в onStart → доставка
         // и обновление виджетов оживают без открытия приложения.
-        autoRunOnBoot: true,
-        autoRunOnMyPackageReplaced: true,
+        //
+        // Там, где доставку держит FCM, оживать не надо: иначе перезагрузка
+        // телефона возвращает строку «Togetherly на связи» в шторку, хотя пуши
+        // работают. Изолят подстрахован отметкой [_kFcmReady].
+        autoRunOnBoot: autoRunOnBoot,
+        autoRunOnMyPackageReplaced: autoRunOnBoot,
         allowWakeLock: true,
         allowWifiLock: true,
       ),
@@ -89,20 +93,35 @@ class PushBackgroundService {
   }) async {
     if (!Platform.isAndroid) return;
     if (groupId.isEmpty || myUid.isEmpty || partnerUid.isEmpty) return;
+    // Сперва дожидаемся вердикта FCM. Пара поднимается из локального кэша
+    // мгновенно, а токен едет через натив и сеть Google секунды — и пока этого
+    // ожидания не было, сервис успевал стартовать КАЖДЫЙ запуск у людей с
+    // живыми пушами: строка «Togetherly на связи» висела в шторке зря (жалоба
+    // со снимком 19.08.2026 при непустом `users.fcm_token`). Ждём не вечно:
+    // без сети вердикт не придёт, а доставка нужна.
+    try {
+      await FcmService.instance.settled.timeout(const Duration(seconds: 12));
+    } on TimeoutException {
+      debugPrint('PushBackgroundService: вердикт FCM не пришёл, поднимаем сокет');
+    }
+    final needed = socketServiceNeeded(
+      hasGoogleServices: FcmService.instance.ready,
+      hasToken: FcmService.instance.ready,
+    );
+    // Отметка для изолята: после перезагрузки телефона система поднимает
+    // сервис сама, и спросить FcmService там некому.
+    await FlutterForegroundTask.saveData(key: _kFcmReady, value: !needed);
     // Пуши FCM дошли — сокет в фоне держать незачем, и строка «Togetherly на
     // связи» из шторки уходит совсем. Сервис остаётся только для прошивок без
     // сервисов Google и для случая, когда токен так и не приехал.
-    if (!socketServiceNeeded(
-      hasGoogleServices: FcmService.instance.ready,
-      hasToken: FcmService.instance.ready,
-    )) {
+    if (!needed) {
       await stop();
       return;
     }
     if (_starting) return; // параллельный старт уже идёт
     _starting = true;
     try {
-      _ensureConfigured();
+      _ensureConfigured(autoRunOnBoot: true);
 
       // Суточный бюджет dataSync-FGS (Android 14+) мог быть исчерпан за день —
       // тогда старт бессмыслен: ОС всё равно быстро прибьёт сервис по таймауту
@@ -186,6 +205,10 @@ const String _kGroupId = 'push_group_id';
 const String _kMyUid = 'push_my_uid';
 const String _kPartnerUid = 'push_partner_uid';
 const String _kPartnerName = 'push_partner_name';
+// Отметка прошлого запуска: дошли ли до этого телефона пуши FCM. Изолят
+// сервиса, поднятый системой после перезагрузки, спрашивает её первым делом —
+// своего доступа к каналу платформы у него нет.
+const String _kFcmReady = 'push_fcm_ready';
 const String _kRunDay = 'push_run_day'; // YYYY-MM-DD последнего учтённого дня
 const String _kRunSeconds = 'push_run_seconds'; // накоплено секунд работы за день
 
@@ -219,6 +242,16 @@ class _PushTaskHandler extends TaskHandler {
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
+    // Система могла поднять сервис сама — после перезагрузки или обновления
+    // приложения. Спросить `FcmService` здесь некому (изолят свежий, канала
+    // платформы у него нет), поэтому решение оставил прошлый запуск.
+    final savedFcmReady =
+        await FlutterForegroundTask.getData<bool>(key: _kFcmReady);
+    if (bootedServiceShouldStop(savedFcmReady)) {
+      debugPrint('PushBackgroundService: пуши живы — сервис не нужен');
+      await FlutterForegroundTask.stopService();
+      return;
+    }
     await _bootstrap();
   }
 

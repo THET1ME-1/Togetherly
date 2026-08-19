@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
@@ -19,6 +20,15 @@ bool socketServiceNeeded({
 }) =>
     !(hasGoogleServices && hasToken);
 
+/// Должен ли сервис, поднятый системой после перезагрузки, погасить себя.
+///
+/// `autoRunOnBoot` возвращает foreground-сервис к жизни без всякого решения:
+/// телефон перезагрузили — строка «Togetherly на связи» снова в шторке, хотя
+/// пуши работают. Прошлый запуск оставляет отметку о живых пушах, изолят
+/// читает её первым делом. Отметки нет — ведём себя как раньше: остаться без
+/// уведомлений хуже, чем со строкой в шторке.
+bool bootedServiceShouldStop(bool? savedFcmReady) => savedFcmReady == true;
+
 /// Токен устройства для пушей Google (Android).
 ///
 /// Плагин `firebase_messaging` намеренно не подключён: на iOS он перехватывает
@@ -38,18 +48,36 @@ class FcmService {
   bool _started = false;
   bool _hasServices = false;
   String? _token;
+  final Completer<void> _settled = Completer<void>();
 
   String? get token => _token;
 
   /// Дойдут ли пуши до этого телефона.
   bool get ready => _hasServices && (_token ?? '').isNotEmpty;
 
+  /// Вердикт вынесен: токен либо приехал, либо уже не приедет.
+  ///
+  /// Спрашивать [ready] раньше этого бесполезно — и на этом висела строка
+  /// «Togetherly на связи» у людей с рабочими пушами: пара поднимается из
+  /// локального кэша мгновенно, а токен едет через натив и сеть Google
+  /// секунды, поэтому фоновый сервис успевал стартовать каждый запуск.
+  Future<void> get settled => _settled.future;
+
+  void _settle() {
+    if (!_settled.isCompleted) _settled.complete();
+  }
+
   /// Спрашивает токен и держит его в профиле свежим.
   ///
   /// Звать после первого кадра: до `runApp` окна нет, а сюда приходят вызовы
   /// платформы. Ошибки глушим — пуши не стоят сорванного запуска.
   Future<void> start() async {
-    if (_started || !Platform.isAndroid) return;
+    if (_started || !Platform.isAndroid) {
+      // iPhone сюда не ходит вовсе, повторный вызов ничего не меняет — но
+      // ждущая сторона обязана разблокироваться в обоих случаях.
+      _settle();
+      return;
+    }
     _started = true;
 
     try {
@@ -62,6 +90,8 @@ class FcmService {
       await _remember(token);
     } catch (e) {
       debugPrint('FcmService: токен не получен — $e');
+    } finally {
+      _settle();
     }
   }
 

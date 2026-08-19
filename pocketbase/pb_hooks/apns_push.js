@@ -173,6 +173,18 @@ function notifyGroup(groupId, authorUid, title, body, thread) {
 /// свежие. Отметка времени лежит в `users.apns_bg_ms`.
 const MIN_WAKE_GAP_MS = 15 * 60 * 1000;
 
+/// Android столько ждать не должен: тихие data-пуши FCM не лимитирует, а с
+/// 13.08.2026 виджеты там держатся именно на пуше — свой фоновый сервис,
+/// обновлявший их сокетом мгновенно, при живых пушах больше не поднимается.
+/// Пока окно было общим на обе системы, партнёр менял фото, а виджет на столе
+/// оставался прежним до четверти часа.
+///
+/// Совсем без зазора пачка правок одной секунды (статус, настроение, музыка)
+/// дала бы три пробуждения подряд. Зазор живёт в памяти процесса: заводить
+/// поле в записи ради десяти секунд незачем, а перезапуск сервера в худшем
+/// случае разбудит телефон лишний раз.
+const MIN_FCM_WAKE_GAP_MS = 10 * 1000;
+
 function wakeUp(uid, kind) {
   let user;
   try { user = $app.findRecordById("users", uid); } catch (_) { return; }
@@ -182,12 +194,18 @@ function wakeUp(uid, kind) {
   if (isOnline(uid)) return;
 
   const now = Date.now();
-  const last = Number(user.get("apns_bg_ms") || 0);
-  if (last && now - last < MIN_WAKE_GAP_MS) return;
+  const lastApns = Number(user.get("apns_bg_ms") || 0);
+  const apnsAllowed = !(lastApns && now - lastApns < MIN_WAKE_GAP_MS);
 
-  let woke = false;
+  const fcmKey = "fcmWake:" + uid;
+  const lastFcm = Number($app.store().get(fcmKey) || 0);
+  const fcmAllowed = !(lastFcm && now - lastFcm < MIN_FCM_WAKE_GAP_MS);
 
-  if (apnsToken) {
+  if (!apnsAllowed && !fcmAllowed) return;
+
+  let wokeApns = false;
+
+  if (apnsToken && apnsAllowed) {
     try {
       const res = $http.send({
         url: APNS_RELAY,
@@ -203,7 +221,7 @@ function wakeUp(uid, kind) {
       });
       const answer = res.json || {};
       if (answer.gone) forgetToken(user, "apns_token");
-      else if (answer.ok) woke = true;
+      else if (answer.ok) wokeApns = true;
       else {
         $app.logger().warn("apns: тихий пуш не доставлен", "uid", uid,
           "reason", String(answer.reason || res.statusCode));
@@ -213,7 +231,10 @@ function wakeUp(uid, kind) {
     }
   }
 
-  if (fcmToken) {
+  if (fcmToken && fcmAllowed) {
+    // Отметка ставится ДО отправки: пачка правок приходит соседними
+    // событиями, и второе не должно проскочить мимо зазора, пока ждём релей.
+    try { $app.store().set(fcmKey, now); } catch (_) { /* не критично */ }
     try {
       const res = $http.send({
         url: FCM_RELAY,
@@ -228,8 +249,7 @@ function wakeUp(uid, kind) {
       });
       const answer = res.json || {};
       if (answer.gone) forgetToken(user, "fcm_token");
-      else if (answer.ok) woke = true;
-      else {
+      else if (!answer.ok) {
         $app.logger().warn("fcm: тихий пуш не доставлен", "uid", uid,
           "reason", String(answer.reason || res.statusCode));
       }
@@ -238,7 +258,10 @@ function wakeUp(uid, kind) {
     }
   }
 
-  if (!woke) return;
+  // Отметку в записи двигает ТОЛЬКО пробуждение Apple — окно принадлежит ей.
+  // Пока она ставилась и после удачного FCM, пуш на Android закрывал айфону
+  // следующие пятнадцать минут: у человека бывают оба устройства сразу.
+  if (!wokeApns) return;
   try {
     user.set("apns_bg_ms", now);
     $app.save(user);

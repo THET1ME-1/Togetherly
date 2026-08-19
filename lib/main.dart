@@ -26,6 +26,7 @@ import 'services/shared_link_service.dart';
 import 'services/pb_push_service.dart';
 import 'services/apns_service.dart';
 import 'services/fcm_service.dart';
+import 'services/push_background_service.dart';
 import 'services/catalog_service.dart';
 import 'services/live_location_service.dart';
 import 'models/symbol_catalog.dart';
@@ -765,6 +766,20 @@ class _LoveAppState extends State<LoveApp> with WidgetsBindingObserver {
   /// приложение стоит на белом launch-экране, сколько бы его ни перезапускали.
   /// Ошибки здесь глушим: реклама и напоминания не стоят сорванного запуска.
   Future<void> _initDeferredStartup() async {
+    // Токен FCM спрашиваем ПЕРВЫМ и не после модальных окон: своих окон он не
+    // показывает, а от его вердикта зависит, поднимать ли фоновый сервис. Пока
+    // он стоял за согласием на рекламу, вердикт ждал человека у диалога, и
+    // сервис успевал стартовать со строкой «Togetherly на связи» в шторке.
+    try {
+      await FcmService.instance.start();
+      // Строка могла остаться с прошлого запуска или от `autoRunOnBoot` после
+      // перезагрузки телефона — гасим, не дожидаясь смены пары.
+      if (FcmService.instance.ready) {
+        unawaited(PushBackgroundService().stop());
+      }
+    } catch (e) {
+      debugPrint('Старт: токен FCM не получен — $e');
+    }
     if (Platform.isAndroid || Platform.isIOS) {
       try {
         await _initConsentAndAds();
@@ -785,15 +800,6 @@ class _LoveAppState extends State<LoveApp> with WidgetsBindingObserver {
       await ApnsService.instance.start();
     } catch (e) {
       debugPrint('Старт: токен пушей не получен — $e');
-    }
-    // То же для Android, только через FCM. Пока пуши держал свой
-    // foreground-сервис, в шторке у каждого висела строка «Togetherly на
-    // связи», а Android 14 давал такому сервису шесть часов в сутки — после
-    // них доставка молчала до утра.
-    try {
-      await FcmService.instance.start();
-    } catch (e) {
-      debugPrint('Старт: токен FCM не получен — $e');
     }
   }
 
