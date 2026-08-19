@@ -98,6 +98,7 @@ private struct MoodTilesSmallView: View {
         let active = id == data.myId
         return Text(symbol)
             .font(.system(size: 17))
+            .widgetAccentable()
             .frame(maxWidth: .infinity)
             .padding(.vertical, 7)
             .tgBlock(active ? t.primaryContainer : t.surfaceContainer, radius: 14)

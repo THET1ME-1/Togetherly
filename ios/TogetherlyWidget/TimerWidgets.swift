@@ -79,6 +79,7 @@ struct TimerWidgetView: View {
                 Text("\(t.days)")
                     .font(.system(size: 46, weight: .bold))
                     .foregroundColor(theme.number)
+                    .widgetAccentable()
                     .minimumScaleFactor(18.0 / 46.0)
                     .lineLimit(1)
                     .padding(.top, 2)

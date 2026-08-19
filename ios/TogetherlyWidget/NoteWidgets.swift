@@ -47,6 +47,7 @@ private struct NoteBody: View {
                 Text(data.text)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(textColor)
+                    .widgetAccentable()
                     .lineLimit(6)
                     .minimumScaleFactor(0.7)
                     .multilineTextAlignment(.leading)

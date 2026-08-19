@@ -242,8 +242,8 @@ private struct StatCard: View {
                 // Подложка под значок только в обычном режиме: в тонированном
                 // она станет белым кружком поверх самого значка.
                 TgSurface(Color.white)
-                    .clipShape(Circle())
                     .frame(width: 32 * scale, height: 32 * scale)
+                    .clipShape(Circle())
                 Image(systemName: symbol)
                     .font(.system(size: 16 * scale))
                     .foregroundColor(iconColor)

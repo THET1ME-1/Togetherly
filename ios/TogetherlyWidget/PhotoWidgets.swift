@@ -106,7 +106,7 @@ private struct PhotoPlaceholder: View {
         ZStack {
             PhotoStyle.placeholderBg
             VStack(spacing: 4) {
-                Text("📷").font(.system(size: emojiSize))
+                Text("📷").font(.system(size: emojiSize)).widgetAccentable()
                 if showText {
                     Text(kind.emptyTitle)
                         .font(.system(size: 13, weight: .medium))

@@ -133,14 +133,35 @@ void main() {
             '${offenders.join('\n')}');
   });
 
-  test('у главного содержимого есть пометка акцента', () {
-    // Без `widgetAccentable` весь виджет уходит в белую группу: на
-    // тонированной теме он выглядит выцветшим и не берёт цвет, выбранный
-    // человеком. Помечаем смысловой центр — числа, сердце, значки.
-    final marked = files
-        .where((f) => f.readAsStringSync().contains('widgetAccentable()'))
-        .length;
-    expect(marked, greaterThanOrEqualTo(6),
-        reason: 'Пометку получили только $marked файлов из ${files.length}');
+  test('у главного содержимого каждого виджета есть пометка акцента', () {
+    // Без `widgetAccentable` виджет целиком уходит в белую группу: на
+    // тонированной теме он не берёт цвет, который человек выбрал сам.
+    // Помечаем смысловой центр — числа, текст записки, сердце, значки.
+    //
+    // Экрана блокировки в списке нет намеренно: там режим `vibrant`, система
+    // обесцвечивает содержимое сама, и акцент к нему не применяется.
+    const homeScreen = [
+      'CountdownWidget.swift',
+      'DaysStreakStatsWidgets.swift',
+      'LoveWidget.swift',
+      'MissWidget.swift',
+      'MoodTilesWidget.swift',
+      'MoodWidget.swift',
+      'NoteWidgets.swift',
+      'PhotoWidgets.swift',
+      'TimerWidgets.swift',
+      'TogetherWidget.swift',
+      'YearWidgets.swift',
+    ];
+    final missing = <String>[];
+    for (final name in homeScreen) {
+      final file = File('ios/TogetherlyWidget/$name');
+      expect(file.existsSync(), isTrue, reason: 'Файл $name на месте');
+      if (!file.readAsStringSync().contains('widgetAccentable()')) {
+        missing.add(name);
+      }
+    }
+    expect(missing, isEmpty,
+        reason: 'Без пометки останутся выцветшими: ${missing.join(', ')}');
   });
 }
