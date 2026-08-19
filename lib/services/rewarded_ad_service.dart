@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:io';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
+
+import '../models/ad_show_finished.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:yandex_mobileads/mobile_ads.dart' as yandex;
 
@@ -229,13 +232,13 @@ class RewardedAdService {
     // Предохранитель: если ни onAdDismissed, ни onAdFailedToShow не пришли
     // (нативный показ не состоялся молча), ожидание иначе не кончается никогда
     // и запирает экран, который его ждёт.
-    final result = await completer.future.timeout(
-      const Duration(minutes: 2),
-      onTimeout: () {
-        debugPrint('AdMob rewarded: событий закрытия нет, выходим по таймауту');
-        return false;
-      },
-    );
+    // Ждём так же, как у Яндекса: событие SDK, возврат приложения или
+    // предохранитель. Награда при этом читается из `earned` — её ставит
+    // onUserEarnedReward, и он приходит ДО закрытия.
+    await _awaitAdClosed(completer, 'AdMob rewarded');
+    // Наградой считаем то, что успел проставить onUserEarnedReward: он
+    // приходит ДО закрытия, а само закрытие могло и не прийти.
+    final result = earned;
     if (result) {
       // У AdMob на PocketBase серверного SSV-callback нет (adSsvCallback не
       // портирован), поэтому начисляем тем же авторитетным роутом, что и Яндекс
@@ -251,6 +254,40 @@ class RewardedAdService {
           level: SentryLevel.info));
     }
     return result;
+  }
+
+
+  /// Ждёт закрытия показа: событие от SDK, возврат приложения на передний план
+  /// или предохранитель — что случится раньше.
+  ///
+  /// Событие закрытия приходит не всегда (по журналу — тысячи случаев), и пока
+  /// ждали только его, человек стоял перед пустым экраном две минуты: медиана
+  /// ожидания была ровно 120 секунд. Возврат приложения — такой же честный
+  /// признак того, что реклама закрылась.
+  Future<void> _awaitAdClosed(Completer<void> dismissed, String who) async {
+    final watch = AdShowWatch();
+    late final AppLifecycleListener listener;
+    final returned = Completer<void>();
+    listener = AppLifecycleListener(
+      onStateChange: (state) {
+        watch.onState(state);
+        if (watch.finished && !returned.isCompleted) returned.complete();
+      },
+    );
+    try {
+      await Future.any([
+        dismissed.future,
+        returned.future.then((_) async {
+          // Событие закрытия часто приходит следом за возвратом — даём ему
+          // долететь, чтобы награда засчиталась штатным путём.
+          await Future<void>.delayed(kAdReturnGrace);
+        }),
+      ]).timeout(kAdShowGuard, onTimeout: () {
+        debugPrint('$who: событий закрытия нет, выходим по предохранителю');
+      });
+    } finally {
+      listener.dispose();
+    }
   }
 
   Future<bool> _showYandex(yandex.RewardedAd ad) async {
@@ -303,12 +340,7 @@ class RewardedAdService {
       debugPrint('Yandex rewarded show() бросил — $e');
       finish();
     }
-    await dismissed.future.timeout(
-      const Duration(minutes: 2),
-      onTimeout: () {
-        debugPrint('Yandex rewarded: событий закрытия нет, выходим по таймауту');
-      },
-    );
+    await _awaitAdClosed(dismissed, 'Yandex rewarded');
     // onRewarded может прийти вплотную к закрытию (или сразу после) — даём ему
     // долететь, прежде чем решить, что награды не было. Окно щедрое: грант всё
     // равно идёт внутри колбэка, лишнего ожидания на успешном пути нет.
