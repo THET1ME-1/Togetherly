@@ -393,7 +393,7 @@ class _PlusScreenState extends State<PlusScreen> {
   String get _buyLabel {
     final price = _store?.priceLabel(kPlusProductId);
     if (price == null || price.isEmpty) return _s.plusBuy;
-    return '${_s.plusBuy} · $price';
+    return _s.plusBuyFor(price);
   }
 
   Future<void> _openPurchase() async {

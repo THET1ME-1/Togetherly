@@ -2553,6 +2553,9 @@ abstract class DictStrings extends AppStrings {
   @override
   String get plusBuy => _t('plusBuy');
   @override
+  String plusBuyFor(String price) =>
+      _t('plusBuyFor').replaceAll('{price}', price);
+  @override
   String get plusHaveCode => _t('plusHaveCode');
   @override
   String get plusHowItWorks => _t('plusHowItWorks');

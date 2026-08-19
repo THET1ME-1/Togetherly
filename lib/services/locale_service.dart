@@ -1734,6 +1734,7 @@ abstract class AppStrings {
   String get plusVideoTitle;
   String get plusVideoBody;
   String get plusBuy;
+  String plusBuyFor(String price);
   String get plusHaveCode;
   String get plusHowItWorks;
   String get plusPortableNote;

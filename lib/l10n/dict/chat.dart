@@ -2077,14 +2077,27 @@ const Map<String, Map<String, String>> chatStrings = {
     'fr': '200 Mo pour les souvenirs et 300 Mo pour regarder ensemble',
     'de': '200 MB für Erinnerungen und 300 MB fürs gemeinsame Schauen',
   },
+  // Цену дописывает сам экран — её называет магазин, у которого своя валюта,
+  // округление и налог в каждой стране. Пока цена стояла и здесь, на кнопке
+  // выходило «Купить за $10 · 9,99 $»: два разных числа подряд.
   'plusBuy': {
-    'ru': 'Купить за \$10',
-    'en': 'Buy for \$10',
-    'pt': 'Comprar por 10 \\\$',
-    'it': 'Compra per 10 \\\$',
-    'es': 'Comprar por 10 \\\$',
-    'fr': 'Acheter pour 10 \\\$',
-    'de': 'Für 10 \\\$ kaufen',
+    'ru': 'Купить',
+    'en': 'Buy',
+    'pt': 'Comprar',
+    'it': 'Acquista',
+    'es': 'Comprar',
+    'fr': 'Acheter',
+    'de': 'Kaufen',
+  },
+  // «Купить за 9,99 $»: число приходит от магазина, поэтому оно подстановкой.
+  'plusBuyFor': {
+    'ru': 'Купить за {price}',
+    'en': 'Buy for {price}',
+    'pt': 'Comprar por {price}',
+    'it': 'Acquista per {price}',
+    'es': 'Comprar por {price}',
+    'fr': 'Acheter pour {price}',
+    'de': 'Für {price} kaufen',
   },
   'plusHaveCode': {
     'ru': 'У меня есть код',
