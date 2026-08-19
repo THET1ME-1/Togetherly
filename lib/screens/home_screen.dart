@@ -376,6 +376,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
     _appLifecycleListener = AppLifecycleListener(
       onResume: () {
+        // Сессия могла остаться без записи профиля: токен живой, имени и
+        // аватара нет. Само это не проходит, поэтому пробуем на каждом
+        // возврате — сервис сам решит, надо ли и не рано ли (session_restore).
+        unawaited(PbAuthService().ensureProfileLoaded());
         if (_pairData.isPaired) {
           _mascotService.recordDailyActivity();
           HomeWidgetService.instance.refreshPhotoOfDay(_pairData.pairId);

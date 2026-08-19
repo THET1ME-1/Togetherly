@@ -353,7 +353,12 @@ void main() async {
   // authRefresh, ожидая медленный/перегруженный сервер (на слабой связи — до
   // таймаута), и UI не показывался даже при наличии локального кэша. userId ниже
   // берётся из persisted-сессии, поэтому в готовности signInSilently не нуждается.
-  unawaited(PbAuthService().signInSilently());
+  unawaited(PbAuthService().signInSilently().then((_) {
+    // Не уложился в таймаут — сессия остаётся живой, но без записи профиля:
+    // имя и аватар пусты, срок пары считается не от той даты. Пробуем ещё раз,
+    // уже отдельным запросом (правило пауз — в session_restore.dart).
+    unawaited(PbAuthService().ensureProfileLoaded());
+  }));
   // Привязываем кэш к владельцу: если на устройстве сменился аккаунт — кэш
   // полностью чистится (защита от утечки данных между пользователями).
   await LocalStore.instance.ensureOwner(PocketBaseService().userId);

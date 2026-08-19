@@ -11,6 +11,7 @@ import 'package:pocketbase/pocketbase.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../models/session_restore.dart';
 import '../utils/auth_failure.dart';
 import 'home_widget_service.dart';
 import 'pocketbase_service.dart';
@@ -356,6 +357,49 @@ class PbAuthService {
       // переезжает вместе с аккаунтом на новый телефон.
       'plus': d['plus'] == true,
     };
+  }
+
+  int _profileRestoreAt = 0;
+  Future<void>? _profileRestoreInflight;
+
+  /// Дотягивает профиль, если сессия «полумёртвая»: токен живой, а записи нет.
+  ///
+  /// Правило и пауза между попытками — [needsProfileRestore] и
+  /// [mayRetryProfileRestore] под тестами. Зовётся при старте и при каждом
+  /// возврате в приложение: `signInSilently` бывает один раз за запуск, и его
+  /// таймаут на медленной сети оставлял человека без имени и аватара до
+  /// перезапуска.
+  Future<void> ensureProfileLoaded() async {
+    if (!needsProfileRestore(
+      hasSession: _svc.isLoggedIn,
+      recordId: _svc.currentUser?.id,
+    )) {
+      return;
+    }
+    final inflight = _profileRestoreInflight;
+    if (inflight != null) return inflight;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (!mayRetryProfileRestore(nowMs: now, lastTryMs: _profileRestoreAt)) {
+      return;
+    }
+    _profileRestoreAt = now;
+    final fut = () async {
+      try {
+        // authRefresh кладёт в стор и токен, и запись — то есть чинит ровно то,
+        // чего не хватает. Отказ здесь не повод рвать сессию: 401/403 разберёт
+        // [signInSilently] на следующем запуске, а сеть вернётся сама.
+        await _pb
+            .collection(_usersCol)
+            .authRefresh()
+            .timeout(const Duration(seconds: 8));
+      } catch (e) {
+        debugPrint('PbAuth.ensureProfileLoaded failed: $e');
+      } finally {
+        _profileRestoreInflight = null;
+      }
+    }();
+    _profileRestoreInflight = fut;
+    return fut;
   }
 
   /// «Тихий вход» — сессия уже персистится в authStore (SharedPreferences).
