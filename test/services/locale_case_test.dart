@@ -22,6 +22,8 @@ const _lowercaseOnPurpose = <String>{
   'daysUntilBirthday', 'photoGridCountLabel', 'cycleDaysUnit',
   'tgCountdownDays', 'tgCountdownHours', 'tgCountdownMinutes',
   'fromGalleryLabel', 'fromMemories',
+  // Подпись справа от числа: «+12 к общему числу».
+  'love_total_change',
   // Подписи метрик под цифрой в профиле.
   'statsDaysTogether', 'statsDrawings', 'statsMemories', 'statsStreak',
   'statsXp',

@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 import '../models/love_test.dart';
@@ -8,7 +10,8 @@ import '../theme/profile_theme.dart';
 import '../widgets/common/m3_loading.dart';
 import '../widgets/love/love_shape.dart';
 
-/// «Умение любить»: двадцать утверждений, шесть граней, одна фигура.
+/// «Умение любить»: двадцать утверждений из банка на восемьдесят, шесть
+/// граней, одна фигура.
 ///
 /// Экран держит три состояния подряд — вступление, вопросы, результат — и не
 /// разводит их по маршрутам: человек проходит тест за две минуты и возвращаться
@@ -40,6 +43,17 @@ class _LoveTestScreenState extends State<LoveTestScreen> {
   _Stage _stage = _Stage.loading;
   LoveTestResult? _mine;
   LoveTestResult? _theirs;
+
+  /// Набор этого прохождения. Утверждения тянутся из банка случайно, поэтому
+  /// второй раз человек отвечает про себя, а не вспоминает прошлые ответы.
+  List<LoveQuestion> _round = const [];
+
+  /// Что он видел в прошлый раз — эти утверждения уступают место свежим.
+  Set<String> _lastRound = const {};
+
+  /// Прошлый результат: с ним сравниваем свежий.
+  LoveTestResult? _previous;
+  LoveProgress? _progress;
   bool _saving = false;
 
   AppTheme get _t => widget.theme;
@@ -61,13 +75,26 @@ class _LoveTestScreenState extends State<LoveTestScreen> {
     setState(() {
       _mine = pair.mine;
       _theirs = pair.theirs;
+      _lastRound = pair.myLastRound;
+      _previous = pair.myPrevious;
+      _progress = pair.mine == null ? null : loveProgress(pair.mine!, _previous);
       _stage = pair.mine == null ? _Stage.intro : _Stage.result;
+    });
+  }
+
+  /// Собирает новый набор и переводит экран к вопросам.
+  void _startQuiz() {
+    setState(() {
+      _answers.clear();
+      _index = 0;
+      _round = pickLoveRound(random: Random(), exclude: _lastRound);
+      _stage = _Stage.quiz;
     });
   }
 
   void _answer(int weight) {
     _answers[_index] = weight;
-    if (_index + 1 < kLoveQuestions.length) {
+    if (_index + 1 < _round.length) {
       setState(() => _index++);
       return;
     }
@@ -75,15 +102,23 @@ class _LoveTestScreenState extends State<LoveTestScreen> {
   }
 
   Future<void> _finish() async {
-    final result = scoreLoveTest(_answers);
+    final result = scoreLoveRound(_round, _answers);
     if (result == null) return;
+    final keys = [for (final q in _round) q.key];
     setState(() {
+      _progress = loveProgress(result, _mine);
+      _previous = _mine;
       _mine = result;
+      _lastRound = keys.toSet();
       _stage = _Stage.result;
       _saving = true;
     });
-    final saved =
-        await LoveTestService.instance.save(widget.groupId, widget.myUid, result);
+    final saved = await LoveTestService.instance.save(
+      widget.groupId,
+      widget.myUid,
+      result,
+      roundKeys: keys,
+    );
     if (!mounted) return;
     if (!saved) {
       // Отказ сервера проходил молча: человек видел свою фигуру, закрывал
@@ -164,7 +199,7 @@ class _LoveTestScreenState extends State<LoveTestScreen> {
           ),
           const SizedBox(height: 20),
           FilledButton(
-            onPressed: () => setState(() => _stage = _Stage.quiz),
+            onPressed: _startQuiz,
             child: Text(trKey('love_start')),
           ),
         ],
@@ -189,8 +224,8 @@ class _LoveTestScreenState extends State<LoveTestScreen> {
   // ── Вопросы ───────────────────────────────────────────────────────────────
 
   Widget _quiz() {
-    final q = kLoveQuestions[_index];
-    final progress = (_index + 1) / kLoveQuestions.length;
+    final q = _round[_index];
+    final progress = (_index + 1) / _round.length;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
@@ -203,7 +238,7 @@ class _LoveTestScreenState extends State<LoveTestScreen> {
               Text(
                 trKey('love_progress')
                     .replaceAll('{n}', '${_index + 1}')
-                    .replaceAll('{total}', '${kLoveQuestions.length}'),
+                    .replaceAll('{total}', '${_round.length}'),
                 style: TextStyle(fontSize: 13, color: _cs.onSurfaceVariant),
               ),
               Container(
@@ -350,6 +385,10 @@ class _LoveTestScreenState extends State<LoveTestScreen> {
             ],
           ),
         ),
+        if (_progress != null && _progress!.moved) ...[
+          const SizedBox(height: 14),
+          _progressCard(_progress!),
+        ],
         const SizedBox(height: 14),
         _facetsCard(mine, theirs),
         if (pair != null) ...[
@@ -367,16 +406,117 @@ class _LoveTestScreenState extends State<LoveTestScreen> {
         ],
         const SizedBox(height: 18),
         OutlinedButton(
-          onPressed: () => setState(() {
-            _answers.clear();
-            _index = 0;
-            _stage = _Stage.quiz;
-          }),
+          onPressed: _startQuiz,
           child: Text(trKey('love_retake')),
         ),
       ],
     );
   }
+
+  /// Что изменилось с прошлого раза.
+  ///
+  /// Показываем только когда есть с чем сравнивать и хоть что-то сдвинулось:
+  /// строка «выросло на 0» ничего не сообщает, а место занимает.
+  Widget _progressCard(LoveProgress p) {
+    final grown = p.deltaOf(p.grown);
+    final fallen = p.deltaOf(p.fallen);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+      decoration: BoxDecoration(
+        color: _cs.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(28),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            trKey('love_since_last')
+                .replaceAll('{date}', _shortDate(p.since))
+                .toUpperCase(),
+            style: TextStyle(
+              fontSize: 12,
+              letterSpacing: 1.2,
+              fontWeight: FontWeight.w600,
+              color: _cs.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Text(
+                _signed(p.totalDelta),
+                style: TextStyle(
+                  fontFamily: 'Unbounded',
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  color: _deltaColor(p.totalDelta),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  trKey('love_total_change'),
+                  style: TextStyle(color: _cs.onSurfaceVariant),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          for (final facet in LoveFacet.values) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    facet.title,
+                    style: const TextStyle(fontSize: 15),
+                  ),
+                ),
+                Text(
+                  _signed(p.deltaOf(facet)),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: _deltaColor(p.deltaOf(facet)),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
+          if (grown > 0) ...[
+            const SizedBox(height: 4),
+            Text(
+              trKey('love_grown').replaceAll(
+                '{facet}',
+                p.grown.title.toLowerCase(),
+              ),
+              style: TextStyle(color: _cs.onSurfaceVariant),
+            ),
+          ],
+          if (fallen < 0) ...[
+            const SizedBox(height: 6),
+            Text(
+              trKey('love_fallen').replaceAll(
+                '{facet}',
+                p.fallen.title.toLowerCase(),
+              ),
+              style: TextStyle(color: _cs.onSurfaceVariant),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _signed(int value) => value > 0 ? '+$value' : '$value';
+
+  Color _deltaColor(int value) {
+    if (value > 0) return _cs.primary;
+    if (value < 0) return _cs.error;
+    return _cs.onSurfaceVariant;
+  }
+
+  String _shortDate(DateTime at) =>
+      '${at.day.toString().padLeft(2, '0')}.${at.month.toString().padLeft(2, '0')}.${at.year}';
 
   Widget _facetsCard(LoveTestResult mine, LoveTestResult? theirs) {
     return Container(

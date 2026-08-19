@@ -14,7 +14,7 @@ void main() {
 
   /// Ключи, которые обязан покрывать словарь.
   final keys = <String>[
-    for (final q in kLoveQuestions) q.key,
+    for (final q in kLoveBank) q.key,
     for (final f in LoveFacet.values) 'love_facet_${f.name}',
     for (var i = 0; i < kLoveWeights.length; i++) 'love_answer_$i',
   ];
@@ -47,17 +47,31 @@ void main() {
     expect(leftovers, isEmpty, reason: leftovers.join('\n'));
   });
 
-  test('все двадцать утверждений на месте и не повторяются', () {
-    expect(kLoveQuestions.length, 20);
-    expect(kLoveQuestions.map((q) => q.key).toSet().length, 20);
+  test('банк на восемьдесят утверждений, все разные', () {
+    expect(kLoveBank.length, 80);
+    expect(kLoveBank.map((q) => q.key).toSet().length, 80);
     final texts = {
       for (final lang in langs)
-        lang: kLoveQuestions.map((q) => loveTestStrings[q.key]![lang]).toSet(),
+        lang: kLoveBank.map((q) => loveTestStrings[q.key]![lang]).toSet(),
     };
     for (final entry in texts.entries) {
-      expect(entry.value.length, 20,
+      expect(entry.value.length, 80,
           reason: 'в языке ${entry.key} есть повторяющиеся утверждения');
     }
+  });
+
+  test('каждой грани хватает утверждений на несколько проходов подряд', () {
+    // Иначе «не повторять прошлый набор» упрётся в пустоту: в грани должно
+    // лежать заметно больше, чем берётся за один раз.
+    for (final entry in kLoveRoundLayout.entries) {
+      final have = kLoveBank.where((q) => q.facet == entry.key).length;
+      expect(have, greaterThanOrEqualTo(entry.value * 3),
+          reason: 'грань ${entry.key.name}: $have утверждений');
+    }
+    expect(
+      kLoveRoundLayout.values.fold<int>(0, (a, b) => a + b),
+      kLoveRoundSize,
+    );
   });
 
   test('утверждение про перемены не обрывается на полуслове', () {
@@ -68,8 +82,8 @@ void main() {
 
   test('текст утверждения приходит из словаря', () {
     // trKey читает выбранный язык; по умолчанию в тестах это русский.
-    expect(kLoveQuestions.first.text, trKey('love_q1'));
-    expect(kLoveQuestions.first.text, isNot('love_q1'));
+    expect(kLoveBank.first.text, trKey('love_q1'));
+    expect(kLoveBank.first.text, isNot('love_q1'));
     expect(LoveFacet.gratitude.title, isNotEmpty);
     expect(kLoveAnswers.length, kLoveWeights.length);
   });
