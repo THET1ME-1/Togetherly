@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:love_app/models/ios_widget_gaps.dart';
 
@@ -12,6 +14,18 @@ import 'package:love_app/models/ios_widget_gaps.dart';
 /// айфоне не наполнялось никогда, потому что путь заполнения идёт через список
 /// Android-виджетов, а он на iOS всегда пуст.
 void main() {
+  test('пустой выбор не затирает то, что уже лежит в контейнере', () {
+    // Ключи фото-виджетов пишутся ТОЛЬКО когда есть что писать: запись могла не
+    // приехать (нет сети, отказ сервера, полумёртвая сессия), и пустая строка
+    // стёрла бы снимок с рабочего стола.
+    final src = File('lib/services/home_widget_service.dart').readAsStringSync();
+    final block = RegExp(
+      r"if \(dayPhotoUrl\.isNotEmpty \|\| day\.isNotEmpty\) \{",
+    );
+    expect(block.hasMatch(src), isTrue,
+        reason: 'фото дня пишется без проверки — пустота затрёт прежний снимок');
+  });
+
   group('supportsWidgetInteractivity', () {
     test('iOS 17 и новее — интерактивность есть', () {
       expect(supportsWidgetInteractivity('Version 17.0 (Build 21A329)'), isTrue);
