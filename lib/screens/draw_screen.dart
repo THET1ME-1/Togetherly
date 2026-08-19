@@ -48,6 +48,7 @@ import '../widgets/common/app_dialog.dart';
 import '../services/plus_access.dart';
 import '../services/plus_service.dart';
 import 'plus_screen.dart';
+import '../utils/canvas_gestures.dart';
 
 
 //  Palette
@@ -382,6 +383,21 @@ class _DrawScreenState extends State<DrawScreen>
   void _bumpView() => _viewTick.value++;
 
   double _scale = 1.0;
+
+  // Тап заливки: копим путь и время первого пальца, а красим на отпускании.
+  // Пока заливка срабатывала по касанию, первый палец щипка успевал залить то,
+  // на чём стоял, — «заливается куда попало, пока просто приближаю картинку»
+  // (жалоба 19.08.2026).
+  Offset? _fillTapStart;
+  DateTime? _fillTapAt;
+  double _fillTapTravel = 0;
+  bool _fillTapSpoiled = false;
+
+  // Путь и время текущего штриха: по ним решаем, оставлять ли его, когда
+  // холста коснулся второй палец.
+  Offset? _strokeStartPoint;
+  DateTime? _strokeStartedAt;
+  double _strokeTravel = 0;
 
   /// Щипок на паузе: пальцев стало меньше двух и холст ждёт возвращения
   /// второго, а не едет за оставшимся.
@@ -1045,9 +1061,18 @@ class _DrawScreenState extends State<DrawScreen>
     }
 
     if (_activeTool == DrawTool.fill) {
-      _applyFill(localPoint);
+      // Красим на отпускании: сейчас ещё не известно, тап это или начало
+      // щипка. Копим путь и время, решает `fillTapAccepted`.
+      _fillTapStart = localPoint;
+      _fillTapAt = DateTime.now();
+      _fillTapTravel = 0;
+      _fillTapSpoiled = false;
       return;
     }
+
+    _strokeStartPoint = localPoint;
+    _strokeStartedAt = DateTime.now();
+    _strokeTravel = 0;
 
     _redoStack.clear();
     _lastLivePush = DateTime.fromMillisecondsSinceEpoch(0);
@@ -1275,10 +1300,18 @@ class _DrawScreenState extends State<DrawScreen>
 
     if (_activePointers.length >= 2) {
       _isZooming = false; // дальше подхватит onScaleStart
+      // Щипок начался — заливке тут делать нечего.
+      _fillTapSpoiled = true;
       // Второй палец раньше стирал начатую линию целиком: коснулись ладонью —
-      // и штрих пропал. Теперь он фиксируется, а зум начинается со следующего
-      // события. Терять работу из-за случайного касания нельзя.
-      if (_isDrawing && _currentPoints.length > 1) {
+      // и штрих пропал. Теперь линия остаётся, а огрызок в две точки, который
+      // первый палец щипка успел поставить за 20–80 мс, — нет. Различает их
+      // `strokeSurvivesSecondFinger` по пройденному пути и времени, а не по
+      // числу точек: точек за это время набегает сколько угодно.
+      final held = _strokeStartedAt == null
+          ? Duration.zero
+          : DateTime.now().difference(_strokeStartedAt!);
+      if (_isDrawing &&
+          strokeSurvivesSecondFinger(travel: _strokeTravel, held: held)) {
         _finishStroke();
       } else {
         _cancelCurrentGesture();
@@ -1344,7 +1377,20 @@ class _DrawScreenState extends State<DrawScreen>
       return;
     }
 
+    if (_activeTool == DrawTool.fill) {
+      final from = _fillTapStart;
+      if (from != null) {
+        _fillTapTravel = (event.localPosition - from).distance;
+      }
+      return;
+    }
+
     if (_drawingPointerId != event.pointer) return;
+    final start = _strokeStartPoint;
+    if (start != null) {
+      final travelled = (event.localPosition - start).distance;
+      if (travelled > _strokeTravel) _strokeTravel = travelled;
+    }
     _updateStroke(event.localPosition);
   }
 
@@ -1357,9 +1403,31 @@ class _DrawScreenState extends State<DrawScreen>
     final wasDrawing = _drawingPointerId == event.pointer;
     _activePointers.remove(event.pointer);
 
+    // Заливка ждала до этого момента: теперь видно, был ли это тап одним
+    // пальцем или человек сводил пальцы, чтобы приблизить картинку.
+    final fillFrom = _fillTapStart;
+    if (_activeTool == DrawTool.fill && fillFrom != null) {
+      final held = _fillTapAt == null
+          ? Duration.zero
+          : DateTime.now().difference(_fillTapAt!);
+      final accepted = fillTapAccepted(
+        travel: _fillTapTravel,
+        held: held,
+        extraPointers: _activePointers.length,
+        zoomed: _isZooming || _fillTapSpoiled,
+      );
+      _fillTapStart = null;
+      _fillTapAt = null;
+      _fillTapTravel = 0;
+      if (accepted) unawaited(_applyFill(fillFrom));
+    }
+
     if (wasDrawing && !_isZooming) {
       _finishStroke();
     }
+    _strokeStartPoint = null;
+    _strokeStartedAt = null;
+    _strokeTravel = 0;
 
     if (_activePointers.isEmpty) {
       _drawingPointerId = null;
@@ -2045,9 +2113,16 @@ class _DrawScreenState extends State<DrawScreen>
     if (boundary == null) return;
 
     try {
-      // Снимаем один к одному: увеличивать разрешение незачем — заливка и так
-      // самая тяжёлая операция на холсте.
-      final snapshot = await boundary.toImage(pixelRatio: 1.0);
+      // Снимаем вдвое подробнее экрана. Один к одному край заливки выходил
+      // ступеньками и «пятнами», стоило приблизить лист: пятно, посчитанное по
+      // трёмстам точкам, растягивалось на полторы тысячи. Выше двух не идём и
+      // упираемся в потолок 1600 — столько же в самой картинке раскраски, а
+      // заливка и так самая тяжёлая операция на холсте.
+      final longest = _canvasSize.longestSide;
+      final ratio = longest <= 0
+          ? 1.0
+          : (1600 / longest).clamp(1.0, 2.0).toDouble();
+      final snapshot = await boundary.toImage(pixelRatio: ratio);
 
       // Точка тапа в координатах снимка: тап приходит в координатах холста,
       // а снимок сделан в его же пикселях.
