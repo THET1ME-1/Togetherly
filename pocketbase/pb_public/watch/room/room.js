@@ -41,7 +41,7 @@
   const state = {
     room: '', channel: '', me: '', centrifuge: null, sub: null,
     player: null, kind: '', applying: false, lead: false, actedAt: 0, lastSent: 0, viewers: 1,
-    subscribed: false, outbox: [],
+    subscribed: false, outbox: [], lastLink: '',
     // Что показывать пришедшему позже: ссылка, переписка этой вкладки и
     // отложенная команда для плеера, который ещё грузится.
     url: '', log: [], synced: false, pending: null, joinedAt: 0,
@@ -1027,18 +1027,29 @@
 
     connect(room).catch(() => setStatus(I18N.t('room.lost')));
 
-    $('#apply').addEventListener('click', () => applySource($('#link').value));
+    $('#apply').addEventListener('click', () => {
+      const el = $('#link');
+      const link = el.value.trim() || state.lastLink || '';
+      if (link && !el.value.trim()) el.value = link;
+      applySource(link);
+    });
 
-    // Первое нажатие по строке выделяет прежнюю ссылку целиком: вставка тогда
-    // заменяет её, а не дописывается в хвост. Второе нажатие (поле уже в
-    // фокусе) ставит курсор как обычно — правку руками это не мешает.
+    // Первое нажатие по строке освобождает её: прежний адрес уже применён —
+    // ролик по нему играет, — и держать его в поле незачем. Вставка попадает в
+    // пустую строку, ничего не дописывая в хвост.
+    //
+    // Раньше тут стояло выделение (`select()` плюс повтор следующим тактом,
+    // потому что Safari снимал его сразу). На айфоне это мешало главному:
+    // «Вставить» в контекстном меню появляется по долгому нажатию, а повторное
+    // выделение закрывало меню. В пустом поле система предлагает вставку сама.
+    //
+    // Прежний адрес не теряется: пустая строка при нажатии «Включить»
+    // означает «оставить как было».
     $('#link').addEventListener('focus', () => {
       const el = $('#link');
       if (!el.value) return;
-      el.select();
-      // Safari на iPhone снимает выделение сразу после focus, поэтому просим
-      // ещё раз следующим тактом.
-      setTimeout(() => { if (document.activeElement === el) el.select(); }, 0);
+      state.lastLink = el.value;
+      el.value = '';
     });
 
     $('#together').addEventListener('click', () => {

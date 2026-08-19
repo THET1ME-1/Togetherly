@@ -7,8 +7,9 @@
  * лежат адреса вида `<ссылка> <та же ссылка>`, `<ютуб><ivi>` и `hhttps://…`.
  * Человек при этом видит прежний ролик и решает, что кнопка не работает.
  *
- * Чиним с двух концов: поле выделяет старое значение при фокусе (вставка
- * заменяет), а разбор берёт из строки ПЕРВЫЙ настоящий адрес и прощает лишнюю
+ * Чиним с двух концов: поле освобождается при первом нажатии (вставка идёт в
+ * пустую строку, а на айфоне ещё и появляется «Вставить» в меню долгого
+ * нажатия), а разбор берёт из строки ПЕРВЫЙ настоящий адрес и прощает лишнюю
  * букву перед схемой.
  *
  * Запуск: node pocketbase/pb_public/watch/tests/room-link-paste.test.js
@@ -119,13 +120,10 @@ const check = (n, c, x = '') => { console.log((c ? '  ✓ ' : '  ✗ ') + n, x);
     check('   приложение положило ссылку в поле', (await p.inputValue('#link')) === first);
 
     await p.click('#link');
-    const selected = await p.evaluate(() => {
-      const el = document.querySelector('#link');
-      return el.value.slice(el.selectionStart, el.selectionEnd);
-    });
-    check('   нажатие выделяет её целиком', selected === first, JSON.stringify(selected));
+    const cleared = await p.inputValue('#link');
+    check('   нажатие освобождает строку', cleared === '', JSON.stringify(cleared));
 
-    // так ведёт себя вставка поверх выделения
+    // так ведёт себя вставка в освободившуюся строку
     await p.evaluate(() => {
       const el = document.querySelector('#link');
       el.setRangeText('https://youtu.be/ZezK8dig-xU', el.selectionStart, el.selectionEnd, 'end');
