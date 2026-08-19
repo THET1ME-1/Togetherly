@@ -475,9 +475,9 @@ void main() async {
   if (!Platform.isAndroid) {
     // На iOS ниже 17 интерактивности у виджетов нет вовсе, и плагин отвечает
     // отказом («Interactivity is only available on iOS 17.0»). Отказ приходит
-    // ФЬЮЧЕРОМ, поэтому синхронный try его не ловил: 3651 событие в Bugsink
-    // начиная с 20 июля 2026. Ниже семнадцатой не зовём вовсе, а отказ гасим
-    // там, где он и рождается.
+    // ФЬЮЧЕРОМ, поэтому синхронный try его не ловил: 3649 событий в Bugsink за
+    // трое суток на 1.29.6. Ниже семнадцатой не зовём вовсе, а отказ гасим там,
+    // где он и рождается.
     if (supportsWidgetInteractivity(Platform.operatingSystemVersion)) {
       unawaited(
         HomeWidget.registerInteractivityCallback(_homeWidgetBackgroundCallback)
