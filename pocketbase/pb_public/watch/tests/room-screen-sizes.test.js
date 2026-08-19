@@ -24,18 +24,47 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const OUT = process.env.SHOTS || path.join(require('os').tmpdir(), 'room-shots');
 
 const SIZES = [
-  ['SE-1', 320, 568],
-  ['13-mini', 360, 780],
-  ['SE-2022', 375, 667],
-  ['X-11Pro', 375, 812],
-  ['12-13-14', 390, 844],
-  ['15-16', 393, 852],
-  ['16-17-Pro', 402, 874],
-  ['XR-11', 414, 896],
-  ['17-Air', 420, 912],
-  ['12-13-ProMax', 428, 926],
-  ['15-16-Plus', 430, 932],
-  ['16-17-ProMax', 440, 956],
+  // ── iPhone: CSS-вьюпорты от первого SE до 17 Pro Max ────────────────────
+  ['iPhone SE 1', 320, 568, 3],
+  ['iPhone 13 mini', 360, 780, 3],
+  ['iPhone SE 2022', 375, 667, 2],
+  ['iPhone X · 11 Pro', 375, 812, 3],
+  ['iPhone 12 · 13 · 14', 390, 844, 3],
+  ['iPhone 15 · 16', 393, 852, 3],
+  ['iPhone 16 · 17 Pro', 402, 874, 3],
+  ['iPhone XR · 11', 414, 896, 2],
+  ['iPhone 17 Air', 420, 912, 3],
+  ['iPhone 12 · 13 Pro Max', 428, 926, 3],
+  ['iPhone 15 · 16 Plus', 430, 932, 3],
+  ['iPhone 16 · 17 Pro Max', 440, 956, 3],
+
+  // ── iPad: обе ориентации. Комнату открывают и с планшета, а на нём
+  //    раскладка переключается на двухколоночную (медиазапрос 900px). ─────
+  ['iPad mini книжно', 744, 1133, 2],
+  ['iPad mini альбомно', 1133, 744, 2],
+  ['iPad 10 книжно', 810, 1080, 2],
+  ['iPad 10 альбомно', 1080, 810, 2],
+  ['iPad Air 11 книжно', 820, 1180, 2],
+  ['iPad Air 11 альбомно', 1180, 820, 2],
+  ['iPad Pro 11 книжно', 834, 1210, 2],
+  ['iPad Pro 11 альбомно', 1210, 834, 2],
+  ['iPad Pro 13 книжно', 1024, 1366, 2],
+  ['iPad Pro 13 альбомно', 1366, 1024, 2],
+
+  // ── Мониторы: самые ходовые разрешения плюс те же в повороте — портретный
+  //    монитор редок, но раскладка на нём не должна разъезжаться. ─────────
+  ['ноутбук 1366', 1366, 768, 1],
+  ['ноутбук 1366 боком', 768, 1366, 1],
+  ['ноутбук 1440', 1440, 900, 1],
+  ['ноутбук 1440 боком', 900, 1440, 1],
+  ['ноутбук 1536', 1536, 864, 1],
+  ['ноутбук 1536 боком', 864, 1536, 1],
+  ['Full HD', 1920, 1080, 1],
+  ['Full HD боком', 1080, 1920, 1],
+  ['2K', 2560, 1440, 1],
+  ['2K боком', 1440, 2560, 1],
+  ['ультраширокий', 3440, 1440, 1],
+  ['4K', 3840, 2160, 1],
 ];
 
 const MIME = {
@@ -74,15 +103,18 @@ function serve() {
   const browser = await chromium.launch();
   const problems = [];
 
-  for (const [name, w, h] of SIZES) {
+  for (const [name, w, h, dpr] of SIZES) {
+    const touch = dpr > 1; // телефоны и планшеты
     const ctx = await browser.newContext({
       viewport: { width: w, height: h },
-      deviceScaleFactor: 3,
-      isMobile: true,
-      hasTouch: true,
-      userAgent:
-        'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 '
-        + '(KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1',
+      deviceScaleFactor: dpr,
+      isMobile: touch,
+      hasTouch: touch,
+      userAgent: touch
+        ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 '
+          + '(KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1'
+        : 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 '
+          + '(KHTML, like Gecko) Version/18.5 Safari/605.1.15',
     });
     const page = await ctx.newPage();
     const errors = [];
@@ -103,7 +135,19 @@ function serve() {
           visible: cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0,
         };
       };
+      const body = document.querySelector('.room-body');
+      const stage = document.querySelector('.player');
+      const chat = document.querySelector('.side');
+      const used = () => {
+        const parts = [stage, chat, document.querySelector('.source')]
+          .filter(Boolean).map((el) => el.getBoundingClientRect());
+        if (!parts.length) return 0;
+        const top = Math.min(...parts.map((r) => r.top));
+        const bottom = Math.max(...parts.map((r) => r.bottom));
+        return Math.round(bottom - top);
+      };
       return {
+        usedHeight: used(),
         link: box('#link'),
         apply: box('#apply'),
         pick: box('#pick'),
@@ -127,12 +171,21 @@ function serve() {
         problems.push(`${name} ${w}×${h}: ${key} ниже экрана (низ ${b.y + b.h} при высоте ${facts.winH})`);
       }
     }
+    // Комната обязана занимать экран, а не полосу посреди пустоты: на
+    // портретном мониторе и на 4K содержимое сжималось в треть высоты.
+    const fill = facts.usedHeight / facts.winH;
+    if (fill < 0.55) {
+      problems.push(
+        `${name} ${w}×${h}: содержимое занимает ${Math.round(fill * 100)}% высоты`,
+      );
+    }
     if (facts.link && facts.link.w < 90) {
       problems.push(`${name} ${w}×${h}: строка ссылки шириной ${facts.link.w} — вставлять некуда`);
     }
     if (errors.length) problems.push(`${name}: ошибки страницы — ${errors.join(' | ')}`);
 
-    await page.screenshot({ path: path.join(OUT, `${w}x${h}-${name}.png`), fullPage: false });
+    const file = `${String(w).padStart(4, '0')}x${h}-${name.replace(/[^a-zA-Zа-яА-Я0-9]+/g, '-')}.png`;
+    await page.screenshot({ path: path.join(OUT, file), fullPage: false });
     console.log(
       `${String(w).padStart(3)}×${String(h).padEnd(4)} ${name.padEnd(14)} `
       + `ссылка ${facts.link ? facts.link.w + 'px' : 'нет'}, `
