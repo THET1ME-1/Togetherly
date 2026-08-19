@@ -259,6 +259,13 @@ class HomeWidgetService {
         debugPrint('HomeWidgetService.backgroundRefreshAll ios photos: $e');
       }
     }
+    if (Platform.isIOS) {
+      try {
+        await _refreshLockCountersFromServer(groupId, myUid, partnerUid);
+      } catch (e) {
+        debugPrint('HomeWidgetService.backgroundRefreshAll lock: $e');
+      }
+    }
   }
 
   /// Фото-виджеты iPhone из записей `widget_data` — для фонового обновления,
@@ -378,6 +385,42 @@ class HomeWidgetService {
       partnerMoodColor: theirs.colorHex,
       partnerUserName: partnerWd?.displayName ?? '',
     );
+    // Экран блокировки читает свои ключи и в фоне не наполнялся ничем:
+    // `syncMoodTiles` живёт на переднем плане, а тихий пуш приводит сюда.
+    // Метки настроений — ровно то, что показывает LockMoodWidget.
+    final g = groupId.isEmpty ? 'solo' : groupId;
+    await HomeWidget.saveWidgetData<String>('tgmood_${g}_my_label', mine.label);
+    await HomeWidget.saveWidgetData<String>(
+        'tgmood_${g}_partner_label', theirs.label);
+    await HomeWidget.saveWidgetData<String>(
+        'tgmood_${g}_partner_name', partnerWd?.displayName ?? '');
+    await HomeWidget.saveWidgetData<String>('tgmood_latest_group', g);
+    await _reloadLockWidget('LockMoodWidget');
+  }
+
+  /// Счётчики «Скучаю» и дни вместе для экрана блокировки в ФОНЕ.
+  ///
+  /// Их пишут `syncMiss` и `syncTogether`, но зовут их только экраны. При
+  /// закрытом приложении сюда приводит тихий пуш, и без этого шага виджеты
+  /// экрана блокировки показывали числа того дня, когда приложение открывали
+  /// последний раз.
+  Future<void> _refreshLockCountersFromServer(
+      String groupId, String myUid, String partnerUid) async {
+    if (groupId.isEmpty || myUid.isEmpty) return;
+    try {
+      final counts = await PbDataService().getMissYouCounts(groupId);
+      final g = groupId;
+      await HomeWidget.saveWidgetData<String>(
+          'miss_${g}_my_count', '${counts[myUid] ?? 0}');
+      await HomeWidget.saveWidgetData<String>(
+          'miss_${g}_partner_count', '${counts[partnerUid] ?? 0}');
+      await HomeWidget.saveWidgetData<String>('miss_latest_group', g);
+      await _reloadLockWidget('LockMissWidget');
+      // Дни расширение считает само от метки старта — её достаточно освежить.
+      await _reloadLockWidget('LockDaysWidget');
+    } catch (e) {
+      debugPrint('HomeWidgetService: счётчики блокировки не обновились: $e');
+    }
   }
 
   Future<void> _updateAllPhotoWidgetProviders() async {
@@ -1179,6 +1222,9 @@ class HomeWidgetService {
     required String groupId,
     required int days,
     required String startDate,
+    /// Дата начала. Расширение считает дни от неё само, поэтому «Вместе» и
+    /// его собрат на экране блокировки не застывают, пока приложение закрыто.
+    DateTime? start,
     String myInitial = '',
     String partnerInitial = '',
     String names = '',
@@ -1190,6 +1236,12 @@ class HomeWidgetService {
       final g = groupId.isEmpty ? 'solo' : groupId;
       await HomeWidget.saveWidgetData<String>('together_${g}_days', '$days');
       await HomeWidget.saveWidgetData<String>('together_${g}_start_date', startDate);
+      // Число выше остаётся для сборок расширения постарше; свежие считают
+      // дни сами — от этой метки, каждый день, без приложения.
+      if (start != null) {
+        await HomeWidget.saveWidgetData<String>(
+            'together_${g}_start_ms', '${start.millisecondsSinceEpoch}');
+      }
 
       // Настоящие аватарки для размера 2×2. Кружок с инициалом остаётся
       // фолбэком: пути пустые — виджет рисует букву, как в хендофе.
@@ -1236,8 +1288,27 @@ class HomeWidgetService {
           qualifiedAndroidName: 'com.togetherly.love.$n',
         );
       }
+      // Те же числа стоят на экране блокировки iPhone.
+      await _reloadLockWidget('LockDaysWidget');
     } catch (e) {
       debugPrint('HomeWidgetService.syncTogether failed: $e');
+    }
+  }
+
+  /// Разбудить виджет экрана блокировки.
+  ///
+  /// Он читает те же ключи App Group, что и собрат на рабочем столе, но
+  /// перерисуется, только когда система получит `reloadTimelines(ofKind:)` —
+  /// то есть когда его позовут по имени. Пока звали лишь домашние kind,
+  /// экран блокировки жил на расписании провайдера и показывал вчерашние
+  /// числа (жалоба 19.08.2026). На Android таких виджетов нет вовсе, поэтому
+  /// зовём только на iPhone.
+  Future<void> _reloadLockWidget(String kind) async {
+    if (!Platform.isIOS) return;
+    try {
+      await HomeWidget.updateWidget(name: kind);
+    } catch (e) {
+      debugPrint('HomeWidgetService: $kind не обновился: $e');
     }
   }
 
@@ -1335,6 +1406,7 @@ class HomeWidgetService {
           qualifiedAndroidName: 'com.togetherly.love.$n',
         );
       }
+      await _reloadLockWidget('LockMoodWidget');
     } catch (e) {
       debugPrint('HomeWidgetService.syncMoodTiles failed: $e');
     }
@@ -1465,6 +1537,7 @@ class HomeWidgetService {
           qualifiedAndroidName: 'com.togetherly.love.$n',
         );
       }
+      await _reloadLockWidget('LockMissWidget');
     } catch (e) {
       debugPrint('HomeWidgetService.syncMiss failed: $e');
     }
@@ -1697,6 +1770,7 @@ class HomeWidgetService {
         groupId: groupId,
         days: timer.daysElapsed.abs(),
         startDate: 'С ${_formatDateLong(timer.startDate)}',
+        start: timer.startDate,
         myInitial: _cachedMyInitial,
         partnerInitial: _cachedPartnerInitial,
         names: _cachedCoupleNames,
@@ -2607,6 +2681,7 @@ class HomeWidgetService {
           groupId: activeGroupId,
           days: days,
           startDate: start == null ? '' : 'С ${_formatDateLong(start)}',
+          start: start,
           myInitial: parts.isNotEmpty && parts.first.trim().isNotEmpty
               ? parts.first.trim()[0].toUpperCase()
               : '',

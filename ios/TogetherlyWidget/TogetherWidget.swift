@@ -27,7 +27,11 @@ private func loadTogether() -> TogetherData {
     let s = Store()
     let g = s.latestGroup("together_latest_group")
     return TogetherData(
-        days: s.int("together_\(g)_days"),
+        // Считаем сами от метки старта — иначе число застывает на дне
+        // последнего запуска приложения (см. daysSince в LockScreenWidgets).
+        days: s.int("together_\(g)_start_ms") > 0
+            ? daysSince(startMs: s.int("together_\(g)_start_ms"))
+            : s.int("together_\(g)_days"),
         startDate: s.string("together_\(g)_start_date"),
         names: s.string("together_\(g)_names"),
         anniversary: s.string("together_\(g)_anniversary"),

@@ -68,6 +68,7 @@ class CatalogWidgetSync {
         groupId: pair.pairId,
         days: days,
         startDate: start == null ? '' : 'С ${_dayMonth(start)} ${start.year}',
+        start: start,
         myInitial: _initial(myName),
         partnerInitial: _initial(partnerName),
         names: names,

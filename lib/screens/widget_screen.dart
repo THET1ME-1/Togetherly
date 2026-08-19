@@ -1118,6 +1118,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           groupId: _pair.pairId,
           days: days,
           startDate: startLabel,
+          start: start,
           myInitial: myName.isEmpty ? '' : myName.characters.first.toUpperCase(),
           partnerInitial:
               partnerName.isEmpty ? '' : partnerName.characters.first.toUpperCase(),

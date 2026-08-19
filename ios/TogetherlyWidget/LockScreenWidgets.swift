@@ -23,12 +23,30 @@ private struct LockDaysData {
     let anniversary: String
 }
 
+
+/// Сколько календарных дней прошло с даты начала.
+///
+/// Тот же приём, что у таймера и кольца года: расширение обновляется по
+/// своему расписанию и не зависит от того, открывали ли приложение.
+func daysSince(startMs: Int, now: Date = Date()) -> Int {
+    let cal = Calendar.current
+    let from = cal.startOfDay(for: Date(timeIntervalSince1970: Double(startMs) / 1000.0))
+    let to = cal.startOfDay(for: now)
+    return abs(cal.dateComponents([.day], from: from, to: to).day ?? 0)
+}
+
 @available(iOS 16.0, *)
 private func loadLockDays() -> LockDaysData {
     let s = Store()
     let g = s.latestGroup("together_latest_group")
+    // Дни считаем сами от метки старта: готовое число пишет приложение, а
+    // пока оно закрыто, писать некому — и на экране блокировки счётчик
+    // застывал на дне последнего запуска. Метки нет (сборка приложения
+    // постарше) — берём прежнее число.
+    let startMs = s.int("together_\(g)_start_ms")
+    let stored = s.int("together_\(g)_days")
     return LockDaysData(
-        days: s.int("together_\(g)_days"),
+        days: startMs > 0 ? daysSince(startMs: startMs) : stored,
         names: s.string("together_\(g)_names"),
         anniversary: s.string("together_\(g)_anniversary")
     )
