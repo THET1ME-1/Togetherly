@@ -16,6 +16,7 @@ import '../theme/app_theme.dart';
 import '../theme/theme_scope.dart';
 import '../widgets/common/app_dialog.dart';
 import '../widgets/color_picker_sheet.dart';
+import '../utils/contain_rect.dart';
 
 // ── Palette (32 colours) ─────────────────────────────────────────────────────
 
@@ -638,6 +639,9 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
       );
       // Composite prev drawing below new strokes so flood fill sees boundaries.
       if (_prevDrawingImage != null) {
+        // Вписываем, а не растягиваем: на экране набросок лежит `contain`, и
+        // заливка обязана видеть ровно ту же картинку, иначе границы для неё
+        // проходят не там, где их видит человек.
         offCanvas.drawImageRect(
           _prevDrawingImage!,
           Rect.fromLTWH(
@@ -646,7 +650,11 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
             _prevDrawingImage!.width.toDouble(),
             _prevDrawingImage!.height.toDouble(),
           ),
-          Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble()),
+          containRect(
+            source: Size(_prevDrawingImage!.width.toDouble(),
+                _prevDrawingImage!.height.toDouble()),
+            target: Size(w.toDouble(), h.toDouble()),
+          ),
           Paint(),
         );
       }
@@ -839,6 +847,12 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
       final c = Canvas(recorder);
 
       // 1. Previous drawing (edit mode)
+      //
+      // Вписываем по пропорциям — так же, как `RawImage(fit: BoxFit.contain)`
+      // показывает набросок на холсте. Пока снимок растягивал его на весь
+      // квадрат, неквадратный набросок съезжал и утолщался: поверх аккуратного
+      // рисунка оставалась его жирная копия, и маскот в галерее выглядел
+      // залитым чёрным, хотя на холсте всё было ровно.
       if (_prevDrawingImage != null) {
         c.drawImageRect(
           _prevDrawingImage!,
@@ -848,8 +862,12 @@ class _MascotDrawScreenState extends State<MascotDrawScreen> {
             _prevDrawingImage!.width.toDouble(),
             _prevDrawingImage!.height.toDouble(),
           ),
-          Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble()),
-          Paint(),
+          containRect(
+            source: Size(_prevDrawingImage!.width.toDouble(),
+                _prevDrawingImage!.height.toDouble()),
+            target: Size(w.toDouble(), h.toDouble()),
+          ),
+          Paint()..filterQuality = FilterQuality.high,
         );
       }
 
