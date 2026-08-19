@@ -17,6 +17,7 @@ import 'pocketbase_service.dart';
 import 'widget_owner.dart';
 import '../theme/app_theme.dart';
 import 'pb_auth_service.dart';
+import '../models/ios_widget_gaps.dart';
 import '../models/timer_item.dart';
 import '../models/mood_entry.dart';
 import '../models/mood_widget_payload.dart';
@@ -3193,6 +3194,22 @@ class HomeWidgetService {
   }) async {
     if (!Platform.isIOS) return;
     if (myPhotos == null && partnerPhotos == null && gridPhotos == null) return;
+    // «Фото дня» на айфоне не наполнялось НИКОГДА: единственное место, где
+    // пишется `ios_photo_day_path`, лежит за списком Android-виджетов
+    // (`getPhotoDayWidgetIds` на iOS всегда пуст), и до него дело не доходило.
+    // В самоотчётах из Bugsink ключ пуст у всех до единого (19.08.2026).
+    // Настроек экземпляра у виджета здесь нет, поэтому снимок выбирается
+    // правилом [iosDayPhoto] — оно под тестами.
+    if (dayPhotoUrl.isEmpty) {
+      final day = iosDayPhoto(
+        mine: myPhotos,
+        theirs: partnerPhotos,
+        myName: PbAuthService().currentProfile()?['displayName'] as String? ?? '',
+        partnerName: partnerName,
+      );
+      dayPhotoUrl = day.url;
+      if (dayAuthor.isEmpty) dayAuthor = day.author;
+    }
     try {
       // Каталог: скачиваем до пяти снимков каждого вида. Больше в списке
       // «Изменить виджет» человек всё равно не разглядывает, а каждый файл
