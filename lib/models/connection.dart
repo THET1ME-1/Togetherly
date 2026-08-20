@@ -7,6 +7,7 @@ import '../services/pb_data_service.dart';
 import '../services/pb_realtime_service.dart';
 import '../services/pocketbase_service.dart';
 import 'relationship_status.dart';
+import 'waiting_state.dart';
 
 /// Пора ли выходить из группы, где кроме меня никого не осталось.
 ///
@@ -152,8 +153,16 @@ class Connection {
   String get _uid => PocketBaseService().userId ?? '';
 
   // ── Пара с пустым местом («он в армии») ──
+  /// Сырой флаг с сервера. Читать его напрямую нельзя — только через
+  /// [waitingMode]: сервер не гасил флаг, когда партнёр входил обычным кодом
+  /// приглашения, и пара навсегда оставалась «ждущей».
+  bool waitingFlag = false;
+
+  /// Ждём ли мы кого-то на самом деле: место должно быть пустым.
+  bool get waitingMode =>
+      waitingIsActive(flag: waitingFlag, partners: partners.length);
+
   /// Второе место держит заглушка: человек ещё не поставил приложение.
-  bool waitingMode = false;
   /// Имя, фото и дата возвращения того, кого ждут. Заполняет хозяйка пары.
   String placeholderName = '';
   String placeholderAvatar = '';
@@ -648,7 +657,7 @@ class Connection {
   /// json, поэтому без чистки «Ждём человека» возвращалось бы на экран после
   /// перезапуска — уже без самой пары.
   void clearWaiting() {
-    waitingMode = false;
+    waitingFlag = false;
     placeholderName = '';
     placeholderAvatar = '';
     returnDate = null;
@@ -777,7 +786,7 @@ class Connection {
     // Пара с пустым местом — тоже пара: настроение, лента и чат должны работать
     // с первого дня, иначе ждущий сидит с мёртвым приложением до дембеля.
     isPaired = true;
-    waitingMode = data['waitingMode'] == true;
+    waitingFlag = data['waitingMode'] == true;
     placeholderName = (data['placeholderName'] ?? '') as String;
     placeholderAvatar = (data['placeholderAvatar'] ?? '') as String;
     returnDate = data['returnDate'] as DateTime?;
@@ -919,7 +928,7 @@ class Connection {
     // Пара с пустым местом: живой снимок обязан приносить и её поля. Без них
     // связь выглядит осиротевшей группой без партнёра (и уходила в leaveGroup),
     // а заявка «это он?» не появлялась бы до перезапуска приложения.
-    waitingMode = data['waitingMode'] == true;
+    waitingFlag = data['waitingMode'] == true;
     placeholderName = (data['placeholderName'] ?? '') as String;
     placeholderAvatar = (data['placeholderAvatar'] ?? '') as String;
     returnDate = data['returnDate'] as DateTime? ?? returnDate;
@@ -1229,7 +1238,7 @@ class Connection {
           ? DateTime.tryParse(json['firstKissDate'])
           : null
       ..memberBirthdays = _birthdaysFromJson(json['memberBirthdays'])
-      ..waitingMode = json['waitingMode'] == true
+      ..waitingFlag = json['waitingMode'] == true
       ..placeholderName = json['placeholderName'] ?? ''
       ..placeholderAvatar = json['placeholderAvatar'] ?? ''
       ..returnDate = json['returnDate'] != null

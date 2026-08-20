@@ -189,11 +189,41 @@ def main():
     check("повторная отмена отвечает успехом", st == 200 and r.get("success") is True,
           f"{st} {r}")
 
+    log("=== 10. партнёр вошёл обычным приглашением: ждать больше некого ===")
+    # Ровно та поломка со скриншота 20.08.2026: место занято, а пара осталась
+    # «ждущей». Экран связи показывал «Ждём человека» поверх живой пары, а
+    # отмена ожидания честно отбивалась — место-то занято. На проде так висели
+    # 809 живых пар.
+    her3 = signup("она3")
+    him3 = signup("он3")
+    st, r = api("/api/waiting/create",
+                {"name": "Ждём его", "returnDate": ""}, her3["token"])
+    pair3 = r.get("pairId", "")
+    check("третья пара с пустым местом заведена", st == 200 and bool(pair3),
+          f"{st} {r}")
+
+    # Обычное приглашение — это запись в invite_codes, её заводит сам клиент.
+    code3 = rnd(8).upper()
+    st, r = api("/api/collections/invite_codes/records",
+                {"code": code3, "owner_uid": her3["uid"], "group_id": pair3},
+                her3["token"])
+    check("обычное приглашение выдано", st in (200, 201), f"{st} {r}")
+
+    st, r = api("/api/invite/accept", {"code": code3}, him3["token"])
+    check("он вошёл обычным приглашением", st == 200 and r.get("success") is True,
+          f"{st} {r}")
+
+    st, g3 = api(f"/api/collections/groups/records/{pair3}", None, her3["token"])
+    check("ожидание погасло вместе с приходом партнёра",
+          g3.get("waiting_mode") is not True and not g3.get("claim_token"),
+          f"waiting={g3.get('waiting_mode')} token={g3.get('claim_token')!r}")
+
     log("=== уборка ===")
-    for gid, who in ((pair, her), (pair2, her2)):
+    for gid, who in ((pair, her), (pair2, her2), (pair3, her3)):
         if gid:
             api(f"/api/collections/groups/records/{gid}", None, who["token"], method="DELETE")
-    for name, u in (("Она", her), ("Он", him), ("Чужой", stranger), ("Она2", her2)):
+    for name, u in (("Она", her), ("Он", him), ("Чужой", stranger), ("Она2", her2),
+                    ("Она3", her3), ("Он3", him3)):
         st, _ = api(f"/api/collections/users/records/{u['uid']}", None, u["token"], method="DELETE")
         log(f"аккаунт {name} удалён → {st}")
 

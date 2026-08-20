@@ -959,7 +959,19 @@ async def _after_update(col: str, rec: dict) -> None:
     (жалоба 16.08.2026). Антидребезг общий с «Скучаю»: подряд перебирать
     эмоции — обычное дело, но шторка от этого захлёбываться не должна.
     """
-    if COLLECTIONS[col]["after_create"] != "mood":
+    kind = COLLECTIONS[col]["after_create"]
+
+    # Виджеты рабочего стола: фото и статус МЕНЯЮТ существующую запись, а не
+    # создают новую, поэтому тихий пуш «проснись и обнови» уходил только при
+    # самой первой записи. У людей на iPhone виджет обновлялся ровно тогда,
+    # когда открывали приложение (жалоба 18.08.2026). Частоту держит сам
+    # _wake_group: не чаще раза в 15 минут на устройство и только тем, кто
+    # сейчас не в приложении.
+    if kind == "widget":
+        await _wake_group(rec.get("group_id") or "", rec.get("user_uid") or "")
+        return
+
+    if kind != "mood":
         return
     group_id = rec.get("group_id") or ""
     if not group_id:
@@ -2394,6 +2406,14 @@ async def internal_pair_accept(request: Request):
                     "  ARRAY[$2], $3::jsonb, true), "
                     "member_avatars = jsonb_set(COALESCE(member_avatars, '{}'::jsonb), "
                     "  ARRAY[$2], $4::jsonb, true), "
+                    # Место занято — значит ждать больше некого. Флаг гасили
+                    # только приёмом кода ВТОРОГО МЕСТА, а партнёр входит и
+                    # обычным приглашением: пара оставалась «ждущей» навсегда,
+                    # экран связи показывал «Ждём человека» поверх живой пары,
+                    # и выйти оттуда было нельзя — отмена ожидания честно
+                    # отвечала «Место уже занято» (809 живых пар на 20.08.2026).
+                    "waiting_mode = false, claim_token = '', claim_uid = '', "
+                    "claim_name = '', claim_at = 0, "
                     "disbanded = false, updated = $5 WHERE id = $6",
                     json.dumps(состав), я, json.dumps(имена[я]),
                     json.dumps(аватары[я]), now_pb(), gid)
@@ -2425,6 +2445,10 @@ async def internal_pair_accept(request: Request):
                         "UPDATE groups SET members = $1::jsonb, "
                         "member_names = COALESCE(member_names, '{}'::jsonb) || $2::jsonb, "
                         "member_avatars = COALESCE(member_avatars, '{}'::jsonb) || $3::jsonb, "
+                        # Та же причина, что и выше: поднятая пара с живым
+                        # партнёром никого не ждёт.
+                        "waiting_mode = false, claim_token = '', claim_uid = '', "
+                        "claim_name = '', claim_at = 0, "
                         "disbanded = false, disbanded_at = '', updated = $4 "
                         "WHERE id = $5",
                         json.dumps([хозяин, я]), json.dumps(имена),

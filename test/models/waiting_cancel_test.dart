@@ -17,7 +17,7 @@ void main() {
         isPaired: true,
         pairId: 'grp1',
       )
-        ..waitingMode = true
+        ..waitingFlag = true
         ..placeholderName = 'Дима'
         ..placeholderAvatar = 'pb://media/x/y.jpg'
         ..returnDate = DateTime(2027, 5, 15)
