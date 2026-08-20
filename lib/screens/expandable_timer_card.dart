@@ -322,15 +322,25 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
       initialEmoji: timer.emoji,
       initialIsDefault: timer.isDefault,
       initialIsCountdown: timer.isCountdown,
-      onSave: (t, d, e, def, c) => widget.timerService.updateTimer(
-        timer.copyWith(
-          title: t,
-          startDate: d,
-          emoji: e,
-          isDefault: def,
-          isCountdown: c,
-        ),
-      ),
+      onSave: (t, d, e, def, c) async {
+        final saved = await widget.timerService.updateTimer(
+          timer.copyWith(
+            title: t,
+            startDate: d,
+            emoji: e,
+            isDefault: def,
+            isCountdown: c,
+          ),
+        );
+        // Правка идёт через прокси и иногда не доезжает. Раньше об этом никто
+        // не узнавал: дата на экране менялась, на сервере оставалась прежняя,
+        // а партнёр видел старый счётчик.
+        if (!saved && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(LocaleService.current.timerSaveFailed)),
+          );
+        }
+      },
     );
   }
 

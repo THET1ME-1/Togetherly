@@ -1783,26 +1783,40 @@ class PbDataService {
       updateGroupFields(groupId, {'timers': _jsonSafe(timers)});
 
   /// RMW над `groups.timers`: прочитать массив, преобразовать, записать.
+  ///
+  /// Три попытки с нарастающей паузой. Правка идёт через прокси, и минутный
+  /// 502 или 429 раньше означал молча потерянную дату: экран закрывался как
+  /// после успеха, а на сервере оставалось прежнее число. Так у пары
+  /// `xristozs@icloud.com` счётчик «дней вместе» остался на дне создания пары
+  /// (жалоба 20.08.2026).
   Future<bool> _patchGroupTimers(
     String groupId,
     List<dynamic> Function(List<dynamic>) transform, {
     String op = 'patchGroupTimers',
   }) async {
     if (groupId.isEmpty) return false;
-    try {
-      final rec = await _pb
-          .collection('groups')
-          .getFirstListItem(_pb.filter('id = {:id}', {'id': groupId}));
-      final cur = rec.data['timers'];
-      final list = cur is List ? List<dynamic>.from(cur) : <dynamic>[];
-      await _pb
-          .collection('groups')
-          .update(rec.id, body: {'timers': _jsonSafe(transform(list))});
-      return true;
-    } catch (e) {
-      debugPrint('PbData.$op($groupId) failed: $e');
-      return false;
+    Object? lastError;
+    for (var attempt = 1; attempt <= 3; attempt++) {
+      try {
+        final rec = await _pb
+            .collection('groups')
+            .getFirstListItem(_pb.filter('id = {:id}', {'id': groupId}));
+        final cur = rec.data['timers'];
+        final list = cur is List ? List<dynamic>.from(cur) : <dynamic>[];
+        await _pb
+            .collection('groups')
+            .update(rec.id, body: {'timers': _jsonSafe(transform(list))});
+        return true;
+      } catch (e) {
+        lastError = e;
+        debugPrint('PbData.$op($groupId) попытка $attempt не прошла: $e');
+        if (attempt < 3) {
+          await Future<void>.delayed(Duration(milliseconds: 400 * attempt));
+        }
+      }
     }
+    debugPrint('PbData.$op($groupId) не сохранено: $lastError');
+    return false;
   }
 
   /// Вставить/обновить один таймер по id (детерминированный id системного

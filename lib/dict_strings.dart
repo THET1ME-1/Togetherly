@@ -1910,6 +1910,7 @@ abstract class DictStrings extends AppStrings {
   String get createTimer => _t('createTimer');
   @override
   String get editTimer => _t('editTimer');
+  String get timerSaveFailed => _t('timerSaveFailed');
   @override
   String get timerNameLabel => _t('timerNameLabel');
   @override

@@ -1255,6 +1255,7 @@ abstract class AppStrings {
   String get noTimers;
   String get createTimer;
   String get editTimer;
+  String get timerSaveFailed;
   String get timerNameLabel;
   String get egAnniversary;
   String get targetDate;

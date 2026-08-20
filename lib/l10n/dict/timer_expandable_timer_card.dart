@@ -24,6 +24,15 @@ const Map<String, Map<String, String>> timerExpandableTimerCardStrings = {
     'fr': 'Créer un minuteur',
     'de': 'Timer erstellen',
   },
+  'timerSaveFailed': {
+    'ru': 'Не удалось сохранить. Проверьте связь и попробуйте ещё раз',
+    'en': 'Could not save. Check your connection and try again',
+    'pt': 'Não foi possível salvar. Verifique a conexão e tente novamente',
+    'it': 'Salvataggio non riuscito. Controlla la connessione e riprova',
+    'es': 'No se pudo guardar. Revisa la conexión e inténtalo de nuevo',
+    'fr': 'Enregistrement impossible. Vérifiez la connexion et réessayez',
+    'de': 'Speichern fehlgeschlagen. Verbindung prüfen und erneut versuchen',
+  },
   'editTimer': {
     'ru': 'Редактировать таймер',
     'en': 'Edit Timer',

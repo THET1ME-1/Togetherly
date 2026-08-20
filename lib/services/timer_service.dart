@@ -290,13 +290,14 @@ class TimerService extends ChangeNotifier {
     }
   }
 
-  Future<void> _saveToFirestore() async {
+  Future<bool> _saveToFirestore() async {
     if (_groupId.isEmpty) {
       debugPrint('TimerService: не могу сохранить в облако - groupId пуст');
-      return;
+      return false;
     }
-    await _repo.saveGroupTimers(_groupId, _timers);
-    debugPrint('TimerService: таймеры успешно сохранены (${_timers.length})');
+    final ok = await _repo.saveGroupTimers(_groupId, _timers);
+    debugPrint('TimerService: таймеры сохранены=$ok (${_timers.length})');
+    return ok;
   }
 
   // ── CRUD ──
@@ -366,9 +367,12 @@ class TimerService extends ChangeNotifier {
   }
 
   /// Обновить существующий таймер.
-  Future<void> updateTimer(TimerItem updated) async {
+  ///
+  /// Возвращает false, когда правка не доехала до сервера: экран обязан
+  /// сказать об этом человеку, иначе выбранная дата теряется молча.
+  Future<bool> updateTimer(TimerItem updated) async {
     final idx = _timers.indexWhere((t) => t.id == updated.id);
-    if (idx == -1) return;
+    if (idx == -1) return false;
     if (updated.isDefault) {
       for (final t in _timers) {
         t.isDefault = false;
@@ -377,6 +381,7 @@ class TimerService extends ChangeNotifier {
     _timers[idx] = updated;
     _ensureDefaultFlag();
     await _saveLocal();
+    var saved = true;
     if (_groupId.isNotEmpty) {
       if (updated.isDefault) {
         // Таймер сделали основным: пишем ВЕСЬ согласованный массив одним RMW,
@@ -385,13 +390,14 @@ class TimerService extends ChangeNotifier {
         // увидел бы два дефолтных и откатил выбор к системному (firstWhere
         // isSystem в _mergeRemoteTimers) — кнопка «Сделать основным» «не
         // срабатывала».
-        await _saveToFirestore();
+        saved = await _saveToFirestore();
       } else {
-        await _repo.upsertGroupTimer(_groupId, updated);
+        saved = await _repo.upsertGroupTimer(_groupId, updated);
       }
     }
     await _syncWidgetTimer();
     notifyListeners();
+    return saved;
   }
 
   /// Удалить таймер по id. Системные таймеры удалить нельзя.

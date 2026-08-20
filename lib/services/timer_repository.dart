@@ -41,10 +41,10 @@ class TimerRepository {
             : <TimerItem>[]);
   }
 
-  Future<void> saveGroupTimers(String groupId, List<TimerItem> timers) =>
+  Future<bool> saveGroupTimers(String groupId, List<TimerItem> timers) =>
       _data.setGroupTimers(groupId, timers.map((t) => t.toJson()).toList());
 
-  Future<void> upsertGroupTimer(String groupId, TimerItem timer) =>
+  Future<bool> upsertGroupTimer(String groupId, TimerItem timer) =>
       _data.upsertGroupTimer(groupId, timer.toJson());
 
   Future<void> deleteGroupTimer(String groupId, String timerId) =>
