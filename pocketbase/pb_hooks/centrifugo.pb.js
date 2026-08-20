@@ -228,5 +228,13 @@ routerAdd("POST", "/api/centrifugo/subscription-token", (e) => {
 
   const secret = $os.getenv("CENTRIFUGO_TOKEN_HMAC");
   if (!secret) return e.json(500, { error: "not configured" });
-  return e.json(200, { token: $security.createJWT({ sub: uid, channel: channel }, secret, 86400) });
+  const claims = { sub: uid, channel: channel };
+  // Экран комнаты держит своё подключение к каналу ради голоса: WebRTC поднимает
+  // приложение, а зов партнёра ходит там же. Зрителем оно не является, и без
+  // метки страница считала его вторым человеком — «смотрят: 2» у зашедшего
+  // одного (жалоба 20.08.2026). `info` уезжает в chan_info присутствия, счёт
+  // ведёт countViewers в room.js. Метка серверная, поэтому чинит и выпущенные
+  // сборки: им хватит обновить пропуск подписки.
+  if (channel.indexOf("watch:") === 0) claims.info = { app: 1 };
+  return e.json(200, { token: $security.createJWT(claims, secret, 86400) });
 }, $apis.requireAuth());
