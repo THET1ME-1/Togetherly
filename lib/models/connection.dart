@@ -217,10 +217,20 @@ class Connection {
   // Своё имя, а не служебный поддомен динамического DNS: эту ссылку человек
   // отправляет партнёру, и она — лицо приложения. `togetherly.duckdns.org`
   // остаётся живым только ради ссылок, разосланных раньше.
-  String get inviteLink => 'https://togetherly.day/invite/$inviteCode';
+  /// Пустой код ссылкой НЕ становится.
+  ///
+  /// Сервер выдаёт код не мгновенно, и до ответа поле пустое. Склейка
+  /// отдавала `https://togetherly.day/invite/`, партнёр получал 404, а
+  /// отправитель поломки не видел: у него ссылка выглядела как обычно. За
+  /// 18–19 августа 2026 на такую ссылку зашли 30 раз с настоящих устройств —
+  /// жалоба звучала как «партнёр не может перейти по пригласительной ссылке».
+  String get inviteLink =>
+      inviteCode.trim().isEmpty ? '' : 'https://togetherly.day/invite/$inviteCode';
 
   /// Прямой deep link без веб-хоста (для QR).
-  String get inviteDeepLink => 'loveapp://invite/$inviteCode';
+  /// Прямой deep link без веб-хоста (для QR). Пустой код — пустая строка.
+  String get inviteDeepLink =>
+      inviteCode.trim().isEmpty ? '' : 'loveapp://invite/$inviteCode';
 
   /// Max members allowed — always 2 (couples only)
   int get maxMembers => 2;

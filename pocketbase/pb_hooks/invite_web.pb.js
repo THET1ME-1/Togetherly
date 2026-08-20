@@ -13,6 +13,86 @@
 /// Деплой: положить файл в /opt/pocketbase/pb_hooks/ на VPS и перезапустить
 /// сервис (systemctl restart pocketbase). Только чтение/статика — БД не трогает.
 
+// Ссылка без кода: "https://togetherly.day/invite/".
+//
+// Такие уходили людям постоянно: приложение склеивало адрес с ПУСТЫМ кодом,
+// пока сервер не выдал новый (`inviteLink` в моделях чинит это с 20.08.2026,
+// но разосланное живёт в чужих переписках). Роутер на "/invite/{code}" пустой
+// параметр не матчит, запрос падал в статику, и партнёр получал «File not
+// found» — 30 заходов с настоящих устройств за 18–19 августа. Отправитель
+// поломки не видит: у него ссылка выглядит как обычно, поэтому жалоба звучит
+// как «партнёр не может перейти по пригласительной ссылке».
+//
+// Приложение отсюда НЕ открываем автоматически: показывать ему нечего, кода
+// нет. Человеку нужно объяснение и путь дальше.
+routerAdd("GET", "/invite/", (e) => {
+  // JSVM-изоляция: обработчик НЕ видит функции уровня файла, поэтому тело
+  // повторяется в обоих роутах целиком (грабля описана в CLAUDE.md).
+  const PLAY_URL =
+    "https://play.google.com/store/apps/details?id=com.togetherly.love";
+  const RUSTORE_URL = "https://www.rustore.ru/catalog/app/com.togetherly.love";
+  const APK_URL = "https://github.com/THET1ME-1/Togetherly/releases/latest";
+  const HTML = "text/html; charset=utf-8";
+  const html = [
+    '<!doctype html><html lang="ru"><head><meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width,initial-scale=1">',
+    "<title>Приглашение в Togetherly</title>",
+    "<style>body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#fff5f7;",
+    "color:#33202a;display:flex;min-height:100vh;margin:0;align-items:center;justify-content:center;text-align:center}",
+    ".card{max-width:340px;padding:28px}",
+    ".btn{display:inline-block;margin-top:18px;padding:14px 26px;border-radius:14px;background:#e5578a;color:#fff;",
+    "text-decoration:none;font-weight:700}",
+    ".store{display:block;margin:10px auto 0;max-width:260px;padding:13px 20px;border-radius:14px;",
+    "background:#fff;border:1px solid #f0c9d6;color:#33202a;text-decoration:none;font-weight:600}",
+    ".hint{margin-top:24px;font-size:13px;color:#7a5c67;line-height:1.5}",
+    "</style></head><body><div class=\"card\">",
+    "<h2>В ссылке нет кода</h2>",
+    "<p>Её отправили раньше, чем приложение успело получить код приглашения.</p>",
+    "<p>Попросите партнёра открыть раздел «Связь» и прислать ссылку заново — там же виден и сам код, его можно ввести руками.</p>",
+    '<a class="btn" href="loveapp://invite">Открыть Togetherly</a>',
+    '<p class="hint">Приложения ещё нет? Поставьте, а код введёте после входа.</p>',
+    '<a class="store" href="' + PLAY_URL + '">Google Play</a>',
+    '<a class="store" href="' + RUSTORE_URL + '">RuStore</a>',
+    '<a class="store" href="' + APK_URL + '">Скачать APK</a>',
+    "</div></body></html>",
+  ].join("");
+  return e.blob(200, HTML, html);
+});
+
+routerAdd("GET", "/invite", (e) => {
+  // JSVM-изоляция: обработчик НЕ видит функции уровня файла, поэтому тело
+  // повторяется в обоих роутах целиком (грабля описана в CLAUDE.md).
+  const PLAY_URL =
+    "https://play.google.com/store/apps/details?id=com.togetherly.love";
+  const RUSTORE_URL = "https://www.rustore.ru/catalog/app/com.togetherly.love";
+  const APK_URL = "https://github.com/THET1ME-1/Togetherly/releases/latest";
+  const HTML = "text/html; charset=utf-8";
+  const html = [
+    '<!doctype html><html lang="ru"><head><meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width,initial-scale=1">',
+    "<title>Приглашение в Togetherly</title>",
+    "<style>body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#fff5f7;",
+    "color:#33202a;display:flex;min-height:100vh;margin:0;align-items:center;justify-content:center;text-align:center}",
+    ".card{max-width:340px;padding:28px}",
+    ".btn{display:inline-block;margin-top:18px;padding:14px 26px;border-radius:14px;background:#e5578a;color:#fff;",
+    "text-decoration:none;font-weight:700}",
+    ".store{display:block;margin:10px auto 0;max-width:260px;padding:13px 20px;border-radius:14px;",
+    "background:#fff;border:1px solid #f0c9d6;color:#33202a;text-decoration:none;font-weight:600}",
+    ".hint{margin-top:24px;font-size:13px;color:#7a5c67;line-height:1.5}",
+    "</style></head><body><div class=\"card\">",
+    "<h2>В ссылке нет кода</h2>",
+    "<p>Её отправили раньше, чем приложение успело получить код приглашения.</p>",
+    "<p>Попросите партнёра открыть раздел «Связь» и прислать ссылку заново — там же виден и сам код, его можно ввести руками.</p>",
+    '<a class="btn" href="loveapp://invite">Открыть Togetherly</a>',
+    '<p class="hint">Приложения ещё нет? Поставьте, а код введёте после входа.</p>',
+    '<a class="store" href="' + PLAY_URL + '">Google Play</a>',
+    '<a class="store" href="' + RUSTORE_URL + '">RuStore</a>',
+    '<a class="store" href="' + APK_URL + '">Скачать APK</a>',
+    "</div></body></html>",
+  ].join("");
+  return e.blob(200, HTML, html);
+});
+
 routerAdd("GET", "/invite/{code}", (e) => {
   // JSVM-изоляция: константы объявляем ВНУТРИ хендлера — модульный уровень
   // хендлеру не виден (иначе ReferenceError).

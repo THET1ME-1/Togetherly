@@ -836,6 +836,7 @@ abstract class AppStrings {
   String get tapToCopy;
   String get inviteCodeLoading;
   String get inviteQrTitle;
+  String get inviteCodeNotReady;
   String get inviteQrHint;
   String get enterPartnerCode;
   String get inviteCodeNotFound;

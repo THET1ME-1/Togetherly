@@ -58,11 +58,21 @@ class PairData extends ChangeNotifier {
   // assetlinks, AASA), и на своём домене он уже живёт. Ссылку человек
   // отправляет партнёру — в ней должно стоять наше имя, а не служебный
   // поддомен duckdns.
-  String get inviteLink => 'https://togetherly.day/invite/$inviteCode';
+  /// Пустой код ссылкой НЕ становится.
+  ///
+  /// Сервер выдаёт код не мгновенно, и до ответа поле пустое. Склейка
+  /// отдавала `https://togetherly.day/invite/`, партнёр получал 404, а
+  /// отправитель поломки не видел: у него ссылка выглядела как обычно. За
+  /// 18–19 августа 2026 на такую ссылку зашли 30 раз с настоящих устройств —
+  /// жалоба звучала как «партнёр не может перейти по пригласительной ссылке».
+  String get inviteLink =>
+      inviteCode.trim().isEmpty ? '' : 'https://togetherly.day/invite/$inviteCode';
 
   /// Прямой deep link без веб-хоста: партнёр сканирует QR камерой → сразу в
   /// приложение (App Links-верификация не нужна, работает офлайн от Firebase).
-  String get inviteDeepLink => 'loveapp://invite/$inviteCode';
+  /// Прямой deep link без веб-хоста (для QR). Пустой код — пустая строка.
+  String get inviteDeepLink =>
+      inviteCode.trim().isEmpty ? '' : 'loveapp://invite/$inviteCode';
 
   // ── Multi-member getters ──
   List<GroupMember> get members => _active?.members ?? [];

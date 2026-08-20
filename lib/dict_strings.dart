@@ -1296,6 +1296,8 @@ abstract class DictStrings extends AppStrings {
   @override
   String get inviteQrTitle => _t('inviteQrTitle');
   @override
+  String get inviteCodeNotReady => _t('inviteCodeNotReady');
+  @override
   String get inviteQrHint => _t('inviteQrHint');
   @override
   String get enterPartnerCode => _t('enterPartnerCode');

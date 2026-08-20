@@ -310,6 +310,17 @@ const Map<String, Map<String, String>> connectPartnerStrings = {
     'fr': 'Code pour ton partenaire',
     'de': 'Code für deinen Partner',
   },
+  // Код выдаёт сервер, и до ответа делиться нечем: ссылка без кода ведёт
+  // партнёра в 404 (жалоба 20.08.2026).
+  'inviteCodeNotReady': {
+    'ru': 'Код ещё готовится, подождите секунду',
+    'en': 'The code is still coming, hold on a second',
+    'pt': 'O código ainda está a caminho, aguarde um segundo',
+    'it': 'Il codice sta arrivando, aspetta un secondo',
+    'es': 'El código todavía está llegando, espera un segundo',
+    'fr': 'Le code arrive encore, patiente une seconde',
+    'de': 'Der Code kommt noch, warte kurz',
+  },
   'inviteQrHint': {
     'ru': 'Пусть партнёр наведёт камеру — приложение откроется с готовым кодом',
     'en':

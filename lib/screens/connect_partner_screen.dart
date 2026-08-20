@@ -1965,6 +1965,16 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                         // origin считаем ДО Navigator.pop — иначе контекст
                         // диалога уже мёртв и на iPad popover не откроется.
                         final origin = shareOriginFromContext(context);
+                        if (pair.inviteLink.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                LocaleService.current.inviteCodeNotReady,
+                              ),
+                            ),
+                          );
+                          return;
+                        }
                         Navigator.pop(context);
                         await Share.share(
                           LocaleService.current.shareGroupInviteText(
@@ -2595,6 +2605,15 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   // ═══════════════════════════════════════════════════
 
   void _showQRDialog() {
+    // Без кода показывать нечего: QR кодирует ссылку, а она без кода ведёт в
+    // 404 (жалоба «партнёр не может перейти», 20.08.2026). Код выдаёт сервер,
+    // и до ответа поле пустое — тогда просто ждём.
+    if (pair.inviteCode.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(LocaleService.current.inviteCodeNotReady)),
+      );
+      return;
+    }
     final random = Random();
     final isRickroll = random.nextInt(100) < 10;
     final qrData = isRickroll
@@ -2673,6 +2692,12 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                         onPressed: () async {
                           // iPad: origin ДО await, иначе share-лист не откроется.
                           final origin = shareOriginFromContext(context);
+                          if (pair.inviteLink.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(s.inviteCodeNotReady)),
+                            );
+                            return;
+                          }
                           await Share.share(
                             s.joinMeLinkText(pair.inviteLink),
                             subject: s.loveAppInvitation,

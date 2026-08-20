@@ -42,4 +42,30 @@ void main() {
           '$offenders. Домен приглашения — togetherly.day.',
     );
   });
+
+  /// Пустой код превращал ссылку в `https://togetherly.day/invite/`, и партнёр
+  /// упирался в 404: за 18–19 августа 2026 на такую ссылку зашли 30 раз с
+  /// настоящих устройств. Отправитель поломки не видит — у него ссылка
+  /// выглядит как обычно, — поэтому жалоба звучит как «партнёр не может
+  /// перейти по пригласительной ссылке».
+  ///
+  /// Код бывает пустым штатно: сервер выдаёт его не мгновенно, а до ответа
+  /// экран показывает пустое поле (`generateInviteCode` не стирает прежний код
+  /// раньше, чем ляжет новый, и при отказе оставляет пусто).
+  group('пустой код не превращается в ссылку', () {
+    test('веб-ссылки нет вовсе', () {
+      expect(Connection(id: 'g1', inviteCode: '').inviteLink, isEmpty);
+      expect(Connection(id: 'g1', inviteCode: '   ').inviteLink, isEmpty);
+    });
+
+    test('прямой ссылки для QR тоже нет', () {
+      expect(Connection(id: 'g1', inviteCode: '').inviteDeepLink, isEmpty);
+    });
+
+    test('у готового кода всё по-прежнему', () {
+      final c = Connection(id: 'g1', inviteCode: 'HQ792S');
+      expect(c.inviteLink, 'https://togetherly.day/invite/HQ792S');
+      expect(c.inviteDeepLink, 'loveapp://invite/HQ792S');
+    });
+  });
 }

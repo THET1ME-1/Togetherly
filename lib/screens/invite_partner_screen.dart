@@ -9,6 +9,7 @@ import '../theme/app_theme.dart';
 import '../theme/profile_theme.dart';
 import '../utils/share_origin.dart';
 import '../widgets/app_sheet.dart';
+import '../widgets/common/m3_loading.dart';
 
 /// Первый экран после регистрации: позвать свою половину.
 ///
@@ -125,19 +126,28 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(28),
                 ),
-                child: QrImageView(
-                  data: _pair.inviteLink,
-                  size: 208,
-                  backgroundColor: Colors.white,
-                  eyeStyle: const QrEyeStyle(
-                    eyeShape: QrEyeShape.circle,
-                    color: Colors.black,
-                  ),
-                  dataModuleStyle: const QrDataModuleStyle(
-                    dataModuleShape: QrDataModuleShape.circle,
-                    color: Colors.black,
-                  ),
-                ),
+                // Пустой код рисовать нечем: QrImageView на пустой строке
+                // падает, а ссылка без кода ведёт партнёра в 404. Пока сервер
+                // не ответил, на месте кода крутится ожидание.
+                child: _pair.inviteLink.isEmpty
+                    ? const SizedBox(
+                        width: 208,
+                        height: 208,
+                        child: Center(child: M3Loading(color: Colors.black45)),
+                      )
+                    : QrImageView(
+                        data: _pair.inviteLink,
+                        size: 208,
+                        backgroundColor: Colors.white,
+                        eyeStyle: const QrEyeStyle(
+                          eyeShape: QrEyeShape.circle,
+                          color: Colors.black,
+                        ),
+                        dataModuleStyle: const QrDataModuleStyle(
+                          dataModuleShape: QrDataModuleShape.circle,
+                          color: Colors.black,
+                        ),
+                      ),
               ),
               const SizedBox(height: 20),
               Text(
