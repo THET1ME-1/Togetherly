@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
@@ -13,7 +14,6 @@ import '../../services/watch_room_service.dart';
 import '../../services/watch_voice_service.dart';
 import '../../utils/share_origin.dart';
 import '../../widgets/common/m3_loading.dart';
-import '../../widgets/watch/watch_voice_bar.dart';
 
 /// Комната совместного просмотра.
 ///
@@ -43,6 +43,9 @@ class WatchRoomScreen extends StatefulWidget {
 
 class _WatchRoomScreenState extends State<WatchRoomScreen> {
   bool _loading = true;
+
+  /// Страница комнаты: ей уходит состояние звонка, от неё приходят нажатия.
+  InAppWebViewController? _web;
 
   /// Своё подключение к каналу комнаты — рядом с тем, что держит страница
   /// внутри WebView. Второе соединение нужно потому, что голос идёт мимо
@@ -78,6 +81,7 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
       _room = room;
       _voice = voice;
     });
+    _pushVoice();
   }
 
   void _onRoomMessage(Map<String, dynamic> data) {
@@ -91,6 +95,50 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
 
   void _onVoiceChanged() {
     if (mounted) setState(() {});
+    _pushVoice();
+  }
+
+  /// Отдаёт странице состояние звонка.
+  ///
+  /// Кнопка живёт в шапке комнаты и красится её токенами, поэтому приложение
+  /// только рассказывает, что происходит: покой, ждём ответа, говорим, не
+  /// вышло. Имена состояний и действий разбирает `voiceBridge` в `room.js`,
+  /// сверяет их `test/screens/watch_room_voice_bridge_test.dart`.
+  void _pushVoice() {
+    final web = _web;
+    if (web == null) return;
+    final voice = _voice;
+    final state = switch (voice?.state) {
+      null || VoiceCallState.off => 'off',
+      VoiceCallState.connecting => 'connecting',
+      VoiceCallState.live => 'live',
+      VoiceCallState.failed => 'failed',
+    };
+    final data = jsonEncode({
+      'state': state,
+      'micOn': voice?.micOn ?? true,
+      'speakerOn': voice?.speakerOn ?? true,
+    });
+    unawaited(web.evaluateJavascript(
+      source: 'window.watchVoiceState && window.watchVoiceState($data)',
+    ));
+  }
+
+  /// Нажатие на странице: позвонить, положить трубку, приглушить микрофон.
+  Future<void> _onVoiceAction(String action) async {
+    final voice = _voice;
+    // Канал ещё не поднялся — звонить некуда, страница просто останется
+    // в покое: своего состояния она не выдумывает.
+    if (voice == null) return;
+    switch (action) {
+      case 'call':
+        if (!voice.active) await _toggleVoice();
+      case 'hangup':
+        if (voice.active) await voice.stop();
+      case 'mic':
+        voice.toggleMic();
+    }
+    _pushVoice();
   }
 
   /// Позвонить или положить трубку. Микрофон спрашивает сам WebRTC; отказ
@@ -186,6 +234,19 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
               supportZoom: false,
             ),
             onWebViewCreated: (c) {
+              _web = c;
+              // Кнопка звонка стоит в шапке комнаты, а связь поднимает
+              // приложение: у страницы нет ни микрофона пары, ни сигналинга.
+              c.addJavaScriptHandler(
+                handlerName: 'watchVoice',
+                callback: (args) {
+                  final info = (args.isNotEmpty && args.first is Map)
+                      ? Map<String, dynamic>.from(args.first as Map)
+                      : const <String, dynamic>{};
+                  unawaited(_onVoiceAction((info['action'] ?? '').toString()));
+                  return null;
+                },
+              );
               // Комната сама сообщает, что включили: иначе приложение не знает,
               // что происходит внутри встроенного браузера.
               c.addJavaScriptHandler(
@@ -207,25 +268,15 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
             },
             onLoadStop: (c, _) {
               if (mounted) setState(() => _loading = false);
+              // Страница перезагрузилась (поворот, возврат назад) — она снова
+              // ничего не знает про звонок.
+              _pushVoice();
             },
           ),
           if (_loading)
             Center(child: M3Loading(color: Theme.of(context).colorScheme.primary)),
         ],
       ),
-      // Полоса голоса стоит ПОД комнатой и не зависит от того, включили ли
-      // ролик: поговорить можно в пустой комнате. Пока канал не поднялся,
-      // кнопки нет — нажимать было бы не на что.
-      bottomNavigationBar: _voice == null
-          ? null
-          : WatchVoiceBar(
-              state: _voice!.state,
-              micOn: _voice!.micOn,
-              speakerOn: _voice!.speakerOn,
-              onCallToggle: _toggleVoice,
-              onMicToggle: () => _voice?.toggleMic(),
-              onSpeakerToggle: () => _voice?.toggleSpeaker(),
-            ),
     );
   }
 }

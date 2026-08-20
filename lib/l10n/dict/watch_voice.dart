@@ -48,14 +48,17 @@ const Map<String, Map<String, String>> watchVoiceStrings = {
     'fr': 'L’appel a coupé, réessayez',
     'de': 'Die Verbindung brach ab, versuch es noch mal',
   },
+  // Строка объясняет, что делает кнопка, а не зачем она придумана: «Говорите
+  // даже без видео» рассказывало про замысел, и человек не понимал, что будет
+  // после нажатия (правка 20.08.2026).
   'watchVoiceHint': {
-    'ru': 'Говорите даже без видео',
-    'en': 'Talk even without a video',
-    'pt': 'Conversem mesmo sem vídeo',
-    'it': 'Parlate anche senza video',
-    'es': 'Hablad incluso sin vídeo',
-    'fr': 'Parlez même sans vidéo',
-    'de': 'Redet auch ohne Video',
+    'ru': 'Включите голосовой режим для обсуждения',
+    'en': 'Turn on voice to talk it over',
+    'pt': 'Ative a voz para conversarem',
+    'it': 'Attiva la voce per parlarne',
+    'es': 'Activa la voz para comentarlo',
+    'fr': 'Activez la voix pour en parler',
+    'de': 'Sprachmodus einschalten und reden',
   },
   'watchVoiceMic': {
     'ru': 'Микрофон',

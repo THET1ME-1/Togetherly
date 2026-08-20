@@ -141,6 +141,42 @@
 }
 .countdown--pause { font-size: clamp(36px, 7vw, 88px); }
 
+/* ── голос ───────────────────────────────────────────────────────────────── */
+/*
+ * Кнопка звонка стоит в шапке, рядом с кодом и темой: она не занимает высоту,
+ * поэтому раскладка комнаты от неё не зависит вовсе. Прежняя полоса от Flutter
+ * жила ПОД страницей, красилась темой приложения и отрезала 84 точки уже после
+ * загрузки — оба изъяна снимаются самим местом.
+ */
+.voice { display: flex; align-items: center; gap: 6px; flex: none; }
+.voice__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+  font: 700 13px 'Onest';
+  /* Цифры не пляшут на каждой секунде. */
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.voice__dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .voice__dot { animation: voice-pulse 1.8s ease-in-out infinite; }
+}
+@keyframes voice-pulse { 0%, 100% { opacity: 1 } 50% { opacity: .3 } }
+
+.voice__btn--hang { background: var(--accent-deep); color: var(--on-accent); border: 0; }
+.voice__btn--hang:hover { background: color-mix(in srgb, var(--accent-deep) 88%, var(--ink)); }
+
+/* Выключенный микрофон читается формой значка, а не только цветом. */
+#voiceMic .i-mic-off, #voiceMic[aria-pressed="false"] .i-mic-on { display: none; }
+#voiceMic[aria-pressed="false"] .i-mic-off { display: block; }
+#voiceMic[aria-pressed="false"] { color: var(--ink-soft); }
+
 /* ── строка источника и поле сообщения ───────────────────────────────────── */
 
 .source { grid-area: source; display: flex; gap: 10px; min-width: 0; }
@@ -246,6 +282,21 @@
      место коду комнаты, знак и приписка остаются. */
   #copy { width: 46px; padding: 0; }
   #copy span { display: none; }
+  /* Во время разговора в шапке живут ещё три кнопки и счётчик времени, поэтому
+     место уступают подпись бренда и «скопировать»: ссылку зовущий отправляет
+     до звонка, а код комнаты важнее названия сайта. Без этого кнопка темы
+     уезжала за правый край экрана. */
+  .room-body.calling .brand__name,
+  .room-body.calling .brand__sub,
+  .room-body.calling #copy,
+  .room-body.calling #share { display: none; }
+  .voice__state { height: 40px; padding: 0 11px; font-size: 12.5px; }
+  /* Круглые кнопки шапки ужимаются до предела касания: их тут до пяти. */
+  .top--room .btn--icon { width: 44px; }
+  .room-body.calling .top--room .btn--compact,
+  .room-body.calling .top--room .theme-btn { min-height: 40px; height: 40px; }
+  .room-body.calling .top--room .btn--icon,
+  .room-body.calling .top--room .theme-btn { width: 40px; }
 
   .stage-wrap {
     grid-template-columns: minmax(0, 1fr);
@@ -292,6 +343,14 @@
   }
   /* Кнопка забирает остаток ряда, иконки остаются квадратными. */
   .source .btn--compact:not(.btn--icon) { flex: 1; }
+}
+
+/* На самых узких (iPhone SE, 320) во время разговора не помещается и код
+   комнаты: строку занимают счётчик, микрофон, отбой и тема. Прятать его тут
+   безопасно — голос бывает только в приложении, а там код стоит в шапке
+   самого приложения. */
+@media (max-width: 360px) {
+  .room-body.calling .room-code { display: none; }
 }
 
 /* Высокий портретный экран (монитор боком, планшет книжно): чат растёт до

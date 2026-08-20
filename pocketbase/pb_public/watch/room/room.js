@@ -938,25 +938,52 @@
   /// и заодно подводим сфокусированное поле к глазам.
   function followKeyboard() {
     const vv = window.visualViewport;
-    if (!vv) return;
+    // Высота видимого: visualViewport точнее, но без него остаётся окно —
+    // раньше страница в таком случае не делала ничего и жила на 100dvh.
+    const seen = () => (vv ? vv.height : window.innerHeight);
+    const shift = () => (vv ? vv.offsetTop : 0);
     // Клавиатура СЧИТАЕТСЯ открытой, когда видимая область заметно меньше окна.
     // Раньше сжатие кадра включал сам фокус — и на десктопе, где никакая
     // клавиатура не выезжает, страница всё равно подпрыгивала: кадр ужимался,
     // нижний ряд уезжал вверх на 166 px, а палец бил в то место, где кнопка
     // «Включить» была секунду назад. Отсюда жалобы «кнопка не работает» и
     // «сообщение не отправляется» — нажатие промахивалось мимо уехавшей кнопки.
-    const keyboardOpen = () => vv.height < window.innerHeight * 0.8;
+    const keyboardOpen = () => seen() < window.innerHeight * 0.8;
+    let lastH = -1;
+    let lastT = -1;
     const apply = () => {
+      const h = seen();
+      const t = shift();
+      if (Math.abs(h - lastH) < 1 && Math.abs(t - lastT) < 1) return;
+      lastH = h;
+      lastT = t;
       const root = document.documentElement.style;
-      root.setProperty('--vph', vv.height + 'px');
+      root.setProperty('--vph', h + 'px');
       // Клавиатура не только урезает видимое, но и прокручивает документ:
       // без этого сдвига страница уезжает вверх, а прокрутки у комнаты нет.
-      root.setProperty('--vpt', vv.offsetTop + 'px');
+      root.setProperty('--vpt', t + 'px');
       document.body.classList.toggle('typing', keyboardOpen());
     };
     apply();
-    vv.addEventListener('resize', apply);
-    vv.addEventListener('scroll', apply);
+    if (vv) {
+      vv.addEventListener('resize', apply);
+      vv.addEventListener('scroll', apply);
+    }
+    // Окно и поворот: события visualViewport шлёт СИСТЕМА — на клавиатуру и
+    // поворот экрана. В приложении высоту WebView меняет сам Flutter (полоса
+    // голоса выезжает, когда поднялся канал, и отрезает снизу 84 точки), и до
+    // страницы это доходит не всегда.
+    window.addEventListener('resize', apply);
+    window.addEventListener('orientationchange', apply);
+    if (window.ResizeObserver) {
+      new ResizeObserver(apply).observe(document.documentElement);
+    }
+    // Последняя страховка — сверка раз в полсекунды. Дешёвая (два числа) и
+    // единственная, что спасает самый глухой WebView: 20.08.2026 два человека
+    // с айфонов написали «опять ничего не нажимается, даже после обновления».
+    // Страница держала высоту прежнего экрана, поле сообщения и «Отправить»
+    // оставались за нижним краем WebView, а прокрутки у комнаты нет.
+    setInterval(apply, 500);
     for (const id of ['#link', '#message']) {
       const el = $(id);
       if (!el) continue;
@@ -973,6 +1000,88 @@
         setTimeout(() => window.scrollTo(0, 0), 300);
       });
     }
+  }
+
+
+  /// Голос: кнопка в шапке комнаты, связь в приложении.
+  ///
+  /// Микрофон, WebRTC и сигналинг живут в приложении — страница только
+  /// показывает состояние и отправляет нажатия мостом. В обычном браузере
+  /// моста нет, поэтому группа кнопок остаётся скрытой: звонить там нечем.
+  ///
+  /// Кнопка появляется НЕ по наличию моста, а после первого ответа
+  /// приложения. Мост есть в любой сборке с WebView, включая выпущенные до
+  /// 20.08.2026 — они про звонок из страницы не знают и рисуют свою полосу
+  /// снизу. Появись кнопка у них, человек нажимал бы на мёртвое.
+  ///
+  /// Разговор объявляется классом `calling` на теле: на телефоне шапке нужно
+  /// освободить место, и решает это CSS, а не скрипт.
+  function voiceBridge() {
+    const box = $('#voice');
+    const bridge = window.flutter_inappwebview;
+    if (!box || !bridge || typeof bridge.callHandler !== 'function') return;
+
+    const call = $('#voiceCall');
+    const hang = $('#voiceHang');
+    const mic = $('#voiceMic');
+    const state = $('#voiceState');
+    const time = $('#voiceTime');
+
+    const say = (action) => {
+      try {
+        bridge.callHandler('watchVoice', { action });
+      } catch (_) {
+        // Мост пропал вместе с экраном — показывать тут нечего.
+      }
+    };
+    call.addEventListener('click', () => say('call'));
+    hang.addEventListener('click', () => say('hangup'));
+    mic.addEventListener('click', () => say('mic'));
+
+    const mmss = (sec) => Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+
+    let timer = 0;
+    let since = 0;
+    const stopClock = () => { clearInterval(timer); timer = 0; };
+    const startClock = () => {
+      if (timer) return;
+      since = Date.now();
+      time.textContent = mmss(0);
+      // Секунда считается от начала разговора, а не сложением тиков: вкладка в
+      // фоне усыпляет интервалы, и счёт отстал бы от настоящего времени.
+      timer = setInterval(() => {
+        time.textContent = mmss(Math.floor((Date.now() - since) / 1000));
+      }, 1000);
+    };
+
+    /** Состояние присылает приложение: off, connecting, live, failed. */
+    const apply = (raw) => {
+      const data = raw || {};
+      // Приложение отозвалось — значит звонок отсюда оно понимает.
+      box.hidden = false;
+      const now = String(data.state || 'off');
+      const live = now === 'live';
+      const busy = live || now === 'connecting';
+
+      call.hidden = busy;
+      hang.hidden = !busy;
+      mic.hidden = !live;
+      mic.setAttribute('aria-pressed', data.micOn === false ? 'false' : 'true');
+      document.body.classList.toggle('calling', busy);
+
+      if (live) {
+        startClock();
+      } else {
+        stopClock();
+        if (now === 'connecting') time.textContent = I18N.t('room.voiceRinging');
+        else if (now === 'failed') time.textContent = I18N.t('room.voiceFailed');
+      }
+      state.hidden = !(busy || now === 'failed');
+    };
+
+    window.watchVoiceState = apply;
+    // Приложение могло ответить раньше, чем страница дошла до этой строки.
+    if (window.__voicePending) apply(window.__voicePending);
   }
 
   /// Кадр во всю площадь, чат поверх.
@@ -999,6 +1108,7 @@
     I18N.mount();
     followKeyboard();
     cinemaToggle();
+    voiceBridge();
     $('#chat').dataset.empty = I18N.t('room.chatEmpty');
 
     const room = roomFromHash();

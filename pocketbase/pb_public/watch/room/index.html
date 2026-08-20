@@ -16,7 +16,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#150D0F">
 <link rel="stylesheet" href="../landing.css?v=20260812">
-<link rel="stylesheet" href="room.css?v=20260814">
+<link rel="stylesheet" href="room.css?v=20260820b">
 <script>
 /* В комнате смотрят кино, поэтому тёмная тема здесь по умолчанию: светлую
    получает только тот, кто выбрал её сам. */
@@ -25,6 +25,10 @@
     document.documentElement.dataset.theme = localStorage.getItem('watch-theme') || 'dark';
   } catch (e) { document.documentElement.dataset.theme = 'dark'; }
 })();
+/* Приложение сообщает состояние звонка вызовом window.watchVoiceState. Оно
+   может прийти раньше, чем выполнится room.js, поэтому первое значение просто
+   запоминаем — настоящий обработчик применит его при запуске. */
+window.watchVoiceState = (s) => { window.__voicePending = s; };
 </script>
 </head>
 <body class="room-body">
@@ -47,6 +51,27 @@
   <button class="btn btn--ghost btn--compact btn--icon" id="share" data-i18n-aria="room.share" hidden>
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7M12 3v13M8 7l4-4 4 4"/></svg>
   </button>
+  <!-- Голос. Кнопка живёт в шапке комнаты и красится её токенами, а связь
+       поднимает приложение: у страницы нет ни микрофона пары, ни сигналинга.
+       Поэтому группа скрыта и показывается только в WebView приложения —
+       room.js включает её, увидев мост flutter_inappwebview. Раньше эту кнопку
+       рисовал Flutter полосой ПОД комнатой: светлая панель под тёмной
+       страницей, и вдобавок она отрезала 84 точки высоты уже после загрузки,
+       из-за чего нижний ряд уезжал за край на айфонах (20.08.2026).
+       Стережёт tests/room-voice-bridge.test.js. -->
+  <span class="voice" id="voice" hidden>
+    <button class="btn btn--ghost btn--compact btn--icon voice__btn" id="voiceCall" data-i18n-aria="room.voiceCall">
+      <svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor" aria-hidden="true"><path d="M6.6 10.8a15 15 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.24 11.4 11.4 0 0 0 3.6.58 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1 11.4 11.4 0 0 0 .57 3.6 1 1 0 0 1-.25 1z"/></svg>
+    </button>
+    <span class="voice__state" id="voiceState" hidden><i class="voice__dot" aria-hidden="true"></i><b id="voiceTime"></b></span>
+    <button class="btn btn--ghost btn--compact btn--icon voice__btn" id="voiceMic" data-i18n-aria="room.voiceMic" aria-pressed="true" hidden>
+      <svg class="i-mic-on" viewBox="0 0 24 24" width="19" height="19" fill="currentColor" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11z"/></svg>
+      <svg class="i-mic-off" viewBox="0 0 24 24" width="19" height="19" fill="currentColor" aria-hidden="true"><path d="M15 11V6a3 3 0 0 0-5.9-.75l5.8 5.8A3 3 0 0 0 15 11zM4.3 3.3 3 4.6l6 6V11a3 3 0 0 0 4.4 2.65l1.2 1.2A5 5 0 0 1 7 11H5a7 7 0 0 0 6 6.92V21h2v-3.08a7 7 0 0 0 3.2-1.3l3.2 3.2 1.3-1.3z"/></svg>
+    </button>
+    <button class="btn btn--compact btn--icon voice__btn voice__btn--hang" id="voiceHang" data-i18n-aria="room.voiceHang" hidden>
+      <svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor" aria-hidden="true"><path d="M12 9c-1.6 0-3.2.25-4.7.7v3.1c0 .4-.23.75-.57.9-1 .5-1.9 1.13-2.7 1.87a1 1 0 0 1-1.4 0l-2-2a1 1 0 0 1 0-1.42C3.94 9.5 7.76 8 12 8s8.06 1.5 11.37 4.15a1 1 0 0 1 0 1.42l-2 2a1 1 0 0 1-1.4 0c-.8-.74-1.7-1.37-2.7-1.87a1 1 0 0 1-.57-.9v-3.1A16 16 0 0 0 12 9z"/></svg>
+    </button>
+  </span>
   <button class="theme-btn" id="theme" data-i18n-aria="nav.theme" aria-pressed="true">
     <svg class="i-moon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg>
     <svg class="i-sun" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6L17 7M7 17l-1.4 1.4"/></svg>
@@ -104,6 +129,6 @@
      таймаута — room.js тогда не выполняется вовсе, и комната открывается
      мёртвой (жалоба с айфона 18.08.2026). Его грузит whenYT() в room.js, и
      только когда включают ролик с ютуба. Стережёт tests/room-youtube-hang.test.js. -->
-<script src="room.js?v=20260818"></script>
+<script src="room.js?v=20260820b"></script>
 </body>
 </html>
