@@ -778,6 +778,11 @@ abstract class AppStrings {
   String get failedToSaveDrawing;
   String get failedToShareDrawing;
   String get strokeThickness;
+  String get moodVesselTitle;
+  String get moodVesselGrid;
+  String get moodVesselMode;
+  String moodVesselCount(int filled, int total);
+  String moodVesselSummary(int both, int gaps);
   String get drawToolsTitle;
   String get drawToolsHint;
   String get drawToolsReorder;

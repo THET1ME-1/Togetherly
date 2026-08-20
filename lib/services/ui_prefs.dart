@@ -18,6 +18,9 @@ class UiPrefs {
 
   /// Состав и порядок панели быстрого доступа холста.
   static const String kDrawQuickTools = 'draw_quick_tools';
+
+  /// Каким видом открывать экран настроений: сеткой или сосудом.
+  static const String kMoodVesselView = 'mood_vessel_view';
   static const String kBrushQuickShapes = 'draw_brush_quick_shapes';
   static const String kBrushSymmetry = 'draw_brush_symmetry';
   static const String kBrushSymmetrySectors = 'draw_brush_symmetry_sectors';

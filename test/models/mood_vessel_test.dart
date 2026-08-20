@@ -1,0 +1,147 @@
+import 'dart:ui';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:love_app/models/cycle_entry.dart';
+import 'package:love_app/models/mood_vessel.dart';
+
+VesselDay day(int d, {
+  bool mine = false,
+  bool partner = false,
+  bool intimacy = false,
+  bool period = false,
+  bool partnerPeriod = false,
+}) =>
+    VesselDay(
+      date: DateTime(2026, 8, d),
+      mineMood: mine ? const Color(0xFFFF7E8B) : null,
+      partnerMood: partner ? const Color(0xFF3B82F6) : null,
+      intimacy: intimacy,
+      period: period,
+      partnerPeriod: partnerPeriod,
+    );
+
+void main() {
+  group('день сосуда', () {
+    test('пустой день не даёт ни одного этажа', () {
+      expect(day(1).floors, 0);
+      expect(day(1).isEmpty, isTrue);
+    });
+
+    test('каждая отметка настроения — свой этаж', () {
+      expect(day(1, mine: true).floors, 1);
+      expect(day(1, mine: true, partner: true).floors, 2);
+    });
+
+    test('близость поднимает блок ещё на этаж', () {
+      expect(day(1, mine: true, intimacy: true).floors, 2);
+    });
+
+    test('месячные высоту не меняют — это состояние, а не событие', () {
+      expect(day(1, mine: true, period: true).floors, 1);
+      expect(day(1, period: true).isEmpty, isTrue);
+      expect(day(1, mine: true, partnerPeriod: true).floors, 1);
+    });
+
+    test('чьи месячные — видно по кромке, а не по одному флагу', () {
+      final d = day(1, mine: true, period: true);
+      expect(d.period, isTrue);
+      expect(d.partnerPeriod, isFalse);
+    });
+
+    test('оба отметились — блок общий', () {
+      expect(day(1, mine: true, partner: true).who, VesselWho.both);
+      expect(day(1, mine: true).who, VesselWho.mine);
+      expect(day(1, partner: true).who, VesselWho.partner);
+      expect(day(1).who, VesselWho.none);
+    });
+  });
+
+  group('кладка', () {
+    test('блок падает в самый низкий столбец', () {
+      final days = [
+        day(1, mine: true, partner: true), // 2 этажа → столбец 0
+        day(2, mine: true),                // 1 этаж → столбец 1
+        day(3, mine: true),                // 1 этаж → столбец 2
+      ];
+      final blocks = layoutVessel(days, columns: 3);
+      expect(blocks.map((b) => b.column), [0, 1, 2]);
+      expect(blocks.every((b) => b.bottom == 0), isTrue);
+    });
+
+    test('следующий блок ложится поверх лежащего', () {
+      final days = [day(1, mine: true), day(2, mine: true)];
+      final blocks = layoutVessel(days, columns: 1);
+      expect(blocks.last.bottom, 1);
+      expect(blocks.last.column, 0);
+    });
+
+    test('пропущенный день не занимает места, но оставляет щербину', () {
+      final days = [day(1), day(2, mine: true)];
+      final blocks = layoutVessel(days, columns: 1);
+      expect(blocks, hasLength(1));
+      expect(blocks.single.date.day, 2);
+      // Щербина считается отдельно: сколько дней месяц потерял.
+      expect(vesselGaps(days), 1);
+    });
+
+    test('высота кладки — самый высокий столбец', () {
+      final days = [
+        day(1, mine: true, partner: true),
+        day(2, mine: true),
+      ];
+      expect(vesselHeight(layoutVessel(days, columns: 1)), 3);
+    });
+
+    test('порядок дней сохраняется: блок падает после предыдущего', () {
+      final days = List.generate(9, (i) => day(i + 1, mine: true));
+      final blocks = layoutVessel(days, columns: 3);
+      expect(blocks.map((b) => b.date.day), [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+      expect(blocks.map((b) => b.column), [0, 1, 2, 0, 1, 2, 0, 1, 2]);
+    });
+  });
+
+  group('сборка из отметок', () {
+    test('цикл партнёра берётся только из того, что отдал сервер', () {
+      final days = buildVesselDays(
+        month: DateTime(2026, 8),
+        mineMoods: {},
+        partnerMoods: {},
+        myCycle: [
+          CycleEntry(
+            id: 'c1',
+            day: DateTime(2026, 8, 4),
+            kind: CycleKind.period,
+          ),
+          CycleEntry(
+            id: 'c2',
+            day: DateTime(2026, 8, 5),
+            kind: CycleKind.intimacy,
+          ),
+        ],
+        partnerCycle: [
+          CycleEntry(
+            id: 'c3',
+            day: DateTime(2026, 8, 6),
+            kind: CycleKind.period,
+          ),
+        ],
+      );
+      expect(days.firstWhere((d) => d.date.day == 4).period, isTrue);
+      expect(days.firstWhere((d) => d.date.day == 5).intimacy, isTrue);
+      expect(days.firstWhere((d) => d.date.day == 5).floors, 1);
+      expect(days.firstWhere((d) => d.date.day == 6).partnerPeriod, isTrue);
+      expect(days.firstWhere((d) => d.date.day == 6).period, isFalse);
+    });
+
+    test('в месяце столько дней, сколько в нём есть', () {
+      final days = buildVesselDays(
+        month: DateTime(2026, 2),
+        mineMoods: {},
+        partnerMoods: {},
+        myCycle: const [],
+        partnerCycle: const [],
+      );
+      expect(days, hasLength(28));
+    });
+  });
+}

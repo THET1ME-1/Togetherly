@@ -1201,6 +1201,14 @@ abstract class DictStrings extends AppStrings {
   String get failedToShareDrawing => _t('failedToShareDrawing');
   @override
   String get strokeThickness => _t('strokeThickness');
+  String get moodVesselTitle => _t('moodVesselTitle');
+  String get moodVesselGrid => _t('moodVesselGrid');
+  String get moodVesselMode => _t('moodVesselMode');
+  String moodVesselCount(int filled, int total) => '$filled / $total';
+  String moodVesselSummary(int both, int gaps) =>
+      _t('moodVesselSummary')
+          .replaceFirst('{both}', '$both')
+          .replaceFirst('{gaps}', '$gaps');
   String get drawToolsTitle => _t('drawToolsTitle');
   String get drawToolsHint => _t('drawToolsHint');
   String get drawToolsReorder => _t('drawToolsReorder');

@@ -1,4 +1,6 @@
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../theme/fonts.dart';
 import 'package:flutter/services.dart';
@@ -6,6 +8,10 @@ import 'package:fl_chart/fl_chart.dart';
 import '../widgets/mood/mood_year_sheet.dart';
 import '../models/cycle_entry.dart';
 import '../models/mood_entry.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../services/ui_prefs.dart';
+import '../widgets/mood/mood_vessel.dart';
+import '../models/mood_vessel.dart';
 import '../models/pair_data.dart';
 import '../models/user_data.dart';
 import '../services/cycle_service.dart';
@@ -57,6 +63,10 @@ class MoodCalendarScreen extends StatefulWidget {
 
 class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
   _CalMode _calMode = _CalMode.month;
+
+  /// Вид экрана: сетка календаря или сосуд. Выбор человека переживает выход —
+  /// это привычка, а не разовое любопытство.
+  bool _vesselView = false;
   late DateTime _calAnchor;
   double _calendarScale = 1.0;
   double _baseScale = 1.0;
@@ -79,6 +89,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
     // Отметки цикла рисуются прямо в сетке настроений, поэтому экран следит и
     // за ними: поставленная в листе менструация красит ячейку сразу.
     _cycle.addListener(_onChanged);
+    unawaited(_loadViewPref());
 
     for (final p in _pair.partners) {
       _mood.listenToPartner(p.uid);
@@ -289,8 +300,18 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
             ),
           ),
 
+          // ── Сосуд: один на пару, вместо двух календарей ──
+          if (_vesselView)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                child: _buildVesselSection(scheme),
+              ),
+            ),
+
           // ── Мой календарь ──
-          SliverToBoxAdapter(
+          if (!_vesselView)
+            SliverToBoxAdapter(
             child: GestureDetector(
               onScaleStart: (_) => _baseScale = _calendarScale,
               onScaleUpdate: (d) => setState(() =>
@@ -312,7 +333,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
           ),
 
           // ── Календари партнёров ──
-          ..._pair.partners.map(
+          if (!_vesselView) ..._pair.partners.map(
             (p) => SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
@@ -338,6 +359,106 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
       ),
     );
   }
+
+  /// Сосуд месяца — один на пару. Календарей два (свой и партнёрский), а сосуд
+  /// общий: он и отвечает на вопрос, сколько нас было друг у друга.
+  Widget _buildVesselSection(ColorScheme scheme) {
+    final s = LocaleService.current;
+    final month = DateTime(_calAnchor.year, _calAnchor.month);
+    final days = _vesselDaysFor(month);
+    final filled = days.where((d) => !d.isEmpty).length;
+    final both = days.where((d) => d.who == VesselWho.both).length;
+    final gaps = vesselGaps(days);
+
+    final prev = DateTime(month.year, month.month - 1);
+    final prevLevel = vesselHeight(
+      layoutVessel(_vesselDaysFor(prev), columns: _vesselColumns),
+    );
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 16, 14, 16),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(28),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  s.moodVesselTitle,
+                  style: AppFonts.unbounded(
+                    size: 15,
+                    weight: 700,
+                    color: scheme.onSurface,
+                  ),
+                ),
+              ),
+              Text(
+                s.moodVesselCount(filled, days.length),
+                style: AppFonts.onest(
+                  size: 13,
+                  weight: 700,
+                  color: scheme.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            s.moodVesselSummary(both, gaps),
+            style: AppFonts.onest(size: 12.5, color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 14),
+          MoodVessel(
+            days: days,
+            columns: _vesselColumns,
+            height: 320 * _calendarScale,
+            previousLevel: prevLevel,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Столбцов в кладке. Шесть — предел для телефона: блок уже пальца, и значок
+  /// в нём перестаёт читаться.
+  int get _vesselColumns =>
+      MediaQuery.sizeOf(context).width < 360 ? 5 : 6;
+
+  Future<void> _loadViewPref() async {
+    final p = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() => _vesselView = p.getBool(UiPrefs.kMoodVesselView) ?? false);
+  }
+
+  Future<void> _saveViewPref(bool vessel) async {
+    final p = await SharedPreferences.getInstance();
+    await p.setBool(UiPrefs.kMoodVesselView, vessel);
+  }
+
+  /// Отметки настроения по дням: день → цвет. Берём последнюю за день —
+  /// человек мог отметиться дважды, а блок у дня один.
+  Map<String, Color> _moodColors(List<MoodEntry> entries) {
+    final out = <String, Color>{};
+    for (final e in entries) {
+      out[e.dayKey] = e.color;
+    }
+    return out;
+  }
+
+  List<VesselDay> _vesselDaysFor(DateTime month) => buildVesselDays(
+        month: month,
+        mineMoods: _moodColors(_mood.myEntries),
+        partnerMoods: _moodColors([
+          for (final p in _pair.partners) ..._mood.partnerEntries(p.uid),
+        ]),
+        myCycle: _cycle.mine,
+        partnerCycle: _cycle.partner,
+      );
 
   // ═══════════════════════════════════════════
   //  КОНТРОЛЫ КАЛЕНДАРЯ (чипы + навигация)
@@ -366,6 +487,27 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                 }, scheme),
                 if (m.$1 != _CalMode.year) const SizedBox(width: 8),
               ],
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Сетка отвечает «какое было настроение», сосуд — «сколько нас было
+          // друг у друга». Выбор человека сохраняется: это привычка, а не
+          // разовое любопытство.
+          Row(
+            children: [
+              _calModeChip(LocaleService.current.moodVesselGrid, !_vesselView,
+                  () {
+                HapticFeedback.selectionClick();
+                setState(() => _vesselView = false);
+                unawaited(_saveViewPref(false));
+              }, scheme),
+              const SizedBox(width: 8),
+              _calModeChip(LocaleService.current.moodVesselMode, _vesselView,
+                  () {
+                HapticFeedback.selectionClick();
+                setState(() => _vesselView = true);
+                unawaited(_saveViewPref(true));
+              }, scheme),
             ],
           ),
           const SizedBox(height: 12),
