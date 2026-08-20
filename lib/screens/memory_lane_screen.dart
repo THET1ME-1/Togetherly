@@ -1,3 +1,4 @@
+import '../utils/safe_pick.dart';
 import '../services/plus_service.dart';
 import '../services/plus_access.dart';
 import 'plus_screen.dart';
@@ -5272,11 +5273,14 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                               onTap: () async {
                                 try {
                                   final picker = ImagePicker();
-                                  final picked = await picker.pickMultiImage(
-                                    maxWidth: 1920,
-                                    maxHeight: 1920,
-                                    imageQuality: 85,
-                                  );
+                                  final picked = await safePick(
+                                        () => picker.pickMultiImage(
+                                          maxWidth: 1920,
+                                          maxHeight: 1920,
+                                          imageQuality: 85,
+                                        ),
+                                      ) ??
+                                      const <XFile>[];
                                   if (picked.isNotEmpty) {
                                     if (!context.mounted) return;
                                     setState(() => selectedPhotos.addAll(picked));
@@ -5370,11 +5374,14 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       onTap: () async {
                         try {
                           final picker = ImagePicker();
-                          final picked = await picker.pickMultiImage(
-                            maxWidth: 1920,
-                            maxHeight: 1920,
-                            imageQuality: 85,
-                          );
+                          final picked = await safePick(
+                                () => picker.pickMultiImage(
+                                  maxWidth: 1920,
+                                  maxHeight: 1920,
+                                  imageQuality: 85,
+                                ),
+                              ) ??
+                              const <XFile>[];
                           if (picked.isNotEmpty) {
                             if (!context.mounted) return;
                             setState(() => selectedPhotos = picked);

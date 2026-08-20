@@ -1,8 +1,12 @@
 import 'dart:io';
+
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:path_provider/path_provider.dart';
+
+import 'photo_orientation.dart';
 
 /// Нормализует EXIF-ориентацию (включая зеркальность фронтальной камеры),
 /// затем открывает редактор кадрирования.
@@ -76,13 +80,36 @@ Future<String?> cropPhoto(
   return cropped?.path;
 }
 
-/// Применяет EXIF-трансформации (поворот + зеркальность) к пикселям
+/// Применяет EXIF-трансформации (поворот И зеркальность) к пикселям
 /// и возвращает путь к нормализованному файлу без EXIF.
+///
+/// Путей два, и это не прихоть. Нативный компрессор быстрый, но берёт из EXIF
+/// ТОЛЬКО угол: `ExifInterface.rotationDegrees`, затем `matrix.setRotate`.
+/// Отражение (ориентации 2, 4, 5, 7 — их ставит фронтальная камера) он не
+/// применяет вовсе, а `keepExif: false` тут же выбрасывает саму пометку: кадр
+/// остаётся зеркальным навсегда, и выправить его потом нечем. Отсюда жалоба
+/// 20.08.2026 «фотография получается отзеркаленной». Такие кадры печём сами.
 Future<String?> _normalizeOrientation(String sourcePath) async {
   try {
+    final bytes = await File(sourcePath).readAsBytes();
+    final orientation = readExifOrientation(bytes);
+    // Снимок и так лежит правильно — лишний прогон только съел бы качество.
+    // (У HEIC пометка не читается, и это не хуже прежнего: снимки с камеры
+    // приезжают JPEG'ом, image_picker переводит их сам.)
+    if (orientation <= 1) return null;
+
     final tempDir = await getTemporaryDirectory();
     final target =
         '${tempDir.path}/${DateTime.now().millisecondsSinceEpoch}_norm.jpg';
+
+    if (orientationIsMirrored(orientation)) {
+      // Целый кадр в памяти — работа не для главного потока.
+      final baked = await compute(bakeExifOrientation, bytes);
+      if (baked == null) return null;
+      await File(target).writeAsBytes(baked, flush: true);
+      return target;
+    }
+
     final result = await FlutterImageCompress.compressAndGetFile(
       sourcePath,
       target,

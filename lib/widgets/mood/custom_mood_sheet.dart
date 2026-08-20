@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../models/custom_mood.dart';
+import '../../utils/safe_pick.dart';
 import '../../services/custom_mood_service.dart';
 import '../../services/locale_service.dart';
 import '../../theme/profile_theme.dart';
@@ -56,10 +57,12 @@ class _CustomMoodSheetState extends State<_CustomMoodSheet> {
 
   Future<void> _pickPhoto() async {
     final picker = ImagePicker();
-    final shot = await picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 1024,
-      imageQuality: 90,
+    final shot = await safePick(
+      () => picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        imageQuality: 90,
+      ),
     );
     if (shot == null) return;
     // Обрезка обязательна: в сетке и в календаре настроение живёт в квадратной

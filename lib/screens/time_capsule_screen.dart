@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../models/memory.dart';
+import '../utils/safe_pick.dart';
 import '../services/capsule_notification_service.dart';
 import '../services/locale_service.dart';
 import '../services/media_service.dart';
@@ -325,11 +326,13 @@ class _TimeCapsuleScreenState extends State<TimeCapsuleScreen> {
   // ── Actions ────────────────────────────────────────────────────────────────
   Future<void> _pickPhoto() async {
     final picker = ImagePicker();
-    final XFile? x = await picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 88,
-      maxWidth: 1920,
-      maxHeight: 1920,
+    final XFile? x = await safePick(
+      () => picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 88,
+        maxWidth: 1920,
+        maxHeight: 1920,
+      ),
     );
     if (x == null) return;
     final cropped = await cropPhoto(x.path, accentColor: _t.primary);

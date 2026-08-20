@@ -106,11 +106,14 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
     if (remaining <= 0) return;
 
     try {
-      final List<XFile> picked = await _picker.pickMultiImage(
-        imageQuality: 85,
-        maxWidth: 1920,
-        maxHeight: 1920,
-      );
+      final List<XFile> picked = await safePick(
+            () => _picker.pickMultiImage(
+              imageQuality: 85,
+              maxWidth: 1920,
+              maxHeight: 1920,
+            ),
+          ) ??
+          const <XFile>[];
       if (picked.isEmpty) return;
 
       final taken = picked.take(remaining).toList();
