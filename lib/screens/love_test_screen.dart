@@ -1,10 +1,15 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 
 import '../models/love_test.dart';
+import '../models/love_test_ad.dart';
 import '../dict_strings.dart';
+import '../services/interstitial_ad_service.dart';
 import '../services/love_test_service.dart';
+import '../services/plus_service.dart';
+import '../services/ui_prefs.dart';
 import '../theme/app_theme.dart';
 import '../theme/profile_theme.dart';
 import '../widgets/common/m3_loading.dart';
@@ -56,6 +61,11 @@ class _LoveTestScreenState extends State<LoveTestScreen> {
   LoveProgress? _progress;
   bool _saving = false;
 
+  /// Ролик перед результатом. Заказываем его на входе в тест: пока человек
+  /// отвечает на двадцать утверждений, он успевает загрузиться, и показ
+  /// получается мгновенным.
+  final InterstitialAdService _ads = InterstitialAdService();
+
   AppTheme get _t => widget.theme;
   ColorScheme get _cs => ProfileTheme.themeFor(_t).colorScheme;
 
@@ -64,6 +74,13 @@ class _LoveTestScreenState extends State<LoveTestScreen> {
   void initState() {
     super.initState();
     _load();
+    if (!PlusService.instance.active) unawaited(_ads.load());
+  }
+
+  @override
+  void dispose() {
+    _ads.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -104,6 +121,11 @@ class _LoveTestScreenState extends State<LoveTestScreen> {
   Future<void> _finish() async {
     final result = scoreLoveRound(_round, _answers);
     if (result == null) return;
+    // Ролик крутится ДО результата и пропустить его нельзя (решение владельца
+    // от 20.08.2026). Незагруженный ролик результат не задерживает: правило
+    // живёт в `showAdBeforeLoveResult`.
+    await _showAdIfDue();
+    if (!mounted) return;
     final keys = [for (final q in _round) q.key];
     setState(() {
       _progress = loveProgress(result, _mine);
@@ -140,6 +162,20 @@ class _LoveTestScreenState extends State<LoveTestScreen> {
       _theirs = pair.theirs;
       _saving = false;
     });
+  }
+
+  /// Показывает ролик, если так велит правило, и запоминает время показа.
+  Future<void> _showAdIfDue() async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final due = showAdBeforeLoveResult(
+      plusActive: PlusService.instance.active,
+      adReady: _ads.isReady,
+      lastShownMs: await UiPrefs.loveTestAdAt(),
+      nowMs: now,
+    );
+    if (!due) return;
+    final shown = await _ads.show();
+    if (shown) await UiPrefs.setLoveTestAdAt(now);
   }
 
   @override

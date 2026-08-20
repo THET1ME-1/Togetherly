@@ -225,6 +225,20 @@ class UiPrefs {
     await prefs.setBool(_loveDismissedKey, true);
   }
 
+  static const _loveAdAtKey = 'love_test_ad_at';
+
+  /// Когда перед результатом теста последний раз крутили ролик (epoch-ms).
+  /// Ноль — ни разу. Пауза между показами живёт в `models/love_test_ad.dart`.
+  static Future<int> loveTestAdAt() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_loveAdAtKey) ?? 0;
+  }
+
+  static Future<void> setLoveTestAdAt(int nowMs) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_loveAdAtKey, nowMs);
+  }
+
   static Future<void> setPlusPromoShown(int nowMs) async {
     final p = await SharedPreferences.getInstance();
     await p.setInt(kPlusPromoAt, nowMs);
