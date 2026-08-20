@@ -34,7 +34,8 @@ void main() {
   });
 
   testWidgets('год клетками', (tester) async {
-    tester.view.physicalSize = const Size(1200, 900);
+    // Ширина телефона (393 dp) и высота под кусок года.
+    tester.view.physicalSize = const Size(1179, 2700);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
 
@@ -71,6 +72,8 @@ void main() {
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Container(
+                  height: 860,
+                  clipBehavior: Clip.hardEdge,
                   padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
                   decoration: BoxDecoration(
                     color: cs.surfaceContainerHigh,
@@ -92,7 +95,7 @@ void main() {
 
       final boundary =
           key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
-      final image = await boundary.toImage(pixelRatio: 3);
+      final image = await boundary.toImage(pixelRatio: 2);
       final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
       final dir = Directory('build/mood-year')..createSync(recursive: true);
       File('${dir.path}/$name.png').writeAsBytesSync(bytes!.buffer.asUint8List());

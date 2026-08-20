@@ -1,12 +1,14 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../models/mood_year_grid.dart';
 import '../../services/locale_service.dart';
 
-/// Год настроений клетками: колонка — неделя, клетка — день, тон — оценка.
+/// Год настроений клетками: строка — неделя, клетка — день, тон — оценка.
+///
+/// Год идёт сверху вниз, а не слева направо. Пятьдесят три колонки на телефоне
+/// ужимались до клетки в пять точек: ни цвет различить, ни попасть пальцем. По
+/// вертикали клетке достаётся седьмая часть ширины экрана.
 ///
 /// Плитки по месяцам показывали, часто ли человек отмечался. Здесь видно
 /// другое: какими были дни. Год целиком помещается в один экран, хорошая
@@ -50,49 +52,60 @@ class MoodYearGridView extends StatelessWidget {
     final cells = moodYearCells(year: year, scores: scores);
     final summary = moodYearSummary(year: year, scores: scores, today: today);
     final ramp = _ramp();
-    final columns = (cells.isEmpty ? 0 : cells.last.column) + 1;
+    // Показываем только недели с отметками: у пары, отмечавшейся три месяца,
+    // сорок пустых строк не сообщают ничего и выталкивают сетку за экран.
+    final weeks = visibleWeeks(cells);
+    final rows = weeks.length;
 
     return LayoutBuilder(
       builder: (context, box) {
-        // Ширину клетки считаем от места: год — это 53 колонки, и на узком
-        // телефоне они обязаны поместиться без прокрутки.
-        const labelWidth = 26.0;
-        const gap = 2.0;
+        const labelWidth = 32.0;
+        const gap = 3.0;
         final free = box.maxWidth - labelWidth;
-        final side = math.max(4.0, (free - gap * (columns - 1)) / columns);
-        final height = side * 7 + gap * 6;
+        final side = (free - gap * 6) / 7;
+        // Высота подбирается так, чтобы год помещался в экран без прокрутки:
+        // делим отведённое место на число видимых недель. Потолок — ширина
+        // клетки (крупнее квадрата ей быть незачем), пол — шесть точек, ниже
+        // которых тон уже не различить.
+        const available = 360.0;
+        final fit = rows == 0
+            ? side
+            : (available - gap * (rows - 1)) / rows;
+        final cellH = fit.clamp(6.0, side);
+        final height = rows * cellH + gap * (rows - 1);
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  width: labelWidth,
-                  height: height,
-                  child: _weekdayLabels(side: side, gap: gap),
-                ),
-                SizedBox(
-                  width: free,
-                  height: height,
-                  child: _Grid(
-                    cells: cells,
-                    ramp: ramp,
-                    side: side,
-                    gap: gap,
-                    empty: scheme.surfaceContainerHighest,
-                    onTapDay: onTapDay,
-                  ),
-                ),
-              ],
-            ),
+            _weekdayHeader(labelWidth: labelWidth, side: side, gap: gap),
             const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.only(left: labelWidth),
-              child: _monthRuler(cells, columns, side, gap),
+            SizedBox(
+              height: height,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: labelWidth,
+                    height: height,
+                    child: _monthLabels(weeks, cellH: cellH, gap: gap),
+                  ),
+                  SizedBox(
+                    width: free,
+                    height: height,
+                    child: _Grid(
+                      weeks: weeks,
+                      ramp: ramp,
+                      side: side,
+                      cellH: cellH,
+                      gap: gap,
+                      empty: scheme.surfaceContainerHighest,
+                      onTapDay: onTapDay,
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             _legend(ramp),
             const SizedBox(height: 10),
             Text(
@@ -109,6 +122,72 @@ class MoodYearGridView extends StatelessWidget {
     );
   }
 
+  /// Дни недели над столбцами.
+  Widget _weekdayHeader({
+    required double labelWidth,
+    required double side,
+    required double gap,
+  }) {
+    final names = LocaleService.current.shortWeekdays;
+    return Row(
+      children: [
+        SizedBox(width: labelWidth),
+        for (var i = 0; i < 7; i++) ...[
+          SizedBox(
+            width: side,
+            child: Text(
+              names[i],
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Onest',
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          if (i < 6) SizedBox(width: gap),
+        ],
+      ],
+    );
+  }
+
+  /// Месяц подписан у той недели, с которой начался.
+  Widget _monthLabels(
+    List<List<MoodCell>> weeks, {
+    required double cellH,
+    required double gap,
+  }) {
+    final short = LocaleService.current.shortMonths;
+    // Месяц подписан у первой ВИДИМОЙ недели, в которой он встретился:
+    // пустые недели свёрнуты, и считать по номеру недели года уже нельзя.
+    final firstRow = <int, int>{};
+    for (var row = 0; row < weeks.length; row++) {
+      for (final c in weeks[row]) {
+        if (c.score == null) continue;
+        firstRow.putIfAbsent(c.date.month, () => row);
+      }
+    }
+    return Stack(
+      children: [
+        for (final e in firstRow.entries)
+          Positioned(
+            top: e.value * (cellH + gap) + cellH / 2 - 8,
+            left: 0,
+            child: Text(
+              short[e.key - 1],
+              style: TextStyle(
+                fontFamily: 'Onest',
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: scheme.onSurface,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   String _summaryLine(MoodYearSummary s) {
     final l = LocaleService.current;
     if (s.average == null) return l.moodYearEmpty;
@@ -117,67 +196,6 @@ class MoodYearGridView extends StatelessWidget {
     final avg = s.average!.toStringAsFixed(1);
     final shown = LocaleService.instance.isRussian ? avg.replaceAll('.', ',') : avg;
     return '${l.moodYearAverage(shown)} · ${l.moodYearMissing(s.missing)}';
-  }
-
-  /// Подписаны три дня из семи: пн, ср, пт. Все семь на клетке в шесть точек
-  /// не читаются, а по трём порядок восстанавливается сам.
-  Widget _weekdayLabels({required double side, required double gap}) {
-    // Подписаны три дня из семи: имена берутся из словаря, порядок — от
-    // понедельника, как во всём приложении.
-    final short = LocaleService.current.shortWeekdays;
-    final names = {1: short[0], 3: short[2], 5: short[4]};
-    return Stack(
-      children: [
-        for (final e in names.entries)
-          Positioned(
-            // Подпись прижата к середине своей строки: клетка бывает в шесть
-            // точек, и текст, поставленный по её верху, наезжает на соседей.
-            top: (e.key - 1) * (side + gap) + side / 2 - 6,
-            left: 0,
-            child: Text(
-              e.value,
-              style: TextStyle(
-                fontFamily: 'Onest',
-                fontSize: 10,
-                height: 1.2,
-                color: scheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  /// Линейка месяцев под сеткой: подпись стоит там, где начался месяц.
-  Widget _monthRuler(
-      List<MoodCell> cells, int columns, double side, double gap) {
-    final short = LocaleService.current.shortMonths;
-    final firstColumnOfMonth = <int, int>{};
-    for (final c in cells) {
-      firstColumnOfMonth.putIfAbsent(c.date.month, () => c.column);
-    }
-    // Через месяц: двенадцать подписей подряд сливаются в кашу.
-    final shown = firstColumnOfMonth.entries.where((e) => e.key.isOdd);
-    return SizedBox(
-      height: 14,
-      child: Stack(
-        children: [
-          for (final e in shown)
-            Positioned(
-              left: e.value * (side + gap),
-              child: Text(
-                short[e.key - 1],
-                style: TextStyle(
-                  fontFamily: 'Onest',
-                  fontSize: 10,
-                  height: 1,
-                  color: scheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
   }
 
   Widget _legend(List<Color> ramp) {
@@ -224,17 +242,19 @@ class MoodYearGridView extends StatelessWidget {
 /// это 365 слоёв на каждый кадр прокрутки.
 class _Grid extends StatelessWidget {
   const _Grid({
-    required this.cells,
+    required this.weeks,
     required this.ramp,
     required this.side,
+    required this.cellH,
     required this.gap,
     required this.empty,
     this.onTapDay,
   });
 
-  final List<MoodCell> cells;
+  final List<List<MoodCell>> weeks;
   final List<Color> ramp;
   final double side;
+  final double cellH;
   final double gap;
   final Color empty;
   final void Function(DateTime day)? onTapDay;
@@ -245,22 +265,21 @@ class _Grid extends StatelessWidget {
       onTapUp: onTapDay == null
           ? null
           : (details) {
-              final column = (details.localPosition.dx / (side + gap)).floor();
-              final row = (details.localPosition.dy / (side + gap)).floor();
-              if (row < 0 || row > 6) return;
-              for (final c in cells) {
-                if (c.column == column && c.weekday == row + 1) {
-                  HapticFeedback.selectionClick();
-                  onTapDay!(c.date);
-                  return;
-                }
-              }
+              final weekday = (details.localPosition.dx / (side + gap)).floor();
+              final week = (details.localPosition.dy / (cellH + gap)).floor();
+              if (weekday < 0 || weekday > 6) return;
+              if (week < 0 || week >= weeks.length) return;
+              final cell = weeks[week][weekday];
+              if (cell.score == null) return;
+              HapticFeedback.selectionClick();
+              onTapDay!(cell.date);
             },
       child: CustomPaint(
         painter: _GridPainter(
-          cells: cells,
+          weeks: weeks,
           ramp: ramp,
           side: side,
+          cellH: cellH,
           gap: gap,
           empty: empty,
         ),
@@ -272,59 +291,58 @@ class _Grid extends StatelessWidget {
 
 class _GridPainter extends CustomPainter {
   _GridPainter({
-    required this.cells,
+    required this.weeks,
     required this.ramp,
     required this.side,
+    required this.cellH,
     required this.gap,
     required this.empty,
   });
 
-  final List<MoodCell> cells;
+  final List<List<MoodCell>> weeks;
   final List<Color> ramp;
   final double side;
+  final double cellH;
   final double gap;
   final Color empty;
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..isAntiAlias = true;
-    final r = Radius.circular(side / 2);
-    final flat = Radius.circular(side * 0.14);
+    final radius = Radius.circular(cellH / 2);
 
-    for (final c in cells) {
-      final x = c.column * (side + gap);
-      final y = (c.weekday - 1) * (side + gap);
-      final rect = Rect.fromLTWH(x, y, side, side);
-
-      paint.color = c.score == null
-          ? empty
-          : ramp[(c.score!.clamp(1, 5)) - 1];
-
-      // Пятно серии: скругляем только там, где она начинается и кончается.
-      // Внутри серии углы прямые, и соседние клетки склеиваются в полосу.
-      canvas.drawRRect(
-        RRect.fromRectAndCorners(
-          // Внутри серии дотягиваем клетку до соседней, чтобы зазор исчез.
-          Rect.fromLTWH(
-            rect.left,
-            rect.top,
-            rect.width,
-            rect.height + (c.endsRun ? 0 : gap),
-          ),
-          topLeft: c.startsRun ? r : flat,
-          topRight: c.startsRun ? r : flat,
-          bottomLeft: c.endsRun ? r : flat,
-          bottomRight: c.endsRun ? r : flat,
-        ),
-        paint,
-      );
+    for (var row = 0; row < weeks.length; row++) {
+      final line = weeks[row];
+      final y = row * (cellH + gap);
+      var i = 0;
+      while (i < line.length) {
+        // Серия — одна пилюля от первого дня до последнего: внутри неё ни
+        // швов, ни зазоров, в этом весь приём.
+        var len = 1;
+        while (i + len < line.length &&
+            line[i + len].score != null &&
+            line[i + len].score == line[i].score) {
+          len++;
+        }
+        final x = i * (side + gap);
+        final width = side * len + gap * (len - 1);
+        paint.color = line[i].score == null
+            ? empty
+            : ramp[(line[i].score!.clamp(1, 5)) - 1];
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(Rect.fromLTWH(x, y, width, cellH), radius),
+          paint,
+        );
+        i += len;
+      }
     }
   }
 
   @override
   bool shouldRepaint(_GridPainter old) =>
-      old.cells != cells ||
+      old.weeks != weeks ||
       old.side != side ||
+      old.cellH != cellH ||
       old.ramp != ramp ||
       old.empty != empty;
 }

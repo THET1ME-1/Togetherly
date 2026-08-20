@@ -86,6 +86,43 @@ List<MoodCell> moodYearCells({
   return out;
 }
 
+/// Недели, в которых есть хоть одна отметка, — по порядку, каждая из семи
+/// клеток.
+///
+/// Пустые недели из сетки выпадают: год, где отмечались три месяца, иначе на
+/// три четверти состоит из пустоты, не влезает в экран и ничего не сообщает.
+/// Свернуть можно только неделю целиком: убери отдельные дни — и столбцы
+/// разъедутся, понедельник встанет под средой.
+List<List<MoodCell>> visibleWeeks(List<MoodCell> cells) {
+  final byWeek = <int, List<MoodCell>>{};
+  for (final c in cells) {
+    byWeek.putIfAbsent(c.column, () => []).add(c);
+  }
+  final keys = byWeek.keys.toList()..sort();
+  final out = <List<MoodCell>>[];
+  for (final k in keys) {
+    final week = byWeek[k]!;
+    if (week.every((c) => c.score == null)) continue;
+    // Неделя на границе года короче семи дней — дополняем пустыми клетками,
+    // чтобы столбцы стояли ровно.
+    final row = List<MoodCell>.generate(7, (i) {
+      return week.firstWhere(
+        (c) => c.weekday == i + 1,
+        orElse: () => MoodCell(
+          date: week.first.date,
+          column: k,
+          weekday: i + 1,
+          score: null,
+          startsRun: true,
+          endsRun: true,
+        ),
+      );
+    });
+    out.add(row);
+  }
+  return out;
+}
+
 /// Итог года под сеткой.
 class MoodYearSummary {
   const MoodYearSummary({

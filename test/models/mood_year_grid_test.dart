@@ -124,4 +124,39 @@ void main() {
       expect(s.missing, 9);
     });
   });
+
+  group('свёрнутые пустоты', () {
+    test('недели без единой отметки выпадают из сетки', () {
+      // Год, где отмечались только в марте: показывать 53 строки, из которых
+      // 48 пустые, — значит не поместиться в экран и ничего не сказать.
+      final cells = moodYearCells(year: 2026, scores: {
+        d(3, 3): 4,
+        d(3, 4): 4,
+      });
+      final rows = visibleWeeks(cells);
+      expect(rows.length, 1);
+      expect(rows.first.any((c) => c.score != null), isTrue);
+    });
+
+    test('порядок недель сохраняется', () {
+      final cells = moodYearCells(year: 2026, scores: {
+        d(2, 3): 3,
+        d(9, 8): 5,
+      });
+      final rows = visibleWeeks(cells);
+      expect(rows.length, 2);
+      expect(rows.first.first.date.isBefore(rows.last.first.date), isTrue);
+    });
+
+    test('в неделе остаются все семь дней', () {
+      // Свернуть можно неделю целиком, но не отдельные дни внутри неё: иначе
+      // столбцы разъедутся и понедельник встанет под средой.
+      final cells = moodYearCells(year: 2026, scores: {d(5, 6): 2});
+      expect(visibleWeeks(cells).first.length, 7);
+    });
+
+    test('пустой год не показывает ничего', () {
+      expect(visibleWeeks(moodYearCells(year: 2026, scores: const {})), isEmpty);
+    });
+  });
 }
