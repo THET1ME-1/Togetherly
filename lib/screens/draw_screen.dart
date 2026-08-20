@@ -21,6 +21,7 @@ import '../models/memory.dart';
 import '../utils/flood_fill.dart';
 import '../utils/local_image_paths.dart';
 import '../widgets/color_picker_sheet.dart';
+import '../widgets/draw/draw_tools_panel.dart';
 import '../utils/color_hex.dart';
 import '../widgets/app_sheet.dart';
 import '../utils/safe_pick.dart';
@@ -43,6 +44,16 @@ import '../services/media_service.dart';
 import '../services/locale_service.dart';
 import '../utils/canvas_pinch.dart';
 import '../theme/app_theme.dart';
+import '../services/ui_prefs.dart';
+import '../theme/motion.dart';
+import '../theme/profile_theme.dart';
+import '../models/canvas_symmetry.dart';
+import '../models/draw_layout.dart';
+import '../models/draw_quick_tools.dart';
+import 'draw_replay_screen.dart';
+import '../widgets/draw/stroke_painting.dart';
+import '../utils/quick_shape.dart';
+import '../utils/stroke_stabilizer.dart';
 import '../widgets/storage_image.dart';
 import '../widgets/common/app_dialog.dart';
 import '../services/plus_access.dart';
@@ -52,6 +63,19 @@ import '../utils/canvas_gestures.dart';
 
 
 //  Palette
+
+/// Ряд цветов в листе инструментов: семь штук плюс кнопка своей палитры —
+/// столько помещается на 320 точках без прокрутки. Полный набор остаётся в
+/// [_kPalette] и открывается кнопкой.
+const List<Color> _kPanelPalette = [
+  Color(0xFF000000),
+  Color(0xFFEF4444),
+  Color(0xFFF97316),
+  Color(0xFFFBBF24),
+  Color(0xFF22C55E),
+  Color(0xFF3B82F6),
+  Color(0xFF8B5CF6),
+];
 
 const List<Color> _kPalette = [
   Color(0xFF000000),
@@ -426,7 +450,8 @@ class _DrawScreenState extends State<DrawScreen>
   Offset _palmBaseOffset = Offset.zero;
 
   // Toolbar expansion
-  bool _toolbarExpanded = false;
+  /// Лист инструментов раскрыт. В свёрнутом виде на холсте только пузырь.
+  bool _toolsOpen = false;
   late AnimationController _toolbarAnim;
 
   // Partner cursor pulse animation
@@ -468,6 +493,59 @@ class _DrawScreenState extends State<DrawScreen>
   bool get _canUndo => _myStrokeIds.isNotEmpty;
   bool get _canRedo => _redoStack.isNotEmpty;
 
+  /// Сглаживание текущего мазка. Заводится на каждый мазок заново: у него своя
+  /// память о том, где сейчас точка и где палец.
+  StrokeStabilizer? _stabilizer;
+
+  /// Сила сглаживания кисти, 0…1. Пиксельный режим и фигуры её не берут:
+  /// клетке отставание вредит, а фигура живёт двумя точками.
+  double _smoothing = kDefaultSmoothing;
+
+  /// Превращать ли задержанный мазок в ровную фигуру.
+  bool _quickShapes = true;
+
+  /// Форма холста без листа, снятая при свёрнутой панели.
+  double? _freeRatio;
+
+  /// Состав панели быстрого доступа: человек собирает его в настройках.
+  List<DrawQuickTool> _quickTools = kDefaultQuickTools;
+
+  /// Где сейчас панель — снизу или сбоку. Считается по размеру экрана в
+  /// `build`, потому что поворот меняет её на ходу.
+  DrawLayout _layout = DrawLayout.bottomSheet;
+
+  /// Фигура, которую только что узнали в мазке, дальше НЕ тянется за пальцем.
+  /// Палец в этот момент стоит там, где человек закончил линию, и любое его
+  /// движение сплющивало распознанный круг в полоску: холст двигает второй
+  /// угол фигуры, а второй угол — это и есть палец.
+  bool _shapeLocked = false;
+
+  /// Симметрия: мазок повторяется зеркалами или лучами. Копии — обычные
+  /// штрихи, поэтому партнёр видит их, ничего не зная про режим.
+  SymmetryMode _symmetry = SymmetryMode.none;
+  int _symmetrySectors = 6;
+
+  /// К какой зеркальной пачке относится штрих. Нужна отмене: шесть лучей —
+  /// это один мазок для руки, и снимать их по одному было бы издевательством.
+  final Map<String, String> _mirrorGroupOf = {};
+
+  /// Когда палец последний раз двигался, и часовой, который ждёт остановки.
+  DateTime _lastMoveAt = DateTime.fromMillisecondsSinceEpoch(0);
+  Offset? _lastMovePoint;
+  Timer? _quickShapeTimer;
+
+  /// Сколько держать палец на месте, чтобы линия стала фигурой.
+  static const Duration _kQuickShapeHold = Duration(milliseconds: 450);
+
+  /// Тап двумя пальцами отменяет, тремя — возвращает. Считаем максимум
+  /// одновременных пальцев, путь самого резвого и был ли щипок: правило
+  /// живёт в `multiTapAction`.
+  int _gestureFingers = 0;
+  DateTime? _gestureStartedAt;
+  final Map<int, Offset> _gestureOrigins = {};
+  double _gestureTravel = 0;
+  bool _gestureZoomed = false;
+
   bool _shownCanUndo = false;
   bool _shownCanRedo = false;
   int _shownLayerCount = 1;
@@ -502,6 +580,7 @@ class _DrawScreenState extends State<DrawScreen>
         ? _colorForUser(_myUid)
         : const Color(0xFF000000);
     unawaited(_loadPixelGridPref());
+    unawaited(_loadBrushPrefs());
     unawaited(_restoreBackground());
     unawaited(_reloadRecentColors());
 
@@ -617,6 +696,7 @@ class _DrawScreenState extends State<DrawScreen>
     _canvasMetaSub?.cancel();
     _staleTimer?.cancel();
     _hintTimer?.cancel();
+    _quickShapeTimer?.cancel();
     _toolbarAnim.dispose();
     _pulseAnim.dispose();
     _resetCtrl?.dispose();
@@ -1033,6 +1113,11 @@ class _DrawScreenState extends State<DrawScreen>
 
   void _cancelCurrentGesture() {
     final had = _isDrawing || _currentPoints.isNotEmpty;
+    // Сглаживание живёт ровно один мазок: чужая память о том, где был палец,
+    // дала бы следующему мазку рывок от прежней точки.
+    _stabilizer = null;
+    _shapeLocked = false;
+    _disarmQuickShape();
     _isDrawing = false;
     _drawingPointerId = null;
     _currentShapeType = null;
@@ -1073,6 +1158,15 @@ class _DrawScreenState extends State<DrawScreen>
     _strokeStartPoint = localPoint;
     _strokeStartedAt = DateTime.now();
     _strokeTravel = 0;
+
+    // Кисть и ластик ведут линию рукой, им сглаживание помогает. У фигуры
+    // точек всего две, у пиксельной клетки отставание превращается в
+    // промахи мимо клетки — там стабилизатор выключен.
+    _shapeLocked = false;
+    _stabilizer = StrokeStabilizer(
+      strength: (_isShapeTool || _isPixel) ? 0 : _smoothing,
+    )..begin(localPoint);
+    _armHoldWatch();
 
     _redoStack.clear();
     _lastLivePush = DateTime.fromMillisecondsSinceEpoch(0);
@@ -1127,8 +1221,14 @@ class _DrawScreenState extends State<DrawScreen>
 
   void _updateStroke(Offset localPoint) {
     if (!_isDrawing || _canvasSize.isEmpty) return;
+    // Сглаживаем в экранных точках и ДО прижатия к своей половине: иначе у
+    // границы раскраски линия ползла бы вдоль неё с отставанием.
+    final smoothed = _stabilizer?.update(localPoint);
+    if (smoothed == null && _stabilizer != null) return;
+    localPoint = smoothed ?? localPoint;
     if (_isColoring) localPoint = _clampToMySide(localPoint);
     if (_currentShapeType != null) {
+      if (_shapeLocked) return;
       final end = DrawPoint.clampedFromOffset(
         _screenToCanvas(localPoint),
         _canvasSize,
@@ -1153,15 +1253,133 @@ class _DrawScreenState extends State<DrawScreen>
       }
       _currentPoints.add(pt);
     }
+    _lastMoveAt = DateTime.now();
     _repaintNotifier.value++;
     _pushLiveStrokeIfNeeded();
   }
 
+  /// Часовой удержания: следит, что палец замер. Одно и то же ожидание
+  /// кормит два приёма — короткий путь означает пипетку, длинный ровную
+  /// фигуру. Проверяем по таймеру, а не по движению: когда палец стоит,
+  /// событий движения нет вовсе, а именно это и нужно поймать.
+  void _armHoldWatch() {
+    _quickShapeTimer?.cancel();
+    if (_isPixel && !_holdPicksColor) return;
+    if (_activeTool == DrawTool.palm ||
+        _activeTool == DrawTool.image ||
+        _activeTool == DrawTool.fill) {
+      return;
+    }
+    _lastMoveAt = DateTime.now();
+    _lastMovePoint = null;
+    _quickShapeTimer = Timer.periodic(
+      const Duration(milliseconds: 120),
+      (_) => _onHoldTick(),
+    );
+  }
+
+  void _disarmQuickShape() {
+    _quickShapeTimer?.cancel();
+    _quickShapeTimer = null;
+  }
+
+  /// Разрешено ли брать цвет удержанием. Отдельным полем, чтобы в пиксельном
+  /// режиме часовой всё равно заводился: там фигур нет, а пипетка нужна.
+  final bool _holdPicksColor = true;
+
+  void _onHoldTick() {
+    if (!_isDrawing || _canvasSize.isEmpty) return;
+    final startedAt = _strokeStartedAt;
+    if (_holdPicksColor &&
+        startedAt != null &&
+        _currentShapeType == null &&
+        holdIsEyedropper(
+          held: DateTime.now().difference(startedAt),
+          travel: _strokeTravel,
+        )) {
+      // Палец стоит на месте с самого начала: человек не рисует, а
+      // присматривается к цвету. Начатую точку убираем — она бы осталась
+      // кляксой под пальцем.
+      _disarmQuickShape();
+      _cancelCurrentGesture();
+      unawaited(_armEyedropper());
+      return;
+    }
+    _tryQuickShape();
+  }
+
+  /// Палец постоял на месте — смотрим, не фигуру ли он вёл.
+  void _tryQuickShape() {
+    if (!_quickShapes || _isPixel || _isShapeTool) return;
+    if (_activeTool != DrawTool.brush && _activeTool != DrawTool.eraser) return;
+    if (!_isDrawing || _currentShapeType != null || _canvasSize.isEmpty) return;
+    if (DateTime.now().difference(_lastMoveAt) < _kQuickShapeHold) return;
+
+    // Разбираем в точках холста, а не в долях: у неквадратного листа доли
+    // растягивают круг в овал, и разбор соврал бы.
+    final pixels = _currentPoints
+        .map((p) => Offset(p.x * _canvasSize.width, p.y * _canvasSize.height))
+        .toList();
+    final shape = recognizeQuickShape(pixels);
+    if (shape == null) {
+      // Не узнали — часового НЕ гасим. Раньше первая же неудача выключала его
+      // до конца мазка: человек дорисовывал фигуру, замирал ещё раз, и ничего
+      // не происходило — отсюда «срабатывает не всегда». Ждём следующей паузы.
+      _lastMoveAt = DateTime.now();
+      return;
+    }
+    _disarmQuickShape();
+
+    DrawPoint toPoint(Offset o) => DrawPoint.clampedFromOffset(
+          Offset(o.dx, o.dy),
+          _canvasSize,
+        );
+
+    setState(() {
+      _currentPoints
+        ..clear()
+        ..add(toPoint(shape.start))
+        ..add(toPoint(shape.end));
+      _currentShapeType = shape.type;
+      _currentIsFilledShape = _fillShapes;
+      _shapeLocked = true;
+    });
+    // Дальше конец фигуры ведёт сам палец, сглаживать там нечего.
+    _stabilizer = null;
+    HapticFeedback.mediumImpact();
+    _repaintNotifier.value++;
+    // Уйдёт ключевым кадром целиком: у партнёра кривая заменится фигурой.
+    unawaited(_pushLiveStrokeAsync());
+  }
+
   void _finishStroke() {
     if (!_isDrawing) return;
+    _disarmQuickShape();
+    _flushStabilizerTail();
     _isDrawing = false;
     _drawingPointerId = null;
     _commitCurrentStroke();
+  }
+
+  /// Хвост сглаживания: точка догоняет палец, иначе на быстром движении
+  /// линия обрывается там, где фильтр отстал. Хвост — это дописывание в
+  /// конец, поэтому живой мазок у партнёра он не ломает.
+  void _flushStabilizerTail() {
+    final tail = _stabilizer?.finish();
+    _stabilizer = null;
+    if (tail == null || tail.isEmpty) return;
+    if (_currentShapeType != null || _canvasSize.isEmpty) return;
+    for (final raw in tail) {
+      final point = _isColoring ? _clampToMySide(raw) : raw;
+      _currentPoints.add(
+        DrawPoint.clampedFromOffset(
+          _snapToCell(_screenToCanvas(point)),
+          _canvasSize,
+        ),
+      );
+    }
+    _repaintNotifier.value++;
+    unawaited(_pushLiveStrokeAsync());
   }
 
   void _pushLiveStrokeIfNeeded() {
@@ -1294,9 +1512,18 @@ class _DrawScreenState extends State<DrawScreen>
     if (_activePointers.isEmpty) {
       _isZooming = false;
       if (_isDrawing) _cancelCurrentGesture();
+      _gestureFingers = 0;
+      _gestureStartedAt = DateTime.now();
+      _gestureOrigins.clear();
+      _gestureTravel = 0;
+      _gestureZoomed = false;
     }
 
     _activePointers.add(event.pointer);
+    _gestureOrigins[event.pointer] = event.localPosition;
+    if (_activePointers.length > _gestureFingers) {
+      _gestureFingers = _activePointers.length;
+    }
 
     if (_activePointers.length >= 2) {
       _isZooming = false; // дальше подхватит onScaleStart
@@ -1349,6 +1576,13 @@ class _DrawScreenState extends State<DrawScreen>
   }
 
   void _onPointerMove(PointerMoveEvent event) {
+    // Путь считаем до всех проверок: у щипка события движения приходят по
+    // каждому пальцу, и именно этот путь отличает щипок от тапа.
+    final origin = _gestureOrigins[event.pointer];
+    if (origin != null) {
+      final moved = (event.localPosition - origin).distance;
+      if (moved > _gestureTravel) _gestureTravel = moved;
+    }
     if (_eyedropperArmed) {
       _trackEyedropper(event.localPosition);
       return;
@@ -1391,6 +1625,16 @@ class _DrawScreenState extends State<DrawScreen>
       final travelled = (event.localPosition - start).distance;
       if (travelled > _strokeTravel) _strokeTravel = travelled;
     }
+    // Палец считается движущимся по САМОМУ пальцу, а не по добавленным
+    // точкам: медленный ход даёт сдвиги мельче шага сглаживания, и часовой
+    // ровных фигур принимал бы такое ведение за остановку.
+    final prev = _lastMovePoint;
+    // Порог заметно больше пикселя: палец на стекле дрожит всегда, и при
+    // 1,5 точки пауза не наступала вовсе — фигуры не срабатывали.
+    if (prev == null || (event.localPosition - prev).distance > 3.5) {
+      _lastMovePoint = event.localPosition;
+      _lastMoveAt = DateTime.now();
+    }
     _updateStroke(event.localPosition);
   }
 
@@ -1430,6 +1674,7 @@ class _DrawScreenState extends State<DrawScreen>
     _strokeTravel = 0;
 
     if (_activePointers.isEmpty) {
+      _runMultiTapIfAny();
       _drawingPointerId = null;
       _isZooming = false;
       if (_isDrawing) _cancelCurrentGesture();
@@ -1439,6 +1684,31 @@ class _DrawScreenState extends State<DrawScreen>
         if (img != null) unawaited(_syncImageToFirestore(img));
         _imgDragBase = null;
       }
+    }
+  }
+
+  /// Пальцы ушли с экрана: разбираем, не был ли это тап отмены или возврата.
+  void _runMultiTapIfAny() {
+    final started = _gestureStartedAt;
+    _gestureStartedAt = null;
+    if (started == null || _eyedropperArmed) return;
+    final action = multiTapAction(
+      fingers: _gestureFingers,
+      held: DateTime.now().difference(started),
+      travel: _gestureTravel,
+      zoomed: _gestureZoomed,
+    );
+    switch (action) {
+      case MultiTapAction.undo:
+        if (!_canUndo) return;
+        HapticFeedback.selectionClick();
+        unawaited(_undo());
+      case MultiTapAction.redo:
+        if (!_canRedo) return;
+        HapticFeedback.selectionClick();
+        unawaited(_redo());
+      case MultiTapAction.none:
+        return;
     }
   }
 
@@ -1470,6 +1740,11 @@ class _DrawScreenState extends State<DrawScreen>
     if (_eyedropperArmed) return;
     if (!_isZooming && details.pointerCount < 2) return;
     _isZooming = true;
+    // Щипок состоялся — тап отмены отменяется сам: сведённые на процент
+    // пальцы не должны стирать чужую работу.
+    if ((details.scale - 1).abs() > 0.01 || details.rotation.abs() > 0.01) {
+      _gestureZoomed = true;
+    }
 
     // Пальцев снова меньше двух: система продолжает слать события, а фокус
     // скачком уезжает к оставшемуся пальцу — лист прыгал за ним и «метался
@@ -1850,6 +2125,44 @@ class _DrawScreenState extends State<DrawScreen>
     _repaintNotifier.value++;
     _orderCounter++;
     _submitStroke(stroke);
+    _submitMirrors(stroke, sid);
+  }
+
+  /// Зеркальные копии мазка. Уходят при отпускании пальца, а не живьём: шесть
+  /// лучей в канале — это шесть мазков вместо одного, и рисование у обоих
+  /// начинает запаздывать. Партнёр получает их из базы, как обычные штрихи.
+  void _submitMirrors(DrawStroke stroke, String groupKey) {
+    if (_symmetry == SymmetryMode.none || _canvasSize.isEmpty) return;
+    final copies = mirrorStroke(
+      stroke.points,
+      _symmetry,
+      sectors: _symmetrySectors,
+      aspect: _canvasSize.height == 0
+          ? 1
+          : _canvasSize.width / _canvasSize.height,
+    );
+    if (copies.isEmpty) return;
+    _mirrorGroupOf[stroke.id] = groupKey;
+    for (final points in copies) {
+      final id = _newStrokeId();
+      _mirrorGroupOf[id] = groupKey;
+      _submitStroke(
+        DrawStroke(
+          id: id,
+          clientId: id,
+          userId: _myUid,
+          colorValue: stroke.colorValue,
+          strokeWidth: stroke.strokeWidth,
+          points: List<DrawPoint>.unmodifiable(points),
+          isEraser: stroke.isEraser,
+          isFilledShape: stroke.isFilledShape,
+          shapeType: stroke.shapeType,
+          orderIndex: _orderCounter,
+          layer: stroke.layer,
+        ),
+      );
+      _orderCounter++;
+    }
   }
 
   void _submitStroke(DrawStroke stroke) {
@@ -1894,9 +2207,21 @@ class _DrawScreenState extends State<DrawScreen>
 
   //  Undo / Redo
 
+  /// Отмена. Зеркальная пачка снимается целиком: для руки шесть лучей — один
+  /// мазок, и шесть нажатий подряд читались бы как поломка кнопки.
   Future<void> _undo() async {
     if (_myStrokeIds.isEmpty) return;
     final undoKey = _myStrokeIds.removeLast();
+    final group = _mirrorGroupOf[undoKey];
+    await _undoOne(undoKey);
+    if (group == null) return;
+    while (_myStrokeIds.isNotEmpty &&
+        _mirrorGroupOf[_myStrokeIds.last] == group) {
+      await _undoOne(_myStrokeIds.removeLast());
+    }
+  }
+
+  Future<void> _undoOne(String undoKey) async {
 
     DrawStroke? removed;
     String? remoteIdForDelete;
@@ -1951,7 +2276,19 @@ class _DrawScreenState extends State<DrawScreen>
     }
   }
 
+  /// Возврат. Зеркальная пачка возвращается так же целиком, как снималась.
   Future<void> _redo() async {
+    if (_redoStack.isEmpty) return;
+    final group = _mirrorGroupOf[_redoStack.last.id];
+    await _redoOne();
+    if (group == null) return;
+    while (_redoStack.isNotEmpty &&
+        _mirrorGroupOf[_redoStack.last.id] == group) {
+      await _redoOne();
+    }
+  }
+
+  Future<void> _redoOne() async {
     if (_redoStack.isEmpty) return;
     final base = _redoStack.removeLast();
     final stroke = DrawStroke(
@@ -1973,6 +2310,10 @@ class _DrawScreenState extends State<DrawScreen>
       imageRotation: base.imageRotation,
     );
     _orderCounter++;
+    // Вернувшийся штрих получает новый id, а зеркальная пачка должна остаться
+    // пачкой: иначе следующая отмена снимет её по одному.
+    final group = _mirrorGroupOf[base.id];
+    if (group != null) _mirrorGroupOf[stroke.id] = group;
     _submitStroke(stroke);
   }
 
@@ -2315,106 +2656,6 @@ class _DrawScreenState extends State<DrawScreen>
   }
 
   //  Bottom sheet pickers
-
-  void _showThicknessPicker() {
-    double temp = _strokeWidth;
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: widget.theme.cardSurface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, ss) => SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: widget.theme.divider,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  LocaleService.current.strokeThickness,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Icon(Icons.brush, size: 16, color: widget.theme.textMuted),
-                    Expanded(
-                      child: Slider(
-                        value: temp,
-                        min: 1,
-                        max: 40,
-                        divisions: 39,
-                        activeColor: _activeColor,
-                        onChanged: (v) {
-                          ss(() => temp = v);
-                          setState(() => _strokeWidth = v);
-                        },
-                      ),
-                    ),
-                    Icon(Icons.brush, size: 28, color: widget.theme.textMuted),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [2.0, 5.0, 10.0, 20.0, 35.0].map((w) {
-                    final sel = (temp - w).abs() < 0.1;
-                    return GestureDetector(
-                      onTap: () {
-                        ss(() => temp = w);
-                        setState(() => _strokeWidth = w);
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: sel
-                              ? _activeColor.withValues(alpha: 0.1)
-                              : widget.theme.surfaceMuted,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: sel ? _activeColor : widget.theme.divider,
-                            width: sel ? 2 : 1,
-                          ),
-                        ),
-                        child: Center(
-                          child: Container(
-                            width: w.clamp(2.0, 30.0),
-                            height: w.clamp(2.0, 30.0),
-                            decoration: BoxDecoration(
-                              color: _activeColor,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
   /// Лист палитры: готовые цвета, недавние и вход в полный пикер.
   void _showColorPicker() {
@@ -2855,10 +3096,11 @@ class _DrawScreenState extends State<DrawScreen>
       child: Scaffold(
         backgroundColor: t.surfaceMuted,
         body: SafeArea(
-          child: Column(
-            children: [
-              _buildTopBar(s, t),
-              Expanded(
+          child: LayoutBuilder(
+            builder: (context, box) {
+              _layout = drawLayoutFor(box.biggest);
+              final side = _layout == DrawLayout.sidePanel;
+              final canvas = Expanded(
                 child: Stack(
                   children: [
                     Positioned.fill(child: _buildCanvasArea()),
@@ -2883,16 +3125,99 @@ class _DrawScreenState extends State<DrawScreen>
                         bottom: 88,
                         child: Center(child: _buildHintBubble(s)),
                       ),
+                    // Свёрнутая панель — один пузырь в углу: на холсте видно
+                    // текущий инструмент и текущий цвет, всё прочее приезжает
+                    // листом по касанию.
+                    Positioned(
+                      right: 16,
+                      bottom: 16,
+                      child: IgnorePointer(
+                        ignoring: _toolsOpen,
+                        child: AnimatedScale(
+                          scale: _toolsOpen ? 0.6 : 1,
+                          duration: Motion.block,
+                          curve: Motion.emphasized,
+                          child: AnimatedOpacity(
+                            opacity: _toolsOpen ? 0 : 1,
+                            duration: Motion.tap,
+                            child: DrawToolBubble(
+                              color: _activeColor,
+                              icon: _bubbleIcon,
+                              fill: t.fillColor,
+                              onFill: AppThemes.onColor(t.fillColor,
+                                  mode: t.brightness),
+                              onTap: () => setState(() => _toolsOpen = true),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
-              ),
-              // Раскраска: полоса готовности над панелью инструментов.
-              if (_isColoring) _buildColoringBar(s, t),
-              _buildBottomToolbar(s, t),
-            ],
+              );
+
+              // Лёжа экран низкий: лист панели съел бы холст целиком, поэтому
+              // инструменты уходят в колонку справа, а холст занимает всё, что
+              // осталось.
+              if (side) {
+                return Column(
+                  children: [
+                    _buildTopBar(s, t),
+                    Expanded(
+                      child: Row(
+                        // Панель тянется во всю высоту: колонка, а не
+                        // карточка, повисшая посреди края экрана.
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              children: [
+                                canvas,
+                                if (_isColoring) _buildColoringBar(s, t),
+                              ],
+                            ),
+                          ),
+                          _buildSidePanel(s, t, box.biggest),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              return Column(
+                children: [
+                  _buildTopBar(s, t),
+                  canvas,
+                  // Раскраска: полоса готовности над панелью инструментов.
+                  if (_isColoring) _buildColoringBar(s, t),
+                  _buildBottomToolbar(s, t),
+                ],
+              );
+            },
           ),
         ),
       ),
+    );
+  }
+
+  /// Панель сбоку: выезжает справа и забирает у холста ширину, а не высоту.
+  Widget _buildSidePanel(AppStrings s, AppTheme t, Size screen) {
+    final width = sidePanelWidth(screen);
+    return AnimatedContainer(
+      duration: Motion.block,
+      curve: Motion.emphasized,
+      width: _toolsOpen ? width : 0,
+      child: _toolsOpen
+          ? ClipRect(
+              child: OverflowBox(
+                alignment: Alignment.centerLeft,
+                maxWidth: width,
+                minWidth: width,
+                child: SizedBox(width: width, child: _toolsSheet(s, t)),
+              ),
+            )
+          : const SizedBox.shrink(),
     );
   }
 
@@ -3022,8 +3347,12 @@ class _DrawScreenState extends State<DrawScreen>
     // Панель без фона и тени: плавающие пилюли поверх «стола» — так лист
     // получает всю высоту, а живое присутствие партнёра видно сразу.
     final live = drawingPartners.isNotEmpty;
+    // Лёжа высота на вес золота: шапке хватает половины прежних полей.
+    final tight = _layout == DrawLayout.sidePanel;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+      padding: tight
+          ? const EdgeInsets.fromLTRB(12, 4, 12, 4)
+          : const EdgeInsets.fromLTRB(12, 8, 12, 10),
       child: Row(
         children: [
           _pillIcon(Icons.arrow_back_rounded, _captureThumbnailAndExit),
@@ -3077,6 +3406,13 @@ class _DrawScreenState extends State<DrawScreen>
           _pillIcon(Icons.undo_rounded, _canUndo ? _undo : null,
               tooltip: s.undoAction),
           const SizedBox(width: 8),
+          _pillIcon(Icons.redo_rounded, _canRedo ? _redo : null,
+              tooltip: s.redoAction),
+          const SizedBox(width: 8),
+          // Фон, рука и очистка переехали сюда из нижнего ряда: панель
+          // рисования держит шесть кнопок, а редкие действия прячутся в меню.
+          _buildMoreMenu(s, t),
+          const SizedBox(width: 8),
           _saving
               ? SizedBox(
                   width: 42,
@@ -3093,6 +3429,105 @@ class _DrawScreenState extends State<DrawScreen>
                   tooltip: s.shareDrawing),
         ],
       ),
+    );
+  }
+
+  /// Редкие действия холста: фон, перетаскивание, очистка.
+  Widget _buildMoreMenu(AppStrings s, AppTheme t) {
+    return PopupMenuButton<String>(
+      tooltip: s.drawMore,
+      position: PopupMenuPosition.under,
+      icon: Icon(Icons.more_horiz_rounded, size: 21, color: t.textPrimary),
+      onSelected: (value) {
+        switch (value) {
+          case 'background':
+            _openBackgroundSheet();
+          case 'palm':
+            _selectTool(DrawTool.palm);
+          case 'move-image':
+            _selectTool(DrawTool.image);
+          case 'replay':
+            _openReplay();
+          case 'clear':
+            _confirmClear();
+          case 'delete-image':
+            _deleteSelectedImage();
+        }
+      },
+      itemBuilder: (ctx) => [
+        PopupMenuItem(
+          value: 'replay',
+          child: Row(
+            children: [
+              const Icon(Icons.play_circle_outline_rounded, size: 20),
+              const SizedBox(width: 12),
+              Text(s.drawReplay),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'background',
+          child: Row(
+            children: [
+              const Icon(Icons.texture_rounded, size: 20),
+              const SizedBox(width: 12),
+              Text(s.drawBackgrounds),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'palm',
+          child: Row(
+            children: [
+              Icon(
+                Icons.pan_tool_rounded,
+                size: 20,
+                color: _activeTool == DrawTool.palm ? t.primary : null,
+              ),
+              const SizedBox(width: 12),
+              Text(s.palmTool),
+            ],
+          ),
+        ),
+        // Режим перемещения включается сам после вставки фото, но человек
+        // мог уйти на кисть — сюда он и возвращается.
+        PopupMenuItem(
+          value: 'move-image',
+          child: Row(
+            children: [
+              Icon(
+                Icons.open_with_rounded,
+                size: 20,
+                color: _activeTool == DrawTool.image ? t.primary : null,
+              ),
+              const SizedBox(width: 12),
+              Text(s.photo),
+            ],
+          ),
+        ),
+        if (_selectedImageId != null)
+          PopupMenuItem(
+            value: 'delete-image',
+            child: Row(
+              children: [
+                const Icon(Icons.hide_image_rounded, size: 20),
+                const SizedBox(width: 12),
+                Text(s.deletePhoto),
+              ],
+            ),
+          ),
+        PopupMenuItem(
+          value: 'clear',
+          child: Row(
+            children: [
+              Icon(Icons.delete_outline_rounded,
+                  size: 20, color: Colors.red.shade400),
+              const SizedBox(width: 12),
+              Text(s.clearCanvas),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -3144,11 +3579,25 @@ class _DrawScreenState extends State<DrawScreen>
         if (ratio == null) {
           // Холст, созданный до появления листа: прежняя геометрия во всю
           // область — иначе сохранённые штрихи сплющит.
-          sheetW = (available.width - _kCanvasPad * 2).clamp(1.0, double.infinity);
-          sheetH =
+          final fullW =
+              (available.width - _kCanvasPad * 2).clamp(1.0, double.infinity);
+          final fullH =
               (available.height - _kCanvasPad * 2).clamp(1.0, double.infinity);
-          sheetLeft = _kCanvasPad;
-          sheetTop = _kCanvasPad;
+          // Форму снимаем ОДИН раз за заход и держим её дальше: рисунок
+          // хранится в долях, поэтому любая другая форма его растягивает.
+          // Раньше форма менялась вместе с областью — панель открылась или
+          // телефон повернули, и круг превращался в блин.
+          final r = _freeRatio ??= fullW / fullH;
+          var w = fullW;
+          var h = w / r;
+          if (h > fullH) {
+            h = fullH;
+            w = h * r;
+          }
+          sheetW = w;
+          sheetH = h;
+          sheetLeft = (available.width - w) / 2;
+          sheetTop = (available.height - h) / 2;
         } else {
           final maxW =
               (available.width - _kCanvasPad * 2).clamp(1.0, double.infinity);
@@ -3217,6 +3666,8 @@ class _DrawScreenState extends State<DrawScreen>
                         showPixelGrid: _showPixelGrid,
                         strokes: _strokesNotifier,
                         currentPoints: _currentPoints,
+                        symmetry: _symmetry,
+                        symmetrySectors: _symmetrySectors,
                         currentColorValue: _currentColorValue,
                         currentStrokeWidth: _currentStrokeWidth,
                         currentIsEraser: _currentIsEraser,
@@ -3658,129 +4109,359 @@ class _DrawScreenState extends State<DrawScreen>
 
   //  Bottom toolbar
 
+  /// Лист приезжает снизу, а не появляется рывком: холст при этом ужимается,
+  /// и без анимации кажется, что рисунок дёрнулся.
   Widget _buildBottomToolbar(AppStrings s, AppTheme t) {
-    return Container(
-      decoration: BoxDecoration(
-        color: t.cardSurface,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Expanded tools row (shown when toolbar is expanded)
-          AnimatedSize(
-            duration: const Duration(milliseconds: 260),
-            curve: Curves.easeOutCubic,
-            child: _toolbarExpanded
-                ? _buildExpandedTools(s, t)
-                : const SizedBox.shrink(),
-          ),
-          // Main toolbar row
-          _buildMainToolbarRow(s, t),
-        ],
-      ),
+    return AnimatedSize(
+      duration: Motion.block,
+      curve: Motion.emphasized,
+      alignment: Alignment.topCenter,
+      child: _toolsOpen
+          ? _toolsSheet(s, t)
+          : const SizedBox(width: double.infinity),
     );
   }
 
-  /// Ряд дополнительных инструментов.
+  Widget _toolsSheet(AppStrings s, AppTheme t) {
+    return DrawToolsSheet(
+      tool: _panelTool,
+      color: _activeColor,
+      width: _strokeWidth,
+      minWidth: 1,
+      maxWidth: 40,
+      palette: _kPanelPalette,
+      fill: t.fillColor,
+      onFill: AppThemes.onColor(t.fillColor, mode: t.brightness),
+      labelThickness: s.strokeThickness,
+      labelColor: s.colorLabel,
+      tools: _quickTools,
+      toolLabels: {
+        DrawQuickTool.brush: s.brush,
+        DrawQuickTool.eraser: s.eraser,
+        DrawQuickTool.fill: s.fillBg,
+        DrawQuickTool.shapes: s.drawShapes,
+        DrawQuickTool.layers: s.drawLayers,
+        DrawQuickTool.image: s.addPhoto,
+        DrawQuickTool.palm: s.palmTool,
+        DrawQuickTool.background: s.drawBackgrounds,
+        DrawQuickTool.clear: s.clearCanvas,
+        DrawQuickTool.replay: s.drawReplay,
+      },
+      onTool: _onPanelTool,
+      onWidth: (v) => setState(() => _strokeWidth = v),
+      onColor: _applyPickedColor,
+      onMoreColors: _showColorPicker,
+      onEyedropper: () {
+        // Пипетка работает по холсту, поэтому лист уходит с дороги.
+        setState(() => _toolsOpen = false);
+        unawaited(_armEyedropper());
+      },
+      eyedropperLabel: s.eyedropper,
+      onBrushSettings: _openBrushSheet,
+      brushSettingsLabel: s.brushSettings,
+      closeLabel: s.close,
+      side: _layout == DrawLayout.sidePanel,
+      symmetryOn: _symmetry != SymmetryMode.none,
+      onClose: () => setState(() => _toolsOpen = false),
+    );
+  }
+
+  /// Значок пузыря. Ладонь живёт в меню шапки, кнопки в листе у неё нет — но
+  /// пузырь обязан показывать то, что холст делает на самом деле, иначе рука
+  /// двигает лист, а значок обещает кисть.
+  IconData get _bubbleIcon => _activeTool == DrawTool.palm
+      ? Icons.pan_tool_rounded
+      : DrawToolsSheet.icons[_panelTool] ?? Icons.brush_rounded;
+
+  /// Что показывает пузырь: инструмент холста, приведённый к шести кнопкам
+  /// листа. Фигуры (линия, прямоугольник, круг, треугольник) прячутся за одной
+  /// кнопкой — на холсте важен не вид фигуры, а то, что рисуют не кистью.
+  DrawQuickTool get _panelTool => switch (_activeTool) {
+        DrawTool.palm => DrawQuickTool.palm,
+        DrawTool.eraser => DrawQuickTool.eraser,
+        DrawTool.fill => DrawQuickTool.fill,
+        DrawTool.line ||
+        DrawTool.rect ||
+        DrawTool.circle ||
+        DrawTool.triangle =>
+          DrawQuickTool.shapes,
+        DrawTool.image => DrawQuickTool.image,
+        _ => DrawQuickTool.brush,
+      };
+
+  void _onPanelTool(DrawQuickTool tool) {
+    switch (tool) {
+      case DrawQuickTool.brush:
+        _selectTool(DrawTool.brush);
+      case DrawQuickTool.eraser:
+        _selectTool(DrawTool.eraser);
+      case DrawQuickTool.fill:
+        _selectTool(DrawTool.fill);
+      case DrawQuickTool.shapes:
+        _openShapesSheet();
+      case DrawQuickTool.layers:
+        _openLayersSheet();
+      case DrawQuickTool.image:
+        unawaited(_pickAndAddImage());
+      case DrawQuickTool.palm:
+        _selectTool(DrawTool.palm);
+      case DrawQuickTool.background:
+        _openBackgroundSheet();
+      case DrawQuickTool.clear:
+        _confirmClear();
+      case DrawQuickTool.replay:
+        _openReplay();
+    }
+  }
+
+  /// Настройки самой линии: плавность, ровные фигуры, симметрия.
   ///
-  /// Прокручивается по горизонтали: на узком экране (или с крупным системным
-  /// шрифтом) фигуры, заливка, слои и фон не влезают в ряд, и кнопки за правым
-  /// краем становились недоступны совсем. Удаление вынесено из прокрутки и
-  /// прижато к правому краю — до него всегда один тап, и оно не уезжает под
-  /// палец во время прокрутки.
-  Widget _buildExpandedTools(AppStrings s, AppTheme t) {
-    return Container(
-      height: 58,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      color: t.surfaceMuted,
-      child: Row(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-        children: [
-          _toolBtn(
-            Icons.remove_rounded,
-            DrawTool.line,
-            s.drawLine,
-            t,
-            compact: true,
-          ),
-          _toolBtn(
-            Icons.crop_square_rounded,
-            DrawTool.rect,
-            s.drawRect,
-            t,
-            compact: true,
-          ),
-          _toolBtn(
-            Icons.circle_outlined,
-            DrawTool.circle,
-            s.drawCircle,
-            t,
-            compact: true,
-          ),
-          _toolBtn(
-            Icons.change_history_rounded,
-            DrawTool.triangle,
-            s.drawTriangle,
-            t,
-            compact: true,
-          ),
-          const SizedBox(width: 4),
-          Container(width: 1, height: 24, color: t.divider),
-          const SizedBox(width: 4),
-          _actionBtn(
-            _fillShapes
-                ? Icons.check_box_rounded
-                : Icons.check_box_outline_blank_rounded,
-            () => setState(() => _fillShapes = !_fillShapes),
-            tooltip: s.fillShapes,
-            color: _fillShapes ? t.primary : t.textMuted,
-          ),
-          _toolBtn(
-            Icons.format_color_fill_rounded,
-            DrawTool.fill,
-            s.fillBg,
-            t,
-            compact: true,
-          ),
-          const SizedBox(width: 4),
-          Container(width: 1, height: 24, color: t.divider),
-          const SizedBox(width: 4),
-          _actionBtn(
-            Icons.layers_rounded,
-            _openLayersSheet,
-            tooltip: s.drawLayers,
-            color: _layerCount > 1 ? t.primary : t.textMuted,
-          ),
-          _actionBtn(
-            Icons.texture_rounded,
-            _openBackgroundSheet,
-            tooltip: s.drawBackgrounds,
-            color: _background != CanvasBackground.plain
-                ? t.primary
-                : t.textMuted,
-          ),
+  /// Живут за кнопкой в строке «Толщина», а не в ряду инструментов: ряд по
+  /// макету держит ровно шесть кнопок, и седьмая ломала бы его на узком
+  /// экране.
+  void _openBrushSheet() {
+    final s = LocaleService.current;
+    showAppSheet<void>(
+      context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          final cs = Theme.of(ctx).colorScheme;
+          void pick(SymmetryMode mode) {
+            HapticFeedback.selectionClick();
+            setSheet(() {});
+            setState(() => _symmetry = mode);
+            unawaited(_saveBrushPrefs());
+          }
+
+          return SheetScaffold(
+            title: s.brushSettings,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    s.brushSmoothing,
+                    style: ProfileTheme.sectionLabel(cs).copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                  Slider(
+                    value: _smoothing,
+                    max: 0.8,
+                    divisions: 8,
+                    label: '${(_smoothing * 100).round()}%',
+                    onChanged: (v) {
+                      setSheet(() {});
+                      setState(() => _smoothing = v);
+                    },
+                    onChangeEnd: (_) => unawaited(_saveBrushPrefs()),
+                  ),
+                  Text(
+                    s.brushSmoothingHint,
+                    style: TextStyle(
+                      fontFamily: 'Onest',
+                      fontSize: 13,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _quickShapes,
+                    title: Text(
+                      s.brushQuickShapes,
+                      style: const TextStyle(
+                        fontFamily: 'Onest',
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: Text(
+                      s.brushQuickShapesHint,
+                      style: TextStyle(
+                        fontFamily: 'Onest',
+                        fontSize: 13,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                    onChanged: (v) {
+                      setSheet(() {});
+                      setState(() => _quickShapes = v);
+                      unawaited(_saveBrushPrefs());
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    s.symmetryTitle,
+                    style: ProfileTheme.sectionLabel(cs).copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final (mode, label, icon) in <(SymmetryMode, String, IconData)>[
+                        (SymmetryMode.none, s.symmetryNone, Icons.block_rounded),
+                        (SymmetryMode.vertical, s.symmetryVertical,
+                            Icons.flip_rounded),
+                        (SymmetryMode.horizontal, s.symmetryHorizontal,
+                            Icons.flip_rounded),
+                        (SymmetryMode.quad, s.symmetryQuad, Icons.grid_view_rounded),
+                        (SymmetryMode.radial, s.symmetryRadial,
+                            Icons.blur_on_rounded),
+                      ])
+                        ChoiceChip(
+                          selected: _symmetry == mode,
+                          onSelected: (_) => pick(mode),
+                          avatar: Icon(
+                            icon,
+                            size: 18,
+                            // Горизонтальную ось рисует тот же значок,
+                            // повёрнутый на четверть оборота.
+                            color: _symmetry == mode
+                                ? cs.onSecondaryContainer
+                                : cs.onSurfaceVariant,
+                          ),
+                          label: Text(label),
+                          showCheckmark: false,
+                        ),
+                    ],
+                  ),
+                  if (_symmetry == SymmetryMode.radial) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      '${s.symmetryRaysCount}: $_symmetrySectors',
+                      style: TextStyle(
+                        fontFamily: 'Onest',
+                        fontSize: 13,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                    Slider(
+                      value: _symmetrySectors.toDouble(),
+                      min: 2,
+                      max: 12,
+                      divisions: 10,
+                      label: '$_symmetrySectors',
+                      onChanged: (v) {
+                        setSheet(() {});
+                        setState(() => _symmetrySectors = v.round());
+                      },
+                      onChangeEnd: (_) => unawaited(_saveBrushPrefs()),
+                    ),
+                  ],
                 ],
               ),
             ),
-          ),
-          const SizedBox(width: 4),
-          Container(width: 1, height: 24, color: t.divider),
-          const SizedBox(width: 4),
-          _actionBtn(
-            Icons.delete_outline_rounded,
-            _selectedImageId != null ? _deleteSelectedImage : _confirmClear,
-            tooltip: _selectedImageId != null ? s.deletePhoto : s.clearCanvas,
-            color: Colors.red.shade400,
-          ),
-        ],
+          );
+        },
       ),
     );
   }
 
+  Future<void> _loadBrushPrefs() async {
+    final p = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    final name = p.getString(UiPrefs.kBrushSymmetry);
+    setState(() {
+      _quickTools = parseQuickTools(p.getString(UiPrefs.kDrawQuickTools));
+      _smoothing = p.getDouble(UiPrefs.kBrushSmoothing) ?? kDefaultSmoothing;
+      _quickShapes = p.getBool(UiPrefs.kBrushQuickShapes) ?? true;
+      _symmetrySectors = p.getInt(UiPrefs.kBrushSymmetrySectors) ?? 6;
+      _symmetry = SymmetryMode.values.firstWhere(
+        (m) => m.name == name,
+        orElse: () => SymmetryMode.none,
+      );
+    });
+  }
+
+  Future<void> _saveBrushPrefs() async {
+    final p = await SharedPreferences.getInstance();
+    await p.setDouble(UiPrefs.kBrushSmoothing, _smoothing);
+    await p.setBool(UiPrefs.kBrushQuickShapes, _quickShapes);
+    await p.setString(UiPrefs.kBrushSymmetry, _symmetry.name);
+    await p.setInt(UiPrefs.kBrushSymmetrySectors, _symmetrySectors);
+  }
+
+  /// Какой фигурой рисовать. В панели у фигур одна кнопка, вид выбирают тут.
+  void _openShapesSheet() {
+    final s = LocaleService.current;
+    final cs = Theme.of(context).colorScheme;
+    showAppSheet<void>(
+      context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => SheetScaffold(
+          title: s.drawShapes,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    for (final (icon, tool, label) in <(IconData, DrawTool, String)>[
+                      (Icons.remove_rounded, DrawTool.line, s.drawLine),
+                      (Icons.crop_square_rounded, DrawTool.rect, s.drawRect),
+                      (Icons.circle_outlined, DrawTool.circle, s.drawCircle),
+                      (
+                        Icons.change_history_rounded,
+                        DrawTool.triangle,
+                        s.drawTriangle
+                      ),
+                    ]) ...[
+                      Expanded(
+                        child: Tooltip(
+                          message: label,
+                          child: Material(
+                            color: _activeTool == tool
+                                ? cs.primaryContainer
+                                : cs.surfaceContainerHigh,
+                            borderRadius: BorderRadius.circular(16),
+                            clipBehavior: Clip.antiAlias,
+                            child: InkWell(
+                              onTap: () {
+                                _selectTool(tool);
+                                setSheet(() {});
+                                Navigator.pop(ctx);
+                              },
+                              child: SizedBox(
+                                height: 56,
+                                child: Icon(
+                                  icon,
+                                  color: _activeTool == tool
+                                      ? cs.onPrimaryContainer
+                                      : cs.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (tool != DrawTool.triangle) const SizedBox(width: 8),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(s.fillShapes),
+                  value: _fillShapes,
+                  onChanged: (v) {
+                    setState(() => _fillShapes = v);
+                    setSheet(() {});
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   // ── Слои и фон ──────────────────────────────────────────────────────────
 
@@ -3931,6 +4612,25 @@ class _DrawScreenState extends State<DrawScreen>
     refreshSheet(() {});
   }
 
+  /// Показ того, как рисунок появлялся. Записи не ведём: порядок мазков уже
+  /// лежит в базе, повтор просто прокручивает его.
+  void _openReplay() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => DrawReplayScreen(
+          strokes: List<DrawStroke>.unmodifiable(_visibleStrokes),
+          theme: widget.theme,
+          background: _background,
+          // Свободный холст листа не имеет: показываем его в квадрате, где
+          // доли точек и так лежат по 0…1.
+          sheetRatio: _sheetRatio ?? 1.0,
+          pixelCols: _isPixel ? _pxCols : null,
+          pixelRows: _isPixel ? _pxRows : null,
+        ),
+      ),
+    );
+  }
+
   /// Выбор фона листа.
   void _openBackgroundSheet() {
     final s = LocaleService.current;
@@ -3976,7 +4676,6 @@ class _DrawScreenState extends State<DrawScreen>
     ColorScheme cs,
     StateSetter refreshSheet,
   ) {
-    final spec = specOf(bg);
     final selected = _background == bg;
     final s = LocaleService.current;
     // Платные фоны набора открывает Togetherly+ (или поштучная покупка).
@@ -4075,262 +4774,9 @@ class _DrawScreenState extends State<DrawScreen>
     );
   }
 
-  Widget _buildMainToolbarRow(AppStrings s, AppTheme t) {
-    // Инструментов больше, чем влезает в строку, поэтому ряд прокручивается.
-    // Раньше лишние кнопки просто обрезались краем экрана и до них было не
-    // добраться.
-    return SafeArea(
-      top: false,
-      child: SizedBox(
-        height: 68,
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: Row(
-          children: [
-            const SizedBox(width: 8),
-            // Color dot - opens color picker
-            GestureDetector(
-              onTap: _showColorPicker,
-              child: Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: _activeColor,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 3),
-                ),
-              ),
-            ),
-            const SizedBox(width: 4),
-            // Лента цветов: своя ширина, иначе Expanded внутри прокрутки падает
-            SizedBox(
-              width: 210,
-              child: SizedBox(
-                height: 64,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  dragStartBehavior: DragStartBehavior.down,
-                  itemCount: _kPalette.length,
-                  itemBuilder: (_, i) {
-                    final c = _kPalette[i];
-                    final sel = c.toARGB32() == _activeColor.toARGB32();
-                    return GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => setState(() {
-                        _activeColor = c;
-                        _currentColorValue = c.toARGB32();
-                      }),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 130),
-                        margin: const EdgeInsets.symmetric(
-                          horizontal: 3,
-                          vertical: 10,
-                        ),
-                        width: sel ? 40 : 34,
-                        height: sel ? 40 : 34,
-                        decoration: BoxDecoration(
-                          color: c,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: sel
-                                ? t.primary
-                                : (c == Colors.white
-                                      ? Colors.grey.shade400
-                                      : Colors.transparent),
-                            width: sel ? 2.5 : 1,
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(width: 4),
-            // Palm (hand) tool
-            _toolBtn(Icons.pan_tool_rounded, DrawTool.palm, s.palmTool, t),
-            // Image tool
-            _toolBtn(Icons.image_rounded, DrawTool.image, s.photo, t),
-            // Add photo button
-            _actionBtn(
-              Icons.add_photo_alternate_rounded,
-              _pickAndAddImage,
-              tooltip: s.addPhoto,
-            ),
-            // Brush tool
-            _toolBtn(Icons.brush_rounded, DrawTool.brush, s.brush, t),
-            // Eraser
-            _toolBtn(
-              Icons.auto_fix_normal_rounded,
-              DrawTool.eraser,
-              s.eraser,
-              t,
-            ),
-            // Thickness
-            _actionBtn(
-              Icons.line_weight_rounded,
-              _showThicknessPicker,
-              tooltip: s.strokeThickness,
-              badge: _strokeWidth.round().toString(),
-            ),
-            // Отмена и возврат — здесь же, у большого пальца
-            _actionBtn(
-              Icons.undo_rounded,
-              _canUndo ? _undo : null,
-              tooltip: s.undoAction,
-            ),
-            _actionBtn(
-              Icons.redo_rounded,
-              _canRedo ? _redo : null,
-              tooltip: s.redoAction,
-            ),
-            // Expand/collapse more tools
-            _expandBtn(t),
-            const SizedBox(width: 4),
-          ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _toolBtn(
-    IconData icon,
-    DrawTool tool,
-    String tooltip,
-    AppTheme t, {
-    bool compact = false,
-  }) {
-    final active = _activeTool == tool;
-    final size = compact ? 40.0 : 48.0;
-    return Tooltip(
-      message: tooltip,
-      child: GestureDetector(
-        onTap: () => _selectTool(tool),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          margin: EdgeInsets.symmetric(
-            horizontal: compact ? 2 : 3,
-            vertical: compact ? 8 : 6,
-          ),
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            // Круглая кнопка: выбранный инструмент залит акцентом, остальные —
-            // на поверхности карточки. Рамок и полупрозрачных заливок нет.
-            color: active ? t.primary : t.surfaceMuted,
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            icon,
-            size: compact ? 20 : 22,
-            color: active ? _onPrimaryColor(t) : t.textSecondary,
-          ),
-        ),
-      ),
-    );
-  }
-
   /// Контрастный цвет поверх акцента: у светлых акцентов белый текст тонет.
   Color _onPrimaryColor(AppTheme t) =>
       t.primary.computeLuminance() > 0.55 ? const Color(0xFF16161A) : Colors.white;
-
-  Widget _actionBtn(
-    IconData icon,
-    VoidCallback? onTap, {
-    required String tooltip,
-    Color? color,
-    String? badge,
-  }) {
-    return Tooltip(
-      message: tooltip,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 3, vertical: 6),
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: widget.theme.surfaceMuted,
-            shape: BoxShape.circle,
-          ),
-          child: Stack(
-            children: [
-              Center(
-                child: Icon(
-                  icon,
-                  size: 22,
-                  color: color ?? widget.theme.textMuted,
-                ),
-              ),
-              if (badge != null)
-                Positioned(
-                  right: 4,
-                  bottom: 4,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 3,
-                      vertical: 1,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade600,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      badge,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 8,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _expandBtn(AppTheme t) {
-    return GestureDetector(
-      onTap: () {
-        setState(() => _toolbarExpanded = !_toolbarExpanded);
-        if (_toolbarExpanded) {
-          _toolbarAnim.forward();
-        } else {
-          _toolbarAnim.reverse();
-        }
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        margin: const EdgeInsets.symmetric(horizontal: 3, vertical: 6),
-        width: 42,
-        height: 42,
-        decoration: BoxDecoration(
-          color: _toolbarExpanded
-              ? t.primary.withValues(alpha: 0.13)
-              : t.surfaceMuted,
-          borderRadius: BorderRadius.circular(12),
-          border: _toolbarExpanded
-              ? Border.all(color: t.primary.withValues(alpha: 0.4), width: 1.5)
-              : null,
-        ),
-        child: AnimatedRotation(
-          duration: const Duration(milliseconds: 260),
-          turns: _toolbarExpanded ? 0.5 : 0.0,
-          child: Icon(
-            Icons.expand_less_rounded,
-            size: 22,
-            color: _toolbarExpanded ? t.primary : t.textMuted,
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 //  Grid background
@@ -4525,6 +4971,12 @@ class _CanvasScene extends StatefulWidget {
   /// Состав рисунка: приезжает каналом, чтобы новый штрих не перестраивал экран.
   final ValueListenable<StrokesSnapshot> strokes;
   final List<DrawPoint> currentPoints;
+
+  /// Симметрия текущего мазка. Копии рисуются здесь же, на лету: в базу они
+  /// уходят только при отпускании пальца, а видеть их надо сразу.
+  final SymmetryMode symmetry;
+  final int symmetrySectors;
+
   final int currentColorValue;
   final double currentStrokeWidth;
   final bool currentIsEraser;
@@ -4552,6 +5004,8 @@ class _CanvasScene extends StatefulWidget {
     this.showPixelGrid = true,
     required this.strokes,
     required this.currentPoints,
+    required this.symmetry,
+    required this.symmetrySectors,
     required this.currentColorValue,
     required this.currentStrokeWidth,
     required this.currentIsEraser,
@@ -4694,6 +5148,8 @@ class _CanvasSceneState extends State<_CanvasScene> {
                 pixelCols: widget.pixelCols,
                 pixelRows: widget.pixelRows,
                 currentPoints: widget.currentPoints,
+                symmetry: widget.symmetry,
+                symmetrySectors: widget.symmetrySectors,
                 currentColorValue: widget.currentColorValue,
                 currentStrokeWidth: widget.currentStrokeWidth,
                 currentIsEraser: widget.currentIsEraser,
@@ -4821,6 +5277,12 @@ class _DrawingPainter extends CustomPainter {
   /// новый штрих не заставляет пересобирать дерево виджетов.
   final ValueListenable<StrokesSnapshot> strokes;
   final List<DrawPoint> currentPoints;
+
+  /// Симметрия текущего мазка. Копии рисуются здесь же, на лету: в базу они
+  /// уходят только при отпускании пальца, а видеть их надо сразу.
+  final SymmetryMode symmetry;
+  final int symmetrySectors;
+
   final int currentColorValue;
   final double currentStrokeWidth;
   final bool currentIsEraser;
@@ -4842,6 +5304,8 @@ class _DrawingPainter extends CustomPainter {
     this.pixelCols,
     this.pixelRows,
     required this.currentPoints,
+    required this.symmetry,
+    required this.symmetrySectors,
     required this.currentColorValue,
     required this.currentStrokeWidth,
     required this.currentIsEraser,
@@ -4859,7 +5323,15 @@ class _DrawingPainter extends CustomPainter {
     final strokesRevision = snapshot.revision;
     final strokeList =
         snapshot.list.where((s) => !s.isImageStroke).toList(growable: false);
-    // Removed saveLayer for performance. Simplified Eraser uses bgColor ink.
+
+    // Ластик снимает краску (`BlendMode.dstOut`), а значит рисовать штрихи
+    // надо в своём слое: иначе стирание выест и фон холста — сетку, узор,
+    // сам лист. Слой заводим только когда ластик в рисунке есть: saveLayer
+    // на весь холст стоит кадра, и платить за него всем незачем.
+    final needsLayer = currentIsEraser ||
+        strokeList.any((s) => s.isEraser) ||
+        partnerNotifier.value.any((s) => s.isEraser);
+    if (needsLayer) canvas.saveLayer(Offset.zero & size, Paint());
 
     // Закоммиченные штрихи выкладываем готовым слоем. Слой держит ПРЕФИКС
     // состава: пока штрихи только дописываются в конец, картинка не трогается
@@ -4945,25 +5417,36 @@ class _DrawingPainter extends CustomPainter {
     }
 
     if (currentPoints.isNotEmpty) {
-      if (currentShapeType != null && currentPoints.length >= 2) {
-        _drawShape(
-          canvas,
+      final drafts = <List<DrawPoint>>[
+        currentPoints,
+        ...mirrorStroke(
           currentPoints,
-          currentColorValue,
-          currentStrokeWidth,
-          currentShapeType!,
-          size,
-          isFilledShape: currentIsFilledShape,
-        );
-      } else {
-        _drawStroke(
-          canvas,
-          currentPoints,
-          currentColorValue,
-          currentStrokeWidth,
-          currentIsEraser,
-          size,
-        );
+          symmetry,
+          sectors: symmetrySectors,
+          aspect: size.height == 0 ? 1 : size.width / size.height,
+        ),
+      ];
+      for (final points in drafts) {
+        if (currentShapeType != null && points.length >= 2) {
+          _drawShape(
+            canvas,
+            points,
+            currentColorValue,
+            currentStrokeWidth,
+            currentShapeType!,
+            size,
+            isFilledShape: currentIsFilledShape,
+          );
+        } else if (currentShapeType == null) {
+          _drawStroke(
+            canvas,
+            points,
+            currentColorValue,
+            currentStrokeWidth,
+            currentIsEraser,
+            size,
+          );
+        }
       }
     }
 
@@ -4991,8 +5474,12 @@ class _DrawingPainter extends CustomPainter {
         );
       }
     }
+
+    if (needsLayer) canvas.restore();
   }
 
+  /// Тонкие обёртки над общей отрисовкой (`widgets/draw/stroke_painting.dart`):
+  /// сам код рисования живёт там, потому что его же показывает повтор.
   void _drawShape(
     Canvas canvas,
     List<DrawPoint> points,
@@ -5002,90 +5489,9 @@ class _DrawingPainter extends CustomPainter {
     Size size, {
     double alpha = 1.0,
     required bool isFilledShape,
-  }) {
-    if (points.length < 2) return;
-    final c = Color(colorValue);
-    final paint = Paint()
-      ..color = alpha < 1.0 ? c.withValues(alpha: c.a * alpha) : c
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.round
-      ..style = isFilledShape ? PaintingStyle.fill : PaintingStyle.stroke;
-
-    final s = points.first.toOffset(size);
-    final e = points.last.toOffset(size);
-
-    switch (shapeType) {
-      case DrawShapeType.line:
-        canvas.drawLine(s, e, paint);
-      case DrawShapeType.rect:
-        canvas.drawRect(Rect.fromPoints(s, e), paint);
-      case DrawShapeType.circle:
-        canvas.drawOval(Rect.fromPoints(s, e), paint);
-      case DrawShapeType.triangle:
-        final path = Path();
-        path.moveTo((s.dx + e.dx) / 2, s.dy); // Top center
-        path.lineTo(s.dx, e.dy); // Bottom left
-        path.lineTo(e.dx, e.dy); // Bottom right
-        path.close();
-        canvas.drawPath(path, paint);
-    }
-  }
-
-  /// Пиксельный штрих: точки — номера клеток, между ними шагаем алгоритмом
-  /// Брезенхэма, иначе при быстром движении пальца в дорожке остаются дыры.
-  void _drawPixelStroke(
-    Canvas canvas,
-    List<DrawPoint> points,
-    int colorValue,
-    bool isEraser,
-    Size size,
-    int cols,
-    int rows, {
-    double alpha = 1.0,
-  }) {
-    if (points.isEmpty || cols < 1 || rows < 1) return;
-    final cw = size.width / cols;
-    final ch = size.height / rows;
-    final c = Color(colorValue);
-    final paint = Paint()
-      ..style = PaintingStyle.fill
-      ..isAntiAlias = false
-      ..color = alpha < 1.0 ? c.withValues(alpha: c.a * alpha) : c;
-
-    final cells = <int>{};
-    int? prevX, prevY;
-    for (final p in points) {
-      final cx = (p.x * cols).floor().clamp(0, cols - 1);
-      final cy = (p.y * rows).floor().clamp(0, rows - 1);
-      if (prevX != null && prevY != null && (prevX != cx || prevY != cy)) {
-        int x0 = prevX, y0 = prevY;
-        final dx = (cx - x0).abs(), sx = x0 < cx ? 1 : -1;
-        final dy = -(cy - y0).abs(), sy = y0 < cy ? 1 : -1;
-        int err = dx + dy;
-        while (true) {
-          cells.add(y0 * cols + x0);
-          if (x0 == cx && y0 == cy) break;
-          final e2 = 2 * err;
-          if (e2 >= dy) { err += dy; x0 += sx; }
-          if (e2 <= dx) { err += dx; y0 += sy; }
-        }
-      }
-      cells.add(cy * cols + cx);
-      prevX = cx;
-      prevY = cy;
-    }
-
-    // +0.5 к стороне — чтобы между соседними клетками не просвечивали щели
-    // после округления координат.
-    for (final key in cells) {
-      final x = key % cols;
-      final y = key ~/ cols;
-      canvas.drawRect(
-        Rect.fromLTWH(x * cw, y * ch, cw + 0.5, ch + 0.5),
-        paint,
-      );
-    }
-  }
+  }) =>
+      paintShape(canvas, points, colorValue, strokeWidth, shapeType, size,
+          alpha: alpha, isFilledShape: isFilledShape);
 
   void _drawStroke(
     Canvas canvas,
@@ -5095,54 +5501,9 @@ class _DrawingPainter extends CustomPainter {
     bool isEraser,
     Size size, {
     double alpha = 1.0,
-  }) {
-    if (points.isEmpty) return;
-    // Пиксельный холст: клетки вместо сглаженной кривой.
-    if (pixelCols != null && pixelRows != null) {
-      _drawPixelStroke(canvas, points, colorValue, isEraser, size,
-          pixelCols!, pixelRows!, alpha: alpha);
-      return;
-    }
-    final paint = Paint()
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..style = PaintingStyle.stroke;
-
-    if (isEraser) {
-      // Drawing with bgColor is faster and more collaborative-friendly than BlendMode.dstOut
-      paint.color = Color(colorValue);
-    } else {
-      final c = Color(colorValue);
-      paint.color = alpha < 1.0 ? c.withValues(alpha: c.a * alpha) : c;
-    }
-
-    if (points.length == 1) {
-      if (!isEraser) {
-        canvas.drawCircle(
-          points.first.toOffset(size),
-          strokeWidth / 2,
-          paint..style = PaintingStyle.fill,
-        );
-      }
-      return;
-    }
-
-    final path = Path();
-    final first = points.first.toOffset(size);
-    path.moveTo(first.dx, first.dy);
-
-    for (int i = 1; i < points.length - 1; i++) {
-      final p0 = points[i].toOffset(size);
-      final p1 = points[i + 1].toOffset(size);
-      final mid = Offset((p0.dx + p1.dx) / 2, (p0.dy + p1.dy) / 2);
-      path.quadraticBezierTo(p0.dx, p0.dy, mid.dx, mid.dy);
-    }
-
-    final last = points.last.toOffset(size);
-    path.lineTo(last.dx, last.dy);
-    canvas.drawPath(path, paint..style = PaintingStyle.stroke);
-  }
+  }) =>
+      paintStroke(canvas, points, colorValue, strokeWidth, isEraser, size,
+          alpha: alpha, pixelCols: pixelCols, pixelRows: pixelRows);
 
   @override
   bool shouldRepaint(covariant _DrawingPainter old) =>
@@ -5152,6 +5513,8 @@ class _DrawingPainter extends CustomPainter {
       old.currentStrokeWidth != currentStrokeWidth ||
       old.currentIsEraser != currentIsEraser ||
       old.currentShapeType != currentShapeType ||
+      old.symmetry != symmetry ||
+      old.symmetrySectors != symmetrySectors ||
       old.canvasSize != canvasSize ||
       old.pixelCols != pixelCols ||
       old.pixelRows != pixelRows;

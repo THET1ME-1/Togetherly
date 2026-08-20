@@ -281,6 +281,15 @@ const Map<String, Map<String, String>> liveLocationMapStrings = {
     'fr': 'Écris d’abord ton vœu',
     'de': 'Schreib erst deinen Wunsch',
   },
+  'officialTitle': {
+    'ru': 'Официальные обращения',
+    'en': 'Official inquiries',
+    'pt': 'Contactos oficiais',
+    'it': 'Richieste ufficiali',
+    'es': 'Consultas oficiales',
+    'fr': 'Demandes officielles',
+    'de': 'Offizielle Anfragen',
+  },
   'supportTitle': {
     'ru': 'Написать в поддержку',
     'en': 'Contact support',

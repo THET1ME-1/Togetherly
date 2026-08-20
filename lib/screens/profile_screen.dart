@@ -46,6 +46,7 @@ import '../services/plus_access.dart';
 import '../services/plus_service.dart';
 import 'love_test_screen.dart';
 import 'plus_screen.dart';
+import 'draw_tools_settings_screen.dart';
 import 'settings_screen.dart';
 import '../widgets/common/coin_reward_toast.dart';
 import '../widgets/common/m3_loading.dart';
@@ -141,10 +142,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     'https://app.lava.top/togetherly-store?tabId=donate',
   );
 
-  /// Почта поддержки. Письмо уходит с темой и версией приложения — иначе
-  /// разбирать обращения приходится вслепую.
-  static const String supportEmail = 'support@togetherly.day';
-
   Color get _accent => widget.userData.themeAccent;
   Color get _accentLight => widget.userData.themeAccentLight;
   AppStrings get _s => LocaleService.current;
@@ -179,8 +176,10 @@ class _ProfileScreenState extends State<ProfileScreen>
     // `paletteByIndex` про свои темы не знает и на их индексе отдаёт первую
     // готовую — из-за этого экран «Оформление» оставался розовым даже там,
     // где человек уже выбрал свой цвет.
-    final seed = paletteFor(ud.previewThemeId ?? ud.themeId, ud.customThemes)
-        .accent;
+    final seed = paletteFor(
+      ud.previewThemeId ?? ud.themeId,
+      ud.customThemes,
+    ).accent;
     final b = _t.brightness;
     final flavor = ud.themeFlavor;
     final sig = Object.hash(seed.toARGB32(), b, flavor);
@@ -210,9 +209,11 @@ class _ProfileScreenState extends State<ProfileScreen>
   bool _notifNewMemory = true;
   bool _notifMood = true;
   bool _notifChat = true;
+
   /// Зов порисовать: партнёр сел за холст. Пуш собирает сервер
   /// (`pb_hooks/draw_invite.pb.js`), здесь только выключатель.
   bool _notifDraw = true;
+
   /// Комментарии под воспоминанием — отдельно от самой ленты.
   bool _notifComments = true;
   // Постоянный счётчик «дней вместе» в шторке. Состояние хранит сам сервис
@@ -420,9 +421,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     if (myUid.isNotEmpty) {
       PbDataService().fetchMissYouFor(groupId: gid, uid: myUid).then((miss) {
         if (!mounted || _lastLoadedGroupId != gid) return;
-        setState(
-          () => _ownWeek = parseWeekdays(miss?['by_weekday']),
-        );
+        setState(() => _ownWeek = parseWeekdays(miss?['by_weekday']));
       });
     }
 
@@ -482,16 +481,44 @@ class _ProfileScreenState extends State<ProfileScreen>
     final subject = Uri.encodeComponent(
       'Togetherly ${info.version} (${info.buildNumber})',
     );
-    final uri = Uri.parse('mailto:$supportEmail?subject=$subject');
+    final uri = Uri.parse(
+      'mailto:${SettingsScreen.supportEmail}?subject=$subject',
+    );
     if (await canLaunchUrl(uri)) {
       await safeLaunchUrl(uri);
       return;
     }
-    await Clipboard.setData(const ClipboardData(text: supportEmail));
+    await Clipboard.setData(
+      const ClipboardData(text: SettingsScreen.supportEmail),
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(_s.supportCopied(SettingsScreen.supportEmail))),
+    );
+  }
+
+  /// Настройка панели быстрого доступа холста.
+  void _openDrawTools() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => DrawToolsSettingsScreen(theme: _t),
+      ),
+    );
+  }
+
+  /// Письмо в официальный ящик: тема пустая, человек пишет сам.
+  Future<void> _openOfficialMail() async {
+    const email = SettingsScreen.officialEmail;
+    final uri = Uri.parse('mailto:$email');
+    if (await canLaunchUrl(uri)) {
+      await safeLaunchUrl(uri);
+      return;
+    }
+    await Clipboard.setData(const ClipboardData(text: email));
     if (!mounted) return;
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text(_s.supportCopied(supportEmail))));
+    ).showSnackBar(SnackBar(content: Text(_s.supportCopied(email))));
   }
 
   Future<void> _openAboutApp() async {
@@ -999,7 +1026,9 @@ class _ProfileScreenState extends State<ProfileScreen>
   Widget _appearanceTile(BuildContext context) {
     final cs = _cs;
     final palette = paletteFor(
-        widget.userData.themeId, widget.userData.customThemes);
+      widget.userData.themeId,
+      widget.userData.customThemes,
+    );
     final ru = LocaleService.instance.isRussian;
     final mode = _t.brightness == Brightness.dark
         ? (ru ? 'тёмная' : 'dark')
@@ -1661,27 +1690,33 @@ class _ProfileScreenState extends State<ProfileScreen>
             caption(_s.paletteLabel),
             SizedBox(
               height: 62,
-              child: Builder(builder: (context) {
-                // Порядок кружков живёт в `paletteStripEntries` под тестами:
-                // сперва «своя тема», за ней собранные цвета, дальше готовые
-                // палитры. Своё не должно лежать за двадцатью пятью кружками.
-                final strip = paletteStripEntries(
-                  customCount: ud.customThemes.length,
-                  plusVisible: PlusService.instance.visible,
-                );
-                return ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: strip.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 12),
-                  itemBuilder: (context, i) => switch (strip[i].kind) {
-                    StripKind.add => _addCustomThemeSwatch(context),
-                    StripKind.custom =>
-                      _customThemeSwatch(context, strip[i].index),
-                    StripKind.palette =>
-                      _paletteSwatch(context, strip[i].index),
-                  },
-                );
-              }),
+              child: Builder(
+                builder: (context) {
+                  // Порядок кружков живёт в `paletteStripEntries` под тестами:
+                  // сперва «своя тема», за ней собранные цвета, дальше готовые
+                  // палитры. Своё не должно лежать за двадцатью пятью кружками.
+                  final strip = paletteStripEntries(
+                    customCount: ud.customThemes.length,
+                    plusVisible: PlusService.instance.visible,
+                  );
+                  return ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: strip.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 12),
+                    itemBuilder: (context, i) => switch (strip[i].kind) {
+                      StripKind.add => _addCustomThemeSwatch(context),
+                      StripKind.custom => _customThemeSwatch(
+                        context,
+                        strip[i].index,
+                      ),
+                      StripKind.palette => _paletteSwatch(
+                        context,
+                        strip[i].index,
+                      ),
+                    },
+                  );
+                },
+              ),
             ),
             const SizedBox(height: 18),
             caption(_s.themeModeLabel),
@@ -1819,8 +1854,9 @@ class _ProfileScreenState extends State<ProfileScreen>
           return;
         }
         if (ud.customThemes.length >= kMaxCustomThemes) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text(_s.customThemeFull)));
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(_s.customThemeFull)));
           return;
         }
         final theme = await showCustomThemeSheet(context);
@@ -1891,18 +1927,25 @@ class _ProfileScreenState extends State<ProfileScreen>
                 title: Text(_s.customThemeEdit),
                 onTap: () async {
                   Navigator.pop(ctx);
-                  final next =
-                      await showCustomThemeSheet(context, initial: theme);
+                  final next = await showCustomThemeSheet(
+                    context,
+                    initial: theme,
+                  );
                   if (next == null) return;
-                  await ud.updateCustomThemeAt(slot, next.seed,
-                      name: next.name);
+                  await ud.updateCustomThemeAt(
+                    slot,
+                    next.seed,
+                    name: next.name,
+                  );
                   if (mounted) setState(() {});
                 },
               ),
               ListTile(
                 leading: Icon(Icons.delete_outline_rounded, color: cs.error),
-                title: Text(_s.customThemeDelete,
-                    style: TextStyle(color: cs.error)),
+                title: Text(
+                  _s.customThemeDelete,
+                  style: TextStyle(color: cs.error),
+                ),
                 onTap: () async {
                   Navigator.pop(ctx);
                   await ud.removeCustomThemeAt(slot);
@@ -1965,6 +2008,8 @@ class _ProfileScreenState extends State<ProfileScreen>
             onResetMissYou: () => _handleResetMissYouCount(ctx),
             onTerms: _openTerms,
             onSupport: _openSupportMail,
+            onOfficial: _openOfficialMail,
+            onDrawTools: _openDrawTools,
             onTelegramChannel: _openTelegramChannel,
             onBugBot: _openBugBot,
             onAbout: _openAboutApp,
@@ -2842,10 +2887,12 @@ class _ProfileScreenState extends State<ProfileScreen>
       // есть, а причину отправляем в панель падений — без неё разбирать нечего.
       debugPrint('_changeAvatar: cropImage failed: $e');
       croppedFile = null;
-      unawaited(Sentry.captureException(
-        'avatar crop failed: $e',
-        withScope: (scope) => scope.level = SentryLevel.warning,
-      ));
+      unawaited(
+        Sentry.captureException(
+          'avatar crop failed: $e',
+          withScope: (scope) => scope.level = SentryLevel.warning,
+        ),
+      );
       if (mounted) {
         await _uploadAvatarFile(image.path);
       }

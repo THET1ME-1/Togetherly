@@ -194,13 +194,13 @@ class _ColorPickerSheetState extends State<_ColorPickerSheet> {
               ],
             ),
             const SizedBox(height: 14),
-            _SaturationValueField(
+            SaturationValueField(
               hsv: _hsv,
               onChanged: (sat, val) =>
                   _updateHsv(_hsv.withSaturation(sat).withValue(val)),
             ),
             const SizedBox(height: 14),
-            _HueBar(
+            HueBar(
               hue: _hsv.hue,
               onChanged: (hue) => _updateHsv(_hsv.withHue(hue)),
             ),
@@ -314,18 +314,28 @@ class _ColorPickerSheetState extends State<_ColorPickerSheet> {
 //  Квадрат «насыщенность × яркость»
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _SaturationValueField extends StatelessWidget {
-  const _SaturationValueField({required this.hsv, required this.onChanged});
+/// Поле «насыщенность × яркость». Публичное: его же показывает панель
+/// инструментов рисования, чтобы цвет подбирали не уходя с холста.
+class SaturationValueField extends StatelessWidget {
+  const SaturationValueField({
+    super.key,
+    required this.hsv,
+    required this.onChanged,
+    this.height = 180,
+  });
 
   final HSVColor hsv;
   final void Function(double saturation, double value) onChanged;
+
+  /// Высота поля. В листе цвета оно во весь рост, в панели холста ниже:
+  /// там под ним ещё палитра и полоса оттенка, а холст не должен уезжать.
+  final double height;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        const height = 180.0;
 
         void handle(Offset local) {
           final sat = (local.dx / width).clamp(0.0, 1.0);
@@ -388,8 +398,9 @@ class _SaturationValueField extends StatelessWidget {
 //  Полоса оттенка
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _HueBar extends StatelessWidget {
-  const _HueBar({required this.hue, required this.onChanged});
+/// Полоса оттенка. Публичная по той же причине, что и [SaturationValueField].
+class HueBar extends StatelessWidget {
+  const HueBar({super.key, required this.hue, required this.onChanged});
 
   final double hue;
   final ValueChanged<double> onChanged;

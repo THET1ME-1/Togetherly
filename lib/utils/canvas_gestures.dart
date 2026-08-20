@@ -41,3 +41,44 @@ bool strokeSurvivesSecondFinger({
   Duration minHeld = const Duration(milliseconds: 250),
 }) =>
     travel >= minTravel || held >= minHeld;
+
+/// Что делает короткий тап несколькими пальцами.
+enum MultiTapAction { none, undo, redo }
+
+/// Отмена двумя пальцами и возврат тремя — привычка, принесённая из Procreate.
+///
+/// Тап отличается от щипка тем же, чем в остальных правилах этого файла:
+/// пальцы стояли на месте и недолго. Изменившийся масштаб выдаёт щипок
+/// наверняка — отменять чужую работу по случайному сведению пальцев нельзя.
+///
+/// [fingers] — сколько пальцев было на экране одновременно, [travel] —
+/// сколько прошёл самый резвый из них.
+MultiTapAction multiTapAction({
+  required int fingers,
+  required Duration held,
+  required double travel,
+  required bool zoomed,
+  double slop = 14,
+  Duration limit = const Duration(milliseconds: 400),
+}) {
+  if (zoomed || travel > slop || held >= limit) return MultiTapAction.none;
+  return switch (fingers) {
+    2 => MultiTapAction.undo,
+    3 => MultiTapAction.redo,
+    _ => MultiTapAction.none,
+  };
+}
+
+/// Долгое нажатие одним пальцем берёт цвет с холста — приём Procreate.
+///
+/// От намеренного мазка отличается тем, что палец никуда не поехал: рисующая
+/// рука сдвигается сразу, а за цветом человек прижимает палец и ждёт.
+/// Порог пути мельче, чем у остальных правил файла: тут нельзя перепутать
+/// с началом линии, иначе первый штрих будет пропадать.
+bool holdIsEyedropper({
+  required Duration held,
+  required double travel,
+  double slop = 8,
+  Duration minHeld = const Duration(milliseconds: 550),
+}) =>
+    travel <= slop && held >= minHeld;

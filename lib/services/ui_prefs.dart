@@ -12,6 +12,16 @@ class UiPrefs {
   /// Показана ли одноразовая подсказка про удержание боковой кнопки.
   static const String kSideActionHintSeen = 'side_action_hint_seen';
 
+  /// Настройки кисти холста: сглаживание, ровные фигуры, симметрия. Живут
+  /// на устройстве — это привычка руки, а не общее имущество пары.
+  static const String kBrushSmoothing = 'draw_brush_smoothing';
+
+  /// Состав и порядок панели быстрого доступа холста.
+  static const String kDrawQuickTools = 'draw_quick_tools';
+  static const String kBrushQuickShapes = 'draw_brush_quick_shapes';
+  static const String kBrushSymmetry = 'draw_brush_symmetry';
+  static const String kBrushSymmetrySectors = 'draw_brush_symmetry_sectors';
+
   static Future<bool> sideActionIsArrow() async {
     final p = await SharedPreferences.getInstance();
     return p.getBool(kHomeSideActionArrow) ?? true;

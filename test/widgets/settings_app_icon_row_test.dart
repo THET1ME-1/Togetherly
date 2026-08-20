@@ -25,6 +25,8 @@ Widget _app({String? appIconId}) => MaterialApp(
         onResetMissYou: () {},
         onTerms: () {},
         onSupport: () {},
+        onOfficial: () {},
+        onDrawTools: () {},
         onTelegramChannel: () {},
         onBugBot: () {},
         onAbout: () {},

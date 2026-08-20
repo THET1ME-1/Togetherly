@@ -1148,6 +1148,10 @@ abstract class DictStrings extends AppStrings {
   @override
   String get rotateCanvas => _t('rotateCanvas');
   @override
+  String get drawShapes => _t('drawShapes');
+  @override
+  String get drawMore => _t('drawMore');
+  @override
   String get drawLine => _t('drawLine');
   @override
   String get drawRect => _t('drawRect');
@@ -1197,6 +1201,28 @@ abstract class DictStrings extends AppStrings {
   String get failedToShareDrawing => _t('failedToShareDrawing');
   @override
   String get strokeThickness => _t('strokeThickness');
+  String get drawToolsTitle => _t('drawToolsTitle');
+  String get drawToolsHint => _t('drawToolsHint');
+  String get drawToolsReorder => _t('drawToolsReorder');
+  String get drawToolsShown => _t('drawToolsShown');
+  String get drawToolsHidden => _t('drawToolsHidden');
+  String get drawToolsFull => _t('drawToolsFull');
+  String get drawToolsReset => _t('drawToolsReset');
+  String get brushSettings => _t('brushSettings');
+  String get brushSmoothing => _t('brushSmoothing');
+  String get brushSmoothingHint => _t('brushSmoothingHint');
+  String get brushQuickShapes => _t('brushQuickShapes');
+  String get brushQuickShapesHint => _t('brushQuickShapesHint');
+  String get symmetryTitle => _t('symmetryTitle');
+  String get symmetryNone => _t('symmetryNone');
+  String get symmetryVertical => _t('symmetryVertical');
+  String get symmetryHorizontal => _t('symmetryHorizontal');
+  String get symmetryQuad => _t('symmetryQuad');
+  String get symmetryRadial => _t('symmetryRadial');
+  String get symmetryRaysCount => _t('symmetryRaysCount');
+  String get drawReplay => _t('drawReplay');
+  String get drawReplayEmpty => _t('drawReplayEmpty');
+  String get drawReplaySpeed => _t('drawReplaySpeed');
   @override
   String get drawHint => _t('drawHint');
   @override
@@ -3233,6 +3259,7 @@ abstract class DictStrings extends AppStrings {
   String get giftWishEmpty => _t('giftWishEmpty');
   @override
   String get supportTitle => _t('supportTitle');
+  String get officialTitle => _t('officialTitle');
   @override
   String get redeemCodeTitle => _t('redeemCodeTitle');
   @override

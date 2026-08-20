@@ -29,6 +29,8 @@ class SettingsScreen extends StatelessWidget {
     required this.onResetMissYou,
     required this.onTerms,
     required this.onSupport,
+    required this.onOfficial,
+    required this.onDrawTools,
     required this.onTelegramChannel,
     required this.onBugBot,
     required this.onAbout,
@@ -73,6 +75,17 @@ class SettingsScreen extends StatelessWidget {
   final VoidCallback onResetMissYou;
   final VoidCallback onTerms;
   final VoidCallback onSupport;
+  final VoidCallback onOfficial;
+
+  /// Настройка панели быстрого доступа холста: состав и порядок кнопок.
+  final VoidCallback onDrawTools;
+
+  /// Оба адреса стоят подписями к строкам: «Написать нам» не говорит, куда
+  /// именно письмо уйдёт, а человеку это надо знать заранее.
+  static const String supportEmail = 'support@togetherly.day';
+
+  /// Ящик для писем от организаций, а не от людей.
+  static const String officialEmail = 'official@togetherly.day';
 
   /// Канал в Telegram и бот, принимающий жалобы. Обе ссылки жили где угодно,
   /// кроме приложения: «не могу найти ссылку на тгк» — обычный вопрос в
@@ -245,6 +258,13 @@ class SettingsScreen extends StatelessWidget {
                     onTap: () => onLockScreenMoodChanged(!lockScreenMood),
                   ),
                   SettingsRow(
+                    icon: Icons.draw_rounded,
+                    title: s.drawToolsTitle,
+                    subtitle: s.drawToolsHint,
+                    trailing: const SettingsChevron(),
+                    onTap: onDrawTools,
+                  ),
+                  SettingsRow(
                     icon: Icons.touch_app_rounded,
                     title: s.sideActionTitle,
                     subtitle: sideActionIsArrow
@@ -367,9 +387,19 @@ class SettingsScreen extends StatelessWidget {
                   SettingsRow(
                     icon: Icons.mail_rounded,
                     title: s.supportTitle,
-                    subtitle: s.settingsSupportHint,
+                    subtitle: SettingsScreen.supportEmail,
                     trailing: const SettingsChevron(),
                     onTap: onSupport,
+                  ),
+                  // Официальные обращения идут в отдельный ящик: письма от
+                  // магазинов, юристов и правообладателей нельзя терять в
+                  // потоке жалоб на ошибки.
+                  SettingsRow(
+                    icon: Icons.gavel_rounded,
+                    title: s.officialTitle,
+                    subtitle: SettingsScreen.officialEmail,
+                    trailing: const SettingsChevron(),
+                    onTap: onOfficial,
                   ),
                   SettingsRow(
                     icon: Icons.campaign_rounded,
