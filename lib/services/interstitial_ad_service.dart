@@ -26,8 +26,11 @@ class InterstitialAdService {
   // Яндекс. В отладке — демо-блок из документации.
   static const String _demoYandexUnit = 'demo-interstitial-yandex';
 
-  /// Боевой блок Яндекса — «Межстраничная реклама», заведён 20.08.2026.
-  static const String _prodYandexUnit = 'R-M-19386995-3';
+  /// Боевые блоки Яндекса, заведены 20.08.2026. В РСЯ у Android и iOS РАЗНЫЕ
+  /// приложения (19386995 и 19461868), поэтому и блоки свои: чужой блок
+  /// показов не даст.
+  static const String _prodYandexAndroid = 'R-M-19386995-3';
+  static const String _prodYandexIos = 'R-M-19461868-3';
 
   InterstitialAd? _adMob;
   yandex.InterstitialAd? _yandexAd;
@@ -37,7 +40,9 @@ class InterstitialAdService {
   bool _disposed = false;
 
   String get _adMobUnit => kDebugMode ? _testAdMobUnit : _prodAdMobUnit;
-  String get _yandexUnit => kDebugMode ? _demoYandexUnit : _prodYandexUnit;
+  String get _yandexUnit => kDebugMode
+      ? _demoYandexUnit
+      : (Platform.isIOS ? _prodYandexIos : _prodYandexAndroid);
 
   /// Ролик загружен хотя бы одной сетью.
   bool get isReady => _adMob != null || _yandexAd != null;
