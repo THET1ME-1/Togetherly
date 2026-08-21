@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:yandex_mobileads/mobile_ads.dart' as yandex;
 
+import '../config/ad_units.dart';
+
 /// Межстраничный ролик: показывается на переходе между экранами, награды за
 /// него нет.
 ///
@@ -19,18 +21,8 @@ class InterstitialAdService {
   // AdMob. В отладке — официальный тестовый блок Google.
   static const String _testAdMobUnit = 'ca-app-pub-3940256099942544/1033173712';
 
-  /// Боевой блок AdMob. Пустая строка означает «блок ещё не заведён»: тогда
-  /// AdMob из водопада просто выпадает, а не сыпет ошибками загрузки.
-  static const String _prodAdMobUnit = '';
-
   // Яндекс. В отладке — демо-блок из документации.
   static const String _demoYandexUnit = 'demo-interstitial-yandex';
-
-  /// Боевые блоки Яндекса, заведены 20.08.2026. В РСЯ у Android и iOS РАЗНЫЕ
-  /// приложения (19386995 и 19461868), поэтому и блоки свои: чужой блок
-  /// показов не даст.
-  static const String _prodYandexAndroid = 'R-M-19386995-3';
-  static const String _prodYandexIos = 'R-M-19461868-3';
 
   InterstitialAd? _adMob;
   yandex.InterstitialAd? _yandexAd;
@@ -39,10 +31,12 @@ class InterstitialAdService {
   bool _isShowing = false;
   bool _disposed = false;
 
-  String get _adMobUnit => kDebugMode ? _testAdMobUnit : _prodAdMobUnit;
+  String get _adMobUnit => kDebugMode
+      ? _testAdMobUnit
+      : AdUnits.admobInterstitial(ios: Platform.isIOS);
   String get _yandexUnit => kDebugMode
       ? _demoYandexUnit
-      : (Platform.isIOS ? _prodYandexIos : _prodYandexAndroid);
+      : AdUnits.yandexInterstitial(ios: Platform.isIOS);
 
   /// Ролик загружен хотя бы одной сетью.
   bool get isReady => _adMob != null || _yandexAd != null;

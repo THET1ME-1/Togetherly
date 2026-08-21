@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:in_app_update/in_app_update.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../config/ad_units.dart';
 import '../widgets/storage_image.dart';
 import 'package:exif/exif.dart';
 import 'package:flutter/material.dart';
@@ -140,8 +141,9 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // Тот же боевой блок, что в ленте воспоминаний и каталоге виджетов.
-  static const String _homeAdUnit = 'ca-app-pub-1956369312643059/2560361524';
+  // Блок берётся из AdUnits: у Android и iOS они разные, а зашитый андроидный
+  // на iPhone показов не давал.
+  String get _homeAdUnit => AdUnits.admobBanner(ios: Platform.isIOS);
 
   // -- Theme --
   AppTheme get _t => widget.userData.theme;

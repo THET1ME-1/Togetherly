@@ -10,13 +10,14 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import 'package:yandex_mobileads/mobile_ads.dart' as yandex;
 
+import '../../config/ad_units.dart';
+
 /// Test ad unit IDs from Google for development.
 /// Replace [adUnitId] with your real AdMob unit ID before release.
 const String _testBannerAdUnit = 'ca-app-pub-3940256099942544/6300978111';
 
 /// Yandex banner block id (waterfall fallback when AdMob has no fill).
 /// Debug uses Yandex's official demo unit; release uses our real block.
-const String _prodYandexBannerUnit = 'R-M-19386995-1';
 const String _demoYandexBannerUnit = 'demo-banner-yandex';
 
 /// A self-disposing banner ad that loads once and shows between content.
@@ -118,9 +119,13 @@ class _AdBannerState extends State<AdBanner> {
   void _loadAd() {
     if (!Platform.isAndroid && !Platform.isIOS) return;
 
+    // Блок с экрана главнее: там свои места размещения. Пусто — берём общий
+    // блок платформы; на iOS его нет, и AdMob молча выпадает из водопада.
     final unitId = widget.adUnitId.isNotEmpty
         ? widget.adUnitId
-        : (kDebugMode ? _testBannerAdUnit : '');
+        : (kDebugMode
+            ? _testBannerAdUnit
+            : AdUnits.admobBanner(ios: Platform.isIOS));
 
     if (unitId.isEmpty) {
       // No AdMob unit configured for this build → go straight to Yandex.
@@ -159,7 +164,9 @@ class _AdBannerState extends State<AdBanner> {
     if (!mounted || _yandexAd != null || _yandexFailed) return;
     if (!Platform.isAndroid && !Platform.isIOS) return;
 
-    final unit = kDebugMode ? _demoYandexBannerUnit : _prodYandexBannerUnit;
+    final unit = kDebugMode
+        ? _demoYandexBannerUnit
+        : AdUnits.yandexBanner(ios: Platform.isIOS);
     final width = (_slotWidth > 0
             ? _slotWidth
             : MediaQuery.of(context).size.width)

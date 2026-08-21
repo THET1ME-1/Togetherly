@@ -11,6 +11,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
+import '../config/ad_units.dart';
 import '../theme/fonts.dart';
 import '../widgets/storage_image.dart';
 import '../utils/safe_text.dart';
@@ -540,9 +541,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   // первые шесть карточек шли без рекламы, и до первого баннера долистывали
   // не все — отсюда трёхкратный разрыв между запросами и показами в РСЯ.
 
-  // Боевой баннерный блок (тот же, что в widget_screen). В debug AdBanner сам
-  // подставляет тестовый юнит при пустом adUnitId.
-  static const String _bannerAdUnit = 'ca-app-pub-1956369312643059/2560361524';
+  // Блок берётся из AdUnits: у Android и iOS они разные, а зашитый андроидный
+  // на iPhone показов не давал.
+  String get _bannerAdUnit => AdUnits.admobBanner(ios: Platform.isIOS);
 
   /// Секции ленты (заголовок даты + тайлы) с full-width баннером после каждого
   /// N-го воспоминания. Счётчик ГЛОБАЛЬНЫЙ — не сбрасывается между днями.

@@ -1,5 +1,6 @@
 google.com, pub-1956369312643059, DIRECT, f08c47fec0942fa0
 yandex.ru, 19386995, DIRECT
+yandex.ru, 19461868, DIRECT
 e-planning.net, 2f3a04630ba9ba3f, RESELLER, c1ba615865ed87b2
 pubmatic.com, 165157, RESELLER, 5d62403b186f2ace
 rubiconproject.com, 27842, RESELLER, 0bfd66d529a55807

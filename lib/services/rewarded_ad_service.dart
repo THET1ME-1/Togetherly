@@ -8,6 +8,8 @@ import '../models/ad_show_finished.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:yandex_mobileads/mobile_ads.dart' as yandex;
 
+import '../config/ad_units.dart';
+
 import 'pb_coins_service.dart';
 
 /// Загрузка и показ rewarded-видео по схеме «водопад»: сначала Яндекс, и если
@@ -23,11 +25,7 @@ class RewardedAdService {
   // AdMob — резервная сеть. Debug использует официальный test-блок Google.
   static const String _testRewardedAdUnit =
       'ca-app-pub-3940256099942544/5224354917';
-  static const String _prodRewardedAdUnit =
-      'ca-app-pub-1956369312643059/7521878316';
-
   // Яндекс — основная сеть. Debug использует официальный demo-блок Яндекса.
-  static const String _prodYandexRewardedUnit = 'R-M-19386995-2';
   static const String _demoYandexRewardedUnit = 'demo-rewarded-yandex';
 
   RewardedAd? _ad;
@@ -55,10 +53,14 @@ class RewardedAdService {
   bool _disposed = false;
 
   String get _adUnitId =>
-      kDebugMode ? _testRewardedAdUnit : _prodRewardedAdUnit;
+      kDebugMode
+          ? _testRewardedAdUnit
+          : AdUnits.admobRewarded(ios: Platform.isIOS);
 
   String get _yandexAdUnitId =>
-      kDebugMode ? _demoYandexRewardedUnit : _prodYandexRewardedUnit;
+      kDebugMode
+          ? _demoYandexRewardedUnit
+          : AdUnits.yandexRewarded(ios: Platform.isIOS);
 
   /// Готова реклама хоть из одной сети.
   bool get isReady => _ad != null || _yandexAd != null;
