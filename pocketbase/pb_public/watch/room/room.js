@@ -30,10 +30,20 @@
   // видел в адресной строке комнаты. `rt.togetherly.day` ведёт на ту же машину
   // и покрыт тем же сертификатом (SAN на оба имени), поэтому вкладки,
   // открытые со старым адресом, продолжают работать.
+  // Порядок важен: первым идёт путь через 443 — тот самый, по которому уже
+  // пришла эта страница, значит он у человека проходит. Нестандартный 8443 у
+  // части операторов не отвергается, а МОЛЧА проглатывается: соединение висит
+  // до TCP-таймаута, close не приходит, и перебор внутри centrifuge-js не
+  // трогается с места. Со стороны это «у одного всё нажимается, а другой
+  // просто существует в комнате» (21.08.2026: четыре живые комнаты, где
+  // приложение в канале есть, а страница так и не подписалась).
   const WS = [
-    { transport: 'websocket', endpoint: 'wss://rt.togetherly.day:8443/connection/websocket' },
     { transport: 'websocket', endpoint: 'wss://togetherly.day/connection/websocket' },
+    { transport: 'websocket', endpoint: 'wss://rt.togetherly.day:8443/connection/websocket' },
   ];
+
+  /// Сколько ждём подключения, прежде чем свалиться на запасной адрес.
+  const CONNECT_TIMEOUT = 7000;
   const DRIFT = 1.5;          // допустимое расхождение, секунды
   const HEARTBEAT = 3000;     // как часто ведущий шлёт своё время
 
@@ -41,7 +51,7 @@
   const state = {
     room: '', channel: '', me: '', centrifuge: null, sub: null,
     player: null, kind: '', applying: false, lead: false, actedAt: 0, lastSent: 0, viewers: 1,
-    subscribed: false, outbox: [], lastLink: '',
+    subscribed: false, outbox: [], lastLink: '', wsFallbackTried: false,
     // Что показывать пришедшему позже: ссылка, переписка этой вкладки и
     // отложенная команда для плеера, который ещё грузится.
     url: '', log: [], synced: false, pending: null, joinedAt: 0,
@@ -922,6 +932,19 @@
 
     state.centrifuge = centrifuge;
     state.sub = sub;
+
+    // Сторож висящего порта: если за CONNECT_TIMEOUT подключиться не вышло,
+    // пересобираем клиента на СЛЕДУЮЩЕМ адресе. Своими силами centrifuge-js
+    // этого не сделает — ему нужен close, а заблокированный порт его не даёт.
+    if (!state.wsFallbackTried) {
+      setTimeout(() => {
+        if (state.subscribed || centrifuge.state === 'connected') return;
+        state.wsFallbackTried = true;
+        try { centrifuge.disconnect(); } catch (_) {}
+        WS.reverse();
+        connect(room).catch(() => setStatus(I18N.t('room.lost')));
+      }, CONNECT_TIMEOUT);
+    }
 
     // Ведущий — тот, кто последним трогал плеер: он раз в три секунды шлёт
     // своё время, чтобы вылечить накопленный дрейф. Остальные молчат — до
