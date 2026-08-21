@@ -4445,7 +4445,9 @@ class _DrawScreenState extends State<DrawScreen>
       onFill: AppThemes.onColor(t.fillColor, mode: t.brightness),
       labelThickness: s.strokeThickness,
       labelColor: s.colorLabel,
-      tools: _quickTools,
+      // На пиксельном холсте выделения в панели нет: оно двигает нарисованное
+      // как свободную фигуру, а клетка обязана лежать в сетке.
+      tools: quickToolsFor(_quickTools, pixel: _isPixel),
       toolLabels: {
         DrawQuickTool.brush: s.brush,
         DrawQuickTool.eraser: s.eraser,

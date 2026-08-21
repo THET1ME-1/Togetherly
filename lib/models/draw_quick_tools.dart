@@ -39,6 +39,20 @@ const List<DrawQuickTool> kDefaultQuickTools = [
 /// Больше двух рядов панель не потянет: холст останется щелью.
 const int kMaxQuickTools = 12;
 
+/// Что из набора показывать на этом холсте.
+///
+/// На пиксельном выделения нет. Оно берёт нарисованное как фигуру и двигает,
+/// вращает и растягивает её свободно — а у пиксельного холста вся суть в том,
+/// что клетка лежит в сетке. Настройку панели это не трогает: человек мог
+/// поставить выделение для обычных холстов, и на них оно остаётся.
+List<DrawQuickTool> quickToolsFor(
+  List<DrawQuickTool> tools, {
+  required bool pixel,
+}) =>
+    pixel
+        ? tools.where((t) => t != DrawQuickTool.select).toList(growable: false)
+        : tools;
+
 /// Разбор настройки. Она переживает обновления приложения, поэтому незнакомые
 /// имена пропускаются молча, а не роняют весь набор.
 List<DrawQuickTool> parseQuickTools(String? raw) {

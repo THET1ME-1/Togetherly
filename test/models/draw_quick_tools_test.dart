@@ -65,6 +65,19 @@ void main() {
       expect(parseQuickTools(encodeQuickTools(tools)), tools);
     });
 
+    test('на пиксельном холсте выделения в панели нет', () {
+      // Выделение двигает и растягивает нарисованное как фигуру. На пиксельном
+      // холсте это ломает саму его суть: клетка обязана лежать в сетке.
+      final tools = quickToolsFor(kDefaultQuickTools, pixel: true);
+      expect(tools, isNot(contains(DrawQuickTool.select)));
+      expect(tools.first, DrawQuickTool.brush, reason: 'порядок не рассыпан');
+      expect(tools.length, kDefaultQuickTools.length - 1);
+    });
+
+    test('на обычном холсте набор остаётся как был', () {
+      expect(quickToolsFor(kDefaultQuickTools, pixel: false), kDefaultQuickTools);
+    });
+
     test('строки в панели растут по шесть кнопок', () {
       expect(quickToolRows(6, perRow: 6), 1);
       expect(quickToolRows(7, perRow: 6), 2);
