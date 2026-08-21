@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../utils/date_only.dart';
 import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
@@ -857,8 +858,10 @@ class UserData extends ChangeNotifier {
             data['lastDailyBonusMs'], data['lastMemoryRewardMs']);
 
         final bdRaw = data['birthDate'];
+        // Календарным днём: у старых записей внутри лежит минута сохранения, и
+        // на другом устройстве дата уезжала на сутки.
         if (bdRaw is String && bdRaw.isNotEmpty) {
-          _birthDate = DateTime.tryParse(bdRaw);
+          _birthDate = DateOnly.parse(bdRaw);
         } else if (bdRaw is int) {
           _birthDate = DateTime.fromMillisecondsSinceEpoch(bdRaw);
         }

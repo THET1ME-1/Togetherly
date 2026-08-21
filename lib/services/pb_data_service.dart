@@ -536,8 +536,9 @@ class PbDataService {
     Map<String, DateTime?>? birthdays() {
       final raw = data['member_birthdays'];
       if (raw is! Map) return null;
-      // Читаем календарным днём: у старых записей внутри лежит время, и
-      // разворачивать его надо в местный день, а не в UTC.
+      // Читаем календарным днём: у старых записей внутри лежит время
+      // сохранения, и число берётся из строки как есть — иначе у пары из
+      // разных поясов одна и та же дата показывалась разными числами.
       return Map<String, dynamic>.from(raw)
           .map((k, v) => MapEntry(k, DateOnly.parse(v)));
     }

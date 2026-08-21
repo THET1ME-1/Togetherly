@@ -4,6 +4,7 @@ import '../services/locale_service.dart';
 import '../services/offline/local_store.dart';
 import '../services/offline/outbox_service.dart';
 import '../services/pb_data_service.dart';
+import '../utils/date_only.dart';
 import '../services/pb_realtime_service.dart';
 import '../services/pocketbase_service.dart';
 import 'relationship_status.dart';
@@ -1254,7 +1255,11 @@ class Connection {
     if (raw is! Map) return {};
     final out = <String, DateTime>{};
     raw.forEach((k, v) {
-      final d = v is String ? DateTime.tryParse(v) : null;
+      // Через DateOnly, а не голым tryParse: у старых записей внутри лежит
+      // минута сохранения, и `toLocal` уводил дату партнёра на сутки — она
+      // ставила 12.04, он видел 13.04 (жалоба со скриншотами обоих экранов,
+      // 21.08.2026).
+      final d = DateOnly.parse(v);
       if (d != null) out[k.toString()] = d;
     });
     return out;
