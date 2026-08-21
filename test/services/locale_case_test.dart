@@ -20,6 +20,7 @@ const _lowercaseOnPurpose = <String>{
   'daysCounterLabel', 'daysElapsed', 'daysInARow', 'daysLeft',
   'daysShortElapsed', 'daysShortLeft', 'daysUntilAnniversary',
   'daysUntilBirthday', 'photoGridCountLabel', 'cycleDaysUnit',
+  'vesselStoryDays',
   'tgCountdownDays', 'tgCountdownHours', 'tgCountdownMinutes',
   'fromGalleryLabel', 'fromMemories',
   // Подпись справа от числа: «+12 к общему числу».

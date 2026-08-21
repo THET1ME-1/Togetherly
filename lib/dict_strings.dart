@@ -1207,6 +1207,8 @@ abstract class DictStrings extends AppStrings {
   @override
   String get vesselLegendChat => _t('vesselLegendChat');
   @override
+  String get vesselShareTitle => _t('vesselShareTitle');
+  String get vesselStoryDays => _t('vesselStoryDays');
   String get vesselLegendCycle => _t('vesselLegendCycle');
   String get vesselLegendMemory => _t('vesselLegendMemory');
   @override

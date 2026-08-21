@@ -14,6 +14,7 @@ import '../services/ui_prefs.dart';
 import '../widgets/mood/mood_vessel.dart';
 import '../models/mood_vessel.dart';
 import '../models/pair_data.dart';
+import 'vessel_story_screen.dart';
 import '../models/user_data.dart';
 import '../services/cycle_service.dart';
 import '../services/locale_service.dart';
@@ -461,6 +462,15 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                   color: scheme.primary,
                 ),
               ),
+              // Поделиться сосудом: картинка для сторис собирается на своём
+              // экране, там же человек отмечает, что в неё войдёт.
+              IconButton(
+                onPressed: () => _openVesselStory(days, scheme),
+                icon: const Icon(Icons.ios_share_rounded, size: 20),
+                tooltip: s.vesselShareTitle,
+                visualDensity: VisualDensity.compact,
+                color: scheme.onSurfaceVariant,
+              ),
             ],
           ),
           const SizedBox(height: 4),
@@ -553,6 +563,17 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
         _CalMode.month => s.moodVesselTitle,
         _CalMode.year => s.moodVesselTitleYear,
       };
+
+  void _openVesselStory(List<VesselDay> days, ColorScheme scheme) {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => VesselStoryScreen(
+        days: days,
+        columns: _vesselColumns,
+        title: _vesselTitle(LocaleService.current),
+        scheme: scheme,
+      ),
+    ));
+  }
 
   /// Кладка за выбранный период.
   List<VesselDay> _vesselDaysForPeriod() => switch (_calMode) {

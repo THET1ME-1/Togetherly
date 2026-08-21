@@ -18,6 +18,8 @@ class MoodVessel extends StatefulWidget {
     required this.columns,
     this.height = 300,
     this.previousLevel,
+    this.animate = true,
+    this.frame = true,
   });
 
   final List<VesselDay> days;
@@ -31,6 +33,14 @@ class MoodVessel extends StatefulWidget {
   /// Уровень прошлого месяца в этажах. Пунктирная черта, обгонять которую —
   /// единственное уместное здесь соревнование.
   final int? previousLevel;
+
+  /// Падают ли блоки сверху. Карточке для сторис анимация не нужна: снимок
+  /// делается сразу, и блоки попали бы в кадр на полпути.
+  final bool animate;
+
+  /// Рамка вокруг кладки. Снимается там, где сосуд занимает весь кадр и
+  /// рамка становится лишней линией.
+  final bool frame;
 
   @override
   State<MoodVessel> createState() => _MoodVesselState();
@@ -46,7 +56,14 @@ class _MoodVesselState extends State<MoodVessel>
     _fall = AnimationController(
       vsync: this,
       duration: Motion.long2 + const Duration(milliseconds: 900),
-    )..forward();
+    );
+    // Без анимации кладка сразу лежит на месте: снимок для сторис делается
+    // первым же кадром.
+    if (widget.animate) {
+      _fall.forward();
+    } else {
+      _fall.value = 1;
+    }
   }
 
   @override
@@ -90,13 +107,15 @@ class _MoodVesselState extends State<MoodVessel>
 
     return Container(
       height: height,
-      padding: const EdgeInsets.all(pad),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: cs.outlineVariant, width: border),
-      ),
-      clipBehavior: Clip.antiAlias,
+      padding: EdgeInsets.all(widget.frame ? pad : 0),
+      decoration: widget.frame
+          ? BoxDecoration(
+              color: cs.surfaceContainerLowest,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: cs.outlineVariant, width: border),
+            )
+          : null,
+      clipBehavior: widget.frame ? Clip.antiAlias : Clip.none,
       // Ширину меряем ВНУТРИ рамки, а не снаружи: рамка и отступы забирают
       // ещё три точки, и последний столбец кладки вылезал за край — блок
       // правого ряда обрезался, и месяц выглядел собранным криво.
