@@ -115,6 +115,17 @@ class CanvasRepository {
       _rt.watchCanvasStrokes(groupId, canvasId).map(
           (recs) => recs.map(DrawStroke.fromPb).toList());
 
+  /// Начало холста для плитки в галерее: первые штрихи по порядку рисования.
+  Future<List<DrawStroke>> previewStrokes(
+    String groupId,
+    String canvasId, {
+    int limit = 400,
+  }) async {
+    final recs =
+        await _data.loadStrokesPage(groupId, canvasId, limit: limit);
+    return recs.map(DrawStroke.fromPb).toList();
+  }
+
   /// Коммит штриха (server-id). Возвращает id записи (для оптимистичного
   /// сопоставления в draw_screen) или ''.
   Future<String> addStroke(

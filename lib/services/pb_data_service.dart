@@ -2423,6 +2423,32 @@ class PbDataService {
     }
   }
 
+  /// Начало холста — для плитки в галерее.
+  ///
+  /// `loadStrokes` тянет холст целиком, а у пары бывают рисунки на сотню тысяч
+  /// штрихов: ради миниатюры размером с ноготь это лишнее. Берём первую
+  /// страницу по порядку рисования.
+  Future<List<RecordModel>> loadStrokesPage(
+    String groupId,
+    String canvasId, {
+    int limit = 400,
+  }) async {
+    if (groupId.isEmpty) return const [];
+    try {
+      final page = await _pb.collection('canvas_strokes').getList(
+            page: 1,
+            perPage: limit,
+            filter: _pb.filter('group_id = {:g} && canvas_id = {:c}',
+                {'g': groupId, 'c': canvasId}),
+            sort: 'order_index',
+          );
+      return page.items;
+    } catch (e) {
+      debugPrint('PbData.loadStrokesPage failed: $e');
+      return const [];
+    }
+  }
+
   Future<List<RecordModel>> loadCanvasCatalogue(String groupId) async {
     if (groupId.isEmpty) return const [];
     try {

@@ -11,6 +11,7 @@ import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/fonts.dart';
 import '../widgets/common/app_dialog.dart';
+import '../widgets/draw/canvas_preview.dart';
 import '../widgets/common/m3_loading.dart';
 import 'canvas_create_flow.dart';
 import 'coloring_catalogue_screen.dart';
@@ -567,15 +568,23 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
         );
       } catch (_) {}
     }
-    // Placeholder when no preview exists yet.
-    return Container(
-      width: double.infinity,
-      color: t.surfaceMuted,
-      child: Center(
-        child: Icon(
-          Icons.brush_rounded,
-          size: 36,
-          color: t.primary.withValues(alpha: 0.35),
+    // Снимка нет — рисуем плитку прямо из штрихов. Снимок делается только на
+    // выходе с холста, поэтому у холстов, куда человек не заходил (и у всех,
+    // что рисовал партнёр), плитка стояла пустой с кисточкой.
+    return CanvasPreview(
+      meta: meta,
+      uid: _uid,
+      groupId: _groupId,
+      background: t.surfaceMuted,
+      placeholder: Container(
+        width: double.infinity,
+        color: t.surfaceMuted,
+        child: Center(
+          child: Icon(
+            Icons.brush_rounded,
+            size: 36,
+            color: t.primary.withValues(alpha: 0.35),
+          ),
         ),
       ),
     );
