@@ -790,6 +790,7 @@ abstract class AppStrings {
   String get moodVesselGrid;
   String get moodVesselMode;
   String moodVesselCount(int filled, int total);
+  String get vesselHint;
   String moodVesselSummary(int both, int gaps);
   String get drawToolsTitle;
   String get drawToolsHint;

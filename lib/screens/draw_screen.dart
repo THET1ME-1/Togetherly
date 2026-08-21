@@ -215,15 +215,11 @@ class _DrawScreenState extends State<DrawScreen>
   /// пакет, не дожидаясь конца мазка.
   static const int _liveKeyframeMs = 150;
   static const double _kMinScale = 0.2;
-  /// Порог поворота: ниже него щипок считается чистым зумом.
-  static const double _kRotationSlop = 0.16; // ≈9°
   /// Показывать направляющие пиксельной сетки. Выбор запоминается: кому-то
   /// удобнее целиться по клеткам, кому-то они мешают смотреть на рисунок.
   bool _showPixelGrid = true;
   static const String _kPixelGridPref = 'draw_pixel_grid_visible';
 
-  bool _rotationUnlocked = false;
-  double _rotationSlopUsed = 0.0;
   static const double _kMaxScale = 10.0;
 
   /// Только для загрузки картинок-вставок в Storage (медиа §4). Холст/штрихи —
@@ -451,6 +447,10 @@ class _DrawScreenState extends State<DrawScreen>
 
   double _scale = 1.0;
 
+  /// Щипок двумя пальцами: ведёт шаг от кадра к кадру и гасит кадры, в
+  /// которых Flutter перестроил жест (см. `PinchTracker`).
+  final PinchTracker _pinch = PinchTracker();
+
   // Тап заливки: копим путь и время первого пальца, а красим на отпускании.
   // Пока заливка срабатывала по касанию, первый палец щипка успевал залить то,
   // на чём стоял, — «заливается куда попало, пока просто приближаю картинку»
@@ -466,15 +466,8 @@ class _DrawScreenState extends State<DrawScreen>
   DateTime? _strokeStartedAt;
   double _strokeTravel = 0;
 
-  /// Щипок на паузе: пальцев стало меньше двух и холст ждёт возвращения
-  /// второго, а не едет за оставшимся.
-  bool _pinchPaused = false;
   double _canvasRotation = 0.0; // radians
   Offset _canvasOffset = Offset.zero;
-  double _baseScale = 1.0;
-  double _baseRotation = 0.0;
-  Offset _baseOffset = Offset.zero;
-  Offset _baseFocalPoint = Offset.zero;
   bool _isZooming = false;
   int? _drawingPointerId;
   int _orderCounter = 0;
@@ -1811,14 +1804,8 @@ class _DrawScreenState extends State<DrawScreen>
       return;
     }
     _isZooming = true;
-    _pinchPaused = false;
-    _rotationUnlocked = false;
-    _rotationSlopUsed = 0.0;
+    _pinch.begin();
     _cancelCurrentGesture();
-    _baseScale = _scale;
-    _baseOffset = _canvasOffset;
-    _baseFocalPoint = details.localFocalPoint;
-    _baseRotation = _canvasRotation;
     // Save image base transform for pinch on selected image
     if (_activeTool == DrawTool.image && _selectedImageId != null) {
       final img = _findImageById(_selectedImageId!);
@@ -1845,27 +1832,20 @@ class _DrawScreenState extends State<DrawScreen>
       _gestureZoomed = true;
     }
 
-    // Пальцев снова меньше двух: система продолжает слать события, а фокус
-    // скачком уезжает к оставшемуся пальцу — лист прыгал за ним и «метался
-    // туда-сюда». Пока палец один, холст стоит; вернулся второй — берём новую
-    // опору и только потом двигаем.
-    switch (pinchAction(
-        pointerCount: details.pointerCount, paused: _pinchPaused)) {
-      case PinchAction.pause:
-        _pinchPaused = true;
-        return;
-      case PinchAction.rebase:
-        _pinchPaused = false;
-        _baseScale = _scale;
-        _baseOffset = _canvasOffset;
-        _baseRotation = _canvasRotation;
-        _baseFocalPoint = details.localFocalPoint;
-        _rotationUnlocked = false;
-        _rotationSlopUsed = 0.0;
-        return;
-      case PinchAction.transform:
-        break;
-    }
+    // Шаг считается ОТ ПРОШЛОГО КАДРА, а кадр перестройки жеста пропускается
+    // целиком. Flutter при любом изменении состава пальцев назначает новую
+    // точку отсчёта: масштаб возвращается к единице, поворот к нулю, средний
+    // фокус скачком уезжает. Обработчик, считавший от своей базы и от
+    // абсолютного фокуса, в такие кадры швырял лист в сторону — «двумя
+    // пальцами вообще капец», при том что ладонью всё ровно.
+    final step = _pinch.step(
+      pointerCount: details.pointerCount,
+      scale: details.scale,
+      rotation: details.rotation,
+      focal: details.localFocalPoint,
+      focalDelta: details.focalPointDelta,
+    );
+    if (step == null) return;
 
     // Image pinch: scale + rotate the selected image
     if (_activeTool == DrawTool.image &&
@@ -1880,39 +1860,24 @@ class _DrawScreenState extends State<DrawScreen>
       return;
     }
 
-    final nextScale = (_baseScale * details.scale).clamp(
-      _kMinScale,
-      _kMaxScale,
+    final next = applyPinch(
+      CanvasView(
+        scale: _scale,
+        rotation: _canvasRotation,
+        offset: _canvasOffset,
+      ),
+      step,
+      minScale: _kMinScale,
+      maxScale: _kMaxScale,
     );
-    // Поворот включается только после заметного разворота пальцев (~9°):
-    // раньше лист кренился от любого щипка, и его приходилось выправлять.
-    // После срабатывания порог вычитается, иначе лист прыгнул бы рывком.
-    if (!_rotationUnlocked && details.rotation.abs() > _kRotationSlop) {
-      _rotationUnlocked = true;
-      _rotationSlopUsed =
-          details.rotation.sign * _kRotationSlop;
-    }
-    final nextRotation = _rotationUnlocked
-        ? _baseRotation + details.rotation - _rotationSlopUsed
-        : _baseRotation;
-    final nextOffset = pinchOffset(
-      focal: details.localFocalPoint,
-      baseFocal: _baseFocalPoint,
-      baseOffset: _baseOffset,
-      baseScale: _baseScale,
-      nextScale: nextScale,
-      baseRotation: _baseRotation,
-      nextRotation: nextRotation,
-    );
-    _scale = nextScale;
-    _canvasRotation = nextRotation;
-    _canvasOffset = nextOffset;
+    _scale = next.scale;
+    _canvasRotation = next.rotation;
+    _canvasOffset = next.offset;
     _bumpView();
   }
 
   void _onScaleEnd(ScaleEndDetails _) {
     _isZooming = false;
-    _pinchPaused = false;
     if (_activeTool == DrawTool.select) {
       unawaited(_commitSelection());
     }

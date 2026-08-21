@@ -478,7 +478,14 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
             s.moodVesselSummary(both, gaps),
             style: AppFonts.onest(size: 12.5, color: scheme.onSurfaceVariant),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 6),
+          // Без этой строки кладку читают как игру: «я чего-то не понял», —
+          // сказал первый же человек, которому её показали.
+          Text(
+            s.vesselHint,
+            style: AppFonts.onest(size: 11.5, color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 12),
           MoodVessel(
             days: days,
             columns: _vesselColumns,

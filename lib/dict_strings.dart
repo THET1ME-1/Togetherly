@@ -1218,6 +1218,7 @@ abstract class DictStrings extends AppStrings {
   String get moodVesselGrid => _t('moodVesselGrid');
   String get moodVesselMode => _t('moodVesselMode');
   String moodVesselCount(int filled, int total) => '$filled / $total';
+  String get vesselHint => _t('vesselHint');
   String moodVesselSummary(int both, int gaps) =>
       _t('moodVesselSummary')
           .replaceFirst('{both}', '$both')

@@ -658,6 +658,15 @@ const Map<String, Map<String, String>> drawScreenStrings = {
     'fr': 'Le vase de l’année',
     'de': 'Gefäß des Jahres',
   },
+  'vesselHint': {
+    'ru': 'Один блок — день, плашки внутри — что вы в этот день сделали',
+    'en': 'One block is a day; the bars inside are what you did that day',
+    'pt': 'Um bloco é um dia; as faixas dentro são o que vocês fizeram',
+    'it': 'Un blocco è un giorno; le fasce dentro sono ciò che avete fatto',
+    'es': 'Un bloque es un día; las franjas dentro son lo que hicisteis',
+    'fr': 'Un bloc, c’est un jour ; les bandes à l’intérieur, ce que vous avez fait',
+    'de': 'Ein Block ist ein Tag, die Streifen darin sind, was ihr getan habt',
+  },
   'moodVesselSummary': {
     'ru': 'Вдвоём {both} дней · пропущено {gaps}',
     'en': 'Together {both} days · {gaps} missed',

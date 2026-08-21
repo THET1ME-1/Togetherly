@@ -17,8 +17,13 @@ enum DrawQuickTool {
   replay,
 }
 
-/// Набор по умолчанию: шесть кнопок из макета плюс ладонь и очистка — к ним
-/// рука тянется чаще всего, а в меню «⋯» их приходилось искать.
+/// Набор по умолчанию: шесть кнопок из макета плюс ладонь, выделение и
+/// очистка — к ним рука тянется чаще всего, а в меню «⋯» их приходилось
+/// искать.
+///
+/// Выделение стоит здесь с 21.08.2026. Инструмент выпустили, но в набор не
+/// внесли, и найти его можно было только через настройку панели — то есть
+/// правка нарисованного существовала, а дотянуться до неё было нечем.
 const List<DrawQuickTool> kDefaultQuickTools = [
   DrawQuickTool.brush,
   DrawQuickTool.eraser,
@@ -26,6 +31,7 @@ const List<DrawQuickTool> kDefaultQuickTools = [
   DrawQuickTool.shapes,
   DrawQuickTool.layers,
   DrawQuickTool.image,
+  DrawQuickTool.select,
   DrawQuickTool.palm,
   DrawQuickTool.clear,
 ];

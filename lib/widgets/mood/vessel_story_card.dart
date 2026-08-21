@@ -21,6 +21,7 @@ class VesselStoryCard extends StatelessWidget {
     required this.title,
     required this.scheme,
     required this.daysCaption,
+    required this.hint,
     this.animate = false,
   });
 
@@ -35,6 +36,11 @@ class VesselStoryCard extends StatelessWidget {
   /// Подпись под числом: «дней вместе в этом сосуде». Слова приходят готовыми
   /// — карточка их не сочиняет и не склеивает.
   final String daysCaption;
+
+  /// Строка «один блок — день, плашки внутри — что вы сделали». На картинке
+  /// она нужнее, чем в приложении: сторис смотрят люди, которые сосуд видят
+  /// впервые и без подписи принимают его за игру.
+  final String hint;
 
   /// Кладка падает сверху. В карточке анимация не нужна: снимок делается
   /// сразу, а недолетевшие блоки попали бы в кадр на полпути.
@@ -114,7 +120,13 @@ class VesselStoryCard extends StatelessWidget {
           style: AppFonts.onest(size: 12, weight: 600, color: _muted),
         ),
         const Spacer(),
-        _vessel(height: 380),
+        _vessel(height: 366),
+        const SizedBox(height: 14),
+        Text(
+          hint,
+          textAlign: TextAlign.center,
+          style: AppFonts.onest(size: 10.5, weight: 500, color: _muted),
+        ),
         const Spacer(),
         _brand(),
       ],

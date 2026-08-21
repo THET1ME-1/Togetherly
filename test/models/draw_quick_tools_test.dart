@@ -3,7 +3,8 @@ import 'package:love_app/models/draw_quick_tools.dart';
 
 void main() {
   group('набор быстрых инструментов', () {
-    test('по умолчанию шесть кнопок макета плюс ладонь и очистка', () {
+    test('по умолчанию шесть кнопок макета плюс ладонь, выделение и очистка',
+        () {
       expect(kDefaultQuickTools, [
         DrawQuickTool.brush,
         DrawQuickTool.eraser,
@@ -11,9 +12,16 @@ void main() {
         DrawQuickTool.shapes,
         DrawQuickTool.layers,
         DrawQuickTool.image,
+        DrawQuickTool.select,
         DrawQuickTool.palm,
         DrawQuickTool.clear,
       ]);
+    });
+
+    test('выделение доступно сразу, без похода в настройку панели', () {
+      // Инструмент выпустили, а в набор не внесли: правка нарисованного была,
+      // а дотянуться до неё было нечем.
+      expect(parseQuickTools(null), contains(DrawQuickTool.select));
     });
 
     test('пустая настройка даёт набор по умолчанию', () {

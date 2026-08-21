@@ -131,6 +131,7 @@ class _VesselStoryScreenState extends State<VesselStoryScreen> {
                         columns: widget.columns,
                         title: widget.title,
                         daysCaption: _s.vesselStoryDays,
+                        hint: _s.vesselHint,
                         scheme: cs,
                       ),
                     ),
