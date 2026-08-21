@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:gal/gal.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'pocketbase_service.dart';
 
@@ -19,7 +21,12 @@ enum NoteExportResult { saved, noAccess, serverFailed, saveFailed }
 class NoteExportOutcome {
   final NoteExportResult result;
   final int? status;
-  const NoteExportOutcome(this.result, {this.status});
+
+  /// Короткая причина от галереи (`accessDenied`, `notEnoughSpace`,
+  /// `unexpected`). Человек читает её с экрана и называет — без этого разбор
+  /// чужого телефона идёт вслепую.
+  final String? reason;
+  const NoteExportOutcome(this.result, {this.status, this.reason});
 }
 
 /// Сохранение фигурки в галерею телефона.
@@ -51,6 +58,7 @@ class NoteExportService {
     }
 
     File? temp;
+    var bytes = 0;
     try {
       final res = await http
           .get(
@@ -64,9 +72,12 @@ class NoteExportService {
             status: res.statusCode);
       }
 
+      bytes = res.bodyBytes.length;
       final dir = await getTemporaryDirectory();
       temp = File('${dir.path}/togetherly_$messageId.mp4');
-      await temp.writeAsBytes(res.bodyBytes);
+      // flush обязателен: галерея читает файл СРАЗУ после нас, и без сброса
+      // на диск ей достаётся пустой или обрезанный ролик.
+      await temp.writeAsBytes(res.bodyBytes, flush: true);
 
       // Доступ спрашиваем ПЕРЕД записью в галерею: отказ — это не сбой, а
       // ответ человека, и говорить про него надо иначе.
@@ -77,14 +88,34 @@ class NoteExportService {
       }
       await Gal.putVideo(temp.path, album: 'Togetherly');
       return const NoteExportOutcome(NoteExportResult.saved);
-    } on GalException catch (e) {
+    } on GalException catch (e, st) {
       debugPrint('NoteExport gal: ${e.type}');
-      return NoteExportOutcome(e.type == GalExceptionType.accessDenied
-          ? NoteExportResult.noAccess
-          : NoteExportResult.saveFailed);
-    } catch (e) {
+      if (e.type != GalExceptionType.accessDenied) {
+        // Отказ галереи прилетает только с чужих телефонов и только словами
+        // «не сохраняется». Пусть приезжает сам, с типом и размером файла.
+        unawaited(Sentry.captureException(e, stackTrace: st, withScope: (s) {
+          s.level = SentryLevel.warning;
+          s.setContexts('note_export', {
+            'gal': e.type.name,
+            'bytes': bytes,
+            'message': messageId,
+          });
+        }));
+      }
+      return NoteExportOutcome(
+        e.type == GalExceptionType.accessDenied
+            ? NoteExportResult.noAccess
+            : NoteExportResult.saveFailed,
+        reason: e.type.name,
+      );
+    } catch (e, st) {
       debugPrint('NoteExport failed: $e');
-      return const NoteExportOutcome(NoteExportResult.saveFailed);
+      unawaited(Sentry.captureException(e, stackTrace: st, withScope: (s) {
+        s.level = SentryLevel.warning;
+        s.setContexts('note_export', {'bytes': bytes, 'message': messageId});
+      }));
+      return NoteExportOutcome(NoteExportResult.saveFailed,
+          reason: e.runtimeType.toString());
     } finally {
       // Копия в галерее уже своя, временный файл держать незачем.
       try {

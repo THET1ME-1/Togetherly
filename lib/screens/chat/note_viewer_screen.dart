@@ -239,7 +239,9 @@ class _NoteViewerScreenState extends State<NoteViewerScreen>
       NoteExportResult.saved => s.noteSaved,
       NoteExportResult.noAccess => s.noteSaveNoAccess,
       NoteExportResult.serverFailed => '${s.noteSaveServerFailed}$code',
-      NoteExportResult.saveFailed => s.noteSaveFailed,
+      NoteExportResult.saveFailed => out.reason == null
+          ? s.noteSaveFailed
+          : '${s.noteSaveFailed} · ${out.reason}',
     });
   }
 
