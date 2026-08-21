@@ -268,6 +268,10 @@ class _ReplayPainter extends CustomPainter {
           s.shapeType!,
           size,
           isFilledShape: s.isFilledShape,
+          // Повтор обязан показывать ту же фигуру, что и холст: на пиксельном
+          // это клетки, а не гладкая кривая.
+          pixelCols: pixelCols,
+          pixelRows: pixelRows,
         );
       } else if (s.shapeType == null) {
         paintStroke(

@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import '../../models/draw_stroke.dart';
+import '../../utils/pixel_shapes.dart';
 
 /// Отрисовка штрихов холста. Вынесена из экрана рисования, чтобы повтор
 /// («Как рисовали») показывал ровно ту же линию, что и живой холст: две копии
@@ -15,8 +16,19 @@ void paintShape(
   Size size, {
   double alpha = 1.0,
   required bool isFilledShape,
+  int? pixelCols,
+  int? pixelRows,
 }) {
   if (points.length < 2) return;
+
+  // Пиксельный холст: фигура обязана лечь в клетки. Гладкая кривая поверх
+  // сетки выглядит нарисованной в другом редакторе — круг с мягким краем на
+  // холсте 32×40 клеток человек не принимает за свой.
+  if (pixelCols != null && pixelRows != null) {
+    _paintPixelShape(canvas, points, colorValue, shapeType, size,
+        pixelCols, pixelRows, alpha: alpha, filled: isFilledShape);
+    return;
+  }
   final c = Color(colorValue);
   final paint = Paint()
     ..color = alpha < 1.0 ? c.withValues(alpha: c.a * alpha) : c
@@ -45,6 +57,55 @@ void paintShape(
 }
 
 
+/// Фигура на пиксельном холсте: считаем клетки и красим их квадратами.
+void _paintPixelShape(
+  Canvas canvas,
+  List<DrawPoint> points,
+  int colorValue,
+  DrawShapeType shapeType,
+  Size size,
+  int cols,
+  int rows, {
+  double alpha = 1.0,
+  required bool filled,
+}) {
+  if (cols < 1 || rows < 1) return;
+  final cw = size.width / cols;
+  final ch = size.height / rows;
+  final c = Color(colorValue);
+  final paint = Paint()
+    ..style = PaintingStyle.fill
+    ..isAntiAlias = false
+    ..color = alpha < 1.0 ? c.withValues(alpha: c.a * alpha) : c;
+
+  int cellX(DrawPoint p) => (p.x * cols).floor().clamp(0, cols - 1);
+  int cellY(DrawPoint p) => (p.y * rows).floor().clamp(0, rows - 1);
+
+  final cells = pixelShapeCells(
+    shape: switch (shapeType) {
+      DrawShapeType.line => PixelShape.line,
+      DrawShapeType.rect => PixelShape.rect,
+      DrawShapeType.circle => PixelShape.ellipse,
+      DrawShapeType.triangle => PixelShape.triangle,
+    },
+    x0: cellX(points.first),
+    y0: cellY(points.first),
+    x1: cellX(points.last),
+    y1: cellY(points.last),
+    cols: cols,
+    rows: rows,
+    filled: filled,
+  );
+
+  // +0.5 к стороне — тем же приёмом, что у обычного пиксельного штриха:
+  // после округления между соседними клетками просвечивали щели.
+  for (final key in cells) {
+    final x = key % cols;
+    final y = key ~/ cols;
+    canvas.drawRect(Rect.fromLTWH(x * cw, y * ch, cw + 0.5, ch + 0.5), paint);
+  }
+}
+
 /// Пиксельный штрих: точки — номера клеток, между ними шагаем алгоритмом
 /// Брезенхэма, иначе при быстром движении пальца в дорожке остаются дыры.
 void paintPixelStroke(
@@ -56,6 +117,7 @@ void paintPixelStroke(
   int cols,
   int rows, {
   double alpha = 1.0,
+  int brush = 1,
 }) {
   if (points.isEmpty || cols < 1 || rows < 1) return;
   final cw = size.width / cols;
@@ -92,6 +154,26 @@ void paintPixelStroke(
     prevY = cy;
   }
 
+  // Кисть шире клетки: раздуваем дорожку квадратом. Ползунок толщины на
+  // пиксельном холсте иначе не делает ничего — штрих всегда в одну клетку.
+  if (brush > 1) {
+    final half = brush ~/ 2;
+    final wide = <int>{};
+    for (final key in cells) {
+      final x = key % cols, y = key ~/ cols;
+      for (var dy = -half; dy <= brush - 1 - half; dy++) {
+        for (var dx = -half; dx <= brush - 1 - half; dx++) {
+          final nx = x + dx, ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
+          wide.add(ny * cols + nx);
+        }
+      }
+    }
+    cells
+      ..clear()
+      ..addAll(wide);
+  }
+
   // +0.5 к стороне — чтобы между соседними клетками не просвечивали щели
   // после округления координат.
   for (final key in cells) {
@@ -120,7 +202,8 @@ void paintStroke(
   // Пиксельный холст: клетки вместо сглаженной кривой.
   if (pixelCols != null && pixelRows != null) {
     paintPixelStroke(canvas, points, colorValue, isEraser, size,
-        pixelCols, pixelRows, alpha: alpha);
+        pixelCols, pixelRows,
+        alpha: alpha, brush: pixelBrushCells(strokeWidth));
     return;
   }
   final paint = Paint()
