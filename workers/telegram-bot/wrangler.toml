@@ -18,3 +18,8 @@ enabled = true
 [[kv_namespaces]]
 binding = "ALBUMS"
 id = "5fb2d4c96afa40ed967e79e8cd47f532"
+
+# Ответы из Todoist людям в Telegram: раз в две минуты бот смотрит, что
+# изменилось (Sync API отдаёт только новое, поэтому это один запрос).
+[triggers]
+crons = ["*/2 * * * *"]

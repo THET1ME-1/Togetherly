@@ -12,6 +12,10 @@
  */
 
 import { albumDoneKey, albumPartKey, albumPrefix, isCollector, mergeAlbum } from "./album.js";
+import {
+  chatKey, closedMessage, closedSeenKey, isReplyComment, noteSeenKey,
+  replyMessage, SYNC_TOKEN_KEY,
+} from "./replies.js";
 
 const TODOIST_PROJECT_ID = "6ghRcQGgMJv3hwGH";
 
@@ -244,6 +248,19 @@ async function handleUpdate(update, env) {
 
   const task = await created.json();
 
+  // Кому отвечать по этой задаче. Дальше комментарий со знаком «>» в Todoist
+  // уедет этому человеку в Telegram, а закрытие задачи скажет ему, что
+  // разобрались.
+  if (task?.id) {
+    try {
+      await env.ALBUMS.put(
+        chatKey(task.id),
+        JSON.stringify({ chatId, username }),
+        { expirationTtl: 60 * 60 * 24 * 180 },
+      );
+    } catch (err) { console.error("chat bind failed:", err); }
+  }
+
   // Медиа прикрепляем комментариями: Todoist сам скачает файл по file_url
   // (ссылка Telegram живёт около часа — этого хватает). У альбома вложений
   // несколько, и все они висят на одной задаче.
@@ -290,7 +307,66 @@ async function handleUpdate(update, env) {
       (attachments.length ? ` [вложений: ${attachments.length}]` : ""));
 }
 
+/// Ответы и закрытия из Todoist — раз в пару минут.
+///
+/// Sync API отдаёт только то, что изменилось с прошлого раза, поэтому проход
+/// стоит один запрос. Первый запуск НИЧЕГО не рассылает: он лишь запоминает
+/// точку отсчёта, иначе людям прилетела бы вся история разом.
+async function pollTodoist(env) {
+  let token = await env.ALBUMS.get(SYNC_TOKEN_KEY);
+  const first = !token;
+  const res = await fetch("https://api.todoist.com/api/v1/sync", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${env.TODOIST_API_TOKEN}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      sync_token: token || "*",
+      resource_types: JSON.stringify(["notes", "items"]),
+    }),
+  });
+  if (!res.ok) {
+    console.error(`todoist sync ${res.status}:`, await res.text());
+    return;
+  }
+  const data = await res.json();
+  if (data.sync_token) await env.ALBUMS.put(SYNC_TOKEN_KEY, data.sync_token);
+  if (first) {
+    console.log("sync: первая точка отсчёта взята, рассылки нет");
+    return;
+  }
+
+  for (const note of data.notes || []) {
+    if (note.is_deleted || !isReplyComment(note.content)) continue;
+    const seen = noteSeenKey(note.id);
+    if (await env.ALBUMS.get(seen)) continue;
+    const bound = await env.ALBUMS.get(chatKey(note.item_id));
+    if (!bound) continue;
+    const text = replyMessage(note.content);
+    if (!text) continue;
+    await tgSend(env, JSON.parse(bound).chatId, text);
+    await env.ALBUMS.put(seen, "1", { expirationTtl: 60 * 60 * 24 * 30 });
+    console.log(`ответ ушёл по задаче ${note.item_id}`);
+  }
+
+  for (const item of data.items || []) {
+    if (!item.checked || item.is_deleted) continue;
+    const seen = closedSeenKey(item.id);
+    if (await env.ALBUMS.get(seen)) continue;
+    const bound = await env.ALBUMS.get(chatKey(item.id));
+    if (!bound) continue;
+    await tgSend(env, JSON.parse(bound).chatId, closedMessage(item.content));
+    await env.ALBUMS.put(seen, "1", { expirationTtl: 60 * 60 * 24 * 180 });
+    console.log(`закрытие ушло по задаче ${item.id}`);
+  }
+}
+
 export default {
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(pollTodoist(env).catch((err) => console.error("sync:", err)));
+  },
+
   async fetch(request, env, ctx) {
     if (request.method !== "POST") return new Response("ok");
 
