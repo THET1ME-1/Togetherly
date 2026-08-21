@@ -821,6 +821,8 @@ abstract class AppStrings {
   List<String> get reflectionQuestions;
 
   // ── Draw Gallery / Canvas ──
+  String get chatPinEmpty;
+  String get chatPinNoMatches;
   String get selectTool;
   String get selectToolHint;
   String get palmTool;

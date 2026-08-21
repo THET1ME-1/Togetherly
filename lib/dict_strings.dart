@@ -1255,6 +1255,8 @@ abstract class DictStrings extends AppStrings {
   @override
   String get audio => _t('audio');
   @override
+  String get chatPinEmpty => _t('chatPinEmpty');
+  String get chatPinNoMatches => _t('chatPinNoMatches');
   String get selectTool => _t('selectTool');
   String get selectToolHint => _t('selectToolHint');
   String get palmTool => _t('palmTool');

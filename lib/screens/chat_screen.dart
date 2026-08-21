@@ -11,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../models/chat_msg.dart';
 import '../models/chat_open_position.dart';
+import '../models/chat_mention.dart';
 import '../models/memory.dart';
 import '../models/pair_data.dart';
 import '../models/user_data.dart';
@@ -20,6 +21,7 @@ import '../services/locale_service.dart';
 import '../services/media_service.dart';
 import '../services/plus_service.dart';
 import '../services/pocketbase_service.dart';
+import '../services/memory_repository.dart';
 import '../services/pb_data_service.dart';
 import '../services/presence_service.dart';
 import '../services/ui_prefs.dart';
@@ -140,6 +142,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// Пины для @-подсказок (грузятся один раз, cache-first → 0 серверных чтений).
   List<Memory> _pins = [];
+  StreamSubscription<List<Memory>>? _pinsSub;
 
   /// Сообщение, которое сейчас редактируем (null — обычная отправка).
   ChatMsg? _editing;
@@ -315,7 +318,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _captureUnreadAnchor();
     _watchPartnerReads();
     _chat.ensureMember(_groupId);
-    _loadPins();
+    _watchPins();
     _loadBackground();
     _loadSavedScroll();
     _loadRecentColors();
@@ -392,6 +395,7 @@ class _ChatScreenState extends State<ChatScreen> {
       PbPushService.activeChatGroupId = null;
     }
     _readsSub?.cancel();
+    _pinsSub?.cancel();
     _typingStopTimer?.cancel();
     _chat.setTyping(_groupId, false);
     // Сохраняем точную позицию выхода — вернёмся ровно сюда при перезаходе.
@@ -554,25 +558,27 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Future<void> _loadPins() async {
+  /// Записи для «собачки» берём ОТТУДА ЖЕ, откуда лента воспоминаний —
+  /// `MemoryRepository.watch`: это локальный кэш плюс живой канал.
+  ///
+  /// Раньше здесь стоял разовый сетевой запрос из `initState` с `catch → []`.
+  /// На айфоне приложение выгружается системой, каждый заход — холодный старт,
+  /// и запрос успевал уйти раньше, чем восстанавливалась сессия PocketBase:
+  /// отказ проглатывался, список оставался пустым до перезахода в чат, а
+  /// панель подсказок при пустом списке не рисовалась вовсе. Со стороны это
+  /// выглядело как мёртвая кнопка — «@ собачка не работает».
+  void _watchPins() {
     if (_groupId.isEmpty) return;
-    final recs = await PbDataService().loadMemories(_groupId, limit: 50);
-    if (!mounted) return;
-    setState(() => _pins = recs.map((r) => Memory.fromPb(r)).toList());
+    _pinsSub = MemoryRepository.instance.watch(_groupId).listen((list) {
+      if (!mounted) return;
+      setState(() => _pins = list);
+    }, onError: (Object e) {
+      debugPrint('[Chat] пины не приехали: $e');
+    });
   }
 
   String _memoryLabel(Memory m) {
-    final title = (m.title ?? '').trim();
-    if (title.isNotEmpty) return title;
-    final caption = (m.caption ?? '').trim();
-    if (caption.isNotEmpty) {
-      return caption.truncateGraphemes(30, ellipsis: '…');
-    }
-    final loc = (m.locationName ?? '').trim();
-    if (loc.isNotEmpty) return loc;
-    final mus = (m.musicTitle ?? '').trim();
-    if (mus.isNotEmpty) return mus;
-    return m.typeLabel;
+    return mentionLabel(m);
   }
 
   // ── @-подсказки ────────────────────────────────────────────────────────────
@@ -649,24 +655,12 @@ class _ChatScreenState extends State<ChatScreen> {
   List<Memory> get _mentionResults {
     final q = _mentionQuery;
     if (q == null) return const [];
-    final matches = _pins.where((m) {
-      final label = _memoryLabel(m).toLowerCase();
-      return q.isEmpty || label.contains(q);
-    }).toList();
-    return matches.take(6).toList();
+    return mentionMatches(_pins, q);
   }
 
   /// Вставляет '@' в конец и открывает список пинов (кнопка-скрепка).
   void _triggerPinPicker() {
-    final text = _controller.text;
-    final needsAt = !text.endsWith('@');
-    if (needsAt) {
-      _controller.text = text.isEmpty || text.endsWith(' ')
-          ? '$text@'
-          : '$text @';
-    }
-    _controller.selection =
-        TextSelection.collapsed(offset: _controller.text.length);
+    _controller.value = mentionTriggerValue(_controller.text);
     _focusNode.requestFocus();
     setState(() => _mentionQuery = '');
   }
@@ -2095,8 +2089,7 @@ class _ChatScreenState extends State<ChatScreen> {
               ],
             ),
           ),
-              if (_mentionQuery != null && _mentionResults.isNotEmpty)
-                _buildMentionList(),
+              if (mentionPanelVisible(_mentionQuery)) _buildMentionList(),
               // «Печатает…» теперь в хедере (см. _buildHeaderTitle).
               _buildComposer(s),
             ],
@@ -2698,13 +2691,35 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildMentionList() {
+    final results = _mentionResults;
+    // Показывать нечего — говорим об этом строкой. Пустая панель отвечает на
+    // нажатие, а тишина читается как сломанная кнопка.
+    if (results.isEmpty) {
+      final s = LocaleService.current;
+      return Container(
+        color: _t.cardSurface,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Icon(Icons.push_pin_rounded, size: 16, color: _t.textMuted),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _pins.isEmpty ? s.chatPinEmpty : s.chatPinNoMatches,
+                style: TextStyle(fontSize: 12.5, color: _t.textMuted),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     return Container(
       constraints: const BoxConstraints(maxHeight: 220),
       color: _t.cardSurface,
       child: ListView(
         shrinkWrap: true,
         padding: EdgeInsets.zero,
-        children: _mentionResults.map((m) {
+        children: results.map((m) {
           return ListTile(
             dense: true,
             leading: _pinThumbView(

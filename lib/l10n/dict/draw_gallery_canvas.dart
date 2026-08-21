@@ -6,6 +6,24 @@
 // на экране не бывает.
 
 const Map<String, Map<String, String>> drawGalleryCanvasStrings = {
+  'chatPinEmpty': {
+    'ru': 'Пока нечего прикрепить — добавьте воспоминание',
+    'en': 'Nothing to attach yet — add a memory first',
+    'pt': 'Ainda não há nada para anexar — adicione uma recordação',
+    'it': 'Non c’è ancora nulla da allegare: aggiungi un ricordo',
+    'es': 'Todavía no hay nada que adjuntar: añade un recuerdo',
+    'fr': 'Rien à joindre pour l’instant — ajoutez un souvenir',
+    'de': 'Noch nichts zum Anhängen — füge zuerst eine Erinnerung hinzu',
+  },
+  'chatPinNoMatches': {
+    'ru': 'Ничего не нашлось',
+    'en': 'Nothing found',
+    'pt': 'Nada encontrado',
+    'it': 'Nessun risultato',
+    'es': 'No se encontró nada',
+    'fr': 'Aucun résultat',
+    'de': 'Nichts gefunden',
+  },
   'selectTool': {
     'ru': 'Выделение',
     'en': 'Select',
