@@ -7,7 +7,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/chat_msg.dart';
+import '../models/shape_note.dart';
 import '../models/voice_note.dart';
+import 'note_recorder_service.dart';
 import 'voice_recorder_service.dart';
 import 'offline/local_store.dart';
 import 'offline/outbox_service.dart';
@@ -187,16 +189,16 @@ class ChatService {
     return true;
   }
 
-  /// Переносит запись в папку приложения (`files/voice_outbox`). Возвращает
+  /// Переносит запись в папку приложения (`files/<dir>`). Возвращает
   /// новый путь или null, если перенести не вышло.
-  Future<String?> _keepFile(String tempPath) async {
+  Future<String?> _keepFile(String tempPath, {String dir = 'voice_outbox'}) async {
     try {
       final src = File(tempPath);
       if (!await src.exists()) return null;
       final base = await getApplicationSupportDirectory();
-      final dir = Directory('${base.path}/voice_outbox');
-      if (!await dir.exists()) await dir.create(recursive: true);
-      final dst = '${dir.path}/${tempPath.split(Platform.pathSeparator).last}';
+      final folder = Directory('${base.path}/$dir');
+      if (!await folder.exists()) await folder.create(recursive: true);
+      final dst = '${folder.path}/${tempPath.split(Platform.pathSeparator).last}';
       final moved = await src.rename(dst);
       return moved.path;
     } catch (e) {
@@ -204,9 +206,9 @@ class ChatService {
       // Переименование через границу файловых систем падает — копируем.
       try {
         final base = await getApplicationSupportDirectory();
-        final dir = Directory('${base.path}/voice_outbox');
-        if (!await dir.exists()) await dir.create(recursive: true);
-        final dst = '${dir.path}/${tempPath.split(Platform.pathSeparator).last}';
+        final folder = Directory('${base.path}/$dir');
+        if (!await folder.exists()) await folder.create(recursive: true);
+        final dst = '${folder.path}/${tempPath.split(Platform.pathSeparator).last}';
         await File(tempPath).copy(dst);
         await File(tempPath).delete();
         return dst;
@@ -215,6 +217,109 @@ class ChatService {
         return null;
       }
     }
+  }
+
+  /// Отправить фигурку — видеосообщение в форме.
+  ///
+  /// Устроена как голосовое и по той же причине: фигурка появляется в ленте
+  /// сразу и играет с диска, а файл уезжает очередью (операция `chatNote`).
+  /// Файлов там два — обложка и само видео, — и обложка идёт первой: она
+  /// весит десятки килобайт, поэтому у партнёра фигурка оживает раньше, чем
+  /// доедет ролик.
+  Future<bool> sendNote({
+    required String groupId,
+    required String senderName,
+    required NoteCapture capture,
+    required String shapeId,
+    String? replyToId,
+    String? replyToName,
+    String? replyToText,
+  }) async {
+    if (groupId.isEmpty || _uid.isEmpty) return false;
+    if (capture.duration < NoteRecorderService.minDuration) return false;
+
+    final stored = await _keepFile(capture.path, dir: 'note_outbox');
+    if (stored == null) return false;
+    final thumb = capture.thumbPath.isEmpty
+        ? ''
+        : (await _keepFile(capture.thumbPath, dir: 'note_outbox') ?? '');
+
+    final id = newPbId();
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final ms = capture.duration.inMilliseconds;
+
+    await LocalStore.instance.upsertRaw('chat_messages', id, {
+      'id': id,
+      'group_id': groupId,
+      'user_uid': _uid,
+      'user_name': senderName,
+      'text': '',
+      'ts': ts,
+      'deleted': false,
+      'note_url': stored,
+      'note_ms': ms,
+      'note_shape': shapeId,
+      'note_thumb': thumb,
+      'reply_to_id': ?replyToId,
+      'reply_to_name': ?replyToName,
+      'reply_to_text': ?replyToText,
+    });
+
+    await OutboxService.instance.enqueue('chatNote', {
+      'groupId': groupId,
+      'id': id,
+      'path': stored,
+      'thumbPath': thumb,
+      'msg': {
+        'uid': _uid,
+        'name': senderName,
+        'text': '',
+        'ts': ts,
+        'noteUrl': stored,
+        'noteMs': ms,
+        'noteShape': shapeId,
+        'noteThumb': thumb,
+        'replyToId': replyToId,
+        'replyToName': replyToName,
+        'replyToText': replyToText,
+      },
+    });
+    return true;
+  }
+
+  /// Отметить чужую фигурку просмотренной. Ставит СМОТРЯЩИЙ и на первом же
+  /// запуске: важно, что дошло до глаз, а не досмотрено ли до конца.
+  Future<void> markNoteSeen(String messageId) async {
+    if (messageId.isEmpty) return;
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    await LocalStore.instance.patchRecordFields('chat_messages', messageId, {
+      'note_seen_at': ts,
+    });
+    await OutboxService.instance.enqueue('chatUpdate', {
+      'id': messageId,
+      'fields': {'note_seen_at': ts},
+    });
+  }
+
+  /// Поставить сердечко на секунде просмотра. Отметки едут целым списком —
+  /// поле текстовое, и слияние двух правок на сервере всё равно невозможно.
+  Future<void> addNoteHeart(String messageId, List<double> seconds) async {
+    if (messageId.isEmpty) return;
+    final packed = ShapeNote.encodeHearts(seconds);
+    await LocalStore.instance.patchRecordFields('chat_messages', messageId, {
+      'note_hearts': packed,
+    });
+    await OutboxService.instance.enqueue('chatUpdate', {
+      'id': messageId,
+      'fields': {'note_hearts': packed},
+    });
+  }
+
+  /// Подпись фигурки в цитате ответа и в уведомлении: текста у неё нет.
+  static String noteQuote(ChatMsg msg, String label) {
+    final n = msg.note;
+    if (n == null) return label;
+    return '$label · ${ShapeNote.formatDuration(n.duration)}';
   }
 
   /// Отметить чужое голосовое прослушанным. Идёт через очередь, как и всё

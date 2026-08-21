@@ -574,6 +574,60 @@
           "hidden": false,
           "system": false,
           "onlyInt": true
+        },
+        {
+          "name": "note_url",
+          "type": "text",
+          "required": false,
+          "presentable": false,
+          "max": 0,
+          "hidden": false,
+          "system": false
+        },
+        {
+          "name": "note_shape",
+          "type": "text",
+          "required": false,
+          "presentable": false,
+          "max": 0,
+          "hidden": false,
+          "system": false
+        },
+        {
+          "name": "note_thumb",
+          "type": "text",
+          "required": false,
+          "presentable": false,
+          "max": 0,
+          "hidden": false,
+          "system": false
+        },
+        {
+          "name": "note_hearts",
+          "type": "text",
+          "required": false,
+          "presentable": false,
+          "max": 0,
+          "hidden": false,
+          "system": false
+        },
+        {
+          "name": "note_ms",
+          "type": "number",
+          "required": false,
+          "presentable": false,
+          "onlyInt": true,
+          "hidden": false,
+          "system": false
+        },
+        {
+          "name": "note_seen_at",
+          "type": "number",
+          "required": false,
+          "presentable": false,
+          "onlyInt": true,
+          "hidden": false,
+          "system": false
         }
       ],
       "indexes": [

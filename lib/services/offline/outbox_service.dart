@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:sembast/sembast_io.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
+import 'package:video_compress/video_compress.dart';
 
 import '../pb_data_service.dart';
 import '../pb_media_service.dart';
@@ -356,6 +357,7 @@ class OutboxService {
         return k('wish_categories', p['id']);
       case 'chatUpsert':
       case 'chatVoice':
+      case 'chatNote':
       case 'chatUpdate':
       case 'chatSetReaction':
         return k('chat_messages', p['id']);
@@ -747,6 +749,8 @@ class OutboxService {
         );
       case 'chatVoice':
         return _applyChatVoice(p);
+      case 'chatNote':
+        return _applyChatNote(p);
       case 'chatUpdate':
         return data.chatUpdate(
           p['id'] as String? ?? '',
@@ -846,6 +850,108 @@ class OutboxService {
         final f = File(path);
         if (await f.exists()) await f.delete();
       } catch (_) {/* не удалился — уберёт система */}
+    }
+    return ok;
+  }
+
+  /// Фигурка: обложка, потом видео, потом сама запись.
+  ///
+  /// Порядок не случаен. Обложка весит десятки килобайт и доезжает почти
+  /// мгновенно, поэтому у партнёра фигурка появляется картинкой, а не пустой
+  /// формой. Видео перед заливкой сжимается тем же кодеком устройства, что и
+  /// воспоминания: тридцать секунд с камеры весят 8–15 МБ, после сжатия
+  /// 2–4 МБ. Сжатие иногда виснет на кодеке намертво — поэтому таймаут, а по
+  /// нему грузим оригинал: лучше тяжёлый файл, чем застрявшая очередь.
+  Future<bool> _applyChatNote(Map<String, dynamic> p) async {
+    final id = p['id'] as String? ?? '';
+    final groupId = p['groupId'] as String? ?? '';
+    if (id.isEmpty || groupId.isEmpty) return true;
+    final msg = Map<String, dynamic>.from(p['msg'] as Map? ?? const {});
+    final path = p['path'] as String? ?? '';
+    final thumbPath = p['thumbPath'] as String? ?? '';
+
+    // ── обложка ──
+    var thumb = (msg['noteThumb'] as String?) ?? '';
+    if (thumb.isNotEmpty && !thumb.startsWith('pb://')) {
+      final f = File(thumbPath);
+      if (thumbPath.isNotEmpty && await f.exists()) {
+        final up = await PbMediaService.instance.uploadFile(
+          thumbPath,
+          uid: msg['uid'] as String?,
+          groupId: groupId,
+          kind: 'note_thumb',
+        );
+        if (up != null) {
+          thumb = up;
+          msg['noteThumb'] = up;
+          await LocalStore.instance.patchRecordFields('chat_messages', id, {
+            'note_thumb': up,
+          });
+        }
+        // Не залилась — не беда: фигурка подождёт видео. Дальше не повторяем,
+        // иначе обложка держала бы всё сообщение.
+      } else {
+        msg['noteThumb'] = '';
+      }
+    }
+
+    // ── видео ──
+    var url = (msg['noteUrl'] as String?) ?? '';
+    if (!url.startsWith('pb://')) {
+      final file = File(path);
+      if (path.isEmpty || !await file.exists()) {
+        debugPrint('outbox.chatNote: файла нет ($path), операция снимается');
+        return true;
+      }
+      var toUpload = path;
+      File? shrunk;
+      try {
+        final info = await VideoCompress.compressVideo(
+          path,
+          // 540p: фигурка на экране занимает около 230 dp, это ~700 px на
+          // плотном экране — 720p там не видно, а весит вдвое больше. Тридцать
+          // секунд выходят примерно в 3,5 МБ, обычная фигурка на 10 секунд —
+          // около мегабайта. Место в бакете дороже незаметной разницы.
+          quality: VideoQuality.Res960x540Quality,
+          deleteOrigin: false,
+          includeAudio: true,
+        ).timeout(const Duration(minutes: 2));
+        final out = info?.file;
+        if (out != null && await out.exists()) {
+          shrunk = out;
+          toUpload = out.path;
+        }
+      } catch (e) {
+        debugPrint('outbox.chatNote: сжатие не вышло, грузим как есть: $e');
+      }
+      final uploaded = await PbMediaService.instance.uploadFile(
+        toUpload,
+        uid: msg['uid'] as String?,
+        groupId: groupId,
+        kind: 'note',
+      );
+      try {
+        if (shrunk != null && await shrunk.exists()) await shrunk.delete();
+      } catch (_) {/* уберёт система */}
+      if (uploaded == null) return false; // сеть/сервер — повторим позже
+      url = uploaded;
+      msg['noteUrl'] = url;
+      // Файл на устройстве вот-вот исчезнет, а фигурка должна продолжать
+      // играть — переводим кэш на серверную ссылку сразу.
+      await LocalStore.instance.patchRecordFields('chat_messages', id, {
+        'note_url': url,
+      });
+    }
+
+    final ok = await PbDataService().chatSend(groupId, id, msg);
+    if (ok) {
+      for (final path in [path, thumbPath]) {
+        if (path.isEmpty) continue;
+        try {
+          final f = File(path);
+          if (await f.exists()) await f.delete();
+        } catch (_) {/* не удалился — уберёт система */}
+      }
     }
     return ok;
   }

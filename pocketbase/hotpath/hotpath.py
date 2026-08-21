@@ -25,7 +25,8 @@ PB принимает токен, подписанный этим же спос�
 
 Что повторено из серверной обвязки PB для вынесенных коллекций:
   • страж чата (chat_guard.pb.js): не-автор правит только `reactions` и
-    `voice_heard_at`, жёсткое удаление — автору;
+    `voice_heard_at`, `note_seen_at` и `note_hearts` (сердечки на фигурке
+    ставит смотрящий), жёсткое удаление — автору;
   • счётчик `groups.messages_count` (counters.pb.js): +1 на создание, −1 на
     жёсткое удаление; пишется прямо в SQLite PB фоновым воркером с батчингом;
   • пуши (push_apns.pb.js + apns_push.js): чат и настроение — тем же релеям
@@ -117,6 +118,8 @@ COLLECTIONS = {
             "text": "text", "ts": "num", "user_name": "text", "user_uid": "text",
             "updated": "auto", "text_color": "num", "voice_url": "text",
             "voice_ms": "num", "voice_peaks": "text", "voice_heard_at": "num",
+            "note_url": "text", "note_ms": "num", "note_shape": "text",
+            "note_thumb": "text", "note_seen_at": "num", "note_hearts": "text",
         },
         "sortable": {"ts", "updated", "id"},
         "filterable": {"id", "group_id", "user_uid", "deleted", "ts", "updated"},
@@ -922,6 +925,8 @@ def _chat_push_text(rec: dict) -> str:
     text = (rec.get("text") or "").strip()
     if text:
         return text[:117] + "…" if len(text) > 120 else text
+    if rec.get("note_url"):
+        return "Фигурка"
     return "Голосовое сообщение" if rec.get("voice_url") else "Сообщение"
 
 
@@ -2958,7 +2963,8 @@ async def update_record(col: str, rid: str, request: Request):
             )
         if author and author != uid:
             for f in body:
-                if f not in ("reactions", "voice_heard_at", "id"):
+                if f not in ("reactions", "voice_heard_at", "note_seen_at",
+                             "note_hearts", "id"):
                     return _err(403, "only the author can edit this message")
 
     if col == "widget_data" and "plus" in body:

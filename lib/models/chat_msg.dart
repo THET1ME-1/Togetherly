@@ -1,5 +1,6 @@
 import 'package:pocketbase/pocketbase.dart';
 
+import 'shape_note.dart';
 import 'voice_note.dart';
 
 /// Сообщение постоянного чата пары. Хранится в PocketBase (коллекция
@@ -56,6 +57,18 @@ class ChatMsg {
   final int? voiceMs;
   final String? voicePeaks;
 
+  /// Фигурка (видеосообщение в форме): ссылка на файл, длительность, имя
+  /// формы и обложка. null во всех — не фигурка.
+  final String? noteUrl;
+  final int? noteMs;
+  final String? noteShape;
+  final String? noteThumb;
+
+  /// Когда фигурку посмотрели (epoch-ms) и на каких секундах ставили сердечки.
+  /// Оба поля пишет СМОТРЯЩИЙ — по той же причине, что и `voiceHeardAt`.
+  final int? noteSeenAt;
+  final String? noteHearts;
+
   /// Когда получатель дослушал (epoch-ms). Ставит СЛУШАТЕЛЬ, а не автор —
   /// отправителю важно знать, дошло ли голосовое до ушей, а не только до
   /// экрана. Страж `chat_guard.pb.js` пускает не-автора ровно в это поле.
@@ -85,6 +98,12 @@ class ChatMsg {
     this.voiceMs,
     this.voicePeaks,
     this.voiceHeardAt,
+    this.noteUrl,
+    this.noteMs,
+    this.noteShape,
+    this.noteThumb,
+    this.noteSeenAt,
+    this.noteHearts,
   });
 
   /// Голосовое сообщение или null, если это обычный текст.
@@ -92,6 +111,20 @@ class ChatMsg {
       VoiceNote.fromFields(url: voiceUrl, ms: voiceMs, peaks: voicePeaks);
 
   bool get isVoice => (voiceUrl ?? '').isNotEmpty;
+
+  /// Фигурка или null, если это не видеосообщение.
+  ShapeNote? get note => ShapeNote.fromFields(
+        url: noteUrl,
+        ms: noteMs,
+        shape: noteShape,
+        thumb: noteThumb,
+        hearts: noteHearts,
+      );
+
+  bool get isNote => (noteUrl ?? '').isNotEmpty;
+
+  /// Фигурку уже посмотрели.
+  bool get noteSeen => (noteSeenAt ?? 0) > 0;
 
   /// Голосовое уже послушали.
   bool get voiceHeard => (voiceHeardAt ?? 0) > 0;
@@ -162,6 +195,12 @@ class ChatMsg {
       voiceMs: nzInt(m['voice_ms']),
       voicePeaks: nz(m['voice_peaks']),
       voiceHeardAt: nzInt(m['voice_heard_at']),
+      noteUrl: nz(m['note_url']),
+      noteMs: nzInt(m['note_ms']),
+      noteShape: nz(m['note_shape']),
+      noteThumb: nz(m['note_thumb']),
+      noteSeenAt: nzInt(m['note_seen_at']),
+      noteHearts: nz(m['note_hearts']),
     );
   }
 }

@@ -1,5 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
+import 'note_shape_view.dart';
+import 'note_shapes.dart';
 
 /// Куда увели палец во время записи.
 enum VoiceGesture {
@@ -29,6 +34,16 @@ class SendMicButton extends StatefulWidget {
   /// Правим сообщение — вместо самолётика галочка, микрофон недоступен.
   final bool editing;
 
+  /// Режим фигурки: вместо микрофона на кнопке стоит выбранная форма.
+  final bool noteMode;
+
+  /// Какая форма нарисована на кнопке. null — обычный микрофон.
+  final NoteShape? noteShape;
+
+  /// Короткое касание переключает микрофон и фигурку. Запись короче 0,8 с и
+  /// так отбрасывается, поэтому место под тап было свободно.
+  final VoidCallback? onModeToggle;
+
   final Color primary;
   final Color onPrimary;
   final Color idleBackground;
@@ -50,6 +65,9 @@ class SendMicButton extends StatefulWidget {
     super.key,
     required this.hasText,
     required this.editing,
+    this.noteMode = false,
+    this.noteShape,
+    this.onModeToggle,
     required this.primary,
     required this.onPrimary,
     required this.idleBackground,
@@ -71,9 +89,19 @@ class _SendMicButtonState extends State<SendMicButton> {
   static const double _cancelAt = 56;
   static const double _lockAt = 48;
 
+  /// Короче этого касание считается тапом по кнопке, а не попыткой записать.
+  static const Duration _tapWindow = Duration(milliseconds: 220);
+
   bool _pressing = false;
   VoiceGesture _gesture = VoiceGesture.recording;
   Offset _shift = Offset.zero;
+
+  /// Палец пролежал дольше окна тапа — значит человек записывает, а не
+  /// переключает режим. Считаем таймером, а не часами: системное время
+  /// прыгает (перевод часов, синхронизация), и на прыжке запись превратилась
+  /// бы в переключение.
+  Timer? _holdTimer;
+  bool _held = false;
 
   /// Где палец лёг на кнопку: сдвиг считаем от этой точки, а не от центра.
   Offset _origin = Offset.zero;
@@ -87,6 +115,9 @@ class _SendMicButtonState extends State<SendMicButton> {
 
   void _start() {
     if (widget.hasText || widget.editing) return;
+    _held = false;
+    _holdTimer?.cancel();
+    _holdTimer = Timer(_tapWindow, () => _held = true);
     setState(() {
       _pressing = true;
       _gesture = VoiceGesture.recording;
@@ -110,19 +141,61 @@ class _SendMicButtonState extends State<SendMicButton> {
 
   void _end() {
     if (!_pressing) return;
-    final cancelled = _gesture == VoiceGesture.cancelling;
+    _holdTimer?.cancel();
+    _holdTimer = null;
+    final quick = !_held &&
+        _gesture == VoiceGesture.recording &&
+        _shift.distance < 12;
+    final cancelled = quick || _gesture == VoiceGesture.cancelling;
     final locked = _gesture == VoiceGesture.locking;
     setState(() {
       _pressing = false;
       _shift = Offset.zero;
     });
-    if (cancelled) {
+    if (cancelled && !quick) {
       HapticFeedback.heavyImpact();
     } else {
       HapticFeedback.lightImpact();
     }
     widget.onRecordEnd(cancelled: cancelled, locked: locked);
     _gesture = VoiceGesture.recording;
+    // Быстрое касание — это не запись, а просьба сменить режим.
+    if (quick) widget.onModeToggle?.call();
+  }
+
+  /// Что нарисовано на кнопке прямо сейчас.
+  Widget _glyph(bool cancelling, bool locking, Color fg) {
+    final shape = widget.noteShape;
+    final plain = cancelling || locking || widget.editing || widget.hasText;
+    if (!plain && widget.noteMode && shape != null) {
+      return NoteShapeGlyph(
+        key: ValueKey('note_${shape.id}'),
+        shape: shape,
+        size: 21,
+        color: fg,
+      );
+    }
+    return Icon(
+      cancelling
+          ? Icons.delete_outline_rounded
+          : locking
+              ? Icons.lock_rounded
+              : widget.editing
+                  ? Icons.check_rounded
+                  : widget.hasText
+                      ? Icons.send_rounded
+                      : Icons.mic_rounded,
+      key: ValueKey('${cancelling}_${locking}_'
+          '${widget.editing}_${widget.hasText}'),
+      color: fg,
+      size: 21,
+    );
+  }
+
+  @override
+  void dispose() {
+    _holdTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -188,21 +261,7 @@ class _SendMicButtonState extends State<SendMicButton> {
                     child: FadeTransition(opacity: anim, child: child),
                   ),
                 ),
-                child: Icon(
-                  cancelling
-                      ? Icons.delete_outline_rounded
-                      : locking
-                          ? Icons.lock_rounded
-                          : widget.editing
-                              ? Icons.check_rounded
-                              : widget.hasText
-                                  ? Icons.send_rounded
-                                  : Icons.mic_rounded,
-                  key: ValueKey('${cancelling}_${locking}_'
-                      '${widget.editing}_${widget.hasText}'),
-                  color: fg,
-                  size: 21,
-                ),
+                child: _glyph(cancelling, locking, fg),
               ),
             ),
           ),

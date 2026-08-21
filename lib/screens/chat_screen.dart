@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:camera/camera.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:image_picker/image_picker.dart';
@@ -29,9 +31,15 @@ import '../models/chat_background.dart';
 import '../theme/app_theme.dart';
 import '../theme/profile_theme.dart';
 import '../services/voice_player_service.dart';
+import '../services/note_player_service.dart';
+import '../services/note_recorder_service.dart';
 import '../services/voice_recorder_service.dart';
 import '../widgets/chat/send_mic_button.dart';
 import '../widgets/chat/voice_bubble.dart';
+import 'chat/note_viewer_screen.dart';
+import '../widgets/chat/note_bubble.dart';
+import '../widgets/chat/note_recorder_overlay.dart';
+import '../widgets/chat/note_shapes.dart';
 import '../widgets/chat/voice_recording_bar.dart';
 import '../widgets/common/app_dialog.dart';
 import '../widgets/md_message_text.dart';
@@ -324,6 +332,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _loadRecentColors();
     _loadChatStyle();
     _loadChatLook();
+    _loadNoteMode();
     _loadChatBackground();
     _controller.addListener(_onTextChanged);
     _scrollController.addListener(_onScroll);
@@ -417,6 +426,12 @@ class _ChatScreenState extends State<ChatScreen> {
     _voiceElapsed.dispose();
     _voiceLevels.dispose();
     if (_recording) unawaited(VoiceRecorderService.instance.cancel());
+    _noteElapsedSub?.cancel();
+    _noteLimitSub?.cancel();
+    _noteElapsed.dispose();
+    // Камера не должна пережить экран: иначе индикатор съёмки горит дальше.
+    unawaited(NoteRecorderService.instance.release());
+    NotePlayerService.instance.stop();
     VoicePlayerService.instance.stop();
     _controller.dispose();
     _scrollController.dispose();
@@ -609,6 +624,34 @@ class _ChatScreenState extends State<ChatScreen> {
   StreamSubscription<List<double>>? _voiceLevelsSub;
   StreamSubscription<void>? _voiceLimitSub;
 
+  // ── Съёмка фигурки ──
+  /// Кнопка справа снимает фигурку, а не пишет голос. Переключается коротким
+  /// касанием той же кнопки и запоминается на устройстве.
+  bool _noteMode = false;
+
+  /// Идёт съёмка: поверх чата стоит экран камеры.
+  bool _noteRecording = false;
+  bool _notePaused = false;
+  bool _noteLocked = false;
+  VoiceGesture _noteGesture = VoiceGesture.recording;
+
+  /// Выбранная форма и зеркало превью (фронталка смотрит на себя).
+  NoteShape _noteShape = kNoteShapes.first;
+  bool _noteMirrored = true;
+
+  /// Причина, по которой снимать нельзя. Держится, пока экран камеры открыт.
+  String? _noteError;
+
+  /// Камера живёт в сервисе; здесь только ссылка для превью.
+  CameraController? _noteCamera;
+
+  /// Таймер съёмки — своим нотифаером, как у голосовых: тик каждые 60 мс не
+  /// должен перестраивать чат.
+  final ValueNotifier<Duration> _noteElapsed =
+      ValueNotifier<Duration>(Duration.zero);
+  StreamSubscription<Duration>? _noteElapsedSub;
+  StreamSubscription<void>? _noteLimitSub;
+
   Future<void> _loadChatLook() async {
     final value = await UiPrefs.chatLookMaterial();
     if (!mounted || value == _materialLook) return;
@@ -723,6 +766,216 @@ class _ChatScreenState extends State<ChatScreen> {
       _toast(s.voiceLimitReached);
       _finishVoice(cancelled: false);
     });
+  }
+
+  // ── Фигурки ────────────────────────────────────────────────────────────────
+
+  /// Читает, чем человек снимал в прошлый раз: голосом или фигуркой, и какой
+  /// формы была фигурка.
+  Future<void> _loadNoteMode() async {
+    final mode = await UiPrefs.chatNoteMode();
+    final shapeId = await UiPrefs.chatNoteShape();
+    if (!mounted) return;
+    setState(() {
+      _noteMode = mode;
+      _noteShape = noteShapeById(shapeId);
+    });
+    if (mode) unawaited(_warmCamera());
+  }
+
+  /// Короткое касание кнопки меняет режим. Камеру поднимаем заранее: иначе
+  /// первая съёмка начинается через полсекунды после нажатия, и начало фразы
+  /// теряется.
+  Future<void> _toggleNoteMode() async {
+    if (_recording || _noteRecording) return;
+    final next = !_noteMode;
+    setState(() {
+      _noteMode = next;
+      _noteError = null;
+    });
+    HapticFeedback.selectionClick();
+    await UiPrefs.setChatNoteMode(next);
+    if (next) {
+      await _warmCamera();
+    } else {
+      await NoteRecorderService.instance.release();
+      if (mounted) setState(() => _noteCamera = null);
+    }
+  }
+
+  /// Поднимает камеру и запоминает ссылку для превью.
+  Future<void> _warmCamera() async {
+    try {
+      final c = await NoteRecorderService.instance.prepare();
+      if (!mounted) return;
+      setState(() {
+        _noteCamera = c;
+        _noteError = null;
+      });
+    } on NoteRecordException catch (e) {
+      if (!mounted) return;
+      setState(() => _noteError = _noteErrorText(e.reason));
+    }
+  }
+
+  String _noteErrorText(NoteRecordError reason) {
+    final s = LocaleService.current;
+    return switch (reason) {
+      NoteRecordError.noPermission => s.noteNoCameraPermission,
+      NoteRecordError.busy => s.noteCameraBusy,
+      NoteRecordError.noCamera => s.noteCameraFailed,
+      NoteRecordError.failed => s.noteCameraFailed,
+    };
+  }
+
+  /// Палец лёг на кнопку в режиме фигурки: показываем камеру и снимаем.
+  Future<void> _startNote() async {
+    final rec = NoteRecorderService.instance;
+    setState(() {
+      _noteRecording = true;
+      _notePaused = false;
+      _noteLocked = false;
+      _noteGesture = VoiceGesture.recording;
+    });
+    _noteElapsed.value = Duration.zero;
+    if (_noteCamera == null || !(_noteCamera?.value.isInitialized ?? false)) {
+      await _warmCamera();
+    }
+    if (!mounted || !_noteRecording) return;
+    if (_noteError != null) return; // экран уже объясняет, почему нельзя
+    try {
+      await rec.start();
+    } on NoteRecordException catch (e) {
+      if (!mounted) return;
+      setState(() => _noteError = _noteErrorText(e.reason));
+      return;
+    }
+    _noteElapsedSub = rec.elapsed.listen((d) {
+      if (mounted) _noteElapsed.value = d;
+    });
+    // Уткнулись в предел — не обрываем молча, а отправляем снятое.
+    _noteLimitSub = rec.autoStopped.listen((_) {
+      if (!mounted) return;
+      _toast(LocaleService.current.noteLimitReached);
+      _finishNote(cancelled: false);
+    });
+  }
+
+  void _onNoteGesture(VoiceGesture g) {
+    if (!mounted || !_noteRecording) return;
+    setState(() => _noteGesture = g);
+  }
+
+  Future<void> _endNote({required bool cancelled, required bool locked}) async {
+    if (!_noteRecording) return;
+    if (locked && !cancelled) {
+      setState(() {
+        _noteLocked = true;
+        _noteGesture = VoiceGesture.recording;
+      });
+      return;
+    }
+    await _finishNote(cancelled: cancelled);
+  }
+
+  /// Останавливает съёмку и либо отправляет фигурку, либо стирает снятое.
+  Future<void> _finishNote({required bool cancelled}) async {
+    final rec = NoteRecorderService.instance;
+    await _noteElapsedSub?.cancel();
+    await _noteLimitSub?.cancel();
+    _noteElapsedSub = null;
+    _noteLimitSub = null;
+
+    if (cancelled) {
+      await rec.cancel();
+      if (mounted) {
+        setState(() {
+          _noteRecording = false;
+          _notePaused = false;
+          _noteLocked = false;
+          _noteElapsed.value = Duration.zero;
+        });
+      }
+      return;
+    }
+
+    final capture = await rec.stop();
+    if (mounted) {
+      setState(() {
+        _noteRecording = false;
+        _notePaused = false;
+        _noteLocked = false;
+        _noteElapsed.value = Duration.zero;
+      });
+    }
+    if (capture == null) return;
+    if (capture.duration < NoteRecorderService.minDuration) {
+      if (mounted) _toast(LocaleService.current.noteTooShort);
+      return;
+    }
+
+    final reply = _replyingTo;
+    final ok = await _chat.sendNote(
+      groupId: _groupId,
+      senderName: widget.myDisplayName,
+      capture: capture,
+      shapeId: _noteShape.id,
+      replyToId: reply?.id,
+      replyToName: reply?.name,
+      replyToText: reply == null ? null : _quoteOf(reply),
+    );
+    if (!mounted) return;
+    if (ok) {
+      setState(() => _replyingTo = null);
+      _jumpToBottom();
+    } else {
+      _toast(LocaleService.current.noteFailed);
+    }
+  }
+
+  /// Текст цитаты для ответа: у голосового и фигурки его нет, поэтому
+  /// подписываем длительностью.
+  String _quoteOf(ChatMsg m) {
+    final s = LocaleService.current;
+    if (m.isVoice) return ChatService.voiceQuote(m, s.voiceMessage);
+    if (m.isNote) return ChatService.noteQuote(m, s.noteMessage);
+    return m.text;
+  }
+
+  Future<void> _setNoteShape(NoteShape shape) async {
+    if (shape.id == _noteShape.id) return;
+    setState(() => _noteShape = shape);
+    HapticFeedback.selectionClick();
+    await UiPrefs.setChatNoteShape(shape.id);
+  }
+
+  Future<void> _flipNoteCamera() async {
+    final c = await NoteRecorderService.instance.switchCamera();
+    if (!mounted) return;
+    setState(() => _noteCamera = c);
+  }
+
+  Future<void> _toggleNoteTorch() async {
+    await NoteRecorderService.instance.toggleTorch();
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _toggleNotePause() async {
+    final rec = NoteRecorderService.instance;
+    if (rec.isPaused) {
+      await rec.resume();
+    } else {
+      await rec.pause();
+    }
+    if (mounted) setState(() => _notePaused = rec.isPaused);
+  }
+
+  void _openNoteViewer(ChatMsg msg) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => NoteViewerScreen(msg: msg, isMine: msg.uid == _myUid),
+      ),
+    );
   }
 
   void _onVoiceGesture(VoiceGesture g) {
@@ -2094,6 +2347,34 @@ class _ChatScreenState extends State<ChatScreen> {
               _buildComposer(s),
             ],
           ),
+          // Экран съёмки: живёт поверх чата, потому что человек снимает ответ
+          // на конкретное сообщение и должен видеть, на какое.
+          if (_noteRecording)
+            Positioned.fill(
+              child: NoteRecorderOverlay(
+                controller: _noteCamera,
+                shape: _noteShape,
+                onShape: _setNoteShape,
+                elapsed: _noteElapsed,
+                recording: _noteRecording,
+                paused: _notePaused,
+                locked: _noteLocked,
+                cancelling: _noteGesture == VoiceGesture.cancelling,
+                mirrored: _noteMirrored && NoteRecorderService.instance.isFront,
+                torchOn: NoteRecorderService.instance.torchOn,
+                canFlip: NoteRecorderService.instance.hasSecondCamera,
+                canTorch: !NoteRecorderService.instance.isFront,
+                error: _noteError,
+                onFlip: _flipNoteCamera,
+                onTorch: _toggleNoteTorch,
+                onMirror: () =>
+                    setState(() => _noteMirrored = !_noteMirrored),
+                onPauseToggle: _toggleNotePause,
+                onCancel: () => _finishNote(cancelled: true),
+                onSend: () => _finishNote(cancelled: false),
+                onClose: () => _finishNote(cancelled: true),
+              ),
+            ),
         ],
       ),
     );
@@ -2286,6 +2567,9 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildBubble(ChatMsg msg) {
+    // Фигурка рисуется без пузыря — форма сама себе пузырь. Так же в этом чате
+    // ведёт себя сообщение из одних эмодзи.
+    if (msg.isNote && !msg.deleted) return _buildNoteMessage(msg);
     final isMine = msg.uid == _myUid;
     final s = LocaleService.current;
     final seed = msg.id.hashCode;
@@ -2586,6 +2870,80 @@ class _ChatScreenState extends State<ChatScreen> {
         decoration: BoxDecoration(
           color: _highlightMsgId == msg.id
               ? _t.primary.withOpacity(0.12)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Align(
+          alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+          child: row,
+        ),
+      ),
+    );
+  }
+
+  /// Фигурка в ленте: сама форма, обод, время под ней. Обвязка та же, что у
+  /// пузыря — свайп отвечает, долгое нажатие открывает меню, реакции сбоку.
+  Widget _buildNoteMessage(ChatMsg msg) {
+    final isMine = msg.uid == _myUid;
+    final size = (MediaQuery.of(context).size.width * 0.56).clamp(150.0, 230.0);
+    final cs = ProfileTheme.themeFor(_t).colorScheme;
+    final hasReactions = msg.reactions.isNotEmpty;
+
+    final figure = GestureDetector(
+      behavior: HitTestBehavior.deferToChild,
+      onLongPress: () => _showMessageMenu(msg),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment:
+            isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          if (msg.replyToId != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: size),
+                child: _buildReplyQuote(msg, isMine, cs.onSurfaceVariant),
+              ),
+            ),
+          NoteBubble(
+            key: ValueKey('note_${msg.id}'),
+            msg: msg,
+            isMine: isMine,
+            size: size.toDouble(),
+            partnerReadTs: _partnerReadTs,
+            onOpenFull: () => _openNoteViewer(msg),
+          ),
+        ],
+      ),
+    );
+
+    final chips = hasReactions ? _buildReactionChips(msg, isMine) : null;
+    final row = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: isMine
+          ? [
+              if (chips != null) ...[chips, const SizedBox(width: 6)],
+              Flexible(child: figure),
+            ]
+          : [
+              Flexible(child: figure),
+              if (chips != null) ...[const SizedBox(width: 6), chips],
+            ],
+    );
+
+    return _SwipeToReply(
+      key: ValueKey('swipe_${msg.id}'),
+      enabled: true,
+      iconColor: _t.primary,
+      onReply: () => _startReply(msg),
+      child: AnimatedContainer(
+        key: _keyFor(msg.id),
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+        margin: const EdgeInsets.symmetric(vertical: 5),
+        decoration: BoxDecoration(
+          color: _highlightMsgId == msg.id
+              ? _t.primary.withValues(alpha: 0.12)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
         ),
@@ -2923,15 +3281,21 @@ class _ChatScreenState extends State<ChatScreen> {
                 SendMicButton(
                   hasText: hasText,
                   editing: _editing != null,
+                  noteMode: _noteMode,
+                  noteShape: _noteShape,
+                  onModeToggle: _toggleNoteMode,
                   primary: cs.primary,
                   onPrimary: cs.onPrimary,
                   idleBackground: cs.surfaceContainerHigh,
                   idleForeground: cs.onSurfaceVariant,
                   onSend: _send,
-                  onRecordStart: _startVoice,
-                  onRecordGesture: _onVoiceGesture,
+                  onRecordStart: _noteMode ? _startNote : _startVoice,
+                  onRecordGesture:
+                      _noteMode ? _onNoteGesture : _onVoiceGesture,
                   onRecordEnd: ({required cancelled, required locked}) =>
-                      _endVoice(cancelled: cancelled, locked: locked),
+                      _noteMode
+                          ? _endNote(cancelled: cancelled, locked: locked)
+                          : _endVoice(cancelled: cancelled, locked: locked),
                 ),
               ],
             );

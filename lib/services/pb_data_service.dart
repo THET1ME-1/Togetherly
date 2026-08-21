@@ -2790,6 +2790,10 @@ class PbDataService {
       'voice_url': msg['voiceUrl'],
       'voice_ms': msg['voiceMs'],
       'voice_peaks': msg['voicePeaks'],
+      'note_url': msg['noteUrl'],
+      'note_ms': msg['noteMs'],
+      'note_shape': msg['noteShape'],
+      'note_thumb': msg['noteThumb'],
     }..removeWhere((k, v) => v == null);
     return _upsertById('chat_messages', id, body,
         op: 'chatSend', expectNew: true);

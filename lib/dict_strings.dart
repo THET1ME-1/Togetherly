@@ -2174,6 +2174,18 @@ abstract class DictStrings extends AppStrings {
   @override
   String get chatHint => _t('chatHint');
   @override
+  String get noteHoldToRecord => _t('noteHoldToRecord');
+  String get noteSlideHints => _t('noteSlideHints');
+  String get noteReleaseToCancel => _t('noteReleaseToCancel');
+  String get noteRecording => _t('noteRecording');
+  String get noteViewerHint => _t('noteViewerHint');
+  String get noteTooShort => _t('noteTooShort');
+  String get noteFailed => _t('noteFailed');
+  String get noteLimitReached => _t('noteLimitReached');
+  String get noteNoCameraPermission => _t('noteNoCameraPermission');
+  String get noteCameraBusy => _t('noteCameraBusy');
+  String get noteCameraFailed => _t('noteCameraFailed');
+  String get noteMessage => _t('noteMessage');
   String get voiceSlideHints => _t('voiceSlideHints');
   @override
   String get voiceReleaseToCancel => _t('voiceReleaseToCancel');

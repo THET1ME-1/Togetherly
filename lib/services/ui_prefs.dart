@@ -28,6 +28,33 @@ class UiPrefs {
   static const String kBrushSymmetry = 'draw_brush_symmetry';
   static const String kBrushSymmetrySectors = 'draw_brush_symmetry_sectors';
 
+  /// Кнопка справа от поля чата: снимает фигурку вместо записи голоса.
+  /// Живёт на устройстве — это привычка, а не решение пары.
+  static const String kChatNoteMode = 'chat_note_mode';
+
+  /// Последняя выбранная форма фигурки.
+  static const String kChatNoteShape = 'chat_note_shape';
+
+  static Future<bool> chatNoteMode() async {
+    final p = await SharedPreferences.getInstance();
+    return p.getBool(kChatNoteMode) ?? false;
+  }
+
+  static Future<void> setChatNoteMode(bool on) async {
+    final p = await SharedPreferences.getInstance();
+    await p.setBool(kChatNoteMode, on);
+  }
+
+  static Future<String> chatNoteShape() async {
+    final p = await SharedPreferences.getInstance();
+    return p.getString(kChatNoteShape) ?? '';
+  }
+
+  static Future<void> setChatNoteShape(String id) async {
+    final p = await SharedPreferences.getInstance();
+    await p.setString(kChatNoteShape, id);
+  }
+
   static Future<bool> sideActionIsArrow() async {
     final p = await SharedPreferences.getInstance();
     return p.getBool(kHomeSideActionArrow) ?? true;

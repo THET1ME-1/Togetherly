@@ -1437,6 +1437,18 @@ abstract class AppStrings {
 
   // ── Голосовые сообщения ──
   /// Подсказка под полосой записи, пока палец держит микрофон.
+  String get noteHoldToRecord;
+  String get noteSlideHints;
+  String get noteReleaseToCancel;
+  String get noteRecording;
+  String get noteViewerHint;
+  String get noteTooShort;
+  String get noteFailed;
+  String get noteLimitReached;
+  String get noteNoCameraPermission;
+  String get noteCameraBusy;
+  String get noteCameraFailed;
+  String get noteMessage;
   String get voiceSlideHints;
 
   /// Палец увели влево: отпустишь — запись пропадёт.
