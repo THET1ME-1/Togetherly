@@ -354,7 +354,11 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
                 ? s.watchTogether
                 : s.watchWithPartner(partner),
             subtitle: s.watchRoomOpensForBoth,
-            note: s.watchAfterShortAd,
+            // У купившего Togetherly+ рекламы перед комнатой нет вовсе
+            // (`TogetherLauncher` пропускает её по `PlusService.active`), и
+            // обещать её в подписи — врать человеку, который как раз заплатил,
+            // чтобы её не видеть.
+            note: PlusService.instance.active ? null : s.watchAfterShortAd,
             enabled: !_loading && _room.isNotEmpty,
             onTap: _openInApp,
           ),
@@ -580,14 +584,14 @@ class _Hero extends StatelessWidget {
 class _PrimaryCard extends StatelessWidget {
   final String title;
   final String subtitle;
-  final String note;
+  final String? note;
   final bool enabled;
   final VoidCallback onTap;
 
   const _PrimaryCard({
     required this.title,
     required this.subtitle,
-    required this.note,
+    this.note,
     required this.enabled,
     required this.onTap,
   });
@@ -643,21 +647,24 @@ class _PrimaryCard extends StatelessWidget {
                           color: cs.onPrimary.withValues(alpha: 0.86),
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 11,
-                          vertical: 5,
+                      if (note != null) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 11,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: cs.onPrimary.withValues(alpha: 0.22),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            note!,
+                            style:
+                                text.labelSmall?.copyWith(color: cs.onPrimary),
+                          ),
                         ),
-                        decoration: BoxDecoration(
-                          color: cs.onPrimary.withValues(alpha: 0.22),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          note,
-                          style: text.labelSmall?.copyWith(color: cs.onPrimary),
-                        ),
-                      ),
+                      ],
                     ],
                   ),
                 ),
