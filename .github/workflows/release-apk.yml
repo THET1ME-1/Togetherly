@@ -243,6 +243,9 @@ jobs:
   # Вызываем reusable-воркфлоу: в GitHub-релизе всегда лежат и APK, и IPA —
   # руками второй прогон запускать не нужно.
   attach-ipa:
+    # Только когда iOS просили: при targets=github это тестовая сборка на
+    # Android, и получасовой прогон на macOS ради IPA ей ни к чему.
+    if: ${{ inputs.targets == '' || contains(inputs.targets, 'all') || contains(inputs.targets, 'ios') }}
     needs: build-apk
     permissions:
       contents: write
