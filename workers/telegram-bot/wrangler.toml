@@ -12,3 +12,9 @@ enabled = true
 #   echo -n "<value>" | npx wrangler secret put TODOIST_API_TOKEN
 #   echo -n "<value>" | npx wrangler secret put GEMINI_API_KEY
 #   echo -n "<value>" | npx wrangler secret put TG_WEBHOOK_SECRET
+
+# Части альбома (несколько фото одним сообщением) складываются сюда на пять
+# минут: Telegram шлёт их разными апдейтами, а задача должна выйти одна.
+[[kv_namespaces]]
+binding = "ALBUMS"
+id = "5fb2d4c96afa40ed967e79e8cd47f532"

@@ -11,7 +11,14 @@
  * GEMINI_API_KEY, TG_WEBHOOK_SECRET.
  */
 
+import { albumDoneKey, albumPartKey, albumPrefix, isCollector, mergeAlbum } from "./album.js";
+
 const TODOIST_PROJECT_ID = "6ghRcQGgMJv3hwGH";
+
+/// Сколько ждать остальные фото альбома. Телеграм шлёт их подряд, но своими
+/// апдейтами: две секунды с запасом покрывают разброс, а человек всё равно
+/// ждёт ответа бота, а не мгновенной реакции.
+const ALBUM_WAIT_MS = 2500;
 const TODOIST_ASSIGNEE_ID = "34940569";
 const SECTION_SROCHNO = "6gjcfphM67QjC8Qq"; // 🔴 Срочно
 const SECTION_OT_POLZOVATELEY = "6gjw3rP83qwqmvvH"; // 🐛 От пользователей
@@ -87,24 +94,99 @@ async function tgSend(env, chatId, text) {
   } catch (err) { console.error("sendMessage failed:", err); }
 }
 
+/// Что прислали: id файла и его тип. У фото берём последний размер — он самый
+/// крупный.
+function mediaOf(message) {
+  if (message.photo?.length) {
+    return {
+      fileId: message.photo[message.photo.length - 1].file_id,
+      mime: "image/jpeg",
+    };
+  }
+  if (message.video) {
+    return {
+      fileId: message.video.file_id,
+      mime: message.video.mime_type || "video/mp4",
+    };
+  }
+  if (message.document) {
+    return {
+      fileId: message.document.file_id,
+      mime: message.document.mime_type || "application/octet-stream",
+    };
+  }
+  return { fileId: null, mime: "image/jpeg" };
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/// Части альбома, накопленные в KV к этому моменту.
+async function albumParts(env, groupId) {
+  const listed = await env.ALBUMS.list({ prefix: albumPrefix(groupId) });
+  const parts = [];
+  for (const key of listed.keys) {
+    const raw = await env.ALBUMS.get(key.name);
+    if (raw) parts.push(JSON.parse(raw));
+  }
+  return parts;
+}
+
+/// Альбом целиком или null, если собирать его не нам.
+///
+/// Каждая часть кладёт себя в KV и ждёт остальные. Дальше сравнивают номера
+/// сообщений: собирает та, что пришла первой, — так задача заводится ровно
+/// одна, без сговора между запросами Worker'а.
+async function collectAlbum(env, message, media) {
+  const groupId = String(message.media_group_id);
+  await env.ALBUMS.put(
+    albumPartKey(groupId, message.message_id),
+    JSON.stringify({
+      messageId: message.message_id,
+      fileId: media.fileId,
+      mime: media.mime,
+      caption: (message.caption || "").trim(),
+    }),
+    { expirationTtl: 300 },
+  );
+  await sleep(ALBUM_WAIT_MS);
+  const parts = await albumParts(env, groupId);
+  if (!isCollector(parts.map((p) => p.messageId), message.message_id)) {
+    console.log(`альбом ${groupId}: часть ${message.message_id} ждёт сборщика`);
+    return null;
+  }
+  // Вторая защита от двойной задачи: KV согласуется не мгновенно, и при
+  // неудачном стечении две части могут счесть себя первыми.
+  const doneKey = albumDoneKey(groupId);
+  if (await env.ALBUMS.get(doneKey)) {
+    console.log(`альбом ${groupId}: уже собран другой частью`);
+    return null;
+  }
+  await env.ALBUMS.put(doneKey, "1", { expirationTtl: 300 });
+  return mergeAlbum(parts);
+}
+
 async function handleUpdate(update, env) {
   const message = update.message || update.channel_post;
   if (!message) return;
 
-  // У фото берём последний размер — он самый крупный.
-  let mediaFileId = null;
-  let mediaMime = "image/jpeg";
-  if (message.photo?.length) {
-    mediaFileId = message.photo[message.photo.length - 1].file_id;
-  } else if (message.video) {
-    mediaFileId = message.video.file_id;
-    mediaMime = message.video.mime_type || "video/mp4";
-  } else if (message.document) {
-    mediaFileId = message.document.file_id;
-    mediaMime = message.document.mime_type || "application/octet-stream";
+  const single = mediaOf(message);
+  let mediaFileId = single.fileId;
+  let mediaMime = single.mime;
+  let album = null;
+
+  // Несколько фото одним сообщением приходят разными апдейтами: собираем их в
+  // одну задачу, иначе жалоба разлетается на три штуки — текст отдельно,
+  // скриншоты отдельно.
+  if (message.media_group_id && mediaFileId) {
+    album = await collectAlbum(env, message, single);
+    if (!album) return;
+    mediaFileId = album.media[0]?.fileId || null;
+    mediaMime = album.media[0]?.mime || "image/jpeg";
   }
 
-  const text = (message.caption || message.text || "").trim();
+  const text = album
+      ? album.caption
+      : (message.caption || message.text || "").trim();
   if (!text && !mediaFileId) return;
 
   const chatId = message.chat.id;
@@ -162,15 +244,20 @@ async function handleUpdate(update, env) {
 
   const task = await created.json();
 
-  // Медиа прикрепляем комментарием: Todoist сам скачает файл по file_url
-  // (ссылка Telegram живёт около часа — этого хватает).
-  if (mediaFileId && task?.id) {
-    try {
-      const fileRes = await fetch(
-        `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/getFile?file_id=${mediaFileId}`);
-      const fileJson = await fileRes.json();
-      const filePath = fileJson?.ok ? fileJson.result?.file_path : null;
-      if (filePath) {
+  // Медиа прикрепляем комментариями: Todoist сам скачает файл по file_url
+  // (ссылка Telegram живёт около часа — этого хватает). У альбома вложений
+  // несколько, и все они висят на одной задаче.
+  const attachments = album
+      ? album.media
+      : (mediaFileId ? [{ fileId: mediaFileId, mime: mediaMime }] : []);
+  if (task?.id) {
+    for (const item of attachments) {
+      try {
+        const fileRes = await fetch(
+          `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/getFile?file_id=${item.fileId}`);
+        const fileJson = await fileRes.json();
+        const filePath = fileJson?.ok ? fileJson.result?.file_path : null;
+        if (!filePath) continue;
         await fetch("https://api.todoist.com/api/v1/comments", {
           method: "POST",
           headers: {
@@ -182,22 +269,25 @@ async function handleUpdate(update, env) {
             content: "📎 Вложение от пользователя",
             attachment: {
               file_name: filePath.split("/").pop(),
-              file_type: mediaMime,
+              file_type: item.mime,
               file_url: `https://api.telegram.org/file/bot${env.TELEGRAM_BOT_TOKEN}/${filePath}`,
             },
           }),
         });
-      }
-    } catch (err) { console.error("media attach failed:", err); }
+      } catch (err) { console.error("media attach failed:", err); }
+    }
   }
 
-  const mediaNote = mediaFileId ? " + 📎" : "";
+  const mediaNote = attachments.length > 1
+      ? ` + 📎 ${attachments.length}`
+      : (attachments.length ? " + 📎" : "");
   const replyText = category === "question"
     ? `💬 Вопрос получен, ${username}! Разработчик ответит в ближайшее время.`
     : `${meta.emoji} Принято! Спасибо, ${username}.\nМетка: <b>${meta.labels.join(", ")}</b>${mediaNote}`;
   await tgSend(env, chatId, replyText);
 
-  console.log(`[${category}] от ${username}: "${title}"${mediaFileId ? " [media]" : ""}`);
+  console.log(`[${category}] от ${username}: "${title}"` +
+      (attachments.length ? ` [вложений: ${attachments.length}]` : ""));
 }
 
 export default {
