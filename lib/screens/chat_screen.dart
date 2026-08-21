@@ -21,6 +21,7 @@ import '../services/chat_service.dart';
 import '../services/pb_push_service.dart';
 import '../services/locale_service.dart';
 import '../services/media_service.dart';
+import '../services/plus_access.dart';
 import '../services/plus_service.dart';
 import '../services/pocketbase_service.dart';
 import '../services/memory_repository.dart';
@@ -48,6 +49,7 @@ import 'memory_lane_screen.dart';
 import '../widgets/common/m3_loading.dart';
 import '../models/widget_data.dart';
 import '../widgets/common/plus_badge.dart';
+import '../widgets/plus/plus_promo_sheet.dart';
 import '../widgets/common/stable_stream_builder.dart';
 import '../widgets/common/scaled_asset.dart';
 
@@ -635,9 +637,14 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _noteLocked = false;
   VoiceGesture _noteGesture = VoiceGesture.recording;
 
-  /// Выбранная форма и зеркало превью (фронталка смотрит на себя).
+  /// Выбранная форма и зеркало превью.
+  ///
+  /// Зеркало по умолчанию выключено: плагин камеры на Android уже отдаёт кадр
+  /// как есть, и наш разворот делал из превью зеркало, а из записи — нет.
+  /// Человек снимал одно, а отправлял другое. Кнопка на месте: кому привычнее
+  /// видеть себя как в зеркале, включает её сам.
   NoteShape _noteShape = kNoteShapes.first;
-  bool _noteMirrored = true;
+  bool _noteMirrored = false;
 
   /// Причина, по которой снимать нельзя. Держится, пока экран камеры открыт.
   String? _noteError;
@@ -779,9 +786,15 @@ class _ChatScreenState extends State<ChatScreen> {
     final mode = await UiPrefs.chatNoteMode();
     final shapeId = await UiPrefs.chatNoteShape();
     if (!mounted) return;
+    final saved = noteShapeById(shapeId);
     setState(() {
       _noteMode = mode;
-      _noteShape = noteShapeById(shapeId);
+      // Плюс мог кончиться с прошлой съёмки — тогда возвращаем круг, а не
+      // открываем экран съёмки с формой, которой человек больше не владеет.
+      _noteShape = PlusAccess.ownsNoteShape(
+              id: saved.id, gate: PlusService.instance.gate)
+          ? saved
+          : kNoteShapes.first;
     });
     // Камеру при входе в чат НЕ поднимаем, даже если режим фигурки сохранён:
     // иначе индикатор съёмки загорается у всех, кто просто открыл переписку,
@@ -977,6 +990,14 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _setNoteShape(NoteShape shape) async {
     if (shape.id == _noteShape.id) return;
+    // Форма под замком: показываем витрину прямо поверх съёмки. Съёмку при
+    // этом не рвём — человек закроет лист и продолжит снимать кругом.
+    if (!PlusAccess.ownsNoteShape(
+        id: shape.id, gate: PlusService.instance.gate)) {
+      HapticFeedback.lightImpact();
+      await showPlusPromoSheet(context);
+      return;
+    }
     setState(() => _noteShape = shape);
     HapticFeedback.selectionClick();
     await UiPrefs.setChatNoteShape(shape.id);
@@ -2403,6 +2424,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 locked: _noteLocked,
                 cancelling: _noteGesture == VoiceGesture.cancelling,
                 mirrored: _noteMirrored && NoteRecorderService.instance.isFront,
+                plusGate: PlusService.instance.gate,
                 torchOn: NoteRecorderService.instance.torchOn,
                 canFlip: NoteRecorderService.instance.hasSecondCamera,
                 canTorch: !NoteRecorderService.instance.isFront,

@@ -151,4 +151,36 @@ void main() {
       );
     });
   });
+
+  group('Формы фигурок', () {
+    test('Круг снимает кто угодно', () {
+      expect(
+        PlusAccess.ownsNoteShape(
+            id: PlusAccess.freeNoteShape, gate: PlusGate.locked),
+        isTrue,
+      );
+    });
+
+    test('Остальные формы без Plus закрыты', () {
+      expect(
+        PlusAccess.ownsNoteShape(id: 'heart', gate: PlusGate.locked),
+        isFalse,
+      );
+    });
+
+    test('Plus открывает весь набор', () {
+      expect(
+        PlusAccess.ownsNoteShape(id: 'heart', gate: PlusGate.open),
+        isTrue,
+      );
+    });
+
+    test('Там, где Plus не продаётся, формы открыты все', () {
+      expect(
+        PlusAccess.ownsNoteShape(id: 'star', gate: PlusGate.hidden),
+        isTrue,
+        reason: 'на iPhone Плюса нет, и закрытая форма была бы тупиком',
+      );
+    });
+  });
 }

@@ -1795,6 +1795,8 @@ abstract class AppStrings {
   String get plusWishesBody;
   String get plusTipsTitle;
   String get plusTipsBody;
+  String get plusShapesTitle;
+  String get plusShapesBody;
   String get plusVideoTitle;
   String get plusVideoBody;
   String get plusBuy;

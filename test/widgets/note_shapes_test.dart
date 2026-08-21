@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:love_app/services/plus_access.dart';
 import 'package:love_app/widgets/chat/note_shapes.dart';
 
 /// Формы фигурок — не картинки, а числа: 180 радиусов от центра безопасной
@@ -149,5 +150,13 @@ void main() {
     expect(noteShapeById('star').id, 'star');
     expect(noteShapeById('нет такой').id, kNoteShapes.first.id);
     expect(noteShapeById(null).id, kNoteShapes.first.id);
+  });
+
+  test('первой идёт бесплатная форма', () {
+    expect(
+      kNoteShapes.first.id,
+      PlusAccess.freeNoteShape,
+      reason: 'откат по умолчанию не должен требовать Togetherly+',
+    );
   });
 }

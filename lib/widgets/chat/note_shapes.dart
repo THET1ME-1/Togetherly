@@ -233,9 +233,11 @@ class NoteShapeClipper extends CustomClipper<Path> {
 }
 
 /// Порядок в ленте выбора: сначала то, чем пользуются чаще.
+// Круг стоит первым не по алфавиту: он единственный бесплатный, и на него же
+// откатывается `noteShapeById`, когда форма незнакома или Togetherly+ кончился.
 const List<NoteShape> kNoteShapes = <NoteShape>[
-  NoteShape(id: 'heart', profile: _heart, safeRadius: 0.676, centerX: 0.5000, centerY: 0.5300),
   NoteShape(id: 'circle', profile: _circle, safeRadius: 1.000, centerX: 0.5000, centerY: 0.5000),
+  NoteShape(id: 'heart', profile: _heart, safeRadius: 0.676, centerX: 0.5000, centerY: 0.5300),
   NoteShape(id: 'cookie', profile: _cookie, safeRadius: 0.921, centerX: 0.5000, centerY: 0.5100),
   NoteShape(id: 'daisy', profile: _daisy, safeRadius: 0.912, centerX: 0.5000, centerY: 0.5000),
   NoteShape(id: 'gem', profile: _gem, safeRadius: 0.919, centerX: 0.5000, centerY: 0.5175),

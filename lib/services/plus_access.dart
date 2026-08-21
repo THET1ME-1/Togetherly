@@ -82,4 +82,18 @@ class PlusAccess {
     final icon = ProfileIcon.byId(id);
     return icon != null && !icon.grantOnly;
   }
+
+  /// Форма фигурки, которую снимают без Togetherly+.
+  static const String freeNoteShape = 'circle';
+
+  /// Доступна ли форма для съёмки.
+  ///
+  /// Круг остаётся у всех: видеосообщение — способ сказать, а не украшение, и
+  /// запирать его целиком нельзя. Сердце, звёздочка и остальные восемь идут
+  /// с Плюсом, и подписка тут личная: у пары два аккаунта и два кошелька.
+  ///
+  /// Гейт [PlusGate.hidden] отдаёт весь набор даром — на iPhone Togetherly+ не
+  /// продаётся, и замок там вёл бы в никуда.
+  static bool ownsNoteShape({required String id, required PlusGate gate}) =>
+      id == freeNoteShape || gate != PlusGate.locked;
 }

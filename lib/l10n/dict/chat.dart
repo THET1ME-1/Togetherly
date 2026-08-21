@@ -2068,6 +2068,24 @@ const Map<String, Map<String, String>> chatStrings = {
     'de':
         'Was du heute tun kannst und wie sich eure Beziehung in Zahlen entwickelt',
   },
+  'plusShapesTitle': {
+    'ru': 'Формы фигурок',
+    'en': 'Video message shapes',
+    'pt': 'Formas dos vídeos',
+    'it': 'Forme dei videomessaggi',
+    'es': 'Formas de los vídeos',
+    'fr': 'Formes des vidéos',
+    'de': 'Formen der Videobotschaften',
+  },
+  'plusShapesBody': {
+    'ru': 'Сердце, звёздочка и ещё восемь форм в чате — кругом снимают все',
+    'en': 'A heart, a star and eight more shapes in chat; the circle is free',
+    'pt': 'Coração, estrela e mais oito formas no chat; o círculo é grátis',
+    'it': 'Cuore, stella e altre otto forme in chat; il cerchio è per tutti',
+    'es': 'Corazón, estrella y ocho formas más en el chat; el círculo es gratis',
+    'fr': 'Un cœur, une étoile et huit autres formes dans le chat ; le cercle est gratuit',
+    'de': 'Herz, Stern und acht weitere Formen im Chat; der Kreis bleibt frei',
+  },
   'plusVideoTitle': {
     'ru': 'Видео крупнее',
     'en': 'Bigger videos',

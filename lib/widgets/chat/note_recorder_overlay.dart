@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../services/locale_service.dart';
 import '../../services/note_recorder_service.dart';
+import '../../services/plus_access.dart';
 import '../../theme/motion.dart';
 import 'note_shape_view.dart';
 import 'note_shapes.dart';
@@ -40,6 +41,10 @@ class NoteRecorderOverlay extends StatelessWidget {
   final bool canFlip;
   final bool canTorch;
 
+  /// Куплен ли Togetherly+. От этого зависят замки на формах: круг снимают
+  /// все, остальные девять открывает подписка — своя у каждого в паре.
+  final PlusGate plusGate;
+
   /// Причина, по которой снимать нельзя (нет разрешения, камера занята).
   final String? error;
 
@@ -68,6 +73,7 @@ class NoteRecorderOverlay extends StatelessWidget {
     required this.torchOn,
     required this.canFlip,
     required this.canTorch,
+    required this.plusGate,
     required this.error,
     required this.onRetry,
     required this.onFlip,
@@ -284,7 +290,11 @@ class NoteRecorderOverlay extends StatelessWidget {
         itemBuilder: (context, i) {
           final item = kNoteShapes[i];
           final active = item.id == shape.id;
+          final locked =
+              !PlusAccess.ownsNoteShape(id: item.id, gate: plusGate);
           return GestureDetector(
+            // Тап по запертой форме тоже уходит наверх: экран покажет витрину
+            // Togetherly+. Молчаливая кнопка читалась бы как поломка.
             onTap: () => onShape(item),
             behavior: HitTestBehavior.opaque,
             child: AnimatedContainer(
@@ -301,10 +311,26 @@ class NoteRecorderOverlay extends StatelessWidget {
                 duration: Motion.short4,
                 curve: Motion.emphasized,
                 scale: active ? 1.08 : 0.92,
-                child: NoteShapeGlyph(
-                  shape: item,
-                  size: 28,
-                  color: active ? cs.onSecondaryContainer : cs.onSurfaceVariant,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.center,
+                  children: [
+                    NoteShapeGlyph(
+                      shape: item,
+                      size: 28,
+                      color: active
+                          ? cs.onSecondaryContainer
+                          : cs.onSurfaceVariant
+                              .withValues(alpha: locked ? 0.45 : 1),
+                    ),
+                    if (locked)
+                      Positioned(
+                        right: -3,
+                        bottom: -3,
+                        child: Icon(Icons.lock_rounded,
+                            size: 13, color: cs.onSurfaceVariant),
+                      ),
+                  ],
                 ),
               ),
             ),

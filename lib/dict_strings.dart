@@ -2622,6 +2622,10 @@ abstract class DictStrings extends AppStrings {
   @override
   String get plusTipsBody => _t('plusTipsBody');
   @override
+  String get plusShapesTitle => _t('plusShapesTitle');
+  @override
+  String get plusShapesBody => _t('plusShapesBody');
+  @override
   String get plusVideoTitle => _t('plusVideoTitle');
   @override
   String get plusVideoBody => _t('plusVideoBody');

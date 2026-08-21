@@ -33,6 +33,30 @@ class NoteRecordException implements Exception {
   String toString() => 'NoteRecordException($reason)';
 }
 
+/// На какую камеру уходим по кнопке переключения.
+///
+/// Не следующая по списку, а именно другая сторона: CameraX отдаёт ВСЕ модули
+/// устройства, и на телефоне с широкоугольным и макро список из четырёх штук.
+/// Перебор по кругу выглядел как сломанная кнопка — с себя попадаешь на второй
+/// тыловой модуль, а вернуться к своему лицу выходит только с третьего нажатия.
+///
+/// Внутри одной стороны выбираем первую: у Android основной модуль идёт в
+/// списке первым, широкоугольный и макро — за ним.
+int nextCameraIndex(List<CameraDescription> cameras, int current) {
+  if (cameras.length < 2) return 0;
+  final from = current >= 0 && current < cameras.length
+      ? cameras[current].lensDirection
+      : null;
+  final want = from == CameraLensDirection.front
+      ? CameraLensDirection.back
+      : CameraLensDirection.front;
+  final found = cameras.indexWhere((c) => c.lensDirection == want);
+  if (found >= 0) return found;
+  // Второй стороны нет вовсе (например, только тыловые модули) — тогда просто
+  // следующий модуль по списку, иначе кнопка не делала бы ничего.
+  return (current + 1) % cameras.length;
+}
+
 /// Съёмка фигурки — видеосообщения в форме.
 ///
 /// Пишем 480p с фронталки: перед отправкой видео всё равно жмётся до 540p, а
@@ -287,12 +311,23 @@ class NoteRecorderService {
   Future<CameraController?> switchCamera() async {
     if (_recording && !_paused) return _controller;
     if (_cameras.length < 2) return _controller;
-    _cameraIndex = (_cameraIndex + 1) % _cameras.length;
+    final was = _cameraIndex;
+    _cameraIndex = nextCameraIndex(_cameras, _cameraIndex);
+    if (_cameraIndex == was) return _controller;
     try {
       return await _open(_cameras[_cameraIndex]);
     } on NoteRecordException catch (e) {
+      // Модуль не открылся (так бывает с макро и широкоугольным): старый
+      // контроллер уже уничтожен в `_open`, и без возврата человек остаётся с
+      // чёрным кадром. Поднимаем ту камеру, которая только что работала.
       debugPrint('NoteRecorder.switchCamera: $e');
-      return _controller;
+      _cameraIndex = was;
+      try {
+        return await _open(_cameras[was]);
+      } on NoteRecordException catch (e2) {
+        debugPrint('NoteRecorder.switchCamera (возврат): $e2');
+        return _controller;
+      }
     }
   }
 
