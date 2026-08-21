@@ -129,6 +129,28 @@ def shrink(src_path, dst_path):
     return os.path.exists(dst_path) and os.path.getsize(dst_path) > 0
 
 
+def drop_cache(name):
+    """Выбрасывает файл из кэша раздачи.
+
+    Раздача идёт через nginx, и он хранит уже отданные куски. Файл в бакете
+    подменяется под тем же именем, поэтому в кэше может остаться прежняя,
+    тяжёлая версия — а плеер тянет видео по частям (Range) и на смеси старых и
+    новых кусков просто не откроет ролик.
+    """
+    try:
+        res = subprocess.run(
+            ["grep", "-rl", name, "/var/cache/nginx"],
+            capture_output=True, timeout=60,
+        )
+    except Exception:
+        return
+    for line in res.stdout.decode(errors="replace").splitlines():
+        try:
+            os.remove(line.strip())
+        except OSError:
+            pass
+
+
 def upload(path, rec_id, name):
     """Кладёт файл обратно ПОД ТЕМ ЖЕ ИМЕНЕМ — ссылка в базе не меняется."""
     key = "%s/%s/%s/%s" % (BUCKET, MEDIA, rec_id, name)
@@ -148,6 +170,7 @@ def upload(path, rec_id, name):
             subprocess.run(["cp", path, local], check=True, timeout=60)
         except Exception as e:
             print("локальная копия не заменилась: %s" % e, file=sys.stderr)
+    drop_cache(name)
     return True
 
 

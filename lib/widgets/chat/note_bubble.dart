@@ -63,6 +63,9 @@ class _NoteBubbleState extends State<NoteBubble> {
   /// звук продолжает идти из ниоткуда.
   double _visible = 0;
 
+  /// Эту же фигурку открыли во весь экран — плеер теперь его.
+  bool _openedFull = false;
+
   @override
   void initState() {
     super.initState();
@@ -79,7 +82,9 @@ class _NoteBubbleState extends State<NoteBubble> {
 
   @override
   void dispose() {
-    unawaited(_player.stop(onlyIf: widget.msg.id));
+    // Ту же фигурку мог открыть полноэкранный просмотр — останавливать её,
+    // уходя с ленты, нельзя.
+    if (!_openedFull) unawaited(_player.stop(onlyIf: widget.msg.id));
     super.dispose();
   }
 
@@ -93,6 +98,13 @@ class _NoteBubbleState extends State<NoteBubble> {
 
   void _onVisibility(VisibilityInfo info) {
     if (!mounted) return;
+    // Поверх чата открыт другой экран (полноэкранный просмотр этой же
+    // фигурки) — тогда лента не хозяйка плееру. Иначе выходило так: просмотр
+    // запускал видео, лента через полсекунды считала себя невидимой и глушила
+    // ЕГО ЖЕ воспроизведение — на весь экран оставалась пустая форма.
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) return;
+
     final was = _visible;
     _visible = info.visibleFraction;
     // Уехала за край — глушим: продолжать играть за пределами экрана незачем.
@@ -183,7 +195,10 @@ class _NoteBubbleState extends State<NoteBubble> {
                           ],
                           if (widget.onOpenFull != null)
                             GestureDetector(
-                              onTap: widget.onOpenFull,
+                              onTap: () {
+                                _openedFull = true;
+                                widget.onOpenFull!.call();
+                              },
                               child: const _Glyph(
                                   icon: Icons.open_in_full_rounded),
                             ),

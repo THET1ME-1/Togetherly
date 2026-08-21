@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -46,7 +45,17 @@ class _NoteViewerScreenState extends State<NoteViewerScreen>
   /// показывать на полосе сразу.
   late List<double> _hearts = List<double>.of(widget.msg.note?.hearts ?? const []);
 
-  double _dragY = 0;
+  /// Свайп вниз едет своим каналом: `setState` на каждое движение пальца
+  /// перестраивал бы весь экран вместе с кадром видео.
+  final ValueNotifier<double> _dragY = ValueNotifier<double>(0);
+
+  /// Когда в последний раз пробовали переоткрыть плеер.
+  DateTime? _lastRetry;
+
+  /// Видео так и не поехало. Пустая форма без объяснения читается как
+  /// зависший экран — а это ровно то, чем баг и выглядел.
+  bool _stuck = false;
+  Timer? _stuckTimer;
 
   ShapeNote get _note => widget.msg.note!;
 
@@ -54,6 +63,11 @@ class _NoteViewerScreenState extends State<NoteViewerScreen>
   void initState() {
     super.initState();
     _ticker.start();
+    _stuckTimer = Timer(const Duration(seconds: 6), () {
+      if (!mounted) return;
+      if (_player.isCurrent(widget.msg.id) && _player.state.playing) return;
+      setState(() => _stuck = true);
+    });
     // Открываем со звуком: сюда заходят смотреть, а не проматывать.
     unawaited(_player.open(
       messageId: widget.msg.id,
@@ -65,14 +79,43 @@ class _NoteViewerScreenState extends State<NoteViewerScreen>
 
   @override
   void dispose() {
+    _stuckTimer?.cancel();
     _ticker.dispose();
     _progress.dispose();
+    _dragY.dispose();
+    for (final p in _pops) {
+      p.ctrl.dispose();
+    }
+    _pops.clear();
     unawaited(_player.stop(onlyIf: widget.msg.id));
     super.dispose();
   }
 
   void _onTick(Duration _) {
-    if (!_player.isCurrent(widget.msg.id)) return;
+    // Плеер мог забрать кто-то другой (лента под нами, второй экран, сбой
+    // загрузки). Экран открыт — значит фигурка должна играть здесь: молча
+    // переоткрываем, но не чаще раза в полторы секунды, чтобы не устроить
+    // карусель open/stop.
+    if (!_player.isCurrent(widget.msg.id)) {
+      final now = DateTime.now();
+      if (_lastRetry == null ||
+          now.difference(_lastRetry!) > const Duration(milliseconds: 1500)) {
+        _lastRetry = now;
+        unawaited(_player.open(
+          messageId: widget.msg.id,
+          url: _note.url,
+          knownDuration: _note.duration,
+          sound: true,
+        ));
+      }
+      return;
+    }
+    if (_stuck && _player.state.playing) {
+      // Поехало со второй попытки — убираем сообщение.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _stuck = false);
+      });
+    }
     final p = _player.smoothProgress();
     _progress.value = p;
     final total = _player.state.duration.inMilliseconds;
@@ -133,31 +176,30 @@ class _NoteViewerScreenState extends State<NoteViewerScreen>
         onDoubleTap: _addHeart,
         onTap: () => _player.togglePlay(),
         onVerticalDragUpdate: (d) =>
-            setState(() => _dragY = math.max(0, _dragY + d.delta.dy)),
+            _dragY.value = math.max(0, _dragY.value + d.delta.dy),
         onVerticalDragEnd: (_) {
-          if (_dragY > 90) {
+          if (_dragY.value > 90) {
             Navigator.of(context).maybePop();
           } else {
-            setState(() => _dragY = 0);
+            _dragY.value = 0;
           }
         },
         child: Stack(
           children: [
-            // Фон — та же обложка, размытая: экран не проваливается в чёрное,
-            // а остаётся тем же кадром.
-            if (_note.hasThumb)
-              Positioned.fill(
-                child: Opacity(
-                  opacity: 0.22,
-                  child: ImageFiltered(
-                    imageFilter: ImageFilter.blur(sigmaX: 34, sigmaY: 34),
-                    child: _cover(cs, fill: true),
-                  ),
-                ),
-              ),
+            // Раньше фоном стояла та же обложка, размытая на 34 — это полный
+            // проход по кадру каждые шестнадцать миллисекунд поверх живого
+            // видео, и на телефоне экран переставал отвечать. Сплошная
+            // поверхность стоит ноль и не спорит с кадром.
+            Positioned.fill(
+              child: ColoredBox(color: cs.surfaceContainerLowest),
+            ),
             SafeArea(
-              child: Transform.translate(
-                offset: Offset(0, _dragY),
+              child: ValueListenableBuilder<double>(
+                valueListenable: _dragY,
+                builder: (context, dy, child) => Transform.translate(
+                  offset: Offset(0, dy),
+                  child: child,
+                ),
                 child: Column(
                   children: [
                     _header(cs),
@@ -183,6 +225,24 @@ class _NoteViewerScreenState extends State<NoteViewerScreen>
                             ),
                             for (final p in _pops)
                               _PopHeart(pop: p, color: cs.primary),
+                            if (_stuck)
+                              Positioned(
+                                bottom: 0,
+                                child: FilledButton.tonalIcon(
+                                  onPressed: () {
+                                    setState(() => _stuck = false);
+                                    _lastRetry = null;
+                                    unawaited(_player.open(
+                                      messageId: widget.msg.id,
+                                      url: _note.url,
+                                      knownDuration: _note.duration,
+                                      sound: true,
+                                    ));
+                                  },
+                                  icon: const Icon(Icons.refresh_rounded),
+                                  label: Text(s.retry),
+                                ),
+                              ),
                           ],
                         ),
                       ),
@@ -242,13 +302,18 @@ class _NoteViewerScreenState extends State<NoteViewerScreen>
 
   Widget _content(ColorScheme cs) {
     final c = _player.controller;
-    if (_player.isCurrent(widget.msg.id) && c != null && c.value.isInitialized) {
+    final size = c?.value.size ?? Size.zero;
+    if (_player.isCurrent(widget.msg.id) &&
+        c != null &&
+        c.value.isInitialized &&
+        size.width > 0 &&
+        size.height > 0) {
       return FittedBox(
         fit: BoxFit.cover,
         clipBehavior: Clip.hardEdge,
         child: SizedBox(
-          width: c.value.size.width,
-          height: c.value.size.height,
+          width: size.width,
+          height: size.height,
           child: VideoPlayer(c),
         ),
       );
@@ -256,9 +321,25 @@ class _NoteViewerScreenState extends State<NoteViewerScreen>
     return _cover(cs);
   }
 
-  Widget _cover(ColorScheme cs, {bool fill = false}) {
+  Widget _cover(ColorScheme cs) {
     final thumb = _note.thumbUrl;
-    if (thumb.isEmpty) return ColoredBox(color: cs.surfaceContainerHigh);
+    if (thumb.isEmpty) {
+      // Обложки нет (старая фигурка или кадр не снялся) — показываем, что
+      // видео едет, а не пустую форму: пустота читается как зависание.
+      return ColoredBox(
+        color: cs.surfaceContainerHigh,
+        child: Center(
+          child: SizedBox(
+            width: 30,
+            height: 30,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.6,
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+        ),
+      );
+    }
     if (!thumb.startsWith('pb://') &&
         !thumb.startsWith('http') &&
         File(thumb).existsSync()) {

@@ -166,6 +166,10 @@ class _NoteShapeViewState extends State<NoteShapeView>
 }
 
 class _RingPainter extends CustomPainter {
+  /// Линейка контура переживает кадры: пересчитывается только при смене формы
+  /// или размера.
+  static NoteArcRuler? _ruler;
+
   final NoteShape shape;
   final Color color;
   final Color? track;
@@ -202,9 +206,19 @@ class _RingPainter extends CustomPainter {
     paint.color = color;
     if (p >= 1) {
       canvas.drawPath(path, paint);
-    } else {
-      canvas.drawPath(noteShapeArc(path, p), paint);
+      return;
     }
+    var ruler = _ruler;
+    if (ruler == null ||
+        !ruler.matches(shape.profile, size, shape.centerX, shape.centerY)) {
+      ruler = _ruler = NoteArcRuler(
+        profile: shape.profile,
+        size: size,
+        centerX: shape.centerX,
+        centerY: shape.centerY,
+      );
+    }
+    canvas.drawPath(ruler.arc(p), paint);
   }
 
   @override

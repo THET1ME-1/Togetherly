@@ -107,6 +107,11 @@ List<double> lerpNoteProfile(List<double> a, List<double> b, double t) {
 ///
 /// Режем ровно тот путь, которым обрезано видео: обод и маска не могут
 /// разойтись даже на пиксель, потому что это одна и та же геометрия.
+///
+/// Считается по [NoteArcRuler], а не через `computeMetrics().extractPath` —
+/// тот заново меряет путь из ста восьмидесяти отрезков на КАЖДЫЙ кадр, а обод
+/// бежит по шестьдесят раз в секунду и в ленте, и на весь экран. Линейка
+/// строится один раз на размер формы.
 Path noteShapeArc(Path shape, double progress) {
   final p = progress.clamp(0.0, 1.0);
   if (p <= 0) return Path();
@@ -119,6 +124,75 @@ Path noteShapeArc(Path shape, double progress) {
     }
   }
   return out;
+}
+
+/// Линейка контура: точки формы и накопленная длина до каждой.
+///
+/// Живёт ровно столько, сколько неизменны профиль и размер, поэтому дуга
+/// строится сложением, без повторного обмера пути.
+class NoteArcRuler {
+  final List<double> profile;
+  final Size size;
+  final double centerX;
+  final double centerY;
+
+  final List<Offset> _points = <Offset>[];
+  final List<double> _upto = <double>[];
+  double _total = 0;
+
+  NoteArcRuler({
+    required this.profile,
+    required this.size,
+    required this.centerX,
+    required this.centerY,
+  }) {
+    final cx = size.width * centerX;
+    final cy = size.height * centerY;
+    final unit = size.width / 2;
+    for (var i = 0; i < profile.length; i++) {
+      final a = 2 * math.pi * i / profile.length;
+      final r = profile[i] * unit;
+      _points.add(Offset(cx + r * math.cos(a), cy + r * math.sin(a)));
+    }
+    for (var i = 0; i < _points.length; i++) {
+      final next = _points[(i + 1) % _points.length];
+      _total += (next - _points[i]).distance;
+      _upto.add(_total);
+    }
+  }
+
+  bool matches(List<double> other, Size otherSize, double cx, double cy) =>
+      identical(other, profile) &&
+      otherSize == size &&
+      cx == centerX &&
+      cy == centerY;
+
+  /// Дуга от начала контура до доли [progress] его длины.
+  Path arc(double progress) {
+    final p = progress.clamp(0.0, 1.0);
+    final path = Path();
+    if (p <= 0 || _points.isEmpty || _total <= 0) return path;
+    final target = _total * p;
+    path.moveTo(_points.first.dx, _points.first.dy);
+    for (var i = 0; i < _points.length; i++) {
+      if (_upto[i] <= target) {
+        final next = _points[(i + 1) % _points.length];
+        path.lineTo(next.dx, next.dy);
+        continue;
+      }
+      // Последний отрезок обрезаем по доле — иначе обод дёргался бы
+      // ступеньками по два градуса.
+      final from = _points[i];
+      final next = _points[(i + 1) % _points.length];
+      final before = i == 0 ? 0.0 : _upto[i - 1];
+      final segment = _upto[i] - before;
+      final t = segment <= 0 ? 0.0 : (target - before) / segment;
+      path.lineTo(from.dx + (next.dx - from.dx) * t,
+          from.dy + (next.dy - from.dy) * t);
+      break;
+    }
+    return path;
+  }
 }
 
 /// Форма по имени. Незнакомое имя (сообщение из будущей версии, мусор в базе)

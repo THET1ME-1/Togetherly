@@ -84,6 +84,66 @@ void main() {
     }
   });
 
+  group('линейка обода', () {
+    // Обод бежит по шестьдесят раз в секунду в ленте и на весь экран. Пока
+    // дуга резалась через computeMetrics().extractPath, путь из ста
+    // восьмидесяти отрезков обмерялся заново на КАЖДЫЙ кадр — на телефоне
+    // экран переставал отвечать.
+    double lengthOf(Path path) {
+      var total = 0.0;
+      for (final m in path.computeMetrics()) {
+        total += m.length;
+      }
+      return total;
+    }
+
+    test('дуга занимает свою долю периметра', () {
+      const size = Size(240, 240);
+      for (final s in kNoteShapes) {
+        final ruler = NoteArcRuler(
+          profile: s.profile,
+          size: size,
+          centerX: s.centerX,
+          centerY: s.centerY,
+        );
+        final full = lengthOf(ruler.arc(1));
+        expect(full, greaterThan(0), reason: s.id);
+        for (final p in const [0.25, 0.5, 0.8]) {
+          final part = lengthOf(ruler.arc(p));
+          expect(part / full, closeTo(p, 0.02), reason: '${s.id} @$p');
+        }
+      }
+    });
+
+    test('нулевая доля не рисует ничего', () {
+      final s = kNoteShapes.first;
+      final ruler = NoteArcRuler(
+        profile: s.profile,
+        size: const Size(200, 200),
+        centerX: s.centerX,
+        centerY: s.centerY,
+      );
+      expect(ruler.arc(0).computeMetrics().isEmpty, isTrue);
+    });
+
+    test('линейка узнаёт смену размера и формы', () {
+      final a = kNoteShapes.first;
+      final b = kNoteShapes.last;
+      final ruler = NoteArcRuler(
+        profile: a.profile,
+        size: const Size(200, 200),
+        centerX: a.centerX,
+        centerY: a.centerY,
+      );
+      expect(ruler.matches(a.profile, const Size(200, 200), a.centerX, a.centerY),
+          isTrue);
+      expect(ruler.matches(a.profile, const Size(220, 220), a.centerX, a.centerY),
+          isFalse);
+      expect(ruler.matches(b.profile, const Size(200, 200), b.centerX, b.centerY),
+          isFalse);
+    });
+  });
+
   test('форма ищется по имени, незнакомое имя откатывается на круг', () {
     expect(noteShapeById('heart').id, 'heart');
     expect(noteShapeById('star').id, 'star');
