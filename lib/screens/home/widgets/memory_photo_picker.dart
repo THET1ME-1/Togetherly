@@ -2,12 +2,15 @@ import '../../../widgets/storage_image.dart';
 import 'package:flutter/material.dart';
 import '../../../theme/fonts.dart';
 import '../../../services/locale_service.dart';
-import '../../../services/pb_data_service.dart';
+import 'dart:async';
+
 import '../../../models/memory.dart';
+import '../../../models/memory_photos.dart';
+import '../../../services/memory_repository.dart';
 import '../../../theme/app_theme.dart';
 
 /// Пара (url, caption) — одна фотография из ленты воспоминаний.
-typedef _Photo = ({String url, String? caption});
+typedef _Photo = MemoryPhoto;
 
 /// Bottom-sheet для выбора фото из ленты воспоминаний.
 ///
@@ -60,46 +63,45 @@ class _MemoryPhotoPickerState extends State<MemoryPhotoPicker> {
   String? _error;
   final Set<String> _selected = {};
 
+  StreamSubscription<List<Memory>>? _sub;
+
   @override
   void initState() {
     super.initState();
-    _loadPhotos();
+    _watchPhotos();
   }
 
-  Future<void> _loadPhotos() async {
-    try {
-      // Лента воспоминаний из PocketBase (новые сверху), фильтр «фото» в Dart.
-      final recs =
-          await PbDataService().loadMemories(widget.groupId, limit: 100);
-      final photos = <_Photo>[];
-      for (final rec in recs) {
-        final m = Memory.fromPb(rec);
-        if (m.type != MemoryType.photo) continue;
-        final caption = m.caption;
-        final url = m.imageUrl;
-        if (url != null && url.isNotEmpty) {
-          photos.add((url: url, caption: caption));
-        }
-        for (final u in m.imageUrls ?? const <String>[]) {
-          if (u.isNotEmpty && u != url) {
-            photos.add((url: u, caption: caption));
-          }
-        }
-      }
-      if (mounted) {
-        setState(() {
-          _photos = photos;
-          _loading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = e.toString();
-          _loading = false;
-        });
-      }
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+
+  /// Снимки берём из того же места, что лента воспоминаний, — из кэша плюс
+  /// живого канала.
+  ///
+  /// Разовый сетевой запрос тут не годится: `loadMemories` глотает отказ и
+  /// отдаёт пустой список, поэтому сорванный запрос (холодный старт на iPhone,
+  /// сессия ещё не восстановилась) показывал «фотографий нет» при полной
+  /// ленте. Та же мина уже ловилась в чате на кнопке «собачка».
+  void _watchPhotos() {
+    if (widget.groupId.isEmpty) {
+      setState(() => _loading = false);
+      return;
     }
+    _sub = MemoryRepository.instance.watch(widget.groupId).listen((list) {
+      if (!mounted) return;
+      setState(() {
+        _photos = photosFromMemories(list);
+        _loading = false;
+      });
+    }, onError: (Object e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    });
   }
 
   void _toggle(String url) {
