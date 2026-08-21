@@ -781,6 +781,7 @@ abstract class AppStrings {
   String get moodVesselTitle;
   String get vesselLegendMood;
   String get vesselLegendChat;
+  String get vesselLegendCycle;
   String get vesselLegendMemory;
   String get moodVesselTitleWeek;
   String get moodVesselTitleYear;

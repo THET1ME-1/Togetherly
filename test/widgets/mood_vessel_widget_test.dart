@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:love_app/models/memory.dart';
 import 'package:love_app/models/mood_vessel.dart';
 import 'package:love_app/widgets/mood/mood_vessel.dart';
 
@@ -34,25 +35,37 @@ void main() {
       _day(2), // никто не отметился
       _day(3, mine: true, partner: true),
     ]);
-    expect(find.byIcon(Icons.mood_rounded), findsNWidgets(3));
+    expect(find.byIcon(Icons.emoji_emotions_rounded), findsNWidgets(3));
   });
 
   testWidgets('близость даёт свой этаж с сердцем', (tester) async {
     await _pumpVessel(tester, [_day(1, mine: true, intimacy: true)]);
     expect(find.byIcon(Icons.favorite_rounded), findsOneWidget);
-    expect(find.byIcon(Icons.mood_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.emoji_emotions_rounded), findsOneWidget);
   });
 
-  testWidgets('месячные не добавляют ни этажа, ни значка', (tester) async {
+  testWidgets('месячные — свой этаж с каплей', (tester) async {
     await _pumpVessel(tester, [_day(1, mine: true, period: true)]);
-    expect(find.byIcon(Icons.mood_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.emoji_emotions_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.water_drop_rounded), findsOneWidget);
     expect(find.byIcon(Icons.favorite_rounded), findsNothing);
+  });
+
+  testWidgets('вид записи виден по значку этажа', (tester) async {
+    await _pumpVessel(tester, [
+      VesselDay(
+        date: DateTime(2026, 7, 1),
+        memories: const [MemoryType.music, MemoryType.location],
+      ),
+    ]);
+    expect(find.byIcon(memoryTypeIcon(MemoryType.music)), findsOneWidget);
+    expect(find.byIcon(memoryTypeIcon(MemoryType.location)), findsOneWidget);
   });
 
   testWidgets('пустой месяц не роняет сосуд', (tester) async {
     await _pumpVessel(tester, [_day(1), _day(2)]);
     expect(find.byType(MoodVessel), findsOneWidget);
-    expect(find.byIcon(Icons.mood_rounded), findsNothing);
+    expect(find.byIcon(Icons.emoji_emotions_rounded), findsNothing);
   });
 
   testWidgets('на узком экране кладка не переполняется', (tester) async {

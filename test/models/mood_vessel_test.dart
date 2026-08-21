@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:love_app/models/cycle_entry.dart';
+import 'package:love_app/models/memory.dart';
 import 'package:love_app/models/mood_vessel.dart';
 
 VesselDay day(int d, {
@@ -36,13 +37,13 @@ void main() {
       expect(day(1, mine: true, intimacy: true).floors, 2);
     });
 
-    test('месячные высоту не меняют — это состояние, а не событие', () {
-      expect(day(1, mine: true, period: true).floors, 1);
-      expect(day(1, period: true).isEmpty, isTrue);
-      expect(day(1, mine: true, partnerPeriod: true).floors, 1);
+    test('месячные поднимают блок: это такое же событие дня', () {
+      expect(day(1, mine: true, period: true).floors, 2);
+      expect(day(1, period: true).isEmpty, isFalse);
+      expect(day(1, mine: true, partnerPeriod: true).floors, 2);
     });
 
-    test('чьи месячные — видно по кромке, а не по одному флагу', () {
+    test('чьи месячные — видно по этажу, а не по одному флагу', () {
       final d = day(1, mine: true, period: true);
       expect(d.period, isTrue);
       expect(d.partnerPeriod, isFalse);
@@ -207,20 +208,62 @@ void main() {
 
   group('события дня, кроме настроения', () {
     test('воспоминание — свой этаж', () {
-      final plain = VesselDay(date: _day, memories: 0);
-      final withMemory = VesselDay(date: _day, memories: 1);
+      final plain = VesselDay(date: _day);
+      final withMemory =
+          VesselDay(date: _day, memories: const [MemoryType.photo]);
       expect(withMemory.floors, plain.floors + 1);
     });
 
-    test('десять воспоминаний за день не превращают блок в башню', () {
-      final many = VesselDay(date: _day, memories: 10);
-      expect(many.floors, lessThanOrEqualTo(3));
+    test('каждый вид записи кладёт свой этаж со своим значком', () {
+      final day = VesselDay(date: _day, memories: const [
+        MemoryType.photo,
+        MemoryType.music,
+        MemoryType.text,
+      ]);
+      expect(day.floors, 3);
+      expect(
+        day.floorKinds.map((f) => f.memoryType).whereType<MemoryType>(),
+        containsAll(
+            const [MemoryType.photo, MemoryType.music, MemoryType.text]),
+      );
+    });
+
+    test('пять снимков за день — один этаж: вид, а не штука', () {
+      final day = VesselDay(date: _day, memories: const [
+        MemoryType.photo,
+        MemoryType.photo,
+        MemoryType.photo,
+        MemoryType.photo,
+        MemoryType.photo,
+      ]);
+      expect(day.floors, 1);
+    });
+
+    test('день со всеми видами сразу не превращает блок в башню', () {
+      final many = VesselDay(date: _day, memories: MemoryType.values);
+      expect(many.floors, lessThanOrEqualTo(4));
     });
 
     test('разговор в чате — свой этаж', () {
       final silent = VesselDay(date: _day);
       final talked = VesselDay(date: _day, chatted: true);
       expect(talked.floors, silent.floors + 1);
+    });
+
+    test('месячные — свой этаж, а не только кромка', () {
+      final plain = VesselDay(date: _day);
+      final mine = VesselDay(date: _day, period: true);
+      expect(mine.floors, plain.floors + 1);
+      expect(mine.floorKinds.map((f) => f.kind), contains(VesselFloor.cycle));
+    });
+
+    test('месячные партнёрши считаются отдельно от своих', () {
+      final both = VesselDay(date: _day, period: true, partnerPeriod: true);
+      expect(both.floors, 2);
+      expect(
+        both.floorKinds.map((f) => f.kind),
+        containsAll(const [VesselFloor.cycle, VesselFloor.partnerCycle]),
+      );
     });
 
     test('день без единого события остаётся щербиной', () {

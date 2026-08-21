@@ -297,7 +297,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     (key: 'music', ru: 'Музыка', en: 'Music', icon: Icons.music_note_rounded, types: {MemoryType.music}),
     (key: 'video', ru: 'Видео', en: 'Video', icon: Icons.play_circle_fill_rounded, types: {MemoryType.videoLink}),
     (key: 'notes', ru: 'Заметки', en: 'Notes', icon: Icons.sticky_note_2_rounded, types: {MemoryType.text}),
-    (key: 'books', ru: 'Книги', en: 'Books', icon: Icons.menu_book_rounded, types: {MemoryType.book}),
+    (key: 'books', ru: 'Книги', en: 'Books', icon: Icons.book_rounded, types: {MemoryType.book}),
     (key: 'movies', ru: 'Фильмы', en: 'Movies', icon: Icons.movie_rounded, types: {MemoryType.movie}),
   ];
 
@@ -1530,7 +1530,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       case MemoryType.text:
         return (_ru ? 'Заметка' : 'Note', Icons.sticky_note_2_rounded);
       case MemoryType.book:
-        return (_ru ? 'Книга' : 'Book', Icons.menu_book_rounded);
+        return (_ru ? 'Книга' : 'Book', Icons.book_rounded);
       case MemoryType.movie:
         return (_ru ? 'Фильм' : 'Movie', Icons.movie_rounded);
     }

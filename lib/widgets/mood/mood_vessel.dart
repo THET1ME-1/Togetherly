@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../models/memory.dart';
 import '../../models/mood_vessel.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/cycle_colors.dart';
 import '../../theme/motion.dart';
 
@@ -187,16 +189,36 @@ class _Block extends StatelessWidget {
     // партнёрская, сверху общая близость. Две краски в одном блоке — это и
     // есть «мы оба сегодня были», и читается оно без легенды.
     final floors = [
-      for (final kind in day.floorKinds)
-        switch (kind) {
-          VesselFloor.mine => (Icons.mood_rounded, day.mineMood ?? cs.primary),
+      for (final spec in day.floorKinds)
+        switch (spec.kind) {
+          VesselFloor.mine => (Icons.emoji_emotions_rounded, day.mineMood ?? cs.primary),
           VesselFloor.partner =>
-            (Icons.mood_rounded, day.partnerMood ?? cs.secondary),
+            (Icons.emoji_emotions_rounded, day.partnerMood ?? cs.secondary),
           // Разговор и воспоминания — такие же события дня, как настроение:
           // без них сосуд отвечал только «отмечались ли мы», а спрашивают его
           // про «сколько нас было друг у друга».
+          // Роли, а не контейнеры: замер по всем палитрам даёт у контейнера
+          // контраст к фону карточки 1,22 — на части тем этаж пропадал бы
+          // дырой, — а у роли 6,1. Различает этажи значок и щель между ними:
+          // цветом их развести нельзя, у «Песочной» и «Тёмного мёда»
+          // secondary и tertiary совпадают до единицы.
           VesselFloor.chat => (Icons.chat_bubble_rounded, cs.secondary),
-          VesselFloor.memory => (Icons.photo_camera_rounded, cs.tertiary),
+          // Значок берётся общий на всё приложение (`memoryTypeIcon`): песня в
+          // ленте, в чате и здесь обязана выглядеть одинаково.
+          VesselFloor.memory => (
+              memoryTypeIcon(spec.memoryType ?? MemoryType.photo),
+              cs.tertiary,
+            ),
+          // Месячные красятся теми же цветами, что точки в календаре: свои
+          // красные, партнёрские сливовые, и различаются по тону — в паре из
+          // двух девушек иначе не понять, чей это этаж.
+          VesselFloor.cycle =>
+            (Icons.water_drop_rounded,
+                CycleColors.period(brightness, partner: false)),
+          VesselFloor.partnerCycle => (
+              Icons.water_drop_rounded,
+              CycleColors.period(brightness, partner: true),
+            ),
           VesselFloor.intimacy => (Icons.favorite_rounded, cs.primary),
         },
     ];
@@ -211,7 +233,15 @@ class _Block extends StatelessWidget {
               children: [
                 // Column идёт сверху вниз, а кладка растёт снизу: свою отметку
                 // кладём в основание блока.
-                for (final (icon, color) in floors.reversed)
+                for (final (i, (icon, color)) in floors.reversed.indexed) ...[
+                  // Щель в точку между этажами: три записи подряд красятся
+                  // одной ролью, и без неё блок читался как один кусок с
+                  // тремя значками, а не как три этажа.
+                  if (i > 0)
+                    ColoredBox(
+                      color: cs.surface,
+                      child: const SizedBox(height: 1, width: double.infinity),
+                    ),
                   Expanded(
                     child: DecoratedBox(
                       decoration: BoxDecoration(color: color),
@@ -219,37 +249,18 @@ class _Block extends StatelessWidget {
                         child: Icon(
                           icon,
                           size: (floor * 0.5).clamp(11.0, 17.0),
-                          color: Colors.white.withValues(alpha: 0.92),
+                          // Значок красится по самой заливке: тональный
+                          // контейнер светлый, и белым по нему не видно
+                          // ничего.
+                          color: AppThemes.onColor(color, mode: brightness)
+                              .withValues(alpha: 0.92),
                         ),
                       ),
                     ),
                   ),
+                ],
               ],
             ),
-            // Месячные — тонкая кромка, а не значок и не этаж: со стороны это
-            // просто полоска, и высоту кладки она не двигает. Своя кромка
-            // слева, партнёрская справа — как точки у разных краёв клетки в
-            // календаре: в паре из двух девушек иначе не разобрать, чья.
-            if (day.period)
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
-                width: 3,
-                child: ColoredBox(
-                  color: CycleColors.period(brightness, partner: false),
-                ),
-              ),
-            if (day.partnerPeriod)
-              Positioned(
-                right: 0,
-                top: 0,
-                bottom: 0,
-                width: 3,
-                child: ColoredBox(
-                  color: CycleColors.period(brightness, partner: true),
-                ),
-              ),
             Positioned(
               right: 4,
               bottom: 2,
@@ -259,7 +270,11 @@ class _Block extends StatelessWidget {
                   fontFamily: 'Onest',
                   fontSize: 9,
                   fontWeight: FontWeight.w600,
-                  color: Colors.white.withValues(alpha: 0.8),
+                  // Число лежит на САМОМ НИЖНЕМ этаже, и красится по нему:
+                  // белым по светлому тональному контейнеру числа не видно
+                  // вовсе.
+                  color: AppThemes.onColor(floors.first.$2, mode: brightness)
+                      .withValues(alpha: 0.75),
                 ),
               ),
             ),

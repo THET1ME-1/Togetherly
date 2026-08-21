@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:love_app/models/memory.dart';
 import 'package:love_app/models/mood_vessel.dart';
 import 'package:love_app/theme/app_palettes.dart';
 import 'package:love_app/theme/profile_theme.dart';
@@ -36,6 +37,12 @@ List<VesselDay> _august() {
         final roll = rnd.nextInt(10);
         final mine = roll > 1 ? moods[rnd.nextInt(moods.length)] : null;
         final partner = roll > 3 ? moods[rnd.nextInt(moods.length)] : null;
+        // Разные виды записей: у одного дня песня, у другого место и заметка —
+        // именно это и должно быть видно значками этажей.
+        final kinds = <MemoryType>[
+          for (var i = 0; i < rnd.nextInt(4); i++)
+            MemoryType.values[rnd.nextInt(MemoryType.values.length)],
+        ];
         return VesselDay(
           date: DateTime(2026, 8, d),
           mineMood: mine,
@@ -43,6 +50,8 @@ List<VesselDay> _august() {
           intimacy: roll == 9,
           period: d >= 6 && d <= 9,
           partnerPeriod: d >= 20 && d <= 22,
+          memories: kinds,
+          chatted: roll > 4,
         );
       }(),
   ];

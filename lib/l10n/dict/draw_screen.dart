@@ -604,6 +604,15 @@ const Map<String, Map<String, String>> drawScreenStrings = {
     'fr': 'Discussion',
     'de': 'Gespräch',
   },
+  'vesselLegendCycle': {
+    'ru': 'Цикл',
+    'en': 'Cycle',
+    'pt': 'Ciclo',
+    'it': 'Ciclo',
+    'es': 'Ciclo',
+    'fr': 'Cycle',
+    'de': 'Zyklus',
+  },
   'vesselLegendMemory': {
     'ru': 'Воспоминания',
     'en': 'Memories',

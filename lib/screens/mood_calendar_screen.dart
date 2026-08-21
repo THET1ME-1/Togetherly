@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../widgets/mood/mood_year_sheet.dart';
 import '../models/cycle_entry.dart';
+import '../models/memory.dart';
 import '../models/mood_entry.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/ui_prefs.dart';
@@ -75,7 +76,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
   ///
   /// Сосуд считает события пары, а не только настроения: вечер, с которого
   /// осталась пачка снимков, — это ровно то, ради чего его смотрят.
-  Map<String, int> _memoryDays = const {};
+  Map<String, List<MemoryType>> _memoryDays = const {};
   StreamSubscription? _memoriesSub;
 
   /// Дни, когда пара разговаривала в чате.
@@ -137,10 +138,12 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
     if (groupId.isEmpty) return;
     _memoriesSub =
         MemoryRepository.instance.watch(groupId).listen((memories) {
-      final byDay = <String, int>{};
+      // Виды записей, а не их число: сосуд кладёт этаж на каждый вид, и
+      // значок этажа берётся отсюда.
+      final byDay = <String, List<MemoryType>>{};
       for (final m in memories) {
         final key = vesselDayKey(m.createdAt.toLocal());
-        byDay[key] = (byDay[key] ?? 0) + 1;
+        (byDay[key] ??= <MemoryType>[]).add(m.type);
       }
       if (!mounted) return;
       setState(() => _memoryDays = byDay);
@@ -479,12 +482,19 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
             spacing: 12,
             runSpacing: 6,
             children: [
-              _vesselLegend(scheme, Icons.mood_rounded, s.vesselLegendMood,
+              _vesselLegend(scheme, Icons.emoji_emotions_rounded, s.vesselLegendMood,
                   scheme.primary),
               _vesselLegend(scheme, Icons.chat_bubble_rounded,
                   s.vesselLegendChat, scheme.secondary),
               _vesselLegend(scheme, Icons.photo_camera_rounded,
                   s.vesselLegendMemory, scheme.tertiary),
+              // Цикл в легенде один, а этажей у него два: свой и партнёрши.
+              // Показываем своим цветом — чей этаж, видно по тону, как у точек
+              // в календаре.
+              _vesselLegend(scheme, Icons.water_drop_rounded,
+                  s.vesselLegendCycle,
+                  CycleColors.period(Theme.of(context).brightness,
+                      partner: false)),
               _vesselLegend(scheme, Icons.favorite_rounded,
                   s.cycleLegendIntimacy, scheme.primary),
             ],

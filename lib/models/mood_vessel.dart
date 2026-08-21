@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'cycle_entry.dart';
+import 'memory.dart';
 
 /// Сосуд месяца: день — блок, который падает сверху и ложится в кладку.
 ///
@@ -8,18 +9,28 @@ import 'cycle_entry.dart';
 /// было друг у друга». Поэтому высота блока считается по СОБЫТИЯМ дня, а цвет
 /// берётся у настроения.
 ///
-/// Два правила, которые нельзя менять молча:
-///
-/// * месячные высоту блока НЕ меняют. Иначе по кладке стало бы видно то, о чём
-///   человек не просил рассказывать; это состояние, а не событие, и рисуется
-///   тонкой кромкой;
-/// * близость — обычный этаж. У такой отметки `shared` поднят самим сервисом,
-///   её видят оба, и прятать её незачем.
+/// Что кладётся этажом: настроение своё и партнёра, месячные обоих, разговор,
+/// воспоминания по видам и близость сверху. Близость и месячные показываются
+/// потому, что и то и другое уже стоит в календаре рядом — сосуд не открывает
+/// ничего, чего человек не видел бы на соседнем экране, а отметки партнёрши
+/// доезжают до устройства только с её разрешения.
 enum VesselWho { none, mine, partner, both }
 
 /// Из чего сложен блок. Виджет рисует значок по этому списку, а не собирает
 /// свой: разъехавшись, счёт этажей и картинка показывали бы разное.
-enum VesselFloor { mine, partner, intimacy, memory, chat }
+enum VesselFloor { mine, partner, cycle, partnerCycle, chat, memory, intimacy }
+
+/// Этаж блока: вид и, у воспоминания, его вид записи.
+///
+/// Фотография, песня и заметка — разные вечера, и значок обязан их различать:
+/// одним фотоаппаратом на всё выходило, будто пара весь месяц только
+/// фотографировала.
+class VesselFloorSpec {
+  const VesselFloorSpec(this.kind, {this.memoryType});
+
+  final VesselFloor kind;
+  final MemoryType? memoryType;
+}
 
 class VesselDay {
   const VesselDay({
@@ -29,7 +40,7 @@ class VesselDay {
     this.intimacy = false,
     this.period = false,
     this.partnerPeriod = false,
-    this.memories = 0,
+    this.memories = const [],
     this.chatted = false,
     this.floorsOverride,
   });
@@ -42,18 +53,17 @@ class VesselDay {
 
   final bool intimacy;
 
-  /// Месячные — своя отметка и партнёрская. Разведены, потому что кромки у них
-  /// разного цвета: в паре из двух девушек иначе не понять, чья это полоса.
+  /// Месячные — своя отметка и партнёрская. Разведены, потому что цвета у них
+  /// разные: в паре из двух девушек иначе не понять, чей это этаж.
   final bool period;
   final bool partnerPeriod;
 
-  /// Сколько воспоминаний легло в ленту в этот день.
+  /// Какие записи легли в ленту в этот день, в порядке появления.
   ///
-  /// Сосуд отвечает на вопрос «сколько нас было друг у друга», и совместный
-  /// вечер, с которого осталось пять снимков, — это про «нас» не меньше, чем
-  /// отметка настроения. Но и башню из одного дня строить нельзя: у пары
-  /// бывает пятнадцать кадров с прогулки, а блок должен оставаться блоком.
-  final int memories;
+  /// Считаем ВИДЫ, а не штуки: пятнадцать кадров с прогулки — это один вечер,
+  /// и башня из них врала бы про день сильнее, чем один этаж. Зато вечер, где
+  /// была и песня, и заметка, и место, поднимет блок на три.
+  final List<MemoryType> memories;
 
   /// Был ли в этот день разговор в чате.
   ///
@@ -64,22 +74,35 @@ class VesselDay {
   /// Явная высота блока. Нужна годовому виду, где блок — это месяц целиком.
   final int? floorsOverride;
 
-  /// Этажи блока снизу вверх: своё настроение, настроение партнёра, разговор,
-  /// воспоминания, близость сверху.
-  List<VesselFloor> get floorKinds => [
-        if (mineMood != null) VesselFloor.mine,
-        if (partnerMood != null) VesselFloor.partner,
-        if (chatted) VesselFloor.chat,
-        for (var i = 0; i < _memoryFloors; i++) VesselFloor.memory,
-        if (intimacy) VesselFloor.intimacy,
+  /// Этажи блока снизу вверх: настроения, месячные, разговор, воспоминания по
+  /// видам, близость сверху.
+  List<VesselFloorSpec> get floorKinds => [
+        if (mineMood != null) const VesselFloorSpec(VesselFloor.mine),
+        if (partnerMood != null) const VesselFloorSpec(VesselFloor.partner),
+        if (period) const VesselFloorSpec(VesselFloor.cycle),
+        if (partnerPeriod) const VesselFloorSpec(VesselFloor.partnerCycle),
+        if (chatted) const VesselFloorSpec(VesselFloor.chat),
+        for (final t in memoryKinds) VesselFloorSpec(VesselFloor.memory, memoryType: t),
+        if (intimacy) const VesselFloorSpec(VesselFloor.intimacy),
       ];
 
   /// Сколько этажей в блоке. Ноль — дня в кладке нет вовсе.
   int get floors => floorsOverride ?? floorKinds.length;
 
-  /// Воспоминания дают не больше двух этажей: один за «сегодня что-то
-  /// сохранили», второй — за день, о котором осталась целая пачка.
-  int get _memoryFloors => memories >= 3 ? 2 : (memories > 0 ? 1 : 0);
+  /// Виды записей за день, по одному разу и не больше четырёх.
+  ///
+  /// Предел нужен году: там в блок сходится целый месяц, и все восемь видов
+  /// подряд выгнали бы одну колонку под самую крышку, а соседние оставили
+  /// плинтусом.
+  List<MemoryType> get memoryKinds {
+    final seen = <MemoryType>[];
+    for (final t in memories) {
+      if (seen.contains(t)) continue;
+      seen.add(t);
+      if (seen.length == 4) break;
+    }
+    return seen;
+  }
 
   bool get isEmpty => floors == 0;
 
@@ -147,7 +170,7 @@ List<VesselDay> buildVesselDays({
   required Map<String, Color> partnerMoods,
   required List<CycleEntry> myCycle,
   required List<CycleEntry> partnerCycle,
-  Map<String, int> memories = const {},
+  Map<String, List<MemoryType>> memories = const {},
   Set<String> chatDays = const {},
 }) =>
     buildVesselRange(
@@ -175,7 +198,7 @@ List<VesselDay> buildVesselRange({
   required Map<String, Color> partnerMoods,
   required List<CycleEntry> myCycle,
   required List<CycleEntry> partnerCycle,
-  Map<String, int> memories = const {},
+  Map<String, List<MemoryType>> memories = const {},
   Set<String> chatDays = const {},
 }) {
   final periods = <String>{};
@@ -208,7 +231,7 @@ List<VesselDay> buildVesselRange({
       intimacy: intimacy.contains(key),
       period: periods.contains(key),
       partnerPeriod: partnerPeriods.contains(key),
-      memories: memories[key] ?? 0,
+      memories: memories[key] ?? const [],
       chatted: chatDays.contains(key),
     ));
   }
@@ -224,7 +247,7 @@ List<VesselDay> buildVesselYear({
   required Map<String, Color> partnerMoods,
   required List<CycleEntry> myCycle,
   required List<CycleEntry> partnerCycle,
-  Map<String, int> memories = const {},
+  Map<String, List<MemoryType>> memories = const {},
   Set<String> chatDays = const {},
 }) {
   final out = <VesselDay>[];
@@ -252,7 +275,9 @@ List<VesselDay> buildVesselYear({
       intimacy: alive.any((d) => d.intimacy),
       period: alive.any((d) => d.period),
       partnerPeriod: alive.any((d) => d.partnerPeriod),
-      memories: days.fold(0, (sum, d) => sum + d.memories),
+      // Месяц наследует ВИДЫ записей, а не их число: блок года и так стоит на
+      // своей высоте (`floorsOverride`), а значки говорят, чем месяц был занят.
+      memories: [for (final d in days) ...d.memories],
       chatted: alive.any((d) => d.chatted),
       floorsOverride: alive.isEmpty ? 0 : (alive.length / 3).ceil(),
     ));

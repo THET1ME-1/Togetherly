@@ -37,14 +37,17 @@ String? normalizeMemoryCaption(String? caption) {
       : caption;
 }
 
+/// Значки только ЗАПОЛНЕННЫЕ: контурные вперемешку с залитыми выглядят как
+/// сбой набора, а на цветном этаже сосуда линия из тонких штрихов теряется
+/// вовсе.
 IconData memoryTypeIcon(MemoryType type) => switch (type) {
       MemoryType.photo => Icons.photo_camera_rounded,
       MemoryType.video => Icons.movie_rounded,
       MemoryType.location => Icons.location_on_rounded,
       MemoryType.music => Icons.music_note_rounded,
-      MemoryType.text => Icons.edit_note_rounded,
+      MemoryType.text => Icons.sticky_note_2_rounded,
       MemoryType.videoLink => Icons.smart_display_rounded,
-      MemoryType.book => Icons.menu_book_rounded,
+      MemoryType.book => Icons.book_rounded,
       MemoryType.movie => Icons.local_movies_rounded,
     };
 
