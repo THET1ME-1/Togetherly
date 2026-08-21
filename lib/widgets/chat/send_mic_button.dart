@@ -44,6 +44,12 @@ class SendMicButton extends StatefulWidget {
   /// так отбрасывается, поэтому место под тап было свободно.
   final VoidCallback? onModeToggle;
 
+  /// Держать палец не обязательно: удержание ЗАПУСКАЕТ съёмку, дальше она
+  /// идёт сама, а отправляют её кнопкой. Так снимают фигурку — держать
+  /// телефон одной рукой и одновременно давить кнопку неудобно, а кадр от
+  /// этого дрожит. У голосовых прежний порядок: отпустил — отправилось.
+  final bool handsFree;
+
   final Color primary;
   final Color onPrimary;
   final Color idleBackground;
@@ -68,6 +74,7 @@ class SendMicButton extends StatefulWidget {
     this.noteMode = false,
     this.noteShape,
     this.onModeToggle,
+    this.handsFree = false,
     required this.primary,
     required this.onPrimary,
     required this.idleBackground,
@@ -89,8 +96,15 @@ class _SendMicButtonState extends State<SendMicButton> {
   static const double _cancelAt = 56;
   static const double _lockAt = 48;
 
-  /// Короче этого касание считается тапом по кнопке, а не попыткой записать.
-  static const Duration _tapWindow = Duration(milliseconds: 220);
+  /// Столько палец должен пролежать, чтобы касание стало записью.
+  ///
+  /// Раньше запись стартовала прямо с касания, и это ломало две вещи разом:
+  /// тап поднимал микрофон или камеру (камера падала на занятом микрофоне, а
+  /// система спрашивала разрешение посреди чата), а переключение режима не
+  /// срабатывало вовсе — экран в этот момент считал, что запись ещё идёт.
+  /// Двести миллисекунд человек не замечает, зато кнопка сразу отвечает
+  /// нажатием: она вырастает от касания, а не от начала записи.
+  static const Duration _holdDelay = Duration(milliseconds: 200);
 
   bool _pressing = false;
   VoiceGesture _gesture = VoiceGesture.recording;
@@ -101,7 +115,9 @@ class _SendMicButtonState extends State<SendMicButton> {
   /// прыгает (перевод часов, синхронизация), и на прыжке запись превратилась
   /// бы в переключение.
   Timer? _holdTimer;
-  bool _held = false;
+
+  /// Запись уже началась (порог удержания пройден).
+  bool _recording = false;
 
   /// Где палец лёг на кнопку: сдвиг считаем от этой точки, а не от центра.
   Offset _origin = Offset.zero;
@@ -113,22 +129,42 @@ class _SendMicButtonState extends State<SendMicButton> {
     widget.onRecordGesture(g);
   }
 
-  void _start() {
+  /// Палец лёг на кнопку: отвечаем нажатием сразу, а запись ставим на таймер.
+  void _press() {
     if (widget.hasText || widget.editing) return;
-    _held = false;
+    _recording = false;
     _holdTimer?.cancel();
-    _holdTimer = Timer(_tapWindow, () => _held = true);
+    _holdTimer = Timer(_holdDelay, _beginRecording);
     setState(() {
       _pressing = true;
       _gesture = VoiceGesture.recording;
       _shift = Offset.zero;
     });
+    HapticFeedback.selectionClick();
+  }
+
+  /// Порог пройден — теперь это запись.
+  void _beginRecording() {
+    _holdTimer = null;
+    if (!_pressing || !mounted) return;
+    _recording = true;
     HapticFeedback.mediumImpact();
     widget.onRecordStart();
   }
 
   void _move(Offset delta) {
     if (!_pressing) return;
+    // Палец поехал до порога — это не запись и не тап, а промах или прокрутка.
+    if (!_recording && delta.distance > 18) {
+      _holdTimer?.cancel();
+      _holdTimer = null;
+      setState(() {
+        _pressing = false;
+        _shift = Offset.zero;
+      });
+      return;
+    }
+    if (!_recording) return;
     setState(() => _shift = delta);
     if (delta.dx <= -_cancelAt) {
       _report(VoiceGesture.cancelling);
@@ -143,24 +179,39 @@ class _SendMicButtonState extends State<SendMicButton> {
     if (!_pressing) return;
     _holdTimer?.cancel();
     _holdTimer = null;
-    final quick = !_held &&
-        _gesture == VoiceGesture.recording &&
-        _shift.distance < 12;
-    final cancelled = quick || _gesture == VoiceGesture.cancelling;
-    final locked = _gesture == VoiceGesture.locking;
+    final wasRecording = _recording;
+    _recording = false;
     setState(() {
       _pressing = false;
       _shift = Offset.zero;
     });
-    if (cancelled && !quick) {
+
+    // Записи не было — значит это тап, и он меняет режим. Ни микрофон, ни
+    // камера при этом не поднимаются: экрану нечего останавливать.
+    if (!wasRecording) {
+      _gesture = VoiceGesture.recording;
+      widget.onModeToggle?.call();
+      return;
+    }
+
+    // Руки свободны: палец подняли, съёмка продолжается. Отмену жестом влево
+    // всё равно уважаем — она уже привычна по голосовым.
+    if (widget.handsFree && _gesture != VoiceGesture.cancelling) {
+      _gesture = VoiceGesture.recording;
+      HapticFeedback.lightImpact();
+      widget.onRecordEnd(cancelled: false, locked: true);
+      return;
+    }
+
+    final cancelled = _gesture == VoiceGesture.cancelling;
+    final locked = _gesture == VoiceGesture.locking;
+    if (cancelled) {
       HapticFeedback.heavyImpact();
     } else {
       HapticFeedback.lightImpact();
     }
     widget.onRecordEnd(cancelled: cancelled, locked: locked);
     _gesture = VoiceGesture.recording;
-    // Быстрое касание — это не запись, а просьба сменить режим.
-    if (quick) widget.onModeToggle?.call();
   }
 
   /// Что нарисовано на кнопке прямо сейчас.
@@ -238,7 +289,7 @@ class _SendMicButtonState extends State<SendMicButton> {
               ? null
               : (e) {
                   _origin = e.position;
-                  _start();
+                  _press();
                 },
           onPointerMove: active ? null : (e) => _move(e.position - _origin),
           onPointerUp: active ? null : (_) => _end(),

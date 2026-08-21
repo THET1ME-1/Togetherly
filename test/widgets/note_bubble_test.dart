@@ -109,81 +109,128 @@ void main() {
   });
 
   group('кнопка справа от поля', () {
-    testWidgets('короткое касание меняет режим и не записывает',
-        (tester) async {
-      var toggled = 0;
-      var started = 0;
-      var ended = 0;
-      var cancelled = false;
+    /// Тап и удержание — РАЗНЫЕ действия на одной кнопке, и запись обязана
+    /// ждать удержания. Пока она начиналась от касания, каждый тап поднимал
+    /// микрофон или камеру: переключение режима не срабатывало (экран считал,
+    /// что запись ещё идёт), а камера падала на занятом микрофоне.
+    Future<void> pumpButton(
+      WidgetTester tester, {
+      required void Function() onToggle,
+      required void Function() onStart,
+      required void Function({required bool cancelled, required bool locked})
+          onEnd,
+      required void Function(VoiceGesture) onGesture,
+    }) =>
+        _pump(
+          tester,
+          SendMicButton(
+            hasText: false,
+            editing: false,
+            noteMode: true,
+            noteShape: kNoteShapes.first,
+            onModeToggle: onToggle,
+            handsFree: true,
+            primary: Colors.pink,
+            onPrimary: Colors.white,
+            idleBackground: Colors.grey,
+            idleForeground: Colors.black,
+            onSend: () {},
+            onRecordStart: onStart,
+            onRecordGesture: onGesture,
+            onRecordEnd: onEnd,
+          ),
+        );
 
-      await _pump(
+    testWidgets('тап меняет режим и НЕ трогает камеру с микрофоном',
+        (tester) async {
+      var toggled = 0, started = 0, ended = 0;
+      await pumpButton(
         tester,
-        SendMicButton(
-          hasText: false,
-          editing: false,
-          noteMode: true,
-          noteShape: kNoteShapes.first,
-          onModeToggle: () => toggled++,
-          primary: Colors.pink,
-          onPrimary: Colors.white,
-          idleBackground: Colors.grey,
-          idleForeground: Colors.black,
-          onSend: () {},
-          onRecordStart: () => started++,
-          onRecordGesture: (_) {},
-          onRecordEnd: ({required cancelled, required locked}) {
-            ended++;
-            if (cancelled) {
-              // Быстрое касание обязано отменить начатую запись, иначе в чат
-              // улетит пустой файл.
-            }
-          },
-        ),
+        onToggle: () => toggled++,
+        onStart: () => started++,
+        onEnd: ({required cancelled, required locked}) => ended++,
+        onGesture: (_) {},
       );
 
-      await tester.tap(find.byType(SendMicButton));
-      await tester.pump(const Duration(milliseconds: 60));
+      await tester.tap(find.byType(SendMicButton), warnIfMissed: false);
+      await tester.pump(const Duration(milliseconds: 400));
 
-      expect(toggled, 1, reason: 'режим не переключился');
-      expect(started, 1, reason: 'касание всегда поднимает запись');
-      expect(ended, 1);
-      expect(cancelled, isFalse);
+      expect(started, 0, reason: 'тап не должен начинать запись');
+      expect(ended, 0, reason: 'заканчивать нечего');
+      expect(toggled, 1);
     });
 
-    testWidgets('удержание пишет и режим не трогает', (tester) async {
-      var toggled = 0;
-      var started = 0;
-      var cancelledEnd = true;
-
-      await _pump(
+    testWidgets('удержание начинает съёмку, а палец можно убрать',
+        (tester) async {
+      var toggled = 0, started = 0;
+      bool? endedCancelled;
+      bool? endedLocked;
+      await pumpButton(
         tester,
-        SendMicButton(
-          hasText: false,
-          editing: false,
-          noteMode: true,
-          noteShape: kNoteShapes.first,
-          onModeToggle: () => toggled++,
-          primary: Colors.pink,
-          onPrimary: Colors.white,
-          idleBackground: Colors.grey,
-          idleForeground: Colors.black,
-          onSend: () {},
-          onRecordStart: () => started++,
-          onRecordGesture: (_) {},
-          onRecordEnd: ({required cancelled, required locked}) =>
-              cancelledEnd = cancelled,
-        ),
+        onToggle: () => toggled++,
+        onStart: () => started++,
+        onEnd: ({required cancelled, required locked}) {
+          endedCancelled = cancelled;
+          endedLocked = locked;
+        },
+        onGesture: (_) {},
       );
 
-      final gesture =
-          await tester.startGesture(tester.getCenter(find.byType(SendMicButton)));
-      await tester.pump(const Duration(milliseconds: 600));
+      final gesture = await tester
+          .startGesture(tester.getCenter(find.byType(SendMicButton)));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(started, 1, reason: 'после порога удержания съёмка уже идёт');
       await gesture.up();
       await tester.pump(const Duration(milliseconds: 60));
 
-      expect(started, 1);
-      expect(toggled, 0, reason: 'долгое нажатие — это запись, а не переключение');
-      expect(cancelledEnd, isFalse, reason: 'снятое должно уйти в отправку');
+      expect(toggled, 0, reason: 'удержание — это съёмка, а не переключение');
+      expect(endedCancelled, isFalse);
+      expect(endedLocked, isTrue,
+          reason: 'палец убрали, а съёмка продолжается — отправят кнопкой');
+    });
+
+    testWidgets('запись не начинается раньше порога', (tester) async {
+      var started = 0;
+      await pumpButton(
+        tester,
+        onToggle: () {},
+        onStart: () => started++,
+        onEnd: ({required cancelled, required locked}) {},
+        onGesture: (_) {},
+      );
+
+      final gesture = await tester
+          .startGesture(tester.getCenter(find.byType(SendMicButton)));
+      await tester.pump(const Duration(milliseconds: 120));
+      expect(started, 0, reason: 'сто двадцать миллисекунд — это ещё тап');
+      await gesture.up();
+      await tester.pump(const Duration(milliseconds: 60));
+    });
+
+    testWidgets('увод пальца влево отменяет снятое', (tester) async {
+      var toggled = 0;
+      bool? endedCancelled;
+      final gestures = <VoiceGesture>[];
+      await pumpButton(
+        tester,
+        onToggle: () => toggled++,
+        onStart: () {},
+        onEnd: ({required cancelled, required locked}) =>
+            endedCancelled = cancelled,
+        onGesture: gestures.add,
+      );
+
+      final center = tester.getCenter(find.byType(SendMicButton));
+      final gesture = await tester.startGesture(center);
+      await tester.pump(const Duration(milliseconds: 400));
+      await gesture.moveTo(center - const Offset(90, 0));
+      await tester.pump(const Duration(milliseconds: 30));
+      await gesture.up();
+      await tester.pump(const Duration(milliseconds: 60));
+
+      expect(gestures, contains(VoiceGesture.cancelling));
+      expect(endedCancelled, isTrue);
+      expect(toggled, 0);
     });
   });
 }

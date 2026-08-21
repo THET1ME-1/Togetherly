@@ -3036,4 +3036,22 @@ const Map<String, Map<String, String>> chatStrings = {
     'fr': 'Figurine',
     'de': 'Figur',
   },
+  'noteHandsFreeHint': {
+    'ru': 'Можно отпустить — снимаю дальше',
+    'en': 'Let go — still recording',
+    'pt': 'Pode soltar — continuo gravando',
+    'it': 'Puoi lasciare — continuo a registrare',
+    'es': 'Puedes soltar: sigo grabando',
+    'fr': 'Tu peux lâcher — je continue',
+    'de': 'Loslassen geht — ich nehme weiter auf',
+  },
+  'noteTapToSend': {
+    'ru': 'Готово — отправьте фигурку',
+    'en': 'Ready — send the shape',
+    'pt': 'Pronto — envie a figurinha',
+    'it': 'Pronto — invia la figura',
+    'es': 'Listo: envía la figura',
+    'fr': 'Prêt — envoie la figurine',
+    'de': 'Fertig — Figur senden',
+  },
 };

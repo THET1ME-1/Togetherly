@@ -642,6 +642,9 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Причина, по которой снимать нельзя. Держится, пока экран камеры открыт.
   String? _noteError;
 
+  /// Камера уже поднимается — второй заход только помешает.
+  bool _noteWarming = false;
+
   /// Камера живёт в сервисе; здесь только ссылка для превью.
   CameraController? _noteCamera;
 
@@ -780,7 +783,11 @@ class _ChatScreenState extends State<ChatScreen> {
       _noteMode = mode;
       _noteShape = noteShapeById(shapeId);
     });
-    if (mode) unawaited(_warmCamera());
+    // Камеру при входе в чат НЕ поднимаем, даже если режим фигурки сохранён:
+    // иначе индикатор съёмки загорается у всех, кто просто открыл переписку,
+    // и батарея тратится на превью, которое никто не смотрит. Она поднимется
+    // при первом удержании кнопки — за двести миллисекунд порога и первые
+    // кадры оверлея это незаметно.
   }
 
   /// Короткое касание кнопки меняет режим. Камеру поднимаем заранее: иначе
@@ -804,7 +811,14 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   /// Поднимает камеру и запоминает ссылку для превью.
+  ///
+  /// Ошибку гасим ПЕРЕД попыткой: прошлый отказ (человек не сразу нажал
+  /// «Разрешить») не должен держать экран в состоянии «камера не открылась»
+  /// навсегда.
   Future<void> _warmCamera() async {
+    if (_noteWarming) return;
+    _noteWarming = true;
+    if (_noteError != null && mounted) setState(() => _noteError = null);
     try {
       final c = await NoteRecorderService.instance.prepare();
       if (!mounted) return;
@@ -814,8 +828,21 @@ class _ChatScreenState extends State<ChatScreen> {
       });
     } on NoteRecordException catch (e) {
       if (!mounted) return;
-      setState(() => _noteError = _noteErrorText(e.reason));
+      setState(() {
+        _noteCamera = null;
+        _noteError = _noteErrorText(e.reason);
+      });
+    } finally {
+      _noteWarming = false;
     }
+  }
+
+  /// Кнопка «Повторить» на экране съёмки: человек нажал «Разрешить» в
+  /// системном окне и хочет продолжить, не выходя из чата.
+  Future<void> _retryCamera() async {
+    await _warmCamera();
+    if (!mounted || _noteError != null || !_noteRecording) return;
+    await _startNoteCapture();
   }
 
   String _noteErrorText(NoteRecordError reason) {
@@ -830,7 +857,6 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// Палец лёг на кнопку в режиме фигурки: показываем камеру и снимаем.
   Future<void> _startNote() async {
-    final rec = NoteRecorderService.instance;
     setState(() {
       _noteRecording = true;
       _notePaused = false;
@@ -843,6 +869,13 @@ class _ChatScreenState extends State<ChatScreen> {
     }
     if (!mounted || !_noteRecording) return;
     if (_noteError != null) return; // экран уже объясняет, почему нельзя
+    await _startNoteCapture();
+  }
+
+  /// Сама съёмка — отдельно от подъёма камеры: к ней возвращается кнопка
+  /// «Повторить», когда разрешение выдали не с первого раза.
+  Future<void> _startNoteCapture() async {
+    final rec = NoteRecorderService.instance;
     try {
       await rec.start();
     } on NoteRecordException catch (e) {
@@ -2261,7 +2294,15 @@ class _ChatScreenState extends State<ChatScreen> {
           Column(
             children: [
               Expanded(
-            child: Stack(
+            // Во время съёмки лента не рисуется: сверху всё равно стоит
+            // непрозрачный экран камеры, а список сообщений продолжал бы
+            // раскладываться и перерисовываться каждый кадр. `Offstage`
+            // сохраняет состояние — позиция прокрутки и подписки на месте.
+            // Панель ввода при этом ОСТАЁТСЯ в дереве: палец держит кнопку на
+            // ней, и уход виджета закрыл бы арену жеста.
+            child: Offstage(
+              offstage: _noteRecording,
+              child: Stack(
               children: [
                 StreamBuilder<List<ChatMsg>>(
               stream: _messagesStream,
@@ -2341,6 +2382,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ],
             ),
+            ),
           ),
               if (mentionPanelVisible(_mentionQuery)) _buildMentionList(),
               // «Печатает…» теперь в хедере (см. _buildHeaderTitle).
@@ -2365,6 +2407,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 canFlip: NoteRecorderService.instance.hasSecondCamera,
                 canTorch: !NoteRecorderService.instance.isFront,
                 error: _noteError,
+                onRetry: _retryCamera,
                 onFlip: _flipNoteCamera,
                 onTorch: _toggleNoteTorch,
                 onMirror: () =>
@@ -3284,6 +3327,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   noteMode: _noteMode,
                   noteShape: _noteShape,
                   onModeToggle: _toggleNoteMode,
+                  handsFree: _noteMode,
                   primary: cs.primary,
                   onPrimary: cs.onPrimary,
                   idleBackground: cs.surfaceContainerHigh,

@@ -1437,6 +1437,8 @@ abstract class AppStrings {
 
   // ── Голосовые сообщения ──
   /// Подсказка под полосой записи, пока палец держит микрофон.
+  String get noteHandsFreeHint;
+  String get noteTapToSend;
   String get noteHoldToRecord;
   String get noteSlideHints;
   String get noteReleaseToCancel;

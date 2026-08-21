@@ -35,9 +35,9 @@ class NoteRecordException implements Exception {
 
 /// Съёмка фигурки — видеосообщения в форме.
 ///
-/// Пишем 720p с фронталки: на экране фигурка занимает около 240 dp, а это до
-/// 720 физических пикселей на плотных экранах — 480p там мылит. Тяжесть файла
-/// снимает не разрешение, а короткая длительность и сжатие перед отправкой.
+/// Пишем 480p с фронталки: перед отправкой видео всё равно жмётся до 540p, а
+/// съёмка в 720p ради этого только греет кодек — на слабых телефонах от неё
+/// проседало само превью. Тяжесть файла снимают длительность и сжатие.
 ///
 /// Камерой владеет сервис, а не экран: превью должно пережить смену формы,
 /// поворот и открытие клавиатуры, но обязано умереть, как только человек вышел
@@ -94,16 +94,45 @@ class NoteRecorderService {
 
   /// Поднимает камеру и держит её до [release]. Возвращает готовый контроллер.
   ///
+  /// Первая попытка на свежей установке ПАДАЕТ штатно: плагин показывает
+  /// системный запрос разрешения и тут же отвечает отказом, потому что человек
+  /// ещё не нажал «Разрешить». Поэтому попыток три с паузой — вторая обычно
+  /// попадает уже в выданное разрешение. Без этого камера навсегда оставалась
+  /// с надписью «ошибка загрузки», и починить её можно было только
+  /// перезапуском приложения.
+  ///
   /// Бросает [NoteRecordException] — тишина здесь худший исход: человек видит
   /// чёрный квадрат и не понимает, снимает он или нет.
-  Future<CameraController> prepare() async {
+  Future<CameraController> prepare({int attempts = 3}) async {
     final ready = _controller;
     if (ready != null && ready.value.isInitialized) return ready;
+    NoteRecordException? last;
+    for (var i = 0; i < attempts; i++) {
+      if (i > 0) {
+        await Future<void>.delayed(const Duration(milliseconds: 700));
+      }
+      try {
+        return await _prepareOnce();
+      } on NoteRecordException catch (e) {
+        last = e;
+        // Нет камеры — второй попыткой она не появится.
+        if (e.reason == NoteRecordError.noCamera) rethrow;
+      }
+    }
+    throw last ?? const NoteRecordException(NoteRecordError.failed);
+  }
+
+  Future<CameraController> _prepareOnce() async {
     try {
       _cameras = await availableCameras();
     } on CameraException catch (e) {
       debugPrint('NoteRecorder.availableCameras: $e');
       throw NoteRecordException(_reasonOf(e));
+    } catch (e) {
+      // Плагин иногда отдаёт PlatformException мимо CameraException — на
+      // экран это всё равно должно приехать понятной причиной.
+      debugPrint('NoteRecorder.availableCameras (не CameraException): $e');
+      throw const NoteRecordException(NoteRecordError.failed);
     }
     if (_cameras.isEmpty) {
       throw const NoteRecordException(NoteRecordError.noCamera);
@@ -123,9 +152,12 @@ class NoteRecorderService {
         await old.dispose();
       } catch (_) {/* уже мёртв */}
     }
+    // 480p. Фигурка занимает на экране около 230 dp, а перед отправкой видео
+    // всё равно жмётся до 540p — снимать 720p значит греть кодек впустую и
+    // ронять кадры превью на слабых телефонах.
     final c = CameraController(
       camera,
-      ResolutionPreset.high,
+      ResolutionPreset.medium,
       enableAudio: true,
       imageFormatGroup: ImageFormatGroup.jpeg,
     );
@@ -140,6 +172,12 @@ class NoteRecorderService {
         await c.dispose();
       } catch (_) {}
       throw NoteRecordException(_reasonOf(e));
+    } catch (e) {
+      debugPrint('NoteRecorder.initialize (не CameraException): $e');
+      try {
+        await c.dispose();
+      } catch (_) {}
+      throw const NoteRecordException(NoteRecordError.failed);
     }
     _controller = c;
     _torch = false;
@@ -348,6 +386,9 @@ class NoteRecorderService {
     if (code.contains('inuse') || code.contains('busy')) {
       return NoteRecordError.busy;
     }
+    // Камера с включённым звуком просит и микрофон: занят он или запрещён —
+    // человеку надо сказать про разрешение, а не про абстрактный сбой.
+    if (code.contains('audio')) return NoteRecordError.noPermission;
     return NoteRecordError.failed;
   }
 

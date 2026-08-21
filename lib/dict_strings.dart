@@ -2174,6 +2174,8 @@ abstract class DictStrings extends AppStrings {
   @override
   String get chatHint => _t('chatHint');
   @override
+  String get noteHandsFreeHint => _t('noteHandsFreeHint');
+  String get noteTapToSend => _t('noteTapToSend');
   String get noteHoldToRecord => _t('noteHoldToRecord');
   String get noteSlideHints => _t('noteSlideHints');
   String get noteReleaseToCancel => _t('noteReleaseToCancel');

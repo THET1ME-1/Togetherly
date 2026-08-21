@@ -45,6 +45,9 @@ class NoteRecorderOverlay extends StatelessWidget {
   /// Причина, по которой снимать нельзя (нет разрешения, камера занята).
   final String? error;
 
+  /// Ещё одна попытка поднять камеру: разрешение выдали не с первого раза.
+  final VoidCallback onRetry;
+
   final VoidCallback onFlip;
   final VoidCallback onTorch;
   final VoidCallback onMirror;
@@ -68,6 +71,7 @@ class NoteRecorderOverlay extends StatelessWidget {
     required this.canFlip,
     required this.canTorch,
     required this.error,
+    required this.onRetry,
     required this.onFlip,
     required this.onTorch,
     required this.onMirror,
@@ -91,13 +95,12 @@ class NoteRecorderOverlay extends StatelessWidget {
       type: MaterialType.transparency,
       child: Stack(
         children: [
+          // Плотная поверхность вместо размытия. Размытие всего чата стоит
+          // полного прохода по кадру каждые шестнадцать миллисекунд — на нём
+          // и проседала съёмка; к тому же снимать удобнее, когда за кадром
+          // ничего не мелькает.
           Positioned.fill(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
-              child: ColoredBox(
-                color: cs.surface.withValues(alpha: 0.62),
-              ),
-            ),
+            child: ColoredBox(color: cs.surface.withValues(alpha: 0.97)),
           ),
           Positioned.fill(
             child: SafeArea(
@@ -125,10 +128,13 @@ class NoteRecorderOverlay extends StatelessWidget {
   }
 
   Widget _topBar(BuildContext context, ColorScheme cs, AppStrings s) {
+    // Держать палец не нужно: удержание только запускает съёмку. Поэтому и
+    // подсказки другие, чем у голосовых, — про отмену и отправку, а не про
+    // «вверх, чтобы закрепить».
     final hint = cancelling
         ? s.noteReleaseToCancel
         : recording
-            ? (locked ? s.noteRecording : s.noteSlideHints)
+            ? (locked ? s.noteTapToSend : s.noteHandsFreeHint)
             : s.noteHoldToRecord;
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
@@ -165,24 +171,22 @@ class NoteRecorderOverlay extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         _sideTools(cs),
-        ValueListenableBuilder<Duration>(
-          valueListenable: elapsed,
-          builder: (context, value, child) {
-            final p = recording
-                ? (value.inMilliseconds /
-                        NoteRecorderService.maxDuration.inMilliseconds)
-                    .clamp(0.0, 1.0)
-                : 0.0;
-            return NoteShapeView(
-              shape: shape,
-              size: side,
-              ringColor: cancelling ? cs.error : cs.primary,
-              trackColor: cs.outlineVariant.withValues(alpha: 0.5),
-              ringWidth: 5,
-              ringProgress: p,
-              child: child!,
-            );
-          },
+        // Обод слушает таймер сам: перерисовывается ТОЛЬКО он, а превью
+        // камеры и маска формы остаются нетронутыми. Раньше здесь стоял
+        // ValueListenableBuilder вокруг всего вида, и шестнадцать раз в
+        // секунду пересобиралось дерево вместе с CameraPreview.
+        NoteShapeView(
+          shape: shape,
+          size: side,
+          ringColor: cancelling ? cs.error : cs.primary,
+          trackColor: cs.outlineVariant.withValues(alpha: 0.5),
+          ringWidth: 5,
+          ringListenable: elapsed,
+          ringValue: () => recording
+              ? (elapsed.value.inMilliseconds /
+                      NoteRecorderService.maxDuration.inMilliseconds)
+                  .clamp(0.0, 1.0)
+              : 0.0,
           child: _preview(cs),
         ),
         _pauseButton(cs),
@@ -399,7 +403,14 @@ class NoteRecorderOverlay extends StatelessWidget {
             style: TextStyle(fontSize: 15, color: cs.onSurface),
           ),
           const SizedBox(height: 16),
-          FilledButton(onPressed: onClose, child: Text(s.close)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              TextButton(onPressed: onClose, child: Text(s.close)),
+              const SizedBox(width: 8),
+              FilledButton(onPressed: onRetry, child: Text(s.retry)),
+            ],
+          ),
         ],
       ),
     );
