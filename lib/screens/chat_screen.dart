@@ -1025,9 +1025,19 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _openNoteViewer(ChatMsg msg) {
+    // В просмотр уходит вся переписка фигурками, а не одно сообщение: свайп
+    // вбок листает соседние, не выкидывая человека обратно в ленту.
+    final notes = _lastMessages
+        .where((m) => m.isNote && !m.deleted)
+        .toList(growable: false);
+    final at = notes.indexWhere((m) => m.id == msg.id);
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => NoteViewerScreen(msg: msg, isMine: msg.uid == _myUid),
+        builder: (_) => NoteViewerScreen(
+          notes: at >= 0 ? notes : [msg],
+          index: at >= 0 ? at : 0,
+          myUid: _myUid,
+        ),
       ),
     );
   }

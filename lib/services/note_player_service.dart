@@ -47,6 +47,32 @@ class NotePlayback {
       );
 }
 
+/// Чем экраны пользуются у плеера.
+///
+/// Отдельный интерфейс нужен тестам: настоящий сервис поднимает
+/// `VideoPlayerController`, а в тестовой среде плагина нет вовсе — и проверить
+/// перемотку или переход к соседней фигурке было бы нечем.
+abstract class NotePlayer implements Listenable {
+  NotePlayback get state;
+
+  /// Живой контроллер видео — экрану он нужен, чтобы показать кадр. В подмене
+  /// его нет, и экран честно рисует обложку.
+  VideoPlayerController? get controller;
+  bool isCurrent(String messageId);
+  double smoothProgress();
+  Future<void> open({
+    required String messageId,
+    required String url,
+    Duration? knownDuration,
+    bool auto,
+    bool? sound,
+  });
+  Future<void> togglePlay();
+  Future<void> toggleSound();
+  Future<void> seekFraction(double fraction);
+  Future<void> stop({String? onlyIf});
+}
+
 /// Проигрывание фигурок в чате.
 ///
 /// Играет одна за раз — как и голосовые. Дело не только в звуке: каждый живой
@@ -57,7 +83,7 @@ class NotePlayback {
 /// в сто миллисекунд, и обод дёргался бы ступеньками. [smoothProgress]
 /// достраивает недостающие кадры по времени с последнего обновления, поэтому
 /// обод едет ровно, а правду по-прежнему говорит плеер.
-class NotePlayerService extends ChangeNotifier {
+class NotePlayerService extends ChangeNotifier implements NotePlayer {
   NotePlayerService._();
   static final NotePlayerService instance = NotePlayerService._();
   factory NotePlayerService() => instance;
@@ -71,13 +97,17 @@ class NotePlayerService extends ChangeNotifier {
   /// следующая тоже играет со звуком — иначе приходится тапать каждую.
   bool _soundOn = false;
 
+  @override
   NotePlayback get state => _state;
+  @override
   VideoPlayerController? get controller => _controller;
 
+  @override
   bool isCurrent(String messageId) =>
       _state.messageId.isNotEmpty && _state.messageId == messageId;
 
   /// Доля проигранного с досчётом между обновлениями плагина.
+  @override
   double smoothProgress() {
     final total = _state.duration.inMilliseconds;
     if (total <= 0) return 0;
@@ -92,6 +122,7 @@ class NotePlayerService extends ChangeNotifier {
   ///
   /// [auto] — запуск при появлении в кадре, а не по тапу: такой запуск всегда
   /// беззвучный и уступает дорогу тому, что человек включил руками.
+  @override
   Future<void> open({
     required String messageId,
     required String url,
@@ -156,6 +187,7 @@ class NotePlayerService extends ChangeNotifier {
     }
   }
 
+  @override
   Future<void> togglePlay() async {
     final c = _controller;
     if (c == null) return;
@@ -170,6 +202,7 @@ class NotePlayerService extends ChangeNotifier {
 
   /// Тап по фигурке даёт звук. Второй тап — снова тишина. Выбор запоминается
   /// на сеанс: перещёлкивать каждую фигурку никто не станет.
+  @override
   Future<void> toggleSound() async {
     final c = _controller;
     if (c == null) return;
@@ -179,6 +212,7 @@ class NotePlayerService extends ChangeNotifier {
     _set(_state.copy(muted: !on));
   }
 
+  @override
   Future<void> seekFraction(double fraction) async {
     final c = _controller;
     final total = _state.duration;
@@ -190,6 +224,7 @@ class NotePlayerService extends ChangeNotifier {
   }
 
   /// Останавливает то, что играет сейчас. [onlyIf] — не трогать чужую фигурку.
+  @override
   Future<void> stop({String? onlyIf}) async {
     if (onlyIf != null && !isCurrent(onlyIf)) return;
     final c = _controller;

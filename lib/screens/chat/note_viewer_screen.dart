@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:video_player/video_player.dart';
 
 import '../../models/chat_msg.dart';
@@ -21,11 +22,30 @@ import '../../widgets/storage_image.dart';
 /// Двойной тап ставит сердечко на текущей секунде. Автор при следующем
 /// просмотре увидит его ровно там же — в этом вся затея: отозваться не «под
 /// сообщением», а в том месте, где стало тепло.
+///
+/// Экран получает не одну фигурку, а все фигурки переписки: свайп вбок листает
+/// по ним, не возвращаясь в ленту. Плеер при этом остаётся один — соседнюю
+/// открываем только тогда, когда до неё долистали.
 class NoteViewerScreen extends StatefulWidget {
-  final ChatMsg msg;
-  final bool isMine;
+  /// Фигурки переписки в порядке ленты, от старых к новым.
+  final List<ChatMsg> notes;
 
-  const NoteViewerScreen({super.key, required this.msg, required this.isMine});
+  /// С какой открыли просмотр.
+  final int index;
+
+  final String myUid;
+
+  /// Плеер подменяется в тестах: настоящий поднимает `VideoPlayerController`,
+  /// которого в тестовой среде нет.
+  final NotePlayer? player;
+
+  const NoteViewerScreen({
+    super.key,
+    required this.notes,
+    required this.index,
+    required this.myUid,
+    this.player,
+  });
 
   @override
   State<NoteViewerScreen> createState() => _NoteViewerScreenState();
@@ -33,7 +53,12 @@ class NoteViewerScreen extends StatefulWidget {
 
 class _NoteViewerScreenState extends State<NoteViewerScreen>
     with TickerProviderStateMixin {
-  final NotePlayerService _player = NotePlayerService.instance;
+  late final NotePlayer _player = widget.player ?? NotePlayerService.instance;
+
+  /// Какую фигурку смотрим сейчас.
+  late int _index = widget.index.clamp(0, widget.notes.length - 1);
+
+  ChatMsg get _msg => widget.notes[_index];
   late final Ticker _ticker = createTicker(_onTick);
   final ValueNotifier<double> _progress = ValueNotifier<double>(0);
 
@@ -44,7 +69,7 @@ class _NoteViewerScreenState extends State<NoteViewerScreen>
 
   /// Свои отметки этого захода — они уже уехали в очередь, но их надо
   /// показывать на полосе сразу.
-  late List<double> _hearts = List<double>.of(widget.msg.note?.hearts ?? const []);
+  late List<double> _hearts = List<double>.of(_msg.note?.hearts ?? const []);
 
   /// Свайп вниз едет своим каналом: `setState` на каждое движение пальца
   /// перестраивал бы весь экран вместе с кадром видео.
@@ -61,24 +86,52 @@ class _NoteViewerScreenState extends State<NoteViewerScreen>
   /// Идёт сохранение в галерею: файл готовит сервер, это пара секунд.
   bool _saving = false;
 
-  ShapeNote get _note => widget.msg.note!;
+  ShapeNote get _note => _msg.note!;
+
+  /// Палец на полосе времени: пока он там, бегунок слушается его, а не плеера.
+  double? _scrub;
 
   @override
   void initState() {
     super.initState();
     _ticker.start();
+    _openCurrent();
+  }
+
+  /// Ставит на плеер ту фигурку, которую сейчас смотрим.
+  void _openCurrent() {
+    _stuckTimer?.cancel();
+    _lastRetry = null;
+    _scrub = null;
+    _shown.clear();
+    _hearts = List<double>.of(_msg.note?.hearts ?? const []);
+    _progress.value = 0;
     _stuckTimer = Timer(const Duration(seconds: 6), () {
       if (!mounted) return;
-      if (_player.isCurrent(widget.msg.id) && _player.state.playing) return;
+      if (_player.isCurrent(_msg.id) && _player.state.playing) return;
       setState(() => _stuck = true);
     });
     // Открываем со звуком: сюда заходят смотреть, а не проматывать.
     unawaited(_player.open(
-      messageId: widget.msg.id,
+      messageId: _msg.id,
       url: _note.url,
       knownDuration: _note.duration,
       sound: true,
     ));
+  }
+
+  /// Переход к соседней фигурке переписки. За краем ничего не делаем: пружины
+  /// на пустоту тут не будет, а лишний рывок читается как сбой.
+  void _go(int delta) {
+    final next = _index + delta;
+    if (next < 0 || next >= widget.notes.length) return;
+    unawaited(_player.stop(onlyIf: _msg.id));
+    HapticFeedback.selectionClick();
+    setState(() {
+      _index = next;
+      _stuck = false;
+    });
+    _openCurrent();
   }
 
   @override
@@ -91,7 +144,7 @@ class _NoteViewerScreenState extends State<NoteViewerScreen>
       p.ctrl.dispose();
     }
     _pops.clear();
-    unawaited(_player.stop(onlyIf: widget.msg.id));
+    unawaited(_player.stop(onlyIf: _msg.id));
     super.dispose();
   }
 
@@ -100,13 +153,13 @@ class _NoteViewerScreenState extends State<NoteViewerScreen>
     // загрузки). Экран открыт — значит фигурка должна играть здесь: молча
     // переоткрываем, но не чаще раза в полторы секунды, чтобы не устроить
     // карусель open/stop.
-    if (!_player.isCurrent(widget.msg.id)) {
+    if (!_player.isCurrent(_msg.id)) {
       final now = DateTime.now();
       if (_lastRetry == null ||
           now.difference(_lastRetry!) > const Duration(milliseconds: 1500)) {
         _lastRetry = now;
         unawaited(_player.open(
-          messageId: widget.msg.id,
+          messageId: _msg.id,
           url: _note.url,
           knownDuration: _note.duration,
           sound: true,
@@ -120,6 +173,9 @@ class _NoteViewerScreenState extends State<NoteViewerScreen>
         if (mounted) setState(() => _stuck = false);
       });
     }
+    // Палец ведёт по полосе — бегунок его и слушается: иначе плеер тянул бы
+    // метку обратно к своей позиции, и полоса дралась бы с рукой.
+    if (_scrub != null) return;
     final p = _player.smoothProgress();
     _progress.value = p;
     final total = _player.state.duration.inMilliseconds;
@@ -163,7 +219,7 @@ class _NoteViewerScreenState extends State<NoteViewerScreen>
       _shown.add(_hearts.indexOf(at)); // своё всплывает сразу, второй раз не надо
     });
     _pop(fromAuthor: false);
-    unawaited(ChatService.instance.addNoteHeart(widget.msg.id, _hearts));
+    unawaited(ChatService.instance.addNoteHeart(_msg.id, _hearts));
   }
 
   /// Сохраняет фигурку в галерею: квадратный ролик с формой и подписью.
@@ -172,7 +228,7 @@ class _NoteViewerScreenState extends State<NoteViewerScreen>
     final s = LocaleService.current;
     setState(() => _saving = true);
     _toast(s.noteSaving);
-    final result = await NoteExportService.saveToGallery(widget.msg.id);
+    final result = await NoteExportService.saveToGallery(_msg.id);
     if (!mounted) return;
     setState(() => _saving = false);
     _toast(switch (result) {
@@ -180,6 +236,23 @@ class _NoteViewerScreenState extends State<NoteViewerScreen>
       NoteExportResult.noAccess => s.noteSaveNoAccess,
       NoteExportResult.failed => s.noteSaveFailed,
     });
+  }
+
+  /// Ведём бегунок за пальцем. Плееру ничего не говорим до отпускания: seek на
+  /// каждое движение — это по десятку перемоток в секунду, видео от них
+  /// захлёбывается и дёргается кадрами.
+  void _scrubTo(double fraction, {bool commit = false}) {
+    final v = fraction.clamp(0.0, 1.0);
+    _scrub = v;
+    _progress.value = v;
+    if (commit) _commitScrub();
+  }
+
+  void _commitScrub() {
+    final v = _scrub;
+    if (v == null) return;
+    _scrub = null;
+    unawaited(_player.seekFraction(v));
   }
 
   void _toast(String text) {
@@ -200,7 +273,7 @@ class _NoteViewerScreenState extends State<NoteViewerScreen>
     final s = LocaleService.current;
     final w = MediaQuery.of(context).size.width;
     final side = math.min(w * 0.9, 460.0);
-    final shape = noteShapeById(widget.msg.noteShape);
+    final shape = noteShapeById(_msg.noteShape);
 
     return Scaffold(
       backgroundColor: cs.surfaceContainerLowest,
@@ -214,6 +287,17 @@ class _NoteViewerScreenState extends State<NoteViewerScreen>
             Navigator.of(context).maybePop();
           } else {
             _dragY.value = 0;
+          }
+        },
+        // Вбок — соседняя фигурка переписки. Считаем по скорости броска, а не
+        // по пройденному пути: короткий резкий свайп тут привычнее долгого
+        // протягивания через пол-экрана.
+        onHorizontalDragEnd: (d) {
+          final v = d.primaryVelocity ?? 0;
+          if (v < -250) {
+            _go(1);
+          } else if (v > 250) {
+            _go(-1);
           }
         },
         child: Stack(
@@ -265,7 +349,7 @@ class _NoteViewerScreenState extends State<NoteViewerScreen>
                                     setState(() => _stuck = false);
                                     _lastRetry = null;
                                     unawaited(_player.open(
-                                      messageId: widget.msg.id,
+                                      messageId: _msg.id,
                                       url: _note.url,
                                       knownDuration: _note.duration,
                                       sound: true,
@@ -308,7 +392,7 @@ class _NoteViewerScreenState extends State<NoteViewerScreen>
           ),
           Expanded(
             child: Text(
-              widget.msg.name,
+              _msg.name,
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
@@ -352,7 +436,7 @@ class _NoteViewerScreenState extends State<NoteViewerScreen>
   Widget _content(ColorScheme cs) {
     final c = _player.controller;
     final size = c?.value.size ?? Size.zero;
-    if (_player.isCurrent(widget.msg.id) &&
+    if (_player.isCurrent(_msg.id) &&
         c != null &&
         c.value.isInitialized &&
         size.width > 0 &&
@@ -415,15 +499,28 @@ class _NoteViewerScreenState extends State<NoteViewerScreen>
           return Column(
             children: [
               LayoutBuilder(
-                builder: (context, c) => SizedBox(
-                  height: 22,
+                builder: (context, c) => GestureDetector(
+                  key: const ValueKey('noteTimeline'),
+                  // Зона касания вдвое выше самой полосы: попасть пальцем в
+                  // четыре пикселя нельзя, а промах читается как «не работает».
+                  behavior: HitTestBehavior.opaque,
+                  onTapDown: (d) =>
+                      _scrubTo(d.localPosition.dx / c.maxWidth, commit: true),
+                  onHorizontalDragStart: (d) =>
+                      _scrubTo(d.localPosition.dx / c.maxWidth),
+                  onHorizontalDragUpdate: (d) =>
+                      _scrubTo(d.localPosition.dx / c.maxWidth),
+                  onHorizontalDragEnd: (_) => _commitScrub(),
+                  onHorizontalDragCancel: _commitScrub,
+                  child: SizedBox(
+                  height: 44,
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: [
                       Positioned(
                         left: 0,
                         right: 0,
-                        top: 9,
+                        top: 26,
                         child: Container(
                           height: 4,
                           decoration: BoxDecoration(
@@ -436,13 +533,29 @@ class _NoteViewerScreenState extends State<NoteViewerScreen>
                         valueListenable: _progress,
                         builder: (_, p, _) => Positioned(
                           left: 0,
-                          top: 9,
+                          top: 26,
                           child: Container(
                             width: c.maxWidth * p,
                             height: 4,
                             decoration: BoxDecoration(
                               color: cs.primary,
                               borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Ручка: без неё непонятно, что полосу можно тянуть.
+                      ValueListenableBuilder<double>(
+                        valueListenable: _progress,
+                        builder: (_, p, _) => Positioned(
+                          left: (c.maxWidth * p) - 6,
+                          top: 22,
+                          child: Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: cs.primary,
+                              shape: BoxShape.circle,
                             ),
                           ),
                         ),
@@ -454,11 +567,12 @@ class _NoteViewerScreenState extends State<NoteViewerScreen>
                                     (h * 1000 / total.inMilliseconds)
                                         .clamp(0.0, 1.0)) -
                                 7,
-                            top: 0,
+                            top: 10,
                             child: Icon(Icons.favorite_rounded,
                                 size: 14, color: cs.primary),
                           ),
                     ],
+                  ),
                   ),
                 ),
               ),
