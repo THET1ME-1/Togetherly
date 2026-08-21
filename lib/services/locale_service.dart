@@ -1442,6 +1442,7 @@ abstract class AppStrings {
   String get noteSaveToGallery;
   String get noteSaving;
   String get noteSaved;
+  String get noteSaveServerFailed;
   String get noteSaveFailed;
   String get noteSaveNoAccess;
   String get noteHoldToRecord;

@@ -8,7 +8,19 @@ import 'package:path_provider/path_provider.dart';
 import 'pocketbase_service.dart';
 
 /// Чем закончилось сохранение фигурки — экрану нужно сказать разное.
-enum NoteExportResult { saved, noAccess, failed }
+///
+/// Отказы разведены не для красоты: «сервер не собрал файл» и «галерея не
+/// приняла» чинятся в разных местах, а человек, у которого не вышло, называет
+/// ровно то, что увидел на экране.
+enum NoteExportResult { saved, noAccess, serverFailed, saveFailed }
+
+/// Отказ вместе с кодом ответа сервера: без кода жалоба «не сохраняется»
+/// стоит вечера разбирательств.
+class NoteExportOutcome {
+  final NoteExportResult result;
+  final int? status;
+  const NoteExportOutcome(this.result, {this.status});
+}
 
 /// Сохранение фигурки в галерею телефона.
 ///
@@ -28,11 +40,15 @@ class NoteExportService {
   /// работает с нуля.
   static const Duration _timeout = Duration(seconds: 90);
 
-  static Future<NoteExportResult> saveToGallery(String messageId) async {
-    if (messageId.isEmpty) return NoteExportResult.failed;
+  static Future<NoteExportOutcome> saveToGallery(String messageId) async {
+    if (messageId.isEmpty) {
+      return const NoteExportOutcome(NoteExportResult.saveFailed);
+    }
     final pb = PocketBaseService.instance.pb;
     final token = pb.authStore.token;
-    if (token.isEmpty) return NoteExportResult.failed;
+    if (token.isEmpty) {
+      return const NoteExportOutcome(NoteExportResult.serverFailed);
+    }
 
     File? temp;
     try {
@@ -44,7 +60,8 @@ class NoteExportService {
           .timeout(_timeout);
       if (res.statusCode != 200 || res.bodyBytes.isEmpty) {
         debugPrint('NoteExport: ${res.statusCode} ${res.body}');
-        return NoteExportResult.failed;
+        return NoteExportOutcome(NoteExportResult.serverFailed,
+            status: res.statusCode);
       }
 
       final dir = await getTemporaryDirectory();
@@ -55,19 +72,19 @@ class NoteExportService {
       // ответ человека, и говорить про него надо иначе.
       if (!await Gal.hasAccess(toAlbum: true)) {
         if (!await Gal.requestAccess(toAlbum: true)) {
-          return NoteExportResult.noAccess;
+          return const NoteExportOutcome(NoteExportResult.noAccess);
         }
       }
       await Gal.putVideo(temp.path, album: 'Togetherly');
-      return NoteExportResult.saved;
+      return const NoteExportOutcome(NoteExportResult.saved);
     } on GalException catch (e) {
       debugPrint('NoteExport gal: ${e.type}');
-      return e.type == GalExceptionType.accessDenied
+      return NoteExportOutcome(e.type == GalExceptionType.accessDenied
           ? NoteExportResult.noAccess
-          : NoteExportResult.failed;
+          : NoteExportResult.saveFailed);
     } catch (e) {
       debugPrint('NoteExport failed: $e');
-      return NoteExportResult.failed;
+      return const NoteExportOutcome(NoteExportResult.saveFailed);
     } finally {
       // Копия в галерее уже своя, временный файл держать незачем.
       try {

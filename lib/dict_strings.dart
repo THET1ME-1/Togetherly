@@ -2179,6 +2179,8 @@ abstract class DictStrings extends AppStrings {
   String get noteSaveToGallery => _t('noteSaveToGallery');
   String get noteSaving => _t('noteSaving');
   String get noteSaved => _t('noteSaved');
+  String get noteSaveServerFailed => _t('noteSaveServerFailed');
+  @override
   String get noteSaveFailed => _t('noteSaveFailed');
   String get noteSaveNoAccess => _t('noteSaveNoAccess');
   String get noteHoldToRecord => _t('noteHoldToRecord');

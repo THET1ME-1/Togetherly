@@ -228,13 +228,18 @@ class _NoteViewerScreenState extends State<NoteViewerScreen>
     final s = LocaleService.current;
     setState(() => _saving = true);
     _toast(s.noteSaving);
-    final result = await NoteExportService.saveToGallery(_msg.id);
+    final out = await NoteExportService.saveToGallery(_msg.id);
     if (!mounted) return;
     setState(() => _saving = false);
-    _toast(switch (result) {
+    // Код ответа в тосте — не техническая утечка, а единственный способ понять
+    // причину по жалобе «не сохраняется»: разбор такой жалобы вслепую стоит
+    // вечера.
+    final code = out.status == null ? '' : ' · ${out.status}';
+    _toast(switch (out.result) {
       NoteExportResult.saved => s.noteSaved,
       NoteExportResult.noAccess => s.noteSaveNoAccess,
-      NoteExportResult.failed => s.noteSaveFailed,
+      NoteExportResult.serverFailed => '${s.noteSaveServerFailed}$code',
+      NoteExportResult.saveFailed => s.noteSaveFailed,
     });
   }
 

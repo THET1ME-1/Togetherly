@@ -3099,6 +3099,15 @@ const Map<String, Map<String, String>> chatStrings = {
     'fr': 'Enregistrée dans la galerie',
     'de': 'In der Galerie gespeichert',
   },
+  'noteSaveServerFailed': {
+    'ru': 'Сервер не собрал файл',
+    'en': 'The server could not build the file',
+    'pt': 'O servidor não montou o arquivo',
+    'it': 'Il server non ha preparato il file',
+    'es': 'El servidor no pudo montar el archivo',
+    'fr': 'Le serveur n’a pas pu préparer le fichier',
+    'de': 'Der Server konnte die Datei nicht bauen',
+  },
   'noteSaveFailed': {
     'ru': 'Не получилось сохранить',
     'en': 'Couldn\'t save it',

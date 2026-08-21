@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -90,10 +92,15 @@ class NoteRecorderOverlay extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final s = LocaleService.current;
     final media = MediaQuery.of(context);
-    // Фигура крупная, но не в край: у звёздочки лучи должны дышать.
-    final side = (media.size.width * 0.76)
-        .clamp(180.0, media.size.height * 0.44)
-        .toDouble();
+    // Фигура крупная, но кнопки стоят В РЯД с ней, а не поверх кадра — значит
+    // считать её долей всей ширины нельзя. На телефоне 393 dp такая доля
+    // давала ряд шире экрана на 22 пикселя, и пауза уезжала за правый край:
+    // нажать её было нечем. Считаем от того, что осталось между колонками.
+    const double toolColumn = 58; // кнопка 48 + отступ 10
+    final side = math.max(
+      140.0,
+      math.min(media.size.width - toolColumn * 2 - 8, media.size.height * 0.44),
+    );
 
     return Material(
       type: MaterialType.transparency,

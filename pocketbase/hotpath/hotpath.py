@@ -1884,15 +1884,26 @@ def _export_build(msg_id: str, media_id: str, name: str, shape: str) -> str | No
             capture_output=True, timeout=120,
         )
         if got.returncode != 0 or not os.path.exists(src):
+            # Молчаливый отказ — худшее, что тут может быть: человек видит
+            # «не получилось сохранить», а в журнале пусто.
+            log.warning("note export %s: rclone rc=%s %s", msg_id,
+                        got.returncode,
+                        got.stderr.decode("utf-8", "replace")[-400:].strip())
             return None
         res = subprocess.run(
             [_EXPORT_PY, _EXPORT_TOOL, "--src", src, "--shape", shape, "--out", out],
             capture_output=True, timeout=300,
         )
         if res.returncode != 0 or not os.path.exists(out):
+            log.warning("note export %s: ffmpeg rc=%s %s", msg_id,
+                        res.returncode,
+                        res.stderr.decode("utf-8", "replace")[-400:].strip())
             return None
+        log.info("note export %s: готов, %s КБ", msg_id,
+                 os.path.getsize(out) // 1024)
         return out
-    except Exception:
+    except Exception as e:
+        log.warning("note export %s: %r", msg_id, e)
         return None
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
@@ -1927,14 +1938,17 @@ async def note_export(request: Request):
             msg_id,
         )
     if row is None:
+        log.warning("note export %s: записи нет в Postgres", msg_id)
         return _err(404, "not found")
     # Фигурка принадлежит паре, а не тому, кто знает её id.
     if str(row["group_id"]) not in groups:
+        log.warning("note export %s: чужая пара %s", msg_id, row["group_id"])
         return _err(403, "not your message")
 
     ref = str(row["note_url"] or "")
     m = re.fullmatch(r"pb://media/([A-Za-z0-9_]+)/(.+)", ref)
     if not m:
+        log.warning("note export %s: ссылка не pb://media (%s)", msg_id, ref[:80])
         return _err(422, "not a shape note")
     shape = str(row["note_shape"] or "circle")
     if not re.fullmatch(r"[a-zA-Z0-9]{1,24}", shape):
