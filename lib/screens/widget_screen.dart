@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import '../config/ad_units.dart';
+import '../widgets/note_editor_sheet.dart';
 import '../widgets/mood_image.dart';
 import '../widgets/storage_image.dart';
 import 'package:characters/characters.dart';
@@ -2011,6 +2012,19 @@ class _WidgetScreenState extends State<WidgetScreen>
         qualifiedName: 'com.togetherly.love.NoteWidget4x2Provider',
         widgetType: 'note',
         locked: locked,
+        // Вход в саму заметку. До 21.08.2026 её правили ТОЛЬКО тапом по
+        // виджету на рабочем столе, и человек, не поставивший виджет (или
+        // поставивший его на iPhone, где тап уводит в приложение), спрашивал:
+        // «куда написать, чтобы у партнёра было видно запись? никак не могу
+        // найти».
+        extraAction: _pair.isPaired
+            ? (
+                label: _s.tgNoteWrite,
+                icon: Icons.edit_note_rounded,
+                onTap: () => showNoteEditorSheet(context,
+                    groupId: _pair.pairId),
+              )
+            : null,
         sizes: [
           _WidgetSizeOption(
             label: '2×2',
@@ -4234,6 +4248,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     VoidCallback? onToggleExpand,
     List<_WidgetSizeOption> sizes = const [],
     bool locked = false,
+    ({String label, IconData icon, VoidCallback onTap})? extraAction,
   }) {
     // С выбором размера превью и кнопка работают с выбранным вариантом,
     // без него — со старыми параметрами карточки.
@@ -4393,7 +4408,30 @@ class _WidgetScreenState extends State<WidgetScreen>
                 ),
               ),
             ),
-          ] else if (_canPinWidgets) ...[
+          ] else ...[
+            if (extraAction != null) ...[
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: FilledButton.tonalIcon(
+                  onPressed: extraAction.onTap,
+                  icon: Icon(extraAction.icon, size: 18),
+                  label: Text(
+                    extraAction.label,
+                    style: const TextStyle(
+                      fontFamily: 'Onest',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      fontVariations: [FontVariation('wght', 700)],
+                    ),
+                  ),
+                  style: FilledButton.styleFrom(padding: EdgeInsets.zero),
+                ),
+              ),
+            ],
+          ],
+          if (!locked && _canPinWidgets) ...[
             const SizedBox(height: 14),
             SizedBox(
               width: double.infinity,

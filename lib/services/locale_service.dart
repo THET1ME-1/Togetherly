@@ -1565,6 +1565,7 @@ abstract class AppStrings {
   /// Виджет «Вместе» из нового каталога.
   String get tgTogetherTitle;
   String get tgTogetherSubtitle;
+  String get tgNoteWrite;
   String get tgNoteTitle;
   String get tgNoteSubtitle;
   String get tgNotePaperTitle;

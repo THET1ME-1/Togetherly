@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:app_links/app_links.dart';
+import 'package:flutter/services.dart';
+
+import 'system_route_link.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Сервис для обработки deep links
@@ -58,8 +61,24 @@ class DeepLinkService {
     return u;
   }
 
+  /// Ссылки, приходящие системным каналом маршрутов.
+  ///
+  /// Нужны айфону: приложение живёт на сценах, и при запуске по ссылке она
+  /// уходит в `scene:willConnectTo:`, мимо `launchOptions`, куда смотрит
+  /// `app_links`. Тап по виджету с закрытого приложения не давал ничего —
+  /// «не открывается виджет на рабочем столе» (21.08.2026). Flutter такую
+  /// ссылку кладёт в `flutter/navigation`, отсюда и забираем.
+  void _listenSystemRoutes() {
+    SystemChannels.navigation.setMethodCallHandler((call) async {
+      final uri = uriFromRoute(call.arguments);
+      if (uri != null) _handleUri(uri);
+      return null;
+    });
+  }
+
   /// Инициализация — проверяем начальную ссылку и слушаем новые
   Future<void> init() async {
+    _listenSystemRoutes();
     try {
       // Проверяем начальную ссылку (если приложение открыто из ссылки)
       final initialUri = await _appLinks.getInitialLink();

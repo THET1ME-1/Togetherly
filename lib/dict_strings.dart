@@ -2322,6 +2322,7 @@ abstract class DictStrings extends AppStrings {
   @override
   String get tgTogetherSubtitle => _t('tgTogetherSubtitle');
   @override
+  String get tgNoteWrite => _t('tgNoteWrite');
   String get tgNoteTitle => _t('tgNoteTitle');
   @override
   String get tgNoteSubtitle => _t('tgNoteSubtitle');

@@ -724,6 +724,15 @@ const Map<String, Map<String, String>> chatStrings = {
     'fr': 'Jours ensemble et prochaine date ronde',
     'de': 'Tage zusammen und der nächste runde Tag',
   },
+  'tgNoteWrite': {
+    'ru': 'Написать заметку',
+    'en': 'Write a note',
+    'pt': 'Escrever um recado',
+    'it': 'Scrivi un biglietto',
+    'es': 'Escribir una nota',
+    'fr': 'Écrire un mot',
+    'de': 'Notiz schreiben',
+  },
   'tgNoteTitle': {
     'ru': 'Заметка',
     'en': 'Note',
