@@ -779,6 +779,11 @@ abstract class AppStrings {
   String get failedToShareDrawing;
   String get strokeThickness;
   String get moodVesselTitle;
+  String get vesselLegendMood;
+  String get vesselLegendChat;
+  String get vesselLegendMemory;
+  String get moodVesselTitleWeek;
+  String get moodVesselTitleYear;
   String get moodVesselGrid;
   String get moodVesselMode;
   String moodVesselCount(int filled, int total);
@@ -815,6 +820,8 @@ abstract class AppStrings {
   List<String> get reflectionQuestions;
 
   // ── Draw Gallery / Canvas ──
+  String get selectTool;
+  String get selectToolHint;
   String get palmTool;
   String get drawingMode;
   String get newCanvas;

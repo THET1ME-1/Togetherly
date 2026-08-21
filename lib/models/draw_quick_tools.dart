@@ -11,6 +11,7 @@ enum DrawQuickTool {
   layers,
   image,
   palm,
+  select,
   background,
   clear,
   replay,

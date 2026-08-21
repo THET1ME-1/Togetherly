@@ -52,6 +52,8 @@ import '../models/draw_layout.dart';
 import '../models/draw_quick_tools.dart';
 import 'draw_replay_screen.dart';
 import '../widgets/draw/stroke_painting.dart';
+import '../models/canvas_undo.dart';
+import '../models/stroke_transform.dart';
 import '../utils/quick_shape.dart';
 import '../utils/stroke_stabilizer.dart';
 import '../widgets/storage_image.dart';
@@ -236,6 +238,14 @@ class _DrawScreenState extends State<DrawScreen>
 
   final List<String> _myStrokeIds = [];
   final List<DrawStroke> _redoStack = [];
+
+  /// Сквозная шкала действий холста. Нарисованные штрихи и правки формы лежат
+  /// в разных стеках, а кнопка «отменить» одна: по этим номерам она понимает,
+  /// что случилось позже (правило — `undoTakesEdit`).
+  int _actionSeq = 0;
+  final Map<String, int> _strokeSeq = {};
+  final List<_ShapeEdit> _shapeEdits = [];
+  final List<_ShapeEdit> _shapeRedos = [];
   final Map<String, DrawStroke> _pendingLocalStrokes = {};
   final Set<String> _cancelledPendingStrokeIds = {};
   final Map<String, DrawStroke> _partnerLiveMap = {};
@@ -382,6 +392,39 @@ class _DrawScreenState extends State<DrawScreen>
 
   // ── Image tool ────────────────────────────────────────────────────────────
   String? _selectedImageId;
+
+  // ── Векторная правка ──────────────────────────────────────────────────
+  /// Что сейчас выделено инструментом «Выделение».
+  ///
+  /// Правится КОПИЯ: пока палец ведёт, экран показывает изменённый штрих, а на
+  /// сервер уходит одна правка по отпусканию. Иначе partner получал бы поток
+  /// патчей на каждое движение — то же, из-за чего живой мазок ездит
+  /// приростами, а не целиком.
+  String? _selectedStrokeId;
+
+  /// Штрих на момент начала жеста — от него считаются сдвиг, масштаб, поворот.
+  DrawStroke? _selectBase;
+
+  /// Точка холста, где палец взялся за выделенное.
+  Offset _selectStartPx = Offset.zero;
+
+  /// За какую ручку рамки тянут. null — тянут саму фигуру.
+  StrokeHandle? _selectHandle;
+
+  /// Правка ушла на сервер? Пока нет — по отпусканию отправим.
+  bool _selectDirty = false;
+
+  /// Как фигура выглядела до жеста — это и вернёт отмена.
+  List<DrawPoint>? _selectPointsBefore;
+
+  /// Палец на ручке поворота: угол считаем от середины фигуры.
+  bool _selectRotating = false;
+  double _selectStartAngle = 0;
+
+  /// Канал рамки: painter слушает его напрямую, поэтому ведение пальцем не
+  /// пересобирает дерево виджетов — та же причина, по которой состав рисунка
+  /// уезжает каналом, а не через setState.
+  final ValueNotifier<DrawStroke?> _selectionNotifier = ValueNotifier(null);
   DrawStroke? _imgDragBase;
   Offset _imgDragStartPx = Offset.zero;
   double _imgScaleBaseW = 0.5;
@@ -490,8 +533,14 @@ class _DrawScreenState extends State<DrawScreen>
     }
   }
 
-  bool get _canUndo => _myStrokeIds.isNotEmpty;
-  bool get _canRedo => _redoStack.isNotEmpty;
+  bool get _canUndo => _myStrokeIds.isNotEmpty || _shapeEdits.isNotEmpty;
+  bool get _canRedo => _redoStack.isNotEmpty || _shapeRedos.isNotEmpty;
+
+  /// Штрих нарисовал я — значит его можно отменить. Номер по общей шкале.
+  void _noteMyStroke(String id) {
+    _myStrokeIds.add(id);
+    _strokeSeq[id] = ++_actionSeq;
+  }
 
   /// Сглаживание текущего мазка. Заводится на каждый мазок заново: у него своя
   /// память о том, где сейчас точка и где палец.
@@ -697,6 +746,7 @@ class _DrawScreenState extends State<DrawScreen>
     _staleTimer?.cancel();
     _hintTimer?.cancel();
     _quickShapeTimer?.cancel();
+    _selectionNotifier.dispose();
     _toolbarAnim.dispose();
     _pulseAnim.dispose();
     _resetCtrl?.dispose();
@@ -756,6 +806,18 @@ class _DrawScreenState extends State<DrawScreen>
     final idx = members.indexWhere((m) => m.uid == uid);
     if (idx < 0) return _kUserColors.first;
     return _kUserColors[idx % _kUserColors.length];
+  }
+
+  /// Первое знакомство с выделением: что вообще надо сделать пальцем.
+  ///
+  /// Инструмент ничего не рисует, и без объяснения он выглядит сломанным —
+  /// человек водит по холсту, а следа нет.
+  Future<void> _maybeShowSelectHint() async {
+    final p = await SharedPreferences.getInstance();
+    if (p.getBool(UiPrefs.kSelectToolHintSeen) ?? false) return;
+    await p.setBool(UiPrefs.kSelectToolHintSeen, true);
+    if (!mounted) return;
+    _showMessage(LocaleService.current.selectToolHint);
   }
 
   //  Snackbar
@@ -1107,6 +1169,12 @@ class _DrawScreenState extends State<DrawScreen>
     setState(() {
       _activeTool = tool;
       if (tool != DrawTool.image) _selectedImageId = null;
+      if (tool != DrawTool.select) {
+        _selectedStrokeId = null;
+        _selectBase = null;
+        _selectHandle = null;
+        _selectionNotifier.value = null;
+      }
     });
     if (_showHint) setState(() => _showHint = false);
   }
@@ -1556,6 +1624,12 @@ class _DrawScreenState extends State<DrawScreen>
       return;
     }
 
+    // Выделение: взяли фигуру или ручку рамки.
+    if (_activeTool == DrawTool.select) {
+      _beginSelectionGesture(event.localPosition);
+      return;
+    }
+
     // Image tool
     if (_activeTool == DrawTool.image) {
       final hit = _findImageAt(event.localPosition);
@@ -1597,6 +1671,12 @@ class _DrawScreenState extends State<DrawScreen>
       return;
     }
 
+    // Ведём выделенное: саму фигуру или её край.
+    if (_activeTool == DrawTool.select && _selectBase != null) {
+      _dragSelection(event.localPosition);
+      return;
+    }
+
     // Image drag
     if (_activeTool == DrawTool.image &&
         _imgDragBase != null &&
@@ -1607,7 +1687,7 @@ class _DrawScreenState extends State<DrawScreen>
       final newX = (_imgDragBase!.imageX ?? 0.5) + delta.dx / _canvasSize.width;
       final newY =
           (_imgDragBase!.imageY ?? 0.5) + delta.dy / _canvasSize.height;
-      _applyImageUpdate(_copyImageStroke(_imgDragBase!, x: newX, y: newY));
+      _applyStrokeUpdate(_copyImageStroke(_imgDragBase!, x: newX, y: newY));
       return;
     }
 
@@ -1646,6 +1726,12 @@ class _DrawScreenState extends State<DrawScreen>
     }
     final wasDrawing = _drawingPointerId == event.pointer;
     _activePointers.remove(event.pointer);
+
+    // Правка фигуры уходит одним запросом — по отпусканию, а не на каждое
+    // движение пальца.
+    if (_activeTool == DrawTool.select && _activePointers.isEmpty) {
+      unawaited(_commitSelection());
+    }
 
     // Заливка ждала до этого момента: теперь видно, был ли это тап одним
     // пальцем или человек сводил пальцы, чтобы приблизить картинку.
@@ -1715,6 +1801,15 @@ class _DrawScreenState extends State<DrawScreen>
   void _onScaleStart(ScaleStartDetails details) {
     if (_eyedropperArmed) return;
     if (details.pointerCount < 2) return;
+    // Два пальца при выделенной фигуре крутят и тянут ЕЁ, а не лист: человек
+    // взялся за фигуру, и щипок над ней про неё.
+    if (_activeTool == DrawTool.select && _selectedStroke != null) {
+      _rememberShapeBefore(_selectedStroke!);
+      _selectBase = _selectedStroke;
+      _selectHandle = null;
+      _isZooming = true;
+      return;
+    }
     _isZooming = true;
     _pinchPaused = false;
     _rotationUnlocked = false;
@@ -1738,6 +1833,10 @@ class _DrawScreenState extends State<DrawScreen>
 
   void _onScaleUpdate(ScaleUpdateDetails details) {
     if (_eyedropperArmed) return;
+    if (_activeTool == DrawTool.select && _selectBase != null) {
+      _pinchSelection(details);
+      return;
+    }
     if (!_isZooming && details.pointerCount < 2) return;
     _isZooming = true;
     // Щипок состоялся — тап отмены отменяется сам: сведённые на процент
@@ -1775,7 +1874,7 @@ class _DrawScreenState extends State<DrawScreen>
       final newW = (_imgScaleBaseW * details.scale).clamp(0.05, 2.0);
       final newH = (_imgScaleBaseH * details.scale).clamp(0.05, 2.0);
       final newRot = _imgScaleBaseRot + details.rotation;
-      _applyImageUpdate(
+      _applyStrokeUpdate(
         _copyImageStroke(_imgDragBase!, w: newW, h: newH, rot: newRot),
       );
       return;
@@ -1814,6 +1913,9 @@ class _DrawScreenState extends State<DrawScreen>
   void _onScaleEnd(ScaleEndDetails _) {
     _isZooming = false;
     _pinchPaused = false;
+    if (_activeTool == DrawTool.select) {
+      unawaited(_commitSelection());
+    }
     // Sync image transform to Firestore after pinch ends
     if (_activeTool == DrawTool.image && _imgDragBase != null) {
       final img = _findImageById(_selectedImageId ?? '');
@@ -1920,7 +2022,219 @@ class _DrawScreenState extends State<DrawScreen>
     imageRotation: rot ?? s.imageRotation,
   );
 
-  void _applyImageUpdate(DrawStroke updated) {
+  /// Показать правленый штрих на холсте: и свой неотправленный, и приехавший с
+  /// сервера, и одиночный. Имя было `_applyImageUpdate`, хотя картинок метод
+  /// не касается — теперь через него идёт и векторная правка.
+  // ── Векторная правка: взять, вести, отпустить ─────────────────────────
+
+  /// Щипок над выделенной фигурой: масштаб и поворот сразу, как в любом
+  /// редакторе. Считаем от состояния на начало жеста, а не накапливаем —
+  /// накопление дрожит и уводит фигуру.
+  void _pinchSelection(ScaleUpdateDetails details) {
+    final base = _selectBase;
+    if (base == null || _canvasSize.isEmpty) return;
+    var updated = base;
+    if ((details.scale - 1).abs() > 0.005) {
+      updated = scaleStroke(updated, details.scale, _canvasSize);
+    }
+    if (details.rotation.abs() > 0.005) {
+      updated = rotateStroke(updated, details.rotation, _canvasSize);
+    }
+    if (identical(updated, base)) return;
+    _selectDirty = true;
+    _applyStrokeUpdate(updated);
+  }
+
+
+  DrawStroke? get _selectedStroke {
+    final id = _selectedStrokeId;
+    if (id == null) return null;
+    for (final s in _visibleStrokes) {
+      if (s.id == id) return s;
+    }
+    return null;
+  }
+
+  /// Прикосновение при активном «Выделении».
+  ///
+  /// Сначала пробуем ручки уже выделенной рамки — иначе за край мелкой фигуры
+  /// не взяться: палец попадает и в ручку, и в саму фигуру, и она просто
+  /// уезжает вместо растягивания.
+  void _beginSelectionGesture(Offset screenPoint) {
+    if (_canvasSize.isEmpty) return;
+    final canvasPoint = _screenToCanvas(screenPoint);
+
+    final current = _selectedStroke;
+    if (current != null) {
+      final spin = strokeBounds(current, _canvasSize)
+          .inflate(kSelectionPad)
+          .topCenter
+          .translate(0, -kSelectionSpinGap);
+      if ((spin - canvasPoint).distance <= 22 / _scale) {
+        _rememberShapeBefore(current);
+        setState(() {
+          _selectRotating = true;
+          _selectHandle = null;
+          _selectBase = current;
+          _selectStartPx = canvasPoint;
+          _selectStartAngle = _angleAround(current, canvasPoint);
+        });
+        return;
+      }
+      final handle = _handleAt(current, canvasPoint);
+      if (handle != null) {
+        _rememberShapeBefore(current);
+        setState(() {
+          _selectHandle = handle;
+          _selectBase = current;
+          _selectStartPx = canvasPoint;
+        });
+        return;
+      }
+    }
+
+    // Картинки правит инструмент «Фото» — со своей рамкой и своими полями
+    // положения; ластик формы не имеет вовсе.
+    final hit = strokeAtPoint(
+      _visibleStrokes
+          .where((s) => !s.isEraser && !s.isImageStroke)
+          .toList(),
+      canvasPoint,
+      _canvasSize,
+      tolerance: 18 / _scale,
+    );
+    if (hit != null) _rememberShapeBefore(hit);
+    setState(() {
+      _selectRotating = false;
+      _selectedStrokeId = hit?.id;
+      _selectBase = hit;
+      _selectHandle = null;
+      _selectStartPx = canvasPoint;
+    });
+    _selectionNotifier.value = hit;
+  }
+
+  /// Форма до начала жеста. Второй раз за один жест не перезаписываем: щипок
+  /// приходит поверх уже начатого касания, и отмена вернула бы фигуру не туда,
+  /// откуда её повели, а в середину движения.
+  void _rememberShapeBefore(DrawStroke stroke) {
+    if (_selectDirty) return;
+    _selectPointsBefore = List<DrawPoint>.unmodifiable(stroke.points);
+  }
+
+  /// Ручка рамки под пальцем. Размер зоны делим на масштаб холста: на
+  /// приближенном листе ручка не должна становиться размером с ладонь.
+  StrokeHandle? _handleAt(DrawStroke stroke, Offset canvasPoint) {
+    final b = strokeBounds(stroke, _canvasSize).inflate(kSelectionPad);
+    final grab = 22 / _scale;
+    final spots = <StrokeHandle, Offset>{
+      StrokeHandle.topLeft: b.topLeft,
+      StrokeHandle.topRight: b.topRight,
+      StrokeHandle.bottomLeft: b.bottomLeft,
+      StrokeHandle.bottomRight: b.bottomRight,
+      StrokeHandle.left: Offset(b.left, b.center.dy),
+      StrokeHandle.right: Offset(b.right, b.center.dy),
+      StrokeHandle.top: Offset(b.center.dx, b.top),
+      StrokeHandle.bottom: Offset(b.center.dx, b.bottom),
+    };
+    for (final e in spots.entries) {
+      if ((e.value - canvasPoint).distance <= grab) return e.key;
+    }
+    return null;
+  }
+
+  /// Угол от середины фигуры до точки — им меряется поворот ручкой.
+  double _angleAround(DrawStroke stroke, Offset canvasPoint) {
+    final c = strokeBounds(stroke, _canvasSize).center;
+    return math.atan2(canvasPoint.dy - c.dy, canvasPoint.dx - c.dx);
+  }
+
+  void _dragSelection(Offset screenPoint) {
+    final base = _selectBase;
+    if (base == null || _canvasSize.isEmpty) return;
+    final point = _screenToCanvas(screenPoint);
+    if (_selectRotating) {
+      _selectDirty = true;
+      _applyStrokeUpdate(rotateStroke(
+        base,
+        _angleAround(base, point) - _selectStartAngle,
+        _canvasSize,
+      ));
+      return;
+    }
+    final delta = point - _selectStartPx;
+    final handle = _selectHandle;
+    final updated = handle == null
+        ? moveStroke(base, delta, _canvasSize)
+        : stretchStroke(base,
+            handle: handle, delta: delta, canvas: _canvasSize);
+    _selectDirty = true;
+    _applyStrokeUpdate(updated);
+  }
+
+  /// Отпустили — отправляем ОДНУ правку. Пока палец вёл, партнёру не уходило
+  /// ничего: поток патчей на каждое движение положил бы и сеть, и очередь.
+  Future<void> _commitSelection() async {
+    if (!_selectDirty) return;
+    _selectDirty = false;
+    final stroke = _selectedStroke;
+    final before = _selectPointsBefore;
+    _selectPointsBefore = null;
+    _selectRotating = false;
+    // Правка попадает в отмену целиком, одной записью: человек вёл фигуру
+    // одним движением, и снимать это надо тоже одним нажатием.
+    if (stroke != null && before != null) {
+      _shapeRedos.clear();
+      _shapeEdits.add(_ShapeEdit(
+        id: stroke.id,
+        before: before,
+        after: List<DrawPoint>.unmodifiable(stroke.points),
+        seq: ++_actionSeq,
+      ));
+      _syncCanvasChrome();
+    }
+    _selectBase = stroke;
+    _selectHandle = null;
+    if (stroke == null) return;
+    if (!_hasSharedCanvas) {
+      // Свой холст живёт на диске: без этого подвинутая фигура возвращалась бы
+      // на прежнее место при следующем заходе.
+      _saveSoloStrokes();
+      return;
+    }
+    if (_pendingLocalStrokes.containsKey(stroke.id)) return; // ещё не на сервере
+    try {
+      await _canvas.patchStroke(stroke.id, {
+        'points': [for (final p in stroke.points) p.toMap()],
+      });
+    } catch (e) {
+      debugPrint('[Draw] не удалось сохранить правку фигуры: $e');
+    }
+  }
+
+  /// Вернуть фигуре прежние точки: локально и на сервере.
+  Future<void> _applyShapePoints(String id, List<DrawPoint> points) async {
+    final current = _visibleStrokes.where((s) => s.id == id).firstOrNull;
+    if (current == null) return;
+    _applyStrokeUpdate(strokeWithPoints(current, points));
+    if (!_hasSharedCanvas) {
+      _saveSoloStrokes();
+      return;
+    }
+    if (_pendingLocalStrokes.containsKey(id)) return;
+    try {
+      await _canvas.patchStroke(id, {
+        'points': [for (final p in points) p.toMap()],
+      });
+    } catch (e) {
+      debugPrint('[Draw] не удалось отменить правку фигуры: $e');
+    }
+  }
+
+  void _applyStrokeUpdate(DrawStroke updated) {
+    // Рамка обязана ехать вместе с фигурой: иначе она остаётся на прежнем
+    // месте, и человек тянет пустоту.
+    if (updated.id == _selectedStrokeId) _selectionNotifier.value = updated;
     final id = updated.id;
     if (_pendingLocalStrokes.containsKey(id)) {
       _pendingLocalStrokes[id] = updated;
@@ -2008,7 +2322,7 @@ class _DrawScreenState extends State<DrawScreen>
       _pendingLocalStrokes[id] = stroke;
       _visibleStrokes = _composeVisibleStrokes();
     });
-    _myStrokeIds.add(id);
+    _noteMyStroke(id);
     unawaited(_uploadImageAsync(id, xFile.path));
   }
 
@@ -2168,7 +2482,7 @@ class _DrawScreenState extends State<DrawScreen>
   void _submitStroke(DrawStroke stroke) {
     if (!_hasSharedCanvas) {
       _visibleStrokes = [..._visibleStrokes, stroke]..sort(_compareStrokes);
-      _myStrokeIds.add(stroke.id);
+      _noteMyStroke(stroke.id);
       _syncCanvasChrome();
       _saveSoloStrokes();
       return;
@@ -2176,7 +2490,7 @@ class _DrawScreenState extends State<DrawScreen>
 
     _pendingLocalStrokes[stroke.id] = stroke;
     _visibleStrokes = _composeVisibleStrokes();
-    _myStrokeIds.add(stroke.id);
+    _noteMyStroke(stroke.id);
     _syncCanvasChrome();
 
     _canvas
@@ -2210,6 +2524,17 @@ class _DrawScreenState extends State<DrawScreen>
   /// Отмена. Зеркальная пачка снимается целиком: для руки шесть лучей — один
   /// мазок, и шесть нажатий подряд читались бы как поломка кнопки.
   Future<void> _undo() async {
+    if (undoTakesEdit(
+      lastEditSeq: _shapeEdits.isEmpty ? null : _shapeEdits.last.seq,
+      lastStrokeSeq:
+          _myStrokeIds.isEmpty ? null : _strokeSeq[_myStrokeIds.last],
+    )) {
+      final edit = _shapeEdits.removeLast();
+      await _applyShapePoints(edit.id, edit.before);
+      _shapeRedos.add(edit);
+      _syncCanvasChrome();
+      return;
+    }
     if (_myStrokeIds.isEmpty) return;
     final undoKey = _myStrokeIds.removeLast();
     final group = _mirrorGroupOf[undoKey];
@@ -2243,6 +2568,15 @@ class _DrawScreenState extends State<DrawScreen>
 
     if (removed == null) return;
     _redoStack.add(removed);
+    _strokeSeq[removed.id] = ++_actionSeq;
+    // Правки удалённой фигуры отменять уже не на чем.
+    _shapeEdits.removeWhere((e) => e.id == undoKey);
+    _shapeRedos.removeWhere((e) => e.id == undoKey);
+    if (_selectedStrokeId == undoKey) {
+      _selectedStrokeId = null;
+      _selectBase = null;
+      _selectionNotifier.value = null;
+    }
 
     if (_hasSharedCanvas) {
       setState(() => _visibleStrokes = _composeVisibleStrokes());
@@ -2278,6 +2612,17 @@ class _DrawScreenState extends State<DrawScreen>
 
   /// Возврат. Зеркальная пачка возвращается так же целиком, как снималась.
   Future<void> _redo() async {
+    if (undoTakesEdit(
+      lastEditSeq: _shapeRedos.isEmpty ? null : _shapeRedos.last.seq,
+      lastStrokeSeq:
+          _redoStack.isEmpty ? null : _strokeSeq[_redoStack.last.id],
+    )) {
+      final edit = _shapeRedos.removeLast();
+      await _applyShapePoints(edit.id, edit.after);
+      _shapeEdits.add(edit);
+      _syncCanvasChrome();
+      return;
+    }
     if (_redoStack.isEmpty) return;
     final group = _mirrorGroupOf[_redoStack.last.id];
     await _redoOne();
@@ -2535,7 +2880,7 @@ class _DrawScreenState extends State<DrawScreen>
         _pendingLocalStrokes[id] = stroke;
         _visibleStrokes = _composeVisibleStrokes();
       });
-      _myStrokeIds.add(id);
+      _noteMyStroke(id);
       unawaited(_uploadImageAsync(id, file.path));
     } catch (e) {
       debugPrint('заливка не удалась: $e');
@@ -3658,6 +4003,7 @@ class _DrawScreenState extends State<DrawScreen>
                     RepaintBoundary(
                       key: _canvasKey,
                       child: _CanvasScene(
+                        selection: _selectionNotifier,
                         bgColor: _bgColor,
                         background: _background,
                         gridColor: _isPixel ? null : _sheetGridColor,
@@ -4143,6 +4489,7 @@ class _DrawScreenState extends State<DrawScreen>
         DrawQuickTool.layers: s.drawLayers,
         DrawQuickTool.image: s.addPhoto,
         DrawQuickTool.palm: s.palmTool,
+        DrawQuickTool.select: s.selectTool,
         DrawQuickTool.background: s.drawBackgrounds,
         DrawQuickTool.clear: s.clearCanvas,
         DrawQuickTool.replay: s.drawReplay,
@@ -4178,6 +4525,7 @@ class _DrawScreenState extends State<DrawScreen>
   /// кнопкой — на холсте важен не вид фигуры, а то, что рисуют не кистью.
   DrawQuickTool get _panelTool => switch (_activeTool) {
         DrawTool.palm => DrawQuickTool.palm,
+        DrawTool.select => DrawQuickTool.select,
         DrawTool.eraser => DrawQuickTool.eraser,
         DrawTool.fill => DrawQuickTool.fill,
         DrawTool.line ||
@@ -4205,6 +4553,9 @@ class _DrawScreenState extends State<DrawScreen>
         unawaited(_pickAndAddImage());
       case DrawQuickTool.palm:
         _selectTool(DrawTool.palm);
+      case DrawQuickTool.select:
+        _selectTool(DrawTool.select);
+        unawaited(_maybeShowSelectHint());
       case DrawQuickTool.background:
         _openBackgroundSheet();
       case DrawQuickTool.clear:
@@ -4984,6 +5335,9 @@ class _CanvasScene extends StatefulWidget {
   final DrawShapeType? currentShapeType;
   final ValueNotifier<List<DrawStroke>> partnerNotifier;
   final Size canvasSize;
+
+  /// Выделенная фигура — рамку рисует painter сцены.
+  final ValueListenable<DrawStroke?>? selection;
   final ValueNotifier<int> repaintNotifier;
   final String? selectedImageId;
 
@@ -5013,6 +5367,7 @@ class _CanvasScene extends StatefulWidget {
     required this.currentShapeType,
     required this.partnerNotifier,
     required this.canvasSize,
+    this.selection,
     required this.repaintNotifier,
     this.selectedImageId,
     this.coloringOutline,
@@ -5042,6 +5397,9 @@ class _CanvasSceneState extends State<_CanvasScene> {
       widget.repaintNotifier,
       widget.partnerNotifier,
       widget.strokes,
+      // Рамка выделения живёт своим каналом: она меняется на каждое движение
+      // пальца, а состав рисунка при этом не трогается.
+      if (widget.selection != null) widget.selection!,
     ]);
     _imageStrokes = _imagesOf(widget.strokes.value.list);
     widget.strokes.addListener(_onStrokes);
@@ -5077,13 +5435,18 @@ class _CanvasSceneState extends State<_CanvasScene> {
     super.didUpdateWidget(old);
     if (old.repaintNotifier != widget.repaintNotifier ||
         old.partnerNotifier != widget.partnerNotifier ||
+        old.selection != widget.selection ||
         old.strokes != widget.strokes) {
       old.strokes.removeListener(_onStrokes);
       widget.strokes.addListener(_onStrokes);
+      // Канал рамки повторяется и здесь: забудешь — выделение перестанет
+      // перерисовываться после первой же пересборки сцены, и фигура поедет
+      // без рамки.
       _repaint = Listenable.merge([
         widget.repaintNotifier,
         widget.partnerNotifier,
         widget.strokes,
+        if (widget.selection != null) widget.selection!,
       ]);
       _imageStrokes = _imagesOf(widget.strokes.value.list);
     }
@@ -5157,6 +5520,7 @@ class _CanvasSceneState extends State<_CanvasScene> {
                 currentShapeType: widget.currentShapeType,
                 partnerNotifier: widget.partnerNotifier,
                 canvasSize: widget.canvasSize,
+                selection: widget.selection,
                 repaint: _repaint,
               ),
             ),
@@ -5297,10 +5661,16 @@ class _DrawingPainter extends CustomPainter {
   /// Готовый слой закоммиченных штрихов (живёт в состоянии сцены).
   final StrokeLayerCache layer;
 
+  /// Что выделено инструментом «Выделение»: вокруг него рисуется рамка с
+  /// ручками. Рисуем её здесь, в координатах холста, — иначе рамка разъезжается
+  /// с рисунком при повороте и масштабе листа.
+  final ValueListenable<DrawStroke?>? selection;
+
 
   _DrawingPainter({
     required this.strokes,
     required this.layer,
+    this.selection,
     this.pixelCols,
     this.pixelRows,
     required this.currentPoints,
@@ -5315,6 +5685,49 @@ class _DrawingPainter extends CustomPainter {
     required this.canvasSize,
     required Listenable repaint,
   }) : super(repaint: repaint);
+
+  /// Рамка выделения: тонкий контур и восемь ручек по краям.
+  void _paintSelection(Canvas canvas, Size size) {
+    final stroke = selection?.value;
+    if (stroke == null || stroke.points.isEmpty) return;
+    final b = strokeBounds(stroke, size).inflate(kSelectionPad);
+
+    final frame = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..color = const Color(0xFF2F6BFF);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(b, const Radius.circular(4)),
+      frame,
+    );
+
+    final knob = Paint()..color = const Color(0xFFFFFFFF);
+    final knobEdge = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..color = const Color(0xFF2F6BFF);
+    for (final p in [
+      b.topLeft, b.topCenter, b.topRight,
+      b.centerLeft, b.centerRight,
+      b.bottomLeft, b.bottomCenter, b.bottomRight,
+    ]) {
+      canvas.drawCircle(p, 6, knob);
+      canvas.drawCircle(p, 6, knobEdge);
+    }
+
+    // Ручка поворота: кружок на ножке над рамкой со стрелкой по дуге внутри.
+    final spin = b.topCenter.translate(0, -kSelectionSpinGap);
+    canvas.drawLine(b.topCenter, spin.translate(0, 8), knobEdge);
+    canvas.drawCircle(spin, 8.5, knob);
+    canvas.drawCircle(spin, 8.5, knobEdge);
+    canvas.drawArc(
+      Rect.fromCircle(center: spin, radius: 4),
+      -math.pi * 0.85,
+      math.pi * 1.5,
+      false,
+      knobEdge,
+    );
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -5476,6 +5889,10 @@ class _DrawingPainter extends CustomPainter {
     }
 
     if (needsLayer) canvas.restore();
+
+    // Рамка рисуется ПОСЛЕ восстановления слоя: внутри него ластик съел бы и
+    // её вместе с краской.
+    _paintSelection(canvas, size);
   }
 
   /// Тонкие обёртки над общей отрисовкой (`widgets/draw/stroke_painting.dart`):
@@ -5491,7 +5908,12 @@ class _DrawingPainter extends CustomPainter {
     required bool isFilledShape,
   }) =>
       paintShape(canvas, points, colorValue, strokeWidth, shapeType, size,
-          alpha: alpha, isFilledShape: isFilledShape);
+          alpha: alpha,
+          isFilledShape: isFilledShape,
+          // Сетку передаём так же, как штрихам: без неё фигура рисовалась
+          // гладкой кривой поверх клеток пиксельного холста.
+          pixelCols: pixelCols,
+          pixelRows: pixelRows);
 
   void _drawStroke(
     Canvas canvas,
@@ -5518,4 +5940,25 @@ class _DrawingPainter extends CustomPainter {
       old.canvasSize != canvasSize ||
       old.pixelCols != pixelCols ||
       old.pixelRows != pixelRows;
+}
+
+/// Одна правка формы: что за фигура, как выглядела до жеста и после.
+///
+/// Хранится точками, а не готовым штрихом: за время между правкой и отменой
+/// у штриха мог смениться слой или цвет, и возвращать его целиком значило бы
+/// откатывать заодно и это.
+class _ShapeEdit {
+  const _ShapeEdit({
+    required this.id,
+    required this.before,
+    required this.after,
+    required this.seq,
+  });
+
+  final String id;
+  final List<DrawPoint> before;
+  final List<DrawPoint> after;
+
+  /// Номер по общей шкале действий холста.
+  final int seq;
 }

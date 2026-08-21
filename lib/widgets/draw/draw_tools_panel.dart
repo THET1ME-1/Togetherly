@@ -169,6 +169,7 @@ class DrawToolsSheet extends StatelessWidget {
     DrawQuickTool.layers: Icons.layers_rounded,
     DrawQuickTool.image: Icons.image_rounded,
     DrawQuickTool.palm: Icons.pan_tool_rounded,
+    DrawQuickTool.select: Icons.highlight_alt_rounded,
     DrawQuickTool.background: Icons.texture_rounded,
     DrawQuickTool.clear: Icons.delete_outline_rounded,
     DrawQuickTool.replay: Icons.play_circle_outline_rounded,
@@ -184,6 +185,7 @@ class DrawToolsSheet extends StatelessWidget {
     DrawQuickTool.layers,
     DrawQuickTool.image,
     DrawQuickTool.palm,
+    DrawQuickTool.select,
   };
 
   @override

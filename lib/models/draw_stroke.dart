@@ -2,7 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:pocketbase/pocketbase.dart';
 
 /// Tools available in the drawing canvas.
-enum DrawTool { brush, eraser, fill, image, line, rect, circle, triangle, palm }
+/// `select` — векторная правка: выделить нарисованное и двигать, крутить,
+/// растягивать. Стоит последним, чтобы не сдвинуть порядок прежних значений:
+/// инструмент сохраняется в настройках числом.
+enum DrawTool {
+  brush,
+  eraser,
+  fill,
+  image,
+  line,
+  rect,
+  circle,
+  triangle,
+  palm,
+  select,
+}
 
 /// Geometric shape types for shape-drawing tools.
 enum DrawShapeType { line, rect, circle, triangle }

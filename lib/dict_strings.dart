@@ -1202,6 +1202,16 @@ abstract class DictStrings extends AppStrings {
   @override
   String get strokeThickness => _t('strokeThickness');
   String get moodVesselTitle => _t('moodVesselTitle');
+  @override
+  String get vesselLegendMood => _t('vesselLegendMood');
+  @override
+  String get vesselLegendChat => _t('vesselLegendChat');
+  @override
+  String get vesselLegendMemory => _t('vesselLegendMemory');
+  @override
+  String get moodVesselTitleWeek => _t('moodVesselTitleWeek');
+  @override
+  String get moodVesselTitleYear => _t('moodVesselTitleYear');
   String get moodVesselGrid => _t('moodVesselGrid');
   String get moodVesselMode => _t('moodVesselMode');
   String moodVesselCount(int filled, int total) => '$filled / $total';
@@ -1244,6 +1254,8 @@ abstract class DictStrings extends AppStrings {
   @override
   String get audio => _t('audio');
   @override
+  String get selectTool => _t('selectTool');
+  String get selectToolHint => _t('selectToolHint');
   String get palmTool => _t('palmTool');
   @override
   String get drawingMode => _t('drawingMode');

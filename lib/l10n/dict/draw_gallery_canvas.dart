@@ -6,6 +6,24 @@
 // на экране не бывает.
 
 const Map<String, Map<String, String>> drawGalleryCanvasStrings = {
+  'selectTool': {
+    'ru': 'Выделение',
+    'en': 'Select',
+    'pt': 'Seleção',
+    'it': 'Selezione',
+    'es': 'Selección',
+    'fr': 'Sélection',
+    'de': 'Auswahl',
+  },
+  'selectToolHint': {
+    'ru': 'Коснитесь фигуры, чтобы двигать её и менять размер',
+    'en': 'Tap a shape to move and resize it',
+    'pt': 'Toque numa forma para mover e redimensionar',
+    'it': 'Tocca una forma per spostarla e ridimensionarla',
+    'es': 'Toca una figura para moverla y cambiar su tamaño',
+    'fr': 'Touchez une forme pour la déplacer et la redimensionner',
+    'de': 'Tippe eine Form an, um sie zu bewegen und zu skalieren',
+  },
   'palmTool': {
     'ru': 'Ладонь',
     'en': 'Palm',
