@@ -948,6 +948,11 @@ async def _after_create(col: str, rec: dict) -> None:
             rec.get("group_id") or "", rec.get("user_uid") or "",
             "Настроение партнёра",
             f"Сегодня: {label}" if label else "Партнёр отметил настроение", "mood")
+        # И тихий пуш «обнови виджеты»: на iPhone у виджетов своего фонового
+        # обновления нет, и настроение партнёра на рабочем столе застывало до
+        # следующего открытия приложения — «виджеты не обновляются под
+        # настроение, только уведомления» (жалоба 20.08.2026).
+        await _wake_group(rec.get("group_id") or "", rec.get("user_uid") or "")
 
 
 async def _after_update(col: str, rec: dict) -> None:
@@ -985,6 +990,10 @@ async def _after_update(col: str, rec: dict) -> None:
         f"Сегодня: {label}" if label else "Партнёр отметил настроение", "mood")
     if ушло:
         _отметить_miss("mood:" + group_id, теперь_мс)
+    # Виджет обновляем даже когда баннер придержал антидребезг: человек
+    # перебирает эмоции подряд, а на рабочем столе должна остаться последняя.
+    # Частоту тихих пушей держит сам _wake_group.
+    await _wake_group(group_id, rec.get("user_uid") or "")
 
 
 def _after_delete(col: str, rec: dict) -> None:

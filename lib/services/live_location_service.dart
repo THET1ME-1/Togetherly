@@ -5,6 +5,8 @@ import 'package:flutter/widgets.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../models/live_location_tuning.dart';
 import 'locale_service.dart';
 import 'centrifugo_service.dart';
 import 'pb_data_service.dart';
@@ -49,7 +51,7 @@ class LivePoint {
 /// `live_location`): свою позицию пишем стримом геолокатора (фоновый
 /// foreground-service на Android, background updates на iOS), позицию партнёра —
 /// слушаем live-подпиской PB.
-class LiveLocationService {
+class LiveLocationService with WidgetsBindingObserver {
   LiveLocationService._();
   static final LiveLocationService instance = LiveLocationService._();
 
@@ -72,6 +74,11 @@ class LiveLocationService {
 
   StreamSubscription<Position>? _posSub;
   String? _activePairId;
+
+  /// С каким профилем сейчас крутится поток. По нему видно, что пора
+  /// перезапуститься: экономный профиль в фоне и точный на экране.
+  bool? _streamForeground;
+  bool _observing = false;
 
   /// Включён ли шеринг (персистентно, между запусками). UI слушает этот флаг.
   final ValueNotifier<bool> sharingEnabled = ValueNotifier<bool>(false);
@@ -205,6 +212,8 @@ class LiveLocationService {
     // Немедленный первый фикс, чтобы партнёр сразу увидел точку.
     unawaited(_pushCurrent(channel));
 
+    _watchLifecycle();
+    _streamForeground = _appInForeground();
     try {
       _posSub = Geolocator.getPositionStream(
         locationSettings: _locationSettings(),
@@ -221,6 +230,45 @@ class LiveLocationService {
   /// пользователь его раньше включал. Безопасно вызывать многократно.
   Future<void> resumeIfEnabled(String pairId, {String partnerUid = ''}) async {
     if (sharingEnabled.value) await startSharing(pairId, partnerUid: partnerUid);
+  }
+
+  void _watchLifecycle() {
+    if (_observing) return;
+    _observing = true;
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  /// Ушли с экрана — перезапускаем поток экономным профилем, вернулись —
+  /// точным. Настройки `getPositionStream` на лету не меняются, поэтому
+  /// именно перезапуск.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_posSub == null) return;
+    final foreground = _appInForeground();
+    if (_streamForeground == foreground) return;
+    final channel = _activePairId;
+    if (channel == null) return;
+    // На Android поток не трогаем ни в какую сторону: он живёт
+    // foreground-сервисом, и перезапуск заново показывает уведомление
+    // «Геопозиция включена» — на это и жаловались. Профиль там один.
+    if (Platform.isAndroid) return;
+    unawaited(_restartStream(channel, foreground));
+  }
+
+  Future<void> _restartStream(String channel, bool foreground) async {
+    await _cancelStream();
+    _activePairId = channel;
+    _streamForeground = foreground;
+    try {
+      _posSub = Geolocator.getPositionStream(
+        locationSettings: _locationSettings(),
+      ).listen(
+        (pos) => _push(channel, pos),
+        onError: (e) => debugPrint('live location stream error: $e'),
+      );
+    } catch (e) {
+      debugPrint('LiveLocationService: перезапуск потока не вышел: $e');
+    }
   }
 
   /// Приложение на переднем плане? Нужен, чтобы не стартовать location-FGS из
@@ -379,8 +427,16 @@ class LiveLocationService {
   // ── Настройки геолокации (фон) ────────────────────────────────────────────
 
   LocationSettings _locationSettings() {
-    const accuracy = LocationAccuracy.high;
-    const distanceFilter = 15; // метров — пишем только при заметном движении
+    // Профиль зависит от того, смотрит ли человек на экран: в фоне метку
+    // видят изредка, а GPS будится постоянно — отсюда и стрелка на iPhone, и
+    // уведомление на Android, и разряд батареи (три жалобы 21.08.2026).
+    final tune = liveLocationTuning(
+      foreground: _appInForeground(),
+      android: Platform.isAndroid,
+    );
+    final accuracy =
+        tune.highAccuracy ? LocationAccuracy.high : LocationAccuracy.medium;
+    final distanceFilter = tune.distanceFilter;
     if (Platform.isAndroid) {
       return AndroidSettings(
         accuracy: accuracy,
@@ -390,7 +446,7 @@ class LiveLocationService {
         foregroundNotificationConfig: ForegroundNotificationConfig(
           notificationTitle: LocaleService.current.liveLocationServiceTitle,
           notificationText: LocaleService.current.liveLocationServiceText,
-          enableWakeLock: true,
+          enableWakeLock: tune.wakeLock,
           setOngoing: false,
           // Та же монохромная иконка, что у всех уведомлений приложения
           // (FCM/локальные). Без неё geolocator ставит свой дефолт — отсюда
@@ -406,13 +462,16 @@ class LiveLocationService {
       return AppleSettings(
         accuracy: accuracy,
         distanceFilter: distanceFilter,
-        pauseLocationUpdatesAutomatically: false,
-        showBackgroundLocationIndicator: true,
+        pauseLocationUpdatesAutomatically: tune.pauseAutomatically,
+        // Индикатор система показывает сама, когда действительно берёт
+        // координаты в фоне. Принудительный показ держал стрелку в чужих
+        // приложениях круглые сутки.
+        showBackgroundLocationIndicator: tune.forceIndicator,
         allowBackgroundLocationUpdates: true,
         activityType: ActivityType.other,
       );
     }
-    return const LocationSettings(
+    return LocationSettings(
       accuracy: accuracy,
       distanceFilter: distanceFilter,
     );
