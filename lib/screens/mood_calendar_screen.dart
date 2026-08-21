@@ -16,6 +16,8 @@ import '../models/pair_data.dart';
 import '../models/user_data.dart';
 import '../services/cycle_service.dart';
 import '../services/locale_service.dart';
+import '../services/chat_service.dart';
+import '../services/memory_repository.dart';
 import '../services/mood_service.dart';
 import '../services/widget_service.dart';
 import '../theme/app_theme.dart';
@@ -68,6 +70,22 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
   /// это привычка, а не разовое любопытство.
   bool _vesselView = false;
   late DateTime _calAnchor;
+
+  /// Сколько воспоминаний легло в каждый день — для сосуда.
+  ///
+  /// Сосуд считает события пары, а не только настроения: вечер, с которого
+  /// осталась пачка снимков, — это ровно то, ради чего его смотрят.
+  Map<String, int> _memoryDays = const {};
+  StreamSubscription? _memoriesSub;
+
+  /// Дни, когда пара разговаривала в чате.
+  ///
+  /// Берём из истории сообщений, которая и так лежит на устройстве. Она не
+  /// бесконечная (кэш держит последние сотни), поэтому дальняя история в
+  /// сосуде разговоров не покажет — за неё отвечает серверный счёт, его
+  /// заводим отдельно.
+  Set<String> _chatDays = const {};
+  StreamSubscription? _chatSub;
   double _calendarScale = 1.0;
   double _baseScale = 1.0;
   bool _legendExpanded = false;
@@ -94,12 +112,47 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
     for (final p in _pair.partners) {
       _mood.listenToPartner(p.uid);
     }
+    _listenMemories();
+    _listenChat();
+  }
+
+  void _listenChat() {
+    final groupId = _pair.pairId;
+    if (groupId.isEmpty) return;
+    _chatSub = ChatService.instance
+        .watchMessages(groupId, limit: 500)
+        .listen((messages) {
+      final days = <String>{};
+      for (final m in messages) {
+        days.add(vesselDayKey(
+            DateTime.fromMillisecondsSinceEpoch(m.ts).toLocal()));
+      }
+      if (!mounted) return;
+      setState(() => _chatDays = days);
+    });
+  }
+
+  void _listenMemories() {
+    final groupId = _pair.pairId;
+    if (groupId.isEmpty) return;
+    _memoriesSub =
+        MemoryRepository.instance.watch(groupId).listen((memories) {
+      final byDay = <String, int>{};
+      for (final m in memories) {
+        final key = vesselDayKey(m.createdAt.toLocal());
+        byDay[key] = (byDay[key] ?? 0) + 1;
+      }
+      if (!mounted) return;
+      setState(() => _memoryDays = byDay);
+    });
   }
 
   @override
   void dispose() {
     _mood.removeListener(_onChanged);
     _cycle.removeListener(_onChanged);
+    _memoriesSub?.cancel();
+    _chatSub?.cancel();
     super.dispose();
   }
 
@@ -364,15 +417,15 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
   /// общий: он и отвечает на вопрос, сколько нас было друг у друга.
   Widget _buildVesselSection(ColorScheme scheme) {
     final s = LocaleService.current;
-    final month = DateTime(_calAnchor.year, _calAnchor.month);
-    final days = _vesselDaysFor(month);
+    // Сосуд слушается тех же «Неделя · Месяц · Год», что и сетка: раньше он
+    // молча рисовал месяц, какой бы период человек ни выбрал, и переключатель
+    // выглядел сломанным.
+    final days = _vesselDaysForPeriod();
     final filled = days.where((d) => !d.isEmpty).length;
     final both = days.where((d) => d.who == VesselWho.both).length;
     final gaps = vesselGaps(days);
-
-    final prev = DateTime(month.year, month.month - 1);
     final prevLevel = vesselHeight(
-      layoutVessel(_vesselDaysFor(prev), columns: _vesselColumns),
+      layoutVessel(_vesselDaysForPrevPeriod(), columns: _vesselColumns),
     );
 
     return Container(
@@ -389,7 +442,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
             children: [
               Expanded(
                 child: Text(
-                  s.moodVesselTitle,
+                  _vesselTitle(s),
                   style: AppFonts.unbounded(
                     size: 15,
                     weight: 700,
@@ -419,8 +472,40 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
             height: 320 * _calendarScale,
             previousLevel: prevLevel,
           ),
+          const SizedBox(height: 10),
+          // Без подписи значки читаются как украшение: человек видит камеру в
+          // блоке и не понимает, чем этот день отличается от соседнего.
+          Wrap(
+            spacing: 12,
+            runSpacing: 6,
+            children: [
+              _vesselLegend(scheme, Icons.mood_rounded, s.vesselLegendMood,
+                  scheme.primary),
+              _vesselLegend(scheme, Icons.chat_bubble_rounded,
+                  s.vesselLegendChat, scheme.secondary),
+              _vesselLegend(scheme, Icons.photo_camera_rounded,
+                  s.vesselLegendMemory, scheme.tertiary),
+              _vesselLegend(scheme, Icons.favorite_rounded,
+                  s.cycleLegendIntimacy, scheme.primary),
+            ],
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _vesselLegend(
+      ColorScheme scheme, IconData icon, String label, Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: color),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: AppFonts.onest(size: 11.5, color: scheme.onSurfaceVariant),
+        ),
+      ],
     );
   }
 
@@ -449,6 +534,80 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
     }
     return out;
   }
+
+  /// Заголовок называет период: «за неделю», «месяц», «год». Иначе на неделе
+  /// сверху продолжало стоять «Сосуд месяца», и цифры под ним читались как
+  /// ошибка.
+  String _vesselTitle(AppStrings s) => switch (_calMode) {
+        _CalMode.week => s.moodVesselTitleWeek,
+        _CalMode.month => s.moodVesselTitle,
+        _CalMode.year => s.moodVesselTitleYear,
+      };
+
+  /// Кладка за выбранный период.
+  List<VesselDay> _vesselDaysForPeriod() => switch (_calMode) {
+        _CalMode.year => buildVesselYear(
+            year: _calAnchor.year,
+            mineMoods: _moodColors(_mood.myEntries),
+            partnerMoods: _partnerMoodColors(),
+            myCycle: _cycle.mine,
+            partnerCycle: _cycle.partner,
+            memories: _memoryDays,
+            chatDays: _chatDays,
+          ),
+        _ => buildVesselRange(
+            from: _periodStart,
+            to: _periodEnd,
+            mineMoods: _moodColors(_mood.myEntries),
+            partnerMoods: _partnerMoodColors(),
+            myCycle: _cycle.mine,
+            partnerCycle: _cycle.partner,
+            memories: _memoryDays,
+            chatDays: _chatDays,
+          ),
+      };
+
+  /// Прошлый такой же период — пунктирная черта «обгони себя вчерашнего».
+  List<VesselDay> _vesselDaysForPrevPeriod() {
+    switch (_calMode) {
+      case _CalMode.week:
+        final from = _periodStart.subtract(const Duration(days: 7));
+        return buildVesselRange(
+          from: from,
+          to: from.add(const Duration(days: 6)),
+          mineMoods: _moodColors(_mood.myEntries),
+          partnerMoods: _partnerMoodColors(),
+          myCycle: _cycle.mine,
+          partnerCycle: _cycle.partner,
+          memories: _memoryDays,
+          chatDays: _chatDays,
+        );
+      case _CalMode.month:
+        return buildVesselDays(
+          month: DateTime(_calAnchor.year, _calAnchor.month - 1),
+          mineMoods: _moodColors(_mood.myEntries),
+          partnerMoods: _partnerMoodColors(),
+          myCycle: _cycle.mine,
+          partnerCycle: _cycle.partner,
+          memories: _memoryDays,
+          chatDays: _chatDays,
+        );
+      case _CalMode.year:
+        return buildVesselYear(
+          year: _calAnchor.year - 1,
+          mineMoods: _moodColors(_mood.myEntries),
+          partnerMoods: _partnerMoodColors(),
+          myCycle: _cycle.mine,
+          partnerCycle: _cycle.partner,
+          memories: _memoryDays,
+          chatDays: _chatDays,
+        );
+    }
+  }
+
+  Map<String, Color> _partnerMoodColors() => _moodColors([
+        for (final p in _pair.partners) ..._mood.partnerEntries(p.uid),
+      ]);
 
   List<VesselDay> _vesselDaysFor(DateTime month) => buildVesselDays(
         month: month,

@@ -69,29 +69,51 @@ class _MoodVesselState extends State<MoodVessel>
     final blocks = layoutVessel(widget.days, columns: widget.columns);
     final top = vesselHeight(blocks);
 
-    return LayoutBuilder(
-      builder: (context, box) {
-        const pad = 12.0;
-        const gap = 4.0;
-        final width = box.maxWidth - pad * 2;
-        final colWidth = (width - gap * (widget.columns - 1)) / widget.columns;
-        final inner = widget.height - pad * 2;
-        // Этаж сжимается, пока кладка не влезет: у плотного месяца этажей
-        // втрое больше, чем у пустого, а сосуд один и тот же.
-        final floor = top == 0
-            ? 26.0
-            : (inner / (top + 1)).clamp(13.0, 30.0).toDouble();
+    const pad = 12.0;
+    const gap = 4.0;
+    const border = 1.5;
 
-        return Container(
-          height: widget.height,
-          padding: const EdgeInsets.all(pad),
-          decoration: BoxDecoration(
-            color: cs.surfaceContainerLowest,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: cs.outlineVariant, width: 1.5),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Stack(
+    // Пустой месяц не должен выглядеть как поломка: при одиннадцати живых днях
+    // из тридцати одного сосуд на 320 точек стоял залитый пустотой на две
+    // трети. Высота идёт за кладкой, но не ниже той, где ещё видно пунктир
+    // прошлого периода.
+    // Черта прошлого периода тоже должна помещаться: без неё «обгони себя
+    // вчерашнего» превращается в пустое обещание — пунктир уезжал за крышку.
+    final needFloors = [top, widget.previousLevel ?? 0]
+        .reduce((a, b) => a > b ? a : b);
+    final wanted = needFloors == 0
+        ? 180.0
+        : (needFloors + 1) * 26.0 + pad * 2 + border * 2;
+    final height = wanted.clamp(160.0, widget.height);
+
+    return Container(
+      height: height,
+      padding: const EdgeInsets.all(pad),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: cs.outlineVariant, width: border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      // Ширину меряем ВНУТРИ рамки, а не снаружи: рамка и отступы забирают
+      // ещё три точки, и последний столбец кладки вылезал за край — блок
+      // правого ряда обрезался, и месяц выглядел собранным криво.
+      child: LayoutBuilder(
+        builder: (context, box) {
+          final width = box.maxWidth;
+          final colWidth =
+              (width - gap * (widget.columns - 1)) / widget.columns;
+          final inner = height - pad * 2 - border * 2;
+          // Этаж сжимается, пока кладка не влезет: у плотного месяца этажей
+          // втрое больше, чем у пустого, а сосуд один и тот же.
+          // Масштаб этажа считаем по тому, что должно поместиться: и кладка,
+          // и черта прошлого периода. По одной кладке черта уезжала за крышку
+          // ровно в тех месяцах, где она и интересна — когда прошлый выше.
+          final floor = needFloors == 0
+              ? 26.0
+              : (inner / (needFloors + 1)).clamp(13.0, 30.0).toDouble();
+
+          return Stack(
             children: [
               if (widget.previousLevel != null && widget.previousLevel! > 0)
                 Positioned(
@@ -101,11 +123,12 @@ class _MoodVesselState extends State<MoodVessel>
                   child: _PreviousLine(color: cs.primary),
                 ),
               for (var i = 0; i < blocks.length; i++)
-                _fallingBlock(blocks[i], i, blocks.length, colWidth, floor, gap, cs),
+                _fallingBlock(blocks[i], i, blocks.length, colWidth, floor,
+                    gap, cs, height),
             ],
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
@@ -117,8 +140,11 @@ class _MoodVesselState extends State<MoodVessel>
     double floor,
     double gap,
     ColorScheme cs,
+    // Высота самого сосуда: с неё блок и падает. Спутать её с высотой блока —
+    // значит уронить его на два сантиметра вместо целого сосуда.
+    double vesselHeight,
   ) {
-    final height = block.floors * floor - 2;
+    final blockHeight = block.floors * floor - 2;
     final start = total == 1 ? 0.0 : (index / total) * 0.7;
     final curve = CurvedAnimation(
       parent: _fall,
@@ -130,13 +156,13 @@ class _MoodVesselState extends State<MoodVessel>
       left: block.column * (colWidth + gap),
       bottom: block.bottom * floor,
       width: colWidth,
-      height: height,
+      height: blockHeight,
       child: AnimatedBuilder(
         animation: curve,
         builder: (context, child) {
           final t = curve.value;
           return Transform.translate(
-            offset: Offset(0, -(1 - t) * widget.height),
+            offset: Offset(0, -(1 - t) * vesselHeight),
             child: Opacity(opacity: t == 0 ? 0 : 1, child: child),
           );
         },
@@ -160,10 +186,19 @@ class _Block extends StatelessWidget {
     // Этаж красится тем, кто его положил: снизу своя отметка, над ней
     // партнёрская, сверху общая близость. Две краски в одном блоке — это и
     // есть «мы оба сегодня были», и читается оно без легенды.
-    final floors = <(IconData, Color)>[
-      if (day.mineMood != null) (Icons.mood_rounded, day.mineMood!),
-      if (day.partnerMood != null) (Icons.mood_rounded, day.partnerMood!),
-      if (day.intimacy) (Icons.favorite_rounded, cs.primary),
+    final floors = [
+      for (final kind in day.floorKinds)
+        switch (kind) {
+          VesselFloor.mine => (Icons.mood_rounded, day.mineMood ?? cs.primary),
+          VesselFloor.partner =>
+            (Icons.mood_rounded, day.partnerMood ?? cs.secondary),
+          // Разговор и воспоминания — такие же события дня, как настроение:
+          // без них сосуд отвечал только «отмечались ли мы», а спрашивают его
+          // про «сколько нас было друг у друга».
+          VesselFloor.chat => (Icons.chat_bubble_rounded, cs.secondary),
+          VesselFloor.memory => (Icons.photo_camera_rounded, cs.tertiary),
+          VesselFloor.intimacy => (Icons.favorite_rounded, cs.primary),
+        },
     ];
 
     return Semantics(

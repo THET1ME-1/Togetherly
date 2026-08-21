@@ -144,4 +144,90 @@ void main() {
       expect(days, hasLength(28));
     });
   });
+
+  group('период кладки', () {
+    test('неделя — семь блоков, а не весь месяц', () {
+      final days = buildVesselRange(
+        from: DateTime(2026, 7, 6),
+        to: DateTime(2026, 7, 12),
+        mineMoods: const {},
+        partnerMoods: const {},
+        myCycle: const [],
+        partnerCycle: const [],
+      );
+      expect(days.length, 7);
+      expect(days.first.date, DateTime(2026, 7, 6));
+      expect(days.last.date, DateTime(2026, 7, 12));
+    });
+
+    test('месяц — все его дни', () {
+      final days = buildVesselRange(
+        from: DateTime(2026, 7, 1),
+        to: DateTime(2026, 7, 31),
+        mineMoods: const {},
+        partnerMoods: const {},
+        myCycle: const [],
+        partnerCycle: const [],
+      );
+      expect(days.length, 31);
+    });
+
+    test('год — двенадцать блоков-месяцев, а не 365 дней', () {
+      final months = buildVesselYear(
+        year: 2026,
+        mineMoods: {
+          '2026-03-04': const Color(0xFFFF0000),
+          '2026-03-05': const Color(0xFFFF0000),
+        },
+        partnerMoods: const {},
+        myCycle: const [],
+        partnerCycle: const [],
+      );
+      expect(months.length, 12);
+      expect(months[2].date, DateTime(2026, 3));
+      expect(months[2].floors, greaterThan(0), reason: 'март пуст');
+      expect(months[0].floors, 0, reason: 'январь без отметок должен быть пуст');
+    });
+
+    test('в году высота месяца растёт с числом живых дней', () {
+      List<VesselDay> yearWith(int days) => buildVesselYear(
+            year: 2026,
+            mineMoods: {
+              for (var d = 1; d <= days; d++)
+                '2026-03-${d.toString().padLeft(2, '0')}':
+                    const Color(0xFFFF0000),
+            },
+            partnerMoods: const {},
+            myCycle: const [],
+            partnerCycle: const [],
+          );
+      expect(yearWith(20)[2].floors, greaterThan(yearWith(5)[2].floors));
+    });
+  });
+
+  group('события дня, кроме настроения', () {
+    test('воспоминание — свой этаж', () {
+      final plain = VesselDay(date: _day, memories: 0);
+      final withMemory = VesselDay(date: _day, memories: 1);
+      expect(withMemory.floors, plain.floors + 1);
+    });
+
+    test('десять воспоминаний за день не превращают блок в башню', () {
+      final many = VesselDay(date: _day, memories: 10);
+      expect(many.floors, lessThanOrEqualTo(3));
+    });
+
+    test('разговор в чате — свой этаж', () {
+      final silent = VesselDay(date: _day);
+      final talked = VesselDay(date: _day, chatted: true);
+      expect(talked.floors, silent.floors + 1);
+    });
+
+    test('день без единого события остаётся щербиной', () {
+      final empty = VesselDay(date: _day);
+      expect(empty.isEmpty, isTrue);
+    });
+  });
 }
+
+final _day = DateTime(2026, 7, 1);
