@@ -13,8 +13,8 @@
 
 import { albumDoneKey, albumPartKey, albumPrefix, isCollector, mergeAlbum } from "./album.js";
 import {
-  chatKey, closedMessage, closedSeenKey, isReplyComment, noteSeenKey,
-  replyMessage, SYNC_TOKEN_KEY,
+  chatKey, closedMessage, closedSeenKey, isMarked, isReplyComment, markDelivery,
+  noteSeenKey, replyMessage, SYNC_TOKEN_KEY,
 } from "./replies.js";
 
 const TODOIST_PROJECT_ID = "6ghRcQGgMJv3hwGH";
@@ -88,14 +88,39 @@ async function geminiAnalyze(text, apiKey) {
   }
 }
 
+/// Отправляет сообщение и говорит, дошло ли: по этому исходу бот помечает
+/// ответ в Todoist, чтобы человек не гадал.
 async function tgSend(env, chatId, text) {
   try {
-    await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    const res = await fetch(
+      `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
+      });
+    const json = await res.json().catch(() => null);
+    if (json?.ok) return { ok: true };
+    return { ok: false, reason: json?.description || `HTTP ${res.status}` };
+  } catch (err) {
+    console.error("sendMessage failed:", err);
+    return { ok: false, reason: String(err) };
+  }
+}
+
+/// Дописывает в комментарий исход отправки.
+async function markComment(env, noteId, content, outcome) {
+  const next = markDelivery(content, outcome);
+  if (next === content) return;
+  try {
+    await fetch(`https://api.todoist.com/api/v1/comments/${noteId}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${env.TODOIST_API_TOKEN}`,
+      },
+      body: JSON.stringify({ content: next }),
     });
-  } catch (err) { console.error("sendMessage failed:", err); }
+  } catch (err) { console.error("mark comment failed:", err); }
 }
 
 /// Что прислали: id файла и его тип. У фото берём последний размер — он самый
@@ -339,15 +364,27 @@ async function pollTodoist(env) {
 
   for (const note of data.notes || []) {
     if (note.is_deleted || !isReplyComment(note.content)) continue;
+    if (isMarked(note.content)) continue;
     const seen = noteSeenKey(note.id);
     if (await env.ALBUMS.get(seen)) continue;
+    await env.ALBUMS.put(seen, "1", { expirationTtl: 60 * 60 * 24 * 30 });
+
     const bound = await env.ALBUMS.get(chatKey(note.item_id));
-    if (!bound) continue;
+    if (!bound) {
+      // Обращения, заведённые до 21.08.2026, чата за собой не оставили —
+      // отвечать некуда, и лучше сказать это прямо в задаче.
+      await markComment(env, note.id, note.content, {
+        ok: false,
+        reason: "чат неизвестен, обращение старше 21.08.2026",
+      });
+      continue;
+    }
     const text = replyMessage(note.content);
     if (!text) continue;
-    await tgSend(env, JSON.parse(bound).chatId, text);
-    await env.ALBUMS.put(seen, "1", { expirationTtl: 60 * 60 * 24 * 30 });
-    console.log(`ответ ушёл по задаче ${note.item_id}`);
+    const outcome = await tgSend(env, JSON.parse(bound).chatId, text);
+    await markComment(env, note.id, note.content, outcome);
+    console.log(`ответ по задаче ${note.item_id}: ` +
+        (outcome.ok ? "доставлен" : `не дошёл (${outcome.reason})`));
   }
 
   for (const item of data.items || []) {

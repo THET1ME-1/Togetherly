@@ -44,3 +44,28 @@ export const chatKey = (taskId) => `chat:${taskId}`;
 export const noteSeenKey = (noteId) => `note:${noteId}`;
 export const closedSeenKey = (taskId) => `closed:${taskId}`;
 export const SYNC_TOKEN_KEY = "sync:token";
+
+/// Отметки бота в комментарии — по ним видно судьбу ответа, не выходя из
+/// задачи.
+export const SENT_MARK = "✅ Отправлено";
+export const FAILED_MARK = "⚠️ Не отправлено";
+
+/// Комментарий с отметкой о доставке.
+///
+/// Дописываем в конец, а не заменяем: текст ответа остаётся на месте, а строка
+/// снизу говорит, дошло ли. Повторно не помечаем — иначе каждый проход крона
+/// наращивал бы хвост.
+export function markDelivery(content, { ok, reason } = {}) {
+  const text = String(content ?? "").trimEnd();
+  if (text.includes(SENT_MARK) || text.includes(FAILED_MARK)) return text;
+  const note = ok
+      ? SENT_MARK
+      : `${FAILED_MARK}: ${String(reason || "неизвестно").trim()}`;
+  return `${text}\n\n${note}`;
+}
+
+/// Уже помечен?
+export const isMarked = (content) => {
+  const text = String(content ?? "");
+  return text.includes(SENT_MARK) || text.includes(FAILED_MARK);
+};

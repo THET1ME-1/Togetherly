@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  chatKey, closedMessage, closedSeenKey, isReplyComment, noteSeenKey,
-  replyBody, replyMessage,
+  chatKey, closedMessage, closedSeenKey, isMarked, isReplyComment, markDelivery,
+  noteSeenKey, replyBody, replyMessage, SENT_MARK,
 } from '../src/replies.js';
 
 // Ответ человеку пишется комментарием к задаче, первой строкой со знаком «>».
@@ -52,4 +52,32 @@ test('задача без названия всё равно даёт понят
 test('ключи KV не пересекаются между собой', () => {
   const keys = [chatKey('1'), noteSeenKey('1'), closedSeenKey('1')];
   assert.equal(new Set(keys).size, 3);
+});
+
+// Написав ответ, человек не должен гадать, дошёл ли он: бот дописывает исход
+// в тот же комментарий.
+
+test('доставленный ответ помечается', () => {
+  const marked = markDelivery('> Починили', { ok: true });
+  assert.ok(marked.startsWith('> Починили'));
+  assert.ok(marked.includes(SENT_MARK));
+});
+
+test('недоставленный называет причину', () => {
+  const marked = markDelivery('> Починили', { ok: false, reason: 'чат неизвестен' });
+  assert.ok(marked.includes('чат неизвестен'));
+});
+
+test('повторный проход не наращивает хвост', () => {
+  const once = markDelivery('> Починили', { ok: true });
+  assert.equal(markDelivery(once, { ok: true }), once);
+  assert.equal(isMarked(once), true);
+});
+
+test('без причины отказ всё равно понятен', () => {
+  assert.ok(markDelivery('> текст', { ok: false }).includes('Не отправлено'));
+});
+
+test('непомеченный комментарий виден как непомеченный', () => {
+  assert.equal(isMarked('> Починили'), false);
 });
