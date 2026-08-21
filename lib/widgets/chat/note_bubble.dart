@@ -38,6 +38,10 @@ class NoteBubble extends StatefulWidget {
   /// Автовоспроизведение при появлении в кадре.
   final bool autoplay;
 
+  /// Плеер подменяется в тестах: настоящий поднимает `VideoPlayerController`,
+  /// которого в тестовой среде нет.
+  final NotePlayer? player;
+
   const NoteBubble({
     super.key,
     required this.msg,
@@ -46,6 +50,7 @@ class NoteBubble extends StatefulWidget {
     required this.partnerReadTs,
     this.onOpenFull,
     this.autoplay = true,
+    this.player,
   });
 
   @override
@@ -53,7 +58,7 @@ class NoteBubble extends StatefulWidget {
 }
 
 class _NoteBubbleState extends State<NoteBubble> {
-  final NotePlayerService _player = NotePlayerService.instance;
+  late final NotePlayer _player = widget.player ?? NotePlayerService.instance;
 
   /// Фигурку уже смотрели. Отметка серверная (`note_seen_at`), ставит
   /// смотрящий — автору важно знать, что дошло до глаз.
@@ -319,7 +324,7 @@ class _NoteBubbleState extends State<NoteBubble> {
 class _NoteRing extends StatefulWidget {
   final NoteShape shape;
   final double size;
-  final NotePlayerService player;
+  final NotePlayer player;
   final String messageId;
   final bool playing;
   final bool unseen;
