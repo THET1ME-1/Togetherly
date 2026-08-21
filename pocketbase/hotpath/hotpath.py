@@ -48,12 +48,16 @@ import secrets
 import sqlite3
 import threading
 import time
+import subprocess
+import tempfile
+import shutil
 
 import asyncpg
 import httpx
 import uvicorn
 from fastapi import FastAPI, Request
-from fastapi.responses import ORJSONResponse, JSONResponse, Response
+from fastapi.responses import (ORJSONResponse, JSONResponse, Response,
+                               FileResponse)
 
 log = logging.getLogger("hotpath")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -1849,6 +1853,105 @@ async def daily_bonus(request: Request):
         if last and int(time.time() * 1000) - last < COOLDOWN_MS:
             return ORJSONResponse({"ok": False, "cooldown": True, "coins": coins})
     return await _proxy_to_pb("/api/coins/daily-bonus", request, {})
+
+
+# ── Сохранить фигурку на устройство ──────────────────────────────────────────
+
+# Готовим не больше двух роликов разом: ffmpeg на восьмиядерной машине ест
+# ядро целиком, а рядом живут чат и присутствие — их задерживать нельзя.
+_EXPORT_LIMIT = asyncio.Semaphore(2)
+_EXPORT_DIR = "/opt/pocketbase/pb_data/note_export"
+_EXPORT_TOOL = "/opt/pocketbase/tools/note_export.py"
+_EXPORT_PY = "/opt/pocketbase/tools/heicenv/bin/python3"
+_RCLONE = "/usr/local/bin/rclone"
+_BUCKET = "hk:b86d5542-togetherly-storage"
+_MEDIA_COLLECTION = "pbc_2708086759"
+
+
+def _export_build(msg_id: str, media_id: str, name: str, shape: str) -> str | None:
+    """Скачивает исходник, накладывает форму и подпись. Возвращает путь."""
+    os.makedirs(_EXPORT_DIR, exist_ok=True)
+    out = os.path.join(_EXPORT_DIR, f"{msg_id}_{shape}.mp4")
+    if os.path.exists(out) and os.path.getsize(out) > 0:
+        return out
+    tmp = tempfile.mkdtemp(prefix="noteexp_src_")
+    src = os.path.join(tmp, name)
+    try:
+        got = subprocess.run(
+            [_RCLONE, "copyto",
+             f"{_BUCKET}/{_MEDIA_COLLECTION}/{media_id}/{name}", src,
+             "--retries", "2", "--low-level-retries", "5"],
+            capture_output=True, timeout=120,
+        )
+        if got.returncode != 0 or not os.path.exists(src):
+            return None
+        res = subprocess.run(
+            [_EXPORT_PY, _EXPORT_TOOL, "--src", src, "--shape", shape, "--out", out],
+            capture_output=True, timeout=300,
+        )
+        if res.returncode != 0 or not os.path.exists(out):
+            return None
+        return out
+    except Exception:
+        return None
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+@app.get("/api/note/export")
+async def note_export(request: Request):
+    """Фигурка для сохранения в галерею: квадрат, форма внутри, подпись.
+
+    Telegram отдаёт свой кружок так же — видео остаётся круглым, а файл обычным
+    квадратным роликом. Готовит ffmpeg на сервере: тащить его в приложение
+    значит прибавить к сборке двенадцать мегабайт ради редкой кнопки.
+
+    Результат кладётся рядом и отдаётся повторно без пересчёта: второе
+    сохранение той же фигурки должно быть мгновенным.
+    """
+    try:
+        auth = await _auth(request)
+    except Exception:
+        return _err(429, "Try again later.")
+    if auth is None:
+        return _err(401, "The request requires valid record authorization token.")
+    _uid, groups = auth
+
+    msg_id = str(request.query_params.get("msg") or "").strip()
+    if not re.fullmatch(r"[A-Za-z0-9_]{1,32}", msg_id or ""):
+        return _err(400, "bad params")
+
+    async with pg.acquire() as c:
+        row = await c.fetchrow(
+            "SELECT group_id, note_url, note_shape FROM chat_messages WHERE id = $1",
+            msg_id,
+        )
+    if row is None:
+        return _err(404, "not found")
+    # Фигурка принадлежит паре, а не тому, кто знает её id.
+    if str(row["group_id"]) not in groups:
+        return _err(403, "not your message")
+
+    ref = str(row["note_url"] or "")
+    m = re.fullmatch(r"pb://media/([A-Za-z0-9_]+)/(.+)", ref)
+    if not m:
+        return _err(422, "not a shape note")
+    shape = str(row["note_shape"] or "circle")
+    if not re.fullmatch(r"[a-zA-Z0-9]{1,24}", shape):
+        shape = "circle"
+
+    async with _EXPORT_LIMIT:
+        path = await asyncio.to_thread(
+            _export_build, msg_id, m.group(1), m.group(2), shape
+        )
+    if not path:
+        return _err(500, "export failed")
+
+    return FileResponse(
+        path,
+        media_type="video/mp4",
+        filename=f"togetherly-{shape}-{msg_id}.mp4",
+    )
 
 
 @app.get("/internal/count")

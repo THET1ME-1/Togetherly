@@ -64,6 +64,27 @@ void main() {
     expect(guard, isNot(contains('note_shape')));
   });
 
+  test('сохранение в галерею ходит в роут, который объявлен на сервере', () {
+    final client = File('lib/services/note_export_service.dart').readAsStringSync();
+    final server = File('pocketbase/hotpath/hotpath.py').readAsStringSync();
+    expect(client, contains('/api/note/export'));
+    expect(server, contains('@app.get("/api/note/export")'));
+    // Сервер отдаёт файл только участнику пары — проверка обязана остаться.
+    final route = server.split('async def note_export(')[1].split('@app.get')[0];
+    expect(route, contains('not your message'));
+    expect(route, contains('groups'));
+  });
+
+  test('форма для экспорта берётся из того же профиля, что и в приложении', () {
+    final shapes = jsonDecode(File('tools/note_shapes.json').readAsStringSync())
+        as Map<String, dynamic>;
+    final dart = File('lib/widgets/chat/note_shapes.dart').readAsStringSync();
+    for (final id in shapes.keys) {
+      expect(dart, contains("id: '$id'"), reason: 'формы разошлись: $id');
+    }
+    expect(shapes.length, 10);
+  });
+
   test('модель читает все поля из записи', () {
     final src = File('lib/models/chat_msg.dart').readAsStringSync();
     for (final f in noteFields) {

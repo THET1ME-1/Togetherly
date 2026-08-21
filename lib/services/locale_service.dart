@@ -1439,6 +1439,11 @@ abstract class AppStrings {
   /// Подсказка под полосой записи, пока палец держит микрофон.
   String get noteHandsFreeHint;
   String get noteTapToSend;
+  String get noteSaveToGallery;
+  String get noteSaving;
+  String get noteSaved;
+  String get noteSaveFailed;
+  String get noteSaveNoAccess;
   String get noteHoldToRecord;
   String get noteSlideHints;
   String get noteReleaseToCancel;

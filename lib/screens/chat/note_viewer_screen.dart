@@ -10,6 +10,7 @@ import '../../models/chat_msg.dart';
 import '../../models/shape_note.dart';
 import '../../services/chat_service.dart';
 import '../../services/locale_service.dart';
+import '../../services/note_export_service.dart';
 import '../../services/note_player_service.dart';
 import '../../widgets/chat/note_shape_view.dart';
 import '../../widgets/chat/note_shapes.dart';
@@ -56,6 +57,9 @@ class _NoteViewerScreenState extends State<NoteViewerScreen>
   /// зависший экран — а это ровно то, чем баг и выглядел.
   bool _stuck = false;
   Timer? _stuckTimer;
+
+  /// Идёт сохранение в галерею: файл готовит сервер, это пара секунд.
+  bool _saving = false;
 
   ShapeNote get _note => widget.msg.note!;
 
@@ -160,6 +164,34 @@ class _NoteViewerScreenState extends State<NoteViewerScreen>
     });
     _pop(fromAuthor: false);
     unawaited(ChatService.instance.addNoteHeart(widget.msg.id, _hearts));
+  }
+
+  /// Сохраняет фигурку в галерею: квадратный ролик с формой и подписью.
+  Future<void> _save() async {
+    if (_saving) return;
+    final s = LocaleService.current;
+    setState(() => _saving = true);
+    _toast(s.noteSaving);
+    final result = await NoteExportService.saveToGallery(widget.msg.id);
+    if (!mounted) return;
+    setState(() => _saving = false);
+    _toast(switch (result) {
+      NoteExportResult.saved => s.noteSaved,
+      NoteExportResult.noAccess => s.noteSaveNoAccess,
+      NoteExportResult.failed => s.noteSaveFailed,
+    });
+  }
+
+  void _toast(String text) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) return;
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Text(text),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ));
   }
 
   @override
@@ -294,6 +326,23 @@ class _NoteViewerScreenState extends State<NoteViewerScreen>
                   : Icons.volume_up_rounded),
               style: IconButton.styleFrom(foregroundColor: cs.onSurfaceVariant),
             ),
+          ),
+          // Сохранение в галерею: сервер собирает квадратный ролик с формой и
+          // подписью, поэтому кнопка ненадолго уходит в ожидание.
+          IconButton(
+            onPressed: _saving ? null : _save,
+            tooltip: LocaleService.current.noteSaveToGallery,
+            icon: _saving
+                ? SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  )
+                : const Icon(Icons.download_rounded),
+            style: IconButton.styleFrom(foregroundColor: cs.onSurfaceVariant),
           ),
         ],
       ),
