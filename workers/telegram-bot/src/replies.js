@@ -19,10 +19,23 @@ export function isReplyComment(content) {
 }
 
 /// Текст ответа без маркера.
+///
+/// Маркер снимается с КАЖДОЙ строки, а не только с первой: Todoist оформляет
+/// ответ цитатой и сам расставляет стрелки по всем строкам. Пока срезался один
+/// символ, человеку уезжал текст со стрелками посреди сообщения (22.08.2026).
+/// Строки без маркера не трогаем — стрелка в середине фразы («5 > 3») остаётся.
 export function replyBody(content) {
   const text = String(content ?? "").trimStart();
   if (!text.startsWith(REPLY_MARK)) return text.trim();
-  return text.slice(REPLY_MARK.length).trim();
+  return text
+      .split("\n")
+      .map((line) => {
+        const trimmed = line.trimStart();
+        if (!trimmed.startsWith(REPLY_MARK)) return line;
+        return trimmed.slice(REPLY_MARK.length).replace(/^[ \t]+/, "");
+      })
+      .join("\n")
+      .trim();
 }
 
 /// Что уходит человеку в Telegram.
