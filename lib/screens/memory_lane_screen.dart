@@ -40,6 +40,7 @@ import 'package:youtube_player_iframe/youtube_player_iframe.dart' as ytp
 import 'package:video_compress/video_compress.dart';
 import 'package:video_player/video_player.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
+import '../models/daily_task.dart';
 import '../models/memory.dart';
 import '../models/memory_sort.dart';
 import '../services/ui_prefs.dart';
@@ -1371,13 +1372,63 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   // ═══════════════════════════════════════════════════
   //  SHARED CARD HEADER (avatar · name · time · subtitle)
   // ═══════════════════════════════════════════════════
+  /// Подпись под шапкой: запись была ответом на задание дня.
+  ///
+  /// Просьба из поддержки 22.08.2026 — «чтобы в ленте отмечалось, что это
+  /// ответ на задание». Текст берётся из каталога по сохранённому id, а не
+  /// пишется в запись: каталог живёт в сборке и переводится вместе с ней.
+  /// Задания, которого сборка не знает, подпись не рисует вовсе — ярлык без
+  /// самого задания читался бы поломкой.
+  Widget? _dailyTaskNote(Memory memory) {
+    final title = dailyTaskTitleOf(
+        memory.dailyTaskId, widget.pairData.partnerDisplayName);
+    if (title == null) return null;
+    final s = LocaleService.current;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: primary.withOpacity(0.10),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.task_alt_rounded, size: 14, color: primary),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text.rich(
+                TextSpan(children: [
+                  TextSpan(
+                    text: s.memoryDailyTaskBadge,
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: primary),
+                  ),
+                  TextSpan(
+                    text: '  $title',
+                    style: TextStyle(
+                        fontSize: 12, color: widget.theme.textMuted),
+                  ),
+                ]),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _cardHeader(
     Memory memory, {
     String? subtitle,
     Widget? trailing,
     Color? badgeColor,
   }) {
-    return Padding(
+    final task = _dailyTaskNote(memory);
+    final header = Padding(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
       child: Row(
         children: [
@@ -1484,6 +1535,11 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             ),
         ],
       ),
+    );
+    if (task == null) return header;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [header, task],
     );
   }
 

@@ -182,6 +182,9 @@ class MemoryRepository {
       isSecret: isSecret,
       sealed: sealed,
       openAt: openAt,
+      // Ответ на задание помечается в самой записи: лента показывает, на что
+      // отвечали, а закрытие строки на главной идёт своим путём ниже.
+      dailyTaskId: dailyTaskId,
     );
     // 1) оптимистично в кэш → лента показывает сразу (и офлайн)
     await _cache.upsertRaw('memories', memory.id, _row(groupId, memory));

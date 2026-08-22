@@ -544,6 +544,8 @@ abstract class DictStrings extends AppStrings {
   @override
   String get plusPromoLater => _t('plusPromoLater');
   @override
+  String get memoryDailyTaskBadge => _t('memoryDailyTaskBadge');
+  @override
   String get memorySortTitle => _t('memorySortTitle');
   @override
   String get memorySortByEvent => _t('memorySortByEvent');

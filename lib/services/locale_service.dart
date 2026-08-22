@@ -404,6 +404,8 @@ abstract class AppStrings {
   String get plusPromoLater;
 
   // Порядок ленты воспоминаний
+  /// Ярлык на карточке ленты: запись была ответом на задание дня.
+  String get memoryDailyTaskBadge;
   String get memorySortTitle;
   String get memorySortByEvent;
   String get memorySortByEventHint;

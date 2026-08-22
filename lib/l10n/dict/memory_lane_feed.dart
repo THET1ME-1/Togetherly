@@ -6,6 +6,17 @@
 // на экране не бывает.
 
 const Map<String, Map<String, String>> memoryLaneFeedStrings = {
+  // Подпись под шапкой карточки: запись была ответом на задание дня. Само
+  // задание пишется рядом, поэтому здесь только ярлык.
+  'memoryDailyTaskBadge': {
+    'ru': 'Задание дня',
+    'en': 'Daily task',
+    'pt': 'Desafio do dia',
+    'it': 'Sfida del giorno',
+    'es': 'Reto del día',
+    'fr': 'Défi du jour',
+    'de': 'Tagesaufgabe',
+  },
   'sharedAVideo': {
     'ru': 'Поделился видео',
     'en': 'Shared a video',

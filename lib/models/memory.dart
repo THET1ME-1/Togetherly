@@ -124,6 +124,15 @@ class Memory {
   /// Дата открытия капсулы (для [sealed]). null у обычных воспоминаний.
   DateTime? openAt;
 
+  /// Задание дня, ответом на которое стала эта запись (id из каталога
+  /// [DailyTask]). Пусто у обычных воспоминаний.
+  ///
+  /// Хранится ради ленты: через день никто не помнит, на какой вопрос отвечало
+  /// это фото, и просьба из поддержки была ровно об этом — «чтобы в ленте
+  /// отмечалось, что это ответ на задание» (22.08.2026). Само закрытие задания
+  /// на главной идёт своим путём, через `DailyTaskService`.
+  String? dailyTaskId;
+
   /// UID'ы пользователей, добавивших это воспоминание в «Избранное» (закладка).
   /// Персонально: каждый партнёр видит свой набор закладок.
   List<String> savedBy;
@@ -186,6 +195,7 @@ class Memory {
     this.openAt,
     this.zone = '',
     this.addedAt,
+    this.dailyTaskId,
     List<String>? savedBy,
     int? commentsCount,
   })  : savedBy = savedBy ?? <String>[],
@@ -289,6 +299,7 @@ class Memory {
       'tz': zone.isEmpty ? PairTime.zoneNow() : zone,
       'savedBy': savedBy,
       'commentsCount': commentsCount,
+      'dailyTaskId': dailyTaskId,
     };
   }
 
@@ -339,6 +350,9 @@ class Memory {
       isAdult: json['isAdult'] ?? false,
       isSecret: json['isSecret'] ?? false,
       sealed: json['sealed'] ?? false,
+      dailyTaskId: (json['dailyTaskId'] as String?)?.trim().isEmpty ?? true
+          ? null
+          : (json['dailyTaskId'] as String).trim(),
       openAt: PairTime.read(json['openAt'], zone),
       addedAt: PairTime.read(json['addedAt'], zone),
       savedBy: json['savedBy'] != null

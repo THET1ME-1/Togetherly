@@ -665,6 +665,17 @@ String? closeByMemory({
 
 /// Что пара успела сегодня. Дата хранится строкой: прогресс живёт сутки и на
 /// следующий день начинается с чистого листа.
+/// Текст задания, ответом на которое стала запись ленты.
+///
+/// Возвращает null, когда задания нет, id пустой или каталог его не знает:
+/// каталог живёт в сборке, а запись переживает обновления, и подпись «ответ на
+/// задание» без самого задания читалась бы поломкой.
+String? dailyTaskTitleOf(String? taskId, String partnerName) {
+  final id = (taskId ?? '').trim();
+  if (id.isEmpty) return null;
+  return DailyTask.byId(id)?.title(partnerName);
+}
+
 class DailyTaskProgress {
   const DailyTaskProgress({required this.date, required this.done});
 
