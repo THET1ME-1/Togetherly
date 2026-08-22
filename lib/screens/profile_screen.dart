@@ -2339,6 +2339,10 @@ class _ProfileScreenState extends State<ProfileScreen>
               theme: _t,
               groupId: widget.pairData.pairId,
               coins: widget.userData.coins,
+              // Роут подарков возвращает новый баланс, и он обязан доехать до
+              // профиля: иначе кошелёк на экране остаётся полным, а сервер уже
+              // списал монеты.
+              onCoins: widget.userData.applyServerCoins,
             ),
             settings: const RouteSettings(name: '/gifts'),
           ),
