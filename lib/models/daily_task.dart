@@ -663,8 +663,6 @@ String? closeByMemory({
   return null;
 }
 
-/// Что пара успела сегодня. Дата хранится строкой: прогресс живёт сутки и на
-/// следующий день начинается с чистого листа.
 /// Текст задания, ответом на которое стала запись ленты.
 ///
 /// Возвращает null, когда задания нет, id пустой или каталог его не знает:
@@ -676,6 +674,8 @@ String? dailyTaskTitleOf(String? taskId, String partnerName) {
   return DailyTask.byId(id)?.title(partnerName);
 }
 
+/// Что пара успела сегодня. Дата хранится строкой: прогресс живёт сутки и на
+/// следующий день начинается с чистого листа.
 class DailyTaskProgress {
   const DailyTaskProgress({required this.date, required this.done});
 
