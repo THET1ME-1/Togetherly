@@ -61,6 +61,14 @@ class PbDataService {
   /// уезжали ЛОКАЛЬНЫЕ часы без зоны, а PocketBase принимал их за UTC — время
   /// партнёра в другом поясе уезжало ровно на разницу (разбор 13 августа 2026,
   /// см. [PairTime]).
+  /// Календарная дата на сервер: только год, месяц и день. Час у дня рождения
+  /// был бы минутой сохранения, и в соседнем поясе сдвигал бы число.
+  static String? _calendarDay(dynamic v) {
+    if (v == null) return null;
+    if (v is DateTime) return DateOnly.store(v);
+    return DateOnly.store(DateOnly.parse(v));
+  }
+
   static String? _iso(dynamic v) {
     if (v == null) return null;
     if (v is DateTime) return PairTime.write(v);
@@ -3024,18 +3032,38 @@ class PbDataService {
   /// существовать (создаётся при регистрации/импорте, не здесь).
   Future<bool> updateUserProfile(String uid, Map<String, dynamic> data) async {
     if (uid.isEmpty) return false;
+    final row = userProfileRow(data);
+    if (row.isEmpty) return true;
+    row['updated_at'] = PairTime.write(DateTime.now());
+    return _upsertById('users', uid, row, op: 'updateUserProfile');
+  }
+
+  /// Тело запроса профиля: camelCase-ключ → колонка. Вынесено из
+  /// [updateUserProfile], чтобы формат каждого поля можно было проверить
+  /// тестом, не поднимая сеть.
+  @visibleForTesting
+  static Map<String, dynamic> userProfileRow(Map<String, dynamic> data) {
     final row = <String, dynamic>{};
-    void put(String key, String col, {bool json = false, bool ts = false}) {
+    void put(String key, String col,
+        {bool json = false, bool ts = false, bool day = false}) {
       if (!data.containsKey(key)) return;
       final v = data[key];
-      row[col] = ts ? _iso(v) : (json ? _jsonSafe(v) : v);
+      row[col] = day
+          ? _calendarDay(v)
+          : ts
+              ? _iso(v)
+              : (json ? _jsonSafe(v) : v);
     }
 
     put('displayName', 'display_name');
     put('avatarUrl', 'avatar_url');
     put('bannerUrl', 'banner_url');
     put('gender', 'gender');
-    put('birthDate', 'birth_date', ts: true);
+    // Календарной датой, а не моментом времени. Момент писался в UTC, а число
+    // читалось из строки как есть: у родившихся ночью день уезжал на вчера.
+    // Письмо 23 августа 2026 — «поставила 2 октября 02:45, показывает
+    // 1 октября 23:45, сколько раз ни исправляй».
+    put('birthDate', 'birth_date', day: true);
     // ЭКОНОМИКА НЕ ПИШЕТСЯ КЛИЕНТОМ: coins/owned_themes/owned_icons/
     // owned_features/granted_badges и кулдауны ведут ТОЛЬКО серверные коин-роуты
     // (pb_hooks/coins.pb.js через $app.save). Прямой клиентский PATCH этих полей
@@ -3071,9 +3099,7 @@ class PbDataService {
     // при переустановке. Ключа здесь не было — а незнакомый ключ эта функция
     // выбрасывает молча, отвечая успехом.
     put('missYouWishes', 'miss_you_wishes', json: true);
-    if (row.isEmpty) return true;
-    row['updated_at'] = PairTime.write(DateTime.now());
-    return _upsertById('users', uid, row, op: 'updateUserProfile');
+    return row;
   }
 
   /// Каталог (mood-паки/маскоты): включённые записи нужного типа.

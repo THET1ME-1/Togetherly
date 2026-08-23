@@ -1156,9 +1156,12 @@ class UserData extends ChangeNotifier {
   }
 
   Future<void> updateBirthDate(DateTime? date) async {
-    _birthDate = date;
+    // Только календарный день: час пришёл бы из старого значения в prefs и
+    // разошёлся бы с тем, что лежит на сервере.
+    _birthDate = date == null ? null : DateTime(date.year, date.month, date.day);
     await _saveLocal();
-    await PbDataService().updateUserProfile(PocketBaseService().userId ?? "", {'birthDate': date});
+    await PbDataService()
+        .updateUserProfile(PocketBaseService().userId ?? "", {'birthDate': _birthDate});
     notifyListeners();
   }
 

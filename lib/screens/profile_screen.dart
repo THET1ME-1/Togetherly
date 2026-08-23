@@ -3184,6 +3184,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     required DateTime? initial,
     required int firstYear,
     required int lastYear,
+    bool withTime = true,
   }) => Navigator.of(context).push<DateTime>(
     MaterialPageRoute<DateTime>(
       builder: (_) => DateTimePickerScreen(
@@ -3192,6 +3193,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         initial: initial,
         firstYear: firstYear,
         lastYear: lastYear,
+        withTime: withTime,
       ),
       settings: const RouteSettings(name: '/date_picker'),
     ),
@@ -3242,12 +3244,15 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Future<void> _showBirthdayPicker(BuildContext context) async {
+    // Без вкладки времени: час дня рождения на сервер не уезжает, и спрашивать
+    // его — обманывать. Раньше спрашивали, и введённые 02:45 пропадали.
     final picked = await _showDateInputDialog(
       context: context,
       title: _s.myBirthday,
       initial: widget.userData.birthDate,
       firstYear: 1920,
       lastYear: DateTime.now().year,
+      withTime: false,
     );
     if (picked == null || !mounted) return;
     await widget.userData.updateBirthDate(picked);

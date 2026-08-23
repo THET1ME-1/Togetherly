@@ -11,10 +11,12 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Ключи, которые перечисляет сама функция: `put('ключ', 'колонка')`.
+///
+/// Тело запроса живёт в `userProfileRow` — `updateUserProfile` только шлёт его.
 Set<String> _allowedKeys(String source) {
-  final start = source.indexOf('Future<bool> updateUserProfile(');
+  final start = source.indexOf('static Map<String, dynamic> userProfileRow(');
   expect(start, greaterThan(0), reason: 'функция на месте');
-  final body = source.substring(start, source.indexOf('_upsertById', start));
+  final body = source.substring(start, source.indexOf('return row;', start));
   return RegExp(r"put\('(\w+)'")
       .allMatches(body)
       .map((m) => m.group(1)!)
