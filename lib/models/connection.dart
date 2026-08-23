@@ -24,6 +24,20 @@ bool shouldLeaveOrphanGroup({
 }) =>
     isPaired && partnersCount == 0 && !waitingMode;
 
+/// Правда ли, что меня выкинули из группы.
+///
+/// Себя не найдёт никто ни в пустом составе, ни при неизвестном своём uid
+/// (полумёртвая сессия отдаёт пустую строку) — и оба случая раньше читались как
+/// изгнание: связь обнулялась, пара пропадала с экрана при живой группе в базе.
+/// Жалобы 22.08.2026 от @kssth2 и @shnyrr — ровно про это.
+bool shouldDropMembership({
+  required List<GroupMember> members,
+  required String myUid,
+}) =>
+    members.isNotEmpty &&
+    myUid.isNotEmpty &&
+    !members.any((m) => m.uid == myUid);
+
 enum RelationshipType {
   couple, // In Love — max 2
   married, // Married — max 2
@@ -942,9 +956,13 @@ class Connection {
     partnerAvatarUrl = data['partnerAvatar'] ?? partnerAvatarUrl;
     startDate = data['startDate'] as DateTime? ?? startDate;
 
-    // Update members
+    // Update members. Пустой состав в снимке — это отсутствие данных, а не
+    // опустевшая группа: создатель остаётся в `members` всегда, даже у пары с
+    // пустым местом. Затирать им живой состав нельзя — дальше по коду пустота
+    // читается как «партнёров не осталось» и уводит в leaveGroup, то есть
+    // телефон сам выписывает человека из целой пары.
     final membersList = data['members'] as List<dynamic>?;
-    if (membersList != null) {
+    if (membersList != null && membersList.isNotEmpty) {
       final newMembers = membersList
           .map(
             (m) => GroupMember(
@@ -957,9 +975,8 @@ class Connection {
 
       // Check if we're still in the group
       final myUid = _uid;
-      final imInGroup = newMembers.any((m) => m.uid == myUid);
 
-      if (!imInGroup) {
+      if (shouldDropMembership(members: newMembers, myUid: myUid)) {
         // I've been removed from the group (shouldn't happen, but handle it)
         debugPrint('_listenToPair: removed from group');
         isPaired = false;

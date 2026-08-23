@@ -17,6 +17,14 @@ import 'pocketbase_service.dart';
 ///
 /// (Схема `pb://` зеркалит прежнюю `sb://` из supabase-слоя — на cutover
 /// резолвер медиа в виджетах распознаёт `pb://` так же, как раньше `sb://`.)
+/// Адрес protected-файла с файловым токеном, либо ничего.
+///
+/// Без токена коллекция `media` отвечает 404 — такая ссылка не откроется
+/// никогда, а телефон повторяет её при каждой перерисовке. Пусто честнее:
+/// экран покажет заглушку и не закэширует отказ.
+String? mediaUrlWithToken({required String base, required String? token}) =>
+    (token == null || token.isEmpty) ? null : '$base?token=$token';
+
 class PbMediaService {
   PbMediaService._();
   static final PbMediaService instance = PbMediaService._();
@@ -148,6 +156,28 @@ class PbMediaService {
         _fileToken = tok;
         _fileTokenAt = DateTime.now();
         return tok;
+      } on ClientException catch (e) {
+        // 401 — устал токен сессии, а не пропал доступ. Без этой ветки телефон
+        // до перезапуска отдавал ссылки без файлового токена, и не грузилось
+        // НИ ОДНО фото сразу: 203 отказа в токене за трое суток обернулись
+        // одиннадцатью тысячами заведомо мёртвых запросов к файлам.
+        if (e.statusCode != 401) {
+          debugPrint('PbMedia.getToken failed: $e');
+          return _fileToken;
+        }
+        try {
+          await _pb
+              .collection('users')
+              .authRefresh()
+              .timeout(const Duration(seconds: 8));
+          final tok = await _pb.files.getToken();
+          _fileToken = tok;
+          _fileTokenAt = DateTime.now();
+          return tok;
+        } catch (e2) {
+          debugPrint('PbMedia.getToken after refresh failed: $e2');
+          return _fileToken; // прошлый токен может быть ещё валиден
+        }
       } catch (e) {
         debugPrint('PbMedia.getToken failed: $e');
         return _fileToken; // прошлый токен может быть ещё валиден
@@ -167,7 +197,7 @@ class PbMediaService {
     final base = resolveUrl(ref);
     if (base == null) return ref;
     final tok = await _ensureFileToken();
-    return (tok == null || tok.isEmpty) ? base : '$base?token=$tok';
+    return mediaUrlWithToken(base: base, token: tok);
   }
 
   /// Сброс кэша токена (на выходе/смене пользователя).

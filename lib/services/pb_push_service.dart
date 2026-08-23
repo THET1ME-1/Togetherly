@@ -7,6 +7,7 @@ import 'package:pocketbase/pocketbase.dart';
 import '../models/chat_msg.dart';
 import '../models/gift.dart';
 import '../models/gift_effect.dart';
+import '../dict_strings.dart';
 import 'chat_service.dart';
 import 'centrifugo_service.dart';
 import 'locale_service.dart';
@@ -34,7 +35,11 @@ class PbPushService {
 
   final FlutterLocalNotificationsPlugin _ln = FlutterLocalNotificationsPlugin();
   static const String _channelId = 'partner_notifications';
-  static const String _channelName = 'Уведомления от партнёра';
+
+  // Канал и его описание видит человек в системных настройках — значит и они
+  // на его языке, а не на языке того, кто прислал сообщение.
+  static String get _channelName => trKey('pushChannelName');
+  static String get _channelDescription => trKey('pushChannelDescription');
 
   bool _inited = false;
   final List<UnsubscribeFunc> _subs = [];
@@ -53,10 +58,10 @@ class PbPushService {
     final androidImpl = _ln.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
     await androidImpl?.createNotificationChannel(
-      const AndroidNotificationChannel(
+      AndroidNotificationChannel(
         _channelId,
         _channelName,
-        description: 'Сообщения, настроение и «скучаю» от партнёра',
+        description: _channelDescription,
         importance: Importance.high,
       ),
     );
@@ -106,7 +111,7 @@ class PbPushService {
     required String groupId,
     required String myUid,
     required String partnerUid,
-    String partnerName = 'Партнёр',
+    String? partnerName,
   }) =>
       _synchronized(() => _startLocked(
             groupId: groupId,
@@ -119,11 +124,18 @@ class PbPushService {
     required String groupId,
     required String myUid,
     required String partnerUid,
-    String partnerName = 'Партнёр',
+    String? partnerName,
   }) async {
     if (groupId.isEmpty) return;
     await init();
     await _stopLocked();
+
+    // Имя партнёра могли не передать (пара только собралась, профиль ещё не
+    // доехал). Подпись «Партнёр» берём из словаря: уведомление читает не тот,
+    // кто его вызвал, а хозяин телефона.
+    final partner = (partnerName == null || partnerName.trim().isEmpty)
+        ? trKey('pushPartnerFallback')
+        : partnerName;
 
     // 1) Чат
     _subs.add(await CentrifugoService.instance
@@ -134,7 +146,7 @@ class PbPushService {
         if (r == null || r.data['user_uid'] != partnerUid) return;
         if (activeChatGroupId == groupId) return; // чат открыт — не дублируем
         if (r.data['deleted'] == true || !_pref('notif_chat')) return;
-        final name = (r.data['user_name'] ?? partnerName).toString();
+        final name = (r.data['user_name'] ?? partner).toString();
         final text = (r.data['text'] ?? '').toString();
         // У голосового текста нет: в шторке показываем подпись с длительностью,
         // иначе уведомление приходило бы пустым конвертом.
@@ -164,8 +176,12 @@ class PbPushService {
         final key = '${r.id}|$label';
         if (key == _lastMood) return; // дедуп повторных эмитов того же
         _lastMood = key;
-        _notify(('mood$partnerUid').hashCode, partnerName,
-            label.isEmpty ? 'Отметил реакцию дня 🗓️' : 'Реакция дня: $label');
+        _notify(
+            ('mood$partnerUid').hashCode,
+            partner,
+            label.isEmpty
+                ? trKey('pushMoodMarked')
+                : '${trKey('pushMoodOfDay')}: $label');
       } catch (err) {
         debugPrint('PbPush mood callback error: $err');
       }
@@ -184,7 +200,7 @@ class PbPushService {
         // custom доставляется всегда; остальное — по настройке notif_miss_you
         if (vibe != 'custom' && !_pref('notif_miss_you')) return; // check BEFORE state mutation
         _lastMissCount = cnt;
-        _notify(('miss$partnerUid$cnt').hashCode, partnerName, _vibeBody(vibe, custom));
+        _notify(('miss$partnerUid$cnt').hashCode, partner, _vibeBody(vibe, custom));
       } catch (err) {
         debugPrint('PbPush miss_you callback error: $err');
       }
@@ -198,8 +214,8 @@ class PbPushService {
         final r = e.record;
         if (r == null || r.data['author_uid'] != partnerUid) return;
         if (r.data['deleted'] == true || !_pref('notif_new_memory')) return;
-        final name = (r.data['author_name'] ?? partnerName).toString();
-        _notify(('mem${r.id}').hashCode, name, 'Добавил новое воспоминание 📸');
+        final name = (r.data['author_name'] ?? partner).toString();
+        _notify(('mem${r.id}').hashCode, name, trKey('pushNewMemory'));
       } catch (err) {
         debugPrint('PbPush memory callback error: $err');
       }
@@ -218,7 +234,7 @@ class PbPushService {
         final gift = GiftCatalog.byKey((r.data['gift_key'] ?? '').toString());
         if (gift == null) return; // подарок из будущей версии приложения
         // Ракета проходит сквозь подаренную тихую ночь: она для срочного.
-        _notify(('gift${r.id}').hashCode, partnerName,
+        _notify(('gift${r.id}').hashCode, partner,
             LocaleService.current.giftPushBody(gift.title),
             pierceQuiet: gift.piercesQuietHours);
       } catch (err) {
@@ -234,13 +250,13 @@ class PbPushService {
   String _vibeBody(String vibe, String text) {
     switch (vibe) {
       case 'thinking_of_you':
-        return 'Думает о тебе 💭';
+        return trKey('pushThinkingOfYou');
       case 'want_hug':
-        return 'Хочет обнять тебя 🤗';
+        return trKey('pushWantHug');
       case 'custom':
         return text.isNotEmpty ? text : '✉️';
       default:
-        return 'Думает о тебе и вспоминает 💭';
+        return trKey('pushMissesYou');
     }
   }
 
@@ -266,16 +282,16 @@ class PbPushService {
       id: id,
       title: title,
       body: body,
-      notificationDetails: const NotificationDetails(
+      notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           _channelId,
           _channelName,
-          channelDescription: 'Сообщения, настроение и «скучаю» от партнёра',
+          channelDescription: _channelDescription,
           importance: Importance.high,
           priority: Priority.high,
           icon: '@drawable/ic_notification',
         ),
-        iOS: DarwinNotificationDetails(
+        iOS: const DarwinNotificationDetails(
           presentAlert: true,
           presentBadge: true,
           presentSound: true,

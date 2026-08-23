@@ -998,9 +998,13 @@ class WidgetService extends ChangeNotifier {
     try {
       String httpUrl = url;
 
-      // pb:// (PocketBase protected media) → HTTPS с file-токеном.
+      // pb:// (PocketBase protected media) → HTTPS с file-токеном. Токена нет —
+      // качать нечего: без него сервер отвечает 404, а прежний снимок на
+      // рабочем столе лучше пустоты.
       if (PbMediaService().isPbRef(url)) {
-        httpUrl = await PbMediaService().resolveUrlAuthed(url) ?? url;
+        final resolved = await PbMediaService().resolveUrlAuthed(url);
+        if (resolved == null || resolved.isEmpty) return;
+        httpUrl = resolved;
       }
       // Легаси gs:// (Firebase) / sb:// (Supabase) больше не резолвим — Firebase
       // убран. Такие старые ссылки в виджет не подгрузятся.

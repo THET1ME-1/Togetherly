@@ -3038,9 +3038,17 @@ class HomeWidgetService {
       String httpUrl = url;
 
       // pb:// (PocketBase protected media) → HTTPS с file-токеном (скачиваем
-      // в приложении и кладём локальный файл для нативного виджета).
+      // в приложении и кладём локальный файл для нативного виджета). Токена
+      // нет — качать нечего: без него сервер отвечает 404. Оставляем на экране
+      // прежний снимок.
       if (PbMediaService().isPbRef(url)) {
-        httpUrl = await PbMediaService().resolveUrlAuthed(url) ?? url;
+        final resolved = await PbMediaService().resolveUrlAuthed(url);
+        if (resolved == null || resolved.isEmpty) {
+          return file.existsSync()
+              ? await _toWidgetReadablePath(file.path, 'cache_$key')
+              : '';
+        }
+        httpUrl = resolved;
       }
       // Legacy gs:// (Firebase) / sb:// (Supabase) БОЛЬШЕ НЕ резолвим — проект
       // полностью на PocketBase. Старые такие фото в виджете не подгрузятся

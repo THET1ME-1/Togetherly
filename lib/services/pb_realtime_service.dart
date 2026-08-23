@@ -34,6 +34,20 @@ import 'pocketbase_service.dart';
 /// это закрывает ре-синхронизация по возврату сети (`conn.onOnlineChanged` →
 /// `syncOnce`); для in-memory-вариантов список может быть устаревшим до следующей
 /// дельты — как и прежде на SSE.
+/// Означает ли `null` из кэша, что записи нет и на сервере.
+///
+/// Sembast отвечает на отсутствующую запись сразу, ещё до первого ответа
+/// сервера, и этот `null` раньше уходил слушателю наравне с настоящим
+/// удалением. Для группы он читался как «пару распустили»: связь обнулялась и
+/// исчезала с экрана при живой паре в базе (жалобы 22.08.2026). Настоящее
+/// исчезновение приходит либо 404 на getOne, либо delete-дельтой, либо тем, что
+/// запись в кэше была и пропала.
+bool cacheAbsenceIsReal({
+  required bool sawRecord,
+  required bool serverSaysGone,
+}) =>
+    sawRecord || serverSaysGone;
+
 class PbRealtimeService {
   PbRealtimeService._();
   static final PbRealtimeService instance = PbRealtimeService._();
@@ -554,6 +568,9 @@ class PbRealtimeService {
     StreamSubscription<bool>? connSub;
     var cancelled = false;
     var attempt = 0;
+    // Пустой кэш ≠ «записи нет»: см. [cacheAbsenceIsReal].
+    var sawRecord = false;
+    var serverSaysGone = false;
     late StreamController<RecordModel?> ctrl;
 
     Future<void> startNetwork() async {
@@ -575,8 +592,11 @@ class PbRealtimeService {
           }
         } on ClientException catch (e) {
           if (e.statusCode == 404) {
+            serverSaysGone = true;
             if (!OutboxService.instance.isPending(collection, id)) {
               await store.deleteRecord(collection, id);
+            } else if (!ctrl.isClosed) {
+              ctrl.add(null);
             }
           } else {
             rethrow;
@@ -591,6 +611,7 @@ class PbRealtimeService {
               // Не перезатираем запись с неотправленной локальной правкой.
               if (OutboxService.instance.isPending(collection, id)) return;
               if (e.action == 'delete') {
+                serverSaysGone = true;
                 unawaited(store.deleteRecord(collection, id));
               } else {
                 final rec = e.record;
@@ -626,6 +647,16 @@ class PbRealtimeService {
       onListen: () {
         cancelled = false;
         cacheSub = store.watchRecord(collection, id).listen((rec) {
+          if (rec != null) sawRecord = true;
+          // Молчим, пока пустота в кэше ничего не доказывает: слушатель группы
+          // читает `null` как роспуск пары.
+          if (rec == null &&
+              !cacheAbsenceIsReal(
+                sawRecord: sawRecord,
+                serverSaysGone: serverSaysGone,
+              )) {
+            return;
+          }
           if (!ctrl.isClosed) ctrl.add(rec);
         });
         startNetwork();

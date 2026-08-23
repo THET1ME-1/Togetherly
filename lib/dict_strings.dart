@@ -36,6 +36,7 @@ import 'l10n/dict/plus_promo.dart';
 import 'l10n/dict/moods.dart';
 import 'l10n/dict/postcard_templates.dart';
 import 'l10n/dict/profile.dart';
+import 'l10n/dict/push_notifications.dart';
 import 'l10n/dict/profile_icons.dart';
 import 'l10n/dict/profile_screen.dart';
 import 'l10n/dict/ranks.dart';
@@ -53,6 +54,7 @@ import 'l10n/dict/widget_screen.dart';
 /// одного экрана не требовала лезть в файл на полторы тысячи строк.
 const Map<String, Map<String, String>> kStrings = {
   ...achievementsStrings,
+  ...pushNotificationsStrings,
   ...customMoodsStrings,
   ...customThemeStrings,
   ...pairBookStrings,
