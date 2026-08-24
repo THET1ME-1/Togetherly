@@ -106,10 +106,12 @@ class PlusService extends ChangeNotifier {
 
   /// Можно ли подарить доступ другому человеку.
   ///
-  /// Только там, где оплата идёт счётом lava.top: биллинг магазина открывает
-  /// купленное ПЛАТЕЛЬЩИКУ, передать покупку другому аккаунту он не умеет
-  /// вовсе, а вести из Play-сборки на внешнюю оплату — бан.
-  static bool get canGift => canPurchase && !buysInStore;
+  /// Работает везде, где вообще можно платить, но платят по-разному: в сборках
+  /// с сайта и RuStore — счётом lava.top на почту получателя, в Play и App
+  /// Store — отдельным расходуемым товаром `togetherly_plus_gift`, после
+  /// которого доступ выдаёт наш сервер. Передать саму покупку на чужой аккаунт
+  /// магазины не умеют, поэтому товар и понадобился отдельный.
+  static bool get canGift => canPurchase;
 
   /// Существует ли Togetherly+ на этой платформе.
   ///
@@ -316,6 +318,37 @@ class PlusService extends ChangeNotifier {
       debugPrint('PlusService.giftCheckoutUrl failed: $e');
     }
     return (url: null, already: false);
+  }
+
+  /// Кому идёт подарок, купленный в магазине.
+  ///
+  /// Магазин отвечает не сразу: покупку он может подтвердить через минуту,
+  /// после перезапуска приложения или вовсе на другом экране — поток покупок
+  /// живёт в общем магазине, а не в витрине Плюса. Поэтому связь получателя
+  /// лежит на диске, а не в поле экрана: иначе чек доехал бы до сервера без
+  /// адресата, и деньги ушли бы впустую.
+  static const String _giftGroupKey = 'plus_gift_group';
+
+  Future<void> rememberGiftGroup(String groupId) async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setString(_giftGroupKey, groupId);
+    } catch (e) {
+      debugPrint('PlusService.rememberGiftGroup failed: $e');
+    }
+  }
+
+  /// Забирает запомненную связь и очищает её: один подарок — одна выдача.
+  Future<String> takeGiftGroup() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      final id = p.getString(_giftGroupKey) ?? '';
+      if (id.isNotEmpty) await p.remove(_giftGroupKey);
+      return id;
+    } catch (e) {
+      debugPrint('PlusService.takeGiftGroup failed: $e');
+      return '';
+    }
   }
 
   /// Гасит код, выданный ботом. Возвращает true, если доступ открылся.

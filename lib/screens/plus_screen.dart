@@ -63,6 +63,23 @@ class _PlusScreenState extends State<PlusScreen> {
     if (!PlusService.canGift) return;
     final offer = await _plus.giftOffer();
     if (mounted) setState(() => _gift = offer);
+    // В Play и App Store цену называет магазин, поэтому товар надо догрузить:
+    // в постоянном списке продуктов его нет — он нужен только тем, у кого есть
+    // пара.
+    if (PlusService.buysInStore && offer.visible) {
+      await _store?.ensureProduct(kGiftProductId);
+      if (mounted) setState(() {});
+    }
+  }
+
+  /// Сколько стоит подарок. В магазинных сборках сумму называет магазин —
+  /// у него своя цена в каждой стране; в остальных её считает наш сервер по
+  /// каталогу lava.top.
+  String get _giftPriceLabel {
+    if (PlusService.buysInStore) {
+      return _store?.priceLabel(kGiftProductId) ?? '';
+    }
+    return _gift.priceLabel;
   }
 
   Future<void> _initStore() async {
@@ -80,9 +97,25 @@ class _PlusScreenState extends State<PlusScreen> {
         // Тот же роут, что начисляет монеты: для togetherly_plus он ставит флаг
         // доступа. Возвращаем баланс — по non-null сервис понимает, что сервер
         // покупку принял.
-        final res = await PbCoinsService()
-            .iapPurchase(productId: productId, purchaseToken: purchaseToken);
-        if (res == null || res['ok'] != true) return null;
+        //
+        // У подарка к чеку добавляется связь получателя. Она лежит на диске, а
+        // не в поле экрана: магазин подтверждает покупку когда угодно — через
+        // минуту, после перезапуска приложения, на другом экране, — и без
+        // адресата чек ушёл бы в никуда.
+        final giftGroup = productId == kGiftProductId
+            ? await _plus.takeGiftGroup()
+            : '';
+        final res = await PbCoinsService().iapPurchase(
+          productId: productId,
+          purchaseToken: purchaseToken,
+          groupId: giftGroup,
+        );
+        if (res == null || res['ok'] != true) {
+          // Сервер покупку не принял — связь возвращаем на место, иначе
+          // повторная попытка (магазин пришлёт чек снова) уйдёт без адресата.
+          if (giftGroup.isNotEmpty) await _plus.rememberGiftGroup(giftGroup);
+          return null;
+        }
         return (res['coins'] as num?)?.toInt() ?? 0;
       },
     );
@@ -422,8 +455,10 @@ class _PlusScreenState extends State<PlusScreen> {
     final target = _gift.suggested;
     final single = _gift.recipients.length == 1;
     final canGift = _gift.hasAnyoneToGift;
-    final price = _gift.priceLabel;
-    final base = _gift.baseLabel;
+    final price = _giftPriceLabel;
+    // Зачёркнутая цена — только у скидки на нашей стороне: акции магазинов
+    // приезжают уже посчитанными в его же цене.
+    final base = PlusService.buysInStore ? '' : _gift.baseLabel;
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -589,8 +624,17 @@ class _PlusScreenState extends State<PlusScreen> {
       context,
       scheme: _cs,
       offer: _gift,
+      priceLabel: _giftPriceLabel,
     );
     if (chosen == null || !mounted) return;
+
+    // В Play и App Store подарок покупается их биллингом: отдельный расходуемый
+    // товар, а доступ получателю выдаёт сервер по чеку. Вести оттуда на внешнюю
+    // оплату нельзя — за это снимают приложение.
+    if (PlusService.buysInStore) {
+      await _buyGiftInStore(chosen);
+      return;
+    }
 
     setState(() => _busy = true);
     final res = await _plus.giftCheckoutUrl(groupId: chosen.groupId);
@@ -692,6 +736,47 @@ class _PlusScreenState extends State<PlusScreen> {
       // Браузера нет или ссылка не открылась — молча возвращаем кнопку.
     }
     if (mounted) setState(() => _busy = false);
+  }
+
+  /// Подарок через биллинг магазина.
+  ///
+  /// Связь получателя записывается на диск ДО покупки: чек может прийти когда
+  /// угодно, вплоть до следующего запуска приложения, и сервер должен знать,
+  /// кому открывать доступ. Отмена и ошибка её снимают — иначе следующий
+  /// подарок ушёл бы прошлому человеку.
+  Future<void> _buyGiftInStore(GiftRecipient chosen) async {
+    final store = _store;
+    if (store == null || !store.isAvailable) {
+      _toast(_s.plusStoreUnavailable);
+      return;
+    }
+    setState(() => _busy = true);
+    if (!await store.ensureProduct(kGiftProductId)) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      _toast(_s.plusStoreUnavailable);
+      return;
+    }
+
+    await _plus.rememberGiftGroup(chosen.groupId);
+    final res = await store.buy(kGiftProductId);
+    if (!mounted) return;
+    setState(() => _busy = false);
+
+    switch (res.status) {
+      case IapStatus.success:
+        _toast(_s.plusGiftDone(chosen.name));
+        unawaited(_loadGift());
+      case IapStatus.pending:
+        // Оплата ещё идёт (родительский контроль, отложенный платёж): связь
+        // остаётся на диске и дождётся чека.
+        _toast(_s.plusPurchasePending);
+      case IapStatus.cancelled:
+        await _plus.takeGiftGroup();
+      case IapStatus.error:
+        await _plus.takeGiftGroup();
+        if (mounted) _toast(_s.plusGiftFailed);
+    }
   }
 
   /// Покупка через биллинг Google Play. Флаг доступа ставит сервер, экран лишь

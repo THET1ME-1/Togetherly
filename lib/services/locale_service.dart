@@ -1822,6 +1822,7 @@ abstract class AppStrings {
   String get plusGiftAllHave;
   String get plusGiftFailed;
   String plusGiftDiscountBadge(int percent);
+  String plusGiftDone(String name);
   String memoryFileTooBig(int limitMb);
   String get statsTitle;
   String get pickerDateTab;

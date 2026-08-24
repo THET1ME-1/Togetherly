@@ -2680,6 +2680,9 @@ abstract class DictStrings extends AppStrings {
   String plusGiftDiscountBadge(int percent) =>
       _t('plusGiftDiscountBadge').replaceAll('{percent}', '$percent');
   @override
+  String plusGiftDone(String name) =>
+      _t('plusGiftDone').replaceAll('{name}', name);
+  @override
   String get statsTitle => _t('statsTitle');
   @override
   String get pickerDateTab => _t('pickerDateTab');

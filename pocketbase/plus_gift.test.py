@@ -159,13 +159,69 @@ def main():
     check("витрина показывает, что доступ уже есть",
           bool(p2) and p2[0].get("already") is True, str(p2))
 
+    log("=== 5. подарок через биллинг магазина ===")
+    # Флаг, поставленный прошлым разделом, снимаем: проверяем именно выдачу.
+    sql(f"UPDATE users SET plus = 0, plus_platform = '' WHERE id = '{him['uid']}'")
+    token_gift = "probe-gift-" + rnd(24)
+    # `store=rustore` пропускает сверку чека — единственный способ проверить
+    # выдачу без настоящей покупки в Play или App Store.
+    st, buy2 = api("/api/coins/iap-purchase", {
+        "productId": "togetherly_plus_gift",
+        "purchaseToken": token_gift,
+        "groupId": pair,
+        "store": "rustore",
+    }, her["token"])
+    check("покупка в магазине принята",
+          st == 200 and buy2.get("ok") is True and buy2.get("gift") is True,
+          f"{st} {buy2}")
+
+    row2 = sql(f"SELECT plus || '|' || plus_platform FROM users WHERE id = '{him['uid']}'")
+    check("Плюс открылся ПОЛУЧАТЕЛЮ", row2.startswith("1|"), row2)
+    check("источник помечен подарком", row2.endswith("|gift"), row2)
+    mine = sql(f"SELECT plus FROM users WHERE id = '{her['uid']}'")
+    check("плательщику ничего не досталось", mine in ("0", "false", ""), mine)
+
+    st, again2 = api("/api/coins/iap-purchase", {
+        "productId": "togetherly_plus_gift",
+        "purchaseToken": token_gift,
+        "groupId": pair,
+        "store": "rustore",
+    }, her["token"])
+    check("повторный чек ничего не задваивает",
+          st == 200 and again2.get("alreadyGranted") is True, f"{st} {again2}")
+
+    st, alien = api("/api/coins/iap-purchase", {
+        "productId": "togetherly_plus_gift",
+        "purchaseToken": "probe-gift-" + rnd(24),
+        "groupId": pair,
+        "store": "rustore",
+    }, stranger["token"])
+    check("посторонний в чужую пару не подарит",
+          st == 403 and alien.get("error") == "not_member", f"{st} {alien}")
+
+    st, nogroup = api("/api/coins/iap-purchase", {
+        "productId": "togetherly_plus_gift",
+        "purchaseToken": "probe-gift-" + rnd(24),
+        "store": "rustore",
+    }, her["token"])
+    check("без связи подарок не проходит",
+          st == 400 and nogroup.get("error") == "no_group", f"{st} {nogroup}")
+
     log("=== уборка ===")
+    sql("DELETE FROM iap_purchases WHERE token LIKE 'probe-gift-%'")
     if contract:
         sql(f"DELETE FROM lava_invoices WHERE contract_id = '{contract}'")
     api(f"/api/collections/groups/records/{pair}", None, her["token"], method="DELETE")
+    codes = []
     for who in (her, him, stranger):
-        api(f"/api/collections/users/records/{who['uid']}", None, who["token"],
-            method="DELETE")
+        st, _ = api(f"/api/collections/users/records/{who['uid']}", None,
+                    who["token"], method="DELETE")
+        codes.append(st)
+    # Правила коллекции удаление своего аккаунта пускают не всегда (у выданного
+    # Плюса запись сторожит `users_guard`), а мусор в базе оставлять нельзя.
+    if sql("SELECT count(*) FROM users WHERE email LIKE 'gift-probe-%'") != "0":
+        log(f"  API отказал ({codes}) — убираю запросом к базе")
+        sql("DELETE FROM users WHERE email LIKE 'gift-probe-%'")
     left = sql("SELECT count(*) FROM users WHERE email LIKE 'gift-probe-%'")
     check("тестовые аккаунты убраны", left == "0", f"осталось {left}")
 

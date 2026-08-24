@@ -17,6 +17,7 @@ Future<GiftRecipient?> showGiftRecipientSheet(
   BuildContext context, {
   required ColorScheme scheme,
   required PlusGiftOffer offer,
+  String priceLabel = '',
 }) {
   return showAppSheet<GiftRecipient>(
     context,
@@ -26,16 +27,28 @@ Future<GiftRecipient?> showGiftRecipientSheet(
       // MaterialApp, а не у того, кто его открыл. Без этого он выезжает в
       // чужой теме — на этом уже ловили витрину Плюса.
       data: ProfileTheme.data(scheme),
-      child: _GiftRecipientSheet(scheme: scheme, offer: offer),
+      child: _GiftRecipientSheet(
+        scheme: scheme,
+        offer: offer,
+        priceLabel: priceLabel,
+      ),
     ),
   );
 }
 
 class _GiftRecipientSheet extends StatefulWidget {
-  const _GiftRecipientSheet({required this.scheme, required this.offer});
+  const _GiftRecipientSheet({
+    required this.scheme,
+    required this.offer,
+    required this.priceLabel,
+  });
 
   final ColorScheme scheme;
   final PlusGiftOffer offer;
+
+  /// Цена на кнопке. В Play и App Store её называет магазин, поэтому она
+  /// приходит готовой строкой, а не считается из ответа сервера.
+  final String priceLabel;
 
   @override
   State<_GiftRecipientSheet> createState() => _GiftRecipientSheetState();
@@ -57,7 +70,7 @@ class _GiftRecipientSheetState extends State<_GiftRecipientSheet> {
   @override
   Widget build(BuildContext context) {
     final chosen = _chosen;
-    final price = widget.offer.priceLabel;
+    final price = widget.priceLabel;
     final canGift = chosen != null && !chosen.alreadyHasPlus;
 
     return SheetScaffold(

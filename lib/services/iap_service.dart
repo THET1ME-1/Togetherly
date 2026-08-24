@@ -164,14 +164,17 @@ class IapService extends CoinStore {
 
     final param = PurchaseParam(productDetails: pd);
     try {
-      if (productId == kPlusProductId || productId.contains('.')) {
+      if (productId != kGiftProductId &&
+          (productId == kPlusProductId || productId.contains('.'))) {
         // Togetherly+ и элементы каталога покупаются один раз навсегда. Через
         // buyConsumable Play разрешил бы купить их повторно, а деньги ушли бы
         // впустую. Товары каталога отличаются точкой в идентификаторе
         // (`mood_pack.moti`), у монет её нет.
         await _iap.buyNonConsumable(purchaseParam: param);
       } else {
-        // consumable = true (монеты — расходуемый товар)
+        // Расходуемые: монеты и подарок партнёру. Подарок обязан быть таким —
+        // иначе второй раз его не купить, и владелец Плюса не смог бы подарить
+        // доступ вовсе.
         await _iap.buyConsumable(purchaseParam: param);
       }
     } catch (e) {
@@ -250,6 +253,12 @@ class IapService extends CoinStore {
           // Флаг ставит сервер, приложение его перечитывает: экран Plus и все
           // проверки доступа завязаны на PlusService, а не на ответ магазина.
           await PlusService.instance.refresh();
+          _completeWith(const IapResult(IapStatus.success));
+          return;
+        }
+        if (productId == kGiftProductId) {
+          // Подарок: доступ ушёл партнёру, у плательщика не изменилось ничего.
+          // Перечитывать свой флаг незачем — и монет тут тоже нет.
           _completeWith(const IapResult(IapStatus.success));
           return;
         }

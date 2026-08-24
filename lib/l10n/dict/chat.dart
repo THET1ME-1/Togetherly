@@ -2313,6 +2313,15 @@ const Map<String, Map<String, String>> chatStrings = {
     'fr': 'Impossible d’ouvrir le paiement. Réessaie plus tard.',
     'de': 'Die Zahlung ließ sich nicht öffnen. Versuch es später.',
   },
+  'plusGiftDone': {
+    'ru': 'Подарок отправлен: {name} получит доступ',
+    'en': 'Gift sent — {name} gets full access',
+    'pt': 'Presente enviado: {name} recebe o acesso',
+    'it': 'Regalo inviato: {name} riceve l’accesso',
+    'es': 'Regalo enviado: {name} recibe el acceso',
+    'fr': 'Cadeau envoyé : {name} reçoit l’accès',
+    'de': 'Geschenk verschickt: {name} bekommt den Zugang',
+  },
   'plusGiftDiscountBadge': {
     'ru': '−{percent}%',
     'en': '−{percent}%',

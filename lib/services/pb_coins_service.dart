@@ -121,9 +121,13 @@ class PbCoinsService {
   Future<Map<String, dynamic>?> iapPurchase({
     required String productId,
     required String purchaseToken,
+    String groupId = '',
   }) => _call('iap-purchase', {
     'productId': productId,
     'purchaseToken': purchaseToken,
+    // Подарок: связь, через которую виден получатель. Второго участника
+    // сервер достаёт из неё сам — чужой uid клиент назвать не может.
+    if (groupId.isNotEmpty) 'groupId': groupId,
     // Магазин нужен серверу, чтобы знать, у кого спрашивать чек: покупку Play
     // он сверяет через Play Developer API, а токены RuStore и App Store тот не
     // признает. Платформу берём из рантайма: IPA собирается с STORE=github, и

@@ -499,6 +499,12 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
   const purchaseToken = String(body.purchaseToken || "");
   const COIN_PACKS = { "coins_10": 10, "coins_50": 50, "coins_120": 120, "coins_300": 300 };
   const PLUS_PRODUCT = "togetherly_plus";
+  // Подарок партнёру через биллинг магазина. Отдельный РАСХОДУЕМЫЙ товар, а не
+  // тот же `togetherly_plus`: разовую покупку ни Play, ни App Store не дают
+  // купить второй раз, поэтому владелец Плюса не смог бы подарить его вовсе.
+  // Передавать покупку на чужой аккаунт магазины не умеют — доступ по чеку
+  // выдаёт этот роут тому, кого выбрали в приложении.
+  const GIFT_PRODUCT = "togetherly_plus_gift";
   const amount = COIN_PACKS[productId];
 
   // Элемент каталога, купленный в Play: товар называется `вид.id`
@@ -511,7 +517,7 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
   let featureItemId = "";
   let featureWantKind = "";
   const dot = productId.indexOf(".");
-  if (dot > 0 && !amount && productId !== PLUS_PRODUCT) {
+  if (dot > 0 && !amount && productId !== PLUS_PRODUCT && productId !== GIFT_PRODUCT) {
     const kind = productId.slice(0, dot);
     const itemId = productId.slice(dot + 1);
     if (KINDS[kind] && itemId) {
@@ -521,7 +527,7 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
     }
   }
 
-  if (!amount && productId !== PLUS_PRODUCT && !featureKey) {
+  if (!amount && productId !== PLUS_PRODUCT && productId !== GIFT_PRODUCT && !featureKey) {
     return e.json(400, { ok: false, error: "unknown productId" });
   }
   if (!purchaseToken) return e.json(400, { ok: false, error: "purchaseToken required" });
@@ -673,6 +679,101 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
       return e.json(500, { ok: false, error: "tx failed" });
     }
     return e.json(featOut.s, featOut.b);
+  }
+
+  // Подарок партнёру через биллинг магазина: плательщик купил расходуемый
+  // товар себе, а флаг доступа ложится ПОЛУЧАТЕЛЮ.
+  //
+  // Кому дарить, решает не клиент: он передаёт лишь связь, а сервер сам
+  // достаёт из неё второго участника — иначе подделанный запрос открывал бы
+  // Плюс любому чужому аккаунту. Состав пары читаем из Postgres по той же
+  // причине, что и в `lava_checkout.pb.js`: `users.group_ids` отстаёт на
+  // секунды, и в свежесобранной паре даритель выглядел бы посторонним.
+  if (productId === GIFT_PRODUCT) {
+    const groupId = String(body.groupId || "").trim();
+    if (!groupId) return e.json(400, { ok: false, error: "no_group" });
+
+    let groups = [];
+    try {
+      const r = $http.send({
+        url: "http://127.0.0.1:8120/internal/groups-of?live=1&uid="
+          + encodeURIComponent(e.auth.id),
+        method: "GET",
+        timeout: 8,
+      });
+      groups = (r && r.json && r.json.items) || [];
+    } catch (_) { groups = []; }
+
+    let partnerUid = "";
+    for (let i = 0; i < groups.length; i++) {
+      if (String(groups[i].id || "") !== groupId) continue;
+      const members = Array.isArray(groups[i].members) ? groups[i].members : [];
+      for (let j = 0; j < members.length; j++) {
+        const m = String(members[j] || "");
+        if (m && m !== e.auth.id) { partnerUid = m; break; }
+      }
+      break;
+    }
+    if (!partnerUid) return e.json(403, { ok: false, error: "not_member" });
+
+    let giftOut;
+    try {
+      $app.runInTransaction((txApp) => {
+        let already = null;
+        try { already = txApp.findRecordById("iap_purchases", tokenKey); } catch (_) { already = null; }
+        if (already) {
+          giftOut = { s: 200, b: { ok: true, alreadyGranted: true, gift: true } };
+          return;
+        }
+        const partner = txApp.findRecordById("users", partnerUid);
+        // Плюс мог появиться у него, пока шла оплата, — тогда просто закрываем
+        // покупку: чек уже оплачен, отказывать в нём поздно и незачем.
+        if (!partner.getBool("plus")) {
+          partner.set("plus", true);
+          partner.set("plus_platform", "gift");
+          txApp.save(partner);
+        }
+        const col = txApp.findCollectionByNameOrId("iap_purchases");
+        const rec = new Record(col);
+        rec.set("id", tokenKey);
+        rec.set("token", purchaseToken);
+        // Платил один, доступ получил другой. В записи остаётся ПЛАТЕЛЬЩИК:
+        // по ней сверяют чек с магазином, а кому ушёл подарок, видно по
+        // `product_id` и по `plus_platform` получателя.
+        rec.set("user_uid", e.auth.id);
+        rec.set("product_id", productId);
+        rec.set("amount", 0);
+        rec.set("at", new Date().toISOString());
+        txApp.save(rec);
+        giftOut = { s: 200, b: { ok: true, alreadyGranted: false, gift: true, coins: 0 } };
+      });
+    } catch (err) {
+      $app.logger().error("iap: подарок не выдан", "product", productId,
+        "uid", e.auth.id, "to", partnerUid, "err", String(err));
+      return e.json(500, { ok: false, error: "tx failed" });
+    }
+
+    // Получатель ничего не покупал: без уведомления доступ просто появился бы
+    // у него сам, и это выглядело бы сбоем.
+    if (giftOut && giftOut.b && giftOut.b.alreadyGranted === false) {
+      try {
+        let from = "";
+        try {
+          from = String($app.findRecordById("users", e.auth.id)
+            .getString("display_name") || "");
+        } catch (_) {}
+        const push = require(`${__hooks}/apns_push.js`);
+        push.sendTo(
+          partnerUid,
+          "Togetherly+ — подарок 💜",
+          from ? from + " подарил(а) вам полный доступ" : "Вам подарили полный доступ",
+          "plusgift");
+        $app.logger().warn("iap: подарок вручён", "from", e.auth.id, "to", partnerUid);
+      } catch (err) {
+        $app.logger().warn("iap: уведомление о подарке не ушло", "err", String(err));
+      }
+    }
+    return e.json(giftOut.s, giftOut.b);
   }
 
   // Togetherly+ из Google Play (товар togetherly_plus, способ покупки lifetime).
