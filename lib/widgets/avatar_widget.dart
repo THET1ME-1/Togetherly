@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../utils/safe_text.dart';
 import 'storage_image.dart';
+import 'widget_content_view.dart';
 import '../services/pocketbase_service.dart';
 import '../services/pb_auth_service.dart';
 
@@ -21,6 +22,14 @@ class AvatarWidget extends StatelessWidget {
   final double size;
   final Color primary;
 
+  /// Открывать ли фотографию на весь экран по нажатию.
+  ///
+  /// Просьба из поддержки: лицо партнёра видно кружком в 40 точек, и
+  /// разглядеть его негде. Включается не везде: в списках и строках, где
+  /// нажатие уже что-то делает, тап по аватару перехватывал бы действие
+  /// строки. Кружок с буквой не открывается вовсе — показывать нечего.
+  final bool tapToView;
+
   const AvatarWidget({
     super.key,
     required this.uid,
@@ -29,6 +38,7 @@ class AvatarWidget extends StatelessWidget {
     this.name,
     required this.size,
     required this.primary,
+    this.tapToView = false,
   });
 
   String _resolveUrl() {
@@ -64,6 +74,19 @@ class AvatarWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final url = _resolveUrl();
+    final picture = _picture(url);
+    if (!tapToView || url.isEmpty) return picture;
+    return GestureDetector(
+      onTap: () => openWidgetPhotoView(
+        context,
+        imageUrl: url,
+        authorName: name,
+      ),
+      child: picture,
+    );
+  }
+
+  Widget _picture(String url) {
     return ClipOval(
       child: url.isNotEmpty
           ? StorageImage(

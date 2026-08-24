@@ -39,6 +39,7 @@ import '../widgets/chat/send_mic_button.dart';
 import '../widgets/chat/voice_bubble.dart';
 import 'chat/note_viewer_screen.dart';
 import '../widgets/chat/note_bubble.dart';
+import '../widgets/widget_content_view.dart';
 import '../widgets/chat/note_recorder_overlay.dart';
 import '../widgets/chat/note_shapes.dart';
 import '../widgets/chat/voice_recording_bar.dart';
@@ -2019,21 +2020,32 @@ class _ChatScreenState extends State<ChatScreen> {
       size: 17,
       // Обводка под цвет шапки, иначе метка сливается с самим аватаром.
       ringColor: cs.surface,
-      child: SizedBox(
-        width: 44,
-        height: 44,
-        child: ClipOval(
-          child: url.isNotEmpty
-              ? StorageImage(
+      child: GestureDetector(
+        // Фото партнёра открывается целиком: в шапке от него остаётся кружок
+        // в 44 точки. У заглушки с буквой открывать нечего.
+        onTap: url.isEmpty
+            ? null
+            : () => openWidgetPhotoView(
+                  context,
                   imageUrl: url,
-                  width: 44,
-                  height: 44,
-                  fit: BoxFit.cover,
-                  memCacheWidth: 132,
-                  placeholder: (_, __) => _avatarLetter(cs, name),
-                  errorWidget: (_, __, ___) => _avatarLetter(cs, name),
-                )
-              : _avatarLetter(cs, name),
+                  authorName: name,
+                ),
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: ClipOval(
+            child: url.isNotEmpty
+                ? StorageImage(
+                    imageUrl: url,
+                    width: 44,
+                    height: 44,
+                    fit: BoxFit.cover,
+                    memCacheWidth: 132,
+                    placeholder: (_, __) => _avatarLetter(cs, name),
+                    errorWidget: (_, __, ___) => _avatarLetter(cs, name),
+                  )
+                : _avatarLetter(cs, name),
+          ),
         ),
       ),
     );

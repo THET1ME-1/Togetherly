@@ -1,5 +1,6 @@
 import '../../widgets/mood_image.dart';
 import '../../widgets/storage_image.dart';
+import '../../widgets/widget_content_view.dart';
 import 'package:flutter/material.dart';
 import '../../utils/safe_text.dart';
 import '../../models/pair_data.dart';
@@ -67,7 +68,7 @@ class HomeHeader extends StatelessWidget {
         height: kHeaderRowHeight,
         child: Row(
           children: [
-            _avatars(),
+            _avatars(context),
             const SizedBox(width: 8),
             // Expanded, а не Flexible: строка обязана доходить до правого
             // края. При Flexible пилюля жалась к содержимому, и справа
@@ -97,9 +98,10 @@ class HomeHeader extends StatelessWidget {
 
   // ── Аватары ────────────────────────────────────────────────────────────────
 
-  Widget _avatars() {
+  Widget _avatars(BuildContext context) {
     if (!isPaired) {
       return _avatarWithMood(
+        context,
         myAvatarUrl,
         name: myDisplayName,
         mood: myMood,
@@ -115,6 +117,7 @@ class HomeHeader extends StatelessWidget {
           Positioned(
             left: 0,
             child: _avatarWithMood(
+              context,
               myAvatarUrl,
               name: myDisplayName,
               mood: myMood,
@@ -125,6 +128,7 @@ class HomeHeader extends StatelessWidget {
             Positioned(
               left: (i + 1) * _avatarStep,
               child: _avatarWithMood(
+                context,
                 shown[i].avatar,
                 name: shown[i].name,
                 mood: moodOf(shown[i].uid),
@@ -142,12 +146,30 @@ class HomeHeader extends StatelessWidget {
   /// белая обводка и тень — на тёмных темах обводка светилась чужим белым, а
   /// тень нарушала правило «глубину даёт тон, а не размытие».
   Widget _avatarWithMood(
+    BuildContext context,
     String url, {
     String? name,
     required MemberMood mood,
     required MoodBadgePosition moodPosition,
   }) {
     const badge = 18.0;
+    // Кружок в шапке — 40 точек: лица там не разглядеть. Нажатие открывает
+    // фотографию целиком; у заглушки с буквой открывать нечего.
+    return GestureDetector(
+      onTap: url.isEmpty
+          ? null
+          : () => openWidgetPhotoView(context, imageUrl: url, authorName: name),
+      child: _avatarStack(url, name, mood, moodPosition, badge),
+    );
+  }
+
+  Widget _avatarStack(
+    String url,
+    String? name,
+    MemberMood mood,
+    MoodBadgePosition moodPosition,
+    double badge,
+  ) {
     return SizedBox(
       width: kHeaderControlHeight,
       height: kHeaderControlHeight,

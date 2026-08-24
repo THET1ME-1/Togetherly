@@ -121,6 +121,9 @@ class ProfileHero extends StatelessWidget {
                         name: name,
                         size: 84,
                         primary: cs.primary,
+                        // В своём профиле нажатие уже занято сменой фото, а в
+                        // партнёрском не делало ничего — там и открываем.
+                        tapToView: onTapAvatar == null,
                       ),
                     ),
                     if (onTapAvatar != null)

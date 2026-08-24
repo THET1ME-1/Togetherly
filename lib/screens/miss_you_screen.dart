@@ -352,6 +352,7 @@ class _MissYouScreenState extends State<MissYouScreen>
           name: widget.partnerName,
           size: 36,
           primary: cs.primary,
+          tapToView: true,
         ),
         const SizedBox(width: 10),
         Expanded(
