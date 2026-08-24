@@ -170,3 +170,27 @@ Map<String, String> pairWidgetClearPayload() => {
 /// кашу — часть путей пуста, часть на месте.
 bool shouldClearPairWidget({required bool wasPaired, required bool isPaired}) =>
     wasPaired && !isPaired;
+
+/// Привязка виджета к паре: что положить в общий контейнер, чтобы виджет
+/// понял, чью половину рисовать.
+///
+/// Ключи пишутся при каждой синхронизации, а не только при смене группы.
+/// Отчёты `widget-diag` за 23.08.2026 показали 19 iPhone, где имена обеих
+/// половин записаны, а `love_widget_group_id` пуст: виджет рисует
+/// «Подключите партнёра» при живой паре. Записывал привязку один
+/// `bindToGroup`, и при той же группе он выходит первой строкой — промах
+/// записи (на iOS `home_widget` отвечает ошибкой, пока не задан App Group)
+/// исправить было уже нечем до самой смены пары.
+///
+/// Пустую группу сюда не кладём: распад пары чистит `clearPairWidgetData`,
+/// и затирать привязку на каждом холодном старте, пока сессия не поднялась,
+/// нельзя — на iPhone обновить виджет обратно некому.
+Map<String, String> pairBindingPayload({
+  required String groupId,
+  required String partnerUid,
+}) =>
+    {
+      if (groupId.isNotEmpty) 'love_widget_group_id': groupId,
+      if (groupId.isNotEmpty && partnerUid.isNotEmpty)
+        'love_widget_partner_uid': partnerUid,
+    };

@@ -155,7 +155,15 @@
     // Лишняя буква перед схемой — палец задел клавишу мимо поля.
     s = s.replace(/(^|\s)[a-z](https?:\/\/)/i, '$1$2');
     const at = s.search(/https?:\/\//i);
-    if (at < 0) return s;
+    // Схемы нет вовсе. Мобильные браузеры её давно не показывают, поэтому из
+    // адресной строки копируется «youtu.be/xxx» — `new URL()` такое не берёт, и
+    // включение молча срывалось («ссылку вставляем, а видео не включается»,
+    // 24.08.2026). Дописываем схему сами, если в строке есть что-то похожее на
+    // домен; обычный текст остаётся текстом и честно получает отказ.
+    if (at < 0) {
+      const bare = s.match(/(^|\s)((?:[a-z0-9-]+\.)+[a-z]{2,}(?:[/?#][^\s]*)?)/i);
+      return bare ? 'https://' + bare[2] : s;
+    }
     let one = s.slice(at).split(/\s/)[0];
     // Вторая ссылка прилипла без пробела: режем по её схеме.
     const more = one.slice(1).search(/https?:\/\//i);
@@ -192,7 +200,9 @@
       if (m) return { kind: 'vk', id: m[1] + '_' + m[2] };
     }
     if (host.endsWith('rutube.ru')) {
-      const m = url.pathname.match(/\/video\/([0-9a-f]+)/);
+      // Шортсы играют тем же встроенным плеером, что и обычные ролики, а путь
+      // у них свой — раньше в комнату их было не поставить.
+      const m = url.pathname.match(/\/(?:video|shorts)\/([0-9a-f]+)/);
       if (m) return { kind: 'rutube', id: m[1] };
     }
     if (host.endsWith('disk.yandex.ru') || host.endsWith('disk.yandex.com') || host === 'yadi.sk') {

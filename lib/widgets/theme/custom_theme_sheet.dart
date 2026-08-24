@@ -8,6 +8,7 @@ import '../../services/photo_palette_service.dart';
 import '../../theme/app_palettes.dart';
 import '../../theme/profile_theme.dart';
 import '../../theme/theme_scope.dart';
+import '../../utils/safe_pick.dart';
 import '../app_sheet.dart';
 import '../seed_swatch.dart';
 
@@ -67,8 +68,10 @@ class _CustomThemeSheetState extends State<_CustomThemeSheet> {
       _photoEmpty = false;
     });
     try {
-      final picked = await ImagePicker()
-          .pickImage(source: ImageSource.gallery, maxWidth: 1200);
+      final picked = await safePick(
+        () => ImagePicker()
+            .pickImage(source: ImageSource.gallery, maxWidth: 1200),
+      );
       if (picked == null) {
         if (mounted) setState(() => _reading = false);
         return;

@@ -5852,8 +5852,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                       onTap: () async {
                         try {
                           final picker = ImagePicker();
-                          final picked = await picker.pickVideo(
-                            source: ImageSource.gallery,
+                          final picked = await safePick(
+                            () => picker.pickVideo(
+                              source: ImageSource.gallery,
+                            ),
                           );
                           if (picked != null) {
                             if (!context.mounted) return;

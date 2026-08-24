@@ -8,6 +8,7 @@ import '../../services/locale_service.dart';
 import '../../services/pb_data_service.dart';
 import '../../services/pb_media_service.dart';
 import '../../services/plus_access.dart';
+import '../../utils/safe_pick.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/fonts.dart';
 import '../../theme/profile_theme.dart';
@@ -202,11 +203,13 @@ class _WishFormState extends State<_WishForm> {
   /// в хранилище и возвращается ссылкой `pb://`, её же понимает карточка.
   Future<void> _pickPhoto(ImageSource source) async {
     if (_uploading) return;
-    final x = await ImagePicker().pickImage(
-      source: source,
-      imageQuality: 85,
-      maxWidth: 1600,
-      maxHeight: 1600,
+    final x = await safePick(
+      () => ImagePicker().pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1600,
+        maxHeight: 1600,
+      ),
     );
     if (x == null || !mounted) return;
     setState(() => _uploading = true);

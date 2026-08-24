@@ -10,6 +10,7 @@ import '../models/coloring_picture.dart';
 import '../services/coloring_upload_queue.dart';
 import '../services/plus_access.dart';
 import '../services/plus_service.dart';
+import '../utils/safe_pick.dart';
 import '../widgets/common/m3_loading.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
@@ -102,8 +103,10 @@ class _ColoringCatalogueScreenState extends State<ColoringCatalogueScreen> {
       );
       return;
     }
-    final picked = await ImagePicker()
-        .pickImage(source: ImageSource.gallery, imageQuality: 100);
+    final picked = await safePick(
+      () => ImagePicker()
+          .pickImage(source: ImageSource.gallery, imageQuality: 100),
+    );
     if (picked == null || !mounted) return;
     await _uploads.add(File(picked.path), title: _s.coloringOwnDefaultName);
   }

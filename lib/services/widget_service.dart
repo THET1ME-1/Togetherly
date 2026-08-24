@@ -694,6 +694,18 @@ class WidgetService extends ChangeNotifier {
       // pair_widget_payload.dart, под тестами.
       final my = _myData;
       final partner = firstPartnerData;
+
+      // Привязка к паре идёт вместе с данными. `bindToGroup` пишет её один раз
+      // и при той же группе выходит первой строкой, поэтому промах записи
+      // оставался навсегда: имена обновлялись, а виджет рисовал «Подключите
+      // партнёра» (19 таких iPhone в отчётах за 23.08.2026).
+      for (final e in pairBindingPayload(
+        groupId: _groupId,
+        partnerUid: partner?.uid ?? '',
+      ).entries) {
+        await HomeWidget.saveWidgetData<String>(e.key, e.value);
+      }
+
       final keys = pairWidgetPayload(
         my: my,
         partner: partner,

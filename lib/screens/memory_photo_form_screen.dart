@@ -10,6 +10,7 @@ import 'package:video_compress/video_compress.dart';
 import '../models/memory.dart';
 import '../services/locale_service.dart';
 import '../utils/photo_crop.dart';
+import '../utils/safe_pick.dart';
 import '../theme/app_theme.dart';
 import '../theme/profile_theme.dart';
 
@@ -95,8 +96,8 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
 
   Future<void> _pickMedia() async {
     try {
-      final picked = await ImagePicker().pickMultipleMedia();
-      if (picked.isEmpty || !mounted) return;
+      final picked = await safePick(() => ImagePicker().pickMultipleMedia());
+      if (picked == null || picked.isEmpty || !mounted) return;
 
       // Потолок файла: 100 МБ обычно, 200 с Togetherly+. Проверяем ДО добавления
       // в форму — иначе тяжёлое видео уходило бы в очередь и висело там, получая
