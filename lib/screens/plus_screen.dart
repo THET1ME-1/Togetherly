@@ -1,15 +1,19 @@
+import 'dart:async';
 import 'dart:io';
 import '../utils/safe_launch.dart';
 
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../models/plus_gift.dart';
 import '../services/coin_store.dart';
 import '../services/locale_service.dart';
 import '../services/pb_coins_service.dart';
 import '../services/plus_service.dart';
 import '../theme/profile_theme.dart';
 import '../widgets/app_sheet.dart';
+import '../widgets/avatar_widget.dart';
+import '../widgets/plus/gift_recipient_sheet.dart';
 
 /// Экран Togetherly+.
 ///
@@ -34,6 +38,11 @@ class _PlusScreenState extends State<PlusScreen> {
   final PlusService _plus = PlusService.instance;
   bool _busy = false;
 
+  /// Кому можно подарить доступ, почём и со скидкой ли. Пока сервер не ответил
+  /// — карточки подарка нет: пустая заготовка обещала бы то, чего может не
+  /// быть (пары нет, подарок выключен, у партнёра всё куплено).
+  PlusGiftOffer _gift = PlusGiftOffer.none;
+
   /// Магазин заводится только в Play-сборке — там покупка идёт через биллинг.
   /// В остальных сборках оплата уходит на lava.top, и магазин не нужен.
   CoinStore? _store;
@@ -46,7 +55,14 @@ class _PlusScreenState extends State<PlusScreen> {
     super.initState();
     _plus.addListener(_onChanged);
     unawaitedRefresh();
+    _loadGift();
     if (PlusService.buysInStore) _initStore();
+  }
+
+  Future<void> _loadGift() async {
+    if (!PlusService.canGift) return;
+    final offer = await _plus.giftOffer();
+    if (mounted) setState(() => _gift = offer);
   }
 
   Future<void> _initStore() async {
@@ -128,6 +144,10 @@ class _PlusScreenState extends State<PlusScreen> {
               const SizedBox(height: 20),
               if (!active) _actions(),
               if (active) _ownedNote(),
+              if (_gift.visible) ...[
+                const SizedBox(height: 20),
+                _giftCard(),
+              ],
             ],
           ),
         ),
@@ -314,6 +334,42 @@ class _PlusScreenState extends State<PlusScreen> {
             ),
           ),
         ),
+        // Распродажу объявляет сервер, поэтому она появляется без новой
+        // сборки: прежняя цена зачёркнута, рядом размер скидки.
+        if (_gift.plusDiscount > 0 && _gift.plusBaseLabel.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                _gift.plusBaseLabel,
+                style: TextStyle(
+                  fontFamily: 'Onest',
+                  fontSize: 13,
+                  decoration: TextDecoration.lineThrough,
+                  color: _cs.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _cs.secondaryContainer,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  _s.plusGiftDiscountBadge(_gift.plusDiscount),
+                  style: TextStyle(
+                    fontFamily: 'Onest',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: _cs.onSecondaryContainer,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
         // Ввод кода в Play-сборке не показываем: код выдают за оплату мимо
         // биллинга Google, и кнопка «у меня есть код» рядом с их же покупкой
         // читается как обход. Купившие на lava.top с другой почтой открывают
@@ -358,6 +414,207 @@ class _PlusScreenState extends State<PlusScreen> {
     );
   }
 
+  /// Карточка «подарить партнёру» — своя, под списком возможностей.
+  ///
+  /// Стоит и у тех, кто Плюс уже купил: им покупать больше нечего, и подарок
+  /// остаётся единственным действием на этом экране.
+  Widget _giftCard() {
+    final target = _gift.suggested;
+    final single = _gift.recipients.length == 1;
+    final canGift = _gift.hasAnyoneToGift;
+    final price = _gift.priceLabel;
+    final base = _gift.baseLabel;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: _cs.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(28),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              if (single && target != null) ...[
+                AvatarWidget(
+                  uid: target.uid,
+                  liveUrl: target.avatarUrl,
+                  name: target.name,
+                  size: 40,
+                  primary: _cs.primary,
+                ),
+                const SizedBox(width: 12),
+              ] else ...[
+                Container(
+                  width: 40,
+                  height: 40,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: _cs.primaryContainer,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.card_giftcard_rounded,
+                      size: 21, color: _cs.onPrimaryContainer),
+                ),
+                const SizedBox(width: 12),
+              ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      single && target != null && target.name.isNotEmpty
+                          ? _s.plusGiftTitleFor(target.name)
+                          : _s.plusGiftTitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Unbounded',
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        fontVariations: const [FontVariation('wght', 600)],
+                        color: _cs.onSurface,
+                      ),
+                    ),
+                    if (single && canGift) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        _s.plusGiftPairRole,
+                        style: TextStyle(
+                          fontFamily: 'Onest',
+                          fontSize: 12,
+                          color: _cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              // Скидку называет сервер, поэтому плашка появляется у людей в
+              // тот же час, когда её включают, — без новой сборки.
+              if (canGift && _gift.discount > 0) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: _cs.secondaryContainer,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    _s.plusGiftDiscountBadge(_gift.discount),
+                    style: TextStyle(
+                      fontFamily: 'Onest',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: _cs.onSecondaryContainer,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            canGift ? _s.plusGiftBody : _s.plusGiftAllHave,
+            style: TextStyle(
+              fontFamily: 'Onest',
+              fontSize: 13,
+              height: 1.4,
+              color: _cs.onSurfaceVariant,
+            ),
+          ),
+          if (canGift) ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.tonal(
+                onPressed: _busy ? null : _openGift,
+                style: FilledButton.styleFrom(
+                  backgroundColor: _cs.primaryContainer,
+                  foregroundColor: _cs.onPrimaryContainer,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.card_giftcard_rounded, size: 18),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        price.isEmpty
+                            ? _s.plusGiftAction
+                            : _s.plusGiftActionFor(price),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontFamily: 'Onest',
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    if (base.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        base,
+                        style: TextStyle(
+                          fontFamily: 'Onest',
+                          fontSize: 13,
+                          decoration: TextDecoration.lineThrough,
+                          color: _cs.onPrimaryContainer.withValues(alpha: 0.6),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Выбор получателя, затем счёт на его почту.
+  ///
+  /// Почту подставляет сервер: клиент передаёт только связь, через которую
+  /// виден человек. Иначе подделанный запрос дарил бы доступ чужому адресу.
+  Future<void> _openGift() async {
+    final chosen = await showGiftRecipientSheet(
+      context,
+      scheme: _cs,
+      offer: _gift,
+    );
+    if (chosen == null || !mounted) return;
+
+    setState(() => _busy = true);
+    final res = await _plus.giftCheckoutUrl(groupId: chosen.groupId);
+    if (!mounted) return;
+    setState(() => _busy = false);
+
+    // Доступ появился, пока выбирали, — платить не за что.
+    if (res.already) {
+      _toast(_s.plusGiftHasPlus);
+      unawaited(_loadGift());
+      return;
+    }
+    final url = Uri.tryParse(res.url ?? '');
+    if (url == null) {
+      _toast(_s.plusGiftFailed);
+      return;
+    }
+    try {
+      await safeLaunchUrl(url, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      if (mounted) _toast(_s.plusGiftFailed);
+    }
+  }
+
   Widget _ownedNote() {
     return Container(
       padding: const EdgeInsets.all(18),
@@ -392,9 +649,16 @@ class _PlusScreenState extends State<PlusScreen> {
   /// всем, кроме США. Товар ещё не загрузился — показываем действие без цены,
   /// а не пустое место.
   String get _buyLabel {
-    final price = _store?.priceLabel(kPlusProductId);
-    if (price == null || price.isEmpty) return _s.plusBuy;
-    return _s.plusBuyFor(price);
+    final fromStore = _store?.priceLabel(kPlusProductId);
+    if (fromStore != null && fromStore.isNotEmpty) {
+      return _s.plusBuyFor(fromStore);
+    }
+    // В сборках с сайта магазина нет, и цену называет сервер: он читает её из
+    // каталога lava.top в валюте этой страны. Пока ответ не пришёл — кнопка
+    // говорит действие без суммы, а не показывает пустое место.
+    final fromServer = _gift.plusPriceLabel;
+    if (fromServer.isNotEmpty) return _s.plusBuyFor(fromServer);
+    return _s.plusBuy;
   }
 
   Future<void> _openPurchase() async {

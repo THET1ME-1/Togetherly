@@ -2651,6 +2651,35 @@ abstract class DictStrings extends AppStrings {
   @override
   String get plusStoreUnavailable => _t('plusStoreUnavailable');
   @override
+  String get plusGiftTitle => _t('plusGiftTitle');
+  @override
+  String plusGiftTitleFor(String name) =>
+      _t('plusGiftTitleFor').replaceAll('{name}', name);
+  @override
+  String get plusGiftBody => _t('plusGiftBody');
+  @override
+  String get plusGiftAction => _t('plusGiftAction');
+  @override
+  String plusGiftActionFor(String price) =>
+      _t('plusGiftActionFor').replaceAll('{price}', price);
+  @override
+  String get plusGiftSheetTitle => _t('plusGiftSheetTitle');
+  @override
+  String get plusGiftSheetBody => _t('plusGiftSheetBody');
+  @override
+  String get plusGiftSheetNote => _t('plusGiftSheetNote');
+  @override
+  String get plusGiftHasPlus => _t('plusGiftHasPlus');
+  @override
+  String get plusGiftPairRole => _t('plusGiftPairRole');
+  @override
+  String get plusGiftAllHave => _t('plusGiftAllHave');
+  @override
+  String get plusGiftFailed => _t('plusGiftFailed');
+  @override
+  String plusGiftDiscountBadge(int percent) =>
+      _t('plusGiftDiscountBadge').replaceAll('{percent}', '$percent');
+  @override
   String get statsTitle => _t('statsTitle');
   @override
   String get pickerDateTab => _t('pickerDateTab');

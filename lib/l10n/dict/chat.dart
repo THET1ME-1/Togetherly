@@ -2191,6 +2191,137 @@ const Map<String, Map<String, String>> chatStrings = {
     'fr': 'La boutique est indisponible pour l’instant. Réessaie plus tard.',
     'de': 'Der Laden ist gerade nicht verfügbar. Versuch es später.',
   },
+  // Подарок Togetherly+: платит один, доступ открывается другому. Цену и
+  // размер скидки называет сервер, поэтому в строках они подстановкой.
+  'plusGiftTitle': {
+    'ru': 'Подарить Togetherly+',
+    'en': 'Gift Togetherly+',
+    'pt': 'Presentear com o Togetherly+',
+    'it': 'Regala Togetherly+',
+    'es': 'Regala Togetherly+',
+    'fr': 'Offrir Togetherly+',
+    'de': 'Togetherly+ verschenken',
+  },
+  'plusGiftTitleFor': {
+    'ru': 'Подарить {name}',
+    'en': 'Gift it to {name}',
+    'pt': 'Presentear {name}',
+    'it': 'Regalalo a {name}',
+    'es': 'Regálaselo a {name}',
+    'fr': 'Offrir à {name}',
+    'de': '{name} beschenken',
+  },
+  'plusGiftBody': {
+    'ru':
+        'Откроется всё то же самое: платные темы, календарь цикла, виджеты. Доступ останется на аккаунте навсегда.',
+    'en':
+        'The same things open up: paid themes, the cycle calendar, widgets. Access stays on the account for good.',
+    'pt':
+        'Abre tudo igual: temas pagos, calendário do ciclo, widgets. O acesso fica na conta para sempre.',
+    'it':
+        'Si apre tutto uguale: temi a pagamento, calendario del ciclo, widget. L’accesso resta sull’account per sempre.',
+    'es':
+        'Se abre lo mismo: temas de pago, calendario del ciclo, widgets. El acceso queda en la cuenta para siempre.',
+    'fr':
+        'Tout s’ouvre pareil : thèmes payants, calendrier du cycle, widgets. L’accès reste sur le compte pour toujours.',
+    'de':
+        'Es öffnet sich dasselbe: bezahlte Themes, Zykluskalender, Widgets. Der Zugang bleibt für immer am Konto.',
+  },
+  'plusGiftAction': {
+    'ru': 'Подарить',
+    'en': 'Gift',
+    'pt': 'Presentear',
+    'it': 'Regala',
+    'es': 'Regalar',
+    'fr': 'Offrir',
+    'de': 'Verschenken',
+  },
+  'plusGiftActionFor': {
+    'ru': 'Подарить · {price}',
+    'en': 'Gift · {price}',
+    'pt': 'Presentear · {price}',
+    'it': 'Regala · {price}',
+    'es': 'Regalar · {price}',
+    'fr': 'Offrir · {price}',
+    'de': 'Verschenken · {price}',
+  },
+  'plusGiftSheetTitle': {
+    'ru': 'Кому подарить',
+    'en': 'Who gets it',
+    'pt': 'Para quem',
+    'it': 'A chi regalarlo',
+    'es': 'A quién regalarlo',
+    'fr': 'À qui l’offrir',
+    'de': 'Wer bekommt es',
+  },
+  'plusGiftSheetBody': {
+    'ru': 'Платите вы — Togetherly+ откроется тому, кого выберете.',
+    'en': 'You pay, and Togetherly+ opens for whoever you pick.',
+    'pt': 'Você paga e o Togetherly+ abre para quem escolher.',
+    'it': 'Paghi tu e Togetherly+ si apre per chi scegli.',
+    'es': 'Pagas tú y Togetherly+ se abre para quien elijas.',
+    'fr': 'Tu paies, et Togetherly+ s’ouvre pour la personne que tu choisis.',
+    'de': 'Du zahlst, und Togetherly+ öffnet sich für die Person, die du wählst.',
+  },
+  'plusGiftSheetNote': {
+    'ru': 'Почту вводить не нужно — подставим сами. О подарке придёт уведомление.',
+    'en': 'No email to type, we fill it in. A notification announces the gift.',
+    'pt':
+        'Não precisa digitar e-mail, preenchemos sozinhos. Um aviso anuncia o presente.',
+    'it':
+        'Non serve scrivere l’e-mail, la mettiamo noi. Del regalo arriva una notifica.',
+    'es':
+        'No hace falta escribir el correo, lo ponemos nosotros. Un aviso anuncia el regalo.',
+    'fr':
+        'Pas d’e-mail à saisir, on s’en occupe. Un avis annonce le cadeau.',
+    'de':
+        'Keine E-Mail eintippen, das machen wir. Eine Mitteilung kündigt das Geschenk an.',
+  },
+  'plusGiftHasPlus': {
+    'ru': 'Togetherly+ уже есть',
+    'en': 'Already has Togetherly+',
+    'pt': 'Já tem o Togetherly+',
+    'it': 'Ha già Togetherly+',
+    'es': 'Ya tiene Togetherly+',
+    'fr': 'A déjà Togetherly+',
+    'de': 'Hat Togetherly+ schon',
+  },
+  'plusGiftPairRole': {
+    'ru': 'Ваша пара',
+    'en': 'Your pair',
+    'pt': 'Sua dupla',
+    'it': 'La tua coppia',
+    'es': 'Tu pareja',
+    'fr': 'Ton duo',
+    'de': 'Dein Paar',
+  },
+  'plusGiftAllHave': {
+    'ru': 'Togetherly+ уже есть у всех ваших связей',
+    'en': 'Everyone in your pairs already has Togetherly+',
+    'pt': 'Todo mundo nas suas duplas já tem o Togetherly+',
+    'it': 'Tutti nelle tue coppie hanno già Togetherly+',
+    'es': 'Todos en tus parejas ya tienen Togetherly+',
+    'fr': 'Tout le monde dans tes duos a déjà Togetherly+',
+    'de': 'Alle in deinen Paaren haben Togetherly+ schon',
+  },
+  'plusGiftFailed': {
+    'ru': 'Не получилось открыть оплату. Попробуйте позже.',
+    'en': 'Couldn’t open the payment page. Try later.',
+    'pt': 'Não deu para abrir o pagamento. Tente mais tarde.',
+    'it': 'Non è stato possibile aprire il pagamento. Riprova più tardi.',
+    'es': 'No se pudo abrir el pago. Prueba más tarde.',
+    'fr': 'Impossible d’ouvrir le paiement. Réessaie plus tard.',
+    'de': 'Die Zahlung ließ sich nicht öffnen. Versuch es später.',
+  },
+  'plusGiftDiscountBadge': {
+    'ru': '−{percent}%',
+    'en': '−{percent}%',
+    'pt': '−{percent}%',
+    'it': '−{percent}%',
+    'es': '−{percent}%',
+    'fr': '−{percent}%',
+    'de': '−{percent}%',
+  },
   'statsTitle': {
     'ru': 'Статистика пары',
     'en': 'Couple stats',

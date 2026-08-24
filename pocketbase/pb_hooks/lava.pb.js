@@ -154,6 +154,10 @@ routerAdd("POST", "/api/lava/webhook", (e) => {
   }
 
   let out = { s: 500, b: { ok: false, error: "internal" } };
+  // Кому открылся Плюс этой оплатой. Нужно ПОСЛЕ транзакции: подарок стоит
+  // сообщить получателю пушем, а ходить в релей изнутри транзакции нельзя —
+  // на этом уже стоял весь сервер (разбор ночи 14 августа).
+  let plusGrantedTo = "";
   try {
     $app.runInTransaction((txApp) => {
       // Идемпотентность: один заказ — одно начисление. Ключом служит номер
@@ -210,6 +214,7 @@ routerAdd("POST", "/api/lava/webhook", (e) => {
           // полю потом видно, почему у человека всё открыто без неё.
           user.set("plus_platform", "lava");
           txApp.save(user);
+          plusGrantedTo = user.id;
           out = { s: 200, b: { ok: true, plus: true, direct: true } };
           return;
         }
@@ -276,6 +281,36 @@ routerAdd("POST", "/api/lava/webhook", (e) => {
       : out.b && out.b.direct
         ? (isPlus ? "plus_granted" : feature ? "feature_granted" : "coins_credited")
         : "code_issued");
+
+    // Подарок партнёру: доступ уже открыт, осталось сказать об этом человеку.
+    // Он ничего не покупал и на витрину не заходил — без уведомления Плюс
+    // просто появится у него однажды, и он решит, что это сбой.
+    if (plusGrantedTo && orderId) {
+      try {
+        const inv = $app.findFirstRecordByFilter(
+          "lava_invoices", "contract_id = {:c}", { c: orderId });
+        const giftedBy = inv ? String(inv.getString("gifted_by") || "") : "";
+        if (giftedBy) {
+          let from = "";
+          try {
+            from = String($app.findRecordById("users", giftedBy)
+              .getString("display_name") || "");
+          } catch (_) {}
+          const push = require(`${__hooks}/apns_push.js`);
+          push.sendTo(
+            plusGrantedTo,
+            "Togetherly+ — подарок 💜",
+            from ? from + " подарил(а) вам полный доступ" : "Вам подарили полный доступ",
+            "plusgift");
+          try { inv.set("granted", true); $app.save(inv); } catch (_) {}
+          $app.logger().warn("lava/webhook: подарок вручён",
+            "to", plusGrantedTo, "from", giftedBy, "order", orderId);
+        }
+      } catch (err) {
+        $app.logger().warn("lava/webhook: уведомление о подарке не ушло",
+          "order", orderId, "err", String(err));
+      }
+    }
   } catch (err) {
     try {
       $http.send({
