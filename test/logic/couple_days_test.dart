@@ -87,10 +87,50 @@ void main() {
       );
     });
 
-    test('годовщина раньше таймера — начало отношений её', () {
+    test('годовщина раньше правленого таймера — таймер сильнее: свой срок '
+        'человек уже выставил', () {
       expect(
         coupleStartDate(
           timerStart: timer,
+          groupStart: connect,
+          anniversary: anniversary,
+        ),
+        timer,
+      );
+    });
+
+    test('одна годовщина без прочих дат — она и есть начало', () {
+      expect(coupleStartDate(anniversary: anniversary), anniversary);
+    });
+  });
+
+  // Приоритет дат. На проде 43 791 пара с системным таймером: 27 989 годовщину
+  // не вводили вовсе, 3 370 ввели её и таймер не трогали (его дата равна дню
+  // регистрации — случай @qwinken), 12 432 правили таймер руками, и у 1 605 из
+  // них годовщина стоит РАНЬШЕ правленого таймера. Для последних «самая ранняя
+  // из трёх» перебивала бы осознанный выбор человека.
+  group('чья дата главнее', () {
+    final connect = DateTime(2026, 8, 24, 12, 0);
+    final anniversary = DateTime(2025, 9, 3);
+
+    test('таймер правили руками — он и есть начало, даже если годовщина '
+        'раньше', () {
+      final edited = DateTime(2026, 1, 15);
+      expect(
+        coupleStartDate(
+          timerStart: edited,
+          groupStart: connect,
+          anniversary: anniversary,
+        ),
+        edited,
+      );
+    });
+
+    test('таймер стоит на дне регистрации — значит его не трогали, и начало '
+        'берётся из годовщины', () {
+      expect(
+        coupleStartDate(
+          timerStart: connect,
           groupStart: connect,
           anniversary: anniversary,
         ),
@@ -98,8 +138,27 @@ void main() {
       );
     });
 
-    test('одна годовщина без прочих дат — она и есть начало', () {
-      expect(coupleStartDate(anniversary: anniversary), anniversary);
+    test('время суток разное, день тот же — таймер всё ещё «не тронут»', () {
+      expect(
+        coupleStartDate(
+          timerStart: DateTime(2026, 8, 24, 20, 30),
+          groupStart: connect,
+          anniversary: anniversary,
+        ),
+        anniversary,
+      );
+    });
+
+    test('годовщина позже правленого таймера — срок не укорачивает', () {
+      final edited = DateTime(2024, 3, 1);
+      expect(
+        coupleStartDate(
+          timerStart: edited,
+          groupStart: connect,
+          anniversary: DateTime(2025, 6, 1),
+        ),
+        edited,
+      );
     });
   });
 }
