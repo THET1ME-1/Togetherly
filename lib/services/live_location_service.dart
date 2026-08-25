@@ -441,6 +441,10 @@ class LiveLocationService with WidgetsBindingObserver {
       return AndroidSettings(
         accuracy: accuracy,
         distanceFilter: distanceFilter,
+        // Как часто система вообще спрашивает координату. Редкий опрос — та
+        // самая экономия, ради которой раньше снимали wake lock; со снятым
+        // замком фон переставал работать вовсе.
+        intervalDuration: tune.interval,
         // Foreground-service держит стрим живым в фоне. Геолокатор сам
         // объявляет сервис и его тип в своём манифесте.
         foregroundNotificationConfig: ForegroundNotificationConfig(

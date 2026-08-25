@@ -249,10 +249,15 @@ class _ProfileScreenState extends State<ProfileScreen>
   StreamSubscription? _missYouSub;
   String? _lastLoadedGroupId;
 
-  int _calculateDaysTogether(DateTime? fallbackDate) =>
+  /// Дней вместе, где [fallbackDate] — дата коннекта, а [anniversary] —
+  /// годовщина из профиля. Годовщину сюда доносим обязательно: её вводят
+  /// первой, и без неё пара, сошедшаяся в приложении сегодня, видела «0 дней»
+  /// при годовщине годовой давности (жалоба @qwinken, 24.08.2026).
+  int _calculateDaysTogether(DateTime? fallbackDate, {DateTime? anniversary}) =>
       coupleDaysTogether(
         timerStart: widget.timerService.systemTimer?.startDate,
         groupStart: fallbackDate,
+        anniversary: anniversary,
       ) ??
       0;
 
@@ -261,15 +266,17 @@ class _ProfileScreenState extends State<ProfileScreen>
   int? _daysTogetherActive() => coupleDaysTogether(
     timerStart: widget.timerService.systemTimer?.startDate,
     groupStart: widget.pairData.startDate,
+    anniversary: widget.pairData.anniversaryDate,
   );
 
   /// Дней вместе в произвольной связи из «Друзей». Таймеры привязаны к активной
-  /// группе, поэтому чужой связи достаётся только дата коннекта.
+  /// группе, поэтому чужой связи достаётся дата коннекта и её годовщина.
   int? _daysTogetherOf(Connection c) => coupleDaysTogether(
     timerStart: c.pairId == widget.pairData.pairId
         ? widget.timerService.systemTimer?.startDate
         : null,
     groupStart: c.startDate,
+    anniversary: c.anniversaryDate,
   );
 
   @override
@@ -3074,7 +3081,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     // ── Days together — ALWAYS from system clock (DateTime.now) ──
     final startDate = selectedPartner?.connection.startDate;
     final daysString = _s.daysTogetherLabel(
-      '${_calculateDaysTogether(startDate)}',
+      '${_calculateDaysTogether(startDate, anniversary: selectedPartner?.connection.anniversaryDate)}',
     );
 
     final hasPaired = allPartners.isNotEmpty;
@@ -3221,6 +3228,52 @@ class _ProfileScreenState extends State<ProfileScreen>
       birthDate: widget.userData.birthDate,
     );
     if (mounted) setState(() {});
+    if (mounted) await _offerCounterFromAnniversary(context, picked);
+  }
+
+  /// Предлагает вести «Дни вместе» от только что введённой годовщины.
+  ///
+  /// Поле годовщины лежит на виду, и его заполняют первым, ожидая, что с этой
+  /// даты пойдёт счёт: «указание в этих полях не начинает отсчёт... нужно
+  /// ставить её там, где кружок» (@qwinken, 24.08.2026). Спрашиваем прямо
+  /// здесь: согласие переводит системный таймер, а с ним главный экран,
+  /// виджеты и уведомления. Молчим, когда счётчик и так идёт с более ранней
+  /// даты — переводить его назад нечем.
+  Future<void> _offerCounterFromAnniversary(
+    BuildContext context,
+    DateTime anniversary,
+  ) async {
+    final timer = widget.timerService.systemTimer;
+    if (timer == null) return;
+    final a = DateTime(anniversary.year, anniversary.month, anniversary.day);
+    final current = timer.startDate;
+    final c = DateTime(current.year, current.month, current.day);
+    if (!a.isBefore(c)) return;
+
+    final date = _formatCelebrationDate(a);
+    final ok = await AppDialog.confirm(
+      context,
+      title: _s.anniversaryCounterAsk,
+      message: _s.anniversaryCounterAskBody(date),
+      confirmLabel: _s.yes,
+      cancelLabel: _s.no,
+      icon: Icons.calendar_month_rounded,
+    );
+    if (ok != true) return;
+
+    final saved = await widget.timerService.updateTimer(
+      timer.copyWith(startDate: a),
+    );
+    if (!mounted) return;
+    setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          saved ? _s.anniversaryCounterDone(date) : _s.timerSaveFailed,
+        ),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   Future<void> _showFirstKissDatePicker(

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import '../utils/couple_days.dart';
 import '../utils/safe_text.dart';
 import '../widgets/common/app_dialog.dart';
 import '../widgets/storage_image.dart';
@@ -722,13 +723,18 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
         : LocaleService.current.waiting;
     final online =
         partner != null && (_partnerOnlineStatus[partner.uid] ?? false);
-    // «Дней вместе» — из того же источника, что виджет и колесо на главной:
-    // системный таймер отношений (его дату юзер и правит). Connection.startDate
-    // (pair.daysInLove) — устаревшее второе поле, расходилось с ним.
+    // «Дней вместе» — по общей формуле `coupleDaysTogether`: самая ранняя из
+    // даты системного таймера (её человек правит колесом), даты коннекта и
+    // годовщины из профиля. Раньше экран смотрел только в таймер и расходился
+    // с профилем у тех, кто ввёл одну годовщину.
     final relTimer =
         widget.timerService?.systemTimer ?? widget.timerService?.defaultTimer;
-    final days =
-        relTimer != null ? relTimer.daysElapsed.abs() : pair.daysInLove;
+    final days = coupleDaysTogether(
+          timerStart: relTimer?.startDate,
+          groupStart: pair.startDate,
+          anniversary: pair.anniversaryDate,
+        ) ??
+        pair.daysInLove;
 
     // Годовщина: ближайшее наступление (месяц/день) от сегодня.
     int? annivDays;

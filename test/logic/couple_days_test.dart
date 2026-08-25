@@ -58,4 +58,48 @@ void main() {
       expect(coupleDaysTogether(now: now), isNull);
     });
   });
+
+  // Жалоба @qwinken (24.08.2026, скриншот профиля): «Загрузили нашу дату
+  // знакомства, но дни вместе не обновились. Пишет 0, хотя мы вместе уже 355
+  // дней. При этом время до следующей годовщины показывает корректно».
+  // В профиле стояла годовщина 03.09.2025, а пара сошлась в приложении в тот же
+  // день, когда он писал — расчёт брал только дату коннекта и таймера.
+  group('годовщина как дата начала', () {
+    final connectToday = DateTime(2026, 8, 24, 12, 0);
+    final anniversary = DateTime(2025, 9, 3);
+    final nowThen = DateTime(2026, 8, 24, 13, 3);
+
+    test('пара сошлась сегодня, а годовщина год назад — считаем от годовщины', () {
+      expect(
+        coupleDaysTogether(
+          groupStart: connectToday,
+          anniversary: anniversary,
+          now: nowThen,
+        ),
+        355,
+      );
+    });
+
+    test('годовщина позже коннекта — она срок не укорачивает', () {
+      expect(
+        coupleStartDate(groupStart: connect, anniversary: DateTime(2026, 6, 20)),
+        connect,
+      );
+    });
+
+    test('годовщина раньше таймера — начало отношений её', () {
+      expect(
+        coupleStartDate(
+          timerStart: timer,
+          groupStart: connect,
+          anniversary: anniversary,
+        ),
+        anniversary,
+      );
+    });
+
+    test('одна годовщина без прочих дат — она и есть начало', () {
+      expect(coupleStartDate(anniversary: anniversary), anniversary);
+    });
+  });
 }

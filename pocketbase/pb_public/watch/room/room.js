@@ -1138,9 +1138,45 @@
     const btn = $('#cinema');
     if (!btn) return;
     btn.addEventListener('click', () => {
-      const on = document.body.classList.toggle('cinema');
-      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      setCinema(!document.body.classList.contains('cinema'));
     });
+    catchPlayerFullscreen();
+  }
+
+  /// Включает или снимает свой полноэкранный режим.
+  function setCinema(on) {
+    document.body.classList.toggle('cinema', on);
+    const btn = $('#cinema');
+    if (btn) btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+
+  /// Кнопка «во весь экран» у самого плеера ведёт в наш режим, а не в системный.
+  ///
+  /// В приложении комната живёт во встроенном браузере, и когда ютуб уходит в
+  /// системный полноэкранный режим, кадр накрывает всё окно: писать становится
+  /// некуда, а кнопки выхода из WebView не видно — «не получается писать в
+  /// приложении, когда смотрим видео» (24.08.2026). Поэтому на телефоне
+  /// выходим из системного режима и включаем свой: кадр во всю площадь, чат
+  /// поверх. На широком экране не мешаем — там полноэкранный режим и правда
+  /// полноэкранный, а чат человек видит в соседней колонке.
+  function catchPlayerFullscreen() {
+    // Узкий экран — телефон: и в приложении, и в мобильном браузере.
+    const narrow = () => Math.min(window.innerWidth, window.innerHeight) < 700;
+    const swap = () => {
+      const el = document.fullscreenElement || document.webkitFullscreenElement;
+      if (!el || !narrow()) return;
+      let exit;
+      try {
+        exit = document.exitFullscreen
+          ? document.exitFullscreen()
+          : document.webkitExitFullscreen && document.webkitExitFullscreen();
+      } catch (_) {}
+      // Свой режим включаем в любом случае: даже если системный не отпустил,
+      // человек выйдет из него сам и попадёт в комнату с чатом.
+      Promise.resolve(exit).catch(() => {}).then(() => setCinema(true));
+    };
+    document.addEventListener('fullscreenchange', swap);
+    document.addEventListener('webkitfullscreenchange', swap);
   }
 
   /// Запуск идёт по готовности РАЗМЕТКИ.

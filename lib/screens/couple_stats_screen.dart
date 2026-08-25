@@ -210,6 +210,7 @@ class _CoupleStatsScreenState extends State<CoupleStatsScreen> {
           latest[_partnerUid] == null ? null : _score(latest[_partnerUid]!),
       daysTogether: coupleDaysTogether(
         groupStart: widget.startDate ?? s.startDate,
+        anniversary: widget.anniversaryDate,
         timerStart: null,
       ),
       daysToAnniversary: _daysToAnniversary(),
@@ -366,6 +367,7 @@ class _CoupleStatsScreenState extends State<CoupleStatsScreen> {
   Widget _hero(CoupleStats s) {
     final days = coupleDaysTogether(
           groupStart: widget.startDate ?? s.startDate,
+          anniversary: widget.anniversaryDate,
           timerStart: null,
         ) ??
         0;

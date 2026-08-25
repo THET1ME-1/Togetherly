@@ -2206,12 +2206,14 @@ class _WidgetScreenState extends State<WidgetScreen>
         timerStart:
             (_timerService.defaultTimer ?? _timerService.systemTimer)?.startDate,
         groupStart: _pair.startDate,
+        anniversary: _pair.anniversaryDate,
       );
 
   int _togetherDays() => coupleDaysTogether(
         timerStart:
             (_timerService.defaultTimer ?? _timerService.systemTimer)?.startDate,
         groupStart: _pair.startDate,
+        anniversary: _pair.anniversaryDate,
       ) ??
       0;
 

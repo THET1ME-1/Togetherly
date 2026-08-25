@@ -848,6 +848,14 @@ abstract class DictStrings extends AppStrings {
   @override
   String get anniversaryWheelHint => _t('anniversaryWheelHint');
   @override
+  String get anniversaryCounterAsk => _t('anniversaryCounterAsk');
+  @override
+  String anniversaryCounterAskBody(String date) =>
+      _t('anniversaryCounterAskBody').replaceAll('{date}', date);
+  @override
+  String anniversaryCounterDone(String date) =>
+      _t('anniversaryCounterDone').replaceAll('{date}', date);
+  @override
   String get firstKissDate => _t('firstKissDate');
   @override
   String get myBirthday => _t('myBirthday');

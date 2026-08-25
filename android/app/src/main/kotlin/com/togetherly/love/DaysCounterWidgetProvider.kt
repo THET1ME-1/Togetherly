@@ -28,7 +28,31 @@ class DaysCounterWidgetProvider : HomeWidgetProvider() {
     ) {
         appWidgetIds.forEach { widgetId ->
             val g = WidgetGroupHelper.getOrBind(context, "days_counter", widgetId)
-            val views = RemoteViews(context.packageName, R.layout.days_counter_widget).apply {
+
+            // ── Свои фото пары вместо рисунка (фича days_widget_photos) ──
+            // Считаем ДО сборки макета: со снимками у виджета своя раскладка.
+            // В общей колонка стоит по центру, и на невысокой ячейке дата
+            // ложилась прямо на круглые фотографии — «когда выбираешь
+            // показывать свои фото, дату не видно» (@qwinken, 25.08.2026).
+            val usePhotos = g.isNotEmpty() &&
+                widgetData.getString("days_${g}_use_photos", "0") == "1"
+            val myAvatarPath = if (g.isEmpty()) null else widgetData.getString("days_${g}_my_avatar_path", null)
+            val partnerAvatarPath = if (g.isEmpty()) null else widgetData.getString("days_${g}_partner_avatar_path", null)
+
+            val myAvatar = if (usePhotos) circularBitmap(
+                PhotoDayWidgetProvider.loadScaledBitmapStatic(myAvatarPath, 160)
+            ) else null
+            val partnerAvatar = if (usePhotos) circularBitmap(
+                PhotoDayWidgetProvider.loadScaledBitmapStatic(partnerAvatarPath, 160)
+            ) else null
+            val withPhotos = myAvatar != null && partnerAvatar != null
+
+            val layoutId = if (withPhotos) {
+                R.layout.days_counter_widget_photos
+            } else {
+                R.layout.days_counter_widget
+            }
+            val views = RemoteViews(context.packageName, layoutId).apply {
 
                 val pendingIntent = HomeWidgetLaunchIntent.getActivity(
                     context,
@@ -62,19 +86,10 @@ class DaysCounterWidgetProvider : HomeWidgetProvider() {
                 // User is always on the left; flip mf image when user=female, partner=male
                 setFloat(R.id.couple_image, "setScaleX", if (myGender == "female" && partnerGender == "male") -1f else 1f)
 
-                // ── Свои фото пары вместо рисунка (фича days_widget_photos) ──
-                val usePhotos = !g.isEmpty() &&
-                    widgetData.getString("days_${g}_use_photos", "0") == "1"
-                val myAvatarPath = if (g.isEmpty()) null else widgetData.getString("days_${g}_my_avatar_path", null)
-                val partnerAvatarPath = if (g.isEmpty()) null else widgetData.getString("days_${g}_partner_avatar_path", null)
-
-                val myAvatar = if (usePhotos) circularBitmap(
-                    PhotoDayWidgetProvider.loadScaledBitmapStatic(myAvatarPath, 160)
-                ) else null
-                val partnerAvatar = if (usePhotos) circularBitmap(
-                    PhotoDayWidgetProvider.loadScaledBitmapStatic(partnerAvatarPath, 160)
-                ) else null
-
+                // ── Снимки пары или рисунок ──
+                // Условие через null, а не через withPhotos: иначе умное
+                // приведение типа не срабатывает и Bitmap? не подходит
+                // setImageViewBitmap.
                 if (myAvatar != null && partnerAvatar != null) {
                     setImageViewBitmap(R.id.avatar_left, myAvatar)
                     setImageViewBitmap(R.id.avatar_right, partnerAvatar)

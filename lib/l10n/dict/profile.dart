@@ -175,6 +175,43 @@ const Map<String, Map<String, String>> profileStrings = {
     'de':
         'Für Erinnerungen. Den Zähler „Tage zusammen“ stellst du getrennt ein — über den Stift ✏️ auf dem Startbildschirm',
   },
+  // Человек вводит годовщину и ждёт, что с неё пойдёт счёт дней: «дата начала
+  // не влияет на отсчёт, и нужно ставить её там, где кружок» (@qwinken,
+  // 24.08.2026). Спрашиваем прямо на месте и переводим счётчик сами.
+  'anniversaryCounterAsk': {
+    'ru': 'Считать дни вместе с этой даты?',
+    'en': 'Count your days together from this date?',
+    'pt': 'Contar os dias juntos a partir desta data?',
+    'it': 'Contare i giorni insieme da questa data?',
+    'es': '¿Contar los días juntos desde esta fecha?',
+    'fr': 'Compter vos jours ensemble à partir de cette date ?',
+    'de': 'Eure gemeinsamen Tage ab diesem Datum zählen?',
+  },
+  'anniversaryCounterAskBody': {
+    'ru':
+        'Счётчик «Дни вместе» на главной и на виджетах пойдёт с {date}. Изменение увидит и партнёр.',
+    'en':
+        'The “Days together” counter on the home screen and widgets will start from {date}. Your partner sees the change too.',
+    'pt':
+        'O contador «Dias juntos» na tela inicial e nos widgets vai começar em {date}. Seu par também verá a mudança.',
+    'it':
+        'Il contatore «Giorni insieme» nella schermata principale e nei widget partirà dal {date}. Anche il partner vedrà la modifica.',
+    'es':
+        'El contador «Días juntos» de la pantalla de inicio y de los widgets empezará el {date}. Tu pareja también verá el cambio.',
+    'fr':
+        'Le compteur « Jours ensemble » de l’écran d’accueil et des widgets partira du {date}. Ton partenaire verra aussi ce changement.',
+    'de':
+        'Der Zähler „Tage zusammen“ auf dem Startbildschirm und in den Widgets startet ab {date}. Dein Partner sieht die Änderung ebenfalls.',
+  },
+  'anniversaryCounterDone': {
+    'ru': 'Счёт дней вместе идёт с {date}',
+    'en': 'Days together now count from {date}',
+    'pt': 'Os dias juntos agora contam a partir de {date}',
+    'it': 'I giorni insieme ora partono dal {date}',
+    'es': 'Los días juntos ahora cuentan desde el {date}',
+    'fr': 'Les jours ensemble comptent depuis le {date}',
+    'de': 'Die gemeinsamen Tage zählen ab {date}',
+  },
   'firstKissDate': {
     'ru': 'Первый поцелуй',
     'en': 'First Kiss',

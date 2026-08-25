@@ -579,6 +579,9 @@ abstract class AppStrings {
   String get invitePartnerToCount;
   String get anniversaryDate;
   String get anniversaryWheelHint;
+  String get anniversaryCounterAsk;
+  String anniversaryCounterAskBody(String date);
+  String anniversaryCounterDone(String date);
   String get firstKissDate;
   String get myBirthday;
   String get partnerBirthday;

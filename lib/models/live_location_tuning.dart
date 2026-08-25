@@ -12,6 +12,7 @@ class LiveLocationTuning {
     required this.wakeLock,
     required this.pauseAutomatically,
     required this.forceIndicator,
+    this.interval = const Duration(seconds: 30),
   });
 
   /// На сколько метров надо сместиться, чтобы точка ушла партнёру.
@@ -33,6 +34,10 @@ class LiveLocationTuning {
   /// когда действительно берёт координаты в фоне.
   final bool forceIndicator;
 
+  /// Как часто спрашивать координату у системы (Android). Держит расход в
+  /// узде вместо снятого wake lock: процессор просыпается, но редко.
+  final Duration interval;
+
   @override
   bool operator ==(Object other) =>
       other is LiveLocationTuning &&
@@ -40,7 +45,8 @@ class LiveLocationTuning {
       other.highAccuracy == highAccuracy &&
       other.wakeLock == wakeLock &&
       other.pauseAutomatically == pauseAutomatically &&
-      other.forceIndicator == forceIndicator;
+      other.forceIndicator == forceIndicator &&
+      other.interval == interval;
 
   @override
   int get hashCode => Object.hash(
@@ -49,6 +55,7 @@ class LiveLocationTuning {
         wakeLock,
         pauseAutomatically,
         forceIndicator,
+        interval,
       );
 }
 
@@ -58,7 +65,17 @@ class LiveLocationTuning {
 /// и каждый его перезапуск заново показывает уведомление «Геопозиция
 /// включена» — ровно то, на что жалуются («пишет раз в N времени, хотя она не
 /// отключалась»). Поэтому вместо переключения профилей берём средний: шаг
-/// крупнее, чем на экране, точность спутниковая, процессор не держим.
+/// крупнее, чем на экране, точность спутниковая, опрос редкий.
+///
+/// **Фон обязан работать.** Правка 21.08.2026 гасила расход двумя способами
+/// разом — снятым wake lock на Android и `pauseLocationUpdatesAutomatically`
+/// на iOS — и метка замирала, стоило свернуть приложение: «геопозиция
+/// обновляется только при нахождении в приложении, даже когда в настройках
+/// стоит „Всегда“, на iOS 26.6.1. В версии для Android такая же проблема»
+/// (@melyron, 24.08.2026). Обе меры убивали саму фичу: без wake lock процессор
+/// засыпает и координаты не доезжают, а усыплённые системой обновления iOS
+/// сама не будит, пока человек не откроет приложение. Экономим иначе — редким
+/// опросом и крупным шагом.
 LiveLocationTuning liveLocationTuning({
   required bool foreground,
   bool android = false,
@@ -67,9 +84,10 @@ LiveLocationTuning liveLocationTuning({
     return const LiveLocationTuning(
       distanceFilter: 40,
       highAccuracy: true,
-      wakeLock: false,
+      wakeLock: true,
       pauseAutomatically: false,
       forceIndicator: false,
+      interval: Duration(seconds: 60),
     );
   }
   if (foreground) {
@@ -79,15 +97,18 @@ LiveLocationTuning liveLocationTuning({
       wakeLock: true,
       pauseAutomatically: false,
       forceIndicator: false,
+      interval: Duration(seconds: 10),
     );
   }
-  // В фоне метку смотрят изредка, а платит за неё батарея: шаг крупнее,
-  // точность сетевая, процессор не держим.
+  // В фоне метку смотрят изредка, а платит за неё батарея: шаг крупнее и
+  // точность сетевая. Усыплять обновления не даём — из этого сна их будит
+  // только открытое приложение.
   return const LiveLocationTuning(
     distanceFilter: 80,
     highAccuracy: false,
     wakeLock: false,
-    pauseAutomatically: true,
+    pauseAutomatically: false,
     forceIndicator: false,
+    interval: Duration(seconds: 60),
   );
 }
