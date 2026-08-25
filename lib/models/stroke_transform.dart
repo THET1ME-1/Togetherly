@@ -265,3 +265,38 @@ DrawStroke strokeWithPoints(DrawStroke stroke, List<DrawPoint> points) {
     layer: stroke.layer,
   );
 }
+
+/// Копия картинки-штриха с новым положением, размером, поворотом или адресом.
+///
+/// Копируется ВСЯ запись, а не только поля картинки: пока копия собиралась в
+/// экране руками, она теряла `layer` и `clientId` — то есть перетащенная
+/// заливка проваливалась на нижний слой, а свой штрих переставал узнавать
+/// пришедшую с сервера запись.
+DrawStroke copyImageStroke(
+  DrawStroke s, {
+  double? x,
+  double? y,
+  double? w,
+  double? h,
+  double? rot,
+  String? url,
+}) =>
+    DrawStroke(
+      id: s.id,
+      clientId: s.clientId,
+      userId: s.userId,
+      colorValue: s.colorValue,
+      strokeWidth: s.strokeWidth,
+      points: s.points,
+      isEraser: s.isEraser,
+      isFilledShape: s.isFilledShape,
+      shapeType: s.shapeType,
+      orderIndex: s.orderIndex,
+      layer: s.layer,
+      imageUrl: url ?? s.imageUrl,
+      imageX: x ?? s.imageX,
+      imageY: y ?? s.imageY,
+      imageWidth: w ?? s.imageWidth,
+      imageHeight: h ?? s.imageHeight,
+      imageRotation: rot ?? s.imageRotation,
+    );

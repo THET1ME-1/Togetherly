@@ -251,3 +251,109 @@ void paintStroke(
   path.lineTo(last.dx, last.dy);
   canvas.drawPath(path, paint..style = PaintingStyle.stroke);
 }
+
+
+/// Картинка-штрих: заливка ведром и вставленное фото.
+///
+/// Рисуется тем же painter'ом, что и мазки, ровно на своём месте в порядке
+/// (25.08.2026). До этого холст выкладывал картинки виджетами ПОВЕРХ
+/// `CustomPaint`, и залитое ведром пятно ложилось сверху всего рисунка, что бы
+/// ни говорили `orderIndex` и слой: тестер залил квадрат, стал рисовать по нему
+/// кистью — линия уходила под пятно, и на любом слое повторялось то же.
+/// Ластик пятно тоже не брал: он снимает краску внутри слоя, а виджет лежал
+/// снаружи.
+///
+/// Кадр вписывается как `BoxFit.cover` — так же, как его показывал `Image`:
+/// у заливки картинка и так по месту, а фото не должно растянуться.
+void paintImageStroke(
+  Canvas canvas,
+  Image image,
+  DrawStroke stroke,
+  Size size, {
+  double alpha = 1.0,
+}) {
+  if (image.width <= 0 || image.height <= 0) return;
+  final w = (stroke.imageWidth ?? 0.5) * size.width;
+  final h = (stroke.imageHeight ?? 0.5) * size.height;
+  if (w <= 0 || h <= 0) return;
+  final cx = (stroke.imageX ?? 0.5) * size.width;
+  final cy = (stroke.imageY ?? 0.5) * size.height;
+  final rot = stroke.imageRotation ?? 0.0;
+
+  final iw = image.width.toDouble();
+  final ih = image.height.toDouble();
+  // Обрезка по центру под соотношение места: лишнее по длинной стороне.
+  var sw = iw, sh = ih;
+  if (iw / ih > w / h) {
+    sw = ih * (w / h);
+  } else {
+    sh = iw / (w / h);
+  }
+  final src = Rect.fromLTWH((iw - sw) / 2, (ih - sh) / 2, sw, sh);
+
+  final paint = Paint()
+    ..filterQuality = FilterQuality.medium
+    ..color = Color.fromRGBO(0, 0, 0, alpha.clamp(0.0, 1.0));
+
+  canvas.save();
+  canvas.translate(cx, cy);
+  if (rot != 0) canvas.rotate(rot);
+  canvas.drawImageRect(
+    image,
+    src,
+    Rect.fromCenter(center: Offset.zero, width: w, height: h),
+    paint,
+  );
+  canvas.restore();
+}
+
+/// Отрисовка куска списка штрихов подряд: `[start, end)`.
+///
+/// Один порядок на всё — мазки, фигуры и картинки, — потому что порядок и есть
+/// то, что человек видит слоями. Растр картинки берётся у [imageOf]; пока он не
+/// загружен, картинка пропускается, а остальное рисуется как обычно.
+void paintStrokeRange(
+  Canvas canvas,
+  List<DrawStroke> strokes,
+  Size size, {
+  int start = 0,
+  int? end,
+  double alpha = 1.0,
+  int? pixelCols,
+  int? pixelRows,
+  Image? Function(DrawStroke stroke)? imageOf,
+}) {
+  final last = end ?? strokes.length;
+  for (var i = start; i < last; i++) {
+    final s = strokes[i];
+    if (s.isImageStroke) {
+      final image = imageOf?.call(s);
+      if (image != null) paintImageStroke(canvas, image, s, size, alpha: alpha);
+    } else if (s.shapeType != null) {
+      paintShape(
+        canvas,
+        s.points,
+        s.colorValue,
+        s.strokeWidth,
+        s.shapeType!,
+        size,
+        alpha: alpha,
+        isFilledShape: s.isFilledShape,
+        pixelCols: pixelCols,
+        pixelRows: pixelRows,
+      );
+    } else {
+      paintStroke(
+        canvas,
+        s.points,
+        s.colorValue,
+        s.strokeWidth,
+        s.isEraser,
+        size,
+        alpha: alpha,
+        pixelCols: pixelCols,
+        pixelRows: pixelRows,
+      );
+    }
+  }
+}

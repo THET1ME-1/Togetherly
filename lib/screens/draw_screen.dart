@@ -13,6 +13,7 @@ import 'package:image_picker/image_picker.dart';
 import '../models/coloring_clamp.dart';
 import '../models/live_stroke_wire.dart';
 import '../models/coloring_picture.dart';
+import '../utils/canvas_image_cache.dart';
 import '../utils/stroke_layer_cache.dart';
 import '../utils/stroke_save_scheduler.dart';
 import 'coloring_result_screen.dart';
@@ -56,7 +57,6 @@ import '../models/canvas_undo.dart';
 import '../models/stroke_transform.dart';
 import '../utils/quick_shape.dart';
 import '../utils/stroke_stabilizer.dart';
-import '../widgets/storage_image.dart';
 import '../widgets/common/app_dialog.dart';
 import '../services/plus_access.dart';
 import '../services/plus_service.dart';
@@ -1972,20 +1972,8 @@ class _DrawScreenState extends State<DrawScreen>
     double? h,
     double? rot,
     String? url,
-  }) => DrawStroke(
-    id: s.id,
-    userId: s.userId,
-    colorValue: s.colorValue,
-    strokeWidth: s.strokeWidth,
-    points: s.points,
-    orderIndex: s.orderIndex,
-    imageUrl: url ?? s.imageUrl,
-    imageX: x ?? s.imageX,
-    imageY: y ?? s.imageY,
-    imageWidth: w ?? s.imageWidth,
-    imageHeight: h ?? s.imageHeight,
-    imageRotation: rot ?? s.imageRotation,
-  );
+  }) =>
+      copyImageStroke(s, x: x, y: y, w: w, h: h, rot: rot, url: url);
 
   /// Показать правленый штрих на холсте: и свой неотправленный, и приехавший с
   /// сервера, и одиночный. Имя было `_applyImageUpdate`, хотя картинок метод
@@ -5348,9 +5336,11 @@ class _CanvasScene extends StatefulWidget {
 class _CanvasSceneState extends State<_CanvasScene> {
   late Listenable _repaint;
 
-  /// Картинки-штрихи рисуются виджетами, поэтому их набор всё-таки требует
-  /// перестройки. Меняется он редко, в отличие от мазков.
-  List<DrawStroke> _imageStrokes = const [];
+  /// Растры картинок-штрихов: заливок ведром и вставленных фотографий.
+  ///
+  /// Рисует их тот же painter, что и мазки, — только так работают порядок,
+  /// слои и ластик (25.08.2026). Пока растр едет, картинки на холсте нет.
+  final CanvasImageCache _images = CanvasImageCache();
 
   /// Закоммиченные штрихи держим готовым слоем: без него каждое движение
   /// пальца перерисовывало весь рисунок целиком — отсюда лаги на большом
@@ -5367,34 +5357,50 @@ class _CanvasSceneState extends State<_CanvasScene> {
       // Рамка выделения живёт своим каналом: она меняется на каждое движение
       // пальца, а состав рисунка при этом не трогается.
       if (widget.selection != null) widget.selection!,
+      _images,
     ]);
-    _imageStrokes = _imagesOf(widget.strokes.value.list);
+    _images.addListener(_onImageReady);
     widget.strokes.addListener(_onStrokes);
   }
 
   @override
   void dispose() {
     widget.strokes.removeListener(_onStrokes);
+    _images.removeListener(_onImageReady);
+    _images.dispose();
     _layer.dispose();
     super.dispose();
   }
 
-  static List<DrawStroke> _imagesOf(List<DrawStroke> all) =>
-      all.where((s) => s.isImageStroke).toList();
+  /// Приехавшая картинка ломает готовый слой: он собирался, когда её ещё не
+  /// было, и без сброса дыра осталась бы в кэше до следующей пересборки.
+  void _onImageReady() => _layer.invalidate();
+
+  /// Ревизия основы, на которой в последний раз подчищали растры.
+  int _sweptRevision = -1;
 
   void _onStrokes() {
-    final next = _imagesOf(widget.strokes.value.list);
-    if (next.length == _imageStrokes.length) {
-      var same = true;
-      for (var i = 0; i < next.length; i++) {
-        if (!identical(next[i], _imageStrokes[i])) {
-          same = false;
-          break;
-        }
-      }
-      if (same) return;
+    // Растры держим только для тех картинок, что сейчас в рисунке: удалённая
+    // заливка иначе занимала бы память до выхода с холста.
+    //
+    // Перебор идёт ТОЛЬКО когда ревизия основы сдвинулась, то есть при отмене,
+    // замене или пересортировке. Пока штрихи дописываются в конец, картинка
+    // пропасть не может, а проход по всему списку на каждую клетку пиксельной
+    // раскраски — это ровно та квадратичная работа, из-за которой холст уже
+    // дёргался.
+    final snapshot = widget.strokes.value;
+    if (snapshot.revision == _sweptRevision) return;
+    _sweptRevision = snapshot.revision;
+    final keys = <String>[];
+    for (final s in snapshot.list) {
+      if (!s.isImageStroke) continue;
+      final key = CanvasImageCache.sourceOf(
+        s,
+        localPath: widget.localImagePaths[s.id],
+      );
+      if (key != null) keys.add(key);
     }
-    setState(() => _imageStrokes = next);
+    _images.retainOnly(keys);
   }
 
   @override
@@ -5414,8 +5420,9 @@ class _CanvasSceneState extends State<_CanvasScene> {
         widget.partnerNotifier,
         widget.strokes,
         if (widget.selection != null) widget.selection!,
+        _images,
       ]);
-      _imageStrokes = _imagesOf(widget.strokes.value.list);
+      _onStrokes();
     }
     if (old.bgColor != widget.bgColor ||
         old.background != widget.background ||
@@ -5428,8 +5435,6 @@ class _CanvasSceneState extends State<_CanvasScene> {
 
   @override
   Widget build(BuildContext context) {
-    final imageStrokes = _imageStrokes;
-
     // Ничего за краем холста не видно: у рисунков, сделанных до обрезки точек на
     // вводе, штрихи уходят за лист, и заливка вслед за ними расползалась по
     // столу. Клип чинит и их, не переписывая сами штрихи. Клип живёт на самом
@@ -5488,11 +5493,13 @@ class _CanvasSceneState extends State<_CanvasScene> {
                 partnerNotifier: widget.partnerNotifier,
                 canvasSize: widget.canvasSize,
                 selection: widget.selection,
+                images: _images,
+                localImagePaths: widget.localImagePaths,
+                selectedImageId: widget.selectedImageId,
                 repaint: _repaint,
               ),
             ),
           ),
-          ...imageStrokes.map((s) => _buildImageWidget(s, widget.canvasSize)),
           if (widget.coloringOutline != null)
             Positioned.fill(
               child: IgnorePointer(
@@ -5505,97 +5512,6 @@ class _CanvasSceneState extends State<_CanvasScene> {
       ),
     );
   }
-
-  Widget _buildImageWidget(DrawStroke s, Size canvasSize) {
-    if (canvasSize.isEmpty) return const SizedBox.shrink();
-    final cx = (s.imageX ?? 0.5) * canvasSize.width;
-    final cy = (s.imageY ?? 0.5) * canvasSize.height;
-    final w = (s.imageWidth ?? 0.5) * canvasSize.width;
-    final h = (s.imageHeight ?? 0.5) * canvasSize.height;
-    final rot = s.imageRotation ?? 0.0;
-    // file:// — локальный файл; остальное (pb:// protected / http / gs / sb) —
-    // через StorageImage: он добавит PocketBase file-токен и разрешит схему async.
-    // Свой, только что загруженный штрих показываем с диска: сетевой адрес у
-    // него уже есть, но качать своё же изображение заново незачем.
-    final local = widget.localImagePaths[s.id];
-    final raw = (local != null && File(local).existsSync())
-        ? 'file://$local'
-        : (s.imageUrl ?? '');
-    final isSelected = widget.selectedImageId == s.id;
-
-    Widget img;
-    if (raw.startsWith('file://')) {
-      img = Image.file(
-        File(raw.substring(7)),
-        width: w,
-        height: h,
-        fit: BoxFit.cover,
-        // Без этого каждая перестройка дерева гасит картинку на кадр: после
-        // заливки (а она кладётся картинкой на весь холст) рисунок мигал.
-        gaplessPlayback: true,
-        errorBuilder: (_, __, ___) => _imgPlaceholder(w, h),
-      );
-    } else if (raw.isNotEmpty) {
-      img = StorageImage(
-        imageUrl: raw,
-        width: w,
-        height: h,
-        fit: BoxFit.cover,
-        placeholder: (_, __) => _imgPlaceholder(w, h, loading: true),
-        errorWidget: (_, __, ___) => _imgPlaceholder(w, h),
-      );
-    } else {
-      return const SizedBox.shrink();
-    }
-
-    return Positioned(
-      // Ключ по id штриха: без него список картинок пересобирается при каждом
-      // мазке, элементы съезжают друг на друга и все заливки перезагружаются —
-      // рисунок мигал на каждом штрихе.
-      key: ValueKey(s.id),
-      left: cx - w / 2,
-      top: cy - h / 2,
-      child: Transform.rotate(
-        angle: rot,
-        alignment: Alignment.center,
-        child: Stack(
-          children: [
-            ClipRRect(borderRadius: BorderRadius.circular(4), child: img),
-            if (isSelected)
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.blue.shade400, width: 2),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _imgPlaceholder(double w, double h, {bool loading = false}) =>
-      Container(
-        width: w,
-        height: h,
-        decoration: BoxDecoration(
-          color: Colors.grey.shade200,
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Center(
-          child: loading
-              ? const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Icon(Icons.broken_image_rounded, color: Colors.grey.shade400),
-        ),
-      );
 }
 
 //  _DrawingPainter
@@ -5628,6 +5544,15 @@ class _DrawingPainter extends CustomPainter {
   /// Готовый слой закоммиченных штрихов (живёт в состоянии сцены).
   final StrokeLayerCache layer;
 
+  /// Растры картинок-штрихов: заливок и вставленных фото (живут там же).
+  final CanvasImageCache images;
+
+  /// Свои только что сделанные картинки: id → путь на диске.
+  final Map<String, String> localImagePaths;
+
+  /// Какую картинку человек взял инструментом «Фото»: вокруг неё рамка.
+  final String? selectedImageId;
+
   /// Что выделено инструментом «Выделение»: вокруг него рисуется рамка с
   /// ручками. Рисуем её здесь, в координатах холста, — иначе рамка разъезжается
   /// с рисунком при повороте и масштабе листа.
@@ -5637,6 +5562,9 @@ class _DrawingPainter extends CustomPainter {
   _DrawingPainter({
     required this.strokes,
     required this.layer,
+    required this.images,
+    this.localImagePaths = const {},
+    this.selectedImageId,
     this.selection,
     this.pixelCols,
     this.pixelRows,
@@ -5701,8 +5629,10 @@ class _DrawingPainter extends CustomPainter {
     if (size.isEmpty) return;
     final snapshot = strokes.value;
     final strokesRevision = snapshot.revision;
-    final strokeList =
-        snapshot.list.where((s) => !s.isImageStroke).toList(growable: false);
+    // Картинки идут ОДНИМ списком с мазками: заливка ведром — такая же краска,
+    // и лежать она обязана там, где её положили. Пока их рисовали виджетами
+    // поверх холста, пятно закрывало всё, что нарисовано позже, на любом слое.
+    final strokeList = snapshot.list;
 
     // Ластик снимает краску (`BlendMode.dstOut`), а значит рисовать штрихи
     // надо в своём слое: иначе стирание выест и фон холста — сетку, узор,
@@ -5736,65 +5666,41 @@ class _DrawingPainter extends CustomPainter {
     }
 
     if (picture == null) {
+      // Слой доходит ровно до первой ещё не приехавшей картинки: запиши её
+      // отсутствие в картинку — и дыра осталась бы там до пересборки.
+      final ready = _readyPrefix(strokeList);
       final recorder = ui.PictureRecorder();
       final buffer = Canvas(recorder);
-      for (final s in strokeList) {
-        if (s.shapeType != null) {
-          _drawShape(
-            buffer,
-            s.points,
-            s.colorValue,
-            s.strokeWidth,
-            s.shapeType!,
-            size,
-            isFilledShape: s.isFilledShape,
-          );
-        } else {
-          _drawStroke(
-            buffer,
-            s.points,
-            s.colorValue,
-            s.strokeWidth,
-            s.isEraser,
-            size,
-          );
-        }
-      }
+      paintStrokeRange(
+        buffer,
+        strokeList,
+        size,
+        end: ready,
+        pixelCols: pixelCols,
+        pixelRows: pixelRows,
+        imageOf: _imageOf,
+      );
       picture = recorder.endRecording();
       layer.save(
         picture,
         revision: strokesRevision,
         size: size,
-        prefixCount: strokeList.length,
+        prefixCount: ready,
       );
-      painted = strokeList.length;
+      painted = ready;
     }
     canvas.drawPicture(picture);
 
     // Хвост: штрихи, которых в слое ещё нет.
-    for (var i = painted; i < strokeList.length; i++) {
-      final s = strokeList[i];
-      if (s.shapeType != null) {
-        _drawShape(
-          canvas,
-          s.points,
-          s.colorValue,
-          s.strokeWidth,
-          s.shapeType!,
-          size,
-          isFilledShape: s.isFilledShape,
-        );
-      } else {
-        _drawStroke(
-          canvas,
-          s.points,
-          s.colorValue,
-          s.strokeWidth,
-          s.isEraser,
-          size,
-        );
-      }
-    }
+    paintStrokeRange(
+      canvas,
+      strokeList,
+      size,
+      start: painted,
+      pixelCols: pixelCols,
+      pixelRows: pixelRows,
+      imageOf: _imageOf,
+    );
 
     if (currentPoints.isNotEmpty) {
       final drafts = <List<DrawPoint>>[
@@ -5860,6 +5766,53 @@ class _DrawingPainter extends CustomPainter {
     // Рамка рисуется ПОСЛЕ восстановления слоя: внутри него ластик съел бы и
     // её вместе с краской.
     _paintSelection(canvas, size);
+    _paintImageSelection(canvas, size, strokeList);
+  }
+
+  /// Растр картинки-штриха, если он уже приехал.
+  ui.Image? _imageOf(DrawStroke stroke) =>
+      images.imageFor(stroke, localPath: localImagePaths[stroke.id]);
+
+  /// До какого места слой можно свернуть в картинку: до первой картинки,
+  /// растра которой ещё нет.
+  int _readyPrefix(List<DrawStroke> strokes) {
+    for (var i = 0; i < strokes.length; i++) {
+      final s = strokes[i];
+      if (s.isImageStroke && _imageOf(s) == null) return i;
+    }
+    return strokes.length;
+  }
+
+  /// Рамка вокруг картинки, взятой инструментом «Фото». Раньше её рисовал сам
+  /// виджет картинки; теперь картинки живут в холсте, и рамка вместе с ними.
+  void _paintImageSelection(Canvas canvas, Size size, List<DrawStroke> list) {
+    final id = selectedImageId;
+    if (id == null) return;
+    for (final s in list) {
+      if (s.id != id || !s.isImageStroke) continue;
+      final w = (s.imageWidth ?? 0.5) * size.width;
+      final h = (s.imageHeight ?? 0.5) * size.height;
+      if (w <= 0 || h <= 0) return;
+      final cx = (s.imageX ?? 0.5) * size.width;
+      final cy = (s.imageY ?? 0.5) * size.height;
+      final frame = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = const Color(0xFF42A5F5);
+      canvas.save();
+      canvas.translate(cx, cy);
+      final rot = s.imageRotation ?? 0.0;
+      if (rot != 0) canvas.rotate(rot);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(center: Offset.zero, width: w, height: h),
+          const Radius.circular(4),
+        ),
+        frame,
+      );
+      canvas.restore();
+      return;
+    }
   }
 
   /// Тонкие обёртки над общей отрисовкой (`widgets/draw/stroke_painting.dart`):
@@ -5905,6 +5858,8 @@ class _DrawingPainter extends CustomPainter {
       old.symmetry != symmetry ||
       old.symmetrySectors != symmetrySectors ||
       old.canvasSize != canvasSize ||
+      old.selectedImageId != selectedImageId ||
+      old.localImagePaths != localImagePaths ||
       old.pixelCols != pixelCols ||
       old.pixelRows != pixelRows;
 }
