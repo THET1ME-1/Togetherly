@@ -76,6 +76,32 @@ void main() {
       );
     });
 
+    test('досмотрел две минуты внутри окна — награда положена', () {
+      // Живой случай с прода: у 60 последних потерянных наград медиана времени
+      // на экране 120 секунд, а `seconds_behind_ad` не приходит вовсе — реклама
+      // Яндекса рисуется без ухода приложения в фон. Прежняя верхняя граница
+      // (предохранитель ожидания, 70 с) отвергала ровно тех, кто досмотрел.
+      expect(
+        adRewardDeserved(
+          shown: true,
+          away: Duration.zero,
+          onScreen: const Duration(seconds: 120),
+        ),
+        isTrue,
+      );
+    });
+
+    test('внутри окна дольше разумного — это отложенный телефон', () {
+      expect(
+        adRewardDeserved(
+          shown: true,
+          away: Duration.zero,
+          onScreen: kAdOnScreenSane + const Duration(seconds: 1),
+        ),
+        isFalse,
+      );
+    });
+
     test('телефон отложили на час — это не просмотр', () {
       expect(
         adRewardDeserved(
