@@ -12,6 +12,7 @@ import '../services/pocketbase_service.dart';
 import '../services/push_background_service.dart';
 import '../services/widget_background_refresh_service.dart';
 import '../services/offline/offline_reset.dart';
+import 'ad_grants.dart';
 import '../theme/app_theme.dart';
 import '../services/plus_service.dart';
 import '../theme/app_palettes.dart';
@@ -49,6 +50,10 @@ class UserData extends ChangeNotifier {
   // изменения идут исключительно через серверные Cloud Functions.
   int _coins = 0;
   final Set<int> _ownedThemes = <int>{};
+
+  /// Временные награды за просмотр рекламы. Пишет их только сервер, клиент
+  /// читает: подделанная проба открывала бы платное даром.
+  AdGrants _adGrants = AdGrants.empty;
   // Купленные профильные иконки (КЭШ; источник правды — Firestore/сервер).
   final Set<String> _ownedIcons = <String>{};
   // Разблокированные одноразовые фичи (КЭШ; источник правды — Firestore/сервер).
@@ -331,13 +336,19 @@ class UserData extends ChangeNotifier {
   /// Список ID разблокированных премиум-тем
   Set<int> get ownedThemes => Set.unmodifiable(_ownedThemes);
 
+  /// Временные награды за рекламу: проба темы, фоны, лишний слот фото.
+  AdGrants get adGrants => _adGrants;
+
   /// Доступна ли тема: бесплатная, купленная за монеты или открытая
   /// покупкой Togetherly+ — она открывает все платные темы разом.
   bool hasTheme(int id) {
     final t = AppThemes.byIndex(id);
     if (!t.isPremium) return true;
     if (PlusService.instance.active) return true;
-    return _ownedThemes.contains(id);
+    if (_ownedThemes.contains(id)) return true;
+    // Проба за рекламу живёт семь дней и владением не становится: кончилась —
+    // тема снова под замком, и человек решает, покупать ли её.
+    return _adGrants.themeTrialId(DateTime.now()) == id;
   }
 
   // ── Профильные иконки ───────────────────────────────────────────────────────
@@ -497,6 +508,8 @@ class UserData extends ChangeNotifier {
       if (cloudAdCount is num) _adRewardsToday = cloudAdCount.toInt();
       final cloudAdDate = data['adRewardsDate'];
       if (cloudAdDate is String) _adRewardsDate = cloudAdDate;
+      final cloudGrants = data['adGrants'];
+      if (cloudGrants is String) _adGrants = AdGrants.parse(cloudGrants);
       _seedClaimFlagsFromServer(data['lastDailyBonusMs'], data['lastMemoryRewardMs']);
       await _saveLocal();
       notifyListeners();
@@ -568,6 +581,31 @@ class UserData extends ChangeNotifier {
     if (r == null) return false;
     _applyServerResult(r);
     return _ownedThemes.contains(themeId);
+  }
+
+  /// Просит у сервера временную награду за просмотренную рекламу.
+  ///
+  /// Сроки, кулдаун и потолок держит сервер: клиент только показывает ответ.
+  Future<AdGrantResult> takeAdGrant(AdGrantKind kind, String id) async {
+    final r = await PbCoinsService().adGrant(adGrantKey(kind), id);
+    if (r == null) return AdGrantResult.failed;
+    if (r['ok'] == true) {
+      final grants = r['grants'];
+      if (grants != null) _adGrants = AdGrants.parse(jsonEncode(grants));
+      notifyListeners();
+      return AdGrantResult.ok;
+    }
+    if (r['cooldown'] == true) {
+      final next = (r['nextAt'] as num?)?.toInt() ?? 0;
+      final days = next <= 0
+          ? 0
+          : DateTime.fromMillisecondsSinceEpoch(next)
+                  .difference(DateTime.now())
+                  .inDays +
+              1;
+      return AdGrantResult.cooldown(days);
+    }
+    return AdGrantResult.rateLimited;
   }
 
   /// Покупает профильную иконку на сервере. Возвращает true при успехе.

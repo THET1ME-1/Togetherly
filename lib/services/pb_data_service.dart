@@ -2994,6 +2994,7 @@ class PbDataService {
       'devCoinsGranted': d['dev_coins_granted'],
       'adRewardsToday': d['ad_rewards_today'],
       'adRewardsDate': d['ad_rewards_date'],
+      'adGrants': d['ad_grants'],
       // Серверные таймстампы кулдаунов (epoch-ms). Нужны клиенту, чтобы
       // восстановить статус «выполнено» для ежедневного бонуса/воспоминания
       // между сессиями — иначе ✓ держится только на сессионном флаге и

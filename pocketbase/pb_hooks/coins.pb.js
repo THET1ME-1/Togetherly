@@ -326,9 +326,13 @@ routerAdd("POST", "/api/coins/memory-reward", (e) => {
   return e.json(out.s, out.b);
 }, $apis.requireAuth());
 
-// ── Награда за рекламу (3, лимит 3/сутки; путь Яндекса) ───────────────────────
+// ── Награда за рекламу (3 монеты, 3/сутки; входит в общий потолок 8) ─────────
+//
+// Потолок просмотров общий на всю рекламу: монеты, пробы тем и фонов черпают
+// из одного счётчика ad_views_today. Два независимых счётчика разъехались бы
+// на первой же правке баланса.
 routerAdd("POST", "/api/coins/ad-reward", (e) => {
-  const PER_DAY = 3, AMOUNT = 3;
+  const PER_DAY = 3, AMOUNT = 3, VIEW_CAP = 8;
   let out;
   try {
     $app.runInTransaction((txApp) => {
@@ -336,18 +340,120 @@ routerAdd("POST", "/api/coins/ad-reward", (e) => {
       const today = new Date().toISOString().slice(0, 10);
       const countToday = rec.getString("ad_rewards_date") === today
         ? (rec.getInt("ad_rewards_today") || 0) : 0;
-      if (countToday >= PER_DAY) {
-        out = { s: 200, b: { ok: false, rateLimited: true, coins: rec.getInt("coins") || 0 } };
+      const viewsToday = rec.getString("ad_views_date") === today
+        ? (rec.getInt("ad_views_today") || 0) : 0;
+      if (countToday >= PER_DAY || viewsToday >= VIEW_CAP) {
+        out = { s: 200, b: { ok: false, rateLimited: true, coins: rec.getInt("coins") || 0,
+                             viewsToday: viewsToday,
+                             viewsLeft: Math.max(0, VIEW_CAP - viewsToday) } };
         return;
       }
       const coins = (rec.getInt("coins") || 0) + AMOUNT;
       rec.set("coins", coins);
       rec.set("ad_rewards_date", today);
       rec.set("ad_rewards_today", countToday + 1);
+      rec.set("ad_views_date", today);
+      rec.set("ad_views_today", viewsToday + 1);
       txApp.save(rec);
-      out = { s: 200, b: { ok: true, coins: coins, awarded: AMOUNT } };
+      out = { s: 200, b: { ok: true, coins: coins, awarded: AMOUNT,
+                           viewsToday: viewsToday + 1,
+                           viewsLeft: Math.max(0, VIEW_CAP - viewsToday - 1) } };
     });
   } catch (err) { return e.json(500, { ok: false, error: "tx failed" }); }
+  return e.json(out.s, out.b);
+}, $apis.requireAuth());
+
+// ── Временная награда за рекламу: проба платного ─────────────────────────────
+//
+// Реклама торгует ВРЕМЕНЕМ. Тема и фоны открываются на срок, владение навсегда
+// не выдаётся никогда: один просмотр приносит около 0,3 ₽, а тема стоит 30
+// монет — отдавать её насовсем значит продавать себе в убыток.
+//
+// Правила лежат словарём прямо в обработчике: JSVM исполняет его в
+// изолированном пуле и функций уровня файла не видит. Клиентская половина —
+// lib/models/ad_grants.dart, расхождение стережёт ad_grants_wiring_test.dart.
+routerAdd("POST", "/api/coins/ad-grant", (e) => {
+  const VIEW_CAP = 8;
+  const RULES = {
+    theme:        { views: 2, days: 7, cooldownDays: 14, perDay: 0 },
+    chat_bg:      { views: 1, days: 7, cooldownDays: 0,  perDay: 0 },
+    canvas_bg:    { views: 1, days: 0, cooldownDays: 0,  perDay: 3 },
+    widget_photo: { views: 1, days: 7, cooldownDays: 0,  perDay: 2 },
+  };
+  const TRIAL_THEMES = [8, 9, 13, 16];
+
+  const body = (e.requestInfo().body || {});
+  const kind = String(body.kind || "");
+  const id = String(body.id || "");
+  const rule = RULES[kind];
+  if (!rule) {
+    $app.logger().warn("ad-grant: неизвестный вид награды", "kind", kind);
+    return e.json(400, { ok: false, error: "bad kind" });
+  }
+  if (!id) return e.json(400, { ok: false, error: "bad id" });
+  if (kind === "theme" && TRIAL_THEMES.indexOf(Number(id)) === -1) {
+    $app.logger().warn("ad-grant: тема вне витрины пробы", "theme", id);
+    return e.json(400, { ok: false, error: "theme not in trial" });
+  }
+
+  let out;
+  try {
+    $app.runInTransaction((txApp) => {
+      const rec = txApp.findRecordById("users", e.auth.id);
+      const now = Date.now();
+      const today = new Date().toISOString().slice(0, 10);
+
+      let grants = {};
+      try { grants = JSON.parse(rec.getString("ad_grants") || "{}") || {}; } catch (_) { grants = {}; }
+
+      const viewsToday = rec.getString("ad_views_date") === today
+        ? (rec.getInt("ad_views_today") || 0) : 0;
+      if (viewsToday + rule.views > VIEW_CAP) {
+        out = { s: 200, b: { ok: false, rateLimited: true, viewsToday: viewsToday,
+                             viewsLeft: Math.max(0, VIEW_CAP - viewsToday) } };
+        return;
+      }
+
+      const prev = grants[kind] || {};
+      if (rule.cooldownDays > 0 && prev.taken) {
+        const next = prev.taken + rule.cooldownDays * 86400000;
+        if (now < next) {
+          out = { s: 200, b: { ok: false, cooldown: true, nextAt: next } };
+          return;
+        }
+      }
+
+      let day = prev.day, count = prev.count || 0;
+      if (rule.perDay > 0) {
+        const takenToday = (prev.day === today) ? count : 0;
+        if (takenToday >= rule.perDay) {
+          out = { s: 200, b: { ok: false, rateLimited: true, perDay: rule.perDay } };
+          return;
+        }
+        day = today;
+        count = takenToday + 1;
+      }
+
+      // Фон холста живёт до конца суток по UTC: сервер стоит в UTC, а разница
+      // с местным днём человека тут ничего не решает — награда всё равно
+      // разовая и дешёвая.
+      const until = rule.days > 0
+        ? now + rule.days * 86400000
+        : Date.parse(today + "T23:59:59Z");
+
+      grants[kind] = { id: id, until: until, taken: now, day: day, count: count };
+      rec.set("ad_grants", JSON.stringify(grants));
+      rec.set("ad_views_date", today);
+      rec.set("ad_views_today", viewsToday + rule.views);
+      txApp.save(rec);
+      out = { s: 200, b: { ok: true, grants: grants,
+                           viewsToday: viewsToday + rule.views,
+                           viewsLeft: Math.max(0, VIEW_CAP - viewsToday - rule.views) } };
+    });
+  } catch (err) {
+    $app.logger().warn("ad-grant: транзакция не прошла", "err", String(err));
+    return e.json(500, { ok: false, error: "tx failed" });
+  }
   return e.json(out.s, out.b);
 }, $apis.requireAuth());
 

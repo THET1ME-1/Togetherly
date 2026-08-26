@@ -70,6 +70,11 @@ class PbCoinsService {
       _call('task-reward', {'task_id': taskId});
   Future<Map<String, dynamic>?> adReward() => _call('ad-reward');
 
+  /// Просит временную награду за рекламу: [kind] — ключ из `adGrantKey`,
+  /// [id] — номер темы строкой или id фона.
+  Future<Map<String, dynamic>?> adGrant(String kind, String id) =>
+      _call('ad-grant', {'kind': kind, 'id': id});
+
   /// Разовая dev-выдача. НЕ через [_call]: тот схлопывает любую ошибку в null,
   /// из-за чего не-разработчики (403) ретраили вызов на каждом lifecycle-событии
   /// и забивали сервер/Bugsink (см. issue `dev-coins 403`). Здесь различаем:
