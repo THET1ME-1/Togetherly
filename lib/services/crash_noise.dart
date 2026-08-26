@@ -8,6 +8,8 @@
 /// тестам.
 library;
 
+import 'package:pocketbase/pocketbase.dart';
+
 /// Фоновые ошибки, которые не роняют приложение: отказы прав и незагрузившийся
 /// шрифт. Помечаем их non-fatal, чтобы не путать с настоящими падениями.
 bool isBenignBackgroundError(Object error) {
@@ -77,8 +79,34 @@ bool isDeadFirebaseMedia(Object error) {
       (s.contains('402') || s.contains('403') || s.contains('404'));
 }
 
+/// Штатный отказ нашего роута, а не поломка.
+///
+/// PocketBase SDK бросает `ClientException` на любой не-2xx ответ, поэтому
+/// «не хватает монет» и «уже куплено» приезжают в панель наравне с падениями:
+/// одних только 402 на покупке иконки набралось 71 с конца июня у 23 человек.
+/// Для человека это обычный ход дела — кнопка ответила, что монет мало.
+bool isRoutineRouteRefusal(Object error) {
+  if (error is! ClientException) return false;
+  final code = error.statusCode;
+  // Сервер прилёг или сломался — это ошибка, её показываем.
+  if (code >= 500 || code == 0) return false;
+  // Отказ по существу приходит с объяснением в теле; без него разбирать нечего.
+  final reason = error.response['error'];
+  if (reason is! String || reason.isEmpty) return false;
+  const routine = {
+    'insufficient',
+    'alreadyOwned',
+    'alreadyGranted',
+    'already',
+    'not_enough_coins',
+    'limit',
+  };
+  return routine.contains(reason);
+}
+
 /// Событие вообще не стоит слать в Bugsink.
 bool isCrashNoise(Object error) =>
     isNetworkNoise(error) ||
     isForegroundServiceRestriction(error) ||
-    isDeadFirebaseMedia(error);
+    isDeadFirebaseMedia(error) ||
+    isRoutineRouteRefusal(error);

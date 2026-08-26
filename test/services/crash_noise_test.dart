@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pocketbase/pocketbase.dart';
 import 'package:love_app/services/crash_noise.dart';
 
 /// Панель крашей полезна, пока в ней мало шума. По данным Bugsink за июль
@@ -68,6 +69,44 @@ void main() {
 
     test('обычное падение остаётся фатальным', () {
       expect(isBenignBackgroundError('RangeError: index out of range'), isFalse);
+    });
+  });
+
+  group('штатный отказ роута — не ошибка', () {
+    test('не хватает монет', () {
+      // PocketBase SDK бросает исключение на любой не-2xx, поэтому «монет не
+      // хватает» приезжает в панель наравне с падениями: 71 такое событие с
+      // конца июня, 23 человека просто не смогли купить иконку.
+      expect(
+        isCrashNoise(ClientException(
+          statusCode: 402,
+          response: const {'error': 'insufficient', 'coins': 5},
+          url: Uri.parse('https://togetherly.day/api/coins/purchase-icon'),
+        )),
+        isTrue,
+      );
+    });
+
+    test('уже куплено — тоже штатный ответ', () {
+      expect(
+        isCrashNoise(ClientException(
+          statusCode: 409,
+          response: const {'error': 'alreadyOwned'},
+          url: Uri.parse('https://togetherly.day/api/coins/purchase-feature'),
+        )),
+        isTrue,
+      );
+    });
+
+    test('а вот отказ сервера остаётся ошибкой', () {
+      expect(
+        isCrashNoise(ClientException(
+          statusCode: 500,
+          response: const {'error': 'tx failed'},
+          url: Uri.parse('https://togetherly.day/api/coins/purchase-icon'),
+        )),
+        isFalse,
+      );
     });
   });
 }

@@ -3269,6 +3269,23 @@ class PbDataService {
     }
   }
 
+  /// Слать ли самоотчёт о контейнере виджетов (поле `widget_diag_enabled`).
+  ///
+  /// По умолчанию НЕТ. Разбор пустой галереи на iPhone закончился 23.08.2026, а
+  /// отчёт продолжал уходить с каждого открытия главной: 719 событий в сутки —
+  /// больше половины всего, что видит панель крашей. Включается на время
+  /// следующего разбора одним PATCH записи конфига, без релиза.
+  Future<bool> fetchWidgetDiagEnabled() async {
+    try {
+      final res = await _pb.collection('app_config').getList(perPage: 1);
+      if (res.items.isEmpty) return false;
+      return res.items.first.data['widget_diag_enabled'] == true;
+    } catch (e) {
+      debugPrint('PbData.fetchWidgetDiagEnabled failed: $e');
+      return false;
+    }
+  }
+
   /// ISO-строка PB → DateTime (публичный хелпер для слоя моделей на cutover).
   static DateTime? parseDate(dynamic v) => _date(v);
 }

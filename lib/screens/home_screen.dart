@@ -374,7 +374,13 @@ class _HomeScreenState extends State<HomeScreen> {
       // файлов фото или самого таймлайна. Телефон тестера далеко, поэтому
       // сводка уезжает в Bugsink сама — человеку довольно открыть приложение.
       // Ни текстов, ни ссылок, ни имён в ней нет, только длины и наличие файла.
-      unawaited(WidgetDiagnostics.report());
+      //
+      // Спрашиваем сервер: разбор кончился 23.08.2026, а отчёт продолжал
+      // уходить с каждого открытия главной — 719 событий в сутки, больше
+      // половины всего потока панели. Включается обратно PATCH-ем конфига.
+      unawaited(PbDataService().fetchWidgetDiagEnabled().then((on) {
+        if (on) unawaited(WidgetDiagnostics.report());
+      }));
     });
 
     _appLifecycleListener = AppLifecycleListener(
