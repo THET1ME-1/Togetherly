@@ -376,7 +376,6 @@ routerAdd("POST", "/api/coins/ad-grant", (e) => {
   const VIEW_CAP = 8;
   const RULES = {
     theme:        { views: 2, days: 7, cooldownDays: 14, perDay: 0 },
-    chat_bg:      { views: 1, days: 7, cooldownDays: 0,  perDay: 0 },
     canvas_bg:    { views: 1, days: 0, cooldownDays: 0,  perDay: 3 },
     widget_photo: { views: 1, days: 7, cooldownDays: 0,  perDay: 2 },
   };

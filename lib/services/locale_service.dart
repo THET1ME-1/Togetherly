@@ -688,7 +688,6 @@ abstract class AppStrings {
   String get adNotReady;
   String get adRewardLimitReached;
   String get adTrialTheme;
-  String get adTrialChatBg;
   String get adTrialCanvasBg;
   String get adTrialPhotoSlot;
   String get adTrialTaken;

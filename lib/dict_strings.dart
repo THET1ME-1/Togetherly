@@ -1056,7 +1056,6 @@ abstract class DictStrings extends AppStrings {
   @override
   String get adRewardLimitReached => _t('adRewardLimitReached');
   String get adTrialTheme => _t('adTrialTheme');
-  String get adTrialChatBg => _t('adTrialChatBg');
   String get adTrialCanvasBg => _t('adTrialCanvasBg');
   String get adTrialPhotoSlot => _t('adTrialPhotoSlot');
   String get adTrialTaken => _t('adTrialTaken');

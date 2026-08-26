@@ -6,7 +6,7 @@ import 'dart:convert';
 /// монеты сверх дневных трёх и Togetherly+ за неё не выдаются никогда. Иначе
 /// проба заменяет покупку — один rewarded приносит около 0,3 ₽, а тема стоит
 /// 30 монет, и отдавать её насовсем значит продавать себе в убыток.
-enum AdGrantKind { theme, chatBg, canvasBg, widgetPhoto }
+enum AdGrantKind { theme, canvasBg, widgetPhoto }
 
 /// Ключ награды в json профиля.
 ///
@@ -15,7 +15,6 @@ enum AdGrantKind { theme, chatBg, canvasBg, widgetPhoto }
 /// видит «не сработало». Стережёт `test/services/ad_grants_wiring_test.dart`.
 String adGrantKey(AdGrantKind k) => switch (k) {
       AdGrantKind.theme => 'theme',
-      AdGrantKind.chatBg => 'chat_bg',
       AdGrantKind.canvasBg => 'canvas_bg',
       AdGrantKind.widgetPhoto => 'widget_photo',
     };
@@ -24,7 +23,6 @@ String adGrantKey(AdGrantKind k) => switch (k) {
 /// сервер, и новая награда не имеет права ронять старую сборку.
 AdGrantKind? adGrantKindOf(String key) => switch (key) {
       'theme' => AdGrantKind.theme,
-      'chat_bg' => AdGrantKind.chatBg,
       'canvas_bg' => AdGrantKind.canvasBg,
       'widget_photo' => AdGrantKind.widgetPhoto,
       _ => null,
@@ -33,7 +31,6 @@ AdGrantKind? adGrantKindOf(String key) => switch (key) {
 /// Сколько просмотров стоит награда.
 const Map<AdGrantKind, int> kAdGrantViews = {
   AdGrantKind.theme: 2,
-  AdGrantKind.chatBg: 1,
   AdGrantKind.canvasBg: 1,
   AdGrantKind.widgetPhoto: 1,
 };
@@ -42,7 +39,6 @@ const Map<AdGrantKind, int> kAdGrantViews = {
 /// не фиксированным сроком от момента выдачи.
 const Map<AdGrantKind, Duration> kAdGrantDuration = {
   AdGrantKind.theme: Duration(days: 7),
-  AdGrantKind.chatBg: Duration(days: 7),
   AdGrantKind.canvasBg: Duration.zero,
   AdGrantKind.widgetPhoto: Duration(days: 7),
 };
@@ -50,7 +46,6 @@ const Map<AdGrantKind, Duration> kAdGrantDuration = {
 /// Через сколько награду можно взять снова. Ноль — без ограничения.
 const Map<AdGrantKind, Duration> kAdGrantCooldown = {
   AdGrantKind.theme: Duration(days: 14),
-  AdGrantKind.chatBg: Duration.zero,
   AdGrantKind.canvasBg: Duration.zero,
   AdGrantKind.widgetPhoto: Duration.zero,
 };

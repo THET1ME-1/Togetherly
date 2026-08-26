@@ -11,15 +11,6 @@ const Map<String, Map<String, String>> adsStrings = {
     'it': 'Sblocca il tema per una settimana con due annunci',
     'pt': 'Libere o tema por uma semana com dois anúncios',
   },
-  'adTrialChatBg': {
-    'ru': 'Открыть фон на неделю за рекламу',
-    'en': 'Unlock the background for a week with an ad',
-    'de': 'Hintergrund für eine Woche mit Werbung freischalten',
-    'fr': 'Débloquer le fond une semaine avec une pub',
-    'es': 'Desbloquear el fondo una semana con un anuncio',
-    'it': 'Sblocca lo sfondo per una settimana con un annuncio',
-    'pt': 'Libere o fundo por uma semana com um anúncio',
-  },
   'adTrialCanvasBg': {
     'ru': 'Открыть фон до конца дня за рекламу',
     'en': 'Unlock the background until midnight with an ad',

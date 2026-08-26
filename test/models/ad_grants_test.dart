@@ -27,8 +27,8 @@ void main() {
 
   test('Награды без кулдауна берутся всегда', () {
     final taken = now.subtract(const Duration(minutes: 5)).millisecondsSinceEpoch;
-    final g = AdGrants.parse('{"chat_bg":{"id":"dots","until":0,"taken":$taken}}');
-    expect(g.canTake(AdGrantKind.chatBg, now), isTrue);
+    final g = AdGrants.parse('{"canvas_bg":{"id":"rain","until":0,"taken":$taken}}');
+    expect(g.canTake(AdGrantKind.canvasBg, now), isTrue);
   });
 
   test('Проба даётся только витринным темам', () {
@@ -39,7 +39,6 @@ void main() {
 
   test('Цены и сроки заданы по согласованному балансу', () {
     expect(kAdGrantViews[AdGrantKind.theme], 2);
-    expect(kAdGrantViews[AdGrantKind.chatBg], 1);
     expect(kAdGrantViews[AdGrantKind.canvasBg], 1);
     expect(kAdGrantViews[AdGrantKind.widgetPhoto], 1);
     expect(kAdGrantDuration[AdGrantKind.theme], const Duration(days: 7));
