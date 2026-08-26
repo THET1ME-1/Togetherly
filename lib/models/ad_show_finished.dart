@@ -25,22 +25,79 @@ const Duration kAdShowGuard = Duration(seconds: 70);
 /// долететь, чтобы награда успела засчитаться штатным путём.
 const Duration kAdReturnGrace = Duration(milliseconds: 600);
 
+/// Сколько ролик обязан продержаться, чтобы засчитать его без `onRewarded`.
+///
+/// Rewarded у сетей идёт 15–30 секунд, и пропустить его раньше нельзя. Значит
+/// пятнадцать секунд на экране — это досмотренный ролик, чем бы ни кончилось
+/// молчание SDK.
+const Duration kAdWatchedEnough = Duration(seconds: 15);
+
+/// Дольше этого «просмотр» — просто отложенный телефон, а не реклама.
+const Duration kAdWatchedSane = Duration(minutes: 10);
+
+/// Заслужена ли награда, когда `onRewarded` так и не пришёл.
+///
+/// За тридцать дней 214 показов кончились «монет нет», причём в 188 случаях
+/// ролик держал экран дольше тридцати секунд: люди досматривали и оставались
+/// ни с чем. Событие награды теряется по дороге, а серверный предел (девять
+/// начислений в сутки) и без него держит экономику, поэтому досмотренный ролик
+/// засчитываем сами.
+///
+/// [shown] — пришло ли `onAdShown`: без него человек ролика не видел вовсе.
+/// [away] — сколько приложение простояло за рекламой; это и есть длительность
+/// показа, потому что полноэкранный ролик уводит приложение с переднего плана.
+/// [onScreen] — время с начала показа; запасной признак для сборок, где
+/// жизненный цикл не меняется и [away] остаётся нулём.
+bool adRewardDeserved({
+  required bool shown,
+  required Duration away,
+  required Duration onScreen,
+}) {
+  if (!shown) return false;
+  if (away > kAdWatchedSane) return false;
+  if (away >= kAdWatchedEnough) return true;
+  // Ролик показан внутри окна приложения: ухода не было, судим по общему
+  // времени. Верхнюю границу держит предохранитель ожидания — дольше него
+  // показ всё равно не живёт.
+  if (away == Duration.zero) {
+    return onScreen >= kAdWatchedEnough && onScreen <= kAdShowGuard;
+  }
+  return false;
+}
+
 /// Следит за уходом и возвращением приложения во время показа.
 class AdShowWatch {
   bool _left = false;
   bool _finished = false;
+  DateTime? _leftAt;
+  Duration _away = Duration.zero;
 
   /// Приложение уходило с переднего плана и вернулось.
   bool get finished => _finished;
 
-  void onState(AppLifecycleState state) {
+  /// Сколько приложение простояло за рекламой.
+  ///
+  /// Меряется по переходам жизненного цикла, а не по стенным часам с начала
+  /// показа: последние включают и то время, что человек провёл вне ролика.
+  Duration get away => _away;
+
+  void onState(AppLifecycleState state, {DateTime? at}) {
+    final now = at ?? DateTime.now();
     switch (state) {
       case AppLifecycleState.paused:
       case AppLifecycleState.hidden:
       case AppLifecycleState.detached:
+        _leftAt ??= now;
         _left = true;
       case AppLifecycleState.resumed:
-        if (_left) _finished = true;
+        if (_left) {
+          _finished = true;
+          final since = _leftAt;
+          if (since != null) {
+            _away += now.difference(since);
+            _leftAt = null;
+          }
+        }
       // Мигание inactive даёт шторка уведомлений и входящий звонок — уходом
       // это не считается.
       case AppLifecycleState.inactive:

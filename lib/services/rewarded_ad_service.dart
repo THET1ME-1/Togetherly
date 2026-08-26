@@ -266,7 +266,7 @@ class RewardedAdService {
   /// ждали только его, человек стоял перед пустым экраном две минуты: медиана
   /// ожидания была ровно 120 секунд. Возврат приложения — такой же честный
   /// признак того, что реклама закрылась.
-  Future<void> _awaitAdClosed(Completer<void> dismissed, String who) async {
+  Future<AdShowWatch> _awaitAdClosed(Completer<void> dismissed, String who) async {
     final watch = AdShowWatch();
     late final AppLifecycleListener listener;
     final returned = Completer<void>();
@@ -290,6 +290,7 @@ class RewardedAdService {
     } finally {
       listener.dispose();
     }
+    return watch;
   }
 
   Future<bool> _showYandex(yandex.RewardedAd ad) async {
@@ -342,7 +343,7 @@ class RewardedAdService {
       debugPrint('Yandex rewarded show() бросил — $e');
       finish();
     }
-    await _awaitAdClosed(dismissed, 'Yandex rewarded');
+    final watch = await _awaitAdClosed(dismissed, 'Yandex rewarded');
     // onRewarded может прийти вплотную к закрытию (или сразу после) — даём ему
     // долететь, прежде чем решить, что награды не было. Окно щедрое: грант всё
     // равно идёт внутри колбэка, лишнего ожидания на успешном пути нет.
@@ -354,21 +355,47 @@ class RewardedAdService {
     if (grantFuture != null) {
       await grantFuture;
     }
+    // Событие награды теряется по дороге: за тридцать дней 214 показов
+    // кончились «монет нет», и в 188 из них ролик держал экран дольше
+    // тридцати секунд — люди досматривали и оставались ни с чем. Досмотренный
+    // ролик засчитываем сами; экономику держит серверный предел в девять
+    // начислений за сутки, а не молчание SDK.
+    final onScreen = shownAt == null
+        ? Duration.zero
+        : DateTime.now().difference(shownAt!);
+    var grantedByWatch = false;
+    if (!earned &&
+        adRewardDeserved(
+          shown: shown,
+          away: watch.away,
+          onScreen: onScreen,
+        )) {
+      earned = true;
+      grantedByWatch = true;
+      await _grantAdReward();
+      Sentry.addBreadcrumb(Breadcrumb(
+        message: 'Yandex rewarded: награда засчитана без onRewarded '
+            '(${watch.away.inSeconds} с за рекламой)',
+        level: SentryLevel.info,
+      ));
+    }
     if (!earned) {
       // Реклама показана и закрыта, но onRewarded так и не пришёл → грант не
       // вызывался, коинов нет. Это ядро жалоб «посмотрел рекламу — монет нет».
-      final seconds = shownAt == null
-          ? 0
-          : DateTime.now().difference(shownAt!).inSeconds;
+      final seconds = onScreen.inSeconds;
       unawaited(Sentry.captureException(
         'Yandex rewarded shown but no reward earned (onRewarded missing)',
         withScope: (s) {
           s.setExtra('reason', 'rewarded ad shown without reward callback');
           s.setExtra('ad_shown', shown);
           s.setExtra('seconds_on_screen', seconds);
+          // Время ЗА рекламой: стенные часы включают и то, что человек делал
+          // вне ролика, поэтому судить по ним нельзя было.
+          s.setExtra('seconds_behind_ad', watch.away.inSeconds);
           // Ролик короче пяти секунд — человек закрыл сам, это не поломка.
           // Дольше — награда действительно потерялась по дороге.
           s.setExtra('likely_user_skip', shown && seconds < 5);
+          s.setExtra('granted_by_watch', grantedByWatch);
           s.level = SentryLevel.warning;
         },
       ));

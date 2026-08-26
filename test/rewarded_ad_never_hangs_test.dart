@@ -22,7 +22,7 @@ void main() {
     // Ожидание закрытия живёт в одном месте — `_awaitAdClosed`, и на нём
     // стоит предохранитель.
     expect(
-      RegExp(r'Future<void> _awaitAdClosed\(').hasMatch(source),
+      RegExp(r'Future<\w+> _awaitAdClosed\(').hasMatch(source),
       isTrue,
       reason: 'Ожидание показа рекламы не найдено — тест устарел, поправьте его '
           'вместе с сервисом',
