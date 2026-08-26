@@ -124,6 +124,18 @@ class HomeWidgetService {
     } catch (e) {
       debugPrint('HomeWidgetService.wipeWidgetData: не вышло — $e');
     }
+    // Склад картинок лежит рядом с данными приложения и нативной чисткой не
+    // затрагивается. Смена человека — стираем и его, чужие лица тут не нужны.
+    try {
+      final dir = await getApplicationSupportDirectory();
+      for (final f in dir.listSync()) {
+        if (f is File && f.path.contains('/widget_src_')) {
+          f.deleteSync();
+        }
+      }
+    } catch (e) {
+      debugPrint('HomeWidgetService.wipeWidgetData: склад не стёрся — $e');
+    }
     _cachedMyGender = '';
     _cachedPartnerGender = '';
     invalidateWidgetDataCache();
@@ -3052,6 +3064,18 @@ class HomeWidgetService {
       return await _toWidgetReadablePath(file.path, 'cache_$key');
     }
 
+    // Общий склад по самой ссылке. Один и тот же аватар просят разные виджеты
+    // («дни вместе», «скучаю», «вместе»), и каждый качал его себе: замер на
+    // эмуляторе дал 7 закачек одного файла там, где хватает одной. Имя склада
+    // держит хэш ссылки и сторону сжатия, поэтому копия годится любому ключу.
+    final sig = url.hashCode.toUnsigned(32).toRadixString(16);
+    final shared = File('${dir.path}/widget_src_${sig}_$maxSide.jpg');
+    if (shared.existsSync()) {
+      await shared.copy(file.path);
+      await prefs.setString('${key}_src', url);
+      return await _toWidgetReadablePath(file.path, 'cache_$key');
+    }
+
     try {
       String httpUrl = url;
 
@@ -3082,7 +3106,9 @@ class HomeWidgetService {
           .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
-        await file.writeAsBytes(await _shrinkForWidget(response.bodyBytes, maxSide));
+        final shrunk = await _shrinkForWidget(response.bodyBytes, maxSide);
+        await file.writeAsBytes(shrunk);
+        await shared.writeAsBytes(shrunk);
         // Ссылку запоминаем ТОЛЬКО после удачной записи: иначе битая попытка
         // закрыла бы дорогу повторной загрузке до самой смены фото.
         await prefs.setString('${key}_src', url);

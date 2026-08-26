@@ -39,9 +39,14 @@ void main() {
     });
 
     test('ссылка запоминается только после удачной записи', () {
-      final write = body.indexOf('writeAsBytes');
-      final remember = body.indexOf("prefs.setString('\${key}_src'");
+      // Смотрим сетевую ветку: до неё ссылка пишется и при выдаче со склада,
+      // и это правильно — файл там уже лежит.
+      final net = body.indexOf('http\n          .get(');
+      final tail = body.substring(net);
+      final write = tail.indexOf('writeAsBytes');
+      final remember = tail.indexOf("prefs.setString('\${key}_src'");
       expect(remember, isPositive, reason: 'ссылку перестали запоминать');
+      expect(write, isPositive, reason: 'файл перестали записывать');
       expect(write < remember, isTrue,
           reason: 'битая попытка не должна закрывать дорогу повторной загрузке');
     });
@@ -52,6 +57,24 @@ void main() {
       expect(args.contains('url: url'), isTrue,
           reason: 'file-токен меняется каждые пару минут; сверять его нельзя');
       expect(args.contains('httpUrl'), isFalse);
+    });
+
+    test('один файл на все виджеты, а не по копии каждому', () {
+      // Аватар партнёра просят days_, miss_ и together_ — под разными ключами.
+      // Замер на эмуляторе: без склада 7 закачек одного файла за прогон.
+      expect(body.contains('widget_src_'), isTrue,
+          reason: 'общий склад по ссылке пропал');
+      final sharedCheck = body.indexOf('shared.existsSync()');
+      final network = body.indexOf('http\n          .get(');
+      expect(sharedCheck, isPositive);
+      expect(sharedCheck < network, isTrue,
+          reason: 'склад смотрим до сети');
+    });
+
+    test('склад стирается вместе с данными виджетов', () {
+      final wipe = src.substring(src.indexOf('Future<void> wipeWidgetData('));
+      expect(wipe.substring(0, 900).contains('widget_src_'), isTrue,
+          reason: 'при смене человека чужие лица должны уходить со склада');
     });
   });
 }
