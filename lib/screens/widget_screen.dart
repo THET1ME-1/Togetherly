@@ -33,11 +33,13 @@ import '../models/together_caption.dart';
 import '../models/timer_item.dart';
 import '../models/widget_data.dart';
 import '../models/year_progress.dart';
+import '../models/ad_grants.dart';
 import '../models/user_data.dart';
 import '../models/mood_entry.dart';
 import '../models/memory.dart';
 import '../services/media_service.dart';
 import '../services/pocketbase_service.dart';
+import '../services/rewarded_ad_service.dart';
 import '../services/pb_auth_service.dart';
 import '../services/pb_data_service.dart';
 import '../services/memory_repository.dart';
@@ -101,6 +103,9 @@ class WidgetScreen extends StatefulWidget {
 
 class _WidgetScreenState extends State<WidgetScreen>
     with WidgetsBindingObserver {
+  /// Реклама за пробу «наших фото»: один экземпляр на экран.
+  final RewardedAdService _rewardedAd = RewardedAdService();
+
   AppTheme get _t => widget.theme;
   ColorScheme get _cs => ProfileTheme.themeFor(_t).colorScheme;
   WidgetService get _ws => widget.widgetService;
@@ -1289,6 +1294,7 @@ class _WidgetScreenState extends State<WidgetScreen>
 
   @override
   void dispose() {
+    _rewardedAd.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _missYouSub?.cancel();
     _loadPhotoDayDebounce?.cancel();
@@ -4777,7 +4783,18 @@ class _WidgetScreenState extends State<WidgetScreen>
                   LocaleService.current.unlockForCoins(_daysPhotosPrice),
                 ),
               ),
-            )
+            ),
+          if (!owned) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.tonalIcon(
+                onPressed: _daysPhotosBusy ? null : _tryDaysPhotosTrial,
+                icon: const Icon(Icons.play_circle_outline_rounded, size: 18),
+                label: Text(LocaleService.current.adTrialPhotoSlot),
+              ),
+            ),
+          ]
           else ...[
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
@@ -4800,6 +4817,29 @@ class _WidgetScreenState extends State<WidgetScreen>
         ],
       ),
     );
+  }
+
+  /// Проба «наших фото» в виджете дней: неделя за один просмотр рекламы.
+  Future<void> _tryDaysPhotosTrial() async {
+    final ud = widget.userData;
+    if (ud == null) return;
+    setState(() => _daysPhotosBusy = true);
+    try {
+      final earned = await _rewardedAd.show(uid: PocketBaseService().userId ?? '');
+      unawaited(_rewardedAd.load());
+      if (!earned) return;
+      final res =
+          await ud.takeAdGrant(AdGrantKind.widgetPhoto, 'days_widget_photos');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(res.kind == AdGrantOutcome.ok
+            ? LocaleService.current.adTrialTaken
+            : LocaleService.current.adRewardLimitReached),
+        behavior: SnackBarBehavior.floating,
+      ));
+    } finally {
+      if (mounted) setState(() => _daysPhotosBusy = false);
+    }
   }
 
   Future<void> _buyDaysPhotos() async {

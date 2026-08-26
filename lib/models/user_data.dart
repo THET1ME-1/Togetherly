@@ -388,7 +388,15 @@ class UserData extends ChangeNotifier {
   Set<String> get ownedFeatures => Set.unmodifiable(_ownedFeatures);
 
   /// Разблокирована ли фича пользователем.
-  bool ownsFeature(String id) => _ownedFeatures.contains(id);
+  bool ownsFeature(String id) {
+    if (_ownedFeatures.contains(id)) return true;
+    // Фото в виджете дней даётся ещё и пробой за рекламу — на неделю.
+    if (id == featureDaysWidgetPhotos) {
+      return _adGrants.activeFor(AdGrantKind.widgetPhoto, DateTime.now()) !=
+          null;
+    }
+    return false;
+  }
 
   /// Применяет результат, пришедший с сервера (callable function).
   /// Используется как единственный путь обновления баланса/owned.
