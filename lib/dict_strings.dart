@@ -1,6 +1,7 @@
 import 'services/locale_service.dart';
 
 import 'l10n/dict/achievements.dart';
+import 'l10n/dict/ads.dart';
 import 'l10n/dict/ailments.dart';
 import 'l10n/dict/app_icons.dart';
 import 'l10n/dict/chat.dart';
@@ -54,6 +55,7 @@ import 'l10n/dict/widget_screen.dart';
 /// одного экрана не требовала лезть в файл на полторы тысячи строк.
 const Map<String, Map<String, String>> kStrings = {
   ...achievementsStrings,
+  ...adsStrings,
   ...pushNotificationsStrings,
   ...customMoodsStrings,
   ...customThemeStrings,
@@ -1053,6 +1055,15 @@ abstract class DictStrings extends AppStrings {
   String get adNotReady => _t('adNotReady');
   @override
   String get adRewardLimitReached => _t('adRewardLimitReached');
+  String get adTrialTheme => _t('adTrialTheme');
+  String get adTrialChatBg => _t('adTrialChatBg');
+  String get adTrialCanvasBg => _t('adTrialCanvasBg');
+  String get adTrialPhotoSlot => _t('adTrialPhotoSlot');
+  String get adTrialTaken => _t('adTrialTaken');
+  String get adTrialTakenToday => _t('adTrialTakenToday');
+  String get adTrialCooldown => _t('adTrialCooldown');
+  String get adTrialEndsIn => _t('adTrialEndsIn');
+  String get adViewsLeft => _t('adViewsLeft');
   @override
   String get rewardPending => _t('rewardPending');
   @override

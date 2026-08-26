@@ -25,6 +25,7 @@ import '../services/media_service.dart';
 import '../services/pocketbase_service.dart';
 import '../services/pb_data_service.dart';
 import '../services/miss_you_repository.dart';
+import '../models/ad_grants.dart';
 import '../models/user_data.dart';
 import '../models/pair_data.dart';
 import '../models/connection.dart';
@@ -1979,13 +1980,12 @@ class _ProfileScreenState extends State<ProfileScreen>
         amoled: ud.amoled,
       );
       final result = await _confirmPurchaseTheme(context, t);
-      if (result == false) return; // отмена
-      if (result == null) {
-        // Предпросмотр без покупки.
+      if (result == 'cancel') return;
+      if (result == 'preview') {
         ud.setPreviewTheme(i);
         return;
       }
-      // result == true → палитра куплена
+      // 'buy' — палитра куплена, 'trial' — открыта пробой на неделю
     }
     await ud.setThemeId(i);
     if (mounted) setState(() {});
@@ -4988,15 +4988,20 @@ class _ProfileScreenState extends State<ProfileScreen>
   /// переживает размонтирование экрана. Раньше колбэк стиля кнопки дёргал
   /// `_t` → `State.context` у мёртвого состояния и ронял приложение
   /// (327 падений в Bugsink на 1.16.3–1.17.0).
-  Future<bool?> _confirmPurchaseTheme(BuildContext context, AppTheme t) async {
+  /// Исходы листа: `buy` — куплено за монеты, `trial` — взята проба за
+  /// рекламу, `preview` — просто посмотреть, `cancel` — отказ.
+  Future<String?> _confirmPurchaseTheme(BuildContext context, AppTheme t) async {
     final canAfford = widget.userData.coins >= t.price;
+    // Проба даётся не всем темам: открыть за рекламу все двадцать пять значит
+    // заменить покупку. Список витринных живёт в kAdTrialThemes.
+    final trialOffered = kAdTrialThemes.contains(t.index) &&
+        widget.userData.adGrants.canTake(AdGrantKind.theme, DateTime.now());
     final themeName = _themeDisplayName(t.index);
     final cs = ProfileTheme.themeFor(_t).colorScheme;
     final strings = _s;
     final coins = widget.userData.coins;
 
-    // null = посмотреть, false = отмена, true = купить
-    final result = await showAppSheet<bool>(
+    final result = await showAppSheet<String>(
       context,
       background: cs.surfaceContainer,
       builder: (ctx) => SheetScaffold(
@@ -5085,7 +5090,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               SizedBox(
                 height: 56,
                 child: FilledButton(
-                  onPressed: canAfford ? () => Navigator.pop(ctx, true) : null,
+                  onPressed: canAfford ? () => Navigator.pop(ctx, 'buy') : null,
                   style: FilledButton.styleFrom(
                     backgroundColor: cs.primary,
                     foregroundColor: cs.onPrimary,
@@ -5104,11 +5109,30 @@ class _ProfileScreenState extends State<ProfileScreen>
                   child: Text(strings.buyThemeConfirm),
                 ),
               ),
-              const SizedBox(height: 8),
+              if (trialOffered) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 56,
+                  child: FilledButton.tonalIcon(
+                    onPressed: () => Navigator.pop(ctx, 'trial'),
+                    icon: const Icon(Icons.play_circle_outline_rounded, size: 20),
+                    label: Text(strings.adTrialTheme),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: cs.tertiaryContainer,
+                      foregroundColor: cs.onTertiaryContainer,
+                      shape: const StadiumBorder(),
+                      textStyle: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],              const SizedBox(height: 8),
               SizedBox(
                 height: 56,
                 child: FilledButton.tonalIcon(
-                  onPressed: () => Navigator.pop(ctx, null),
+                  onPressed: () => Navigator.pop(ctx, 'preview'),
                   icon: const Icon(Icons.visibility_outlined, size: 20),
                   label: Text(LocaleService.current.viewAction),
                   style: FilledButton.styleFrom(
@@ -5126,7 +5150,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               SizedBox(
                 height: 48,
                 child: TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
+                  onPressed: () => Navigator.pop(ctx, 'cancel'),
                   style: TextButton.styleFrom(foregroundColor: cs.primary),
                   child: Text(strings.cancel),
                 ),
@@ -5136,11 +5160,14 @@ class _ProfileScreenState extends State<ProfileScreen>
         ),
       ),
     );
-    if (result == false) return false; // отмена
-    if (result == null) return null; // предпросмотр
-    // result == true → покупка
+    if (result == null || result == 'cancel') return 'cancel';
+    if (result == 'preview') return 'preview';
+    if (result == 'trial') {
+      final taken = await _takeThemeTrial(t.index);
+      return taken ? 'trial' : 'cancel';
+    }
     final ok = await widget.userData.purchaseTheme(t.index);
-    if (!ok) return false;
+    if (!ok) return 'cancel';
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -5150,7 +5177,46 @@ class _ProfileScreenState extends State<ProfileScreen>
         ),
       );
     }
-    return true;
+    return 'buy';
+  }
+
+  /// Проба темы за две рекламы подряд. Возвращает true, если сервер выдал.
+  Future<bool> _takeThemeTrial(int themeIndex) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final uid = PocketBaseService().userId ?? '';
+
+    // Две рекламы подряд: цена пробы в просмотрах живёт в kAdGrantViews, и
+    // сервер сверяет её сам — клиент только показывает ролики.
+    for (var i = 0; i < (kAdGrantViews[AdGrantKind.theme] ?? 2); i++) {
+      final earned = await _rewardedAd.show(uid: uid);
+      unawaited(_rewardedAd.load());
+      if (!earned) return false;
+    }
+
+    final res = await widget.userData.takeAdGrant(AdGrantKind.theme, '$themeIndex');
+    if (!mounted) return res.kind == AdGrantOutcome.ok;
+    switch (res.kind) {
+      case AdGrantOutcome.ok:
+        messenger.showSnackBar(SnackBar(
+          content: Text(_s.adTrialTaken),
+          behavior: SnackBarBehavior.floating,
+        ));
+        setState(() {});
+        return true;
+      case AdGrantOutcome.cooldown:
+        messenger.showSnackBar(SnackBar(
+          content: Text(_s.adTrialCooldown.replaceAll('{days}', '${res.days}')),
+          behavior: SnackBarBehavior.floating,
+        ));
+      case AdGrantOutcome.rateLimited:
+        messenger.showSnackBar(SnackBar(
+          content: Text(_s.adRewardLimitReached),
+          behavior: SnackBarBehavior.floating,
+        ));
+      case AdGrantOutcome.failed:
+        break;
+    }
+    return false;
   }
 
   // ═══════════════════════════════════════════════════
