@@ -2134,6 +2134,8 @@ abstract class AppStrings {
   String get watchAfterShortAd;
   String get watchOpenOnSite;
   String get watchOnSiteHint;
+  String get gamesForTwo;
+  String get gamesForTwoHint;
   String get watchPartnerInBrowser;
 
   /// Код комнаты не пришёл — предлагаем спросить заново, а не молчать

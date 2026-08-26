@@ -317,6 +317,13 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
     );
   }
 
+  Future<void> _openGames() async {
+    await safeLaunchUrl(
+      Uri.parse(WatchRoomService.gamesUrl),
+      mode: LaunchMode.externalApplication,
+    );
+  }
+
   Future<void> _copyCode() async {
     if (_room.isEmpty) return;
     await Clipboard.setData(
@@ -375,6 +382,16 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
             loading: _loading,
             onCopy: _copyCode,
             onRetry: _loading ? null : () => _loadRoom(),
+          ),
+          const SizedBox(height: 20),
+          // Игры к комнате не привязаны: они на одном телефоне, кода не просят.
+          // Поэтому стоят ПОСЛЕ строки кода, за отступом — иначе читались бы
+          // продолжением связки «комната — сайт — код».
+          _TonalCard(
+            icon: Icons.sports_esports_rounded,
+            title: s.gamesForTwo,
+            subtitle: s.gamesForTwoHint,
+            onTap: _openGames,
           ),
           const SizedBox(height: 20),
           Padding(
