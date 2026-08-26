@@ -35,6 +35,7 @@ import '../models/canvas_background.dart';
 import '../models/draw_stroke.dart';
 import '../models/pixel_grid_style.dart';
 import '../models/pair_data.dart';
+import '../models/ad_grants.dart';
 import '../models/user_data.dart';
 import '../services/analytics_service.dart';
 import '../services/canvas_storage_service.dart';
@@ -43,6 +44,8 @@ import '../services/pb_data_service.dart';
 import '../services/offline/outbox_service.dart';
 import '../services/media_service.dart';
 import '../services/locale_service.dart';
+import '../services/pocketbase_service.dart';
+import '../services/rewarded_ad_service.dart';
 import '../utils/canvas_pinch.dart';
 import '../theme/app_theme.dart';
 import '../services/ui_prefs.dart';
@@ -160,6 +163,10 @@ class DrawScreen extends StatefulWidget {
 
 class _DrawScreenState extends State<DrawScreen>
     with TickerProviderStateMixin, WidgetsBindingObserver {
+  /// Реклама за пробу платного фона: держим один экземпляр на экран, как в
+  /// профиле, иначе каждый показ грузит ролик заново.
+  final RewardedAdService _rewardedAd = RewardedAdService();
+
   static const double _kCanvasPad = 16.0;
   /// Ширина к высоте листа. 4:5 — вертикаль, привычная по фото в галерее.
   static const double _kSheetRatio = 4 / 5;
@@ -731,6 +738,7 @@ class _DrawScreenState extends State<DrawScreen>
 
   @override
   void dispose() {
+    _rewardedAd.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _markPresence(false);
     _strokesSub?.cancel();
@@ -4977,6 +4985,69 @@ class _DrawScreenState extends State<DrawScreen>
         owned: widget.userData.ownedFeatures,
       );
 
+  /// Предлагает открыть платный фон холста рекламой до конца суток.
+  Future<void> _offerCanvasBgTrial(
+    CanvasBackground bg,
+    StateSetter refreshSheet,
+  ) async {
+    final s = LocaleService.current;
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await showAppSheet<bool>(
+      context,
+      builder: (ctx) => SheetScaffold(
+        title: s.adTrialCanvasBg,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                height: 56,
+                child: FilledButton.icon(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  icon: const Icon(Icons.play_circle_outline_rounded),
+                  label: Text(s.adTrialCanvasBg),
+                  style: FilledButton.styleFrom(shape: const StadiumBorder()),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 48,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: Text(s.cancel),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (ok != true) return;
+
+    final uid = PocketBaseService().userId ?? '';
+    final earned = await _rewardedAd.show(uid: uid);
+    unawaited(_rewardedAd.load());
+    if (!earned) return;
+
+    final res =
+        await widget.userData.takeAdGrant(AdGrantKind.canvasBg, bg.name);
+    if (!mounted) return;
+    if (res.kind == AdGrantOutcome.ok) {
+      refreshSheet(() {});
+      messenger.showSnackBar(SnackBar(
+        content: Text(s.adTrialTakenToday),
+        behavior: SnackBarBehavior.floating,
+      ));
+    } else {
+      messenger.showSnackBar(SnackBar(
+        content: Text(s.adRewardLimitReached),
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
+  }
+
   Widget _backgroundTile(
     CanvasBackground bg,
     ColorScheme cs,
@@ -4984,12 +5055,17 @@ class _DrawScreenState extends State<DrawScreen>
   ) {
     final selected = _background == bg;
     final s = LocaleService.current;
-    // Платные фоны набора открывает Togetherly+ (или поштучная покупка).
+    // Платные фоны набора открывает Togetherly+ (или поштучная покупка), а
+    // ещё — проба за рекламу: она живёт до конца суток и владением не
+    // становится.
+    final trial = widget.userData.adGrants
+        .activeFor(AdGrantKind.canvasBg, DateTime.now());
     final unlocked = PlusAccess.ownsBackground(
-      id: bg,
-      plus: PlusService.instance.active,
-      owned: widget.userData.ownedFeatures,
-    );
+          id: bg,
+          plus: PlusService.instance.active,
+          owned: widget.userData.ownedFeatures,
+        ) ||
+        trial?.id == bg.name;
 
     return GestureDetector(
       onTap: () {
@@ -4997,7 +5073,13 @@ class _DrawScreenState extends State<DrawScreen>
           // Там, где Togetherly+ не существует, закрытых фонов в списке нет —
           // а если тап всё же случился, молча ничего не делаем.
           if (!PlusService.instance.visible) return;
-          // Закрытый фон не выбирается молча: ведём туда, где его открывают.
+          // Закрытый фон не выбирается молча: сперва предлагаем открыть его
+          // рекламой на сегодня, и только потом — витрину Togetherly+.
+          if (widget.userData.adGrants
+              .canTake(AdGrantKind.canvasBg, DateTime.now())) {
+            _offerCanvasBgTrial(bg, refreshSheet);
+            return;
+          }
           Navigator.of(context).pop();
           Navigator.of(context).push(
             MaterialPageRoute<void>(
