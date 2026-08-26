@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+import '../models/pb_media_ref.dart';
 import '../models/upload_timeout.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
@@ -132,6 +133,18 @@ class PbMediaService {
   /// `true`, если ссылка — наша PB-схема.
   bool isPbRef(String? url) => url != null && url.startsWith(scheme);
 
+  /// Ссылка в виде `pb://…`, даже если пришла готовым адресом файла.
+  ///
+  /// В записях с давних пор лежат абсолютные `https://togetherly.day/api/files/
+  /// media/…`, а файлы `media` защищённые: без токена сервер отвечает 404, и
+  /// картинка не открывалась вовсе (152 таких запроса за две недели). Приводим
+  /// такие адреса обратно к схеме — дальше работает общий путь с токеном.
+  String normalizeRef(String url) => pbRefFromUrl(url) ?? url;
+
+  /// Нужен ли этой ссылке файловый токен.
+  bool needsFileToken(String? url) =>
+      isPbRef(url) || (url != null && pbRefFromUrl(url) != null);
+
   /// Готовая к скачиванию/воспроизведению ссылка: `pb://` → authed HTTPS,
   /// остальное (http/локальные) — как есть. Заменяет прежний
   /// FirebaseService.resolveMediaUrl. Легаси `gs://`/`sb://` НЕ резолвятся
@@ -211,8 +224,11 @@ class PbMediaService {
   /// ссылки — как есть. ВСЕ in-app загрузки/показ медиа идут через него.
   Future<String?> resolveUrlAuthed(String? ref) async {
     if (ref == null || ref.isEmpty) return ref;
-    if (!isPbRef(ref)) return ref;
-    final base = resolveUrl(ref);
+    // Готовый адрес защищённого файла сперва возвращаем к схеме: иначе он
+    // уходит в сеть без токена и получает 404.
+    final normalized = normalizeRef(ref);
+    if (!isPbRef(normalized)) return ref;
+    final base = resolveUrl(normalized);
     if (base == null) return ref;
     final tok = await _ensureFileToken();
     return mediaUrlWithToken(base: base, token: tok);

@@ -3083,7 +3083,7 @@ class HomeWidgetService {
       // в приложении и кладём локальный файл для нативного виджета). Токена
       // нет — качать нечего: без него сервер отвечает 404. Оставляем на экране
       // прежний снимок.
-      if (PbMediaService().isPbRef(url)) {
+      if (PbMediaService().needsFileToken(url)) {
         final resolved = await PbMediaService().resolveUrlAuthed(url);
         if (resolved == null || resolved.isEmpty) {
           return file.existsSync()

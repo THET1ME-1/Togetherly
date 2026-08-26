@@ -49,7 +49,9 @@ class _StorageImageState extends State<StorageImage> {
   // Асинхронного разрешения требуют: gs:// (Firebase signed URL), sb:// (Supabase)
   // И pb:// (PocketBase protected-файл → нужен ?token=, добываемый асинхронно).
   // https:// и локальные пути рендерятся сразу.
-  bool get _needsResolve => PbMediaService().isPbRef(widget.imageUrl);
+  // Токен нужен и готовому адресу нашего файла, а не только схеме `pb://`:
+  // коллекция `media` защищённая, и без него приходит 404.
+  bool get _needsResolve => PbMediaService().needsFileToken(widget.imageUrl);
 
   /// URL для немедленного рендера (только не-резолв-схемы: https/локальные).
   String get _fastUrl => widget.imageUrl;
@@ -71,7 +73,7 @@ class _StorageImageState extends State<StorageImage> {
   Future<String?> _resolve(String url) async {
     // Только pb:// (PocketBase protected media) → HTTPS с file-токеном.
     // Легаси gs:// / sb:// больше не резолвим (Firebase убран) — отдаём как есть.
-    if (PbMediaService().isPbRef(url)) {
+    if (PbMediaService().needsFileToken(url)) {
       return PbMediaService().resolveUrlAuthed(url);
     }
     return url;
