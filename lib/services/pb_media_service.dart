@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+
+import '../models/upload_timeout.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
@@ -43,48 +45,64 @@ class PbMediaService {
     String? groupId,
     String? kind,
   }) async {
-    try {
-      final body = <String, dynamic>{};
-      if (uid != null) body['uid'] = uid;
-      if (groupId != null) body['group_id'] = groupId;
-      if (kind != null) body['kind'] = kind;
-      // Жёсткий таймаут: без него зависшая заливка с iOS (медленная сеть/LTE,
-      // повисший multipart) крутила «бесконечную загрузку» в лоадере виджет-фото
-      // — await никогда не возвращался. По таймауту → исключение → возвращаем
-      // null → UI закрывает лоадер и даёт повторить. 60с хватает на фото ~1-2 МБ.
-      final rec = await _pb
-          .collection(_col)
-          .create(
-            body: body,
-            files: [
-              http.MultipartFile.fromBytes('file', bytes, filename: filename),
-            ],
-          )
-          .timeout(const Duration(seconds: 60));
-      // PB мог переименовать файл (суффикс против коллизий) → берём фактическое.
-      final stored = (rec.data['file'] ?? filename).toString();
-      return '$scheme$_col/${rec.id}/$stored';
-    } catch (e) {
-      debugPrint('PbMedia.uploadBytes failed: $e');
-      // Диагностика «не удалось загрузить фото/видео»: реальную причину (403 ACL,
-      // 401 протухшая сессия, сеть, валидация) глотал только debugPrint и она не
-      // была видна в проде. Кидаем в Bugsink с контекстом — статус-код у
-      // ClientException укажет точную причину сбоя загрузки воспоминания.
-      final statusCode = e is ClientException ? e.statusCode : null;
-      final response = e is ClientException ? e.response.toString() : null;
-      unawaited(Sentry.captureException(e, withScope: (s) {
-        s.level = SentryLevel.warning;
-        s.setExtra('reason', 'PbMedia.uploadBytes failed');
-        s.setExtra('kind', kind ?? '(none)');
-        s.setExtra('hasUid', (uid != null && uid.isNotEmpty).toString());
-        s.setExtra('hasGroupId', (groupId != null && groupId.isNotEmpty).toString());
-        s.setExtra('loggedIn', PocketBaseService().isLoggedIn.toString());
-        s.setExtra('filename', filename);
-        if (statusCode != null) s.setExtra('statusCode', statusCode.toString());
-        if (response != null) s.setExtra('pbResponse', response);
-      }));
-      return null;
+    // Срок ждём по размеру файла, а не одинаковый на всё. Жёсткие шестьдесят
+    // секунд обрывали 155 заливок за тридцать дней, и 93 из них были картинки
+    // холста: заливка ведром кладёт пятно целой картинкой, а мегабайты по
+    // мобильной сети в минуту не укладываются.
+    final limit = uploadTimeoutFor(bytes.length);
+    Object? lastError;
+    // Две попытки: обрыв и молчание сети со второй обычно проходят, а отказ по
+    // сути (протухшая сессия, запрет, слишком большой файл) повторять незачем —
+    // это решает `uploadWorthRetry`.
+    for (var attempt = 1; attempt <= 2; attempt++) {
+      try {
+        final body = <String, dynamic>{};
+        if (uid != null) body['uid'] = uid;
+        if (groupId != null) body['group_id'] = groupId;
+        if (kind != null) body['kind'] = kind;
+        final rec = await _pb
+            .collection(_col)
+            .create(
+              body: body,
+              files: [
+                http.MultipartFile.fromBytes('file', bytes, filename: filename),
+              ],
+            )
+            .timeout(limit);
+        // PB мог переименовать файл (суффикс против коллизий) → берём фактическое.
+        final stored = (rec.data['file'] ?? filename).toString();
+        return '$scheme$_col/${rec.id}/$stored';
+      } catch (e) {
+        lastError = e;
+        final code = e is ClientException ? e.statusCode : null;
+        if (attempt == 2 || !uploadWorthRetry(code)) break;
+        debugPrint('PbMedia.uploadBytes: попытка $attempt не прошла ($e) — повтор');
+        await Future<void>.delayed(const Duration(seconds: 2));
+      }
     }
+    final e = lastError!;
+    debugPrint('PbMedia.uploadBytes failed: $e');
+    // Диагностика «не удалось загрузить фото/видео»: реальную причину (403 ACL,
+    // 401 протухшая сессия, сеть, валидация) глотал только debugPrint и она не
+    // была видна в проде. Кидаем в Bugsink с контекстом — статус-код у
+    // ClientException укажет точную причину сбоя загрузки воспоминания.
+    final statusCode = e is ClientException ? e.statusCode : null;
+    final response = e is ClientException ? e.response.toString() : null;
+    unawaited(Sentry.captureException(e, withScope: (s) {
+      s.level = SentryLevel.warning;
+      s.setExtra('reason', 'PbMedia.uploadBytes failed');
+      s.setExtra('kind', kind ?? '(none)');
+      // Размер и срок: по ним видно, упёрлись мы в потолок или сеть молчала.
+      s.setExtra('bytes', bytes.length.toString());
+      s.setExtra('timeoutSeconds', limit.inSeconds.toString());
+      s.setExtra('hasUid', (uid != null && uid.isNotEmpty).toString());
+      s.setExtra('hasGroupId', (groupId != null && groupId.isNotEmpty).toString());
+      s.setExtra('loggedIn', PocketBaseService().isLoggedIn.toString());
+      s.setExtra('filename', filename);
+      if (statusCode != null) s.setExtra('statusCode', statusCode.toString());
+      if (response != null) s.setExtra('pbResponse', response);
+    }));
+    return null;
   }
 
   /// Загружает локальный файл по пути. Читает байты, имя — из пути. Возвращает
