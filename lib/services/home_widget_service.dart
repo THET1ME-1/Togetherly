@@ -15,6 +15,7 @@ import 'pb_data_service.dart';
 import 'pb_media_service.dart';
 import 'pocketbase_service.dart';
 import 'widget_owner.dart';
+import 'widget_photo_cache.dart';
 import '../theme/app_theme.dart';
 import 'pb_auth_service.dart';
 import '../models/ios_widget_gaps.dart';
@@ -3034,6 +3035,23 @@ class HomeWidgetService {
     if (url.isEmpty) return '';
     final dir = await getApplicationSupportDirectory();
     final file = File('${dir.path}/widget_$key.jpg');
+    final prefs = await SharedPreferences.getInstance();
+
+    // Ссылка та же и файл на месте — в сеть не идём. Виджеты обновляются на
+    // каждое событие партнёра (статус, настроение, трек, дебаунс 600 мс), и
+    // без этой проверки один и тот же аватар выкачивался заново по десятку раз
+    // в минуту. На раздаче это давало 94 ГБ в сутки — треть трафика сервера.
+    // Правило общее с widget_service, разбор — в widget_photo_cache.dart.
+    if (photoCacheDecision(
+          url: url,
+          cachedUrl: prefs.getString('${key}_src') ?? '',
+          cachedPath: file.path,
+          cachedFileExists: file.existsSync(),
+        ) ==
+        PhotoCacheAction.useCached) {
+      return await _toWidgetReadablePath(file.path, 'cache_$key');
+    }
+
     try {
       String httpUrl = url;
 
@@ -3065,6 +3083,9 @@ class HomeWidgetService {
 
       if (response.statusCode == 200) {
         await file.writeAsBytes(await _shrinkForWidget(response.bodyBytes, maxSide));
+        // Ссылку запоминаем ТОЛЬКО после удачной записи: иначе битая попытка
+        // закрыла бы дорогу повторной загрузке до самой смены фото.
+        await prefs.setString('${key}_src', url);
         debugPrint('HomeWidgetService: photo cached → ${file.path}');
         return await _toWidgetReadablePath(file.path, 'cache_$key');
       }

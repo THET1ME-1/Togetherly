@@ -1,0 +1,57 @@
+// Виджеты не выкачивают одну и ту же картинку по кругу.
+//
+// Разбор 26.08.2026 по счёту хостера за трафик. Раздача файлов отдавала 123 ГБ
+// в сутки, из них 94 ГБ приходилось на аватарки: один и тот же файл уходил на
+// один телефон по 36 раз за три минуты, а в запросах не было ни одной пометки
+// «у меня уже есть копия». Причина — `_cachePhotoFromUrl` в
+// HomeWidgetService: он звал `http.get` безусловно, а сохранённый файл держал
+// только на случай сбоя сети. Обновление виджетов подписано на события
+// партнёра (статус, настроение, трек, дебаунс 600 мс), поэтому каждая мелочь
+// вытягивала аватарки заново.
+//
+// Правило «качать или взять готовое» лежит в widget_photo_cache.dart и уже под
+// тестами; здесь сторожим саму склейку, чтобы её не потеряли при переделке.
+import 'dart:io';
+
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  final src = File('lib/services/home_widget_service.dart').readAsStringSync();
+
+  // Тело функции: от объявления до следующего метода класса.
+  final start = src.indexOf('Future<String> _cachePhotoFromUrl(');
+  final body = src.substring(start, src.indexOf('\n  /// ', start));
+
+  group('фото виджета не качается заново', () {
+    test('решение принимает общее правило кэша', () {
+      expect(start, isPositive, reason: 'функция загрузки фото исчезла');
+      expect(body.contains('photoCacheDecision('), isTrue,
+          reason: 'перед сетью должна стоять проверка готового файла');
+      expect(body.contains('PhotoCacheAction.useCached'), isTrue);
+    });
+
+    test('проверка стоит РАНЬШЕ сетевого запроса', () {
+      final decision = body.indexOf('photoCacheDecision(');
+      final network = body.indexOf('http\n          .get(');
+      expect(network, isPositive, reason: 'сетевой запрос переименовали');
+      expect(decision < network, isTrue,
+          reason: 'сначала смотрим готовый файл, только потом идём в сеть');
+    });
+
+    test('ссылка запоминается только после удачной записи', () {
+      final write = body.indexOf('writeAsBytes');
+      final remember = body.indexOf("prefs.setString('\${key}_src'");
+      expect(remember, isPositive, reason: 'ссылку перестали запоминать');
+      expect(write < remember, isTrue,
+          reason: 'битая попытка не должна закрывать дорогу повторной загрузке');
+    });
+
+    test('сравнивается исходная ссылка, а не адрес с токеном', () {
+      final decision = body.indexOf('photoCacheDecision(');
+      final args = body.substring(decision, decision + 260);
+      expect(args.contains('url: url'), isTrue,
+          reason: 'file-токен меняется каждые пару минут; сверять его нельзя');
+      expect(args.contains('httpUrl'), isFalse);
+    });
+  });
+}
