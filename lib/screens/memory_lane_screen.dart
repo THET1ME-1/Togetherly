@@ -84,6 +84,7 @@ import '../widgets/memory_date_field.dart';
 import '../widgets/rating_widgets.dart';
 import '../services/movie_search_service.dart';
 import '../widgets/common/pin_entry_sheet.dart';
+import '../services/offline/media_file_fetch.dart';
 
 // Экран разбит на части (один большой файл → читаемые модули). Все части —
 // `part of` этой библиотеки: приватные классы остаются библиотечно-приватными,

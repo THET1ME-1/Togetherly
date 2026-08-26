@@ -8,6 +8,7 @@ import '../services/level_service.dart';
 import '../services/locale_service.dart';
 import '../theme/theme_scope.dart';
 import '../theme/profile_theme.dart';
+import '../services/offline/media_view_cache.dart';
 
 /// Экран «Уровень и задания»: прогресс пары, что даёт XP и какие маскоты
 /// открываются на каких уровнях. Данные — целиком из [LevelService] и
@@ -347,6 +348,7 @@ class _LevelTasksScreenState extends State<LevelTasksScreen> {
               opacity: unlocked ? 1.0 : 0.4,
               child: m.catalogUrl != null
                   ? CachedNetworkImage(
+      cacheManager: OfflineImageCacheManager.instance,
                       imageUrl: m.catalogUrl!,
                       fit: BoxFit.contain,
                       errorWidget: (_, __, ___) =>

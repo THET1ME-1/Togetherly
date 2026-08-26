@@ -15,6 +15,7 @@ import '../services/catalog_service.dart';
 import '../services/mascot_service.dart';
 import 'mascot/pixel_mascot_view.dart';
 import '../theme/app_theme.dart';
+import '../services/offline/media_view_cache.dart';
 
 const String _kHiddenKey = 'mascot_hidden';
 const String _kOnboardingKey = 'mascot_onboarding_shown';
@@ -547,6 +548,7 @@ class _MascotImage extends StatelessWidget {
     }
     if (mascot.catalogUrl != null) {
       return CachedNetworkImage(
+      cacheManager: OfflineImageCacheManager.instance,
         imageUrl: mascot.catalogUrl!,
         fit: BoxFit.contain,
         placeholder: (_, __) => const SizedBox.shrink(),
@@ -589,6 +591,7 @@ Widget buildMascotAssetImage(
       );
     }
     return CachedNetworkImage(
+      cacheManager: OfflineImageCacheManager.instance,
       imageUrl: assetPath,
       fit: fit,
       width: width,

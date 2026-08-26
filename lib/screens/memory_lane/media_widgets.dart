@@ -803,7 +803,14 @@ class _InAppVideoPlayerPageState extends State<InAppVideoPlayerPage> {
   Future<void> _init() async {
     final playable = await PbMediaService().resolvePlayable(widget.url);
     if (!mounted) return;
-    final controller = VideoPlayerController.networkUrl(Uri.parse(playable));
+    // Ролик воспоминания смотрят по нескольку раз (замер на раздаче: 5,7 раза
+    // на файл). Первый показ качает и кладёт на диск, следующие идут с диска.
+    // Ключ — исходная ссылка, потому что playable несёт временный токен.
+    final local = await cachedMediaPath(widget.url, playable);
+    if (!mounted) return;
+    final controller = local != null
+        ? VideoPlayerController.file(File(local))
+        : VideoPlayerController.networkUrl(Uri.parse(playable));
     _controller = controller;
     controller.addListener(_onUpdate);
     try {

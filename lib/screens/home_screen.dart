@@ -130,6 +130,7 @@ import '../services/pb_media_service.dart';
 import '../services/widget_anim_service.dart';
 import 'snap_capture_screen.dart';
 import '../widgets/common/scaled_asset.dart';
+import '../services/offline/media_view_cache.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -3545,6 +3546,7 @@ class _MascotPreviewWidget extends StatelessWidget {
     // Без этой ветки они падали в Icon(face) → «нет превью» в карточке серии.
     if (mascot.catalogUrl != null) {
       return CachedNetworkImage(
+      cacheManager: OfflineImageCacheManager.instance,
         imageUrl: mascot.catalogUrl!,
         fit: BoxFit.contain,
         placeholder: (context, _) => _waiting(context),

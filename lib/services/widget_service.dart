@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:home_widget/home_widget.dart';
-import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/widget_data.dart';
@@ -11,6 +10,7 @@ import '../models/memory.dart';
 import '../models/mood_entry.dart';
 import 'locale_service.dart';
 import 'widget_photo_cache.dart';
+import 'widget_photo_store.dart';
 import 'widget_image_limit.dart';
 import 'pair_widget_payload.dart';
 import 'media_service.dart';
@@ -967,11 +967,12 @@ class WidgetService extends ChangeNotifier {
             key, await HomeWidgetService.instance.appGroupReadablePath(cachedPath, key));
         return;
       }
-      final resp = await http.get(Uri.parse(url));
-      if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
+      // Картинку настроения просят оба виджет-сервиса — берём со склада.
+      final resp = await WidgetPhotoStore.instance.bytesFor(url, url);
+      if (resp != null && resp.isNotEmpty) {
         final dir = await getApplicationSupportDirectory();
         final file = File('${dir.path}/$key.webp');
-        await file.writeAsBytes(resp.bodyBytes);
+        await file.writeAsBytes(resp);
         await HomeWidget.saveWidgetData<String>(
             key, await HomeWidgetService.instance.appGroupReadablePath(file.path, key));
         await prefs.setString('${key}_cached_asset', url);
@@ -1053,12 +1054,12 @@ class WidgetService extends ChangeNotifier {
       final sig = url.hashCode.toUnsigned(32).toRadixString(16);
       final uniqueName = '${key}_$sig';
 
-      final response = await http
-          .get(Uri.parse(httpUrl))
-          .timeout(const Duration(seconds: 15));
+      // Один склад на всё приложение: экран и второй виджет-сервис берут ту же
+      // картинку отсюда же, поэтому в сеть идёт только первый (widget_photo_store).
+      final bytes = await WidgetPhotoStore.instance.bytesFor(url, httpUrl);
 
-      if (response.statusCode != 200) {
-        debugPrint('_downloadPhoto($key): HTTP ${response.statusCode} for $url');
+      if (bytes == null) {
+        debugPrint('_downloadPhoto($key): на складе пусто для $url');
         // Прежнее живое фото лучше пустоты: один неудачный запрос не должен
         // стирать снимок с рабочего стола.
         await HomeWidget.saveWidgetData<String>(
@@ -1079,7 +1080,7 @@ class WidgetService extends ChangeNotifier {
       // ключа: фото 1200 точек, аватарка 400 (widget_image_limit.dart).
       await file.writeAsBytes(
         await HomeWidgetService.instance
-            .shrinkForWidget(response.bodyBytes, widgetImageMaxSide(key)),
+            .shrinkForWidget(bytes, widgetImageMaxSide(key)),
       );
 
       // Старые файлы этого ключа (контейнер + локальные) убираем ДО записи нового

@@ -14,6 +14,15 @@ Future<void> _setAudioSource(AudioPlayer player, String url) async {
   }
   if (PbMediaService().isPbRef(url)) {
     final resolved = await PbMediaService().resolveUrlAuthed(url);
+    if (resolved != null && resolved.isNotEmpty) {
+      // Сперва диск: одно и то же голосовое включают снова и снова, а ключом
+      // берём исходную pb://-ссылку — она постоянна, в отличие от токена.
+      final local = await cachedMediaPath(url, resolved);
+      if (local != null) {
+        await player.setFilePath(local);
+        return;
+      }
+    }
     await player.setUrl(resolved ?? url);
     return;
   }

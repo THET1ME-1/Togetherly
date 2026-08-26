@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:video_player/video_player.dart';
 
 import 'pb_media_service.dart';
+import 'offline/media_file_fetch.dart';
 
 /// Что сейчас с фигуркой: какая играет, где бегунок, включён ли звук.
 class NotePlayback {
@@ -159,9 +160,16 @@ class NotePlayerService extends ChangeNotifier implements NotePlayer {
     // Пока резолвился адрес, человек мог уйти к другой фигурке.
     if (_state.messageId != messageId) return;
 
-    final c = src.startsWith('http')
-        ? VideoPlayerController.networkUrl(Uri.parse(src))
-        : VideoPlayerController.file(_fileOf(src));
+    // Фигурку включают снова и снова, поэтому сперва диск. Ключ — исходная
+    // ссылка: в src сидит file-токен, живущий пару минут.
+    final local = src.startsWith('http') ? await cachedMediaPath(url, src) : null;
+    if (_state.messageId != messageId) return;
+
+    final c = local != null
+        ? VideoPlayerController.file(File(local))
+        : (src.startsWith('http')
+            ? VideoPlayerController.networkUrl(Uri.parse(src))
+            : VideoPlayerController.file(_fileOf(src)));
     _controller = c;
     c.addListener(_onTick);
     try {

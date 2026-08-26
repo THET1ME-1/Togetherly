@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
 import 'pb_media_service.dart';
+import 'offline/media_file_fetch.dart';
 
 /// Что сейчас с голосовым: какое играет, где бегунок, с какой скоростью.
 class VoicePlayback {
@@ -111,7 +112,15 @@ class VoicePlayerService extends ChangeNotifier {
         return;
       }
       if (src.startsWith('http')) {
-        await _player.setUrl(src);
+        // Голосовое просят в среднем четыре раза, и раньше каждое включение
+        // качало его заново. Ключ кэша — исходная pb://-ссылка: адрес с
+        // file-токеном меняется каждые пару минут и кэш бы промахивался.
+        final local = await cachedMediaPath(url, src);
+        if (local != null) {
+          await _player.setFilePath(local);
+        } else {
+          await _player.setUrl(src);
+        }
       } else {
         await _player.setFilePath(src);
       }

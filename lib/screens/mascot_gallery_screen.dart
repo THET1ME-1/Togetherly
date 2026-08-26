@@ -32,6 +32,7 @@ import '../services/catalog_service.dart';
 import '../widgets/active_mascot_widget.dart' show buildMascotAssetImage;
 import '../widgets/mascot/pixel_mascot_view.dart';
 import 'mascot_draw_screen.dart';
+import '../services/offline/media_view_cache.dart';
 
 class MascotGalleryScreen extends StatefulWidget {
   final MascotService mascotService;
@@ -1253,6 +1254,7 @@ class _MascotThumbnail extends StatelessWidget {
     }
     if (mascot.catalogUrl != null) {
       return CachedNetworkImage(
+      cacheManager: OfflineImageCacheManager.instance,
         imageUrl: mascot.catalogUrl!,
         width: size == double.infinity ? null : size,
         height: size == double.infinity ? null : size,

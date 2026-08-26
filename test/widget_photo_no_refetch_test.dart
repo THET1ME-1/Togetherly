@@ -30,18 +30,18 @@ void main() {
       expect(body.contains('PhotoCacheAction.useCached'), isTrue);
     });
 
-    test('проверка стоит РАНЬШЕ сетевого запроса', () {
+    test('проверка стоит РАНЬШЕ обращения на склад', () {
       final decision = body.indexOf('photoCacheDecision(');
-      final network = body.indexOf('http\n          .get(');
-      expect(network, isPositive, reason: 'сетевой запрос переименовали');
+      final network = body.indexOf('WidgetPhotoStore.instance.bytesFor(');
+      expect(network, isPositive, reason: 'обращение на склад переименовали');
       expect(decision < network, isTrue,
-          reason: 'сначала смотрим готовый файл, только потом идём в сеть');
+          reason: 'сначала смотрим готовый файл, только потом идём на склад');
     });
 
     test('ссылка запоминается только после удачной записи', () {
       // Смотрим сетевую ветку: до неё ссылка пишется и при выдаче со склада,
       // и это правильно — файл там уже лежит.
-      final net = body.indexOf('http\n          .get(');
+      final net = body.indexOf('WidgetPhotoStore.instance.bytesFor(');
       final tail = body.substring(net);
       final write = tail.indexOf('writeAsBytes');
       final remember = tail.indexOf("prefs.setString('\${key}_src'");
@@ -65,7 +65,7 @@ void main() {
       expect(body.contains('widget_src_'), isTrue,
           reason: 'общий склад по ссылке пропал');
       final sharedCheck = body.indexOf('shared.existsSync()');
-      final network = body.indexOf('http\n          .get(');
+      final network = body.indexOf('WidgetPhotoStore.instance.bytesFor(');
       expect(sharedCheck, isPositive);
       expect(sharedCheck < network, isTrue,
           reason: 'склад смотрим до сети');

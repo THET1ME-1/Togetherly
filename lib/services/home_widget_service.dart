@@ -7,7 +7,6 @@ import 'package:flutter/material.dart' show ColorScheme;
 import 'package:flutter/services.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:home_widget/home_widget.dart';
-import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -16,6 +15,7 @@ import 'pb_media_service.dart';
 import 'pocketbase_service.dart';
 import 'widget_owner.dart';
 import 'widget_photo_cache.dart';
+import 'widget_photo_store.dart';
 import '../theme/app_theme.dart';
 import 'pb_auth_service.dart';
 import '../models/ios_widget_gaps.dart';
@@ -3101,12 +3101,12 @@ class HomeWidgetService {
             : '';
       }
 
-      final response = await http
-          .get(Uri.parse(httpUrl))
-          .timeout(const Duration(seconds: 15));
+      // Сеть трогает общий склад, и только если на телефоне пусто. Показал
+      // экран эту аватарку — здесь она возьмётся с диска (widget_photo_store).
+      final bytes = await WidgetPhotoStore.instance.bytesFor(url, httpUrl);
 
-      if (response.statusCode == 200) {
-        final shrunk = await _shrinkForWidget(response.bodyBytes, maxSide);
+      if (bytes != null) {
+        final shrunk = await _shrinkForWidget(bytes, maxSide);
         await file.writeAsBytes(shrunk);
         await shared.writeAsBytes(shrunk);
         // Ссылку запоминаем ТОЛЬКО после удачной записи: иначе битая попытка
@@ -3117,7 +3117,7 @@ class HomeWidgetService {
       }
       // Download failed — fall back to previously cached file if it exists
       if (file.existsSync()) {
-        debugPrint('HomeWidgetService: download failed (${response.statusCode}), using cached file');
+        debugPrint('HomeWidgetService: склад пуст для $url, оставляем прежний файл');
         return await _toWidgetReadablePath(file.path, 'cache_$key');
       }
     } catch (e) {
@@ -3487,9 +3487,10 @@ class HomeWidgetService {
       if (file.existsSync()) {
         return await _toWidgetReadablePath(file.path, moodName);
       }
-      final resp = await http.get(Uri.parse(url));
-      if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
-        await file.writeAsBytes(resp.bodyBytes);
+      // Та же картинка настроения, что у widget_service: один склад на двоих.
+      final resp = await WidgetPhotoStore.instance.bytesFor(url, url);
+      if (resp != null && resp.isNotEmpty) {
+        await file.writeAsBytes(resp);
         debugPrint('HomeWidgetService: mood url downloaded → ${file.path}');
         return await _toWidgetReadablePath(file.path, moodName);
       }

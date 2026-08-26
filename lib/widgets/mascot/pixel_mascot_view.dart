@@ -8,6 +8,7 @@ import 'package:flutter/scheduler.dart';
 import '../../models/mascot_anim.dart';
 import '../../models/mascot_frame.dart';
 import '../../models/mascot_sleep.dart';
+import '../../services/offline/media_view_cache.dart';
 
 /// Проигрыватель пиксельного маскота: рисует кадр из атласа.
 ///
@@ -158,7 +159,7 @@ class _PixelMascotViewState extends State<PixelMascotView>
     if (_listener != null) _stream?.removeListener(_listener!);
     // Атлас качается один раз и живёт в кэше картинок: маскот из каталога не
     // должен тянуть сеть при каждом открытии главной.
-    final provider = CachedNetworkImageProvider(widget.anim.sheetUrl);
+    final provider = CachedNetworkImageProvider(widget.anim.sheetUrl, cacheManager: OfflineImageCacheManager.instance);
     _stream = provider.resolve(const ImageConfiguration());
     _listener = ImageStreamListener((info, _) {
       if (!mounted) return;

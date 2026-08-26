@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../models/mood_entry.dart';
 import '../theme/theme_scope.dart';
+import '../services/offline/media_view_cache.dart';
 
 /// Единый рендер картинки настроения по [imagePath].
 ///
@@ -70,6 +71,7 @@ class MoodImage extends StatelessWidget {
     // Пак могли перезалить — тогда в отметке лежит адрес удалённого файла.
     // Берём тот же стикер по актуальному адресу из каталога.
     return CachedNetworkImage(
+      cacheManager: OfflineImageCacheManager.instance,
       imageUrl: MoodOption.freshRemotePath(imagePath) ?? imagePath,
       fit: fit,
       width: width,
