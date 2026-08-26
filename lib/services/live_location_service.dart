@@ -6,6 +6,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/fgs_start_allowed.dart';
 import '../models/live_location_tuning.dart';
 import 'locale_service.dart';
 import 'centrifugo_service.dart';
@@ -198,7 +199,7 @@ class LiveLocationService with WidgetsBindingObserver {
     // ForegroundServiceStartNotAllowedException (летит мимо try/catch и onError).
     // Поднимаем стрим только на переднем плане; из фона выходим — подхватит
     // resumeIfEnabled при следующем открытии приложения.
-    if (Platform.isAndroid && !_appInForeground()) {
+    if (!_canStartFgs()) {
       debugPrint('LiveLocationService: старт из фона пропущен (FGS запрещён)');
       return;
     }
@@ -279,6 +280,17 @@ class LiveLocationService with WidgetsBindingObserver {
         s == AppLifecycleState.resumed ||
         s == AppLifecycleState.inactive;
   }
+
+  /// Можно ли поднимать поток прямо сейчас.
+  ///
+  /// Отдельно от [_appInForeground]: там неизвестное состояние считается
+  /// передним планом (профиль потока при старте выбирается точным), а для
+  /// запуска сервиса это как раз опасный случай — холодный старт из фонового
+  /// пробуждения выглядит именно так.
+  bool _canStartFgs() => fgsLocationStartAllowed(
+        WidgetsBinding.instance.lifecycleState,
+        android: Platform.isAndroid,
+      );
 
   Future<void> _pushCurrent(String pairId) async {
     try {
