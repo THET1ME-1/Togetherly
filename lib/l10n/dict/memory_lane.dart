@@ -754,6 +754,15 @@ const Map<String, Map<String, String>> memoryLaneStrings = {
     'fr': 'Renseigne le titre toi-même',
     'de': 'Trag den Titel selbst ein',
   },
+  'movieQuotaOut': {
+    'ru': 'Поиск сегодня исчерпан — впишите название вручную',
+    'en': 'Search is out of quota today — enter the title manually',
+    'pt': 'A busca esgotou a cota de hoje — escreva o título à mão',
+    'it': 'La ricerca ha esaurito la quota di oggi — scrivi il titolo a mano',
+    'es': 'La búsqueda agotó la cuota de hoy — escribe el título a mano',
+    'fr': 'La recherche a épuisé son quota du jour — renseigne le titre à la main',
+    'de': 'Die Suche hat ihr Tageslimit erreicht — trag den Titel selbst ein',
+  },
   'movieNoToken': {
     'ru': 'Поиск недоступен — впишите название вручную',
     'en': 'Search unavailable — enter the title manually',

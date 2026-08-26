@@ -63,6 +63,7 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
   bool _isSearching = false;
   bool _searchFailed = false;
   bool _noToken = false; // токен не задан → сразу ручной ввод
+  bool _quotaOut = false; // суточный лимит ключа исчерпан, завтра оживёт
   bool _picked = false;
   bool _manualMode = false;
   Timer? _debounce;
@@ -111,6 +112,7 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
       _isSearching = true;
       _searchFailed = false;
       _noToken = false;
+      _quotaOut = false;
     });
     try {
       final results = await MovieSearchService.search(query);
@@ -131,6 +133,7 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
         _results = const [];
         _searchFailed = true;
         _noToken = e.notConfigured || e.unauthorized;
+        _quotaOut = e.rateLimited;
       });
     } catch (_) {
       if (!mounted || query != _lastQuery) return;
@@ -560,13 +563,19 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
     }
     if (_results.isEmpty) {
       final failed = _searchFailed;
+      // Цвета берём из темы, а не из палитры Material. Жёсткие orange.shade50 и
+      // shade700 светились молочной плашкой на тёмной теме — жалоба со
+      // скриншотом 25.08.2026. Тональная поверхность темнеет вместе с темой.
+      final cs = widget.theme.scheme;
+      final noticeBg = cs?.tertiaryContainer ?? widget.theme.surfaceMuted;
+      final noticeInk = cs?.onTertiaryContainer ?? widget.theme.textPrimary;
       return Container(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
         decoration: BoxDecoration(
-          color: failed ? Colors.orange.shade50 : widget.theme.surfaceMuted,
+          color: failed ? noticeBg : widget.theme.surfaceMuted,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: failed ? Colors.orange.shade200 : widget.theme.divider,
+            color: failed ? Colors.transparent : widget.theme.divider,
           ),
         ),
         child: Column(
@@ -575,22 +584,24 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
               _noToken
                   ? Icons.vpn_key_off_rounded
                   : (failed ? Icons.cloud_off_rounded : Icons.search_off_rounded),
-              color: failed ? Colors.orange.shade400 : widget.theme.textMuted,
+              color: failed ? noticeInk : widget.theme.textMuted,
               size: 32,
             ),
             const SizedBox(height: 8),
             Text(
-              _noToken
-                  ? s.movieNoToken
-                  : (failed ? s.movieSearchFailed : s.noMoviesFound),
+              _quotaOut
+                  ? s.movieQuotaOut
+                  : (_noToken
+                      ? s.movieNoToken
+                      : (failed ? s.movieSearchFailed : s.noMoviesFound)),
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: failed ? Colors.orange.shade700 : widget.theme.textMuted,
+                color: failed ? noticeInk : widget.theme.textMuted,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
             ),
-            if (failed && !_noToken) ...[
+            if (failed && !_noToken && !_quotaOut) ...[
               const SizedBox(height: 4),
               Text(
                 s.movieSearchFailedHint,
@@ -599,13 +610,13 @@ class _MemoryMovieFormScreenState extends State<MemoryMovieFormScreen> {
               ),
             ],
             const SizedBox(height: 12),
-            TextButton.icon(
+            // Тональная кнопка вместо заливки в 8%: на тёмной теме та была
+            // почти невидимой и читалась выключенной.
+            FilledButton.tonalIcon(
               onPressed: _enterManualMode,
               icon: const Icon(Icons.edit_rounded, size: 16),
               label: Text(s.movieEnterManually),
-              style: TextButton.styleFrom(
-                foregroundColor: _primary,
-                backgroundColor: _primary.withValues(alpha: 0.08),
+              style: FilledButton.styleFrom(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 shape: RoundedRectangleBorder(

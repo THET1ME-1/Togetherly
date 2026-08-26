@@ -1170,6 +1170,7 @@ abstract class AppStrings {
   String get movieEnterManually;
   String get movieManualEntryHint;
   String get movieNoToken;
+  String get movieQuotaOut;
   String get sharedAMovie;
   String get movieTitleHint;
   String get movieOriginalTitleHint;

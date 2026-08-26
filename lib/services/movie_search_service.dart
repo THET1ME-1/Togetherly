@@ -58,8 +58,16 @@ class MovieSearchService {
       ).timeout(const Duration(seconds: 10));
 
       debugPrint('[MovieSearch] ← ${resp.statusCode}, ${resp.body.length} bytes');
-      if (resp.statusCode == 401 || resp.statusCode == 403) {
+      // 401 — ключ не тот. 403 у poiskkino.dev значит другое: «вы израсходовали
+      // ваш суточный лимит по запросам». Ключ один на всех, и к вечеру он
+      // выгорает, а наутро оживает. Смешивать это с «нет ключа» нельзя:
+      // человек читал «поиск недоступен» и считал, что сломано навсегда
+      // (жалоба от 25.08.2026 со скриншотом «Гарри Поттер»).
+      if (resp.statusCode == 401) {
         throw const MovieSearchException(unauthorized: true);
+      }
+      if (resp.statusCode == 403) {
+        throw const MovieSearchException(rateLimited: true);
       }
       if (resp.statusCode != 200) {
         throw MovieSearchException(message: 'HTTP ${resp.statusCode}');
@@ -88,18 +96,21 @@ class MovieSearchService {
 class MovieSearchException implements Exception {
   final bool notConfigured; // токен не задан
   final bool unauthorized; // токен неверный / просрочен
+  final bool rateLimited; // суточный лимит ключа исчерпан, завтра оживёт
   final String? message;
 
   const MovieSearchException({
     this.notConfigured = false,
     this.unauthorized = false,
+    this.rateLimited = false,
     this.message,
   });
 
   @override
   String toString() =>
       'MovieSearchException(notConfigured: $notConfigured, '
-      'unauthorized: $unauthorized, message: $message)';
+      'unauthorized: $unauthorized, rateLimited: $rateLimited, '
+      'message: $message)';
 }
 
 /// Один фильм/сериал из результатов поиска kinopoisk.dev.

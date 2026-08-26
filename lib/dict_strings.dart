@@ -1774,6 +1774,7 @@ abstract class DictStrings extends AppStrings {
   String get movieManualEntryHint => _t('movieManualEntryHint');
   @override
   String get movieNoToken => _t('movieNoToken');
+  String get movieQuotaOut => _t('movieQuotaOut');
   @override
   String get sharedAMovie => _t('sharedAMovie');
   @override
