@@ -56,6 +56,29 @@ bool isNetworkNoise(Object error) {
   return false;
 }
 
+/// Что из отказов роутов монет НЕ надо показывать в панели крашей.
+///
+/// Разбор 26.08.2026 по четырёмстам последним событиям `/api/coins/daily-bonus`:
+/// 217 — обрыв связи у человека (`statusCode: 0`, DPI и мобильная сеть), 108 —
+/// 502 в окно перезапуска PocketBase после выкладки хука, 13 — протухшая
+/// сессия. Настоящих серверных ошибок (500 «tx failed») всего 18. То есть
+/// четыре пятых потока — шум, который топит эти восемнадцать.
+///
+/// Здесь режется именно шум: 4xx с внятным телом и 500 доезжают до панели.
+bool isCoinsRouteNoise(Object error) {
+  final s = error.toString();
+  if (isNetworkNoise(error)) return true;
+  // Окно перезапуска сервера и сбои прокси: клиент ни при чём, повтор пройдёт.
+  if (s.contains('statusCode: 502') ||
+      s.contains('statusCode: 503') ||
+      s.contains('statusCode: 504')) {
+    return true;
+  }
+  // Протухшая сессия лечится обновлением токена, а не разбором в панели.
+  if (s.contains('statusCode: 401')) return true;
+  return false;
+}
+
 /// Android 12+ (mAllowStartForeground) запрещает старт foreground-сервиса из
 /// фона. Прямой путь старта обёрнут в try/catch, но плагин
 /// flutter_foreground_task доставляет отказ ещё и асинхронным событием

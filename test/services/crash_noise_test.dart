@@ -109,4 +109,61 @@ void main() {
       );
     });
   });
+
+  group('Шум роутов монет', () {
+    test('обрыв связи и отмена запроса в панель не идут', () {
+      expect(
+        isCoinsRouteNoise(
+          'ClientException: {url: https://togetherly.day/api/coins/daily-bonus, '
+          'isAbort: true, statusCode: 0, response: {}}',
+        ),
+        isTrue,
+      );
+    });
+
+    test('окно перезапуска сервера — не баг приложения', () {
+      for (final code in [502, 503, 504]) {
+        expect(
+          isCoinsRouteNoise(
+            'ClientException: {url: https://togetherly.day/api/coins/daily-bonus, '
+            'isAbort: false, statusCode: $code, response: {}}',
+          ),
+          isTrue,
+          reason: 'код $code — это перезапуск или прокси, а не поломка клиента',
+        );
+      }
+    });
+
+    test('протухшая сессия чинится повтором, а не отчётом', () {
+      expect(
+        isCoinsRouteNoise(
+          'ClientException: {url: https://togetherly.day/api/coins/daily-bonus, '
+          'statusCode: 401, response: {code: 401, message: The request requires '
+          'valid record authorization token.}}',
+        ),
+        isTrue,
+      );
+    });
+
+    test('серверная ошибка транзакции доезжает до панели', () {
+      expect(
+        isCoinsRouteNoise(
+          'ClientException: {url: https://togetherly.day/api/coins/daily-bonus, '
+          'statusCode: 500, response: {error: tx failed, ok: false}}',
+        ),
+        isFalse,
+        reason: 'tx failed — настоящая поломка экономики, её надо видеть',
+      );
+    });
+
+    test('отказ по правилу (400) тоже виден', () {
+      expect(
+        isCoinsRouteNoise(
+          'ClientException: {url: https://togetherly.day/api/coins/ad-grant, '
+          'statusCode: 400, response: {error: bad kind}}',
+        ),
+        isFalse,
+      );
+    });
+  });
 }

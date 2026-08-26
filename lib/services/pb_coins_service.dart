@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
+import 'crash_noise.dart';
+import 'pb_auth_service.dart';
 import 'pocketbase_service.dart';
 import 'coin_store.dart' show kStore;
 
@@ -48,15 +50,34 @@ class PbCoinsService {
         body: body,
       );
       return res is Map ? Map<String, dynamic>.from(res) : null;
+    } on ClientException catch (e) {
+      // Протухшая сессия — не отказ, а просроченный токен: обновляем его и
+      // повторяем один раз. Без этого человек терял ежедневный бонус и видел
+      // «не удалось», хотя монеты были положены (13 таких отказов на четыреста
+      // последних событий роута).
+      if (e.statusCode != 401) rethrow;
+      try {
+        await PbAuthService().ensureProfileLoaded();
+        final res = await PocketBaseService().pb.send(
+          '/api/coins/$path',
+          method: 'POST',
+          body: body,
+        );
+        return res is Map ? Map<String, dynamic>.from(res) : null;
+      } catch (_) {
+        return null;
+      }
     } catch (e, st) {
       debugPrint('PbCoins.$path failed: $e');
-      // Коины = деньги пользователя: сбой начисления/покупки/списания репортим
-      // (warning — часть это штатные 4xx вроде cooldown/insufficient, но дешевле
-      // отфильтровать в панели, чем пропустить реальный сбой экономики).
-      unawaited(Sentry.captureException(e, stackTrace: st, withScope: (s) {
-        s.setExtra('reason', 'coins route /api/coins/$path failed');
-        s.level = SentryLevel.warning;
-      }));
+      // Коины — деньги человека, поэтому сбои экономики репортим. Но обрывы
+      // связи, окна перезапуска сервера и протухшую сессию в панель не шлём:
+      // они давали четыре пятых потока и топили настоящие ошибки транзакций.
+      if (!isCoinsRouteNoise(e)) {
+        unawaited(Sentry.captureException(e, stackTrace: st, withScope: (s) {
+          s.setExtra('reason', 'coins route /api/coins/$path failed');
+          s.level = SentryLevel.warning;
+        }));
+      }
       return null;
     }
   }

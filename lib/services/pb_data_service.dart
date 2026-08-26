@@ -1,3 +1,4 @@
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'dart:math';
 
@@ -3276,11 +3277,28 @@ class PbDataService {
   /// отчёт продолжал уходить с каждого открытия главной: 719 событий в сутки —
   /// больше половины всего, что видит панель крашей. Включается на время
   /// следующего разбора одним PATCH записи конфига, без релиза.
+  /// Включена ли отправка отчёта о виджетах.
+  ///
+  /// Ответ держим сутки в prefs: разбор кончился, флаг на проде стоит в нуле,
+  /// а запрос уходил при КАЖДОМ открытии главной — лишний поход в сеть на
+  /// старте у каждого. Включают флаг руками и редко, сутки задержки здесь
+  /// ничего не стоят.
+  static const String _diagFlagKey = 'widget_diag_enabled_cached';
+  static const String _diagFlagAtKey = 'widget_diag_enabled_at';
+
   Future<bool> fetchWidgetDiagEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    final at = prefs.getInt(_diagFlagAtKey) ?? 0;
+    final fresh = DateTime.now().millisecondsSinceEpoch - at <
+        const Duration(hours: 24).inMilliseconds;
+    if (fresh) return prefs.getBool(_diagFlagKey) ?? false;
     try {
       final res = await _pb.collection('app_config').getList(perPage: 1);
-      if (res.items.isEmpty) return false;
-      return res.items.first.data['widget_diag_enabled'] == true;
+      final on =
+          res.items.isNotEmpty && res.items.first.data['widget_diag_enabled'] == true;
+      await prefs.setBool(_diagFlagKey, on);
+      await prefs.setInt(_diagFlagAtKey, DateTime.now().millisecondsSinceEpoch);
+      return on;
     } catch (e) {
       debugPrint('PbData.fetchWidgetDiagEnabled failed: $e');
       return false;
