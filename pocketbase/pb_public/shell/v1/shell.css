@@ -1,0 +1,105 @@
+/* ══════════════════════════════════════════════════════════════════
+   Оболочка Togetherly — общая шапка и подвал для всех сайтов.
+   Подключается двумя тегами:
+     <link rel="stylesheet" href="https://togetherly.day/shell/v1/shell.css">
+     <script src="https://togetherly.day/shell/v1/shell.js" data-site="games"></script>
+
+   Токены НЕ объявляются: их даёт сам сайт. Оболочка живёт на ролях M3
+   (--primary, --surface-container и прочих) и потому одинаково выглядит
+   в обеих темах любого из сайтов. Версия в пути: правка не ломает
+   закэшированные страницы.
+   ══════════════════════════════════════════════════════════════════ */
+
+.tg-shell-head, .tg-shell-foot { --tg-easing: cubic-bezier(0.2,0,0,1); }
+.tg-shell-head *, .tg-shell-foot * { box-sizing: border-box; min-width: 0; }
+
+/* ── шапка ── */
+.tg-shell-head { width: min(100% - 32px, 1240px); margin-inline: auto;
+  display: flex; align-items: center; gap: 10px; padding: 14px 0; }
+.tg-brand { display: inline-flex; align-items: center; gap: 9px;
+  font-family: 'Unbounded', system-ui, sans-serif; font-size: 17px; font-weight: 700;
+  text-decoration: none; white-space: nowrap; color: inherit; }
+.tg-brand img { width: 30px; height: 30px; border-radius: 9px; flex: 0 0 30px;
+  object-fit: cover; }
+.tg-site { font-weight: 400; color: var(--on-surface-variant); }
+.tg-switch { display: inline-flex; gap: 2px; padding: 3px; margin-left: 14px;
+  background: var(--surface-container); border-radius: 999px; }
+.tg-switch a { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px;
+  border-radius: 999px; font-family: 'Onest', system-ui, sans-serif; font-size: 13px;
+  font-weight: 600; color: var(--on-surface-variant); text-decoration: none;
+  transition: background 200ms var(--tg-easing), color 200ms var(--tg-easing); }
+.tg-switch a.on { background: var(--primary); color: var(--on-primary); }
+.tg-switch a:hover:not(.on) { color: var(--on-surface); }
+.tg-switch .tg-ms { font-size: 17px; }
+.tg-sp { flex: 1; }
+.tg-icon { width: 40px; height: 40px; flex: 0 0 40px; border: 0; cursor: pointer;
+  border-radius: 999px; background: var(--surface-container); color: var(--on-surface-variant);
+  display: grid; place-items: center; font-size: 20px;
+  transition: background 200ms var(--tg-easing); }
+.tg-icon:hover { background: var(--surface-high); color: var(--on-surface); }
+.tg-acc { display: inline-flex; align-items: center; gap: 9px; height: 40px; padding: 0 6px;
+  border: 0; cursor: pointer; border-radius: 999px; background: var(--surface-container);
+  color: var(--on-surface); font-family: 'Onest', system-ui, sans-serif;
+  font-size: 13.5px; font-weight: 600; text-decoration: none; }
+.tg-acc:hover { background: var(--surface-high); }
+.tg-ava { width: 28px; height: 28px; flex: 0 0 28px; border-radius: 999px; overflow: hidden;
+  background: var(--primary-container); color: var(--on-primary-container);
+  display: grid; place-items: center; font-family: 'Unbounded', system-ui, sans-serif;
+  font-size: 12px; font-weight: 700; }
+.tg-ava img { width: 100%; height: 100%; object-fit: cover; }
+.tg-acc .tg-nm { padding-right: 6px; max-width: 118px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.tg-enter { height: 40px; padding: 0 18px; border: 0; cursor: pointer; border-radius: 999px;
+  background: var(--primary); color: var(--on-primary); text-decoration: none;
+  font-family: 'Unbounded', system-ui, sans-serif; font-size: 13px; font-weight: 600;
+  display: inline-flex; align-items: center; }
+.tg-ms { font-family: 'Material Symbols Rounded'; font-weight: 400; font-style: normal;
+  line-height: 1; font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  font-feature-settings: 'liga'; -webkit-font-smoothing: antialiased; user-select: none; }
+/* Лента языка узкая и подписи в ней короткие — её не схлопываем. */
+.tg-lang { margin-left: 0; }
+.tg-lang a { padding: 8px 12px; }
+@media (max-width: 900px) {
+  .tg-switch:not(.tg-lang) a span:not(.tg-ms) { display: none; }
+  .tg-switch a { padding: 8px 11px; }
+  .tg-acc .tg-nm { display: none; }
+}
+@media (max-width: 520px) { .tg-site { display: none; } }
+@media (pointer: coarse) { .tg-switch a { min-height: 44px; } }
+
+/* ── подвал ── */
+.tg-shell-foot { margin-top: 44px; background: var(--surface-low);
+  position: relative; overflow: hidden; container-type: inline-size;
+  font-family: 'Onest', system-ui, sans-serif; }
+.tg-foot-in { width: min(100% - 32px, 1240px); margin-inline: auto; padding-top: 46px; }
+.tg-cols { display: grid; gap: 30px; grid-template-columns: 1.6fr repeat(3, 1fr); }
+@media (max-width: 900px) { .tg-cols { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 560px) { .tg-cols { grid-template-columns: 1fr; } }
+.tg-about h4 { font-family: 'Unbounded', system-ui, sans-serif; font-size: 15px;
+  font-weight: 700; margin: 0 0 12px; }
+.tg-about p { margin: 0; font-size: 13.5px; line-height: 1.55; max-width: 44ch;
+  color: var(--on-surface-variant); }
+.tg-stores { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+.tg-store { display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 14px;
+  border-radius: 999px; background: var(--surface-container); color: var(--on-surface);
+  text-decoration: none; font-size: 12.5px; font-weight: 600; }
+.tg-store:hover { background: var(--surface-high); }
+.tg-col h5 { font-family: 'Unbounded', system-ui, sans-serif; font-size: 12px; font-weight: 700;
+  margin: 0 0 12px; letter-spacing: .06em; }
+.tg-col ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; }
+.tg-col a { font-size: 13.5px; color: var(--on-surface-variant); text-decoration: none; }
+.tg-col a:hover { color: var(--on-surface); }
+.tg-legal { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding: 22px 0;
+  margin-top: 34px; border-top: 1px solid var(--outline-variant);
+  font-size: 12.5px; color: var(--on-surface-variant); }
+.tg-legal .tg-sp { flex: 1; }
+.tg-legal a { text-decoration: none; color: inherit; }
+.tg-legal a:hover { color: var(--on-surface); }
+/* Кегль снят замером, а не подобран: пробный элемент этим же начертанием при
+   100px даёт слову ширину 795px, значит предел 100*1240/795 = 12.4cqw. Взято
+   12.2 с запасом. Проверять ТОЛЬКО пробным элементом: getBoundingClientRect у
+   блока равен ширине контейнера, и переполнение текста так не видно вовсе. */
+.tg-word { font-family: 'Unbounded', system-ui, sans-serif; font-weight: 800;
+  letter-spacing: -.055em; font-size: 12.2cqw; line-height: .8; text-align: center;
+  white-space: nowrap; padding: 6px 0 12px; user-select: none; pointer-events: none;
+  color: color-mix(in oklab, var(--on-surface) 7%, transparent); }
