@@ -108,3 +108,46 @@
   letter-spacing: -.055em; font-size: 12.2cqw; line-height: .8; text-align: center;
   white-space: nowrap; padding: 6px 0 12px; user-select: none; pointer-events: none;
   color: color-mix(in oklab, var(--on-surface) 7%, transparent); }
+
+/* ── меню аккаунта и навигации ─────────────────────────────────────
+   Один компонент на два вида: на широком экране выпадает под кнопкой,
+   на телефоне выезжает снизу. До верхнего правого угла большим пальцем
+   не дотянуться, поэтому лист внизу — не украшение, а досягаемость. */
+.tg-menu-wrap { position: fixed; inset: 0; z-index: 60; }
+.tg-menu-scrim { position: absolute; inset: 0;
+  background: color-mix(in srgb, #000 42%, transparent); }
+.tg-menu { position: absolute; left: 0; right: 0; bottom: 0;
+  background: var(--surface-container); border-radius: 28px 28px 0 0;
+  padding: 10px 10px calc(10px + env(safe-area-inset-bottom));
+  display: grid; gap: 2px;
+  animation: tg-rise 220ms cubic-bezier(0.2,0,0,1); }
+@keyframes tg-rise { from { transform: translateY(14px); opacity: 0 } to { transform: none; opacity: 1 } }
+.tg-menu-pop { left: auto; right: 0; bottom: auto; width: 268px;
+  border-radius: 20px; padding: 8px; }
+.tg-menu-i { display: flex; align-items: center; gap: 14px; min-height: 52px; padding: 0 16px;
+  border: 0; width: 100%; cursor: pointer; text-align: left; text-decoration: none;
+  border-radius: 16px; background: transparent; color: var(--on-surface);
+  font-family: 'Onest', system-ui, sans-serif; font-size: 15px; font-weight: 500; }
+.tg-menu-i:hover { background: var(--surface-high); }
+.tg-menu-i .tg-ms { font-size: 22px; color: var(--on-surface-variant); }
+.tg-menu-i.on { background: var(--primary-container); color: var(--on-primary-container); }
+.tg-menu-i.on .tg-ms { color: inherit; }
+.tg-menu-out { color: var(--primary); }
+.tg-menu-out .tg-ms { color: var(--primary); }
+.tg-menu-sep { height: 1px; background: var(--outline-variant); margin: 6px 12px; }
+
+/* ── телефон ───────────────────────────────────────────────────────
+   Четыре сайта плюс язык в одну строку на 393 точках не встают, а
+   прокрутка вбок прячет их насовсем. Поэтому бургер и лист снизу.
+   Логотип при этом остаётся: он и есть ссылка «домой». */
+.tg-burger { display: none; }
+@media (max-width: 720px) {
+  .tg-shell-head { gap: 8px; padding: 10px 0; }
+  .tg-burger { display: grid; }
+  .tg-switch { display: none; }
+  .tg-site { display: none; }
+  .tg-brand { font-size: 16px; }
+  .tg-acc .tg-nm { display: none; }
+  .tg-acc, .tg-enter { height: 40px; }
+  .tg-enter { padding: 0 14px; font-size: 12.5px; }
+}

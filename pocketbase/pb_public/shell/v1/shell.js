@@ -92,6 +92,29 @@
     },
   };
 
+  /* Аватар бывает двух видов: внешняя ссылка у входа через сервисы и
+     pb://media/<id>/<файл> у своих. Второй — защищённый файл, и прямая
+     ссылка на него отвечает 404: нужен файловый токен, свой на человека.
+     Берём один раз на страницу. */
+  var fileToken = null;
+  function avatarSrc(raw) {
+    if (!raw) return Promise.resolve('');
+    if (/^https?:/i.test(raw)) return Promise.resolve(raw);
+    var m = /^pb:\/\/([^/]+)\/([^/]+)\/(.+)$/.exec(raw);
+    if (!m) return Promise.resolve('');
+    var url = API + '/api/files/' + m[1] + '/' + m[2] + '/' + m[3];
+    if (fileToken !== null) {
+      return Promise.resolve(fileToken ? url + '?token=' + encodeURIComponent(fileToken) : '');
+    }
+    return fetch(API + '/api/files/token', { method: 'POST', headers: { Authorization: TG.token() } })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        fileToken = j.token || '';
+        return fileToken ? url + '?token=' + encodeURIComponent(fileToken) : '';
+      })
+      .catch(function () { fileToken = ''; return ''; });
+  }
+
   function el(tag, cls, html) {
     var n = document.createElement(tag);
     if (cls) n.className = cls;
@@ -120,11 +143,76 @@
     });
   }
 
+  /* ── меню аккаунта ───────────────────────────────────────────
+     На широком экране выпадает под кнопкой, на телефоне выезжает
+     снизу: до верхнего угла большим пальцем не дотянуться. */
+  function closeMenu() {
+    var m = document.querySelector('.tg-menu-wrap');
+    if (m) m.remove();
+    document.removeEventListener('keydown', onEsc);
+  }
+  function onEsc(e) { if (e.key === 'Escape') closeMenu(); }
+
+  function openMenu(anchor) {
+    closeMenu();
+    var wrap = el('div', 'tg-menu-wrap');
+    var items = [
+      ['account_circle', 'Перейти в профиль', 'https://profile.togetherly.day/'],
+      ['smartphone', 'Перейти в приложение', API + '/'],
+    ];
+    wrap.innerHTML = '<div class="tg-menu-scrim"></div><div class="tg-menu" role="menu">' +
+      items.map(function (i) {
+        return '<a class="tg-menu-i" role="menuitem" href="' + i[2] + '">' +
+          '<span class="tg-ms">' + i[0] + '</span>' + esc(i[1]) + '</a>';
+      }).join('') +
+      '<button class="tg-menu-i tg-menu-out" role="menuitem" type="button">' +
+        '<span class="tg-ms">logout</span>Выйти из аккаунта</button></div>';
+
+    document.body.appendChild(wrap);
+    wrap.querySelector('.tg-menu-scrim').addEventListener('click', closeMenu);
+    wrap.querySelector('.tg-menu-out').addEventListener('click', function () {
+      closeMenu(); TG.signOut();
+    });
+    document.addEventListener('keydown', onEsc);
+
+    // На широком экране прижимаем к кнопке; на узком лист и так внизу.
+    if (window.innerWidth > 720 && anchor) {
+      var r = anchor.getBoundingClientRect();
+      var menu = wrap.querySelector('.tg-menu');
+      menu.classList.add('tg-menu-pop');
+      menu.style.top = Math.round(r.bottom + 8) + 'px';
+      menu.style.right = Math.round(document.documentElement.clientWidth - r.right) + 'px';
+    }
+  }
+
   /* ── шапка ── */
+  /* Нижний лист навигации для телефона. Четыре сайта плюс язык в одну строку
+     на 393 точках не встают, а прокрутка вбок прячет их насовсем. */
+  function openNav() {
+    closeMenu();
+    var wrap = el('div', 'tg-menu-wrap tg-nav-wrap');
+    var sites = SITES.map(function (x) {
+      return '<a class="tg-menu-i' + (x.id === SITE ? ' on' : '') + '" href="' + x.href + '">' +
+        '<span class="tg-ms">' + x.icon + '</span>' + esc(x.name) + '</a>';
+    }).join('');
+    var lang = (LANG && LANGALT)
+      ? '<div class="tg-menu-sep"></div><a class="tg-menu-i" href="' + esc(LANGALT) + '">' +
+        '<span class="tg-ms">translate</span>' +
+        (LANG === 'ru' ? 'English version' : 'Русская версия') + '</a>'
+      : '';
+    wrap.innerHTML = '<div class="tg-menu-scrim"></div><div class="tg-menu" role="menu">' +
+      sites + lang + '</div>';
+    document.body.appendChild(wrap);
+    wrap.querySelector('.tg-menu-scrim').addEventListener('click', closeMenu);
+    document.addEventListener('keydown', onEsc);
+  }
+
   function buildHead() {
     var head = el('header', 'tg-shell-head');
     var tail = TITLES[SITE] ? '&nbsp;<span class="tg-site">· ' + esc(TITLES[SITE]) + '</span>' : '';
     head.innerHTML =
+      '<button class="tg-icon tg-burger" type="button" aria-label="Меню">' +
+        '<span class="tg-ms">menu</span></button>' +
       '<a class="tg-brand" href="' + (SITE === 'app' ? '/' : API + '/') + '">' +
         '<img src="' + API + '/shell/v1/app-icon.webp" alt="" width="30" height="30">' +
         'Togetherly' + tail + '</a>' +
@@ -143,6 +231,7 @@
         '<span class="tg-ms">dark_mode</span></button>' +
       '<span class="tg-account"></span>';
 
+    head.querySelector('.tg-burger').addEventListener('click', openNav);
     head.querySelector('.tg-theme').addEventListener('click', function () {
       applyTheme(TG.theme() === 'dark' ? 'light' : 'dark');
     });
@@ -153,8 +242,11 @@
     } else {
       // Пока профиль едет, показываем нейтральный кружок: пустое место в шапке
       // прыгает, когда данные доезжают.
-      box.innerHTML = '<a class="tg-acc" href="https://profile.togetherly.day/">' +
-        '<span class="tg-ava tg-ms" style="font-size:16px">person</span></a>';
+      box.innerHTML = '<button class="tg-acc" type="button" aria-haspopup="menu">' +
+        '<span class="tg-ava tg-ms" style="font-size:16px">person</span></button>';
+      box.querySelector('.tg-acc').addEventListener('click', function (ev) {
+        openMenu(ev.currentTarget);
+      });
       TG.me().then(function (d) {
         var p = d && d.pair && (d.pair.names || []).filter(function (x) { return x.me; })[0];
         if (!p) p = d && d.pair && (d.pair.names || [])[0];
@@ -163,12 +255,18 @@
         var a = box.querySelector('.tg-acc');
         a.innerHTML = '<span class="tg-ava">' + esc(letter) + '</span>' +
           '<span class="tg-nm">' + esc(p.name || '') + '</span>';
-        if (p.avatar && /^https?:/i.test(p.avatar)) {
+        // Буква остаётся, пока картинка не доехала, и возвращается при мёртвой
+        // ссылке: пустой кружок читается как поломка.
+        avatarSrc(p.avatar).then(function (src) {
+          if (!src) return;
           var img = new Image();
           img.alt = '';
-          img.onload = function () { a.querySelector('.tg-ava').innerHTML = ''; a.querySelector('.tg-ava').append(img); };
-          img.src = p.avatar;
-        }
+          img.onload = function () {
+            var slot = a.querySelector('.tg-ava');
+            if (slot) { slot.innerHTML = ''; slot.append(img); }
+          };
+          img.src = src;
+        });
       });
     }
     return head;
