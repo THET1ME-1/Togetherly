@@ -194,6 +194,17 @@ class LiveLocationService with WidgetsBindingObserver {
   Future<void> startSharing(String pairId, {String partnerUid = ''}) async {
     if (pairId.isEmpty || _uid.isEmpty) return;
     if (!sharingEnabled.value) return;
+    // Без партнёра геопозицию не берём вовсе. Читать её всё равно некому:
+    // watchPartner на пустом partnerUid отдаёт пустой поток, — а вот писать
+    // мы её продолжали, и приложение жгло батарею и держало синюю стрелку у
+    // одиночек и у пар с пустым местом («ждём человека»). Ровно на этом стоит
+    // претензия App Review 2.5.4: режим `location` объявлен, а функции, ради
+    // которой он нужен, у такого человека на экране нет.
+    if (partnerUid.isEmpty) {
+      await stopSharing(removePoint: true);
+      debugPrint('LiveLocationService: партнёра нет, шеринг не запускаем');
+      return;
+    }
     // Android 12+ запрещает старт foreground-сервиса из фона, а geolocator
     // поднимает location-FGS внутри getPositionStream → из фона это роняет
     // ForegroundServiceStartNotAllowedException (летит мимо try/catch и onError).
@@ -230,7 +241,15 @@ class LiveLocationService with WidgetsBindingObserver {
   /// Подхватывает шеринг на старте приложения / при привязке к группе, если
   /// пользователь его раньше включал. Безопасно вызывать многократно.
   Future<void> resumeIfEnabled(String pairId, {String partnerUid = ''}) async {
-    if (sharingEnabled.value) await startSharing(pairId, partnerUid: partnerUid);
+    if (!sharingEnabled.value) return;
+    // Партнёр мог уйти, пока приложение было закрыто: пара распалась или
+    // второе место ещё пустует. Тогда не просто не стартуем, а гасим то, что
+    // осталось с прошлого запуска.
+    if (partnerUid.isEmpty) {
+      await stopSharing(removePoint: true);
+      return;
+    }
+    await startSharing(pairId, partnerUid: partnerUid);
   }
 
   void _watchLifecycle() {
