@@ -72,6 +72,14 @@
     token: function () { return readCookie(COOK); },
     setToken: function (t) { writeCookie(COOK, t || '', t ? 365 : 0); },
     signOut: function () { TG.setToken(''); location.reload(); },
+    /* Перерисовать шапку после входа или выхода: она строится один раз при
+       загрузке, и без этого остаётся гостевой на том самом сайте, где человек
+       только что вошёл. */
+    refresh: function () {
+      TG._me = null;
+      var old = document.querySelector('.tg-shell-head');
+      if (old) old.replaceWith(buildHead());
+    },
     /* Профиль спрашиваем один раз на страницу: имя и аватар нужны только шапке. */
     me: function () {
       if (TG._me) return TG._me;
