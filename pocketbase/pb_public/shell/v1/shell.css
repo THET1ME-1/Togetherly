@@ -70,7 +70,12 @@
 /* ── подвал ── */
 .tg-shell-foot { margin-top: 44px; background: var(--surface-low);
   position: relative; overflow: hidden; container-type: inline-size;
-  font-family: 'Onest', system-ui, sans-serif; }
+  font-family: 'Onest', system-ui, sans-serif;
+  /* На играх body — flex-колонка с растянутым main. У flex-элемента с
+     overflow:hidden минимальная высота становится нулём, и подвал сжимало
+     в полоску: содержимое внутри было 449px, сам подвал 0. Запрет на
+     сжатие снимает это на любом сайте, где body окажется флексом. */
+  flex: 0 0 auto; }
 .tg-foot-in { width: min(100% - 32px, 1240px); margin-inline: auto; padding-top: 46px; }
 .tg-cols { display: grid; gap: 30px; grid-template-columns: 1.6fr repeat(3, 1fr); }
 @media (max-width: 900px) { .tg-cols { grid-template-columns: 1fr 1fr; } }
