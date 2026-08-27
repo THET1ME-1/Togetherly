@@ -47,12 +47,16 @@ routerAdd("GET", "/api/profile/web", (e) => {
   const members = g.getStringSlice("members") || [];
   const names = [];
   for (let i = 0; i < members.length && i < 2; i++) {
-    let nm = "";
+    let nm = "", av = "";
     try {
       const u = $app.findRecordById("users", members[i]);
       nm = u.getString("display_name") || u.getString("name") || "";
+      // Аватар бывает двух видов: внешняя ссылка у входа через сервисы и
+      // pb://media/<id>/<файл> у своих. Второй — защищённый файл, ссылку к
+      // нему собирает клиент со своим файловым токеном.
+      av = u.getString("avatar_url") || "";
     } catch (_) { nm = ""; }
-    names.push({ uid: members[i], name: nm, me: members[i] === uid });
+    names.push({ uid: members[i], name: nm, avatar: av, me: members[i] === uid });
   }
   // Свой профиль всегда первым: страница читается от себя.
   names.sort((a, b) => (b.me ? 1 : 0) - (a.me ? 1 : 0));
