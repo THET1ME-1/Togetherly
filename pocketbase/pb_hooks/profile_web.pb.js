@@ -70,16 +70,10 @@ routerAdd("GET", "/api/profile/web", (e) => {
     if (!isNaN(t)) days = Math.max(0, Math.floor((Date.now() - t) / 86400000));
   }
 
-  // Достижения лежат json-полем на группе: массив id открытых.
-  let achievements = [];
-  try {
-    const raw = g.getString("achievements");
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) achievements = parsed;
-      else if (parsed && typeof parsed === "object") achievements = Object.keys(parsed);
-    }
-  } catch (_) { achievements = []; }
+  // Достижений на сервере НЕТ ВОВСЕ, и колонки под них в `groups` тоже нет:
+  // это чистая функция от счётчиков пары, приложение считает их на устройстве
+  // (см. `lib/services/achievement_service.dart`). Сайт делает то же самое по
+  // своей копии каталога — сервер отдаёт только счётчики.
 
   // Марки. Коллекции ещё нет — пустой объект вместо отказа: страница
   // рисует каталог сезона и пустые гнёзда, а не ошибку.
@@ -111,7 +105,6 @@ routerAdd("GET", "/api/profile/web", (e) => {
       drawings: g.getInt("drawings_count"),
       streak: g.getInt("streak_days"),
     },
-    achievements: achievements.map((id) => ({ id: id, title: id, emoji: "★" })),
     stamps: stamps,
     stamps_total: stampsTotal,
   });
