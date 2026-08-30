@@ -255,5 +255,138 @@ class РазвилкаФорматов(unittest.TestCase):
         self.assertFalse(play_verify.похоже_на_jws(""))
 
 
+class Уведомления(unittest.TestCase):
+    """Разбор уведомления App Store Server Notifications V2.
+
+    Apple шлёт его сама, без участия приложения: сначала внешний JWS с типом
+    события, внутри — второй JWS с самой транзакцией. Подписаны оба, и
+    проверять надо оба: внешний конверт с настоящей подписью мог бы нести
+    подделанную транзакцию.
+    """
+
+    def setUp(self):
+        self.цепь = цепочка()
+        патч = mock.patch.object(
+            play_verify, "APPLE_ROOT_SHA256", {отпечаток(self.цепь["root"])})
+        патч.start()
+        self.addCleanup(патч.stop)
+
+    def подписать(self, нагрузка, ключ=None, сертификаты=None):
+        return собрать_jws(
+            нагрузка, ключ or self.цепь["leaf_key"],
+            сертификаты or x5c(self.цепь["leaf"], self.цепь["inter"],
+                               self.цепь["root"]))
+
+    def уведомление(self, тип="ONE_TIME_CHARGE", подтип="", чек=None,
+                    bundle="com.togetherly.love", **правки):
+        сделка = self.подписать(dict(ЧЕК, **(чек or {})))
+        нагрузка = {
+            "notificationType": тип,
+            "notificationUUID": "8cd5f26c-1111-2222-3333-444455556666",
+            "version": "2.0",
+            "signedDate": 1788000000000,
+            "data": {
+                "bundleId": bundle,
+                "environment": "Production",
+                "signedTransactionInfo": сделка,
+            },
+        }
+        if подтип:
+            нагрузка["subtype"] = подтип
+        нагрузка.update(правки)
+        return self.подписать(нагрузка)
+
+    # ── что должно проходить ────────────────────────────────────────────────
+
+    def test_покупка_разобрана(self):
+        итог = play_verify.разобрать_уведомление(self.уведомление())
+        self.assertTrue(итог["valid"], итог)
+        self.assertEqual(итог["notificationType"], "ONE_TIME_CHARGE")
+        self.assertEqual(итог["notificationUUID"],
+                         "8cd5f26c-1111-2222-3333-444455556666")
+        self.assertEqual(итог["environment"], "Production")
+        self.assertEqual(итог["transaction"]["productId"], "togetherly_plus")
+        self.assertEqual(итог["transaction"]["transactionId"],
+                         "2000000900000001")
+
+    def test_метка_аккаунта_доезжает(self):
+        """`appAccountToken` — единственная ниточка от покупки к нашему
+        пользователю: больше в уведомлении о нём ничего нет."""
+        итог = play_verify.разобрать_уведомление(self.уведомление(
+            чек={"appAccountToken": "0a5b1c22-9f3e-4c7a-8d10-2b6e7f9a1c34"}))
+        self.assertEqual(итог["transaction"]["appAccountToken"],
+                         "0a5b1c22-9f3e-4c7a-8d10-2b6e7f9a1c34")
+
+    def test_возврат_виден_датой_отзыва(self):
+        итог = play_verify.разобрать_уведомление(self.уведомление(
+            тип="REFUND", чек={"revocationDate": 1788600000000,
+                               "revocationReason": 0}))
+        self.assertTrue(итог["valid"], итог)
+        self.assertEqual(итог["notificationType"], "REFUND")
+        self.assertEqual(итог["transaction"]["revocationDate"], 1788600000000)
+
+    def test_песочница_принята(self):
+        """TestFlight шлёт такие же уведомления, только помеченные."""
+        итог = play_verify.разобрать_уведомление(self.уведомление(
+            чек={"environment": "Sandbox"}))
+        self.assertTrue(итог["valid"], итог)
+
+    # ── что должно отлетать ─────────────────────────────────────────────────
+
+    def test_чужой_корень_отвергнут(self):
+        чужая = цепочка()
+        конверт = self.подписать(
+            {"notificationType": "ONE_TIME_CHARGE", "version": "2.0",
+             "notificationUUID": "x", "data": {"bundleId": "com.togetherly.love",
+             "signedTransactionInfo": self.подписать(ЧЕК)}},
+            ключ=чужая["leaf_key"],
+            сертификаты=x5c(чужая["leaf"], чужая["inter"], чужая["root"]))
+        итог = play_verify.разобрать_уведомление(конверт)
+        self.assertFalse(итог["valid"])
+        self.assertEqual(итог["reason"], "apple_untrusted_root")
+
+    def test_подделанная_транзакция_в_настоящем_конверте_отвергнута(self):
+        """Самое опасное: конверт подписан как надо, а сделка внутри чужая."""
+        чужая = цепочка()
+        поддельная = собрать_jws(
+            dict(ЧЕК, transactionId="9999999999"), чужая["leaf_key"],
+            x5c(чужая["leaf"], чужая["inter"], чужая["root"]))
+        конверт = self.подписать({
+            "notificationType": "ONE_TIME_CHARGE", "version": "2.0",
+            "notificationUUID": "y",
+            "data": {"bundleId": "com.togetherly.love",
+                     "signedTransactionInfo": поддельная}})
+        итог = play_verify.разобрать_уведомление(конверт)
+        self.assertFalse(итог["valid"])
+        self.assertEqual(итог["reason"], "apple_untrusted_root")
+
+    def test_чужое_приложение_отвергнуто(self):
+        итог = play_verify.разобрать_уведомление(
+            self.уведомление(bundle="com.example.other"))
+        self.assertFalse(итог["valid"])
+        self.assertEqual(итог["reason"], "bundle_mismatch")
+
+    def test_чужое_приложение_в_самой_сделке_отвергнуто(self):
+        итог = play_verify.разобрать_уведомление(
+            self.уведомление(чек={"bundleId": "com.example.other"}))
+        self.assertFalse(итог["valid"])
+        self.assertEqual(итог["reason"], "bundle_mismatch")
+
+    def test_мусор_вместо_уведомления(self):
+        итог = play_verify.разобрать_уведомление("не-жws")
+        self.assertFalse(итог["valid"])
+        self.assertEqual(итог["reason"], "apple_bad_header")
+
+    def test_уведомление_без_сделки(self):
+        конверт = self.подписать({
+            "notificationType": "TEST", "version": "2.0",
+            "notificationUUID": "z",
+            "data": {"bundleId": "com.togetherly.love"}})
+        итог = play_verify.разобрать_уведомление(конверт)
+        self.assertTrue(итог["valid"], итог)
+        self.assertEqual(итог["notificationType"], "TEST")
+        self.assertEqual(итог["transaction"], {})
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

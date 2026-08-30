@@ -681,6 +681,9 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
   // App Store — у Apple на verifyReceipt (общий секрет там нужен только
   // подпискам, а Togetherly+ — разовая покупка). Токен RuStore не признаёт
   // ни тот, ни другой, поэтому он идёт без сверки.
+  // Номер сделки App Store. По нему уведомление о возврате находит покупку:
+  // в самом уведомлении есть только он, ни нашего uid, ни почты там нет.
+  let appleTxId = "";
   if (store !== "rustore") {
     let verdict = { ok: false, reason: "unreachable" };
     try {
@@ -698,6 +701,7 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
       const parsed = res.json;
       if (parsed && parsed.ok === true) {
         verdict = { ok: true, valid: parsed.valid === true, reason: parsed.reason || "" };
+        appleTxId = String(parsed.transactionId || "");
       } else if (parsed && parsed.reason) {
         verdict = { ok: false, reason: String(parsed.reason) };
       }
@@ -784,6 +788,8 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
         const rec = new Record(col);
         rec.set("id", tokenKey);
         rec.set("token", purchaseToken);
+      rec.set("transaction_id", appleTxId);
+        rec.set("transaction_id", appleTxId);
         rec.set("user_uid", e.auth.id);
         rec.set("product_id", productId);
         rec.set("amount", 0);
@@ -854,6 +860,8 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
         const rec = new Record(col);
         rec.set("id", tokenKey);
         rec.set("token", purchaseToken);
+      rec.set("transaction_id", appleTxId);
+        rec.set("transaction_id", appleTxId);
         // Платил один, доступ получил другой. В записи остаётся ПЛАТЕЛЬЩИК:
         // по ней сверяют чек с магазином, а кому ушёл подарок, видно по
         // `product_id` и по `plus_platform` получателя.
@@ -917,6 +925,8 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
         const rec = new Record(col);
         rec.set("id", tokenKey);
         rec.set("token", purchaseToken);
+      rec.set("transaction_id", appleTxId);
+        rec.set("transaction_id", appleTxId);
         rec.set("user_uid", e.auth.id);
         rec.set("product_id", productId);
         rec.set("amount", 0);
@@ -959,6 +969,7 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
       const rec = new Record(col);
       rec.set("id", tokenKey);
       rec.set("token", purchaseToken);
+      rec.set("transaction_id", appleTxId);
       rec.set("user_uid", e.auth.id);
       rec.set("product_id", productId);
       rec.set("amount", amount);

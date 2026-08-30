@@ -225,10 +225,11 @@ def _подписал(cert, издатель) -> bool:
     return True
 
 
-def verify_apple_jws(product_id: str, токен: str) -> dict:
-    """Разбирает транзакцию StoreKit 2 и говорит, настоящая ли покупка.
+def _проверить_подпись(токен: str):
+    """Общая часть для чека и уведомления: цепочка, сроки, подпись.
 
-    Порядок проверок важен: сперва корень цепочки, потом сроки, потом сама
+    Возвращает пару «нагрузка, причина отказа»: одно из двух всегда пусто.
+    Порядок проверок важен — сперва корень цепочки, потом сроки, потом сама
     цепочка, и только затем подпись данных. Так в журнал попадает первая
     настоящая причина отказа, а не «подпись не сошлась» поверх чужого корня.
     """
@@ -239,23 +240,23 @@ def verify_apple_jws(product_id: str, токен: str) -> dict:
         цепочка = [x509.load_der_x509_certificate(base64.b64decode(c))
                    for c in (заголовок.get("x5c") or [])]
     except Exception:
-        return {"ok": True, "valid": False, "reason": "apple_bad_header"}
+        return None, "apple_bad_header"
 
     if len(цепочка) < 2:
-        return {"ok": True, "valid": False, "reason": "apple_short_chain"}
+        return None, "apple_short_chain"
 
     if отпечаток_sha256(цепочка[-1]) not in APPLE_ROOT_SHA256:
-        return {"ok": True, "valid": False, "reason": "apple_untrusted_root"}
+        return None, "apple_untrusted_root"
 
     сейчас = dt.datetime.now(dt.timezone.utc)
     for cert in цепочка:
         начало, конец = _срок(cert)
         if not (начало <= сейчас <= конец):
-            return {"ok": True, "valid": False, "reason": "apple_cert_expired"}
+            return None, "apple_cert_expired"
 
     for i in range(len(цепочка) - 1):
         if not _подписал(цепочка[i], цепочка[i + 1]):
-            return {"ok": True, "valid": False, "reason": "apple_broken_chain"}
+            return None, "apple_broken_chain"
 
     try:
         данные = jwt.decode(
@@ -263,7 +264,64 @@ def verify_apple_jws(product_id: str, токен: str) -> dict:
             options={"verify_aud": False, "verify_exp": False,
                      "verify_iat": False, "verify_nbf": False})
     except Exception:
-        return {"ok": True, "valid": False, "reason": "apple_bad_signature"}
+        return None, "apple_bad_signature"
+
+    return данные, ""
+
+
+ПОЛЯ_СДЕЛКИ = ("transactionId", "originalTransactionId", "productId", "type",
+               "purchaseDate", "appAccountToken", "revocationDate",
+               "revocationReason", "environment", "quantity")
+
+
+def разобрать_уведомление(signed_payload: str) -> dict:
+    """Проверяет уведомление App Store и достаёт из него сделку.
+
+    Apple присылает такие уведомления сама, не спрашивая приложение: покупка,
+    возврат, отзыв семейного доступа. Внутри конверта лежит второй JWS с самой
+    транзакцией, и подписаны оба — проверяем тоже оба. Конверт с настоящей
+    подписью мог бы нести подделанную сделку, и это единственная дыра, ради
+    которой стоит городить вторую проверку.
+
+    Событий без сделки (`TEST`, часть сервисных) это не касается: они приходят
+    с пустым `data`, и пустая сделка для них — нормальный ответ.
+    """
+    конверт, беда = _проверить_подпись(str(signed_payload or ""))
+    if беда:
+        return {"ok": True, "valid": False, "reason": беда}
+
+    данные = конверт.get("data") or {}
+    if str(данные.get("bundleId") or BUNDLE_ID) != BUNDLE_ID:
+        return {"ok": True, "valid": False, "reason": "bundle_mismatch"}
+
+    сделка = {}
+    подписанная = данные.get("signedTransactionInfo")
+    if подписанная:
+        нагрузка, беда = _проверить_подпись(str(подписанная))
+        if беда:
+            return {"ok": True, "valid": False, "reason": беда}
+        if str(нагрузка.get("bundleId") or "") != BUNDLE_ID:
+            return {"ok": True, "valid": False, "reason": "bundle_mismatch"}
+        сделка = {к: нагрузка[к] for к in ПОЛЯ_СДЕЛКИ if к in нагрузка}
+
+    return {
+        "ok": True,
+        "valid": True,
+        "reason": "",
+        "notificationType": str(конверт.get("notificationType") or ""),
+        "subtype": str(конверт.get("subtype") or ""),
+        "notificationUUID": str(конверт.get("notificationUUID") or ""),
+        "environment": str(данные.get("environment")
+                           or сделка.get("environment") or ""),
+        "transaction": сделка,
+    }
+
+
+def verify_apple_jws(product_id: str, токен: str) -> dict:
+    """Разбирает транзакцию StoreKit 2 и говорит, настоящая ли покупка."""
+    данные, беда = _проверить_подпись(токен)
+    if беда:
+        return {"ok": True, "valid": False, "reason": беда}
 
     if str(данные.get("bundleId") or "") != BUNDLE_ID:
         return {"ok": True, "valid": False, "reason": "bundle_mismatch"}
@@ -325,7 +383,8 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
     def do_POST(self) -> None:  # noqa: N802 — имя задано базовым классом
-        if self.path.rstrip("/") != "/verify":
+        путь = self.path.rstrip("/")
+        if путь not in ("/verify", "/apple/notification"):
             self._send({"ok": False, "reason": "no_such_path"})
             return
         try:
@@ -333,6 +392,15 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(size) or b"{}")
         except Exception:
             self._send({"ok": False, "reason": "bad_body"})
+            return
+
+        if путь == "/apple/notification":
+            итог = разобрать_уведомление(body.get("signedPayload") or "")
+            log.info("уведомление App Store: %s%s → %s",
+                     итог.get("notificationType") or "?",
+                     f" ({итог['subtype']})" if итог.get("subtype") else "",
+                     итог.get("reason") or "принято")
+            self._send(итог)
             return
 
         product = str(body.get("productId") or "").strip()

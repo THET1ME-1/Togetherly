@@ -2,7 +2,10 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 
+import '../models/apple_account_token.dart';
 import 'coin_store.dart';
+import 'pb_auth_service.dart';
+import 'pb_data_service.dart';
 import 'plus_service.dart';
 
 /// Реализация [CoinStore] для Google Play и App Store (через `in_app_purchase`).
@@ -162,7 +165,17 @@ class IapService extends CoinStore {
 
     _currentCompleter = Completer<IapResult>();
 
-    final param = PurchaseParam(productDetails: pd);
+    // Метка аккаунта уходит в покупку и возвращается к нам в уведомлении
+    // App Store — по ней сервер узнаёт, кому открывать доступ, даже если
+    // приложение не донесло чек. На Android поле не используется вовсе.
+    final appleToken = defaultTargetPlatform == TargetPlatform.iOS
+        ? appleAccountTokenFor(PbAuthService().currentUid ?? '')
+        : '';
+    if (appleToken.isNotEmpty) await _rememberAppleToken(appleToken);
+    final param = PurchaseParam(
+      productDetails: pd,
+      applicationUserName: appleToken.isEmpty ? null : appleToken,
+    );
     try {
       if (productId != kGiftProductId &&
           (productId == kPlusProductId || productId.contains('.'))) {
@@ -184,6 +197,28 @@ class IapService extends CoinStore {
 
     return _currentCompleter!.future;
   }
+
+  /// Кладёт метку аккаунта в профиль ДО оплаты.
+  ///
+  /// Порядок важен: уведомление Apple приходит на сервер само и приносит
+  /// только метку. Запиши мы её после успешной покупки — и случай, ради
+  /// которого всё затевалось (чек до сервера не доехал), остался бы
+  /// незакрытым. Отказ записи покупку не срывает: чек по-прежнему доедет
+  /// обычным путём.
+  Future<void> _rememberAppleToken(String token) async {
+    if (_appleTokenSaved == token) return;
+    final uid = PbAuthService().currentUid ?? '';
+    if (uid.isEmpty) return;
+    try {
+      final ok = await PbDataService()
+          .updateUserProfile(uid, {'appleAccountToken': token});
+      if (ok) _appleTokenSaved = token;
+    } catch (e) {
+      debugPrint('IapService: метка аккаунта не сохранена: $e');
+    }
+  }
+
+  String? _appleTokenSaved;
 
   // ── Обработка обновлений покупки ─────────────────────────────────────────
 
