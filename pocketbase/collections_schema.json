@@ -881,6 +881,12 @@
           "name": "at",
           "type": "date",
           "required": false
+        },
+        {
+          "name": "token",
+          "type": "text",
+          "required": false,
+          "max": 0
         }
       ],
       "indexes": [],

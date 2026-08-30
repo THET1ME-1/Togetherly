@@ -636,6 +636,12 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
     return e.json(400, { ok: false, error: "unknown productId" });
   }
   if (!purchaseToken) return e.json(400, { ok: false, error: "purchaseToken required" });
+  // Чек App Store — это JWS транзакции, около 3 КБ, а не короткий токен Play.
+  // Поле `token` в `iap_purchases` держит его целиком (max снят), но потолок
+  // на входе нужен: иначе роут примет мегабайт мусора и положит его в базу.
+  if (purchaseToken.length > 20000) {
+    return e.json(400, { ok: false, error: "purchaseToken too long" });
+  }
 
   // Ключ записи о покупке = sha256 от токена, а НЕ сам токен.
   //
@@ -665,6 +671,12 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
   // RuStore проверяем не здесь: у него свой API, и его токен Google отвергнет.
   // Пока RuStore-сборка не выпущена, ветка нужна на будущее.
   const store = String(body.store || "").toLowerCase();
+  // Канал оплаты для `plus_platform`. Раньше здесь стояло глухое "play", и по
+  // базе выходило, что через App Store не купил никто: 29 августа именно
+  // пустая колонка `appstore` при живом товаре в ASC показала, что покупки с
+  // iPhone не доходят вовсе. Врущее поле стоит дороже, чем кажется.
+  const PLATFORM = store === "appstore" ? "appstore"
+    : (store === "rustore" ? "rustore" : "play");
   // Чек сверяет служба на 8097: покупку Play — через Play Developer API, чек
   // App Store — у Apple на verifyReceipt (общий секрет там нужен только
   // подпискам, а Togetherly+ — разовая покупка). Токен RuStore не признаёт
@@ -780,7 +792,7 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
         featOut = { s: 200, b: { ok: true, alreadyGranted: false, feature: featureKey, coins: user.getInt("coins") || 0, ownedFeatures: nowOwned } };
       });
     } catch (err) {
-      try { $app.logger().error("iap: выдача элемента каталога не удалась", "product", productId, "uid", e.auth.id); } catch (_) {}
+      try { $app.logger().error("iap: выдача элемента каталога не удалась", "product", productId, "uid", e.auth.id, "err", String(err)); } catch (_) {}
       return e.json(500, { ok: false, error: "tx failed" });
     }
     return e.json(featOut.s, featOut.b);
@@ -897,10 +909,9 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
           return;
         }
         user.set("plus", true);
-        // Покупка через биллинг Google Play. Отмечаем источник: витрина
-        // Togetherly+ живёт только на Android, и по полю видно, откуда доступ
-        // у человека, который заходит ещё и с iPhone.
-        user.set("plus_platform", "play");
+        // Отмечаем источник: по полю видно, из какого магазина доступ у
+        // человека, который заходит и с Android, и с iPhone.
+        user.set("plus_platform", PLATFORM);
         txApp.save(user);
         const col = txApp.findCollectionByNameOrId("iap_purchases");
         const rec = new Record(col);
@@ -914,6 +925,13 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
         plusOut = { s: 200, b: { ok: true, alreadyGranted: false, plus: true, coins: user.getInt("coins") || 0 } };
       });
     } catch (err) {
+      // Без текста ошибки сбой выдачи не виден вовсе: 30 августа Плюс с
+      // iPhone падал здесь молча, и разбирать было нечего — в журнале
+      // остался только подарок, у которого лог был.
+      try {
+        $app.logger().error("iap: Togetherly+ не выдан", "product", productId,
+          "uid", e.auth.id, "store", store, "err", String(err));
+      } catch (_) {}
       return e.json(500, { ok: false, error: "tx failed" });
     }
     return e.json(plusOut.s, plusOut.b);
@@ -934,7 +952,7 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
       const col = txApp.findCollectionByNameOrId("iap_purchases");
       const rec = new Record(col);
       rec.set("id", tokenKey);
-        rec.set("token", purchaseToken);
+      rec.set("token", purchaseToken);
       rec.set("user_uid", e.auth.id);
       rec.set("product_id", productId);
       rec.set("amount", amount);
@@ -942,6 +960,12 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
       txApp.save(rec);
       out = { s: 200, b: { ok: true, alreadyGranted: false, coins: newCoins, awarded: amount } };
     });
-  } catch (err) { return e.json(500, { ok: false, error: "tx failed" }); }
+  } catch (err) {
+    try {
+      $app.logger().error("iap: монеты не начислены", "product", productId,
+        "uid", e.auth.id, "store", store, "err", String(err));
+    } catch (_) {}
+    return e.json(500, { ok: false, error: "tx failed" });
+  }
   return e.json(out.s, out.b);
 }, $apis.requireAuth());

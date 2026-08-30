@@ -132,9 +132,13 @@ fb("catalog_items", [
     num("sort"), j("data"), b("enabled"), d("updated_at"),
 ], indexes=[uidx("catalog_items", ["kind"], unique=False)])
 
-# purchase_token бывает длинным (Google Play) → max 255
+# id записи = sha256 от чека (точку в первичном ключе PocketBase не пускает).
+# Сам чек лежит в `token` БЕЗ ограничения длины: JWS транзакции App Store —
+# около 3 КБ, и потолок в 512 символов однажды уже отменил всю выдачу Плюса
+# с iPhone. Потолок стоит на входе роута, а не на поле.
 fb("iap_purchases", [
     t("user_uid", True), t("product_id"), num("amount"), d("at"),
+    dict(t("token"), max=0),
 ], id_max=255)
 
 fb("migration_flags", [
