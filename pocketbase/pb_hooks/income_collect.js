@@ -129,6 +129,12 @@ module.exports = function collectIncome() {
       total_by_currency: raw.total_net, month_by_currency: raw.month_net,
       count: raw.count || 0, fee: raw.fee, refunds: raw.refunds || [],
       days: days, products: raw.products || [], source: raw.source, mail_updated: raw.updated,
+      // Покупки за месяц одним видом со всеми магазинами: имя товара, штуки и
+      // доллары. Панель складывает из таких строк общую таблицу и сама ничего
+      // не пересчитывает — комиссия снята ещё в разборе писем.
+      purchases: (raw.month_products || []).map((p) => ({
+        name: p.name, count: p.count, usd: toUsd(Number(p.amount) || 0, p.currency),
+      })),
     };
   })();
 
@@ -229,6 +235,21 @@ module.exports = function collectIncome() {
       };
     } catch (err) {
       result.sources.admob = { ok: false, reason: String(err).slice(0, 200) };
+    }
+  })();
+
+  // ── App Store ──────────────────────────────────────────────────────────────
+  // Отчёты Apple отдаёт gzip-архивами по подписи JWT (ES256), а криптографии в
+  // JSVM нет — файл готовит /opt/income/apple_income.py по крону, хук читает
+  // готовое. Пока сбор не настроен, источник честно говорит об этом: пустая
+  // строка в таблице лучше, чем тихо пропавший магазин.
+  (() => {
+    try {
+      const b = $os.readFile("/opt/pocketbase/pb_data/.appstore_income.json");
+      const j = JSON.parse(typeof b === "string" ? b : String.fromCharCode.apply(null, b));
+      result.sources.appstore = j;
+    } catch (_) {
+      result.sources.appstore = { ok: false, title: "App Store", reason: "не настроен" };
     }
   })();
 

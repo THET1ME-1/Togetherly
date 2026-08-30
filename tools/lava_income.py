@@ -153,12 +153,21 @@ def collect() -> dict:
         by_day.setdefault(s["d"], {})
         by_day[s["d"]][s["currency"]] = by_day[s["d"]].get(s["currency"], 0.0) + s["amount"] * (1 - FEE)
 
-    by_product: dict[str, dict] = {}
-    for s in sales:
-        key = s["product"] + "|" + s["currency"]
-        row = by_product.setdefault(key, {"name": s["product"], "currency": s["currency"], "count": 0, "amount": 0.0})
-        row["count"] += 1
-        row["amount"] = round(row["amount"] + s["amount"] * (1 - FEE), 2)
+    def по_товарам(rows: list[dict]) -> list[dict]:
+        acc: dict[str, dict] = {}
+        for s in rows:
+            key = s["product"] + "|" + s["currency"]
+            row = acc.setdefault(key, {"name": s["product"], "currency": s["currency"],
+                                       "count": 0, "amount": 0.0})
+            row["count"] += 1
+            row["amount"] = round(row["amount"] + s["amount"] * (1 - FEE), 2)
+        return sorted(acc.values(), key=lambda r: -r["count"])
+
+    by_product = по_товарам(sales)
+    # Тот же разрез за текущий месяц: панель показывает покупки по магазинам
+    # именно за месяц, и разбивка за всё время в этой таблице соврала бы —
+    # рядом с ней стоят Google Play и App Store, а у них месяц.
+    month_products = по_товарам([s for s in sales if s["d"][:7] == month])
 
     return {
         "ok": True, "title": "lava, все каналы", "source": "письма продавца",
@@ -167,7 +176,8 @@ def collect() -> dict:
         "month_net": net([s for s in sales if s["d"][:7] == month]),
         "today_net": net([s for s in sales if s["d"] == today]),
         "by_day": {k: {c: round(v, 2) for c, v in cur.items()} for k, cur in sorted(by_day.items())},
-        "products": sorted(by_product.values(), key=lambda r: -r["count"]),
+        "products": by_product,
+        "month_products": month_products,
         "refunds": lost,
         "updated": datetime.now(timezone.utc).isoformat(),
     }
