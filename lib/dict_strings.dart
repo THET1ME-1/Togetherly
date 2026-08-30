@@ -321,6 +321,13 @@ abstract class DictStrings extends AppStrings {
   @override
   String get forgotPassword => _t('forgotPassword');
   @override
+  String get changePasswordTitle => _t('changePasswordTitle');
+  @override
+  String get changePasswordHint => _t('changePasswordHint');
+  @override
+  String changePasswordConfirm(String email) =>
+      _t('changePasswordConfirm').replaceAll('{email}', email);
+  @override
   String get passwordResetError => _t('passwordResetError');
   @override
   String get showPassword => _t('showPassword');
@@ -2674,6 +2681,11 @@ abstract class DictStrings extends AppStrings {
   @override
   String plusGiftTitleFor(String name) =>
       _t('plusGiftTitleFor').replaceAll('{name}', name);
+  @override
+  String timerTitleWithPartner(String label, String name) =>
+      _t('timerTitleWithPartner')
+          .replaceAll('{label}', label)
+          .replaceAll('{name}', name);
   @override
   String get plusGiftBody => _t('plusGiftBody');
   @override

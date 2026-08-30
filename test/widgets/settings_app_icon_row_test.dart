@@ -30,6 +30,7 @@ Widget _app({String? appIconId}) => MaterialApp(
         onTelegramChannel: () {},
         onBugBot: () {},
         onAbout: () {},
+        onChangePassword: () {},
         onLogout: () {},
         onDeleteAccount: () {},
         lockScreenMood: false,

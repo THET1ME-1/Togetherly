@@ -58,16 +58,33 @@
 </head>
 <body>
 <main>
-  <h1>Новый пароль</h1>
-  <p class="lead">Придумайте пароль для входа в Togetherly. Не короче восьми символов.</p>
+  <!-- Шаг первый: ссылки из письма нет, человек пришёл на сайт сам. -->
+  <section id="ask">
+    <h1>Забыли пароль?</h1>
+    <p class="lead">Напишите почту, на которую заведён аккаунт, — пришлём письмо
+      со ссылкой на смену пароля.</p>
 
-  <label for="p1">Новый пароль</label>
-  <input id="p1" type="password" autocomplete="new-password" placeholder="••••••••">
+    <label for="mail">Почта</label>
+    <input id="mail" type="email" autocomplete="email" inputmode="email"
+           placeholder="you@example.com">
 
-  <label for="p2">Повторите пароль</label>
-  <input id="p2" type="password" autocomplete="new-password" placeholder="••••••••">
+    <button id="send" type="button">Прислать письмо</button>
+  </section>
 
-  <button id="save" type="button">Сменить пароль</button>
+  <!-- Шаг второй: перешли по ссылке из письма, токен в хеше. -->
+  <section id="set" hidden>
+    <h1>Новый пароль</h1>
+    <p class="lead">Придумайте пароль для входа в Togetherly. Не короче восьми символов.</p>
+
+    <label for="p1">Новый пароль</label>
+    <input id="p1" type="password" autocomplete="new-password" placeholder="••••••••">
+
+    <label for="p2">Повторите пароль</label>
+    <input id="p2" type="password" autocomplete="new-password" placeholder="••••••••">
+
+    <button id="save" type="button">Сменить пароль</button>
+  </section>
+
   <p id="msg"></p>
 
   <p class="hint" id="hint">После смены вернитесь в приложение и войдите по почте
@@ -95,11 +112,52 @@
     msg.className = cls || '';
   }
 
+  var ask = document.getElementById('ask');
+  var set = document.getElementById('set');
+  var mail = document.getElementById('mail');
+  var send = document.getElementById('send');
+
+  // Токена нет — человек пришёл на сайт сам, и ему нужна не форма пароля, а
+  // способ получить письмо. Раньше страница в этом случае просто ругалась
+  // «ссылка неполная», и дальше идти было некуда.
   var token = tokenFromUrl();
-  if (!token) {
-    say('Ссылка неполная. Откройте её из письма целиком — вместе с длинным ' +
-        'кодом в конце.', 'err');
-  }
+  ask.hidden = !!token;
+  set.hidden = !token;
+
+  send.addEventListener('click', function () {
+    var address = (mail.value || '').trim();
+    if (address.indexOf('@') < 1 || address.indexOf('.') < 0) {
+      return say('Проверьте почту: похоже, в адресе опечатка.', 'err');
+    }
+    send.disabled = true;
+    say('Отправляем…');
+    fetch('/api/collections/users/request-password-reset', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: address })
+    }).then(function (r) {
+      if (r.ok || r.status === 204) {
+        // PocketBase намеренно отвечает успехом и на незнакомый адрес, чтобы по
+        // ответу нельзя было перебрать чужие почты. Пишем то же самое.
+        say('Если такой аккаунт есть, письмо уже в пути. Проверьте почту, в том '
+            + 'числе папку «Спам».', 'ok');
+        return;
+      }
+      if (r.status === 429) {
+        say('Слишком часто. Подождите пару минут и попробуйте ещё раз.', 'err');
+      } else {
+        say('Не получилось отправить письмо. Попробуйте позже.', 'err');
+      }
+      send.disabled = false;
+    }).catch(function () {
+      say('Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.', 'err');
+      send.disabled = false;
+    });
+  });
+
+  mail.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') send.click();
+  });
 
   save.addEventListener('click', function () {
     var a = p1.value, b = p2.value;

@@ -22,6 +22,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'dart:io' show Platform, File;
 import '../services/media_service.dart';
+import 'package:pocketbase/pocketbase.dart' show ClientException;
+
+import '../services/pb_auth_service.dart';
 import '../services/pocketbase_service.dart';
 import '../services/pb_data_service.dart';
 import '../services/miss_you_repository.dart';
@@ -2020,6 +2023,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             onTelegramChannel: _openTelegramChannel,
             onBugBot: _openBugBot,
             onAbout: _openAboutApp,
+            onChangePassword: () => _sendPasswordReset(ctx),
             onLogout: () => _showLogoutDialog(ctx),
             onDeleteAccount: () => _showDeleteAccountDialog(ctx),
             lockScreenMood: _lockScreenMood,
@@ -5829,6 +5833,47 @@ class _ProfileScreenState extends State<ProfileScreen>
       ),
     );
     return ok;
+  }
+
+  /// Письмо со ссылкой на смену пароля — на почту аккаунта.
+  ///
+  /// Тот же путь, что «Забыли пароль?» на экране входа, но доступный уже
+  /// вошедшему: экрана входа он больше не видит, а сменить пароль хочет.
+  /// Адрес берём с аккаунта и не спрашиваем — иначе письмо можно было бы
+  /// заказать на чужую почту.
+  Future<void> _sendPasswordReset(BuildContext context) async {
+    final email = (PbAuthService().currentProfile()?['email'] ?? '').toString();
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_s.passwordResetError)),
+      );
+      return;
+    }
+    final ok = await AppDialog.confirm(
+      context,
+      title: _s.changePasswordTitle,
+      message: _s.changePasswordConfirm(email),
+      confirmLabel: _s.changePasswordTitle,
+      icon: Icons.lock_reset_rounded,
+    );
+    if (!ok || !context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await PbAuthService().sendPasswordReset(email);
+      messenger.clearSnackBars();
+      messenger.showSnackBar(
+        SnackBar(content: Text(_s.passwordResetSent(email))),
+      );
+    } catch (e) {
+      messenger.clearSnackBars();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(e is ClientException && e.statusCode == 429
+              ? _s.tooManyAttempts
+              : _s.passwordResetError),
+        ),
+      );
+    }
   }
 
   Future<void> _showLogoutDialog(BuildContext context) async {

@@ -38,6 +38,23 @@ const url = base
   await page.goto(url, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(600);
 
+  console.log('0. без токена — форма запроса письма');
+  const bare = await browser.newPage({ viewport: { width: 420, height: 800 } });
+  await bare.goto(base ? base.replace(/\/$/, '') + '/reset/'
+                       : 'file://' + path.resolve(__dirname, '..') + '/index.html',
+                  { waitUntil: 'domcontentloaded' });
+  await bare.waitForTimeout(500);
+  const bareText = await bare.locator('body').innerText();
+  check('просит почту, а не пароль', /почт/i.test(bareText), bareText.slice(0, 70));
+  check('поле почты есть', (await bare.locator('#mail').count()) === 1);
+  check('поля нового пароля скрыты', !(await bare.locator('#p1').isVisible()));
+  await bare.locator('#mail').fill('не-почта');
+  await bare.locator('#send').click();
+  await bare.waitForTimeout(400);
+  check('кривую почту не принимает',
+    /почт/i.test(await bare.locator('#msg').innerText()));
+  await bare.close();
+
   console.log('1. страница открывается и говорит по-русски');
   const text = await page.locator('body').innerText();
   check('это не админка PocketBase', !/superuser/i.test(text), text.slice(0, 60));

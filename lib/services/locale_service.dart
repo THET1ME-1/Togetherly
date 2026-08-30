@@ -269,6 +269,9 @@ abstract class AppStrings {
   String get agreeToTermsAnd;
   String get privacyPolicyLink;
   String get forgotPassword;
+  String get changePasswordTitle;
+  String get changePasswordHint;
+  String changePasswordConfirm(String email);
   String passwordResetSent(String email);
   String get passwordResetError;
   String get showPassword;
@@ -973,6 +976,9 @@ abstract class AppStrings {
   String friendsWith(String name);
   String buddiesWith(String name);
   String customRelWith(String label, String name);
+
+  /// Название системного таймера пары: статус отношений плюс имя партнёра.
+  String timerTitleWithPartner(String label, String name);
   String get joinAnotherGroup;
   String get enterCodeScanQr;
   String get enterCode;

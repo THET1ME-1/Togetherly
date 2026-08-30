@@ -34,6 +34,7 @@ class SettingsScreen extends StatelessWidget {
     required this.onTelegramChannel,
     required this.onBugBot,
     required this.onAbout,
+    required this.onChangePassword,
     required this.onLogout,
     required this.onDeleteAccount,
     required this.lockScreenMood,
@@ -93,6 +94,12 @@ class SettingsScreen extends StatelessWidget {
   final VoidCallback onTelegramChannel;
   final VoidCallback onBugBot;
   final VoidCallback onAbout;
+  /// Письмо со ссылкой на смену пароля — на почту аккаунта.
+  ///
+  /// Дублирует «Забыли пароль?» с экрана входа: до сюда доходят те, кто
+  /// пароль помнит и хочет сменить, и те, кто в приложение уже вошёл, а
+  /// экрана входа больше не видит.
+  final VoidCallback onChangePassword;
   final VoidCallback onLogout;
   final VoidCallback onDeleteAccount;
 
@@ -441,6 +448,13 @@ class SettingsScreen extends StatelessWidget {
                         );
                       },
                     ),
+                  SettingsRow(
+                    icon: Icons.lock_reset_rounded,
+                    title: s.changePasswordTitle,
+                    subtitle: s.changePasswordHint,
+                    trailing: const SettingsChevron(),
+                    onTap: onChangePassword,
+                  ),
                   SettingsRow(
                     icon: Icons.logout_rounded,
                     title: s.logout,
