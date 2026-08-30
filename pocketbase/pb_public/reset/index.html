@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Новый пароль — Togetherly</title>
+<!--
+  Страница смены пароля по ссылке из письма.
+
+  До 30 августа 2026 письмо «Забыли пароль» вело в админку PocketBase
+  (`/_/#/auth/confirm-password-reset/<токен>`), и человек упирался в форму
+  «Superuser login». Сбросить пароль было нельзя ни одним путём — ни здесь, ни
+  в приложении, — а приходило туда около шестисот человек в сутки.
+
+  Токен приезжает в хеше адреса: он не уходит на сервер в строке запроса и не
+  оседает в журналах Caddy.
+-->
+<style>
+  :root {
+    --rose: #e5578a; --ink: #33202a; --bg: #fff5f7; --card: #fff;
+    --muted: #8a6c78; --err: #c62828; --ok: #2e7d32;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100dvh; display: grid; place-items: center;
+    background: var(--bg); color: var(--ink); padding: 20px;
+    font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
+  }
+  main {
+    width: 100%; max-width: 380px; background: var(--card); border-radius: 22px;
+    padding: 28px 24px 24px; box-shadow: 0 10px 40px rgba(229, 87, 138, .12);
+  }
+  /* Шаг иерархии: 26 → 15 → 13. Шрифт системный намеренно — это
+     служебная страница, её открывает человек, который не может войти,
+     часто по мобильной сети. Подшивать сюда фирменные начертания ради
+     одной формы значит задержать её загрузку. Так же сделана страница
+     политики конфиденциальности. */
+  h1 { margin: 0 0 8px; font-size: 26px; line-height: 1.2; color: var(--rose); }
+  p.lead { margin: 0 0 22px; color: var(--muted); font-size: 15px; line-height: 1.5; }
+  label { display: block; font-size: 13px; font-weight: 600; margin: 0 0 6px; }
+  input {
+    width: 100%; padding: 13px 14px; margin-bottom: 14px; font-size: 16px;
+    border: 1.5px solid #f0d5df; border-radius: 14px; background: #fffafc;
+    color: var(--ink); font-family: inherit;
+  }
+  input:focus { outline: none; border-color: var(--rose); }
+  button {
+    width: 100%; padding: 14px; font-size: 16px; font-weight: 700; color: #fff;
+    background: var(--rose); border: none; border-radius: 14px; cursor: pointer;
+    font-family: inherit;
+  }
+  button:disabled { opacity: .6; cursor: default; }
+  #msg { margin: 14px 0 0; font-size: 14px; line-height: 1.5; min-height: 20px; }
+  #msg.err { color: var(--err); }
+  #msg.ok { color: var(--ok); }
+  .hint { margin-top: 18px; font-size: 13px; color: var(--muted); line-height: 1.5; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Новый пароль</h1>
+  <p class="lead">Придумайте пароль для входа в Togetherly. Не короче восьми символов.</p>
+
+  <label for="p1">Новый пароль</label>
+  <input id="p1" type="password" autocomplete="new-password" placeholder="••••••••">
+
+  <label for="p2">Повторите пароль</label>
+  <input id="p2" type="password" autocomplete="new-password" placeholder="••••••••">
+
+  <button id="save" type="button">Сменить пароль</button>
+  <p id="msg"></p>
+
+  <p class="hint" id="hint">После смены вернитесь в приложение и войдите по почте
+    и новому паролю.</p>
+</main>
+
+<script>
+(function () {
+  var msg = document.getElementById('msg');
+  var save = document.getElementById('save');
+  var p1 = document.getElementById('p1');
+  var p2 = document.getElementById('p2');
+
+  // Токен лежит в хеше, чтобы не попасть в журналы сервера. Поддерживаем и
+  // ?token= — так ссылку из старых писем тоже можно доклеить руками.
+  function tokenFromUrl() {
+    var h = (location.hash || '').replace(/^#/, '').trim();
+    if (h) return decodeURIComponent(h);
+    var m = /[?&]token=([^&]+)/.exec(location.search || '');
+    return m ? decodeURIComponent(m[1]) : '';
+  }
+
+  function say(text, cls) {
+    msg.textContent = text;
+    msg.className = cls || '';
+  }
+
+  var token = tokenFromUrl();
+  if (!token) {
+    say('Ссылка неполная. Откройте её из письма целиком — вместе с длинным ' +
+        'кодом в конце.', 'err');
+  }
+
+  save.addEventListener('click', function () {
+    var a = p1.value, b = p2.value;
+    if (a.length < 8) return say('Пароль должен быть не короче 8 символов.', 'err');
+    if (a !== b) return say('Пароли не совпадают.', 'err');
+    if (!token) return say('Нет кода из письма — откройте ссылку целиком.', 'err');
+
+    save.disabled = true;
+    say('Меняем…');
+    fetch('/api/collections/users/confirm-password-reset', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token: token, password: a, passwordConfirm: b })
+    }).then(function (r) {
+      if (r.ok) {
+        say('Готово. Пароль сменён — возвращайтесь в приложение и войдите ' +
+            'по почте и новому паролю.', 'ok');
+        p1.value = p2.value = '';
+        return;
+      }
+      return r.json().catch(function () { return {}; }).then(function (d) {
+        // Ссылка живёт ограниченное время, и это самая частая причина отказа —
+        // говорим об этом прямо, а не «ошибка 400».
+        var data = d && d.data || {};
+        if (data.token) {
+          say('Ссылка устарела или уже использована. Запросите новую в ' +
+              'приложении: «Забыли пароль?» на экране входа.', 'err');
+        } else if (data.password) {
+          say('Такой пароль не подходит: ' + (data.password.message || 'слишком простой') + '.', 'err');
+        } else {
+          say('Не получилось сменить пароль. Попробуйте ещё раз или запросите ' +
+              'новую ссылку в приложении.', 'err');
+        }
+        save.disabled = false;
+      });
+    }).catch(function () {
+      say('Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.', 'err');
+      save.disabled = false;
+    });
+  });
+
+  [p1, p2].forEach(function (el) {
+    el.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') save.click();
+    });
+  });
+})();
+</script>
+</body>
+</html>
