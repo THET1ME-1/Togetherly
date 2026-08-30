@@ -270,6 +270,15 @@ abstract class AppStrings {
   String get privacyPolicyLink;
   String get forgotPassword;
   String get changePasswordTitle;
+  String get passwordCurrent;
+  String get passwordNew;
+  String get passwordRepeat;
+  String get passwordChanged;
+  String get passwordCurrentWrong;
+  String get passwordTooShort;
+  String get passwordsDiffer;
+  String get passwordSameAsOld;
+  String get passwordForgotCurrent;
   String get changePasswordHint;
   String changePasswordConfirm(String email);
   String passwordResetSent(String email);

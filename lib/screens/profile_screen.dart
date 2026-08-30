@@ -25,6 +25,7 @@ import '../services/media_service.dart';
 import 'package:pocketbase/pocketbase.dart' show ClientException;
 
 import '../services/pb_auth_service.dart';
+import '../widgets/settings/change_password_sheet.dart';
 import '../services/pocketbase_service.dart';
 import '../services/pb_data_service.dart';
 import '../services/miss_you_repository.dart';
@@ -2023,7 +2024,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             onTelegramChannel: _openTelegramChannel,
             onBugBot: _openBugBot,
             onAbout: _openAboutApp,
-            onChangePassword: () => _sendPasswordReset(ctx),
+            onChangePassword: () => _openChangePassword(ctx),
             onLogout: () => _showLogoutDialog(ctx),
             onDeleteAccount: () => _showDeleteAccountDialog(ctx),
             lockScreenMood: _lockScreenMood,
@@ -5841,6 +5842,23 @@ class _ProfileScreenState extends State<ProfileScreen>
   /// вошедшему: экрана входа он больше не видит, а сменить пароль хочет.
   /// Адрес берём с аккаунта и не спрашиваем — иначе письмо можно было бы
   /// заказать на чужую почту.
+  /// Смена пароля вошедшим: сперва форма, письмо — только если попросят.
+  ///
+  /// Отдавать письмо тому, кто уже в аккаунте и помнит пароль, незачем: он
+  /// хочет сменить его здесь и сейчас. Письмо остаётся для забывших и для
+  /// входивших через Google и Apple — у тех пароля нет вовсе.
+  Future<void> _openChangePassword(BuildContext context) async {
+    final res = await showChangePasswordSheet(context, scheme: _cs);
+    if (!context.mounted) return;
+    if (res == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_s.passwordChanged)),
+      );
+      return;
+    }
+    if (res == 'mail') await _sendPasswordReset(context);
+  }
+
   Future<void> _sendPasswordReset(BuildContext context) async {
     final email = (PbAuthService().currentProfile()?['email'] ?? '').toString();
     if (email.isEmpty) {

@@ -328,6 +328,29 @@ class PbAuthService {
     return _svc.currentUser;
   }
 
+  /// Смена пароля вошедшим — без письма и без выхода из аккаунта.
+  ///
+  /// PocketBase требует текущий пароль (`oldPassword`) и после смены меняет
+  /// `tokenKey`, то есть гасит ВСЕ выданные сессии, включая нашу. Поэтому
+  /// сразу входим заново с новым паролем: иначе человек, сменивший пароль,
+  /// оказывается выброшен на экран входа и решает, что что-то сломал.
+  Future<void> changePassword({
+    required String current,
+    required String fresh,
+  }) async {
+    final uid = _svc.userId ?? '';
+    final email = (currentProfile()?['email'] ?? '').toString();
+    if (uid.isEmpty || email.isEmpty) {
+      throw StateError('нет сессии для смены пароля');
+    }
+    await _pb.collection(_usersCol).update(uid, body: {
+      'oldPassword': current,
+      'password': fresh,
+      'passwordConfirm': fresh,
+    });
+    await _pb.collection(_usersCol).authWithPassword(email, fresh);
+  }
+
   /// Письмо для сброса пароля (email-провайдер PB).
   Future<void> sendPasswordReset(String email) async {
     try {

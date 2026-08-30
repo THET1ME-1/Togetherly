@@ -323,6 +323,24 @@ abstract class DictStrings extends AppStrings {
   @override
   String get changePasswordTitle => _t('changePasswordTitle');
   @override
+  String get passwordCurrent => _t('passwordCurrent');
+  @override
+  String get passwordNew => _t('passwordNew');
+  @override
+  String get passwordRepeat => _t('passwordRepeat');
+  @override
+  String get passwordChanged => _t('passwordChanged');
+  @override
+  String get passwordCurrentWrong => _t('passwordCurrentWrong');
+  @override
+  String get passwordTooShort => _t('passwordTooShort');
+  @override
+  String get passwordsDiffer => _t('passwordsDiffer');
+  @override
+  String get passwordSameAsOld => _t('passwordSameAsOld');
+  @override
+  String get passwordForgotCurrent => _t('passwordForgotCurrent');
+  @override
   String get changePasswordHint => _t('changePasswordHint');
   @override
   String changePasswordConfirm(String email) =>
