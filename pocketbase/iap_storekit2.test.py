@@ -30,9 +30,14 @@ import urllib.request
 
 BASE = os.environ.get("PB_BASE", "http://127.0.0.1:8090")
 DB = os.environ.get("PB_DB", "/opt/pocketbase/pb_data/data.db")
-# Настоящий JWS транзакции App Store — около 3 КБ: заголовок с цепочкой
-# сертификатов, полезная нагрузка и подпись. Берём с запасом.
-JWS_LEN = 4000
+# Настоящий JWS транзакции App Store замерен по живому заказу MNMTMDQZ35:
+# 5133 символа — заголовок с цепочкой сертификатов, нагрузка и подпись. Первая
+# редакция теста слала 4000 и потому пропустила беду: поле держало 5000, чек не
+# влезал, и выдача падала уже ПОСЛЕ починки. Берём с запасом вдвое.
+JWS_LEN = 12000
+# Замеренная длина настоящего чека — отдельной проверкой, чтобы запас в тесте
+# нельзя было тихо срезать ниже реальности.
+REAL_JWS_LEN = 5133
 T0 = time.time()
 OK, FAIL = [], []
 
@@ -103,6 +108,8 @@ def main():
     log("=== 1. Togetherly+ себе, чек длиной с настоящий ===")
     tok = jws("plus")
     check("чек и правда длинный", len(tok) == JWS_LEN, f"{len(tok)} символов")
+    check("запас больше настоящего чека App Store", JWS_LEN > REAL_JWS_LEN,
+          f"{JWS_LEN} против замеренных {REAL_JWS_LEN}")
     st, buy = api("/api/coins/iap-purchase", {
         "productId": "togetherly_plus",
         "purchaseToken": tok,
