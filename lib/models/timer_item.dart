@@ -34,8 +34,12 @@ class TimerItem {
     final startDay = DateTime(startDate.year, startDate.month, startDate.day);
     final nowDay = DateTime(now.year, now.month, now.day);
     if (isCountdown) {
-      // Countdown: days until target date
-      return (startDay.difference(nowDay).inHours / 24).round();
+      // Обратный отсчёт идёт СУТКАМИ, а не клетками календаря. Рядом с крупным
+      // числом тикают часы из `timeElapsed`, и пока дни считались календарно,
+      // они расходились: число менялось в полночь, а часы — своим чередом.
+      // Жалоба 28.08.2026: «счётчик дней сменяется в 00:00, а не когда
+      // заканчивается отсчёт часов».
+      return startDate.difference(now).inDays;
     } else {
       // Count up: days since start date
       return (nowDay.difference(startDay).inHours / 24).round();

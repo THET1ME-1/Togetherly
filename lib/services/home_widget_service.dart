@@ -10,6 +10,7 @@ import 'package:home_widget/home_widget.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/widget_couple_art.dart';
 import 'pb_data_service.dart';
 import 'pb_media_service.dart';
 import 'pocketbase_service.dart';
@@ -988,8 +989,14 @@ class HomeWidgetService {
       await HomeWidget.saveWidgetData<String>('days_${g}_couple_names', coupleNames);
       await HomeWidget.saveWidgetData<String>('days_${g}_relationship_emoji', emoji);
       await HomeWidget.saveWidgetData<String>('days_${g}_start_date', startDate);
-      await HomeWidget.saveWidgetData<String>('days_${g}_my_gender', myGender);
-      await HomeWidget.saveWidgetData<String>('days_${g}_partner_gender', partnerGender);
+      // Пустым не затираем: у натива пустая строка значащая — она означает
+      // «пара по умолчанию», то есть парень и девушка.
+      if (shouldWriteGender(myGender)) {
+        await HomeWidget.saveWidgetData<String>('days_${g}_my_gender', myGender);
+      }
+      if (shouldWriteGender(partnerGender)) {
+        await HomeWidget.saveWidgetData<String>('days_${g}_partner_gender', partnerGender);
+      }
       // Верхняя подпись собирается здесь, а натив только рисует: у него нет ни
       // локализации, ни календарных границ лет. Пустая строка — сознательное
       // молчание в первый месяц, отсутствие ключа — виджет с прежней сборки.
@@ -1773,9 +1780,19 @@ class HomeWidgetService {
         'days_${g}_start_date',
         _formatDate(timer.startDate),
       );
-      // Гендер из кеша — заполняется при syncAllBoundWidgets
-      await HomeWidget.saveWidgetData<String>('days_${g}_my_gender', _cachedMyGender);
-      await HomeWidget.saveWidgetData<String>('days_${g}_partner_gender', _cachedPartnerGender);
+      // Пол из кэша, и ПУСТЫМ не затираем. Кэш заполняет `syncAllBoundWidgets`,
+      // а этот метод зовётся и раньше — на холодном старте в ключи уходила
+      // пустая строка. Для натива она значащая: не `female` и не `male`, значит
+      // «парень и девушка», и пара из двух девушек видела на экране мальчика.
+      // На Android это правил следующий фоновый проход, на iPhone фонового
+      // обновления нет вовсе — пустота доживала до перезапуска приложения.
+      if (shouldWriteGender(_cachedMyGender)) {
+        await HomeWidget.saveWidgetData<String>('days_${g}_my_gender', _cachedMyGender);
+      }
+      if (shouldWriteGender(_cachedPartnerGender)) {
+        await HomeWidget.saveWidgetData<String>(
+            'days_${g}_partner_gender', _cachedPartnerGender);
+      }
       await HomeWidget.saveWidgetData<String>('days_counter_latest_group', g);
       // «Вместе» из нового каталога считает дни от того же активного таймера,
       // а не от даты, когда пара сошлась в приложении.
