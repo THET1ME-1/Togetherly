@@ -922,6 +922,12 @@ routerAdd("POST", "/api/coins/iap-purchase", (e) => {
         rec.set("amount", 0);
         rec.set("at", new Date().toISOString());
         txApp.save(rec);
+        // След успешной выдачи. Без него ответ на вопрос «Плюс доехал?»
+        // приходится копать в базе, а во время сбоя счёт идёт на часы.
+        try {
+          $app.logger().warn("iap: Togetherly+ выдан", "uid", e.auth.id,
+            "store", PLATFORM, "product", productId);
+        } catch (_) {}
         plusOut = { s: 200, b: { ok: true, alreadyGranted: false, plus: true, coins: user.getInt("coins") || 0 } };
       });
     } catch (err) {
