@@ -422,6 +422,23 @@
 #cinema { flex: none; }
 .room-body.cinema #cinema { position: fixed; top: 10px; right: 10px; z-index: 4; }
 
+
+/* ── чат убран ────────────────────────────────────────────────────────────── */
+/*
+ * «При просмотре видео мешает чат», «не убирается чат во время просмотра»
+ * (28–29.08.2026). В режиме «кино» переписка лежит поверх кадра, и это удобно
+ * ровно до тех пор, пока смотрят фильм молча. Кнопка убирает и переписку, и
+ * поле ввода; сама остаётся на месте — иначе вернуть чат будет нечем.
+ */
+.room-body.chat-off .side,
+.room-body.chat-off .composer { display: none; }
+.room-body.chat-off .stage-wrap {
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-areas: 'player';
+}
+#chatToggle { flex: none; }
+.room-body.cinema #chatToggle { position: fixed; top: 10px; right: 56px; z-index: 4; }
+
 /* ── телефон лёжа ─────────────────────────────────────────────────────────── */
 /*
  * В альбомной ориентации одна колонка не годится: кадр сплющивается, а чат

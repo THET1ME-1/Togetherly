@@ -1143,6 +1143,33 @@
     catchPlayerFullscreen();
   }
 
+  /// Чат убирается и возвращается кнопкой.
+  ///
+  /// Жалобы 28–29.08.2026: «при просмотре видео мешает чат, неудобно смотреть»,
+  /// «не убирается чат во время просмотра». В режиме «кино» переписка лежит
+  /// поверх кадра — это хорошо, пока в неё пишут, и мешает, когда просто
+  /// смотрят. Выбор помним: человек, убравший чат, не хочет видеть его и
+  /// завтра.
+  const CHAT_OFF_KEY = 'togetherly.watch.chatOff';
+
+  function chatToggle() {
+    const btn = $('#chatToggle');
+    if (!btn) return;
+    let off = false;
+    try { off = localStorage.getItem(CHAT_OFF_KEY) === '1'; } catch (_) {}
+    setChatOff(off);
+    btn.addEventListener('click', () => {
+      setChatOff(!document.body.classList.contains('chat-off'));
+    });
+  }
+
+  function setChatOff(off) {
+    document.body.classList.toggle('chat-off', off);
+    const btn = $('#chatToggle');
+    if (btn) btn.setAttribute('aria-pressed', off ? 'true' : 'false');
+    try { localStorage.setItem(CHAT_OFF_KEY, off ? '1' : '0'); } catch (_) {}
+  }
+
   /// Включает или снимает свой полноэкранный режим.
   function setCinema(on) {
     document.body.classList.toggle('cinema', on);
@@ -1189,6 +1216,7 @@
     I18N.mount();
     followKeyboard();
     cinemaToggle();
+    chatToggle();
     voiceBridge();
     $('#chat').dataset.empty = I18N.t('room.chatEmpty');
 

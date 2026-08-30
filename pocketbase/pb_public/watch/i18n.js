@@ -103,6 +103,7 @@
       'room.you': 'Вы',
       'room.guest': 'Гость',
       'room.send': 'Отправить',
+      'room.chatToggle': 'Скрыть или показать чат',
       'room.partnerJoined': 'Партнёр в комнате',
     },
     en: {
@@ -199,6 +200,7 @@
       'room.you': 'You',
       'room.guest': 'Guest',
       'room.send': 'Send',
+      'room.chatToggle': 'Hide or show chat',
       'room.partnerJoined': 'Your partner is here',
     },
   };
