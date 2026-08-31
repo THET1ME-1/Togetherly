@@ -7,6 +7,7 @@ import 'media_service.dart';
 import 'home_widget_service.dart';
 import 'pocketbase_service.dart';
 import 'timer_repository.dart';
+import 'locale_service.dart';
 
 /// Сервис для управления пользовательскими таймерами.
 /// Хранит данные локально (SharedPreferences) и синхронизирует с PocketBase
@@ -451,7 +452,10 @@ class TimerService extends ChangeNotifier {
     required String relationshipEmoji,
     required String partnerName,
   }) async {
-    final title = '$relationshipLabel with $partnerName';
+    final title = LocaleService.current.timerTitleWithPartner(
+      relationshipLabel,
+      partnerName,
+    );
 
     // Если группа привязана, но remote-таймеры ещё не пришли — откладываем.
     // ВАЖНО: проверку `systemTimer != null` НЕЛЬЗЯ делать раньше этого, т.к. при
@@ -485,6 +489,39 @@ class TimerService extends ChangeNotifier {
     );
   }
 
+  /// Починить название системного таймера, созданного до локализации.
+  ///
+  /// Предлог был вшит по-английски, поэтому у русской пары в поле «Название»
+  /// стояло «Влюблённые with akio». Правим только точное совпадение со старым
+  /// шаблоном — переименованный руками таймер не трогаем. Партнёр на другом
+  /// языке ничего не перезапишет по той же причине: у него старый шаблон
+  /// собирается из его метки статуса и с сохранённым названием не совпадёт.
+  Future<void> migrateSystemTimerTitle({
+    required String relationshipLabel,
+    required String partnerName,
+  }) async {
+    final sys = systemTimer;
+    if (sys == null) return;
+
+    final legacy = '$relationshipLabel with $partnerName';
+    if (sys.title != legacy) return;
+
+    final fixed = LocaleService.current.timerTitleWithPartner(
+      relationshipLabel,
+      partnerName,
+    );
+    if (fixed == legacy) return;
+
+    sys.title = fixed;
+    await _saveLocal();
+    if (_groupId.isNotEmpty) {
+      await _repo.upsertGroupTimer(_groupId, sys);
+    }
+    await _syncWidgetTimer();
+    notifyListeners();
+    debugPrint('TimerService: название системного таймера переведено');
+  }
+
   /// Обновить название системного таймера при смене статуса/типа отношений.
   Future<void> updateSystemTimerTitle({
     required String relationshipLabel,
@@ -494,7 +531,10 @@ class TimerService extends ChangeNotifier {
     final sys = systemTimer;
     if (sys == null) return;
 
-    final newTitle = '$relationshipLabel with $partnerName';
+    final newTitle = LocaleService.current.timerTitleWithPartner(
+      relationshipLabel,
+      partnerName,
+    );
     if (sys.title == newTitle && sys.emoji == relationshipEmoji) return;
 
     sys.title = newTitle;
@@ -516,7 +556,10 @@ class TimerService extends ChangeNotifier {
   }) async {
     if (_timers.isNotEmpty) return;
     await addTimer(
-      title: '$relationshipLabel with $partnerName',
+      title: LocaleService.current.timerTitleWithPartner(
+        relationshipLabel,
+        partnerName,
+      ),
       startDate: startDate,
       emoji: '❤️',
       isDefault: true,

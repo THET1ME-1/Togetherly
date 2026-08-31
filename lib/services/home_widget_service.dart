@@ -3076,6 +3076,9 @@ class HomeWidgetService {
           cachedUrl: prefs.getString('${key}_src') ?? '',
           cachedPath: file.path,
           cachedFileExists: file.existsSync(),
+          // Нулевой файл кэшем не считается: он залипал навсегда и виджет
+          // показывал пустоту, пока человек не сменит фото (жалобы 30–31.08).
+          cachedFileSize: file.existsSync() ? file.lengthSync() : 0,
         ) ==
         PhotoCacheAction.useCached) {
       return await _toWidgetReadablePath(file.path, 'cache_$key');
@@ -3087,7 +3090,7 @@ class HomeWidgetService {
     // держит хэш ссылки и сторону сжатия, поэтому копия годится любому ключу.
     final sig = url.hashCode.toUnsigned(32).toRadixString(16);
     final shared = File('${dir.path}/widget_src_${sig}_$maxSide.jpg');
-    if (shared.existsSync()) {
+    if (shared.existsSync() && shared.lengthSync() >= kMinWidgetPhotoBytes) {
       await shared.copy(file.path);
       await prefs.setString('${key}_src', url);
       return await _toWidgetReadablePath(file.path, 'cache_$key');
@@ -3122,7 +3125,9 @@ class HomeWidgetService {
       // экран эту аватарку — здесь она возьмётся с диска (widget_photo_store).
       final bytes = await WidgetPhotoStore.instance.bytesFor(url, httpUrl);
 
-      if (bytes != null) {
+      // Пустые байты — не картинка: записать их значило бы закрыть дорогу
+      // повторной загрузке до самой смены фото.
+      if (bytes != null && bytes.length >= kMinWidgetPhotoBytes) {
         final shrunk = await _shrinkForWidget(bytes, maxSide);
         await file.writeAsBytes(shrunk);
         await shared.writeAsBytes(shrunk);

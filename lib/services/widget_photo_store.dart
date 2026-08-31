@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'offline/media_view_cache.dart';
+import 'widget_photo_cache.dart';
 
 /// Один файл на телефон: качаем картинку ОДИН раз, дальше её берут все.
 ///
@@ -50,7 +51,12 @@ class WidgetPhotoStore {
     // 1. Уже лежит на диске — сеть не нужна.
     try {
       final hit = await OfflineImageCacheManager.instance.getFileFromCache(key);
-      if (hit != null && hit.file.existsSync()) {
+      // Обрывок записи (нулевой или крошечный файл) — не кэш: отдать его
+      // значило бы разложить пустоту по всем виджетам и больше никогда не
+      // пойти в сеть.
+      if (hit != null &&
+          hit.file.existsSync() &&
+          hit.file.lengthSync() >= kMinWidgetPhotoBytes) {
         return await hit.file.readAsBytes();
       }
     } catch (e) {

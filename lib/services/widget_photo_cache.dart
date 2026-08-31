@@ -17,16 +17,27 @@ enum PhotoCacheAction {
   download,
 }
 
+/// Меньше этого файл картинкой быть не может: обрывок записи, а не фото.
+const int kMinWidgetPhotoBytes = 1024;
+
 /// Что делать с фото по ключу виджета.
+///
+/// [cachedFileSize] — размер файла на диске. Существования мало: оборванная
+/// запись оставляет НУЛЕВОЙ файл, и он залипал навсегда — «файл на месте»
+/// значило «в сеть не идём», виджет показывал пустоту, и смена фото ничего не
+/// меняла (пять жалоб за сутки 30–31.08.2026). На iOS фоновый проход прибивают
+/// по таймауту, так что обрывок — обычное дело, а не редкость.
 PhotoCacheAction photoCacheDecision({
   required String url,
   required String cachedUrl,
   required String cachedPath,
   required bool cachedFileExists,
+  int cachedFileSize = kMinWidgetPhotoBytes,
 }) {
   if (url.isEmpty) return PhotoCacheAction.download;
   if (cachedUrl != url) return PhotoCacheAction.download;
   if (cachedPath.isEmpty || !cachedFileExists) return PhotoCacheAction.download;
+  if (cachedFileSize < kMinWidgetPhotoBytes) return PhotoCacheAction.download;
   return PhotoCacheAction.useCached;
 }
 
@@ -38,7 +49,11 @@ PhotoCacheAction photoCacheDecision({
 String photoFallbackOnFailure({
   required String cachedPath,
   required bool cachedFileExists,
+  int cachedFileSize = kMinWidgetPhotoBytes,
 }) {
-  if (cachedPath.isNotEmpty && cachedFileExists) return cachedPath;
-  return '';
+  if (cachedPath.isEmpty || !cachedFileExists) return '';
+  // Пустой файл не «вчерашнее фото», а серый прямоугольник: отдавать его
+  // незачем — пусть виджет останется с прежним значением ключа.
+  if (cachedFileSize < kMinWidgetPhotoBytes) return '';
+  return cachedPath;
 }

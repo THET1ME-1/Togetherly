@@ -1035,11 +1035,15 @@ class WidgetService extends ChangeNotifier {
       // Правило — в widget_photo_cache.dart, под тестами.
       final cachedExists =
           cachedWPath.isNotEmpty && File(cachedWPath).existsSync();
+      // Размер важнее существования: оборванная запись оставляет нулевой файл,
+      // и он залипал навсегда — «файл на месте» значило «в сеть не идём».
+      final cachedSize = cachedExists ? File(cachedWPath).lengthSync() : 0;
       if (photoCacheDecision(
             url: url,
             cachedUrl: cachedUrl,
             cachedPath: cachedWPath,
             cachedFileExists: cachedExists,
+            cachedFileSize: cachedSize,
           ) ==
           PhotoCacheAction.useCached) {
         await HomeWidget.saveWidgetData<String>(key, cachedWPath);
@@ -1058,7 +1062,7 @@ class WidgetService extends ChangeNotifier {
       // картинку отсюда же, поэтому в сеть идёт только первый (widget_photo_store).
       final bytes = await WidgetPhotoStore.instance.bytesFor(url, httpUrl);
 
-      if (bytes == null) {
+      if (bytes == null || bytes.length < kMinWidgetPhotoBytes) {
         debugPrint('_downloadPhoto($key): на складе пусто для $url');
         // Прежнее живое фото лучше пустоты: один неудачный запрос не должен
         // стирать снимок с рабочего стола.
@@ -1067,6 +1071,7 @@ class WidgetService extends ChangeNotifier {
           photoFallbackOnFailure(
             cachedPath: cachedWPath,
             cachedFileExists: cachedExists,
+            cachedFileSize: cachedSize,
           ),
         );
         return;
@@ -1105,6 +1110,8 @@ class WidgetService extends ChangeNotifier {
         photoFallbackOnFailure(
           cachedPath: prev,
           cachedFileExists: prev.isNotEmpty && File(prev).existsSync(),
+          cachedFileSize:
+              prev.isNotEmpty && File(prev).existsSync() ? File(prev).lengthSync() : 0,
         ),
       );
     }
