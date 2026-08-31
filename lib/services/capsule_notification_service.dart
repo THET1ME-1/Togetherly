@@ -5,6 +5,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../utils/notification_permission.dart';
 import 'locale_service.dart';
 
@@ -21,10 +23,42 @@ class CapsuleNotificationService {
   static const String _channelId = 'time_capsule';
   static const String _channelName = 'Капсула времени';
 
+  /// Ключ, в котором ждёт капсула, к которой человек шёл из уведомления.
+  /// Лента откроет её сама при первом показе.
+  static const String pendingKey = 'capsule_pending_memory_id';
+
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
   bool _initialized = false;
   final Set<int> _scheduled = <int>{};
+
+  /// Нажали на уведомление: запоминаем капсулу, чтобы лента открыла именно её.
+  ///
+  /// Раньше payload'а не было вовсе — уведомление просто поднимало приложение
+  /// на главный экран, и человек искал капсулу сам. А искать было негде:
+  /// запечатанная за месяцы до срока, она лежала в ленте по дате создания
+  /// (жалоба 31.08.2026: «капсулу нигде не найти и не открыть»).
+  Future<void> _remember(String? memoryId) async {
+    if (memoryId == null || memoryId.isEmpty) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(pendingKey, memoryId);
+    } catch (e) {
+      debugPrint('CapsuleNotificationService: капсула не запомнилась — $e');
+    }
+  }
+
+  /// Капсула, которую ждёт человек, и снятие метки: открываем один раз.
+  Future<String?> takePending() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final id = prefs.getString(pendingKey);
+      if (id != null && id.isNotEmpty) await prefs.remove(pendingKey);
+      return id;
+    } catch (e) {
+      return null;
+    }
+  }
 
   Future<void> init() async {
     if (_initialized) return;
@@ -37,7 +71,15 @@ class CapsuleNotificationService {
         android: androidSettings,
         iOS: iosSettings,
       ),
+      onDidReceiveNotificationResponse: (response) {
+        _remember(response.payload);
+      },
     );
+    // Приложение могли поднять самим нажатием — забираем payload и оттуда.
+    final launch = await _plugin.getNotificationAppLaunchDetails();
+    if (launch?.didNotificationLaunchApp ?? false) {
+      await _remember(launch?.notificationResponse?.payload);
+    }
     final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
     await androidPlugin?.createNotificationChannel(
@@ -99,6 +141,8 @@ class CapsuleNotificationService {
             presentSound: true,
           ),
         ),
+        // Payload — id капсулы: по нему лента откроет именно её.
+        payload: memoryId,
         // Неточный режим: не требует спец-разрешения SCHEDULE_EXACT_ALARM
         // (Android 13+ иначе кидает исключение). Для капсулы, открывающейся через
         // недели/месяцы, окно в пару часов несущественно.

@@ -382,18 +382,35 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
           return Theme(
             data: ProfileTheme.data(cs),
             child: SheetScaffold(
+              // Четверть ширины «Отмене» не хватало: при крупном системном
+              // шрифте слово ломалось на три строки («От/мен/а»). Даём треть,
+              // режем боковые отступы кнопки и запрещаем перенос — на узком
+              // экране надпись уменьшится, а не расползётся.
               bottom: Row(
                 children: [
                   Expanded(
                     child: OutlinedButton(
                       onPressed: () => Navigator.pop(ctx),
-                      child: Text(s.cancel),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                      ),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          s.cancel,
+                          maxLines: 1,
+                          softWrap: false,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    flex: 3,
+                    flex: 2,
                     child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                      ),
                       onPressed: () {
                         if (titleCtrl.text.trim().isEmpty) return;
                         onSave(
@@ -405,7 +422,14 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
                         );
                         Navigator.pop(ctx);
                       },
-                      child: Text(s.saveSettings),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          s.saveSettings,
+                          maxLines: 1,
+                          softWrap: false,
+                        ),
+                      ),
                     ),
                   ),
                 ],

@@ -26,17 +26,31 @@ MemorySort memorySortFromName(String? name) {
 ///
 /// У записей, созданных до появления даты добавления, её нет — там берём дату
 /// события, иначе вся прежняя лента свалилась бы в конец одной кучей.
+///
+/// [aOpenAt]/[bOpenAt] — срок капсулы времени. Капсулу пишут за месяцы до
+/// открытия, и по дате создания она лежит глубоко внизу: человек получал
+/// уведомление «капсула открылась», заходил и не находил её вовсе (жалоба
+/// 31.08.2026). С наступлением срока событие капсулы — это день открытия.
 int compareMemories(
   MemorySort order, {
   required DateTime aEvent,
   required DateTime bEvent,
   DateTime? aAdded,
   DateTime? bAdded,
+  DateTime? aOpenAt,
+  DateTime? bOpenAt,
 }) {
+  final now = DateTime.now();
+  DateTime effective(DateTime own, DateTime? openAt) =>
+      (openAt != null && !openAt.isAfter(now) && openAt.isAfter(own)) ? openAt : own;
+
+  final a = effective(aEvent, aOpenAt);
+  final b = effective(bEvent, bOpenAt);
   switch (order) {
     case MemorySort.eventDate:
-      return bEvent.compareTo(aEvent);
+      return b.compareTo(a);
     case MemorySort.addedAt:
-      return (bAdded ?? bEvent).compareTo(aAdded ?? aEvent);
+      return effective(bAdded ?? bEvent, bOpenAt)
+          .compareTo(effective(aAdded ?? aEvent, aOpenAt));
   }
 }

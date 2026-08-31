@@ -359,8 +359,11 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   }
 
   /// Открыть деталь пина, на который сослались из чата.
-  Future<void> _openInitialMemory() async {
-    final id = widget.initialMemoryId;
+  ///
+  /// [memoryId] — если задан, открываем именно его: так лента показывает
+  /// капсулу, к которой человек шёл из уведомления.
+  Future<void> _openInitialMemory([String? memoryId]) async {
+    final id = memoryId ?? widget.initialMemoryId;
     if (id == null || !mounted) return;
     Memory? target;
     for (final m in _memories) {
@@ -408,7 +411,17 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         });
         if (_firstMemLoad) {
           _firstMemLoad = false;
-          if (widget.initialMemoryId != null) _openInitialMemory();
+          if (widget.initialMemoryId != null) {
+            _openInitialMemory();
+          } else {
+            // Человек пришёл по уведомлению «капсула открылась» — показываем
+            // именно ту капсулу, а не общий список.
+            unawaited(CapsuleNotificationService.instance
+                .takePending()
+                .then((id) {
+              if (id != null && id.isNotEmpty) _openInitialMemory(id);
+            }));
+          }
         }
         // Планируем «капсула открылась» на дату каждой ещё запечатанной капсулы
         // (и у автора, и у партнёра — капсула прилетает через realtime). Сервис
@@ -495,12 +508,17 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     return _memories
         .where((m) => !m.isPinned && _passesFeedFilter(m))
         .toList()
+      // Срок капсулы передаём в сортировку: с днём открытия капсула
+      // становится сегодняшним событием и поднимается наверх, иначе человек
+      // получал уведомление и не находил её в ленте (жалоба 31.08.2026).
       ..sort((a, b) => compareMemories(
             _sortOrder,
             aEvent: a.createdAt,
             bEvent: b.createdAt,
             aAdded: a.addedAt,
             bAdded: b.addedAt,
+            aOpenAt: a.openAt,
+            bOpenAt: b.openAt,
           ));
   }
 

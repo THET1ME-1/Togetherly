@@ -6,6 +6,18 @@
 // на экране не бывает.
 
 const Map<String, Map<String, String>> timerExpandableTimerCardStrings = {
+  // Название системного таймера пары: «статус + имя партнёра». Раньше
+  // предлог был вшит по-английски, и русский экран показывал
+  // «Влюблённые with akio».
+  'timerTitleWithPartner': {
+    'ru': '{label} с {name}',
+    'en': '{label} with {name}',
+    'pt': '{label} com {name}',
+    'it': '{label} con {name}',
+    'es': '{label} con {name}',
+    'fr': '{label} avec {name}',
+    'de': '{label} mit {name}',
+  },
   'noTimers': {
     'ru': 'Нет таймеров',
     'en': 'No timers',
