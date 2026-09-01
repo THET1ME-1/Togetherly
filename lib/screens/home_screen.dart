@@ -3276,24 +3276,125 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _checkForUpdate() async {
     if (!mounted) return;
-    // Sideload-сборки (установленные из публичного GitHub-репо, а не из Play
-    // Store) не получают обновления через Google Play — проверяем version.json
-    // в релизах вручную и отдаём установку системному установщику.
-    if (await UpdateService.isSideloaded()) {
-      final upd = await UpdateService.checkForUpdate();
-      if (!mounted || upd == null) return;
-      _showGithubUpdateSheet(upd);
-      return;
+    // Три разные установки — три разных разговора об обновлении. Развилка
+    // живёт в UpdateService, чтобы её можно было проверить тестом.
+    final path = decideUpdatePath(
+      sideloaded: await UpdateService.isSideloaded(),
+      splitsMissing: await UpdateService.hasMissingSplits(),
+    );
+    if (!mounted) return;
+
+    switch (path) {
+      // Sideload-сборки (установленные из публичного GitHub-репо, а не из Play
+      // Store) не получают обновления через Google Play — проверяем version.json
+      // в релизах вручную и отдаём установку системному установщику.
+      case UpdatePath.sideload:
+        final upd = await UpdateService.checkForUpdate();
+        if (!mounted || upd == null) return;
+        _showGithubUpdateSheet(upd);
+
+      // Установка из Play без докачиваемых частей. Позвать отсюда Play Core —
+      // значит отдать человеку его окно «Something went wrong», английское и
+      // закрывающее приложение. Объясняем сами и ведём в магазин.
+      case UpdatePath.brokenInstall:
+        await _showBrokenInstallSheetIfDue();
+
+      case UpdatePath.playStore:
+        try {
+          final info = await InAppUpdate.checkForUpdate();
+          if (!mounted) return;
+          if (info.updateAvailability == UpdateAvailability.updateAvailable) {
+            _showUpdateSheet(info);
+          }
+        } catch (e) {
+          debugPrint('HomeScreen._checkForUpdate failed: $e');
+        }
     }
-    try {
-      final info = await InAppUpdate.checkForUpdate();
-      if (!mounted) return;
-      if (info.updateAvailability == UpdateAvailability.updateAvailable) {
-        _showUpdateSheet(info);
-      }
-    } catch (e) {
-      debugPrint('HomeScreen._checkForUpdate failed: $e');
-    }
+  }
+
+  /// Ключ последнего показа объяснения про неполную установку.
+  static const String _brokenInstallShownAtKey = 'broken_install_shown_at';
+
+  /// Показывает объяснение не чаще раза в сутки: чинится оно переустановкой,
+  /// а до неё человек продолжает пользоваться приложением, и упираться в один
+  /// и тот же лист при каждом запуске незачем.
+  Future<void> _showBrokenInstallSheetIfDue() async {
+    final prefs = await SharedPreferences.getInstance();
+    final last = prefs.getInt(_brokenInstallShownAtKey) ?? 0;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (now - last < const Duration(days: 1).inMilliseconds) return;
+    if (!mounted) return;
+    await prefs.setInt(_brokenInstallShownAtKey, now);
+    _showBrokenInstallSheet();
+  }
+
+  void _showBrokenInstallSheet() {
+    final s = LocaleService.current;
+    final p = primary;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: _t.cardSurface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: EdgeInsets.fromLTRB(
+          24,
+          20,
+          24,
+          MediaQuery.of(ctx).viewPadding.bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              s.brokenInstallTitle,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              s.brokenInstallBody,
+              style: TextStyle(fontSize: 14, height: 1.45, color: _t.textSecondary),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: p,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                onPressed: () async {
+                  Navigator.of(ctx).pop();
+                  // Сначала нативный market://, затем https-фолбэк — тот же
+                  // порядок, что на экране принудительного обновления.
+                  const market = 'market://details?id=com.togetherly.love';
+                  const web =
+                      'https://play.google.com/store/apps/details?id=com.togetherly.love';
+                  try {
+                    if (!await safeLaunchUrl(
+                      Uri.parse(market),
+                      mode: LaunchMode.externalApplication,
+                    )) {
+                      await safeLaunchUrl(
+                        Uri.parse(web),
+                        mode: LaunchMode.externalApplication,
+                      );
+                    }
+                  } catch (e) {
+                    debugPrint('HomeScreen._showBrokenInstallSheet failed: $e');
+                  }
+                },
+                child: Text(s.brokenInstallAction),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   /// Лист обновления для sideload-сборок: ведёт на скачивание APK из публичного

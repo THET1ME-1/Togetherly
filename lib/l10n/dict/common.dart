@@ -6,6 +6,33 @@
 // на экране не бывает.
 
 const Map<String, Map<String, String>> commonStrings = {
+  'brokenInstallTitle': {
+    'ru': 'Приложение установлено не полностью',
+    'en': 'Togetherly is only half installed',
+    'pt': 'O Togetherly está instalado pela metade',
+    'it': 'Togetherly è installato a metà',
+    'es': 'Togetherly está instalado a medias',
+    'fr': 'Togetherly n’est installé qu’à moitié',
+    'de': 'Togetherly ist nur halb installiert',
+  },
+  'brokenInstallBody': {
+    'ru': 'Часть файлов не доехала до телефона — так бывает после переноса приложений со старого телефона, клонирования и установки со стороны. Переустановите из Google Play: всё, что вы с партнёром сохранили, лежит у нас и вернётся после входа.',
+    'en': 'Some of the app’s files never reached this phone — that happens after moving apps from an old phone, cloning them, or installing from outside Google Play. Reinstall from Google Play: everything you and your partner saved is on our side and comes back when you sign in.',
+    'pt': 'Alguns arquivos do app não chegaram a este telefone — isso acontece ao transferir apps de um telefone antigo, cloná-los ou instalar fora da Google Play. Reinstale pela Google Play: tudo o que vocês salvaram está do nosso lado e volta ao entrar.',
+    'it': 'Alcuni file dell’app non sono arrivati su questo telefono: succede spostando le app da un vecchio telefono, clonandole o installando fuori da Google Play. Reinstalla da Google Play: tutto quello che avete salvato è dalla nostra parte e torna appena accedi.',
+    'es': 'Algunos archivos de la app no llegaron a este teléfono: pasa al mover apps desde un teléfono antiguo, clonarlas o instalar fuera de Google Play. Reinstala desde Google Play: todo lo que guardasteis está en nuestro lado y vuelve al iniciar sesión.',
+    'fr': 'Une partie des fichiers de l’app n’est pas arrivée sur ce téléphone : cela arrive en transférant des applis depuis un ancien téléphone, en les clonant ou en installant hors de Google Play. Réinstallez depuis Google Play : tout ce que vous avez enregistré est chez nous et revient à la connexion.',
+    'de': 'Ein Teil der App-Dateien ist nie auf diesem Telefon angekommen — das passiert beim Übertragen von Apps vom alten Telefon, beim Klonen und bei Installationen außerhalb von Google Play. Installiere die App über Google Play neu: Alles, was ihr gespeichert habt, liegt bei uns und kommt nach der Anmeldung zurück.',
+  },
+  'brokenInstallAction': {
+    'ru': 'Переустановить из Google Play',
+    'en': 'Reinstall from Google Play',
+    'pt': 'Reinstalar pela Google Play',
+    'it': 'Reinstalla da Google Play',
+    'es': 'Reinstalar desde Google Play',
+    'fr': 'Réinstaller depuis Google Play',
+    'de': 'Aus Google Play neu installieren',
+  },
   'save': {
     'ru': 'Сохранить',
     'en': 'Save',

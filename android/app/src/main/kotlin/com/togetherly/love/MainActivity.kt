@@ -279,6 +279,27 @@ class MainActivity : FlutterActivity() {
             }
         }
 
+        // ── Целость установки ──
+        // Приложение из Play приезжает базовым APK плюс докачиваемыми частями
+        // под экран и архитектуру. Утилиты переноса на новый телефон, клоны в
+        // «двойном пространстве» и APK, вытащенный из чужого телефона, копируют
+        // только базовую часть. В таком состоянии библиотека Play Core рисует
+        // собственное английское окно «Something went wrong» и закрывает
+        // приложение — человек остаётся ни с чем и пишет в поддержку.
+        //
+        // Спросить об этом Play Core нельзя: он отвечает тем самым окном.
+        // Поэтому проверяем сами, ровно по тем же двум признакам, что и он —
+        // просит ли манифест докачиваемые части и лежат ли они на устройстве.
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "love_app/install"
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "hasMissingSplits" -> result.success(hasMissingSplits())
+                else -> result.notImplemented()
+            }
+        }
+
         // ── Пуши FCM ──
         // Токен в профиль пишет Dart (у него сессия PocketBase), а спрашивает
         // его отсюда. Плагин firebase_messaging не подключаем намеренно: на iOS
@@ -341,5 +362,29 @@ class MainActivity : FlutterActivity() {
             "forest" to ".IconForest",
             "ocean" to ".IconOcean",
         )
+    }
+
+    /// Ставилось ли приложение как набор частей, которых теперь нет.
+    ///
+    /// `com.android.vending.splits.required` в манифест кладёт Play при сборке
+    /// бандла, поэтому у одиночного APK флага нет и проверка молчит — там
+    /// докачивать нечего по определению.
+    private fun hasMissingSplits(): Boolean {
+        return try {
+            val appInfo = packageManager.getApplicationInfo(
+                packageName,
+                PackageManager.GET_META_DATA
+            )
+            val requiresSplits =
+                appInfo.metaData?.getBoolean("com.android.vending.splits.required", false)
+                    ?: false
+            if (!requiresSplits) return false
+            val info = packageManager.getPackageInfo(packageName, 0)
+            info.splitNames.isNullOrEmpty()
+        } catch (e: Exception) {
+            // Не смогли выяснить — молчим. Ложная тревога здесь хуже пропуска:
+            // она уводит человека переустанавливать исправное приложение.
+            false
+        }
     }
 }

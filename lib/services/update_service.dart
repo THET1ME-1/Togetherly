@@ -3,10 +3,38 @@ import 'dart:io' show Platform;
 
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 
 import 'locale_service.dart';
+
+/// Куда идти за обновлением — и идти ли вообще.
+enum UpdatePath {
+  /// Установка из Play в порядке: спрашиваем сам Play.
+  playStore,
+
+  /// Сборка не из Play: сверяемся с version.json в публичном репо.
+  sideload,
+
+  /// Установка из Play неполная — докачиваемых частей нет. Play Core в таком
+  /// состоянии показывает собственное английское окно и закрывает приложение,
+  /// поэтому его не зовём и объясняем всё сами.
+  brokenInstall,
+}
+
+/// Развилка запуска, вынесенная из экрана, чтобы её можно было проверить
+/// тестом, не поднимая Android.
+///
+/// [splitsMissing] важно только для установок из Play: одиночный APK по
+/// определению не имеет докачиваемых частей, и предупреждать там не о чем.
+UpdatePath decideUpdatePath({
+  required bool sideloaded,
+  required bool splitsMissing,
+}) {
+  if (sideloaded) return UpdatePath.sideload;
+  return splitsMissing ? UpdatePath.brokenInstall : UpdatePath.playStore;
+}
 
 /// Информация о доступном обновлении из публичного GitHub-репо релизов.
 class GithubUpdate {
@@ -81,6 +109,30 @@ class UpdateService {
       // Play Store ставит с installerStore == 'com.android.vending'.
       return info.installerStore != 'com.android.vending';
     } catch (_) {
+      return false;
+    }
+  }
+
+  static const MethodChannel _installChannel =
+      MethodChannel('love_app/install');
+
+  /// `true`, если приложение поставлено из Play, но его докачиваемые части
+  /// (split-APK) на устройстве отсутствуют.
+  ///
+  /// Такая установка получается после переноса приложений на новый телефон,
+  /// клонирования в «двойном пространстве» и установки APK, вытащенного из
+  /// чужого телефона. Проверку делаем сами через PackageManager: спросить об
+  /// этом Play Core нельзя — он в ответ показывает своё окно и закрывает
+  /// приложение, а это ровно то, что мы обходим.
+  static Future<bool> hasMissingSplits() async {
+    if (!Platform.isAndroid) return false;
+    try {
+      return await _installChannel.invokeMethod<bool>('hasMissingSplits') ??
+          false;
+    } catch (e) {
+      // Канал недоступен (старая сборка виджета, тесты) — считаем установку
+      // целой: ложное предупреждение хуже пропущенного.
+      debugPrint('UpdateService.hasMissingSplits failed: $e');
       return false;
     }
   }

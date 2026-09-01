@@ -1317,6 +1317,11 @@ abstract class AppStrings {
   String get awful;
   String get notEnoughData;
   String moodRecorded(String label);
+  /// Установка приехала без докачиваемых частей — объясняем вместо Play Core.
+  String get brokenInstallTitle;
+  String get brokenInstallBody;
+  String get brokenInstallAction;
+
   String get noMoodRecorded;
   String get moodScorePrefix;
   List<String> get shortWeekdaysSingleChar;

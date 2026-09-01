@@ -137,6 +137,12 @@ abstract class DictStrings extends AppStrings {
   String _t(String key) => trDict(key, langCode);
 
   @override
+  String get brokenInstallTitle => _t('brokenInstallTitle');
+  @override
+  String get brokenInstallBody => _t('brokenInstallBody');
+  @override
+  String get brokenInstallAction => _t('brokenInstallAction');
+  @override
   String get save => _t('save');
   @override
   String get watchVoiceCall => _t('watchVoiceCall');
