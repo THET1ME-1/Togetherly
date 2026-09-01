@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'config/sentry_config.dart';
 import 'services/crash_noise.dart';
+import 'utils/safe_pick.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:yandex_mobileads/mobile_ads.dart' as yandex;
@@ -403,6 +404,24 @@ void main() async {
   Sentry.configureScope(
     (scope) => scope.setUser(SentryUser(id: PocketBaseService().userId ?? '')),
   );
+  // Отказ выбора фото — не краш, поэтому он и не попадал в трекер: жалоба
+  // «при добавлении фото выскакивает окно Google Play» (realme C67, Android 14,
+  // 01.09.2026) разбиралась вслепую, потому что за месяц по галерее не нашлось
+  // ни одной записи. Уходит предупреждением с кодом отказа — по нему видно и
+  // модель телефона, и версию системы.
+  onPickFailure((code, error) {
+    unawaited(
+      Sentry.captureMessage(
+        'picker failed: $code',
+        level: SentryLevel.warning,
+        withScope: (scope) {
+          scope.setTag('picker_code', code);
+          scope.setContexts('picker', {'error': error.toString()});
+        },
+      ),
+    );
+  });
+
   FlutterError.onError = (FlutterErrorDetails details) {
     FlutterError.presentError(details);
     unawaited(

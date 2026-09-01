@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:love_app/utils/safe_pick.dart';
 
@@ -121,5 +122,52 @@ void main() {
       isEmpty,
       reason: 'пикер зовётся только через safePick:\n${offenders.join('\n')}',
     );
+  });
+
+  // Разбор жалобы 01.09.2026 (realme C67, Android 14): при добавлении фото
+  // человек видит окно «Something went wrong. Check that Google Play is
+  // enabled on your device». Текста этого нет ни в нашем коде, ни в наших
+  // библиотеках — проверено поиском по APK и по всем .aar: окно рисует сам
+  // Google Play на устройстве. Наша сторона при этом молчала: отказ пикера
+  // уходил в debugPrint, и в трекере за месяц не нашлось ни одной записи о
+  // сбоях выбора фото. Разбирать такое нечем.
+  //
+  // Поэтому отказ теперь докладывается наружу вместе с кодом: следующий такой
+  // случай будет виден с моделью телефона и версией Android.
+  group('safePick докладывает об отказе пикера', () {
+    test('код отказа уходит наблюдателю', () async {
+      final seen = <String>[];
+      final off = onPickFailure((code, _) => seen.add(code));
+      addTearDown(off);
+
+      final got = await safePick<XFile>(
+        () async => throw PlatformException(code: 'photo_access_denied'),
+      );
+
+      expect(got, isNull, reason: 'отказ по-прежнему читается как отмена');
+      expect(seen, ['photo_access_denied']);
+    });
+
+    test('обычная отмена наблюдателя не будит', () async {
+      final seen = <String>[];
+      final off = onPickFailure((code, _) => seen.add(code));
+      addTearDown(off);
+
+      await safePick<XFile>(() async => null);
+
+      expect(seen, isEmpty, reason: 'человек просто закрыл галерею');
+    });
+
+    test('отказ не из PlatformException тоже доносится', () async {
+      // Нативный путь пикера умеет падать и без кода — например, TypeError при
+      // пересоздании активити. Такой отказ так же важен для разбора.
+      final seen = <String>[];
+      final off = onPickFailure((code, _) => seen.add(code));
+      addTearDown(off);
+
+      await safePick<XFile>(() async => throw StateError('нет результата'));
+
+      expect(seen, ['unknown']);
+    });
   });
 }

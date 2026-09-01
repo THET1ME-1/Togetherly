@@ -35,17 +35,46 @@ Future<T?> safePick<T>(
     return await _upright(await pick());
   } on PlatformException catch (e) {
     debugPrint('safePick: image_picker failed (${e.code})');
+    _reportPickFailure(e.code, e);
     onError?.call(e);
     return null;
   } catch (e) {
     // Напр. TypeError/«Null check» из нативного пути пикера при пересоздании
     // активити (потерянный результат) — тоже не краш, трактуем как отмену.
     debugPrint('safePick: image_picker error: $e');
+    _reportPickFailure('unknown', e);
     return null;
   } finally {
     // Снимаем замок при любом исходе: иначе один сорвавшийся выбор запирал бы
     // галерею до перезапуска приложения.
     _pickerBusy = false;
+  }
+}
+
+/// Наблюдатели за отказами пикера.
+///
+/// Отказ выбора фото до 01.09.2026 уходил в `debugPrint` и на этом кончался:
+/// когда пришла жалоба «при добавлении фото выскакивает окно Google Play», в
+/// трекере за месяц не нашлось ни одной записи о сбоях галереи — разбирать
+/// было нечем. Теперь код отказа доносится наружу, а `main` отправляет его в
+/// трекер вместе с моделью телефона и версией системы.
+///
+/// Само поведение не меняется: отказ по-прежнему читается как отмена.
+final List<void Function(String code, Object error)> _failureWatchers = [];
+
+/// Подписаться на отказы пикера. Возвращает функцию отписки.
+void Function() onPickFailure(void Function(String code, Object error) watcher) {
+  _failureWatchers.add(watcher);
+  return () => _failureWatchers.remove(watcher);
+}
+
+void _reportPickFailure(String code, Object error) {
+  for (final w in List.of(_failureWatchers)) {
+    try {
+      w(code, error);
+    } catch (_) {
+      // Наблюдатель не имеет права ломать выбор фото.
+    }
   }
 }
 
