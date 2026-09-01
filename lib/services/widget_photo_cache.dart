@@ -57,3 +57,16 @@ String photoFallbackOnFailure({
   if (cachedFileSize < kMinWidgetPhotoBytes) return '';
   return cachedPath;
 }
+
+/// Показывать ли на виджете «Дни вместе» фото пары вместо рисунка.
+///
+/// Обе аватарки должны лежать на диске: виджет рисует их из файлов, и одной
+/// половины ему мало. Ответ — это ещё и то, что видит человек в тумблере:
+/// пока состояние писалось по просьбе, а не по факту, тумблер обещал фото,
+/// которых на рабочем столе нет (жалоба 01.09.2026).
+bool daysPhotosApplied({
+  required bool requested,
+  required String myPath,
+  required String partnerPath,
+}) =>
+    requested && myPath.isNotEmpty && partnerPath.isNotEmpty;

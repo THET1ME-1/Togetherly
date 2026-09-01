@@ -254,7 +254,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     final photoDaySaveFuture = hws.getPhotoDaySaveMemory(_pair.pairId);
     final photoDayWidgetsFuture = _loadPhotoDayWidgetsSilent();
     final statsFuture = _loadStatsSilent();
-    final daysPhotosFuture = hws.isDaysCounterPhotosEnabled();
+    final daysPhotosFuture = hws.isDaysCounterPhotosEnabled(groupId: _pair.pairId);
 
     final results = await Future.wait([
       pinSupportedFuture,
@@ -4870,14 +4870,23 @@ class _WidgetScreenState extends State<WidgetScreen>
       _daysPhotosEnabled = enabled;
       _daysPhotosBusy = true;
     });
-    await HomeWidgetService.instance.setDaysCounterPhotos(
+    // Сервис отвечает тем, что вышло на самом деле: аватарки могут не
+    // скачаться, и тогда на рабочем столе остаётся рисунок. Пока ответ никто не
+    // смотрел, тумблер обещал фото, которых там нет.
+    final applied = await HomeWidgetService.instance.setDaysCounterPhotos(
       groupId: _pair.pairId,
       enabled: enabled,
       myAvatarUrl: widget.userData.avatarUrl,
       partnerAvatarUrl: _pair.partnerAvatarUrl,
     );
     if (!mounted) return;
-    setState(() => _daysPhotosBusy = false);
+    setState(() {
+      _daysPhotosEnabled = applied;
+      _daysPhotosBusy = false;
+    });
+    if (enabled && !applied) {
+      _showDaysPhotosSnack(LocaleService.current.daysPhotosFailed);
+    }
   }
 
   void _showDaysPhotosSnack(String msg) {

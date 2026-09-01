@@ -2925,6 +2925,7 @@ abstract class DictStrings extends AppStrings {
   String get addYourProfilePhoto => _t('addYourProfilePhoto');
   @override
   String get daysPhotosDone => _t('daysPhotosDone');
+  String get daysPhotosFailed => _t('daysPhotosFailed');
   @override
   String get purchaseFailedTryLater => _t('purchaseFailedTryLater');
   @override

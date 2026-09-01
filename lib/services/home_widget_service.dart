@@ -1026,10 +1026,19 @@ class HomeWidgetService {
 
   static const _daysPhotosEnabledKey = 'days_widget_photos_enabled';
 
+  /// Ключ состояния тумблера. У человека бывает несколько пар, а виджет
+  /// «Дни вместе» у каждой свой: общий ключ показывал в одной паре положение,
+  /// выставленное в другой. Старый общий ключ остаётся запасным ответом, чтобы
+  /// у тех, кто уже включил фото, тумблер не сбросился.
+  String _daysPhotosKeyFor(String groupId) =>
+      '${_daysPhotosEnabledKey}_${groupId.isEmpty ? 'solo' : groupId}';
+
   /// Включены ли свои фото пары на виджете «Дни вместе» (локальный кэш состояния).
-  Future<bool> isDaysCounterPhotosEnabled() async {
+  Future<bool> isDaysCounterPhotosEnabled({String groupId = ''}) async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_daysPhotosEnabledKey) ?? false;
+    return prefs.getBool(_daysPhotosKeyFor(groupId)) ??
+        prefs.getBool(_daysPhotosEnabledKey) ??
+        false;
   }
 
   /// Включает/выключает показ фото пары на виджете «Дни вместе».
@@ -1038,7 +1047,13 @@ class HomeWidgetService {
   /// флаг `days_${g}_use_photos`. Нативный виджет читает их и рисует кружочки
   /// вместо нарисованной пары. Если хотя бы одной аватарки нет — откатываемся
   /// на рисунок (use_photos='0').
-  Future<void> setDaysCounterPhotos({
+  ///
+  /// Возвращает, что получилось на самом деле. Раньше метод молчал, а состояние
+  /// тумблера писалось по запросу: аватарки не скачались — на столе оставался
+  /// рисунок, а в приложении тумблер стоял «включено». Жалоба звучала как
+  /// «функция замены на аватарки не работает, переключатель не отключается»
+  /// (01.09.2026).
+  Future<bool> setDaysCounterPhotos({
     required String groupId,
     required bool enabled,
     required String myAvatarUrl,
@@ -1047,19 +1062,30 @@ class HomeWidgetService {
     final g = groupId.isEmpty ? 'solo' : groupId;
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_daysPhotosEnabledKey, enabled);
 
       String myPath = '';
       String partnerPath = '';
       if (enabled) {
+        // Ждём аватарки не дольше полуминуты: по медленной сети ожидание
+        // затягивалось, а экран всё это время держал тумблер заблокированным.
         myPath = await _cachePhotoFromUrl(myAvatarUrl, 'days_avatar_my_$g',
-            maxSide: 400);
-        partnerPath =
-            await _cachePhotoFromUrl(partnerAvatarUrl, 'days_avatar_partner_$g',
-                maxSide: 400);
+                maxSide: 400)
+            .timeout(const Duration(seconds: 30), onTimeout: () => '');
+        partnerPath = await _cachePhotoFromUrl(
+                partnerAvatarUrl, 'days_avatar_partner_$g',
+                maxSide: 400)
+            .timeout(const Duration(seconds: 30), onTimeout: () => '');
       }
       // Включаем только когда обе аватарки реально закэшировались.
-      final usePhotos = enabled && myPath.isNotEmpty && partnerPath.isNotEmpty;
+      final usePhotos = daysPhotosApplied(
+        requested: enabled,
+        myPath: myPath,
+        partnerPath: partnerPath,
+      );
+      // Запоминаем ФАКТ, а не просьбу: иначе тумблер обещает фото, которых на
+      // рабочем столе нет.
+      await prefs.setBool(_daysPhotosKeyFor(groupId), usePhotos);
+      await prefs.setBool(_daysPhotosEnabledKey, usePhotos);
 
       await HomeWidget.saveWidgetData<String>(
         'days_${g}_use_photos',
@@ -1078,8 +1104,10 @@ class HomeWidgetService {
       debugPrint(
         'HomeWidgetService.setDaysCounterPhotos: enabled=$enabled usePhotos=$usePhotos group=$g',
       );
+      return usePhotos;
     } catch (e) {
       debugPrint('HomeWidgetService.setDaysCounterPhotos failed: $e');
+      return false;
     }
   }
 

@@ -1974,6 +1974,7 @@ abstract class AppStrings {
   String get addYourProfilePhoto;
   String notEnoughCoinsNeed(int price);
   String get daysPhotosDone;
+  String get daysPhotosFailed;
   String get purchaseFailedTryLater;
   String personalPhotosHelp(String partner);
   String get personalPhotosHelpShort;

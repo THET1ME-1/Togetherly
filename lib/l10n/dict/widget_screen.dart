@@ -1052,6 +1052,15 @@ const Map<String, Map<String, String>> widgetScreenStrings = {
     'fr': 'Ajoute ta photo de profil pour qu’elle apparaisse sur le widget.',
     'de': 'Füge dein Profilfoto hinzu, damit es im Widget erscheint.',
   },
+  'daysPhotosFailed': {
+    'ru': 'Фото не загрузились — виджет пока с рисунком',
+    'en': 'Photos didn’t load — the widget keeps the drawing',
+    'pt': 'As fotos não carregaram — o widget fica com o desenho',
+    'it': 'Le foto non si sono caricate — il widget resta col disegno',
+    'es': 'Las fotos no se cargaron — el widget se queda con el dibujo',
+    'fr': 'Les photos n’ont pas chargé — le widget garde le dessin',
+    'de': 'Die Fotos sind nicht geladen — das Widget behält die Zeichnung',
+  },
   'daysPhotosDone': {
     'ru': 'Готово! Ваши фото на виджете 💞',
     'en': 'Done! Your photos are on the widget 💞',
