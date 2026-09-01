@@ -71,3 +71,30 @@ int? coupleDaysTogether({
   final days = (now ?? DateTime.now()).difference(start).inDays;
   return days < 0 ? 0 : days;
 }
+
+/// Дата, от которой считает виджет «Дней вместе».
+///
+/// Пользовательский таймер («до встречи», «до отпуска») виджет показывает как
+/// есть — его выбрали осознанно. Во всех остальных случаях дата берётся общим
+/// правилом [coupleStartDate], тем же, что на главной, в профиле и на экране
+/// виджетов.
+///
+/// Пока этого правила здесь не было, виджет при незагруженных таймерах падал
+/// на дату коннекта: пара с годовщиной 17 февраля видела на рабочем столе
+/// «9 дней» и 22 августа, а в приложении 196 дней и 17 февраля (жалоба
+/// 01.09.2026 — «это не наша дата, и такое уже второй раз»). Дата коннекта
+/// вообще не должна показываться одна: она значит лишь день, когда пара
+/// сошлась в приложении.
+DateTime? widgetDaysStart({
+  DateTime? customTimerStart,
+  DateTime? systemTimerStart,
+  DateTime? groupStart,
+  DateTime? anniversary,
+}) {
+  if (customTimerStart != null) return customTimerStart;
+  return coupleStartDate(
+    timerStart: systemTimerStart,
+    groupStart: groupStart,
+    anniversary: anniversary,
+  );
+}

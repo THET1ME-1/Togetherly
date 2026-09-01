@@ -220,6 +220,13 @@ private struct PhotoFillCell: View {
     }
 }
 
+// MARK: - Поля вокруг снимка
+//
+// «У виджета с фото очень толстые белые рамки, которые выглядят не очень»
+// (письмо 26.08.2026 со снимком экрана). Рамка не наша: с iOS 17 система сама
+// отводит виджету поля вокруг содержимого, и фотография сжимается внутрь, а по
+// краям остаётся фон контейнера. Для снимка это лишнее — он и есть виджет,
+// поэтому у фото-виджетов поля сняты. Текстовым они нужны, там не трогаем.
 struct PhotoGridWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "PhotoGridWidgetProvider", provider: RefreshProvider()) { _ in
@@ -228,6 +235,7 @@ struct PhotoGridWidget: Widget {
         .configurationDisplayName("Сетка фото")
         .description("Несколько фото партнёра в одной сетке.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .contentMarginsDisabled()
     }
 }
 
@@ -280,6 +288,7 @@ struct SelfPhotoWidgetConfigurable: Widget {
         .configurationDisplayName("Моё фото")
         .description("Фото, которым вы делитесь с партнёром.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .contentMarginsDisabled()
     }
 }
 
@@ -291,6 +300,7 @@ struct PartnerPhotoWidgetConfigurable: Widget {
         .configurationDisplayName("Фото партнёра")
         .description("Фото, которым с вами поделился партнёр.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .contentMarginsDisabled()
     }
 }
 
@@ -302,5 +312,6 @@ struct PhotoDayWidgetConfigurable: Widget {
         .configurationDisplayName("Фото дня")
         .description("Тёплое фото из ваших воспоминаний.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .contentMarginsDisabled()
     }
 }

@@ -15,6 +15,7 @@ import 'pb_data_service.dart';
 import 'pb_media_service.dart';
 import 'pocketbase_service.dart';
 import 'widget_owner.dart';
+import '../utils/couple_days.dart';
 import 'widget_photo_cache.dart';
 import 'widget_photo_store.dart';
 import '../theme/app_theme.dart';
@@ -2690,6 +2691,9 @@ class HomeWidgetService {
     required List<TimerItem> activeTimers,
     TimerItem? activeSysTimer,
     DateTime? activeStartDate,
+    /// Годовщина из профиля пары. Без неё виджет считал от даты коннекта и
+    /// показывал «9 дней» там, где приложение показывает 196.
+    DateTime? anniversary,
     required String coupleNames,
     required String emoji,
     String myGender = '',
@@ -2730,8 +2734,19 @@ class HomeWidgetService {
       // Без этого виджет на рабочем столе не знает даже своей группы и стоит
       // пустой до первого захода на экран виджетов.
       {
-        final start = activeTimer?.startDate ?? activeSysTimer?.startDate ?? activeStartDate;
-        final days = activeTimer != null
+        // Дата считается общим правилом: пользовательский таймер как есть,
+        // иначе самая ранняя из таймера, коннекта и годовщины.
+        final customStart =
+            (activeTimer != null && !activeTimer.isSystem) ? activeTimer.startDate : null;
+        final start = widgetDaysStart(
+          customTimerStart: customStart,
+          systemTimerStart: activeTimer?.isSystem == true
+              ? activeTimer!.startDate
+              : activeSysTimer?.startDate,
+          groupStart: activeStartDate,
+          anniversary: anniversary,
+        );
+        final days = (activeTimer != null && !activeTimer.isSystem)
             ? activeTimer.daysElapsed.abs()
             : (start != null ? DateTime.now().difference(start).inDays : 0);
         final parts = coupleNames.split(RegExp(r'\s*[+&·]\s*'));
@@ -2763,6 +2778,7 @@ class HomeWidgetService {
         activeTimer: activeTimer,
         activeSysTimer: activeSysTimer,
         activeStartDate: activeStartDate,
+        anniversary: anniversary,
         activeTimers: activeTimers,
         coupleNames: coupleNames,
         emoji: emoji,
@@ -2872,10 +2888,12 @@ class HomeWidgetService {
     required List<TimerItem> activeTimers,
     required String coupleNames,
     required String emoji,
+    DateTime? anniversary,
     String myGender = '',
     String partnerGender = '',
   }) async {
-    if (activeTimer != null) {
+    // Пользовательский таймер («до встречи») виджет показывает как есть.
+    if (activeTimer != null && !activeTimer.isSystem) {
       await syncDaysCounter(
         groupId: activeGroupId,
         daysCount: activeTimer.daysElapsed.abs(),
@@ -2888,7 +2906,33 @@ class HomeWidgetService {
       );
       return;
     }
-    // Fallback — старая логика для случаев без таймеров
+    // Срок отношений — общим правилом, тем же, что на главной и в профиле.
+    // Дата коннекта в одиночку сюда попадать не должна: у пары с годовщиной
+    // 17 февраля виджет показывал «9 дней» и 22 августа (жалоба 01.09.2026).
+    final start = widgetDaysStart(
+      systemTimerStart: activeTimer?.startDate ?? activeSysTimer?.startDate,
+      groupStart: activeStartDate,
+      anniversary: anniversary,
+    );
+    if (start != null) {
+      await syncDaysCounter(
+        groupId: activeGroupId,
+        daysCount: coupleDaysTogether(
+              timerStart: activeTimer?.startDate ?? activeSysTimer?.startDate,
+              groupStart: activeStartDate,
+              anniversary: anniversary,
+            ) ??
+            0,
+        coupleNames: coupleNames,
+        emoji: activeTimer?.emoji ?? activeSysTimer?.emoji ?? emoji,
+        startDate: _formatDate(start),
+        start: start,
+        myGender: myGender,
+        partnerGender: partnerGender,
+      );
+      return;
+    }
+    // Ни одной даты нет — соло-режим и прежние ветки на своих таймерах.
     await _syncDaysCounterFromMemory(
       activeGroupId: activeGroupId,
       activeSysTimer: activeSysTimer,
