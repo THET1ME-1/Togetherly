@@ -834,8 +834,9 @@ class WidgetService extends ChangeNotifier {
   void _cachePhotosForWidget(String? myUrl, String? partnerUrl) {
     final bindGeneration = _bindGeneration;
     Future.wait([
-      _downloadPhoto(myUrl, 'my_photo_path'),
-      _downloadPhoto(partnerUrl, 'partner_photo_path'),
+      _downloadPhoto(myUrl, 'my_photo_path', generation: bindGeneration),
+      _downloadPhoto(partnerUrl, 'partner_photo_path',
+          generation: bindGeneration),
     ]).then((_) async {
       if (_isDisposed || bindGeneration != _bindGeneration) return;
       try {
@@ -853,8 +854,9 @@ class WidgetService extends ChangeNotifier {
   void _cacheAvatarsForLoveWidget(String? myUrl, String? partnerUrl) {
     final bindGeneration = _bindGeneration;
     Future.wait([
-      _downloadPhoto(myUrl, 'my_avatar_path'),
-      _downloadPhoto(partnerUrl, 'partner_avatar_path'),
+      _downloadPhoto(myUrl, 'my_avatar_path', generation: bindGeneration),
+      _downloadPhoto(partnerUrl, 'partner_avatar_path',
+          generation: bindGeneration),
     ]).then((_) async {
       if (_isDisposed || bindGeneration != _bindGeneration) return;
       try {
@@ -876,7 +878,8 @@ class WidgetService extends ChangeNotifier {
     final futures = <Future<void>>[];
     for (int i = 0; i < members.length; i++) {
       futures.add(
-        _downloadPhoto(members[i].avatarUrl, 'user_${i}_avatar_path'),
+        _downloadPhoto(members[i].avatarUrl, 'user_${i}_avatar_path',
+            generation: bindGeneration),
       );
     }
     Future.wait(futures).then((_) async {
@@ -993,13 +996,31 @@ class WidgetService extends ChangeNotifier {
 
   /// Скачивает изображение по [url] в файловый кэш и сохраняет путь
   /// под ключом [key] в SharedPreferences нативного виджета.
-  Future<void> _downloadPhoto(String? url, String key) async {
+  /// Ключ виджета пишем, только если пара с тех пор не сменилась.
+  ///
+  /// Картинки качаются в фоне, а тексты уходят сразу. Пока проверки не было,
+  /// поздний ответ от прежней пары дописывал её аватарку поверх свежих текстов:
+  /// на виджете оказывалось настроение одной половины и лицо другой (жалобы
+  /// 31.08–01.09.2026 от пар с несколькими группами).
+  Future<void> _saveIfCurrent(int generation, String key, String value) async {
+    if (_isDisposed || generation != _bindGeneration) {
+      debugPrint('WidgetService: $key от прежней пары — не пишем');
+      return;
+    }
+    await HomeWidget.saveWidgetData<String>(key, value);
+  }
+
+  Future<void> _downloadPhoto(
+    String? url,
+    String key, {
+    required int generation,
+  }) async {
     // null — половина не загружена, трогать её картинку нельзя: иначе каждый
     // холодный старт и каждый тихий пуш стирают фото с рабочего стола вместе с
     // файлом в общем контейнере (правило в pair_widget_payload.dart).
     if (url == null) return;
     if (url.isEmpty) {
-      await HomeWidget.saveWidgetData<String>(key, '');
+      await _saveIfCurrent(generation, key, '');
       // Фото убрали → чистим старые файлы этого ключа в контейнере, иначе iOS
       // держал бы закэшированную картинку по прежнему пути.
       await HomeWidgetService.instance.clearAppGroupMedia(key);
@@ -1022,7 +1043,7 @@ class WidgetService extends ChangeNotifier {
       // Легаси gs:// (Firebase) / sb:// (Supabase) больше не резолвим — Firebase
       // убран. Такие старые ссылки в виджет не подгрузятся.
       else if (url.startsWith('gs://') || url.startsWith('sb://')) {
-        await HomeWidget.saveWidgetData<String>(key, '');
+        await _saveIfCurrent(generation, key, '');
         return;
       }
 
@@ -1046,7 +1067,7 @@ class WidgetService extends ChangeNotifier {
             cachedFileSize: cachedSize,
           ) ==
           PhotoCacheAction.useCached) {
-        await HomeWidget.saveWidgetData<String>(key, cachedWPath);
+        await _saveIfCurrent(generation, key, cachedWPath);
         return;
       }
 
@@ -1066,7 +1087,8 @@ class WidgetService extends ChangeNotifier {
         debugPrint('_downloadPhoto($key): на складе пусто для $url');
         // Прежнее живое фото лучше пустоты: один неудачный запрос не должен
         // стирать снимок с рабочего стола.
-        await HomeWidget.saveWidgetData<String>(
+        await _saveIfCurrent(
+          generation,
           key,
           photoFallbackOnFailure(
             cachedPath: cachedWPath,
@@ -1095,7 +1117,7 @@ class WidgetService extends ChangeNotifier {
 
       final widgetPath = await HomeWidgetService.instance
           .appGroupReadablePath(file.path, uniqueName);
-      await HomeWidget.saveWidgetData<String>(key, widgetPath);
+      await _saveIfCurrent(generation, key, widgetPath);
       await prefs.setString('${key}_cached_url', url);
       await prefs.setString('${key}_cached_wpath', widgetPath);
       debugPrint('_downloadPhoto: $key → $widgetPath');
@@ -1105,7 +1127,8 @@ class WidgetService extends ChangeNotifier {
       debugPrint('_downloadPhoto($key) failed: $e');
       final prefs = await SharedPreferences.getInstance();
       final prev = prefs.getString('${key}_cached_wpath') ?? '';
-      await HomeWidget.saveWidgetData<String>(
+      await _saveIfCurrent(
+        generation,
         key,
         photoFallbackOnFailure(
           cachedPath: prev,
