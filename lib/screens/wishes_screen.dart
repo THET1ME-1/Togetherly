@@ -304,6 +304,34 @@ class _WishesScreenState extends State<WishesScreen> {
     );
   }
 
+  /// Дата исполнения: тап по ней в архиве.
+  ///
+  /// «В списке желаний отмечается дата нажатия галочки, но галочку не всегда
+  /// ставят сразу. Было бы круто иметь возможность отредактировать дату»
+  /// (просьба от 01.09.2026). Раньше сегодняшнего дня не ставим — сбывшееся
+  /// будущим числом читалось бы ошибкой.
+  Future<void> _editDoneDate(Wish wish) async {
+    final now = DateTime.now();
+    final base = wish.doneAt ?? now;
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: base.isAfter(now) ? now : base,
+      firstDate: DateTime(2000),
+      lastDate: now,
+      helpText: _tr('Когда сбылось', 'When it happened'),
+      builder: (ctx, child) => Theme(data: ProfileTheme.data(_cs), child: child!),
+    );
+    if (picked == null) return;
+    // Час оставляем прежний: человек правит день, а не минуту, а порядок в
+    // архиве считается по всей отметке времени.
+    await _repo.setDoneAt(
+      groupId: widget.groupId,
+      wish: wish,
+      at: DateTime(picked.year, picked.month, picked.day, base.hour,
+          base.minute, base.second),
+    );
+  }
+
   /// Заметка «как прошло» у сбывшегося: тап по карточке в архиве. В снекбаре
   /// второй кнопке места нет — Material оставляет действию одну.
   Future<void> _editDoneNote(Wish wish) async {
@@ -406,6 +434,9 @@ class _WishesScreenState extends State<WishesScreen> {
                                           : null,
                                   onLongPress:
                                       mine ? () => _remove(wish) : null,
+                                  onEditDate: wish.done
+                                      ? () => _editDoneDate(wish)
+                                      : null,
                                   onReserve: mine
                                       ? null
                                       : () => _toggleReserve(wish),
@@ -582,6 +613,7 @@ class _WishTile extends StatelessWidget {
     this.authorAvatarUrl,
     this.onTap,
     this.onLongPress,
+    this.onEditDate,
     this.onReserve,
     this.reserved = false,
   });
@@ -594,6 +626,10 @@ class _WishTile extends StatelessWidget {
   final VoidCallback onToggle;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+
+  /// Поправить дату исполнения: галочку ставят не в тот день, когда всё
+  /// случилось, и «неправильная дата смысла не имеет».
+  final VoidCallback? onEditDate;
 
   /// Взять вещь на себя. Null у автора желания — ему этой кнопки не видно.
   final VoidCallback? onReserve;
@@ -728,10 +764,30 @@ class _WishTile extends StatelessWidget {
                       if (wish.doneAt != null)
                         Padding(
                           padding: const EdgeInsets.only(top: 3),
-                          child: Text(
-                            s.dayLogDate(wish.doneAt!),
-                            style: AppFonts.onest(
-                                size: 12.5, color: scheme.onSurfaceVariant),
+                          child: InkWell(
+                            onTap: onEditDate,
+                            borderRadius: BorderRadius.circular(8),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 4, vertical: 2),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    s.dayLogDate(wish.doneAt!),
+                                    style: AppFonts.onest(
+                                        size: 12.5,
+                                        color: scheme.onSurfaceVariant),
+                                  ),
+                                  if (onEditDate != null) ...[
+                                    const SizedBox(width: 5),
+                                    Icon(Icons.edit_calendar_rounded,
+                                        size: 14,
+                                        color: scheme.onSurfaceVariant),
+                                  ],
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       if (wish.doneNote.isNotEmpty)

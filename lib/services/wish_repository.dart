@@ -213,6 +213,21 @@ class WishRepository {
     return back;
   }
 
+  /// Правит дату исполнения.
+  ///
+  /// Галочку ставят не в тот же день, когда всё случилось: «в списке желаний
+  /// отмечается дата нажатия галочки, но галочку не всегда ставят сразу»
+  /// (просьба от 01.09.2026). Дату правит любой из пары — список общий.
+  Future<Wish> setDoneAt({
+    required String groupId,
+    required Wish wish,
+    required DateTime at,
+  }) async {
+    final moved = wish.copyWith(doneAt: at);
+    if (groupId.isNotEmpty) await _save(groupId, moved);
+    return moved;
+  }
+
   /// Заметка «как прошло» у сбывшегося желания.
   Future<void> setDoneNote({
     required String groupId,

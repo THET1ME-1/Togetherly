@@ -175,4 +175,26 @@ void main() {
       expect(back.doneNote, isEmpty);
     });
   });
+
+  group('Правка даты исполнения', () {
+    // «Отмечается дата нажатия галочки, но галочку не всегда ставят сразу.
+    // А неправильная дата смысла не имеет» (просьба от 01.09.2026).
+    test('дата меняется, а отметка и автор остаются', () {
+      final marked = wish('w1', done: true, doneAt: DateTime(2026, 9, 1))
+          .copyWith(doneBy: 'u2');
+      final moved = marked.copyWith(doneAt: DateTime(2026, 8, 22, 19, 30));
+      expect(moved.doneAt, DateTime(2026, 8, 22, 19, 30));
+      expect(moved.done, isTrue);
+      expect(moved.doneBy, 'u2');
+      expect(moved.id, marked.id);
+    });
+
+    test('архив пересортируется по поправленной дате', () {
+      final a = wish('a', done: true, doneAt: DateTime(2026, 8, 30));
+      final b = wish('b', done: true, doneAt: DateTime(2026, 8, 20));
+      expect(Wish.fulfilled([a, b]).first.id, 'a');
+      final bMoved = b.copyWith(doneAt: DateTime(2026, 8, 31));
+      expect(Wish.fulfilled([a, bMoved]).first.id, 'b');
+    });
+  });
 }
