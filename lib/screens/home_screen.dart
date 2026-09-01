@@ -3281,6 +3281,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final path = decideUpdatePath(
       sideloaded: await UpdateService.isSideloaded(),
       splitsMissing: await UpdateService.hasMissingSplits(),
+      playServices: await UpdateService.hasPlayServices(),
     );
     if (!mounted) return;
 
@@ -3298,6 +3299,12 @@ class _HomeScreenState extends State<HomeScreen> {
       // закрывающее приложение. Объясняем сами и ведём в магазин.
       case UpdatePath.brokenInstall:
         await _showBrokenInstallSheetIfDue();
+
+      // Телефон без сервисов Google: Honor и Huawei последних лет, прошивки
+      // без GMS, выключенный Play. Обновлять оттуда нечего, а Play Core на
+      // любой вопрос отвечает своим окном — молчим.
+      case UpdatePath.none:
+        break;
 
       case UpdatePath.playStore:
         try {

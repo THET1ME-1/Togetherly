@@ -21,6 +21,11 @@ enum UpdatePath {
   /// состоянии показывает собственное английское окно и закрывает приложение,
   /// поэтому его не зовём и объясняем всё сами.
   brokenInstall,
+
+  /// Обновляться нечем и спрашивать некого: на телефоне нет работающих
+  /// сервисов Google. Молчим — предлагать тут нечего, а Play Core на вызов
+  /// отвечает окном «Check that Google Play is enabled on your device».
+  none,
 }
 
 /// Развилка запуска, вынесенная из экрана, чтобы её можно было проверить
@@ -31,8 +36,13 @@ enum UpdatePath {
 UpdatePath decideUpdatePath({
   required bool sideloaded,
   required bool splitsMissing,
+  required bool playServices,
 }) {
   if (sideloaded) return UpdatePath.sideload;
+  // Сервисы проверяем раньше частей: на телефоне без Google Play переустановка
+  // ничего не чинит, и гнать человека переустанавливать исправное приложение
+  // было бы враньём.
+  if (!playServices) return UpdatePath.none;
   return splitsMissing ? UpdatePath.brokenInstall : UpdatePath.playStore;
 }
 
@@ -134,6 +144,29 @@ class UpdateService {
       // целой: ложное предупреждение хуже пропущенного.
       debugPrint('UpdateService.hasMissingSplits failed: $e');
       return false;
+    }
+  }
+
+  /// Есть ли на телефоне работающие сервисы Google.
+  ///
+  /// Honor и Huawei последних лет продаются без них, и на любом телефоне Play
+  /// можно отключить. Play Core там неработоспособен и на обращение отвечает
+  /// окном «Something went wrong. Check that Google Play is enabled on your
+  /// device», хотя приложение целое и переустановка ничего не меняет.
+  ///
+  /// Канал общий с пушами: тот же вопрос про те же сервисы, второй заводить
+  /// незачем.
+  static Future<bool> hasPlayServices() async {
+    if (!Platform.isAndroid) return false;
+    try {
+      return await const MethodChannel('love_app/fcm')
+              .invokeMethod<bool>('hasServices') ??
+          false;
+    } catch (e) {
+      // Не смогли спросить — считаем, что сервисы есть: молча пропустить
+      // обновление на исправном телефоне хуже, чем задать вопрос Play Core.
+      debugPrint('UpdateService.hasPlayServices failed: $e');
+      return true;
     }
   }
 
