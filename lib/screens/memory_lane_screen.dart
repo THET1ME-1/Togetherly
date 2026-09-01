@@ -41,6 +41,8 @@ import 'package:video_compress/video_compress.dart';
 import 'package:video_player/video_player.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import '../models/daily_task.dart';
+import '../dict_strings.dart';
+import '../models/feed_category.dart';
 import '../models/memory.dart';
 import '../models/memory_sort.dart';
 import '../services/ui_prefs.dart';
@@ -292,26 +294,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   /// Сбрасывается при выходе с экрана — секреты снова прячутся.
   bool _secretUnlocked = false;
 
-  static final List<
-      ({String key, String ru, String en, IconData icon, Set<MemoryType> types})>
-      _feedCategories = [
-    (key: 'moments', ru: 'Моменты', en: 'Moments', icon: Icons.favorite_rounded, types: {MemoryType.photo, MemoryType.video}),
-    (key: 'places', ru: 'Локации', en: 'Locations', icon: Icons.place_rounded, types: {MemoryType.location}),
-    (key: 'music', ru: 'Музыка', en: 'Music', icon: Icons.music_note_rounded, types: {MemoryType.music}),
-    (key: 'video', ru: 'Видео', en: 'Video', icon: Icons.play_circle_fill_rounded, types: {MemoryType.videoLink}),
-    (key: 'notes', ru: 'Заметки', en: 'Notes', icon: Icons.sticky_note_2_rounded, types: {MemoryType.text}),
-    (key: 'books', ru: 'Книги', en: 'Books', icon: Icons.book_rounded, types: {MemoryType.book}),
-    (key: 'movies', ru: 'Фильмы', en: 'Movies', icon: Icons.movie_rounded, types: {MemoryType.movie}),
-  ];
-
   /// Категории, реально присутствующие в ленте (чтобы не показывать пустые теги).
-  List<({String key, String ru, String en, IconData icon, Set<MemoryType> types})>
-      get _presentCategories {
-    final present = _memories.map((m) => m.type).toSet();
-    return _feedCategories
-        .where((c) => c.types.any(present.contains))
-        .toList();
-  }
+  List<FeedCategory> get _presentCategories =>
+      presentFeedCategories(_memories);
 
   bool get _feedFiltered => _favoritesOnly || _categoryKey != null;
 
@@ -321,9 +306,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     if (m.isSecret && !_secretUnlocked) return false;
     if (_favoritesOnly && !m.isSavedBy(_myUid ?? '')) return false;
     if (_categoryKey == null) return true;
-    final cat = _feedCategories.firstWhere((c) => c.key == _categoryKey,
-        orElse: () => _feedCategories.first);
-    return cat.types.contains(m.type);
+    final cat = kFeedCategories.firstWhere((c) => c.key == _categoryKey,
+        orElse: () => kFeedCategories.first);
+    return cat.matches(m);
   }
 
   bool get _hasVisibleMemories =>
@@ -1197,7 +1182,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             for (final c in cats) ...[
               const SizedBox(width: 8),
               _filterTag(
-                label: _ru ? c.ru : c.en,
+                label: trKey(c.dictKey),
                 icon: c.icon,
                 selected: _categoryKey == c.key,
                 onTap: () => setState(() => _categoryKey = c.key),

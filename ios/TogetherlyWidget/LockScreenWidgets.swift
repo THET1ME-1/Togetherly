@@ -21,6 +21,8 @@ private struct LockDaysData {
     let days: Int
     let names: String
     let anniversary: String
+    /// Приложение ни разу не писало этот набор ключей.
+    let untouched: Bool
 }
 
 
@@ -48,8 +50,44 @@ private func loadLockDays() -> LockDaysData {
     return LockDaysData(
         days: startMs > 0 ? daysSince(startMs: startMs) : stored,
         names: s.string("together_\(g)_names"),
-        anniversary: s.string("together_\(g)_anniversary")
+        anniversary: s.string("together_\(g)_anniversary"),
+        untouched: startMs == 0 && s.stringOrNil("together_\(g)_days") == nil
     )
+}
+
+/// Приложение ещё ни разу не писало данные этого виджета.
+///
+/// Отличить «данных нет» от «данные нулевые» можно только по отсутствию
+/// самого ключа: ноль дней и ноль «скучаю» — законные значения, а виджет,
+/// поставленный до первого запуска приложения, показывал те же нули и читался
+/// как сломанный (жалоба 31.08.2026 «виджет есть, данных нет»).
+@available(iOS 16.0, *)
+struct LockEmptyView: View {
+    @Environment(\.widgetFamily) private var family
+
+    var body: some View {
+        switch family {
+        case .accessoryInline:
+            Text("Откройте Togetherly")
+        case .accessoryCircular:
+            ZStack {
+                AccessoryWidgetBackground()
+                Image(systemName: "arrow.down.app")
+                    .font(.system(size: 18))
+            }
+        default:
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Откройте Togetherly")
+                    .font(.system(size: 14, weight: .heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Text("виджет наполнится сразу")
+                    .font(.system(size: 11, weight: .medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+        }
+    }
 }
 
 // MARK: - Дни вместе
@@ -60,6 +98,15 @@ struct LockDaysView: View {
 
     var body: some View {
         let data = loadLockDays()
+        if data.untouched {
+            LockEmptyView()
+        } else {
+            content(data)
+        }
+    }
+
+    @ViewBuilder
+    private func content(_ data: LockDaysData) -> some View {
         switch family {
         case .accessoryInline:
             // Одна строка рядом с часами: сюда влезает только короткая фраза.
@@ -120,6 +167,15 @@ struct LockMissView: View {
     var body: some View {
         let s = Store()
         let g = s.latestGroup("miss_latest_group")
+        if s.stringOrNil("miss_\(g)_my_count") == nil {
+            LockEmptyView()
+        } else {
+            content(s, g)
+        }
+    }
+
+    @ViewBuilder
+    private func content(_ s: Store, _ g: String) -> some View {
         let mine = s.int("miss_\(g)_my_count")
         let theirs = s.int("miss_\(g)_partner_count")
         let name = s.string("miss_\(g)_partner_name")
@@ -183,6 +239,15 @@ struct LockMoodView: View {
     var body: some View {
         let s = Store()
         let g = s.latestGroup("tgmood_latest_group")
+        if s.stringOrNil("tgmood_\(g)_my_label") == nil {
+            LockEmptyView()
+        } else {
+            content(s, g)
+        }
+    }
+
+    @ViewBuilder
+    private func content(_ s: Store, _ g: String) -> some View {
         let mine = s.string("tgmood_\(g)_my_label")
         let theirs = s.string("tgmood_\(g)_partner_label")
         let name = s.string("tgmood_\(g)_partner_name")

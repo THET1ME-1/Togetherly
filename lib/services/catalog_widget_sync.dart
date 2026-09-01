@@ -6,6 +6,7 @@ import '../models/pair_data.dart';
 import '../models/timer_item.dart';
 import 'home_widget_service.dart';
 import 'mood_service.dart';
+import 'pb_data_service.dart';
 
 /// Данные для виджетов нового каталога: «Вместе», «Настроение — плитки»,
 /// «Кольцо года» и «Календарь лет».
@@ -48,6 +49,7 @@ class CatalogWidgetSync {
     required MoodService moods,
     required String myName,
     required String myAvatarUrl,
+    String myUid = '',
     TimerItem? systemTimer,
     TimerItem? defaultTimer,
     int memoriesCount = 0,
@@ -85,9 +87,34 @@ class CatalogWidgetSync {
       );
 
       await _syncMoodTiles(pair: pair, moods: moods);
+      await _syncMiss(pair: pair, myUid: myUid);
     } catch (e) {
       debugPrint('CatalogWidgetSync.sync failed: $e');
     }
+  }
+
+  /// Счётчики «Скучаю» — для виджета-полоски и его собрата на экране
+  /// блокировки.
+  ///
+  /// До 31.08.2026 их писал ТОЛЬКО экран «Виджеты». Виджет экрана блокировки
+  /// ставят прямо с экрана блокировки, а на этот экран приложения человек не
+  /// заходит никогда — и виджет стоял с нулями до первого тихого пуша.
+  static Future<void> _syncMiss({
+    required PairData pair,
+    required String myUid,
+  }) async {
+    if (pair.pairId.isEmpty || myUid.isEmpty) return;
+    final counts = await PbDataService().getMissYouCounts(pair.pairId);
+    if (counts.isEmpty) return;
+    final partnerName = pair.partnerDisplayName.trim();
+    await HomeWidgetService.instance.syncMiss(
+      groupId: pair.pairId,
+      myCount: counts[myUid] ?? 0,
+      partnerCount: counts[pair.partnerUid] ?? 0,
+      partnerName: partnerName,
+      partnerInitial: _initial(partnerName),
+      partnerAvatarUrl: pair.partnerAvatarUrl,
+    );
   }
 
   static Future<void> _syncMoodTiles({
