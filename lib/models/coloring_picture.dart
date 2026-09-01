@@ -87,7 +87,11 @@ class ColoringPicture {
   /// Своя раскраска лежит файлом в папке приложения, встроенная — в ассетах.
   /// Отличаем по префиксу id, чтобы не тащить лишнее поле через canvas_meta:
   /// в паре синхронизируется именно id.
-  bool get isOwn => id.startsWith('own_');
+  bool get isOwn => isOwnId(id);
+
+  /// Своя это раскраска, судя по id. Тот же признак, но до того, как картинка
+  /// найдена: по холсту ходит один id, и по нему решается, где искать контур.
+  static bool isOwnId(String id) => id.startsWith('own_');
 
   String get outlineAsset => 'assets/coloring/$id.png';
 
@@ -110,9 +114,19 @@ class ColoringPicture {
     ColoringPicture(id: 'gaming', titleRu: 'Приставка', titleEn: 'Gaming'),
   ];
 
-  static ColoringPicture? byId(String? id) {
+  /// Картинка по id.
+  ///
+  /// [own] — раскраски, которые человек загрузил сам: их нет в [all], а между
+  /// экранами и в паре ходит только id. Пока их сюда не передавали, свой
+  /// рисунок открывался пустым листом: id вида `own_…` не находился нигде,
+  /// раскраска считалась невыбранной и контур не грузился вовсе.
+  static ColoringPicture? byId(String? id,
+      {List<ColoringPicture> own = const []}) {
     if (id == null || id.isEmpty) return null;
     for (final p in all) {
+      if (p.id == id) return p;
+    }
+    for (final p in own) {
       if (p.id == id) return p;
     }
     return null;

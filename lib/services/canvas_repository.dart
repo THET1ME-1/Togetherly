@@ -35,6 +35,11 @@ class CanvasMetaUpdate {
   final bool? coloringSwap;
   final Map<String, dynamic>? coloringDone;
 
+  /// Ссылка на контур своей раскраски (`pb://media/…`). У встроенных картинок
+  /// контур лежит в ассетах и есть у обоих; свою человек загружает со своего
+  /// телефона, и без этой ссылки партнёру доставался пустой лист.
+  final String? coloringOutline;
+
   const CanvasMetaUpdate({
     this.bgColor,
     this.clearVersion,
@@ -42,6 +47,7 @@ class CanvasMetaUpdate {
     this.coloringMode,
     this.coloringSwap,
     this.coloringDone,
+    this.coloringOutline,
   });
 }
 
@@ -169,6 +175,7 @@ class CanvasRepository {
           coloringMode: (d['coloring_mode'] as String?)?.trim(),
           coloringSwap: d['coloring_swap'] == true,
           coloringDone: done is Map ? Map<String, dynamic>.from(done) : null,
+          coloringOutline: (d['coloring_outline'] as String?)?.trim(),
         );
       });
 
@@ -176,14 +183,21 @@ class CanvasRepository {
       _data.upsertCanvasMeta(groupId, canvasId, bgColor: color);
 
   /// Заводит на холсте раскраску: картинка и режим одни на двоих.
+  ///
+  /// [outlineRef] — ссылка на контур своей раскраски. У встроенных её нет:
+  /// контур лежит в ассетах приложения и одинаков у обоих.
   Future<void> setColoring(
     String groupId,
     String canvasId, {
     required String pictureId,
     required String mode,
+    String? outlineRef,
   }) =>
       _data.upsertCanvasMeta(groupId, canvasId,
-          coloringId: pictureId, coloringMode: mode, coloringDone: const {});
+          coloringId: pictureId,
+          coloringMode: mode,
+          coloringDone: const {},
+          coloringOutline: outlineRef);
 
   /// Отмечает готовность одного из двоих. Карта целиком, а не поле: правку
   /// одного ключа PocketBase в json-поле не умеет.

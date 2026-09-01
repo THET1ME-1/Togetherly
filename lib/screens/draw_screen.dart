@@ -9,10 +9,13 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import '../models/coloring_clamp.dart';
 import '../models/live_stroke_wire.dart';
 import '../models/coloring_picture.dart';
+import '../services/coloring_upload_queue.dart';
+import '../services/pb_media_service.dart';
 import '../utils/canvas_image_cache.dart';
 import '../utils/stroke_layer_cache.dart';
 import '../utils/stroke_save_scheduler.dart';
@@ -300,7 +303,12 @@ class _DrawScreenState extends State<DrawScreen>
   // одинаково, без переговоров.
 
   /// Картинка раскраски. null — обычный холст.
-  ColoringPicture? get _coloring => ColoringPicture.byId(_coloringId);
+  ColoringPicture? get _coloring =>
+      ColoringPicture.byId(_coloringId, own: _ownColorings);
+
+  /// Свои раскраски этого телефона: их нет в каталоге, а по холсту и между
+  /// экранами ходит только id. Список нужен до того, как грузится контур.
+  List<ColoringPicture> _ownColorings = const [];
 
   /// id картинки: из параметра экрана или из меты холста (её мог завести
   /// партнёр — тогда раскраска приезжает сама).
@@ -971,7 +979,17 @@ class _DrawScreenState extends State<DrawScreen>
         remoteColoring != _coloringId) {
       _coloringId = remoteColoring;
       coloringChanged = true;
-      unawaited(_loadColoringOutline());
+      // Свою раскраску партнёр загрузил у себя: сперва забираем контур по
+      // ссылке, иначе на этой стороне остался бы пустой лист.
+      final outline = meta.coloringOutline;
+      if (ColoringPicture.isOwnId(remoteColoring) &&
+          outline != null &&
+          outline.isNotEmpty) {
+        unawaited(_adoptRemoteOutline(remoteColoring, outline)
+            .then((_) => _loadColoringOutline()));
+      } else {
+        unawaited(_loadColoringOutline());
+      }
     }
     final remoteMode = meta.coloringMode;
     if (remoteMode != null && remoteMode.isNotEmpty) {
@@ -3122,9 +3140,28 @@ class _DrawScreenState extends State<DrawScreen>
 
   // ── Раскраска вдвоём ─────────────────────────────────────────────────────
 
+  /// Поднимает свои раскраски с диска: очередь загрузки знает их название и
+  /// пропорцию, а на холст приходит только id. Пока этого не было, свой
+  /// рисунок открывался пустым листом — id `own_…` не находился нигде.
+  Future<void> _ensureOwnColorings() async {
+    final id = _coloringId;
+    if (id == null || !ColoringPicture.isOwnId(id)) return;
+    if (_ownColorings.any((p) => p.id == id)) return;
+    final queue = ColoringUploadQueue.instance;
+    await queue.resume();
+    final own = queue.items
+        .where((i) => i.isReady)
+        .map((i) =>
+            ColoringPicture.own(id: i.id, title: i.title, ratio: i.ratio))
+        .toList();
+    if (!mounted || own.isEmpty) return;
+    setState(() => _ownColorings = own);
+  }
+
   /// Подгружает контур в память: он рисуется поверх мазков каждым кадром,
   /// поэтому держим уже декодированную картинку, а не путь к ассету.
   Future<void> _loadColoringOutline() async {
+    await _ensureOwnColorings();
     final picture = _coloring;
     if (picture == null) return;
     try {
@@ -3167,7 +3204,77 @@ class _DrawScreenState extends State<DrawScreen>
         _canvasId,
         pictureId: pictureId,
         mode: mode.storage,
+        outlineRef: await _shareOwnOutline(pictureId),
       );
+    }
+  }
+
+  /// Кладёт контур своей раскраски в медиа и возвращает ссылку на него.
+  ///
+  /// Встроенные картинки лежат в ассетах и есть у обоих; свою человек загрузил
+  /// со своего телефона, и партнёру доставался пустой лист — по холсту ходит
+  /// один id. Ссылка считается один раз на картинку: id не меняется, файл
+  /// тоже, поэтому второй заход берёт готовую из настроек.
+  Future<String?> _shareOwnOutline(String pictureId) async {
+    if (!ColoringPicture.isOwnId(pictureId)) return null;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString('coloring_outline_ref_$pictureId');
+      if (cached != null && cached.isNotEmpty) return cached;
+      final dir = await getApplicationDocumentsDirectory();
+      final path = '${dir.path}/coloring/$pictureId.png';
+      if (!File(path).existsSync()) return null;
+      final ref = await PbMediaService.instance.uploadFile(
+        path,
+        uid: _myUid,
+        groupId: _groupId,
+        kind: 'coloring',
+      );
+      if (ref != null && ref.isNotEmpty) {
+        await prefs.setString('coloring_outline_ref_$pictureId', ref);
+      }
+      return ref;
+    } catch (e) {
+      debugPrint('раскраска: контур не ушёл партнёру: $e');
+      return null;
+    }
+  }
+
+  /// Забирает контур своей раскраски, заведённой партнёром.
+  ///
+  /// Файла на этом телефоне нет и быть не может — картинку загрузил он. Скачиваем
+  /// по ссылке из меты в тот же каталог, что и свои: дальше разницы нет.
+  Future<void> _adoptRemoteOutline(String pictureId, String ref) async {
+    if (!ColoringPicture.isOwnId(pictureId) || ref.isEmpty) return;
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final file = File('${dir.path}/coloring/$pictureId.png');
+      if (file.existsSync() && file.lengthSync() > 1024) return;
+      final url = await PbMediaService.instance.resolveUrlAuthed(ref);
+      if (url == null || url.isEmpty) return;
+      final res = await http.get(Uri.parse(url)).timeout(
+            const Duration(seconds: 30),
+          );
+      if (res.statusCode != 200 || res.bodyBytes.length < 1024) return;
+      await file.parent.create(recursive: true);
+      await file.writeAsBytes(res.bodyBytes);
+      final codec = await ui.instantiateImageCodec(res.bodyBytes);
+      final frame = await codec.getNextFrame();
+      final image = frame.image;
+      if (!mounted) return;
+      setState(() {
+        _ownColorings = [
+          ..._ownColorings.where((p) => p.id != pictureId),
+          ColoringPicture.own(
+            id: pictureId,
+            title: LocaleService.current.coloringOwnDefaultName,
+            ratio: image.height == 0 ? 1.0 : image.width / image.height,
+          ),
+        ];
+        _coloringOutline = image;
+      });
+    } catch (e) {
+      debugPrint('раскраска: контур партнёра не скачался: $e');
     }
   }
 

@@ -2369,7 +2369,8 @@ class PbDataService {
       String? coloringId,
       String? coloringMode,
       bool? coloringSwap,
-      Map<String, dynamic>? coloringDone}) async {
+      Map<String, dynamic>? coloringDone,
+      String? coloringOutline}) async {
     if (groupId.isEmpty) return false;
     final body = <String, dynamic>{
       'group_id': groupId,
@@ -2382,6 +2383,9 @@ class PbDataService {
     if (coloringId != null) body['coloring_id'] = coloringId;
     if (coloringMode != null) body['coloring_mode'] = coloringMode;
     if (coloringDone != null) body['coloring_done'] = coloringDone;
+    // Контур своей раскраски: у встроенных он в ассетах, свой человек загрузил
+    // со своего телефона — без ссылки партнёру достаётся пустой лист.
+    if (coloringOutline != null) body['coloring_outline'] = coloringOutline;
     // Половины поменяны местами — общее решение пары, иначе стороны разъедутся.
     if (coloringSwap != null) body['coloring_swap'] = coloringSwap;
     return _upsertByFilter('canvas_meta',
