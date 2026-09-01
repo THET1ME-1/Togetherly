@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:image_picker/image_picker.dart' show XFile;
 
+import 'lost_pick.dart';
 import 'photo_orientation.dart';
 
 /// Безопасная обёртка над image_picker.
@@ -25,14 +26,21 @@ import 'photo_orientation.dart';
 Future<T?> safePick<T>(
   Future<T?> Function() pick, {
   void Function(PlatformException e)? onError,
+  String? intent,
 }) async {
   if (_pickerBusy) {
     debugPrint('safePick: пикер уже открыт, повторный вызов пропущен');
     return null;
   }
   _pickerBusy = true;
+  // Пока открыта системная галерея, приложение стоит в фоне, и система вправе
+  // его убить — на бюджетных телефонах это занимает секунды. Намерение живёт в
+  // настройках, чтобы после перезапуска было понятно, куда нёс снимок человек.
+  if (intent != null) await rememberPickIntent(intent);
   try {
-    return await _upright(await pick());
+    final got = await _upright(await pick());
+    if (intent != null) await forgetPickIntent();
+    return got;
   } on PlatformException catch (e) {
     debugPrint('safePick: image_picker failed (${e.code})');
     _reportPickFailure(e.code, e);

@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:exif/exif.dart';
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
+
+import '../utils/lost_pick.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:video_compress/video_compress.dart';
@@ -38,10 +40,16 @@ class MemoryPhotoFormScreen extends StatefulWidget {
   final AppTheme theme;
   final MemoryPhotoSaveCallback onSave;
 
+  /// Снимки, уцелевшие после того, как систему убила процесс во время выбора.
+  /// Проходят тот же путь, что и выбранные вручную: потолок файла, координаты
+  /// из EXIF, миниатюры видео.
+  final List<XFile> initialMedia;
+
   const MemoryPhotoFormScreen({
     super.key,
     required this.theme,
     required this.onSave,
+    this.initialMedia = const [],
   });
 
   @override
@@ -79,6 +87,18 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    // Снимки, пережившие смерть процесса во время выбора: человек их уже
+    // выбрал, заставлять его повторять — значит потерять их второй раз.
+    if (widget.initialMedia.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _acceptPicked(widget.initialMedia),
+      );
+    }
+  }
+
+  @override
   void dispose() {
     _titleCtrl.dispose();
     _captionCtrl.dispose();
@@ -96,9 +116,20 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
 
   Future<void> _pickMedia() async {
     try {
-      final picked = await safePick(() => ImagePicker().pickMultipleMedia());
+      final picked = await safePick(
+        () => ImagePicker().pickMultipleMedia(),
+        intent: kPickIntentMemory,
+      );
       if (picked == null || picked.isEmpty || !mounted) return;
+      await _acceptPicked(picked);
+    } catch (e) {
+      _showError(LocaleService.current.failedSelectPhotos(e.toString()));
+    }
+  }
 
+  /// Приём пачки файлов в форму: и от галереи, и от восстановления.
+  Future<void> _acceptPicked(List<XFile> picked) async {
+    try {
       // Потолок файла: 100 МБ обычно, 200 с Togetherly+. Проверяем ДО добавления
       // в форму — иначе тяжёлое видео уходило бы в очередь и висело там, получая
       // отказ сервера уже без человека у экрана.

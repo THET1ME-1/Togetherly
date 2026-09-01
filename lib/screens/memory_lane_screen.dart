@@ -44,6 +44,7 @@ import '../models/daily_task.dart';
 import '../dict_strings.dart';
 import '../models/feed_category.dart';
 import '../models/memory.dart';
+import '../utils/lost_pick.dart';
 import '../models/memory_sort.dart';
 import '../services/ui_prefs.dart';
 import '../models/comment.dart';
@@ -329,6 +330,16 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     _feedScroll.addListener(_onFeedScroll); // ленивая пагинация по скроллу
     _fetchUserLocation();
     widget.pairData.addListener(_onPairChanged);
+    // Систему, убившую нас, пока человек листал галерею, догоняем здесь:
+    // Android держит выбранный снимок и отдаёт его при следующем запуске.
+    // Без этого фото просто пропадало, а человек видел системное окно и решал,
+    // что сломано приложение (жалоба 01.09.2026, realme C67).
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final lost = await recoverLostPick(accept: const {kPickIntentMemory});
+      if (!mounted || lost == null) return;
+      _openMemoryForm(MemoryType.photo, initialMedia: lost.files);
+    });
+
     final createType = widget.openCreateType;
     if (createType != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -4654,7 +4665,11 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   /// Открыть форму создания записи выбранного типа. Раньше это ветвление жило
   /// внутри строки листа; теперь лист — сетка плиток, и переход вызывается
   /// отдельно.
-  void _openMemoryForm(MemoryType type, {String? taskId}) {
+  void _openMemoryForm(
+    MemoryType type, {
+    String? taskId,
+    List<XFile> initialMedia = const [],
+  }) {
     _formTaskId = taskId;
         // Заметка живёт в той же форме, что фото: без выбранного медиа она сама
         // сохраняет пин типом text (`_effectiveType`). Отдельной плитки в листе
@@ -4665,6 +4680,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             MaterialPageRoute(
               builder: (_) => MemoryPhotoFormScreen(
                 theme: widget.theme,
+                initialMedia: initialMedia,
                 onSave: ({
                   required type,
                   required title,
