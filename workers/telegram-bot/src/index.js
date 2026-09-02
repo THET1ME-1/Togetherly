@@ -12,6 +12,7 @@
  */
 
 import { albumDoneKey, albumPartKey, albumPrefix, isCollector, mergeAlbum } from "./album.js";
+import { isBlocked } from "./blocklist.js";
 import {
   chatKey, closedMessage, closedSeenKey, isMarked, isReplyComment, markDelivery,
   noteSeenKey, replyMessage, SYNC_TOKEN_KEY,
@@ -198,6 +199,13 @@ async function handleUpdate(update, env) {
   const message = update.message || update.channel_post;
   if (!message) return;
 
+  // Заблокированному не отвечаем совсем: ни задачи, ни строчки в чат. Молчание
+  // тут лучше отказа — на отказ человек заводит второй аккаунт и пишет снова.
+  if (isBlocked(message.from) || isBlocked({ id: message.chat?.id })) {
+    console.log(`заблокирован: ${message.from?.username || message.chat?.id}`);
+    return;
+  }
+
   const single = mediaOf(message);
   let mediaFileId = single.fileId;
   let mediaMime = single.mime;
@@ -381,7 +389,12 @@ async function pollTodoist(env) {
     }
     const text = replyMessage(note.content);
     if (!text) continue;
-    const outcome = await tgSend(env, JSON.parse(bound).chatId, text);
+    const { chatId } = JSON.parse(bound);
+    if (isBlocked({ id: chatId })) {
+      await markComment(env, note.id, note.content, { ok: false, reason: "адресат заблокирован" });
+      continue;
+    }
+    const outcome = await tgSend(env, chatId, text);
     await markComment(env, note.id, note.content, outcome);
     console.log(`ответ по задаче ${note.item_id}: ` +
         (outcome.ok ? "доставлен" : `не дошёл (${outcome.reason})`));
@@ -393,7 +406,9 @@ async function pollTodoist(env) {
     if (await env.ALBUMS.get(seen)) continue;
     const bound = await env.ALBUMS.get(chatKey(item.id));
     if (!bound) continue;
-    await tgSend(env, JSON.parse(bound).chatId, closedMessage(item.content));
+    const { chatId } = JSON.parse(bound);
+    if (isBlocked({ id: chatId })) continue;
+    await tgSend(env, chatId, closedMessage(item.content));
     await env.ALBUMS.put(seen, "1", { expirationTtl: 60 * 60 * 24 * 180 });
     console.log(`закрытие ушло по задаче ${item.id}`);
   }
