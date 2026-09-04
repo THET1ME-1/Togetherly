@@ -2133,6 +2133,7 @@ abstract class AppStrings {
   String get addMore;
   String get fromDevice;
   String get fromFeed;
+  String get carouselSaveFailed;
 
   // ── Profile screen ──
   String get cropAvatarTitle;

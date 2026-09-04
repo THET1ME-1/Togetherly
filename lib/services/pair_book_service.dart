@@ -152,13 +152,15 @@ class PairBookService {
   Future<Uint8List> _shrink(Uint8List bytes) async {
     if (!Platform.isAndroid && !Platform.isIOS) return bytes;
     try {
+      // Предел по времени: зависший нативный кодек не бросает исключение, и
+      // сборка книги встала бы намертво (разбор 04.09.2026).
       final smaller = await FlutterImageCompress.compressWithList(
         bytes,
         minWidth: kBookPhotoSide,
         minHeight: kBookPhotoSide,
         quality: 82,
         format: CompressFormat.jpeg,
-      );
+      ).timeout(const Duration(seconds: 20));
       return smaller.isEmpty ? bytes : smaller;
     } catch (e) {
       debugPrint('PairBook: снимок не ужался ($e)');

@@ -868,7 +868,19 @@ class _WidgetScreenState extends State<WidgetScreen>
     PaintingBinding.instance.imageCache.clear();
     PaintingBinding.instance.imageCache.clearLiveImages();
 
-    await hws.refreshPhotoOfDay(_pair.pairId, widgetId: widgetId);
+    // Набор уже сохранён — дальше идёт наполнение самого виджета: скачать
+    // каждый снимок, ужать, положить в контейнер. Восемь фото по мобильной
+    // сети — это минуты, и всё это время лист держал человека спиннером
+    // («после добавления фото бесконечная загрузка», 04.09.2026). Ждём
+    // недолго и отпускаем: обновление доделает себя само, а следующий заход
+    // на экран покажет результат.
+    try {
+      await hws
+          .refreshPhotoOfDay(_pair.pairId, widgetId: widgetId)
+          .timeout(const Duration(seconds: 12));
+    } on TimeoutException {
+      debugPrint('_saveCarouselForWidget: виджет наполнится в фоне');
+    }
     await _loadPhotoDayWidgets();
   }
 

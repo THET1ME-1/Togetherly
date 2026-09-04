@@ -3169,6 +3169,8 @@ abstract class DictStrings extends AppStrings {
   @override
   String get fromFeed => _t('fromFeed');
   @override
+  String get carouselSaveFailed => _t('carouselSaveFailed');
+  @override
   String get cropAvatarTitle => _t('cropAvatarTitle');
   @override
   String get avatarTitle => _t('avatarTitle');

@@ -67,6 +67,15 @@ const Map<String, Map<String, String>> photoCarouselEditorStrings = {
     'fr': 'Depuis l’appareil',
     'de': 'Vom Gerät',
   },
+  'carouselSaveFailed': {
+    'ru': 'Не удалось сохранить. Проверьте связь и попробуйте ещё раз',
+    'en': 'Couldn’t save. Check your connection and try again',
+    'pt': 'Não foi possível salvar. Verifique a conexão e tente de novo',
+    'it': 'Salvataggio non riuscito. Controlla la connessione e riprova',
+    'es': 'No se pudo guardar. Revisa la conexión e inténtalo de nuevo',
+    'fr': 'Échec de l’enregistrement. Vérifiez la connexion et réessayez',
+    'de': 'Speichern fehlgeschlagen. Prüfe die Verbindung und versuche es erneut',
+  },
   'fromFeed': {
     'ru': 'Из ленты',
     'en': 'From feed',

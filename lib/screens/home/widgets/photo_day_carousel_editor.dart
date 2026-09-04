@@ -56,6 +56,9 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
   late String _rotationType;
   late int _rotationInterval;
   bool _isSaving = false;
+
+  /// Последняя попытка сохранить не удалась — лист говорит об этом словами.
+  bool _saveError = false;
   // Были ли фото при открытии редактора — нужно, чтобы разрешить «Удалить фото»
   // (сохранение пустого списка), когда пользователь убрал все ранее выбранные.
   bool _hadInitialPhotos = false;
@@ -204,7 +207,10 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
   Future<void> _save() async {
     // Пустой список — это валидное действие «удалить все фото»: сохраняем его,
     // чтобы можно было очистить выбранные фото (в т.ч. «Фото для партнёра»).
-    setState(() => _isSaving = true);
+    setState(() {
+      _isSaving = true;
+      _saveError = false;
+    });
     try {
       await widget.onSave(
         paths: List<String>.from(_paths),
@@ -213,7 +219,10 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
       );
       if (mounted) Navigator.pop(context);
     } catch (e) {
+      // Отказ уходил в один debugPrint: спиннер гас, лист оставался открытым, и
+      // человек не знал, сохранилось ли хоть что-то (жалоба 04.09.2026).
       debugPrint('Error saving carousel: $e');
+      if (mounted) setState(() => _saveError = true);
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -341,6 +350,24 @@ class _PhotoDayCarouselEditorState extends State<PhotoDayCarouselEditor> {
                   ],
                 ),
               ),
+              if (_saveError)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+                  child: Row(
+                    children: [
+                      Icon(Icons.error_outline_rounded,
+                          size: 16, color: Colors.red.shade400),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          LocaleService.current.carouselSaveFailed,
+                          style: AppFonts.onest(
+                              size: 12, color: Colors.red.shade400),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               SafeArea(
                 top: false,
                 child: Padding(

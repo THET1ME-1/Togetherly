@@ -110,13 +110,15 @@ Future<String?> _normalizeOrientation(String sourcePath) async {
       return target;
     }
 
+    // Предел по времени: зависший нативный кодек future не возвращает вовсе, и
+    // экран обрезки остался бы с вечным ожиданием (разбор 04.09.2026).
     final result = await FlutterImageCompress.compressAndGetFile(
       sourcePath,
       target,
       quality: 95,
       autoCorrectionAngle: true,
       keepExif: false,
-    );
+    ).timeout(const Duration(seconds: 20));
     return result?.path;
   } catch (_) {
     return null;

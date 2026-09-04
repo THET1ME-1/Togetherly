@@ -3435,12 +3435,19 @@ class HomeWidgetService {
   Future<Uint8List> _shrinkForWidget(Uint8List bytes, int maxSide) async {
     if (!Platform.isAndroid && !Platform.isIOS) return bytes;
     try {
+      // Предел обязателен. Нативный кодек на части устройств зависает на
+      // некоторых снимках и НИКОГДА не возвращает future, а `try/catch` такой
+      // вызов не ловит: зависший future не бросает — он просто не завершается.
+      // На этом пути стоит человек: сохранение фото-виджета ждёт обновления
+      // виджета, а оно ждёт сжатия. Жалоба @hi_no_kate (04.09.2026) звучала
+      // как «после добавления фото бесконечная загрузка». Ту же грабку уже
+      // закрывали в `MediaService.uploadFile`.
       final smaller = await FlutterImageCompress.compressWithList(
         bytes,
         minWidth: maxSide,
         minHeight: maxSide,
         quality: 85,
-      );
+      ).timeout(const Duration(seconds: 20));
       // Пустой ответ — формат не по зубам компрессору (например, ставший
       // популярным avif): отдаём исходник, лучше большой, чем никакой.
       return smaller.isEmpty ? bytes : smaller;
