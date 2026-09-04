@@ -11,6 +11,14 @@ webp, а он перекодирует такую миниатюру в PNG, и 
 таким же webp, что и всё прочее, поэтому в админке он ничем не отличается от
 обычной фотографии.
 
+Видео проходит тем же путём, только картинку из него достаёт ffmpeg: секунда
+от начала, один кадр, дальше общий Pillow. Без этого девять тысяч роликов
+стояли в ленте пустыми плитками с надписью «кадр ещё готовится» — генератор
+обходил их по расширению, и промах не закрывался никогда. Первый кадр часто
+чёрный (камера открывает диафрагму), поэтому берём секунду; ролик короче —
+отступаем в ноль. Звук картинки не имеет вовсе, и он по-прежнему пропускается:
+его в ленте рисует не миниатюра, а плашка.
+
 Два размера на файл, и оба нужны:
   512  — плитка сетки, обрезка по центру в квадрат (365 css × dpr 2 — 360 мылит);
   1600 — полноэкранный просмотр, вписано по длинной стороне.
@@ -23,18 +31,28 @@ webp, а он перекодирует такую миниатюру в PNG, и 
   thumb_cache.py --rebuild        пересобрать, не пропуская готовые
 """
 import os
+import shutil
 import sqlite3
+import subprocess
 import sys
+import tempfile
 
 from PIL import Image, ImageOps
 import pillow_heif
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import pb_storage
 
 DB = "/opt/pocketbase/pb_data/data.db"
 STORE = "/opt/pocketbase/pb_data/storage/pbc_2708086759"
 CACHE = "/opt/pocketbase/pb_data/thumb_cache"
 NEWEST = 600  # прогрев кроном: свежие записи и есть то, что смотрят
 SIZES = {512: 74, 1600: 82}  # ширина → качество webp
-SKIP_EXT = (".mp4", ".mov", ".m4a", ".aac", ".webm", ".mp3", ".wav")
+SKIP_EXT = (".m4a", ".aac", ".mp3", ".wav", ".ogg", ".flac")  # звук: кадра нет
+VIDEO_EXT = (".mp4", ".mov", ".webm", ".mkv", ".avi")
+FFMPEG = "/usr/bin/ffmpeg"
+FRAME_AT = "1"          # секунда, с которой берём кадр
+FFMPEG_TIMEOUT = 20
 
 # Снимки с айфонов (HEIC) браузеры, кроме Safari, не рисуют вовсе, и раньше их
 # обходил отдельный кэш. Теперь они идут общим путём: libheif читает исходник,
@@ -66,6 +84,34 @@ def out_path(rec_id, width):
     return os.path.join(CACHE, "%s_%d.webp" % (rec_id, width))
 
 
+def video_frame(src, workdir):
+    """Кадр из ролика в png. Пусто — значит ffmpeg не справился.
+
+    Одно ядро на ролик (`-threads 1`) и `nice`: генератор ходит сюда прямо из
+    запроса ленты, а рядом на этой же машине живут PocketBase и панель.
+    Раскодировать больше одного кадра незачем, поэтому `-ss` стоит до `-i` —
+    так ffmpeg прыгает по ключевым кадрам, а не проигрывает файл до нужной
+    секунды.
+    """
+    dst = os.path.join(workdir, "frame.png")
+    for отступ in (FRAME_AT, "0"):
+        try:
+            subprocess.run(
+                ["nice", "-n", "10", FFMPEG, "-v", "error", "-y", "-threads", "1",
+                 "-ss", отступ, "-i", src, "-frames:v", "1", dst],
+                capture_output=True, timeout=FFMPEG_TIMEOUT, check=False)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            print("кадр не достался:", exc)
+            return ""
+        if os.path.exists(dst) and os.path.getsize(dst) > 0:
+            return dst
+        # Ролик короче секунды: пустой файл после первой попытки помешает
+        # второй — ffmpeg молча решит, что писать некуда.
+        if os.path.exists(dst):
+            os.remove(dst)
+    return ""
+
+
 def build(rec_id, name):
     """Вернуть число сделанных файлов. Оба размера читают исходник один раз."""
     if name.lower().endswith(SKIP_EXT):
@@ -74,29 +120,42 @@ def build(rec_id, name):
         os.path.exists(out_path(rec_id, w)) and os.path.getsize(out_path(rec_id, w)) > 0)]
     if not need:
         return 0
-    src = os.path.join(STORE, rec_id, name)
-    if not os.path.exists(src):
+    # Исходник может лежать уже не на диске, а в бакете — модуль знает оба места.
+    holder = pb_storage.Source(rec_id, name).open()
+    if not holder.path:
         return 0
-    base = Image.open(src)
-    base.load()
-    base = ImageOps.exif_transpose(base)
-    if base.mode not in ("RGB", "L"):
-        base = base.convert("RGB")
-    made = 0
-    for w in sorted(need):
-        im = base.copy()
-        if w == 512:
-            # Плитка квадратная: вписывать нельзя, иначе в сетке поля по краям.
-            im = ImageOps.fit(im, (w, w), Image.LANCZOS, centering=(0.5, 0.42))
-        else:
-            im.thumbnail((w, w), Image.LANCZOS)
-        tmp = out_path(rec_id, w) + ".part"
-        im.save(tmp, "WEBP", quality=SIZES[w], method=4)
-        # Готовый файл появляется одним движением: крон и роут ходят сюда
-        # одновременно, и недописанный webp попал бы в браузер.
-        os.replace(tmp, out_path(rec_id, w))
-        made += 1
-    return made
+    frames = ""
+    try:
+        рисунок = holder.path
+        if name.lower().endswith(VIDEO_EXT):
+            frames = tempfile.mkdtemp(prefix="thumbvid_")
+            рисунок = video_frame(holder.path, frames)
+            if not рисунок:
+                return 0
+        base = Image.open(рисунок)
+        base.load()
+        base = ImageOps.exif_transpose(base)
+        if base.mode not in ("RGB", "L"):
+            base = base.convert("RGB")
+        made = 0
+        for w in sorted(need):
+            im = base.copy()
+            if w == 512:
+                # Плитка квадратная: вписывать нельзя, иначе в сетке поля по краям.
+                im = ImageOps.fit(im, (w, w), Image.LANCZOS, centering=(0.5, 0.42))
+            else:
+                im.thumbnail((w, w), Image.LANCZOS)
+            tmp = out_path(rec_id, w) + ".part"
+            im.save(tmp, "WEBP", quality=SIZES[w], method=4)
+            # Готовый файл появляется одним движением: крон и роут ходят сюда
+            # одновременно, и недописанный webp попал бы в браузер.
+            os.replace(tmp, out_path(rec_id, w))
+            made += 1
+        return made
+    finally:
+        holder.close()
+        if frames:
+            shutil.rmtree(frames, ignore_errors=True)
 
 
 done = failed = 0
