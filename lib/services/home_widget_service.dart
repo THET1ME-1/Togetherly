@@ -18,6 +18,8 @@ import 'widget_owner.dart';
 import '../utils/couple_days.dart';
 import 'widget_photo_cache.dart';
 import 'widget_photo_store.dart';
+import 'widget_image_limit.dart';
+import 'pair_widget_payload.dart';
 import '../theme/app_theme.dart';
 import 'pb_auth_service.dart';
 import '../models/ios_widget_gaps.dart';
@@ -250,10 +252,28 @@ class HomeWidgetService {
     await LocaleService.instance.init();
     // В фоне нужны СВЕЖИЕ данные на каждое событие — сбрасываем TTL-кэш.
     invalidateWidgetDataCache();
+    // Парный виджет — по ВСЕМ связям человека, а не только по открытой в
+    // приложении. Пока фон брал единственную пару из `love_widget_group_id`,
+    // виджет второй связи застывал до переключения (правило и предел —
+    // pairsToRefresh в pair_widget_payload.dart).
+    List<String> allGroups = const [];
     try {
-      await refreshLoveWidgetFromServer(groupId, myUid, partnerUid);
+      allGroups = await PbDataService().activeGroupIdsForUser(myUid);
     } catch (e) {
-      debugPrint('HomeWidgetService.backgroundRefreshAll love failed: $e');
+      debugPrint('HomeWidgetService.backgroundRefreshAll groups failed: $e');
+    }
+    for (final target
+        in pairsToRefresh(groups: allGroups, activeGroupId: groupId)) {
+      try {
+        await refreshLoveWidgetFromServer(
+          target.groupId,
+          myUid,
+          target.groupId == groupId ? partnerUid : '',
+          shared: target.shared,
+        );
+      } catch (e) {
+        debugPrint('HomeWidgetService.backgroundRefreshAll love failed: $e');
+      }
     }
     if (refreshPhotos) {
       try {
@@ -328,39 +348,120 @@ class HomeWidgetService {
   Future<void> refreshLoveWidgetFromServer(
     String groupId,
     String myUid,
-    String partnerUid,
-  ) async {
-    final myRec = await PbDataService().loadWidget(groupId, myUid);
-    if (myRec != null) {
-      final d = WidgetData.fromPb(myRec);
-      await Future.wait([
-        HomeWidget.saveWidgetData<String>('my_status', d.status),
-        HomeWidget.saveWidgetData<String>('my_mood', d.moodLabel),
-        HomeWidget.saveWidgetData<String>('my_message', d.message),
-        HomeWidget.saveWidgetData<String>('my_music_title', d.musicTitle ?? ''),
-        HomeWidget.saveWidgetData<String>(
-            'my_music_artist', d.musicArtist ?? ''),
-      ]);
-    }
-    if (partnerUid.isNotEmpty) {
-      final partnerRec = await PbDataService().loadWidget(groupId, partnerUid);
-      if (partnerRec != null) {
-        final d = WidgetData.fromPb(partnerRec);
-        await Future.wait([
-          HomeWidget.saveWidgetData<String>('partner_status', d.status),
-          HomeWidget.saveWidgetData<String>('partner_mood', d.moodLabel),
-          HomeWidget.saveWidgetData<String>('partner_message', d.message),
-          HomeWidget.saveWidgetData<String>(
-              'partner_music_title', d.musicTitle ?? ''),
-          HomeWidget.saveWidgetData<String>(
-              'partner_music_artist', d.musicArtist ?? ''),
-        ]);
+    String partnerUid, {
+    bool shared = true,
+  }) async {
+    // Обе половины одной выборкой: партнёра ищем по записям группы, а не по
+    // `love_widget_partner_uid`. Тот ключ пуст у всех, кто собрал пару до его
+    // появления, и по нему фон не обновлял половину партнёра вовсе. Заодно это
+    // один запрос вместо двух, а фону идти по всем связям человека.
+    final rows = await PbDataService().loadWidgetsForGroup(groupId);
+    WidgetData? my;
+    WidgetData? partner;
+    for (final rec in rows) {
+      final d = WidgetData.fromPb(rec);
+      if (d.uid == myUid) {
+        my = d;
+      } else if (partner == null || d.uid == partnerUid) {
+        partner = d;
       }
     }
+
+    // Ключи собирает ТОТ ЖЕ сборщик, что и передний план. Пока здесь стоял свой
+    // список из десяти текстовых ключей, при закрытом приложении обновлялись
+    // только статус, настроение, сообщение и музыка: фото, аватарки, значки
+    // настроения и имена не менялись НИКОГДА. Сторож —
+    // test/services/pair_widget_background_test.dart.
+    //
+    // [shared] — обновлять ли заодно старые общие ключи. Пар у человека может
+    // быть несколько, и фон проходит по всем: в общие ключи пишет только та,
+    // что открыта в приложении, иначе связи снова затирали бы друг друга.
+    final texts = pairWidgetPayload(my: my, partner: partner);
+    if (shared) {
+      for (final e in texts.entries) {
+        await HomeWidget.saveWidgetData<String>(e.key, e.value);
+      }
+    }
+    for (final e in pairWidgetKeysFor(groupId, texts).entries) {
+      await HomeWidget.saveWidgetData<String>(e.key, e.value);
+    }
+
+    final media = pairWidgetMedia(my: my, partner: partner);
+    Future<void> put(String key, String value) async {
+      if (shared) await HomeWidget.saveWidgetData<String>(key, value);
+      await HomeWidget.saveWidgetData<String>(
+          pairWidgetKey(groupId, key), value);
+    }
+
+    if (media.myPhoto != null) await put('my_photo_url', media.myPhoto!);
+    if (media.partnerPhoto != null) {
+      await put('partner_photo_url', media.partnerPhoto!);
+    }
+    if (media.myAvatar != null) await put('my_avatar_url', media.myAvatar!);
+    if (media.partnerAvatar != null) {
+      await put('partner_avatar_url', media.partnerAvatar!);
+    }
+    if (groupId.isNotEmpty) {
+      if (shared) {
+        await HomeWidget.saveWidgetData<String>(
+            kPairWidgetLatestGroupKey, groupId);
+      }
+      await HomeWidget.saveWidgetData<String>(pairWidgetReadyKey(groupId), '1');
+    }
+
+    // Тексты — на стол сразу, отдельным обновлением. На iPhone сюда приводит
+    // тихий пуш, а он даёт считанные секунды: движок гасят по таймауту, и без
+    // этого шага оборванная закачка утащила бы за собой и свежий статус.
     await HomeWidget.updateWidget(
       name: 'LoveWidgetProvider',
       androidName: 'LoveWidgetProvider',
     );
+
+    // Картинки кладём файлами в контейнер: виджет умеет только файлы. Половину
+    // без данных не трогаем — правило одно на оба пути (pair_widget_payload).
+    // Предел по времени тут не роскошь: неудачная закачка не должна съесть всё
+    // отпущенное пробуждение — что успели, то и покажем, остальное догонит
+    // следующий проход (он же и не пойдёт в сеть за тем, что уже на диске).
+    try {
+      await Future.wait([
+        _savePairImage(groupId, 'my_photo_path', media.myPhoto, shared),
+        _savePairImage(groupId, 'partner_photo_path', media.partnerPhoto, shared),
+        _savePairImage(groupId, 'my_avatar_path', media.myAvatar, shared),
+        _savePairImage(
+            groupId, 'partner_avatar_path', media.partnerAvatar, shared),
+        _savePairEmoji(
+            groupId, 'my_mood_emoji_path', media.myMoodEmoji, shared),
+        _savePairEmoji(groupId, 'partner_mood_emoji_path',
+            media.partnerMoodEmoji, shared),
+      ]).timeout(const Duration(seconds: 20));
+    } catch (e) {
+      debugPrint('refreshLoveWidgetFromServer: картинки не успели — $e');
+    }
+
+    await HomeWidget.updateWidget(
+      name: 'LoveWidgetProvider',
+      androidName: 'LoveWidgetProvider',
+    );
+  }
+
+  // Файл готовим ПО КЛЮЧУ ПАРЫ: и запись кэша, и имя файла берут ключ. Пока он
+  // был общим на все связи, фон, дойдя до второй пары, переписывал запись кэша
+  // первой и сносил её снимок уборкой старых файлов — пары воевали за один
+  // файл, и виджет первой оставался с путём в пустоту.
+  Future<void> _savePairImage(
+      String groupId, String key, String? url, bool shared) async {
+    final path = await pairImagePath(pairWidgetKey(groupId, key), url);
+    if (path == null) return;
+    if (shared) await HomeWidget.saveWidgetData<String>(key, path);
+    await HomeWidget.saveWidgetData<String>(pairWidgetKey(groupId, key), path);
+  }
+
+  Future<void> _savePairEmoji(
+      String groupId, String key, String? assetPath, bool shared) async {
+    final path = await pairEmojiPath(pairWidgetKey(groupId, key), assetPath);
+    if (path == null) return;
+    if (shared) await HomeWidget.saveWidgetData<String>(key, path);
+    await HomeWidget.saveWidgetData<String>(pairWidgetKey(groupId, key), path);
   }
 
   /// Крупный mood-виджет (MoodWidgetProvider) из фона: эмодзи/метку/тир/цвет
@@ -498,6 +599,227 @@ class HomeWidgetService {
     } catch (e) {
       debugPrint('HomeWidgetService.clearAppGroupMedia failed: $e');
     }
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  КАРТИНКИ ПАРНОГО ВИДЖЕТА
+  // ════════════════════════════════════════════════════════════════════════
+
+  /// Готовит картинку половины парного виджета и отдаёт путь для контейнера.
+  ///
+  /// `null` в ответе значит «ключ не трогать»: половина не загружена, и стирать
+  /// её нельзя (правило в pair_widget_payload.dart). Пустая строка — картинку
+  /// убрали осознанно, файл в контейнере тоже вычищен.
+  ///
+  /// Живёт здесь, а не в [WidgetService], ровно потому, что нужен обоим: на
+  /// переднем плане ключ пишет служба с проверкой пары, а в фоне —
+  /// [refreshLoveWidgetFromServer], где никакого [WidgetService] нет вовсе. Пока
+  /// код лежал только в службе, фон не обновлял ни фото, ни аватарки, ни значки
+  /// настроения — «меняется только текст» (жалобы 01–03.09.2026).
+  Future<String?> pairImagePath(String key, String? url) async {
+    // null — половина не загружена, трогать её картинку нельзя: иначе каждый
+    // холодный старт и каждый тихий пуш стирают фото с рабочего стола.
+    if (url == null) return null;
+    if (url.isEmpty) {
+      // Фото убрали → чистим старые файлы этого ключа в контейнере, иначе iOS
+      // держал бы закэшированную картинку по прежнему пути.
+      await clearAppGroupMedia(key);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('${key}_cached_url');
+      await prefs.remove('${key}_cached_wpath');
+      return '';
+    }
+    try {
+      String httpUrl = url;
+
+      // pb:// (PocketBase protected media) → HTTPS с file-токеном. Токена нет —
+      // качать нечего: без него сервер отвечает 404, а прежний снимок на
+      // рабочем столе лучше пустоты.
+      if (PbMediaService().isPbRef(url)) {
+        final resolved = await PbMediaService().resolveUrlAuthed(url);
+        if (resolved == null || resolved.isEmpty) return null;
+        httpUrl = resolved;
+      }
+      // Легаси gs:// (Firebase) / sb:// (Supabase) больше не резолвим — Firebase
+      // убран. Такие старые ссылки в виджет не подгрузятся.
+      else if (url.startsWith('gs://') || url.startsWith('sb://')) {
+        return '';
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      final cachedUrl = prefs.getString('${key}_cached_url') ?? '';
+      final cachedWPath = prefs.getString('${key}_cached_wpath') ?? '';
+
+      // Кэш годится только если файл реально на месте: записи переживают
+      // очистку контейнера, а файл — нет, и виджет оставался с путём в пустоту.
+      // Правило — в widget_photo_cache.dart, под тестами.
+      final cachedExists =
+          cachedWPath.isNotEmpty && File(cachedWPath).existsSync();
+      // Размер важнее существования: оборванная запись оставляет нулевой файл,
+      // и он залипал навсегда — «файл на месте» значило «в сеть не идём».
+      final cachedSize = cachedExists ? File(cachedWPath).lengthSync() : 0;
+      if (photoCacheDecision(
+            url: url,
+            cachedUrl: cachedUrl,
+            cachedPath: cachedWPath,
+            cachedFileExists: cachedExists,
+            cachedFileSize: cachedSize,
+          ) ==
+          PhotoCacheAction.useCached) {
+        return cachedWPath;
+      }
+
+      // Уникальное имя = ключ + хэш ссылки. iOS WidgetKit кэширует картинку по
+      // ПУТИ файла: при записи каждого нового фото в ОДИН и тот же файл виджет
+      // держит старое изображение и не перерисовывается (баг «фото не
+      // обновляется, пока стоит другое; уберёшь одно — второе оживает»). Меняя
+      // путь при каждой смене фото, заставляем WidgetKit грузить свежее.
+      final sig = url.hashCode.toUnsigned(32).toRadixString(16);
+      final uniqueName = '${key}_$sig';
+
+      // Один склад на всё приложение: экран и второй виджет-сервис берут ту же
+      // картинку отсюда же, поэтому в сеть идёт только первый (widget_photo_store).
+      final bytes = await WidgetPhotoStore.instance.bytesFor(url, httpUrl);
+
+      if (bytes == null || bytes.length < kMinWidgetPhotoBytes) {
+        debugPrint('pairImagePath($key): на складе пусто для $url');
+        // Прежнее живое фото лучше пустоты: один неудачный запрос не должен
+        // стирать снимок с рабочего стола.
+        return photoFallbackOnFailure(
+          cachedPath: cachedWPath,
+          cachedFileExists: cachedExists,
+          cachedFileSize: cachedSize,
+        );
+      }
+
+      final dir = await getApplicationSupportDirectory();
+      final file = File('${dir.path}/$uniqueName.jpg');
+      // Ужимаем ДО записи: расширению виджета отводят около 30 МБ, а снимок с
+      // камеры в разжатом виде занимает под пятьдесят — расширение убивают, и
+      // вместо фотографии остаётся серый прямоугольник. Предел зависит от
+      // ключа: фото 1200 точек, аватарка 400 (widget_image_limit.dart).
+      await file.writeAsBytes(
+        await _shrinkForWidget(bytes, widgetImageMaxSide(key)),
+      );
+
+      // Старые файлы этого ключа (контейнер + локальные) убираем ДО записи нового
+      // пути, чтобы не копились и не оставалось «залипшего» кэша по старому пути.
+      await clearAppGroupMedia(key);
+      _cleanupOldPairPhotos(dir, key, '$uniqueName.jpg');
+
+      final widgetPath = await _toWidgetReadablePath(file.path, uniqueName);
+      await prefs.setString('${key}_cached_url', url);
+      await prefs.setString('${key}_cached_wpath', widgetPath);
+      debugPrint('pairImagePath: $key → $widgetPath');
+      return widgetPath;
+    } catch (e) {
+      // Сюда попадает и недоступный мост App Group (MissingPluginException в
+      // фоновом изоляте): затирать путь пустотой нельзя, иначе фото исчезает.
+      debugPrint('pairImagePath($key) failed: $e');
+      final prefs = await SharedPreferences.getInstance();
+      final prev = prefs.getString('${key}_cached_wpath') ?? '';
+      final exists = prev.isNotEmpty && File(prev).existsSync();
+      return photoFallbackOnFailure(
+        cachedPath: prev,
+        cachedFileExists: exists,
+        cachedFileSize: exists ? File(prev).lengthSync() : 0,
+      );
+    }
+  }
+
+  /// Значок настроения половины: путь к файлу в контейнере или `null`, если
+  /// половину трогать нельзя. Правило то же, что у [pairImagePath].
+  ///
+  /// Настроение приходит либо ассетом сборки, либо ссылкой на картинку из
+  /// каталога — нативный виджет умеет только файлы, поэтому и то и другое
+  /// кладём на диск.
+  Future<String?> pairEmojiPath(String key, String? assetPath) async {
+    if (assetPath == null) return null;
+    if (assetPath.isEmpty) return '';
+    if (assetPath.startsWith('http://') || assetPath.startsWith('https://')) {
+      return _pairEmojiFromUrl(key, assetPath);
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cachedAsset = prefs.getString('${key}_cached_asset') ?? '';
+      final cachedPath = prefs.getString('${key}_cached_path') ?? '';
+
+      if (cachedAsset == assetPath &&
+          cachedPath.isNotEmpty &&
+          File(cachedPath).existsSync()) {
+        return await _toWidgetReadablePath(cachedPath, key);
+      }
+
+      // Грузим ассет; если его нет в этой сборке (партнёр прислал эмодзи из
+      // пака, которого у нас нет — постепенный раскат) — падаем на эквивалент
+      // из классического пака, чтобы показать смайлик, а не пустоту с одной
+      // лишь текстовой меткой.
+      ByteData? byteData;
+      try {
+        byteData = await rootBundle.load(assetPath);
+      } catch (_) {
+        final fallback = MoodOption.classicFallbackFor(assetPath);
+        if (fallback != null) byteData = await rootBundle.load(fallback);
+      }
+      if (byteData == null) return '';
+
+      final dir = await getApplicationSupportDirectory();
+      final file = File('${dir.path}/$key.png');
+      await file.writeAsBytes(byteData.buffer.asUint8List());
+      await prefs.setString('${key}_cached_asset', assetPath);
+      await prefs.setString('${key}_cached_path', file.path);
+      return await _toWidgetReadablePath(file.path, key);
+    } catch (e) {
+      debugPrint('pairEmojiPath($key) failed: $e');
+      return '';
+    }
+  }
+
+  Future<String?> _pairEmojiFromUrl(String key, String url) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cachedAsset = prefs.getString('${key}_cached_asset') ?? '';
+      final cachedPath = prefs.getString('${key}_cached_path') ?? '';
+      if (cachedAsset == url &&
+          cachedPath.isNotEmpty &&
+          File(cachedPath).existsSync()) {
+        return await _toWidgetReadablePath(cachedPath, key);
+      }
+      // Картинку настроения просят оба виджет-сервиса — берём со склада.
+      final resp = await WidgetPhotoStore.instance.bytesFor(url, url);
+      if (resp != null && resp.isNotEmpty) {
+        final dir = await getApplicationSupportDirectory();
+        final file = File('${dir.path}/$key.webp');
+        await file.writeAsBytes(resp);
+        await prefs.setString('${key}_cached_asset', url);
+        await prefs.setString('${key}_cached_path', file.path);
+        return await _toWidgetReadablePath(file.path, key);
+      }
+    } catch (e) {
+      debugPrint('_pairEmojiFromUrl($key) failed: $e');
+    }
+    // Фолбэк: классический ассет по id (имя файла URL = id настроения).
+    final fallback = MoodOption.classicFallbackFor(url);
+    if (fallback != null) return pairEmojiPath(key, fallback);
+    return '';
+  }
+
+  /// Удаляет старые локальные файлы `<key>_*.jpg` (кроме [keepName]) из [dir] —
+  /// чтобы уникальные имена фото не копились на диске.
+  void _cleanupOldPairPhotos(Directory dir, String key, String keepName) {
+    try {
+      for (final f in dir.listSync()) {
+        if (f is! File) continue;
+        final name = f.path.split(Platform.pathSeparator).last;
+        if (name.startsWith('${key}_') &&
+            name.endsWith('.jpg') &&
+            name != keepName) {
+          try {
+            f.deleteSync();
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
   }
 
   Future<String> _toWidgetReadablePath(String localPath, String name) async {

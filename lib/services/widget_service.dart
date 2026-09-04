@@ -1,17 +1,11 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:home_widget/home_widget.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/widget_data.dart';
 import '../models/memory.dart';
 import '../models/mood_entry.dart';
 import 'locale_service.dart';
-import 'widget_photo_cache.dart';
-import 'widget_photo_store.dart';
-import 'widget_image_limit.dart';
 import 'pair_widget_payload.dart';
 import 'media_service.dart';
 import 'home_widget_service.dart';
@@ -20,7 +14,6 @@ import 'memory_repository.dart';
 import 'mood_repository.dart';
 import 'pb_auth_service.dart';
 import 'pb_data_service.dart';
-import 'pb_media_service.dart';
 import 'pb_realtime_service.dart';
 import 'pocketbase_service.dart';
 import 'widget_anim_service.dart';
@@ -80,6 +73,22 @@ class WidgetService extends ChangeNotifier {
   // поменялись фото-поля.
   String? _myPhotoSig;
   final Map<String, String> _partnerPhotoSigs = {};
+
+  // Чья пара лежит в контейнере виджета прямо сейчас. Отвечает на вопрос,
+  // который иначе не отличить: данных о половине нет — это холодный старт той
+  // же пары (ждём, ничего не трогаем) или переключение на другую связь (данным
+  // прежней пары тут не место)? Значение переживает перезапуск процесса, потому
+  // что берётся из самого контейнера. Правило — в pair_widget_payload.dart.
+  String? _containerPairId;
+
+  Future<String> _rememberContainerPair() async {
+    final known = _containerPairId;
+    if (known != null) return known;
+    final stored =
+        await HomeWidget.getWidgetData<String>('love_widget_group_id') ?? '';
+    _containerPairId = stored;
+    return stored;
+  }
 
   /// Фото на МОЕЙ половине парного виджета: только то, что я выбрал для этого
   /// виджета. Фото «для партнёра» — другая функция и сюда не протекает.
@@ -173,6 +182,10 @@ class WidgetService extends ChangeNotifier {
     _groupId = groupId;
     await _loadSettings();
     if (_isDisposed || generation != _bindGeneration) return;
+    // Прежнюю пару запоминаем ДО перезаписи ключа: иначе синхронизация уже не
+    // отличит смену связи от холодного старта и оставит на виджете чужую
+    // половину.
+    await _rememberContainerPair();
     // Persist groupId so the background isolate (onUpdate refresh) can find it
     await HomeWidget.saveWidgetData<String>('love_widget_group_id', groupId);
     _listenToMyData();
@@ -250,9 +263,20 @@ class WidgetService extends ChangeNotifier {
   /// приходится отрабатывать отдельно. Список ключей — в
   /// pair_widget_payload.dart, сторож — test/services/pair_widget_clear_test.dart.
   Future<void> clearPairWidgetData() async {
+    final gone = _containerPairId ?? _groupId;
     try {
       for (final e in pairWidgetClearPayload().entries) {
         await HomeWidget.saveWidgetData<String>(e.key, e.value);
+        // И ключи самой пары: с 04.09.2026 у каждой связи свой набор, и без
+        // этой строки на столе остались бы имя, настроение и лицо бывшего.
+        if (gone.isNotEmpty) {
+          await HomeWidget.saveWidgetData<String>(
+              pairWidgetKey(gone, e.key), e.value);
+        }
+      }
+      if (gone.isNotEmpty) {
+        await HomeWidget.saveWidgetData<String>(pairWidgetReadyKey(gone), '');
+        await HomeWidget.saveWidgetData<String>(kPairWidgetLatestGroupKey, '');
       }
       // Привязка к паре тоже уходит: пары больше нет, и виджет обязан это
       // показать («Подключите партнёра»), а не держать прежнюю подпись.
@@ -592,6 +616,19 @@ class WidgetService extends ChangeNotifier {
 
       if (targetGroupId != _groupId) return;
 
+      // Своя карточка догоняет запись здесь же. Синхронизация ниже собирает
+      // ключи из `_myData`, а её обновляет только SSE-событие: без этой строки
+      // на рабочий стол уезжал ПРЕЖНИЙ снимок, а свежий появлялся, лишь когда
+      // долетит событие — то есть не всегда. Правило под тестами
+      // test/models/widget_data_fields_test.dart.
+      _myData = (_myData ?? WidgetData(uid: uid)).withFields({
+        'displayName': name,
+        'avatarUrl': avatar,
+        'gender': gender,
+        ...fields,
+      });
+      notifyListeners();
+
       // Синхронизируем нативный виджет сразу после записи, не дожидаясь
       // SSE-листенера (Xiaomi убивает процесс слишком быстро).
       await _syncToNativeWidget();
@@ -695,6 +732,12 @@ class WidgetService extends ChangeNotifier {
       final my = _myData;
       final partner = firstPartnerData;
 
+      // Чья пара лежит в контейнере СЕЙЧАС — см. [_containerPairId].
+      final previousPairId = await _rememberContainerPair();
+      final pairChanged = _groupId.isNotEmpty &&
+          previousPairId.isNotEmpty &&
+          previousPairId != _groupId;
+
       // Привязка к паре идёт вместе с данными. `bindToGroup` пишет её один раз
       // и при той же группе выходит первой строкой, поэтому промах записи
       // оставался навсегда: имена обновлялись, а виджет рисовал «Подключите
@@ -711,38 +754,65 @@ class WidgetService extends ChangeNotifier {
         partner: partner,
         myFallbackName: 'Я',
         partnerFallbackName: 'Партнёр',
+        pairChanged: pairChanged,
       );
+      // Пишем дважды: в ключи ЭТОЙ пары (`love_<пара>_<поле>`) и в старые общие.
+      // Первые нужны, чтобы связи не затирали друг друга, вторые — чтобы виджет
+      // не опустел на телефоне, где приложение обновилось, а контейнер по паре
+      // ещё не наполнен. Разбор — в pair_widget_payload.dart.
       for (final e in keys.entries) {
         await HomeWidget.saveWidgetData<String>(e.key, e.value);
       }
+      for (final e in pairWidgetKeysFor(_groupId, keys).entries) {
+        await HomeWidget.saveWidgetData<String>(e.key, e.value);
+      }
+
+      // Картинки половины без данных не трогаем — как и её тексты выше.
+      // Правило и причина в pair_widget_payload.dart, сторож
+      // test/services/pair_widget_media_test.dart. Исключение — смена пары:
+      // тогда картинке прежней связи на виджете места нет.
+      final media =
+          pairWidgetMedia(my: my, partner: partner, pairChanged: pairChanged);
 
       // ── Фото: сохраняем URL, кэшируем локально фоново ──
       // Правило выбора — в pairPhotoOfMine/pairPhotoOfPartner (под тестами
       // test/services/pair_widget_photo_test.dart).
-      if (my != null) {
-        await HomeWidget.saveWidgetData<String>(
-          'my_photo_url',
-          pairPhotoOfMine(my),
-        );
+      Future<void> putBoth(String key, String value) async {
+        await HomeWidget.saveWidgetData<String>(key, value);
+        if (_groupId.isNotEmpty) {
+          await HomeWidget.saveWidgetData<String>(
+              pairWidgetKey(_groupId, key), value);
+        }
       }
-      if (partner != null) {
-        await HomeWidget.saveWidgetData<String>(
-          'partner_photo_url',
-          pairPhotoOfPartner(partner),
-        );
+
+      if (media.myPhoto != null) {
+        await putBoth('my_photo_url', media.myPhoto!);
+      }
+      if (media.partnerPhoto != null) {
+        await putBoth('partner_photo_url', media.partnerPhoto!);
       }
 
       // ── Аватарки для 2-человечного виджета (LoveWidget) ──
       // LoveWidget всё ещё использует старые ключи для 2 людей
-      if (my != null) {
-        await HomeWidget.saveWidgetData<String>('my_avatar_url', my.avatarUrl);
+      if (media.myAvatar != null) {
+        await putBoth('my_avatar_url', media.myAvatar!);
       }
-      if (partner != null) {
+      if (media.partnerAvatar != null) {
+        await putBoth('partner_avatar_url', media.partnerAvatar!);
+      }
+
+      // Указатель на пару и отметка «ключи этой пары разложены»: по ним
+      // нативный виджет решает, читать ли ключи пары или старые общие.
+      if (_groupId.isNotEmpty) {
         await HomeWidget.saveWidgetData<String>(
-          'partner_avatar_url',
-          partner.avatarUrl,
-        );
+            kPairWidgetLatestGroupKey, _groupId);
+        await HomeWidget.saveWidgetData<String>(
+            pairWidgetReadyKey(_groupId), '1');
       }
+
+      // Контейнер теперь про эту пару: следующий проход не станет стирать
+      // половину, данные которой ещё едут.
+      if (_groupId.isNotEmpty) _containerPairId = _groupId;
 
       // ── Обновить виджет на рабочем столе (текстовые данные сразу) ──
       await HomeWidget.updateWidget(
@@ -779,11 +849,6 @@ class WidgetService extends ChangeNotifier {
           limitedMembers[i].avatarUrl,
         );
       }
-
-      // Картинки половины без данных не трогаем — как и её тексты выше.
-      // Правило и причина в pair_widget_payload.dart, сторож
-      // test/services/pair_widget_media_test.dart.
-      final media = pairWidgetMedia(my: my, partner: partner);
 
       // Кэшируем эмодзи из assets → локальные файлы для нативного виджета (фоново)
       Future.wait([
@@ -897,105 +962,21 @@ class WidgetService extends ChangeNotifier {
     });
   }
 
-  /// Копирует Flutter asset с эмодзи в файловый кэш и сохраняет путь
-  /// под ключом [key] в SharedPreferences нативного виджета.
+  /// Кладёт значок настроения половины в контейнер виджета.
+  ///
+  /// Сама подготовка файла живёт в [HomeWidgetService.pairEmojiPath] — она
+  /// нужна и фоновому обновлению, где никакой службы нет.
   Future<void> _cacheEmojiForWidget(String? assetPath, String key) async {
-    // null — данных о половине нет вовсе, ключ не трогаем (правило в
-    // pair_widget_payload.dart). Пустая строка — настроение сняли осознанно.
-    if (assetPath == null) return;
-    if (assetPath.isEmpty) {
-      await HomeWidget.saveWidgetData<String>(key, '');
-      return;
-    }
-    // Удалённое настроение из каталога (публичный URL) — нативный виджет умеет
-    // только локальные файлы, поэтому скачиваем картинку в файл (кэш по URL).
-    if (assetPath.startsWith('http://') || assetPath.startsWith('https://')) {
-      await _cacheEmojiUrlForWidget(assetPath, key);
-      return;
-    }
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final cachedAsset = prefs.getString('${key}_cached_asset') ?? '';
-      final cachedPath = prefs.getString('${key}_cached_path') ?? '';
-
-      if (cachedAsset == assetPath &&
-          cachedPath.isNotEmpty &&
-          File(cachedPath).existsSync()) {
-        await HomeWidget.saveWidgetData<String>(
-            key, await HomeWidgetService.instance.appGroupReadablePath(cachedPath, key));
-        return;
-      }
-
-      // Грузим ассет; если его нет в этой сборке (партнёр прислал эмодзи из
-      // пака, которого у нас нет — постепенный раскат) — падаем на эквивалент
-      // из классического пака, чтобы показать смайлик, а не пустоту с одной
-      // лишь текстовой меткой.
-      ByteData? byteData;
-      try {
-        byteData = await rootBundle.load(assetPath);
-      } catch (_) {
-        final fallback = MoodOption.classicFallbackFor(assetPath);
-        if (fallback != null) byteData = await rootBundle.load(fallback);
-      }
-      if (byteData == null) {
-        await HomeWidget.saveWidgetData<String>(key, '');
-        return;
-      }
-
-      final dir = await getApplicationSupportDirectory();
-      final file = File('${dir.path}/$key.png');
-      await file.writeAsBytes(byteData.buffer.asUint8List());
+    final path = await HomeWidgetService.instance
+        .pairEmojiPath(pairWidgetKey(_groupId, key), assetPath);
+    if (path == null) return;
+    await HomeWidget.saveWidgetData<String>(key, path);
+    if (_groupId.isNotEmpty) {
       await HomeWidget.saveWidgetData<String>(
-          key, await HomeWidgetService.instance.appGroupReadablePath(file.path, key));
-      await prefs.setString('${key}_cached_asset', assetPath);
-      await prefs.setString('${key}_cached_path', file.path);
-      debugPrint('_cacheEmojiForWidget: $key cached at ${file.path}');
-    } catch (e) {
-      debugPrint('_cacheEmojiForWidget($key) failed: $e');
-      await HomeWidget.saveWidgetData<String>(key, '');
+          pairWidgetKey(_groupId, key), path);
     }
   }
 
-  /// Скачать удалённую картинку настроения (URL каталога) в локальный файл для
-  /// нативного виджета. При сбое сети — классический бандл-ассет по id.
-  Future<void> _cacheEmojiUrlForWidget(String url, String key) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final cachedAsset = prefs.getString('${key}_cached_asset') ?? '';
-      final cachedPath = prefs.getString('${key}_cached_path') ?? '';
-      if (cachedAsset == url &&
-          cachedPath.isNotEmpty &&
-          File(cachedPath).existsSync()) {
-        await HomeWidget.saveWidgetData<String>(
-            key, await HomeWidgetService.instance.appGroupReadablePath(cachedPath, key));
-        return;
-      }
-      // Картинку настроения просят оба виджет-сервиса — берём со склада.
-      final resp = await WidgetPhotoStore.instance.bytesFor(url, url);
-      if (resp != null && resp.isNotEmpty) {
-        final dir = await getApplicationSupportDirectory();
-        final file = File('${dir.path}/$key.webp');
-        await file.writeAsBytes(resp);
-        await HomeWidget.saveWidgetData<String>(
-            key, await HomeWidgetService.instance.appGroupReadablePath(file.path, key));
-        await prefs.setString('${key}_cached_asset', url);
-        await prefs.setString('${key}_cached_path', file.path);
-        return;
-      }
-    } catch (e) {
-      debugPrint('_cacheEmojiUrlForWidget($key) failed: $e');
-    }
-    // Фолбэк: классический ассет по id (имя файла URL = id настроения).
-    final fallback = MoodOption.classicFallbackFor(url);
-    if (fallback != null) {
-      await _cacheEmojiForWidget(fallback, key);
-    } else {
-      await HomeWidget.saveWidgetData<String>(key, '');
-    }
-  }
-
-  /// Скачивает изображение по [url] в файловый кэш и сохраняет путь
-  /// под ключом [key] в SharedPreferences нативного виджета.
   /// Ключ виджета пишем, только если пара с тех пор не сменилась.
   ///
   /// Картинки качаются в фоне, а тексты уходят сразу. Пока проверки не было,
@@ -1008,154 +989,30 @@ class WidgetService extends ChangeNotifier {
       return;
     }
     await HomeWidget.saveWidgetData<String>(key, value);
+    // Тот же путь к файлу — и в ключ этой пары: у каждой связи свой набор.
+    if (_groupId.isNotEmpty) {
+      await HomeWidget.saveWidgetData<String>(
+          pairWidgetKey(_groupId, key), value);
+    }
   }
 
+  /// Скачивает картинку и пишет путь в ключ [key] — если пара не сменилась.
+  ///
+  /// Подготовка файла общая с фоновым обновлением:
+  /// [HomeWidgetService.pairImagePath]. `null` в ответе значит «половину не
+  /// трогаем» (правило pair_widget_payload.dart).
   Future<void> _downloadPhoto(
     String? url,
     String key, {
     required int generation,
   }) async {
-    // null — половина не загружена, трогать её картинку нельзя: иначе каждый
-    // холодный старт и каждый тихий пуш стирают фото с рабочего стола вместе с
-    // файлом в общем контейнере (правило в pair_widget_payload.dart).
-    if (url == null) return;
-    if (url.isEmpty) {
-      await _saveIfCurrent(generation, key, '');
-      // Фото убрали → чистим старые файлы этого ключа в контейнере, иначе iOS
-      // держал бы закэшированную картинку по прежнему пути.
-      await HomeWidgetService.instance.clearAppGroupMedia(key);
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('${key}_cached_url');
-      await prefs.remove('${key}_cached_wpath');
-      return;
-    }
-    try {
-      String httpUrl = url;
-
-      // pb:// (PocketBase protected media) → HTTPS с file-токеном. Токена нет —
-      // качать нечего: без него сервер отвечает 404, а прежний снимок на
-      // рабочем столе лучше пустоты.
-      if (PbMediaService().isPbRef(url)) {
-        final resolved = await PbMediaService().resolveUrlAuthed(url);
-        if (resolved == null || resolved.isEmpty) return;
-        httpUrl = resolved;
-      }
-      // Легаси gs:// (Firebase) / sb:// (Supabase) больше не резолвим — Firebase
-      // убран. Такие старые ссылки в виджет не подгрузятся.
-      else if (url.startsWith('gs://') || url.startsWith('sb://')) {
-        await _saveIfCurrent(generation, key, '');
-        return;
-      }
-
-      final prefs = await SharedPreferences.getInstance();
-      final cachedUrl = prefs.getString('${key}_cached_url') ?? '';
-      final cachedWPath = prefs.getString('${key}_cached_wpath') ?? '';
-
-      // Кэш годится только если файл реально на месте: записи переживают
-      // очистку контейнера, а файл — нет, и виджет оставался с путём в пустоту.
-      // Правило — в widget_photo_cache.dart, под тестами.
-      final cachedExists =
-          cachedWPath.isNotEmpty && File(cachedWPath).existsSync();
-      // Размер важнее существования: оборванная запись оставляет нулевой файл,
-      // и он залипал навсегда — «файл на месте» значило «в сеть не идём».
-      final cachedSize = cachedExists ? File(cachedWPath).lengthSync() : 0;
-      if (photoCacheDecision(
-            url: url,
-            cachedUrl: cachedUrl,
-            cachedPath: cachedWPath,
-            cachedFileExists: cachedExists,
-            cachedFileSize: cachedSize,
-          ) ==
-          PhotoCacheAction.useCached) {
-        await _saveIfCurrent(generation, key, cachedWPath);
-        return;
-      }
-
-      // Уникальное имя = ключ + хэш ссылки. iOS WidgetKit кэширует картинку по
-      // ПУТИ файла: при записи каждого нового фото в ОДИН и тот же файл виджет
-      // держит старое изображение и не перерисовывается (баг «фото не
-      // обновляется, пока стоит другое; уберёшь одно — второе оживает»). Меняя
-      // путь при каждой смене фото, заставляем WidgetKit грузить свежее.
-      final sig = url.hashCode.toUnsigned(32).toRadixString(16);
-      final uniqueName = '${key}_$sig';
-
-      // Один склад на всё приложение: экран и второй виджет-сервис берут ту же
-      // картинку отсюда же, поэтому в сеть идёт только первый (widget_photo_store).
-      final bytes = await WidgetPhotoStore.instance.bytesFor(url, httpUrl);
-
-      if (bytes == null || bytes.length < kMinWidgetPhotoBytes) {
-        debugPrint('_downloadPhoto($key): на складе пусто для $url');
-        // Прежнее живое фото лучше пустоты: один неудачный запрос не должен
-        // стирать снимок с рабочего стола.
-        await _saveIfCurrent(
-          generation,
-          key,
-          photoFallbackOnFailure(
-            cachedPath: cachedWPath,
-            cachedFileExists: cachedExists,
-            cachedFileSize: cachedSize,
-          ),
-        );
-        return;
-      }
-
-      final dir = await getApplicationSupportDirectory();
-      final file = File('${dir.path}/$uniqueName.jpg');
-      // Ужимаем ДО записи: расширению виджета отводят около 30 МБ, а снимок с
-      // камеры в разжатом виде занимает под пятьдесят — расширение убивают, и
-      // вместо фотографии остаётся серый прямоугольник. Предел зависит от
-      // ключа: фото 1200 точек, аватарка 400 (widget_image_limit.dart).
-      await file.writeAsBytes(
-        await HomeWidgetService.instance
-            .shrinkForWidget(bytes, widgetImageMaxSide(key)),
-      );
-
-      // Старые файлы этого ключа (контейнер + локальные) убираем ДО записи нового
-      // пути, чтобы не копились и не оставалось «залипшего» кэша по старому пути.
-      await HomeWidgetService.instance.clearAppGroupMedia(key);
-      _cleanupOldLocalPhotos(dir, key, '$uniqueName.jpg');
-
-      final widgetPath = await HomeWidgetService.instance
-          .appGroupReadablePath(file.path, uniqueName);
-      await _saveIfCurrent(generation, key, widgetPath);
-      await prefs.setString('${key}_cached_url', url);
-      await prefs.setString('${key}_cached_wpath', widgetPath);
-      debugPrint('_downloadPhoto: $key → $widgetPath');
-    } catch (e) {
-      // Сюда попадает и недоступный мост App Group (MissingPluginException в
-      // фоновом изоляте): затирать путь пустотой нельзя, иначе фото исчезает.
-      debugPrint('_downloadPhoto($key) failed: $e');
-      final prefs = await SharedPreferences.getInstance();
-      final prev = prefs.getString('${key}_cached_wpath') ?? '';
-      await _saveIfCurrent(
-        generation,
-        key,
-        photoFallbackOnFailure(
-          cachedPath: prev,
-          cachedFileExists: prev.isNotEmpty && File(prev).existsSync(),
-          cachedFileSize:
-              prev.isNotEmpty && File(prev).existsSync() ? File(prev).lengthSync() : 0,
-        ),
-      );
-    }
-  }
-
-  /// Удаляет старые локальные файлы `<key>_*.jpg` (кроме [keepName]) из [dir] —
-  /// чтобы уникальные имена фото не копились на диске.
-  void _cleanupOldLocalPhotos(Directory dir, String key, String keepName) {
-    try {
-      for (final f in dir.listSync()) {
-        if (f is! File) continue;
-        final name = f.path.split(Platform.pathSeparator).last;
-        if (name.startsWith('${key}_') &&
-            name.endsWith('.jpg') &&
-            name != keepName) {
-          try {
-            f.deleteSync();
-          } catch (_) {}
-        }
-      }
-    } catch (_) {}
+    // Готовим по ключу ПАРЫ: и запись кэша, и имя файла берут ключ. С общим
+    // ключом переключение между связями сносило снимок предыдущей — уборка
+    // старых файлов удаляет всё по тому же имени.
+    final path = await HomeWidgetService.instance
+        .pairImagePath(pairWidgetKey(_groupId, key), url);
+    if (path == null) return;
+    await _saveIfCurrent(generation, key, path);
   }
 
   // ══════════════════════════════════════════════════════════════════════════

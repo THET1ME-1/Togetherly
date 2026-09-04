@@ -37,11 +37,14 @@ void main() {
   });
 
   test('приложение кладёт в контейнер ужатые файлы', () {
-    final src = File('lib/services/widget_service.dart').readAsStringSync();
-    final start = src.indexOf('Future<void> _downloadPhoto');
+    // Подготовка картинки парного виджета живёт в HomeWidgetService: её просит
+    // и служба на переднем плане, и фоновое обновление по тихому пушу.
+    final src =
+        File('lib/services/home_widget_service.dart').readAsStringSync();
+    final start = src.indexOf('Future<String?> pairImagePath');
     expect(start, isNot(-1));
-    // До следующего метода: тело `_downloadPhoto` длинное, окном не обойтись.
-    final end = src.indexOf('void _cleanupOldLocalPhotos', start);
+    // До следующего метода: тело `pairImagePath` длинное, окном не обойтись.
+    final end = src.indexOf('Future<String?> pairEmojiPath', start);
     expect(end, isNot(-1));
     final body = src.substring(start, end);
     expect(body, contains('shrinkForWidget'),

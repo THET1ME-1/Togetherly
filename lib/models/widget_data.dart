@@ -110,6 +110,64 @@ class WidgetData {
     );
   }
 
+  /// Карточка с применёнными полями записи — теми же camelCase-именами, что
+  /// уходят в `upsertWidget`.
+  ///
+  /// Нужна ради одного шага: запись на сервер и обновление рабочего стола идут
+  /// подряд, а локальная копия своих данных живёт на SSE-событии. Пока её не
+  /// догоняли здесь, на виджет уезжал ПРЕЖНИЙ снимок, и новый появлялся только
+  /// когда долетит событие — а оно долетает не всегда (оборванный сокет,
+  /// убитый процесс). Жалоба звучала как «поставил фото, в приложении видно, в
+  /// виджете нет» (01.09.2026).
+  ///
+  /// Незнакомые ключи молча пропускаем: карта полей растёт, и падать на новом
+  /// имени тут нельзя — виджет важнее.
+  WidgetData withFields(Map<String, dynamic> fields) {
+    if (fields.isEmpty) return this;
+    String str(String key, String fallback) {
+      final v = fields[key];
+      return v == null ? fallback : v.toString();
+    }
+
+    // null здесь значит «поле не пришло», а не «сотри»: `upsertWidget`
+    // выбрасывает null-поля ради частичного апдейта, и локальная копия обязана
+    // отвечать так же — иначе она разойдётся с записью на сервере. Убирают
+    // поле пустой строкой (`clearMusic`, `clearPairPhotoFields`).
+    String? nullable(String key, String? fallback) {
+      final v = fields[key];
+      return v == null ? fallback : v.toString();
+    }
+
+    List<String> list(String key, List<String> fallback) {
+      final v = fields[key];
+      if (v is! List) return fallback;
+      return v.map((e) => e.toString()).toList();
+    }
+
+    return WidgetData(
+      uid: uid,
+      displayName: str('displayName', displayName),
+      avatarUrl: str('avatarUrl', avatarUrl),
+      status: str('status', status),
+      moodEmoji: str('moodEmoji', moodEmoji),
+      moodLabel: str('moodLabel', moodLabel),
+      message: str('message', message),
+      photoUrl: nullable('photoUrl', photoUrl),
+      photoForPartnerUrl: nullable('photoForPartnerUrl', photoForPartnerUrl),
+      photoForPartnerUrls: list('photoForPartnerUrls', photoForPartnerUrls),
+      photoGridCount:
+          (fields['photoGridCount'] as num?)?.toInt() ?? photoGridCount,
+      photoGridUrls: list('photoGridUrls', photoGridUrls),
+      musicTitle: nullable('musicTitle', musicTitle),
+      musicArtist: nullable('musicArtist', musicArtist),
+      musicUrl: nullable('musicUrl', musicUrl),
+      musicCoverUrl: nullable('musicCoverUrl', musicCoverUrl),
+      gender: str('gender', gender),
+      updatedAt: DateTime.now(),
+      plus: plus,
+    );
+  }
+
   WidgetData copyWith({
     String? uid,
     String? displayName,

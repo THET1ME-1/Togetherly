@@ -35,25 +35,37 @@ private func loadLove() -> (me: LoveSide, partner: LoveSide) {
     // (widget_service.dart: my_mood_emoji_path/my_avatar_path/my_photo_path
     // через appGroupReadablePath → путь ВНУТРИ контейнера App Group). Раньше
     // читались несуществующие ios_love_* → эмодзи/аватар на iOS не появлялись.
+    //
+    // С 04.09.2026 у каждой пары свой набор: `love_<пара>_<поле>`, а указатель
+    // на открытую пару лежит в `love_latest_group` — так же, как у «Настроения»
+    // и «Дней вместе». Общий набор без пары в имени оставался один на все связи,
+    // и у человека с двумя парами на столе оказывалась половина одной рядом с
+    // половиной другой. Пока приложение не разложило ключи (сборка только что
+    // обновилась), читаем старые общие — иначе виджет опустеет.
+    let group = s.latestGroup("love_latest_group")
+    let byPair = group != "solo" && s.string("love_\(group)_ready") == "1"
+    func key(_ name: String) -> String {
+        byPair ? "love_\(group)_\(name)" : name
+    }
     let me = LoveSide(
-        moodEmoji: s.uiImage("my_mood_emoji_path"),
-        moodText: s.string("my_mood"),
-        status: s.string("my_status"),
-        message: s.string("my_message"),
-        musicTitle: s.string("my_music_title"),
-        musicArtist: s.string("my_music_artist"),
-        avatar: s.uiImage("my_avatar_path"),
-        photo: s.uiImage("my_photo_path")
+        moodEmoji: s.uiImage(key("my_mood_emoji_path")),
+        moodText: s.string(key("my_mood")),
+        status: s.string(key("my_status")),
+        message: s.string(key("my_message")),
+        musicTitle: s.string(key("my_music_title")),
+        musicArtist: s.string(key("my_music_artist")),
+        avatar: s.uiImage(key("my_avatar_path")),
+        photo: s.uiImage(key("my_photo_path"))
     )
     let partner = LoveSide(
-        moodEmoji: s.uiImage("partner_mood_emoji_path"),
-        moodText: s.string("partner_mood"),
-        status: s.string("partner_status"),
-        message: s.string("partner_message"),
-        musicTitle: s.string("partner_music_title"),
-        musicArtist: s.string("partner_music_artist"),
-        avatar: s.uiImage("partner_avatar_path"),
-        photo: s.uiImage("partner_photo_path")
+        moodEmoji: s.uiImage(key("partner_mood_emoji_path")),
+        moodText: s.string(key("partner_mood")),
+        status: s.string(key("partner_status")),
+        message: s.string(key("partner_message")),
+        musicTitle: s.string(key("partner_music_title")),
+        musicArtist: s.string(key("partner_music_artist")),
+        avatar: s.uiImage(key("partner_avatar_path")),
+        photo: s.uiImage(key("partner_photo_path"))
     )
     return (me, partner)
 }

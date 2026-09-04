@@ -285,31 +285,9 @@ Future<void> _homeWidgetBackgroundCallback(Uri? uri) async {
     return;
   }
 
-  if (host != 'refresh') return;
-
-  try {
-    // PB-фон: процесс мёртв → инициализируем клиент и восстанавливаем сессию
-    // из SharedPreferences. ⚠️ нужен валидный PB-токен (widget_data protected).
-    await PocketBaseService().init();
-    final myUid = PocketBaseService().userId ?? '';
-    if (myUid.isEmpty) return;
-
-    final groupId =
-        await HomeWidget.getWidgetData<String>('love_widget_group_id') ?? '';
-    final partnerUid =
-        await HomeWidget.getWidgetData<String>('love_widget_partner_uid') ?? '';
-    if (groupId.isEmpty) return;
-
-    // Единый источник логики обновления парного виджета из PB (та же, что в
-    // изоляте foreground-сервиса PushBackgroundService).
-    await HomeWidgetService.instance.refreshLoveWidgetFromServer(
-      groupId,
-      myUid,
-      partnerUid,
-    );
-  } catch (e) {
-    debugPrint('_homeWidgetBackgroundCallback failed: $e');
-  }
+  // Ниже прежде лежал второй разбор `refresh` — недостижимый: ветка выше
+  // возвращает управление сама. Он обновлял парный виджет в обход обхода по
+  // связям и путал при чтении: казалось, что путей два.
 }
 
 void main() async {

@@ -983,7 +983,6 @@ class _WidgetScreenState extends State<WidgetScreen>
       // the default switch branch would wrongly hijack the timer binding.
       if (widgetType != null &&
           !widgetType.startsWith('photo_day') &&
-          widgetType != 'pair' &&
           widgetType != 'streak') {
         final realType = widgetType;
         final bindTypeKey = switch (realType) {
@@ -1001,6 +1000,11 @@ class _WidgetScreenState extends State<WidgetScreen>
           'miss' => 'miss',
           'year_ring' => 'year_ring',
           'year_grid' => 'year_grid',
+          // Парный виджет тоже помнит свою связь: до 04.09.2026 он один на все
+          // пары показывал ту, что открыта в приложении последней. Ключ зовётся
+          // по ТИПУ виджета (`pair_next_bind_group`) — его и ищет
+          // WidgetGroupHelper, — а сами данные лежат под `love_<пара>_<поле>`.
+          'pair' => 'pair',
           _ => 'timer', // 'timer' and others
         };
         await HomeWidget.saveWidgetData<String>(

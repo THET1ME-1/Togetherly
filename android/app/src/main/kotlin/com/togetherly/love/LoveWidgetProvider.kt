@@ -51,7 +51,14 @@ class LoveWidgetProvider : HomeWidgetProvider() {
                         path = path!!,
                         manifest = manifest!!,
                         imageViewId = R.id.my_bg_photo,
-                    ) { buildViews(context, widgetData) }
+                    ) {
+                        buildViews(
+                            context,
+                            widgetData,
+                            WidgetGroupHelper.getOrBind(
+                                context, "pair", ids.first(), "love"),
+                        )
+                    }
                 } catch (e: Exception) {
                     Log.e("LoveWidgetProvider", "anim failed", e)
                 } finally {
@@ -71,7 +78,11 @@ class LoveWidgetProvider : HomeWidgetProvider() {
     ) {
         appWidgetIds.forEach { widgetId ->
             val views = try {
-                buildViews(context, widgetData)
+                buildViews(
+                    context,
+                    widgetData,
+                    WidgetGroupHelper.getOrBind(context, "pair", widgetId, "love"),
+                )
             } catch (e: Exception) {
                 Log.e("LoveWidgetProvider", "onUpdate error", e)
                 return@forEach
@@ -80,7 +91,30 @@ class LoveWidgetProvider : HomeWidgetProvider() {
         }
     }
 
-    private fun buildViews(context: Context, widgetData: SharedPreferences): RemoteViews {
+    // Виджет сняли со стола — привязка к паре ему больше не нужна: иначе
+    // записи копятся, а новый экземпляр с тем же номером получил бы чужую связь.
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        WidgetGroupHelper.clearBindings(context, "pair", appWidgetIds)
+    }
+
+    // Пара, к которой привязан ЭТОТ экземпляр виджета.
+    //
+    // До 04.09.2026 парный виджет читал общие ключи без пары в имени: один
+    // набор на все связи, и на столе оказывалась та пара, чья синхронизация
+    // прошла последней. Остальные виджеты давно живут по паре — теперь и этот.
+    private fun buildViews(
+        context: Context,
+        widgetData: SharedPreferences,
+        groupId: String,
+    ): RemoteViews {
+        // Пока приложение не разложило ключи по паре (свежая установка сборки,
+        // ещё не было ни одного захода), читаем старые общие — иначе виджет
+        // опустеет до первого открытия приложения.
+        val byPair = groupId.isNotEmpty() &&
+            widgetData.getString("love_${groupId}_ready", null) == "1"
+        fun key(name: String) = if (byPair) "love_${groupId}_$name" else name
+
         return RemoteViews(context.packageName, R.layout.love_widget).apply {
 
             // Живое фото (короткое видео или гифка) приезжает раскадровкой:
@@ -113,13 +147,13 @@ class LoveWidgetProvider : HomeWidgetProvider() {
             setOnClickPendingIntent(R.id.widget_root, pendingIntent)
 
             // ═══════════ Моя сторона ═══════════
-            val myStatus = widgetData.getString("my_status", null)
+            val myStatus = widgetData.getString(key("my_status"), null)
                 .takeIf { !it.isNullOrEmpty() } ?: ""
-            val myMessage = widgetData.getString("my_message", null)
+            val myMessage = widgetData.getString(key("my_message"), null)
                 .takeIf { !it.isNullOrEmpty() } ?: ""
-            val myMusicTitle = widgetData.getString("my_music_title", null)
+            val myMusicTitle = widgetData.getString(key("my_music_title"), null)
                 .takeIf { !it.isNullOrEmpty() } ?: ""
-            val myMusicArtist = widgetData.getString("my_music_artist", null)
+            val myMusicArtist = widgetData.getString(key("my_music_artist"), null)
                 .takeIf { !it.isNullOrEmpty() } ?: ""
 
             setTextViewText(R.id.my_status, myStatus)
@@ -134,7 +168,7 @@ class LoveWidgetProvider : HomeWidgetProvider() {
             )
 
             // ── Эмодзи настроения ──
-            val myEmojiPath = widgetData.getString("my_mood_emoji_path", null)
+            val myEmojiPath = widgetData.getString(key("my_mood_emoji_path"), null)
                 .takeIf { !it.isNullOrEmpty() }
             val myEmojiBitmap = loadScaledBitmap(myEmojiPath, 64, withAlpha = true)
             if (myEmojiBitmap != null) {
@@ -142,7 +176,7 @@ class LoveWidgetProvider : HomeWidgetProvider() {
                 setViewVisibility(R.id.my_mood_emoji, View.VISIBLE)
                 setViewVisibility(R.id.my_mood_text, View.GONE)
             } else {
-                val myMoodLabel = widgetData.getString("my_mood", null)
+                val myMoodLabel = widgetData.getString(key("my_mood"), null)
                     .takeIf { !it.isNullOrEmpty() } ?: ""
                 setViewVisibility(R.id.my_mood_emoji, View.GONE)
                 setViewVisibility(R.id.my_mood_text, if (myMoodLabel.isNotEmpty()) View.VISIBLE else View.GONE)
@@ -150,7 +184,7 @@ class LoveWidgetProvider : HomeWidgetProvider() {
             }
 
             // ── Фото как фон + лёгкое затемнение ──
-            val myPhotoPath = widgetData.getString("my_photo_path", null)
+            val myPhotoPath = widgetData.getString(key("my_photo_path"), null)
                 .takeIf { !it.isNullOrEmpty() }
             // У живого фото фоном стоит первый кадр: в покое виджет выглядит
             // как обычная фотография, движение начинается по нажатию.
@@ -178,7 +212,7 @@ class LoveWidgetProvider : HomeWidgetProvider() {
             setTextColor(R.id.my_music, myInk.tertiary)
 
             // ── Круглая аватарка ──
-            val myAvatarPath = widgetData.getString("my_avatar_path", null)
+            val myAvatarPath = widgetData.getString(key("my_avatar_path"), null)
                 .takeIf { !it.isNullOrEmpty() }
             val myAvatarBitmap = loadScaledBitmap(myAvatarPath, 96)
             if (myAvatarBitmap != null) {
@@ -189,13 +223,13 @@ class LoveWidgetProvider : HomeWidgetProvider() {
             }
 
             // ═══════════ Сторона партнёра ═══════════
-            val partnerStatus = widgetData.getString("partner_status", null)
+            val partnerStatus = widgetData.getString(key("partner_status"), null)
                 .takeIf { !it.isNullOrEmpty() } ?: ""
-            val partnerMessage = widgetData.getString("partner_message", null)
+            val partnerMessage = widgetData.getString(key("partner_message"), null)
                 .takeIf { !it.isNullOrEmpty() } ?: ""
-            val partnerMusicTitle = widgetData.getString("partner_music_title", null)
+            val partnerMusicTitle = widgetData.getString(key("partner_music_title"), null)
                 .takeIf { !it.isNullOrEmpty() } ?: ""
-            val partnerMusicArtist = widgetData.getString("partner_music_artist", null)
+            val partnerMusicArtist = widgetData.getString(key("partner_music_artist"), null)
                 .takeIf { !it.isNullOrEmpty() } ?: ""
 
             setTextViewText(R.id.partner_status, partnerStatus)
@@ -210,7 +244,7 @@ class LoveWidgetProvider : HomeWidgetProvider() {
             )
 
             // ── Эмодзи настроения партнёра ──
-            val partnerEmojiPath = widgetData.getString("partner_mood_emoji_path", null)
+            val partnerEmojiPath = widgetData.getString(key("partner_mood_emoji_path"), null)
                 .takeIf { !it.isNullOrEmpty() }
             val partnerEmojiBitmap = loadScaledBitmap(partnerEmojiPath, 64, withAlpha = true)
             if (partnerEmojiBitmap != null) {
@@ -218,7 +252,7 @@ class LoveWidgetProvider : HomeWidgetProvider() {
                 setViewVisibility(R.id.partner_mood_emoji, View.VISIBLE)
                 setViewVisibility(R.id.partner_mood_text, View.GONE)
             } else {
-                val partnerMoodLabel = widgetData.getString("partner_mood", null)
+                val partnerMoodLabel = widgetData.getString(key("partner_mood"), null)
                     .takeIf { !it.isNullOrEmpty() } ?: ""
                 setViewVisibility(R.id.partner_mood_emoji, View.GONE)
                 setViewVisibility(R.id.partner_mood_text, if (partnerMoodLabel.isNotEmpty()) View.VISIBLE else View.GONE)
@@ -226,7 +260,7 @@ class LoveWidgetProvider : HomeWidgetProvider() {
             }
 
             // ── Фото партнёра как фон + лёгкое затемнение ──
-            val partnerPhotoPath = widgetData.getString("partner_photo_path", null)
+            val partnerPhotoPath = widgetData.getString(key("partner_photo_path"), null)
                 .takeIf { !it.isNullOrEmpty() }
             val partnerBgBitmap = loadScaledBitmap(partnerPhotoPath, 220)
             val partnerInk = WidgetContrast.inkFor(partnerBgBitmap)
@@ -244,7 +278,7 @@ class LoveWidgetProvider : HomeWidgetProvider() {
             setTextColor(R.id.partner_music, partnerInk.tertiary)
 
             // ── Круглая аватарка партнёра ──
-            val partnerAvatarPath = widgetData.getString("partner_avatar_path", null)
+            val partnerAvatarPath = widgetData.getString(key("partner_avatar_path"), null)
                 .takeIf { !it.isNullOrEmpty() }
             val partnerAvatarBitmap = loadScaledBitmap(partnerAvatarPath, 96)
             if (partnerAvatarBitmap != null) {

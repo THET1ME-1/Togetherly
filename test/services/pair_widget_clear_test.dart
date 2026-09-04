@@ -89,4 +89,17 @@ void main() {
       expect(home, contains('clearPairWidgetData'));
     });
   });
+
+  // Распад пары обязан вычистить и ключи самой пары (`love_<пара>_<поле>`), а
+  // не только общий набор: они появились 04.09.2026, и без этого на столе у
+  // человека с двумя связями остаётся лицо бывшего партнёра.
+  test('очистка проходит и по ключам самой пары', () {
+    final src = File('lib/services/widget_service.dart').readAsStringSync();
+    final start = src.indexOf('Future<void> clearPairWidgetData()');
+    expect(start, isNot(-1));
+    final end = src.indexOf('\n  void _listenToMyData', start);
+    final body = src.substring(start, end > 0 ? end : src.length);
+    expect(body.contains('pairWidgetKey'), isTrue,
+        reason: 'иначе набор распавшейся пары останется в контейнере');
+  });
 }

@@ -13,11 +13,18 @@ import '../models/widget_data.dart';
 /// Пустое поле при живых данных — другое дело: человек убрал статус осознанно,
 /// и виджет обязан это показать. Поэтому «нет данных» и «поле пустое» здесь
 /// строго разные случаи.
+///
+/// [pairChanged] — виджет пересобирают для ДРУГОЙ пары, чем в прошлый раз. Тут
+/// «данных нет» значит уже не «подожди, сейчас приедут», а «этой половине
+/// взяться неоткуда»: у новой связи запись `widget_data` появляется не сразу, и
+/// молчание оставляло на рабочем столе имя и настроение прежней пары. Так
+/// собиралась смесь двух связей в одной картинке (снимок от 04.09.2026).
 Map<String, String> pairWidgetPayload({
   WidgetData? my,
   WidgetData? partner,
   String myFallbackName = 'Я',
   String partnerFallbackName = 'Партнёр',
+  bool pairChanged = false,
 }) {
   final out = <String, String>{};
 
@@ -29,6 +36,10 @@ Map<String, String> pairWidgetPayload({
     out['my_message'] = my.message;
     out['my_music_title'] = my.musicTitle ?? '';
     out['my_music_artist'] = my.musicArtist ?? '';
+  } else if (pairChanged) {
+    for (final key in _myTextKeys) {
+      out[key] = '';
+    }
   }
 
   if (partner != null) {
@@ -40,10 +51,32 @@ Map<String, String> pairWidgetPayload({
     out['partner_message'] = partner.message;
     out['partner_music_title'] = partner.musicTitle ?? '';
     out['partner_music_artist'] = partner.musicArtist ?? '';
+  } else if (pairChanged) {
+    for (final key in _partnerTextKeys) {
+      out[key] = '';
+    }
   }
 
   return out;
 }
+
+const List<String> _myTextKeys = [
+  'my_name',
+  'my_mood',
+  'my_status',
+  'my_message',
+  'my_music_title',
+  'my_music_artist',
+];
+
+const List<String> _partnerTextKeys = [
+  'partner_name',
+  'partner_mood',
+  'partner_status',
+  'partner_message',
+  'partner_music_title',
+  'partner_music_artist',
+];
 
 /// Ссылки на картинки обеих половин: фото, аватар, значок настроения.
 ///
@@ -81,17 +114,30 @@ class PairWidgetMedia {
   final List<String>? partnerIosPhotos;
 }
 
-PairWidgetMedia pairWidgetMedia({WidgetData? my, WidgetData? partner}) =>
-    PairWidgetMedia(
-      myPhoto: my == null ? null : pairPhotoOf(my),
-      partnerPhoto: partner == null ? null : pairPhotoOf(partner),
-      myAvatar: my?.avatarUrl,
-      partnerAvatar: partner?.avatarUrl,
-      myMoodEmoji: my?.moodEmoji,
-      partnerMoodEmoji: partner?.moodEmoji,
-      myIosPhotos: my == null ? null : iosPhotosOf(my),
-      partnerIosPhotos: partner == null ? null : iosPhotosOf(partner),
-    );
+/// [pairChanged] — то же правило, что у текстов: виджет собирают для другой
+/// пары, и картинке половины без данных взяться неоткуда. Пустая строка тут
+/// значит «сотри», иначе на столе остаётся лицо прежней связи.
+PairWidgetMedia pairWidgetMedia({
+  WidgetData? my,
+  WidgetData? partner,
+  bool pairChanged = false,
+}) {
+  final bool clearMine = my == null && pairChanged;
+  final bool clearTheirs = partner == null && pairChanged;
+  return PairWidgetMedia(
+    myPhoto: my == null ? (clearMine ? '' : null) : pairPhotoOf(my),
+    partnerPhoto:
+        partner == null ? (clearTheirs ? '' : null) : pairPhotoOf(partner),
+    myAvatar: my?.avatarUrl ?? (clearMine ? '' : null),
+    partnerAvatar: partner?.avatarUrl ?? (clearTheirs ? '' : null),
+    myMoodEmoji: my?.moodEmoji ?? (clearMine ? '' : null),
+    partnerMoodEmoji: partner?.moodEmoji ?? (clearTheirs ? '' : null),
+    myIosPhotos: my == null ? (clearMine ? const <String>[] : null) : iosPhotosOf(my),
+    partnerIosPhotos: partner == null
+        ? (clearTheirs ? const <String>[] : null)
+        : iosPhotosOf(partner),
+  );
+}
 
 /// Какое фото показывает половина парного виджета — своё и партнёрское правило
 /// одно и то же с 13.08.2026 (см. `WidgetService.pairPhotoOfPartner`).
@@ -109,6 +155,69 @@ List<String> iosPhotosOf(WidgetData? d) {
   if (single.isNotEmpty && !out.contains(single)) out.add(single);
   final pair = pairPhotoOf(d);
   if (pair.isNotEmpty && !out.contains(pair)) out.add(pair);
+  return out;
+}
+
+/// Ключ парного виджета, принадлежащий одной паре: `love_<пара>_<поле>`.
+///
+/// Так уже живут «Настроение», «Дни вместе», «Скучаю», заметка и кольца года.
+/// Парный виджет держался на общих ключах дольше всех, и потому у человека с
+/// двумя связями показывал ту пару, чья синхронизация прошла последней.
+String pairWidgetKey(String groupId, String key) =>
+    groupId.isEmpty ? key : 'love_${groupId}_$key';
+
+/// Тот же набор ключей, но принадлежащий паре.
+Map<String, String> pairWidgetKeysFor(String groupId, Map<String, String> keys) =>
+    {for (final e in keys.entries) pairWidgetKey(groupId, e.key): e.value};
+
+/// Отметка «ключи этой пары в контейнере уже разложены».
+///
+/// Нативный виджет читает её первой: нет отметки — значит приложение ещё не
+/// обновляло контейнер после установки новой сборки, и читать надо старые общие
+/// ключи, иначе виджет опустеет до первого захода в приложение.
+String pairWidgetReadyKey(String groupId) => 'love_${groupId}_ready';
+
+/// Указатель «последняя пара парного виджета» — по нему виджет находит свои
+/// ключи там, где привязки к экземпляру нет (iPhone).
+const String kPairWidgetLatestGroupKey = 'love_latest_group';
+
+/// Пара, которую фон обновляет за этот проход.
+class PairRefreshTarget {
+  const PairRefreshTarget(this.groupId, {required this.shared});
+
+  final String groupId;
+
+  /// Пишет ли эта пара ещё и старые общие ключи. Право есть только у открытой
+  /// в приложении: общий набор один на всех, и делить его нельзя.
+  final bool shared;
+}
+
+/// Сколько пар фон успевает обновить за одно пробуждение.
+///
+/// Пробуждение короткое (на iPhone — секунды), а связей у человека бывает и
+/// десяток: взяться за все — значит не успеть ни одной. Открытая пара всё равно
+/// идёт первой, поэтому обрезаем хвост.
+const int kMaxPairsPerRefresh = 5;
+
+/// Какие пары обновлять и кто из них пишет общие ключи.
+///
+/// Фоновое обновление брало единственную пару из `love_widget_group_id`, и
+/// виджет второй связи застывал до переключения в приложении.
+List<PairRefreshTarget> pairsToRefresh({
+  required List<String> groups,
+  required String activeGroupId,
+}) {
+  final seen = <String>{};
+  final out = <PairRefreshTarget>[];
+  if (activeGroupId.isNotEmpty) {
+    seen.add(activeGroupId);
+    out.add(PairRefreshTarget(activeGroupId, shared: true));
+  }
+  for (final g in groups) {
+    if (g.isEmpty || !seen.add(g)) continue;
+    out.add(PairRefreshTarget(g, shared: false));
+    if (out.length >= kMaxPairsPerRefresh) break;
+  }
   return out;
 }
 

@@ -27,6 +27,9 @@ class WidgetDiagnostics {
   static const List<String> _keys = [
     'love_widget_group_id',
     'love_widget_partner_uid',
+    // Указатель на пару: с 04.09.2026 у каждой связи свой набор ключей, и по
+    // отчёту надо видеть, нашёл ли виджет свою пару вообще.
+    'love_latest_group',
     'my_name',
     'my_status',
     'my_mood',
