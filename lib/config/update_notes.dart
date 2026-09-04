@@ -11,21 +11,20 @@
 const String ruWhatsNew =
     'Что нового 💜\n'
     '\n'
-    '— У приложения новая иконка: рисованный маскот вместо букв.\n'
-    '— Пару не снести случайным нажатием: подтверждение называет партнёра и '
-    'предупреждает, что переписка пропадёт у обоих.\n'
-    '— Ожидание партнёра отменяется кнопкой «Больше не жду».\n'
-    '— Нижние листы и диалоги красятся темой пары.\n'
-    '— Приложение реже дёргает сервер: списки и аватарки перестали '
-    'перезагружаться по кругу.';
+    '— Парный виджет обновляет фото и аватарки сам, не дожидаясь, пока вы '
+    'откроете приложение.\n'
+    '— У каждой пары свой виджет: данные разных связей больше не '
+    'перемешиваются.\n'
+    '— Добавление фото в виджет не зависает на бесконечной загрузке.\n'
+    '— Если снимки не сохранились, приложение скажет об этом, а не промолчит.';
 
 const String enWhatsNew =
     'What is new 💜\n'
     '\n'
-    '— New app icon: a drawn mascot instead of letters.\n'
-    '— A pair no longer disappears from one stray press: the confirmation '
-    'names your partner and warns that the chat goes for both of you.\n'
-    '— Waiting for a partner can be called off with "No longer waiting".\n'
-    '— Sheets and dialogs take the colours of your couple\'s theme.\n'
-    '— The app bothers the server less: lists and avatars stopped reloading '
-    'in circles.';
+    '— The pair widget refreshes photos and avatars on its own, without '
+    'waiting for you to open the app.\n'
+    '— Each couple has its own widget: data no longer gets mixed up between '
+    'pairs.\n'
+    '— Adding a photo to a widget no longer hangs on endless loading.\n'
+    '— If the photos did not save, the app says so instead of staying '
+    'silent.';

@@ -1,7 +1,5 @@
-Photos no longer disappear. If your phone unloaded the app while you were picking shots in the gallery, they come back on their own — no need to choose them again.
+Widgets update on their own. The pair widget used to change only text on the home screen: status, mood, music. Your partner's photo and avatar arrived only when you opened the app, which is why so many of you were stuck with the very first picture. Now the widget collects photos, avatars and names in the background.
 
-You can change your password right in settings, and password recovery by email works again.
+Each couple has its own data. Widgets of different couples used to share one set of keys, so the wrong pair could show up on your home screen.
 
-Widgets: "Days together" counts from your own date, the couple widget no longer mixes two pairs, and the "our photos" switch shows what actually happened.
-
-A time capsule shows up in the feed on the day it opens. Your own colouring page opens instead of a blank sheet. The chat in the watch room can be hidden. The date a wish came true can be corrected.
+Adding a photo to a widget no longer hangs. Image compression now has a time limit, and if saving fails the app says so instead of spinning forever.
