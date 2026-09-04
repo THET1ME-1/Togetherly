@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """Заметки «Что нового» для заявки в App Store, JSON-списком по локалям.
 
-Apple отвергает заявку, если у ОСНОВНОЙ локали приложения нет `whatsNew`:
-«You must provide a value for the attribute whatsNew» — на этом свалилась
-первая автоматическая отправка 1.26.0, где текст был только для `ru`. Поэтому
-основную локаль спрашиваем у App Store Connect и заполняем её всегда.
+Apple отвергает заявку, если `whatsNew` пуст хоть у одной страницы версии:
+«You must provide a value for the attribute whatsNew» — так свалилась первая
+автоматическая отправка 1.26.0 (текст был только для `ru`) и повторилось на
+1.31.4, где рядом с русской висела английская страница без заметок. Основную
+локаль спрашиваем у App Store Connect, остальные приходят вторым аргументом.
 
 Тексты лежат в `distribution/whatsnew/whatsnew-<локаль>`; если файла для
 локали нет, берём язык без региона, а в последнюю очередь — английский.
 
-Использование: `python3 tools/asc_release_notes.py en-US > localizations.json`
+Использование: `python3 tools/asc_release_notes.py ru en-US > localizations.json`
+(первый аргумент — основная локаль, дальше — все страницы версии)
 """
 
 import json
@@ -66,23 +68,32 @@ def notes_for(locale: str) -> str:
     raise SystemExit(f"нет заметок ни для {locale}, ни для английского")
 
 
-def build_localizations(primary: str) -> list:
-    """Заметки для заявки — только для основной локали приложения.
+def build_localizations(primary: str, locales=()) -> list:
+    """Заметки для заявки — основной локали и всем страницам версии.
 
     Заводить новую локаль нельзя: у неё Apple тут же требует описание,
     ключевые слова и адрес поддержки, а без них версия становится невалидной
     («You must provide a value for the attribute description»). Ровно так
     сорвалась третья попытка отправить 1.26.0, когда рядом с русской завелась
-    пустая английская страница. Основная локаль уже заполнена целиком, и
-    трогать её безопасно.
+    пустая английская страница.
+
+    Зато у каждой УЖЕ заведённой страницы «Что нового» обязательно: 4 сентября
+    2026 заявка 1.31.4 разбилась о пустую английскую («You must provide a
+    value for the attribute whatsNew»), хотя русская была заполнена. Поэтому
+    воркфлоу приносит сюда список локалей версии, и каждая получает текст.
     """
-    locale = (primary or "en-US").strip()
-    return [{"locale": locale, "whats_new": notes_for(locale)}]
+    primary = (primary or "en-US").strip()
+    ordered = [primary]
+    for locale in locales:
+        locale = (locale or "").strip()
+        if locale and locale not in ordered:
+            ordered.append(locale)
+    return [{"locale": locale, "whats_new": notes_for(locale)} for locale in ordered]
 
 
 def main() -> None:
     primary = sys.argv[1] if len(sys.argv) > 1 else "en-US"
-    json.dump(build_localizations(primary), sys.stdout, ensure_ascii=False)
+    json.dump(build_localizations(primary, sys.argv[2:]), sys.stdout, ensure_ascii=False)
 
 
 if __name__ == "__main__":

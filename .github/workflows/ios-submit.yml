@@ -63,15 +63,28 @@ jobs:
       - name: Collect release notes
         run: |
           set -euo pipefail
-          # «Что нового» обязателен для ОСНОВНОЙ локали приложения — без него
-          # Apple отвергает саму заявку: «You must provide a value for the
-          # attribute whatsNew» (проверено на 1.26.0, где текст был только для
-          # русской). Основную локаль спрашиваем у App Store Connect, а не
-          # угадываем.
+          # «Что нового» обязателен КАЖДОЙ странице версии, а не только
+          # основной локали: 4 сентября 2026 заявка 1.31.4 разбилась о пустую
+          # английскую («You must provide a value for the attribute whatsNew»),
+          # хотя русская была заполнена. Основную локаль и список уже
+          # заведённых страниц спрашиваем у App Store Connect, а не угадываем.
           PRIMARY=$(app-store-connect apps get "$APP_STORE_APP_ID" --json \
             | python3 -c 'import sys,json; print(json.load(sys.stdin)["attributes"]["primaryLocale"])')
           echo "Основная локаль приложения: $PRIMARY"
-          python3 tools/asc_release_notes.py "$PRIMARY" > /tmp/localizations.json
+          # Заводить НОВУЮ локаль по-прежнему нельзя — Apple тут же требует у
+          # неё описание и ключевые слова. Поэтому берём страницы самой свежей
+          # версии: у новой версии Apple копирует тот же набор.
+          LATEST_ID=$(app-store-connect apps app-store-versions "$APP_STORE_APP_ID" --json \
+            | python3 tools/asc_latest_version.py)
+          LOCALES=""
+          if [ -n "$LATEST_ID" ]; then
+            LOCALES=$(app-store-connect app-store-versions localizations "$LATEST_ID" --json \
+              | python3 -c 'import sys,json; print(" ".join(x["attributes"]["locale"] for x in json.load(sys.stdin)))')
+            echo "Страницы версии $LATEST_ID: ${LOCALES:-нет}"
+          else
+            echo "Версий у приложения ещё нет — пишем одну основную локаль"
+          fi
+          python3 tools/asc_release_notes.py "$PRIMARY" $LOCALES > /tmp/localizations.json
           python3 -c 'import json;print("Локали заявки:", [x["locale"] for x in json.load(open("/tmp/localizations.json"))])'
 
       - name: Drop incomplete localizations

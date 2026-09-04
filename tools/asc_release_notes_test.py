@@ -4,6 +4,7 @@
 Запуск: `python3 tools/asc_release_notes_test.py`
 """
 
+import pathlib
 import unittest
 
 from asc_release_notes import build_localizations, strip_unsupported
@@ -60,9 +61,28 @@ class BuildLocalizations(unittest.TestCase):
         self.assertIn("Виджеты", built[0]["whats_new"])
 
     def test_для_чужой_локали_берёт_английский_текст(self):
+        english = (
+            pathlib.Path(__file__).resolve().parent.parent
+            / "distribution"
+            / "whatsnew"
+            / "whatsnew-en-US"
+        ).read_text(encoding="utf-8")
         built = build_localizations("de-DE")
         self.assertEqual([item["locale"] for item in built], ["de-DE"])
-        self.assertIn("Lock screen widgets", built[0]["whats_new"])
+        self.assertEqual(built[0]["whats_new"], strip_unsupported(english))
+
+    def test_заполняет_каждую_локаль_версии(self):
+        # Заявка 1.31.4 упала 4 сентября: «Что нового» ушло одной русской
+        # странице, а английская осталась пустой, и Apple отверг версию
+        # целиком («You must provide a value for the attribute whatsNew»).
+        built = build_localizations("ru", ["ru", "en-US"])
+        self.assertEqual([item["locale"] for item in built], ["ru", "en-US"])
+        self.assertIn("Виджеты", built[0]["whats_new"])
+        self.assertIn("Widgets", built[1]["whats_new"])
+
+    def test_основная_локаль_идёт_первой_и_не_дублируется(self):
+        built = build_localizations("ru", ["en-US", "ru", "en-US"])
+        self.assertEqual([item["locale"] for item in built], ["ru", "en-US"])
 
     def test_заметки_приходят_без_эмодзи(self):
         built = build_localizations("ru")
