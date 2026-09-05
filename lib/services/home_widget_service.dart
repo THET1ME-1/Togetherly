@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' as ui;
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -698,9 +699,18 @@ class HomeWidgetService {
       // камеры в разжатом виде занимает под пятьдесят — расширение убивают, и
       // вместо фотографии остаётся серый прямоугольник. Предел зависит от
       // ключа: фото 1200 точек, аватарка 400 (widget_image_limit.dart).
-      await file.writeAsBytes(
-        await _shrinkForWidget(bytes, widgetImageMaxSide(key)),
-      );
+      final payload = await _shrinkForWidget(bytes, widgetImageMaxSide(key));
+      if (payload == null) {
+        // Ужать не вышло. Класть оригинал нельзя — виджет умрёт по памяти;
+        // оставляем на столе прежний снимок.
+        debugPrint('pairImagePath($key): снимок не ужался, ключ не трогаем');
+        return photoFallbackOnFailure(
+          cachedPath: cachedWPath,
+          cachedFileExists: cachedExists,
+          cachedFileSize: cachedSize,
+        );
+      }
+      await file.writeAsBytes(payload);
 
       // Старые файлы этого ключа (контейнер + локальные) убираем ДО записи нового
       // пути, чтобы не копились и не оставалось «залипшего» кэша по старому пути.
@@ -1249,6 +1259,24 @@ class HomeWidgetService {
       } else {
         await HomeWidget.saveWidgetData<String>(key, entry.value);
       }
+    }
+
+    // Слова пустого виджета. В разметке вшито «Фото дня · Нет воспоминаний», и
+    // «Фото партнёра» на столе выглядел чужим: человек решал, что виджет не
+    // добавился, и ставил ещё один (@hi_no_kate, 04.09.2026). Язык знает только
+    // приложение, поэтому подписи пишет оно.
+    final kind = values['kind'];
+    if (kind != null && kind.isNotEmpty) {
+      final t = LocaleService.current;
+      final partner = kind == 'partner';
+      await HomeWidget.saveWidgetData<String>(
+        _photoDayWidgetKey(widgetId, 'empty_title'),
+        partner ? t.photoWidgetEmptyTitlePartner : t.photoWidgetEmptyTitleMine,
+      );
+      await HomeWidget.saveWidgetData<String>(
+        _photoDayWidgetKey(widgetId, 'empty_hint'),
+        partner ? t.photoWidgetEmptyHintPartner : t.photoWidgetEmptyHintMine,
+      );
     }
   }
 
@@ -3429,11 +3457,37 @@ class HomeWidgetService {
   ///
   /// Публичный: тем же путём идут картинки парного виджета и аватарки из
   /// `WidgetService._downloadPhoto`, которые до 18.08.2026 клались оригиналом.
-  Future<Uint8List> shrinkForWidget(Uint8List bytes, int maxSide) =>
+  /// `null` — ужать не удалось и класть в контейнер нечего: оригинал туда
+  /// отправлять нельзя, он убивает виджет по памяти.
+  Future<Uint8List?> shrinkForWidget(Uint8List bytes, int maxSide) =>
       _shrinkForWidget(bytes, maxSide);
 
-  Future<Uint8List> _shrinkForWidget(Uint8List bytes, int maxSide) async {
+  /// Ужимает снимок для контейнера виджета. `null` — положить нечего.
+  ///
+  /// Отдавать оригинал при осечке кодека нельзя: снимок с камеры в разжатом
+  /// виде занимает под пятьдесят мегабайт при отведённых виджету тридцати, и
+  /// система убивает расширение до отрисовки — человек видит пустоту и пишет,
+  /// что виджеты не работают. Правило отбора — widget_image_limit.dart.
+  Future<Uint8List?> _shrinkForWidget(Uint8List bytes, int maxSide) async {
     if (!Platform.isAndroid && !Platform.isIOS) return bytes;
+    // Габариты нужны заранее: `minWidth`/`minHeight` у кодека — это МИНИМУМ, а
+    // не предел. Снимок 3000×2000 с параметром 1200 он ужимает до 1800×1200 —
+    // в разжатом виде 8,6 МБ, и парный виджет с двумя такими половинами уже не
+    // влезает в отведённую память (замер на живом Android, 05.09.2026).
+    final ui.Size? size = await _imageSize(bytes);
+    int targetW = maxSide, targetH = maxSide;
+    if (size != null && size.width > 0 && size.height > 0) {
+      final double scale = maxSide / (size.width > size.height ? size.width : size.height);
+      if (scale < 1) {
+        targetW = (size.width * scale).round().clamp(1, maxSide);
+        targetH = (size.height * scale).round().clamp(1, maxSide);
+      } else {
+        targetW = size.width.round();
+        targetH = size.height.round();
+      }
+    }
+
+    Uint8List? compressed;
     try {
       // Предел обязателен. Нативный кодек на части устройств зависает на
       // некоторых снимках и НИКОГДА не возвращает future, а `try/catch` такой
@@ -3442,18 +3496,56 @@ class HomeWidgetService {
       // виджета, а оно ждёт сжатия. Жалоба @hi_no_kate (04.09.2026) звучала
       // как «после добавления фото бесконечная загрузка». Ту же грабку уже
       // закрывали в `MediaService.uploadFile`.
-      final smaller = await FlutterImageCompress.compressWithList(
+      compressed = await FlutterImageCompress.compressWithList(
         bytes,
-        minWidth: maxSide,
-        minHeight: maxSide,
+        minWidth: targetW,
+        minHeight: targetH,
         quality: 85,
       ).timeout(const Duration(seconds: 20));
-      // Пустой ответ — формат не по зубам компрессору (например, ставший
-      // популярным avif): отдаём исходник, лучше большой, чем никакой.
-      return smaller.isEmpty ? bytes : smaller;
     } catch (e) {
-      debugPrint('HomeWidgetService._shrinkForWidget failed: $e');
-      return bytes;
+      // Таймаут кодека или формат не по зубам (например, avif): не беда,
+      // ниже стоит запасной путь на движке самого Flutter.
+      debugPrint('HomeWidgetService._shrinkForWidget: кодек не справился ($e)');
+    }
+
+    if (compressed == null || compressed.isEmpty ||
+        compressed.length > kMaxWidgetPhotoBytes) {
+      compressed = await _shrinkByEngine(bytes, targetW) ?? compressed;
+    }
+    return widgetPhotoPayload(original: bytes, compressed: compressed);
+  }
+
+  /// Габариты картинки без полного разжатия — по ним считается целевой размер.
+  Future<ui.Size?> _imageSize(Uint8List bytes) async {
+    try {
+      final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+      final descriptor = await ui.ImageDescriptor.encoded(buffer);
+      final size = ui.Size(descriptor.width.toDouble(), descriptor.height.toDouble());
+      descriptor.dispose();
+      return size;
+    } catch (e) {
+      debugPrint('HomeWidgetService._imageSize failed: $e');
+      return null;
+    }
+  }
+
+  /// Запасное уменьшение — декодером самого Flutter, без нативного плагина.
+  ///
+  /// Тот же путь, которым рисуются картинки на экране: он знает webp, jpeg и
+  /// png, не висит и не зависит от прошивки. Медленнее плагина, поэтому идёт
+  /// вторым, но лучше лишней секунды, чем пустой виджет.
+  Future<Uint8List?> _shrinkByEngine(Uint8List bytes, int maxSide) async {
+    try {
+      final codec = await ui.instantiateImageCodec(bytes, targetWidth: maxSide);
+      final frame = await codec.getNextFrame();
+      final data = await frame.image.toByteData(format: ui.ImageByteFormat.png);
+      frame.image.dispose();
+      codec.dispose();
+      if (data == null) return null;
+      return data.buffer.asUint8List();
+    } catch (e) {
+      debugPrint('HomeWidgetService._shrinkByEngine failed: $e');
+      return null;
     }
   }
 
@@ -3530,6 +3622,12 @@ class HomeWidgetService {
       // повторной загрузке до самой смены фото.
       if (bytes != null && bytes.length >= kMinWidgetPhotoBytes) {
         final shrunk = await _shrinkForWidget(bytes, maxSide);
+        if (shrunk == null) {
+          debugPrint('_cachePhotoFromUrl($key): снимок не ужался, файл не пишем');
+          return file.existsSync()
+              ? await _toWidgetReadablePath(file.path, 'cache_$key')
+              : '';
+        }
         await file.writeAsBytes(shrunk);
         await shared.writeAsBytes(shrunk);
         // Ссылку запоминаем ТОЛЬКО после удачной записи: иначе битая попытка

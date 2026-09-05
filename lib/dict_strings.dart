@@ -2981,6 +2981,14 @@ abstract class DictStrings extends AppStrings {
   @override
   String get widgetPhotoCaption => _t('widgetPhotoCaption');
   @override
+  String get photoWidgetEmptyTitleMine => _t('photoWidgetEmptyTitleMine');
+  @override
+  String get photoWidgetEmptyTitlePartner => _t('photoWidgetEmptyTitlePartner');
+  @override
+  String get photoWidgetEmptyHintMine => _t('photoWidgetEmptyHintMine');
+  @override
+  String get photoWidgetEmptyHintPartner => _t('photoWidgetEmptyHintPartner');
+  @override
   String get mascotSaveFailed => _t('mascotSaveFailed');
   @override
   String get mascotLoadFailed => _t('mascotLoadFailed');

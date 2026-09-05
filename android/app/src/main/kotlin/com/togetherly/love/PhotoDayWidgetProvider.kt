@@ -168,6 +168,18 @@ open class PhotoDayWidgetProvider : HomeWidgetProvider() {
             } else {
                 setViewVisibility(R.id.photo_image, View.GONE)
                 setViewVisibility(R.id.photo_placeholder, View.VISIBLE)
+
+                // Пустой виджет обязан называть себя своим именем. «Фото дня ·
+                // Нет воспоминаний» вшито в разметку, и «Фото партнёра» на
+                // столе выглядел чужим: человек решал, что виджет не добавился,
+                // и ставил ещё один (жалоба @hi_no_kate, 04.09.2026). Слова
+                // пишет приложение — язык знает только оно.
+                widgetData.getString(key(widgetId, "empty_title"), null)
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let { setTextViewText(R.id.photo_empty_title, it) }
+                widgetData.getString(key(widgetId, "empty_hint"), null)
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let { setTextViewText(R.id.photo_empty_hint, it) }
             }
             setViewVisibility(R.id.photo_author, View.GONE)
         }

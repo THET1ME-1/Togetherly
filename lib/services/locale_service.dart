@@ -2014,6 +2014,16 @@ abstract class AppStrings {
   String get sendLabel;
   String get widgetPhotoCaption;
 
+  // ── Пустой фото-виджет: он обязан называть себя своим именем ──
+  //
+  // В разметке Android вшито «Фото дня · Нет воспоминаний», и «Фото партнёра»
+  // на рабочем столе выглядел чужим виджетом — человек решал, что тот не
+  // добавился, и ставил ещё один (@hi_no_kate, 04.09.2026).
+  String get photoWidgetEmptyTitleMine;
+  String get photoWidgetEmptyTitlePartner;
+  String get photoWidgetEmptyHintMine;
+  String get photoWidgetEmptyHintPartner;
+
   // ── Mascot gallery ──
   String get mascotSaveFailed;
   String get mascotLoadFailed;
