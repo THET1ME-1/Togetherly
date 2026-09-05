@@ -11,20 +11,17 @@
 const String ruWhatsNew =
     'Что нового 💜\n'
     '\n'
-    '— Парный виджет обновляет фото и аватарки сам, не дожидаясь, пока вы '
-    'откроете приложение.\n'
-    '— У каждой пары свой виджет: данные разных связей больше не '
-    'перемешиваются.\n'
-    '— Добавление фото в виджет не зависает на бесконечной загрузке.\n'
-    '— Если снимки не сохранились, приложение скажет об этом, а не промолчит.';
+    '— Фото снова появляется на виджете: крупные снимки не влезали в память, '
+    'и виджет гас, оставляя пустой прямоугольник.\n'
+    '— Снимок ужимается по большей стороне — виджет стал вдвое легче.\n'
+    '— Если ужать не вышло, на столе останется прежнее фото, а не пустота.\n'
+    '— Пустой «Фото партнёра» больше не подписан «Фото дня».';
 
 const String enWhatsNew =
     'What is new 💜\n'
     '\n'
-    '— The pair widget refreshes photos and avatars on its own, without '
-    'waiting for you to open the app.\n'
-    '— Each couple has its own widget: data no longer gets mixed up between '
-    'pairs.\n'
-    '— Adding a photo to a widget no longer hangs on endless loading.\n'
-    '— If the photos did not save, the app says so instead of staying '
-    'silent.';
+    '— Photos are back on the widget: large shots did not fit into memory, so '
+    'the widget went dark and left an empty rectangle.\n'
+    '— A photo is scaled by its longer side — the widget is twice as light.\n'
+    '— If scaling fails, the previous photo stays instead of emptiness.\n'
+    '— An empty "Partner\'s photo" is no longer labelled "Photo of the day".';

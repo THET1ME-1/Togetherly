@@ -1,5 +1,7 @@
-Widgets update on their own. The pair widget used to change only text on the home screen: status, mood, music. Your partner's photo and avatar arrived only when you opened the app, which is why so many of you were stuck with the very first picture. Now the widget collects photos, avatars and names in the background.
+Photos are back on the widget. Large shots did not fit into the memory the system gives a widget, so it died before drawing anything — an empty rectangle on the home screen, while the photo sat fine inside the app. Both Android and iPhone, and the better the camera, the worse it got.
 
-Each couple has its own data. Widgets of different couples used to share one set of keys, so the wrong pair could show up on your home screen.
+The widget got twice as light. A photo is now scaled by its longer side, not the shorter one: the pair widget holds two halves plus avatars, and together they used to hit the memory ceiling.
 
-Adding a photo to a widget no longer hangs. Image compression now has a time limit, and if saving fails the app says so instead of spinning forever.
+If a photo cannot be scaled, the previous one stays. Before, the original went to the widget as is — and the widget went dark.
+
+An empty widget now says its own name. "Partner's photo" was labelled "Photo of the day · No memories" and looked like someone else's, so people thought it had not been added and kept adding more.
