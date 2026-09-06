@@ -14,8 +14,6 @@ library;
 
 import 'dart:typed_data';
 
-import 'package:image/image.dart' as img;
-
 /// Предел для ключа виджета. Аватарки мельче: они рисуются кружком в углу.
 int widgetImageMaxSide(String key) => key.contains('avatar') ? 400 : 1200;
 
@@ -48,33 +46,4 @@ Uint8List? widgetPhotoPayload({
     return original;
   }
   return null;
-}
-
-/// Запасное уменьшение: декодер пакета `image`, на выходе JPEG.
-///
-/// Нужен там, где нативный кодек не справился — завис по таймауту или не знает
-/// формат. Раньше запасным путём шёл движок Flutter с `ImageByteFormat.png`, а
-/// PNG кадра 1200×1200 весит два-четыре мегабайта: [widgetPhotoPayload] такой
-/// файл отбраковывает, и если оригинал тоже крупный, в контейнер не попадает
-/// НИЧЕГО. Путь остаётся пустым, виджет — пустым, и починить это человек не
-/// может ничем, кроме смены фото. На 06.09.2026 так жили 45% iPhone, у которых
-/// фото стоит на сервере.
-///
-/// `null` — байты не разобрались как картинка. Меньшую сторону не растягиваем.
-Uint8List? shrinkToJpeg(Uint8List bytes, int maxSide, {int quality = 85}) {
-  if (bytes.isEmpty) return null;
-  try {
-    final decoded = img.decodeImage(bytes);
-    if (decoded == null) return null;
-    final longest = decoded.width > decoded.height ? decoded.width : decoded.height;
-    final frame = longest > maxSide
-        ? img.copyResize(decoded,
-            width: decoded.width >= decoded.height ? maxSide : null,
-            height: decoded.height > decoded.width ? maxSide : null,
-            interpolation: img.Interpolation.average)
-        : decoded;
-    return Uint8List.fromList(img.encodeJpg(frame, quality: quality));
-  } catch (_) {
-    return null;
-  }
 }
