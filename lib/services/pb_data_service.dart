@@ -8,6 +8,7 @@ import 'package:pocketbase/pocketbase.dart';
 import '../utils/date_only.dart';
 import '../utils/pair_time.dart';
 import 'love_test_id.dart';
+import 'offline/local_store.dart';
 import 'pb_errors.dart';
 import 'pocketbase_service.dart';
 import 'upsert_backoff.dart';
@@ -2783,6 +2784,43 @@ class PbDataService {
   // ══════════════════════════════════════════════ CHAT
   Future<bool> chatSend(String groupId, String id, Map<String, dynamic> msg) async {
     if (id.isEmpty) return false;
+    if (await chatSendRecord(groupId, id, msg) != null) return true;
+    // Повтор из очереди или сбой сети: дальше прежним, идемпотентным путём
+    // (update → 404 → create). Записи оттуда не достать, и это не беда —
+    // время в кэше поправит следующая загрузка списка.
+    return _upsertById('chat_messages', id, chatBody(groupId, msg), op: 'chatSend');
+  }
+
+  /// Создаёт сообщение и возвращает его таким, каким сохранил сервер. null —
+  /// создать не вышло (запись уже есть, сеть молчит).
+  ///
+  /// Ответ нужен из-за времени: порядок в чате держится на `ts`, а ставит его
+  /// телефон отправителя, и при расхождении часов больше двух минут сервер
+  /// пишет своё (`время_сообщения` в hotpath.py). Пока ответ выбрасывался,
+  /// у автора в кэше оставалось его собственное, кривое: сообщения партнёра
+  /// вставали выше его own и «после перезагрузки приложения встают на место»
+  /// (обращение №133, 06.09.2026). Живая дельта этого не чинит — поток
+  /// отбрасывает события про записи, которые ещё числятся в очереди.
+  Future<RecordModel?> chatSendRecord(
+      String groupId, String id, Map<String, dynamic> msg) async {
+    if (id.isEmpty) return null;
+    try {
+      final rec = await _pb
+          .collection('chat_messages')
+          .create(body: {'id': id, ...chatBody(groupId, msg)})
+          .timeout(const Duration(seconds: 15));
+      await LocalStore.instance.upsert('chat_messages', rec);
+      return rec;
+    } catch (e) {
+      if (!alreadyExists(e)) {
+        debugPrint('PbData.chatSend create(chat_messages/$id) failed: $e');
+      }
+      return null;
+    }
+  }
+
+  /// Тело сообщения в колонках PocketBase.
+  Map<String, dynamic> chatBody(String groupId, Map<String, dynamic> msg) {
     final body = <String, dynamic>{
       'group_id': groupId,
       'user_uid': msg['uid'],
@@ -2808,8 +2846,7 @@ class PbDataService {
       'note_shape': msg['noteShape'],
       'note_thumb': msg['noteThumb'],
     }..removeWhere((k, v) => v == null);
-    return _upsertById('chat_messages', id, body,
-        op: 'chatSend', expectNew: true);
+    return body;
   }
 
   /// Создаёт сообщение (PB генерирует id, как [createMemory]). [msg] —
@@ -3086,6 +3123,10 @@ class PbDataService {
     put('notifChat', 'notif_chat');
     put('notifDraw', 'notif_draw');
     put('notifComments', 'notif_comments');
+    // Метка «телефон присылал настройки». Без неё сервер не знает, ноль в
+    // колонке — выбор человека или ещё не заполненное поле, и молчал тем, кто
+    // не открывал вкладку «Профиль» (обращение №133, 06.09.2026).
+    put('notifSyncedAt', 'notif_synced_at');
     put('soloTimers', 'solo_timers', json: true);
     // Оформление: нужно только статистике — какой палитрой и в каком режиме
     // пользуются. Локальный выбор от этого не зависит, он живёт в prefs.

@@ -636,7 +636,8 @@ def _push_candidates(group_id: str, author_uid: str,
             continue
         u = lite.execute(
             "SELECT apns_token, apns_sandbox, fcm_token, apns_bg_ms, "
-            "notif_chat, notif_mood, notif_new_memory, notif_miss_you "
+            "notif_chat, notif_mood, notif_new_memory, notif_miss_you, "
+            "notif_synced_at "
             "FROM users WHERE id = ?",
             (uid,),
         ).fetchone()
@@ -645,9 +646,12 @@ def _push_candidates(group_id: str, author_uid: str,
         out.append({"uid": uid, "apns": u[0] or "", "sandbox": bool(u[1]),
                     "fcm": u[2] or "", "bg_ms": int(u[3] or 0),
                     # Выключатели уведомлений из приложения — их читает
-                    # `_уведомление_разрешено` перед отправкой.
+                    # `_уведомление_разрешено` перед отправкой. Пустая метка
+                    # `notif_synced_at` значит, что телефон их ещё не присылал,
+                    # и тогда нули не считаются выбором человека.
                     "notif_chat": u[4], "notif_mood": u[5],
-                    "notif_new_memory": u[6], "notif_miss_you": u[7]})
+                    "notif_new_memory": u[6], "notif_miss_you": u[7],
+                    "notif_synced_at": u[8]})
     return out
 
 
@@ -840,7 +844,16 @@ def _уведомление_разрешено(вид: str, человек: dict
     Переключатели доезжали до сервера с самого начала, но их никто не читал:
     пуши уходили всем подряд. На 16.08.2026 «Скучаю» было выключено у 16 507
     человек — и все они его получали (жалоба «уведомления не выключаются»).
+
+    Обратная сторона нашлась 06.09.2026. Колонки булевы, у нового аккаунта в
+    них ноль, а отправлял их только экран профиля — кто не заходил на вкладку
+    «Профиль», не получал НИЧЕГО, хотя в приложении все тумблеры включены
+    (18 481 аккаунт, у 7 421 живой токен). Ноль без метки `notif_synced_at`
+    означает «телефон ещё не сказал, чего хочет», а не «выключено»; метку
+    ставит клиент вместе с настройками.
     """
+    if not str(человек.get("notif_synced_at") or "").strip():
+        return True
     колонка = ВЫКЛЮЧАТЕЛИ.get(вид)
     if колонка is None:
         return True

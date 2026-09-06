@@ -31,15 +31,20 @@ _разрешено = пространство["_уведомление_разр
 
 
 class Выключатели(unittest.TestCase):
+    # Человек, чей телефон присылал настройки: у него нули — это выбор.
+    ОТМЕТКА = "2026-09-06 10:00:00.000Z"
+
     def test_выключенное_не_шлём(self):
         человек = {"notif_miss_you": 0, "notif_chat": 1,
-                   "notif_mood": 1, "notif_new_memory": 1}
+                   "notif_mood": 1, "notif_new_memory": 1,
+                   "notif_synced_at": self.ОТМЕТКА}
         self.assertFalse(_разрешено("miss", человек))
         self.assertTrue(_разрешено("chat", человек))
 
     def test_каждый_вид_смотрит_на_свой_флаг(self):
         выкл = {"notif_miss_you": 1, "notif_chat": 0,
-                "notif_mood": 0, "notif_new_memory": 0}
+                "notif_mood": 0, "notif_new_memory": 0,
+                "notif_synced_at": self.ОТМЕТКА}
         self.assertTrue(_разрешено("miss", выкл))
         self.assertFalse(_разрешено("chat", выкл))
         self.assertFalse(_разрешено("mood", выкл))
@@ -50,11 +55,36 @@ class Выключатели(unittest.TestCase):
         self.assertTrue(_разрешено("miss", {}))
         self.assertTrue(_разрешено("chat", {"notif_chat": None}))
 
+    def test_настройки_не_приезжали_значит_всё_включено(self):
+        """Нули у человека, который ни разу не открывал профиль, — не выбор.
+
+        Колонки булевы, у нового аккаунта в них ноль, а отправлял их до
+        06.09.2026 только экран профиля. Кто туда не заходил, не получал ничего:
+        ни чата, ни настроения, ни «Скучаю» — при включённых на вид тумблерах.
+        Таких аккаунтов 18 481, у 7 421 живой токен устройства. Отличаем по
+        метке `notif_synced_at`: её ставит телефон вместе с настройками.
+        """
+        новичок = {"notif_chat": 0, "notif_mood": 0,
+                   "notif_new_memory": 0, "notif_miss_you": 0}
+        self.assertTrue(_разрешено("chat", новичок))
+        self.assertTrue(_разрешено("miss", новичок))
+
+    def test_после_отметки_выключатели_снова_главные(self):
+        выключил = {"notif_chat": 0, "notif_mood": 0, "notif_new_memory": 0,
+                    "notif_miss_you": 0, "notif_synced_at": "2026-09-06 10:00:00.000Z"}
+        self.assertFalse(_разрешено("chat", выключил))
+        self.assertFalse(_разрешено("miss", выключил))
+
+    def test_пустая_отметка_не_считается(self):
+        self.assertTrue(_разрешено("chat", {"notif_chat": 0, "notif_synced_at": ""}))
+        self.assertTrue(_разрешено("chat", {"notif_chat": 0, "notif_synced_at": None}))
+
     def test_незнакомый_вид_проходит(self):
         # Тихое пробуждение виджетов и всё новое не должно молча пропадать
         # из-за отсутствия выключателя.
-        self.assertTrue(_разрешено("widgets", {"notif_chat": 0}))
-        self.assertTrue(_разрешено("", {"notif_chat": 0}))
+        человек = {"notif_chat": 0, "notif_synced_at": self.ОТМЕТКА}
+        self.assertTrue(_разрешено("widgets", человек))
+        self.assertTrue(_разрешено("", человек))
 
 
 if __name__ == "__main__":

@@ -27,6 +27,7 @@ import 'package:pocketbase/pocketbase.dart' show ClientException;
 import '../services/pb_auth_service.dart';
 import '../widgets/settings/change_password_sheet.dart';
 import '../services/pocketbase_service.dart';
+import '../services/notif_prefs_sync.dart';
 import '../services/pb_data_service.dart';
 import '../services/miss_you_repository.dart';
 import '../models/ad_grants.dart';
@@ -334,18 +335,10 @@ class _ProfileScreenState extends State<ProfileScreen>
       _sideActionIsArrow = prefs.getBool(UiPrefs.kHomeSideActionArrow) ?? true;
     });
     // Синхронизируем текущие настройки в PocketBase (колонки users.notif_*),
-    // чтобы PbPushService учитывал их при показе уведомлений.
-    final notifUid = PocketBaseService().userId ?? '';
-    if (notifUid.isNotEmpty) {
-      PbDataService().updateUserProfile(notifUid, {
-        'notifMissYou': prefs.getBool(_kNotifMissYou) ?? true,
-        'notifNewMemory': prefs.getBool(_kNotifNewMemory) ?? true,
-        'notifMood': prefs.getBool(_kNotifMood) ?? true,
-        'notifChat': prefs.getBool(_kNotifChat) ?? true,
-        'notifDraw': prefs.getBool(_kNotifDraw) ?? true,
-        'notifComments': prefs.getBool(_kNotifComments) ?? true,
-      });
-    }
+    // чтобы сервер учитывал их, решая, слать ли пуш. Тем же кодом это делает
+    // вход в приложение: [NotifPrefsSync] — единственное место, где список
+    // колонок написан.
+    unawaited(NotifPrefsSync.pushToServer());
   }
 
   /// Переключить режим боковой кнопки навбара (стрелка ↔ плюс) и запомнить.

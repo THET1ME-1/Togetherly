@@ -77,7 +77,13 @@ USERS_CUSTOM = [
     jsonf("granted_badges"), text("badge"), text("pair_id"), jsonf("pair_ids"),
     text("invite_code"), text("fcm_token"), jsonf("fcm_tokens"),
     boolean("notif_miss_you"), boolean("notif_new_memory"),
-    boolean("notif_mood"), boolean("notif_chat"), jsonf("solo_timers"),
+    boolean("notif_mood"), boolean("notif_chat"),
+    # Когда телефон последний раз присылал выключатели уведомлений. Колонки
+    # выше булевы, у нового аккаунта в них ноль, и без этой метки сервер не
+    # отличит «выключил» от «ещё не спрашивали»: до 06.09.2026 он молчал всем,
+    # кто не открывал вкладку «Профиль» (18 481 аккаунт).
+    text("notif_synced_at"),
+    jsonf("solo_timers"),
     date("updated_at"), date("last_daily_bonus_at"),
     date("last_memory_reward_at"), text("ad_rewards_date"),
     number("ad_rewards_today"), boolean("dev_coins_granted"),
