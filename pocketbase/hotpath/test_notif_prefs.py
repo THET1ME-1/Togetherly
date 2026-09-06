@@ -39,6 +39,7 @@ class Выключатели(unittest.TestCase):
                    "notif_mood": 1, "notif_new_memory": 1,
                    "notif_synced_at": self.ОТМЕТКА}
         self.assertFalse(_разрешено("miss", человек))
+        self.assertFalse(_разрешено("miss", человек))
         self.assertTrue(_разрешено("chat", человек))
 
     def test_каждый_вид_смотрит_на_свой_флаг(self):
@@ -75,9 +76,24 @@ class Выключатели(unittest.TestCase):
         self.assertFalse(_разрешено("chat", выключил))
         self.assertFalse(_разрешено("miss", выключил))
 
+    def test_единица_без_отметки_тоже_считается_ответом(self):
+        """Метку шлют только свежие сборки, а выключатели ехали и раньше.
+
+        Булево поле PocketBase заводит нулём, поэтому единица где угодно
+        означает, что настройки от телефона приезжали — и остальные нули там
+        уже выбор человека. Иначе на время раскатки замолчали бы выключатели
+        у всех сразу, включая 16 507 человек с отключённым «Скучаю».
+        """
+        выключил_скучаю = {"notif_miss_you": 0, "notif_chat": 1,
+                           "notif_mood": 1, "notif_new_memory": 1}
+        self.assertFalse(_разрешено("miss", выключил_скучаю))
+        self.assertTrue(_разрешено("chat", выключил_скучаю))
+
     def test_пустая_отметка_не_считается(self):
-        self.assertTrue(_разрешено("chat", {"notif_chat": 0, "notif_synced_at": ""}))
-        self.assertTrue(_разрешено("chat", {"notif_chat": 0, "notif_synced_at": None}))
+        пусто = {"notif_chat": 0, "notif_mood": 0,
+                 "notif_new_memory": 0, "notif_miss_you": 0}
+        self.assertTrue(_разрешено("chat", {**пусто, "notif_synced_at": ""}))
+        self.assertTrue(_разрешено("chat", {**пусто, "notif_synced_at": None}))
 
     def test_незнакомый_вид_проходит(self):
         # Тихое пробуждение виджетов и всё новое не должно молча пропадать
