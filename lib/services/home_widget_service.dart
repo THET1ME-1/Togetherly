@@ -3510,7 +3510,13 @@ class HomeWidgetService {
 
     if (compressed == null || compressed.isEmpty ||
         compressed.length > kMaxWidgetPhotoBytes) {
-      compressed = await _shrinkByEngine(bytes, targetW) ?? compressed;
+      // Запасной путь отдаёт JPEG, а не PNG: PNG кадра 1200×1200 весит два-четыре
+      // мегабайта, `widgetPhotoPayload` его отбраковывал, и при крупном оригинале
+      // в контейнер не попадало ничего — путь оставался пустым навсегда. На
+      // 06.09.2026 так жили 45% iPhone, у которых фото стоит на сервере.
+      // Считает пакет `image` в отдельном изоляте: на главном это заметная пауза.
+      final byEngine = await compute(_shrinkJob, _ShrinkJob(bytes, targetW));
+      if (byEngine != null && byEngine.isNotEmpty) compressed = byEngine;
     }
     return widgetPhotoPayload(original: bytes, compressed: compressed);
   }
@@ -3529,25 +3535,9 @@ class HomeWidgetService {
     }
   }
 
-  /// Запасное уменьшение — декодером самого Flutter, без нативного плагина.
-  ///
-  /// Тот же путь, которым рисуются картинки на экране: он знает webp, jpeg и
-  /// png, не висит и не зависит от прошивки. Медленнее плагина, поэтому идёт
-  /// вторым, но лучше лишней секунды, чем пустой виджет.
-  Future<Uint8List?> _shrinkByEngine(Uint8List bytes, int maxSide) async {
-    try {
-      final codec = await ui.instantiateImageCodec(bytes, targetWidth: maxSide);
-      final frame = await codec.getNextFrame();
-      final data = await frame.image.toByteData(format: ui.ImageByteFormat.png);
-      frame.image.dispose();
-      codec.dispose();
-      if (data == null) return null;
-      return data.buffer.asUint8List();
-    } catch (e) {
-      debugPrint('HomeWidgetService._shrinkByEngine failed: $e');
-      return null;
-    }
-  }
+  /// Работа для изолята: уменьшение снимка пакетом `image`.
+  static Uint8List? _shrinkJob(_ShrinkJob job) =>
+      shrinkToJpeg(job.bytes, job.maxSide);
 
   Future<String> _cachePhotoFromUrl(
     String url,
@@ -4045,4 +4035,11 @@ class _CachedRelStats {
   }) : timestamp = timestamp ?? DateTime.now();
   bool get isFresh =>
       DateTime.now().difference(timestamp) < HomeWidgetService._relStatsCacheTtl;
+}
+
+/// Задание для изолята: байты снимка и предел по большей стороне.
+class _ShrinkJob {
+  const _ShrinkJob(this.bytes, this.maxSide);
+  final Uint8List bytes;
+  final int maxSide;
 }
