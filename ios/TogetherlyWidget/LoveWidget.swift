@@ -29,6 +29,24 @@ private struct LoveSide {
     }
 }
 
+/// Пределы разжатия для парного виджета: шесть картинок разом читает один
+/// процесс, которому система отводит около тридцати мегабайт на всё.
+///
+/// Общий предел в 1200 точек считался от самого крупного виджета на iPad, но
+/// платили за него все: два снимка по 1200×1200 в разжатом виде — это 11,5 МБ,
+/// и вместе с аватарками расширение подходило к пределу вплотную. Журнал
+/// отрисовки за двое суток (07.09.2026): каждый четвёртый заход обрывался, в
+/// записи оставалось «память 15–21 МБ» и признак `decoded` не появлялся.
+///
+/// Половина парного виджета на iPhone — около 170×190 точек, то есть 510×570
+/// пикселей при тройной плотности; 700 хватает с запасом и на iPad. Аватарка
+/// рисуется кружком в углу, эмодзи настроения — и того мельче.
+private enum LoveWidgetImage {
+    static let photo: CGFloat = 700
+    static let avatar: CGFloat = 200
+    static let emoji: CGFloat = 160
+}
+
 private func loadLove() -> (me: LoveSide, partner: LoveSide) {
     let s = Store()
     // ВАЖНО: ключи картинок = те, что реально пишет Flutter
@@ -48,24 +66,24 @@ private func loadLove() -> (me: LoveSide, partner: LoveSide) {
         byPair ? "love_\(group)_\(name)" : name
     }
     let me = LoveSide(
-        moodEmoji: s.uiImage(key("my_mood_emoji_path")),
+        moodEmoji: s.uiImage(key("my_mood_emoji_path"), maxSide: LoveWidgetImage.emoji),
         moodText: s.string(key("my_mood")),
         status: s.string(key("my_status")),
         message: s.string(key("my_message")),
         musicTitle: s.string(key("my_music_title")),
         musicArtist: s.string(key("my_music_artist")),
-        avatar: s.uiImage(key("my_avatar_path")),
-        photo: s.uiImage(key("my_photo_path"))
+        avatar: s.uiImage(key("my_avatar_path"), maxSide: LoveWidgetImage.avatar),
+        photo: s.uiImage(key("my_photo_path"), maxSide: LoveWidgetImage.photo)
     )
     let partner = LoveSide(
-        moodEmoji: s.uiImage(key("partner_mood_emoji_path")),
+        moodEmoji: s.uiImage(key("partner_mood_emoji_path"), maxSide: LoveWidgetImage.emoji),
         moodText: s.string(key("partner_mood")),
         status: s.string(key("partner_status")),
         message: s.string(key("partner_message")),
         musicTitle: s.string(key("partner_music_title")),
         musicArtist: s.string(key("partner_music_artist")),
-        avatar: s.uiImage(key("partner_avatar_path")),
-        photo: s.uiImage(key("partner_photo_path"))
+        avatar: s.uiImage(key("partner_avatar_path"), maxSide: LoveWidgetImage.avatar),
+        photo: s.uiImage(key("partner_photo_path"), maxSide: LoveWidgetImage.photo)
     )
     return (me, partner)
 }

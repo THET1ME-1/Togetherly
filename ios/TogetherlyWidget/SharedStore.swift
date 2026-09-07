@@ -51,10 +51,10 @@ struct Store {
     /// Загружает изображение по абсолютному пути из контейнера App Group
     /// (туда фото копирует AppDelegate.copyToAppGroup). Путь лежит в значении
     /// ключа [key]; пустой путь / отсутствующий файл → nil.
-    func uiImage(_ key: String) -> UIImage? {
+    func uiImage(_ key: String, maxSide: CGFloat = WidgetImage.maxSide) -> UIImage? {
         let path = string(key)
         guard !path.isEmpty else { return nil }
-        return WidgetImage.load(path)
+        return WidgetImage.load(path, maxSide: maxSide)
     }
 
     /// Возвращает groupId активной группы для конкретного семейства виджетов.
