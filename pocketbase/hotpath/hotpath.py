@@ -2548,13 +2548,37 @@ async def internal_pair_accept(request: Request):
                     except ValueError:
                         состав = []
                 состав = [str(m) for m in (состав or []) if m]
+                # Роспуск пары НЕ чистит состав: `disbandGroup` в приложении
+                # ставит один флаг, чтобы пару можно было поднять со всей
+                # историей. Значит у распущенной пары в составе так и лежат
+                # двое — на 07.09.2026 таких 3809, за одну неделю прибавилось
+                # 640. Считать их место занятым нельзя.
+                распущена = bool(row["disbanded"])
                 if я in состав:
                     # Повтор приёма своего же кода: пара уже собрана. Отвечаем
                     # успехом с тем же id — раньше человек ловил тут «Код не
                     # найден» поверх состоявшейся пары, 517 отказов за сутки.
+                    if распущена:
+                        # Пара распущена, а я в её составе: поднимаем. Раньше
+                        # здесь возвращался успех без снятия флага — человек
+                        # видел «Подключились», а пары по-прежнему не было.
+                        await c.execute(
+                            "UPDATE groups SET waiting_mode = false, "
+                            "claim_token = '', claim_uid = '', claim_name = '', "
+                            "claim_at = 0, disbanded = false, disbanded_at = '', "
+                            "updated = $1 WHERE id = $2", now_pb(), gid)
+                        return {"success": True, "message": "Reconnected!",
+                                "pairId": gid, "restored": True, "_members": состав}
                     return {"success": True, "message": "Connected!", "pairId": gid}
                 предел = int(row["max_members"] or 2) or 2
                 if len(состав) >= предел:
+                    if распущена:
+                        # Место держат ушедшие. Отказ здесь обрывал разбор:
+                        # `итог` переставал быть None, и ветки ниже — живая
+                        # пара приглашающего и подъём общей распущенной — не
+                        # пробовались вовсе. Человек читал «Группа заполнена»
+                        # про пару, которой нет; жалоба @a_cringe 04.09.2026.
+                        return None
                     return {"success": False, "message": "Группа заполнена"}
                 состав.append(я)
                 await c.execute(
