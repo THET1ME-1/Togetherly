@@ -28,7 +28,7 @@ private func loadMiss() -> MissData {
         partnerCount: s.int("miss_\(g)_partner_count"),
         partnerName: s.string("miss_\(g)_partner_name"),
         partnerInitial: s.string("miss_\(g)_partner_initial"),
-        partnerAvatar: s.uiImage("miss_\(g)_partner_avatar_path"),
+        partnerAvatar: s.uiImage("miss_\(g)_partner_avatar_path", maxSide: WidgetImage.avatar),
         lastTime: s.string("miss_\(g)_last_time"),
         sentToday: s.bool01("miss_\(g)_sent_today")
     )

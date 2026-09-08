@@ -621,8 +621,10 @@ class HomeWidgetService {
   Future<void> clearAppGroupMedia(String prefix) async {
     if (!Platform.isIOS || prefix.isEmpty) return;
     try {
+      // Уборка — дело десятое, ждать её нельзя: свежий снимок важнее
+      // вычищенных остатков, а канал платформы иногда молчит.
       await _iosMediaChannel
-          .invokeMethod('clearAppGroupMedia', {'prefix': prefix});
+          .invokeMethod('clearAppGroupMedia', {'prefix': prefix}).timeout(_ioStep);
     } catch (e) {
       debugPrint('HomeWidgetService.clearAppGroupMedia failed: $e');
     }
@@ -899,11 +901,20 @@ class HomeWidgetService {
   Future<String> _toWidgetReadablePath(String localPath, String name) async {
     if (localPath.isEmpty || !Platform.isIOS) return localPath;
     try {
+      // Мост в App Group — обычный канал платформы, и он умеет не отвечать:
+      // расширение виджета держат считанные секунды, а на занятом телефоне
+      // ответ приходит не всегда. Без предела здесь вставала подготовка
+      // картинки целиком — та же беда, что чинилась на Android.
       final res = await _iosMediaChannel.invokeMethod<String>(
         'copyToAppGroup',
         {'srcPath': localPath, 'name': name},
-      );
+      ).timeout(_ioStep);
       return (res != null && res.isNotEmpty) ? res : '';
+    } on TimeoutException {
+      // Наружу пробрасываем: у вызывающего есть прежний снимок, и он лучше
+      // пустоты. Молча вернуть '' значило бы стереть фотографию с экрана.
+      debugPrint('HomeWidgetService._toWidgetReadablePath: мост молчит ($name)');
+      rethrow;
     } catch (e) {
       debugPrint('HomeWidgetService._toWidgetReadablePath failed: $e');
       return '';
@@ -3928,6 +3939,15 @@ class HomeWidgetService {
   /// ключ честно стираем. Правило общее с парным виджетом, см.
   /// pair_widget_payload.dart: без него холодный старт с невосстановленной
   /// сессией стирал фото с рабочего стола iPhone.
+  /// Сколько всего отводим на каталог фото-виджетов iPhone.
+  ///
+  /// Внутри до пятнадцати снимков, и каждый идёт своим чередом через сеть,
+  /// кодек и мост в контейнер. Даже с пределом на одну картинку весь обход в
+  /// худшем случае растянулся бы на десять минут, а пробуждение по тихому пушу
+  /// длится секунды. Что успели — то и покажем, остальное догонит следующий
+  /// проход: он уже не пойдёт в сеть за тем, что лежит на диске.
+  static const Duration _iosCatalogBudget = Duration(seconds: 90);
+
   Future<void> syncIosPhotoWidgets({
     required List<String>? myPhotos,
     required List<String>? partnerPhotos,
@@ -3937,6 +3957,30 @@ class HomeWidgetService {
     List<String>? gridPhotos,
   }) async {
     if (!Platform.isIOS) return;
+    try {
+      await _syncIosPhotoWidgets(
+        myPhotos: myPhotos,
+        partnerPhotos: partnerPhotos,
+        partnerName: partnerName,
+        dayPhotoUrl: dayPhotoUrl,
+        dayAuthor: dayAuthor,
+        gridPhotos: gridPhotos,
+      ).timeout(_iosCatalogBudget);
+    } on TimeoutException {
+      debugPrint(
+        'syncIosPhotoWidgets: каталог не уложился в ${_iosCatalogBudget.inSeconds}с',
+      );
+    }
+  }
+
+  Future<void> _syncIosPhotoWidgets({
+    required List<String>? myPhotos,
+    required List<String>? partnerPhotos,
+    String partnerName = '',
+    String dayPhotoUrl = '',
+    String dayAuthor = '',
+    List<String>? gridPhotos,
+  }) async {
     if (myPhotos == null && partnerPhotos == null && gridPhotos == null) return;
     // «Фото дня» на айфоне не наполнялось НИКОГДА: единственное место, где
     // пишется `ios_photo_day_path`, лежит за списком Android-виджетов

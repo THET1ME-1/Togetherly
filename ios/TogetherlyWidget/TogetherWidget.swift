@@ -35,8 +35,8 @@ private func loadTogether() -> TogetherData {
         startDate: s.string("together_\(g)_start_date"),
         names: s.string("together_\(g)_names"),
         anniversary: s.string("together_\(g)_anniversary"),
-        myAvatar: s.uiImage("together_\(g)_my_avatar_path"),
-        partnerAvatar: s.uiImage("together_\(g)_partner_avatar_path"),
+        myAvatar: s.uiImage("together_\(g)_my_avatar_path", maxSide: WidgetImage.avatar),
+        partnerAvatar: s.uiImage("together_\(g)_partner_avatar_path", maxSide: WidgetImage.avatar),
         myInitial: s.string("together_\(g)_my_initial"),
         partnerInitial: s.string("together_\(g)_partner_initial")
     )
