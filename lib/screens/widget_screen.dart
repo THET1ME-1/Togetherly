@@ -53,6 +53,7 @@ import '../services/mood_notification_service.dart';
 import '../services/mood_service.dart';
 import '../services/mascot_service.dart';
 import '../services/timer_service.dart';
+import '../services/widget_rotation.dart';
 import '../services/widget_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/profile_theme.dart';
@@ -5636,7 +5637,10 @@ class _WidgetScreenState extends State<WidgetScreen>
 
     final hws = HomeWidgetService.instance;
     final partnerCount = _ws.firstPartnerData?.photoForPartnerUrls.length ?? 0;
-    String rotationType = await hws.getPhotoDayWidgetRotationType(widgetId);
+    // Сырое значение бывает `none` (пока снимок был один) — в редакторе это
+    // выглядело как «режим не выбран». Показываем тот, который и так работает.
+    String rotationType =
+        rotationTypeForEditor(await hws.getPhotoDayWidgetRotationType(widgetId));
     int rotationInterval = await hws.getPhotoDayWidgetRotationInterval(
       widgetId,
     );
