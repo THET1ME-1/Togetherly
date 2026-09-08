@@ -4,11 +4,11 @@ import 'package:flutter/services.dart';
 import '../../../models/cycle_entry.dart';
 import '../../../models/pair_data.dart';
 import '../../../models/user_data.dart';
+import '../../../services/cycle_gate.dart';
 import '../../../services/cycle_service.dart';
 import 'cycle_consent_sheet.dart';
 import '../../../services/locale_service.dart';
 import '../../../services/mood_service.dart';
-import '../../../services/plus_access.dart';
 import '../../../services/plus_service.dart';
 import '../../../services/widget_service.dart';
 import '../../../theme/app_theme.dart';
@@ -188,21 +188,39 @@ class _DayLogSheetState extends State<_DayLogSheet> {
     );
   }
 
-  void _openCycle() {
-    switch (PlusService.instance.gate) {
+  Future<void> _openCycle() async {
+    final plus = PlusService.instance;
+    // Флаг покупки читается с сервера, и до ответа гейт говорит «не куплено» о
+    // том, кто заплатил. Ждём ответа, прежде чем предлагать покупку: иначе
+    // купившая попадает на витрину вместо своих отметок и видит там «Плюс ваш»
+    // (жалобы 01.09.2026). Предел небольшой — ответ обычно приходит мгновенно
+    // из локальной копии, а сеть ждать человеку незачем.
+    if (!plus.known) {
+      try {
+        await plus.ensureLoaded().timeout(const Duration(seconds: 5));
+      } catch (e) {
+        debugPrint('day_log_sheet: флаг Плюса не пришёл — $e');
+      }
+      if (!mounted) return;
+    }
+    switch (cycleTapAction(gate: plus.gate, known: plus.known)) {
       // Платформа без Togetherly+ (iOS): строки цикла тут и не должно быть,
       // вести некуда.
-      case PlusGate.hidden:
+      case CycleTap.nothing:
+        return;
+      // Ответа так и нет: молчим. Увести на витрину купившую хуже, чем не
+      // среагировать на касание — второе она повторит, первое собьёт с толку.
+      case CycleTap.wait:
         return;
       // Без покупки отмечать нечего — ведём туда, где Плюс покупают.
-      case PlusGate.locked:
+      case CycleTap.offer:
         final nav = Navigator.of(context);
         nav.pop();
         nav.push(
           MaterialPageRoute<void>(builder: (_) => PlusScreen(scheme: _cs)),
         );
         return;
-      case PlusGate.open:
+      case CycleTap.open:
         showCycleDaySheet(context: context, day: widget.day, scheme: _cs);
     }
   }
