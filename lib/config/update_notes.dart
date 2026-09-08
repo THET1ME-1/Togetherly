@@ -11,17 +11,20 @@
 const String ruWhatsNew =
     'Что нового 💜\n'
     '\n'
-    '— Фото снова появляется на виджете: крупные снимки не влезали в память, '
-    'и виджет гас, оставляя пустой прямоугольник.\n'
-    '— Снимок ужимается по большей стороне — виджет стал вдвое легче.\n'
-    '— Если ужать не вышло, на столе останется прежнее фото, а не пустота.\n'
-    '— Пустой «Фото партнёра» больше не подписан «Фото дня».';
+    '— Фотографии снова доезжают на виджеты: подготовка снимка застревала, '
+    'и на столе менялся только текст.\n'
+    '— Сетка фото наполняется сама, а не только после захода на вкладку '
+    'виджетов.\n'
+    '— Не успели подготовить снимок — остаётся прежний, а не пустота.\n'
+    '— Цикл открывает подписка, а не пол в профиле; купившим он больше не '
+    'предлагает купить.';
 
 const String enWhatsNew =
     'What is new 💜\n'
     '\n'
-    '— Photos are back on the widget: large shots did not fit into memory, so '
-    'the widget went dark and left an empty rectangle.\n'
-    '— A photo is scaled by its longer side — the widget is twice as light.\n'
-    '— If scaling fails, the previous photo stays instead of emptiness.\n'
-    '— An empty "Partner\'s photo" is no longer labelled "Photo of the day".';
+    '— Photos reach the widgets again: preparing a shot used to stall, and '
+    'only the text changed on the home screen.\n'
+    '— The photo grid fills itself, not just after you open the widgets tab.\n'
+    '— If a shot is not ready in time, the previous one stays.\n'
+    '— Cycle is unlocked by the subscription, not by gender, and no longer '
+    'asks buyers to buy.';

@@ -1,7 +1,9 @@
-Photos are back on the widget. Large shots did not fit into the memory the system gives a widget, so it died before drawing anything — an empty rectangle on the home screen, while the photo sat fine inside the app. Both Android and iPhone, and the better the camera, the worse it got.
+Photos reach the widgets again. The app prepared a picture and waited for it forever: preparation stalled on the very first step, while texts went to the home screen ahead of images. That is why it looked as if only the status changed and the photo stayed the same, no matter how often you replaced it.
 
-The widget got twice as light. A photo is now scaled by its longer side, not the shorter one: the pair widget holds two halves plus avatars, and together they used to hit the memory ceiling.
+The photo grid fills itself. Partner's shots used to arrive only if you opened the widgets tab in the app; those who never did saw empty cells.
 
-If a photo cannot be scaled, the previous one stays. Before, the original went to the widget as is — and the widget went dark.
+No step of preparing a picture waits without a limit any more. Network, codec, disk — each has its own budget; if a shot does not make it, the previous one stays and the next pass tries again.
 
-An empty widget now says its own name. "Partner's photo" was labelled "Photo of the day · No memories" and looked like someone else's, so people thought it had not been added and kept adding more.
+Cycle is unlocked by the subscription, not by gender. The card used to appear only for a female profile, so anyone who had not picked a gender never found it. Cycle also no longer sends to the store those who already paid: the app waits for the purchase answer first.
+
+Widgets on iPhone got lighter: avatars are no longer decoded at full size and stop eating the memory an extension barely has.
