@@ -460,6 +460,15 @@ class HomeWidgetService {
       name: 'LoveWidgetProvider',
       androidName: 'LoveWidgetProvider',
     );
+
+    // Сетка фото — из того же пробуждения. В фоне её не обновлял никто: она
+    // жила только на экране виджетов, и снимки партнёра доезжали до неё лишь
+    // тогда, когда человек сам туда заглянет.
+    try {
+      await refreshPhotoGrid(groupId).timeout(const Duration(seconds: 40));
+    } catch (e) {
+      debugPrint('refreshLoveWidgetFromServer: сетка не успела — $e');
+    }
   }
 
   // Файл готовим ПО КЛЮЧУ ПАРЫ: и запись кэша, и имя файла берут ключ. Пока он

@@ -881,6 +881,15 @@ class WidgetService extends ChangeNotifier {
       _cacheAvatarsForLoveWidget(media.myAvatar, media.partnerAvatar);
       _cacheGroupAvatarsForWidget(limitedMembers);
 
+      // Сетка фото партнёра. До 08.09.2026 её обновлял ТОЛЬКО экран виджетов
+      // (widget_screen), и у человека, который поставил сетку и туда больше не
+      // заходит, она стояла пустой или со старыми снимками, сколько бы партнёр
+      // их ни менял. Здесь мы уже держим свежие данные партнёра — зовём тем же
+      // проходом, что и остальные картинки.
+      if (_groupId.isNotEmpty && (partner?.photoGridUrls.isNotEmpty ?? false)) {
+        unawaited(HomeWidgetService.instance.refreshPhotoGrid(_groupId));
+      }
+
       // PhotoDay обновляется ТОЛЬКО при изменении фото-полей (photoUrl,
       // photoForPartnerUrl, photoForPartnerUrls, photoGridUrls) через
       // проверку _photoSig() в слушателях. Не дёргаем здесь — на каждое
