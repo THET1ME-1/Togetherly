@@ -174,6 +174,13 @@ class PbMediaService {
   Future<String?>? _tokenInflight;
   static const Duration _tokenTtl = Duration(seconds: 90);
 
+  /// Сколько ждём сам запрос токена. Зависший вызов не бросает исключение — он
+  /// просто не возвращается, а его future лежит в [_tokenInflight] и раздаётся
+  /// всем, кто просит токен следом: одна заминка останавливает подготовку всех
+  /// картинок виджета разом. На эмуляторе 08.09.2026 запрос отвечал то за
+  /// секунду, то не отвечал вовсе — предел по времени снимает этот риск.
+  static const Duration _tokenTimeout = Duration(seconds: 12);
+
   Future<String?> _ensureFileToken() {
     final t = _fileToken, at = _fileTokenAt;
     if (t != null && at != null && DateTime.now().difference(at) < _tokenTtl) {
@@ -183,7 +190,7 @@ class PbMediaService {
     if (inflight != null) return inflight;
     final fut = () async {
       try {
-        final tok = await _pb.files.getToken();
+        final tok = await _pb.files.getToken().timeout(_tokenTimeout);
         _fileToken = tok;
         _fileTokenAt = DateTime.now();
         return tok;
@@ -201,7 +208,7 @@ class PbMediaService {
               .collection('users')
               .authRefresh()
               .timeout(const Duration(seconds: 8));
-          final tok = await _pb.files.getToken();
+          final tok = await _pb.files.getToken().timeout(_tokenTimeout);
           _fileToken = tok;
           _fileTokenAt = DateTime.now();
           return tok;

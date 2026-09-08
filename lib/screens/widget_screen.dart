@@ -6722,8 +6722,9 @@ class _WidgetScreenState extends State<WidgetScreen>
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
         color: hasValue ? _cs.surfaceContainerHigh : _cs.surfaceContainerLow,
-        borderRadius: radius,
         clipBehavior: Clip.antiAlias,
+        // Форму задаёт только shape: Material не принимает его вместе с
+        // borderRadius и валит сборку экрана ассертом.
         shape: hasValue
             ? RoundedRectangleBorder(borderRadius: radius)
             : RoundedRectangleBorder(
@@ -6921,8 +6922,9 @@ class _WidgetScreenState extends State<WidgetScreen>
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
         color: hasValue ? _cs.surfaceContainerHigh : _cs.surfaceContainerLow,
-        borderRadius: radius,
         clipBehavior: Clip.antiAlias,
+        // Форму задаёт только shape: Material не принимает его вместе с
+        // borderRadius и валит сборку экрана ассертом.
         shape: hasValue
             ? RoundedRectangleBorder(borderRadius: radius)
             : RoundedRectangleBorder(
