@@ -895,8 +895,23 @@ class WidgetService extends ChangeNotifier {
   /// «Моё фото» — то, чем делюсь я: сначала своя карусель «для партнёра»,
   /// потом снимок парного виджета. «Фото партнёра» — зеркально его выбор.
 
+  /// Сколько ждать перед повторной попыткой подготовить снимок.
+  static const Duration _photoRetryDelay = Duration(seconds: 45);
+
+  /// Сколько раз всего пробуем. Больше трёх смысла нет: если снимок не
+  /// подготовился за две минуты, дело не в заминке.
+  static const int _photoAttempts = 3;
+
   /// Скачивает фото в локальный кэш и обновляет нативный виджет (LoveWidget).
-  void _cachePhotosForWidget(String? myUrl, String? partnerUrl) {
+  ///
+  /// Подготовка картинки идёт через сеть, кодек и диск, и каждый из них умеет
+  /// сорваться по своему пределу. Раньше сорвавшийся проход означал, что снимок
+  /// на рабочем столе останется прежним НАВСЕГДА: ссылка в контейнере уже
+  /// новая, и следующего повода пересобрать картинку не будет, пока человек не
+  /// сменит фото ещё раз. Отсюда «меняется только текст, фотография прежняя».
+  /// Теперь неудачная попытка назначает следующую.
+  void _cachePhotosForWidget(String? myUrl, String? partnerUrl,
+      {int attempt = 1}) {
     final bindGeneration = _bindGeneration;
     Future.wait([
       _downloadPhoto(myUrl, 'my_photo_path', generation: bindGeneration),
@@ -912,7 +927,33 @@ class WidgetService extends ChangeNotifier {
       } catch (e) {
         debugPrint('WidgetService._cachePhotosForWidget update failed: $e');
       }
+      if (attempt >= _photoAttempts) return;
+      final missing = await _photoPathMissing(myUrl, 'my_photo_path') ||
+          await _photoPathMissing(partnerUrl, 'partner_photo_path');
+      if (!missing) return;
+      debugPrint(
+        'WidgetService: снимок не доехал (попытка $attempt), пробуем ещё раз',
+      );
+      Future.delayed(_photoRetryDelay, () {
+        if (_isDisposed || bindGeneration != _bindGeneration) return;
+        _cachePhotosForWidget(myUrl, partnerUrl, attempt: attempt + 1);
+      });
     });
+  }
+
+  /// Ссылка на снимок есть, а файла для виджета нет — значит подготовка
+  /// сорвалась и её надо повторить.
+  Future<bool> _photoPathMissing(String? url, String key) async {
+    if (url == null || url.isEmpty) return false;
+    try {
+      final path = await HomeWidget.getWidgetData<String>(
+        pairWidgetKey(_groupId, key),
+      );
+      return path == null || path.isEmpty;
+    } catch (e) {
+      debugPrint('WidgetService._photoPathMissing($key) failed: $e');
+      return false;
+    }
   }
 
   /// Скачивает аватарки для парного виджета (LoveWidget) в локальный кэш.

@@ -423,20 +423,37 @@ class HomeWidgetService {
     // Предел по времени тут не роскошь: неудачная закачка не должна съесть всё
     // отпущенное пробуждение — что успели, то и покажем, остальное догонит
     // следующий проход (он же и не пойдёт в сеть за тем, что уже на диске).
+    final images = Future.wait([
+      _savePairImage(groupId, 'my_photo_path', media.myPhoto, shared),
+      _savePairImage(groupId, 'partner_photo_path', media.partnerPhoto, shared),
+      _savePairImage(groupId, 'my_avatar_path', media.myAvatar, shared),
+      _savePairImage(
+          groupId, 'partner_avatar_path', media.partnerAvatar, shared),
+      _savePairEmoji(
+          groupId, 'my_mood_emoji_path', media.myMoodEmoji, shared),
+      _savePairEmoji(groupId, 'partner_mood_emoji_path',
+          media.partnerMoodEmoji, shared),
+    ]);
     try {
-      await Future.wait([
-        _savePairImage(groupId, 'my_photo_path', media.myPhoto, shared),
-        _savePairImage(groupId, 'partner_photo_path', media.partnerPhoto, shared),
-        _savePairImage(groupId, 'my_avatar_path', media.myAvatar, shared),
-        _savePairImage(
-            groupId, 'partner_avatar_path', media.partnerAvatar, shared),
-        _savePairEmoji(
-            groupId, 'my_mood_emoji_path', media.myMoodEmoji, shared),
-        _savePairEmoji(groupId, 'partner_mood_emoji_path',
-            media.partnerMoodEmoji, shared),
-      ]).timeout(const Duration(seconds: 20));
+      await images.timeout(const Duration(seconds: 40));
     } catch (e) {
       debugPrint('refreshLoveWidgetFromServer: картинки не успели — $e');
+      // Ждать дольше нельзя, но и бросать закачку жалко: на Android процесс
+      // живёт дольше пробуждения, и снимок обычно доезжает через несколько
+      // секунд после того, как тексты уже на столе. Догоняем отдельным
+      // обновлением, иначе свежая фотография пролежала бы в контейнере до
+      // следующего прохода.
+      unawaited(images.then((_) async {
+        try {
+          await HomeWidget.updateWidget(
+            name: 'LoveWidgetProvider',
+            androidName: 'LoveWidgetProvider',
+          );
+          debugPrint('refreshLoveWidgetFromServer: картинки догнали');
+        } catch (_) {}
+      }).catchError((Object e) {
+        debugPrint('refreshLoveWidgetFromServer: догнать не вышло — $e');
+      }));
     }
 
     await HomeWidget.updateWidget(
@@ -617,7 +634,38 @@ class HomeWidgetService {
   /// [refreshLoveWidgetFromServer], где никакого [WidgetService] нет вовсе. Пока
   /// код лежал только в службе, фон не обновлял ни фото, ни аватарки, ни значки
   /// настроения — «меняется только текст» (жалобы 01–03.09.2026).
+  /// Сколько всего отводим на одну картинку виджета.
+  ///
+  /// Внутри — сеть, кодек, диск и мост в контейнер, и каждый из них на живом
+  /// телефоне умеет не возвращаться вовсе: зависший future исключения не
+  /// бросает, `try/catch` его не ловит. Пока такой шаг стоит, стоит подготовка
+  /// ВСЕХ картинок виджета — а тексты уезжают на рабочий стол сразу. Отсюда
+  /// «меняется только текст, фотография прежняя». Предел превращает вечное
+  /// ожидание в честный отказ: прежний снимок остаётся на месте, а следующий
+  /// проход синхронизации пробует заново.
+  static const Duration _imageBudget = Duration(seconds: 45);
+
+  /// Предел одному обращению к диску или мосту виджета.
+  static const Duration _ioStep = Duration(seconds: 10);
+
   Future<String?> pairImagePath(String key, String? url) async {
+    try {
+      return await _preparePairImage(key, url).timeout(_imageBudget);
+    } on TimeoutException {
+      debugPrint('pairImagePath($key): не уложились в ${_imageBudget.inSeconds}с');
+      // Ключ не трогаем: на столе останется прежний снимок, а не пустота.
+      final prefs = await SharedPreferences.getInstance();
+      final prev = prefs.getString('${key}_cached_wpath') ?? '';
+      final exists = prev.isNotEmpty && File(prev).existsSync();
+      return photoFallbackOnFailure(
+        cachedPath: prev,
+        cachedFileExists: exists,
+        cachedFileSize: exists ? File(prev).lengthSync() : 0,
+      );
+    }
+  }
+
+  Future<String?> _preparePairImage(String key, String? url) async {
     // null — половина не загружена, трогать её картинку нельзя: иначе каждый
     // холодный старт и каждый тихий пуш стирают фото с рабочего стола.
     if (url == null) return null;
@@ -693,7 +741,7 @@ class HomeWidgetService {
         );
       }
 
-      final dir = await getApplicationSupportDirectory();
+      final dir = await getApplicationSupportDirectory().timeout(_ioStep);
       final file = File('${dir.path}/$uniqueName.jpg');
       // Ужимаем ДО записи: расширению виджета отводят около 30 МБ, а снимок с
       // камеры в разжатом виде занимает под пятьдесят — расширение убивают, и
@@ -710,14 +758,21 @@ class HomeWidgetService {
           cachedFileSize: cachedSize,
         );
       }
-      await file.writeAsBytes(payload);
+      await file.writeAsBytes(payload).timeout(_ioStep);
 
       // Старые файлы этого ключа (контейнер + локальные) убираем ДО записи нового
       // пути, чтобы не копились и не оставалось «залипшего» кэша по старому пути.
-      await clearAppGroupMedia(key);
+      // Уборка — дело десятое: подождём немного и пойдём дальше, свежий снимок
+      // важнее вычищенных остатков.
+      try {
+        await clearAppGroupMedia(key).timeout(_ioStep);
+      } catch (e) {
+        debugPrint('pairImagePath($key): уборка контейнера не успела — $e');
+      }
       _cleanupOldPairPhotos(dir, key, '$uniqueName.jpg');
 
-      final widgetPath = await _toWidgetReadablePath(file.path, uniqueName);
+      final widgetPath =
+          await _toWidgetReadablePath(file.path, uniqueName).timeout(_ioStep);
       await prefs.setString('${key}_cached_url', url);
       await prefs.setString('${key}_cached_wpath', widgetPath);
       debugPrint('pairImagePath: $key → $widgetPath');
@@ -3515,7 +3570,15 @@ class HomeWidgetService {
       // в контейнер не попадало ничего — путь оставался пустым навсегда. На
       // 06.09.2026 так жили 45% iPhone, у которых фото стоит на сервере.
       // Считает пакет `image` в отдельном изоляте: на главном это заметная пауза.
-      final byEngine = await compute(_shrinkJob, _ShrinkJob(bytes, targetW));
+      // Изолят тоже под предел: `compute` поднимает его через плагинный мост,
+      // и когда мост занят, ответа можно не дождаться никогда.
+      Uint8List? byEngine;
+      try {
+        byEngine = await compute(_shrinkJob, _ShrinkJob(bytes, targetW))
+            .timeout(const Duration(seconds: 20));
+      } catch (e) {
+        debugPrint('HomeWidgetService._shrinkForWidget: изолят не справился ($e)');
+      }
       if (byEngine != null && byEngine.isNotEmpty) compressed = byEngine;
     }
     return widgetPhotoPayload(original: bytes, compressed: compressed);
@@ -3524,8 +3587,12 @@ class HomeWidgetService {
   /// Габариты картинки без полного разжатия — по ним считается целевой размер.
   Future<ui.Size?> _imageSize(Uint8List bytes) async {
     try {
-      final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
-      final descriptor = await ui.ImageDescriptor.encoded(buffer);
+      // Оба вызова идут в движок и на занятом устройстве возвращаются не
+      // сразу. Без предела здесь вставала вся подготовка картинки.
+      final buffer = await ui.ImmutableBuffer.fromUint8List(bytes)
+          .timeout(const Duration(seconds: 8));
+      final descriptor = await ui.ImageDescriptor.encoded(buffer)
+          .timeout(const Duration(seconds: 8));
       final size = ui.Size(descriptor.width.toDouble(), descriptor.height.toDouble());
       descriptor.dispose();
       return size;
@@ -3539,13 +3606,40 @@ class HomeWidgetService {
   static Uint8List? _shrinkJob(_ShrinkJob job) =>
       shrinkToJpeg(job.bytes, job.maxSide);
 
+  /// Готовит снимок для НЕпарных виджетов («дни вместе», «скучаю», фото-виджеты,
+  /// сетка). Внутри та же связка сети, кодека и диска, что и у парного виджета,
+  /// и тот же риск: любой шаг может не вернуться вовсе. Держим общий предел,
+  /// иначе один залипший вызов останавливает подготовку всех остальных картинок
+  /// прохода — на столе остаются свежие тексты и прежние фотографии.
   Future<String> _cachePhotoFromUrl(
     String url,
     String key, {
     int maxSide = 1200,
   }) async {
+    try {
+      return await _cachePhotoFromUrlInner(url, key, maxSide: maxSide)
+          .timeout(_imageBudget);
+    } on TimeoutException {
+      debugPrint('_cachePhotoFromUrl($key): не уложились в ${_imageBudget.inSeconds}с');
+      try {
+        final dir = await getApplicationSupportDirectory().timeout(_ioStep);
+        final prev = File('${dir.path}/widget_$key.jpg');
+        if (prev.existsSync()) {
+          return await _toWidgetReadablePath(prev.path, 'cache_$key')
+              .timeout(_ioStep);
+        }
+      } catch (_) {}
+      return '';
+    }
+  }
+
+  Future<String> _cachePhotoFromUrlInner(
+    String url,
+    String key, {
+    int maxSide = 1200,
+  }) async {
     if (url.isEmpty) return '';
-    final dir = await getApplicationSupportDirectory();
+    final dir = await getApplicationSupportDirectory().timeout(_ioStep);
     final file = File('${dir.path}/widget_$key.jpg');
     final prefs = await SharedPreferences.getInstance();
 
@@ -3618,8 +3712,8 @@ class HomeWidgetService {
               ? await _toWidgetReadablePath(file.path, 'cache_$key')
               : '';
         }
-        await file.writeAsBytes(shrunk);
-        await shared.writeAsBytes(shrunk);
+        await file.writeAsBytes(shrunk).timeout(_ioStep);
+        await shared.writeAsBytes(shrunk).timeout(_ioStep);
         // Ссылку запоминаем ТОЛЬКО после удачной записи: иначе битая попытка
         // закрыла бы дорогу повторной загрузке до самой смены фото.
         await prefs.setString('${key}_src', url);
