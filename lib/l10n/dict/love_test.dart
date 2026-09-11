@@ -67,23 +67,26 @@ const Map<String, Map<String, String>> loveTestStrings = {
   },
 
   // ── Градации ответа ──────────────────────────────────────────────────────
+  // Шкала без «почти»: пара «почти никогда / почти всегда» читалась как
+  // увёртка, а середины между «редко» и «часто» не было вовсе (жалоба
+  // 30.08.2026). Веса те же — 0, 33, 67, 100.
   'love_answer_0': {
-    'ru': 'Почти никогда',
-    'en': 'Almost never',
-    'de': 'Fast nie',
-    'fr': 'Presque jamais',
-    'es': 'Casi nunca',
-    'it': 'Quasi mai',
-    'pt': 'Quase nunca',
+    'ru': 'Никогда',
+    'en': 'Never',
+    'de': 'Nie',
+    'fr': 'Jamais',
+    'es': 'Nunca',
+    'it': 'Mai',
+    'pt': 'Nunca',
   },
   'love_answer_1': {
-    'ru': 'Редко',
-    'en': 'Rarely',
-    'de': 'Selten',
-    'fr': 'Rarement',
-    'es': 'Rara vez',
-    'it': 'Raramente',
-    'pt': 'Raramente',
+    'ru': 'Иногда',
+    'en': 'Sometimes',
+    'de': 'Manchmal',
+    'fr': 'Parfois',
+    'es': 'A veces',
+    'it': 'A volte',
+    'pt': 'Às vezes',
   },
   'love_answer_2': {
     'ru': 'Часто',
@@ -95,13 +98,13 @@ const Map<String, Map<String, String>> loveTestStrings = {
     'pt': 'Muitas vezes',
   },
   'love_answer_3': {
-    'ru': 'Почти всегда',
-    'en': 'Almost always',
-    'de': 'Fast immer',
-    'fr': 'Presque toujours',
-    'es': 'Casi siempre',
-    'it': 'Quasi sempre',
-    'pt': 'Quase sempre',
+    'ru': 'Всегда',
+    'en': 'Always',
+    'de': 'Immer',
+    'fr': 'Toujours',
+    'es': 'Siempre',
+    'it': 'Sempre',
+    'pt': 'Sempre',
   },
 
   // ── Интерес ──────────────────────────────────────────────────────────────

@@ -17,6 +17,10 @@ import 'date_time_picker_screen.dart';
 /// Композер «Капсулы времени»: письмо и/или фото, запечатанные до выбранной даты.
 /// Создаёт обычное воспоминание с флагами `sealed`+`openAt` (лента прячет его до
 /// даты, затем раскрывает) и планирует локальное уведомление на день открытия.
+/// Потолок письма. Не защита от длинного текста, а защита от вставленной
+/// книги: запись едет в json-поле `data` и оседает в локальном кэше.
+const int kCapsuleLetterMax = 10000;
+
 class TimeCapsuleScreen extends StatefulWidget {
   final AppTheme theme;
   final String pairId;
@@ -79,9 +83,13 @@ class _TimeCapsuleScreenState extends State<TimeCapsuleScreen> {
           children: [
             _hero(s),
             const SizedBox(height: 24),
-            _field(_titleCtrl, s.titleHint, maxLength: 60),
+            _field(_titleCtrl, s.titleHint, maxLength: 120),
             const SizedBox(height: 12),
-            _field(_msgCtrl, s.capsuleLetterHint, maxLines: 6, maxLength: 800),
+            // Письмо в будущее пишут не подписью к фото: 800 символов
+            // обрывали его на полуслове. Поле растёт вместе с текстом,
+            // а счётчик появляется на последней тысяче.
+            _field(_msgCtrl, s.capsuleLetterHint,
+                minLines: 6, grow: true, maxLength: kCapsuleLetterMax),
             const SizedBox(height: 16),
             _photoRow(s),
             const SizedBox(height: 16),
@@ -128,11 +136,13 @@ class _TimeCapsuleScreenState extends State<TimeCapsuleScreen> {
   }
 
   Widget _field(TextEditingController c, String hint,
-      {int maxLines = 1, int? maxLength}) {
+      {int maxLines = 1, int? minLines, bool grow = false, int? maxLength}) {
     return TextField(
       controller: c,
-      maxLines: maxLines,
+      maxLines: grow ? null : maxLines,
+      minLines: minLines,
       maxLength: maxLength,
+      buildCounter: grow ? _counter : null,
       textCapitalization: TextCapitalization.sentences,
       style: TextStyle(color: _t.textPrimary),
       decoration: InputDecoration(
@@ -140,7 +150,7 @@ class _TimeCapsuleScreenState extends State<TimeCapsuleScreen> {
         hintStyle: TextStyle(color: _t.textMuted),
         filled: true,
         fillColor: _t.surfaceMuted,
-        counterText: '',
+        counterText: grow ? null : '',
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide.none,
@@ -148,6 +158,19 @@ class _TimeCapsuleScreenState extends State<TimeCapsuleScreen> {
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
+    );
+  }
+
+  /// Счётчик молчит, пока запас велик, и подсказывает на последней тысяче.
+  Widget? _counter(BuildContext context,
+      {required int currentLength,
+      required int? maxLength,
+      required bool isFocused}) {
+    final limit = maxLength ?? kCapsuleLetterMax;
+    if (limit - currentLength > 1000) return const SizedBox.shrink();
+    return Text(
+      '$currentLength / $limit',
+      style: TextStyle(fontSize: 12, color: _t.textMuted),
     );
   }
 

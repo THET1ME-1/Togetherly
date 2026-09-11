@@ -1827,6 +1827,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: Text(
                 caption,
+                // Письмо из капсулы бывает на страницу: в ленте показываем
+                // начало, целиком читается на карточке воспоминания.
+                maxLines: 14,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 15,
                   color: widget.theme.textPrimary,
@@ -1899,6 +1903,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: Text(
                 caption,
+                // Письмо из капсулы бывает на страницу: в ленте показываем
+                // начало, целиком читается на карточке воспоминания.
+                maxLines: 14,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 15,
                   color: widget.theme.textPrimary,
@@ -2110,6 +2118,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: Text(
                 caption,
+                // Письмо из капсулы бывает на страницу: в ленте показываем
+                // начало, целиком читается на карточке воспоминания.
+                maxLines: 14,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 15,
                   color: widget.theme.textPrimary,
