@@ -199,8 +199,22 @@ class ChatService {
       final folder = Directory('${base.path}/$dir');
       if (!await folder.exists()) await folder.create(recursive: true);
       final dst = '${folder.path}/${tempPath.split(Platform.pathSeparator).last}';
-      final moved = await src.rename(dst);
-      return moved.path;
+      try {
+        final moved = await src.rename(dst);
+        return moved.path;
+      } on FileSystemException {
+        // `rename` не работает ЧЕРЕЗ границу файловых систем: обложка фигурки
+        // рождается во внешнем каталоге (video_compress на /storage/emulated),
+        // а кладём мы её во внутренний — Android отвечает
+        // `Cross-device link, errno = 18`, и сообщение уходило без обложки
+        // (поймано живым прогоном на эмуляторе 11.09.2026). Копируем и
+        // убираем исходник руками.
+        final copied = await src.copy(dst);
+        try {
+          await src.delete();
+        } catch (_) {}
+        return copied.path;
+      }
     } catch (e) {
       debugPrint('ChatService._keepFile failed: $e');
       // Переименование через границу файловых систем падает — копируем.
