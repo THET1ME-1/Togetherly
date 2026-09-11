@@ -237,13 +237,20 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
 
   Widget _buildArcControls(double radius, double centerX, double centerY) {
     final timers = widget.timerService.timers;
-    final timer = timers[_currentIndex];
+    // Индекс зажимаем прямо здесь, а не полагаемся на `_onTimerChanged`:
+    // удалённый таймер убирает страницу из списка раньше, чем до карточки
+    // дойдёт событие сервиса, и кадр между этими двумя мгновениями валил
+    // главный экран — RangeError (length): Only valid value is 0: 1,
+    // 22 падения за четверо суток (Bugsink, 1.31.5).
+    if (timers.isEmpty) return const SizedBox.shrink();
+    final index = _currentIndex.clamp(0, timers.length - 1);
+    final timer = timers[index];
 
     final actions = [
       _ArcAction(
         icon: Icons.chevron_left_rounded,
-        onTap: () => _goToPage(_currentIndex - 1),
-        visible: _currentIndex > 0,
+        onTap: () => _goToPage(index - 1),
+        visible: index > 0,
       ),
       _ArcAction(icon: Icons.edit_rounded, onTap: () => _showEditDialog(timer)),
       _ArcAction(icon: Icons.add_rounded, onTap: _showCreateDialog),
@@ -254,8 +261,8 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
       ),
       _ArcAction(
         icon: Icons.chevron_right_rounded,
-        onTap: () => _goToPage(_currentIndex + 1),
-        visible: _currentIndex < timers.length - 1,
+        onTap: () => _goToPage(index + 1),
+        visible: index < timers.length - 1,
       ),
     ];
 

@@ -1005,7 +1005,15 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _flipNoteCamera() async {
-    final c = await NoteRecorderService.instance.switchCamera();
+    final rec = NoteRecorderService.instance;
+    // Превью снимаем ДО переключения: вне записи `switchCamera` уничтожает
+    // нынешний контроллер, а тот продолжает будить своих слушателей —
+    // `CameraPreview` на мёртвом контроллере роняет экран съёмки
+    // (CameraException(Disposed CameraController), Bugsink 29.08.2026).
+    // На записи контроллер ЖИВОЙ, ему меняют сенсор на ходу: гасить превью
+    // там значит моргать чёрным посреди съёмки.
+    if (!rec.isRecording) setState(() => _noteCamera = null);
+    final c = await rec.switchCamera();
     if (!mounted) return;
     setState(() => _noteCamera = c);
   }

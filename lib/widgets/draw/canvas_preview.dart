@@ -24,6 +24,15 @@ import 'stroke_painting.dart';
 /// а прокрутка галереи встанет. Берём начало — рисунок начинают с главного.
 const int kPreviewStrokeLimit = 1500;
 
+/// Потолок, за который плитка не заходит даже ради ластика.
+///
+/// Ластик снимает краску с того, что нарисовано РАНЬШЕ, поэтому обрезка по
+/// первым полутора тысячам штрихов возвращала на плитку всё стёртое: сами
+/// мазки в срез попадали, а стиравший их ластик — уже нет. Теперь срез
+/// тянется до последнего ластика, но не дальше этого числа: холст на сто
+/// тысяч штрихов миниатюре всё равно не нужен.
+const int kPreviewEraserLimit = 12000;
+
 class CanvasPreviewPainter extends CustomPainter {
   CanvasPreviewPainter({required this.strokes, required this.meta});
 
@@ -31,9 +40,24 @@ class CanvasPreviewPainter extends CustomPainter {
   final CanvasMeta meta;
 
   /// Штрихи, которые реально попадут в плитку.
-  List<DrawStroke> get visibleStrokes => strokes.length <= kPreviewStrokeLimit
-      ? strokes
-      : strokes.sublist(0, kPreviewStrokeLimit);
+  ///
+  /// Срез идёт до последнего ластика в пределах [kPreviewEraserLimit]:
+  /// иначе стёртое на миниатюре остаётся на месте.
+  List<DrawStroke> get visibleStrokes {
+    if (strokes.length <= kPreviewStrokeLimit) return strokes;
+
+    final edge = strokes.length < kPreviewEraserLimit
+        ? strokes.length
+        : kPreviewEraserLimit;
+    var end = kPreviewStrokeLimit;
+    for (var i = edge - 1; i >= kPreviewStrokeLimit; i--) {
+      if (strokes[i].isEraser) {
+        end = i + 1;
+        break;
+      }
+    }
+    return strokes.sublist(0, end);
+  }
 
   @override
   void paint(Canvas canvas, Size size) {

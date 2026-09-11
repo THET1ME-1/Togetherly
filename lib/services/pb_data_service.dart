@@ -2404,6 +2404,7 @@ class PbDataService {
     if (data.containsKey('createdBy')) body['created_by'] = data['createdBy'];
     if (data.containsKey('pixelW')) body['pixel_w'] = data['pixelW'];
     if (data.containsKey('pixelH')) body['pixel_h'] = data['pixelH'];
+    if (data.containsKey('sheetRatio')) body['sheet_ratio'] = data['sheetRatio'];
     return _upsertByFilter('canvas_catalogue',
         'group_id = {:g} && canvas_id = {:c}', {'g': groupId, 'c': canvasId},
         body, op: 'upsertCanvasCatalogue');

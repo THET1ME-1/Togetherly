@@ -306,11 +306,34 @@ class NoteRecorderService {
     }
   }
 
-  /// Переключает фронтальную и основную. Во время записи не работает: смена
-  /// сенсора рвёт поток, и файл получается битым.
+  /// Переключает фронтальную и основную — в том числе ПРЯМО ВО ВРЕМЯ СЪЁМКИ.
+  ///
+  /// Раньше запись это запрещала («перевернуть камеру во время съёмки нельзя»,
+  /// отзыв в Google Play 11.09.2026): пересоздание контроллера рвёт поток, и
+  /// снятое пропадает. Пересоздавать и не нужно — `setDescription` меняет
+  /// сенсор у ЖИВОЙ записи (`setDescriptionWhileRecording` есть и в CameraX, и
+  /// в AVFoundation), а запись у нас и так persistent: этого требует Android.
+  /// Один файл, один ролик, склеивать нечего.
   Future<CameraController?> switchCamera() async {
-    if (_recording && !_paused) return _controller;
     if (_cameras.length < 2) return _controller;
+
+    final live = _controller;
+    if (_recording && live != null && live.value.isInitialized) {
+      final next = nextCameraIndex(_cameras, _cameraIndex);
+      if (next == _cameraIndex) return live;
+      try {
+        await live.setDescription(_cameras[next]);
+        _cameraIndex = next;
+        _torch = false;
+        return live;
+      } on CameraException catch (e) {
+        // Модуль не открылся — снятое дороже поворота: остаёмся на прежней
+        // камере и продолжаем писать.
+        debugPrint('NoteRecorder.switchCamera (на записи): $e');
+        return live;
+      }
+    }
+
     final was = _cameraIndex;
     _cameraIndex = nextCameraIndex(_cameras, _cameraIndex);
     if (_cameraIndex == was) return _controller;

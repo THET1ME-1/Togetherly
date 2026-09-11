@@ -91,6 +91,7 @@ class CanvasStorageService {
         createdBy: uid,
         pixelW: meta.pixelW,
         pixelH: meta.pixelH,
+        sheetRatio: meta.sheetRatio,
       );
       _canvas.incrementDrawings(groupId, 1);
     }
@@ -196,6 +197,9 @@ class CanvasStorageService {
     _catalogueSub = null;
   }
 
+  /// Холсты, чью пропорцию листа мы уже дослали на сервер за этот запуск.
+  final Set<String> _sheetSent = <String>{};
+
   /// Merge remote canvas entries into local storage for [groupId].
   Future<void> _mergeRemoteCanvases(
     String uid,
@@ -218,6 +222,7 @@ class CanvasStorageService {
 
       final pixelW = (remote['pixelW'] as num?)?.toInt();
       final pixelH = (remote['pixelH'] as num?)?.toInt();
+      final sheetRatio = (remote['sheetRatio'] as num?)?.toDouble();
 
       if (!localById.containsKey(id)) {
         // New canvas from partner — add it locally
@@ -228,6 +233,10 @@ class CanvasStorageService {
           updatedAt: updatedAt,
           pixelW: pixelW,
           pixelH: pixelH,
+          // Лист приезжает вместе с холстом: без него рисунок партнёра
+          // растягивался на всю свободную область и плющился, потому что
+          // точки штрихов лежат в долях 0..1 от холста.
+          sheetRatio: sheetRatio,
         );
         changed = true;
       } else {
@@ -237,18 +246,40 @@ class CanvasStorageService {
           localById[id] = existing.copyWith(name: name, updatedAt: updatedAt);
           changed = true;
         }
-        // Сетку холста узнаём от партнёра один раз: у создателя она есть сразу,
-        // у второго — приезжает вместе с каталогом.
-        if (pixelW != null && pixelH != null && !localById[id]!.isPixel) {
-          final e = localById[id]!;
+        // Сетку и лист узнаём от партнёра один раз: у создателя они есть
+        // сразу, у второго — приезжают вместе с каталогом.
+        final e = localById[id]!;
+        final needsGrid = pixelW != null && pixelH != null && !e.isPixel;
+        final needsSheet = sheetRatio != null && sheetRatio > 0 && e.sheetRatio == null;
+
+        // Холсты, нарисованные до того, как лист начали возить на сервер,
+        // знает только их автор. Досылаем пропорцию один раз — иначе
+        // партнёр так и будет открывать их растянутыми.
+        if (sheetRatio == null && e.sheetRatio != null && groupId.isNotEmpty
+            && _sheetSent.add(id)) {
+          _canvas.upsertCatalogue(
+            groupId,
+            id,
+            name: e.name,
+            createdAt: e.createdAt.millisecondsSinceEpoch,
+            updatedAt: e.updatedAt.millisecondsSinceEpoch,
+            pixelW: e.pixelW,
+            pixelH: e.pixelH,
+            sheetRatio: e.sheetRatio,
+          );
+        }
+        if (needsGrid || needsSheet) {
           localById[id] = CanvasMeta(
             id: e.id,
             name: e.name,
             createdAt: e.createdAt,
             updatedAt: e.updatedAt,
             previewBase64: e.previewBase64,
-            pixelW: pixelW,
-            pixelH: pixelH,
+            // Своё значение главнее: пересборка меты не имеет права
+            // ронять лист, с которым холст уже нарисован.
+            pixelW: needsGrid ? pixelW : e.pixelW,
+            pixelH: needsGrid ? pixelH : e.pixelH,
+            sheetRatio: e.sheetRatio ?? sheetRatio,
           );
           changed = true;
         }

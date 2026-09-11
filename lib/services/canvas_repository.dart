@@ -80,6 +80,12 @@ class CanvasRepository {
                 // с той же сеткой, иначе клетки не совпадут.
                 'pixelW': (r.data['pixel_w'] as num?)?.toInt(),
                 'pixelH': (r.data['pixel_h'] as num?)?.toInt(),
+                // Ноль в этой колонке означает «холст старше листа»: у таких
+                // рисунок посчитан во всю область, и лист им задавать нельзя.
+                'sheetRatio': () {
+                  final v = (r.data['sheet_ratio'] as num?)?.toDouble();
+                  return (v == null || v <= 0) ? null : v;
+                }(),
               })
           .where((m) => (m['id'] as String).isNotEmpty)
           .toList());
@@ -93,6 +99,7 @@ class CanvasRepository {
     String? createdBy,
     int? pixelW,
     int? pixelH,
+    double? sheetRatio,
   }) =>
       _data.upsertCanvasCatalogue(groupId, canvasId, {
         'name': name,
@@ -101,6 +108,10 @@ class CanvasRepository {
         'createdBy': ?createdBy,
         'pixelW': ?pixelW,
         'pixelH': ?pixelH,
+        // Пропорция листа обязана уехать вместе с холстом: точки штрихов
+        // лежат в долях 0..1, и без неё второй телефон растянет рисунок
+        // на всю свободную область.
+        'sheetRatio': ?sheetRatio,
       });
 
   Future<void> renameCatalogue(String groupId, String canvasId, String name) =>

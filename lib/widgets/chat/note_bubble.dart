@@ -264,10 +264,21 @@ class _NoteBubbleState extends State<NoteBubble> {
         ),
       );
     }
-    if (!thumb.startsWith('pb://') &&
-        !thumb.startsWith('http') &&
-        File(thumb).existsSync()) {
-      return Image.file(File(thumb), fit: BoxFit.cover);
+    // Путь без схемы — это наш файл на диске, и сетевому загрузчику его
+    // отдавать нельзя: `flutter_cache_manager` разбирает его как адрес и
+    // падает с «No host specified in URI …/note_outbox/note_…». Файл к тому
+    // времени мог уже уехать на сервер и удалиться, поэтому промах — это
+    // заглушка, а не попытка скачать путь.
+    if (!thumb.startsWith('pb://') && !thumb.startsWith('http')) {
+      final local = File(thumb);
+      if (local.existsSync()) return Image.file(local, fit: BoxFit.cover);
+      return ColoredBox(
+        color: cs.surfaceContainerHighest,
+        child: Center(
+          child: Icon(Icons.videocam_rounded,
+              size: widget.size * 0.22, color: cs.onSurfaceVariant),
+        ),
+      );
     }
     return StorageImage(
       imageUrl: thumb,

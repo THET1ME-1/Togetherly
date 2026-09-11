@@ -788,6 +788,11 @@ class _DrawScreenState extends State<DrawScreen>
       // Свёрнутое приложение система вправе выгрузить: отложенный холст
       // дописываем сразу, иначе последние клетки пропадут.
       _soloSave.flushNow();
+      // И снимок для галереи: он делался ТОЛЬКО на выходе кнопкой, поэтому
+      // после ухода свайпом «домой» плитка оставалась прежней — со
+      // стёртыми штрихами на месте (жалоба в Google Play 06.09.2026,
+      // «всё что я стирал тоже остаётся, когда смотришь готовый рисунок»).
+      unawaited(_captureThumbnail());
       _markPresence(false);
     } else if (state == AppLifecycleState.resumed) {
       _markPresence(true);
