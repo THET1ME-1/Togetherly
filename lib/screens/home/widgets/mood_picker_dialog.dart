@@ -552,15 +552,16 @@ class _MoodPickerSheetState extends State<MoodPickerSheet> {
             ],
           ),
         ),
-        GridView.builder(
+        LayoutBuilder(builder: (context, box) {
+          return GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           padding: EdgeInsets.zero,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 5,
             mainAxisSpacing: 12,
             crossAxisSpacing: 8,
-            childAspectRatio: 0.62,
+            childAspectRatio: moodTileRatio(context, box.maxWidth),
           ),
           itemCount: _custom.length + 1,
           itemBuilder: (_, i) {
@@ -587,7 +588,8 @@ class _MoodPickerSheetState extends State<MoodPickerSheet> {
               onLongPress: () => _removeCustom(mood),
             );
           },
-        ),
+        );
+        }),
       ],
     );
   }
@@ -622,17 +624,18 @@ class _MoodPickerSheetState extends State<MoodPickerSheet> {
             ],
           ),
         ),
-        GridView.builder(
+        LayoutBuilder(builder: (context, box) {
+          return GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           padding: EdgeInsets.zero,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 5,
             mainAxisSpacing: 12,
             crossAxisSpacing: 8,
-            // Плитка + две строки подписи в 11 пунктов: при 360 dp ячейка
-            // выходит 57×93, и подпись помещается целиком.
-            childAspectRatio: 0.62,
+            // Плитка + две строки подписи в 11 пунктов. Высота считается, а не
+            // берётся числом: при крупном системном шрифте подпись выше.
+            childAspectRatio: moodTileRatio(context, box.maxWidth),
           ),
           itemCount: section.moods.length,
           itemBuilder: (_, i) {
@@ -657,7 +660,8 @@ class _MoodPickerSheetState extends State<MoodPickerSheet> {
               },
             );
           },
-        ),
+        );
+        }),
       ],
     );
   }
@@ -806,6 +810,30 @@ class _MoodPickerSheetState extends State<MoodPickerSheet> {
       ),
     );
   }
+}
+
+/// Отношение сторон ячейки настроения с поправкой на системный шрифт.
+///
+/// Плитка квадратная, под ней две строки подписи в 11 пунктов. Жёсткое 0.62
+/// сходилось только при масштабе 1.0: на эмуляторе с `font_scale 1.3` каждая
+/// строка сетки рисовала «BOTTOM OVERFLOWED BY 9.6 PIXELS» — подпись длинных
+/// эмоций («Embarrassed», «Missing you») не помещалась в отведённую высоту.
+/// Теперь высота ячейки складывается из ширины плитки, отступа и настоящей
+/// высоты подписи, а та растёт вместе с системным шрифтом.
+double moodTileRatio(
+  BuildContext context,
+  double gridWidth, {
+  int columns = 5,
+  double spacing = 8,
+}) {
+  final cell = (gridWidth - spacing * (columns - 1)) / columns;
+  if (cell <= 0) return 0.62;
+  final label = MediaQuery.textScalerOf(context).scale(11) * 1.2 * 2;
+  // Прежнее 0.62 — потолок: при обычном шрифте сетка остаётся ровно такой,
+  // какой была, и ниже по высоте ячейка не становится. Крупный шрифт её
+  // вытягивает — ровно настолько, сколько занимает подпись.
+  final fit = cell / (cell + 6 + label + 2);
+  return fit < 0.62 ? fit : 0.62;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

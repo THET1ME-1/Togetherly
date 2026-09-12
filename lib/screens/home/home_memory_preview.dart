@@ -75,14 +75,22 @@ class MemoryLanePreview extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                LocaleService.current.relationshipMemoryLane,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: theme.textPrimary,
+              // Заголовок в `Expanded`: рядом стоит кнопка «Посмотреть все», и
+              // на 320 dp при системном шрифте 1.3 строка «Relationship Memory
+              // Lane» уносила ряд на 108 пикселей вправо.
+              Expanded(
+                child: Text(
+                  LocaleService.current.relationshipMemoryLane,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: theme.textPrimary,
+                  ),
                 ),
               ),
+              const SizedBox(width: 8),
               GestureDetector(
                 onTap: () => _openMemoryLane(context),
                 child: Container(
@@ -182,12 +190,16 @@ class MemoryLanePreview extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                LocaleService.current.relationshipMemoryLane,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: theme.textPrimary,
+              Expanded(
+                child: Text(
+                  LocaleService.current.relationshipMemoryLane,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: theme.textPrimary,
+                  ),
                 ),
               ),
             ],

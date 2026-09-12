@@ -55,6 +55,16 @@ class HomeActionButtons extends StatelessWidget {
   /// Насколько две средние кнопки уезжают вниз ради параболического изгиба.
   static const double _bend = 11.0;
 
+  /// Зазор между пилюлями и границы их ширины. Меньше 56 нельзя: цель под
+  /// палец по правилу проекта не бывает уже сорока точек, а внутри пилюли
+  /// ещё живёт значок.
+  static const double _gap = 10.0;
+  static const double _pillMinWidth = 56.0;
+  static const double _pillMaxWidth = 74.0;
+
+  /// Пилюля выше своей ширины — пропорция прежняя, 74 на 118.
+  static const double _pillRatio = 118 / 74;
+
   @override
   Widget build(BuildContext context) {
     // Изгиб делается `Transform.translate`, а он двигает картинку, не занимая
@@ -63,47 +73,69 @@ class HomeActionButtons extends StatelessWidget {
     // ровно на величину изгиба.
     return Padding(
       padding: const EdgeInsets.only(bottom: _bend),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-        _pillButton(
-          index: 0,
-          svgIcon: _drawSvg,
-          enabled: isPaired,
-          onTap: onDraw,
-        ),
-        const SizedBox(width: 10),
-        _pillButton(
-          index: 1,
-          svgIcon: _moodSvg,
-          enabled: isPaired,
-          onTap: onMood,
-          moodImagePath: myMoodImagePath,
-        ),
-        const SizedBox(width: 10),
-        _pillButton(
-          index: 2,
-          svgIcon: _calendarSvg,
-          enabled: isPaired,
-          onTap: onCalendar,
-        ),
-        const SizedBox(width: 10),
-        _pillButton(
-          index: 3,
-          svgIcon: _postSvg,
-          enabled: isPaired,
-          onTap: onPost,
-          onLongPress: onPostHold,
-          key: postButtonKey,
-        ),
-        ],
-      ),
+      // Ширина пилюли считается от экрана, а не задана числом: четыре по 74
+      // с зазорами это 326 точек, и на 320 ряд вылезал вправо на 54 пикселя
+      // (эмулятор, `wm size 720x1600` + `wm density 360`, шрифт 1.3).
+      child: LayoutBuilder(builder: (context, box) {
+        final free = box.maxWidth.isFinite
+            ? box.maxWidth
+            : MediaQuery.of(context).size.width;
+        final width =
+            ((free - _gap * 3) / 4).clamp(_pillMinWidth, _pillMaxWidth);
+        final height = width * _pillRatio;
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _pillButton(
+              index: 0,
+              svgIcon: _drawSvg,
+              enabled: isPaired,
+              onTap: onDraw,
+              width: width,
+              height: height,
+            ),
+            const SizedBox(width: _gap),
+            _pillButton(
+              index: 1,
+              svgIcon: _moodSvg,
+              enabled: isPaired,
+              onTap: onMood,
+              moodImagePath: myMoodImagePath,
+              width: width,
+              height: height,
+            ),
+            const SizedBox(width: _gap),
+            _pillButton(
+              index: 2,
+              svgIcon: _calendarSvg,
+              enabled: isPaired,
+              onTap: onCalendar,
+              width: width,
+              height: height,
+            ),
+            const SizedBox(width: _gap),
+            _pillButton(
+              index: 3,
+              svgIcon: _postSvg,
+              enabled: isPaired,
+              onTap: onPost,
+              onLongPress: onPostHold,
+              key: postButtonKey,
+              width: width,
+              height: height,
+            ),
+          ],
+        );
+      }),
     );
   }
 
   Widget _pillButton({
     required int index,
     required String svgIcon,
+    required double width,
+    required double height,
     bool enabled = true,
     VoidCallback? onTap,
     VoidCallback? onLongPress,
@@ -126,8 +158,8 @@ class HomeActionButtons extends StatelessWidget {
           onLongPress: enabled ? onLongPress : null,
           scale: 0.92,
           child: Container(
-            width: 74,
-            height: 118,
+            width: width,
+            height: height,
             decoration: BoxDecoration(
               // Светлая тема — чистый белый: тональный surfaceContainerHigh
               // (его отдаёт cardSurface) выглядел на бледном фоне грязно-серым.

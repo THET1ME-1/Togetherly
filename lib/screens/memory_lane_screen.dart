@@ -672,14 +672,23 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            s.relationshipMemoryLane,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: t.textPrimary,
+          // Заголовок делит строку с кнопкой «Посмотреть все»: на 320 dp при
+          // системном шрифте 1.3 «Relationship Memory Lane» уносил ряд на 108
+          // пикселей вправо. Ленту на главной рисует именно этот блок, а не
+          // `home_memory_preview`.
+          Expanded(
+            child: Text(
+              s.relationshipMemoryLane,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: t.textPrimary,
+              ),
             ),
           ),
+          const SizedBox(width: 8),
           GestureDetector(
             onTap: _openFullLane,
             child: Container(
@@ -4496,13 +4505,14 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant),
               ),
               const SizedBox(height: 18),
-              GridView.count(
+              LayoutBuilder(builder: (ctx2, box) {
+                return GridView.count(
                 crossAxisCount: 3,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 mainAxisSpacing: 12,
                 crossAxisSpacing: 12,
-                childAspectRatio: 0.92,
+                childAspectRatio: _addTileRatio(ctx2, box.maxWidth),
                 children: [
                   _addMemoryTile(
                     cs: cs,
@@ -4553,7 +4563,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                     type: MemoryType.movie,
                   ),
                 ],
-              ),
+                );
+              }),
               const SizedBox(height: 14),
               // Капсула — не «ещё один тип», а обещание на будущее, поэтому
               // стоит отдельно тональной карточкой.
@@ -4622,6 +4633,25 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   }
 
   /// Плитка типа записи в листе добавления.
+  /// Отношение сторон плитки в листе «Добавить воспоминание» с поправкой на
+  /// системный шрифт.
+  ///
+  /// Плитка — значок 46, отступ и подпись в две строки по 12 пунктов. Жёсткое
+  /// 0.92 держалось только при масштабе 1.0: на эмуляторе с `font_scale 1.3`
+  /// «Photo / Video / Note» и «Movies & series» распирали ячейку, и лист шёл
+  /// полосами «BOTTOM OVERFLOWED BY 15 PIXELS». Прежнее число осталось
+  /// потолком — при обычном шрифте сетка выглядит как раньше.
+  double _addTileRatio(BuildContext context, double gridWidth) {
+    final cell = (gridWidth - 12 * 2) / 3;
+    if (cell <= 0) return 0.92;
+    final label = MediaQuery.textScalerOf(context).scale(12) * 1.25 * 2;
+    // Два пикселя запаса: настоящая высота строки Onest чуть больше
+    // расчётной (height: 1.25), и на эмуляторе оставалась полоса в один
+    // пиксель — формула без запаса сходится впритык.
+    final fit = cell / (14 + 46 + 8 + label + 14 + 2);
+    return fit < 0.92 ? fit : 0.92;
+  }
+
   Widget _addMemoryTile({
     required ColorScheme cs,
     required IconData icon,

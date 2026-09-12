@@ -481,8 +481,13 @@ class _LiveMapCardState extends State<LiveMapCard> {
       child: Container(
         color: Colors.black.withValues(alpha: 0.32),
         alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Column(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        // Высота карточки задана картой, а содержимое приглашения растёт
+        // вместе с системным шрифтом: при 1.3 на 320 dp кнопка «Показывать
+        // мою геопозицию» вылезала на три пикселя и рисовала полосу поверх
+        // карты. Прокрутка внутри оверлея дешевле, чем резать подсказку.
+        child: SingleChildScrollView(
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(Icons.location_on_rounded, color: Colors.white, size: 30),
@@ -519,6 +524,7 @@ class _LiveMapCardState extends State<LiveMapCard> {
               ),
             ),
           ],
+          ),
         ),
       ),
     );

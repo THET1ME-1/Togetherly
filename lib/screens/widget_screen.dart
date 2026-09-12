@@ -20,6 +20,7 @@ import '../services/pb_media_service.dart';
 import '../services/widget_anim_service.dart';
 import '../services/plus_service.dart';
 import '../services/ui_prefs.dart';
+import '../models/widget_panels.dart';
 import '../services/widget_theme_sync.dart';
 import 'plus_screen.dart';
 import '../utils/couple_days.dart';
@@ -116,9 +117,71 @@ class _WidgetScreenState extends State<WidgetScreen>
   PairData get _pair => widget.pairData;
   AppStrings get _s => LocaleService.current;
 
-  /// Нынешние виджеты свёрнуты по умолчанию: сверху должен быть новый каталог.
-  bool _legacySectionExpanded = false;
-  bool _newSectionExpanded = true;
+  /// Что раскрыто на экране: разделы и карточки. Живёт в prefs
+  /// (`WidgetPanels`), поэтому переживает уход с экрана и перезапуск — до
+  /// 12.09.2026 набор сбрасывался к умолчаниям при каждом заходе.
+  Set<String> _expandedPanels = {...WidgetPanels.byDefault};
+
+  bool get _legacySectionExpanded =>
+      _expandedPanels.contains(WidgetPanels.legacySection);
+  bool get _newSectionExpanded =>
+      _expandedPanels.contains(WidgetPanels.newSection);
+  bool get _pairWidgetExpanded =>
+      _expandedPanels.contains(WidgetPanels.pairWidget);
+  bool get _petalTimerWidgetExpanded =>
+      _expandedPanels.contains(WidgetPanels.petalTimer);
+  bool get _daysCounterExpanded =>
+      _expandedPanels.contains(WidgetPanels.daysCounter);
+  bool get _photoDayExpanded => _expandedPanels.contains(WidgetPanels.photoDay);
+  bool get _partnerPhotoExpanded =>
+      _expandedPanels.contains(WidgetPanels.partnerPhoto);
+  bool get _photoGridExpanded =>
+      _expandedPanels.contains(WidgetPanels.photoGrid);
+
+  /// Человек уже сворачивал что-то в этот заход. Нужен против гонки: чтение
+  /// prefs асинхронное, и ответ, пришедший после первого нажатия, затёр бы
+  /// свежее решение прежним набором.
+  bool _panelsTouched = false;
+
+  /// Свернуть или раскрыть и тут же запомнить решение.
+  void _togglePanel(String key) {
+    setState(() {
+      _panelsTouched = true;
+      if (!_expandedPanels.remove(key)) _expandedPanels.add(key);
+    });
+    unawaited(_savePanels());
+  }
+
+  Future<void> _savePanels() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+        WidgetPanels.prefsKey, WidgetPanels.store(_expandedPanels));
+  }
+
+  Future<void> _saveSizeChoice() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+        WidgetSizeChoice.prefsKey, WidgetSizeChoice.store(_sizeChoice));
+  }
+
+  Future<void> _loadPanels() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = WidgetPanels.restore(
+        prefs.getStringList(WidgetPanels.prefsKey));
+    final sizes =
+        WidgetSizeChoice.restore(prefs.getStringList(WidgetSizeChoice.prefsKey));
+    if (!mounted || _panelsTouched) return;
+    setState(() {
+      // Выбранный размер — то же самое решение человека, что и раскрытие:
+      // выбрал «4×4», ушёл на главную, вернулся — размер обязан остаться.
+      // `putIfAbsent`, а не `addAll`: чтение асинхронное, и тот, кто успел
+      // ткнуть размер до ответа prefs, не должен получить прежний обратно.
+      sizes.forEach((k, v) => _sizeChoice.putIfAbsent(k, () => v));
+      // Карточку, раскрытую тапом по виджету рабочего стола, не закрываем:
+      // человек пришёл сюда именно ради неё.
+      _expandedPanels = {..._expandedPanels.intersection({WidgetPanels.pairWidget}), ...saved};
+    });
+  }
 
   /// Выбранный размер в карточке нового каталога, ключ — `widgetType`.
   /// По умолчанию 4×2: он есть у каждого виджета и лучше всех читается.
@@ -130,13 +193,9 @@ class _WidgetScreenState extends State<WidgetScreen>
   final GlobalKey _pairWidgetKey = GlobalKey();
 
   bool _canPinWidgets = false;
-  bool _pairWidgetExpanded = false;
-  bool _timerWidgetExpanded = false;
-  bool _petalTimerWidgetExpanded = false;
   // Счётчик дней: персонализация «наши фото» (фича за коины)
   // Цена — зеркало FEATURE_PRICES['days_widget_photos'] на сервере.
   static const int _daysPhotosPrice = 20;
-  bool _daysCounterExpanded = false;
   bool _daysPhotosEnabled = false;
   bool _daysPhotosBusy = false;
   String? _widgetTimerId;
@@ -153,14 +212,11 @@ class _WidgetScreenState extends State<WidgetScreen>
   bool _lockScreenMoodEnabled = false;
 
   // Фото-сетка
-  bool _photoGridExpanded = false;
   int _photoGridCount = 1; // МОЁ количество (для настройки)
   List<String> _photoGridPaths = []; // локальные пути МОИХ фото (для выбора)
   bool _isLoadingPhotoGrid = false;
 
   // Фото-виджет (личный) и Фото партнёра — две независимые карточки
-  bool _photoDayExpanded = true;
-  bool _partnerPhotoExpanded = false;
   bool _savePhotoAsMemory = true;
 
   List<int> _personalWidgetIds = [];
@@ -221,6 +277,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     // устаревшее значение.
     _mascotService.resyncStreakWidget();
     _loadAllInitialPrefs();
+    _loadPanels();
 
     // Открыты по тапу на парный виджет → сразу разворачиваем его настройки.
     if (widget.openPairEditorOnStart) {
@@ -231,7 +288,7 @@ class _WidgetScreenState extends State<WidgetScreen>
   /// Разворачивает карточку «Парный виджет» и прокручивает к ней.
   void _openPairEditor() {
     if (!mounted) return;
-    setState(() => _pairWidgetExpanded = true);
+    setState(() => _expandedPanels.add(WidgetPanels.pairWidget));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final ctx = _pairWidgetKey.currentContext;
       if (ctx != null) {
@@ -1720,15 +1777,22 @@ class _WidgetScreenState extends State<WidgetScreen>
                     size: 18, color: _cs.onSecondaryContainer),
               ),
               const SizedBox(width: 11),
-              Text(
-                LocaleService.current.homeScreenWidgets,
-                style: TextStyle(
-                  fontFamily: 'Unbounded',
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-        fontVariations: const [FontVariation('wght', 800)],
-                  letterSpacing: -0.5,
-                  color: _cs.onSurface,
+              // Заголовок обязан ужиматься: Unbounded 20 плюс системный шрифт
+              // 1.3 на экране 320 точек вылезал вправо на 88 пикселей
+              // (эмулятор, `wm size 720x1600` + `wm density 360`).
+              Expanded(
+                child: Text(
+                  LocaleService.current.homeScreenWidgets,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Unbounded',
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    fontVariations: const [FontVariation('wght', 800)],
+                    letterSpacing: -0.5,
+                    color: _cs.onSurface,
+                  ),
                 ),
               ),
             ],
@@ -1743,7 +1807,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           icon: Icons.widgets_rounded,
           expanded: _legacySectionExpanded,
           onToggle: () => setState(
-            () => _legacySectionExpanded = !_legacySectionExpanded,
+            () => _togglePanel(WidgetPanels.legacySection),
           ),
           count: _legacyWidgetCount(isPaired, halfTiles),
           itemsBuilder: () => _legacyWidgetItems(isPaired, halfTiles),
@@ -1765,7 +1829,7 @@ class _WidgetScreenState extends State<WidgetScreen>
             icon: Icons.auto_awesome_rounded,
             expanded: _newSectionExpanded,
             onToggle: () => setState(
-              () => _newSectionExpanded = !_newSectionExpanded,
+              () => _togglePanel(WidgetPanels.newSection),
             ),
             // Без Togetherly+ карточки те же — с превью, размерами и чипом
             // замка: за что платят, видно до покупки. Прежняя заглушка
@@ -2396,6 +2460,11 @@ class _WidgetScreenState extends State<WidgetScreen>
 
   /// Какую долю ширины карточки занимает превью размера [label] («2×2»,
   /// «4×2», «4×4»). Ряд на рабочем столе — четыре ячейки, от этого и считаем.
+  /// Ширина карточки каталога на экране 360 dp: под неё подобраны кегли и
+  /// отступы внутри превью. На узком экране превью ужимается целиком, а не
+  /// ломается — см. сборку превью в `_buildGalleryItem`.
+  static const double kPreviewDesignWidth = 296;
+
   double _previewWidthFactor(String? label) {
     final width = int.tryParse((label ?? '').split('×').first) ?? 4;
     return (width / 4).clamp(0.25, 1.0);
@@ -4065,7 +4134,7 @@ class _WidgetScreenState extends State<WidgetScreen>
             expandedContent: _buildPairWidgetExpandedContent(),
             isExpanded: _pairWidgetExpanded,
             onToggleExpand: () =>
-                setState(() => _pairWidgetExpanded = !_pairWidgetExpanded),
+                _togglePanel(WidgetPanels.pairWidget),
           ),
         ),
         const SizedBox(height: 16),
@@ -4085,7 +4154,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           expandedContent: _buildDaysPhotosCard(),
           isExpanded: _daysCounterExpanded,
           onToggleExpand: () =>
-              setState(() => _daysCounterExpanded = !_daysCounterExpanded),
+              _togglePanel(WidgetPanels.daysCounter),
         ),
         const SizedBox(height: 16),
       ],
@@ -4105,7 +4174,7 @@ class _WidgetScreenState extends State<WidgetScreen>
         expandedContent: _buildTimerSelector(),
         isExpanded: _petalTimerWidgetExpanded,
         onToggleExpand: () => setState(
-          () => _petalTimerWidgetExpanded = !_petalTimerWidgetExpanded,
+          () => _togglePanel(WidgetPanels.petalTimer),
         ),
       ),
       const SizedBox(height: 16),
@@ -4145,7 +4214,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           expandedContent: _buildPhotoDayExpandedContent(),
           isExpanded: _photoDayExpanded,
           onToggleExpand: () =>
-              setState(() => _photoDayExpanded = !_photoDayExpanded),
+              _togglePanel(WidgetPanels.photoDay),
         ),
         const SizedBox(height: 16),
 
@@ -4160,7 +4229,7 @@ class _WidgetScreenState extends State<WidgetScreen>
             expandedContent: _buildPartnerPhotoExpandedContent(),
             isExpanded: _partnerPhotoExpanded,
             onToggleExpand: () => setState(
-              () => _partnerPhotoExpanded = !_partnerPhotoExpanded,
+              () => _togglePanel(WidgetPanels.partnerPhoto),
             ),
           ),
           const SizedBox(height: 16),
@@ -4183,7 +4252,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           expandedContent: _buildPhotoGridExpandedContent(),
           isExpanded: _photoGridExpanded,
           onToggleExpand: () =>
-              setState(() => _photoGridExpanded = !_photoGridExpanded),
+              _togglePanel(WidgetPanels.photoGrid),
         ),
         const SizedBox(height: 16),
 
@@ -4217,13 +4286,19 @@ class _WidgetScreenState extends State<WidgetScreen>
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 180),
                   curve: Curves.easeOut,
-                  height: 36,
+                  // Высота минимальная, а не жёсткая: при системном шрифте
+                  // 1.3 метка «4×2» с подписью не влезала в 36 точек, и
+                  // каждая пилюля рисовала полосу «BOTTOM OVERFLOWED BY 3.0
+                  // PIXELS» — а таких рядов в каталоге полтора десятка.
+                  constraints: const BoxConstraints(minHeight: 36),
+                  padding: const EdgeInsets.symmetric(vertical: 4),
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: i == selected ? _cs.primary : Colors.transparent,
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
@@ -4388,7 +4463,10 @@ class _WidgetScreenState extends State<WidgetScreen>
             _sizePicker(
               options: sizes,
               selected: index,
-              onSelect: (i) => setState(() => _sizeChoice[choiceKey] = i),
+              onSelect: (i) {
+                setState(() => _sizeChoice[choiceKey] = i);
+                unawaited(_saveSizeChoice());
+              },
             ),
           ],
           if (effectivePreview != null) ...[
@@ -4403,10 +4481,39 @@ class _WidgetScreenState extends State<WidgetScreen>
               // рисовался шириной в четыре ячейки: огромное пустое поле,
               // аватары-крошки по углам и потерянный текст. Ячеек в ряду
               // четыре, поэтому 2×2 занимает половину, 1×1 — четверть.
-              child: FractionallySizedBox(
-                widthFactor: _previewWidthFactor(chosen?.label),
-                child: effectivePreview,
-              ),
+              child: LayoutBuilder(builder: (context, box) {
+                final factor = _previewWidthFactor(chosen?.label);
+                final target = box.maxWidth * factor;
+                // Ширина превью на экране 360 dp — та, под которую подобраны
+                // кегли внутри. Уже — рисуем в этой ширине и ужимаем целиком,
+                // шире — оставляем как есть, поэтому на привычных экранах
+                // ничего не меняется.
+                final base = kPreviewDesignWidth * factor;
+                return Align(
+                  alignment: Alignment.topCenter,
+                  child: SizedBox(
+                    width: target,
+                    child: FittedBox(
+                      fit: BoxFit.contain,
+                      alignment: Alignment.topCenter,
+                      child: SizedBox(
+                        width: math.max(target, base),
+                        // Превью — картинка виджета рабочего стола, а не текст
+                        // интерфейса: его геометрия задана в точках и
+                        // системному шрифту не подчиняется. На эмуляторе с
+                        // `font_scale 1.3` подписи внутри распирали превью, и
+                        // каталог шёл полосами переполнения — у «Дней вместе»
+                        // на 59 пикселей, у настроений на 22, у обратного
+                        // отсчёта на 14. Сам виджет на столе рисует
+                        // RemoteViews со своими размерами, и крупный шрифт его
+                        // не меняет: превью обязано показывать ровно это.
+                        child: MediaQuery.withNoTextScaling(
+                            child: effectivePreview),
+                      ),
+                    ),
+                  ),
+                );
+              }),
             ),
           ],
           // ── Кнопка: поставить или открыть покупку ──

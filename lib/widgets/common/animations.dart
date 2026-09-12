@@ -518,9 +518,11 @@ class _NavBarItemState extends State<NavBarItem>
           duration: Motion.medium1,
           curve: Curves.easeOutCubic,
           // Пунктов пять, а панель узкая: на экране 360 dp прежние отступы
-          // (18/12) не помещались.
+          // (18/12) не помещались, на 320 не помещаются и эти.
           padding: EdgeInsets.symmetric(
-            horizontal: widget.isActive ? 14 : 9,
+            horizontal: MediaQuery.of(context).size.width <= 340
+                ? (widget.isActive ? 9 : 5)
+                : (widget.isActive ? 14 : 9),
             vertical: 8,
           ),
           decoration: BoxDecoration(

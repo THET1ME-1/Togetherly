@@ -73,8 +73,13 @@ class HomeBottomNav extends StatelessWidget {
     final primary = theme.primary;
 
     final bottomInset = MediaQuery.of(context).viewPadding.bottom;
+    // Узкий экран (320 точек и меньше) не вмещает панель из пяти пунктов
+    // вместе с круглой кнопкой: с прежними отступами она вылезала вправо на
+    // 40 пикселей. Ужимаем поля, а не значки — цель под палец трогать нельзя.
+    final narrow = MediaQuery.of(context).size.width <= 340;
+    final side = narrow ? 12.0 : 24.0;
     return Padding(
-      padding: EdgeInsets.fromLTRB(24, 0, 24, 20 + bottomInset),
+      padding: EdgeInsets.fromLTRB(side, 0, side, 20 + bottomInset),
       child: Row(
         // По низу: кнопка чата растёт ВВЕРХ от круглой, а панель остаётся
         // там же, где была.
@@ -87,7 +92,8 @@ class HomeBottomNav extends StatelessWidget {
           borderRadius: BorderRadius.circular(100),
         ),
         child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            padding: EdgeInsets.symmetric(
+                horizontal: narrow ? 6 : 10, vertical: 10),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
@@ -153,7 +159,7 @@ class HomeBottomNav extends StatelessWidget {
             ),
           ),
           if (onCreatePin != null) ...[
-            const SizedBox(width: 12),
+            SizedBox(width: narrow ? 8 : 12),
             // Hero делает кнопку «непрерывной» при переходе главная↔Лента —
             // круг остаётся на месте, пока экраны сменяются, а иконка
             // оказывается уже «плюсом» в Ленте. Тег общий для обоих экранов.
