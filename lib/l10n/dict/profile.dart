@@ -580,21 +580,24 @@ const Map<String, Map<String, String>> profileStrings = {
     'fr': 'Supprimer le compte ?',
     'de': 'Konto löschen?',
   },
+  // Текст говорит про СЕМЬ ДНЕЙ на возврат: с 13.09.2026 запись не стирается
+  // сразу, а помечается и возвращается обычным входом. Обещать «необратимо»
+  // там, где всё обратимо неделю, — врать человеку в самый тяжёлый момент.
   'deleteAccountConfirm': {
     'ru':
-        'Аккаунт и все ваши данные будут удалены без возможности восстановления. Пара будет разорвана. Это действие необратимо.',
+        'Аккаунт и все ваши данные уйдут: пара разорвётся, воспоминания и чат пропадут. Передумаете — просто войдите снова в течение 7 дней, и всё вернётся. После этого срока аккаунт стирается навсегда.',
     'en':
-        'Your account and all your data will be permanently deleted and cannot be recovered. Your pair will be disconnected. This cannot be undone.',
+        'Your account and all your data will go: the pair breaks, memories and chat disappear. Change your mind and simply sign in again within 7 days and everything comes back. After that the account is erased for good.',
     'pt':
-        'Sua conta e todos os seus dados vão ser excluídos para sempre e não poderão ser recuperados. O casal vai ser separado. Não tem volta.',
+        'Sua conta e todos os seus dados vão embora: o casal se separa, memórias e conversas somem. Se mudar de ideia, é só entrar de novo em 7 dias e tudo volta. Depois disso, a conta é apagada para sempre.',
     'it':
-        'Il tuo account e tutti i tuoi dati verranno eliminati per sempre e non si potranno recuperare. La coppia verrà separata. Non si torna indietro.',
+        'Il tuo account e tutti i tuoi dati se ne vanno: la coppia si separa, ricordi e chat spariscono. Se cambi idea, basta rientrare entro 7 giorni e torna tutto. Dopo, l’account viene cancellato per sempre.',
     'es':
-        'Tu cuenta y todos tus datos se borrarán para siempre y no se podrán recuperar. La pareja se separará. No hay vuelta atrás.',
+        'Tu cuenta y todos tus datos se van: la pareja se separa, los recuerdos y el chat desaparecen. Si cambias de idea, solo entra de nuevo antes de 7 días y todo vuelve. Pasado ese plazo, la cuenta se borra para siempre.',
     'fr':
-        'Ton compte et toutes tes données seront supprimés définitivement et ne pourront pas être récupérés. Le couple sera séparé. C’est irréversible.',
+        'Ton compte et toutes tes données s’en vont : le couple se sépare, souvenirs et messages disparaissent. Si tu changes d’avis, reconnecte-toi dans les 7 jours et tout revient. Passé ce délai, le compte est effacé définitivement.',
     'de':
-        'Dein Konto und alle deine Daten werden endgültig gelöscht und lassen sich nicht wiederherstellen. Das Paar wird getrennt. Das kann nicht zurückgenommen werden.',
+        'Dein Konto und alle deine Daten gehen weg: das Paar wird getrennt, Erinnerungen und Chat verschwinden. Wenn du es dir anders überlegst, melde dich einfach innerhalb von 7 Tagen wieder an, dann kommt alles zurück. Danach wird das Konto endgültig gelöscht.',
   },
   'deleteAccountBtn': {
     'ru': 'Удалить навсегда',
