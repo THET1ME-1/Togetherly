@@ -1,0 +1,34 @@
+name: iOS → раскладка парного виджета
+
+# Зачем: половины парного виджета на iPhone выходили неравными — широкое фото
+# забирало себе больше места, второе сжималось в полоску (жалоба 14.09.2026).
+# Прошлая правка в июне считалась рабочей без единого рендера.
+#
+# Стенд собирает настоящий LoveWidget.swift под macOS с заглушками, рисует его
+# в картинку при разных пропорциях снимков и меряет ширину половин. Симулятор
+# и подпись не нужны, круг — пара минут.
+on:
+  push:
+    paths:
+      - 'ios/TogetherlyWidget/LoveWidget.swift'
+      - 'tool/widget_layout/**'
+      - '.github/workflows/ios-widget-layout.yml'
+  workflow_dispatch:
+
+jobs:
+  layout:
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Собрать и отрисовать
+        run: bash tool/widget_layout/run.sh
+
+      - name: Картинки
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: widget-layout
+          path: build/widget_layout/*.png
+          if-no-files-found: ignore
