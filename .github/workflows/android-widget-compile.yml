@@ -46,10 +46,12 @@ jobs:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
 
-      - name: Зависимости
+      # gradlew и local.properties в репозиторий не уезжают — их создаёт сам
+      # Flutter. --config-only готовит Gradle-проект и ничего не собирает.
+      - name: Зависимости и Gradle-проект
         run: |
           flutter pub get
-          echo "flutter.sdk=$FLUTTER_ROOT" > android/local.properties
+          flutter build apk --config-only --debug
 
       - name: Компиляция Kotlin
         working-directory: android
