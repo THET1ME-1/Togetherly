@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/chat_msg.dart';
 import '../models/shape_note.dart';
 import '../models/voice_note.dart';
+import '../utils/documents_file.dart';
 import 'note_recorder_service.dart';
 import 'voice_recorder_service.dart';
 import 'offline/local_store.dart';
@@ -567,14 +568,21 @@ class ChatService {
   String _bgKey(String groupId) => 'chat_bg_$groupId';
 
   /// Путь к локальному файлу фона чата (null — фон не задан).
+  ///
+  /// В настройках лежит имя файла, папка документов подставляется здесь: на
+  /// iPhone её адрес меняется при каждом обновлении, и записанный целиком путь
+  /// стирал купленный фон (см. `utils/documents_file.dart`).
   Future<String?> backgroundPath(String groupId) async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_bgKey(groupId));
+    final stored = prefs.getString(_bgKey(groupId));
+    if (stored == null) return null;
+    final dir = await getApplicationDocumentsDirectory();
+    return documentsFilePath(stored, dir.path);
   }
 
   Future<void> setBackgroundPath(String groupId, String path) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_bgKey(groupId), path);
+    await prefs.setString(_bgKey(groupId), documentsFileKey(path));
   }
 
   Future<void> clearBackground(String groupId) async {
