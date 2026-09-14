@@ -98,14 +98,27 @@ private struct LovePanel: View {
     private var musicColor: Color { hasPhoto ? Color.white.opacity(0.85) : Color.black.opacity(0.53) }
 
     var body: some View {
+        // Размер панели берём у GeometryReader и прибиваем фото к нему точным
+        // frame. `.frame(maxWidth: .infinity)` фото НЕ удерживает: гибкая рамка
+        // принимает ширину ребёнка, если он шире предложенной, а scaledToFill
+        // у широкого снимка как раз шире. Так левое фото забирало 257 точек из
+        // 338, а правое сжималось до 61 (снимок с iPhone 14.09.2026, стенд
+        // tool/widget_layout). GeometryReader гибок целиком, и HStack делит
+        // место поровну.
+        GeometryReader { geo in
+            panel(geo.size)
+        }
+        .clipped()
+    }
+
+    private func panel(_ size: CGSize) -> some View {
         ZStack {
-            // Фон панели: фото или цвет. Фото с .frame(maxWidth/Height: .infinity)
-            // + .clipped() на ZStack, иначе scaledToFill диктует ширину панели и
-            // половины получаются неравными.
+            // Фон панели: фото или цвет.
             if let photo = side.photo {
                 Image(uiImage: photo).resizable().tgFullColorImage()
                     .scaledToFill()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(width: size.width, height: size.height)
+                    .clipped()
                 TgSurface(Color.black.opacity(0.1))
             } else {
                 TgSurface(isLeft ? Color(hex: 0xFFCDD9) : Color(hex: 0xE8DAFF))
@@ -153,8 +166,7 @@ private struct LovePanel: View {
                 .padding(8)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipped()
+        .frame(width: size.width, height: size.height)
     }
 
     private func avatarView(_ image: UIImage) -> some View {
@@ -259,6 +271,10 @@ struct LoveWidget: Widget {
         // на снимке с iPhone 17.08.2026 виджет читался как сломанный. Тому, у
         // кого квадратный уже стоит на столе, система уберёт его сама.
         .supportedFamilies([.systemMedium])
+        // Фото идут под край, как на Android. С системными полями iOS 17 сверху
+        // и снизу оставались белые полосы фона контейнера — та же рамка, что
+        // сняли у фото-виджетов 26.08.2026.
+        .contentMarginsDisabled()
     }
 }
 
