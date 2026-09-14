@@ -6,7 +6,11 @@ import SwiftUI
 struct WidgetTheme {
     nonisolated(unsafe) static var current: [String: Color] = [:]
 
-    private func c(_ role: String) -> Color { WidgetTheme.current[role] ?? .gray }
+    // Палитра запоминается при создании: сетка рисуется после цикла по темам,
+    // и чтение в момент отрисовки дало бы всем последнюю тему.
+    private let palette = WidgetTheme.current
+
+    private func c(_ role: String) -> Color { palette[role] ?? .gray }
 
     var primary: Color { c("primary") }
     var onPrimary: Color { c("onPrimary") }

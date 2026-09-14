@@ -117,6 +117,10 @@ private func loadYear(_ pointer: String, _ prefix: String) -> YearData {
 // заливке, и сливались с фоном.
 
 /// Правила подгонки текста — те же доли, что в Dart и Kotlin.
+///
+/// Доли сняты с Onest, а расширение iPhone рисует системным шрифтом, который
+/// шире: поэтому у каждой строки ещё и `minimumScaleFactor` — строка ужмётся,
+/// а не уйдёт в многоточие («1234 воспомина…» на стенде 14.09.2026).
 enum YearRingFit {
     static let numberShare: CGFloat = 0.74
     static let digitEm: CGFloat = 0.58
@@ -232,6 +236,7 @@ struct YearRingMedium: View {
                                       weight: .semibold))
                         .foregroundColor(soft)
                         .lineLimit(1)
+                    .minimumScaleFactor(0.5)
                     HStack(alignment: .firstTextBaseline, spacing: 6 * g.k) {
                         Text(leftNum)
                             .font(.system(size: countSize, weight: .heavy))
@@ -243,12 +248,14 @@ struct YearRingMedium: View {
                             .foregroundColor(on)
                     }
                     .lineLimit(1)
+                    .minimumScaleFactor(0.5)
                     Text(date)
                         .font(.system(size: YearRingFit.text(
                             base: max(12 * g.k, 9.5), chars: date.count, width: g.right),
                                       weight: .medium))
                         .foregroundColor(soft)
                         .lineLimit(1)
+                    .minimumScaleFactor(0.5)
                         .padding(.top, 2 * g.k)
                     Rectangle()
                         .fill(on.opacity(YearRingFit.hairlineAlpha))
@@ -260,6 +267,7 @@ struct YearRingMedium: View {
                         stat("\(memories)", memWord, statsSize, on, soft)
                     }
                     .lineLimit(1)
+                    .minimumScaleFactor(0.5)
                 }
                 .frame(width: max(g.right, 0), alignment: .leading)
                 .padding(.leading, g.gap)
@@ -331,6 +339,7 @@ struct YearRingSmall: View {
                     .font(.system(size: lineSize, weight: .bold))
                     .foregroundColor(t.onPrimary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.5)
             }
             .frame(width: geo.size.width, height: geo.size.height)
         }
@@ -392,12 +401,14 @@ struct YearRingDial: View {
                     .foregroundColor(on)
                     .widgetAccentable()
                     .lineLimit(1)
+                    .minimumScaleFactor(0.5)
                 Text(caption)
                     .font(.system(size: YearRingFit.text(
                         base: captionSize, chars: caption.count, width: inner * 0.86),
                                   weight: .semibold))
                     .foregroundColor(on.opacity(YearRingFit.softAlpha))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.5)
             }
         }
         .frame(width: side, height: side)
