@@ -33,7 +33,7 @@ abstract final class YearRingSpec {
   static const double smallStroke = 10;
 
   /// Прозрачность вторичного текста и дорожки кольца поверх заливки.
-  static const double softAlpha = 0.84;
+  static const double softAlpha = 0.90;
   static const double trackAlpha = 0.22;
   static const double hairlineAlpha = 0.28;
 

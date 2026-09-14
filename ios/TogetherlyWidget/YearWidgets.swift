@@ -125,7 +125,7 @@ enum YearRingFit {
     static let numberShare: CGFloat = 0.74
     static let digitEm: CGFloat = 0.58
     static let letterEm: CGFloat = 0.56
-    static let softAlpha: Double = 0.84
+    static let softAlpha: Double = 0.90
     static let trackAlpha: Double = 0.22
     static let hairlineAlpha: Double = 0.28
 

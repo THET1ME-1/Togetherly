@@ -326,7 +326,7 @@ open class YearRingWidgetProvider : HomeWidgetProvider() {
         const val NUMBER_SHARE = 0.74f
         const val DIGIT_EM = 0.58f
         const val LETTER_EM = 0.56f
-        const val SOFT_ALPHA = 0.84f
+        const val SOFT_ALPHA = 0.90f
         const val TRACK_ALPHA = 0.22f
         const val HAIRLINE_ALPHA = 0.28f
         const val MAX_RING_PX = 380f
