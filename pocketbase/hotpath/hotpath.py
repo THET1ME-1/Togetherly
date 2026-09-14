@@ -297,7 +297,8 @@ COLLECTIONS = {
             "placeholder_avatar": "text", "return_date": "text",
             "claim_token": "text", "claim_uid": "text", "claim_name": "text",
             "claim_at": "num", "disbanded": "bool", "disbanded_at": "text",
-            "created_at": "text", "updated": "auto",
+            "created_at": "text", "chat_background": "text",
+            "updated": "auto",
         },
         "sortable": {"updated", "id"},
         "filterable": {"id", "members", "disbanded", "updated", "claim_token"},
@@ -1626,7 +1627,13 @@ def _членство_в_sqlite(uids: list) -> None:
         log.warning("группы участника не пересчитались (%s): %s", uids, e)
 
 
-ЗЕРКАЛО_КОЛОНКИ = [c for c in COLLECTIONS["groups"]["columns"]]
+# Колонки, которых в SQLite PocketBase нет вовсе. Зеркало пишет туда каждое
+# поле карты, и лишнее роняло бы его на каждой паре — а с ним правила доступа
+# всех коллекций. Общий фон чата нужен только самому чату, отчётам и правилам
+# он ни к чему.
+НЕ_ЗЕРКАЛИМ = {"chat_background"}
+ЗЕРКАЛО_КОЛОНКИ = [c for c in COLLECTIONS["groups"]["columns"]
+                   if c not in НЕ_ЗЕРКАЛИМ]
 
 
 def _зеркало_группы_sync(строки: list) -> int:

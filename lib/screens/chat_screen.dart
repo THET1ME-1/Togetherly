@@ -391,14 +391,15 @@ class _ChatScreenState extends State<ChatScreen> {
     if (!mounted) return;
     if (path != null && File(path).existsSync()) {
       setState(() => _bgPath = path);
-      // Общий фон пары приезжает с сервера и перекрывает локальный.
-      unawaited(_chat.sharedBackground(_groupId).then((url) {
-        if (mounted && url.isNotEmpty) setState(() => _sharedBgUrl = url);
-      }));
     } else if (path != null) {
       // Файл пропал (очистка кэша/переустановка) — сбрасываем.
       await _chat.clearBackground(_groupId);
     }
+    // Общий фон пары приезжает с сервера и перекрывает локальный. Читается
+    // всегда: пока запрос сидел внутри ветки «свой файл есть», у того, кто
+    // своего фона не ставил, общий не появлялся никогда.
+    final url = await _chat.sharedBackground(_groupId);
+    if (mounted && url != _sharedBgUrl) setState(() => _sharedBgUrl = url);
   }
 
   @override
@@ -2323,10 +2324,13 @@ class _ChatScreenState extends State<ChatScreen> {
           // выбрала картинку вместе, она и должна быть у обоих.
           if (_sharedBgUrl.isNotEmpty)
             Positioned.fill(
-              child: Image.network(
-                _sharedBgUrl,
+              // Ссылка вида pb://media/…: файл защищённый и открывается
+              // только с файловым токеном. Image.network её не понимал, и
+              // после «Фон поставлен» экран оставался чёрным.
+              child: StorageImage(
+                imageUrl: _sharedBgUrl,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                errorWidget: (_, __, ___) => const SizedBox.shrink(),
               ),
             )
           else if (_bgPath != null)

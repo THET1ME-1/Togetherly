@@ -135,6 +135,19 @@ try:
                 json={"xp": 999})
     проверка("посторонний не правит пару", r.status_code == 404, f"код {r.status_code}")
 
+    # Общий фон чата: поля не было в карте, и hotpath выбрасывал его молча
+    # (жалоба 14.09.2026). Проверяем круг «записал — прочитал второй».
+    фон = "pb://media/smoke/bg.webp"
+    r = c.patch(f"{HP}/api/collections/groups/records/{gid}", headers=HA,
+                json={"chat_background": фон})
+    проверка("общий фон чата записался", r.status_code == 200
+             and r.json().get("chat_background") == фон,
+             f"{r.status_code} {r.text[:120]}")
+    r = c.get(f"{HP}/api/collections/groups/records/{gid}", headers=HB)
+    проверка("общий фон видит партнёр", r.status_code == 200
+             and r.json().get("chat_background") == фон,
+             f"{r.status_code} {r.text[:120]}")
+
     # ── страж пары: третьего не вписать, служебные поля закрыты ──
     r = c.patch(f"{HP}/api/collections/groups/records/{gid}", headers=HA,
                 json={"members": [A, B, C]})

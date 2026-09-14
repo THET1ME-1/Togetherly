@@ -603,8 +603,13 @@ class ChatService {
   Future<bool> setSharedBackground(String groupId, String url) async {
     if (groupId.isEmpty) return false;
     try {
-      await PbDataService().updateGroupFields(groupId, {'chat_background': url});
-      return true;
+      // Ответ записи и есть ответ: `updateGroupFields` глотает отказ и
+      // возвращает false, а прежний `return true` превращал его в «Фон
+      // поставлен — он теперь у обоих».
+      return await PbDataService().updateGroupFields(
+        groupId,
+        {'chat_background': url},
+      );
     } catch (e) {
       debugPrint('ChatService.setSharedBackground failed: $e');
       return false;
