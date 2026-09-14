@@ -42,19 +42,28 @@ class CycleTipsStrip extends StatelessWidget {
             ),
           ),
         ),
-        SizedBox(
-          height: 132,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.zero,
-            physics: const BouncingScrollPhysics(),
-            itemCount: tips.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 10),
-            itemBuilder: (_, i) => _TipCard(
-              tip: tips[i],
-              scheme: scheme,
-              accent: accent,
-              width: _cardWidth,
+        // Высоту ленты задаёт самый длинный совет, а не число. Ровно 132 точки
+        // оставляли тексту две с половиной строки, и конец совета срезался
+        // (запись экрана 14.09.2026); с крупным системным шрифтом — половина.
+        // Советов семь, поэтому все карточки строятся сразу, без ленивого
+        // списка: иначе высоту не посчитать.
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = 0; i < tips.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 10),
+                  _TipCard(
+                    tip: tips[i],
+                    scheme: scheme,
+                    accent: accent,
+                    width: _cardWidth,
+                  ),
+                ],
+              ],
             ),
           ),
         ),
@@ -104,8 +113,6 @@ class _TipCard extends StatelessWidget {
           const SizedBox(height: 9),
           Text(
             tip.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
@@ -113,16 +120,12 @@ class _TipCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 3),
-          Expanded(
-            child: Text(
-              tip.body,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12,
-                height: 1.35,
-                color: scheme.onSurfaceVariant,
-              ),
+          Text(
+            tip.body,
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.35,
+              color: scheme.onSurfaceVariant,
             ),
           ),
         ],
