@@ -35,4 +35,29 @@ void main() {
       expect(src.contains('.scaledToFill()'), isTrue);
     });
   });
+
+  // Снимок с iPhone 14.09.2026: левое фото на пол-виджета больше правого,
+  // сверху и снизу белые полосы. Ширину половин меряет рендер
+  // (tool/widget_layout, воркфлоу ios-widget-layout.yml), здесь — быстрый
+  // сторож тех же двух ошибок по исходнику.
+  group('Парный виджет iOS', () {
+    final love =
+        File('ios/TogetherlyWidget/LoveWidget.swift').readAsStringSync();
+
+    test('снимает системные поля', () {
+      final start = love.indexOf('struct LoveWidget: Widget {');
+      expect(start, greaterThan(0));
+      final body = love.substring(start, love.indexOf('\n}', start));
+      expect(body.contains('.contentMarginsDisabled()'), isTrue,
+          reason: 'без этого сверху и снизу белые полосы фона');
+    });
+
+    test('фото не держится гибкой рамкой', () {
+      final flexAfterFill = RegExp(
+          r'\.scaledToFill\(\)\s*\.frame\(maxWidth:\s*\.infinity');
+      expect(flexAfterFill.hasMatch(love), isFalse,
+          reason: 'гибкая рамка принимает ширину широкого фото, '
+              'и половины выходят неравными');
+    });
+  });
 }
