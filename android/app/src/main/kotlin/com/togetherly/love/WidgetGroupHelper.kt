@@ -3,6 +3,9 @@ package com.togetherly.love
 import android.content.Context
 
 object WidgetGroupHelper {
+    /** Заглушка группы без пары — её пишет `home_widget_service.dart`. */
+    const val SOLO = "solo"
+
     /**
      * Returns the groupId bound to this widget instance.
      * If not yet bound:
@@ -15,7 +18,20 @@ object WidgetGroupHelper {
         val prefs = context.getSharedPreferences("HomeWidgetPreferences", Context.MODE_PRIVATE)
         val bindKey = "widget_${widgetType}_${widgetId}_group"
         val stored = prefs.getString(bindKey, null)
-        if (!stored.isNullOrEmpty()) return stored
+        if (!stored.isNullOrEmpty()) {
+            // «solo» — не выбор человека, а заглушка «пары ещё нет». Виджет,
+            // поставленный до пары, привязывался к ней навсегда и показывал
+            // пустоту при живой паре (эмулятор, 14.09.2026: «Кольцо года»
+            // просило дату начала при заданной). Появилась пара — переходим.
+            if (stored == SOLO) {
+                val latest = prefs.getString("${dataType}_latest_group", null)
+                if (!latest.isNullOrEmpty() && latest != SOLO) {
+                    prefs.edit().putString(bindKey, latest).apply()
+                    return latest
+                }
+            }
+            return stored
+        }
 
         val pending = prefs.getString("${widgetType}_next_bind_group", null)?.takeIf { it.isNotEmpty() }
         if (pending != null) {
