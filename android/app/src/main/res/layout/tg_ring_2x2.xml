@@ -22,6 +22,7 @@
 
     <TextView
         android:id="@+id/empty_label"
+        android:textStyle="bold"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:gravity="center"
@@ -50,14 +51,20 @@
                 android:layout_height="wrap_content"
                 android:contentDescription="@null" />
 
+            <!-- wrap_content и layout_gravity, а не match_parent: FrameLayout
+                 перемеряет match_parent-детей под свой размер, только когда
+                 их больше одного, и единственная подложка сжималась до
+                 текста в левом верхнем углу кольца (эмулятор, 14.09.2026). -->
             <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
                 android:orientation="vertical"
-                android:gravity="center">
+                android:gravity="center_horizontal">
 
                 <TextView
                     android:id="@+id/ring_days"
+                    android:textStyle="bold"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:textSize="34dp"
@@ -82,6 +89,7 @@
 
         <TextView
             android:id="@+id/next_label"
+            android:textStyle="bold"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:paddingTop="9dp"

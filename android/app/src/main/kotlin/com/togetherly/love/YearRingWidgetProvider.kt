@@ -161,7 +161,7 @@ open class YearRingWidgetProvider : HomeWidgetProvider() {
         anniversary: String,
     ) = with(v) {
         val k = minOf(h / 158f, w / 338f).coerceIn(0.7f, 1.5f)
-        val ring = minOf(128f * k, h - 16f)
+        val ring = ringDp(minOf(128f * k, h - 16f), px)
         val stroke = 10f * k
         val padL = 14f * k
         val padR = 16f * k
@@ -175,11 +175,11 @@ open class YearRingWidgetProvider : HomeWidgetProvider() {
         val cy = h / 2f
         val (gx, gy) = arcEnd(cx, cy, r, progress)
         WidgetImages.ringBackdrop(
-            w, h, BACKDROP_PX_PER_DP, theme.primary, on, theme.tertiaryContainer,
+            w, h, backdropPxPerDp(w, h), theme.primary, on, theme.tertiaryContainer,
             gx, gy, arcs = true,
         )?.let { setImageViewBitmap(R.id.bg, it) }
         WidgetImages.yearRing(
-            ring, stroke, ringPxPerDp(px, ring), progress,
+            ring, stroke, px, progress,
             WidgetImages.alpha(on, TRACK_ALPHA), on, theme.primary,
         )?.let { setImageViewBitmap(R.id.ring, it) }
 
@@ -259,7 +259,7 @@ open class YearRingWidgetProvider : HomeWidgetProvider() {
         daysLeft: Int,
     ) = with(v) {
         val k = (minOf(w, h) / 158f).coerceIn(0.7f, 1.6f)
-        val ring = 112f * k
+        val ring = ringDp(112f * k, px)
         val stroke = 10f * k
         val on = theme.onPrimary
         val line = "Ещё $daysLeft ${WidgetWords.days(daysLeft)}"
@@ -272,11 +272,11 @@ open class YearRingWidgetProvider : HomeWidgetProvider() {
         val r = (ring - stroke) / 2f
         val (gx, gy) = arcEnd(w / 2f, cy, r, progress)
         WidgetImages.ringBackdrop(
-            w, h, BACKDROP_PX_PER_DP, theme.primary, on, theme.tertiaryContainer,
+            w, h, backdropPxPerDp(w, h), theme.primary, on, theme.tertiaryContainer,
             gx, gy, arcs = false,
         )?.let { setImageViewBitmap(R.id.bg, it) }
         WidgetImages.yearRing(
-            ring, stroke, ringPxPerDp(px, ring), progress,
+            ring, stroke, px, progress,
             WidgetImages.alpha(on, TRACK_ALPHA), on, theme.primary,
         )?.let { setImageViewBitmap(R.id.ring, it) }
 
@@ -303,11 +303,18 @@ open class YearRingWidgetProvider : HomeWidgetProvider() {
     private fun dp(value: Float, px: Float): Int = (value * px).toInt()
 
     /**
-     * Плотность картинки кольца: экранная, но не больше двух пикселей на dp и
-     * не больше 360 пикселей по стороне — фон и кольцо едут одной транзакцией.
+     * Сторона кольца, которую реально покажет лончер. Картинка рисуется в
+     * экранной плотности: `Bitmap.density` лончер не учитывает и кладёт её
+     * пиксель в пиксель (на эмуляторе кольцо 122 dp выходило 96). Сторона
+     * ограничена 380 пикселями — фон и кольцо едут одной транзакцией, — и
+     * кегли дальше считаются от того, что поместилось.
      */
-    private fun ringPxPerDp(screen: Float, sideDp: Float): Float =
-        minOf(screen, 2f, 360f / sideDp)
+    private fun ringDp(wantedDp: Float, px: Float): Float =
+        minOf(wantedDp * px, MAX_RING_PX) / px
+
+    /** Фон мягкий и растягивается без потерь: не больше 60 тысяч пикселей. */
+    private fun backdropPxPerDp(w: Float, h: Float): Float =
+        minOf(1f, kotlin.math.sqrt(MAX_BACKDROP_PX / (w * h)))
 
     private fun arcEnd(cx: Float, cy: Float, r: Float, progress: Float): Pair<Float, Float> {
         val a = -Math.PI / 2 + progress.coerceIn(0f, 1f) * 2 * Math.PI
@@ -322,7 +329,8 @@ open class YearRingWidgetProvider : HomeWidgetProvider() {
         const val SOFT_ALPHA = 0.84f
         const val TRACK_ALPHA = 0.22f
         const val HAIRLINE_ALPHA = 0.28f
-        const val BACKDROP_PX_PER_DP = 1f
+        const val MAX_RING_PX = 380f
+        const val MAX_BACKDROP_PX = 60_000f
 
         /** Кегль числа: помещается во внутренний диаметр при любом числе цифр. */
         fun numberSize(inner: Float, digits: Int, max: Float): Float =
