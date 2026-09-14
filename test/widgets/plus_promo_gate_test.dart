@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:love_app/services/plus_access.dart';
 import 'package:love_app/widgets/plus/plus_promo_rule.dart';
@@ -118,5 +120,20 @@ void main() {
         isFalse,
       );
     });
+  });
+  // Отзыв 10.09.2026: «после обновления при каждом заходе окно, чтоб сделали
+  // покупку». После обновления главная показывала подряд ДВЕ витрины: экран
+  // Togetherly+ про новую версию и, стоило его закрыть, нижний лист
+  // напоминания. Экран обязан засчитываться за напоминание.
+  test('экран Плюса после обновления засчитан за напоминание', () {
+    final src = File('lib/screens/home_screen.dart').readAsStringSync();
+    final pitch = src
+        .split('Future<void> _maybePitchPlus() async {')[1]
+        .split('\n  }\n')[0];
+    final mark = pitch.indexOf('UiPrefs.setPlusPromoShown(');
+    final push = pitch.indexOf('PlusScreen(');
+    expect(mark, greaterThan(-1),
+        reason: 'без отметки лист напоминания выскакивает следом за экраном');
+    expect(mark, lessThan(push));
   });
 }

@@ -1338,6 +1338,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     if (await UiPrefs.plusPitchShownFor(version)) return;
     await UiPrefs.markPlusPitchShown(version);
+    // Экран засчитывается за напоминание: без отметки нижний лист выскакивал
+    // сразу, как только человек закрывал экран, — две витрины подряд на одном
+    // заходе («при каждом заходе окно, чтоб сделали покупку», отзыв 10.09.2026).
+    await UiPrefs.setPlusPromoShown(DateTime.now().millisecondsSinceEpoch);
     if (!mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
