@@ -637,6 +637,9 @@ class _EsStrings extends _EnStrings {
   String tgYearDaysWord(int days) => _n(days, 'Día', 'Días');
 
   @override
+  String tgYearDaysUnit(int days) => _n(days, 'día', 'días');
+
+  @override
   String tgYearDaysTogether(int days) => '${_n(days, 'Día', 'Días')} juntos';
 
   @override

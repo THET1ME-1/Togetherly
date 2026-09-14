@@ -1,35 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Виджет «Кольцо года», 4×2.
+  Виджет «Кольцо года», 4×2 — раскладка «Отсчёт» (макет 14.09.2026).
 
-  Слева круговой прогресс до следующей годовщины с числом дней в центре,
-  справа колонка: год вместе, сколько осталось, дата и две плитки со
-  счётчиками.
+  Слева кольцо с числом дней и меткой сегодняшнего дня на конце дуги, справа
+  обратный отсчёт до годовщины, дата и под чертой месяцы с воспоминаниями.
+  Та же раскладка у iPhone (`YearWidgets.swift`) и у превью в каталоге
+  (`lib/widgets/year_ring_card.dart`); числа и правила подгонки — в
+  `lib/models/year_ring_spec.dart`.
 
-  Кольцо приходит картинкой (`WidgetImages.ring`): дуги RemoteViews не рисует,
-  а `ProgressBar` со стилем circular не принимает цвет темы. Число лежит
-  поверх картинки во `FrameLayout` — так оно всегда в центре кольца, каким бы
-  ни была ячейка.
+  Картинками идут только фон (`WidgetImages.ringBackdrop`: градиент, пятно,
+  свечение у конца дуги, дуги в углу) и само кольцо: ни дуг, ни градиентов в
+  цвет темы RemoteViews не умеет. Текст остаётся текстом — картинкой он был
+  бы мыльным.
 
-  Все заливки — ImageView с нейтральной белой фигурой, цвет ставит код по
-  активной теме приложения.
-
-  Кегли на нижней границе вилки лончеров компактные; на высокой ячейке их
-  растягивает `WidgetSizing.scale` из кода.
+  Размер кольца задаёт картинка: у неё проставлена плотность, и ImageView с
+  wrap_content показывает её ровно в нужных dp. Отступы и кегли ставит код по
+  фактической ячейке. Корни скругляет `clipToOutline` по форме подложки.
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@drawable/tg_shape_32"
+    android:clipToOutline="true">
 
     <ImageView
         android:id="@+id/bg"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:src="@drawable/tg_shape_32"
+        android:scaleType="fitXY"
         android:contentDescription="@null" />
 
-    <!-- Пустое состояние: партнёр не подключён или дата начала не задана. -->
+    <!-- Пустое состояние: дата начала не задана. -->
     <TextView
         android:id="@+id/empty_label"
         android:layout_width="match_parent"
@@ -50,23 +52,21 @@
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingLeft="14dp"
-        android:paddingRight="14dp"
-        android:paddingTop="12dp"
-        android:paddingBottom="12dp">
+        android:paddingRight="16dp">
 
         <FrameLayout
-            android:layout_width="80dp"
-            android:layout_height="80dp">
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content">
 
             <ImageView
                 android:id="@+id/ring"
-                android:layout_width="80dp"
-                android:layout_height="80dp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:contentDescription="@null" />
 
             <LinearLayout
-                android:layout_width="80dp"
-                android:layout_height="80dp"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
                 android:orientation="vertical"
                 android:gravity="center">
 
@@ -74,9 +74,9 @@
                     android:id="@+id/ring_days"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:textSize="22dp"
+                    android:textSize="36dp"
                     android:fontFamily="@font/onest_extrabold"
-                    android:letterSpacing="-0.04"
+                    android:letterSpacing="-0.03"
                     android:includeFontPadding="false"
                     android:maxLines="1"
                     android:text="—" />
@@ -85,154 +85,137 @@
                     android:id="@+id/ring_days_word"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:textSize="9dp"
-                    android:fontFamily="@font/onest_extrabold"
+                    android:paddingTop="3dp"
+                    android:textSize="11.5dp"
+                    android:fontFamily="@font/onest_bold"
                     android:includeFontPadding="false"
                     android:maxLines="1"
-                    android:text="Дней" />
+                    android:text=" " />
             </LinearLayout>
         </FrameLayout>
 
         <LinearLayout
+            android:id="@+id/info"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_marginStart="15dp"
+            android:paddingStart="16dp"
             android:orientation="vertical">
 
             <TextView
                 android:id="@+id/year_label"
-                android:layout_width="match_parent"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textSize="9dp"
-                android:fontFamily="@font/onest_extrabold"
-                android:letterSpacing="0.03"
+                android:textSize="11dp"
+                android:fontFamily="@font/onest_bold"
                 android:includeFontPadding="false"
                 android:maxLines="1"
-                android:ellipsize="end"
-                android:text=" " />
+                android:text="До годовщины" />
 
-            <TextView
-                android:id="@+id/left_value"
-                android:layout_width="match_parent"
+            <LinearLayout
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:textSize="15dp"
-                android:fontFamily="@font/onest_extrabold"
-                android:letterSpacing="-0.03"
-                android:includeFontPadding="false"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:text=" " />
+                android:orientation="horizontal"
+                android:baselineAligned="true">
+
+                <TextView
+                    android:id="@+id/left_value"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="40dp"
+                    android:fontFamily="@font/onest_extrabold"
+                    android:letterSpacing="-0.03"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:text="—" />
+
+                <TextView
+                    android:id="@+id/left_word"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="6dp"
+                    android:textSize="15dp"
+                    android:fontFamily="@font/onest_extrabold"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:text=" " />
+            </LinearLayout>
 
             <TextView
                 android:id="@+id/next_date"
-                android:layout_width="match_parent"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:textSize="9dp"
-                android:fontFamily="@font/onest_extrabold"
+                android:paddingTop="2dp"
+                android:textSize="12dp"
+                android:fontFamily="@font/onest_bold"
                 android:includeFontPadding="false"
                 android:maxLines="1"
-                android:ellipsize="end"
                 android:text=" " />
 
-            <LinearLayout
+            <FrameLayout
+                android:id="@+id/divider_box"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:orientation="horizontal">
+                android:paddingTop="10dp"
+                android:paddingBottom="8dp">
 
-                <FrameLayout
-                    android:layout_width="0dp"
+                <ImageView
+                    android:id="@+id/divider"
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:scaleType="fitXY"
+                    android:src="@drawable/tg_shape_16"
+                    android:contentDescription="@null" />
+            </FrameLayout>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:baselineAligned="true">
+
+                <TextView
+                    android:id="@+id/stat_months_value"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1">
+                    android:textSize="12.5dp"
+                    android:fontFamily="@font/onest_extrabold"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:text="—" />
 
-                    <ImageView
-                        android:id="@+id/tile_left_bg"
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:src="@drawable/tg_shape_16"
-                        android:contentDescription="@null" />
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:paddingLeft="7dp"
-                        android:paddingRight="7dp"
-                        android:paddingTop="6dp"
-                        android:paddingBottom="6dp">
-
-                        <TextView
-                            android:id="@+id/tile_left_label"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:textSize="8dp"
-                            android:fontFamily="@font/onest_extrabold"
-                            android:includeFontPadding="false"
-                            android:maxLines="1"
-                            android:text="МЕСЯЦЕВ" />
-
-                        <TextView
-                            android:id="@+id/tile_left_value"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="1dp"
-                            android:textSize="14dp"
-                            android:fontFamily="@font/onest_extrabold"
-                            android:letterSpacing="-0.025"
-                            android:includeFontPadding="false"
-                            android:maxLines="1"
-                            android:text="—" />
-                    </LinearLayout>
-                </FrameLayout>
-
-                <FrameLayout
-                    android:layout_width="0dp"
+                <TextView
+                    android:id="@+id/stat_months_word"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:layout_marginStart="5dp">
+                    android:paddingStart="3dp"
+                    android:textSize="12.5dp"
+                    android:fontFamily="@font/onest_bold"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:text="мес." />
 
-                    <ImageView
-                        android:id="@+id/tile_right_bg"
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:src="@drawable/tg_shape_16"
-                        android:contentDescription="@null" />
+                <TextView
+                    android:id="@+id/stat_memories_value"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="16dp"
+                    android:textSize="12.5dp"
+                    android:fontFamily="@font/onest_extrabold"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:text="—" />
 
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:paddingLeft="7dp"
-                        android:paddingRight="7dp"
-                        android:paddingTop="6dp"
-                        android:paddingBottom="6dp">
-
-                        <TextView
-                            android:id="@+id/tile_right_label"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:textSize="8dp"
-                            android:fontFamily="@font/onest_extrabold"
-                            android:includeFontPadding="false"
-                            android:maxLines="1"
-                            android:text="ВОСПОМИНАНИЙ" />
-
-                        <TextView
-                            android:id="@+id/tile_right_value"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="1dp"
-                            android:textSize="14dp"
-                            android:fontFamily="@font/onest_extrabold"
-                            android:letterSpacing="-0.025"
-                            android:includeFontPadding="false"
-                            android:maxLines="1"
-                            android:text="—" />
-                    </LinearLayout>
-                </FrameLayout>
+                <TextView
+                    android:id="@+id/stat_memories_word"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="3dp"
+                    android:textSize="12.5dp"
+                    android:fontFamily="@font/onest_bold"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:text=" " />
             </LinearLayout>
         </LinearLayout>
     </LinearLayout>

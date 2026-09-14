@@ -13,6 +13,8 @@ import 'package:love_app/dict_strings.dart';
 /// список закрытый, поэтому новая строчная строка валит тест и требует решения:
 /// либо заглавная, либо запись сюда с объяснением.
 const _lowercaseOnPurpose = <String>{
+  // Единица после числа в «Кольце года»: «69 мес.»
+  'tgYearMonthsShort',
   // Склейки: строка дописывается к другой и середины фразы не начинает.
   'agreeToTermsAnd', 'welcomeTitle2', 'or', 'orManually', 'partnerFallback',
   'dayLogWhat',

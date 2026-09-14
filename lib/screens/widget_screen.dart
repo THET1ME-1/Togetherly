@@ -22,6 +22,8 @@ import '../services/plus_service.dart';
 import '../services/ui_prefs.dart';
 import '../models/widget_panels.dart';
 import '../services/widget_theme_sync.dart';
+import '../models/year_ring_spec.dart';
+import '../widgets/year_ring_card.dart';
 import 'plus_screen.dart';
 import '../utils/couple_days.dart';
 import '../widgets/avatar_widget.dart';
@@ -3304,226 +3306,55 @@ class _WidgetScreenState extends State<WidgetScreen>
     return start == null ? null : YearProgress.between(start, DateTime.now());
   }
 
-  /// Превью «Кольцо года» 2×2: кольцо во всю карточку, число внутри.
-  Widget _buildYearRing2x2Preview() {
-    final p = _yearProgress();
-    return AspectRatio(
-      aspectRatio: 1,
-      child: Container(
-        decoration: BoxDecoration(
-          color: _wr('primary'),
-          borderRadius: BorderRadius.circular(32),
-        ),
-        child: p == null
-            ? _widgetEmptyLabel(_wr('onPrimarySoft'))
-            : Stack(
-                alignment: Alignment.center,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: CustomPaint(
-                      size: Size.infinite,
-                      painter: _YearRingPainter(
-                        progress: p.ringProgress,
-                        stroke: 8,
-                        track: _wr('blockOnPrimary'),
-                        fill: _wr('accentOnPrimary'),
-                      ),
-                    ),
-                  ),
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        '${p.daysTotal}',
-                        style: TextStyle(
-                          fontSize: 44,
-                          height: 1.05,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -2,
-                          color: _wr('onPrimary'),
-                        ),
-                      ),
-                      Text(
-                        _s.tgYearDaysTogether(p.daysTotal),
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          color: _wr('onPrimarySoft'),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _s.tgYearToAnniversaryShort(
-                          p.yearsCompleted + 1,
-                          p.daysToNextAnniversary,
-                        ),
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w800,
-                          color: _wr('accentOnPrimary'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-      ),
-    );
-  }
+  /// Превью «Кольцо года»: та же раскладка, что у виджетов на рабочем столе
+  /// (`YearRingCard` рисует её в точках среднего виджета iPhone и вписывает в
+  /// карточку). До 14.09.2026 превью было своей вёрсткой, и плитки вылезали
+  /// за низ карточки, а подписи обрезались многоточием.
+  Widget _buildYearRing2x2Preview() => _buildYearRingPreview(small: true);
 
-  /// Превью «Кольцо года» 4×2: кольцо слева, счётчики справа.
-  Widget _buildYearRing4x2Preview() {
-    final p = _yearProgress();
+  Widget _buildYearRing4x2Preview() => _buildYearRingPreview(small: false);
 
-    Widget tile(String label, String value) => Expanded(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
-            decoration: BoxDecoration(
-              color: _wr('blockOnPrimary'),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w800,
-                    color: _wr('accentOnPrimary'),
-                  ),
-                ),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 20,
-                    height: 1.1,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
-                    color: _wr('onPrimary'),
-                  ),
-                ),
-              ],
-            ),
+  Widget _buildYearRingPreview({required bool small}) {
+    final p = _yearProgress();
+    if (p == null) {
+      return AspectRatio(
+        aspectRatio: small
+            ? 1
+            : YearRingSpec.mediumWidth / YearRingSpec.mediumHeight,
+        child: Container(
+          decoration: BoxDecoration(
+            color: _wr('primary'),
+            borderRadius: BorderRadius.circular(22),
           ),
-        );
-
-    return AspectRatio(
-      aspectRatio: 424 / 200,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 22),
-        decoration: BoxDecoration(
-          color: _wr('primary'),
-          borderRadius: BorderRadius.circular(32),
+          child: _widgetEmptyLabel(_wr('onPrimarySoft')),
         ),
-        child: p == null
-            ? _widgetEmptyLabel(_wr('onPrimarySoft'))
-            : Row(
-                children: [
-                  SizedBox(
-                    width: 110,
-                    height: 110,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        CustomPaint(
-                          size: const Size.square(110),
-                          painter: _YearRingPainter(
-                            progress: p.ringProgress,
-                            stroke: 9,
-                            track: _wr('blockOnPrimary'),
-                            fill: _wr('accentOnPrimary'),
-                          ),
-                        ),
-                        Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              '${p.daysTotal}',
-                              style: TextStyle(
-                                fontSize: 30,
-                                height: 1.05,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -1.4,
-                                color: _wr('onPrimary'),
-                              ),
-                            ),
-                            Text(
-                              _s.tgYearDaysWord(p.daysTotal),
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                color: _wr('onPrimarySoft'),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 22),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          _s.tgYearOrdinalLabel(p.yearsCompleted + 1),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.3,
-                            color: _wr('accentOnPrimary'),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          _s.tgYearDaysLeft(p.daysToNextAnniversary),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 22,
-                            height: 1.1,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.7,
-                            color: _wr('onPrimary'),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${_s.tgYearToAnniversary(p.yearsCompleted + 1)} · '
-                          '${_formatDayMonth(p.nextAnniversary)}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w800,
-                            color: _wr('onPrimarySoft'),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            tile(_s.tgYearMonthsLabel, '${p.monthsCompleted}'),
-                            const SizedBox(width: 8),
-                            tile(
-                              _s.tgYearMemoriesLabel,
-                              '${_memoriesCount ?? 0}',
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+      );
+    }
+    final memories = _memoriesCount ?? 0;
+    return YearRingCard(
+      small: small,
+      colors: YearRingColors(
+        primary: _wr('primary'),
+        onPrimary: _wr('onPrimary'),
+        tertiaryContainer: _wr('tertiaryContainer'),
       ),
+      texts: YearRingTexts(
+        daysCaption: small
+            ? _s.tgYearDaysWord(p.daysTotal)
+            : _s.tgYearDaysTogether(p.daysTotal),
+        untilAnniversary: _s.tgYearUntilAnniversary,
+        daysLeftUnit: _s.tgYearDaysUnit(p.daysToNextAnniversary),
+        anniversaryLine: _s.tgYearAnniversaryOn
+            .replaceAll('{date}', _formatDayMonth(p.nextAnniversary)),
+        monthsShort: _s.tgYearMonthsShort,
+        memoriesUnit: _s.memoriesUnit(memories),
+        smallLine: _s.tgYearDaysLeft(p.daysToNextAnniversary),
+      ),
+      daysTotal: p.daysTotal,
+      daysLeft: p.daysToNextAnniversary,
+      months: p.monthsCompleted,
+      memories: memories,
+      progress: p.ringProgress,
     );
   }
 
@@ -9174,62 +9005,6 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
 /// выбором размера» не бывает. Поэтому размер выбирается до установки:
 /// выбранный вариант определяет и превью, и того провайдера, что уйдёт на
 /// рабочий стол.
-/// Кольцо года для превью каталога.
-///
-/// Повторяет `WidgetImages.ring` на нативной стороне: радиус 0.42 стороны,
-/// старт на двенадцати часах, круглый конец дуги. Расхождение было бы видно
-/// сразу — карточка и виджет стоят рядом в момент установки.
-class _YearRingPainter extends CustomPainter {
-  const _YearRingPainter({
-    required this.progress,
-    required this.stroke,
-    required this.track,
-    required this.fill,
-  });
-
-  final double progress;
-  final double stroke;
-  final Color track;
-  final Color fill;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final side = size.shortestSide;
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = side * 0.42;
-
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = stroke
-      ..isAntiAlias = true
-      ..color = track;
-    canvas.drawCircle(center, radius, paint);
-
-    final sweep = 2 * math.pi * progress.clamp(0.0, 1.0);
-    // Круглый конец на нулевой дуге рисует точку на двенадцати часах — в
-    // первый день года это читается как сбой.
-    if (sweep > 0.01) {
-      paint
-        ..color = fill
-        ..strokeCap = StrokeCap.round;
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius),
-        -math.pi / 2,
-        sweep,
-        false,
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_YearRingPainter old) =>
-      old.progress != progress ||
-      old.stroke != stroke ||
-      old.track != track ||
-      old.fill != fill;
-}
-
 /// Сетка месяцев для превью каталога: точка — месяц, ряд — год.
 /// Повторяет `WidgetImages.monthsGrid` на нативной стороне.
 class _MonthsGridPainter extends CustomPainter {

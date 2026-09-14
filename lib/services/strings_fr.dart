@@ -641,6 +641,9 @@ class _FrStrings extends _EnStrings {
   String tgYearDaysWord(int days) => _n(days, 'Jour', 'Jours');
 
   @override
+  String tgYearDaysUnit(int days) => _n(days, 'jour', 'jours');
+
+  @override
   String tgYearDaysTogether(int days) =>
       '${_n(days, 'Jour', 'Jours')} ensemble';
 

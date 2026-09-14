@@ -18,3 +18,18 @@ swiftc -swift-version 5 \
   -o "$out/probe"
 
 "$out/probe" "$out"
+
+# «Кольцо года»: собирается настоящий YearWidgets.swift с теми же заглушками.
+# Верхнеуровневый код Swift пускает только в файле с именем main.swift.
+mkdir -p "$out/year"
+sed 's/^import UIKit$/import AppKit/' "$root/ios/TogetherlyWidget/YearWidgets.swift" \
+  > "$out/year/YearWidgets.swift"
+cp "$root/tool/widget_layout/year_main.swift" "$out/year/main.swift"
+swiftc -swift-version 5 \
+  "$out/year/YearWidgets.swift" \
+  "$root/tool/widget_layout/Shims.swift" \
+  "$root/tool/widget_layout/YearShims.swift" \
+  "$out/year/main.swift" \
+  -o "$out/year_probe" -module-name YearProbe
+
+"$out/year_probe" "$out"

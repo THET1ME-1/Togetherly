@@ -643,6 +643,9 @@ class _PtStrings extends _EnStrings {
   String tgYearDaysWord(int days) => _n(days, 'Dia', 'Dias');
 
   @override
+  String tgYearDaysUnit(int days) => _n(days, 'dia', 'dias');
+
+  @override
   String tgYearDaysTogether(int days) => '${_n(days, 'Dia', 'Dias')} juntos';
 
   @override

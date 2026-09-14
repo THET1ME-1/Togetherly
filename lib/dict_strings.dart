@@ -2464,6 +2464,12 @@ abstract class DictStrings extends AppStrings {
   @override
   String get tgYearMemoriesLabel => _t('tgYearMemoriesLabel');
   @override
+  String get tgYearUntilAnniversary => _t('tgYearUntilAnniversary');
+  @override
+  String get tgYearAnniversaryOn => _t('tgYearAnniversaryOn');
+  @override
+  String get tgYearMonthsShort => _t('tgYearMonthsShort');
+  @override
   String get tgSizeHintToday => _t('tgSizeHintToday');
   @override
   String get tgSizeHintWeek => _t('tgSizeHintWeek');

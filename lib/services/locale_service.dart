@@ -1670,7 +1670,14 @@ abstract class AppStrings {
   String get tgYearNoStartDate;
   String get tgYearMonthsLabel;
   String get tgYearMemoriesLabel;
+  /// Надпись над обратным отсчётом в «Кольце года».
+  String get tgYearUntilAnniversary;
+  /// «годовщина {date}» — дату подставляет вызывающий.
+  String get tgYearAnniversaryOn;
+  String get tgYearMonthsShort;
   String tgYearDaysWord(int days);
+  /// Слово «дней» после числа, со строчной там, где язык так пишет.
+  String tgYearDaysUnit(int days);
   String tgYearDaysTogether(int days);
   String tgYearDaysLeft(int days);
   String tgYearToAnniversary(int year);
@@ -2863,6 +2870,8 @@ class _RuStrings extends DictStrings {
   @override
   String tgYearDaysWord(int days) => _ruPlural(days, 'День', 'Дня', 'Дней');
   @override
+  String tgYearDaysUnit(int days) => _ruPlural(days, 'день', 'дня', 'дней');
+  @override
   String tgYearDaysTogether(int days) =>
       '${_ruPlural(days, 'День', 'Дня', 'Дней')} вместе';
   @override
@@ -3725,6 +3734,8 @@ class _EnStrings extends DictStrings {
       '${days == 1 ? 'day' : 'days'} until we meet';
   @override
   String tgYearDaysWord(int days) => days == 1 ? 'Day' : 'Days';
+  @override
+  String tgYearDaysUnit(int days) => days == 1 ? 'day' : 'days';
   @override
   String tgYearDaysTogether(int days) =>
       '${days == 1 ? 'Day' : 'Days'} together';

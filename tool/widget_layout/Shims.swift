@@ -30,6 +30,10 @@ extension Color {
 
 extension View {
     func tgContainerBackground(_ color: Color) -> some View { background(color) }
+
+    func tgContainerBackground<B: View>(@ViewBuilder _ bg: () -> B) -> some View {
+        background(bg())
+    }
 }
 
 struct TgSurface: View {
@@ -64,6 +68,10 @@ struct Store {
 
     func string(_ key: String, _ fallback: String = "") -> String {
         Store.strings[key] ?? fallback
+    }
+
+    func int(_ key: String, _ fallback: Int = 0) -> Int {
+        Int(Store.strings[key] ?? "") ?? fallback
     }
 
     func uiImage(_ key: String, maxSide: CGFloat = 700) -> NSImage? {

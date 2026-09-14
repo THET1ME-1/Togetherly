@@ -107,6 +107,60 @@ private func loadYear(_ pointer: String, _ prefix: String) -> YearData {
 }
 
 // MARK: - Кольцо года
+//
+// Раскладка «Отсчёт» (макет 14.09.2026) одна на iPhone, Android и превью в
+// каталоге: кольцо с числом дней и меткой сегодняшнего дня, справа сколько
+// осталось до годовщины, дата и под чертой месяцы с воспоминаниями. Числа и
+// правила подгонки живут в `lib/models/year_ring_spec.dart`, здесь повторены
+// (сверяет `test/models/year_ring_spec_test.dart`). До этого на iPhone «1288»
+// вылезало за кольцо, а подписи красились светлым акцентом, почти равным
+// заливке, и сливались с фоном.
+
+/// Правила подгонки текста — те же доли, что в Dart и Kotlin.
+enum YearRingFit {
+    static let numberShare: CGFloat = 0.74
+    static let digitEm: CGFloat = 0.58
+    static let letterEm: CGFloat = 0.56
+    static let softAlpha: Double = 0.84
+    static let trackAlpha: Double = 0.22
+    static let hairlineAlpha: Double = 0.28
+
+    /// Кегль числа: помещается во внутренний диаметр при любом числе цифр.
+    static func number(inner: CGFloat, digits: Int, max: CGFloat) -> CGFloat {
+        min(max, inner * numberShare / (CGFloat(Swift.max(digits, 1)) * digitEm))
+    }
+
+    /// Кегль строки: базовый, пока помещается в [width], дальше меньше.
+    static func text(base: CGFloat, chars: Int, width: CGFloat) -> CGFloat {
+        chars <= 0 ? base : min(base, width / (CGFloat(chars) * letterEm))
+    }
+
+    /// Конец дуги: старт на двенадцати часах, по часовой.
+    static func arcEnd(center: CGPoint, radius: CGFloat, progress: Double) -> CGPoint {
+        let a = -Double.pi / 2 + min(max(progress, 0), 1) * 2 * Double.pi
+        return CGPoint(x: center.x + radius * CGFloat(cos(a)),
+                       y: center.y + radius * CGFloat(sin(a)))
+    }
+}
+
+/// «12 мая» — день и месяц годовщины, то есть даты начала.
+func anniversaryDayMonth(startMs: Int) -> String {
+    let months = ["января", "февраля", "марта", "апреля", "мая", "июня",
+                  "июля", "августа", "сентября", "октября", "ноября", "декабря"]
+    let date = Date(timeIntervalSince1970: Double(startMs) / 1000.0)
+    let c = Calendar.current.dateComponents([.day, .month], from: date)
+    guard let d = c.day, let m = c.month, (1...12).contains(m) else { return "" }
+    return "\(d) \(months[m - 1])"
+}
+
+func memoriesWord(_ n: Int) -> String {
+    let a = n % 100
+    let b = n % 10
+    if (11...19).contains(a) { return "воспоминаний" }
+    if b == 1 { return "воспоминание" }
+    if (2...4).contains(b) { return "воспоминания" }
+    return "воспоминаний"
+}
 
 private struct YearRingView: View {
     @Environment(\.widgetFamily) private var family
@@ -120,76 +174,295 @@ private struct YearRingView: View {
         } else {
             let math = YearMath.from(startMs: data.startMs)
             if family == .systemSmall {
-                ring(math: math, t: t, side: 92, showCaption: true)
-                    .padding(12)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .tgContainerBackground(t.primary)
+                YearRingSmall(math: math, t: t)
             } else {
-                HStack(spacing: 16) {
-                    ring(math: math, t: t, side: 104, showCaption: false)
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(yearOrdinal(math.yearsCompleted + 1))
-                            .font(.system(size: 9, weight: .heavy))
-                            .foregroundColor(t.accentOnPrimary)
-                            .lineLimit(1)
-                        Text("Ещё \(math.daysToNextAnniversary) \(daysWord(math.daysToNextAnniversary))")
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundColor(t.onPrimary)
-                            .lineLimit(1)
-                        HStack(spacing: 8) {
-                            tile(label: "МЕСЯЦЕВ", value: "\(math.monthsCompleted)", t: t)
-                            tile(label: "ВОСПОМИНАНИЙ", value: "\(data.memories)", t: t)
-                        }
+                YearRingMedium(
+                    math: math,
+                    memories: data.memories,
+                    anniversary: anniversaryDayMonth(startMs: data.startMs),
+                    t: t
+                )
+            }
+        }
+    }
+}
+
+/// 4×2: размеры в точках среднего виджета 338×158, умноженные на `k`.
+struct YearRingMedium: View {
+    let math: YearMath
+    let memories: Int
+    let anniversary: String
+    let t: WidgetTheme
+
+    var body: some View {
+        GeometryReader { geo in
+            let g = Geometry(size: geo.size)
+            let on = t.onPrimary
+            let soft = on.opacity(YearRingFit.softAlpha)
+            let leftNum = "\(math.daysToNextAnniversary)"
+            let leftWord = daysWord(math.daysToNextAnniversary)
+            let countSize = min(
+                40 * g.k,
+                (g.right - 6 * g.k)
+                    / (CGFloat(leftNum.count) * YearRingFit.digitEm
+                        + CGFloat(leftWord.count) * YearRingFit.letterEm * 0.375)
+            )
+            let eyebrow = "До годовщины"
+            let date = anniversary.isEmpty ? "Годовщина" : "Годовщина \(anniversary)"
+            let monthsShort = "мес."
+            let memWord = memoriesWord(memories)
+            let stats = "\(math.monthsCompleted) \(monthsShort)    \(memories) \(memWord)"
+            let statsSize = YearRingFit.text(
+                base: max(12.5 * g.k, 9.5), chars: stats.count, width: g.right)
+
+            HStack(spacing: 0) {
+                YearRingDial(
+                    math: math,
+                    side: g.ring,
+                    stroke: g.stroke,
+                    maxNumber: 36 * g.k,
+                    caption: "\(capitalizedFirst(daysWord(math.daysTotal))) вместе",
+                    captionSize: 11.5 * g.k,
+                    t: t
+                )
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(eyebrow)
+                        .font(.system(size: YearRingFit.text(
+                            base: max(11 * g.k, 9), chars: eyebrow.count, width: g.right),
+                                      weight: .semibold))
+                        .foregroundColor(soft)
+                        .lineLimit(1)
+                    HStack(alignment: .firstTextBaseline, spacing: 6 * g.k) {
+                        Text(leftNum)
+                            .font(.system(size: countSize, weight: .heavy))
+                            .kerning(-countSize * 0.03)
+                            .foregroundColor(on)
+                            .widgetAccentable()
+                        Text(leftWord)
+                            .font(.system(size: countSize * 0.375, weight: .bold))
+                            .foregroundColor(on)
                     }
-                    Spacer(minLength: 0)
+                    .lineLimit(1)
+                    Text(date)
+                        .font(.system(size: YearRingFit.text(
+                            base: max(12 * g.k, 9.5), chars: date.count, width: g.right),
+                                      weight: .medium))
+                        .foregroundColor(soft)
+                        .lineLimit(1)
+                        .padding(.top, 2 * g.k)
+                    Rectangle()
+                        .fill(on.opacity(YearRingFit.hairlineAlpha))
+                        .frame(height: 1)
+                        .padding(.top, 10 * g.k)
+                        .padding(.bottom, 8 * g.k)
+                    HStack(alignment: .firstTextBaseline, spacing: 16 * g.k) {
+                        stat("\(math.monthsCompleted)", monthsShort, statsSize, on, soft)
+                        stat("\(memories)", memWord, statsSize, on, soft)
+                    }
+                    .lineLimit(1)
                 }
-                .padding(16)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .tgContainerBackground(t.primary)
+                .frame(width: max(g.right, 0), alignment: .leading)
+                .padding(.leading, g.gap)
+            }
+            .padding(.leading, g.padL)
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .leading)
+        }
+        .tgContainerBackground {
+            YearRingBackdrop(t: t, arcs: true) { size in
+                let g = Geometry(size: size)
+                return YearRingFit.arcEnd(
+                    center: CGPoint(x: g.padL + g.ring / 2, y: size.height / 2),
+                    radius: (g.ring - g.stroke) / 2,
+                    progress: math.ringProgress
+                )
             }
         }
     }
 
-    /// Кольцо рисуется дугой SwiftUI — на Android под это пришлось заводить
-    /// bitmap, потому что дуг у RemoteViews нет.
-    private func ring(math: YearMath, t: WidgetTheme, side: CGFloat, showCaption: Bool) -> some View {
-        ZStack {
-            Circle()
-                .stroke(t.blockOnPrimary, lineWidth: 9)
-            Circle()
-                .trim(from: 0, to: max(0.004, math.ringProgress))
-                .stroke(t.accentOnPrimary, style: StrokeStyle(lineWidth: 9, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-            VStack(spacing: 0) {
-                Text("\(math.daysTotal)")
-                    .font(.system(size: 24, weight: .heavy, design: .rounded))
-                    .widgetAccentable()
+    private func stat(_ value: String, _ unit: String, _ size: CGFloat,
+                      _ on: Color, _ soft: Color) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 3) {
+            Text(value).font(.system(size: size, weight: .heavy)).foregroundColor(on)
+            Text(unit).font(.system(size: size, weight: .medium)).foregroundColor(soft)
+        }
+    }
+
+    struct Geometry {
+        let k: CGFloat
+        let ring: CGFloat
+        let stroke: CGFloat
+        let padL: CGFloat
+        let gap: CGFloat
+        let right: CGFloat
+
+        init(size: CGSize) {
+            k = min(max(min(size.height / 158, size.width / 338), 0.7), 1.5)
+            ring = min(128 * k, size.height - 16)
+            stroke = 10 * k
+            padL = 14 * k
+            gap = 16 * k
+            right = size.width - padL - 16 * k - gap - ring
+        }
+    }
+}
+
+/// 2×2: кольцо и под ним сколько осталось до годовщины.
+struct YearRingSmall: View {
+    let math: YearMath
+    let t: WidgetTheme
+
+    var body: some View {
+        GeometryReader { geo in
+            let k = min(max(min(geo.size.width, geo.size.height) / 158, 0.7), 1.6)
+            let line = "Ещё \(math.daysToNextAnniversary) \(daysWord(math.daysToNextAnniversary))"
+            let lineSize = YearRingFit.text(
+                base: max(11.5 * k, 9.5), chars: line.count, width: geo.size.width - 24 * k)
+            VStack(spacing: 9 * k) {
+                YearRingDial(
+                    math: math,
+                    side: 112 * k,
+                    stroke: 10 * k,
+                    maxNumber: 34 * k,
+                    caption: capitalizedFirst(daysWord(math.daysTotal)),
+                    captionSize: 11 * k,
+                    t: t
+                )
+                Text(line)
+                    .font(.system(size: lineSize, weight: .bold))
                     .foregroundColor(t.onPrimary)
-                    .minimumScaleFactor(0.5)
-                    .lineLimit(1)
-                Text(showCaption ? "\(daysWord(math.daysTotal)) вместе" : daysWord(math.daysTotal))
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundColor(t.onPrimarySoft)
                     .lineLimit(1)
             }
-            .padding(10)
+            .frame(width: geo.size.width, height: geo.size.height)
+        }
+        .tgContainerBackground {
+            YearRingBackdrop(t: t, arcs: false) { size in
+                let k = min(max(min(size.width, size.height) / 158, 0.7), 1.6)
+                let ring = 112 * k
+                let block = ring + 9 * k + 11.5 * k * 1.2
+                return YearRingFit.arcEnd(
+                    center: CGPoint(x: size.width / 2, y: (size.height - block) / 2 + ring / 2),
+                    radius: (ring - 10 * k) / 2,
+                    progress: math.ringProgress
+                )
+            }
+        }
+    }
+}
+
+/// Кольцо с числом дней внутри и меткой сегодняшнего дня на конце дуги.
+/// Рисуется дугой SwiftUI — на Android то же самое уходит картинкой.
+struct YearRingDial: View {
+    let math: YearMath
+    let side: CGFloat
+    let stroke: CGFloat
+    let maxNumber: CGFloat
+    let caption: String
+    let captionSize: CGFloat
+    let t: WidgetTheme
+
+    var body: some View {
+        let on = t.onPrimary
+        let inner = side - 2 * stroke
+        let number = "\(math.daysTotal)"
+        let numberSize = YearRingFit.number(inner: inner, digits: number.count, max: maxNumber)
+        let r = (side - stroke) / 2
+        let progress = math.ringProgress
+        let end = YearRingFit.arcEnd(center: CGPoint(x: side / 2, y: side / 2),
+                                     radius: r, progress: progress)
+        ZStack {
+            Circle()
+                .inset(by: stroke / 2)
+                .stroke(on.opacity(YearRingFit.trackAlpha), lineWidth: stroke)
+            if progress > 0.002 {
+                Circle()
+                    .inset(by: stroke / 2)
+                    .trim(from: 0, to: progress)
+                    .stroke(on, style: StrokeStyle(lineWidth: stroke, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+            }
+            Circle()
+                .fill(t.primary)
+                .overlay(Circle().stroke(on, lineWidth: stroke * 0.55))
+                .frame(width: stroke * 1.9, height: stroke * 1.9)
+                .position(end)
+            VStack(spacing: 3) {
+                Text(number)
+                    .font(.system(size: numberSize, weight: .heavy))
+                    .kerning(-numberSize * 0.03)
+                    .foregroundColor(on)
+                    .widgetAccentable()
+                    .lineLimit(1)
+                Text(caption)
+                    .font(.system(size: YearRingFit.text(
+                        base: captionSize, chars: caption.count, width: inner * 0.86),
+                                  weight: .semibold))
+                    .foregroundColor(on.opacity(YearRingFit.softAlpha))
+                    .lineLimit(1)
+            }
         }
         .frame(width: side, height: side)
     }
+}
 
-    private func tile(label: String, value: String, t: WidgetTheme) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text(label)
-                .font(.system(size: 8, weight: .heavy))
-                .foregroundColor(t.accentOnPrimary)
-                .lineLimit(1)
-            Text(value)
-                .font(.system(size: 14, weight: .bold))
-                .foregroundColor(t.onPrimary)
+/// Фон «Кольца года»: заливка темы с градиентом к светлому и глубокому тону
+/// под 140°, пятно третьего цвета в правом верхнем углу, свечение у конца
+/// дуги и, если нужно, две полупрозрачные дуги в углу. Повторяет
+/// `YearRingBackdropPainter` из приложения и `WidgetImages.ringBackdrop`.
+///
+/// Уходит только в `tgContainerBackground { }`: в тонированном режиме его
+/// заменяет системная подложка.
+struct YearRingBackdrop: View {
+    let t: WidgetTheme
+    let arcs: Bool
+    let glowAt: (CGSize) -> CGPoint
+
+    /// Светлее заливки сверху слева, глубже снизу справа.
+    private static let shade: [Gradient.Stop] = [
+        .init(color: .white.opacity(0.08), location: 0),
+        .init(color: .clear, location: 0.45),
+        .init(color: .black.opacity(0.18), location: 1),
+    ]
+
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            let h = geo.size.height
+            let dx: CGFloat = 0.6428
+            let dy: CGFloat = 0.7660
+            let len = w * dx + h * dy
+            let from = UnitPoint(x: (w / 2 - dx * len / 2) / w, y: (h / 2 - dy * len / 2) / h)
+            let to = UnitPoint(x: (w / 2 + dx * len / 2) / w, y: (h / 2 + dy * len / 2) / h)
+            let glow = glowAt(geo.size)
+            ZStack {
+                Rectangle().fill(t.primary)
+                Rectangle().fill(LinearGradient(stops: Self.shade, startPoint: from, endPoint: to))
+                Rectangle()
+                    .fill(
+                        RadialGradient(
+                            colors: [t.tertiaryContainer.opacity(0.38), t.tertiaryContainer.opacity(0)],
+                            center: .topTrailing, startRadius: 0, endRadius: 126
+                        )
+                    )
+                    .scaleEffect(x: 1, y: 140.0 / 180.0, anchor: .topTrailing)
+                Rectangle().fill(
+                    RadialGradient(
+                        colors: [t.onPrimary.opacity(0.26), t.onPrimary.opacity(0)],
+                        center: UnitPoint(x: glow.x / w, y: glow.y / h),
+                        startRadius: 0, endRadius: 84
+                    )
+                )
+                if arcs {
+                    Circle()
+                        .stroke(t.onPrimary.opacity(0.10), lineWidth: 18)
+                        .frame(width: 180, height: 180)
+                        .position(x: w - 38, y: -10)
+                    Circle()
+                        .stroke(t.onPrimary.opacity(0.06), lineWidth: 10)
+                        .frame(width: 260, height: 260)
+                        .position(x: w - 38, y: -10)
+                }
+            }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .tgBlock(t.blockOnPrimary, radius: 14)
     }
 }
 
@@ -201,6 +474,9 @@ struct YearRingWidget: Widget {
         .configurationDisplayName("Кольцо года")
         .description("Сколько прошло от годовщины до годовщины.")
         .supportedFamilies([.systemSmall, .systemMedium])
+        // Раскладка считает поля сама (левое 14, правое 16 точек) и фон идёт
+        // под край: системные поля iOS 17 сжимали бы её внутрь.
+        .contentMarginsDisabled()
     }
 }
 

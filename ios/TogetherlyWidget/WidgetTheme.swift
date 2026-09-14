@@ -76,6 +76,20 @@ extension View {
         }
     }
 
+    /// То же, но фоном служит целая вьюха — градиент, свечение, узор. В
+    /// тонированном режиме её так же заменяет системная подложка.
+    @ViewBuilder
+    func tgContainerBackground<B: View>(@ViewBuilder _ background: () -> B) -> some View {
+        if #available(iOS 17.0, *) {
+            self.modifier(TgContainerBackgroundView(background: background()))
+        } else {
+            ZStack {
+                background()
+                self
+            }
+        }
+    }
+
     /// Приподнятая плашка внутри виджета (числа, чипы, ячейки).
     ///
     /// В тонированном режиме заливка съедает свой же текст, поэтому от плашки
@@ -172,6 +186,21 @@ private struct TgContainerBackground: ViewModifier {
     func body(content: Content) -> some View {
         if mode == .fullColor {
             content.containerBackground(color, for: .widget)
+        } else {
+            content.containerBackground(.clear, for: .widget)
+        }
+    }
+}
+
+@available(iOS 17.0, *)
+private struct TgContainerBackgroundView<B: View>: ViewModifier {
+    @Environment(\.widgetRenderingMode) private var mode
+    let background: B
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if mode == .fullColor {
+            content.containerBackground(for: .widget) { background }
         } else {
             content.containerBackground(.clear, for: .widget)
         }

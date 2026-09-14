@@ -639,6 +639,9 @@ class _DeStrings extends _EnStrings {
   String tgYearDaysWord(int days) => days == 1 ? 'Tag' : 'Tage';
 
   @override
+  String tgYearDaysUnit(int days) => days == 1 ? 'Tag' : 'Tage';
+
+  @override
   String tgYearDaysTogether(int days) =>
       '${days == 1 ? 'Tag' : 'Tage'} zusammen';
 

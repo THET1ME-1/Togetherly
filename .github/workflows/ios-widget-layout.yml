@@ -11,6 +11,7 @@ on:
   push:
     paths:
       - 'ios/TogetherlyWidget/LoveWidget.swift'
+      - 'ios/TogetherlyWidget/YearWidgets.swift'
       - 'tool/widget_layout/**'
       - '.github/workflows/ios-widget-layout.yml'
   workflow_dispatch:

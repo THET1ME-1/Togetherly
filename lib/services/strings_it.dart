@@ -646,6 +646,9 @@ class _ItStrings extends _EnStrings {
   String tgYearDaysWord(int days) => _n(days, 'Giorno', 'Giorni');
 
   @override
+  String tgYearDaysUnit(int days) => _n(days, 'giorno', 'giorni');
+
+  @override
   String tgYearDaysTogether(int days) =>
       '${_n(days, 'Giorno', 'Giorni')} insieme';
 
