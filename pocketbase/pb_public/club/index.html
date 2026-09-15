@@ -485,6 +485,7 @@
   }
 </style>
 
+<script defer src="https://analytics.togetherly.day/script.js" data-website-id="addacce1-f825-4b55-bf67-543f530b6180"></script>
 </head>
 <body>
 <svg class="grain" aria-hidden="true">
@@ -830,6 +831,18 @@ var MSG_RU = {
   apply(lang);
 
   /* ── участие ────────────────────────────────────────────────────────── */
+
+  /* откуда человек пришёл: ?utm_source= или ?s= ; запоминаем на сессию */
+  var SRC = (function () {
+    var q = new URLSearchParams(location.search);
+    var v = (q.get('utm_source') || q.get('s') || '').toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 32);
+    try {
+      if (v) sessionStorage.setItem('club-src', v);
+      else v = sessionStorage.getItem('club-src') || '';
+    } catch (e) {}
+    return v || 'direct';
+  })();
+
   var pb = new PocketBase('https://togetherly.day');
   var CAMPAIGN = 'playboysparty';
   var msg = document.getElementById('msg');
@@ -872,7 +885,8 @@ var MSG_RU = {
     var me = pb.authStore.record;
     if (!me) return;
     try {
-      await pb.collection('club_entries').create({ user: me.id, source: CAMPAIGN });
+      await pb.collection('club_entries').create({ user: me.id, source: CAMPAIGN, src: SRC });
+      try { if (window.umami) window.umami.track('участие', { src: SRC }); } catch (e) {}
     } catch (err) {
       var body = JSON.stringify((err && err.response) || {});
       if (body.indexOf('not_unique') === -1 && body.indexOf('validation_') === -1) throw err;

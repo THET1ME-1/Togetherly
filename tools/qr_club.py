@@ -13,7 +13,7 @@ sys.path.insert(0, 'libs')
 import segno
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
-URL = 'https://togetherly.day/club/'
+URL = 'https://togetherly.day/club/?s=qr'
 ICON = '/home/alelx/Projects/GitHub/Togetherly/docs/branding/app-icon-512.png'
 S = 3                      # супер-сэмплинг: рисуем крупно, потом уменьшаем
 M = 24 * S                 # сторона модуля
