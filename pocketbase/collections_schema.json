@@ -963,6 +963,12 @@
           "name": "gifts_enabled",
           "type": "bool",
           "required": false
+        },
+        {
+          "name": "wallet",
+          "type": "json",
+          "required": false,
+          "maxSize": 4000
         }
       ],
       "indexes": [],
@@ -2373,6 +2379,55 @@
       "createRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id && author_uid = @request.auth.id",
       "updateRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id",
       "deleteRule": "@request.auth.id != \"\" && @request.auth.group_ids.id ?= group_id"
+    },
+    {
+      "name": "wallet_waitlist",
+      "type": "base",
+      "fields": [
+        {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "required": true,
+          "system": true,
+          "pattern": "^[a-z0-9]+$",
+          "min": 15,
+          "max": 15,
+          "autogeneratePattern": "[a-z0-9]{15}"
+        },
+        {
+          "name": "user_uid",
+          "type": "text",
+          "required": true,
+          "max": 50
+        },
+        {
+          "name": "platform",
+          "type": "text",
+          "required": false,
+          "max": 16
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "onCreate": true,
+          "onUpdate": false
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "onCreate": true,
+          "onUpdate": true
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX `idx_wallet_waitlist_uid` ON `wallet_waitlist` (`user_uid`)"
+      ],
+      "listRule": null,
+      "viewRule": null,
+      "createRule": null,
+      "updateRule": null,
+      "deleteRule": null
     }
   ],
   "deleteMissing": false
