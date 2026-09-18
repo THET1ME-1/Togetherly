@@ -276,6 +276,12 @@
     v.playsInline = true;
     v.preload = 'metadata';
     v.className = 'player__video';
+    // Прямая ссылка, которая не открылась (не видео, закрытый доступ, чужой
+    // кодек): плеер стоит пустым, и без слова это выглядит поломкой кнопки.
+    // Свой файл (blob:) сюда не относится — ссылки у него нет.
+    if (!String(src).startsWith('blob:')) {
+      v.addEventListener('error', () => setStatus(I18N.t('room.badLink'), true), { once: true });
+    }
     holder.appendChild(v);
 
     state.kind = 'video';
@@ -346,7 +352,7 @@
         mountVideo(d.href, I18N.t('room.playing', { name: labels.yadisk }));
         reportSource({ kind: 'yadisk', id: publicUrl }, publicUrl);
       })
-      .catch(() => setStatus(I18N.t('room.badLink')));
+      .catch(() => setStatus(I18N.t('room.badLink'), true));
   }
 
   function mountPlayer(src, url) {
@@ -732,7 +738,7 @@
   /** Включает ссылку у себя и рассказывает о ней комнате. */
   function applySource(raw) {
     const src = parseSource(raw);
-    if (!src) { setStatus(I18N.t('room.badLink')); return false; }
+    if (!src) { setStatus(I18N.t('room.badLink'), true); return false; }
     // В комнату и в историю уходит очищенный адрес, а не всё, что набралось в
     // поле: партнёр получает ссылку тем же путём и разбирает её так же.
     const url = cleanLink(raw);
@@ -859,9 +865,31 @@
     box.scrollTop = box.scrollHeight;
   }
 
-  function setStatus(text) {
+  /** Строка статуса в шапке. [loud] — сказать и на телефоне, где её не видно. */
+  function setStatus(text, loud) {
     const el = $('#status');
     if (el) el.textContent = text;
+    if (loud) note(text);
+  }
+
+  // На узком экране строки статуса в шапке нет — не помещается, — и всё, что
+  // комната говорила человеку, уходило в скрытый элемент. «Такую ссылку не
+  // открыть» не видел никто, и «Включить» выглядела мёртвой: «вставляю ссылку,
+  // но видео не включается... ничего не нажимается» (iPhone, 17.09.2026).
+  // Отказы, пустое поле и обрыв связи повторяет плашка под шапкой.
+  const NOTE_MS = 5000;
+  let noteTimer = 0;
+
+  function note(text) {
+    const el = $('#note');
+    const line = $('#status');
+    if (!el || !text) return;
+    // Строка статуса видна сама — второй раз не говорим.
+    if (line && getComputedStyle(line).display !== 'none') return;
+    el.textContent = text;
+    el.hidden = false;
+    clearTimeout(noteTimer);
+    noteTimer = setTimeout(() => { el.hidden = true; }, NOTE_MS);
   }
 
   function setViewers(n) {
@@ -932,7 +960,7 @@
     sub.on('leave', refreshViewers);
     sub.on('unsubscribed', () => { state.subscribed = false; });
     sub.on('subscribing', () => { state.subscribed = false; });
-    sub.on('error', () => setStatus(I18N.t('room.lost')));
+    sub.on('error', () => setStatus(I18N.t('room.lost'), true));
 
     centrifuge.on('connected', () => setStatus(I18N.t('room.ready')));
     centrifuge.on('disconnected', () => setStatus(I18N.t('room.offline')));
@@ -952,7 +980,7 @@
         state.wsFallbackTried = true;
         try { centrifuge.disconnect(); } catch (_) {}
         WS.reverse();
-        connect(room).catch(() => setStatus(I18N.t('room.lost')));
+        connect(room).catch(() => setStatus(I18N.t('room.lost'), true));
       }, CONNECT_TIMEOUT);
     }
 
@@ -1244,12 +1272,18 @@
     // остаётся гостем: своего имени у него нет.
     state.name = (params.get('name') || '').trim().slice(0, 32);
 
-    connect(room).catch(() => setStatus(I18N.t('room.lost')));
+    connect(room).catch(() => setStatus(I18N.t('room.lost'), true));
 
     $('#apply').addEventListener('click', () => {
       const el = $('#link');
       const link = el.value.trim() || state.lastLink || '';
-      if (link && !el.value.trim()) el.value = link;
+      if (!link) {
+        // Пустое поле: раньше кнопка молча ничего не делала.
+        setStatus(I18N.t('room.empty'), true);
+        el.focus();
+        return;
+      }
+      if (!el.value.trim()) el.value = link;
       applySource(link);
     });
 
@@ -1309,7 +1343,7 @@
     $('#copy').addEventListener('click', async () => {
       try {
         await navigator.clipboard.writeText(shareLink());
-        setStatus(I18N.t('room.copied'));
+        setStatus(I18N.t('room.copied'), true);
       } catch (_) {
         setStatus(shareLink());
       }

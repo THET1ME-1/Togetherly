@@ -16,7 +16,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#150D0F">
 <link rel="stylesheet" href="../landing.css?v=20260812">
-<link rel="stylesheet" href="room.css?v=20260830b">
+<link rel="stylesheet" href="room.css?v=20260918">
 <script>
 /* В комнате смотрят кино, поэтому тёмная тема здесь по умолчанию: светлую
    получает только тот, кто выбрал её сам. */
@@ -79,6 +79,12 @@ window.watchVoiceState = (s) => { window.__voicePending = s; };
   </button>
 </header>
 
+<!-- Плашка для телефона. Строка статуса в шапке там скрыта, и отказ по ссылке
+     («такую ссылку не открыть»), пустое поле и обрыв связи человек не видел:
+     «Включить» казалась мёртвой (жалоба с iPhone 17.09.2026). Текст ставит
+     note() в room.js. Стережёт tests/room-phone-note.test.js. -->
+<p class="note" id="note" role="status" aria-live="polite" hidden></p>
+
 <main class="stage-wrap" id="stage">
   <div class="player" id="player">
     <div class="player__empty">
@@ -133,6 +139,6 @@ window.watchVoiceState = (s) => { window.__voicePending = s; };
      таймаута — room.js тогда не выполняется вовсе, и комната открывается
      мёртвой (жалоба с айфона 18.08.2026). Его грузит whenYT() в room.js, и
      только когда включают ролик с ютуба. Стережёт tests/room-youtube-hang.test.js. -->
-<script src="room.js?v=20260830"></script>
+<script src="room.js?v=20260918"></script>
 </body>
 </html>

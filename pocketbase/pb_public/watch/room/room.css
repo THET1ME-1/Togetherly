@@ -467,3 +467,31 @@
   .source__input, .input--flat, .btn--compact, .btn--icon { min-height: 44px; }
   .side__head { padding: 10px 12px 4px; }
 }
+
+/* ── плашка для телефона ─────────────────────────────────────────────────── */
+/*
+ * На узком экране строка статуса в шапке скрыта, а сказать человеку, почему
+ * ролик не включился, нужно. Плашка лежит поверх верха плеера и ничего не
+ * сдвигает: раскладку комнаты стерегут room-screen-sizes и room-webview-resize.
+ * Касания пропускает насквозь: в окне ниже 400 точек (выехала полоса звонка)
+ * она ложится на строку ссылки, а нажатие должно дойти до неё. Уходит сама.
+ */
+.note {
+  position: fixed;
+  top: calc(var(--vpt, 0px) + 72px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(calc(100% - 32px), 480px);
+  z-index: 40;
+  margin: 0;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--card);
+  color: var(--ink);
+  font: 500 14px/1.4 'Onest';
+  text-align: center;
+  text-wrap: pretty;
+  pointer-events: none;
+}
+.note[hidden] { display: none; }
