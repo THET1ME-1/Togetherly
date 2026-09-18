@@ -351,10 +351,27 @@ class PbAuthService {
     await _pb.collection(_usersCol).authWithPassword(email, fresh);
   }
 
-  /// Письмо для сброса пароля (email-провайдер PB).
+  /// Письмо для сброса пароля.
+  ///
+  /// Идёт через свой маршрут `/api/auth/password-reset` (хук
+  /// `email_case.pb.js`): штатный `request-password-reset` ищет почту с
+  /// точностью до буквы, и «Anna@gmail.com» с заглавной от клавиатуры не
+  /// находил аккаунт «anna@gmail.com» — сервер отвечал «отправлено», а письмо
+  /// не уходило (18.09.2026). Штатный путь остаётся запасным на случай сервера
+  /// без маршрута.
   Future<void> sendPasswordReset(String email) async {
     try {
-      await _pb.collection(_usersCol).requestPasswordReset(email);
+      try {
+        await _pb.send(
+          '/api/auth/password-reset',
+          method: 'POST',
+          body: {'email': email.trim()},
+        );
+        return;
+      } on ClientException catch (e) {
+        if (e.statusCode != 404) rethrow;
+      }
+      await _pb.collection(_usersCol).requestPasswordReset(email.trim());
     } catch (e) {
       debugPrint('PbAuth.sendPasswordReset failed: $e');
       rethrow;
