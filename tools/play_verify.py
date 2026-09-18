@@ -110,14 +110,64 @@ def access_token() -> str:
         return _token
 
 
-def verify(product_id: str, purchase_token: str) -> dict:
+def verify_subscription(purchase_token: str, package: str = "") -> dict:
+    """Спрашивает Google про ПОДПИСКУ (`subscriptionsv2`).
+
+    У подписки нет `purchaseState`: есть состояние и дата, до которой
+    оплачено. Отменённая подписка остаётся годной до своего срока — человек
+    заплатил за месяц и должен его дожить.
+    """
+    пакет = (package or PACKAGE).strip()
+    url = (f"https://androidpublisher.googleapis.com/androidpublisher/v3"
+           f"/applications/{пакет}/purchases/subscriptionsv2/tokens/"
+           f"{urllib.parse.quote(purchase_token)}")
+    req = urllib.request.Request(url)
+    req.add_header("Authorization", f"Bearer {access_token()}")
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            data = json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        if e.code in (400, 404):
+            return {"ok": True, "valid": False, "reason": f"google_{e.code}"}
+        return {"ok": False, "reason": f"http_{e.code}"}
+    except Exception as exc:
+        return {"ok": False, "reason": type(exc).__name__}
+
+    состояние = str(data.get("subscriptionState") or "")
+    позиции = data.get("lineItems") or []
+    срок = ""
+    товар = ""
+    for позиция in позиции:
+        срок = str(позиция.get("expiryTime") or "") or срок
+        товар = str(позиция.get("productId") or "") or товар
+    # Годными считаем оплаченные состояния: активная, в льготном периоде и
+    # отменённая (у неё оплаченный срок ещё идёт). Приостановленная и
+    # просроченная доступа не дают.
+    годна = состояние in (
+        "SUBSCRIPTION_STATE_ACTIVE",
+        "SUBSCRIPTION_STATE_IN_GRACE_PERIOD",
+        "SUBSCRIPTION_STATE_CANCELED",
+    ) and bool(срок)
+    return {
+        "ok": True,
+        "valid": годна,
+        "state": состояние,
+        "expiry": срок,
+        "productId": товар,
+        "cancelled": состояние == "SUBSCRIPTION_STATE_CANCELED",
+        "reason": "" if годна else (состояние or "no_state"),
+    }
+
+
+def verify(product_id: str, purchase_token: str, package: str = "") -> dict:
     """Спрашивает Google про конкретную покупку.
 
     purchaseState: 0 — куплено, 1 — отменено, 2 — ожидает оплаты. Засчитываем
     только ноль: у отменённой деньги вернули, у ожидающей их ещё не списали.
     """
+    пакет = (package or PACKAGE).strip()
     url = (f"https://androidpublisher.googleapis.com/androidpublisher/v3"
-           f"/applications/{PACKAGE}/purchases/products/"
+           f"/applications/{пакет}/purchases/products/"
            f"{urllib.parse.quote(product_id)}/tokens/"
            f"{urllib.parse.quote(purchase_token)}")
     req = urllib.request.Request(url)
@@ -132,6 +182,19 @@ def verify(product_id: str, purchase_token: str) -> dict:
         return {"ok": False, "reason": f"http_{e.code}"}
     except Exception as exc:
         return {"ok": False, "reason": type(exc).__name__}
+
+    # `purchaseType` приходит только у покупок мимо кассы: 0 — тестовая (её
+    # делает лицензионный тестировщик из настроек Play Console), 1 — промо-код,
+    # 2 — Play Pass. У настоящей покупки поля нет вовсе, поэтому отбиваем только
+    # ноль: 9 сентября тестовыми чеками набрали 1500 монет и Togetherly+ даром.
+    if data.get("purchaseType") == 0:
+        return {
+            "ok": True,
+            "valid": False,
+            "state": int(data.get("purchaseState", 1)),
+            "orderId": data.get("orderId", ""),
+            "reason": "test_purchase",
+        }
 
     state = int(data.get("purchaseState", 1))
     return {
@@ -271,10 +334,10 @@ def _проверить_подпись(токен: str):
 
 ПОЛЯ_СДЕЛКИ = ("transactionId", "originalTransactionId", "productId", "type",
                "purchaseDate", "appAccountToken", "revocationDate",
-               "revocationReason", "environment", "quantity")
+               "revocationReason", "environment", "quantity", "expiresDate")
 
 
-def разобрать_уведомление(signed_payload: str) -> dict:
+def разобрать_уведомление(signed_payload: str, bundle: str = "") -> dict:
     """Проверяет уведомление App Store и достаёт из него сделку.
 
     Apple присылает такие уведомления сама, не спрашивая приложение: покупка,
@@ -290,8 +353,9 @@ def разобрать_уведомление(signed_payload: str) -> dict:
     if беда:
         return {"ok": True, "valid": False, "reason": беда}
 
+    ожидаемый = (bundle or BUNDLE_ID).strip()
     данные = конверт.get("data") or {}
-    if str(данные.get("bundleId") or BUNDLE_ID) != BUNDLE_ID:
+    if str(данные.get("bundleId") or ожидаемый) != ожидаемый:
         return {"ok": True, "valid": False, "reason": "bundle_mismatch"}
 
     сделка = {}
@@ -300,9 +364,14 @@ def разобрать_уведомление(signed_payload: str) -> dict:
         нагрузка, беда = _проверить_подпись(str(подписанная))
         if беда:
             return {"ok": True, "valid": False, "reason": беда}
-        if str(нагрузка.get("bundleId") or "") != BUNDLE_ID:
+        if str(нагрузка.get("bundleId") or "") != ожидаемый:
             return {"ok": True, "valid": False, "reason": "bundle_mismatch"}
         сделка = {к: нагрузка[к] for к in ПОЛЯ_СДЕЛКИ if к in нагрузка}
+        # Срок продления приезжает миллисекундами: приводим к дате сразу, чтобы
+        # хук не занимался арифметикой времени.
+        срок = _срок_из_мс(нагрузка.get("expiresDate"))
+        if срок:
+            сделка["expiry"] = срок
 
     return {
         "ok": True,
@@ -317,13 +386,14 @@ def разобрать_уведомление(signed_payload: str) -> dict:
     }
 
 
-def verify_apple_jws(product_id: str, токен: str) -> dict:
+def verify_apple_jws(product_id: str, токен: str, bundle: str = "") -> dict:
     """Разбирает транзакцию StoreKit 2 и говорит, настоящая ли покупка."""
     данные, беда = _проверить_подпись(токен)
     if беда:
         return {"ok": True, "valid": False, "reason": беда}
 
-    if str(данные.get("bundleId") or "") != BUNDLE_ID:
+    ожидаемый = (bundle or BUNDLE_ID).strip()
+    if str(данные.get("bundleId") or "") != ожидаемый:
         return {"ok": True, "valid": False, "reason": "bundle_mismatch"}
     if str(данные.get("productId") or "") != product_id:
         return {"ok": True, "valid": False, "reason": "product_not_in_receipt"}
@@ -331,7 +401,7 @@ def verify_apple_jws(product_id: str, токен: str) -> dict:
     if данные.get("revocationDate"):
         return {"ok": True, "valid": False, "reason": "cancelled"}
 
-    return {
+    вердикт = {
         "ok": True,
         "valid": True,
         "reason": "",
@@ -340,17 +410,36 @@ def verify_apple_jws(product_id: str, токен: str) -> dict:
         # Окружение уходит в вердикт, чтобы в журнале было видно, чей это чек.
         "environment": str(данные.get("environment") or ""),
         "transactionId": str(данные.get("transactionId") or ""),
+        "originalTransactionId": str(данные.get("originalTransactionId") or ""),
     }
+    # Срок кладём ТОЛЬКО у подписки: у разовой покупки его нет, а лишний ключ
+    # в ответе ломает тех, кто сверяет вердикт целиком (тест Togetherly).
+    срок = _срок_из_мс(данные.get("expiresDate"))
+    if срок:
+        вердикт["expiry"] = срок
+    return вердикт
+
+
+def _срок_из_мс(значение) -> str:
+    """Дата Apple приезжает миллисекундами эпохи. Пустое поле — разовая
+    покупка, а не ошибка."""
+    try:
+        мс = int(значение)
+    except (TypeError, ValueError):
+        return ""
+    if мс <= 0:
+        return ""
+    return dt.datetime.fromtimestamp(мс / 1000, dt.timezone.utc).isoformat()
 
 
 def отпечаток_sha256(cert) -> str:
     return cert.fingerprint(hashes.SHA256()).hex()
 
 
-def verify_apple(product_id: str, receipt: str) -> dict:
+def verify_apple(product_id: str, receipt: str, bundle: str = "") -> dict:
     """Сверка чека App Store. Формат опознаём сами (см. развилку выше)."""
     if похоже_на_jws(receipt):
-        return verify_apple_jws(product_id, receipt)
+        return verify_apple_jws(product_id, receipt, bundle)
     return verify_apple_receipt(product_id, receipt)
 
 
@@ -395,7 +484,8 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if путь == "/apple/notification":
-            итог = разобрать_уведомление(body.get("signedPayload") or "")
+            итог = разобрать_уведомление(body.get("signedPayload") or "",
+                                         str(body.get("bundleId") or ""))
             log.info("уведомление App Store: %s%s → %s",
                      итог.get("notificationType") or "?",
                      f" ({итог['subtype']})" if итог.get("subtype") else "",
@@ -410,10 +500,18 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         store = str(body.get("store") or "play").strip().lower()
+        # Приложений на службе несколько, и пакет с бандлом у каждого свой.
+        # Без них проверка Fern уходила бы в приложение Togetherly и отвечала
+        # «Google не знает такой покупки».
+        package = str(body.get("package") or "").strip()
+        bundle = str(body.get("bundleId") or "").strip()
+        kind = str(body.get("kind") or "product").strip().lower()
         if store == "appstore":
-            result = verify_apple(product, token)
+            result = verify_apple(product, token, bundle)
+        elif kind == "subscription":
+            result = verify_subscription(token, package)
         else:
-            result = verify(product, token)
+            result = verify(product, token, package)
         log.info("%s [%s] → %s", product, store, result.get("reason") or "valid")
         self._send(result)
 

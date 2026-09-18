@@ -135,9 +135,12 @@ class ПроверкаJWS(unittest.TestCase):
 
     def test_настоящая_покупка_принята(self):
         итог = play_verify.verify_apple("togetherly_plus", self.чек())
+        # originalTransactionId добавлен ради подписок Fern: по нему
+        # продление находит свою первую покупку.
         self.assertEqual(итог, {"ok": True, "valid": True, "reason": "",
                                 "environment": "Production",
-                                "transactionId": "2000000900000001"})
+                                "transactionId": "2000000900000001",
+                                "originalTransactionId": "2000000900000001"})
 
     def test_песочница_принята(self):
         """TestFlight подписывает тем же корнем, но помечает окружение."""
