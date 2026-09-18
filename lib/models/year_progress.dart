@@ -7,6 +7,10 @@
 ///
 /// Границы лет и месяцев календарные, не «каждые 365 дней»: пара празднует
 /// годовщину в свою дату, а не через фиксированное число суток.
+library;
+
+import '../utils/couple_days.dart';
+
 class YearProgress {
   const YearProgress({
     required this.daysTotal,
@@ -47,7 +51,7 @@ class YearProgress {
     final from = DateTime(start.year, start.month, start.day);
     final to = DateTime(now.year, now.month, now.day);
 
-    final daysTotal = to.difference(from).inDays;
+    final daysTotal = calendarDaysBetween(from, to);
 
     // Годовщина в этом году: 29 февраля в невисокосном году DateTime сдвигает
     // на 1 марта сам — пара отмечает годовщину в первый же существующий день.
@@ -67,8 +71,8 @@ class YearProgress {
       daysTotal: daysTotal < 0 ? 0 : daysTotal,
       yearsCompleted: years,
       monthsCompleted: months < 0 ? 0 : months,
-      daysIntoYear: to.difference(lastAnniversary).inDays,
-      daysToNextAnniversary: nextAnniversary.difference(to).inDays,
+      daysIntoYear: calendarDaysBetween(lastAnniversary, to),
+      daysToNextAnniversary: calendarDaysBetween(to, nextAnniversary),
       nextAnniversary: nextAnniversary,
     );
   }

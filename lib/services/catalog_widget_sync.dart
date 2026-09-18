@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import '../models/mood_entry.dart';
 import '../models/pair_data.dart';
 import '../models/timer_item.dart';
+import '../utils/couple_days.dart';
 import 'home_widget_service.dart';
 import 'mood_service.dart';
 import 'pb_data_service.dart';
@@ -60,7 +61,7 @@ class CatalogWidgetSync {
       final start = timer?.startDate ?? pair.startDate;
       final days = timer != null
           ? timer.daysElapsed.abs()
-          : (start != null ? DateTime.now().difference(start).inDays : 0);
+          : (start != null ? calendarDaysBetween(start, DateTime.now()) : 0);
 
       final partnerName = pair.partnerDisplayName.trim();
       final names =

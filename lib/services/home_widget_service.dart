@@ -1415,6 +1415,7 @@ class HomeWidgetService {
       await HomeWidget.saveWidgetData<String>('days_${g}_couple_names', coupleNames);
       await HomeWidget.saveWidgetData<String>('days_${g}_relationship_emoji', emoji);
       await HomeWidget.saveWidgetData<String>('days_${g}_start_date', startDate);
+      await _saveDaysStartMs(g, start);
       // Пустым не затираем: у натива пустая строка значащая — она означает
       // «пара по умолчанию», то есть парень и девушка.
       if (shouldWriteGender(myGender)) {
@@ -1448,6 +1449,21 @@ class HomeWidgetService {
     } catch (e) {
       debugPrint('HomeWidgetService.syncDaysCounter failed: $e');
     }
+  }
+
+  /// Метка начала для «Дней вместе»: по ней натив считает дни сам.
+  ///
+  /// Готовое число (`days_<группа>_count`) пишет только живое приложение, и на
+  /// iPhone оно застывало до следующего запуска: ночью 18.09.2026 таймер пары
+  /// показывал 440, а виджет рядом — вчерашние 439. Теперь расширение и
+  /// Android берут день по своим часам, как «Вместе» и кольцо года. Ноль —
+  /// считать не от чего или это обратный отсчёт (он идёт сутками, а не
+  /// клетками календаря), тогда виджет показывает присланное число.
+  Future<void> _saveDaysStartMs(String g, DateTime? start) async {
+    final ms = start == null || start.isAfter(DateTime.now())
+        ? 0
+        : start.millisecondsSinceEpoch;
+    await HomeWidget.saveWidgetData<String>('days_${g}_start_ms', ms.toString());
   }
 
   static const _daysPhotosEnabledKey = 'days_widget_photos_enabled';
@@ -2234,6 +2250,7 @@ class HomeWidgetService {
         'days_${g}_start_date',
         _formatDate(timer.startDate),
       );
+      await _saveDaysStartMs(g, timer.isCountdown ? null : timer.startDate);
       // Пол из кэша, и ПУСТЫМ не затираем. Кэш заполняет `syncAllBoundWidgets`,
       // а этот метод зовётся и раньше — на холодном старте в ключи уходила
       // пустая строка. Для натива она значащая: не `female` и не `male`, значит
@@ -3173,7 +3190,7 @@ class HomeWidgetService {
         );
         final days = (activeTimer != null && !activeTimer.isSystem)
             ? activeTimer.daysElapsed.abs()
-            : (start != null ? DateTime.now().difference(start).inDays : 0);
+            : (start != null ? calendarDaysBetween(start, DateTime.now()) : 0);
         final parts = coupleNames.split(RegExp(r'\s*[+&·]\s*'));
         await syncTogether(
           groupId: activeGroupId,
@@ -3410,7 +3427,7 @@ class HomeWidgetService {
     } else if (activeStartDate != null) {
       await syncDaysCounter(
         groupId: activeGroupId,
-        daysCount: DateTime.now().difference(activeStartDate).inDays,
+        daysCount: calendarDaysBetween(activeStartDate, DateTime.now()),
         coupleNames: coupleNames,
         emoji: emoji,
         startDate: _formatDate(activeStartDate),

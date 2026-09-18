@@ -131,6 +131,14 @@ struct RefreshProvider: TimelineProvider {
                 entries.append(SimpleEntry(date: d))
             }
         }
+        // Полночь внутри этого часа получает свою запись: счётчики дней должны
+        // сменить число ровно в 00:00, а не на следующей четверти часа.
+        let cal = Calendar.current
+        if let midnight = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: now)),
+           let last = entries.last?.date, midnight > now, midnight < last {
+            entries.append(SimpleEntry(date: midnight))
+            entries.sort { $0.date < $1.date }
+        }
         completion(Timeline(entries: entries, policy: .atEnd))
     }
 }

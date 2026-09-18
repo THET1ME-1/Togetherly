@@ -22,10 +22,21 @@ private func legacyYearsText(_ totalDays: Int) -> String {
 struct DaysCounterWidgetView: View {
     @Environment(\.widgetFamily) private var family
 
+    /// Момент записи ленты. Число считается на него, а не на время отрисовки:
+    /// запись на полночь система может нарисовать заранее.
+    var now: Date = Date()
+
     var body: some View {
         let s = Store()
         let g = s.latestGroup("days_counter_latest_group")
-        let count = s.int("days_\(g)_count")
+        // Дни считаем сами от метки начала, как «Вместе» и экран блокировки.
+        // Готовое число пишет только живое приложение, и ночью 18.09.2026 виджет
+        // стоял на вчерашних 439 рядом с таймером, показывавшим 440. Метки нет
+        // (данные от сборки постарше) или это обратный отсчёт — берём число.
+        let startMs = s.int("days_\(g)_start_ms")
+        let count = startMs > 0
+            ? daysSince(startMs: startMs, now: now)
+            : s.int("days_\(g)_count")
         let date = s.string("days_\(g)_start_date")
         let myGender = s.string("days_\(g)_my_gender", "male")
         let partnerGender = s.string("days_\(g)_partner_gender", "female")
@@ -115,8 +126,8 @@ struct DaysCounterWidgetView: View {
 
 struct DaysCounterWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "DaysCounterWidgetProvider", provider: RefreshProvider()) { _ in
-            DaysCounterWidgetView().unredacted()
+        StaticConfiguration(kind: "DaysCounterWidgetProvider", provider: RefreshProvider()) { entry in
+            DaysCounterWidgetView(now: entry.date).unredacted()
         }
         .configurationDisplayName("Дней вместе")
         .description("Сколько дней вы вместе.")

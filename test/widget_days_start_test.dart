@@ -88,4 +88,37 @@ void main() {
           reason: 'без неё виджет снова посчитает от даты коннекта');
     });
   });
+
+  // Ночь 18.09.2026, iPhone: таймер пары 440, виджет «Дней вместе» рядом — 439.
+  // Готовое число пишет только открытое приложение, поэтому после полуночи
+  // виджет стоит на вчерашнем, пока его не откроют. Натив считает сам от
+  // метки начала — так уже живут «Вместе», экран блокировки и кольцо года.
+  group('«Дней вместе» считает день сам', () {
+    test('приложение кладёт метку начала рядом с числом', () {
+      final src =
+          File('lib/services/home_widget_service.dart').readAsStringSync();
+      expect(src.contains("'days_\${g}_start_ms'"), isTrue);
+      final sync = src.indexOf('Future<void> syncDaysCounter(');
+      expect(src.indexOf('_saveDaysStartMs(g, start)', sync), greaterThan(sync));
+      final both = src.indexOf('Future<void> syncTimerAndDays(');
+      expect(src.indexOf('_saveDaysStartMs(g,', both), greaterThan(both),
+          reason: 'второй писатель числа тоже обязан обновить метку, '
+              'иначе натив посчитает от прежней даты');
+    });
+
+    test('iPhone и Android читают метку, а число — только запасом', () {
+      final swift = File('ios/TogetherlyWidget/DaysStreakStatsWidgets.swift')
+          .readAsStringSync();
+      expect(swift.contains('days_\\(g)_start_ms'), isTrue);
+      expect(swift.contains('daysSince(startMs: startMs, now: now)'), isTrue);
+      expect(swift.contains('DaysCounterWidgetView(now: entry.date)'), isTrue,
+          reason: 'день считается на момент записи ленты, а не отрисовки');
+      final kt = File(
+        'android/app/src/main/kotlin/com/togetherly/love/'
+        'DaysCounterWidgetProvider.kt',
+      ).readAsStringSync();
+      expect(kt.contains('days_\${g}_start_ms'), isTrue);
+      expect(kt.contains('YearMath.from(startMs).daysTotal'), isTrue);
+    });
+  });
 }

@@ -1159,7 +1159,7 @@ class _WidgetScreenState extends State<WidgetScreen>
         final emoji = timer?.emoji ?? _pair.relationshipEmoji;
         final days = timer != null
             ? timer.daysElapsed.abs()
-            : (start != null ? DateTime.now().difference(start).inDays : 0);
+            : (start != null ? calendarDaysBetween(start, DateTime.now()) : 0);
         final startLabel = start != null
             ? '${start.day.toString().padLeft(2, '0')}.${start.month.toString().padLeft(2, '0')}.${start.year}'
             : '';
@@ -1184,7 +1184,7 @@ class _WidgetScreenState extends State<WidgetScreen>
         final start = timer?.startDate ?? _pair.startDate;
         final days = timer != null
             ? timer.daysElapsed.abs()
-            : (start != null ? DateTime.now().difference(start).inDays : 0);
+            : (start != null ? calendarDaysBetween(start, DateTime.now()) : 0);
         const months = [
           'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
           'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
@@ -1319,7 +1319,7 @@ class _WidgetScreenState extends State<WidgetScreen>
         await hws.syncRelationshipStats(
           groupId: _pair.pairId,
           daysTogether: start != null
-              ? DateTime.now().difference(start).inDays
+              ? calendarDaysBetween(start, DateTime.now())
               : 0,
           memoriesCount: _memoriesCount ?? 0,
           drawingsCount: _drawingsCount ?? 0,
@@ -4540,7 +4540,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     final start = timer?.startDate ?? _pair.startDate;
     final totalDays = timer != null
         ? timer.daysElapsed.abs()
-        : (start != null ? DateTime.now().difference(start).inDays : 0);
+        : (start != null ? calendarDaysBetween(start, DateTime.now()) : 0);
     final startLabel = start != null
         ? '${start.day.toString().padLeft(2, '0')}.${start.month.toString().padLeft(2, '0')}.${start.year}'
         : '';
@@ -6029,7 +6029,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     final s = LocaleService.current;
     final sysTimer = _timerService.systemTimer;
     final start = sysTimer?.startDate ?? _pair.startDate;
-    final daysNum = start != null ? DateTime.now().difference(start).inDays : 0;
+    final daysNum = start != null ? calendarDaysBetween(start, DateTime.now()) : 0;
 
     return Container(
       width: double.infinity,

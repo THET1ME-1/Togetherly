@@ -12,6 +12,8 @@
 /// в `DaysTogetherNotificationService`.
 library;
 
+import '../utils/couple_days.dart';
+
 /// Один показ: момент [at] и число, верное на этот момент.
 class DaysTogetherTick {
   const DaysTogetherTick({required this.at, required this.days});
@@ -26,7 +28,7 @@ class DaysTogetherTick {
 /// Ближайшие [count] показов, начиная с первого [hour]:[minute] после [from].
 ///
 /// Число считается той же формулой, что и в приложении
-/// (`coupleDaysTogether`): разница в полных сутках от [start], минимум 0.
+/// (`coupleDaysTogether`): клетки календаря от дня [start], минимум 0.
 List<DaysTogetherTick> daysTogetherTicks({
   required DateTime start,
   required DateTime from,
@@ -45,7 +47,7 @@ List<DaysTogetherTick> daysTogetherTicks({
     // Через компоненты, а не `add(Duration(days: 1))`: при переводе часов
     // сутки не равны 24 часам, и время показа уползло бы.
     final at = DateTime(first.year, first.month, first.day + i, hour, minute);
-    final days = at.difference(start).inDays;
+    final days = calendarDaysBetween(start, at);
     return DaysTogetherTick(at: at, days: days < 0 ? 0 : days);
   });
 }

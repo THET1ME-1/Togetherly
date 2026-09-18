@@ -64,7 +64,14 @@ class DaysCounterWidgetProvider : HomeWidgetProvider() {
                 // ── Данные ──
                 val daysStr = if (g.isEmpty()) "0" else widgetData.getString("days_${g}_count", null)
                     .takeIf { !it.isNullOrEmpty() } ?: "0"
-                val totalDays = daysStr.toIntOrNull() ?: 0
+                // Дни считаем сами от метки начала, как «Кольцо года»: готовое
+                // число пишет только открытое приложение, и после полуночи
+                // виджет стоял на вчерашнем. Метки нет (данные от сборки
+                // постарше) или это обратный отсчёт — берём присланное число.
+                val startMs = if (g.isEmpty()) 0L
+                              else widgetData.getString("days_${g}_start_ms", null)?.toLongOrNull() ?: 0L
+                val totalDays = if (startMs > 0L) YearMath.from(startMs).daysTotal
+                                else daysStr.toIntOrNull() ?: 0
 
                 val startDate = if (g.isEmpty()) "" else widgetData.getString("days_${g}_start_date", null)
                     .takeIf { !it.isNullOrEmpty() } ?: ""

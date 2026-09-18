@@ -9,6 +9,7 @@ import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 import 'locale_service.dart';
+import '../utils/couple_days.dart';
 
 /// Счётчик «дней вместе» в уведомлениях. По умолчанию выключен.
 ///
@@ -168,9 +169,9 @@ class DaysTogetherNotificationService {
   }
 
   /// Сколько дней «вместе» на момент [when] — та же формула, что в профиле
-  /// (`_calculateDaysTogether`): разница в полных сутках, минимум 0.
+  /// (`coupleDaysTogether`): клетки календаря, минимум 0.
   int _daysAt(DateTime start, DateTime when) {
-    final d = when.difference(start).inDays;
+    final d = calendarDaysBetween(start, when);
     return d < 0 ? 0 : d;
   }
 

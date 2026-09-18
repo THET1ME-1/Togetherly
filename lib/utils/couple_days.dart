@@ -49,6 +49,20 @@ DateTime? coupleStartDate({
   return earliest;
 }
 
+/// Сколько клеток календаря от дня [from] до дня [to]; час обоих отброшен.
+///
+/// Так считает главный экран (`TimerItem.daysElapsed`), кольцо года и натив
+/// виджетов (`YearMath.kt`, `daysSince` в Swift). Полные сутки от часа начала
+/// (`difference().inDays`) ночью давали на день меньше: пара, начавшая в три
+/// часа дня, до трёх часов видела вчерашнее число. Часы делятся на 24 с
+/// округлением, потому что сутки перевода на летнее время короче или длиннее
+/// 24 часов, и деление нацело съедало бы день.
+int calendarDaysBetween(DateTime from, DateTime to) {
+  final a = DateTime(from.year, from.month, from.day);
+  final b = DateTime(to.year, to.month, to.day);
+  return (b.difference(a).inHours / 24).round();
+}
+
 /// Один ли это календарный день. Час создания пары и час в таймере разные —
 /// сравнивать надо дни.
 bool _sameDay(DateTime a, DateTime b) =>
@@ -68,7 +82,7 @@ int? coupleDaysTogether({
     anniversary: anniversary,
   );
   if (start == null) return null;
-  final days = (now ?? DateTime.now()).difference(start).inDays;
+  final days = calendarDaysBetween(start, now ?? DateTime.now());
   return days < 0 ? 0 : days;
 }
 
