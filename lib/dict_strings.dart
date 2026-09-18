@@ -34,6 +34,7 @@ import 'l10n/dict/account_email.dart';
 import 'l10n/dict/mascot_source.dart';
 import 'l10n/dict/memory_sort.dart';
 import 'l10n/dict/plus_promo.dart';
+import 'l10n/dict/wallet_teaser.dart';
 import 'l10n/dict/moods.dart';
 import 'l10n/dict/postcard_templates.dart';
 import 'l10n/dict/profile.dart';
@@ -64,6 +65,7 @@ const Map<String, Map<String, String>> kStrings = {
   ...mascotSourceStrings,
   ...memorySortStrings,
   ...plusPromoStrings,
+  ...walletTeaserStrings,
   ...ailmentsStrings,
   ...appIconsStrings,
   ...chatStrings,

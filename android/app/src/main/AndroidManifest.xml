@@ -833,5 +833,9 @@
         </intent>
         <!-- Required by in_app_update to detect the Play Store package on Android 11+ -->
         <package android:name="com.android.vending" />
+        <!-- Togetherly Wallet: кнопка на главной запускает его, если он стоит.
+             Без этой строки Android 11+ прячет пакет, и запуск по имени всегда
+             промахивается в магазин даже у тех, у кого Wallet уже есть. -->
+        <package android:name="com.togetherly.money" />
     </queries>
 </manifest>

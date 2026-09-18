@@ -292,6 +292,30 @@ import WidgetKit
     )
   }
 
+  // MARK: - Пуш о выходе Togetherly Wallet
+
+  /// Касание по пушу «Togetherly Wallet вышел» (`pocketbase/wallet_release.py`)
+  /// ведёт на страницу Wallet в App Store: чужое приложение по имени пакета на
+  /// iPhone не запустить, а App Store сам покажет «Открыть», если Wallet уже
+  /// стоит. Остальные пуши идут дальше как обычно — через плагины.
+  override func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    didReceive response: UNNotificationResponse,
+    withCompletionHandler completionHandler: @escaping () -> Void
+  ) {
+    let info = response.notification.request.content.userInfo
+    if (info["kind"] as? String) == "wallet",
+       let raw = info["url"] as? String,
+       let url = URL(string: raw) {
+      DispatchQueue.main.async { UIApplication.shared.open(url) }
+    }
+    super.userNotificationCenter(
+      center,
+      didReceive: response,
+      withCompletionHandler: completionHandler
+    )
+  }
+
   // MARK: - Мост медиа виджетов
 
   private func setupWidgetMediaChannel(_ registry: FlutterPluginRegistry) {

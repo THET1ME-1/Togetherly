@@ -132,6 +132,9 @@ import '../services/widget_anim_service.dart';
 import 'snap_capture_screen.dart';
 import '../widgets/common/scaled_asset.dart';
 import '../services/offline/media_view_cache.dart';
+import '../dict_strings.dart' show trKey;
+import '../services/wallet_teaser.dart';
+import 'wallet_wait_screen.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -284,6 +287,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadSideActionPref();
     _loadPromptState();
     _loadGiftsFlag();
+    WalletTeaser.restore();
     _loadWishesFlag();
     _loadIncomingGifts();
     _listenGifts();
@@ -1625,6 +1629,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             onCalendar: _openMoodCalendar,
                             onPost: _postPhoto,
                             onPostHold: _postSnap,
+                            onWallet: _openWallet,
                           )
                         : const SizedBox.shrink(),
                   ),
@@ -2093,6 +2098,27 @@ class _HomeScreenState extends State<HomeScreen> {
           theme: _t,
         ),
         settings: const RouteSettings(name: '/draw_gallery'),
+      ),
+    );
+  }
+
+  /// Кнопка Togetherly Wallet: пока приложение не вышло — стена ожидания,
+  /// после выхода — сам Wallet (или его страница в магазине). Флаг выхода
+  /// приходит с сервера, см. `WalletTeaser`.
+  Future<void> _openWallet() async {
+    if (WalletTeaser.released) {
+      if (await WalletTeaser.open()) return;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(trKey('walletOpenFailed'))),
+      );
+      return;
+    }
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => WalletWaitScreen(theme: _t),
+        settings: const RouteSettings(name: '/wallet_wait'),
       ),
     );
   }

@@ -20,6 +20,9 @@ const _knownSchemes = {
   'geo',
   'dgis',
   'yandexmaps',
+  // Страница приложения в магазине Android: кнопка Togetherly Wallet ведёт
+  // сюда, если Wallet ещё не стоит (`WalletTeaser.open`).
+  'market',
 };
 
 /// Открывает ссылку, не роняя приложение.

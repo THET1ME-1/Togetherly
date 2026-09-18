@@ -46,6 +46,10 @@ const _lowercaseOnPurpose = <String>{
   'pcDaysNearby', 'pcDaysOfLove', 'pcDaysTogether', 'pcMsgReceipt',
   'pcNightsUnderSky', 'pcParcelCare', 'pcParcelTo', 'pcReceiptTotal',
   'pcTelegramTitle', 'pcTicketRoute',
+  // Чек Togetherly Wallet: значение стоит справа от точек и продолжает строку
+  // «Общий бюджет ······ на двоих».
+  'walletRowBudgetValue', 'walletRowPersonalValue', 'walletRowSplitValue',
+  'walletRowGoalsValue', 'walletRowBankValue', 'walletRowChatValue',
 };
 
 /// Строчная, законная только в отдельных языках.

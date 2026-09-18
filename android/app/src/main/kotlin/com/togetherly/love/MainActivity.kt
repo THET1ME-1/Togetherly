@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.util.Log
 import android.os.Build
 import android.os.Bundle
 import androidx.core.view.WindowCompat
@@ -49,6 +51,9 @@ class MainActivity : FlutterActivity() {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         takeSharedText(intent)
+        // Пересоздание активности (поворот, тема) приносит тот же интент, и пуш
+        // открыл бы Wallet второй раз.
+        if (savedInstanceState == null) openWalletFromPush(intent)
     }
 
     // Приложение уже живёт в фоне: система переиспользует активность и шлёт
@@ -56,9 +61,41 @@ class MainActivity : FlutterActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         takeSharedText(intent)
+        openWalletFromPush(intent)
         pendingSharedText?.let { text ->
             sharedTextChannel?.invokeMethod("shared", text)
             pendingSharedText = null
+        }
+    }
+
+    // Касание по пушу «Togetherly Wallet вышел» (рассылает
+    // `pocketbase/wallet_release.py`). Данные FCM приходят в интент лаунчера
+    // дополнениями: `kind`, `package`, `url`. Wallet стоит — открываем его,
+    // нет — страницу в магазине.
+    private fun openWalletFromPush(intent: Intent?) {
+        if (intent == null || intent.getStringExtra("kind") != "wallet") return
+        val pkg = intent.getStringExtra("package") ?: "com.togetherly.money"
+        val url = intent.getStringExtra("url")
+        intent.removeExtra("kind")
+        if (launchPackage(pkg)) return
+        if (url.isNullOrBlank()) return
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (e: Exception) {
+            Log.w("MainActivity", "магазин для Wallet не открылся: ${e.message}")
+        }
+    }
+
+    // Запуск чужого приложения по имени пакета. false — его нет на телефоне
+    // или у него нет экрана запуска.
+    private fun launchPackage(pkg: String): Boolean {
+        val launch = packageManager.getLaunchIntentForPackage(pkg) ?: return false
+        return try {
+            startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            true
+        } catch (e: Exception) {
+            false
         }
     }
 
@@ -296,6 +333,10 @@ class MainActivity : FlutterActivity() {
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "hasMissingSplits" -> result.success(hasMissingSplits())
+                // Кнопка Togetherly Wallet на главной (`WalletTeaser.open`).
+                "launchPackage" -> result.success(
+                    launchPackage(call.argument<String>("package") ?: "com.togetherly.money")
+                )
                 else -> result.notImplemented()
             }
         }

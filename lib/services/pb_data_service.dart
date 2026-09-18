@@ -13,6 +13,7 @@ import 'pb_errors.dart';
 import 'pocketbase_service.dart';
 import 'upsert_backoff.dart';
 import 'upsert_id_cache.dart';
+import 'wallet_teaser.dart';
 
 /// Результат вызова серверного атомарного group-роута: [ok] — выполнен;
 /// [missing] — роута нет (404) → легитимный локальный RMW-фолбэк; [backpressure]
@@ -3189,6 +3190,7 @@ class PbDataService {
     try {
       final res = await _pb.collection('app_config').getList(perPage: 1);
       if (res.items.isEmpty) return 0;
+      WalletTeaser.ingest(res.items.first.data['wallet']);
       final v = res.items.first.data['min_build'];
       if (v is int) return v;
       if (v is num) return v.toInt();
@@ -3298,6 +3300,7 @@ class PbDataService {
     try {
       final res = await _pb.collection('app_config').getList(perPage: 1);
       if (res.items.isEmpty) return false;
+      WalletTeaser.ingest(res.items.first.data['wallet']);
       return res.items.first.data['gifts_enabled'] == true;
     } catch (e) {
       debugPrint('PbData.fetchGiftsEnabled failed: $e');
@@ -3314,6 +3317,9 @@ class PbDataService {
     try {
       final res = await _pb.collection('app_config').getList(perPage: 1);
       if (res.items.isEmpty) return true;
+      // Флаг выхода Wallet едет в той же записи: кнопка на главной узнаёт о
+      // выходе без отдельного запроса (см. `WalletTeaser`).
+      WalletTeaser.ingest(res.items.first.data['wallet']);
       return res.items.first.data['wishes_enabled'] != false;
     } catch (e) {
       debugPrint('PbData.fetchWishesEnabled failed: $e');

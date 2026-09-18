@@ -82,4 +82,33 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+
+  // Кнопка Wallet пятой в ряду. На главной ряд живёт внутри отступов 24 с
+  // двух сторон, поэтому на экране 320 dp ему достаётся 272 — это и есть
+  // самый тесный случай.
+  for (final width in [272.0, 320.0, 345.0]) {
+    testWidgets('ряд из пяти с Wallet помещается в ${width.toInt()} dp',
+        (tester) async {
+      var tapped = false;
+      await render(
+        tester,
+        SizedBox(
+          width: width,
+          child: HomeActionButtons(
+            theme: theme,
+            isPaired: true,
+            myMoodImagePath: '',
+            onDraw: () {},
+            onMood: () {},
+            onCalendar: () {},
+            onPost: () {},
+            onWallet: () => tapped = true,
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.bySemanticsLabel('Togetherly Wallet'));
+      expect(tapped, isTrue, reason: 'кнопка Wallet не нажимается');
+    });
+  }
 }
