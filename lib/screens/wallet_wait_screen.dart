@@ -766,6 +766,13 @@ class _Stamp extends StatelessWidget {
       letterSpacing: 1,
       color: color,
     );
+    final big = TextStyle(
+      fontFamily: ProfileTheme.displayFont,
+      fontSize: 20,
+      height: 1.0,
+      fontWeight: FontWeight.w800,
+      color: color,
+    );
     return AnimatedOpacity(
       opacity: shown ? 1 : 0,
       duration: still ? Duration.zero : const Duration(milliseconds: 200),
@@ -791,21 +798,22 @@ class _Stamp extends StatelessWidget {
                   fit: BoxFit.scaleDown,
                   child: Text(trKey('walletStampTop').toUpperCase(), style: small),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 6),
+                // Знак и число отдельными словами: неразрывный пробел в
+                // Unbounded почти нулевой, и на эмуляторе печать читалась
+                // «№1» впритык (18.09.2026).
                 FittedBox(
                   fit: BoxFit.scaleDown,
-                  child: Text(
-                    '№\u00A0${groupDigits(place)}',
-                    style: TextStyle(
-                      fontFamily: ProfileTheme.displayFont,
-                      fontSize: 22,
-                      height: 1.05,
-                      fontWeight: FontWeight.w800,
-                      color: color,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('№', style: big),
+                      const SizedBox(width: 5),
+                      Text(groupDigits(place), style: big),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 6),
                 FittedBox(
                   fit: BoxFit.scaleDown,
                   child:

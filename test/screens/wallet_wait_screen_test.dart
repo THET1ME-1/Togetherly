@@ -65,7 +65,8 @@ void main() {
       await tester.pump(const Duration(milliseconds: 50));
       expect(tester.takeException(), isNull);
       expect(find.text('Вы в списке ожидания'), findsOneWidget);
-      expect(find.text('№ 2 419'), findsOneWidget,
+      expect(find.text('2\u00A0419'), findsWidgets);
+      expect(find.text('№'), findsOneWidget,
           reason: 'на чеке нет печати с местом в очереди');
     });
   }

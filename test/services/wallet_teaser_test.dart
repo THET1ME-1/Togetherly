@@ -66,8 +66,8 @@ void main() {
 
   test('Разряды числа разделены неразрывным пробелом', () {
     expect(groupDigits(7), '7');
-    expect(groupDigits(2418), '2 418');
-    expect(groupDigits(100000), '100 000');
-    expect(groupDigits(1234567), '1 234 567');
+    expect(groupDigits(2418), '2\u00A0418');
+    expect(groupDigits(100000), '100\u00A0000');
+    expect(groupDigits(1234567), '1\u00A0234\u00A0567');
   });
 }
