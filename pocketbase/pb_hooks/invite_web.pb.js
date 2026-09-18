@@ -147,6 +147,68 @@ routerAdd("GET", "/invite/{code}", (e) => {
     .slice(0, 24);
   const initial = safeName ? safeName.slice(0, 1).toUpperCase() : "";
 
+  // Приглашение из Togetherly Wallet (`?app=money`). До 18.09.2026 страница
+  // его не различала: писала «зовёт вас в Togetherly», вела в магазины
+  // Togetherly, а кнопка открывала `loveapp://` — у человека с одним Wallet она
+  // не делала ничего («кнопка не работает»). У Wallet своя схема
+  // `togetherlywallet://invite/CODE`; на Android ссылка идёт через intent://
+  // с запасным адресом — стоит Wallet, откроется он, нет — страница загрузки.
+  // Сам не переходим: Chrome не пускает во внешнее приложение без нажатия, а
+  // запасной адрес увёл бы человека со страницы с кодом раньше, чем он его
+  // прочтёт.
+  let app = "";
+  try {
+    app = String(e.request.url.query().get("app") || "").toLowerCase();
+  } catch (_) {
+    app = "";
+  }
+  if (app === "money") {
+    const W_APK = "https://github.com/THET1ME-1/Togetherly-Wallet/releases/latest";
+    const W_PLAY = "https://play.google.com/store/apps/details?id=com.togetherly.money";
+    const wDeep = "togetherlywallet://invite/" + code;
+    const wIntent =
+      "intent://invite/" + code +
+      "#Intent;scheme=togetherlywallet;package=com.togetherly.money;S.browser_fallback_url=" +
+      encodeURIComponent(W_APK) + ";end";
+    const wHtml = [
+      '<!doctype html><html lang="ru"><head><meta charset="utf-8">',
+      '<meta name="viewport" content="width=device-width,initial-scale=1">',
+      "<title>Приглашение в Togetherly Wallet</title>",
+      "<style>body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#f5f5f5;",
+      "color:#111;display:flex;min-height:100vh;margin:0;align-items:center;justify-content:center;text-align:center}",
+      ".card{max-width:340px;padding:28px}.code{font-size:34px;font-weight:800;letter-spacing:8px;margin:12px 0 4px}",
+      ".btn{display:block;margin:18px auto 0;max-width:280px;padding:15px 20px;border-radius:999px;background:#111;color:#fff;",
+      "text-decoration:none;font-weight:700;font-size:16px}",
+      ".copy{background:none;border:0;color:#555;font:600 14px inherit;text-decoration:underline;cursor:pointer;padding:6px}",
+      ".store{display:block;margin:10px auto 0;max-width:280px;padding:13px 20px;border-radius:999px;",
+      "background:#fff;border:1px solid #ddd;color:#111;text-decoration:none;font-weight:600}",
+      ".hint{margin-top:26px;font-size:13px;color:#666;line-height:1.5}",
+      ".who{width:64px;height:64px;border-radius:50%;background:#111;color:#fff;",
+      "display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:800;margin:0 auto 14px}",
+      "</style></head><body><div class=\"card\">",
+      safeName ? '<div class="who">' + initial + "</div>" : "",
+      safeName
+        ? "<h2>" + safeName + " зовёт вас в Togetherly Wallet</h2>"
+        : "<h2>Вас зовут в Togetherly Wallet</h2>",
+      "<p>Общий бюджет на двоих: траты с общей карты видят оба, личные счета остаются вашими.</p>",
+      '<p style="margin-top:18px">Код приглашения:</p><div class="code" id="c">' + code + "</div>",
+      '<button class="copy" id="cp" type="button">Скопировать код</button>',
+      '<a class="btn" id="open" href="' + wDeep + '">Открыть в Wallet</a>',
+      '<p class="hint">Wallet ещё не стоит? Поставьте его, войдите и введите код ' +
+        "в разделе «Позвать партнёра».</p>",
+      '<a class="store" href="' + W_APK + '">Скачать для Android</a>',
+      '<a class="store" href="' + W_PLAY + '">Google Play</a>',
+      "</div><script>",
+      "if(/Android/i.test(navigator.userAgent)){document.getElementById('open').href=" +
+        JSON.stringify(wIntent) + ";}",
+      "document.getElementById('cp').onclick=function(){var b=this;",
+      "(navigator.clipboard?navigator.clipboard.writeText(" + JSON.stringify(code) + "):Promise.reject())",
+      ".then(function(){b.textContent='Код скопирован';},function(){b.textContent='Код: " + code + "';});};",
+      "</script></body></html>",
+    ].join("");
+    return e.blob(200, HTML, wHtml);
+  }
+
   const deep = "loveapp://invite/" + code;
   const html = [
     '<!doctype html><html lang="ru"><head><meta charset="utf-8">',
