@@ -133,6 +133,14 @@ def verify_subscription(purchase_token: str, package: str = "") -> dict:
     except Exception as exc:
         return {"ok": False, "reason": type(exc).__name__}
 
+    # Тестовую подписку (лицензионный тестировщик Play Console) Google отдаёт
+    # с полем `testPurchase`. Отбиваем её, как тестовые разовые покупки с
+    # 09.09: тестировщики Wallet получают Wallet+ из базы, а тестовая карта
+    # открывала бы настоящий (18.09.2026).
+    if "testPurchase" in data:
+        return {"ok": True, "valid": False, "reason": "test_purchase",
+                "state": str(data.get("subscriptionState") or "")}
+
     состояние = str(data.get("subscriptionState") or "")
     позиции = data.get("lineItems") or []
     срок = ""

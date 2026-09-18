@@ -108,5 +108,33 @@ class НастоящийЧек(unittest.TestCase):
         self.assertFalse(g.погашено())
 
 
+def сверить_подписку(google: Google):
+    with mock.patch.object(play_verify, "access_token", return_value="t"), \
+         mock.patch.object(play_verify.urllib.request, "urlopen", google):
+        return play_verify.verify_subscription("токен-подписки", "com.togetherly.money")
+
+
+class ТестоваяПодписка(unittest.TestCase):
+    """Wallet+ — подписка. 18.09.2026 решено: тестировщики получают его из
+    базы (`money_plus_testers`), а не покупкой. Тестовую подписку Play отдаёт
+    с полем `testPurchase`, и сверка его не смотрела: тестовая карта открывала
+    настоящий Wallet+ — та же дыра, что 09.09 у разовых покупок."""
+
+    def test_тестовая_подписка_отбита(self):
+        g = Google({"subscriptionState": "SUBSCRIPTION_STATE_ACTIVE", "testPurchase": {},
+                    "lineItems": [{"productId": "wallet_plus", "expiryTime": "2026-09-18T12:00:00Z"}]})
+        итог = сверить_подписку(g)
+        self.assertTrue(итог["ok"])
+        self.assertFalse(итог["valid"])
+        self.assertEqual(итог["reason"], "test_purchase")
+
+    def test_настоящая_подписка_принята(self):
+        g = Google({"subscriptionState": "SUBSCRIPTION_STATE_ACTIVE",
+                    "lineItems": [{"productId": "wallet_plus", "expiryTime": "2026-10-18T12:00:00Z"}]})
+        итог = сверить_подписку(g)
+        self.assertTrue(итог["valid"])
+        self.assertEqual(итог["expiry"], "2026-10-18T12:00:00Z")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)
