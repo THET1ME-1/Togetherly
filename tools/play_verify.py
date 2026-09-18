@@ -188,12 +188,21 @@ def verify(product_id: str, purchase_token: str, package: str = "") -> dict:
     # 2 — Play Pass. У настоящей покупки поля нет вовсе, поэтому отбиваем только
     # ноль: 9 сентября тестовыми чеками набрали 1500 монет и Togetherly+ даром.
     if data.get("purchaseType") == 0:
+        # Отбитый тестовый чек гасим сразу. Иначе он числится за человеком, и
+        # Play не продаёт товар снова: «You already own this item». Сам Google
+        # снимает неподтверждённую покупку только через трое суток, а
+        # подтверждённую до 09.09 не снял бы никогда — так бывшая
+        # тестировщица не могла купить Togetherly+ картой (18.09.2026).
+        погашено = False
+        if int(data.get("consumptionState", 1)) == 0:
+            погашено = _погасить(пакет, product_id, purchase_token)
         return {
             "ok": True,
             "valid": False,
             "state": int(data.get("purchaseState", 1)),
             "orderId": data.get("orderId", ""),
             "reason": "test_purchase",
+            "consumed": погашено,
         }
 
     state = int(data.get("purchaseState", 1))
@@ -204,6 +213,24 @@ def verify(product_id: str, purchase_token: str, package: str = "") -> dict:
         "orderId": data.get("orderId", ""),
         "reason": "" if state == 0 else f"state_{state}",
     }
+
+
+def _погасить(пакет: str, product_id: str, purchase_token: str) -> bool:
+    """Гасит разовую покупку в Play (`purchases.products.consume`).
+
+    Зовётся только для тестовых чеков. Сбой не страшен: вердикт тот же, а
+    неподтверждённую покупку Google снимет сам через трое суток."""
+    url = (f"https://androidpublisher.googleapis.com/androidpublisher/v3"
+           f"/applications/{пакет}/purchases/products/"
+           f"{urllib.parse.quote(product_id)}/tokens/"
+           f"{urllib.parse.quote(purchase_token)}:consume")
+    req = urllib.request.Request(url, data=b"", method="POST")
+    req.add_header("Authorization", f"Bearer {access_token()}")
+    try:
+        with urllib.request.urlopen(req, timeout=30):
+            return True
+    except Exception:
+        return False
 
 
 def apple_verdict(raw: dict, product_id: str) -> dict:
