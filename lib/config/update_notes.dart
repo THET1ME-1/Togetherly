@@ -11,20 +11,20 @@
 const String ruWhatsNew =
     'Что нового 💜\n'
     '\n'
-    '— Фотографии снова доезжают на виджеты: подготовка снимка застревала, '
-    'и на столе менялся только текст.\n'
-    '— Сетка фото наполняется сама, а не только после захода на вкладку '
-    'виджетов.\n'
-    '— Не успели подготовить снимок — остаётся прежний, а не пустота.\n'
-    '— Цикл открывает подписка, а не пол в профиле; купившим он больше не '
-    'предлагает купить.';
+    '— На главной кнопка Togetherly Wallet: запишитесь в ожидание, и в день '
+    'выхода придёт уведомление.\n'
+    '— Счётчик дней больше не отстаёт на день ночью.\n'
+    '— Удаление аккаунта можно отменить в течение недели: достаточно снова '
+    'войти.\n'
+    '— Виджеты читаются на любой теме, а комната просмотра говорит, почему '
+    'ролик не включился.';
 
 const String enWhatsNew =
     'What is new 💜\n'
     '\n'
-    '— Photos reach the widgets again: preparing a shot used to stall, and '
-    'only the text changed on the home screen.\n'
-    '— The photo grid fills itself, not just after you open the widgets tab.\n'
-    '— If a shot is not ready in time, the previous one stays.\n'
-    '— Cycle is unlocked by the subscription, not by gender, and no longer '
-    'asks buyers to buy.';
+    '— A Togetherly Wallet button on the home screen: join the waitlist and '
+    'get a notification on launch day.\n'
+    '— The days counter no longer falls a day behind at night.\n'
+    '— Deleting an account can be undone for a week: just sign in again.\n'
+    '— Widgets are readable on every theme, and the watch room tells you why '
+    'a video did not start.';
