@@ -105,6 +105,11 @@ dependencies {
     // прежний foreground-сервис.
     implementation("com.google.android.gms:play-services-base:18.5.0")
 
+    // EXIF в снимки, сохраняемые в галерею (GallerySaver.kt): дата и место
+    // воспоминания. Встроенный в систему ExifInterface на старых Android WebP
+    // не пишет, а четыре кадра из пяти в Togetherly — WebP.
+    implementation("androidx.exifinterface:exifinterface:1.4.1")
+
     // Google Play Billing тянет плагин in_app_purchase_android (0.5.x = billing 8.x).
     // Свою версию сюда не прописывать: Play отклоняет обновления на библиотеке ниже 8.
 }

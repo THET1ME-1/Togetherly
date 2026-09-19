@@ -92,9 +92,9 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Togetherly shows your location to your partner on your shared map and adds places to your memories.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>We need access to save photos to your library</string>
+	<string>Togetherly saves photos and videos from your memories to your library.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>We need access to your photos to add memories to your shared gallery</string>
+	<string>Togetherly adds photos to your memories and saves photos from memories to the Togetherly album.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

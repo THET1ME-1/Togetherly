@@ -1,0 +1,47 @@
+name: iOS → компилируется ли приложение
+
+# Зачем: Swift самого приложения (AppDelegate.swift с каналами галереи,
+# уведомлений, виджетов) проверяет только релизный прогон, а на ноутбуке без
+# macOS его не собрать вовсе. Опечатка всплывала бы уже при выпуске. Здесь
+# приложение собирается под симулятор: без подписи, без IPA, без публикации.
+on:
+  push:
+    paths:
+      - 'ios/Runner/**'
+      - 'ios/Podfile'
+      - '.github/workflows/ios-runner-compile.yml'
+  workflow_dispatch:
+
+jobs:
+  compile:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Самый свежий Xcode
+        run: |
+          set -euo pipefail
+          NEWEST=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1 || true)
+          [ -z "$NEWEST" ] && NEWEST=/Applications/Xcode.app
+          sudo xcode-select -s "$NEWEST"
+          xcodebuild -version
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.38.5
+          channel: stable
+          cache: true
+
+      - name: Пакеты
+        run: |
+          flutter config --no-enable-swift-package-manager
+          flutter pub get
+
+      - name: Pod install
+        run: find . -name "Podfile" -execdir pod install \;
+
+      # --no-tree-shake-icons — по той же причине, что в релизе: IconData
+      # значков таймера собирается на ходу.
+      - name: Сборка под симулятор
+        run: flutter build ios --simulator --debug --no-tree-shake-icons --dart-define=STORE=github

@@ -147,6 +147,13 @@ class MainActivity : FlutterActivity() {
             }
         }
 
+        // Сохранение медиа воспоминаний в галерею с датой и местом записи
+        // (GallerySaver.kt). Папка одна — Pictures/Togetherly.
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            GallerySaver.CHANNEL
+        ).setMethodCallHandler(GallerySaver(applicationContext))
+
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             "love_app/widgets"

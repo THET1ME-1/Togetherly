@@ -1,5 +1,6 @@
 import CoreLocation
 import Flutter
+import Photos
 import UIKit
 import UserNotifications
 import WidgetKit
@@ -58,6 +59,7 @@ import WidgetKit
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     setupWidgetMediaChannel(engineBridge.pluginRegistry)
+    setupGalleryChannel(engineBridge.pluginRegistry)
     setupApnsChannel(engineBridge.pluginRegistry)
     setupLocationAlwaysChannel(engineBridge.pluginRegistry)
   }
@@ -416,5 +418,211 @@ import WidgetKit
     for file in files where prefix.isEmpty || file.hasPrefix(prefix) {
       try? FileManager.default.removeItem(at: dir.appendingPathComponent(file))
     }
+  }
+}
+
+// MARK: - Сохранение медиа воспоминаний в «Фото»
+
+/// Канал `love_app/gallery`: кадр ложится в альбом «Togetherly» с датой и
+/// местом воспоминания.
+///
+/// Togetherly при загрузке срезает у снимков дату съёмки, и без неё 94 летних
+/// кадра встали бы в «Фото» на день сохранения. PhotoKit позволяет задать
+/// `creationDate` и `location` прямо при импорте — это надёжнее EXIF, который
+/// «Фото» читает не у всех форматов.
+extension AppDelegate {
+  func setupGalleryChannel(_ registry: FlutterPluginRegistry) {
+    guard let messenger = registry
+      .registrar(forPlugin: "TogetherlyGallery")?
+      .messenger()
+    else { return }
+
+    let channel = FlutterMethodChannel(
+      name: "love_app/gallery",
+      binaryMessenger: messenger
+    )
+    channel.setMethodCallHandler { call, result in
+      switch call.method {
+      case "save":
+        let args = call.arguments as? [String: Any] ?? [:]
+        // Не на главном потоке: поиск альбома ждёт PhotoKit синхронно. Очередь
+        // последовательная, иначе три кадра разом завели бы три альбома.
+        GallerySaver.queue.async {
+          GallerySaver.save(args) { uri, error in
+            DispatchQueue.main.async {
+              if let error = error {
+                result(error)
+              } else {
+                result(uri)
+              }
+            }
+          }
+        }
+      case "open":
+        if let url = URL(string: "photos-redirect://") {
+          UIApplication.shared.open(url, options: [:], completionHandler: nil)
+        }
+        result(nil)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
+  }
+}
+
+enum GallerySaver {
+  static let queue = DispatchQueue(label: "com.togetherly.love.gallery", qos: .userInitiated)
+
+  static func save(
+    _ args: [String: Any],
+    completion: @escaping (String?, FlutterError?) -> Void
+  ) {
+    guard let path = args["path"] as? String else {
+      completion(nil, FlutterError(code: "SAVE_FAILED", message: "нет пути", details: nil))
+      return
+    }
+    let kind = args["kind"] as? String ?? "photo"
+    if kind == "audio" {
+      // Звук «Фото» не принимает: на iPhone он уходит через «Поделиться».
+      completion(nil, FlutterError(code: "UNSUPPORTED", message: "звук не для «Фото»", details: nil))
+      return
+    }
+    let millis = (args["takenAt"] as? NSNumber)?.doubleValue
+      ?? Date().timeIntervalSince1970 * 1000
+    let latitude = (args["latitude"] as? NSNumber)?.doubleValue
+    let longitude = (args["longitude"] as? NSNumber)?.doubleValue
+    let album = args["album"] as? String ?? "Togetherly"
+    let hidden = args["hidden"] as? Bool ?? false
+    var name = args["name"] as? String ?? URL(fileURLWithPath: path).lastPathComponent
+
+    var fileURL = URL(fileURLWithPath: path)
+    var temp: URL?
+    // WebP «Фото» принимает не везде, а четыре кадра из пяти в Togetherly —
+    // WebP. Пережимаем в JPEG с запасом по качеству.
+    if kind == "photo", fileURL.pathExtension.lowercased() == "webp",
+       let image = UIImage(contentsOfFile: path),
+       let data = image.jpegData(compressionQuality: 0.95) {
+      let t = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString + ".jpg")
+      if (try? data.write(to: t)) != nil {
+        fileURL = t
+        temp = t
+        name = (name as NSString).deletingPathExtension + ".jpg"
+      }
+    }
+    let cleanup = {
+      if let t = temp { try? FileManager.default.removeItem(at: t) }
+    }
+
+    authorize { status in
+      guard status == .authorized || status == .limited else {
+        cleanup()
+        completion(nil, FlutterError(code: "ACCESS_DENIED", message: "нет доступа к «Фото»", details: nil))
+        return
+      }
+      // Альбом доступен только с полным доступом; при «Только добавлять»
+      // кадр сохраняется без альбома — лучше так, чем никак.
+      let collection = status == .authorized ? findOrCreateAlbum(album) : nil
+      write(
+        fileURL: fileURL, kind: kind, name: name, millis: millis,
+        latitude: latitude, longitude: longitude, hidden: hidden,
+        collection: collection
+      ) { id, error in
+        if id == nil, collection != nil {
+          // Альбом не принял — сохраняем хотя бы в медиатеку.
+          write(
+            fileURL: fileURL, kind: kind, name: name, millis: millis,
+            latitude: latitude, longitude: longitude, hidden: hidden,
+            collection: nil
+          ) { id2, error2 in
+            cleanup()
+            completion(id2, error2)
+          }
+          return
+        }
+        cleanup()
+        completion(id, error)
+      }
+    }
+  }
+
+  private static func write(
+    fileURL: URL, kind: String, name: String, millis: Double,
+    latitude: Double?, longitude: Double?, hidden: Bool,
+    collection: PHAssetCollection?,
+    completion: @escaping (String?, FlutterError?) -> Void
+  ) {
+    var placeholder: PHObjectPlaceholder?
+    PHPhotoLibrary.shared().performChanges({
+      let request = PHAssetCreationRequest.forAsset()
+      let options = PHAssetResourceCreationOptions()
+      options.originalFilename = name
+      request.addResource(with: kind == "video" ? .video : .photo, fileURL: fileURL, options: options)
+      request.creationDate = Date(timeIntervalSince1970: millis / 1000)
+      if let lat = latitude, let lng = longitude, !(lat == 0 && lng == 0) {
+        request.location = CLLocation(latitude: lat, longitude: lng)
+      }
+      if hidden { request.isHidden = true }
+      placeholder = request.placeholderForCreatedAsset
+      if let collection = collection,
+         let ph = placeholder,
+         let albumRequest = PHAssetCollectionChangeRequest(for: collection) {
+        albumRequest.addAssets([ph] as NSArray)
+      }
+    }) { ok, error in
+      if ok {
+        completion(placeholder?.localIdentifier ?? "", nil)
+      } else {
+        completion(nil, FlutterError(
+          code: "SAVE_FAILED",
+          message: error?.localizedDescription ?? "не сохранилось",
+          details: nil
+        ))
+      }
+    }
+  }
+
+  /// Полный доступ нужен альбому; без него просим «Только добавлять».
+  private static func authorize(_ done: @escaping (PHAuthorizationStatus) -> Void) {
+    let full = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+    switch full {
+    case .notDetermined:
+      PHPhotoLibrary.requestAuthorization(for: .readWrite) { done($0) }
+    case .authorized, .limited:
+      done(full)
+    default:
+      let add = PHPhotoLibrary.authorizationStatus(for: .addOnly)
+      if add == .notDetermined {
+        PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
+          done(status == .authorized ? .limited : status)
+        }
+      } else {
+        done(add == .authorized ? .limited : add)
+      }
+    }
+  }
+
+  private static func findOrCreateAlbum(_ title: String) -> PHAssetCollection? {
+    let options = PHFetchOptions()
+    options.predicate = NSPredicate(format: "title = %@", title)
+    if let found = PHAssetCollection.fetchAssetCollections(
+      with: .album, subtype: .any, options: options
+    ).firstObject {
+      return found
+    }
+    var localId: String?
+    do {
+      try PHPhotoLibrary.shared().performChangesAndWait {
+        localId = PHAssetCollectionChangeRequest
+          .creationRequestForAssetCollection(withTitle: title)
+          .placeholderForCreatedAssetCollection.localIdentifier
+      }
+    } catch {
+      return nil
+    }
+    guard let id = localId else { return nil }
+    return PHAssetCollection.fetchAssetCollections(
+      withLocalIdentifiers: [id], options: nil
+    ).firstObject
   }
 }
