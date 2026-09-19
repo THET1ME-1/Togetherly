@@ -1246,7 +1246,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             _favCircle(),
             const SizedBox(width: 8),
             _filterTag(
-              label: _ru ? 'Всё' : 'All',
+              label: LocaleService.current.feedFilterAll,
               selected: _categoryKey == null,
               onTap: () => setState(() => _categoryKey = null),
             ),
@@ -1349,10 +1349,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             const SizedBox(height: 14),
             Text(
               favEmpty
-                  ? (_ru ? 'Пока нет избранного' : 'No favorites yet')
-                  : (_ru
-                      ? 'Нет воспоминаний в этой категории'
-                      : 'No memories in this category'),
+                  ? LocaleService.current.feedNoFavorites
+                  : LocaleService.current.feedNoneInCategory,
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 15,
@@ -1363,9 +1361,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             if (favEmpty) ...[
               const SizedBox(height: 6),
               Text(
-                _ru
-                    ? 'Отмечайте воспоминания закладкой — они появятся здесь'
-                    : 'Bookmark memories to find them here',
+                LocaleService.current.feedFavoritesHint,
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 13, color: widget.theme.textMuted),
               ),
@@ -1618,7 +1614,6 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     );
   }
 
-  bool get _ru => LocaleService.instance.isRussian;
 
   /// Бейдж типа воспоминания (напр. «❤️ Момент») справа в шапке. Плоский —
   /// без теней/бордера (требование), лёгкая подложка цветом темы.
@@ -1652,19 +1647,19 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     switch (type) {
       case MemoryType.photo:
       case MemoryType.video:
-        return (_ru ? 'Момент' : 'Moment', Icons.favorite_rounded);
+        return (LocaleService.current.memBadgeMoment, Icons.favorite_rounded);
       case MemoryType.location:
-        return (_ru ? 'Локация' : 'Location', Icons.place_rounded);
+        return (LocaleService.current.location, Icons.place_rounded);
       case MemoryType.music:
-        return (_ru ? 'Музыка' : 'Music', Icons.music_note_rounded);
+        return (LocaleService.current.music, Icons.music_note_rounded);
       case MemoryType.videoLink:
-        return (_ru ? 'Видео' : 'Video', Icons.play_circle_fill_rounded);
+        return (LocaleService.current.memBadgeVideo, Icons.play_circle_fill_rounded);
       case MemoryType.text:
-        return (_ru ? 'Заметка' : 'Note', Icons.sticky_note_2_rounded);
+        return (LocaleService.current.memBadgeNote, Icons.sticky_note_2_rounded);
       case MemoryType.book:
-        return (_ru ? 'Книга' : 'Book', Icons.book_rounded);
+        return (LocaleService.current.memBadgeBook, Icons.book_rounded);
       case MemoryType.movie:
-        return (_ru ? 'Фильм' : 'Movie', Icons.movie_rounded);
+        return (LocaleService.current.memBadgeMovie, Icons.movie_rounded);
     }
   }
 
@@ -2246,7 +2241,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                     )
                   else
                     Text(
-                      _ru ? 'Заметка' : 'Note',
+                      LocaleService.current.memBadgeNote,
                       style: const TextStyle(
                         fontSize: 15,
                         fontStyle: FontStyle.italic,

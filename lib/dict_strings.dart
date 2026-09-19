@@ -1701,6 +1701,15 @@ abstract class DictStrings extends AppStrings {
   String get addShelfPlace => _t('addShelfPlace');
   String get addShelfBook => _t('addShelfBook');
   String get addShelfMovie => _t('addShelfMovie');
+  String get feedFilterAll => _t('feedFilterAll');
+  String get feedNoFavorites => _t('feedNoFavorites');
+  String get feedNoneInCategory => _t('feedNoneInCategory');
+  String get feedFavoritesHint => _t('feedFavoritesHint');
+  String get memBadgeMoment => _t('memBadgeMoment');
+  String get memBadgeVideo => _t('memBadgeVideo');
+  String get memBadgeNote => _t('memBadgeNote');
+  String get memBadgeBook => _t('memBadgeBook');
+  String get memBadgeMovie => _t('memBadgeMovie');
   @override
   String get memoryDetails => _t('memoryDetails');
   @override

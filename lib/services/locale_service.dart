@@ -1128,6 +1128,15 @@ abstract class AppStrings {
   String get addShelfPlace;
   String get addShelfBook;
   String get addShelfMovie;
+  String get feedFilterAll;
+  String get feedNoFavorites;
+  String get feedNoneInCategory;
+  String get feedFavoritesHint;
+  String get memBadgeMoment;
+  String get memBadgeVideo;
+  String get memBadgeNote;
+  String get memBadgeBook;
+  String get memBadgeMovie;
   String newMemory(String type);
   String get memoryDetails;
   String get writeYourNote;
