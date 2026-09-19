@@ -215,10 +215,12 @@ class MediaSaveQueue extends ChangeNotifier {
   /// Идёт хоть что-то: загрузка или ожидание своей очереди.
   bool get busy => _running > 0 || _jobs.any((j) => !j.finished);
 
-  /// Первое незаконченное задание — его показывает островок.
+  /// Первое незаконченное задание — его показывает островок. Остановленное
+  /// человеком сюда не попадает, даже пока доезжают три начатых файла: он
+  /// нажал крестик и ждать их не обязан.
   SaveJob? get current {
     for (final j in _jobs) {
-      if (!j.finished) return j;
+      if (!j.finished && !j.cancelled) return j;
     }
     return null;
   }

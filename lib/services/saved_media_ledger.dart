@@ -17,7 +17,7 @@ import '../models/memory_media.dart';
 /// не узнает; тогда кадр сохраняется из «Выбрать кадры», где уже сохранённые
 /// только отмечены, а не заперты.
 class SavedMediaLedger extends ChangeNotifier {
-  SavedMediaLedger._({this.limit = 20000});
+  SavedMediaLedger._() : limit = 20000;
 
   @visibleForTesting
   SavedMediaLedger.forTest({this.limit = 20000});
