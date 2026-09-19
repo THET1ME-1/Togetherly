@@ -330,7 +330,7 @@ class _LiveMapScreenState extends State<LiveMapScreen> with TickerProviderStateM
     if (t == null) return null;
     if (p <= _t1) return GlobeScene.globe(t.viewAt(p / _t1));
     final a = Curves.easeInOutCubic.transform(((p - _t1) / (_t2 - _t1)).clamp(0.0, 1.0));
-    return GlobeScene.unroll(t, a);
+    return GlobeScene.unroll(t, a, landMix: ((p - _t2) / (1 - _t2)).clamp(0.0, 1.0));
   }
 
   // ── «Скучаю» и «Как доехать» ────────────────────────────────────────────

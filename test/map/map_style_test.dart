@@ -67,6 +67,20 @@ void main() {
       expect(p.thread, _fill);
     });
 
+    // Жалоба 19.09.2026: «Почему не Молдова, а мы в середине океана?» Суша на
+    // глобусе была бледной, как фон вокруг шара, а вода — насыщенной, и моря,
+    // окружённые сушей, читались материками. Суша обязана стоять дальше от
+    // фона, чем вода, — тогда глаз берёт её за фигуру.
+    for (final b in Brightness.values) {
+      test('на глобусе суша выделяется сильнее воды ($b)', () {
+        final cs = _pink(b).copyWith(surface: b == Brightness.light ? const Color(0xFFFFF8F7) : const Color(0xFF1A1112));
+        final p = MapPalette.of(cs, fill: b == Brightness.light ? _fill : const Color(0xFFF7A5B6));
+        double lum(Color c) => c.computeLuminance();
+        final sky = lum(p.halo);
+        expect((lum(p.globeLand) - sky).abs(), greaterThan((lum(p.water) - sky).abs() * 1.3));
+      });
+    }
+
     test('ключ меняется вместе с цветами', () {
       final a = MapPalette.of(_pink(Brightness.light), fill: _fill);
       final b = MapPalette.of(_pink(Brightness.dark), fill: _fill);

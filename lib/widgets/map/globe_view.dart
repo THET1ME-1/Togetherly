@@ -23,6 +23,11 @@ class GlobeScene {
   final GlobeTransition? transition;
   final double alpha;
 
+  /// Доля пути цвета суши от глобуса к плоской карте. Меняется только на
+  /// последнем шаге, вместе с тайлами: на середине развёртки цвет прошёл бы
+  /// через цвет воды, и берега пропали бы.
+  final double landMix;
+
   const GlobeScene._({
     required this.basis,
     required this.sphereCenter,
@@ -30,6 +35,7 @@ class GlobeScene {
     required this.graticule,
     this.transition,
     this.alpha = 0,
+    this.landMix = 0,
   });
 
   factory GlobeScene.globe(GlobeFrame f) => GlobeScene._(
@@ -39,13 +45,14 @@ class GlobeScene {
         graticule: .7,
       );
 
-  factory GlobeScene.unroll(GlobeTransition t, double alpha) => GlobeScene._(
+  factory GlobeScene.unroll(GlobeTransition t, double alpha, {double landMix = 0}) => GlobeScene._(
         basis: t.targetBasis,
         sphereCenter: t.focus,
         radius: t.target.radius,
         graticule: .7 * (1 - alpha),
         transition: t,
         alpha: alpha,
+        landMix: landMix,
       );
 
   bool get unrolled => transition != null;
@@ -141,7 +148,7 @@ class GlobePainter extends CustomPainter {
       }
       path.close();
     }
-    canvas.drawPath(path, Paint()..color = palette.land);
+    canvas.drawPath(path, Paint()..color = Color.lerp(palette.globeLand, palette.land, scene.landMix)!);
 
     if (scene.graticule > .02) {
       final grat = Path();

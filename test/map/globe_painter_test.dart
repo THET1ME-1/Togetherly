@@ -60,12 +60,28 @@ void main() {
     testWidgets('кадр перехода «$name»', (tester) async {
       final scene = p <= .55
           ? GlobeScene.globe(transition.viewAt(p / .55))
-          : GlobeScene.unroll(transition, ((p - .55) / .3).clamp(0.0, 1.0));
+          : GlobeScene.unroll(transition, ((p - .55) / .3).clamp(0.0, 1.0),
+              landMix: ((p - .85) / .15).clamp(0.0, 1.0));
       final rings = scene.radius > 700 ? land('land_50m.bin') : land('land_110m.bin');
       final png = await render(tester, scene, rings);
       Directory('build/globe-frames').createSync(recursive: true);
       File('build/globe-frames/$name.png').writeAsBytesSync(png);
       expect(png.length, greaterThan(3000));
+      // Суша под Москвой: на шаре и на развёртке — цвет суши глобуса, в конце
+      // перехода — цвет суши плоской карты, чтобы тайлы легли без вспышки.
+      final at = scene.toScreen(const LatLng(55.0, 40.0))!;
+      final raw = (await tester.runAsync(() async {
+        final img = await ui.instantiateImageCodec(png).then((c) => c.getNextFrame());
+        return img.image.toByteData(format: ui.ImageByteFormat.rawRgba);
+      }))!;
+      final i = (at.dy.round() * 360 + at.dx.round()) * 4;
+      final got = raw.buffer.asUint8List().sublist(i, i + 3);
+      // Цвет суши держится до последнего шага и только там уходит в цвет карты.
+      final want = p >= 1 ? palette.land : palette.globeLand;
+      {
+        expect(got, [for (final c in [want.r, want.g, want.b]) (c * 255).round()],
+            reason: 'кадр $name, точка $at');
+      }
       // Оба человека видны на кадре.
       expect(scene.toScreen(_msk), isNotNull);
       expect(scene.toScreen(_ber), isNotNull);
