@@ -8,19 +8,23 @@ const open = async (b, room) => {
   await p.waitForTimeout(2500);
   return { c, p };
 };
+// Код комнаты выдаёт сервер: выдуманный с 16.09.2026 отвечает «комнаты нет».
+const newRoom = async () => (await (await fetch('https://togetherly.day/api/watch/new', { method: 'POST' })).json()).room;
 const say = async (p, t) => { await p.fill('#message', t); await p.click('#send'); await p.waitForTimeout(900); };
 
 (async () => {
   const b = await chromium.launch();
+  const roomA = await newRoom();
+  const roomB = await newRoom();
   let ok = true;
   const check = (name, cond, extra = '') => { console.log((cond ? '  ✓ ' : '  ✗ ') + name, extra); if (!cond) ok = false; };
 
   // 1. Всё подготовлено заранее
   console.log('1. первый готовит видео и чат, второй заходит позже');
-  const a = await open(b, 'sq1a7x');
+  const a = await open(b, roomA);
   await a.p.fill('#link', VIDEO); await a.p.click('#apply'); await a.p.waitForTimeout(1500);
   await say(a.p, 'первое'); await say(a.p, 'второе');
-  const c2 = await open(b, 'sq1a7x');
+  const c2 = await open(b, roomA);
   await c2.p.waitForTimeout(2500);
   check('видео доехало', await c2.p.locator('#player iframe').count() === 1);
   const t2 = await texts(c2.p);
@@ -33,7 +37,7 @@ const say = async (p, t) => { await p.fill('#message', t); await p.click('#send'
 
   // 3. Третий заходит ещё позже
   console.log('3. третий заходит последним');
-  const c3 = await open(b, 'sq1a7x');
+  const c3 = await open(b, roomA);
   await c3.p.waitForTimeout(2500);
   const t3 = await texts(c3.p);
   check('видео у третьего', await c3.p.locator('#player iframe').count() === 1);
@@ -42,7 +46,7 @@ const say = async (p, t) => { await p.fill('#message', t); await p.click('#send'
 
   // 4. Двое заходят в пустую комнату одновременно
   console.log('4. двое заходят в пустую комнату');
-  const [d1, d2] = await Promise.all([open(b, 'sq9zz3'), open(b, 'sq9zz3')]);
+  const [d1, d2] = await Promise.all([open(b, roomB), open(b, roomB)]);
   await d1.p.waitForTimeout(2000);
   check('чат пуст, ошибок нет', (await texts(d1.p)).length === 0 && (await texts(d2.p)).length === 0);
   await say(d1.p, 'привет');

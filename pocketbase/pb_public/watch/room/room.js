@@ -131,13 +131,31 @@
     return Math.max(1, people.size);
   }
 
-  function newRoom() {
-    // Без похожих символов: код диктуют голосом.
-    const abc = 'abcdefghjkmnpqrstuvwxyz23456789';
-    let out = '';
-    for (let i = 0; i < 6; i++) out += abc[Math.floor(Math.random() * abc.length)];
-    return out;
+  /** Сессия Togetherly, с которой страница просит пропуск.
+   *
+   *  Новые сборки приложения кладут её сами (`window.__togetherlyAuth`, скрипт
+   *  в начале документа). В браузере она лежит там же, куда её кладёт SDK
+   *  PocketBase после входа — на этой странице или на /club. Без сессии в
+   *  комнату пары не пустят: код мог уйти в чужие руки. */
+  function storedAuth() {
+    try {
+      const given = window.__togetherlyAuth;
+      if (given && typeof given.token === 'string' && given.token) {
+        return { token: given.token, who: String(given.name || ''), fromApp: true };
+      }
+    } catch (_) { /* нет — ищем в хранилище */ }
+    try {
+      const saved = JSON.parse(localStorage.getItem('pocketbase_auth') || 'null');
+      if (saved && typeof saved.token === 'string' && saved.token) {
+        const rec = saved.record || saved.model || {};
+        return { token: saved.token, who: String(rec.email || rec.name || ''), fromApp: false };
+      }
+    } catch (_) { /* хранилище закрыто */ }
+    return null;
   }
+
+  /** Страница открыта во встроенном браузере приложения. */
+  const inAppWebView = () => !!window.flutter_inappwebview;
 
   // ── источники видео ───────────────────────────────────────────────────────
 
@@ -918,13 +936,24 @@
   // ── подключение ──────────────────────────────────────────────────────────
 
   async function connect(room) {
+    const headers = { 'Content-Type': 'application/json' };
+    const auth = storedAuth();
+    if (auth) headers.Authorization = auth.token;
     const res = await fetch('/api/watch/token', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ room, guest: guestId() }),
     });
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.error || 'token');
+    let data = {};
+    try { data = await res.json(); } catch (_) { data = {}; }
+    if (!data.ok) {
+      const err = new Error(data.error || 'token');
+      // Отказ сервера — это не обрыв связи: человеку нужен экран у двери.
+      // Голая 404 без тела (маршрута нет, выкладка в процессе) отказом не
+      // считается — это поломка, а не «комнаты нет».
+      if (data.error && [400, 401, 403, 404].indexOf(res.status) >= 0) err.denied = data.error;
+      throw err;
+    }
 
     state.room = room;
     state.me = data.userId;
@@ -1234,6 +1263,163 @@
     document.addEventListener('webkitfullscreenchange', swap);
   }
 
+  // ── экран у двери ────────────────────────────────────────────────────────
+  //
+  // Сервер пускает в комнату пары только её участников, а набранный руками
+  // код не пускает никуда (16.09.2026: к паре пришли двое посторонних и
+  // мешали смотреть). Отказ показываем экраном с понятным следующим шагом —
+  // войти, сменить аккаунт или завести свою комнату, — а не «нет связи».
+
+  /// Сколько раз ждём поручительства приложения, прежде чем просить вход.
+  /// Выпущенные сборки открывают комнату без сессии, и пускает их сервер по
+  /// СВОЕМУ подключению приложения к каналу, а оно поднимается рядом со
+  /// страницей и может не успеть к первому запросу.
+  const APP_WAIT_TRIES = 10;
+  const APP_WAIT_STEP = 2000;
+  let appWaited = 0;
+
+  /** Входит в комнату; отказ сервера открывает экран у двери. */
+  function enter(room) {
+    return connect(room).then(hideGate, (err) => {
+      const why = err && err.denied;
+      if (!why) { setStatus(I18N.t('room.lost'), true); return; }
+      if (why === 'auth_required' && inAppWebView() && appWaited < APP_WAIT_TRIES) {
+        appWaited += 1;
+        setStatus(I18N.t('room.connecting'));
+        setTimeout(() => enter(room), APP_WAIT_STEP);
+        return;
+      }
+      if (why === 'auth_required') showGate('closed');
+      else if (why === 'not_member') showGate('stranger');
+      else showGate('missing');
+    });
+  }
+
+  let pbClient = null;
+
+  /** SDK PocketBase нужен только для входа, поэтому грузится с экраном. */
+  function loadPb() {
+    if (pbClient) return Promise.resolve(pbClient);
+    return new Promise((resolve, reject) => {
+      const ready = () => {
+        try {
+          pbClient = new window.PocketBase(location.origin);
+          resolve(pbClient);
+        } catch (e) { reject(e); }
+      };
+      if (window.PocketBase) { ready(); return; }
+      const tag = document.createElement('script');
+      tag.src = '../vendor/pocketbase.umd.js?v=20260916';
+      tag.onload = ready;
+      tag.onerror = reject;
+      document.head.appendChild(tag);
+    });
+  }
+
+  function gateSay(text, bad) {
+    const el = $('#gateMsg');
+    if (!el) return;
+    el.textContent = text || '';
+    el.classList.toggle('is-bad', !!bad);
+  }
+
+  function showGate(mode) {
+    const gate = $('#gate');
+    if (!gate) return;
+    const app = inAppWebView();
+    const closed = mode === 'closed';
+    const auth = storedAuth();
+    gate.dataset.mode = mode;
+    $('#gateTitle').textContent = I18N.t('gate.' + mode + 'Title');
+    const textKey = closed && app ? 'gate.closedAppText' : 'gate.' + mode + 'Text';
+    $('#gateText').textContent = I18N.t(textKey, {
+      who: (auth && auth.who) || I18N.t('gate.thisAccount'),
+    });
+    $('#gateForm').hidden = !closed;
+    // Google и Apple во встроенном браузере не пускают — там остаётся почта.
+    $('#gateOr').hidden = !closed || app;
+    $('#gateProvs').hidden = !closed || app;
+    $('#gateActions').hidden = closed;
+    $('#gateOther').hidden = mode !== 'stranger';
+    $('#gateNew').hidden = closed;
+    gateSay('');
+    setStatus('');
+    gate.hidden = false;
+    // Всплывающее окно входа браузер открывает только прямо из нажатия,
+    // поэтому SDK должен лежать наготове ещё до него.
+    if (closed) loadPb().catch(() => {});
+  }
+
+  function hideGate() {
+    const gate = $('#gate');
+    if (gate) gate.hidden = true;
+  }
+
+  let gateBusy = false;
+
+  /** Вход и повторная попытка войти в комнату. */
+  async function gateRun(signIn) {
+    if (gateBusy) return;
+    gateBusy = true;
+    gateSay(I18N.t('gate.wait'));
+    try {
+      await signIn();
+      gateSay('');
+      appWaited = APP_WAIT_TRIES;
+      await enter(state.room);
+    } catch (err) {
+      const status = err && err.status;
+      gateSay(I18N.t(status === 400 ? 'gate.badPair' : 'gate.fail'), true);
+    }
+    gateBusy = false;
+  }
+
+  function wireGate() {
+    const form = $('#gateForm');
+    if (!form) return;
+    form.addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      const email = $('#gateEmail').value.trim();
+      const pass = $('#gatePass').value;
+      if (!email || !pass) { gateSay(I18N.t('gate.badPair'), true); return; }
+      gateRun(async () => {
+        const pb = await loadPb();
+        await pb.collection('users').authWithPassword(email, pass);
+      });
+    });
+
+    document.querySelectorAll('#gateProvs [data-provider]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (!pbClient) { gateSay(I18N.t('gate.wait')); loadPb().catch(() => {}); return; }
+        const pb = pbClient;
+        // Вызов идёт синхронно из нажатия: SDK сразу открывает окно входа.
+        gateRun(() => pb.collection('users').authWithOAuth2({ provider: btn.dataset.provider }));
+      });
+    });
+
+    $('#gateOther').addEventListener('click', () => {
+      try { localStorage.removeItem('pocketbase_auth'); } catch (_) {}
+      if (pbClient) pbClient.authStore.clear();
+      showGate('closed');
+    });
+
+    $('#gateNew').addEventListener('click', async () => {
+      const btn = $('#gateNew');
+      if (btn.disabled) return;
+      btn.disabled = true;
+      try {
+        const res = await fetch('/api/watch/new', { method: 'POST' });
+        const data = await res.json();
+        if (!data.ok || !data.room) throw new Error(data.error || 'new');
+        location.replace(location.pathname + '#' + data.room);
+        location.reload();
+      } catch (_) {
+        btn.disabled = false;
+        gateSay(I18N.t('hero.createFailed'), true);
+      }
+    });
+  }
+
   /// Запуск идёт по готовности РАЗМЕТКИ.
   ///
   /// `load` ждёт каждый подресурс страницы, в том числе чужой скрипт: пока
@@ -1272,7 +1458,8 @@
     // остаётся гостем: своего имени у него нет.
     state.name = (params.get('name') || '').trim().slice(0, 32);
 
-    connect(room).catch(() => setStatus(I18N.t('room.lost'), true));
+    wireGate();
+    enter(room);
 
     $('#apply').addEventListener('click', () => {
       const el = $('#link');

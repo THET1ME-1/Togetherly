@@ -495,3 +495,97 @@
   pointer-events: none;
 }
 .note[hidden] { display: none; }
+
+/* ── экран у двери ───────────────────────────────────────────────────────── */
+/*
+ * Закрывает комнату целиком, пока сервер не пустил: отказ по коду пары, чужой
+ * аккаунт, набранный руками код. Высоту берём видимую (--vph): на айфоне
+ * клавиатура иначе закрыла бы поля почты и пароля. Карточка той же пластики,
+ * что лендинг: радиус 28, поля и кнопки-пилюли, без теней.
+ */
+.gate {
+  position: fixed;
+  top: var(--vpt, 0px);
+  left: 0;
+  right: 0;
+  height: var(--vph, 100dvh);
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  overflow-y: auto;
+  background: var(--bg);
+}
+.gate[hidden] { display: none; }
+.gate__card {
+  width: min(100%, 420px);
+  display: grid;
+  gap: 14px;
+  padding: 28px 24px 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  text-align: center;
+}
+.gate__mark {
+  justify-self: center;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+}
+.gate__search { display: none; }
+.gate[data-mode="missing"] .gate__search { display: block; }
+.gate[data-mode="missing"] .gate__lock { display: none; }
+.gate__title {
+  margin: 0;
+  font: 700 21px/1.25 'Unbounded';
+  color: var(--ink);
+  text-wrap: balance;
+}
+.gate__text {
+  margin: 0 0 4px;
+  font: 400 15px/1.45 'Onest';
+  color: var(--ink-soft);
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+.gate__form { display: grid; gap: 10px; }
+.gate__form[hidden], .gate__or[hidden], .gate__provs[hidden],
+.gate__actions[hidden], .gate__actions .btn[hidden] { display: none; }
+.gate__form .input { width: 100%; min-height: 52px; font-size: 16px; }
+.gate__form .btn, .gate__actions .btn { width: 100%; min-height: 52px; }
+.gate__or {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font: 600 13px 'Onest';
+  color: var(--ink-soft);
+}
+.gate__or::before, .gate__or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.gate__provs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.gate__provs .btn { min-height: 48px; padding: 0 10px; gap: 8px; font-size: 14px; }
+.gate__msg { margin: 0; font: 600 14px/1.4 'Onest'; color: var(--ink-soft); }
+.gate__msg:empty { display: none; }
+.gate__msg.is-bad { color: var(--accent-deep); }
+.gate__actions { display: grid; gap: 8px; }
+.gate__home {
+  justify-self: center;
+  padding: 8px 12px;
+  font: 600 14px 'Onest';
+  color: var(--ink-soft);
+}
+/* Узкий телефон: три названия в ряд не помещаются, а одинокая кнопка на
+   второй строке читается как отдельный способ. Оставляем знаки — их узнают. */
+@media (max-width: 380px) {
+  .gate { padding: 12px; }
+  .gate__card { padding: 22px 18px 18px; }
+  .gate__provs .btn span { display: none; }
+}

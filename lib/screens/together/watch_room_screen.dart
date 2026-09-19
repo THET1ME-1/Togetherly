@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -225,6 +226,17 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
         children: [
           InAppWebView(
             initialUrlRequest: URLRequest(url: WebUri(_url)),
+            // Сессия для пропуска: в комнату пары пускают только участников,
+            // и без неё страница попросила бы войти ещё раз.
+            initialUserScripts: UnmodifiableListView([
+              UserScript(
+                source: WatchRoomService.authScript(
+                  token: PocketBaseService.instance.pb.authStore.token,
+                  name: PocketBaseService().userName,
+                ),
+                injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+              ),
+            ]),
             initialSettings: InAppWebViewSettings(
               // Видео должно запускаться командой партнёра, а не только пальцем.
               mediaPlaybackRequiresUserGesture: false,

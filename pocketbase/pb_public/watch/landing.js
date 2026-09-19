@@ -28,12 +28,13 @@
       </article>`).join('');
   }
 
-  function newRoom() {
-    // Без похожих символов: код диктуют вслух.
-    const abc = 'abcdefghjkmnpqrstuvwxyz23456789';
-    let out = '';
-    for (let i = 0; i < 6; i++) out += abc[Math.floor(Math.random() * abc.length)];
-    return out;
+  /** Код новой комнаты выдаёт сервер: в нём подпись, и набранный руками код
+   *  комнату больше не «создаёт» (16.09.2026 так к паре зашли посторонние). */
+  async function newRoom() {
+    const res = await fetch('/api/watch/new', { method: 'POST' });
+    const data = await res.json();
+    if (!data.ok || !data.room) throw new Error(data.error || 'new');
+    return data.room;
   }
 
   const go = (code) => { location.href = 'room/#' + code; };
@@ -42,7 +43,18 @@
     drawTiles();
     if (window.I18N) I18N.mount();
 
-    $('#create').addEventListener('click', () => go(newRoom()));
+    $('#create').addEventListener('click', async () => {
+      const btn = $('#create');
+      if (btn.disabled) return;
+      btn.disabled = true;
+      try {
+        go(await newRoom());
+      } catch (_) {
+        btn.disabled = false;
+        const note = $('.start__note');
+        if (note) note.textContent = I18N.t('hero.createFailed');
+      }
+    });
 
     $('#join').addEventListener('click', () => {
       const code = ($('#joinCode').value || '').toLowerCase().replace(/[^a-z0-9]/g, '');

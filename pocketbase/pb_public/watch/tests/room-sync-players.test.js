@@ -12,6 +12,8 @@ const CASES = [
     play: () => document.querySelector('#player iframe').contentWindow.postMessage(JSON.stringify({ type: 'player:play', data: {} }), '*'),
     pause: () => document.querySelector('#player iframe').contentWindow.postMessage(JSON.stringify({ type: 'player:pause', data: {} }), '*') },
 ];
+// Код комнаты выдаёт сервер: выдуманный с 16.09.2026 отвечает «комнаты нет».
+const newRoom = async () => (await (await fetch('https://togetherly.day/api/watch/new', { method: 'POST' })).json()).room;
 let ok = true;
 const check = (n, c, x = '') => { console.log((c ? '  ✓ ' : '  ✗ ') + n, x); if (!c) ok = false; };
 
@@ -31,6 +33,7 @@ const listen = (p) => p.addInitScript(() => {
   const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required', '--mute-audio'] });
   for (const c of CASES) {
     console.log(c.name);
+    c.room = await newRoom();
     const ctxA = await b.newContext({ viewport: { width: 1300, height: 800 } });
     const a = await ctxA.newPage();
     await a.goto('https://togetherly.day/watch/room/#' + c.room, { waitUntil: 'domcontentloaded' });

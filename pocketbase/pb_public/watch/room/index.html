@@ -131,7 +131,55 @@ window.watchVoiceState = (s) => { window.__voicePending = s; };
   </div>
 </main>
 
-<script src="../i18n.js?v=20260824"></script>
+<!-- Экран у двери. Комнату пары открывают только её участники, набранный
+     руками код ведёт в никуда — и то и другое сервер говорит отказом, а
+     этот экран объясняет, что делать дальше. Режим задаёт room.js
+     (`showGate`): closed — войти, stranger — аккаунт не из этой пары,
+     missing — такой комнаты нет. Стережёт tests/room-access.test.js. -->
+<section class="gate" id="gate" hidden>
+  <div class="gate__card" role="dialog" aria-modal="true" aria-labelledby="gateTitle">
+    <span class="gate__mark" aria-hidden="true">
+      <svg class="gate__lock" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="3"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+      <svg class="gate__search" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5M9 9l4 4M13 9l-4 4"/></svg>
+    </span>
+    <h1 class="gate__title" id="gateTitle"></h1>
+    <p class="gate__text" id="gateText"></p>
+
+    <form class="gate__form" id="gateForm" novalidate>
+      <input class="input" id="gateEmail" type="email" autocomplete="username" inputmode="email"
+             spellcheck="false" data-i18n-ph="gate.email" data-i18n-aria="gate.email">
+      <input class="input" id="gatePass" type="password" autocomplete="current-password"
+             data-i18n-ph="gate.pass" data-i18n-aria="gate.pass">
+      <button class="btn btn--filled" type="submit" data-i18n="gate.signIn">Войти</button>
+    </form>
+
+    <div class="gate__or" id="gateOr"><span data-i18n="gate.or">или</span></div>
+    <div class="gate__provs" id="gateProvs">
+      <button class="btn btn--ghost" type="button" data-provider="google" aria-label="Google">
+        <svg viewBox="0 0 256 262" width="18" height="18" aria-hidden="true"><path fill="#4285f4" d="M255.9 133.5c0-10.8-.9-18.6-2.8-26.7H130.6v48.4h71.9a64 64 0 0 1-26.7 42.4l-.2 1.6 38.7 30 2.7.3c24.7-22.8 38.9-56.3 38.9-96"/><path fill="#34a853" d="M130.6 261.1c35.2 0 64.8-11.6 86.4-31.6l-41.2-32a76 76 0 0 1-45.2 13.1 79 79 0 0 1-74.3-54.2l-1.5.1-40.3 31.2-.6 1.5A131 131 0 0 0 130.6 261"/><path fill="#fbbc05" d="M56.3 156.4a80 80 0 0 1-.2-51.7V103L15.3 71.3l-1.4.6a131 131 0 0 0 0 117.3z"/><path fill="#eb4335" d="M130.6 50.5c24.5 0 41 10.6 50.4 19.4L218 34c-22.8-21-52.2-34-87.4-34C79.5 0 35.4 29.3 13.9 72l42.2 32.7a79 79 0 0 1 74.5-54.2"/></svg>
+        <span>Google</span>
+      </button>
+      <button class="btn btn--ghost" type="button" data-provider="yandex" data-i18n-aria="gate.yandex">
+        <svg viewBox="0 0 44 44" width="18" height="18" aria-hidden="true"><rect width="44" height="44" fill="#fc3f1d" rx="22"/><path fill="#fff" d="M25.2 12.3H23c-3.8 0-5.7 2-5.7 4.8 0 3.2 1.3 4.8 4.1 6.7l2.3 1.6-6.4 9.8h-5.1l6-8.9c-3.5-2.5-5.4-4.8-5.4-8.9 0-5 3.5-8.6 10.2-8.6h6.7v26.4h-4.5z"/></svg>
+        <span data-i18n="gate.yandex">Яндекс</span>
+      </button>
+      <button class="btn btn--ghost" type="button" data-provider="apple" aria-label="Apple">
+        <svg viewBox="0 0 256 315" width="16" height="18" fill="currentColor" aria-hidden="true"><path d="M213.8 167c.4 47.6 41.7 63.4 42.2 63.6-.3 1.2-6.6 22.6-21.8 44.8-13 19.1-26.7 38.2-48 38.6-21.1.4-28-12.5-52-12.5s-31.6 12.1-51.5 12.9c-20.7.8-36.4-20.7-49.6-39.8-27-39-47.7-110.3-20-158.4a77 77 0 0 1 65.1-39.4c20.3-.4 39.5 13.6 51.9 13.6s35.7-16.9 60.2-14.4c10.2.4 39 4.2 57.5 31.2-1.5 1-34.4 20-34 59.8M174.2 50.2A69 69 0 0 0 190.6 0c-15.8.6-35 10.5-46.3 23.8-10.2 11.8-19.1 30.6-16.7 48.7 17.6 1.3 35.7-9 46.6-22.3"/></svg>
+        <span>Apple</span>
+      </button>
+    </div>
+
+    <p class="gate__msg" id="gateMsg" role="status"></p>
+
+    <div class="gate__actions" id="gateActions">
+      <button class="btn btn--ghost" type="button" id="gateOther" data-i18n="gate.other">Войти другим аккаунтом</button>
+      <button class="btn btn--filled" type="button" id="gateNew" data-i18n="gate.create">Создать комнату</button>
+    </div>
+    <a class="gate__home" href="../" data-i18n="gate.home">На главную</a>
+  </div>
+</section>
+
+<script src="../i18n.js?v=20260916"></script>
 <script src="../theme.js?v=20260812"></script>
 <script src="../vendor/centrifuge.js"></script>
 <!-- Скрипт ютуба (iframe_api) НЕ подключаем тегом: обычный <script src> держит

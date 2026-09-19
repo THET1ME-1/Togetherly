@@ -33,7 +33,7 @@ class WatchRoomService {
   /// подставляет «Гость» обоим, и человек не понимает, кто с ним смотрит
   /// (жалоба тестера: «партнёр отображается как гость»).
   static String siteUrl(String room, {String? src, String? name}) {
-    final base = 'https://togetherly.day/watch/room/';
+    final base = 'https://$siteHost/watch/room/';
     final query = <String, String>{};
     if (src != null && src.isNotEmpty) query['src'] = src;
     final trimmed = (name ?? '').trim();
@@ -48,6 +48,27 @@ class WatchRoomService {
         .join('&');
     return '$base?$encoded#$room';
   }
+
+  /// Скрипт, который отдаёт странице комнаты нашу сессию.
+  ///
+  /// С 16.09.2026 в комнату пары пускают только её участников: к паре зашли
+  /// посторонние, узнавшие код. Браузер доказывает участие входом, а
+  /// встроенному браузеру приложения входить незачем — сессия у нас уже есть.
+  /// Страница читает `window.__togetherlyAuth` и шлёт токен при запросе
+  /// пропуска (`storedAuth` в `room.js`).
+  ///
+  /// Скрипт срабатывает только на нашем домене: если WebView уведут на чужую
+  /// страницу, токен туда не попадёт.
+  static String authScript({required String token, String? name}) {
+    final data = jsonEncode({'token': token, 'name': (name ?? '').trim()});
+    return '(function(){'
+        "if(location.hostname!=='$siteHost')return;"
+        'window.__togetherlyAuth=$data;'
+        '})();';
+  }
+
+  /// Домен страницы комнаты — единственный, которому отдаём сессию.
+  static const String siteHost = 'togetherly.day';
 
   /// Код комнаты пары. Пустая строка означает отказ сервера — вызывающий
   /// показывает ошибку и не открывает просмотр.

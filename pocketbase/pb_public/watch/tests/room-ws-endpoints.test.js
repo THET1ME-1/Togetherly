@@ -82,10 +82,12 @@ function endpointsFromRoomJs() {
   );
 
   console.log('2. токен на комнату');
+  // Код выдаёт сервер: выдуманный с 16.09.2026 отвечает «комнаты нет».
+  const made = await (await fetch(BASE + '/api/watch/new', { method: 'POST' })).json();
   const res = await fetch(BASE + '/api/watch/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ room: ROOM, guest: 'test-' + ROOM }),
+    body: JSON.stringify({ room: made.room || ROOM }),
   });
   const data = await res.json();
   check('сервер выдал токен', !!data.ok, data.error || '');
