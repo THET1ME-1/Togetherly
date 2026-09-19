@@ -64,6 +64,39 @@ class _Gallery implements GalleryTarget {
   }
 }
 
+/// Исполнитель вместо пары «загрузчик + галерея»: так устроена нативная
+/// фоновая запись — очередь отдаёт файл и ждёт ответа.
+class _Exec implements SaveExecutor {
+  final List<String> cancelled = [];
+  final Map<String, Completer<String?>> waiting = {};
+  List<String> recovered = const [];
+
+  @override
+  int get concurrency => 100;
+
+  @override
+  Future<String?> run(SaveItem item, {required bool hidden, String title = ''}) =>
+      waiting.putIfAbsent(item.file.key, () => Completer<String?>()).future;
+
+  @override
+  Future<void> cancel(Iterable<SaveItem> items) async {
+    for (final i in items) {
+      cancelled.add(i.file.key);
+      waiting.remove(i.file.key)?.completeError(const SaveCancelled());
+    }
+  }
+
+  @override
+  Future<List<String>> recover() async => recovered;
+
+  void finishAll() {
+    for (final c in waiting.values) {
+      if (!c.isCompleted) c.complete('content://x');
+    }
+    waiting.clear();
+  }
+}
+
 SaveItem _item(String ref, {String memoryId = 'm1', int i = 0}) => SaveItem(
       memoryId: memoryId,
       takenAt: DateTime(2026, 9, 5, 13, 5),
@@ -231,6 +264,53 @@ void main() {
     await _drain(q, f);
     expect(q.progressFor('b'), isNull);
     expect(q.isQueued('pb://media/b/f1.webp'), isFalse);
+  });
+
+  test('исполнитель берёт всё разом, отмена доходит до него', () async {
+    final e = _Exec();
+    final q = MediaSaveQueue(executor: e, ledger: ledger);
+    final job = await q.enqueue('в фон', _items(8));
+    await Future<void>.delayed(Duration.zero);
+    expect(e.waiting, hasLength(8));
+    q.cancel(job!.id);
+    await _settle(q);
+    expect(e.cancelled, hasLength(8));
+    expect(job.cancelled, isTrue);
+    expect(q.current, isNull);
+  });
+
+  test('«Остановить» в уведомлении гасит задание как отменённое', () async {
+    final e = _Exec();
+    final q = MediaSaveQueue(executor: e, ledger: ledger);
+    final job = await q.enqueue('в фон', _items(3));
+    await Future<void>.delayed(Duration.zero);
+    for (final c in e.waiting.values) {
+      c.completeError(const SaveCancelled());
+    }
+    e.waiting.clear();
+    await _settle(q);
+    expect(job!.cancelled, isTrue);
+    expect(job.failed, 0);
+  });
+
+  test('при старте сперва забирается сделанное без приложения', () async {
+    // Приложение закрыли посреди сохранения: натив доделал два файла сам.
+    final first = _Exec();
+    final q1 = MediaSaveQueue(executor: first, ledger: ledger);
+    await q1.enqueue('Лето', _items(4));
+    await Future<void>.delayed(Duration.zero);
+    await q1.persistNow();
+
+    final e = _Exec()
+      ..recovered = ['pb://media/m1/f0.webp', 'pb://media/m1/f1.webp'];
+    final q2 = MediaSaveQueue(executor: e, ledger: ledger);
+    await q2.resume();
+    await Future<void>.delayed(Duration.zero);
+    expect(ledger.contains('pb://media/m1/f0.webp'), isTrue);
+    expect(e.waiting.keys, ['pb://media/m1/f2.webp', 'pb://media/m1/f3.webp']);
+    e.finishAll();
+    await _settle(q2);
+    expect(q2.lastFinished!.done, 2);
   });
 
   test('недоделанное задание переживает перезапуск приложения', () async {

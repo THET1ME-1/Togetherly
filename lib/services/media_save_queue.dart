@@ -9,6 +9,7 @@ import '../models/memory.dart';
 import '../models/memory_media.dart';
 import 'gallery_writer.dart';
 import 'media_fetcher.dart';
+import 'native_save_executor.dart';
 import 'saved_media_ledger.dart';
 
 /// Папка в галерее, куда ложится всё сохранённое из Togetherly.
@@ -37,6 +38,75 @@ abstract class MediaFetcher {
 abstract class GalleryTarget {
   /// Возвращает адрес файла в галерее (для «Открыть») или null.
   Future<String?> save(GallerySaveRequest r);
+}
+
+/// Кто доводит файл до галереи.
+///
+/// По умолчанию — нативная фоновая запись ([NativeSaveExecutor]): она живёт
+/// без Dart и продолжает работу в свёрнутом и выгруженном приложении. Пара
+/// «загрузчик + галерея» ([LocalSaveExecutor]) — запасной путь и тесты.
+abstract class SaveExecutor {
+  /// Сколько файлов очередь отдаёт разом. Нативной записи отдаётся всё:
+  /// своё число одновременных загрузок она держит сама.
+  int get concurrency;
+
+  /// Довести файл до галереи. Адрес файла в галерее или null. [title] —
+  /// название задания для уведомления о ходе.
+  Future<String?> run(SaveItem item, {required bool hidden, String title = ''});
+
+  /// Снять ещё не сохранённые файлы.
+  Future<void> cancel(Iterable<SaveItem> items);
+
+  /// Ключи файлов, которые дошли до галереи, пока приложения не было.
+  Future<List<String>> recover();
+}
+
+/// Сохранение остановил человек — кнопкой в островке или в уведомлении.
+class SaveCancelled implements Exception {
+  const SaveCancelled();
+  @override
+  String toString() => 'SaveCancelled';
+}
+
+/// Файл скачивает Dart, в галерею кладёт канал: работает, только пока
+/// приложение на экране.
+class LocalSaveExecutor implements SaveExecutor {
+  LocalSaveExecutor(this.fetcher, this.target);
+
+  final MediaFetcher fetcher;
+  final GalleryTarget target;
+
+  @override
+  int get concurrency => 3;
+
+  @override
+  Future<String?> run(SaveItem item,
+      {required bool hidden, String title = ''}) async {
+    final got = await fetcher.fetch(item.file);
+    try {
+      return await target.save(GallerySaveRequest(
+        path: got.file.path,
+        kind: item.file.kind,
+        takenAt: item.takenAt,
+        latitude: item.latitude,
+        longitude: item.longitude,
+        name: galleryFileName(item.takenAt, item.file),
+        hidden: hidden,
+      ));
+    } finally {
+      if (got.temporary) {
+        try {
+          if (await got.file.exists()) await got.file.delete();
+        } catch (_) {}
+      }
+    }
+  }
+
+  @override
+  Future<void> cancel(Iterable<SaveItem> items) async {}
+
+  @override
+  Future<List<String>> recover() async => const [];
 }
 
 /// Галерея закрыта для приложения: человек отказал в доступе. Повторять
@@ -182,27 +252,29 @@ class SaveJob {
 /// следующем открытии ленты очередь доедет сама.
 class MediaSaveQueue extends ChangeNotifier {
   MediaSaveQueue({
-    required this.fetcher,
-    required this.target,
+    MediaFetcher? fetcher,
+    GalleryTarget? target,
+    SaveExecutor? executor,
     required this.ledger,
-    this.concurrency = 3,
     this.retryDelays = const [Duration(seconds: 1), Duration(seconds: 3)],
-  });
+  })  : assert(executor != null || (fetcher != null && target != null)),
+        executor = executor ?? LocalSaveExecutor(fetcher!, target!);
 
   static MediaSaveQueue? _instance;
   static MediaSaveQueue get instance => _instance ??= MediaSaveQueue(
-        fetcher: HttpMediaFetcher(),
-        target: GalleryWriter.instance,
+        executor: (Platform.isAndroid || Platform.isIOS)
+            ? NativeSaveExecutor.instance
+            : LocalSaveExecutor(HttpMediaFetcher(), GalleryWriter.instance),
         ledger: SavedMediaLedger.instance,
       );
 
   static const String prefsKey = 'media_save_queue_v1';
 
-  final MediaFetcher fetcher;
-  final GalleryTarget target;
+  final SaveExecutor executor;
   final SavedMediaLedger ledger;
-  final int concurrency;
   final List<Duration> retryDelays;
+
+  int get concurrency => executor.concurrency;
 
   final List<SaveJob> _jobs = [];
   SaveJob? _lastFinished;
@@ -305,6 +377,12 @@ class MediaSaveQueue extends ChangeNotifier {
     final job = _byId(jobId);
     if (job == null || job.finished) return;
     job.cancelled = true;
+    // Нативная запись держит файлы у себя — снимаем их и там, иначе она
+    // докачает всё, что ей успели отдать.
+    unawaited(executor.cancel([
+      for (var i = 0; i < job.items.length; i++)
+        if (!job.isDoneAt(i) && !job.isFailedAt(i)) job.items[i],
+    ]));
     if (job.finished) _finish(job);
     notifyListeners();
     unawaited(persistNow());
@@ -354,42 +432,36 @@ class MediaSaveQueue extends ChangeNotifier {
 
   Future<void> _run(SaveJob job, int i) async {
     final item = job.items[i];
-    FetchedMedia? got;
     try {
       String? uri;
       for (var attempt = 0;; attempt++) {
         try {
-          got = await fetcher.fetch(item.file);
-          uri = await target.save(GallerySaveRequest(
-            path: got.file.path,
-            kind: item.file.kind,
-            takenAt: item.takenAt,
-            latitude: item.latitude,
-            longitude: item.longitude,
-            name: galleryFileName(item.takenAt, item.file),
-            hidden: job.hidden,
-          ));
+          uri = await executor.run(item, hidden: job.hidden, title: job.title);
           break;
         } on GalleryAccessDenied {
           rethrow;
+        } on SaveCancelled {
+          rethrow;
         } catch (e) {
-          await _drop(got);
-          got = null;
           if (attempt >= retryDelays.length || job.cancelled) rethrow;
           await Future<void>.delayed(retryDelays[attempt]);
         }
       }
       job._st[i] = _St.done;
-      if (uri != null) job.lastUri = uri;
+      if (uri != null && uri.isNotEmpty) job.lastUri = uri;
       await ledger.add(item.file.key);
     } on GalleryAccessDenied {
       job._st[i] = _St.failed;
       job.accessDenied = true;
+    } on SaveCancelled {
+      // Остановили кнопкой в уведомлении: задание гаснет целиком, как от
+      // крестика в островке, а не висит «не сохранилось».
+      job._st[i] = _St.pending;
+      job.cancelled = true;
     } catch (e) {
       job._st[i] = _St.failed;
       debugPrint('MediaSaveQueue: ${item.file.key} не сохранился: $e');
     } finally {
-      await _drop(got);
       _running--;
       if (job.finished) _finish(job);
       notifyListeners();
@@ -403,13 +475,6 @@ class MediaSaveQueue extends ChangeNotifier {
     // Держим только идущие задания и последнее законченное: список живёт весь
     // сеанс, и копить в нём прошлые сохранения незачем.
     _jobs.removeWhere((j) => j.finished && !identical(j, job));
-  }
-
-  Future<void> _drop(FetchedMedia? got) async {
-    if (got == null || !got.temporary) return;
-    try {
-      if (await got.file.exists()) await got.file.delete();
-    } catch (_) {}
   }
 
   /// Записать недоделанное на диск: закрыли приложение — очередь доедет при
@@ -444,6 +509,14 @@ class MediaSaveQueue extends ChangeNotifier {
   Future<void> resume() async {
     if (_resumed) return;
     _resumed = true;
+    // Нативная запись могла доделать часть файлов, пока приложения не было:
+    // они уже в галерее, ставить их заново незачем.
+    try {
+      final done = await executor.recover();
+      if (done.isNotEmpty) await ledger.addAll(done);
+    } catch (e) {
+      debugPrint('MediaSaveQueue.recover: $e');
+    }
     String? raw;
     try {
       final prefs = await SharedPreferences.getInstance();

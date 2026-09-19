@@ -272,6 +272,15 @@ const Map<String, Map<String, String>> memorySaveStrings = {
     'fr': 'Ouvrir',
     'de': 'Öffnen',
   },
+  'notifStop': {
+    'ru': 'Остановить',
+    'en': 'Stop',
+    'pt': 'Parar',
+    'it': 'Interrompi',
+    'es': 'Detener',
+    'fr': 'Arrêter',
+    'de': 'Stoppen',
+  },
   'islandRetry': {
     'ru': 'Повторить',
     'en': 'Retry',

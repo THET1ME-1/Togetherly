@@ -134,6 +134,7 @@ import '../widgets/common/scaled_asset.dart';
 import '../services/offline/media_view_cache.dart';
 import '../dict_strings.dart' show trKey;
 import '../services/wallet_teaser.dart';
+import '../services/media_save_queue.dart';
 import 'wallet_wait_screen.dart';
 
 
@@ -358,6 +359,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Ежедневный бонус и разовые награды — через 4с после старта
     Future.delayed(const Duration(seconds: 4), _tryClaimStartupRewards);
+
+    // Сохранение в галерею, оборванное закрытием приложения, продолжается
+    // сразу при запуске, а не когда человек дойдёт до ленты. Пауза — чтобы
+    // поднялась сессия: ссылкам на файлы нужен файловый токен.
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) unawaited(MediaSaveQueue.instance.resume());
+    });
 
     // Одноразовая подсказка про удержание боковой кнопки — после первого кадра
     // и небольшой задержки (даём навбару отрисоваться и паре загрузиться).

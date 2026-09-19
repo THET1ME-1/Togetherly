@@ -463,10 +463,47 @@ extension AppDelegate {
           UIApplication.shared.open(url, options: [:], completionHandler: nil)
         }
         result(nil)
+      // Фоновая запись: Dart отдаёт файлы и забирает готовое, а качает
+      // системная фоновая сессия — и в свёрнутом, и в выгруженном приложении.
+      case "engineSubmit":
+        BackgroundSaveEngine.shared.submit(call.arguments as? [String: Any] ?? [:])
+        result(nil)
+      case "engineStatus":
+        result(BackgroundSaveEngine.shared.status())
+      case "engineAck":
+        let keys = (call.arguments as? [String: Any])?["keys"] as? [String] ?? []
+        BackgroundSaveEngine.shared.ack(keys)
+        result(nil)
+      case "engineCancel":
+        let keys = (call.arguments as? [String: Any])?["keys"] as? [String] ?? []
+        BackgroundSaveEngine.shared.cancel(keys)
+        result(nil)
       default:
         result(FlutterMethodNotImplemented)
       }
     }
+    // Сессия поднимается сразу: события загрузок, начатых до перезапуска,
+    // приходят только живой сессии с тем же идентификатором.
+    BackgroundSaveEngine.shared.reconnect()
+  }
+
+  /// Система будит приложение, когда фоновые загрузки кончились, пока оно
+  /// было выгружено. Обработчик отдаём после того, как сессия разберёт события.
+  override func application(
+    _ application: UIApplication,
+    handleEventsForBackgroundURLSession identifier: String,
+    completionHandler: @escaping () -> Void
+  ) {
+    if identifier == BackgroundSaveEngine.sessionId {
+      BackgroundSaveEngine.shared.backgroundCompletion = completionHandler
+      BackgroundSaveEngine.shared.reconnect()
+      return
+    }
+    super.application(
+      application,
+      handleEventsForBackgroundURLSession: identifier,
+      completionHandler: completionHandler
+    )
   }
 }
 
@@ -628,5 +665,289 @@ enum GallerySaver {
     return PHAssetCollection.fetchAssetCollections(
       withLocalIdentifiers: [id], options: nil
     ).firstObject
+  }
+}
+
+// MARK: - Фоновая запись в «Фото»
+
+/// Очередь фоновой записи в «Фото» (19.09.2026) — живёт без Dart.
+///
+/// Файлы качает фоновая сессия `URLSession`: система продолжает загрузку,
+/// когда приложение свёрнуто и даже выгружено, и будит его, когда всё готово.
+/// Готовый файл сразу уходит в «Фото» через [GallerySaver] — с датой и местом
+/// воспоминания, в альбом «Togetherly». Итоги лежат на диске, пока Dart их не
+/// подтвердит; повторная постановка того же ключа ничего не удваивает.
+/// Когда всё кончилось, а приложение не на экране, — уведомление «В галерее: 94».
+final class BackgroundSaveEngine: NSObject, URLSessionDownloadDelegate {
+  static let shared = BackgroundSaveEngine()
+  static let sessionId = "com.togetherly.love.gallery-save"
+
+  var backgroundCompletion: (() -> Void)?
+
+  private let queue = DispatchQueue(label: "com.togetherly.love.gallery-engine")
+  private var items: [String: [String: Any]] = [:]
+  private var results: [[String: Any]] = []
+  private var labels: [String: String] = [:]
+  private var attempts: [String: Int] = [:]
+  /// Файлы, которые прямо сейчас пишутся в «Фото» или качаются задачей этого
+  /// процесса: повторный подъём очереди их не трогает, иначе кадр лёг бы дважды.
+  private var active: Set<String> = []
+  private var resumed = false
+  private var savingNow: Set<String> = []
+  private var batchDone = 0
+  private var batchFailed = 0
+  private var lastTitle = ""
+  private var loaded = false
+
+  lazy var session: URLSession = {
+    let config = URLSessionConfiguration.background(withIdentifier: Self.sessionId)
+    config.sessionSendsLaunchEvents = true
+    config.isDiscretionary = false
+    config.allowsCellularAccess = true
+    return URLSession(configuration: config, delegate: self, delegateQueue: nil)
+  }()
+
+  private var stateURL: URL {
+    let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    return dir.appendingPathComponent("gallery_save_engine.json")
+  }
+
+  func reconnect() {
+    queue.async {
+      self.load()
+      // Сессию с нашим идентификатором надо создать при каждом запуске: иначе
+      // система не отдаст события загрузок, начатых до перезапуска.
+      let session = self.session
+      guard !self.resumed else { return }
+      self.resumed = true
+      // Загрузки, потерянные вместе с процессом, ставим заново. Живые задачи
+      // система помнит сама — их не трогаем.
+      session.getAllTasks { tasks in
+        let running = Set(tasks.compactMap { $0.taskDescription })
+        self.queue.async {
+          for (key, args) in self.items where !running.contains(key) && !self.active.contains(key) {
+            if let path = args["path"] as? String {
+              self.saveFile(key: key, path: path, args: args, deleteAfter: args["deleteAfter"] as? Bool ?? false)
+            } else if let url = args["url"] as? String {
+              self.startTask(key: key, url: url)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  func submit(_ args: [String: Any]) {
+    queue.async {
+      self.load()
+      if let l = args["labels"] as? [String: String] { self.labels = l }
+      guard let key = args["key"] as? String else { return }
+      let known = self.items[key] != nil
+        || self.results.contains { ($0["key"] as? String) == key }
+      if known { return }
+      self.items[key] = args
+      if let title = args["title"] as? String, !title.isEmpty { self.lastTitle = title }
+      self.persist()
+      if let path = args["path"] as? String {
+        self.saveFile(key: key, path: path, args: args, deleteAfter: args["deleteAfter"] as? Bool ?? false)
+      } else if let url = args["url"] as? String {
+        self.startTask(key: key, url: url)
+      } else {
+        self.record(key: key, code: "FAILED", uri: nil, error: "нет ни пути, ни ссылки")
+      }
+    }
+  }
+
+  func status() -> [String: Any] {
+    return queue.sync { () -> [String: Any] in
+      self.load()
+      return ["results": self.results, "pending": self.items.count]
+    }
+  }
+
+  func ack(_ keys: [String]) {
+    queue.async {
+      self.results.removeAll { keys.contains(($0["key"] as? String) ?? "") }
+      self.persist()
+    }
+  }
+
+  /// Крестик в приложении: Dart уже знает, итогов не нужно.
+  func cancel(_ keys: [String]) {
+    queue.async {
+      for k in keys {
+        self.items.removeValue(forKey: k)
+        self.attempts.removeValue(forKey: k)
+      }
+      self.persist()
+      self.session.getAllTasks { tasks in
+        for t in tasks where keys.contains(t.taskDescription ?? "") { t.cancel() }
+      }
+      if self.items.isEmpty { self.finishBatch() }
+    }
+  }
+
+  /// Вызывать на [queue].
+  private func startTask(key: String, url: String) {
+    guard let u = URL(string: url) else {
+      record(key: key, code: "FAILED", uri: nil, error: "плохая ссылка")
+      return
+    }
+    active.insert(key)
+    let task = session.downloadTask(with: u)
+    task.taskDescription = key
+    task.resume()
+  }
+
+  /// Вызывать на [queue].
+  private func saveFile(key: String, path: String, args: [String: Any], deleteAfter: Bool) {
+    active.insert(key)
+    savingNow.insert(key)
+    var dict = args
+    dict["path"] = path
+    GallerySaver.queue.async {
+      GallerySaver.save(dict) { uri, error in
+        if deleteAfter { try? FileManager.default.removeItem(atPath: path) }
+        self.queue.async {
+          if let error = error {
+            self.record(key: key, code: error.code == "ACCESS_DENIED" ? "ACCESS_DENIED" : "FAILED",
+                        uri: nil, error: error.message)
+          } else {
+            self.record(key: key, code: "OK", uri: uri, error: nil)
+          }
+        }
+      }
+    }
+  }
+
+  /// Вызывать на [queue].
+  private func record(key: String, code: String, uri: String?, error: String?) {
+    active.remove(key)
+    savingNow.remove(key)
+    guard items.removeValue(forKey: key) != nil else { return }
+    attempts.removeValue(forKey: key)
+    var r: [String: Any] = ["key": key, "code": code]
+    if let uri = uri { r["uri"] = uri }
+    if let error = error { r["error"] = error }
+    results.append(r)
+    if code == "OK" { batchDone += 1 } else { batchFailed += 1 }
+    persist()
+    if items.isEmpty { finishBatch() }
+  }
+
+  /// Вызывать на [queue].
+  private func finishBatch() {
+    let done = batchDone, failed = batchFailed, title = lastTitle
+    batchDone = 0
+    batchFailed = 0
+    persist()
+    guard done + failed > 0 else { return }
+    let labels = self.labels
+    DispatchQueue.main.async {
+      // На экране итог показывает островок — уведомление только в фоне.
+      guard UIApplication.shared.applicationState != .active else { return }
+      let content = UNMutableNotificationContent()
+      content.title = failed > 0
+        ? (labels["failed"] ?? "Не сохранилось: {n}").replacingOccurrences(of: "{n}", with: "\(failed)")
+        : (labels["done"] ?? "В галерее: {n}").replacingOccurrences(of: "{n}", with: "\(done)")
+      content.body = title
+      let request = UNNotificationRequest(
+        identifier: "gallery-save-done", content: content, trigger: nil)
+      UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
+    }
+  }
+
+  // MARK: URLSessionDownloadDelegate
+
+  func urlSession(
+    _ session: URLSession,
+    downloadTask: URLSessionDownloadTask,
+    didFinishDownloadingTo location: URL
+  ) {
+    guard let key = downloadTask.taskDescription else { return }
+    let code = (downloadTask.response as? HTTPURLResponse)?.statusCode ?? 0
+    // Файл во временной папке живёт только до выхода из этого метода —
+    // переносим сразу.
+    var moved: URL?
+    if code == 200 {
+      let name = queue.sync { self.items[key]?["name"] as? String } ?? "file.bin"
+      let ext = (name as NSString).pathExtension
+      let dest = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString + (ext.isEmpty ? "" : "." + ext))
+      if (try? FileManager.default.moveItem(at: location, to: dest)) != nil { moved = dest }
+    }
+    queue.async {
+      // Файла уже ждать некому (сняли крестиком) или его пишет другая
+      // загрузка того же ключа — лишнюю копию выбрасываем.
+      guard let args = self.items[key], !(moved != nil && self.savingNow.contains(key)) else {
+        if let m = moved { try? FileManager.default.removeItem(at: m) }
+        return
+      }
+      if let m = moved {
+        self.saveFile(key: key, path: m.path, args: args, deleteAfter: true)
+      } else if (400..<500).contains(code) {
+        self.record(key: key, code: "FAILED", uri: nil, error: "HTTP \(code)")
+      } else {
+        self.retry(key: key, error: "HTTP \(code)")
+      }
+    }
+  }
+
+  func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+    guard let error = error, let key = task.taskDescription else { return }
+    // Отмену крестиком не повторяем: файл уже снят из [items], и [retry]
+    // выйдет сам. Отмена системой (приложение смахнули из недавних) — повод
+    // поставить загрузку снова.
+    queue.async { self.retry(key: key, error: error.localizedDescription) }
+  }
+
+  func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
+    DispatchQueue.main.async {
+      self.backgroundCompletion?()
+      self.backgroundCompletion = nil
+    }
+  }
+
+  /// Вызывать на [queue]. Три попытки: мобильная сеть рвётся.
+  private func retry(key: String, error: String) {
+    active.remove(key)
+    guard let args = items[key], let url = args["url"] as? String else { return }
+    let n = (attempts[key] ?? 0) + 1
+    attempts[key] = n
+    if n >= 3 {
+      record(key: key, code: "FAILED", uri: nil, error: error)
+    } else {
+      startTask(key: key, url: url)
+    }
+  }
+
+  // MARK: Диск
+
+  /// Вызывать на [queue].
+  private func load() {
+    if loaded { return }
+    loaded = true
+    guard let data = try? Data(contentsOf: stateURL),
+          let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    else { return }
+    items = obj["items"] as? [String: [String: Any]] ?? [:]
+    results = obj["results"] as? [[String: Any]] ?? []
+    labels = obj["labels"] as? [String: String] ?? [:]
+    lastTitle = obj["lastTitle"] as? String ?? ""
+    batchDone = obj["batchDone"] as? Int ?? 0
+    batchFailed = obj["batchFailed"] as? Int ?? 0
+  }
+
+  /// Вызывать на [queue].
+  private func persist() {
+    let obj: [String: Any] = [
+      "items": items, "results": results, "labels": labels, "lastTitle": lastTitle,
+      "batchDone": batchDone, "batchFailed": batchFailed,
+    ]
+    guard JSONSerialization.isValidJSONObject(obj),
+          let data = try? JSONSerialization.data(withJSONObject: obj)
+    else { return }
+    try? data.write(to: stateURL, options: .atomic)
   }
 }

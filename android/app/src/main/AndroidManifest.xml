@@ -768,6 +768,15 @@
             </intent-filter>
         </receiver>
 
+        <!-- Фоновая запись медиа воспоминаний в галерею (19.09.2026):
+             MediaSaveService.kt качает и кладёт файлы без Dart, с уведомлением
+             хода и кнопкой «Остановить». dataSync — пользователь сам попросил
+             перенести свои файлы. -->
+        <service
+            android:name=".MediaSaveService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
+
         <!-- Пуш без FCM (§5): foreground-сервис flutter_foreground_task, держит
              SSE-подписку PbPushService при свёрнутом/выгруженном приложении.
              ВНИМАНИЕ: имя класса менять нельзя (его ищет плагин). Без

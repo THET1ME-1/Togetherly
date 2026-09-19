@@ -65,6 +65,26 @@ class GallerySaver(private val context: Context) : MethodChannel.MethodCallHandl
             // Спрашивать через gal там нельзя: он просит WRITE_EXTERNAL_STORAGE,
             // а в манифесте оно объявлено только до Android 9 — система
             // отказала бы сразу, и сохранение не работало бы вовсе.
+            // Фоновая запись (MediaSaveService): Dart отдаёт файлы и забирает
+            // готовое, служба работает и без него.
+            "engineSubmit" -> {
+                val args = call.arguments as? Map<*, *>
+                if (args == null) {
+                    result.error("BAD_ARGS", "нет аргументов", null)
+                } else {
+                    MediaSaveEngine.submit(context, args)
+                    result.success(null)
+                }
+            }
+            "engineStatus" -> result.success(MediaSaveEngine.status(context))
+            "engineAck" -> {
+                MediaSaveEngine.ack(context, call.argument<List<String>>("keys") ?: emptyList())
+                result.success(null)
+            }
+            "engineCancel" -> {
+                MediaSaveEngine.cancel(context, call.argument<List<String>>("keys") ?: emptyList())
+                result.success(null)
+            }
             "hasAccess" -> result.success(
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ||
                     ContextCompat.checkSelfPermission(
@@ -75,17 +95,48 @@ class GallerySaver(private val context: Context) : MethodChannel.MethodCallHandl
         }
     }
 
+    /** Что нужно галерее о файле: откуда взять и на какой день положить. */
+    data class Params(
+        val path: String,
+        val kind: String,
+        val takenAt: Long,
+        val offsetMinutes: Int,
+        val latitude: Double?,
+        val longitude: Double?,
+        val name: String,
+        val album: String,
+    )
+
     private fun save(call: MethodCall): String {
         val path = call.argument<String>("path") ?: throw IllegalArgumentException("path")
-        val kind = call.argument<String>("kind") ?: KIND_PHOTO
-        val takenAt = (call.argument<Number>("takenAt") ?: System.currentTimeMillis()).toLong()
-        val offsetMinutes = (call.argument<Number>("offsetMinutes") ?: 0).toInt()
-        val latitude = call.argument<Number>("latitude")?.toDouble()
-        val longitude = call.argument<Number>("longitude")?.toDouble()
-        val src = File(path)
-        if (!src.exists()) throw FileNotFoundException(path)
-        val name = call.argument<String>("name") ?: src.name
-        val album = call.argument<String>("album") ?: DEFAULT_ALBUM
+        return writeFile(
+            Params(
+                path = path,
+                kind = call.argument<String>("kind") ?: KIND_PHOTO,
+                takenAt = (call.argument<Number>("takenAt") ?: System.currentTimeMillis()).toLong(),
+                offsetMinutes = (call.argument<Number>("offsetMinutes") ?: 0).toInt(),
+                latitude = call.argument<Number>("latitude")?.toDouble(),
+                longitude = call.argument<Number>("longitude")?.toDouble(),
+                name = call.argument<String>("name") ?: File(path).name,
+                album = call.argument<String>("album") ?: DEFAULT_ALBUM,
+            )
+        )
+    }
+
+    /**
+     * Положить файл в галерею. Зовут и канал (сохранение на глазах), и
+     * фоновая служба [MediaSaveService] — она работает без Dart.
+     */
+    fun writeFile(p: Params): String {
+        val src = File(p.path)
+        if (!src.exists()) throw FileNotFoundException(p.path)
+        val kind = p.kind
+        val name = p.name
+        val album = p.album
+        val takenAt = p.takenAt
+        val offsetMinutes = p.offsetMinutes
+        val latitude = p.latitude
+        val longitude = p.longitude
 
         // EXIF пишется в копию: исходник бывает файлом кэша картинок ленты, и
         // трогать его нельзя.
