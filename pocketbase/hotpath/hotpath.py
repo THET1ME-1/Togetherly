@@ -54,8 +54,10 @@ import shutil
 
 import asyncpg
 import httpx
+import orjson
 import uvicorn
 from fastapi import FastAPI, Request
+import movies
 from fastapi.responses import (ORJSONResponse, JSONResponse, Response,
                                FileResponse)
 
@@ -335,6 +337,7 @@ pg: asyncpg.Pool | None = None
 cent_client: httpx.AsyncClient | None = None
 push_client: httpx.AsyncClient | None = None
 pb_client: httpx.AsyncClient | None = None   # проксирование редких записей в PocketBase
+wd_client: httpx.AsyncClient | None = None   # Викиданные и poiskkino для поиска фильмов
 lite: sqlite3.Connection | None = None      # read-only: auth, группы, presence
 lite_rw: sqlite3.Connection | None = None   # счётчики групп и чистка токенов
 _bg_lock_fd: int | None = None             # замок роли фоновых задач
@@ -2001,6 +2004,139 @@ async def note_export(request: Request):
     )
 
 
+# ── поиск фильмов ─────────────────────────────────────────────────────────────
+#
+# Приложение искало фильмы прямо в poiskkino одним общим ключом из APK, а его
+# бесплатный тариф — 200 запросов в сутки на всех: к обеду поиск выгорал
+# (19.09.2026). Теперь ищем в Викиданных (CC0, без ключа), а poiskkino зовём
+# только когда там пусто — с ключом на сервере и кэшем. Разбор и сборка
+# живут в movies.py под тестами.
+
+_WD_UA = "Togetherly/1.32 (https://togetherly.day; support@togetherly.day)"
+_POISKKINO_KEY = os.environ.get("POISKKINO_KEY", "TM3RQXB-DCZMAJ5-GF7RGGM-NSKB7JS")
+_MOVIES_TTL = 3 * 86400        # новые фильмы появляются в Викиданных не сразу
+_MOVIES_EMPTY_TTL = 6 * 3600   # пустой ответ помним недолго
+_WD_ENTITY_TTL = 14 * 86400
+_movies_limit = movies.RateLimiter(limit=60, window=600)
+_wd_gate = asyncio.Semaphore(6)
+
+
+async def _wd_fetch(params: dict) -> dict:
+    r = await wd_client.get("https://www.wikidata.org/w/api.php", params=params)
+    r.raise_for_status()
+    data = orjson.loads(r.content)
+    if isinstance(data, dict) and "error" in data:
+        raise RuntimeError(f"wikidata: {data['error']}")
+    return data
+
+
+class _WdCache:
+    async def get(self, ids):
+        if not ids:
+            return {}
+        async with pg.acquire() as c:
+            rows = await c.fetch(
+                "SELECT qid, data FROM wd_cache WHERE qid = ANY($1::text[]) AND updated > $2",
+                list(ids), int(time.time()) - _WD_ENTITY_TTL)
+        return {r["qid"]: orjson.loads(r["data"]) for r in rows}
+
+    async def put(self, items):
+        now = int(time.time())
+        async with pg.acquire() as c:
+            await c.executemany(
+                "INSERT INTO wd_cache (qid, data, updated) VALUES ($1, $2::jsonb, $3) "
+                "ON CONFLICT (qid) DO UPDATE SET data = EXCLUDED.data, updated = EXCLUDED.updated",
+                [(k, orjson.dumps(v).decode(), now) for k, v in items.items()])
+
+
+_wd_search = movies.WikidataSearch(fetch=_wd_fetch, cache=_WdCache())
+
+
+async def _poiskkino(q: str) -> tuple[str, list]:
+    try:
+        r = await wd_client.get(
+            "https://api.poiskkino.dev/v1.4/movie/search",
+            params={"page": "1", "limit": "25", "query": q},
+            headers={"X-API-KEY": _POISKKINO_KEY, "accept": "application/json"})
+        try:
+            body = orjson.loads(r.content)
+        except orjson.JSONDecodeError:
+            body = {}
+    except httpx.HTTPError:
+        return "error", []
+    kind, msg = movies.classify_source(r.status_code, body)
+    if kind != "ok":
+        log.warning("movies: poiskkino %s (%s): %s", kind, r.status_code, msg[:120])
+        return kind, []
+    return "ok", movies.trim_payload(body)["docs"]
+
+
+@app.get("/api/movies/search")
+async def movies_search(request: Request):
+    """Фильмы и сериалы по названию, в форме ответа poiskkino.
+
+    Клиент читает ответ прежним разбором. 429 — человек ищет слишком часто,
+    503 с `reason: quota` — Викиданные не ответили, а запасной ключ на сегодня
+    кончился.
+    """
+    try:
+        auth = await _auth(request)
+    except Exception:
+        return _err(429, "Try again later.")
+    if auth is None:
+        return _err(401, "The request requires valid record authorization token.")
+    uid, _groups = auth
+
+    q = movies.norm_query(request.query_params.get("q"))
+    lang = str(request.query_params.get("lang") or "ru")[:2].lower()
+    if lang not in movies.LANGS:
+        lang = "en"
+    if not q:
+        return {"docs": [], "source": "empty"}
+
+    key = f"{lang}|{q}"
+    now = int(time.time())
+    async with pg.acquire() as c:
+        row = await c.fetchrow(
+            "SELECT docs, source, updated FROM movie_query_cache WHERE key = $1", key)
+    if row is not None:
+        docs = orjson.loads(row["docs"])
+        ttl = _MOVIES_TTL if docs else _MOVIES_EMPTY_TTL
+        if movies.cache_fresh(row["updated"], now, ttl):
+            return {"docs": docs, "source": "cache"}
+
+    if not _movies_limit.allow(uid):
+        return _err(429, "too many searches")
+
+    docs, source, wd_failed = [], "wikidata", False
+    try:
+        async with _wd_gate:
+            docs = await asyncio.wait_for(_wd_search.search(q, lang), 20)
+    except Exception as e:  # noqa: BLE001 — любой сбой Викиданных уводит в запас
+        wd_failed = True
+        log.warning("movies: викиданные %r: %s", q, e)
+
+    quota = False
+    if not docs and len(q) >= 3:
+        kind, pdocs = await _poiskkino(q)
+        if kind == "ok":
+            docs, source = pdocs, "poiskkino"
+        quota = kind == "quota"
+
+    if not docs and wd_failed:
+        return _err(503, "movie search failed", {"reason": "quota" if quota else "source"})
+    if not docs:
+        source = "none"
+
+    async with pg.acquire() as c:
+        await c.execute(
+            "INSERT INTO movie_query_cache (key, docs, source, updated) "
+            "VALUES ($1, $2::jsonb, $3, $4) ON CONFLICT (key) DO UPDATE "
+            "SET docs = EXCLUDED.docs, source = EXCLUDED.source, updated = EXCLUDED.updated",
+            key, orjson.dumps(docs).decode(), source, now)
+    return {"docs": docs, "source": source}
+
+
 @app.get("/internal/count")
 async def internal_count(col: str, group_id: str = "", mode: str = ""):
     """Счётчики для серверной кухни (couple_stats.pb.js, insights_aggregate.py).
@@ -3268,7 +3404,7 @@ async def _startup():
     # «HTTP Request … 200 OK» забивал journald полумиллионом строк в час.
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
-    global pg, cent_client, push_client, pb_client, lite, lite_rw, auth_secret
+    global pg, cent_client, push_client, pb_client, wd_client, lite, lite_rw, auth_secret
     pg = await asyncpg.create_pool(PG_DSN, min_size=2, max_size=10)
     cent_client = httpx.AsyncClient(base_url=CENT_API, timeout=3.0)
     # Редкие записи уходят в PocketBase как есть. Таймаут щедрый: под
@@ -3276,6 +3412,8 @@ async def _startup():
     pb_client = httpx.AsyncClient(
         base_url=os.environ.get("PB_URL", "http://127.0.0.1:8090"), timeout=40.0)
     push_client = httpx.AsyncClient(timeout=10.0)
+    # Викиданные просят представиться: без своего User-Agent они режут запросы.
+    wd_client = httpx.AsyncClient(timeout=12.0, headers={"User-Agent": _WD_UA})
     # read-only к базе PocketBase: tokenKey, group_ids, members, presence, токены.
     lite = sqlite3.connect(f"file:{PB_DB}?mode=ro", uri=True, check_same_thread=False)
     lite.execute("PRAGMA busy_timeout=5000")
@@ -3304,6 +3442,7 @@ async def _shutdown():
     await pg.close()
     await cent_client.aclose()
     await push_client.aclose()
+    await wd_client.aclose()
     lite.close()
     lite_rw.close()
 
