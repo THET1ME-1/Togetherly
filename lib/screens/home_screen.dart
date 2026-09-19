@@ -88,6 +88,7 @@ import 'together/watch_home_screen.dart';
 import 'expandable_timer_card.dart';
 import 'chat_screen.dart';
 import 'love_test_screen.dart';
+import 'live_map_screen.dart';
 import 'memory_lane_screen.dart';
 import 'together/together_launcher.dart';
 import 'mini_mood_calendar.dart';
@@ -542,6 +543,16 @@ class _HomeScreenState extends State<HomeScreen> {
         _openMemoryLane();
       }
     }
+    // loveapp://map → карта «Где мы»: тап по виджету с картой. На холодном
+    // старте пара приезжает позже ссылки — тогда откроем, как только она
+    // появится (_onPairChanged).
+    else if (uri.host == 'map') {
+      if (mounted && _pairData.isPaired) {
+        _openLiveMapFromWidget();
+      } else {
+        _pendingMapOpen = true;
+      }
+    }
     // loveapp://mood?id=happy → отметить настроение с виджета-плиток.
     //
     // Так работают только виджеты iPhone: на Android отметка уходит фоновым
@@ -590,8 +601,30 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// Нажали на виджет «Где мы», а пара ещё не загрузилась.
+  bool _pendingMapOpen = false;
+
+  void _openLiveMapFromWidget() {
+    _pendingMapOpen = false;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LiveMapScreen(
+          pairId: _pairData.pairId,
+          partnerUid: _pairData.partnerUid,
+          partnerName: _pairData.partnerDisplayName,
+          partnerAvatarUrl: _pairData.partnerAvatarUrl,
+          myAvatarUrl: widget.userData.avatarUrl,
+          theme: _t,
+        ),
+        settings: const RouteSettings(name: '/live_map'),
+      ),
+    );
+  }
+
   void _onPairChanged() {
     if (!mounted) return;
+    if (_pendingMapOpen && _pairData.isPaired) _openLiveMapFromWidget();
     // Пара появилась или сменилась — присутствию нужен её канал. Вызов
     // идемпотентный: тот же groupId ничего не перезапускает.
     PresenceService().start(groupId: _pairData.pairId);
@@ -904,6 +937,7 @@ class _HomeScreenState extends State<HomeScreen> {
       systemTimer: _timerService.systemTimer,
       defaultTimer: _timerService.defaultTimer,
       memoriesCount: _recentMemories.length,
+      theme: _t,
     );
   }
 

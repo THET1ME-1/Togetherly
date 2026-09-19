@@ -40,6 +40,7 @@ import 'models/ios_widget_gaps.dart';
 import 'services/pb_auth_service.dart';
 import 'services/pb_data_service.dart';
 import 'services/home_widget_service.dart';
+import 'services/map/pair_map_widget_service.dart';
 import 'services/miss_you_repository.dart';
 import 'services/widget_background_refresh_service.dart';
 import 'services/offline/local_store.dart';
@@ -237,6 +238,29 @@ Future<void> _homeWidgetBackgroundCallback(Uri? uri) async {
       );
     } catch (e) {
       debugPrint('refresh from push failed: $e');
+    }
+    return;
+  }
+
+  // Виджет «Где мы» только что поставили или ему поменяли размер: картинку
+  // надо нарисовать под его ячейку сразу, а не через четверть часа.
+  if (host == 'mapwidget') {
+    try {
+      await PocketBaseService().init();
+      await LocaleService.instance.init();
+      final myUid = PocketBaseService().userId ?? '';
+      final groupId =
+          await HomeWidget.getWidgetData<String>('love_widget_group_id') ?? '';
+      final partnerUid =
+          await HomeWidget.getWidgetData<String>('love_widget_partner_uid') ??
+              '';
+      await PairMapWidgetService.instance.refreshInBackground(
+        groupId: groupId,
+        myUid: myUid,
+        partnerUid: partnerUid,
+      );
+    } catch (e) {
+      debugPrint('map widget from launcher failed: $e');
     }
     return;
   }

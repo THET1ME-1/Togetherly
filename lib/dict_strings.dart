@@ -3400,6 +3400,16 @@ abstract class DictStrings extends AppStrings {
   String get liveMapShowBoth => _t('liveMapShowBoth');
   @override
   String get liveMapNearby => _t('liveMapNearby');
+  String get mapWidgetCatalogSub => _t('mapWidgetCatalogSub');
+  String get mapWidgetNow => _t('mapWidgetNow');
+  String get mapWidgetPartnerHidden => _t('mapWidgetPartnerHidden');
+  String get mapWidgetWaitingShort => _t('mapWidgetWaitingShort');
+  String get mapWidgetShareMine => _t('mapWidgetShareMine');
+  String get mapWidgetShareMineShort => _t('mapWidgetShareMineShort');
+  String get mapWidgetNoPairTitle => _t('mapWidgetNoPairTitle');
+  String get mapWidgetNoPairSub => _t('mapWidgetNoPairSub');
+  String get mapWidgetNoPointsTitle => _t('mapWidgetNoPointsTitle');
+  String get mapWidgetNoPointsSub => _t('mapWidgetNoPointsSub');
   @override
   String get liveMapGlobe => _t('liveMapGlobe');
   @override

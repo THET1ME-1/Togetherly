@@ -511,6 +511,40 @@
                 android:resource="@xml/tg_together_4x4_info" />
         </receiver>
 
+        <!-- «Где мы»: карта на двоих в трёх размерах (19.09.2026) -->
+        <receiver android:name=".PairMapWidget2x2Provider"
+            android:exported="true"
+            android:label="Где мы · 2×2">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tg_map_2x2_info" />
+        </receiver>
+
+        <receiver android:name=".PairMapWidget4x2Provider"
+            android:exported="true"
+            android:label="Где мы · 4×2">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tg_map_4x2_info" />
+        </receiver>
+
+        <receiver android:name=".PairMapWidget4x4Provider"
+            android:exported="true"
+            android:label="Где мы · 4×4">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tg_map_4x4_info" />
+        </receiver>
+
         <!-- Новый каталог: «Кольцо года» в двух размерах -->
         <receiver android:name=".YearRingWidget2x2Provider"
             android:exported="true"

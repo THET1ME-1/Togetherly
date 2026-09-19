@@ -224,7 +224,8 @@ COLLECTIONS = {
         "update_owner_field": "user_uid",
         "channel": "loc",           # публикуем в loc:<channel>
         "guard": None, "delete_guard": None,
-        "after_create": None, "after_delete": None,
+        # Будим второго из пары: его виджет «Где мы» перерисуется.
+        "after_create": "location", "after_delete": None,
         "default_sort": "id ASC",
     },
     "canvas_meta": {
@@ -798,6 +799,11 @@ async def _wake_group(group_id: str, author_uid: str, kind: str = "widgets") -> 
     except Exception as e:
         log.warning("wake targets %s: %s", group_id, e)
         return
+    await _wake_targets(targets, kind)
+
+
+async def _wake_targets(targets: list[dict], kind: str = "widgets") -> None:
+    """Тихий пуш каждому из [targets], кого не будили последние 15 минут."""
     now_ms = int(time.time() * 1000)
     for t in targets:
         if not t["apns"] and not t["fcm"]:
@@ -830,6 +836,40 @@ async def _wake_group(group_id: str, author_uid: str, kind: str = "widgets") -> 
                 log.warning("fcm wake %s: %s", t["uid"], e)
         if woke:
             await asyncio.to_thread(_mark_woke, t["uid"], now_ms)
+
+
+def _второй_из_канала(канал: str, автор: str) -> str:
+    """Второй из пары по каналу точки `pair_<uid1>_<uid2>`; пусто — не знаем.
+
+    У `live_location` нет `group_id`: пара зашита в имени канала. Старые сборки
+    писали точку в канал с id группы — там партнёра не видно, и будить наугад
+    нельзя.
+    """
+    if not канал.startswith("pair_"):
+        return ""
+    части = канал[5:].split("_")
+    if len(части) != 2 or автор not in части:
+        return ""
+    return части[1] if части[0] == автор else части[0]
+
+
+async def _wake_channel(channel: str, author_uid: str) -> None:
+    """Точка на карте сдвинулась — будим второго из пары: виджет «Где мы» у
+    него перерисуется (19.09.2026). На iPhone другого способа поднять
+    приложение в фоне нет, на Android тот же пуш запускает обновление
+    виджетов. Частота — как у `_wake_group`: не чаще раза в 15 минут на
+    устройство и только тем, кто сейчас не в приложении."""
+    uid = _второй_из_канала(channel or "", author_uid or "")
+    if not uid:
+        return
+    try:
+        cand = await asyncio.to_thread(_push_candidates, "", "", [uid])
+        online = await _online_uids([t["uid"] for t in cand])
+        targets = [t for t in cand if t["uid"] not in online]
+    except Exception as e:
+        log.warning("wake channel %s: %s", channel, e)
+        return
+    await _wake_targets(targets, "widgets")
 
 
 # Вид уведомления → колонка выключателя в users. Пустое поле означает
@@ -981,6 +1021,8 @@ async def _after_create(col: str, rec: dict) -> None:
     elif kind == "widget":
         # Тихий пуш «обнови виджеты» — как wakeGroup в apns_push.js.
         await _wake_group(rec.get("group_id") or "", rec.get("user_uid") or "")
+    elif kind == "location":
+        await _wake_channel(rec.get("channel") or "", rec.get("user_uid") or "")
     elif kind == "mood":
         label = (rec.get("label") or "").strip()
         await _notify_group(
@@ -1013,6 +1055,12 @@ async def _after_update(col: str, rec: dict) -> None:
     # сейчас не в приложении.
     if kind == "widget":
         await _wake_group(rec.get("group_id") or "", rec.get("user_uid") or "")
+        return
+
+    # Точка на карте правит ту же запись каждые пару минут — будим второго
+    # из пары, частоту держит `_wake_targets`.
+    if kind == "location":
+        await _wake_channel(rec.get("channel") or "", rec.get("user_uid") or "")
         return
 
     if kind != "mood":

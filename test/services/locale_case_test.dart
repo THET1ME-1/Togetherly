@@ -39,6 +39,8 @@ const _lowercaseOnPurpose = <String>{
   // Мелкие метки состояния у сообщения, аватара, карточки.
   'chatEdited', 'chatOnline', 'chatTypingShort', 'isListening', 'justNow',
   'liveLocationJustNow', 'dragHint', 'tgMoodNotSet',
+  // Давность точки на виджете «Где мы»: «Аня · сейчас», как «12 мин. назад».
+  'mapWidgetNow',
   // Форматы полей ввода — образец, а не фраза.
   'dateFormatHint', 'timeFormatHint',
   // Бумажные открытки: билет, чек, телеграмма, посылка. Нижний регистр там

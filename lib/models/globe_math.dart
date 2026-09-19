@@ -13,6 +13,7 @@ class Vec3 {
   }
 
   double dot(Vec3 o) => x * o.x + y * o.y + z * o.z;
+  Vec3 cross(Vec3 o) => Vec3(y * o.z - z * o.y, z * o.x - x * o.z, x * o.y - y * o.x);
   Vec3 operator +(Vec3 o) => Vec3(x + o.x, y + o.y, z + o.z);
   Vec3 operator -(Vec3 o) => Vec3(x - o.x, y - o.y, z - o.z);
   Vec3 operator *(double k) => Vec3(x * k, y * k, z * k);
@@ -33,6 +34,11 @@ class GlobeBasis {
   final Vec3 c, e, n;
 
   GlobeBasis._(this.c, this.e, this.n);
+
+  /// Вид с произвольными осями: [c] — к смотрящему, [e] — вправо, [n] —
+  /// вверх (все единичные и взаимно перпендикулярные). Нужен виджету: шар
+  /// поворачивается так, чтобы пара легла по горизонтали.
+  factory GlobeBasis.axes(Vec3 c, Vec3 e, Vec3 n) => GlobeBasis._(c, e, n);
 
   factory GlobeBasis(double lat, double lon) {
     final la = lat * math.pi / 180, lo = lon * math.pi / 180;
@@ -194,15 +200,19 @@ class GlobeTarget {
 class GlobeFrame {
   final double lat, lon, radius, tilt;
   final Offset center;
+
+  /// Свои оси вида вместо «север вверх» (см. [GlobeBasis.axes]).
+  final GlobeBasis? axes;
   const GlobeFrame({
     required this.lat,
     required this.lon,
     required this.radius,
     required this.center,
     required this.tilt,
+    this.axes,
   });
 
-  GlobeBasis get basis => GlobeBasis(lat, lon);
+  GlobeBasis get basis => axes ?? GlobeBasis(lat, lon);
 }
 
 double _easeInOutCubic(double t) =>

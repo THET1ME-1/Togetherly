@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:characters/characters.dart';
 import 'package:flutter/foundation.dart';
 
@@ -5,7 +7,9 @@ import '../models/mood_entry.dart';
 import '../models/pair_data.dart';
 import '../models/timer_item.dart';
 import '../utils/couple_days.dart';
+import '../theme/app_theme.dart';
 import 'home_widget_service.dart';
+import 'map/pair_map_widget_service.dart';
 import 'mood_service.dart';
 import 'pb_data_service.dart';
 
@@ -54,7 +58,24 @@ class CatalogWidgetSync {
     TimerItem? systemTimer,
     TimerItem? defaultTimer,
     int memoriesCount = 0,
+    /// Тема приложения: картинка виджета «Где мы» рисуется её цветами.
+    AppTheme? theme,
   }) async {
+    // «Где мы» — при каждом входе в приложение. Служба сама решает, стоит ли
+    // рисовать: виджета нет или ничего не сдвинулось — не рисует. Не ждём её:
+    // карта качает плитки, а остальным виджетам ждать незачем.
+    if (theme != null) {
+      unawaited(PairMapWidgetService.instance.refreshFromApp(
+        groupId: pair.pairId,
+        myUid: myUid,
+        partnerUid: pair.partnerUid,
+        myName: myName,
+        partnerName: pair.partnerDisplayName,
+        myAvatarUrl: myAvatarUrl,
+        partnerAvatarUrl: pair.partnerAvatarUrl,
+        theme: theme,
+      ));
+    }
     try {
       final hws = HomeWidgetService.instance;
       final timer = defaultTimer ?? systemTimer;

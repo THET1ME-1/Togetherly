@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  «Где мы» 4x4. minWidth/minHeight — по формуле 70*n-30 (см. tg_ring_4x2_info).
+  Картинку перерисовывает приложение: при входе и раз в 15 минут в фоне, поэтому
+  своё расписание обновлений виджету не нужно — только редкий будильник на
+  случай, если приложение давно не открывали.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/tg_map"
+    android:previewImage="@drawable/tg_preview_map_4x4"
+    android:description="@string/tg_desc_map_4x4"
+    android:minWidth="250dp"
+    android:minHeight="250dp"
+    android:minResizeWidth="180dp"
+    android:minResizeHeight="180dp"
+    android:maxResizeWidth="624dp"
+    android:maxResizeHeight="624dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="4"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen" />

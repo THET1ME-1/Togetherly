@@ -44,6 +44,7 @@ struct TogetherlyWidgetBundle: WidgetBundle {
         MoodWidget()
         StreakWidget()
         RelationshipStatsWidget()
+        PairMapWidget()
     }
 
     @WidgetBundleBuilder

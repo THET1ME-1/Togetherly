@@ -22,7 +22,10 @@ import '../services/plus_service.dart';
 import '../services/ui_prefs.dart';
 import '../models/widget_panels.dart';
 import '../services/widget_theme_sync.dart';
+import '../models/pair_map_widget_view.dart';
 import '../models/year_ring_spec.dart';
+import '../services/map/pair_map_widget_service.dart';
+import '../widgets/map/pair_map_widget_preview.dart';
 import '../widgets/year_ring_card.dart';
 import 'plus_screen.dart';
 import '../utils/couple_days.dart';
@@ -1072,6 +1075,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           'miss' => 'miss',
           'year_ring' => 'year_ring',
           'year_grid' => 'year_grid',
+          'map' => 'map',
           // Парный виджет тоже помнит свою связь: до 04.09.2026 он один на все
           // пары показывал ту, что открыта в приложении последней. Ключ зовётся
           // по ТИПУ виджета (`pair_next_bind_group`) — его и ищет
@@ -1328,6 +1332,20 @@ class _WidgetScreenState extends State<WidgetScreen>
           memoriesLabel: LocaleService.current.memoriesStat,
           drawingsLabel: LocaleService.current.drawingsStat,
           missYouLabel: LocaleService.current.missYousStat,
+        );
+        break;
+      case 'map':
+        // Картинка нарисуется, когда виджет встанет на стол: лончер разбудит
+        // Dart. Здесь — имена, аватарки и тема для фоновой отрисовки.
+        await PairMapWidgetService.instance.refreshFromApp(
+          groupId: _pair.pairId,
+          myUid: widget.userData.uid,
+          partnerUid: _pair.partnerUid,
+          myName: widget.userData.displayName,
+          partnerName: _pair.partnerDisplayName,
+          myAvatarUrl: widget.userData.avatarUrl,
+          partnerAvatarUrl: _pair.partnerAvatarUrl,
+          theme: _t,
         );
         break;
       case 'year_ring':
@@ -1801,6 +1819,37 @@ class _WidgetScreenState extends State<WidgetScreen>
           ),
         ),
 
+        // ── «Где мы»: карта на двоих. Бесплатная, поэтому стоит над
+        // разделами: новый каталог закрыт Togetherly+, а на iPhone без покупки
+        // его не видно вовсе.
+        _buildGalleryItem(
+          title: LocaleService.current.liveMapTitle,
+          subtitle: LocaleService.current.mapWidgetCatalogSub,
+          svgString: _heartSvg,
+          qualifiedName: 'com.togetherly.love.${PairMapWidgetService.androidProviders[MapWidgetSize.m]}',
+          widgetType: 'map',
+          sizes: [
+            for (final (label, hint, kind) in [
+              ('2×2', _s.tgSizeHintCompact, MapWidgetSize.s),
+              ('4×2', _s.tgSizeHintWide, MapWidgetSize.m),
+              ('4×4', _s.tgSizeHintLarge, MapWidgetSize.l),
+            ])
+              _WidgetSizeOption(
+                label: label,
+                hint: hint,
+                qualifiedName: 'com.togetherly.love.${PairMapWidgetService.androidProviders[kind]}',
+                previewBuilder: () => PairMapWidgetPreview(
+                  key: ValueKey('map-preview-${kind.id}'),
+                  size: kind,
+                  theme: _t,
+                  groupId: _pair.pairId,
+                  myName: widget.userData.displayName,
+                  partnerName: _pair.partnerDisplayName,
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 14),
         // ── Нынешние виджеты: сворачиваются, чтобы не заслонять новый каталог ──
         _CollapsibleWidgetSection(
           cs: _cs,

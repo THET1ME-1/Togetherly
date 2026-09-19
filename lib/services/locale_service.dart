@@ -2319,6 +2319,16 @@ abstract class AppStrings {
   String get liveMapCenterMe;
   String get liveMapShowBoth;
   String get liveMapNearby;
+  String get mapWidgetCatalogSub;
+  String get mapWidgetNow;
+  String get mapWidgetPartnerHidden;
+  String get mapWidgetWaitingShort;
+  String get mapWidgetShareMine;
+  String get mapWidgetShareMineShort;
+  String get mapWidgetNoPairTitle;
+  String get mapWidgetNoPairSub;
+  String get mapWidgetNoPointsTitle;
+  String get mapWidgetNoPointsSub;
   String get liveMapGlobe;
   String get liveMapMapMode;
   String get liveMapZoomIn;

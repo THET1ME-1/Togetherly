@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Виджет «Где мы» (19.09.2026) — все три размера.
+
+  Картинку целиком рисует приложение (`pair_map_widget_service.dart`): карта в
+  цветах темы или глобус, шарики с аватарками, дуга и расстояние на ней. Здесь
+  она только показывается, растянутая с обрезкой краёв: Dart рисует под
+  пропорции ячейки, которые провайдер ему сообщает. Углы скругляет
+  `clipToOutline` по форме подложки.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/tg_shape_32"
+    android:clipToOutline="true">
+
+    <ImageView
+        android:id="@+id/map_image"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@string/tg_map_label"
+        android:scaleType="centerCrop"
+        android:src="@drawable/tg_preview_map_4x2" />
+</FrameLayout>

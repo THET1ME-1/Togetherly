@@ -24,4 +24,9 @@
     <string name="tg_desc_grid_2x2">Календарь лет: точка — месяц, ряд — год</string>
     <string name="tg_desc_grid_4x2">Календарь лет и обратный отсчёт до годовщины</string>
     <string name="tg_widget_no_start_date">Укажите дату начала</string>
+    <!-- Виджет «Где мы» (19.09.2026) -->
+    <string name="tg_map_label">Где мы — карта на двоих</string>
+    <string name="tg_desc_map_2x2">Вы двое и расстояние между вами</string>
+    <string name="tg_desc_map_4x2">Карта на двоих: дуга, расстояние и когда партнёр был на месте</string>
+    <string name="tg_desc_map_4x4">Карта с округой и кто где: районы и время</string>
 </resources>

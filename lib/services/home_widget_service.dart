@@ -33,6 +33,7 @@ import 'mood_repository.dart';
 import '../models/widget_data.dart';
 import 'locale_service.dart';
 import 'widget_theme_sync.dart';
+import 'map/pair_map_widget_service.dart';
 
 /// Сервис для синхронизации данных всех виджетов рабочего стола
 /// (кроме основного парного виджета [LoveWidgetProvider],
@@ -301,6 +302,18 @@ class HomeWidgetService {
       } catch (e) {
         debugPrint('HomeWidgetService.backgroundRefreshAll lock: $e');
       }
+    }
+    // «Где мы»: картинку карты перерисовываем раз в 15 минут (WorkManager) и
+    // по тихому пушу на iPhone. Служба сама решает, нужно ли: виджета нет или
+    // ничего не сдвинулось — не рисует.
+    try {
+      await PairMapWidgetService.instance.refreshInBackground(
+        groupId: groupId,
+        myUid: myUid,
+        partnerUid: partnerUid,
+      );
+    } catch (e) {
+      debugPrint('HomeWidgetService.backgroundRefreshAll map: $e');
     }
   }
 
