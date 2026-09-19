@@ -16,7 +16,6 @@ import '../theme/fonts.dart';
 import '../widgets/storage_image.dart';
 import '../utils/safe_text.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:file_picker/file_picker.dart';
 import '../utils/audio_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
@@ -96,6 +95,7 @@ import '../widgets/app_sheet.dart';
 import '../widgets/common/app_dialog.dart';
 import '../widgets/common/stable_stream_builder.dart';
 import '../widgets/memory_date_field.dart';
+import '../widgets/memory/add_memory_sheet.dart';
 import '../widgets/rating_widgets.dart';
 import '../services/movie_search_service.dart';
 import '../widgets/common/pin_entry_sheet.dart';
@@ -4623,232 +4623,27 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   // ═══════════════════════════════════════════════════
   //  ADD MEMORY
   // ═══════════════════════════════════════════════════
-  /// Лист «Добавить воспоминание»: шесть равных плиток вместо семи строк.
-  ///
-  /// Раньше у каждой строки был свой яркий цвет иконки (синий, розовый,
-  /// зелёный, красный) поверх темы пары — четыре чужих акцента на одном экране.
-  /// Теперь цвета берутся из ролей схемы и следуют за палитрой.
+  /// Лист «Добавить воспоминание»: главное и полка (макет А, 19.09.2026).
+  /// Раскладка и цвета живут в [AddMemorySheetBody], здесь только куда вести.
   void _showAddMemorySheet() {
     final cs = ProfileTheme.themeFor(widget.theme).colorScheme;
-    final s = LocaleService.current;
     showAppSheet<void>(
       context,
       background: cs.surfaceContainer,
       builder: (ctx) => Theme(
         data: ProfileTheme.data(cs),
         child: SheetScaffold(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                s.addMemoryTitle,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: ProfileTheme.displayFont,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: cs.onSurface,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                s.chooseWhatToShare,
-                style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant),
-              ),
-              const SizedBox(height: 18),
-              LayoutBuilder(builder: (ctx2, box) {
-                return GridView.count(
-                crossAxisCount: 3,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: _addTileRatio(ctx2, box.maxWidth),
-                children: [
-                  _addMemoryTile(
-                    cs: cs,
-                    icon: memoryTypeIcon(MemoryType.photo),
-                    label: s.photoVideoNote,
-                    box: cs.primaryContainer,
-                    onBox: cs.onPrimaryContainer,
-                    type: MemoryType.photo,
-                  ),
-                  _addMemoryTile(
-                    cs: cs,
-                    icon: Icons.link_rounded,
-                    label: s.videoLink,
-                    box: cs.secondaryContainer,
-                    onBox: cs.onSecondaryContainer,
-                    type: MemoryType.video,
-                  ),
-                  _addMemoryTile(
-                    cs: cs,
-                    icon: memoryTypeIcon(MemoryType.location),
-                    label: s.location,
-                    box: cs.tertiaryContainer,
-                    onBox: cs.onTertiaryContainer,
-                    type: MemoryType.location,
-                  ),
-                  _addMemoryTile(
-                    cs: cs,
-                    icon: memoryTypeIcon(MemoryType.music),
-                    label: s.music,
-                    box: cs.primaryContainer,
-                    onBox: cs.onPrimaryContainer,
-                    type: MemoryType.music,
-                  ),
-                  _addMemoryTile(
-                    cs: cs,
-                    icon: memoryTypeIcon(MemoryType.book),
-                    label: s.books,
-                    box: cs.secondaryContainer,
-                    onBox: cs.onSecondaryContainer,
-                    type: MemoryType.book,
-                  ),
-                  _addMemoryTile(
-                    cs: cs,
-                    icon: memoryTypeIcon(MemoryType.movie),
-                    label: s.movies,
-                    box: cs.tertiaryContainer,
-                    onBox: cs.onTertiaryContainer,
-                    type: MemoryType.movie,
-                  ),
-                ],
-                );
-              }),
-              const SizedBox(height: 14),
-              // Капсула — не «ещё один тип», а обещание на будущее, поэтому
-              // стоит отдельно тональной карточкой.
-              Material(
-                color: cs.primaryContainer,
-                borderRadius: BorderRadius.circular(24),
-                clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _openTimeCapsule();
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 14),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: cs.primary,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          alignment: Alignment.center,
-                          child: Icon(Icons.mail_rounded,
-                              size: 22, color: cs.onPrimary),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                s.timeCapsule,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                  color: cs.onPrimaryContainer,
-                                ),
-                              ),
-                              Text(
-                                s.capsuleAddSub,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: cs.onPrimaryContainer
-                                      .withValues(alpha: 0.8),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Icon(Icons.chevron_right_rounded,
-                            color: cs.onPrimaryContainer, size: 22),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Плитка типа записи в листе добавления.
-  /// Отношение сторон плитки в листе «Добавить воспоминание» с поправкой на
-  /// системный шрифт.
-  ///
-  /// Плитка — значок 46, отступ и подпись в две строки по 12 пунктов. Жёсткое
-  /// 0.92 держалось только при масштабе 1.0: на эмуляторе с `font_scale 1.3`
-  /// «Photo / Video / Note» и «Movies & series» распирали ячейку, и лист шёл
-  /// полосами «BOTTOM OVERFLOWED BY 15 PIXELS». Прежнее число осталось
-  /// потолком — при обычном шрифте сетка выглядит как раньше.
-  double _addTileRatio(BuildContext context, double gridWidth) {
-    final cell = (gridWidth - 12 * 2) / 3;
-    if (cell <= 0) return 0.92;
-    final label = MediaQuery.textScalerOf(context).scale(12) * 1.25 * 2;
-    // Два пикселя запаса: настоящая высота строки Onest чуть больше
-    // расчётной (height: 1.25), и на эмуляторе оставалась полоса в один
-    // пиксель — формула без запаса сходится впритык.
-    final fit = cell / (14 + 46 + 8 + label + 14 + 2);
-    return fit < 0.92 ? fit : 0.92;
-  }
-
-  Widget _addMemoryTile({
-    required ColorScheme cs,
-    required IconData icon,
-    required String label,
-    required Color box,
-    required Color onBox,
-    required MemoryType type,
-  }) {
-    return Material(
-      color: cs.surfaceContainerHigh,
-      borderRadius: BorderRadius.circular(24),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () {
-          Navigator.pop(context);
-          _openMemoryForm(type);
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: box,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                alignment: Alignment.center,
-                child: Icon(icon, size: 23, color: onBox),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                label,
-                maxLines: 2,
-                textAlign: TextAlign.center,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 1.25,
-                  fontWeight: FontWeight.w600,
-                  color: cs.onSurface,
-                ),
-              ),
-            ],
+          child: AddMemorySheetBody(
+            scheme: cs,
+            fill: widget.theme.fillColor,
+            onType: (type) {
+              Navigator.pop(ctx);
+              _openMemoryForm(type);
+            },
+            onCapsule: () {
+              Navigator.pop(ctx);
+              _openTimeCapsule();
+            },
           ),
         ),
       ),

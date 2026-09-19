@@ -102,11 +102,15 @@ void main() {
       }
     });
 
-    test('лист добавления воспоминания считает высоту плитки', () {
+    test('лист добавления воспоминания без заданного отношения сторон', () {
+      // С 19.09.2026 лист — полка в ряд, высоту задаёт подпись. Сетка с
+      // childAspectRatio резала подписи при шрифте 1.3; рендер на 320 dp
+      // держит test/widgets/add_memory_sheet_test.dart.
       final lane = File('lib/screens/memory_lane_screen.dart').readAsStringSync();
-      expect(lane.contains('childAspectRatio: 0.92,'), isFalse,
-          reason: 'жёсткое отношение сторон резало подписи при шрифте 1.3');
-      expect(lane.contains('_addTileRatio(ctx2, box.maxWidth)'), isTrue);
+      expect(lane.contains('AddMemorySheetBody('), isTrue);
+      final sheet =
+          File('lib/widgets/memory/add_memory_sheet.dart').readAsStringSync();
+      expect(sheet.contains('childAspectRatio'), isFalse);
     });
   });
 }

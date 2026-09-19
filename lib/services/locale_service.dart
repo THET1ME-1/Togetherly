@@ -1122,6 +1122,12 @@ abstract class AppStrings {
   String get saveChanges;
   String get addMemoryTitle;
   String get chooseWhatToShare;
+  String get addHeroTitle;
+  String get addHeroSub;
+  String get addShelfVideo;
+  String get addShelfPlace;
+  String get addShelfBook;
+  String get addShelfMovie;
   String newMemory(String type);
   String get memoryDetails;
   String get writeYourNote;

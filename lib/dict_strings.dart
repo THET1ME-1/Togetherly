@@ -1695,6 +1695,12 @@ abstract class DictStrings extends AppStrings {
   String get addMemoryTitle => _t('addMemoryTitle');
   @override
   String get chooseWhatToShare => _t('chooseWhatToShare');
+  String get addHeroTitle => _t('addHeroTitle');
+  String get addHeroSub => _t('addHeroSub');
+  String get addShelfVideo => _t('addShelfVideo');
+  String get addShelfPlace => _t('addShelfPlace');
+  String get addShelfBook => _t('addShelfBook');
+  String get addShelfMovie => _t('addShelfMovie');
   @override
   String get memoryDetails => _t('memoryDetails');
   @override
