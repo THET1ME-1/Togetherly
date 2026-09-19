@@ -5,12 +5,10 @@ class _MemoryDetailSheet extends StatefulWidget {
   final String groupId;
   final Color primary;
   final bool isOwner;
-  final bool canDownload;
   final Color typeColor;
   final double? userLat;
   final double? userLng;
   final VoidCallback onTogglePin;
-  final VoidCallback onDownload;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback? onSetLocation;
@@ -23,12 +21,10 @@ class _MemoryDetailSheet extends StatefulWidget {
     required this.groupId,
     required this.primary,
     required this.isOwner,
-    required this.canDownload,
     required this.typeColor,
     this.userLat,
     this.userLng,
     required this.onTogglePin,
-    required this.onDownload,
     required this.onEdit,
     required this.onDelete,
     this.onSetLocation,
@@ -46,9 +42,17 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
   late final Animation<double> _fadeAnim;
   late final Animation<Offset> _slideAnim;
 
+  /// Файлы записи, которые можно положить в галерею (см. memory_media.dart).
+  late final List<MediaFile> _files = memoryMediaFiles(widget.memory);
+
   @override
   void initState() {
     super.initState();
+    // Журнал «уже в галерее» читается с диска: пока он не прочитан, кнопка
+    // показала бы все 94 файла как несохранённые.
+    SavedMediaLedger.instance.load().then((_) {
+      if (mounted) setState(() {});
+    });
     _animCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
@@ -132,13 +136,15 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                     child: Row(
                       children: [
                         _typePill(memory, cs, glass: _hasHero),
-                        const SizedBox(width: 8),
-                        _circleOverlay(
-                          cs,
-                          icon: Icons.more_vert_rounded,
-                          onTap: () => _showMoreMenu(memory, cs),
-                          glass: _hasHero,
-                        ),
+                        if (_menuActions(memory).isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          _circleOverlay(
+                            cs,
+                            icon: Icons.more_vert_rounded,
+                            onTap: () => _showMoreMenu(memory, cs),
+                            glass: _hasHero,
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -224,6 +230,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
               .map((url) => GalleryItem(url: url, memoryId: memory.id))
               .toList(),
           initialIndex: 0,
+          memoryOf: (_) => memory,
         ),
       ),
     );
@@ -504,64 +511,171 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
 
   // ── Действия ──────────────────────────────────────────────────────────────
 
-  /// Панель внизу: одно главное действие таблеткой и два круглых рядом.
+  /// Панель внизу: «Закрепить» таблеткой и разделённая кнопка сохранения.
   /// Удаление сюда не входит — оно живёт в меню: раньше оно стояло вплотную к
-  /// «Редактировать» и отличалось только цветом слова.
+  /// «Редактировать» и отличалось только цветом слова. «Изменить» остаётся
+  /// в панели только на широком экране: рядом с разделённой кнопкой на 360 dp
+  /// ему нет места, а в меню «три точки» он есть всегда.
   Widget _buildActionBar(Memory memory, ColorScheme cs) {
     final media = MediaQuery.of(context);
+    final link = memoryExternalLink(memory);
     return Container(
       decoration: BoxDecoration(color: cs.surfaceContainerLow),
       padding: EdgeInsets.fromLTRB(16, 12, 16, media.padding.bottom + 16),
-      child: Row(
-        children: [
-          Expanded(
-            child: FilledButton.icon(
-              onPressed: () {
-                Navigator.pop(context);
-                widget.onTogglePin();
-              },
-              icon: Icon(
-                memory.isPinned
-                    ? Icons.push_pin_rounded
-                    : Icons.push_pin_outlined,
-                size: 21,
-              ),
-              label: Text(
-                memory.isPinned
-                    ? LocaleService.current.unpinMemory
-                    : LocaleService.current.pinMemory,
-              ),
-              style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(54),
+      child: LayoutBuilder(builder: (context, box) {
+        final roomForEdit = widget.isOwner && box.maxWidth >= 400;
+        return Row(
+          children: [
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  widget.onTogglePin();
+                },
+                icon: Icon(
+                  memory.isPinned
+                      ? Icons.push_pin_rounded
+                      : Icons.push_pin_outlined,
+                  size: 21,
+                ),
+                label: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    memory.isPinned
+                        ? LocaleService.current.unpinMemory
+                        : LocaleService.current.pinMemory,
+                    maxLines: 1,
+                  ),
+                ),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(54),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                ),
               ),
             ),
+            if (_files.isNotEmpty) ...[
+              const SizedBox(width: 10),
+              _saveButton(memory),
+            ] else if (link != null) ...[
+              const SizedBox(width: 10),
+              _roundAction(
+                cs,
+                icon: Icons.open_in_new_rounded,
+                tooltip: trKey('menuOpenLink'),
+                onTap: () => safeLaunchUrl(Uri.parse(link),
+                    mode: LaunchMode.externalApplication),
+              ),
+            ],
+            if (roomForEdit) ...[
+              const SizedBox(width: 10),
+              _roundAction(
+                cs,
+                icon: Icons.edit_rounded,
+                tooltip: LocaleService.current.editMemory,
+                onTap: () {
+                  Navigator.pop(context);
+                  widget.onEdit();
+                },
+              ),
+            ],
+          ],
+        );
+      }),
+    );
+  }
+
+  /// Разделённая кнопка: слушает очередь и журнал, поэтому ход сохранения и
+  /// «уже в галерее» видны сразу, даже если сохранение начато из меню.
+  Widget _saveButton(Memory memory) {
+    final queue = MediaSaveQueue.instance;
+    final ledger = SavedMediaLedger.instance;
+    return AnimatedBuilder(
+      animation: Listenable.merge([queue, ledger]),
+      builder: (context, _) {
+        final job = queue.activeFor(memory.id);
+        final progress = queue.progressFor(memory.id);
+        return SaveSplitButton(
+          state: saveButtonState(
+            total: _files.length,
+            saved: ledger.countSaved(_files),
+            done: progress?.$1,
+            jobTotal: progress?.$2,
           ),
-          if (widget.canDownload) ...[
-            const SizedBox(width: 10),
-            _roundAction(
-              cs,
-              icon: Icons.download_rounded,
-              tooltip: LocaleService.current.saveToDevice,
-              onTap: () {
-                Navigator.pop(context);
-                widget.onDownload();
-              },
-            ),
-          ],
-          if (widget.isOwner) ...[
-            const SizedBox(width: 10),
-            _roundAction(
-              cs,
-              icon: Icons.edit_rounded,
-              tooltip: LocaleService.current.editMemory,
-              onTap: () {
-                Navigator.pop(context);
-                widget.onEdit();
-              },
-            ),
-          ],
-        ],
-      ),
+          onSaveAll: () => _saveFiles(memory, _files),
+          onChoose: () => _chooseWhatToSave(memory),
+          onCancel: () {
+            if (job != null) queue.cancel(job.id);
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _saveFiles(Memory memory, List<MediaFile> files) async {
+    if (files.isEmpty) return;
+    await saveToGallery(
+      context,
+      title: memorySaveTitle(memory),
+      items: [for (final f in files) SaveItem.of(memory, f)],
+      adult: memory.isAdult,
+    );
+  }
+
+  Future<void> _chooseWhatToSave(Memory memory) async {
+    final choice = await showSaveOptionsSheet(
+      context,
+      scheme: _cs,
+      files: _files,
+      title: memorySaveTitle(memory),
+      takenAt: memory.createdAt,
+    );
+    if (choice == null || !mounted) return;
+    switch (choice) {
+      case SaveChoice.all:
+        await _saveFiles(memory, _files);
+      case SaveChoice.photos:
+        await _saveFiles(
+            memory, [for (final f in _files) if (f.kind == SaveKind.photo) f]);
+      case SaveChoice.videos:
+        await _saveFiles(
+            memory, [for (final f in _files) if (f.kind == SaveKind.video) f]);
+      case SaveChoice.cover:
+        await _saveFiles(memory, [
+          _files.firstWhere((f) => f.kind == SaveKind.photo,
+              orElse: () => _files.first),
+        ]);
+      case SaveChoice.pick:
+        await _pickFrames(memory);
+    }
+  }
+
+  Future<void> _pickFrames(Memory memory) async {
+    final picked = await showFramePicker(context, files: _files, scheme: _cs);
+    if (picked == null || picked.files.isEmpty || !mounted) return;
+    if (picked.share) {
+      await shareMemoryMedia(
+        context,
+        files: picked.files,
+        takenAt: memory.createdAt,
+      );
+    } else {
+      await _saveFiles(memory, picked.files);
+    }
+  }
+
+  /// «Отправить»: до десяти файлов уходят сразу, больше — через выбор кадров,
+  /// иначе в мессенджер поехали бы все 94 и 35 мегабайт разом.
+  Future<void> _shareFiles(Memory memory) async {
+    if (_files.length > 10) {
+      await _pickFrames(memory);
+      return;
+    }
+    final caption = memory.caption?.trim();
+    await shareMemoryMedia(
+      context,
+      files: _files,
+      takenAt: memory.createdAt,
+      text: (caption == null || caption.isEmpty) ? null : caption,
     );
   }
 
@@ -589,87 +703,281 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
     );
   }
 
-  /// Редкое и опасное: сменить место и удалить. У чужой записи меню не
-  /// открывается вовсе — раньше «Редактировать» и «Удалить» показывались всем,
-  /// а отказ приходил уже от сервера.
+  bool get _canSetPlace {
+    final m = widget.memory;
+    return widget.onSetLocation != null &&
+        m.type != MemoryType.location &&
+        m.latitude == null &&
+        m.longitude == null &&
+        (m.locationName?.isEmpty ?? true);
+  }
+
+  List<MemoryMenuAction> _menuActions(Memory memory) => memoryMenuActions(
+        memory,
+        isOwner: widget.isOwner,
+        canSetPlace: _canSetPlace,
+      );
+
+  /// Меню «три точки». До 19.09.2026 в нём было два пункта, и у чужой записи
+  /// с отмеченным местом оно не открывалось вовсе — «декорация». Теперь пункты
+  /// считает [memoryMenuActions], а кнопку без пунктов лист не показывает.
   void _showMoreMenu(Memory memory, ColorScheme cs) {
-    final canSetPlace = widget.onSetLocation != null &&
-        memory.type != MemoryType.location &&
-        memory.latitude == null &&
-        memory.longitude == null &&
-        (memory.locationName?.isEmpty ?? true);
-    if (!widget.isOwner && !canSetPlace) return;
+    final actions = _menuActions(memory);
+    if (actions.isEmpty) return;
+    final summary = summarizeMedia(_files);
+    final counts = [
+      if (summary.photos > 0)
+        trKey('saveCountPhotos').replaceAll('{n}', '${summary.photos}'),
+      if (summary.videos > 0)
+        trKey('saveCountVideos').replaceAll('{n}', '${summary.videos}'),
+      if (summary.audio > 0)
+        trKey('saveCountAudio').replaceAll('{n}', '${summary.audio}'),
+      if (summary.total > 0)
+        trKey('saveApproxMb').replaceAll('{n}', '${summary.megabytes}'),
+    ].join(' · ');
+    final thumb = _files.isNotEmpty ? (_files.first.thumb ?? _files.first.ref) : null;
 
     showAppSheet<void>(
       context,
-      background: cs.surfaceContainer,
-      builder: (ctx) => Theme(
-        data: ProfileTheme.data(cs),
-        child: SheetScaffold(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (canSetPlace)
-                  _menuRow(
-                    cs,
-                    icon: Icons.add_location_alt_rounded,
-                    title: LocaleService.current.selectLocation,
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      Navigator.pop(context);
-                      widget.onSetLocation!();
-                    },
+      background: cs.surfaceContainerLow,
+      builder: (ctx) {
+        void close() => Navigator.pop(ctx);
+        Widget tile(MemoryMenuAction a) {
+          switch (a) {
+            case MemoryMenuAction.saveAll:
+              return _menuTile(cs,
+                  icon: Icons.download_rounded,
+                  title: trKey('menuSaveAll'),
+                  sub: counts,
+                  accent: true,
+                  trailing: '${_files.length}', onTap: () {
+                close();
+                _saveFiles(memory, _files);
+              });
+            case MemoryMenuAction.pick:
+              return _menuTile(cs,
+                  icon: Icons.checklist_rounded,
+                  title: trKey('saveOptPick'),
+                  sub: trKey('menuPickSub'), onTap: () {
+                close();
+                _pickFrames(memory);
+              });
+            case MemoryMenuAction.share:
+              return _menuTile(cs,
+                  icon: Icons.ios_share_rounded,
+                  title: trKey('menuShare'),
+                  sub: trKey('menuShareSub'), onTap: () {
+                close();
+                _shareFiles(memory);
+              });
+            case MemoryMenuAction.openLink:
+              return _menuTile(cs,
+                  icon: Icons.open_in_new_rounded,
+                  title: trKey('menuOpenLink'), onTap: () {
+                close();
+                safeLaunchUrl(Uri.parse(memoryExternalLink(memory)!),
+                    mode: LaunchMode.externalApplication);
+              });
+            case MemoryMenuAction.copyCaption:
+              final caption = memory.caption!.trim();
+              return _menuTile(cs,
+                  icon: Icons.content_copy_rounded,
+                  title: trKey('menuCopyCaption'),
+                  sub: caption.length > 40
+                      ? '«${caption.substring(0, 39)}…»'
+                      : '«$caption»', onTap: () {
+                close();
+                Clipboard.setData(ClipboardData(text: caption));
+                showFloatingNote(context, trKey('menuCaptionCopied'));
+              });
+            case MemoryMenuAction.openMap:
+              return _menuTile(cs,
+                  icon: Icons.map_rounded,
+                  title: trKey('menuOpenMap'),
+                  sub: memory.locationName ?? '', onTap: () {
+                close();
+                _showMapsPickerSheet(context, memory.latitude!,
+                    memory.longitude!, memory.locationName);
+              });
+            case MemoryMenuAction.setPlace:
+              return _menuTile(cs,
+                  icon: Icons.add_location_alt_rounded,
+                  title: LocaleService.current.selectLocation, onTap: () {
+                close();
+                Navigator.pop(context);
+                widget.onSetLocation!();
+              });
+            case MemoryMenuAction.edit:
+              return _menuTile(cs,
+                  icon: Icons.edit_rounded,
+                  title: LocaleService.current.editMemory, onTap: () {
+                close();
+                Navigator.pop(context);
+                widget.onEdit();
+              });
+            case MemoryMenuAction.delete:
+              return _menuTile(cs,
+                  icon: Icons.delete_outline_rounded,
+                  title: LocaleService.current.deleteMemory,
+                  danger: true, onTap: () {
+                close();
+                Navigator.pop(context);
+                widget.onDelete();
+              });
+          }
+        }
+
+        final tiles = [for (final a in actions) tile(a)];
+        return Theme(
+          data: ProfileTheme.data(cs),
+          child: SheetScaffold(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      if (thumb != null) ...[
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          child: SizedBox(
+                            width: 52,
+                            height: 52,
+                            child: StorageImage(
+                              imageUrl: thumb,
+                              fit: BoxFit.cover,
+                              memCacheWidth: 160,
+                              errorWidget: (_, _, _) =>
+                                  ColoredBox(color: cs.surfaceContainerHigh),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                      ],
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              memorySaveTitle(memory),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontFamily: 'Unbounded',
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: cs.onSurface,
+                              ),
+                            ),
+                            Text(
+                              '${memory.authorName} · ${memoryDateLabel(memory.createdAt)}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontFamily: 'Onest',
+                                fontSize: 12.5,
+                                color: cs.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                if (widget.isOwner)
-                  _menuRow(
-                    cs,
-                    icon: Icons.delete_outline_rounded,
-                    title: LocaleService.current.deleteMemory,
-                    danger: true,
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      Navigator.pop(context);
-                      widget.onDelete();
-                    },
-                  ),
-              ],
+                  const SizedBox(height: 12),
+                  for (var i = 0; i < tiles.length; i++) ...[
+                    if (i > 0) const SizedBox(height: 3),
+                    ClipRRect(
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(i == 0 ? 18 : 6),
+                        bottom: Radius.circular(i == tiles.length - 1 ? 18 : 6),
+                      ),
+                      child: tiles[i],
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
-  Widget _menuRow(
+  Widget _menuTile(
     ColorScheme cs, {
     required IconData icon,
     required String title,
     required VoidCallback onTap,
+    String sub = '',
+    String? trailing,
+    bool accent = false,
     bool danger = false,
   }) {
-    final fg = danger ? cs.error : cs.onSurface;
+    final chipBg = danger
+        ? cs.errorContainer
+        : accent
+            ? cs.primary
+            : cs.secondaryContainer;
+    final chipFg = danger
+        ? cs.onErrorContainer
+        : accent
+            ? cs.onPrimary
+            : cs.onSecondaryContainer;
     return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(20),
-      clipBehavior: Clip.antiAlias,
+      color: accent ? cs.primaryContainer : cs.surfaceContainerHigh,
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          padding: const EdgeInsets.fromLTRB(12, 11, 16, 11),
           child: Row(
             children: [
-              Icon(icon, size: 22, color: danger ? cs.error : cs.onSurfaceVariant),
-              const SizedBox(width: 14),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: fg,
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(color: chipBg, shape: BoxShape.circle),
+                child: Icon(icon, size: 20, color: chipFg),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontFamily: 'Onest',
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: danger ? cs.error : cs.onSurface,
+                      ),
+                    ),
+                    if (sub.isNotEmpty)
+                      Text(
+                        sub,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'Onest',
+                          fontSize: 12.5,
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                  ],
                 ),
               ),
+              if (trailing != null)
+                Text(
+                  trailing,
+                  style: TextStyle(
+                    fontFamily: 'Unbounded',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
             ],
           ),
         ),
@@ -732,8 +1040,11 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
         PageRouteBuilder(
           opaque: false,
           barrierColor: Colors.black,
-          pageBuilder: (_, __, ___) =>
-              FullscreenGallery(items: galleryItems, initialIndex: i),
+          pageBuilder: (_, __, ___) => FullscreenGallery(
+            items: galleryItems,
+            initialIndex: i,
+            memoryOf: (_) => memory,
+          ),
         ),
       );
     }

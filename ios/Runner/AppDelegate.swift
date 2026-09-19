@@ -587,14 +587,18 @@ enum GallerySaver {
     let full = PHPhotoLibrary.authorizationStatus(for: .readWrite)
     switch full {
     case .notDetermined:
-      PHPhotoLibrary.requestAuthorization(for: .readWrite) { done($0) }
+      // Ответ приходит на чужом потоке — возвращаемся в свою очередь, иначе
+      // три первых кадра разом завели бы три альбома.
+      PHPhotoLibrary.requestAuthorization(for: .readWrite) { status in
+        queue.async { done(status) }
+      }
     case .authorized, .limited:
       done(full)
     default:
       let add = PHPhotoLibrary.authorizationStatus(for: .addOnly)
       if add == .notDetermined {
         PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
-          done(status == .authorized ? .limited : status)
+          queue.async { done(status == .authorized ? .limited : status) }
         }
       } else {
         done(add == .authorized ? .limited : add)

@@ -78,8 +78,18 @@ List<SaveItem> _items(int n, {String memoryId = 'm1'}) => [
     ];
 
 Future<void> _settle(MediaSaveQueue q) async {
-  for (var i = 0; i < 200 && q.busy; i++) {
-    await Future<void>.delayed(Duration.zero);
+  for (var i = 0; i < 2000 && q.busy; i++) {
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+  }
+}
+
+/// Отпускать задержанные загрузки, пока очередь не опустеет: новые ожидания
+/// появляются по мере того, как освобождаются места, и под нагрузкой полного
+/// прогона их выпуск растягивается.
+Future<void> _drain(MediaSaveQueue q, _Fetcher f) async {
+  for (var i = 0; i < 2000 && q.busy; i++) {
+    f.releaseAll();
+    await Future<void>.delayed(const Duration(milliseconds: 1));
   }
 }
 
@@ -123,13 +133,7 @@ void main() {
     await q.enqueue('много', _items(10));
     await Future<void>.delayed(Duration.zero);
     expect(f.running, 3);
-    f.releaseAll();
-    // Выпускаем по мере появления новых ожиданий.
-    for (var i = 0; i < 20 && q.busy; i++) {
-      await Future<void>.delayed(Duration.zero);
-      f.releaseAll();
-    }
-    await _settle(q);
+    await _drain(q, f);
     expect(f.maxRunning, 3);
     expect(q.lastFinished!.done, 10);
   });
@@ -209,11 +213,24 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     expect(q.activeFor('b')!.title, 'b');
     expect(q.activeFor('c'), isNull);
-    f.releaseAll();
-    for (var i = 0; i < 20 && q.busy; i++) {
-      await Future<void>.delayed(Duration.zero);
-      f.releaseAll();
-    }
+    await _drain(q, f);
+  });
+
+  test('ход по одной записи внутри общего задания и признак «в очереди»',
+      () async {
+    final f = _Fetcher()..holdAll = true;
+    final q = queue(f, _Gallery());
+    await q.enqueue('два воспоминания', [
+      ..._items(3, memoryId: 'a'),
+      ..._items(2, memoryId: 'b'),
+    ]);
+    await Future<void>.delayed(Duration.zero);
+    expect(q.progressFor('b'), (0, 2));
+    expect(q.isQueued('pb://media/b/f1.webp'), isTrue);
+    expect(q.isQueued('pb://media/c/f1.webp'), isFalse);
+    await _drain(q, f);
+    expect(q.progressFor('b'), isNull);
+    expect(q.isQueued('pb://media/b/f1.webp'), isFalse);
   });
 
   test('недоделанное задание переживает перезапуск приложения', () async {

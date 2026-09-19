@@ -61,12 +61,21 @@ void main() {
     expect(a, contains(MemoryMenuAction.share));
   });
 
-  test('своя запись без места: указать место и удалить', () {
+  test('своя запись без места: указать место, изменить и удалить', () {
     final a = memoryMenuActions(_m(imageUrls: ['pb://media/a/1.webp']),
         isOwner: true, canSetPlace: true);
-    expect(a, containsAllInOrder(
-        [MemoryMenuAction.setPlace, MemoryMenuAction.delete]));
+    expect(a, containsAllInOrder([
+      MemoryMenuAction.setPlace,
+      MemoryMenuAction.edit,
+      MemoryMenuAction.delete,
+    ]));
     expect(a.last, MemoryMenuAction.delete);
+  });
+
+  test('«Изменить» только у своей записи', () {
+    final a = memoryMenuActions(_m(imageUrls: ['pb://media/a/1.webp']),
+        isOwner: false, canSetPlace: false);
+    expect(a, isNot(contains(MemoryMenuAction.edit)));
   });
 
   test('ролик по ссылке: открыть ссылку вместо сохранения', () {

@@ -61,6 +61,18 @@ void main() {
     }
   });
 
+  test('Android сам говорит, нужен ли доступ: с десятой версии — нет', () {
+    // gal на Android 10 просит WRITE_EXTERNAL_STORAGE, а оно в манифесте
+    // только до Android 9: спроси мы через него, система отказала бы сразу.
+    expect(dart, contains("invokeMethod<bool>('hasAccess')"));
+    expect(kotlin, contains('"hasAccess" ->'));
+    expect(kotlin, contains('Build.VERSION_CODES.Q'));
+    final manifest =
+        _read('android/app/src/main/AndroidManifest.xml');
+    expect(manifest,
+        contains('WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"'));
+  });
+
   test('отказ в доступе называется одинаково', () {
     expect(GalleryWriter.accessDeniedCode, 'ACCESS_DENIED');
     expect(kotlin, contains('const val ACCESS_DENIED = "ACCESS_DENIED"'));

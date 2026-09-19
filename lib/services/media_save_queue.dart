@@ -244,6 +244,25 @@ class MediaSaveQueue extends ChangeNotifier {
     return null;
   }
 
+  /// Сколько файлов этого воспоминания готово из скольких — для разделённой
+  /// кнопки, когда воспоминание едет в галерею внутри общего задания (выбор
+  /// нескольких записей, вся пара). null — ничего не идёт.
+  (int, int)? progressFor(String memoryId) {
+    var done = 0, total = 0;
+    for (final j in _jobs) {
+      if (j.finished || j.cancelled) continue;
+      for (var i = 0; i < j.items.length; i++) {
+        if (j.items[i].memoryId != memoryId) continue;
+        total++;
+        if (j.isDoneAt(i)) done++;
+      }
+    }
+    return total == 0 ? null : (done, total);
+  }
+
+  /// Файл ждёт или едет в галерею прямо сейчас.
+  bool isQueued(String key) => _queuedKeys.contains(mediaKey(key));
+
   Set<String> get _queuedKeys => {
         for (final j in _jobs)
           if (!j.finished && !j.cancelled)

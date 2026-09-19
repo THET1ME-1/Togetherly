@@ -1,17 +1,25 @@
 import 'dart:io';
 import 'dart:ui' show Rect;
+
 import 'package:archive/archive_io.dart';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../models/memory.dart';
+import '../models/memory_archive.dart';
 import '../models/timer_item.dart';
 import '../models/user_data.dart';
+import 'media_fetcher.dart';
 import 'pb_data_service.dart';
-import 'pb_media_service.dart';
 
+/// Архив воспоминаний пары из профиля: `Timers.txt`, `Memories.txt` и все
+/// файлы записей по месяцам.
+///
+/// До 19.09.2026 архив собирался целиком в памяти, брал по одному кадру с
+/// записи, пропускал видео и портил русский текст. Теперь файлы берутся тем же
+/// правилом, что у сохранения в галерею, ZIP пишется потоком на диск (у самой
+/// активной пары это около 170 МБ), а текст — в UTF-8.
 class ExportService {
   Future<void> exportMemories({
     required String groupId,
@@ -22,99 +30,58 @@ class ExportService {
     Rect? sharePositionOrigin,
   }) async {
     try {
-      final archive = Archive();
+      final tempDir = await getTemporaryDirectory();
+      final zipPath =
+          '${tempDir.path}/Togetherly_${DateTime.now().millisecondsSinceEpoch}.zip';
+      final zip = ZipFileEncoder()..create(zipPath);
 
-      // 1. Compile Timers.txt
-      final timerBuffer = StringBuffer();
-      timerBuffer.writeln('=== ТАЙМЕРЫ ===');
+      // 1. Таймеры. Символ в текстовую выгрузку не пишем: с версии 1.20 там
+      //    лежит имя значка (`favorite`), а не эмодзи.
+      final timerBuffer = StringBuffer()..writeln('=== ТАЙМЕРЫ ===');
       for (final t in timers) {
-        // Символ в текстовую выгрузку не пишем: с версии 1.20 там лежит имя
-        // значка (`favorite`), а не эмодзи, и в архиве оно выглядело бы мусором.
-        timerBuffer.writeln(t.title);
-        timerBuffer.writeln('Начало: ${t.formattedStartDate}');
-        timerBuffer.writeln('Прошло: ${t.daysElapsed} дней');
-        timerBuffer.writeln('--------------------');
+        timerBuffer
+          ..writeln(t.title)
+          ..writeln('Начало: ${t.formattedStartDate}')
+          ..writeln('Прошло: ${t.daysElapsed} дней')
+          ..writeln('--------------------');
       }
-      final timerBytes = timerBuffer.toString().codeUnits;
-      archive.addFile(ArchiveFile('Timers.txt', timerBytes.length, timerBytes));
+      final timerBytes = archiveText(timerBuffer.toString());
+      zip.addArchiveFile(ArchiveFile('Timers.txt', timerBytes.length, timerBytes));
 
-      // 2. Fetch Memories from PocketBase (лента новые-сверху → разворачиваем
-      //    в хронологический порядок для архива).
+      // 2. Воспоминания в хронологическом порядке (лента идёт новые сверху).
       final recs = await PbDataService().loadMemories(groupId, limit: 100000);
       final memories = recs.reversed.map((r) => Memory.fromPb(r)).toList();
+      final entries = archiveEntries(memories);
 
-      // 3. Compile Memories.txt and download photos
-      final memoryBuffer = StringBuffer();
-      memoryBuffer.writeln('=== ВОСПОМИНАНИЯ (MEMORY LANE) ===');
-
-      int photoCounter = 1;
-      for (final m in memories) {
-        final dateStr =
-            '${m.createdAt.day.toString().padLeft(2, '0')}.${m.createdAt.month.toString().padLeft(2, '0')}.${m.createdAt.year}';
-
-        memoryBuffer.writeln(
-          '[${m.typeEmoji} ${m.typeLabel}] $dateStr — ${m.authorName}',
-        );
-        if (m.title != null && m.title!.isNotEmpty) {
-          memoryBuffer.writeln('Название: ${m.title}');
-        }
-        if (m.caption != null && m.caption!.isNotEmpty) {
-          memoryBuffer.writeln('Заметка: ${m.caption}');
-        }
-        if (m.locationName != null && m.locationName!.isNotEmpty) {
-          memoryBuffer.writeln('Место: ${m.locationName}');
-        }
-
-        // Try downloading photo if it exists (pb:// резолвим в HTTPS с токеном).
-        var imageUrl = m.imageUrl;
-        if (imageUrl != null && PbMediaService().isPbRef(imageUrl)) {
-          imageUrl = await PbMediaService().resolveUrlAuthed(imageUrl);
-        }
-        if (imageUrl != null &&
-            imageUrl.isNotEmpty &&
-            imageUrl.startsWith('http')) {
-          try {
-            final response = await http
-                .get(Uri.parse(imageUrl))
-                .timeout(const Duration(seconds: 15));
-            if (response.statusCode == 200) {
-              final photoName =
-                  'Photos/${m.createdAt.year}_${m.createdAt.month.toString().padLeft(2, '0')}_${m.createdAt.day.toString().padLeft(2, '0')}_Photo_$photoCounter.jpg';
-              archive.addFile(
-                ArchiveFile(
-                  photoName,
-                  response.bodyBytes.length,
-                  response.bodyBytes,
-                ),
-              );
-              memoryBuffer.writeln('Фото сохранено как: $photoName');
-              photoCounter++;
-            }
-          } catch (e) {
-            debugPrint('Failed to download image ${m.imageUrl}: $e');
-            memoryBuffer.writeln('Фото: ${m.imageUrl}'); // fallback
+      // 3. Файлы — по одному, чтобы в памяти не лежало больше одного.
+      final fetcher = HttpMediaFetcher();
+      final missing = <String>{};
+      for (final e in entries) {
+        try {
+          final got = await fetcher.fetch(e.file);
+          await zip.addFile(got.file, e.path);
+          if (got.temporary) {
+            try {
+              await got.file.delete();
+            } catch (_) {}
           }
+        } catch (err) {
+          debugPrint('Export: ${e.file.key} не скачался: $err');
+          missing.add(e.path);
         }
-        memoryBuffer.writeln('--------------------');
       }
-      final memoryBytes = memoryBuffer.toString().codeUnits;
-      archive.addFile(
-        ArchiveFile('Memories.txt', memoryBytes.length, memoryBytes),
+
+      final text = memoriesText(
+        memories,
+        [for (final e in entries) if (!missing.contains(e.path)) e],
       );
+      final memoryBytes = archiveText(text);
+      zip.addArchiveFile(
+          ArchiveFile('Memories.txt', memoryBytes.length, memoryBytes));
+      await zip.close();
 
-      // 4. Save ZIP and Share
-      final encoder = ZipEncoder();
-      final zipData = encoder.encode(archive);
-
-      final tempDir = await getTemporaryDirectory();
-      final zipFile = File(
-        '${tempDir.path}/LoveApp_Export_${DateTime.now().millisecondsSinceEpoch}.zip',
-      );
-      await zipFile.writeAsBytes(zipData);
-
-      // Share
       await Share.shareXFiles(
-        [XFile(zipFile.path)],
+        [XFile(zipPath)],
         text: 'Архив воспоминаний',
         sharePositionOrigin: sharePositionOrigin,
       );

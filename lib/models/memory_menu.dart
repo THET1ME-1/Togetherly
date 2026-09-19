@@ -18,6 +18,7 @@ enum MemoryMenuAction {
   openMap,
   openLink,
   setPlace,
+  edit,
   delete,
 }
 
@@ -54,6 +55,9 @@ List<MemoryMenuAction> memoryMenuActions(
     if ((m.caption?.trim().isNotEmpty ?? false)) MemoryMenuAction.copyCaption,
     if (hasPlace) MemoryMenuAction.openMap,
     if (canSetPlace && !hasPlace) MemoryMenuAction.setPlace,
+    // «Изменить» живёт и в панели листа, но там ему место только на широком
+    // экране: рядом с разделённой кнопкой сохранения на 360 dp тесно.
+    if (isOwner) MemoryMenuAction.edit,
     if (isOwner) MemoryMenuAction.delete,
   ];
 }

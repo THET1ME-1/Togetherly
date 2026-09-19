@@ -3,6 +3,7 @@ package com.togetherly.love
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
@@ -11,6 +12,7 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
 import android.util.Log
+import androidx.core.content.ContextCompat
 import androidx.exifinterface.media.ExifInterface
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -59,6 +61,16 @@ class GallerySaver(private val context: Context) : MethodChannel.MethodCallHandl
                 open(call.argument<String>("uri"))
                 result.success(null)
             }
+            // С Android 10 свои файлы кладутся в MediaStore без разрешений.
+            // Спрашивать через gal там нельзя: он просит WRITE_EXTERNAL_STORAGE,
+            // а в манифесте оно объявлено только до Android 9 — система
+            // отказала бы сразу, и сохранение не работало бы вовсе.
+            "hasAccess" -> result.success(
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ||
+                    ContextCompat.checkSelfPermission(
+                        context, android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+                    ) == PackageManager.PERMISSION_GRANTED
+            )
             else -> result.notImplemented()
         }
     }

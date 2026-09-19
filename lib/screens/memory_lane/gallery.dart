@@ -1,91 +1,320 @@
 part of '../memory_lane_screen.dart';
 
 // ══════════════════════════════════════════════════════
-//  Photo Grid Gallery Screen
+//  Все кадры пары
 // ══════════════════════════════════════════════════════
-class _PhotoGalleryScreen extends StatelessWidget {
+
+/// Все кадры и ролики пары по месяцам — вход из значка галереи в шапке ленты.
+///
+/// Экран был чёрной сеткой без единого действия. Теперь это место, откуда
+/// медиа пары переезжает в галерею телефона целиком или по месяцу: так
+/// переносят историю на новый телефон (жалоба 19.09.2026: «пережило смену
+/// телефонов, было бы круто нормально сохранять»).
+class _PhotoGalleryScreen extends StatefulWidget {
   final List<GalleryItem> items;
   final Color primary;
+  final ColorScheme scheme;
+  final Memory? Function(String memoryId) memoryOf;
 
-  const _PhotoGalleryScreen({required this.items, required this.primary});
+  const _PhotoGalleryScreen({
+    required this.items,
+    required this.primary,
+    required this.scheme,
+    required this.memoryOf,
+  });
+
+  @override
+  State<_PhotoGalleryScreen> createState() => _PhotoGalleryScreenState();
+}
+
+class _MonthGroup {
+  final DateTime month;
+  final List<int> indexes = [];
+  _MonthGroup(this.month);
+}
+
+class _PhotoGalleryScreenState extends State<_PhotoGalleryScreen> {
+  late final List<(Memory, MediaFile)?> _files = [
+    for (final it in widget.items) _fileOf(it),
+  ];
+  late final List<_MonthGroup> _months = _group();
+
+  @override
+  void initState() {
+    super.initState();
+    SavedMediaLedger.instance.load().then((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  (Memory, MediaFile)? _fileOf(GalleryItem item) {
+    final m = widget.memoryOf(item.memoryId);
+    if (m == null) return null;
+    final key = mediaKey(item.isVideo ? item.videoUrl! : item.url);
+    for (final f in memoryMediaFiles(m)) {
+      if (f.key == key) return (m, f);
+    }
+    return null;
+  }
+
+  List<_MonthGroup> _group() {
+    final out = <_MonthGroup>[];
+    for (var i = 0; i < widget.items.length; i++) {
+      final m = _files[i]?.$1;
+      final d = m?.createdAt;
+      final month = d == null ? DateTime(1970) : DateTime(d.year, d.month);
+      if (out.isEmpty || out.last.month != month) out.add(_MonthGroup(month));
+      out.last.indexes.add(i);
+    }
+    return out;
+  }
+
+  List<SaveItem> _itemsOf(Iterable<int> indexes) => [
+        for (final i in indexes)
+          if (_files[i] case (final m, final f)) SaveItem.of(m, f),
+      ];
+
+  String _monthLabel(DateTime d) {
+    if (d.year == 1970) return '';
+    return '${LocaleService.current.fullMonths[d.month - 1]} ${d.year}';
+  }
+
+  Future<void> _save(String title, List<int> indexes) async {
+    final items = _itemsOf(indexes);
+    if (items.isEmpty) return;
+    final adult = {
+      for (final i in indexes)
+        if (_files[i]?.$1.isAdult ?? false) _files[i]!.$1.id,
+    }.isNotEmpty;
+    await saveToGallery(context, title: title, items: items, adult: adult);
+  }
+
+  Future<void> _open(int i) async {
+    final memoryId = await Navigator.of(context).push<String>(
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.black,
+        pageBuilder: (_, __, ___) => FullscreenGallery(
+          items: widget.items,
+          initialIndex: i,
+          memoryOf: widget.memoryOf,
+        ),
+      ),
+    );
+    if (memoryId != null && mounted) Navigator.pop(context, memoryId);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final s = LocaleService.current;
+    final cs = widget.scheme;
     final botPad = MediaQuery.of(context).padding.bottom;
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        title: Text(
-          s.allMediaGallery,
-          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+    final ledger = SavedMediaLedger.instance;
+    final all = [for (final f in _files) if (f != null) f.$2];
+    final summary = summarizeMedia(all);
+    return Theme(
+      data: ProfileTheme.data(cs),
+      child: Scaffold(
+        backgroundColor: cs.surface,
+        appBar: AppBar(
+          backgroundColor: cs.surface,
+          surfaceTintColor: Colors.transparent,
+          title: Text(
+            trKey('allSavedTitle'),
+            style: const TextStyle(
+                fontFamily: 'Unbounded', fontSize: 18, fontWeight: FontWeight.w700),
+          ),
+          leading: IconButton(
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.arrow_back_rounded),
+          ),
         ),
-        leading: IconButton(
-          onPressed: () => Navigator.pop(context),
-          icon: const Icon(Icons.arrow_back_rounded),
-        ),
-      ),
-      body: GridView.builder(
-        padding: EdgeInsets.only(bottom: botPad + 8),
-        // Запас в пол-экрана: плитки тянут картинки из сети, и без прогрева
-        // ряд за краем начинал грузиться ровно в тот момент, когда его уже
-        // листают — вместо снимков ехали пустые квадраты.
-        cacheExtent: 600,
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          mainAxisSpacing: 2,
-          crossAxisSpacing: 2,
-        ),
-        itemCount: items.length,
-        itemBuilder: (ctx, i) {
-          final item = items[i];
-          return GestureDetector(
-            onTap: () async {
-              final memoryId = await Navigator.of(context).push<String>(
-                PageRouteBuilder(
-                  opaque: false,
-                  barrierColor: Colors.black,
-                  pageBuilder: (_, __, ___) =>
-                      FullscreenGallery(items: items, initialIndex: i),
-                ),
-              );
-              if (memoryId != null && context.mounted) {
-                Navigator.pop(context, memoryId);
-              }
-            },
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                StorageImage(
-                  imageUrl: item.url,
-                  fit: BoxFit.cover,
-                  // Кэшируем только по ширине: задание И высоты декодирует фото
-                  // в квадрат 300×300 и искажает пропорции ДО cover (то же
-                  // чинили в коллаже ленты). Только ширина — аспект сохраняется.
-                  memCacheWidth: 300,
-                  errorWidget: (_, __, ___) => Container(
-                    color: Colors.grey.shade900,
-                    child: const Icon(
-                      Icons.broken_image_rounded,
-                      color: Colors.white38,
-                      size: 28,
+        body: Stack(
+          children: [
+            AnimatedBuilder(
+              animation: ledger,
+              builder: (context, _) {
+                final saved = ledger.countSaved(all);
+                return CustomScrollView(
+                  cacheExtent: 600,
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  '${all.length}',
+                                  style: TextStyle(
+                                    fontFamily: 'Unbounded',
+                                    fontSize: 60,
+                                    height: 0.95,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: -2,
+                                    color: cs.primary,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(bottom: 6),
+                                    child: Text(
+                                      [
+                                        trKey('allFilesLabel'),
+                                        if (summary.videos > 0)
+                                          trKey('saveCountVideos').replaceAll(
+                                              '{n}', '${summary.videos}'),
+                                      ].join('\n'),
+                                      style: TextStyle(
+                                        fontFamily: 'Onest',
+                                        fontSize: 13.5,
+                                        color: cs.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+                            FilledButton.icon(
+                              key: const ValueKey('all-media-save'),
+                              onPressed: all.isEmpty
+                                  ? null
+                                  : () => _save(trKey('allSavedTitle'), [
+                                        for (var i = 0; i < widget.items.length; i++) i,
+                                      ]),
+                              icon: const Icon(Icons.download_rounded),
+                              label: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(trKey('allSaveAll'), maxLines: 1),
+                              ),
+                              style: FilledButton.styleFrom(
+                                minimumSize: const Size.fromHeight(56),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              [
+                                trKey('allSaveSub')
+                                    .replaceAll('{mb}', '${summary.megabytes}'),
+                                if (saved > 0)
+                                  trKey('saveAlreadyIn').replaceAll('{n}', '$saved'),
+                              ].join(' · '),
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontFamily: 'Onest',
+                                fontSize: 12.5,
+                                color: cs.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                if (item.isVideo)
-                  const Center(
-                    child: Icon(
-                      Icons.play_circle_fill_rounded,
-                      color: Colors.white70,
-                      size: 36,
-                    ),
-                  ),
-              ],
+                    for (final g in _months) ...[
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 8, 6),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  [
+                                    _monthLabel(g.month),
+                                    '${g.indexes.length}',
+                                  ].where((e) => e.isNotEmpty).join(' · ').toUpperCase(),
+                                  style: ProfileTheme.sectionLabel(cs),
+                                ),
+                              ),
+                              TextButton.icon(
+                                onPressed: () => _save(_monthLabel(g.month), g.indexes),
+                                icon: const Icon(Icons.download_rounded, size: 18),
+                                label: Text(trKey('allSaveMonth')),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      SliverPadding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        sliver: SliverGrid(
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 3,
+                            mainAxisSpacing: 3,
+                            crossAxisSpacing: 3,
+                          ),
+                          delegate: SliverChildBuilderDelegate(
+                            (_, k) {
+                              final i = g.indexes[k];
+                              final item = widget.items[i];
+                              final f = _files[i]?.$2;
+                              final isSaved = f != null && ledger.containsFile(f);
+                              return GestureDetector(
+                                onTap: () => _open(i),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      StorageImage(
+                                        imageUrl: item.url,
+                                        fit: BoxFit.cover,
+                                        // Только ширина: с высотой кадр
+                                        // декодируется в квадрат и сплющивается.
+                                        memCacheWidth: 300,
+                                        errorWidget: (_, _, _) => ColoredBox(
+                                          color: cs.surfaceContainerHigh,
+                                          child: Icon(Icons.broken_image_rounded,
+                                              color: cs.onSurfaceVariant),
+                                        ),
+                                      ),
+                                      if (item.isVideo)
+                                        const Center(
+                                          child: Icon(Icons.play_circle_fill_rounded,
+                                              color: Colors.white70, size: 34),
+                                        ),
+                                      if (isSaved)
+                                        Positioned(
+                                          left: 5,
+                                          bottom: 5,
+                                          child: Container(
+                                            width: 22,
+                                            height: 22,
+                                            decoration: BoxDecoration(
+                                              color: cs.inverseSurface
+                                                  .withValues(alpha: 0.72),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: Icon(Icons.download_done_rounded,
+                                                size: 15, color: cs.onInverseSurface),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                            childCount: g.indexes.length,
+                          ),
+                        ),
+                      ),
+                    ],
+                    SliverToBoxAdapter(child: SizedBox(height: botPad + 100)),
+                  ],
+                );
+              },
             ),
-          );
-        },
+            Positioned(
+              left: 14,
+              right: 14,
+              bottom: botPad + 16,
+              child: const SaveIsland(),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -98,10 +327,15 @@ class FullscreenGallery extends StatefulWidget {
   final List<GalleryItem> items;
   final int initialIndex;
 
+  /// Запись кадра: без неё кадр не знает ни даты, ни места, и сохранения в
+  /// полном экране нет.
+  final Memory? Function(String memoryId)? memoryOf;
+
   const FullscreenGallery({
     super.key,
     required this.items,
     required this.initialIndex,
+    this.memoryOf,
   });
 
   @override
@@ -126,6 +360,128 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
   }
 
   GalleryItem get _current => widget.items[_currentIndex];
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Отметка «В галерее» читается из журнала на диске.
+    SavedMediaLedger.instance.load().then((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  /// Файл кадра внутри его записи: по нему сохранение знает дату, место и
+  /// номер кадра для имени файла.
+  (Memory, MediaFile)? _fileOf(GalleryItem item) {
+    final m = widget.memoryOf?.call(item.memoryId);
+    if (m == null) return null;
+    final key = mediaKey(item.isVideo ? item.videoUrl! : item.url);
+    for (final f in memoryMediaFiles(m)) {
+      if (f.key == key) return (m, f);
+    }
+    return null;
+  }
+
+  /// «Сохранить» и «Отправить» именно этот кадр. Кнопка помнит, что кадр уже в
+  /// галерее, и не даёт сохранить его второй раз по ошибке.
+  Widget _frameActions((Memory, MediaFile) hit) {
+    final (m, f) = hit;
+    final queue = MediaSaveQueue.instance;
+    final ledger = SavedMediaLedger.instance;
+    return AnimatedBuilder(
+      animation: Listenable.merge([queue, ledger]),
+      builder: (context, _) {
+        final saved = ledger.containsFile(f);
+        final saving = !saved && queue.isQueued(f.key);
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _viewerPill(
+              key: const ValueKey('viewer-save'),
+              icon: saved ? Icons.download_done_rounded : Icons.download_rounded,
+              label: saved
+                  ? trKey('viewerSaved')
+                  : saving
+                      ? trKey('viewerSaving')
+                      : trKey('viewerSave'),
+              ok: saved,
+              busy: saving,
+              onTap: saved || saving
+                  ? null
+                  : () => saveToGallery(
+                        context,
+                        title: memorySaveTitle(m),
+                        items: [SaveItem.of(m, f)],
+                        adult: m.isAdult,
+                      ),
+            ),
+            const SizedBox(width: 8),
+            _viewerPill(
+              key: const ValueKey('viewer-share'),
+              icon: Icons.ios_share_rounded,
+              label: trKey('pickShare'),
+              onTap: () => shareMemoryMedia(
+                context,
+                files: [f],
+                takenAt: m.createdAt,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _viewerPill({
+    required Key key,
+    required IconData icon,
+    required String label,
+    VoidCallback? onTap,
+    bool ok = false,
+    bool busy = false,
+  }) {
+    final bg = ok ? const Color(0xFFE9F6EE) : Colors.white.withValues(alpha: 0.14);
+    final fg = ok ? const Color(0xFF1C4A2C) : Colors.white;
+    return Material(
+      key: key,
+      color: bg,
+      borderRadius: BorderRadius.circular(23),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          height: 46,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (busy)
+                  SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2.4, color: fg),
+                  )
+                else
+                  Icon(icon, size: 20, color: fg),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontFamily: 'Onest',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: fg,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -263,6 +619,13 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
               ],
             ),
           ),
+          if (_fileOf(_current) case final hit?)
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: botPad + (count > 1 ? 58 : 22),
+              child: _frameActions(hit),
+            ),
           // Page indicator / counter
           if (count > 1)
             Positioned(

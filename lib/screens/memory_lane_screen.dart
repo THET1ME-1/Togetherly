@@ -30,7 +30,6 @@ import '../utils/safe_launch.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:exif/exif.dart';
-import 'package:gal/gal.dart';
 import 'package:http/http.dart' as http;
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 // PlayerState объявлен и в just_audio, и в плеере YouTube: разводим
@@ -44,6 +43,18 @@ import '../models/daily_task.dart';
 import '../dict_strings.dart';
 import '../models/feed_category.dart';
 import '../models/memory.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
+import '../models/memory_media.dart';
+import '../models/memory_menu.dart';
+import '../services/media_save_queue.dart';
+import '../services/media_share.dart';
+import '../services/saved_media_ledger.dart';
+import '../widgets/memory_save/floating_note.dart';
+import '../widgets/memory_save/frame_picker.dart';
+import '../widgets/memory_save/save_flow.dart';
+import '../widgets/memory_save/save_island.dart';
+import '../widgets/memory_save/save_options_sheet.dart';
+import '../widgets/memory_save/save_split_button.dart';
 import '../utils/lost_pick.dart';
 import '../models/memory_sort.dart';
 import '../services/ui_prefs.dart';
@@ -322,11 +333,20 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   PairData get pair => widget.pairData;
   String get _groupId => pair.pairId;
 
+  // ── Выбор нескольких записей (сохранение в галерею) ──
+  // Включается строкой «Выбрать несколько» в листе долгого нажатия; касание
+  // карточки тогда отмечает её, а внизу вместо навигации — сколько файлов и
+  // «Сохранить».
+  bool _selecting = false;
+  final Set<String> _selectedIds = {};
+
   @override
   void initState() {
     super.initState();
     _loadSortOrder();
     _subscribeMemories();
+    // Сохранение в галерею, оборванное закрытием приложения, доезжает само.
+    MediaSaveQueue.instance.resume();
     _feedScroll.addListener(_onFeedScroll); // ленивая пагинация по скроллу
     _fetchUserLocation();
     widget.pairData.addListener(_onPairChanged);
@@ -784,7 +804,14 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   Widget build(BuildContext context) {
     if (widget.embedded) return _buildEmbedded();
     final bottomPad = MediaQuery.of(context).padding.bottom;
-    return Scaffold(
+    final topPad = MediaQuery.of(context).padding.top;
+    // «Назад» в режиме выбора сперва выходит из выбора, а не из ленты.
+    return PopScope(
+      canPop: !_selecting,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _selecting) _exitSelecting();
+      },
+      child: Scaffold(
       backgroundColor: widget.theme.bgGradient[0],
       body: Stack(
         children: [
@@ -916,7 +943,28 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               ],
             ),
             // Нижняя зона: общий навбар (вход из главной) либо пилюля «Добавить»
-            // (вход из чата/лепестка, где навбар не нужен).
+            // (вход из чата/лепестка, где навбар не нужен). В режиме выбора
+            // их место занимает панель «Файлов: N · Сохранить».
+            if (_selecting) ...[
+              Positioned(
+                top: topPad + 8,
+                left: 10,
+                right: 10,
+                child: _selectionBar(),
+              ),
+              Positioned(
+                left: 12,
+                right: 12,
+                bottom: bottomPad + 16,
+                child: _selectionToolbar(),
+              ),
+            ] else ...[
+              Positioned(
+                left: 14,
+                right: 14,
+                bottom: bottomPad + (widget.onNavTab != null ? 100 : 92),
+                child: const SaveIsland(),
+              ),
             if (widget.onNavTab != null)
               Positioned(
                 left: 0,
@@ -968,7 +1016,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   ),
                 ),
               ),
+            ],
         ],
+      ),
       ),
     );
   }
@@ -3037,19 +3087,72 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     required Widget child,
     bool enableTap = true,
   }) {
+    final selected = _selecting && _selectedIds.contains(memory.id);
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: GestureDetector(
-        onTap: enableTap ? () => _showMemoryDetail(memory) : null,
-        onLongPress: () => _showMemoryActions(memory),
-        child: Container(
-          // Плоский стиль пинов: без тени, свечения и бордера (требование).
-          decoration: BoxDecoration(
-            color: widget.theme.cardSurface,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: child,
+        onTap: _selecting
+            ? () => _toggleSelected(memory)
+            : (enableTap ? () => _showMemoryDetail(memory) : null),
+        onLongPress: _selecting
+            ? () => _toggleSelected(memory)
+            : () => _showMemoryActions(memory),
+        child: Stack(
+          children: [
+            Container(
+              // Плоский стиль пинов: без тени, свечения и бордера (требование).
+              decoration: BoxDecoration(
+                color: widget.theme.cardSurface,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              clipBehavior: Clip.antiAlias,
+              // В режиме выбора кнопки внутри карточки (плеер, ссылки) молчат:
+              // касание целиком отмечает запись.
+              child: AbsorbPointer(absorbing: _selecting, child: child),
+            ),
+            if (_selecting) ...[
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? primary.withValues(alpha: 0.10)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(20),
+                      border: selected
+                          ? Border.all(color: primary, width: 3)
+                          : null,
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 12,
+                right: 12,
+                child: IgnorePointer(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: selected ? primary : widget.theme.cardSurface,
+                      shape: BoxShape.circle,
+                      border: selected
+                          ? null
+                          : Border.all(color: widget.theme.textMuted, width: 2),
+                    ),
+                    child: selected
+                        ? Icon(Icons.check_rounded,
+                            size: 19,
+                            color: AppThemes.onColor(primary,
+                                mode: widget.theme.brightness))
+                        : null,
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );
@@ -3075,13 +3178,11 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         groupId: _groupId,
         primary: primary,
         isOwner: memory.authorUid == _myUid,
-        canDownload: _canDownload(memory),
         typeColor: _memoryTypeColor(memory.type),
         userLat: _userLat,
         userLng: _userLng,
         liveAuthorAvatar: _liveAvatar(memory),
         onTogglePin: () => _togglePin(memory),
-        onDownload: () => _downloadMemoryMedia(memory),
         onEdit: () => _editMemory(memory),
         onDelete: () => _confirmDelete(memory),
         onSetLocation: () => _setLocationOnMemory(memory),
@@ -3497,14 +3598,14 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                 ),
                               ),
                             ),
-                            if (_canDownload(memory)) ...[
+                            if (memoryMediaFiles(memory).isNotEmpty) ...[
                               const SizedBox(width: 10),
                               Expanded(
                                 child: OutlinedButton.icon(
                                   onPressed: () {
                                     audioPlayer?.dispose();
                                     Navigator.pop(context);
-                                    _downloadMemoryMedia(memory);
+                                    _saveMemoryToGallery(memory);
                                   },
                                   icon: const Icon(
                                     Icons.download_rounded,
@@ -3818,6 +3919,16 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               ),
             ),
             const SizedBox(height: 16),
+            // На главной (встроенная лента) панелей выбора нет — там строки нет.
+            if (!widget.embedded)
+              ListTile(
+                leading: Icon(Icons.checklist_rounded, color: primary),
+                title: Text(trKey('feedSelectMany')),
+                onTap: () {
+                  Navigator.pop(context);
+                  _startSelecting(memory);
+                },
+              ),
             ListTile(
               leading: Icon(
                 memory.isPinned
@@ -3869,7 +3980,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 _toggleSecret(memory);
               },
             ),
-            if (_canDownload(memory))
+            if (memoryMediaFiles(memory,
+                    secretUnlocked: _secretUnlocked)
+                .isNotEmpty)
               ListTile(
                 leading: Icon(
                   Icons.download_rounded,
@@ -3878,7 +3991,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 title: Text(LocaleService.current.saveToDevice),
                 onTap: () {
                   Navigator.pop(context);
-                  _downloadMemoryMedia(memory);
+                  _saveMemoryToGallery(memory);
                 },
               ),
             if (memory.authorUid == _myUid) ...[
@@ -3915,143 +4028,184 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   //  DOWNLOAD
   // ═══════════════════════════════════════════════════
 
-  bool _canDownload(Memory memory) {
-    return memory.type == MemoryType.photo ||
-        memory.type == MemoryType.video ||
-        memory.type == MemoryType.music;
+  /// Всё воспоминание — в галерею (лист долгого нажатия в ленте).
+  ///
+  /// Прежний `_downloadMemoryMedia` брал только обложку и считал внешней
+  /// ссылкой всё, что не похоже на Firebase: после переезда на свой сервер он
+  /// открывал браузер для каждого файла и не сохранил ни одного (жалоба
+  /// 19.09.2026). Теперь путь один на все экраны — `saveToGallery`.
+  Future<void> _saveMemoryToGallery(Memory memory) async {
+    final files = memoryMediaFiles(memory, secretUnlocked: _secretUnlocked);
+    if (files.isEmpty) return;
+    await saveToGallery(
+      context,
+      title: memorySaveTitle(memory),
+      items: [for (final f in files) SaveItem.of(memory, f)],
+      adult: memory.isAdult,
+    );
   }
 
-  /// Extracts the file extension from a Firebase Storage URL.
-  /// e.g. ".../memory_123.webp?alt=media&token=..." → "webp"
-  String _extFromUrl(String url, String fallback) {
-    try {
-      final decoded = Uri.decodeFull(url);
-      final path = Uri.parse(decoded).path;
-      final name = path.split('/').last.split('?').first;
-      final dot = name.lastIndexOf('.');
-      if (dot != -1) return name.substring(dot + 1).toLowerCase();
-    } catch (_) {}
-    return fallback;
+  // ── Выбор нескольких записей ──
+
+  List<MediaFile> _filesOf(Memory m) =>
+      memoryMediaFiles(m, secretUnlocked: _secretUnlocked);
+
+  void _startSelecting(Memory first) {
+    setState(() {
+      _selecting = true;
+      _selectedIds
+        ..clear()
+        ..add(first.id);
+    });
   }
 
-  Future<void> _downloadMemoryMedia(Memory memory) async {
-    String? url;
-    String extension;
-    String prefix;
+  void _exitSelecting() {
+    setState(() {
+      _selecting = false;
+      _selectedIds.clear();
+    });
+  }
 
-    switch (memory.type) {
-      case MemoryType.photo:
-        url = memory.imageUrl;
-        extension = url != null ? _extFromUrl(url, 'webp') : 'webp';
-        prefix = 'photo';
-        break;
-      case MemoryType.video:
-        url = memory.videoUrl;
-        extension = url != null ? _extFromUrl(url, 'mp4') : 'mp4';
-        prefix = 'video';
-        break;
-      case MemoryType.music:
-        url = memory.musicUrl;
-        extension = url != null ? _extFromUrl(url, 'mp3') : 'mp3';
-        prefix = 'music';
-        break;
-      default:
-        return;
-    }
+  void _toggleSelected(Memory m) {
+    setState(() {
+      if (!_selectedIds.remove(m.id)) _selectedIds.add(m.id);
+    });
+  }
 
-    if (url == null || url.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(LocaleService.current.noMediaUrl),
-            behavior: SnackBarBehavior.floating,
+  /// Записи ленты, которым есть что положить в галерею.
+  List<Memory> get _selectableMemories =>
+      [for (final m in _memories) if (_filesOf(m).isNotEmpty) m];
+
+  List<Memory> get _selectedMemories =>
+      [for (final m in _memories) if (_selectedIds.contains(m.id)) m];
+
+  Widget _selectionBar() {
+    final cs = ProfileTheme.schemeFor(widget.theme);
+    final selectable = _selectableMemories;
+    final allOn = selectable.isNotEmpty &&
+        selectable.every((m) => _selectedIds.contains(m.id));
+    return Material(
+      color: cs.secondaryContainer,
+      borderRadius: BorderRadius.circular(28),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(4, 4, 8, 4),
+        child: Row(
+          children: [
+            IconButton(
+              onPressed: _exitSelecting,
+              icon: Icon(Icons.close_rounded, color: cs.onSecondaryContainer),
+            ),
+            Expanded(
+              child: Text(
+                trKey('feedSelected').replaceAll('{n}', '${_selectedIds.length}'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'Unbounded',
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: cs.onSecondaryContainer,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () => setState(() {
+                if (allOn) {
+                  _selectedIds.clear();
+                } else {
+                  _selectedIds.addAll([for (final m in selectable) m.id]);
+                }
+              }),
+              style: TextButton.styleFrom(
+                backgroundColor: cs.surfaceContainerLow,
+                foregroundColor: cs.onSurface,
+                minimumSize: const Size(0, 38),
+              ),
+              child: Text(allOn ? trKey('pickNone') : trKey('pickAll')),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _selectionToolbar() {
+    final cs = ProfileTheme.schemeFor(widget.theme);
+    final files = [for (final m in _selectedMemories) ..._filesOf(m)];
+    final summary = summarizeMedia(files);
+    return Material(
+      color: cs.secondaryContainer,
+      borderRadius: BorderRadius.circular(32),
+      child: SizedBox(
+        height: 64,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 8, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  trKey('feedFilesSummary')
+                      .replaceAll('{n}', '${files.length}')
+                      .replaceAll('{mb}', '${summary.megabytes}'),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Onest',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSecondaryContainer,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              FilledButton.icon(
+                key: const ValueKey('feed-select-save'),
+                onPressed: files.isEmpty ? null : _saveSelected,
+                icon: const Icon(Icons.download_rounded, size: 20),
+                label: Text(trKey('viewerSave')),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(0, 48),
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                ),
+              ),
+            ],
           ),
-        );
-      }
+        ),
+      ),
+    );
+  }
+
+  Future<void> _saveSelected() async {
+    final chosen = _selectedMemories;
+    final items = [
+      for (final m in chosen)
+        for (final f in _filesOf(m)) SaveItem.of(m, f),
+    ];
+    // Секретная запись под замком файлов не отдаёт — говорим, сколько
+    // пропущено, иначе человек ищет их в галерее.
+    final skipped =
+        chosen.where((m) => m.isSecret && !_secretUnlocked).length;
+    if (items.isEmpty) {
+      showFloatingNote(context, trKey('feedNothingToSave'),
+          icon: Icons.info_outline_rounded);
       return;
     }
-
-    // pb:// → authed HTTPS (PocketBase protected media). Легаси gs:// больше
-    // НЕ резолвим (Firebase убран) — такой url уйдёт в http.get и не скачается.
-    final isGsPath = url.startsWith('gs://');
-    url = await PbMediaService().resolvePlayable(url);
-
-    // For external links (Spotify, YouTube etc.) just open them.
-    // Signed URL (storage.googleapis.com) не содержит 'firebase' — поэтому
-    // gs://-медиа пропускаем мимо этой проверки по флагу isGsPath.
-    if (!isGsPath &&
-        !url.contains('firebasestorage') &&
-        !url.contains('firebase')) {
-      if (await canLaunchUrl(Uri.parse(url))) {
-        await safeLaunchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-      }
-      return;
+    final job = await saveToGallery(
+      context,
+      title: chosen.length == 1
+          ? memorySaveTitle(chosen.first)
+          : trKey('feedSelectedTitle'),
+      items: items,
+      adult: chosen.any((m) => m.isAdult),
+    );
+    if (!mounted) return;
+    if (skipped > 0) {
+      showFloatingNote(
+          context, trKey('secretSkipped').replaceAll('{n}', '$skipped'),
+          icon: Icons.lock_rounded);
     }
-
-    try {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(LocaleService.current.downloading),
-            behavior: SnackBarBehavior.floating,
-            duration: Duration(seconds: 1),
-          ),
-        );
-      }
-
-      final response = await http.get(Uri.parse(url));
-      if (response.statusCode != 200) {
-        throw Exception('Download failed: ${response.statusCode}');
-      }
-
-      // Write to a temp file first, then hand off to gal (images/video)
-      // or Downloads folder (audio). gal inserts into Android MediaStore so
-      // the system Gallery app sees it immediately.
-      final tempDir = await getTemporaryDirectory();
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final fileName = '${prefix}_$timestamp.$extension';
-      final tempFile = File('${tempDir.path}/$fileName');
-      await tempFile.writeAsBytes(response.bodyBytes);
-
-      if (memory.type == MemoryType.photo) {
-        await Gal.putImage(tempFile.path, album: 'Togetherly');
-      } else if (memory.type == MemoryType.video) {
-        await Gal.putVideo(tempFile.path, album: 'Togetherly');
-      } else {
-        // Audio — save to Downloads (Files app sees it without MediaStore)
-        Directory saveDir;
-        if (Platform.isAndroid) {
-          saveDir = Directory('/storage/emulated/0/Download');
-          if (!saveDir.existsSync()) saveDir = await getApplicationDocumentsDirectory();
-        } else {
-          saveDir = await getApplicationDocumentsDirectory();
-        }
-        final destFile = File('${saveDir.path}/$fileName');
-        await tempFile.copy(destFile.path);
-      }
-
-      await tempFile.delete().catchError((_) => tempFile);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(LocaleService.current.savedToGallery),
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    } catch (e) {
-      debugPrint('Download error: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(LocaleService.current.downloadFailed(e.toString())),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    }
+    if (job != null) _exitSelecting();
   }
 
   // ═══════════════════════════════════════════════════
@@ -7655,7 +7809,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     if (items.isEmpty) return;
     final memoryId = await Navigator.of(context).push<String>(
       MaterialPageRoute(
-        builder: (_) => _PhotoGalleryScreen(items: items, primary: primary),
+        builder: (_) => _PhotoGalleryScreen(
+          items: items,
+          primary: primary,
+          scheme: ProfileTheme.schemeFor(widget.theme),
+          memoryOf: _memoryById,
+        ),
         settings: const RouteSettings(name: '/photo_gallery'),
       ),
     );
@@ -7689,10 +7848,22 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       PageRouteBuilder(
         opaque: false,
         barrierColor: Colors.black,
-        pageBuilder: (_, __, ___) =>
-            FullscreenGallery(items: items, initialIndex: initialIndex),
+        pageBuilder: (_, __, ___) => FullscreenGallery(
+          items: items,
+          initialIndex: initialIndex,
+          memoryOf: _memoryById,
+        ),
       ),
     );
+  }
+
+  /// Запись по id — полному экрану нужны её дата и место, чтобы кадр лёг в
+  /// галерею на свой день.
+  Memory? _memoryById(String id) {
+    for (final m in _memories) {
+      if (m.id == id) return m;
+    }
+    return null;
   }
 
   /// Open location in external maps app

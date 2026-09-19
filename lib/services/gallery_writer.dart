@@ -19,9 +19,8 @@ import 'media_save_queue.dart';
 /// * iPhone (`AppDelegate.swift`) — PhotoKit с `creationDate` и `location`,
 ///   альбом «Togetherly». WebP перед импортом пережимается в JPEG.
 ///
-/// От `gal` берём только разрешения: он знает, какое спрашивать на каждой
-/// версии системы (Android 9 и ниже — запись в хранилище, iPhone — полный
-/// доступ к медиатеке, без него альбом не завести).
+/// От `gal` берём только разрешение на запись в хранилище для Android 9 и
+/// ниже. На iPhone доступ к медиатеке просит нативная часть сама.
 class GalleryWriter implements GalleryTarget {
   GalleryWriter._();
   static final GalleryWriter instance = GalleryWriter._();
@@ -33,10 +32,24 @@ class GalleryWriter implements GalleryTarget {
 
   /// Спросить доступ к галерее до постановки в очередь. `false` — человек
   /// отказал, сохранять некуда.
+  ///
+  /// Android: с десятой версии свои файлы кладутся без разрешений, спрашивает
+  /// только Android 9 и ниже (запись в хранилище, через gal). iPhone: доступ
+  /// просит сама нативная часть при первой записи — сперва полный (без него
+  /// нет альбома), при отказе «Только добавлять»; отказ в обоих приходит в
+  /// очередь как [GalleryAccessDenied].
   Future<bool> ensureAccess() async {
+    if (!Platform.isAndroid) return true;
     try {
-      if (await Gal.hasAccess(toAlbum: true)) return true;
+      final ok = await channel.invokeMethod<bool>('hasAccess') ?? false;
+      if (ok) return true;
       return await Gal.requestAccess(toAlbum: true);
+    } on MissingPluginException {
+      try {
+        return await Gal.requestAccess(toAlbum: true);
+      } catch (_) {
+        return false;
+      }
     } catch (e) {
       debugPrint('GalleryWriter.ensureAccess: $e');
       return false;
