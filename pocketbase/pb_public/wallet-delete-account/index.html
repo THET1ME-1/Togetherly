@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Togetherly Wallet – Удаление аккаунта / Delete Account</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 32px 16px 48px;
+      color: #000;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 24px;
+      padding: 44px 40px;
+      max-width: 780px;
+      width: 100%;
+      border: 1px solid #e0e0e0;
+    }
+
+    .logo { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+    .logo-icon {
+      width: 48px; height: 48px;
+      background: #000; color: #fff;
+      border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; font-weight: 800;
+    }
+    .logo-name { font-size: 22px; font-weight: 800; }
+    .updated { font-size: 13px; color: #767676; margin-bottom: 28px; }
+
+    .lang-switch { display: flex; gap: 8px; margin-bottom: 36px; }
+    .lang-btn {
+      padding: 8px 22px; border-radius: 50px;
+      border: 1px solid #000; background: transparent; color: #000;
+      font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+    .lang-btn.active { background: #000; color: #fff; }
+
+    h1 { font-size: 28px; font-weight: 800; margin-bottom: 8px; }
+    h2 { font-size: 19px; font-weight: 700; margin: 32px 0 10px; }
+    p, li { font-size: 15px; line-height: 1.65; color: #1a1a1a; }
+    ul, ol { margin: 8px 0 8px 22px; }
+    li { margin-bottom: 8px; }
+    a { color: #000; }
+    code { background: #f5f5f5; padding: 1px 5px; border-radius: 5px; font-size: 14px; }
+    .note {
+      background: #f5f5f5; border-radius: 14px; padding: 16px 18px; margin: 16px 0;
+      font-size: 14.5px; line-height: 1.6;
+    }
+    table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 14.5px; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #e0e0e0; vertical-align: top; }
+    th { font-weight: 700; }
+    .foot {
+      margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0;
+      font-size: 13px; color: #767676;
+    }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <div class="logo-icon">W</div>
+    <div class="logo-name">Togetherly Wallet</div>
+  </div>
+  <div class="updated">Дата обновления / Last updated: 14 September 2026</div>
+
+  <div class="lang-switch">
+    <button class="lang-btn active" onclick="switchLang('ru')">🇷🇺 Русский</button>
+    <button class="lang-btn" onclick="switchLang('en')">🇬🇧 English</button>
+  </div>
+
+  <!-- ─────────────── РУССКИЙ ─────────────── -->
+  <div id="ru">
+    <h1>Удаление аккаунта Togetherly Wallet</h1>
+    <p>Эта страница относится к приложению <b>Togetherly Wallet</b>
+      (пакет <code>com.togetherly.money</code>), разработчик — S&amp;T Company.</p>
+
+    <div class="note">
+      Аккаунт удаляется прямо из приложения, за три нажатия, без письма в
+      поддержку. Учётная запись общая для приложений Togetherly, поэтому вместе с
+      Wallet закрывается и доступ к Togetherly.
+    </div>
+
+    <h2>Как удалить аккаунт из приложения</h2>
+    <ol>
+      <li>Откройте Togetherly Wallet и войдите в свой аккаунт.</li>
+      <li>Перейдите в <b>Настройки</b> (значок шестерёнки в шапке главного экрана).</li>
+      <li>Пролистайте до раздела <b>Опасное</b> и нажмите <b>Удалить аккаунт</b>.</li>
+      <li>Прочитайте предупреждение и введите слово <b>Удалить</b> — кнопка станет
+        активной. Это защита от случайного нажатия: возврата нет.</li>
+      <li>Нажмите <b>Удалить аккаунт</b>. Приложение распустит пару, отправит запрос
+        на сервер и выйдет из аккаунта.</li>
+    </ol>
+
+    <h2>Если приложение уже удалено с телефона</h2>
+    <p>Напишите с того адреса, на который заведён аккаунт, на
+      <a href="mailto:stgroup.dev@gmail.com">stgroup.dev@gmail.com</a> с темой
+      «Удаление аккаунта Togetherly Wallet». Мы удалим аккаунт вручную в течение
+      30 дней и ответим письмом, когда это будет сделано.</p>
+
+    <h2>Что удаляется и что остаётся</h2>
+    <table>
+      <tr><th>Данные</th><th>Что с ними происходит</th></tr>
+      <tr>
+        <td>Учётная запись: имя, адрес электронной почты, фотография профиля,
+          способ входа</td>
+        <td>Удаляется полностью</td>
+      </tr>
+      <tr>
+        <td>Личные счета, операции по ним, личные долги и лимиты, регулярные
+          платежи</td>
+        <td>Удаляются полностью</td>
+      </tr>
+      <tr>
+        <td>Записи одиночного хранилища (когда пары нет)</td>
+        <td>Удаляются полностью</td>
+      </tr>
+      <tr>
+        <td>Ваши реплики под операциями, расход вопросов к модели, кэш ответов</td>
+        <td>Удаляются полностью</td>
+      </tr>
+      <tr>
+        <td>Данные на самом телефоне: база, копии, переписка с чатом</td>
+        <td>Стираются вместе с выходом из аккаунта</td>
+      </tr>
+      <tr>
+        <td>Общие счета и операции пары</td>
+        <td>Остаются у партнёра: это и его учёт тоже. Ваше имя в них больше не
+          показывается.</td>
+      </tr>
+    </table>
+
+    <h2>Сроки</h2>
+    <ul>
+      <li><b>Семь дней</b> — запись помечена к удалению и всё ещё жива. Обычный
+        вход в это время отменяет удаление и возвращает аккаунт целиком.</li>
+      <li><b>После семи дней</b> — ночная задача распускает пары и стирает запись
+        без возможности восстановления.</li>
+      <li><b>До 30 дней</b> — удаление данных из ночных резервных копий сервера.</li>
+    </ul>
+
+    <h2>Удалить данные, не удаляя аккаунт</h2>
+    <p>В настройках есть отдельные действия: «Забыть переписку» (стирает разговор
+      с чатом), «Удалить все категории» и удаление любой записи вручную. Полное
+      стирание данных выполняется только вместе с удалением аккаунта.</p>
+
+    <h2>Связь</h2>
+    <p>Вопросы об удалении и приватности:
+      <a href="mailto:stgroup.dev@gmail.com">stgroup.dev@gmail.com</a>.
+      Политика конфиденциальности: <a href="/wallet-privacy/">togetherly.day/wallet-privacy</a>.</p>
+  </div>
+
+  <!-- ─────────────── ENGLISH ─────────────── -->
+  <div id="en" hidden>
+    <h1>Delete your Togetherly Wallet account</h1>
+    <p>This page is about the <b>Togetherly Wallet</b> app
+      (package <code>com.togetherly.money</code>), developed by S&amp;T Company.</p>
+
+    <div class="note">
+      You can delete the account from inside the app in three taps, without
+      emailing support. The account is shared across Togetherly apps, so deleting
+      it also closes your Togetherly access.
+    </div>
+
+    <h2>How to delete the account in the app</h2>
+    <ol>
+      <li>Open Togetherly Wallet and sign in.</li>
+      <li>Go to <b>Settings</b> (the gear icon in the header of the main screen).</li>
+      <li>Scroll to the <b>Danger</b> section and tap <b>Delete account</b>.</li>
+      <li>Read the warning and type the confirmation word shown on screen — the
+        button turns active. There is no undo.</li>
+      <li>Tap <b>Delete account</b>. The app disbands the pair, sends the request
+        to the server and signs you out.</li>
+    </ol>
+
+    <h2>If you already uninstalled the app</h2>
+    <p>Email <a href="mailto:stgroup.dev@gmail.com">stgroup.dev@gmail.com</a> from
+      the address your account uses, subject “Togetherly Wallet account deletion”.
+      We delete the account manually within 30 days and reply when it is done.</p>
+
+    <h2>What is deleted and what stays</h2>
+    <table>
+      <tr><th>Data</th><th>What happens</th></tr>
+      <tr><td>Account: name, email address, profile photo, sign-in method</td>
+        <td>Deleted</td></tr>
+      <tr><td>Personal accounts and their transactions, personal debts, budgets,
+        recurring payments</td><td>Deleted</td></tr>
+      <tr><td>Solo storage records (when you have no pair)</td><td>Deleted</td></tr>
+      <tr><td>Your comments on transactions, AI request counters, cached answers</td>
+        <td>Deleted</td></tr>
+      <tr><td>On-device data: database, backups, chat history</td>
+        <td>Wiped together with the sign-out</td></tr>
+      <tr><td>Shared accounts and transactions of the pair</td>
+        <td>Stay with your partner — it is their ledger too. Your name is no longer
+          shown on them.</td></tr>
+    </table>
+
+    <h2>Timing</h2>
+    <ul>
+      <li><b>Seven days</b> — the record is marked for deletion and still alive.
+        Signing in during this period cancels the deletion and restores everything.</li>
+      <li><b>After seven days</b> — a nightly job disbands pairs and erases the
+        record permanently.</li>
+      <li><b>Up to 30 days</b> — removal from nightly server backups.</li>
+    </ul>
+
+    <h2>Deleting data without deleting the account</h2>
+    <p>Settings also offer “Forget chat history”, “Delete all categories” and manual
+      deletion of any record. A full data wipe happens only together with account
+      deletion.</p>
+
+    <h2>Contact</h2>
+    <p>Questions about deletion and privacy:
+      <a href="mailto:stgroup.dev@gmail.com">stgroup.dev@gmail.com</a>.
+      Privacy policy: <a href="/wallet-privacy/">togetherly.day/wallet-privacy</a>.</p>
+  </div>
+
+  <div class="foot">
+    Togetherly Wallet · S&amp;T Company ·
+    <a href="/wallet-privacy/">Политика конфиденциальности / Privacy policy</a> ·
+    <a href="mailto:stgroup.dev@gmail.com">stgroup.dev@gmail.com</a>
+  </div>
+</div>
+
+<script>
+  function switchLang(lang) {
+    document.getElementById('ru').hidden = lang !== 'ru';
+    document.getElementById('en').hidden = lang !== 'en';
+    document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('[onclick="switchLang(\'' + lang + '\')"]').classList.add('active');
+    document.documentElement.lang = lang;
+  }
+</script>
+</body>
+</html>

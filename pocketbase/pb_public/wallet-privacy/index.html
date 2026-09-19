@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Togetherly Wallet – Privacy Policy / Политика конфиденциальности</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 32px 16px 48px;
+      color: #000;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 24px;
+      padding: 44px 40px;
+      max-width: 780px;
+      width: 100%;
+      border: 1px solid #e0e0e0;
+    }
+
+    .logo { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+    .logo-icon {
+      width: 48px; height: 48px;
+      background: #000; color: #fff;
+      border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; font-weight: 800;
+    }
+    .logo-name { font-size: 22px; font-weight: 800; }
+    .updated { font-size: 13px; color: #767676; margin-bottom: 28px; }
+
+    .lang-switch { display: flex; gap: 8px; margin-bottom: 36px; }
+    .lang-btn {
+      padding: 8px 22px; border-radius: 50px;
+      border: 1px solid #000; background: transparent; color: #000;
+      font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+    .lang-btn.active { background: #000; color: #fff; }
+
+    h1 { font-size: 28px; font-weight: 800; margin-bottom: 8px; }
+    h2 { font-size: 19px; font-weight: 700; margin: 32px 0 10px; }
+    h3 { font-size: 15px; font-weight: 700; margin: 20px 0 6px; }
+    p, li { font-size: 15px; line-height: 1.65; color: #1a1a1a; }
+    ul, ol { margin: 8px 0 8px 22px; }
+    li { margin-bottom: 6px; }
+    a { color: #000; }
+    .note {
+      background: #f5f5f5; border-radius: 14px; padding: 16px 18px; margin: 16px 0;
+      font-size: 14.5px; line-height: 1.6;
+    }
+    .foot {
+      margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0;
+      font-size: 13px; color: #767676;
+    }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <div class="logo-icon">W</div>
+    <div class="logo-name">Togetherly Wallet</div>
+  </div>
+  <div class="updated">Last updated / Дата обновления: 16 September 2026</div>
+
+  <div class="lang-switch">
+    <button class="lang-btn active" onclick="switchLang('ru')">🇷🇺 Русский</button>
+    <button class="lang-btn" onclick="switchLang('en')">🇬🇧 English</button>
+  </div>
+
+  <!-- ─────────────── РУССКИЙ ─────────────── -->
+  <div id="ru">
+    <h1>Политика конфиденциальности</h1>
+    <p>Эта политика описывает, какие данные обрабатывает приложение Togetherly Wallet
+      (пакет <code>com.togetherly.money</code>), зачем они нужны, где хранятся и что
+      вы можете с ними сделать.</p>
+
+    <div class="note">
+      Главное в одной строке: записи о деньгах хранятся на вашем устройстве, а на
+      наш сервер уезжают только для синхронизации между вашими устройствами и с
+      партнёром по паре. Мы не продаём данные. Бесплатная версия показывает
+      рекламу Рекламной сети Яндекса, подписка Wallet+ её выключает.
+    </div>
+
+    <h2>1. Кто оператор и на каком основании</h2>
+    <p>Оператор данных: разработчик Togetherly Wallet, Республика Молдова. Обработка
+      идёт по Закону Республики Молдова № 133/2011 «О защите персональных данных», а
+      для пользователей из Европейского союза по Общему регламенту защиты данных
+      (GDPR).</p>
+    <p>Основания обработки: ваше согласие, исполнение договора об использовании
+      приложения и законный интерес разработчика в работе и защите сервиса.
+      Согласие на чтение уведомлений банка вы даёте отдельно, в настройках Android,
+      и там же отзываете.</p>
+
+    <h2>2. Какие данные обрабатываются</h2>
+
+    <h3>Учётная запись</h3>
+    <p>Имя, адрес электронной почты, идентификатор пользователя, фотография профиля
+      и способ входа. Учётная запись общая для приложений Togetherly: войдя в
+      Wallet, вы входите в тот же аккаунт, что и в Togetherly.</p>
+
+    <h3>Финансовые записи</h3>
+    <p>Счета и их названия, последние четыре цифры карты, операции с суммами,
+      датами, валютами и заметками, категории, лимиты, цели, долги, план на месяц,
+      регулярные платежи. Полный номер карты приложение не спрашивает и не хранит
+      никогда.</p>
+
+    <h3>Данные пары</h3>
+    <p>Связь с партнёром, общие счета и операции, правила дележа, сальдо долга,
+      реплики под операциями. Личные счета и операции по ним партнёру не
+      передаются: это решает сервер, а не приложение на телефоне.</p>
+
+    <h3>Уведомления банков (только Android)</h3>
+    <p>С вашего разрешения приложение читает уведомления банковских приложений,
+      чтобы предложить записать трату. <b>Текст уведомления остаётся на
+      устройстве</b>: разбор целиком локальный, на сервер уезжает уже готовая
+      операция: сумма, дата, счёт, категория. Разрешение выдаётся вручную в
+      настройках Android и отзывается там же.</p>
+
+    <h3>Разговор о деньгах</h3>
+    <p>Если вы задаёте вопрос в чате, на наш сервер уходит вопрос и краткая сводка
+      ваших финансов, собранная сервером. Дальше запрос идёт к языковой модели
+      (DeepSeek через OpenRouter). Переписка хранится на устройстве и партнёру не
+      видна. Снимки чеков и присланные файлы разбираются на лету и на сервере не
+      сохраняются.</p>
+
+    <h3>Устройство и подписка</h3>
+    <p>Токен уведомлений (Firebase Cloud Messaging) нужен, чтобы приложение могло
+      сказать вам о записи партнёра. Чек покупки от Google Play, App Store или
+      lava открывает подписку Wallet+. Платёжные данные обрабатывает магазин,
+      к нам они не попадают.</p>
+
+    <h2>3. Зачем это нужно</h2>
+    <ul>
+      <li>вести учёт и показывать отчёты;</li>
+      <li>синхронизировать записи между вашими устройствами и с партнёром;</li>
+      <li>предлагать записать трату из банковского уведомления;</li>
+      <li>отвечать на вопросы о ваших деньгах;</li>
+      <li>открывать платные возможности по действующей подписке;</li>
+      <li>восстанавливать данные из резервной копии.</li>
+    </ul>
+
+    <h2>4. Где и сколько хранятся данные</h2>
+    <p>На вашем устройстве и на арендованном сервере провайдера Hostkey. Сервер
+      физически стоит в России, то есть за пределами Европейской экономической зоны;
+      для пользователей из ЕС это передача в третью страну, и она нужна для работы
+      самой синхронизации. Не согласны с такой передачей: пользуйтесь приложением без
+      аккаунта, тогда записи не покидают телефон.</p>
+    <p>Передача идёт по TLS, доступ к серверу ограничен ключами, пароли лежат
+      хешами. Резервная копия базы снимается раз в сутки, шифруется открытым ключом
+      OpenPGP, хранится в семи последних экземплярах и расшифровывается только
+      закрытым ключом разработчика.</p>
+    <p>Данные живут, пока существует ваша учётная запись. Удаление аккаунта отменяемо
+      семь дней, после чего записи стираются без восстановления. Подписчикам Wallet+
+      дополнительно хранится зашифрованный снимок базы за каждый день: из него
+      делается возврат к прошлому состоянию.</p>
+
+    <h2>5. Кому данные передаются</h2>
+    <ul>
+      <li>Google (Play Billing, Firebase Cloud Messaging): покупки и доставка
+        уведомлений;</li>
+      <li>Apple (App Store): покупки на устройствах Apple;</li>
+      <li>lava: покупки через витрину;</li>
+      <li>OpenRouter и DeepSeek получают только текст вашего вопроса и сводку, и
+        только когда вы пользуетесь чатом;</li>
+      <li>Hostkey как владелец оборудования, на котором работает сервер.</li>
+    </ul>
+    <p>Данные не продаются и брокерам данных не передаются.</p>
+
+    <h3>Реклама</h3>
+    <p>В бесплатной версии на Android показывается реклама Рекламной сети
+      Яндекса. Её SDK получает рекламный идентификатор устройства, сведения о
+      самом устройстве и сети и использует их для подбора объявлений; условия
+      обработки описаны в документах Яндекса. Записи о ваших деньгах рекламной
+      сети НЕ передаются: она не знает ни сумм, ни счетов, ни категорий.</p>
+    <p>Рекламный идентификатор сбрасывается и отключается в настройках Android,
+      в разделе «Конфиденциальность». Подписка Wallet+ убирает рекламу
+      целиком.</p>
+
+    <h2>6. Ваши права</h2>
+    <ul>
+      <li>выгрузить всю базу файлом: в настройках, бесплатно и в любой момент;</li>
+      <li>исправить или удалить любую запись;</li>
+      <li>удалить аккаунт целиком. Удаление отменяемо семь дней: обычный вход
+        возвращает аккаунт. По истечении срока запись стирается;</li>
+      <li>отозвать доступ к уведомлениям банков в настройках Android;</li>
+      <li>написать нам и получить ответ о ваших данных.</li>
+    </ul>
+    <p>Удаление аккаунта стирает и учётную запись Togetherly: она общая для
+      экосистемы. Общая история пары на сервере остаётся у партнёра: это его деньги тоже.</p>
+
+    <h2>7. Дети</h2>
+    <p>Приложение не предназначено для детей младше 18 лет и не собирает их данные
+      сознательно.</p>
+
+    <h2>8. Изменения</h2>
+    <p>Новая редакция публикуется на этой странице с новой датой обновления.</p>
+
+    <h2>9. Связь</h2>
+    <p>По вопросам конфиденциальности: <a href="mailto:stgroup.dev@gmail.com">stgroup.dev@gmail.com</a></p>
+  </div>
+
+  <!-- ─────────────── ENGLISH ─────────────── -->
+  <div id="en" hidden>
+    <h1>Privacy Policy</h1>
+    <p>This policy explains what data the Togetherly Wallet app
+      (package <code>com.togetherly.money</code>) processes, why it is needed, where
+      it is stored and what you can do with it.</p>
+
+    <div class="note">
+      The short version: your money records live on your device, and they reach our
+      server only to sync between your own devices and with your partner. We do not
+      sell your data and do not share it with ad networks.
+    </div>
+
+    <h2>1. Who the controller is and on what grounds</h2>
+    <p>The data controller is the developer of Togetherly Wallet, Republic of Moldova.
+      Processing follows Moldovan Law No. 133/2011 on personal data protection and,
+      for users in the European Union, the General Data Protection Regulation
+      (GDPR).</p>
+    <p>Legal bases: your consent, performance of the agreement to use the app, and the
+      developer's legitimate interest in running and protecting the service. Consent
+      to read bank notifications is given separately in Android settings and is
+      withdrawn there.</p>
+
+    <h2>2. What data we process</h2>
+
+    <h3>Account</h3>
+    <p>Name, email address, user identifier, profile picture and sign-in method. The
+      account is shared across Togetherly apps: signing in to Wallet signs you in to
+      the same account you use in Togetherly.</p>
+
+    <h3>Money records</h3>
+    <p>Accounts and their names, the last four digits of a card, transactions with
+      amounts, dates, currencies and notes, categories, budget limits, goals, debts,
+      the monthly plan and recurring payments. The app never asks for a full card
+      number and never stores one.</p>
+
+    <h3>Couple data</h3>
+    <p>The link to your partner, shared accounts and their transactions, splitting
+      rules, debt balances and the comments under a record. Personal accounts and
+      their transactions are never sent to your partner: the server decides this,
+      not the app on the phone.</p>
+
+    <h3>Bank notifications (Android only)</h3>
+    <p>With your permission the app reads notifications from banking apps to offer
+      recording a charge. <b>The notification text stays on the device</b>: parsing
+      is entirely local, and only the finished record (amount, date, account,
+      category) reaches the server. The permission is granted by hand in Android
+      settings and can be revoked there.</p>
+
+    <h3>Money chat</h3>
+    <p>When you ask a question in the chat, your question and a short summary of
+      your finances, assembled by the server, are sent to a language model (DeepSeek
+      via OpenRouter). The conversation is stored on your device and is not visible
+      to your partner. Receipt photos and uploaded files are parsed on the fly and
+      are not kept on the server.</p>
+
+    <h3>Device and subscription</h3>
+    <p>A notification token (Firebase Cloud Messaging) so the app can tell you about
+      your partner's record. A purchase receipt from Google Play, the App Store or
+      lava to unlock the Wallet+ subscription. Payment details are handled by the
+      store and never reach us.</p>
+
+    <h2>3. Why we need it</h2>
+    <ul>
+      <li>to keep your records and show reports;</li>
+      <li>to sync between your devices and with your partner;</li>
+      <li>to offer recording a charge from a bank notification;</li>
+      <li>to answer questions about your money;</li>
+      <li>to unlock paid features for an active subscription;</li>
+      <li>to restore your data from a backup.</li>
+    </ul>
+
+    <h2>4. Where data is stored and for how long</h2>
+    <p>On your device and on a rented server from the provider Hostkey. The server
+      physically stands in Russia, outside the European Economic Area; for EU users
+      this is a transfer to a third country, and it is what makes the sync work. If
+      you do not accept that transfer, use the app without an account and your
+      records never leave the phone.</p>
+    <p>Transfer runs over TLS, server access is limited to keys, passwords are stored
+      as hashes. A database backup is taken daily, encrypted with an OpenPGP public
+      key, kept in seven most recent copies, and can be decrypted only with the
+      developer's private key.</p>
+    <p>Data lives while your account exists. Account deletion can be undone within
+      seven days, after which records are erased beyond recovery. Wallet+ subscribers
+      also get an encrypted daily snapshot of the database: it is what a restore to a
+      previous state is made from.</p>
+
+    <h2>5. Who we share it with</h2>
+    <ul>
+      <li>Google (Play Billing, Firebase Cloud Messaging): purchases and
+        notification delivery;</li>
+      <li>Apple (App Store): purchases on Apple devices;</li>
+      <li>lava: purchases through its storefront;</li>
+      <li>OpenRouter and DeepSeek receive only your question and the summary, and
+        only when you use the chat;</li>
+      <li>Hostkey, as the owner of the hardware the server runs on.</li>
+    </ul>
+    <p>The app carries no ad networks. Your data is not sold.</p>
+
+    <h2>6. Your rights</h2>
+    <ul>
+      <li>export the whole database as a file: in settings, free, at any time;</li>
+      <li>correct or delete any record;</li>
+      <li>delete the account entirely. Deletion is reversible for seven days: a
+        normal sign-in brings the account back. After that the record is erased;</li>
+      <li>revoke notification access in Android settings;</li>
+      <li>write to us and ask about your data.</li>
+    </ul>
+    <p>Deleting the account also deletes your Togetherly account: it is shared across
+      the ecosystem. The couple's shared history stays with your partner, because it
+      is their money as well.</p>
+
+    <h2>7. Children</h2>
+    <p>The app is not intended for children under 18 and does not knowingly collect
+      their data.</p>
+
+    <h2>8. Changes</h2>
+    <p>A new revision is published on this page with a new update date.</p>
+
+    <h2>9. Contact</h2>
+    <p>For privacy-related questions: <a href="mailto:stgroup.dev@gmail.com">stgroup.dev@gmail.com</a></p>
+  </div>
+
+  <div class="foot">
+    Togetherly Wallet · <a href="/delete-account">Delete account</a> ·
+    <a href="mailto:stgroup.dev@gmail.com">stgroup.dev@gmail.com</a>
+  </div>
+</div>
+
+<script>
+  function switchLang(lang) {
+    document.getElementById('ru').hidden = lang !== 'ru';
+    document.getElementById('en').hidden = lang !== 'en';
+    document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('[onclick="switchLang(\'' + lang + '\')"]').classList.add('active');
+    document.documentElement.lang = lang;
+  }
+</script>
+</body>
+</html>
