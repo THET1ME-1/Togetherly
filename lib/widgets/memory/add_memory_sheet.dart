@@ -7,6 +7,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/profile_theme.dart';
 import '../../utils/color_distance.dart';
 import '../common/animations.dart';
+import '../common/halftone_painter.dart';
 import '../connect_expressive.dart';
 
 /// Меньше этой разницы цветов (ΔE) фигура полки сливается с листом.
@@ -37,8 +38,11 @@ Color shelfTint(Color container, {required Color toward, required Color on}) {
 /// Flutter рвал слово посреди: «Музык/а», «ссылк/е», «Musiqu/e». Подпись из
 /// пары слов пусть переносится по словам, а само слово — нет: кегль
 /// уменьшается ровно настолько, чтобы оно встало, но не мельче 9.
-double shelfLabelSize(String label,
-    {required double maxWidth, required TextScaler scaler}) {
+double shelfLabelSize(
+  String label, {
+  required double maxWidth,
+  required TextScaler scaler,
+}) {
   const base = 12.5;
   var widest = 0.0;
   for (final word in label.split(RegExp(r'\s+'))) {
@@ -47,7 +51,10 @@ double shelfLabelSize(String label,
       text: TextSpan(
         text: word,
         style: const TextStyle(
-            fontFamily: 'Onest', fontSize: base, fontWeight: FontWeight.w600),
+          fontFamily: 'Onest',
+          fontSize: base,
+          fontWeight: FontWeight.w600,
+        ),
       ),
       textDirection: TextDirection.ltr,
       textScaler: scaler,
@@ -104,22 +111,58 @@ class AddMemorySheetBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = LocaleService.current;
     final cs = scheme;
-    final sc = shelfTint(cs.secondaryContainer,
-        toward: cs.secondary, on: cs.surfaceContainer);
-    final tc = shelfTint(cs.tertiaryContainer,
-        toward: cs.tertiary, on: cs.surfaceContainer);
+    final sc = shelfTint(
+      cs.secondaryContainer,
+      toward: cs.secondary,
+      on: cs.surfaceContainer,
+    );
+    final tc = shelfTint(
+      cs.tertiaryContainer,
+      toward: cs.tertiary,
+      on: cs.surfaceContainer,
+    );
 
     final shelf = [
-      (MemoryType.video, s.addShelfVideo, MaterialShapes.pill, sc,
-          cs.onSecondaryContainer, memoryTypeIcon(MemoryType.videoLink)),
-      (MemoryType.location, s.addShelfPlace, MaterialShapes.arch, tc,
-          cs.onTertiaryContainer, memoryTypeIcon(MemoryType.location)),
-      (MemoryType.music, s.music, MaterialShapes.clover4Leaf, sc,
-          cs.onSecondaryContainer, memoryTypeIcon(MemoryType.music)),
-      (MemoryType.book, s.addShelfBook, MaterialShapes.gem, tc,
-          cs.onTertiaryContainer, memoryTypeIcon(MemoryType.book)),
-      (MemoryType.movie, s.addShelfMovie, MaterialShapes.pentagon, sc,
-          cs.onSecondaryContainer, memoryTypeIcon(MemoryType.movie)),
+      (
+        MemoryType.video,
+        s.addShelfVideo,
+        MaterialShapes.pill,
+        sc,
+        cs.onSecondaryContainer,
+        memoryTypeIcon(MemoryType.videoLink),
+      ),
+      (
+        MemoryType.location,
+        s.addShelfPlace,
+        MaterialShapes.arch,
+        tc,
+        cs.onTertiaryContainer,
+        memoryTypeIcon(MemoryType.location),
+      ),
+      (
+        MemoryType.music,
+        s.music,
+        MaterialShapes.clover4Leaf,
+        sc,
+        cs.onSecondaryContainer,
+        memoryTypeIcon(MemoryType.music),
+      ),
+      (
+        MemoryType.book,
+        s.addShelfBook,
+        MaterialShapes.gem,
+        tc,
+        cs.onTertiaryContainer,
+        memoryTypeIcon(MemoryType.book),
+      ),
+      (
+        MemoryType.movie,
+        s.addShelfMovie,
+        MaterialShapes.pentagon,
+        sc,
+        cs.onSecondaryContainer,
+        memoryTypeIcon(MemoryType.movie),
+      ),
     ];
 
     return Padding(
@@ -145,43 +188,51 @@ class AddMemorySheetBody extends StatelessWidget {
             key: const ValueKey('add-hero'),
             fill: fill,
             ink: AppThemes.onColor(fill, mode: cs.brightness),
+            dark: cs.brightness == Brightness.dark,
             title: s.addHeroTitle,
             subtitle: s.addHeroSub,
             onTap: () => onType(MemoryType.photo),
           ),
           const SizedBox(height: 18),
-          LayoutBuilder(builder: (context, box) {
-            // Кегль один на всю полку: подписи разного размера рядом читаются
-            // небрежностью. Берём самый мелкий из тех, что нужны каждому слову.
-            final cell = (box.maxWidth - 4 * (shelf.length - 1)) / shelf.length;
-            final scaler = MediaQuery.textScalerOf(context);
-            var size = 12.5;
-            for (final item in shelf) {
-              final fit = shelfLabelSize(item.$2, maxWidth: cell, scaler: scaler);
-              if (fit < size) size = fit;
-            }
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (var i = 0; i < shelf.length; i++) ...[
-                  if (i > 0) const SizedBox(width: 4),
-                  Expanded(
-                    child: _ShelfItem(
-                      key: ValueKey('add-${shelf[i].$1.name}'),
-                      label: shelf[i].$2,
-                      shape: shelf[i].$3,
-                      color: shelf[i].$4,
-                      ink: shelf[i].$5,
-                      icon: shelf[i].$6,
-                      textColor: cs.onSurface,
-                      fontSize: size,
-                      onTap: () => onType(shelf[i].$1),
+          LayoutBuilder(
+            builder: (context, box) {
+              // Кегль один на всю полку: подписи разного размера рядом читаются
+              // небрежностью. Берём самый мелкий из тех, что нужны каждому слову.
+              final cell =
+                  (box.maxWidth - 4 * (shelf.length - 1)) / shelf.length;
+              final scaler = MediaQuery.textScalerOf(context);
+              var size = 12.5;
+              for (final item in shelf) {
+                final fit = shelfLabelSize(
+                  item.$2,
+                  maxWidth: cell,
+                  scaler: scaler,
+                );
+                if (fit < size) size = fit;
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (var i = 0; i < shelf.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 4),
+                    Expanded(
+                      child: _ShelfItem(
+                        key: ValueKey('add-${shelf[i].$1.name}'),
+                        label: shelf[i].$2,
+                        shape: shelf[i].$3,
+                        color: shelf[i].$4,
+                        ink: shelf[i].$5,
+                        icon: shelf[i].$6,
+                        textColor: cs.onSurface,
+                        fontSize: size,
+                        onTap: () => onType(shelf[i].$1),
+                      ),
                     ),
-                  ),
+                  ],
                 ],
-              ],
-            );
-          }),
+              );
+            },
+          ),
           const SizedBox(height: 20),
           _Capsule(
             key: const ValueKey('add-capsule'),
@@ -201,6 +252,7 @@ class _Hero extends StatelessWidget {
     super.key,
     required this.fill,
     required this.ink,
+    required this.dark,
     required this.title,
     required this.subtitle,
     required this.onTap,
@@ -208,6 +260,7 @@ class _Hero extends StatelessWidget {
 
   final Color fill;
   final Color ink;
+  final bool dark;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
@@ -224,51 +277,57 @@ class _Hero extends StatelessWidget {
         child: Material(
           color: fill,
           borderRadius: BorderRadius.circular(28),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 104),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: TextStyle(
-                            fontFamily: 'Onest',
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            height: 1.2,
-                            color: ink,
+          clipBehavior: Clip.antiAlias,
+          // Растр под подписью (макет «Узор кнопки», 19.09.2026): точки
+          // цветом подписи растут к правому краю, левая треть чистая.
+          child: CustomPaint(
+            painter: HalftonePainter(color: ink, dark: dark),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 104),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: TextStyle(
+                              fontFamily: 'Onest',
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              height: 1.2,
+                              color: ink,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          subtitle,
-                          style: TextStyle(
-                            fontFamily: 'Onest',
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w500,
-                            height: 1.3,
-                            color: ink.withValues(alpha: 0.9),
+                          const SizedBox(height: 4),
+                          Text(
+                            subtitle,
+                            style: TextStyle(
+                              fontFamily: 'Onest',
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w500,
+                              height: 1.3,
+                              color: ink.withValues(alpha: 0.9),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 14),
-                  _ShapeIcon(
-                    size: 64,
-                    shape: MaterialShapes.cookie9Sided,
-                    color: ink,
-                    icon: memoryTypeIcon(MemoryType.photo),
-                    iconSize: 28,
-                    iconColor: fill,
-                  ),
-                ],
+                    const SizedBox(width: 14),
+                    _ShapeIcon(
+                      size: 64,
+                      shape: MaterialShapes.cookie9Sided,
+                      color: ink,
+                      icon: memoryTypeIcon(MemoryType.photo),
+                      iconSize: 28,
+                      iconColor: fill,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -308,33 +367,35 @@ class _ShelfItem extends StatelessWidget {
       excludeSemantics: true,
       child: QuickTapScale(
         onTap: onTap,
-        child: LayoutBuilder(builder: (context, box) {
-          // На 320 точках на ячейку остаётся 54 — фигура ужимается вместе
-          // с ней, а не вылезает к соседке.
-          final side = box.maxWidth < 56 ? box.maxWidth : 56.0;
-          final style = TextStyle(
-            fontFamily: 'Onest',
-            fontSize: fontSize,
-            fontWeight: FontWeight.w600,
-            height: 1.2,
-            color: textColor,
-          );
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _ShapeIcon(
-                size: side,
-                shape: shape,
-                color: color,
-                icon: icon,
-                iconSize: 24,
-                iconColor: ink,
-              ),
-              const SizedBox(height: 8),
-              Text(label, textAlign: TextAlign.center, style: style),
-            ],
-          );
-        }),
+        child: LayoutBuilder(
+          builder: (context, box) {
+            // На 320 точках на ячейку остаётся 54 — фигура ужимается вместе
+            // с ней, а не вылезает к соседке.
+            final side = box.maxWidth < 56 ? box.maxWidth : 56.0;
+            final style = TextStyle(
+              fontFamily: 'Onest',
+              fontSize: fontSize,
+              fontWeight: FontWeight.w600,
+              height: 1.2,
+              color: textColor,
+            );
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _ShapeIcon(
+                  size: side,
+                  shape: shape,
+                  color: color,
+                  icon: icon,
+                  iconSize: 24,
+                  iconColor: ink,
+                ),
+                const SizedBox(height: 8),
+                Text(label, textAlign: TextAlign.center, style: style),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -385,8 +446,10 @@ class _Capsule extends StatelessWidget {
                     child: Icon(
                       Icons.mail_rounded,
                       size: 20,
-                      color: AppThemes.onColor(cs.inversePrimary,
-                          mode: cs.brightness),
+                      color: AppThemes.onColor(
+                        cs.inversePrimary,
+                        mode: cs.brightness,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),

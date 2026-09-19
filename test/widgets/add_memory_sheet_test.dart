@@ -16,6 +16,7 @@ import 'package:love_app/theme/app_palettes.dart';
 import 'package:love_app/theme/app_theme.dart';
 import 'package:love_app/theme/profile_theme.dart';
 import 'package:love_app/utils/color_distance.dart';
+import 'package:love_app/widgets/common/halftone_painter.dart';
 import 'package:love_app/widgets/memory/add_memory_sheet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -182,6 +183,21 @@ void main() {
       expect(deltaE(Colors.white, Colors.white), 0);
       expect(deltaE(Colors.black, Colors.white), closeTo(100, 0.5));
     });
+
+    for (final b in Brightness.values) {
+      testWidgets('на главной кнопке растр цветом подписи (${b.name})',
+          (tester) async {
+        await _pump(tester, brightness: b);
+        final theme = buildAppTheme(kPalettes[0], b);
+        final paint = tester.widget<CustomPaint>(find.descendant(
+            of: find.byKey(const ValueKey('add-hero')),
+            matching: find.byWidgetPredicate(
+                (w) => w is CustomPaint && w.painter is HalftonePainter)));
+        final painter = paint.painter! as HalftonePainter;
+        expect(painter.color, AppThemes.onColor(theme.fillColor, mode: b));
+        expect(painter.dark, b == Brightness.dark);
+      });
+    }
 
     testWidgets('главная кнопка в заливке темы, подпись белым', (tester) async {
       await _pump(tester, brightness: Brightness.light);
