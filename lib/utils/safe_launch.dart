@@ -20,6 +20,8 @@ const _knownSchemes = {
   'geo',
   'dgis',
   'yandexmaps',
+  // «Как доехать» на карте «Где мы»: Google Maps на iPhone.
+  'comgooglemaps',
   // Страница приложения в магазине Android: кнопка Togetherly Wallet ведёт
   // сюда, если Wallet ещё не стоит (`WalletTeaser.open`).
   'market',

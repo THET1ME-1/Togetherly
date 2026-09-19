@@ -78,6 +78,7 @@ import '../services/home_widget_service.dart';
 import '../services/rate_limiter_service.dart';
 import '../services/locale_service.dart';
 import '../services/music_meta_service.dart';
+import '../services/map/map_tiles.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_scope.dart';
 import '../widgets/avatar_widget.dart';
@@ -1994,6 +1995,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           children: [
             FlutterMap(
               options: MapOptions(
+                backgroundColor: mapBackground(widget.theme),
                 initialCenter: center,
                 initialZoom: 15,
                 interactionOptions:
@@ -2001,12 +2003,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 onTap: (_, _) => _showMemoryDetail(memory),
               ),
               children: [
-                TileLayer(
-                  urlTemplate:
-                      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.togetherly.love',
-                  maxNativeZoom: 19,
-                ),
+                ThemedMapLayer(theme: widget.theme),
                 MarkerLayer(
                   markers: [
                     Marker(

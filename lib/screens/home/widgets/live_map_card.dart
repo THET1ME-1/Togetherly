@@ -14,6 +14,8 @@ import '../../../theme/app_theme.dart';
 import '../../../theme/profile_theme.dart';
 import '../../../widgets/storage_image.dart';
 import '../../live_map_screen.dart';
+import '../../../services/map/map_tiles.dart';
+import '../../../widgets/map/map_arc_layer.dart';
 import '../../../utils/safe_text.dart';
 
 const String _kCollapsedKey = 'live_map_card_collapsed';
@@ -313,6 +315,7 @@ class _LiveMapCardState extends State<LiveMapCard> {
                   initialCenter:
                       partner ?? me ?? const LatLng(47.0105, 28.8638),
                   initialZoom: 13,
+                  backgroundColor: mapBackground(t),
                   interactionOptions: const InteractionOptions(
                     flags: InteractiveFlag.none,
                   ),
@@ -323,27 +326,14 @@ class _LiveMapCardState extends State<LiveMapCard> {
                   },
                 ),
                 children: [
-                  TileLayer(
-                    urlTemplate:
-                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    userAgentPackageName: 'com.togetherly.love',
-                    maxNativeZoom: 19,
-                    // Превью не двигают пальцем (взаимодействие выключено),
-                    // поэтому запас тайлов за краем держать незачем: каждый
-                    // лишний тайл — это картинка в памяти телефона.
-                    keepBuffer: 0,
-                    panBuffer: 0,
-                  ),
+                  // Та же подложка, что на полном экране: векторная, в цветах
+                  // темы. Прежний TileLayer ходил на tile.openstreetmap.org.
+                  ThemedMapLayer(theme: t),
                   if (me != null && partner != null)
-                    PolylineLayer(
-                      polylines: [
-                        Polyline(
-                          points: [me, partner],
-                          strokeWidth: 3,
-                          color: t.primary.withValues(alpha: 0.8),
-                          pattern: StrokePattern.dashed(segments: const [9, 6]),
-                        ),
-                      ],
+                    MapArcLayer(
+                      from: me,
+                      to: partner,
+                      palette: MapTiles.paletteOf(t),
                     ),
                   MarkerLayer(
                     markers: [

@@ -9,6 +9,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import '../services/locale_service.dart';
 import '../theme/theme_scope.dart';
+import '../services/map/map_tiles.dart';
 
 
 // ─── Data class ─────────────────────────────────────────────────────────────
@@ -294,16 +295,13 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
+              backgroundColor: mapBackground(context.appTheme),
               initialCenter: _selected,
               initialZoom: widget.initialLatitude != null ? 14.0 : 4.0,
               onTap: _onMapTap,
             ),
             children: [
-              TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.togetherly.love',
-                maxNativeZoom: 19,
-              ),
+              ThemedMapLayer(theme: context.appTheme),
               MarkerLayer(
                 markers: [
                   Marker(

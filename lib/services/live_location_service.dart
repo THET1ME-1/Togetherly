@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/fgs_start_allowed.dart';
 import '../models/live_location_tuning.dart';
+import '../models/map_distance.dart';
 import 'locale_service.dart';
 import 'centrifugo_service.dart';
 import 'pb_data_service.dart';
@@ -518,12 +519,17 @@ class LiveLocationService with WidgetsBindingObserver {
   static double distanceMeters(LatLng a, LatLng b) =>
       const Distance().as(LengthUnit.Meter, a, b);
 
-  /// Человекочитаемая дистанция: см / м / км.
+  /// Человекочитаемая дистанция: «рядом» ближе 50 м, метры десятками,
+  /// километры по правилам языка («2,9 км», «1 609 км»). Правила —
+  /// `formatMapDistance`.
   static String formatDistance(double meters) {
-    if (meters < 1) return '${(meters * 100).round()} ${LocaleService.current.unitCm}';
-    if (meters < 1000) return '${meters.round()} ${LocaleService.current.unitM}';
-    final km = meters / 1000;
-    final str = km < 10 ? km.toStringAsFixed(1) : km.round().toString();
-    return '$str ${LocaleService.current.unitKm}';
+    final s = LocaleService.current;
+    return formatMapDistance(
+      meters,
+      lang: LocaleService.instance.language.code,
+      nearby: s.liveMapNearby,
+      unitM: s.unitM,
+      unitKm: s.unitKm,
+    );
   }
 }

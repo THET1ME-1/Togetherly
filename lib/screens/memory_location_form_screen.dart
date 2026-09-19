@@ -8,6 +8,7 @@ import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/memory_date_field.dart';
 import 'map_picker_screen.dart';
+import '../services/map/map_tiles.dart';
 
 /// Сохранение воспоминания-локации.
 typedef MemoryLocationSaveCallback = Future<void> Function({
@@ -262,17 +263,14 @@ class _MemoryLocationFormScreenState extends State<MemoryLocationFormScreen> {
         FlutterMap(
           key: ValueKey('$_lat,$_lng'),
           options: MapOptions(
+            backgroundColor: mapBackground(widget.theme),
             initialCenter: center,
             initialZoom: 15,
             interactionOptions:
                 const InteractionOptions(flags: InteractiveFlag.none),
           ),
           children: [
-            TileLayer(
-              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              userAgentPackageName: 'com.togetherly.love',
-              maxNativeZoom: 19,
-            ),
+            ThemedMapLayer(theme: widget.theme),
           ],
         ),
         // Центральный маркер (остриё указывает в центр карты).

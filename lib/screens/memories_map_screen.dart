@@ -7,6 +7,7 @@ import '../models/memory.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/storage_image.dart';
+import '../services/map/map_tiles.dart';
 
 class _MemoryCluster {
   final LatLng center;
@@ -160,6 +161,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
+              backgroundColor: mapBackground(widget.theme),
               initialCenter: center,
               initialZoom: _zoom,
               minZoom: 1.5,
@@ -168,11 +170,7 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
               onMapEvent: _onMapEvent,
             ),
             children: [
-              TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.togetherly.love',
-                maxNativeZoom: 19,
-              ),
+              ThemedMapLayer(theme: widget.theme),
               MarkerLayer(
                 markers: _clusters.map((c) {
                   final size = _markerSize(c);

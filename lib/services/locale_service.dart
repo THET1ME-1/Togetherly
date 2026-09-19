@@ -2303,6 +2303,13 @@ abstract class AppStrings {
   String get liveMapYou;
   String get liveMapCenterMe;
   String get liveMapShowBoth;
+  String get liveMapNearby;
+  String get liveMapGlobe;
+  String get liveMapMapMode;
+  String get liveMapZoomIn;
+  String get liveMapRoute;
+  String get liveMapRouteNoApp;
+  String get liveMapMissYouSent;
   String get liveMapOpenFull;
   String get liveMapNotPaired;
   String get liveLocationServiceTitle;

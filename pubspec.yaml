@@ -74,8 +74,12 @@ dependencies:
   flutter_animate: ^4.5.0
   material3_expressive_loading_indicator: ^0.1.2 # M3 Expressive морфинг-лоадер (кнопка нового кода)
   material_new_shapes: ^1.0.0 # аутентичные формы M3 (RoundedPolygon.toPath → клипперы/бордеры)
-  flutter_map: ^8.2.2
-  latlong2: ^0.9.1
+  flutter_map: ^8.3.2
+  latlong2: ^0.10.1
+  # Векторная подложка «Где мы» в цветах темы (стиль собирается из ColorScheme).
+  # Бета 9.x — последняя ветка под flutter_map 8 без flutter_gpu.
+  vector_map_tiles: 9.0.0-beta.13
+  vector_tile_renderer: ^6.1.0 # тема карты собирается из стиля в коде
   exif: ^3.3.0
   # 10.x обязателен: 9.x грузил плеер как данные с baseUrl youtube-nocookie.com
   # и не передавал `origin` вовсе, поэтому YouTube отвечал ошибкой 153 и не
@@ -164,6 +168,9 @@ flutter:
     # не константой в коде: 4334 записи в Dart раздували бы сборку исходника,
     # а нужны они только на экране выбора.
     - assets/symbols/material_symbols.json
+    # Карта «Где мы»: базовый стиль подложки и контуры суши для глобуса
+    # (tool/gen_map_assets.py).
+    - assets/map/
 
 
   # Unbounded (заголовки/числа) + Onest (текст) — шрифты M3-экрана «Профиль»
@@ -185,3 +192,8 @@ flutter:
     - family: MaterialSymbolsRounded
       fonts:
         - asset: assets/fonts/MaterialSymbolsRounded.ttf
+
+dependency_overrides:
+  # vector_tile_renderer 6.1 держит vector_tile ^2 (protobuf ^3), а centrifuge
+  # требует protobuf >=5. vector_tile 4 — тот же декодер на protobuf 6.
+  vector_tile: ^4.0.0

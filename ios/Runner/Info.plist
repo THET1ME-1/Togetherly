@@ -30,6 +30,7 @@
 	<array>
 		<string>dgis</string>
 		<string>yandexmaps</string>
+		<string>comgooglemaps</string>
 	</array>
 	<key>CFBundleURLTypes</key>
 	<array>
