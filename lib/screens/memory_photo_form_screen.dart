@@ -375,66 +375,74 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
         // Экран записи один на всё: под новую запись он открывается пустым,
         // из готовой — карандашом в шапке пина. Кадры не обрезаются: обложка
         // стоит целиком, в своей пропорции, остальные идут плёнкой под ней.
-        body: Column(
+        // Кнопки лежат поверх прокрутки, а не отдельной полосой: у полосы
+        // непрозрачный фон, и под ней виднелась обрезанная карточка.
+        body: Stack(
           children: [
-            SizedBox(height: media.padding.top + 8),
-            _formBar(cs),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(12, 6, 12, 120),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _formMedia(cs),
-                    const SizedBox(height: 10),
-                    _formHint(cs),
-                    const SizedBox(height: 12),
-                    _formFields(cs),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-        bottomNavigationBar: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            child: Row(
+            Column(
               children: [
-                // Галерея и камера — смежной парой, как у кнопки сохранения.
-                Row(children: [
-                  _formRound(cs,
-                      icon: Icons.add_photo_alternate_rounded,
-                      onTap: _pickMedia,
-                      radius: const BorderRadius.horizontal(
-                          left: Radius.circular(32), right: Radius.circular(10))),
-                  const SizedBox(width: 2),
-                  _formRound(cs,
-                      icon: Icons.photo_camera_rounded,
-                      onTap: _pickFromCamera,
-                      radius: const BorderRadius.horizontal(
-                          left: Radius.circular(10), right: Radius.circular(32))),
-                ]),
-                const SizedBox(width: 8),
+                SizedBox(height: media.padding.top + 8),
+                _formBar(cs),
                 Expanded(
-                  child: FilledButton.icon(
-                    onPressed: _canSave ? _save : null,
-                    icon: const Icon(Icons.check_rounded, size: 22),
-                    label: Text(LocaleService.current.save),
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(64),
-                      textStyle: const TextStyle(
-                        fontFamily: ProfileTheme.bodyFont,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                      ),
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.fromLTRB(
+                        12, 6, 12, 108 + media.padding.bottom),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _formMedia(cs),
+                        const SizedBox(height: 10),
+                        _formHint(cs),
+                        const SizedBox(height: 12),
+                        _formFields(cs),
+                      ],
                     ),
                   ),
                 ),
               ],
             ),
-          ),
+            Positioned(
+              left: 12,
+              right: 12,
+              bottom: media.padding.bottom + 12,
+              child: Row(
+                children: [
+                  // Галерея и камера — смежной парой, как у кнопки сохранения.
+                  Row(children: [
+                    _formRound(cs,
+                        icon: Icons.add_photo_alternate_rounded,
+                        onTap: _pickMedia,
+                        radius: const BorderRadius.horizontal(
+                            left: Radius.circular(32),
+                            right: Radius.circular(10))),
+                    const SizedBox(width: 2),
+                    _formRound(cs,
+                        icon: Icons.photo_camera_rounded,
+                        onTap: _pickFromCamera,
+                        radius: const BorderRadius.horizontal(
+                            left: Radius.circular(10),
+                            right: Radius.circular(32))),
+                  ]),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _canSave ? _save : null,
+                      icon: const Icon(Icons.check_rounded, size: 22),
+                      label: Text(LocaleService.current.save),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size.fromHeight(64),
+                        textStyle: const TextStyle(
+                          fontFamily: ProfileTheme.bodyFont,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
