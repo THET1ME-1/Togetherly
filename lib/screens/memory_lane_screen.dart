@@ -2216,10 +2216,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => _openFrameAt(memory, 0),
-          child: cover,
+        Center(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => _openFrameAt(memory, 0),
+            child: cover,
+          ),
         ),
         if (photos.length > 1) ...[
           const SizedBox(height: 2),
@@ -3565,10 +3567,17 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     // Фото и видео открываются ЭКРАНОМ, а не листом: у записи своя шапка с
     // автором, и лист оставлял сверху просвет ленты — две шапки подряд.
     if (memory.type == MemoryType.photo || memory.type == MemoryType.video) {
+      // Простое проявление вместо выезда снизу: системный переход читался
+      // как всплывающий лист, хотя это полноценный экран.
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => sheet,
+        PageRouteBuilder(
+          opaque: true,
+          transitionDuration: const Duration(milliseconds: 180),
+          reverseTransitionDuration: const Duration(milliseconds: 140),
+          pageBuilder: (_, _, _) => sheet,
+          transitionsBuilder: (_, anim, _, child) =>
+              FadeTransition(opacity: anim, child: child),
           settings: const RouteSettings(name: '/memory_detail'),
         ),
       );

@@ -222,7 +222,9 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
   String get _myUidHere => PocketBaseService().userId ?? '';
 
   Widget _momentLayout(Memory memory, ColorScheme cs, ScrollController? sc) {
-    return ColoredBox(
+    // Material обязателен: без него Flutter метит текст жёлтым подчёркиванием
+    // — та же грабля, что с карточкой сосуда для сторис.
+    return Material(
       color: cs.surface,
       child: Stack(
         children: [
@@ -394,12 +396,14 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
         if (i != idx) i,
     ];
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => _openFrameFromDetail(memory, idx),
-          child: cover,
+        Center(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => _openFrameFromDetail(memory, idx),
+            child: cover,
+          ),
         ),
         if (others.isNotEmpty) ...[
           const SizedBox(height: 2),
