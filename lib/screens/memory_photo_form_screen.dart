@@ -464,7 +464,8 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
   /// Шапка: крестик, сводка по записи и «ещё». Названия экрана нет — и так
   /// видно, что открыто; место занимает то, что правда полезно.
   Widget _formBar(ColorScheme cs) {
-    final total = _media.length;
+    // Считаем и прежние кадры записи, и только что выбранные.
+    final total = _kept.length + _media.length;
     final label = total == 0
         ? LocaleService.current.newMemoryDraft
         : '${LocaleService.current.newMemoryDraft} · '

@@ -3548,6 +3548,32 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   //  MEMORY DETAIL — full screen
   // ═══════════════════════════════════════════════════
   void _showMemoryDetail(Memory memory) {
+    final sheet = _MemoryDetailSheet(
+      memory: memory,
+      groupId: _groupId,
+      primary: primary,
+      isOwner: memory.authorUid == _myUid,
+      typeColor: _memoryTypeColor(memory.type),
+      userLat: _userLat,
+      userLng: _userLng,
+      liveAuthorAvatar: _liveAvatar(memory),
+      onTogglePin: () => _togglePin(memory),
+      onEdit: () => _editMemory(memory),
+      onDelete: () => _confirmDelete(memory),
+      onSetLocation: () => _setLocationOnMemory(memory),
+    );
+    // Фото и видео открываются ЭКРАНОМ, а не листом: у записи своя шапка с
+    // автором, и лист оставлял сверху просвет ленты — две шапки подряд.
+    if (memory.type == MemoryType.photo || memory.type == MemoryType.video) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => sheet,
+          settings: const RouteSettings(name: '/memory_detail'),
+        ),
+      );
+      return;
+    }
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -3557,20 +3583,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       backgroundColor: widget.theme.cardSurface,
-      builder: (_) => _MemoryDetailSheet(
-        memory: memory,
-        groupId: _groupId,
-        primary: primary,
-        isOwner: memory.authorUid == _myUid,
-        typeColor: _memoryTypeColor(memory.type),
-        userLat: _userLat,
-        userLng: _userLng,
-        liveAuthorAvatar: _liveAvatar(memory),
-        onTogglePin: () => _togglePin(memory),
-        onEdit: () => _editMemory(memory),
-        onDelete: () => _confirmDelete(memory),
-        onSetLocation: () => _setLocationOnMemory(memory),
-      ),
+      builder: (_) => sheet,
     );
   }
 

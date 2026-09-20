@@ -49,6 +49,26 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
   /// нажал кадр, он встал главным, прежний ушёл на его место.
   int _coverIndex = 0;
 
+  /// Реакции записи в состоянии экрана: запись пришла снимком, и без этого
+  /// нажатие не давало отклика до перезахода.
+  late Map<String, String> _reactions =
+      Map<String, String>.from(widget.memory.reactions);
+
+  /// Поставить или снять свою реакцию — сразу на экране, потом на сервере.
+  void _toggleReaction(String key) {
+    final uid = _myUidHere;
+    if (uid.isEmpty) return;
+    setState(() => _reactions = withReaction(_reactions, uid, key));
+    widget.memory.reactions
+      ..clear()
+      ..addAll(_reactions);
+    MemoryRepository().setReaction(
+      groupId: widget.groupId,
+      memoryId: widget.memory.id,
+      reaction: _reactions[uid] ?? '',
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -97,8 +117,9 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
         data: ProfileTheme.data(cs),
         child: DraggableScrollableSheet(
           expand: false,
-          initialChildSize: 0.94,
-          maxChildSize: 0.96,
+          initialChildSize: 1,
+          minChildSize: 0.5,
+          maxChildSize: 1,
           builder: (_, sc) => _momentLayout(memory, cs, sc),
         ),
       );
@@ -200,13 +221,14 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
 
   String get _myUidHere => PocketBaseService().userId ?? '';
 
-  Widget _momentLayout(Memory memory, ColorScheme cs, ScrollController sc) {
+  Widget _momentLayout(Memory memory, ColorScheme cs, ScrollController? sc) {
     return ColoredBox(
       color: cs.surface,
       child: Stack(
         children: [
           Column(
             children: [
+              SizedBox(height: MediaQuery.paddingOf(context).top),
               _momentBar(memory, cs),
               Expanded(
                 child: SingleChildScrollView(
@@ -496,7 +518,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
     final uid = _myUidHere;
     final repo = MemoryRepository();
     final chips = <Widget>[];
-    memory.reactions.forEach((who, key) {
+    _reactions.forEach((who, key) {
       chips.add(ReactionChip(
         uid: who,
         name: who == memory.authorUid ? memory.authorName : '',
@@ -504,21 +526,14 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
         reactionKey: key,
         theme: theme,
         isMine: who == uid,
-        onTap: who == uid
-            ? () => repo.setReaction(
-                groupId: widget.groupId, memoryId: memory.id, reaction: key)
-            : null,
+        onTap: who == uid ? () => _toggleReaction(key) : null,
       ));
     });
     return Row(
       children: [
         for (final c in chips) ...[c, const SizedBox(width: 2)],
-        if (memory.reactionOf(uid).isEmpty)
-          AddReactionButton(
-            theme: theme,
-            onPick: (key) => repo.setReaction(
-                groupId: widget.groupId, memoryId: memory.id, reaction: key),
-          ),
+        if ((_reactions[uid] ?? '').isEmpty)
+          AddReactionButton(theme: theme, onPick: _toggleReaction),
         const Spacer(),
         // Комментарии числом: у них счёт осмыслен — их бывает много.
         Material(
@@ -572,8 +587,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
             ),
           ),
         );
-    final repo = MemoryRepository();
-    final myReaction = memory.reactionOf(_myUidHere);
+    final myReaction = _reactions[_myUidHere] ?? '';
     return Padding(
       padding: EdgeInsets.fromLTRB(12, 0, 12, 16 + bottom),
       child: Row(
@@ -593,10 +607,8 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                     myReaction.isEmpty
                         ? Icons.favorite_border_rounded
                         : reactionByKey(myReaction).icon,
-                    () => repo.setReaction(
-                        groupId: widget.groupId,
-                        memoryId: memory.id,
-                        reaction: myReaction.isEmpty ? 'heart' : myReaction),
+                    () => _toggleReaction(
+                        myReaction.isEmpty ? 'heart' : myReaction),
                     active: myReaction.isNotEmpty,
                   ),
                   ib(Icons.reply_rounded, () => _shareFiles(memory)),
@@ -616,7 +628,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
           ),
           if (_files.isNotEmpty) ...[
             const SizedBox(width: 10),
-            _saveButton(memory),
+            _saveButton(memory, height: 72),
           ],
         ],
       ),
@@ -1068,7 +1080,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
 
   /// Разделённая кнопка: слушает очередь и журнал, поэтому ход сохранения и
   /// «уже в галерее» видны сразу, даже если сохранение начато из меню.
-  Widget _saveButton(Memory memory) {
+  Widget _saveButton(Memory memory, {double height = 54}) {
     final queue = MediaSaveQueue.instance;
     final ledger = SavedMediaLedger.instance;
     return AnimatedBuilder(
@@ -1077,6 +1089,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
         final job = queue.activeFor(memory.id);
         final progress = queue.progressFor(memory.id);
         return SaveSplitButton(
+          height: height,
           state: saveButtonState(
             total: _files.length,
             saved: ledger.countSaved(_files),

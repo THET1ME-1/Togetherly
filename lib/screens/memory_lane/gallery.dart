@@ -757,7 +757,14 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
             ),
           ),
           // Photo / video pages
-          PageView.builder(
+          Padding(
+            // Поля под шапку и под плёнку с кнопками: иначе кадр съезжает
+            // под них и выглядит смещённым.
+            padding: EdgeInsets.only(
+              top: topPad + 60,
+              bottom: botPad + (count > 1 ? 128 : 70),
+            ),
+            child: PageView.builder(
             controller: _pageController,
             itemCount: count,
             onPageChanged: (i) {
@@ -828,6 +835,7 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
               );
             },
           ),
+          ),
           // Шапка: крестик, пилюля с номером кадра и названием записи —
           // она же переход к воспоминанию, и она же отвечает, из какой
           // записи кадр, когда листаешь дальше по ленте.
@@ -855,7 +863,7 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
             Positioned(
               left: 16,
               right: 16,
-              bottom: botPad + (count > 1 ? 58 : 22),
+              bottom: botPad + 14,
               child: _frameActions(hit),
             ),
           // Плёнка снизу: кадры идут сквозь все записи, текущий обведён.
@@ -863,7 +871,7 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
             Positioned(
               left: 0,
               right: 0,
-              bottom: botPad + 78,
+              bottom: botPad + 68,
               child: SizedBox(
                 height: 56,
                 child: ListView.separated(
