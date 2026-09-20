@@ -2821,128 +2821,129 @@ class _CommentsSectionState extends State<_CommentsSection> {
   @override
   Widget build(BuildContext context) {
     final t = context.appTheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Header
-        Row(
-          children: [
-            Icon(
-              Icons.chat_bubble_outline_rounded,
-              size: 18,
-              color: t.textSecondary,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              LocaleService.current.comments,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: t.textPrimary,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-
-        // Comment list (real-time)
-        StableStreamBuilder<List<MemoryComment>>(
-          create: () =>
-              MemoryRepository().watchComments(widget.groupId, widget.memoryId),
-          keys: [widget.groupId, widget.memoryId],
-          builder: (context, snap) {
-            final comments = snap.data ?? [];
-            if (comments.isEmpty) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Text(
-                  LocaleService.current.noCommentsYet,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: t.textMuted,
-                    fontStyle: FontStyle.italic,
+    final onFill = AppThemes.onColor(t.fillColor, mode: t.brightness);
+    return StableStreamBuilder<List<MemoryComment>>(
+      create: () =>
+          MemoryRepository().watchComments(widget.groupId, widget.memoryId),
+      keys: [widget.groupId, widget.memoryId],
+      builder: (context, snap) {
+        final comments = snap.data ?? [];
+        // Блок собран карточкой M3: surfaceContainerHigh, радиус 28, без
+        // тени. Прежде заголовок и поле висели прямо на фоне экрана, а поле
+        // брало серый цвет мимо темы.
+        return Container(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          decoration: BoxDecoration(
+            color: t.cardSurface,
+            borderRadius: BorderRadius.circular(28),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.chat_bubble_outline_rounded,
+                      size: 20, color: t.textSecondary),
+                  const SizedBox(width: 8),
+                  Text(
+                    LocaleService.current.comments,
+                    style: AppFonts.unbounded(
+                        size: 16, weight: 600, color: t.textPrimary),
                   ),
-                ),
-              );
-            }
-            // Column is faster than shrinkWrap ListView inside a ScrollView:
-            // shrinkWrap forces a full second-pass layout on every rebuild.
-            return Column(
-              children: [
-                for (int i = 0; i < comments.length; i++) ...[
-                  if (i > 0) const SizedBox(height: 10),
-                  _commentBubble(comments[i]),
+                  if (comments.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    Text('· ${comments.length}',
+                        style: AppFonts.onest(
+                            size: 14, weight: 700, color: t.textSecondary)),
+                  ],
                 ],
-              ],
-            );
-          },
-        ),
-        const SizedBox(height: 12),
-
-        // Input field
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _ctrl,
-                textCapitalization: TextCapitalization.sentences,
-                maxLines: 4,
-                minLines: 1,
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => _send(),
-                style: const TextStyle(fontSize: 14),
-                decoration: InputDecoration(
-                  hintText: LocaleService.current.writeAComment,
-                  hintStyle: TextStyle(color: t.textMuted),
-                  filled: true,
-                  fillColor: t.surfaceMuted,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide(color: t.divider),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide(color: t.divider),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide(color: widget.primary, width: 1.5),
-                  ),
-                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: _sending ? null : _send,
-              child: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: widget.primary,
-                  shape: BoxShape.circle,
+              const SizedBox(height: 14),
+              if (comments.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: Text(
+                    LocaleService.current.noCommentsYet,
+                    style: AppFonts.onest(
+                        size: 14.5, weight: 500, color: t.textSecondary),
+                  ),
+                )
+              else
+                Column(
+                  children: [
+                    for (int i = 0; i < comments.length; i++) ...[
+                      if (i > 0) const SizedBox(height: 12),
+                      _commentBubble(comments[i]),
+                    ],
+                    const SizedBox(height: 14),
+                  ],
                 ),
-                child: _sending
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
+              // Строка ввода: заливка из темы, без рамки, скругление по M3.
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _ctrl,
+                      textCapitalization: TextCapitalization.sentences,
+                      maxLines: 4,
+                      minLines: 1,
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => _send(),
+                      style: AppFonts.onest(
+                          size: 15, weight: 500, color: t.textPrimary),
+                      decoration: InputDecoration(
+                        hintText: LocaleService.current.writeAComment,
+                        hintStyle: AppFonts.onest(
+                            size: 15, weight: 500, color: t.textSecondary),
+                        filled: true,
+                        fillColor: t.bgGradient[0],
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 18, vertical: 16),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(26),
+                          borderSide: BorderSide.none,
                         ),
-                      )
-                    : const Icon(
-                        Icons.send_rounded,
-                        color: Colors.white,
-                        size: 18,
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(26),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(26),
+                          borderSide: BorderSide.none,
+                        ),
                       ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Material(
+                    color: t.fillColor,
+                    shape: const CircleBorder(),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: _sending ? null : _send,
+                      child: SizedBox(
+                        width: 52,
+                        height: 52,
+                        child: _sending
+                            ? Center(
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2, color: onFill),
+                                ),
+                              )
+                            : Icon(Icons.send_rounded, color: onFill, size: 22),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
-      ],
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -2958,23 +2959,19 @@ class _CommentsSectionState extends State<_CommentsSection> {
             uid: comment.authorUid,
             fallbackUrl: comment.authorAvatar,
             name: comment.authorName,
-            size: 28,
+            size: 32,
             primary: widget.primary,
           ),
           const SizedBox(width: 10),
           Expanded(
+            // Пузырь без обводки: заливка ролью темы, свой комментарий —
+            // тональным контейнером. Серый surfaceMuted и рамка выбивались
+            // из языка M3, где отличают заливкой, а не линией.
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: isMe
-                    ? widget.primary.withOpacity(0.06)
-                    : t.surfaceMuted,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: isMe
-                      ? widget.primary.withOpacity(0.15)
-                      : t.divider,
-                ),
+                color: isMe ? t.primaryLight : t.bgGradient[0],
+                borderRadius: BorderRadius.circular(18),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2983,30 +2980,22 @@ class _CommentsSectionState extends State<_CommentsSection> {
                     children: [
                       Text(
                         comment.authorName,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: isMe ? widget.primary : t.textSecondary,
-                        ),
+                        style: AppFonts.onest(
+                            size: 13, weight: 700, color: t.textPrimary),
                       ),
                       const Spacer(),
                       Text(
                         _timeAgo(comment.createdAt),
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: t.textMuted,
-                        ),
+                        style: AppFonts.onest(
+                            size: 11.5, weight: 500, color: t.textSecondary),
                       ),
                     ],
                   ),
                   const SizedBox(height: 3),
                   Text(
                     comment.text,
-                    style: TextStyle(
-                      fontSize: 13.5,
-                      color: t.textPrimary,
-                      height: 1.35,
-                    ),
+                    style: AppFonts.onest(
+                        size: 14.5, weight: 400, color: t.textPrimary),
                   ),
                 ],
               ),
