@@ -80,6 +80,7 @@ struct TogetherlyWidgetBundle: WidgetBundle {
         CountdownWidget()
         YearRingWidget()
         YearGridWidget()
+        MascotWidget()
     }
 }
 

@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../models/mascot.dart';
 import '../../models/mascot_anim.dart';
 import '../../models/mascot_widget_data.dart';
+import '../home_widget_service.dart';
 import '../locale_service.dart';
 import '../offline/media_view_cache.dart';
 import '../pb_media_service.dart';
@@ -162,10 +163,77 @@ class MascotWidgetService {
       for (final e in keys.entries) {
         await HomeWidget.saveWidgetData<String>(e.key, e.value);
       }
+      await _publishToAppGroup(keys, paths, data);
       await _wakeProviders();
       _lastSignature = signature;
     } catch (e) {
       debugPrint('MascotWidgetService.publish не справился: $e');
+    }
+  }
+
+  /// iPhone: те же данные плоскими ключами и кадры в контейнере App Group.
+  ///
+  /// Расширение не видит песочницу приложения и привязки к паре не знает —
+  /// оно читает ключи без группы, как это делает карта «Где мы».
+  Future<void> _publishToAppGroup(
+    Map<String, String> keys,
+    Map<MascotWidgetFrame, String> paths,
+    MascotWidgetData data,
+  ) async {
+    if (!Platform.isIOS) return;
+    try {
+      final g = keys['mascot_latest_group'] ?? 'solo';
+      // Значения уже собраны для Android — переносим их один в один, чтобы
+      // платформы не разошлись в подписях. Ключи перечислены буквально:
+      // сторож `test/ios_widget_keys_test.dart` ищет в Dart ровно те строки,
+      // что читает Swift, а склеенные из кусков он не находит.
+      const fields = <String, String>{
+        'ios_mascot_name': 'name',
+        'ios_mascot_stage_label': 'stage_label',
+        'ios_mascot_streak': 'streak',
+        'ios_mascot_streak_label': 'streak_label',
+        'ios_mascot_next_label': 'next_label',
+        'ios_mascot_progress': 'progress',
+        'ios_mascot_record': 'record',
+        'ios_mascot_record_label': 'record_label',
+        'ios_mascot_sleep_from': 'sleep_from',
+        'ios_mascot_sleep_to': 'sleep_to',
+        'ios_mascot_sleep_label_day': 'sleep_label_day',
+        'ios_mascot_sleep_label_night': 'sleep_label_night',
+        'ios_mascot_sad': 'sad',
+        'ios_mascot_pixel': 'pixel',
+        'ios_mascot_frame_px': 'frame_px',
+      };
+      for (final e in fields.entries) {
+        await HomeWidget.saveWidgetData<String>(
+          e.key,
+          keys['mascot_${g}_${e.value}'] ?? '',
+        );
+      }
+
+      // Старые кадры убираем: WidgetKit держит картинку по пути и показал бы
+      // вчерашнего персонажа.
+      await HomeWidgetService.instance.clearAppGroupMedia('mascotw_');
+      final rev = DateTime.now().millisecondsSinceEpoch;
+      const frameKeys = <MascotWidgetFrame, String>{
+        MascotWidgetFrame.day: 'ios_mascot_frame_day',
+        MascotWidgetFrame.night: 'ios_mascot_frame_night',
+        MascotWidgetFrame.sad: 'ios_mascot_frame_sad',
+      };
+      for (final e in frameKeys.entries) {
+        final local = paths[e.key];
+        if (local == null || local.isEmpty) {
+          await HomeWidget.saveWidgetData<String>(e.value, '');
+          continue;
+        }
+        final shared = await HomeWidgetService.instance
+            .appGroupReadablePath(local, 'mascotw_${e.key.name}_$rev.png');
+        await HomeWidget.saveWidgetData<String>(e.value, shared);
+      }
+
+      await HomeWidget.updateWidget(iOSName: 'MascotWidget');
+    } catch (e) {
+      debugPrint('MascotWidgetService: iPhone не получил кадры — $e');
     }
   }
 
