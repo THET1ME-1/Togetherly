@@ -1157,7 +1157,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppFonts.onest(
-                            size: 15, weight: 500, color: t.textSecondary),
+                            size: 14.5, weight: 500, color: t.textSecondary),
                       ),
                     ),
                   ),
@@ -2237,7 +2237,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                     count: rest,
                     height: stripHeight,
                     label: LocaleService.current.photosUnit(rest),
-                    background: t.cardSurface,
+                    background: t.primaryLight,
                     foreground: t.textPrimary,
                     onTap: () => _openFrameAt(memory, shownInStrip + 1),
                   );
@@ -3486,7 +3486,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               // Плоский стиль пинов: без тени, свечения и бордера (требование).
               decoration: BoxDecoration(
                 color: widget.theme.cardSurface,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(28),
               ),
               clipBehavior: Clip.antiAlias,
               // В режиме выбора кнопки внутри карточки (плеер, ссылки) молчат:

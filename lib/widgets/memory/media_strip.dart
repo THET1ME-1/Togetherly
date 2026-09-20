@@ -245,7 +245,7 @@ class FilmRestTile extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: SizedBox(
-          width: height * 0.72,
+          width: height * 0.92,
           height: height,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -263,9 +263,13 @@ class FilmRestTile extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: height * 0.13,
+                  fontFamily: 'Onest',
+                  fontSize: height * 0.2,
                   fontWeight: FontWeight.w700,
+                  height: 1.1,
                   color: fg,
                 ),
               ),
