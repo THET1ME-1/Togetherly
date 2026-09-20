@@ -14,6 +14,8 @@ import '../services/locale_service.dart';
 import '../utils/photo_crop.dart';
 import '../utils/safe_pick.dart';
 import '../theme/app_theme.dart';
+import '../theme/fonts.dart';
+import '../widgets/memory/media_strip.dart';
 import '../theme/profile_theme.dart';
 
 import 'map_picker_screen.dart';
@@ -317,93 +319,496 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
       data: ProfileTheme.data(cs),
       child: Scaffold(
         backgroundColor: cs.surface,
-        // Экран собран кадром-героем: фотография занимает верх целиком, а лист
-        // с полями наезжает на неё скруглением. Прежняя форма была простынёй,
-        // где кадр шёл строкой между полями, и до кнопки приходилось листать
-        // всё, даже когда заполнять нечего.
-        body: LayoutBuilder(
-          builder: (context, box) {
-            final heroHeight = box.maxHeight * 0.44;
-            final sheetTop = heroHeight - 26;
-            return Stack(
+        // Экран записи один на всё: под новую запись он открывается пустым,
+        // из готовой — карандашом в шапке пина. Кадры не обрезаются: обложка
+        // стоит целиком, в своей пропорции, остальные идут плёнкой под ней.
+        body: Column(
+          children: [
+            SizedBox(height: media.padding.top + 8),
+            _formBar(cs),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(12, 6, 12, 120),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _formMedia(cs),
+                    const SizedBox(height: 10),
+                    _formHint(cs),
+                    const SizedBox(height: 12),
+                    _formFields(cs),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        bottomNavigationBar: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: Row(
               children: [
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: heroHeight + 26,
-                  child: _buildHero(cs),
-                ),
-                Positioned(
-                  top: sheetTop,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: _buildSheet(cs, media),
-                ),
-                Positioned(
-                  top: media.padding.top + 6,
-                  left: 10,
-                  child: _glassButton(
-                    cs,
-                    icon: Icons.close_rounded,
-                    onTap: () => Navigator.pop(context),
-                  ),
-                ),
-                // Счётчик кадров и кнопка кадрирования стоят одной строкой:
-                // обрезка нужна ровно тому кадру, который человек видит.
-                if (_media.isNotEmpty)
-                  Positioned(
-                    top: media.padding.top + 6,
-                    right: 16,
-                    child: Row(
-                      children: [
-                        if (_media.length > 1) ...[
-                          _glassPill(
-                            cs,
-                            LocaleService.current.itemsShort(_media.length),
-                          ),
-                          const SizedBox(width: 8),
-                        ],
-                        if (!_isVideo(_media.first))
-                          Tooltip(
-                            message: LocaleService.current.cropPhotoAction,
-                            child: _glassButton(
-                              cs,
-                              icon: Icons.crop_rounded,
-                              onTap: () => _cropAt(0),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                // Действие всегда на экране и всегда одной ширины: до кнопки в
-                // шапке большой палец не дотягивался, а со скроллом она
-                // уезжала вместе с формой.
-                Positioned(
-                  left: 16,
-                  right: 16,
-                  bottom: media.padding.bottom + 16,
+                // Галерея и камера — смежной парой, как у кнопки сохранения.
+                Row(children: [
+                  _formRound(cs,
+                      icon: Icons.add_photo_alternate_rounded,
+                      onTap: _pickMedia,
+                      radius: const BorderRadius.horizontal(
+                          left: Radius.circular(32), right: Radius.circular(10))),
+                  const SizedBox(width: 2),
+                  _formRound(cs,
+                      icon: Icons.photo_camera_rounded,
+                      onTap: _pickFromCamera,
+                      radius: const BorderRadius.horizontal(
+                          left: Radius.circular(10), right: Radius.circular(32))),
+                ]),
+                const SizedBox(width: 8),
+                Expanded(
                   child: FilledButton.icon(
                     onPressed: _canSave ? _save : null,
-                    icon: const Icon(Icons.add_rounded, size: 22),
-                    label: Text(LocaleService.current.addMemoryToFeed),
+                    icon: const Icon(Icons.check_rounded, size: 22),
+                    label: Text(LocaleService.current.save),
                     style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(58),
+                      minimumSize: const Size.fromHeight(64),
                       textStyle: const TextStyle(
                         fontFamily: ProfileTheme.bodyFont,
-                        fontSize: 16,
+                        fontSize: 17,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
                 ),
               ],
-            );
-          },
+            ),
+          ),
         ),
       ),
     );
+  }
+
+  /// Круглая кнопка нижней пары.
+  Widget _formRound(ColorScheme cs,
+      {required IconData icon,
+      required VoidCallback onTap,
+      BorderRadius? radius}) {
+    return Material(
+      color: cs.surfaceContainerHigh,
+      borderRadius: radius ?? BorderRadius.circular(32),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          width: 64,
+          height: 64,
+          child: Icon(icon, size: 26, color: cs.onSurface),
+        ),
+      ),
+    );
+  }
+
+  /// Шапка: крестик, сводка по записи и «ещё». Названия экрана нет — и так
+  /// видно, что открыто; место занимает то, что правда полезно.
+  Widget _formBar(ColorScheme cs) {
+    final total = _media.length;
+    final label = total == 0
+        ? LocaleService.current.newMemoryDraft
+        : '${LocaleService.current.newMemoryDraft} · '
+            '$total ${LocaleService.current.photosUnit(total)}';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 0, 10, 6),
+      child: Row(
+        children: [
+          _formRound(cs,
+              icon: Icons.close_rounded, onTap: () => Navigator.pop(context)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Container(
+              height: 48,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: cs.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                        color: cs.primary, shape: BoxShape.circle),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppFonts.onest(
+                          size: 13.5, weight: 700, color: cs.onSurface),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Обложка целиком и плёнка кадров: плитка с плюсом стоит ПЕРВОЙ, иначе
+  /// при прокрутке она уезжает за край и добавить кадр нечем.
+  Widget _formMedia(ColorScheme cs) {
+    if (_media.isEmpty) {
+      return GestureDetector(
+        onTap: _pickMedia,
+        child: Container(
+          height: 220,
+          decoration: BoxDecoration(
+            color: cs.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(22),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.add_photo_alternate_rounded,
+                  size: 34, color: cs.primary),
+              const SizedBox(height: 8),
+              Text(LocaleService.current.addPhotoOrVideo,
+                  style: AppFonts.onest(
+                      size: 15, weight: 600, color: cs.onSurface)),
+            ],
+          ),
+        ),
+      );
+    }
+    final cover = _media.first;
+    final rest = _media.length > 1 ? _media.sublist(1) : const <XFile>[];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Stack(
+          children: [
+            _isVideo(cover)
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(22),
+                    child: AspectRatio(
+                        aspectRatio: 4 / 3, child: _videoPreviewWidget(cover.path)),
+                  )
+                : AspectCover(
+                    url: cover.path,
+                    provider: FileImage(File(cover.path)),
+                    radius: 22,
+                    maxHeight: 400,
+                  ),
+            Positioned(
+              left: 10,
+              bottom: 10,
+              child: Container(
+                height: 30,
+                padding: const EdgeInsets.only(left: 9, right: 12),
+                decoration: BoxDecoration(
+                  color: cs.primary,
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.star_rounded, size: 16, color: cs.onPrimary),
+                    const SizedBox(width: 5),
+                    Text(LocaleService.current.coverLabel,
+                        style: AppFonts.onest(
+                            size: 12.5, weight: 700, color: cs.onPrimary)),
+                  ],
+                ),
+              ),
+            ),
+            Positioned(
+              right: 10,
+              top: 10,
+              child: Material(
+                color: cs.inverseSurface,
+                shape: const CircleBorder(),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: () => _removeAt(0),
+                  child: SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: Icon(Icons.close_rounded,
+                        size: 20, color: cs.onInverseSurface),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        SizedBox(
+          height: 132,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: rest.length + 1,
+            separatorBuilder: (_, _) => const SizedBox(width: 2),
+            itemBuilder: (_, i) {
+              if (i == 0) {
+                return Material(
+                  color: cs.secondaryContainer,
+                  borderRadius: BorderRadius.circular(8),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: _pickMedia,
+                    child: SizedBox(
+                      width: 92,
+                      height: 132,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.add_photo_alternate_rounded,
+                              size: 28, color: cs.onSecondaryContainer),
+                          const SizedBox(height: 4),
+                          Text(LocaleService.current.addLabel,
+                              style: AppFonts.onest(
+                                  size: 11.5,
+                                  weight: 700,
+                                  color: cs.onSecondaryContainer)),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }
+              final file = rest[i - 1];
+              final realIndex = i;
+              if (_isVideo(file)) {
+                return GestureDetector(
+                  onTap: () => setState(() {
+                    final x = _media.removeAt(realIndex);
+                    _media.insert(0, x);
+                  }),
+                  onLongPress: () => _removeAt(realIndex),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: SizedBox(
+                      width: 92,
+                      height: 132,
+                      child: _videoPreviewWidget(file.path),
+                    ),
+                  ),
+                );
+              }
+              return FilmFrame(
+                url: file.path,
+                provider: FileImage(File(file.path)),
+                height: 132,
+                onTap: () => setState(() {
+                  final x = _media.removeAt(realIndex);
+                  _media.insert(0, x);
+                }),
+                onLongPress: () => _removeAt(realIndex),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Подсказка под плёнкой: что делают касание и долгое нажатие.
+  Widget _formHint(ColorScheme cs) {
+    if (_media.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.touch_app_outlined, size: 18, color: cs.onSurfaceVariant),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              LocaleService.current.formFramesHint,
+              style: AppFonts.onest(
+                  size: 13, weight: 500, color: cs.onSurfaceVariant),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Поля записи одной группой, как в настройках: смежные блоки с круглым
+  /// чипом-иконкой. Название и подпись выделены — это главное у записи.
+  Widget _formFields(ColorScheme cs) {
+    final dateLabel = _customDate == null
+        ? LocaleService.current.dateNowLabel
+        : _formatCustomDate(_customDate!);
+    return Column(
+      children: [
+        _formRow(cs,
+            icon: Icons.title_rounded,
+            label: LocaleService.current.titleOptional,
+            value: _titleCtrl.text,
+            placeholder: LocaleService.current.titleHintForm,
+            key0: true,
+            first: true,
+            onTap: () => _editText(_titleCtrl, LocaleService.current.titleOptional)),
+        const SizedBox(height: 4),
+        _formRow(cs,
+            icon: Icons.edit_note_rounded,
+            label: LocaleService.current.descriptionOptional,
+            value: _captionCtrl.text,
+            placeholder: LocaleService.current.captionHintForm,
+            key0: true,
+            onTap: () => _editText(
+                _captionCtrl, LocaleService.current.descriptionOptional,
+                lines: 5)),
+        const SizedBox(height: 4),
+        _formRow(cs,
+            icon: Icons.calendar_today_rounded,
+            label: LocaleService.current.memoryDateLabelForm,
+            value: dateLabel,
+            chevron: true,
+            onTap: _pickCustomDate),
+        const SizedBox(height: 4),
+        _formRow(cs,
+            icon: Icons.place_rounded,
+            label: LocaleService.current.placeLabelForm,
+            value: _locationCtrl.text.isEmpty
+                ? LocaleService.current.placeHintForm
+                : _locationCtrl.text,
+            chevron: true,
+            onTap: _showPlaceSheet),
+        const SizedBox(height: 4),
+        _formRow(cs,
+            icon: Icons.visibility_off_rounded,
+            label: LocaleService.current.adultContent,
+            value: _isAdult
+                ? LocaleService.current.onLabel
+                : LocaleService.current.offLabel,
+            last: true,
+            toggle: _isAdult,
+            onTap: () => setState(() => _isAdult = !_isAdult)),
+      ],
+    );
+  }
+
+  /// Строка формы: круглый чип, подпись сверху, значение под ней.
+  Widget _formRow(
+    ColorScheme cs, {
+    required IconData icon,
+    required String label,
+    required String value,
+    String? placeholder,
+    bool key0 = false,
+    bool first = false,
+    bool last = false,
+    bool chevron = false,
+    bool? toggle,
+    required VoidCallback onTap,
+  }) {
+    final empty = value.trim().isEmpty;
+    final text = empty ? (placeholder ?? '') : value;
+    final bg = key0 ? cs.secondaryContainer : cs.surfaceContainerHigh;
+    final fg = key0 ? cs.onSecondaryContainer : cs.onSurface;
+    final sub = key0
+        ? cs.onSecondaryContainer.withValues(alpha: 0.8)
+        : cs.onSurfaceVariant;
+    return Material(
+      color: bg,
+      borderRadius: BorderRadius.vertical(
+        top: Radius.circular(first ? 28 : 8),
+        bottom: Radius.circular(last ? 28 : 8),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 76),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: key0 ? cs.primary : cs.surface,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon,
+                    size: 22, color: key0 ? cs.onPrimary : cs.onSurface),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label,
+                        style: AppFonts.onest(
+                            size: 12.5, weight: 600, color: sub)),
+                    const SizedBox(height: 2),
+                    Text(
+                      text,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppFonts.onest(
+                        size: key0 ? 17 : 16,
+                        weight: empty ? 500 : (key0 ? 700 : 600),
+                        color: empty ? sub : fg,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (toggle != null)
+                Switch(
+                  value: toggle,
+                  onChanged: (_) => onTap(),
+                )
+              else if (chevron)
+                Icon(Icons.chevron_right_rounded, color: sub),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Правка текстового поля отдельным листом — так строка остаётся строкой,
+  /// а клавиатура не ломает раскладку экрана.
+  Future<void> _editText(TextEditingController ctrl, String title,
+      {int lines = 1}) async {
+    final value = await showAppSheet<String>(
+      context,
+      builder: (ctx) => SheetScaffold(
+        title: title,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+          child: _TextSheetBody(
+            initial: ctrl.text,
+            lines: lines,
+            onDone: (v) => Navigator.pop(ctx, v),
+          ),
+        ),
+      ),
+    );
+    if (value != null) setState(() => ctrl.text = value);
+  }
+
+  /// Убрать кадр из записи.
+  void _removeAt(int index) {
+    if (index < 0 || index >= _media.length) return;
+    setState(() => _media.removeAt(index));
+  }
+
+  /// Снять кадр камерой и положить в запись.
+  Future<void> _pickFromCamera() async {
+    final shot = await safePick(
+      () => ImagePicker().pickImage(source: ImageSource.camera),
+      intent: kPickIntentMemory,
+    );
+    if (shot != null) await _acceptPicked([shot]);
   }
 
   // ── Кадр ───────────────────────────────────────────────────────────────────
@@ -1026,3 +1431,67 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
 
 // ── Dashed border painter ────────────────────────────────────────────────────
 
+/// Правка одной строки записи в нижнем листе: поле и кнопка «Готово».
+///
+/// Отдельным листом, а не полем прямо в форме: клавиатура иначе поднимает
+/// экран целиком и плёнка кадров уезжает за край.
+class _TextSheetBody extends StatefulWidget {
+  const _TextSheetBody({
+    required this.initial,
+    required this.lines,
+    required this.onDone,
+  });
+
+  final String initial;
+  final int lines;
+  final ValueChanged<String> onDone;
+
+  @override
+  State<_TextSheetBody> createState() => _TextSheetBodyState();
+}
+
+class _TextSheetBodyState extends State<_TextSheetBody> {
+  late final TextEditingController _ctrl =
+      TextEditingController(text: widget.initial);
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextField(
+          controller: _ctrl,
+          autofocus: true,
+          minLines: widget.lines,
+          maxLines: widget.lines + 2,
+          style: AppFonts.onest(size: 16, weight: 500, color: cs.onSurface),
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: cs.surfaceContainerHigh,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide: BorderSide.none,
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          ),
+        ),
+        const SizedBox(height: 12),
+        FilledButton(
+          onPressed: () => widget.onDone(_ctrl.text.trim()),
+          style: FilledButton.styleFrom(
+            minimumSize: const Size.fromHeight(56),
+          ),
+          child: Text(LocaleService.current.done),
+        ),
+      ],
+    );
+  }
+}

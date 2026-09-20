@@ -35,13 +35,19 @@ class AspectCover extends StatefulWidget {
   const AspectCover({
     super.key,
     required this.url,
+    this.provider,
     this.radius = 22,
     this.fallbackAspect = 4 / 3,
     this.overlay,
     this.maxHeight,
   });
 
+  /// Ссылка на кадр. Для ещё не залитого файла ссылки нет — тогда
+  /// передают [provider] с локальным файлом, а url служит ключом кэша.
   final String url;
+
+  /// Готовый источник картинки: файл, выбранный в галерее.
+  final ImageProvider? provider;
   final double radius;
   final double fallbackAspect;
 
@@ -62,12 +68,26 @@ class _AspectCoverState extends State<AspectCover> {
   void initState() {
     super.initState();
     _aspect = MediaAspectCache.of(widget.url);
+    if (_aspect == null && widget.provider != null) _askProvider();
   }
 
   @override
   void didUpdateWidget(covariant AspectCover old) {
     super.didUpdateWidget(old);
-    if (old.url != widget.url) _aspect = MediaAspectCache.of(widget.url);
+    if (old.url != widget.url) {
+      _aspect = MediaAspectCache.of(widget.url);
+      if (_aspect == null && widget.provider != null) _askProvider();
+    }
+  }
+
+  /// У локального файла своего колбэка нет — спрашиваем размер у провайдера.
+  void _askProvider() {
+    widget.provider!.resolve(const ImageConfiguration()).addListener(
+          ImageStreamListener((info, _) {
+            _onSize(Size(
+                info.image.width.toDouble(), info.image.height.toDouble()));
+          }, onError: (_, __) {}),
+        );
   }
 
   void _onSize(Size size) {
@@ -86,17 +106,19 @@ class _AspectCoverState extends State<AspectCover> {
     final cs = Theme.of(context).colorScheme;
     final raw = _aspect ?? widget.fallbackAspect;
     final aspect = MediaAspectCache.clampAspect(raw);
-    Widget image = StorageImage(
-      imageUrl: widget.url,
-      fit: BoxFit.cover,
-      memCacheWidth: 1000,
-      onSize: _onSize,
-      errorWidget: (_, __, ___) => ColoredBox(
-        color: cs.surfaceContainerHighest,
-        child: Icon(Icons.broken_image_rounded,
-            color: cs.onSurfaceVariant, size: 26),
-      ),
-    );
+    Widget image = widget.provider != null
+        ? Image(image: widget.provider!, fit: BoxFit.cover)
+        : StorageImage(
+            imageUrl: widget.url,
+            fit: BoxFit.cover,
+            memCacheWidth: 1000,
+            onSize: _onSize,
+            errorWidget: (_, __, ___) => ColoredBox(
+              color: cs.surfaceContainerHighest,
+              child: Icon(Icons.broken_image_rounded,
+                  color: cs.onSurfaceVariant, size: 26),
+            ),
+          );
     if (widget.overlay != null) {
       image = Stack(fit: StackFit.expand, children: [image, widget.overlay!]);
     }
@@ -122,18 +144,24 @@ class FilmFrame extends StatefulWidget {
   const FilmFrame({
     super.key,
     required this.url,
+    this.provider,
     required this.height,
     this.radius = 8,
     this.overlay,
     this.onTap,
+    this.onLongPress,
     this.selected = false,
   });
 
   final String url;
+
+  /// Локальный файл — для экрана записи, где кадры ещё не залиты.
+  final ImageProvider? provider;
   final double height;
   final double radius;
   final Widget? overlay;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
   final bool selected;
 
   @override
@@ -147,12 +175,25 @@ class _FilmFrameState extends State<FilmFrame> {
   void initState() {
     super.initState();
     _aspect = MediaAspectCache.of(widget.url);
+    if (_aspect == null && widget.provider != null) _askProvider();
   }
 
   @override
   void didUpdateWidget(covariant FilmFrame old) {
     super.didUpdateWidget(old);
-    if (old.url != widget.url) _aspect = MediaAspectCache.of(widget.url);
+    if (old.url != widget.url) {
+      _aspect = MediaAspectCache.of(widget.url);
+      if (_aspect == null && widget.provider != null) _askProvider();
+    }
+  }
+
+  void _askProvider() {
+    widget.provider!.resolve(const ImageConfiguration()).addListener(
+          ImageStreamListener((info, _) {
+            _onSize(Size(
+                info.image.width.toDouble(), info.image.height.toDouble()));
+          }, onError: (_, __) {}),
+        );
   }
 
   void _onSize(Size size) {
@@ -179,14 +220,17 @@ class _FilmFrameState extends State<FilmFrame> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            StorageImage(
-              imageUrl: widget.url,
-              fit: BoxFit.cover,
-              memCacheWidth: 400,
-              onSize: _onSize,
-              errorWidget: (_, __, ___) =>
-                  ColoredBox(color: cs.surfaceContainerHighest),
-            ),
+            if (widget.provider != null)
+              Image(image: widget.provider!, fit: BoxFit.cover)
+            else
+              StorageImage(
+                imageUrl: widget.url,
+                fit: BoxFit.cover,
+                memCacheWidth: 400,
+                onSize: _onSize,
+                errorWidget: (_, __, ___) =>
+                    ColoredBox(color: cs.surfaceContainerHighest),
+              ),
             if (widget.overlay != null) widget.overlay!,
           ],
         ),
@@ -201,10 +245,11 @@ class _FilmFrameState extends State<FilmFrame> {
         child: frame,
       );
     }
-    if (widget.onTap == null) return frame;
+    if (widget.onTap == null && widget.onLongPress == null) return frame;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: widget.onTap,
+      onLongPress: widget.onLongPress,
       child: frame,
     );
   }

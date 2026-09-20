@@ -1573,6 +1573,30 @@ abstract class DictStrings extends AppStrings {
   @override
   String get reactionPickTitle => _t('reactionPickTitle');
   @override
+  String get newMemoryDraft => _t('newMemoryDraft');
+  @override
+  String get addPhotoOrVideo => _t('addPhotoOrVideo');
+  @override
+  String get coverLabel => _t('coverLabel');
+  @override
+  String get addLabel => _t('addLabel');
+  @override
+  String get formFramesHint => _t('formFramesHint');
+  @override
+  String get titleHintForm => _t('titleHintForm');
+  @override
+  String get captionHintForm => _t('captionHintForm');
+  @override
+  String get memoryDateLabelForm => _t('memoryDateLabelForm');
+  @override
+  String get placeLabelForm => _t('placeLabelForm');
+  @override
+  String get placeHintForm => _t('placeHintForm');
+  @override
+  String get onLabel => _t('onLabel');
+  @override
+  String get offLabel => _t('offLabel');
+  @override
   String get moreActions => _t('moreActions');
   @override
   String get addMemoryBtn => _t('addMemoryBtn');

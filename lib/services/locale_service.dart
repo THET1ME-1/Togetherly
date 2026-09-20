@@ -1027,6 +1027,18 @@ abstract class AppStrings {
   String get memorySearchHint;
   String get feedFilterFavorites;
   String get reactionPickTitle;
+  String get newMemoryDraft;
+  String get addPhotoOrVideo;
+  String get coverLabel;
+  String get addLabel;
+  String get formFramesHint;
+  String get titleHintForm;
+  String get captionHintForm;
+  String get memoryDateLabelForm;
+  String get placeLabelForm;
+  String get placeHintForm;
+  String get onLabel;
+  String get offLabel;
   String get moreActions;
   String get addMemoryBtn;
 
