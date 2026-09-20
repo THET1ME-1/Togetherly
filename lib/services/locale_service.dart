@@ -1024,6 +1024,9 @@ abstract class AppStrings {
 
   // ── Memory Lane Screen ──
   String get memoryLane;
+  String get memorySearchHint;
+  String get feedFilterFavorites;
+  String get moreActions;
   String get addMemoryBtn;
 
   /// Кнопка внизу формы записи.

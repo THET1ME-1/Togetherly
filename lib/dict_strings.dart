@@ -1567,6 +1567,12 @@ abstract class DictStrings extends AppStrings {
   @override
   String get memoryLane => _t('memoryLane');
   @override
+  String get memorySearchHint => _t('memorySearchHint');
+  @override
+  String get feedFilterFavorites => _t('feedFilterFavorites');
+  @override
+  String get moreActions => _t('moreActions');
+  @override
   String get addMemoryBtn => _t('addMemoryBtn');
   @override
   String get addMemoryToFeed => _t('addMemoryToFeed');

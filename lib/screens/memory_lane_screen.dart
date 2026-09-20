@@ -100,6 +100,7 @@ import '../widgets/rating_widgets.dart';
 import '../services/movie_search_service.dart';
 import '../widgets/common/pin_entry_sheet.dart';
 import '../services/offline/media_file_fetch.dart';
+import '../widgets/memory/media_strip.dart';
 
 // Экран разбит на части (один большой файл → читаемые модули). Все части —
 // `part of` этой библиотеки: приватные классы остаются библиотечно-приватными,
@@ -303,6 +304,13 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   String? _categoryKey;
   bool _favoritesOnly = false;
 
+  /// Поиск по ленте: строка в шапке разворачивается в поле ввода, запрос
+  /// сравнивается с названием, подписью и местом записи.
+  bool _searching = false;
+  String _searchQuery = '';
+  final TextEditingController _searchCtrl = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
+
   /// Секретные воспоминания раскрыты в этой сессии экрана (после ввода PIN).
   /// Сбрасывается при выходе с экрана — секреты снова прячутся.
   bool _secretUnlocked = false;
@@ -318,10 +326,21 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     // Секретные скрыты из ленты, пока не введён PIN (см. [_secretUnlocked]).
     if (m.isSecret && !_secretUnlocked) return false;
     if (_favoritesOnly && !m.isSavedBy(_myUid ?? '')) return false;
+    if (!_matchesQuery(m)) return false;
     if (_categoryKey == null) return true;
     final cat = kFeedCategories.firstWhere((c) => c.key == _categoryKey,
         orElse: () => kFeedCategories.first);
     return cat.matches(m);
+  }
+
+  /// Подходит ли запись под строку поиска. Пустой запрос пропускает всё.
+  bool _matchesQuery(Memory m) {
+    final q = _searchQuery.trim().toLowerCase();
+    if (q.isEmpty) return true;
+    for (final field in [m.title, m.caption, m.locationName, m.authorName]) {
+      if ((field ?? '').toLowerCase().contains(q)) return true;
+    }
+    return false;
   }
 
   bool get _hasVisibleMemories =>
@@ -1026,164 +1045,290 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
 
   // ── App Bar ──
   SliverAppBar _buildAppBar() {
+    final t = widget.theme;
     return SliverAppBar(
       pinned: true,
-      backgroundColor: widget.theme.bgGradient[0].withOpacity(0.95),
+      backgroundColor: t.bgGradient[0].withValues(alpha: 0.95),
       surfaceTintColor: Colors.transparent,
       elevation: 0,
+      titleSpacing: 0,
+      toolbarHeight: 72,
       bottom: _filterBar(),
-      leading: IconButton(
-        onPressed: () => Navigator.pop(context),
-        icon: Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color: widget.theme.cardSurface.withOpacity(0.8),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            Icons.arrow_back_rounded,
-            color: widget.theme.textPrimary,
-            size: 20,
-          ),
+      leading: Padding(
+        padding: const EdgeInsets.only(left: 10),
+        child: Center(child: _roundBarButton(
+          icon: Icons.arrow_back_rounded,
+          onTap: () => Navigator.pop(context),
+          tooltip: LocaleService.current.back,
+        )),
+      ),
+      leadingWidth: 66,
+      title: widget.filterMode == MemoryFilterMode.none
+          ? _searchBar()
+          : Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '${LocaleService.current.pinned} • '
+                '${widget.filterMode == MemoryFilterMode.day ? _fmtToday() : _fmtMonth()}',
+                style: AppFonts.onest(
+                    size: 17, weight: 700, color: t.textPrimary),
+              ),
+            ),
+      actions: [
+        Padding(
+          padding: const EdgeInsets.only(right: 10, left: 8),
+          child: Center(child: _roundBarButton(
+            icon: Icons.more_vert_rounded,
+            onTap: _openLaneMenu,
+            tooltip: LocaleService.current.moreActions,
+          )),
+        ),
+      ],
+    );
+  }
+
+  /// Круглая кнопка шапки: тональный контейнер 48, как у блоков M3.
+  Widget _roundBarButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    String? tooltip,
+    Color? background,
+    Color? foreground,
+  }) {
+    final t = widget.theme;
+    final btn = Material(
+      color: background ?? t.cardSurface,
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          width: 48,
+          height: 48,
+          child: Icon(icon, size: 22, color: foreground ?? t.textPrimary),
         ),
       ),
-      title: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    );
+    return tooltip == null ? btn : Tooltip(message: tooltip, child: btn);
+  }
+
+  /// Строка поиска во всю ширину: подсказка и аватарки пары справа.
+  /// Нажатие разворачивает поле ввода прямо в шапке.
+  Widget _searchBar() {
+    final t = widget.theme;
+    return Container(
+      height: 52,
+      margin: const EdgeInsets.only(right: 4),
+      padding: const EdgeInsets.only(left: 16, right: 6),
+      decoration: BoxDecoration(
+        color: t.cardSurface,
+        borderRadius: BorderRadius.circular(26),
+      ),
+      child: Row(
         children: [
-          Text(
-            LocaleService.current.memoryLane,
-            style: AppFonts.onest(size: 20, weight: 800, color: widget.theme.textPrimary),
+          Icon(Icons.search_rounded, size: 21, color: t.textSecondary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _searching
+                ? TextField(
+                    controller: _searchCtrl,
+                    focusNode: _searchFocus,
+                    autofocus: true,
+                    textInputAction: TextInputAction.search,
+                    onChanged: (v) => setState(() => _searchQuery = v),
+                    style: AppFonts.onest(
+                        size: 15, weight: 500, color: t.textPrimary),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      border: InputBorder.none,
+                      hintText: LocaleService.current.memorySearchHint,
+                      hintStyle: AppFonts.onest(
+                          size: 15, weight: 500, color: t.textSecondary),
+                    ),
+                  )
+                : GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => setState(() => _searching = true),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        LocaleService.current.memorySearchHint,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppFonts.onest(
+                            size: 15, weight: 500, color: t.textSecondary),
+                      ),
+                    ),
+                  ),
           ),
-          if (widget.filterMode != MemoryFilterMode.none)
-            Row(
-              mainAxisSize: MainAxisSize.min,
+          if (_searching)
+            IconButton(
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+              onPressed: () => setState(() {
+                _searchCtrl.clear();
+                _searchQuery = '';
+                _searching = false;
+                _searchFocus.unfocus();
+              }),
+              icon: Icon(Icons.close_rounded, size: 20, color: t.textSecondary),
+              tooltip: LocaleService.current.cancel,
+            )
+          else
+            _pairAvatars(),
+        ],
+      ),
+    );
+  }
+
+  /// Аватарки пары внахлёст — они же бывший счётчик участников.
+  Widget _pairAvatars() {
+    final members = pair.members.take(2).toList();
+    if (members.isEmpty) return const SizedBox(width: 4);
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: SizedBox(
+        width: members.length == 1 ? 32 : 54,
+        height: 32,
+        child: Stack(
+          children: [
+            for (var i = 0; i < members.length; i++)
+              Positioned(
+                left: i * 22.0,
+                child: AvatarWidget(
+                  uid: members[i].uid,
+                  liveUrl: members[i].avatar,
+                  name: members[i].name,
+                  size: 32,
+                  primary: primary,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Меню ленты: сортировка, книга пары, галерея, карта, замок секретных.
+  /// Всё, что раньше стояло пятью кругами в шапке.
+  Future<void> _openLaneMenu() async {
+    final t = widget.theme;
+    final hasSecret = _memories.any((m) => m.isSecret);
+    Widget row({
+      required IconData icon,
+      required String title,
+      String? subtitle,
+      required VoidCallback onTap,
+    }) {
+      return Material(
+        color: t.cardSurface,
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () {
+            Navigator.pop(context);
+            onTap();
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
               children: [
-                Icon(Icons.push_pin_rounded,
-                    size: 12, color: primary.withValues(alpha: 0.8)),
-                const SizedBox(width: 5),
-                Text(
-                  '${LocaleService.current.pinned} • '
-                  '${widget.filterMode == MemoryFilterMode.day ? _fmtToday() : _fmtMonth()}',
-                  style: AppFonts.onest(
-                      size: 11,
-                      weight: 500,
-                      color: primary.withValues(alpha: 0.8)),
+                Container(
+                  width: 44,
+                  height: 44,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: t.bgGradient[0],
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, size: 22, color: t.textPrimary),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: AppFonts.onest(
+                              size: 16, weight: 600, color: t.textPrimary)),
+                      if (subtitle != null)
+                        Text(subtitle,
+                            style: AppFonts.onest(
+                                size: 12.5,
+                                weight: 500,
+                                color: t.textSecondary)),
+                    ],
+                  ),
                 ),
               ],
             ),
-        ],
-      ),
-      actions: [
-        if (widget.filterMode == MemoryFilterMode.none)
-          IconButton(
-            onPressed: _openSortSheet,
-            icon: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: widget.theme.cardSurface.withOpacity(0.8),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(Icons.swap_vert_rounded, color: primary, size: 18),
-            ),
-            tooltip: LocaleService.current.memorySortTitle,
           ),
-        if (_memories.any((m) => m.isSecret))
-          IconButton(
-            onPressed: _toggleSecretLock,
-            icon: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: widget.theme.cardSurface.withOpacity(0.8),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                _secretUnlocked
-                    ? Icons.lock_open_rounded
-                    : Icons.lock_rounded,
-                color: primary,
-                size: 18,
-              ),
-            ),
-            tooltip: LocaleService.current.secretMemories,
-          ),
-        if (PlusService.instance.visible)
-          IconButton(
-            onPressed: _openPairBook,
-            icon: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: widget.theme.cardSurface.withOpacity(0.8),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(Icons.menu_book_rounded, color: primary, size: 18),
-            ),
-            tooltip: LocaleService.current.bookTitle,
-          ),
-        IconButton(
-          onPressed: _openPhotoGalleryScreen,
-          icon: Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: widget.theme.cardSurface.withOpacity(0.8),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(Icons.photo_library_rounded, color: primary, size: 18),
-          ),
-          tooltip: LocaleService.current.openPhotoGallery,
         ),
-        IconButton(
-          onPressed: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => MemoriesMapScreen(
-                memories: _memories
-                    .where((m) =>
-                        !m.sealedNow() && !(m.isSecret && !_secretUnlocked))
-                    .toList(),
-                theme: widget.theme,
-                currentUserUid: _myUid,
+      );
+    }
+
+    await showAppSheet(
+      context,
+      builder: (_) => SheetScaffold(
+        title: LocaleService.current.memoryLane,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              row(
+                icon: Icons.swap_vert_rounded,
+                title: LocaleService.current.memorySortTitle,
+                onTap: _openSortSheet,
               ),
-              settings: const RouteSettings(name: '/memories_map'),
-            ),
-          ),
-          icon: Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: widget.theme.cardSurface.withOpacity(0.8),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(Icons.map_rounded, color: primary, size: 18),
-          ),
-          tooltip: LocaleService.current.memoriesMapTooltip,
-        ),
-        Padding(
-          padding: const EdgeInsets.only(right: 16),
-          child: Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
+              const SizedBox(height: 4),
+              row(
+                icon: Icons.photo_library_rounded,
+                title: LocaleService.current.openPhotoGallery,
+                onTap: _openPhotoGalleryScreen,
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.group_rounded, size: 14, color: primary),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${pair.members.length}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: primary,
+              const SizedBox(height: 4),
+              row(
+                icon: Icons.map_rounded,
+                title: LocaleService.current.memoriesMapTooltip,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => MemoriesMapScreen(
+                      memories: _memories
+                          .where((m) =>
+                              !m.sealedNow() &&
+                              !(m.isSecret && !_secretUnlocked))
+                          .toList(),
+                      theme: widget.theme,
+                      currentUserUid: _myUid,
                     ),
+                    settings: const RouteSettings(name: '/memories_map'),
                   ),
-                ],
+                ),
               ),
-            ),
+              if (PlusService.instance.visible) ...[
+                const SizedBox(height: 4),
+                row(
+                  icon: Icons.menu_book_rounded,
+                  title: LocaleService.current.bookTitle,
+                  onTap: _openPairBook,
+                ),
+              ],
+              if (hasSecret) ...[
+                const SizedBox(height: 4),
+                row(
+                  icon: _secretUnlocked
+                      ? Icons.lock_open_rounded
+                      : Icons.lock_rounded,
+                  title: LocaleService.current.secretMemories,
+                  onTap: _toggleSecretLock,
+                ),
+              ],
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 
@@ -1236,22 +1381,24 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     // Нечего фильтровать (один тип контента и ни одной закладки) — прячем бар.
     if (cats.length < 2 && !hasFavorites) return null;
     return PreferredSize(
-      preferredSize: const Size.fromHeight(50),
+      preferredSize: const Size.fromHeight(56),
       child: SizedBox(
-        height: 50,
+        height: 56,
         child: ListView(
           scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
           children: [
-            _favCircle(),
-            const SizedBox(width: 8),
             _filterTag(
               label: LocaleService.current.feedFilterAll,
-              selected: _categoryKey == null,
-              onTap: () => setState(() => _categoryKey = null),
+              icon: Icons.apps_rounded,
+              selected: _categoryKey == null && !_favoritesOnly,
+              onTap: () => setState(() {
+                _categoryKey = null;
+                _favoritesOnly = false;
+              }),
             ),
             for (final c in cats) ...[
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               _filterTag(
                 label: trKey(c.dictKey),
                 icon: c.icon,
@@ -1259,73 +1406,60 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 onTap: () => setState(() => _categoryKey = c.key),
               ),
             ],
+            if (hasFavorites) ...[
+              const SizedBox(width: 6),
+              _filterTag(
+                label: LocaleService.current.feedFilterFavorites,
+                icon: _favoritesOnly
+                    ? Icons.favorite_rounded
+                    : Icons.favorite_border_rounded,
+                selected: _favoritesOnly,
+                onTap: () => setState(() => _favoritesOnly = !_favoritesOnly),
+              ),
+            ],
           ],
         ),
       ),
     );
   }
 
-  /// Круглый тег-значок «Избранное» (слева от «Всё»). Активен — залит цветом
-  /// темы с белым сердцем; иначе — приглушённый фон, контурное сердце.
-  Widget _favCircle() {
-    final selected = _favoritesOnly;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => setState(() => _favoritesOnly = !selected),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        width: 36,
-        height: 36,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected ? primary : widget.theme.cardSurface,
-          shape: BoxShape.circle,
-        ),
-        child: Icon(
-          selected ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-          size: 18,
-          color: selected ? Colors.white : widget.theme.textSecondary,
-        ),
-      ),
-    );
-  }
-
-  /// Плоский тег-фильтр. Выбранный залит активным цветом темы (белый текст);
-  /// невыбранный — приглушённый фон. Без тени, свечения и бордера.
+  /// Чип фильтра: один вид на все — иконка и подпись, выбранный залит
+  /// акцентом. Прежний круглый значок «Избранное» выбивался из ряда.
   Widget _filterTag({
     required String label,
     required bool selected,
     required VoidCallback onTap,
     IconData? icon,
   }) {
-    final fg = selected ? Colors.white : widget.theme.textSecondary;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        decoration: BoxDecoration(
-          color: selected ? primary : widget.theme.cardSurface,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, size: 15, color: fg),
-              const SizedBox(width: 5),
-            ],
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w600,
-                color: fg,
+    final t = widget.theme;
+    final bg = selected ? t.fillColor : t.cardSurface;
+    final fg = selected
+        ? AppThemes.onColor(t.fillColor, mode: t.brightness)
+        : t.textPrimary;
+    final iconColor = selected ? fg : t.textSecondary;
+    return Material(
+      color: bg,
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          height: 40,
+          alignment: Alignment.center,
+          padding: EdgeInsets.only(left: icon == null ? 14 : 11, right: 14),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 18, color: iconColor),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                label,
+                style: AppFonts.onest(size: 14, weight: 600, color: fg),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1840,6 +1974,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   //  PHOTO TILE — social-style photo card (коллаж + футер)
   // ═══════════════════════════════════════════════════
   Widget _photoTile(Memory memory) {
+    final t = widget.theme;
     final allPhotos = <String>[
       if (memory.imageUrls?.isNotEmpty == true)
         ...memory.imageUrls!
@@ -1848,24 +1983,57 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     ];
     final hasPhotos = allPhotos.isNotEmpty;
     final hasVideo = memory.videoUrl?.isNotEmpty == true;
-    final caption = memory.caption?.isNotEmpty == true
-        ? memory.caption!
-        : (memory.title?.isNotEmpty == true ? memory.title! : '');
+    final title = memory.title?.trim() ?? '';
+    final caption = memory.caption?.trim() ?? '';
+    // Всего кадров в записи: фото плюс ролик, если он отдельным файлом.
+    final total = allPhotos.length + (hasVideo && !hasPhotos ? 1 : 0);
 
     return _baseTile(
       memory: memory,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _cardHeader(memory, trailing: _typeBadge(memory)),
-          const SizedBox(height: 12),
-          if (hasPhotos)
-            GestureDetector(
-              onTap: () => _openCollage(memory),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                child: _mediaCollage(memory, allPhotos, hasVideo),
+          _cardHeader(
+            memory,
+            trailing: total > 1 ? _frameCountChip(total) : null,
+          ),
+          if (title.isNotEmpty || caption.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (title.isNotEmpty)
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppFonts.unbounded(
+                          size: 16, weight: 600, color: t.textPrimary),
+                    ),
+                  if (caption.isNotEmpty)
+                    Padding(
+                      padding: EdgeInsets.only(top: title.isEmpty ? 0 : 2),
+                      child: Text(
+                        caption,
+                        // Письмо из капсулы бывает на страницу: в ленте
+                        // показываем начало, целиком читается в пине.
+                        maxLines: 14,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 15,
+                            color: t.textPrimary,
+                            height: 1.35),
+                      ),
+                    ),
+                ],
               ),
+            ),
+          const SizedBox(height: 10),
+          if (hasPhotos)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: _momentMedia(memory, allPhotos, hasVideo),
             )
           // Видео без отдельной обложки: всё равно показываем медиа-ячейку
           // с кнопкой play (карточка не должна остаться без превью).
@@ -1873,33 +2041,123 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             GestureDetector(
               onTap: () => _openCollage(memory),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: _videoOnlyCell(memory),
               ),
             ),
-          if (caption.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: Text(
-                caption,
-                // Письмо из капсулы бывает на страницу: в ленте показываем
-                // начало, целиком читается на карточке воспоминания.
-                maxLines: 14,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 15,
-                  color: widget.theme.textPrimary,
-                  height: 1.35,
-                ),
-              ),
-            ),
           _locationDistancePill(memory),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           _cardFooter(memory),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
         ],
       ),
     );
+  }
+
+  /// Обложка целиком и плёнка остальных кадров под ней.
+  ///
+  /// Обложка стоит в своей пропорции — панорама остаётся широкой,
+  /// вертикальный снимок высоким, ничего не обрезается. Под ней ряд
+  /// одинаковой высоты, где ширина каждого кадра считается по его же
+  /// пропорции, а в конце плитка с числом оставшихся.
+  Widget _momentMedia(Memory memory, List<String> photos, bool hasVideo) {
+    const stripHeight = 56.0;
+    const shownInStrip = 4;
+    final t = widget.theme;
+    final rest = photos.length - 1 - shownInStrip;
+
+    Widget cover = AspectCover(
+      url: photos.first,
+      radius: 22,
+      maxHeight: 420,
+      overlay: hasVideo
+          ? const Center(
+              child: Icon(Icons.play_circle_fill_rounded,
+                  color: Colors.white, size: 46),
+            )
+          : null,
+    );
+    if (memory.isAdult) cover = _BlurAfterTap(child: cover);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => _openFrameAt(memory, 0),
+          child: cover,
+        ),
+        if (photos.length > 1) ...[
+          const SizedBox(height: 2),
+          SizedBox(
+            height: stripHeight,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              physics: const ClampingScrollPhysics(),
+              itemCount: photos.length - 1 > shownInStrip
+                  ? shownInStrip + 1
+                  : photos.length - 1,
+              separatorBuilder: (_, _) => const SizedBox(width: 2),
+              itemBuilder: (_, i) {
+                if (i == shownInStrip && rest > 0) {
+                  return FilmRestTile(
+                    count: rest,
+                    height: stripHeight,
+                    label: LocaleService.current.photosUnit(rest),
+                    background: t.cardSurface,
+                    foreground: t.textPrimary,
+                    onTap: () => _openFrameAt(memory, shownInStrip + 1),
+                  );
+                }
+                return FilmFrame(
+                  url: photos[i + 1],
+                  height: stripHeight,
+                  onTap: () => _openFrameAt(memory, i + 1),
+                );
+              },
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// Чип в шапке карточки: сколько кадров внутри записи.
+  Widget _frameCountChip(int count) {
+    final t = widget.theme;
+    return Container(
+      height: 30,
+      padding: const EdgeInsets.only(left: 8, right: 10),
+      decoration: BoxDecoration(
+        color: t.bgGradient[0],
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.photo_library_rounded, size: 16, color: t.textSecondary),
+          const SizedBox(width: 5),
+          Text('$count',
+              style: AppFonts.onest(
+                  size: 12.5, weight: 700, color: t.textPrimary)),
+        ],
+      ),
+    );
+  }
+
+  /// Просмотр кадра с нужного места: сквозная лента кадров всех записей.
+  void _openFrameAt(Memory memory, int frameIndex) async {
+    final items = _allGalleryItems;
+    final first = items.indexWhere((it) => it.memoryId == memory.id);
+    final idx = first >= 0 ? (first + frameIndex).clamp(0, items.length - 1) : 0;
+    final result = await _openFullscreenGallery(context, items, idx);
+    if (result != null && mounted) {
+      final mem = _memories.firstWhere(
+        (m) => m.id == result,
+        orElse: () => memory,
+      );
+      _showMemoryDetail(mem);
+    }
   }
 
   // ═══════════════════════════════════════════════════

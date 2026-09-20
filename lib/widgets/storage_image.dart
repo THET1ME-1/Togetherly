@@ -26,6 +26,7 @@ class StorageImage extends StatefulWidget {
     this.memCacheWidth,
     this.memCacheHeight,
     this.fadeInDuration = const Duration(milliseconds: 300),
+    this.onSize,
   });
 
   final String imageUrl;
@@ -38,6 +39,13 @@ class StorageImage extends StatefulWidget {
   final int? memCacheWidth;
   final int? memCacheHeight;
   final Duration fadeInDuration;
+
+  /// Размер кадра в пикселях, когда он разошёлся из кэша.
+  ///
+  /// Нужен там, где кадр показывается ЦЕЛИКОМ, в своей пропорции: в записи
+  /// воспоминания хранится одна ссылка, ширины и высоты там нет. Картинку
+  /// берём из того же кэша, из которого рисуем, — повторной закачки не будет.
+  final void Function(Size size)? onSize;
 
   @override
   State<StorageImage> createState() => _StorageImageState();
@@ -117,6 +125,24 @@ class _StorageImageState extends State<StorageImage> {
       width: widget.width,
       height: widget.height,
       fit: widget.fit,
+      imageBuilder: widget.onSize == null
+          ? null
+          : (ctx, provider) {
+              provider
+                  .resolve(const ImageConfiguration())
+                  .addListener(ImageStreamListener((info, _) {
+                widget.onSize!(Size(
+                  info.image.width.toDouble(),
+                  info.image.height.toDouble(),
+                ));
+              }, onError: (_, __) {}));
+              return Image(
+                image: provider,
+                width: widget.width,
+                height: widget.height,
+                fit: widget.fit,
+              );
+            },
       placeholder: widget.placeholder,
       progressIndicatorBuilder: widget.progressIndicatorBuilder,
       errorWidget: widget.errorWidget,

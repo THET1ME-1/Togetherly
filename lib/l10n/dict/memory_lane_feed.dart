@@ -6,6 +6,26 @@
 // на экране не бывает.
 
 const Map<String, Map<String, String>> memoryLaneFeedStrings = {
+  // Подсказка в строке поиска ленты: ищем по названию, подписи и месту.
+  'memorySearchHint': {
+    'ru': 'Искать в воспоминаниях',
+    'en': 'Search memories',
+    'pt': 'Buscar nas lembranças',
+    'it': 'Cerca nei ricordi',
+    'es': 'Buscar en los recuerdos',
+    'fr': 'Rechercher dans les souvenirs',
+    'de': 'In Erinnerungen suchen',
+  },
+  // Кнопка «ещё» в шапке: за ней сортировка, книга пары, галерея и карта.
+  'moreActions': {
+    'ru': 'Ещё',
+    'en': 'More',
+    'pt': 'Mais',
+    'it': 'Altro',
+    'es': 'Más',
+    'fr': 'Plus',
+    'de': 'Mehr',
+  },
   // Подпись под шапкой карточки: запись была ответом на задание дня. Само
   // задание пишется рядом, поэтому здесь только ярлык.
   'memoryDailyTaskBadge': {
@@ -186,6 +206,16 @@ const Map<String, Map<String, String>> memoryLaneFeedStrings = {
   },
   // Строки ленты, что были зашиты выбором «русский или английский»
   // (19.09.2026): остальные пять языков видели английский.
+  // Чип фильтра «Любимое»: личные закладки, у каждого свои.
+  'feedFilterFavorites': {
+    'ru': 'Любимое',
+    'en': 'Favorites',
+    'pt': 'Favoritos',
+    'it': 'Preferiti',
+    'es': 'Favoritos',
+    'fr': 'Favoris',
+    'de': 'Favoriten',
+  },
   'feedFilterAll': {
     'ru': 'Всё',
     'en': 'All',
