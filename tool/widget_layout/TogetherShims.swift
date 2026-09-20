@@ -34,6 +34,11 @@ struct WidgetTheme {
     var accentOnPrimary: Color { c("onPrimarySoft") }
 }
 
+/// Зафиксированное «сейчас»: картинки стенда не должны меняться от прогона
+/// к прогону. Живёт здесь, а не в сцене «Вместе»: заглушками пользуется и
+/// «Скучаю», и без этого его сборка падала на `nowMs`.
+let nowMs = 1_789_400_000_000
+
 enum WidgetImage {
     static let avatar: CGFloat = 200
 }
