@@ -101,6 +101,7 @@ import '../services/movie_search_service.dart';
 import '../widgets/common/pin_entry_sheet.dart';
 import '../services/offline/media_file_fetch.dart';
 import '../widgets/memory/media_strip.dart';
+import '../widgets/memory/reactions_row.dart';
 
 // Экран разбит на части (один большой файл → читаемые модули). Все части —
 // `part of` этой библиотеки: приватные классы остаются библиотечно-приватными,
@@ -1929,45 +1930,177 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   }
 
   /// Футер карточки: комментарии + закладка (лайков НЕТ — по требованию).
+  /// Низ карточки: именные реакции, комментарии числом, сохранение медиа.
+  ///
+  /// Счётчика реакций нет: людей в паре двое, и «12 лайков» тут взяться
+  /// неоткуда — стоит аватарка того, кто отметил.
   Widget _cardFooter(Memory memory) {
-    final saved = memory.isSavedBy(_myUid ?? '');
+    final t = widget.theme;
+    final uid = _myUid ?? '';
+    final files = memoryMediaFiles(memory);
+    final chips = <Widget>[];
+    memory.reactions.forEach((who, key) {
+      chips.add(ReactionChip(
+        uid: who,
+        name: _nameOf(who),
+        avatarUrl: _avatarOf(who),
+        reactionKey: key,
+        theme: t,
+        isMine: who == uid,
+        onTap: who == uid
+            ? () => _memRepo.setReaction(
+                groupId: _groupId, memoryId: memory.id, reaction: key)
+            : null,
+      ));
+    });
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
       child: Row(
         children: [
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => _showMemoryDetail(memory),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.chat_bubble_outline_rounded,
-                    size: 19, color: widget.theme.textMuted),
-                if (memory.commentsCount > 0) ...[
-                  const SizedBox(width: 5),
-                  Text('${memory.commentsCount}',
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: widget.theme.textSecondary)),
-                ],
-              ],
+          for (final c in chips) ...[c, const SizedBox(width: 2)],
+          if (memory.reactionOf(uid).isEmpty)
+            AddReactionButton(
+              theme: t,
+              onPick: (key) => _memRepo.setReaction(
+                  groupId: _groupId, memoryId: memory.id, reaction: key),
             ),
-          ),
+          const SizedBox(width: 6),
+          _commentsChip(memory),
           const Spacer(),
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () =>
-                _memRepo.toggleSaved(groupId: _groupId, memoryId: memory.id),
-            child: Icon(
-              saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
-              size: 21,
-              color: saved ? primary : widget.theme.textMuted,
-            ),
-          ),
+          if (files.isNotEmpty) _feedSaveButton(memory, files),
         ],
       ),
     );
+  }
+
+  /// Чип комментариев: у них счёт осмыслен — их бывает много.
+  Widget _commentsChip(Memory memory) {
+    final t = widget.theme;
+    return Material(
+      color: t.bgGradient[0],
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => _showMemoryDetail(memory),
+        child: Container(
+          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.chat_bubble_outline_rounded,
+                  size: 18, color: t.textSecondary),
+              if (memory.commentsCount > 0) ...[
+                const SizedBox(width: 6),
+                Text('${memory.commentsCount}',
+                    style: AppFonts.onest(
+                        size: 14, weight: 700, color: t.textPrimary)),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Кнопка сохранения медиа прямо в ленте: слева всё разом, справа выбор.
+  ///
+  /// Та же разделённая кнопка, что в открытом пине, только ниже — ряд в
+  /// ленте живёт на сорока точках.
+  Widget _feedSaveButton(Memory memory, List<MediaFile> files) {
+    final queue = MediaSaveQueue.instance;
+    final ledger = SavedMediaLedger.instance;
+    return AnimatedBuilder(
+      animation: Listenable.merge([queue, ledger]),
+      builder: (context, _) {
+        final job = queue.activeFor(memory.id);
+        final progress = queue.progressFor(memory.id);
+        return SaveSplitButton(
+          height: 40,
+          state: saveButtonState(
+            total: files.length,
+            saved: ledger.countSaved(files),
+            done: progress?.$1,
+            jobTotal: progress?.$2,
+          ),
+          onSaveAll: () => saveToGallery(
+            context,
+            title: memorySaveTitle(memory),
+            items: [for (final f in files) SaveItem.of(memory, f)],
+            adult: memory.isAdult,
+          ),
+          onChoose: () => _chooseWhatToSaveFromFeed(memory, files),
+          onCancel: () {
+            if (job != null) queue.cancel(job.id);
+          },
+        );
+      },
+    );
+  }
+
+  /// Лист «Что сохранить» прямо из ленты — тот же, что в открытом пине.
+  Future<void> _chooseWhatToSaveFromFeed(
+      Memory memory, List<MediaFile> files) async {
+    final scheme = Theme.of(context).colorScheme;
+    Future<void> save(List<MediaFile> list) async {
+      if (list.isEmpty) return;
+      await saveToGallery(
+        context,
+        title: memorySaveTitle(memory),
+        items: [for (final f in list) SaveItem.of(memory, f)],
+        adult: memory.isAdult,
+      );
+    }
+
+    final choice = await showSaveOptionsSheet(
+      context,
+      scheme: scheme,
+      files: files,
+      title: memorySaveTitle(memory),
+      takenAt: memory.createdAt,
+    );
+    if (choice == null || !mounted) return;
+    switch (choice) {
+      case SaveChoice.all:
+        await save(files);
+      case SaveChoice.photos:
+        await save([for (final f in files) if (f.kind == SaveKind.photo) f]);
+      case SaveChoice.videos:
+        await save([for (final f in files) if (f.kind == SaveKind.video) f]);
+      case SaveChoice.cover:
+        await save([
+          files.firstWhere((f) => f.kind == SaveKind.photo,
+              orElse: () => files.first),
+        ]);
+      case SaveChoice.pick:
+        final picked =
+            await showFramePicker(context, files: files, scheme: scheme);
+        if (picked == null || picked.files.isEmpty || !mounted) return;
+        if (picked.share) {
+          await shareMemoryMedia(context,
+              files: picked.files, takenAt: memory.createdAt);
+        } else {
+          await save(picked.files);
+        }
+    }
+  }
+
+  /// Имя участника пары по uid — для подписи реакции.
+  String _nameOf(String uid) {
+    for (final m in pair.members) {
+      if (m.uid == uid) return m.name;
+    }
+    return '';
+  }
+
+  /// Аватар участника пары по uid.
+  String _avatarOf(String uid) {
+    if (uid == _myUid && _myAvatar.isNotEmpty) return _myAvatar;
+    for (final m in pair.members) {
+      if (m.uid == uid) return m.avatar;
+    }
+    return '';
   }
 
   // ═══════════════════════════════════════════════════

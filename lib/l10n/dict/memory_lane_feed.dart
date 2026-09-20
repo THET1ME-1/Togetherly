@@ -207,6 +207,71 @@ const Map<String, Map<String, String>> memoryLaneFeedStrings = {
   // Строки ленты, что были зашиты выбором «русский или английский»
   // (19.09.2026): остальные пять языков видели английский.
   // Чип фильтра «Любимое»: личные закладки, у каждого свои.
+  // Значки реакций и заголовок листа выбора. Реакция в паре именная:
+  // счётчика нет, рядом с записью стоит аватарка того, кто отметил.
+  'reactionPickTitle': {
+    'ru': 'Отметить',
+    'en': 'React',
+    'pt': 'Reagir',
+    'it': 'Reagisci',
+    'es': 'Reaccionar',
+    'fr': 'Réagir',
+    'de': 'Reagieren',
+  },
+  'reactionHeart': {
+    'ru': 'Люблю',
+    'en': 'Love',
+    'pt': 'Amei',
+    'it': 'Adoro',
+    'es': 'Me encanta',
+    'fr': "J'adore",
+    'de': 'Liebe',
+  },
+  'reactionMood': {
+    'ru': 'Радость',
+    'en': 'Joy',
+    'pt': 'Alegria',
+    'it': 'Gioia',
+    'es': 'Alegría',
+    'fr': 'Joie',
+    'de': 'Freude',
+  },
+  'reactionWow': {
+    'ru': 'Вот это да',
+    'en': 'Wow',
+    'pt': 'Uau',
+    'it': 'Wow',
+    'es': 'Guau',
+    'fr': 'Waouh',
+    'de': 'Wow',
+  },
+  'reactionFire': {
+    'ru': 'Огонь',
+    'en': 'Fire',
+    'pt': 'Demais',
+    'it': 'Top',
+    'es': 'Fuego',
+    'fr': 'Au top',
+    'de': 'Stark',
+  },
+  'reactionCry': {
+    'ru': 'До слёз',
+    'en': 'Tears',
+    'pt': 'Emocionou',
+    'it': 'Commovente',
+    'es': 'Emotivo',
+    'fr': 'Émouvant',
+    'de': 'Rührend',
+  },
+  'reactionStar': {
+    'ru': 'Волшебно',
+    'en': 'Magic',
+    'pt': 'Mágico',
+    'it': 'Magico',
+    'es': 'Mágico',
+    'fr': 'Magique',
+    'de': 'Magisch',
+  },
   'feedFilterFavorites': {
     'ru': 'Любимое',
     'en': 'Favorites',

@@ -11,6 +11,7 @@ import '../pb_media_service.dart';
 import 'backoff.dart';
 import 'connectivity_service.dart';
 import 'local_store.dart';
+import '../../models/memory_reaction.dart';
 
 /// Очередь офлайн-записи (outbox).
 ///
@@ -321,6 +322,7 @@ class OutboxService {
       case 'memoryDelete':
         return k('memories', p['id']);
       case 'memorySetSaved':
+      case 'memorySetReaction':
       case 'memoryBumpComments':
         return k('memories', p['memoryId']);
       case 'commentUpsert':
@@ -530,6 +532,7 @@ class OutboxService {
         return _replaceOrMerge(db, type, p,
             (a, b) => a['id'] == b['id'] && a['uid'] == b['uid']);
       case 'memorySetSaved':
+      case 'memorySetReaction':
         return _replaceOrMerge(db, type, p,
             (a, b) => a['memoryId'] == b['memoryId'] && a['uid'] == b['uid']);
       case 'memoryUpsert':
@@ -661,6 +664,12 @@ class OutboxService {
           p['memoryId'] as String? ?? '',
           p['uid'] as String? ?? '',
           p['saved'] == true,
+        );
+      case 'memorySetReaction':
+        return _applySetReaction(
+          p['memoryId'] as String? ?? '',
+          p['uid'] as String? ?? '',
+          p['reaction'] as String? ?? '',
         );
       case 'counterInc':
         return data.incrementGroupCounter(
@@ -991,6 +1000,29 @@ class OutboxService {
       return true; // уже в нужном состоянии — идемпотентно
     }
     map['savedBy'] = list;
+    return data.upsertMemory(
+        rec.data['group_id'] as String? ?? '', memoryId, map);
+  }
+
+  /// Реакция на сервере пересчитывается по свежей записи, а не затирает её
+  /// целиком: пока операция лежала в очереди, партнёр мог отметить своё.
+  Future<bool> _applySetReaction(
+      String memoryId, String uid, String reaction) async {
+    if (memoryId.isEmpty || uid.isEmpty) return true;
+    final data = PbDataService();
+    final rec = await data.loadMemoryById(memoryId);
+    if (rec == null) return true; // удалено на сервере — считаем выполненным
+    final raw = rec.data['data'];
+    final map = raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+    final current = parseReactions(map['reactions']);
+    if ((current[uid] ?? '') == reaction) return true; // уже так — идемпотентно
+    final next = Map<String, String>.from(current);
+    if (reaction.isEmpty) {
+      next.remove(uid);
+    } else {
+      next[uid] = reaction;
+    }
+    map['reactions'] = next;
     return data.upsertMemory(
         rec.data['group_id'] as String? ?? '', memoryId, map);
   }

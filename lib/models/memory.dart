@@ -6,6 +6,7 @@ import 'package:pocketbase/pocketbase.dart';
 import '../utils/pair_time.dart';
 
 import '../services/locale_service.dart';
+import 'memory_reaction.dart';
 
 /// Types of memory content
 enum MemoryType { photo, video, location, music, text, videoLink, book, movie }
@@ -137,11 +138,20 @@ class Memory {
   /// Персонально: каждый партнёр видит свой набор закладок.
   List<String> savedBy;
 
+  /// Реакции на запись: `uid → ключ значка` из [kMemoryReactions].
+  ///
+  /// Людей в паре двое, поэтому счётчика тут нет и быть не может: рядом с
+  /// записью стоит аватарка того, кто отметил, и его значок.
+  Map<String, String> reactions;
+
   /// Кэш числа комментариев (для бейджа в ленте — чтобы не подписываться на
   /// комментарии каждой карточки). Инкрементится при добавлении комментария.
   int commentsCount;
 
   bool isSavedBy(String uid) => uid.isNotEmpty && savedBy.contains(uid);
+
+  /// Чем отметил конкретный человек; пусто — не отмечал.
+  String reactionOf(String uid) => uid.isEmpty ? '' : (reactions[uid] ?? '');
 
   /// Капсула ещё запечатана в момент [now] (по умолчанию — сейчас): помечена
   /// [sealed], задана [openAt] и эта дата ещё не наступила. Логика вынесена в
@@ -197,8 +207,10 @@ class Memory {
     this.addedAt,
     this.dailyTaskId,
     List<String>? savedBy,
+    Map<String, String>? reactions,
     int? commentsCount,
   })  : savedBy = savedBy ?? <String>[],
+        reactions = reactions ?? <String, String>{},
         commentsCount = commentsCount ?? 0;
 
   /// Human-friendly type label
@@ -298,6 +310,7 @@ class Memory {
       // прочитанная обратно, потеряет три часа (или сколько их у читателя).
       'tz': zone.isEmpty ? PairTime.zoneNow() : zone,
       'savedBy': savedBy,
+      'reactions': reactions,
       'commentsCount': commentsCount,
       'dailyTaskId': dailyTaskId,
     };
@@ -358,6 +371,7 @@ class Memory {
       savedBy: json['savedBy'] != null
           ? List<String>.from(json['savedBy'])
           : null,
+      reactions: parseReactions(json['reactions']),
       commentsCount: (json['commentsCount'] as num?)?.toInt(),
     );
   }

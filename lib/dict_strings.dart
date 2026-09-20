@@ -1571,6 +1571,8 @@ abstract class DictStrings extends AppStrings {
   @override
   String get feedFilterFavorites => _t('feedFilterFavorites');
   @override
+  String get reactionPickTitle => _t('reactionPickTitle');
+  @override
   String get moreActions => _t('moreActions');
   @override
   String get addMemoryBtn => _t('addMemoryBtn');

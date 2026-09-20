@@ -1026,6 +1026,7 @@ abstract class AppStrings {
   String get memoryLane;
   String get memorySearchHint;
   String get feedFilterFavorites;
+  String get reactionPickTitle;
   String get moreActions;
   String get addMemoryBtn;
 

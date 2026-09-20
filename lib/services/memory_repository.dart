@@ -15,6 +15,7 @@ import 'pb_auth_service.dart';
 import 'pb_data_service.dart';
 import 'pb_realtime_service.dart';
 import 'pocketbase_service.dart';
+import '../models/memory_reaction.dart';
 
 /// Репозиторий «Воспоминаний» поверх PocketBase + offline-first.
 ///
@@ -313,6 +314,32 @@ class MemoryRepository {
     await _cache.upsertRaw('memories', memoryId, row);
     await _outbox.enqueue('memorySetSaved',
         {'memoryId': memoryId, 'uid': uid, 'saved': willSave});
+  }
+
+  /// Ставит или снимает реакцию: тот же значок снимает, другой — заменяет.
+  ///
+  /// Реакция именная, счётчика нет: в паре двое, и рядом с записью стоит
+  /// аватарка того, кто отметил. Как и закладка, живёт внутри json-поля
+  /// `data`, поэтому новых колонок на сервере не понадобилось.
+  Future<void> setReaction({
+    required String groupId,
+    required String memoryId,
+    required String reaction,
+  }) async {
+    final uid = _uid;
+    if (uid == null || uid.isEmpty) return;
+    final cached = await _cache.getRecord('memories', memoryId);
+    if (cached == null) return;
+    final row = Map<String, dynamic>.from(cached.data);
+    final map = (row['data'] is Map)
+        ? Map<String, dynamic>.from(row['data'] as Map)
+        : <String, dynamic>{};
+    final next = withReaction(parseReactions(map['reactions']), uid, reaction);
+    map['reactions'] = next;
+    row['data'] = map;
+    await _cache.upsertRaw('memories', memoryId, row);
+    await _outbox.enqueue('memorySetReaction',
+        {'memoryId': memoryId, 'uid': uid, 'reaction': next[uid] ?? ''});
   }
 
   /// Удаляет воспоминание: оптимистично из кэша + удаление (с чисткой PB-медиа)
