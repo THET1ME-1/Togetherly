@@ -221,19 +221,23 @@
                 android:layout_weight="1"
                 android:layout_marginLeft="8dp">
 
-                <ImageView
+                <!--
+                  Ступень и вторая строка нужны только узким размерам, но
+                  лежат и здесь: провайдер общий и красит их у всех. Тип
+                  обязан совпадать с остальными разметками — `setTextColor`
+                  по ImageView валит виджет целиком.
+                -->
+                <TextView
                     android:id="@+id/stage"
                     android:layout_width="0dp"
                     android:layout_height="0dp"
-                    android:visibility="gone"
-                    android:contentDescription="@null" />
+                    android:visibility="gone" />
 
-                <ImageView
+                <TextView
                     android:id="@+id/sub"
                     android:layout_width="0dp"
                     android:layout_height="0dp"
-                    android:visibility="gone"
-                    android:contentDescription="@null" />
+                    android:visibility="gone" />
 
                 <LinearLayout
                     android:layout_width="match_parent"

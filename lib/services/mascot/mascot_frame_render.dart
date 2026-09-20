@@ -85,12 +85,15 @@ Future<MascotFrameStrip?> renderMascotStrip({
   required MascotAnim anim,
   required int level,
   required DateTime now,
-  bool night = false,
+  MascotWidgetFrame frame = MascotWidgetFrame.day,
   int maxFrames = 12,
 }) async {
-  final row = night
-      ? anim.nightIdle
-      : anim.idleRow(now, _kNeverSleeps);
+  final row = switch (frame) {
+    MascotWidgetFrame.day => anim.idleRow(now, _kNeverSleeps),
+    MascotWidgetFrame.night => anim.nightIdle,
+    MascotWidgetFrame.sad =>
+      anim.has(MascotAnimState.sad) ? MascotAnimState.sad.name : '',
+  };
   if (row.isEmpty) return null;
 
   final frames = anim.cols < maxFrames ? anim.cols : maxFrames;

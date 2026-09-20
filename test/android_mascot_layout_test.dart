@@ -38,6 +38,34 @@ void main() {
     }
   });
 
+  test('одноимённые id во всех разметках одного типа', () {
+    // `setTextColor` по ImageView — это ActionException уже на устройстве:
+    // лончер показывает «Не удалось загрузить виджет», а в сборке чисто.
+    // Так лёг 4×4, где `stage` и `sub` были картинками (20.09.2026).
+    final types = <String, Map<String, String>>{};
+    for (final name in layouts) {
+      final xml = File('android/app/src/main/res/layout/$name.xml').readAsStringSync();
+      final found = <String, String>{};
+      for (final m in RegExp(r'<(\w+)[^>]*?android:id="@\+id/(\w+)"', dotAll: true).allMatches(xml)) {
+        found[m.group(2)!] = m.group(1)!;
+      }
+      types[name] = found;
+    }
+
+    final reference = types[layouts.first]!;
+    for (final name in layouts.skip(1)) {
+      types[name]!.forEach((id, type) {
+        final expected = reference[id];
+        if (expected == null) return;
+        expect(
+          type,
+          expected,
+          reason: 'в $name.xml «$id» это $type, а в ${layouts.first}.xml — $expected',
+        );
+      });
+    }
+  });
+
   test('раскладки закреплены за размерами по одному классу', () {
     final code = provider.readAsStringSync();
     for (final size in ['4x1', '2x2', '4x2', '4x4']) {

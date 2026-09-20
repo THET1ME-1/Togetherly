@@ -3786,9 +3786,16 @@ class _WidgetScreenState extends State<WidgetScreen>
   /// Превью «Календарь лет» 2×2: сетка сверху, число снизу.
   Widget _buildYearGrid2x2Preview() {
     final p = _yearProgress();
+    // Как и у 4×2: рисуем в дизайнерском квадрате и ужимаем целиком, иначе
+    // сетка месяцев с числом не влезают в узкую карточку каталога.
     return AspectRatio(
       aspectRatio: 1,
-      child: Container(
+      child: FittedBox(
+        fit: BoxFit.contain,
+        child: SizedBox(
+          width: 200,
+          height: 200,
+          child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: _wr('surface'),
@@ -3849,6 +3856,8 @@ class _WidgetScreenState extends State<WidgetScreen>
                   ),
                 ],
               ),
+          ),
+        ),
       ),
     );
   }
@@ -3858,9 +3867,18 @@ class _WidgetScreenState extends State<WidgetScreen>
     final p = _yearProgress();
     final start = _togetherStart();
 
+    // Кегли, сетка месяцев и плашка «до года» подобраны под ширину макета
+    // (424). В каталоге карточка уже, и содержимое не ужималось, а
+    // переполнялось: плашка наезжала на точки (снимок 20.09.2026). Рисуем в
+    // дизайнерском размере и ужимаем картинку целиком, как превью «Вместе».
     return AspectRatio(
       aspectRatio: 424 / 200,
-      child: Container(
+      child: FittedBox(
+        fit: BoxFit.contain,
+        child: SizedBox(
+          width: 424,
+          height: 200,
+          child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 22),
         decoration: BoxDecoration(
           color: _wr('surface'),
@@ -3968,6 +3986,8 @@ class _WidgetScreenState extends State<WidgetScreen>
                   ),
                 ],
               ),
+          ),
+        ),
       ),
     );
   }

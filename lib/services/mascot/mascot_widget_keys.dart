@@ -48,6 +48,7 @@ Map<String, String> mascotWidgetKeys({
   bool pixel = true,
   String stripDay = '',
   String stripNight = '',
+  String stripSad = '',
   String animManifest = '',
 }) {
   final g = groupId.isEmpty ? 'solo' : groupId;
@@ -67,6 +68,7 @@ Map<String, String> mascotWidgetKeys({
     // виджет стоит на одном кадре, как было.
     'mascot_${g}_strip_day': stripDay,
     'mascot_${g}_strip_night': stripNight,
+    'mascot_${g}_strip_sad': stripSad,
     'mascot_${g}_anim': animManifest,
     'mascot_${g}_id': data.mascotId,
     'mascot_${g}_name': data.name,

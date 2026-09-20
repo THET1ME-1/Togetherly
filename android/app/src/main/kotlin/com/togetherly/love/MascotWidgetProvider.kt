@@ -52,18 +52,20 @@ open class MascotWidgetProvider : HomeWidgetProvider() {
         val prefix = if (group.isEmpty()) "mascot_solo_" else "mascot_${group}_"
 
         val manifest = data.getString("${prefix}anim", null)
+        val sad = data.getString("${prefix}sad", null) == "1"
         val asleep = asleep(
             data.getString("${prefix}sleep_from", null)?.toIntOrNull() ?: -1,
             data.getString("${prefix}sleep_to", null)?.toIntOrNull() ?: -1,
         )
-        val strip = data.getString(
-            if (asleep) "${prefix}strip_night" else "${prefix}strip_day",
-            null,
-        ) ?: data.getString("${prefix}strip_day", null)
+        // Та же очерёдность, что у статичного кадра: грусть старше сна, сон
+        // старше дня. Грустный персонаж тоже двигается — он вздыхает, а не
+        // выключается.
+        val strip = listOfNotNull(
+            if (sad) data.getString("${prefix}strip_sad", null) else null,
+            if (asleep) data.getString("${prefix}strip_night", null) else null,
+            data.getString("${prefix}strip_day", null),
+        ).firstOrNull { it.isNotEmpty() }
         if (strip.isNullOrEmpty() || manifest.isNullOrEmpty()) return
-        // Грустит — стоит на месте: движение сглаживало бы то, о чём виджет
-        // как раз и должен сказать молча.
-        if (data.getString("${prefix}sad", null) == "1") return
 
         val manager = AppWidgetManager.getInstance(context)
         val theme = WidgetTheme.from(data)

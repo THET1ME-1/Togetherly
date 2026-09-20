@@ -110,15 +110,41 @@ class MascotWidgetService {
     if (!force && signature == _lastSignature) return;
 
     try {
-      final frames = anim != null
-          ? await _atlasFrames(anim, data.atlasLevel, when)
-          : await _singleFrame(art);
+      var frames = <MascotWidgetFrame, Uint8List>{};
+      var strips = <MascotWidgetFrame, MascotFrameStrip>{};
+      if (anim != null) {
+        // Атлас открывается ОДИН раз: и кадры, и полосы режутся за проход.
+        // Вторая загрузка промахивалась мимо кэша, и виджет оставался без
+        // полос — то есть без движения.
+        final sheet = await _sheetImage(anim.sheetUrl);
+        if (sheet == null) return;
+        try {
+          frames = await renderMascotWidgetFrames(
+            sheet: sheet,
+            anim: anim,
+            level: data.atlasLevel,
+            now: when,
+          );
+          for (final kind in MascotWidgetFrame.values) {
+            final strip = await renderMascotStrip(
+              sheet: sheet,
+              anim: anim,
+              level: data.atlasLevel,
+              now: when,
+              frame: kind,
+            );
+            if (strip != null) strips[kind] = strip;
+          }
+        } finally {
+          sheet.dispose();
+        }
+      } else {
+        frames = await _singleFrame(art);
+      }
       if (frames.isEmpty) return;
 
       final paths = await _writeFrames(groupId, frames);
-      final strips = anim == null
-          ? const <String, String>{}
-          : await _writeStrips(groupId, anim, data.atlasLevel, when);
+      final stripPaths = await _writeStrips(groupId, strips);
 
       final keys = mascotWidgetKeys(
         groupId: groupId,
@@ -127,9 +153,10 @@ class MascotWidgetService {
         framePaths: paths,
         framePx: anim?.frame ?? 0,
         pixel: art.pixel,
-        stripDay: strips['day'] ?? '',
-        stripNight: strips['night'] ?? '',
-        animManifest: strips['manifest'] ?? '',
+        stripDay: stripPaths[MascotWidgetFrame.day] ?? '',
+        stripNight: stripPaths[MascotWidgetFrame.night] ?? '',
+        stripSad: stripPaths[MascotWidgetFrame.sad] ?? '',
+        animManifest: strips.isEmpty ? '' : jsonEncode(strips.values.first.manifest),
       );
 
       for (final e in keys.entries) {
@@ -157,72 +184,25 @@ class MascotWidgetService {
     }
   }
 
-  /// Полосы кадров для прокрутки: день и, если есть, ночь.
-  ///
-  /// Манифест общий: строки одного атласа одинаковы по размеру кадра и по
-  /// скорости.
-  Future<Map<String, String>> _writeStrips(
+  /// Кладёт полосы кадров на диск. Манифест у них общий: строки одного
+  /// атласа одинаковы и по размеру кадра, и по скорости.
+  Future<Map<MascotWidgetFrame, String>> _writeStrips(
     String groupId,
-    MascotAnim anim,
-    int level,
-    DateTime when,
+    Map<MascotWidgetFrame, MascotFrameStrip> strips,
   ) async {
-    final sheet = await _sheetImage(anim.sheetUrl);
-    if (sheet == null) return {};
-    MascotFrameStrip? day;
-    MascotFrameStrip? night;
-    try {
-      day = await renderMascotStrip(sheet: sheet, anim: anim, level: level, now: when);
-      if (anim.nightIdle.isNotEmpty) {
-        night = await renderMascotStrip(
-          sheet: sheet,
-          anim: anim,
-          level: level,
-          now: when,
-          night: true,
-        );
-      }
-    } finally {
-      sheet.dispose();
-    }
-    if (day == null) return {};
-
+    if (strips.isEmpty) return {};
     final g = groupId.isEmpty ? 'solo' : groupId;
     final dir = Directory('${(await getApplicationSupportDirectory()).path}/$_dirName');
     dir.createSync(recursive: true);
     final rev = DateTime.now().millisecondsSinceEpoch;
 
-    Future<String> put(String name, MascotFrameStrip strip) async {
-      final file = File('${dir.path}/mascot_${g}_strip_${name}_$rev.png');
-      await file.writeAsBytes(strip.png, flush: true);
-      return file.path;
+    final out = <MascotWidgetFrame, String>{};
+    for (final e in strips.entries) {
+      final file = File('${dir.path}/mascot_${g}_strip_${e.key.name}_$rev.png');
+      await file.writeAsBytes(e.value.png, flush: true);
+      out[e.key] = file.path;
     }
-
-    return {
-      'day': await put('day', day),
-      if (night != null) 'night': await put('night', night),
-      'manifest': jsonEncode(day.manifest),
-    };
-  }
-
-  /// Кадры из атласа: день, ночь и грусть.
-  Future<Map<MascotWidgetFrame, Uint8List>> _atlasFrames(
-    MascotAnim anim,
-    int level,
-    DateTime when,
-  ) async {
-    final sheet = await _sheetImage(anim.sheetUrl);
-    if (sheet == null) return {};
-    try {
-      return await renderMascotWidgetFrames(
-        sheet: sheet,
-        anim: anim,
-        level: level,
-        now: when,
-      );
-    } finally {
-      sheet.dispose();
-    }
+    return out;
   }
 
   /// Одна картинка на все часы: встроенный, каталожный или нарисованный
