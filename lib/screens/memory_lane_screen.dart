@@ -4633,6 +4633,13 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   }
 
   void _editMemory(Memory memory) {
+    // Фото и видео правятся ТЕМ ЖЕ экраном, что и создаются: разницы между
+    // ними нет, учиться второй раз не нужно. Прочие типы (книга, фильм,
+    // музыка, место) пока остаются на прежнем листе — там свои поля.
+    if (memory.type == MemoryType.photo || memory.type == MemoryType.video) {
+      _openMemoryEditor(memory);
+      return;
+    }
     final titleCtrl = TextEditingController(text: memory.title ?? '');
     final captionCtrl = TextEditingController(text: memory.caption ?? '');
     final locationCtrl = TextEditingController(text: memory.locationName ?? '');
@@ -5040,6 +5047,77 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   /// Открыть форму создания записи выбранного типа. Раньше это ветвление жило
   /// внутри строки листа; теперь лист — сетка плиток, и переход вызывается
   /// отдельно.
+  /// Залить один кадр в хранилище пары и вернуть ссылку.
+  Future<String?> _uploadMemoryPhoto(String path) async {
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final ext = path.split('.').last;
+    final destination = 'memories/$_groupId/memory_$timestamp.$ext';
+    return MediaService().uploadFile(path, destination);
+  }
+
+  /// Правка записи тем же экраном, что и создание.
+  void _openMemoryEditor(Memory memory) {
+    final frames = <String>[
+      if (memory.imageUrls?.isNotEmpty == true)
+        ...memory.imageUrls!
+      else if (memory.imageUrl?.isNotEmpty == true)
+        memory.imageUrl!,
+    ];
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MemoryPhotoFormScreen(
+          theme: widget.theme,
+          existing: MemoryFormPrefill(
+            frames: frames,
+            title: memory.title ?? '',
+            caption: memory.caption ?? '',
+            locationName: memory.locationName ?? '',
+            latitude: memory.latitude,
+            longitude: memory.longitude,
+            isAdult: memory.isAdult,
+            date: memory.createdAt,
+          ),
+          onSave: ({
+            required type,
+            required title,
+            required caption,
+            mediaPaths,
+            keptUrls,
+            mediaPath,
+            locationName,
+            latitude,
+            longitude,
+            required isAdult,
+            customDate,
+          }) async {
+            // Новые кадры сперва уезжают в хранилище, потом встают в конец
+            // списка — обложка при этом не меняется.
+            final added = <String>[];
+            for (final path in mediaPaths ?? const <String>[]) {
+              final url = await _uploadMemoryPhoto(path);
+              if (url != null) added.add(url);
+            }
+            final next = <String>[...(keptUrls ?? const []), ...added];
+            await _memRepo.update(
+              groupId: _groupId,
+              memoryId: memory.id,
+              title: title,
+              caption: caption,
+              locationName: locationName,
+              latitude: latitude,
+              longitude: longitude,
+              imageUrls: next.isEmpty ? null : next,
+              isAdult: isAdult,
+              customDate: customDate,
+            );
+          },
+        ),
+        settings: const RouteSettings(name: '/memory_photo_form'),
+      ),
+    );
+  }
+
   void _openMemoryForm(
     MemoryType type, {
     String? taskId,
@@ -5061,6 +5139,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   required title,
                   required caption,
                   mediaPaths,
+                  keptUrls,
                   mediaPath,
                   locationName,
                   latitude,

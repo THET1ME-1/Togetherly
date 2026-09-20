@@ -23,12 +23,39 @@ import '../services/plus_access.dart';
 import '../widgets/app_sheet.dart';
 import '../services/plus_service.dart';
 
+/// Что подставить в экран записи при правке готовой записи.
+class MemoryFormPrefill {
+  const MemoryFormPrefill({
+    required this.frames,
+    this.title = '',
+    this.caption = '',
+    this.locationName = '',
+    this.latitude,
+    this.longitude,
+    this.isAdult = false,
+    this.date,
+  });
+
+  /// Кадры записи в порядке показа; первый — обложка.
+  final List<String> frames;
+  final String title;
+  final String caption;
+  final String locationName;
+  final double? latitude;
+  final double? longitude;
+  final bool isAdult;
+  final DateTime? date;
+}
+
 /// type авто-определяется: фото → photo, видео → video, без медиа → text.
 typedef MemoryPhotoSaveCallback = Future<void> Function({
   required MemoryType type,
   required String title,
   required String caption,
   List<String>? mediaPaths,
+  /// Кадры записи, которые остались после правки, в порядке показа.
+  /// Первый из них — обложка. Пусто у новой записи.
+  List<String>? keptUrls,
   String? mediaPath,
   String? locationName,
   double? latitude,
@@ -47,10 +74,14 @@ class MemoryPhotoFormScreen extends StatefulWidget {
   /// из EXIF, миниатюры видео.
   final List<XFile> initialMedia;
 
+  /// Правка готовой записи: те же поля и те же кадры, экран один и тот же.
+  final MemoryFormPrefill? existing;
+
   const MemoryPhotoFormScreen({
     super.key,
     required this.theme,
     required this.onSave,
+    this.existing,
     this.initialMedia = const [],
   });
 
@@ -65,6 +96,10 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
 
   // Единый список: фото и видео вместе
   List<XFile> _media = [];
+
+  /// Кадры, которые уже лежат в записи. При правке они стоят в плёнке рядом
+  /// с только что выбранными, и порядок между ними общий.
+  List<String> _kept = [];
   // Кэш превью для видео: path → thumbnail bytes
   final Map<String, Uint8List> _videoThumbs = {};
 
@@ -91,6 +126,17 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
   @override
   void initState() {
     super.initState();
+    final pre = widget.existing;
+    if (pre != null) {
+      _titleCtrl.text = pre.title;
+      _captionCtrl.text = pre.caption;
+      _locationCtrl.text = pre.locationName;
+      _lat = pre.latitude;
+      _lng = pre.longitude;
+      _isAdult = pre.isAdult;
+      _customDate = pre.date;
+      _kept = [...pre.frames];
+    }
     // Снимки, пережившие смерть процесса во время выбора: человек их уже
     // выбрал, заставлять его повторять — значит потерять их второй раз.
     if (widget.initialMedia.isNotEmpty) {
@@ -108,9 +154,11 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
     super.dispose();
   }
 
+  bool get _hasFrames => _media.isNotEmpty || _kept.isNotEmpty;
+
   bool get _canSave =>
       !_isSaving &&
-      (_media.isNotEmpty ||
+      (_hasFrames ||
           _titleCtrl.text.trim().isNotEmpty ||
           _captionCtrl.text.trim().isNotEmpty);
 
@@ -284,6 +332,7 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
       title: _titleCtrl.text.trim(),
       caption: _captionCtrl.text.trim(),
       mediaPaths: photos.isNotEmpty ? photos.map((f) => f.path).toList() : null,
+      keptUrls: _kept.isEmpty ? null : List<String>.from(_kept),
       mediaPath: videos.isNotEmpty ? videos.first.path : null,
       locationName: _locationCtrl.text.trim().isEmpty
           ? null
@@ -387,21 +436,22 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
     );
   }
 
-  /// Круглая кнопка нижней пары.
+  /// Круглая кнопка: 48 в шапке, 64 в нижней паре — как в макете.
   Widget _formRound(ColorScheme cs,
       {required IconData icon,
       required VoidCallback onTap,
-      BorderRadius? radius}) {
+      BorderRadius? radius,
+      double size = 64}) {
     return Material(
       color: cs.surfaceContainerHigh,
-      borderRadius: radius ?? BorderRadius.circular(32),
+      borderRadius: radius ?? BorderRadius.circular(size / 2),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: SizedBox(
-          width: 64,
-          height: 64,
-          child: Icon(icon, size: 26, color: cs.onSurface),
+          width: size,
+          height: size,
+          child: Icon(icon, size: size > 56 ? 26 : 22, color: cs.onSurface),
         ),
       ),
     );
@@ -420,7 +470,9 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
       child: Row(
         children: [
           _formRound(cs,
-              icon: Icons.close_rounded, onTap: () => Navigator.pop(context)),
+              icon: Icons.close_rounded,
+              size: 48,
+              onTap: () => Navigator.pop(context)),
           const SizedBox(width: 8),
           Expanded(
             child: Container(
@@ -460,7 +512,7 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
   /// Обложка целиком и плёнка кадров: плитка с плюсом стоит ПЕРВОЙ, иначе
   /// при прокрутке она уезжает за край и добавить кадр нечем.
   Widget _formMedia(ColorScheme cs) {
-    if (_media.isEmpty) {
+    if (!_hasFrames) {
       return GestureDetector(
         onTap: _pickMedia,
         child: Container(
@@ -483,25 +535,61 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
         ),
       );
     }
-    final cover = _media.first;
-    final rest = _media.length > 1 ? _media.sublist(1) : const <XFile>[];
+    // Кадры записи идут одним рядом: сперва прежние (при правке), затем
+    // только что выбранные. Обложка — первый в этом ряду.
+    final keptCount = _kept.length;
+    final total = keptCount + _media.length;
+    Widget frameAt(int i, double height, {bool cover = false}) {
+      if (i < keptCount) {
+        final url = _kept[i];
+        return cover
+            ? AspectCover(url: url, radius: 22, maxHeight: 400)
+            : FilmFrame(
+                url: url,
+                height: height,
+                onTap: () => _makeCover(i),
+                onLongPress: () => _removeAt(i),
+              );
+      }
+      final file = _media[i - keptCount];
+      if (_isVideo(file)) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(cover ? 22 : 8),
+          child: cover
+              ? AspectRatio(
+                  aspectRatio: 4 / 3, child: _videoPreviewWidget(file.path))
+              : GestureDetector(
+                  onTap: () => _makeCover(i),
+                  onLongPress: () => _removeAt(i),
+                  child: SizedBox(
+                      width: 92,
+                      height: height,
+                      child: _videoPreviewWidget(file.path)),
+                ),
+        );
+      }
+      return cover
+          ? AspectCover(
+              url: file.path,
+              provider: FileImage(File(file.path)),
+              radius: 22,
+              maxHeight: 400,
+            )
+          : FilmFrame(
+              url: file.path,
+              provider: FileImage(File(file.path)),
+              height: height,
+              onTap: () => _makeCover(i),
+              onLongPress: () => _removeAt(i),
+            );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Stack(
           children: [
-            _isVideo(cover)
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(22),
-                    child: AspectRatio(
-                        aspectRatio: 4 / 3, child: _videoPreviewWidget(cover.path)),
-                  )
-                : AspectCover(
-                    url: cover.path,
-                    provider: FileImage(File(cover.path)),
-                    radius: 22,
-                    maxHeight: 400,
-                  ),
+            frameAt(0, 0, cover: true),
             Positioned(
               left: 10,
               bottom: 10,
@@ -549,9 +637,11 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
           height: 132,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            itemCount: rest.length + 1,
+            itemCount: total,
             separatorBuilder: (_, _) => const SizedBox(width: 2),
             itemBuilder: (_, i) {
+              // Плитка с плюсом стоит ПЕРВОЙ: в конце ряда она уезжает за
+              // край, и добавить кадр становится нечем.
               if (i == 0) {
                 return Material(
                   color: cs.secondaryContainer,
@@ -579,40 +669,34 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
                   ),
                 );
               }
-              final file = rest[i - 1];
-              final realIndex = i;
-              if (_isVideo(file)) {
-                return GestureDetector(
-                  onTap: () => setState(() {
-                    final x = _media.removeAt(realIndex);
-                    _media.insert(0, x);
-                  }),
-                  onLongPress: () => _removeAt(realIndex),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: SizedBox(
-                      width: 92,
-                      height: 132,
-                      child: _videoPreviewWidget(file.path),
-                    ),
-                  ),
-                );
-              }
-              return FilmFrame(
-                url: file.path,
-                provider: FileImage(File(file.path)),
-                height: 132,
-                onTap: () => setState(() {
-                  final x = _media.removeAt(realIndex);
-                  _media.insert(0, x);
-                }),
-                onLongPress: () => _removeAt(realIndex),
-              );
+              return frameAt(i, 132);
             },
           ),
         ),
       ],
     );
+  }
+
+  /// Поставить кадр обложкой: он уходит в начало ряда, прежний сдвигается.
+  void _makeCover(int index) {
+    setState(() {
+      if (index < _kept.length) {
+        final x = _kept.removeAt(index);
+        _kept.insert(0, x);
+      } else {
+        final i = index - _kept.length;
+        final x = _media.removeAt(i);
+        if (_kept.isEmpty) {
+          _media.insert(0, x);
+        } else {
+          // Новый кадр становится обложкой только вместе с переездом в
+          // начало общего ряда: прежние кадры уступают ему место.
+          _media.insert(0, x);
+          _kept = [];
+          _media = [x, ..._media.where((f) => f != x)];
+        }
+      }
+    });
   }
 
   /// Подсказка под плёнкой: что делают касание и долгое нажатие.
@@ -796,10 +880,16 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
     if (value != null) setState(() => ctrl.text = value);
   }
 
-  /// Убрать кадр из записи.
+  /// Убрать кадр из записи — по общему ряду: сперва прежние, затем новые.
   void _removeAt(int index) {
-    if (index < 0 || index >= _media.length) return;
-    setState(() => _media.removeAt(index));
+    setState(() {
+      if (index < _kept.length) {
+        _kept.removeAt(index);
+        return;
+      }
+      final i = index - _kept.length;
+      if (i >= 0 && i < _media.length) _media.removeAt(i);
+    });
   }
 
   /// Снять кадр камерой и положить в запись.

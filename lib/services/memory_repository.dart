@@ -221,6 +221,8 @@ class MemoryRepository {
     String? bookAuthor,
     int? rating,
     String? imageUrl,
+    /// Новый список кадров записи после правки; первый — обложка.
+    List<String>? imageUrls,
     bool? isPinned,
     bool? isAdult,
     bool? isSecret,
@@ -265,6 +267,10 @@ class MemoryRepository {
     map['editedAt'] = PairTime.write(DateTime.now());
 
     // Синхронизируем индексные колонки кэш-ряда (для scope/сортировки/fromPb).
+    if (imageUrls != null) {
+      map['imageUrls'] = imageUrls;
+      if (imageUrls.isNotEmpty) map['imageUrl'] = imageUrls.first;
+    }
     row['data'] = map;
     if (isPinned != null) row['is_pinned'] = isPinned;
     if (customDate != null) {
