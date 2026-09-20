@@ -127,10 +127,6 @@ class _WidgetScreenState extends State<WidgetScreen>
   /// 12.09.2026 набор сбрасывался к умолчаниям при каждом заходе.
   Set<String> _expandedPanels = {...WidgetPanels.byDefault};
 
-  bool get _legacySectionExpanded =>
-      _expandedPanels.contains(WidgetPanels.legacySection);
-  bool get _newSectionExpanded =>
-      _expandedPanels.contains(WidgetPanels.newSection);
   bool get _pairWidgetExpanded =>
       _expandedPanels.contains(WidgetPanels.pairWidget);
   bool get _petalTimerWidgetExpanded =>
@@ -1758,6 +1754,514 @@ class _WidgetScreenState extends State<WidgetScreen>
   // WIDGET GALLERY — все виджеты с превью и кнопкой «Добавить»
   // ════════════════════════════════════════════════════════════════════════════
 
+  /// Разделы каталога подряд, с рекламой между ними.
+  ///
+  /// Пустой раздел не оставляет после себя дырку: у человека без пары пусты
+  /// почти все, и стопка пустых отступов читалась бы как оборванный экран.
+  List<Widget> _sections(List<_CatalogCard> cards, bool isPaired) {
+    final out = <Widget>[];
+    void gap() {
+      if (out.isNotEmpty) out.add(const SizedBox(height: 14));
+    }
+
+    void section(String key) {
+      if (!cards.any((c) => c.section == key)) return;
+      gap();
+      out.add(_sectionBlock(key, cards));
+    }
+
+    void banner(String slot) {
+      if (!isPaired || out.isEmpty) return;
+      gap();
+      out.add(_buildAdBanner(slot));
+    }
+
+    section(WidgetPanels.sectionPair);
+    banner('ad_banner_1');
+    section(WidgetPanels.sectionTime);
+    section(WidgetPanels.sectionPhotos);
+    section(WidgetPanels.sectionMood);
+    banner('ad_banner_2');
+    section(WidgetPanels.sectionNotes);
+    return out;
+  }
+
+  /// Что показываем в каталоге и в каком разделе.
+  ///
+  /// Разделов было два — «Что уже есть» и «Новые виджеты», — и делили они
+  /// список по возрасту кода: человеку это ничего не говорит, а «Где мы»
+  /// вовсе лежал сбоку от обоих. Теперь виджеты разложены по смыслу, а
+  /// платные помечены замком внутри своего раздела.
+  List<_CatalogCard> _catalogCards(bool isPaired, List<Widget> halfTiles) {
+    // На iPhone у некупившего Togetherly+ платных карточек не видно вовсе:
+    // вести на оплату мимо Apple запрещает 3.1.1.
+    final plusShown = PlusService.instance.visible;
+    final locked = !PlusService.instance.active;
+    final photoOwner = isPaired || _pair.isSolo;
+    _CatalogCard plus(String section, Widget Function(bool) build) =>
+        _CatalogCard(section, () => build(locked));
+    return [
+      // ── Вы вдвоём ──
+      if (isPaired) _CatalogCard(WidgetPanels.sectionPair, _cardPair),
+      if (isPaired && plusShown) plus(WidgetPanels.sectionPair, _cardTogether),
+      if (isPaired && plusShown) plus(WidgetPanels.sectionPair, _cardMiss),
+      if (isPaired) _CatalogCard(WidgetPanels.sectionPair, _cardMap),
+      if (isPaired) _CatalogCard(WidgetPanels.sectionPair, _cardStats),
+
+      // ── Дни и таймеры ──
+      if (isPaired) _CatalogCard(WidgetPanels.sectionTime, _cardDaysCounter),
+      if (halfTiles.isNotEmpty)
+        _CatalogCard(WidgetPanels.sectionTime, () => _halfGrid(halfTiles),
+            count: halfTiles.length),
+      _CatalogCard(WidgetPanels.sectionTime, _cardPetalTimer),
+      if (isPaired && plusShown) plus(WidgetPanels.sectionTime, _cardCountdown),
+      if (isPaired && plusShown) plus(WidgetPanels.sectionTime, _cardYearRing),
+      if (isPaired && plusShown) plus(WidgetPanels.sectionTime, _cardYearGrid),
+
+      // ── Фотографии ──
+      if (photoOwner) _CatalogCard(WidgetPanels.sectionPhotos, _cardSelfPhoto),
+      if (isPaired) _CatalogCard(WidgetPanels.sectionPhotos, _cardPartnerPhoto),
+      if (isPaired) _CatalogCard(WidgetPanels.sectionPhotos, _cardPhotoGrid),
+
+      // ── Настроение ──
+      if (isPaired) _CatalogCard(WidgetPanels.sectionMood, _cardMood),
+      if (isPaired && plusShown) plus(WidgetPanels.sectionMood, _cardMoodTiles),
+      if (isPaired)
+        _CatalogCard(WidgetPanels.sectionMood, _buildLockScreenMoodCard),
+
+      // ── Заметки ──
+      if (isPaired && plusShown) plus(WidgetPanels.sectionNotes, _cardNote),
+      if (isPaired && plusShown) plus(WidgetPanels.sectionNotes, _cardNotePaper),
+    ];
+  }
+
+  /// Заголовок, подпись и значок раздела.
+  (String, String, IconData) _sectionHead(String key) {
+    final s = LocaleService.current;
+    switch (key) {
+      case WidgetPanels.sectionTime:
+        return (s.widgetSectionTime, s.widgetSectionTimeSub,
+            Icons.schedule_rounded);
+      case WidgetPanels.sectionPhotos:
+        return (s.widgetSectionPhotos, s.widgetSectionPhotosSub,
+            Icons.photo_library_rounded);
+      case WidgetPanels.sectionMood:
+        return (s.widgetSectionMood, s.widgetSectionMoodSub,
+            Icons.mood_rounded);
+      case WidgetPanels.sectionNotes:
+        return (s.widgetSectionNotes, s.widgetSectionNotesSub,
+            Icons.sticky_note_2_rounded);
+      default:
+        return (s.widgetSectionPair, s.widgetSectionPairSub,
+            Icons.favorite_rounded);
+    }
+  }
+
+  /// Раздел каталога: карточки с отступом между ними.
+  Widget _sectionBlock(String key, List<_CatalogCard> cards) {
+    final here = [for (final c in cards) if (c.section == key) c];
+    if (here.isEmpty) return const SizedBox.shrink();
+    final (title, subtitle, icon) = _sectionHead(key);
+    return _CollapsibleWidgetSection(
+      cs: _cs,
+      title: title,
+      subtitle: subtitle,
+      icon: icon,
+      expanded: _expandedPanels.contains(key),
+      onToggle: () => setState(() => _togglePanel(key)),
+      count: here.fold(0, (n, c) => n + c.count),
+      itemsBuilder: () => [
+        for (var i = 0; i < here.length; i++) ...[
+          here[i].build(),
+          if (i != here.length - 1) const SizedBox(height: 16),
+        ],
+      ],
+    );
+  }
+
+  /// Парный виджет: обе половины на одном полотне.
+  Widget _cardPair() =>
+      KeyedSubtree(
+        key: _pairWidgetKey,
+        child: _buildGalleryItem(
+          title: LocaleService.current.pairWidgetTitle,
+          subtitle: LocaleService.current.pairWidgetSubtitle,
+          svgString: _heartSvg,
+          qualifiedName: 'com.togetherly.love.LoveWidgetProvider',
+          preview: _buildWidgetPreview(),
+          widgetType: 'pair',
+          expandedContent: _buildPairWidgetExpandedContent(),
+          isExpanded: _pairWidgetExpanded,
+          onToggleExpand: () =>
+              _togglePanel(WidgetPanels.pairWidget),
+        ),
+      );
+
+  /// Дни вместе: главный счётчик пары.
+  Widget _cardDaysCounter() =>
+      _buildGalleryItem(
+        title: LocaleService.current.daysTogetherStat,
+        subtitle: LocaleService.current.daysCounterSubtitle,
+        svgString: _calendarSvg,
+        qualifiedName: 'com.togetherly.love.DaysCounterWidgetProvider',
+        preview: _buildDaysCounterPreview(),
+        widgetType: 'days_counter',
+        expandedContent: _buildDaysPhotosCard(),
+        isExpanded: _daysCounterExpanded,
+        onToggleExpand: () =>
+            _togglePanel(WidgetPanels.daysCounter),
+      );
+
+  /// Лепестковый таймер: срок кругом из лепестков.
+  Widget _cardPetalTimer() =>
+      _buildGalleryItem(
+        title: LocaleService.current.widgetPetalTimerTitle,
+        subtitle: LocaleService.current.widgetPetalTimerSubtitle,
+        svgString: _timerSvg,
+        qualifiedName: 'com.togetherly.love.PetalTimerWidgetProvider',
+        preview: _buildPetalTimerPreview(),
+        widgetType: 'petal_timer',
+        expandedContent: _buildTimerSelector(),
+        isExpanded: _petalTimerWidgetExpanded,
+        onToggleExpand: () => setState(
+          () => _togglePanel(WidgetPanels.petalTimer),
+        ),
+      );
+
+  /// Настроение обоих.
+  Widget _cardMood() =>
+      _buildGalleryItem(
+        title: LocaleService.current.mood,
+        subtitle: LocaleService.current.moodWidgetSubtitle,
+        svgString: _moodSvg,
+        qualifiedName: 'com.togetherly.love.MoodWidgetProvider',
+        preview: _buildMoodPreview(),
+        widgetType: 'mood',
+      );
+
+  /// Статистика отношений: числа о паре.
+  Widget _cardStats() =>
+      _buildGalleryItem(
+        title: LocaleService.current.relationshipStats,
+        subtitle: LocaleService.current.relationshipStatsSubtitle,
+        svgString: _statsSvg,
+        qualifiedName:
+            'com.togetherly.love.RelationshipStatsWidgetProvider',
+        preview: _buildRelationshipStatsPreview(),
+        widgetType: 'relationship_stats',
+      );
+
+  /// Своё фото на рабочем столе.
+  Widget _cardSelfPhoto() =>
+      _buildGalleryItem(
+        title: LocaleService.current.widgetPhotoTitle,
+        subtitle: LocaleService.current.widgetPhotoSubtitle,
+        svgString: _photoSvg,
+        qualifiedName: 'com.togetherly.love.SelfPhotoWidgetProvider',
+        widgetType: 'photo_day_self',
+        expandedContent: _buildPhotoDayExpandedContent(),
+        isExpanded: _photoDayExpanded,
+        onToggleExpand: () =>
+            _togglePanel(WidgetPanels.photoDay),
+      );
+
+  /// Фото, которое поставил партнёр.
+  Widget _cardPartnerPhoto() =>
+      _buildGalleryItem(
+        title: LocaleService.current.widgetModePartner,
+        subtitle: LocaleService.current.photoDayPartnerSubtitle,
+        svgString: _photoSvg,
+        qualifiedName: 'com.togetherly.love.PartnerPhotoWidgetProvider',
+        widgetType: 'photo_day_partner',
+        expandedContent: _buildPartnerPhotoExpandedContent(),
+        isExpanded: _partnerPhotoExpanded,
+        onToggleExpand: () => setState(
+          () => _togglePanel(WidgetPanels.partnerPhoto),
+        ),
+      );
+
+  /// Сетка снимков.
+  Widget _cardPhotoGrid() =>
+      _buildGalleryItem(
+        title: LocaleService.current.photoGridWidget,
+        subtitle: LocaleService.current.photoGridWidgetSubtitle,
+        svgString: _photoSvg,
+        qualifiedName: 'com.togetherly.love.PhotoGridWidgetProvider',
+        preview: _buildPhotoGridPreview(),
+        widgetType: 'photo_grid',
+        expandedContent: _buildPhotoGridExpandedContent(),
+        isExpanded: _photoGridExpanded,
+        onToggleExpand: () =>
+            _togglePanel(WidgetPanels.photoGrid),
+      );
+
+  /// Карта на двоих: где каждый и сколько между вами.
+  Widget _cardMap() =>
+      _buildGalleryItem(
+        title: LocaleService.current.liveMapTitle,
+        subtitle: LocaleService.current.mapWidgetCatalogSub,
+        svgString: _heartSvg,
+        qualifiedName: 'com.togetherly.love.${PairMapWidgetService.androidProviders[MapWidgetSize.m]}',
+        widgetType: 'map',
+        sizes: [
+          for (final (label, hint, kind) in [
+            ('2×2', _s.tgSizeHintCompact, MapWidgetSize.s),
+            ('4×2', _s.tgSizeHintWide, MapWidgetSize.m),
+            ('4×4', _s.tgSizeHintLarge, MapWidgetSize.l),
+          ])
+            _WidgetSizeOption(
+              label: label,
+              hint: hint,
+              qualifiedName: 'com.togetherly.love.${PairMapWidgetService.androidProviders[kind]}',
+              previewBuilder: () => PairMapWidgetPreview(
+                key: ValueKey('map-preview-${kind.id}'),
+                size: kind,
+                theme: _t,
+                groupId: _pair.pairId,
+                myName: widget.userData.displayName,
+                partnerName: _pair.partnerDisplayName,
+              ),
+            ),
+        ],
+      );
+
+  /// Виджет «Вместе»: имена, статус и общий срок.
+  Widget _cardTogether(bool locked) =>
+      _buildGalleryItem(
+        title: LocaleService.current.tgTogetherTitle,
+        subtitle: LocaleService.current.tgTogetherSubtitle,
+        svgString: _heartSvg,
+        qualifiedName: 'com.togetherly.love.TogetherWidget4x2Provider',
+        widgetType: 'together',
+        locked: locked,
+        sizes: [
+          _WidgetSizeOption(
+            label: '2×2',
+            hint: _s.tgSizeHintCompact,
+            qualifiedName: 'com.togetherly.love.TogetherWidget2x2Provider',
+            previewBuilder: () => _buildTogether2x2Preview(),
+          ),
+          _WidgetSizeOption(
+            label: '4×2',
+            hint: _s.tgSizeHintWide,
+            qualifiedName: 'com.togetherly.love.TogetherWidget4x2Provider',
+            previewBuilder: () => _buildTogetherPreview(),
+          ),
+          _WidgetSizeOption(
+            label: '4×4',
+            hint: _s.tgSizeHintLarge,
+            qualifiedName: 'com.togetherly.love.TogetherWidget4x4Provider',
+            previewBuilder: () => _buildTogether4x4Preview(),
+          ),
+        ],
+      );
+
+  /// Заметка на двоих, карточкой M3.
+  Widget _cardNote(bool locked) =>
+      _buildGalleryItem(
+        title: _s.tgNoteTitle,
+        subtitle: _s.tgNoteSubtitle,
+        svgString: _heartSvg,
+        qualifiedName: 'com.togetherly.love.NoteWidget4x2Provider',
+        widgetType: 'note',
+        locked: locked,
+        // Вход в саму заметку. До 21.08.2026 её правили ТОЛЬКО тапом по
+        // виджету на рабочем столе, и человек, не поставивший виджет (или
+        // поставивший его на iPhone, где тап уводит в приложение), спрашивал:
+        // «куда написать, чтобы у партнёра было видно запись? никак не могу
+        // найти».
+        extraAction: _pair.isPaired
+            ? (
+                label: _s.tgNoteWrite,
+                icon: Icons.edit_note_rounded,
+                onTap: () => showNoteEditorSheet(context,
+                    groupId: _pair.pairId),
+              )
+            : null,
+        sizes: [
+          _WidgetSizeOption(
+            label: '2×2',
+            hint: _s.tgSizeHintCompact,
+            qualifiedName: 'com.togetherly.love.NoteWidget2x2Provider',
+            previewBuilder: () => _buildNotePreview(compact: true),
+          ),
+          _WidgetSizeOption(
+            label: '4×2',
+            hint: _s.tgSizeHintWide,
+            qualifiedName: 'com.togetherly.love.NoteWidget4x2Provider',
+            previewBuilder: () => _buildNotePreview(),
+          ),
+          _WidgetSizeOption(
+            label: '4×4',
+            hint: _s.tgSizeHintLarge,
+            qualifiedName: 'com.togetherly.love.NoteWidget4x4Provider',
+            previewBuilder: () => _buildNotePreview(big: true),
+          ),
+        ],
+      );
+
+  /// Заметка на двоих, бумажным стикером.
+  Widget _cardNotePaper(bool locked) =>
+      _buildGalleryItem(
+        title: _s.tgNotePaperTitle,
+        subtitle: _s.tgNotePaperSubtitle,
+        svgString: _heartSvg,
+        qualifiedName: 'com.togetherly.love.NoteWidget4x2Provider',
+        widgetType: 'note_paper',
+        locked: locked,
+        sizes: [
+          _WidgetSizeOption(
+            label: '2×2',
+            hint: _s.tgSizeHintCompact,
+            qualifiedName: 'com.togetherly.love.NoteWidget2x2Provider',
+            previewBuilder: () => _buildNotePreview(compact: true, paper: true),
+          ),
+          _WidgetSizeOption(
+            label: '4×2',
+            hint: _s.tgSizeHintWide,
+            qualifiedName: 'com.togetherly.love.NoteWidget4x2Provider',
+            previewBuilder: () => _buildNotePreview(paper: true),
+          ),
+          _WidgetSizeOption(
+            label: '4×4',
+            hint: _s.tgSizeHintLarge,
+            qualifiedName: 'com.togetherly.love.NoteWidget4x4Provider',
+            previewBuilder: () => _buildNotePreview(big: true, paper: true),
+          ),
+        ],
+      );
+
+  /// Виджет «Скучаю»: нажатие уходит партнёру импульсом.
+  Widget _cardMiss(bool locked) =>
+      _buildGalleryItem(
+        title: LocaleService.current.tgMissTitle,
+        subtitle: LocaleService.current.tgMissSubtitle,
+        svgString: _heartSvg,
+        qualifiedName: 'com.togetherly.love.MissWidget4x2Provider',
+        widgetType: 'miss',
+        locked: locked,
+        sizes: [
+          _WidgetSizeOption(
+            label: '2×2',
+            hint: _s.tgSizeHintCompact,
+            qualifiedName: 'com.togetherly.love.MissWidget2x2Provider',
+            previewBuilder: () => _buildMiss2x2Preview(),
+          ),
+          _WidgetSizeOption(
+            label: '4×2',
+            hint: _s.tgSizeHintWide,
+            qualifiedName: 'com.togetherly.love.MissWidget4x2Provider',
+            previewBuilder: () => _buildMissPreview(),
+          ),
+          _WidgetSizeOption(
+            label: '4×1',
+            hint: _s.tgSizeHintStrip,
+            qualifiedName: 'com.togetherly.love.MissWidget4x1Provider',
+            previewBuilder: () => _buildMiss4x1Preview(),
+          ),
+        ],
+      );
+
+  /// Настроение плитками.
+  Widget _cardMoodTiles(bool locked) =>
+      _buildGalleryItem(
+        title: _s.tgMoodTitle,
+        subtitle: _s.tgMoodSubtitle,
+        svgString: _heartSvg,
+        qualifiedName: 'com.togetherly.love.MoodTilesWidget2x2Provider',
+        widgetType: 'mood_tiles',
+        locked: locked,
+        sizes: [
+          _WidgetSizeOption(
+            label: '2×2',
+            hint: _s.tgSizeHintToday,
+            qualifiedName: 'com.togetherly.love.MoodTilesWidget2x2Provider',
+            previewBuilder: () => _buildMoodTiles2x2Preview(),
+          ),
+          _WidgetSizeOption(
+            label: '4×2',
+            hint: _s.tgSizeHintWeek,
+            qualifiedName: 'com.togetherly.love.MoodTilesWidget4x2Provider',
+            previewBuilder: () => _buildMoodTiles4x2Preview(),
+          ),
+        ],
+      );
+
+  /// Обратный отсчёт до даты.
+  Widget _cardCountdown(bool locked) =>
+      _buildGalleryItem(
+        title: _s.tgCountdownTitle,
+        subtitle: _s.tgCountdownSubtitle,
+        svgString: _heartSvg,
+        qualifiedName: 'com.togetherly.love.CountdownWidget2x2Provider',
+        widgetType: 'countdown',
+        locked: locked,
+        sizes: [
+          _WidgetSizeOption(
+            label: '2×2',
+            hint: _s.tgSizeHintCompact,
+            qualifiedName: 'com.togetherly.love.CountdownWidget2x2Provider',
+            previewBuilder: () => _buildCountdown2x2Preview(),
+          ),
+          _WidgetSizeOption(
+            label: '4×2',
+            hint: _s.tgSizeHintWide,
+            qualifiedName: 'com.togetherly.love.CountdownWidget4x2Provider',
+            previewBuilder: () => _buildCountdown4x2Preview(),
+          ),
+        ],
+      );
+
+  /// Кольцо года: сколько года прожито вместе.
+  Widget _cardYearRing(bool locked) =>
+      _buildGalleryItem(
+        title: _s.tgRingTitle,
+        subtitle: _s.tgRingSubtitle,
+        svgString: _heartSvg,
+        qualifiedName: 'com.togetherly.love.YearRingWidget4x2Provider',
+        widgetType: 'year_ring',
+        locked: locked,
+        sizes: [
+          _WidgetSizeOption(
+            label: '2×2',
+            hint: _s.tgSizeHintCompact,
+            qualifiedName: 'com.togetherly.love.YearRingWidget2x2Provider',
+            previewBuilder: () => _buildYearRing2x2Preview(),
+          ),
+          _WidgetSizeOption(
+            label: '4×2',
+            hint: _s.tgSizeHintWide,
+            qualifiedName: 'com.togetherly.love.YearRingWidget4x2Provider',
+            previewBuilder: () => _buildYearRing4x2Preview(),
+          ),
+        ],
+      );
+
+  /// Календарь лет: месяцы точками.
+  Widget _cardYearGrid(bool locked) =>
+      _buildGalleryItem(
+        title: _s.tgGridTitle,
+        subtitle: _s.tgGridSubtitle,
+        svgString: _heartSvg,
+        qualifiedName: 'com.togetherly.love.YearGridWidget4x2Provider',
+        widgetType: 'year_grid',
+        locked: locked,
+        sizes: [
+          _WidgetSizeOption(
+            label: '2×2',
+            hint: _s.tgSizeHintCompact,
+            qualifiedName: 'com.togetherly.love.YearGridWidget2x2Provider',
+            previewBuilder: () => _buildYearGrid2x2Preview(),
+          ),
+          _WidgetSizeOption(
+            label: '4×2',
+            hint: _s.tgSizeHintWide,
+            qualifiedName: 'com.togetherly.love.YearGridWidget4x2Provider',
+            previewBuilder: () => _buildYearGrid4x2Preview(),
+          ),
+        ],
+      );
+
   Widget _buildWidgetGallery() {
     final isPaired = _pair.isPaired;
 
@@ -1778,6 +2282,8 @@ class _WidgetScreenState extends State<WidgetScreen>
         onPreviewTap: _openTimerSelectorSheet,
       ),
     ];
+
+    final cards = _catalogCards(isPaired, halfTiles);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1819,77 +2325,12 @@ class _WidgetScreenState extends State<WidgetScreen>
           ),
         ),
 
-        // ── «Где мы»: карта на двоих. Бесплатная, поэтому стоит над
-        // разделами: новый каталог закрыт Togetherly+, а на iPhone без покупки
-        // его не видно вовсе.
-        _buildGalleryItem(
-          title: LocaleService.current.liveMapTitle,
-          subtitle: LocaleService.current.mapWidgetCatalogSub,
-          svgString: _heartSvg,
-          qualifiedName: 'com.togetherly.love.${PairMapWidgetService.androidProviders[MapWidgetSize.m]}',
-          widgetType: 'map',
-          sizes: [
-            for (final (label, hint, kind) in [
-              ('2×2', _s.tgSizeHintCompact, MapWidgetSize.s),
-              ('4×2', _s.tgSizeHintWide, MapWidgetSize.m),
-              ('4×4', _s.tgSizeHintLarge, MapWidgetSize.l),
-            ])
-              _WidgetSizeOption(
-                label: label,
-                hint: hint,
-                qualifiedName: 'com.togetherly.love.${PairMapWidgetService.androidProviders[kind]}',
-                previewBuilder: () => PairMapWidgetPreview(
-                  key: ValueKey('map-preview-${kind.id}'),
-                  size: kind,
-                  theme: _t,
-                  groupId: _pair.pairId,
-                  myName: widget.userData.displayName,
-                  partnerName: _pair.partnerDisplayName,
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        // ── Нынешние виджеты: сворачиваются, чтобы не заслонять новый каталог ──
-        _CollapsibleWidgetSection(
-          cs: _cs,
-          title: LocaleService.current.widgetsCurrentSection,
-          subtitle: LocaleService.current.widgetsCurrentSubtitle,
-          icon: Icons.widgets_rounded,
-          expanded: _legacySectionExpanded,
-          onToggle: () => setState(
-            () => _togglePanel(WidgetPanels.legacySection),
-          ),
-          count: _legacyWidgetCount(isPaired, halfTiles),
-          itemsBuilder: () => _legacyWidgetItems(isPaired, halfTiles),
-        ),
-        // ── Новый каталог ──
-        // На iOS Togetherly+ не продаётся, и некупившему раздела не видно
-        // совсем: показать каталог, который нечем открыть, значит дразнить.
-        //
-        // Купившему на iPhone раздел показываем — `gate` при купленном отдаёт
-        // `open` независимо от платформы. С 31 июля за ним есть что показать:
-        // все восемь виджетов получили WidgetKit-двойников в
-        // `ios/TogetherlyWidget`, работающих на тех же данных App Group.
-        if (PlusService.instance.visible && _newWidgetsExist) ...[
-          const SizedBox(height: 14),
-          _CollapsibleWidgetSection(
-            cs: _cs,
-            title: LocaleService.current.widgetsNewSection,
-            subtitle: LocaleService.current.widgetsNewSubtitle,
-            icon: Icons.auto_awesome_rounded,
-            expanded: _newSectionExpanded,
-            onToggle: () => setState(
-              () => _togglePanel(WidgetPanels.newSection),
-            ),
-            // Без Togetherly+ карточки те же — с превью, размерами и чипом
-            // замка: за что платят, видно до покупки. Прежняя заглушка
-            // перечисляла названия строкой, и человек решался вслепую.
-            count: isPaired ? _kNewWidgetCount : 0,
-            itemsBuilder: () =>
-                _newWidgetItems(isPaired, locked: !PlusService.instance.active),
-          ),
+        if (!isPaired) ...[
+          _buildNotPairedBanner(),
+          const SizedBox(height: 16),
         ],
+
+        ..._sections(cards, isPaired),
       ],
     );
   }
@@ -2100,245 +2541,8 @@ class _WidgetScreenState extends State<WidgetScreen>
         MaterialPageRoute<void>(builder: (_) => PlusScreen(scheme: _cs)),
       );
 
-  /// Сколько виджетов в новом каталоге — для бейджа раздела, без построения
-  /// карточек. Держать в согласии с [_newWidgetItems].
-  static const int _kNewWidgetCount = 8;
 
-  /// Существуют ли виджеты нового каталога на этой платформе.
-  ///
-  /// С 31 июля все восемь есть и на iPhone: `ios/TogetherlyWidget` получил
-  /// WidgetKit-двойников, читающих те же ключи App Group, что пишет
-  /// `HomeWidgetService`. Флаг остался точкой правды на случай новой
-  /// платформы — например, macOS без расширения.
-  static bool get _newWidgetsExist => true;
 
-  /// Новый каталог виджетов. Пополняется по одному: каждый делается целиком —
-  /// все размеры, состояния и данные — и только потом берётся следующий.
-  List<Widget> _newWidgetItems(bool isPaired, {bool locked = false}) {
-    if (!isPaired) return const [];
-    return [
-      _buildGalleryItem(
-        title: LocaleService.current.tgTogetherTitle,
-        subtitle: LocaleService.current.tgTogetherSubtitle,
-        svgString: _heartSvg,
-        qualifiedName: 'com.togetherly.love.TogetherWidget4x2Provider',
-        widgetType: 'together',
-        locked: locked,
-        sizes: [
-          _WidgetSizeOption(
-            label: '2×2',
-            hint: _s.tgSizeHintCompact,
-            qualifiedName: 'com.togetherly.love.TogetherWidget2x2Provider',
-            previewBuilder: () => _buildTogether2x2Preview(),
-          ),
-          _WidgetSizeOption(
-            label: '4×2',
-            hint: _s.tgSizeHintWide,
-            qualifiedName: 'com.togetherly.love.TogetherWidget4x2Provider',
-            previewBuilder: () => _buildTogetherPreview(),
-          ),
-          _WidgetSizeOption(
-            label: '4×4',
-            hint: _s.tgSizeHintLarge,
-            qualifiedName: 'com.togetherly.love.TogetherWidget4x4Provider',
-            previewBuilder: () => _buildTogether4x4Preview(),
-          ),
-        ],
-      ),
-      const SizedBox(height: 16),
-      _buildGalleryItem(
-        title: _s.tgNoteTitle,
-        subtitle: _s.tgNoteSubtitle,
-        svgString: _heartSvg,
-        qualifiedName: 'com.togetherly.love.NoteWidget4x2Provider',
-        widgetType: 'note',
-        locked: locked,
-        // Вход в саму заметку. До 21.08.2026 её правили ТОЛЬКО тапом по
-        // виджету на рабочем столе, и человек, не поставивший виджет (или
-        // поставивший его на iPhone, где тап уводит в приложение), спрашивал:
-        // «куда написать, чтобы у партнёра было видно запись? никак не могу
-        // найти».
-        extraAction: _pair.isPaired
-            ? (
-                label: _s.tgNoteWrite,
-                icon: Icons.edit_note_rounded,
-                onTap: () => showNoteEditorSheet(context,
-                    groupId: _pair.pairId),
-              )
-            : null,
-        sizes: [
-          _WidgetSizeOption(
-            label: '2×2',
-            hint: _s.tgSizeHintCompact,
-            qualifiedName: 'com.togetherly.love.NoteWidget2x2Provider',
-            previewBuilder: () => _buildNotePreview(compact: true),
-          ),
-          _WidgetSizeOption(
-            label: '4×2',
-            hint: _s.tgSizeHintWide,
-            qualifiedName: 'com.togetherly.love.NoteWidget4x2Provider',
-            previewBuilder: () => _buildNotePreview(),
-          ),
-          _WidgetSizeOption(
-            label: '4×4',
-            hint: _s.tgSizeHintLarge,
-            qualifiedName: 'com.togetherly.love.NoteWidget4x4Provider',
-            previewBuilder: () => _buildNotePreview(big: true),
-          ),
-        ],
-      ),
-      const SizedBox(height: 16),
-      _buildGalleryItem(
-        title: _s.tgNotePaperTitle,
-        subtitle: _s.tgNotePaperSubtitle,
-        svgString: _heartSvg,
-        qualifiedName: 'com.togetherly.love.NoteWidget4x2Provider',
-        widgetType: 'note_paper',
-        locked: locked,
-        sizes: [
-          _WidgetSizeOption(
-            label: '2×2',
-            hint: _s.tgSizeHintCompact,
-            qualifiedName: 'com.togetherly.love.NoteWidget2x2Provider',
-            previewBuilder: () => _buildNotePreview(compact: true, paper: true),
-          ),
-          _WidgetSizeOption(
-            label: '4×2',
-            hint: _s.tgSizeHintWide,
-            qualifiedName: 'com.togetherly.love.NoteWidget4x2Provider',
-            previewBuilder: () => _buildNotePreview(paper: true),
-          ),
-          _WidgetSizeOption(
-            label: '4×4',
-            hint: _s.tgSizeHintLarge,
-            qualifiedName: 'com.togetherly.love.NoteWidget4x4Provider',
-            previewBuilder: () => _buildNotePreview(big: true, paper: true),
-          ),
-        ],
-      ),
-      const SizedBox(height: 16),
-      _buildGalleryItem(
-        title: LocaleService.current.tgMissTitle,
-        subtitle: LocaleService.current.tgMissSubtitle,
-        svgString: _heartSvg,
-        qualifiedName: 'com.togetherly.love.MissWidget4x2Provider',
-        widgetType: 'miss',
-        locked: locked,
-        sizes: [
-          _WidgetSizeOption(
-            label: '2×2',
-            hint: _s.tgSizeHintCompact,
-            qualifiedName: 'com.togetherly.love.MissWidget2x2Provider',
-            previewBuilder: () => _buildMiss2x2Preview(),
-          ),
-          _WidgetSizeOption(
-            label: '4×2',
-            hint: _s.tgSizeHintWide,
-            qualifiedName: 'com.togetherly.love.MissWidget4x2Provider',
-            previewBuilder: () => _buildMissPreview(),
-          ),
-          _WidgetSizeOption(
-            label: '4×1',
-            hint: _s.tgSizeHintStrip,
-            qualifiedName: 'com.togetherly.love.MissWidget4x1Provider',
-            previewBuilder: () => _buildMiss4x1Preview(),
-          ),
-        ],
-      ),
-      const SizedBox(height: 16),
-      _buildGalleryItem(
-        title: _s.tgMoodTitle,
-        subtitle: _s.tgMoodSubtitle,
-        svgString: _heartSvg,
-        qualifiedName: 'com.togetherly.love.MoodTilesWidget2x2Provider',
-        widgetType: 'mood_tiles',
-        locked: locked,
-        sizes: [
-          _WidgetSizeOption(
-            label: '2×2',
-            hint: _s.tgSizeHintToday,
-            qualifiedName: 'com.togetherly.love.MoodTilesWidget2x2Provider',
-            previewBuilder: () => _buildMoodTiles2x2Preview(),
-          ),
-          _WidgetSizeOption(
-            label: '4×2',
-            hint: _s.tgSizeHintWeek,
-            qualifiedName: 'com.togetherly.love.MoodTilesWidget4x2Provider',
-            previewBuilder: () => _buildMoodTiles4x2Preview(),
-          ),
-        ],
-      ),
-      const SizedBox(height: 16),
-      _buildGalleryItem(
-        title: _s.tgCountdownTitle,
-        subtitle: _s.tgCountdownSubtitle,
-        svgString: _heartSvg,
-        qualifiedName: 'com.togetherly.love.CountdownWidget2x2Provider',
-        widgetType: 'countdown',
-        locked: locked,
-        sizes: [
-          _WidgetSizeOption(
-            label: '2×2',
-            hint: _s.tgSizeHintCompact,
-            qualifiedName: 'com.togetherly.love.CountdownWidget2x2Provider',
-            previewBuilder: () => _buildCountdown2x2Preview(),
-          ),
-          _WidgetSizeOption(
-            label: '4×2',
-            hint: _s.tgSizeHintWide,
-            qualifiedName: 'com.togetherly.love.CountdownWidget4x2Provider',
-            previewBuilder: () => _buildCountdown4x2Preview(),
-          ),
-        ],
-      ),
-      const SizedBox(height: 16),
-      _buildGalleryItem(
-        title: _s.tgRingTitle,
-        subtitle: _s.tgRingSubtitle,
-        svgString: _heartSvg,
-        qualifiedName: 'com.togetherly.love.YearRingWidget4x2Provider',
-        widgetType: 'year_ring',
-        locked: locked,
-        sizes: [
-          _WidgetSizeOption(
-            label: '2×2',
-            hint: _s.tgSizeHintCompact,
-            qualifiedName: 'com.togetherly.love.YearRingWidget2x2Provider',
-            previewBuilder: () => _buildYearRing2x2Preview(),
-          ),
-          _WidgetSizeOption(
-            label: '4×2',
-            hint: _s.tgSizeHintWide,
-            qualifiedName: 'com.togetherly.love.YearRingWidget4x2Provider',
-            previewBuilder: () => _buildYearRing4x2Preview(),
-          ),
-        ],
-      ),
-      const SizedBox(height: 16),
-      _buildGalleryItem(
-        title: _s.tgGridTitle,
-        subtitle: _s.tgGridSubtitle,
-        svgString: _heartSvg,
-        qualifiedName: 'com.togetherly.love.YearGridWidget4x2Provider',
-        widgetType: 'year_grid',
-        locked: locked,
-        sizes: [
-          _WidgetSizeOption(
-            label: '2×2',
-            hint: _s.tgSizeHintCompact,
-            qualifiedName: 'com.togetherly.love.YearGridWidget2x2Provider',
-            previewBuilder: () => _buildYearGrid2x2Preview(),
-          ),
-          _WidgetSizeOption(
-            label: '4×2',
-            hint: _s.tgSizeHintWide,
-            qualifiedName: 'com.togetherly.love.YearGridWidget4x2Provider',
-            previewBuilder: () => _buildYearGrid4x2Preview(),
-          ),
-        ],
-      ),
-    ];
-  }
 
   /// Начало отношений для превью — через общий `couple_days.dart`: более
   /// ранняя из даты таймера и даты коннекта. Иначе превью показывает одно
@@ -3976,175 +4180,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     );
   }
 
-  /// Нынешние виджеты рабочего стола — тем же составом, что и раньше, но
-  /// собранные списком: секция сворачивает их целиком.
-  /// Сколько карточек в разделе нынешних виджетов — для бейджа.
-  ///
-  /// Считается по тем же условиям, что и [_legacyWidgetItems], но без
-  /// построения: раньше бейдж мерил длину готового списка, и ради числа
-  /// строились все карточки со всеми превью, даже когда раздел свёрнут.
-  /// Условия здесь и в [_legacyWidgetItems] держать в согласии.
-  int _legacyWidgetCount(bool isPaired, List<Widget> halfTiles) {
-    var n = 0;
-    if (!isPaired) n += 1; // баннер «нет пары»
-    if (isPaired) n += 2; // парный виджет и счётчик дней
-    if (halfTiles.isNotEmpty) n += 1; // сетка мелких плиток
-    n += 1; // «Огонёк пары»
-    if (isPaired) n += 2; // таймер и лепестковый таймер
-    if (isPaired || _pair.isSolo) {
-      n += 1; // фото дня
-      if (isPaired) n += 1; // фото партнёра
-    }
-    if (isPaired) n += 1; // настроение
-    return n;
-  }
 
-  List<Widget> _legacyWidgetItems(bool isPaired, List<Widget> halfTiles) {
-    return [
-        // ── 1. Парный виджет ──
-      if (!isPaired) ...[_buildNotPairedBanner(), const SizedBox(height: 16)],
-
-      if (isPaired) ...[
-        KeyedSubtree(
-          key: _pairWidgetKey,
-          child: _buildGalleryItem(
-            title: LocaleService.current.pairWidgetTitle,
-            subtitle: LocaleService.current.pairWidgetSubtitle,
-            svgString: _heartSvg,
-            qualifiedName: 'com.togetherly.love.LoveWidgetProvider',
-            preview: _buildWidgetPreview(),
-            widgetType: 'pair',
-            expandedContent: _buildPairWidgetExpandedContent(),
-            isExpanded: _pairWidgetExpanded,
-            onToggleExpand: () =>
-                _togglePanel(WidgetPanels.pairWidget),
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        // ── Баннер 1 ──
-        _buildAdBanner('ad_banner_1'),
-        const SizedBox(height: 16),
-
-        // ── 2. Счётчик дней вместе ──
-        _buildGalleryItem(
-          title: LocaleService.current.daysTogetherStat,
-          subtitle: LocaleService.current.daysCounterSubtitle,
-          svgString: _calendarSvg,
-          qualifiedName: 'com.togetherly.love.DaysCounterWidgetProvider',
-          preview: _buildDaysCounterPreview(),
-          widgetType: 'days_counter',
-          expandedContent: _buildDaysPhotosCard(),
-          isExpanded: _daysCounterExpanded,
-          onToggleExpand: () =>
-              _togglePanel(WidgetPanels.daysCounter),
-        ),
-        const SizedBox(height: 16),
-      ],
-
-      // ── Бенто: Огонёк + Таймер по два в ряд ──
-      _halfGrid(halfTiles),
-      if (halfTiles.isNotEmpty) const SizedBox(height: 16),
-
-      // ── Лепестковый таймер (настоящее превью + выбор) ──
-      _buildGalleryItem(
-        title: LocaleService.current.widgetPetalTimerTitle,
-        subtitle: LocaleService.current.widgetPetalTimerSubtitle,
-        svgString: _timerSvg,
-        qualifiedName: 'com.togetherly.love.PetalTimerWidgetProvider',
-        preview: _buildPetalTimerPreview(),
-        widgetType: 'petal_timer',
-        expandedContent: _buildTimerSelector(),
-        isExpanded: _petalTimerWidgetExpanded,
-        onToggleExpand: () => setState(
-          () => _togglePanel(WidgetPanels.petalTimer),
-        ),
-      ),
-      const SizedBox(height: 16),
-
-      if (isPaired) ...[
-        // ── Настроение (настоящее превью) ──
-        _buildGalleryItem(
-          title: LocaleService.current.mood,
-          subtitle: LocaleService.current.moodWidgetSubtitle,
-          svgString: _moodSvg,
-          qualifiedName: 'com.togetherly.love.MoodWidgetProvider',
-          preview: _buildMoodPreview(),
-          widgetType: 'mood',
-        ),
-        const SizedBox(height: 16),
-        // ── Статистика отношений (настоящее превью) ──
-        _buildGalleryItem(
-          title: LocaleService.current.relationshipStats,
-          subtitle: LocaleService.current.relationshipStatsSubtitle,
-          svgString: _statsSvg,
-          qualifiedName:
-              'com.togetherly.love.RelationshipStatsWidgetProvider',
-          preview: _buildRelationshipStatsPreview(),
-          widgetType: 'relationship_stats',
-        ),
-        const SizedBox(height: 16),
-      ],
-
-      // ── 4. Фото-виджет (личный) ──
-      if (isPaired || _pair.isSolo) ...[
-        _buildGalleryItem(
-          title: LocaleService.current.widgetPhotoTitle,
-          subtitle: LocaleService.current.widgetPhotoSubtitle,
-          svgString: _photoSvg,
-          qualifiedName: 'com.togetherly.love.SelfPhotoWidgetProvider',
-          widgetType: 'photo_day_self',
-          expandedContent: _buildPhotoDayExpandedContent(),
-          isExpanded: _photoDayExpanded,
-          onToggleExpand: () =>
-              _togglePanel(WidgetPanels.photoDay),
-        ),
-        const SizedBox(height: 16),
-
-        // ── 4б. Фото партнёра ──
-        if (isPaired) ...[
-          _buildGalleryItem(
-            title: LocaleService.current.widgetModePartner,
-            subtitle: LocaleService.current.photoDayPartnerSubtitle,
-            svgString: _photoSvg,
-            qualifiedName: 'com.togetherly.love.PartnerPhotoWidgetProvider',
-            widgetType: 'photo_day_partner',
-            expandedContent: _buildPartnerPhotoExpandedContent(),
-            isExpanded: _partnerPhotoExpanded,
-            onToggleExpand: () => setState(
-              () => _togglePanel(WidgetPanels.partnerPhoto),
-            ),
-          ),
-          const SizedBox(height: 16),
-        ],
-      ],
-
-      // ── Настроение на экране блокировки + Фото-сетка ──
-      if (isPaired) ...[
-        _buildLockScreenMoodCard(),
-        const SizedBox(height: 16),
-
-        // ── 5в. Фото-сетка ──
-        _buildGalleryItem(
-          title: LocaleService.current.photoGridWidget,
-          subtitle: LocaleService.current.photoGridWidgetSubtitle,
-          svgString: _photoSvg,
-          qualifiedName: 'com.togetherly.love.PhotoGridWidgetProvider',
-          preview: _buildPhotoGridPreview(),
-          widgetType: 'photo_grid',
-          expandedContent: _buildPhotoGridExpandedContent(),
-          isExpanded: _photoGridExpanded,
-          onToggleExpand: () =>
-              _togglePanel(WidgetPanels.photoGrid),
-        ),
-        const SizedBox(height: 16),
-
-        // ── Баннер 2 ──
-        _buildAdBanner('ad_banner_2'),
-      ],
-
-    ];
-  }
 
   /// Сегменты выбора размера: «2×2 · 4×2 · 4×4». Каждый размер — отдельный
   /// провайдер, поэтому выбор меняет и превью, и то, что уйдёт на рабочий стол.
@@ -9136,6 +9172,21 @@ class _WidgetSizeOption {
 /// Заголовок с иконкой и счётчиком, содержимое раскрывается анимацией. Нужен,
 /// чтобы прежние виджеты не заслоняли новый каталог: их список длинный, а
 /// смотреть в первую очередь надо новые.
+/// Карточка каталога: в каком разделе стоит и как строится.
+///
+/// Строится лениво — свёрнутый раздел не должен собирать превью.
+class _CatalogCard {
+  const _CatalogCard(this.section, this.build, {this.count = 1});
+
+  /// Ключ раздела из [WidgetPanels].
+  final String section;
+  final Widget Function() build;
+
+  /// Сколько виджетов стоит за карточкой: у сетки мелких плиток их два, и
+  /// бейдж раздела обязан считать виджеты, а не карточки.
+  final int count;
+}
+
 class _CollapsibleWidgetSection extends StatelessWidget {
   const _CollapsibleWidgetSection({
     required this.cs,

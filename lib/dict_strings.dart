@@ -2436,13 +2436,25 @@ abstract class DictStrings extends AppStrings {
   @override
   String get pixelCanvasSubtitle => _t('pixelCanvasSubtitle');
   @override
-  String get widgetsCurrentSection => _t('widgetsCurrentSection');
+  String get widgetSectionPair => _t('widgetSectionPair');
   @override
-  String get widgetsCurrentSubtitle => _t('widgetsCurrentSubtitle');
+  String get widgetSectionPairSub => _t('widgetSectionPairSub');
   @override
-  String get widgetsNewSection => _t('widgetsNewSection');
+  String get widgetSectionTime => _t('widgetSectionTime');
   @override
-  String get widgetsNewSubtitle => _t('widgetsNewSubtitle');
+  String get widgetSectionTimeSub => _t('widgetSectionTimeSub');
+  @override
+  String get widgetSectionPhotos => _t('widgetSectionPhotos');
+  @override
+  String get widgetSectionPhotosSub => _t('widgetSectionPhotosSub');
+  @override
+  String get widgetSectionMood => _t('widgetSectionMood');
+  @override
+  String get widgetSectionMoodSub => _t('widgetSectionMoodSub');
+  @override
+  String get widgetSectionNotes => _t('widgetSectionNotes');
+  @override
+  String get widgetSectionNotesSub => _t('widgetSectionNotesSub');
   @override
   String get tgTogetherTitle => _t('tgTogetherTitle');
   @override

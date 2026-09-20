@@ -1642,10 +1642,16 @@ abstract class AppStrings {
 
   /// Массовые действия в галерее холстов.
   /// Секции каталога виджетов.
-  String get widgetsCurrentSection;
-  String get widgetsCurrentSubtitle;
-  String get widgetsNewSection;
-  String get widgetsNewSubtitle;
+  String get widgetSectionPair;
+  String get widgetSectionPairSub;
+  String get widgetSectionTime;
+  String get widgetSectionTimeSub;
+  String get widgetSectionPhotos;
+  String get widgetSectionPhotosSub;
+  String get widgetSectionMood;
+  String get widgetSectionMoodSub;
+  String get widgetSectionNotes;
+  String get widgetSectionNotesSub;
 
   /// Виджет «Вместе» из нового каталога.
   String get tgTogetherTitle;

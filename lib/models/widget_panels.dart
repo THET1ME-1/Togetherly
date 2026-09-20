@@ -13,8 +13,16 @@ class WidgetPanels {
   /// заводить и читать по одному.
   static const String prefsKey = 'widget_panels_expanded';
 
-  static const String legacySection = 'legacy_section';
-  static const String newSection = 'new_section';
+  /// Разделы каталога. Виджеты разложены по смыслу, а не по возрасту:
+  /// прежние «Что уже есть» и «Новые виджеты» делили список по тому, когда
+  /// виджет сделан, — человеку это ничего не говорит, и «Где мы» вовсе
+  /// лежал сбоку от обоих разделов.
+  static const String sectionPair = 'sec_pair';
+  static const String sectionTime = 'sec_time';
+  static const String sectionPhotos = 'sec_photos';
+  static const String sectionMood = 'sec_mood';
+  static const String sectionNotes = 'sec_notes';
+
   static const String pairWidget = 'pair_widget';
   static const String petalTimer = 'petal_timer';
   static const String daysCounter = 'days_counter';
@@ -25,8 +33,11 @@ class WidgetPanels {
   /// Порядок здесь задаёт и порядок записи — чтобы одно и то же состояние
   /// всегда давало одну и ту же строку в prefs.
   static const List<String> known = [
-    legacySection,
-    newSection,
+    sectionPair,
+    sectionTime,
+    sectionPhotos,
+    sectionMood,
+    sectionNotes,
     pairWidget,
     petalTimer,
     daysCounter,
@@ -35,9 +46,11 @@ class WidgetPanels {
     photoGrid,
   ];
 
-  /// Что раскрыто при самом первом заходе: новый каталог (ради него экран и
-  /// перестроили) и карточка «Фото дня».
-  static const Set<String> byDefault = {newSection, photoDay};
+  /// Что раскрыто при самом первом заходе: первый раздел и карточка
+  /// «Фото дня». Старые ключи разделов («legacy_section», «new_section»)
+  /// отсеиваются при чтении как незнакомые — разделов с такими именами
+  /// больше нет.
+  static const Set<String> byDefault = {sectionPair, photoDay};
 
   /// Разбор сохранённого. `null` — настройки ещё нет, берём умолчания; пустой
   /// список — человек свернул всё, и возвращать ему умолчания нельзя, иначе

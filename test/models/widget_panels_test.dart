@@ -9,7 +9,7 @@ import 'package:love_app/models/widget_panels.dart';
 /// открыты новые, изменения между экранами и входами не сохраняются». Состояние
 /// жило только в памяти экрана, поэтому любой уход с него возвращал умолчания.
 void main() {
-  test('первый заход открывает новый каталог и фото дня', () {
+  test('первый заход открывает первый раздел и фото дня', () {
     expect(WidgetPanels.restore(null), WidgetPanels.byDefault);
   });
 
@@ -19,8 +19,13 @@ void main() {
 
   test('незнакомые ключи выбрасываются', () {
     final restored =
-        WidgetPanels.restore(const [WidgetPanels.legacySection, 'ерунда']);
-    expect(restored, {WidgetPanels.legacySection});
+        WidgetPanels.restore(const [WidgetPanels.sectionTime, 'ерунда']);
+    expect(restored, {WidgetPanels.sectionTime});
+  });
+
+  test('ключи прежних разделов отсеиваются: таких разделов больше нет', () {
+    expect(WidgetPanels.restore(const ['legacy_section', 'new_section']),
+        isEmpty);
   });
 
   test('порядок записи постоянный, независимо от порядка нажатий', () {
@@ -31,7 +36,7 @@ void main() {
 
   test('круг «сохранили — прочитали» ничего не теряет', () {
     final chosen = {
-      WidgetPanels.legacySection,
+      WidgetPanels.sectionTime,
       WidgetPanels.daysCounter,
       WidgetPanels.partnerPhoto,
     };
@@ -65,8 +70,29 @@ void main() {
     test('набор читается из prefs при открытии и пишется при нажатии', () {
       expect(src.contains('_loadPanels();'), isTrue);
       expect(src.contains('WidgetPanels.prefsKey'), isTrue);
-      expect(src.contains('_togglePanel(WidgetPanels.legacySection)'), isTrue);
-      expect(src.contains('_togglePanel(WidgetPanels.newSection)'), isTrue);
+      expect(src.contains('_togglePanel(key)'), isTrue,
+          reason: 'разделы переключаются одним путём — по ключу');
+      for (final section in [
+        'WidgetPanels.sectionPair',
+        'WidgetPanels.sectionTime',
+        'WidgetPanels.sectionPhotos',
+        'WidgetPanels.sectionMood',
+        'WidgetPanels.sectionNotes',
+      ]) {
+        expect(src.contains(section), isTrue, reason: 'раздел $section пропал');
+      }
+    });
+
+    test('прежних разделов «по возрасту» в каталоге не осталось', () {
+      for (final gone in [
+        'widgetsCurrentSection',
+        'widgetsNewSection',
+        '_legacyWidgetItems',
+        '_newWidgetItems',
+      ]) {
+        expect(src.contains(gone), isFalse,
+            reason: '«$gone» делил виджеты по времени их написания');
+      }
     });
   });
 
