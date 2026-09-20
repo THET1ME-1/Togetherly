@@ -626,7 +626,7 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
                 ),
               ),
               const SizedBox(width: 8),
-              Flexible(
+              Expanded(
                 child: Text(
                   title,
                   maxLines: 1,
@@ -850,8 +850,10 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
                   onTap: () => Navigator.pop(context),
                 ),
                 const SizedBox(width: 6),
-                Flexible(child: _viewerTitlePill(count)),
-                const Spacer(),
+                // Пилюля занимает всю середину: справа оставалось пустое
+                // место, а название записи обрезалось на третьей букве.
+                Expanded(child: _viewerTitlePill(count)),
+                const SizedBox(width: 6),
                 _viewerRound(
                   icon: Icons.more_vert_rounded,
                   onTap: () => _openFrameMenu(),
