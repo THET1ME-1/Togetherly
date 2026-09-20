@@ -747,4 +747,324 @@ void main() {
           .writeAsBytesSync(bytes!.buffer.asUint8List(), flush: true);
     });
   });
+
+  testWidgets('экран записи', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 1040));
+    final theme = AppThemes.byIndex(0);
+    final cs = theme.scheme ?? ColorScheme.fromSeed(seedColor: theme.primary);
+
+    Widget round(IconData icon, {double size = 64, BorderRadius? radius}) =>
+        Container(
+          width: size,
+          height: size,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: cs.surfaceContainerHigh,
+            borderRadius: radius ?? BorderRadius.circular(size / 2),
+          ),
+          child: Icon(icon, size: size > 56 ? 26 : 22, color: cs.onSurface),
+        );
+
+    Widget row({
+      required IconData icon,
+      required String label,
+      required String value,
+      bool key0 = false,
+      bool first = false,
+      bool last = false,
+      bool chevron = false,
+      bool? toggle,
+    }) {
+      final bg = key0 ? cs.secondaryContainer : cs.surfaceContainerHigh;
+      final fg = key0 ? cs.onSecondaryContainer : cs.onSurface;
+      final sub = key0
+          ? cs.onSecondaryContainer.withValues(alpha: 0.8)
+          : cs.onSurfaceVariant;
+      return Container(
+        constraints: const BoxConstraints(minHeight: 76),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(first ? 28 : 8),
+            bottom: Radius.circular(last ? 28 : 8),
+          ),
+        ),
+        child: Row(children: [
+          Container(
+            width: 44,
+            height: 44,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+                color: key0 ? theme.fillColor : cs.surface, shape: BoxShape.circle),
+            child: Icon(icon,
+                size: 22, color: key0 ? AppThemes.onColor(theme.fillColor, mode: theme.brightness) : cs.onSurface),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label,
+                    style: TextStyle(
+                        fontFamily: 'Onest',
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: sub)),
+                const SizedBox(height: 2),
+                Text(value,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontFamily: 'Onest',
+                        fontSize: key0 ? 17 : 16,
+                        fontWeight: key0 ? FontWeight.w700 : FontWeight.w600,
+                        color: fg)),
+              ],
+            ),
+          ),
+          if (toggle != null)
+            Switch(value: toggle, onChanged: (_) {})
+          else if (chevron)
+            Icon(Icons.chevron_right_rounded, color: sub),
+        ]),
+      );
+    }
+
+    final key = GlobalKey();
+    await tester.pumpWidget(RepaintBoundary(
+      key: key,
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(colorScheme: cs, useMaterial3: true),
+        home: Scaffold(
+          backgroundColor: cs.surface,
+          body: SafeArea(
+            child: Column(children: [
+              // шапка: крестик и сводка «Черновик · N кадров»
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
+                child: Row(children: [
+                  round(Icons.close_rounded, size: 48),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Container(
+                      height: 48,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: cs.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: Row(children: [
+                        Container(
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                              color: theme.fillColor, shape: BoxShape.circle),
+                        ),
+                        const SizedBox(width: 8),
+                        Text('Черновик · 7 кадров',
+                            style: TextStyle(
+                                fontFamily: 'Onest',
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w700,
+                                color: cs.onSurface)),
+                      ]),
+                    ),
+                  ),
+                ]),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(12, 6, 12, 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Stack(children: [
+                        const _Frame(
+                            aspect: 1120 / 470,
+                            color: Color(0xFF6E93B8),
+                            radius: 22),
+                        Positioned(
+                          left: 10,
+                          bottom: 10,
+                          child: Container(
+                            height: 30,
+                            padding: const EdgeInsets.only(left: 9, right: 12),
+                            decoration: BoxDecoration(
+                                color: theme.fillColor,
+                                borderRadius: BorderRadius.circular(15)),
+                            child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.star_rounded,
+                                      size: 16, color: AppThemes.onColor(theme.fillColor, mode: theme.brightness)),
+                                  const SizedBox(width: 5),
+                                  Text('Обложка',
+                                      style: TextStyle(
+                                          fontFamily: 'Onest',
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppThemes.onColor(theme.fillColor, mode: theme.brightness))),
+                                ]),
+                          ),
+                        ),
+                        Positioned(
+                          right: 10,
+                          top: 10,
+                          child: Container(
+                            width: 36,
+                            height: 36,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                                color: cs.inverseSurface, shape: BoxShape.circle),
+                            child: Icon(Icons.close_rounded,
+                                size: 20, color: cs.onInverseSurface),
+                          ),
+                        ),
+                      ]),
+                      const SizedBox(height: 2),
+                      SizedBox(
+                        height: 132,
+                        child: ListView(
+                          scrollDirection: Axis.horizontal,
+                          physics: const NeverScrollableScrollPhysics(),
+                          children: [
+                          Container(
+                            width: 92,
+                            height: 132,
+                            decoration: BoxDecoration(
+                                color: cs.secondaryContainer,
+                                borderRadius: BorderRadius.circular(8)),
+                            child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.add_photo_alternate_rounded,
+                                      size: 28, color: cs.onSecondaryContainer),
+                                  const SizedBox(height: 4),
+                                  Text('Добавить',
+                                      style: TextStyle(
+                                          fontFamily: 'Onest',
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: cs.onSecondaryContainer)),
+                                ]),
+                          ),
+                          const SizedBox(width: 2),
+                          const _Frame(aspect: 1, color: Color(0xFFB08968)),
+                          const SizedBox(width: 2),
+                          const _Frame(aspect: 0.62, color: Color(0xFF7F8C6C)),
+                          const SizedBox(width: 2),
+                          const _Frame(aspect: 1.5, color: Color(0xFF8899AA)),
+                        ]),
+                      ),
+                      const SizedBox(height: 10),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.touch_app_outlined,
+                                size: 18, color: cs.onSurfaceVariant),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                  'Плюс слева добавляет кадры, касание ставит обложкой, долгое — убирает из записи',
+                                  style: TextStyle(
+                                      fontFamily: 'Onest',
+                                      fontSize: 13,
+                                      color: cs.onSurfaceVariant)),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      row(
+                          icon: Icons.title_rounded,
+                          label: 'Название',
+                          value: 'Закат на реке',
+                          key0: true,
+                          first: true),
+                      const SizedBox(height: 4),
+                      row(
+                          icon: Icons.edit_note_rounded,
+                          label: 'Подпись',
+                          value: 'Доехали к реке за час до заката.',
+                          key0: true),
+                      const SizedBox(height: 4),
+                      row(
+                          icon: Icons.calendar_today_rounded,
+                          label: 'Дата съёмки',
+                          value: '12 сентября 2026',
+                          chevron: true),
+                      const SizedBox(height: 4),
+                      row(
+                          icon: Icons.place_rounded,
+                          label: 'Место',
+                          value: 'Каменка',
+                          chevron: true),
+                      const SizedBox(height: 4),
+                      row(
+                          icon: Icons.visibility_off_rounded,
+                          label: '18+',
+                          value: 'Выключено',
+                          last: true,
+                          toggle: false),
+                    ],
+                  ),
+                ),
+              ),
+              // низ: галерея и камера парой, затем «Сохранить»
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                child: Row(children: [
+                  round(Icons.add_photo_alternate_rounded,
+                      radius: const BorderRadius.horizontal(
+                          left: Radius.circular(32), right: Radius.circular(10))),
+                  const SizedBox(width: 2),
+                  round(Icons.photo_camera_rounded,
+                      radius: const BorderRadius.horizontal(
+                          left: Radius.circular(10), right: Radius.circular(32))),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Container(
+                      height: 64,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                          color: theme.fillColor,
+                          borderRadius: BorderRadius.circular(32)),
+                      child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.check_rounded,
+                                size: 22, color: AppThemes.onColor(theme.fillColor, mode: theme.brightness)),
+                            const SizedBox(width: 8),
+                            Text('Сохранить',
+                                style: TextStyle(
+                                    fontFamily: 'Onest',
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppThemes.onColor(theme.fillColor, mode: theme.brightness))),
+                          ]),
+                    ),
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.runAsync(() async {
+      final boundary =
+          key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+      final image = await boundary.toImage(pixelRatio: 2);
+      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+      final dir = Directory('build/feed-preview')..createSync(recursive: true);
+      File('${dir.path}/form.png')
+          .writeAsBytesSync(bytes!.buffer.asUint8List(), flush: true);
+    });
+  });
 }

@@ -519,6 +519,34 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
             onPick: (key) => repo.setReaction(
                 groupId: widget.groupId, memoryId: memory.id, reaction: key),
           ),
+        const Spacer(),
+        // Комментарии числом: у них счёт осмыслен — их бывает много.
+        Material(
+          color: theme.bgGradient[0],
+          borderRadius: BorderRadius.circular(20),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () {},
+            child: Container(
+              height: 40,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              alignment: Alignment.center,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.chat_bubble_outline_rounded,
+                      size: 18, color: theme.textSecondary),
+                  if (memory.commentsCount > 0) ...[
+                    const SizedBox(width: 6),
+                    Text('${memory.commentsCount}',
+                        style: AppFonts.onest(
+                            size: 14, weight: 700, color: theme.textPrimary)),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }

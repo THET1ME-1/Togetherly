@@ -156,6 +156,10 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
 
   bool get _hasFrames => _media.isNotEmpty || _kept.isNotEmpty;
 
+  /// Что писать поверх заливки темы: правило одно на всё приложение.
+  Color get _onFill =>
+      AppThemes.onColor(widget.theme.fillColor, mode: widget.theme.brightness);
+
   bool get _canSave =>
       !_isSaving &&
       (_hasFrames ||
@@ -488,7 +492,7 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
                     width: 7,
                     height: 7,
                     decoration: BoxDecoration(
-                        color: cs.primary, shape: BoxShape.circle),
+                        color: widget.theme.fillColor, shape: BoxShape.circle),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -597,17 +601,17 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
                 height: 30,
                 padding: const EdgeInsets.only(left: 9, right: 12),
                 decoration: BoxDecoration(
-                  color: cs.primary,
+                  color: widget.theme.fillColor,
                   borderRadius: BorderRadius.circular(15),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.star_rounded, size: 16, color: cs.onPrimary),
+                    Icon(Icons.star_rounded, size: 16, color: _onFill),
                     const SizedBox(width: 5),
                     Text(LocaleService.current.coverLabel,
                         style: AppFonts.onest(
-                            size: 12.5, weight: 700, color: cs.onPrimary)),
+                            size: 12.5, weight: 700, color: _onFill)),
                   ],
                 ),
               ),
@@ -817,11 +821,11 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
                 height: 44,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: key0 ? cs.primary : cs.surface,
+                  color: key0 ? widget.theme.fillColor : cs.surface,
                   shape: BoxShape.circle,
                 ),
                 child: Icon(icon,
-                    size: 22, color: key0 ? cs.onPrimary : cs.onSurface),
+                    size: 22, color: key0 ? _onFill : cs.onSurface),
               ),
               const SizedBox(width: 14),
               Expanded(

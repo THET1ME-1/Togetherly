@@ -649,7 +649,82 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
   }
 
   /// «Ещё» у кадра: сведения и переход к записи.
-  void _openFrameMenu() => Navigator.pop(context, _current.memoryId);
+  /// «Ещё» у кадра: перейти к записи или отправить сам кадр.
+  Future<void> _openFrameMenu() async {
+    final hit = _fileOf(_current);
+    final cs = Theme.of(context).colorScheme;
+    await showAppSheet<void>(
+      context,
+      builder: (ctx) => SheetScaffold(
+        title: LocaleService.current.moreActions,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _frameMenuRow(
+                cs,
+                icon: Icons.collections_bookmark_rounded,
+                title: LocaleService.current.goToPin,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.pop(context, _current.memoryId);
+                },
+              ),
+              if (hit != null) ...[
+                const SizedBox(height: 4),
+                _frameMenuRow(
+                  cs,
+                  icon: Icons.ios_share_rounded,
+                  title: trKey('pickShare'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    shareMemoryMedia(context,
+                        files: [hit.$2], takenAt: hit.$1.createdAt);
+                  },
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _frameMenuRow(ColorScheme cs,
+      {required IconData icon,
+      required String title,
+      required VoidCallback onTap}) {
+    return Material(
+      color: cs.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                alignment: Alignment.center,
+                decoration:
+                    BoxDecoration(color: cs.surface, shape: BoxShape.circle),
+                child: Icon(icon, size: 22, color: cs.onSurface),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(title,
+                    style: AppFonts.onest(
+                        size: 16, weight: 600, color: cs.onSurface)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
