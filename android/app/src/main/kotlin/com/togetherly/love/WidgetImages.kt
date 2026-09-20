@@ -1,6 +1,7 @@
 package com.togetherly.love
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.BitmapShader
 import android.graphics.Canvas
 import android.graphics.Color
@@ -61,6 +62,34 @@ object WidgetImages {
         val r = size / 2f
         Canvas(output).drawCircle(r, r, r, paint)
         return output
+    }
+
+    /**
+     * Кадр пиксель-арта из файла, увеличенный ЦЕЛОЕ число раз и без
+     * сглаживания.
+     *
+     * Дробное увеличение и любая фильтрация превращают пиксель-арт в мыло —
+     * то же правило держит `PixelMascotView` на стороне Flutter. Поэтому кадр
+     * приезжает один к одному (48 или 96 точек), а здесь домножается на
+     * целое: картинка выходит не больше [targetPx], и `scaleType="center"`
+     * рисует её точка в точку.
+     */
+    fun pixelArt(path: String?, targetPx: Int, framePx: Int): Bitmap? {
+        if (path.isNullOrEmpty() || targetPx <= 0) return null
+        val file = java.io.File(path)
+        if (!file.exists()) return null
+        val opts = BitmapFactory.Options().apply { inScaled = false }
+        val src = BitmapFactory.decodeFile(path, opts) ?: return null
+        val base = if (framePx > 0) framePx else maxOf(src.width, src.height)
+        if (base <= 0) return src
+        val k = maxOf(1, targetPx / base)
+        val size = base * k
+        if (size == src.width && size == src.height) return src
+        return try {
+            Bitmap.createScaledBitmap(src, size, size, false)
+        } catch (e: OutOfMemoryError) {
+            src
+        }
     }
 
     /** Круглый аватар из файла: путь → уменьшенный bitmap → круг. */

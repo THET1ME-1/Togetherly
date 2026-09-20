@@ -29,4 +29,9 @@
     <string name="tg_desc_map_2x2">Вы двое и расстояние между вами</string>
     <string name="tg_desc_map_4x2">Карта на двоих: дуга, расстояние и когда партнёр был на месте</string>
     <string name="tg_desc_map_4x4">Карта с округой и кто где: районы и время</string>
+    <string name="tg_desc_mascot_4x1">Персонаж пары полоской: имя, ступень и серия</string>
+    <string name="tg_desc_mascot_2x2">Персонаж пары и полоса до следующей ступени</string>
+    <string name="tg_desc_mascot_4x2">Персонаж пары, серия и полоса роста</string>
+    <string name="tg_desc_mascot_4x4">Персонаж пары во весь экран: серия, рост и рекорд</string>
+    <string name="tg_mascot_empty">Выберите маскота в приложении</string>
 </resources>

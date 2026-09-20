@@ -541,6 +541,88 @@ def note_4x4() -> None:
     )
 
 
+# ── «Маскот на столе» ────────────────────────────────────────────────────────
+
+MASCOT_FRAME = ROOT / "tools/assets/mascot_preview_frame.png"
+
+
+def mascot(img: Image.Image, cx: int, cy: int, side: int) -> None:
+    """Кадр персонажа в превью: увеличение только целым числом и без фильтра.
+
+    Дробный масштаб и сглаживание мылят пиксель-арт — то же правило держат и
+    виджет, и приложение.
+    """
+    src = Image.open(MASCOT_FRAME).convert("RGBA")
+    k = max(1, int(side * S) // src.width)
+    big = src.resize((src.width * k, src.height * k), Image.NEAREST)
+    img.alpha_composite(big, (int(cx * S - big.width / 2), int(cy * S - big.height / 2)))
+
+
+def pill(d, box, radius, fill, label, size, weight, ink):
+    card(d, box, radius, fill)
+    text(d, ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2 + 1), label, size, weight, ink, anchor="mm")
+
+
+def mascot_4x1() -> None:
+    img, d = canvas(424, 92)
+    card(d, (0, 0, 424, 92), 28, PRIMARY_CONTAINER)
+    mascot(img, 46, 46, 44)
+    text(d, (80, 34), "Пудя", 16, 800, ON_SURFACE, anchor="lm")
+    text(d, (80, 58), "подросток · до взрослого 18 дней", 12, 600, ON_SURFACE_VARIANT, anchor="lm")
+    text(d, (404, 36), "12", 26, 800, ON_PRIMARY_CONTAINER, anchor="rm")
+    text(d, (404, 62), "дней серии", 11, 600, ON_SURFACE_VARIANT, anchor="rm")
+    save(img, "tg_preview_mascot_4x1")
+
+
+def mascot_2x2() -> None:
+    img, d = canvas(200, 200)
+    card(d, (0, 0, 200, 200), 32, SURFACE_CONTAINER)
+    text(d, (16, 26), "Пудя", 13, 800, ON_SURFACE, anchor="lm")
+    pill(d, (126, 16, 184, 38), 11, TERTIARY_CONTAINER, "подросток", 10, 700, ON_TERTIARY_CONTAINER)
+    mascot(img, 100, 108, 86)
+    card(d, (16, 160, 184, 168), 4, TRACK_ON_CONTAINER)
+    card(d, (16, 160, 83, 168), 4, PRIMARY)
+    text(d, (16, 182), "до взрослого 18 дней", 10, 600, ON_SURFACE_VARIANT, anchor="lm")
+    save(img, "tg_preview_mascot_2x2")
+
+
+def mascot_4x2() -> None:
+    img, d = canvas(424, 200)
+    card(d, (0, 0, 424, 200), 32, SURFACE_CONTAINER)
+    card(d, (16, 16, 168, 184), 22, PRIMARY_CONTAINER)
+    mascot(img, 92, 100, 104)
+    text(d, (190, 62), "Пудя", 21, 800, ON_SURFACE, anchor="lm")
+    text(d, (190, 88), "подросток · 12 дней серии", 13, 600, ON_SURFACE_VARIANT, anchor="lm")
+    card(d, (190, 120, 404, 128), 4, TRACK_ON_CONTAINER)
+    card(d, (190, 120, 276, 128), 4, PRIMARY)
+    text(d, (190, 146), "до взрослого 18 дней", 12, 600, ON_SURFACE_VARIANT, anchor="lm")
+    save(img, "tg_preview_mascot_4x2")
+
+
+def mascot_4x4() -> None:
+    img, d = canvas(424, 424)
+    card(d, (0, 0, 424, 424), 32, SURFACE_CONTAINER)
+    card(d, (14, 14, 410, 268), 24, PRIMARY_CONTAINER)
+    card(d, (14, 196, 410, 268), 24, TRACK_ON_CONTAINER)
+    mascot(img, 212, 158, 150)
+    pill(d, (30, 30, 156, 58), 14, SURFACE, "Пудя · подросток", 12, 700, ON_SURFACE)
+    pill(d, (268, 30, 394, 58), 14, TERTIARY_CONTAINER, "не спит до 23:00", 11, 700, ON_TERTIARY_CONTAINER)
+
+    tiles = [("12", "дней серии"), ("", "до взрослого 18"), ("64", "рекорд")]
+    w = (424 - 28 - 16) / 3
+    for i, (value, label) in enumerate(tiles):
+        x = 14 + i * (w + 8)
+        card(d, (x, 284, x + w, 410), 18, PRIMARY_CONTAINER)
+        cx = x + w / 2
+        if value:
+            text(d, (cx, 330), value, 24, 800, ON_PRIMARY_CONTAINER, anchor="mm")
+        else:
+            card(d, (x + 18, 326, x + w - 18, 334), 4, TRACK_ON_CONTAINER)
+            card(d, (x + 18, 326, x + 18 + (w - 36) * 0.22, 334), 4, PRIMARY)
+        text(d, (cx, 364), label, 10, 600, ON_SURFACE_VARIANT, anchor="mm")
+    save(img, "tg_preview_mascot_4x4")
+
+
 if __name__ == "__main__":
     print("Превью виджетов →", OUT)
     together_2x2()
@@ -562,4 +644,8 @@ if __name__ == "__main__":
     note_2x2()
     note_4x2()
     note_4x4()
+    mascot_4x1()
+    mascot_2x2()
+    mascot_4x2()
+    mascot_4x4()
     print("готово")

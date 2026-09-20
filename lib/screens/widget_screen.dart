@@ -61,7 +61,12 @@ import '../services/music_meta_service.dart';
 import '../utils/photo_crop.dart';
 import '../services/mood_notification_service.dart';
 import '../services/mood_service.dart';
+import '../models/mascot_anim.dart';
+import '../models/mascot_widget_data.dart';
+import '../services/catalog_service.dart';
+import '../services/mascot/mascot_widget_service.dart';
 import '../services/mascot_service.dart';
+import '../widgets/mascot/pixel_mascot_view.dart';
 import '../services/timer_service.dart';
 import '../services/widget_rotation.dart';
 import '../services/widget_service.dart';
@@ -1084,6 +1089,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           'together' => 'together',
           'miss' => 'miss',
           'year_ring' => 'year_ring',
+          'mascot' => 'mascot',
           'year_grid' => 'year_grid',
           'map' => 'map',
           // Парный виджет тоже помнит свою связь: до 04.09.2026 он один на все
@@ -1361,6 +1367,10 @@ class _WidgetScreenState extends State<WidgetScreen>
       case 'year_ring':
       case 'year_grid':
         await _syncYearWidgets();
+        break;
+      case 'mascot':
+        // Кадры режет сервис маскота: у него и персонаж, и серия, и окно сна.
+        widget.mascotService.resyncStreakWidget();
         break;
     }
   }
@@ -1821,6 +1831,7 @@ class _WidgetScreenState extends State<WidgetScreen>
       if (isPaired && plusShown) plus(WidgetPanels.sectionPair, _cardMiss),
       if (isPaired) _CatalogCard(WidgetPanels.sectionPair, _cardMap),
       if (isPaired) _CatalogCard(WidgetPanels.sectionPair, _cardStats),
+      if (isPaired) _CatalogCard(WidgetPanels.sectionPair, _cardMascot),
 
       // ── Дни и таймеры ──
       if (isPaired) _CatalogCard(WidgetPanels.sectionTime, _cardDaysCounter),
@@ -2399,6 +2410,41 @@ class _WidgetScreenState extends State<WidgetScreen>
             hint: _s.tgSizeHintWide,
             qualifiedName: 'com.togetherly.love.YearRingWidget4x2Provider',
             previewBuilder: () => _buildYearRing4x2Preview(),
+          ),
+        ],
+      );
+
+  /// Маскот на столе: пиксельный персонаж пары в четырёх размерах.
+  Widget _cardMascot() => _buildGalleryItem(
+        title: _s.mascotWidgetTitle,
+        subtitle: _s.mascotWidgetSubtitle,
+        svgString: _heartSvg,
+        qualifiedName: 'com.togetherly.love.MascotWidget2x2Provider',
+        widgetType: 'mascot',
+        sizes: [
+          _WidgetSizeOption(
+            label: '4×1',
+            hint: _s.tgSizeHintStrip,
+            qualifiedName: 'com.togetherly.love.MascotWidget4x1Provider',
+            previewBuilder: () => _buildMascotPreview(_MascotPreviewSize.strip),
+          ),
+          _WidgetSizeOption(
+            label: '2×2',
+            hint: _s.tgSizeHintCompact,
+            qualifiedName: 'com.togetherly.love.MascotWidget2x2Provider',
+            previewBuilder: () => _buildMascotPreview(_MascotPreviewSize.small),
+          ),
+          _WidgetSizeOption(
+            label: '4×2',
+            hint: _s.tgSizeHintWide,
+            qualifiedName: 'com.togetherly.love.MascotWidget4x2Provider',
+            previewBuilder: () => _buildMascotPreview(_MascotPreviewSize.wide),
+          ),
+          _WidgetSizeOption(
+            label: '4×4',
+            hint: _s.tgSizeHintLarge,
+            qualifiedName: 'com.togetherly.love.MascotWidget4x4Provider',
+            previewBuilder: () => _buildMascotPreview(_MascotPreviewSize.large),
           ),
         ],
       );
@@ -3375,6 +3421,314 @@ class _WidgetScreenState extends State<WidgetScreen>
       progress: p.ringProgress,
     );
   }
+
+  /// Превью виджета маскота: НАСТОЯЩИЙ персонаж пары, а не образец.
+  ///
+  /// Так же устроена заметка — в каталоге она показывает свой текст. Человек
+  /// выбирает размер по тому, что реально встанет на стол.
+  Widget _buildMascotPreview(_MascotPreviewSize size) {
+    final aspect = switch (size) {
+      _MascotPreviewSize.strip => 424 / 92,
+      _MascotPreviewSize.small => 1.0,
+      _MascotPreviewSize.wide => 424 / 200,
+      _MascotPreviewSize.large => 1.0,
+    };
+
+    final mascotState = widget.mascotService.state;
+    final id = mascotState.activeMascotId ?? '';
+    final anim = id.isEmpty ? null : CatalogService.instance.animById(id);
+
+    if (anim == null) {
+      return AspectRatio(
+        aspectRatio: aspect,
+        child: Container(
+          decoration: BoxDecoration(
+            color: _wr('surfaceContainer'),
+            borderRadius: BorderRadius.circular(22),
+          ),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Text(
+            _s.mascotWidgetNoMascot,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'Onest',
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+              color: _wr('onSurfaceVariant'),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final streak = widget.mascotService.activeStreak;
+    final record = widget.mascotService.activeMascot?.recordStreak ?? 0;
+    final sleep = widget.userData.sleepOf(id);
+    final data = MascotWidgetData(
+      mascotId: id,
+      name: widget.mascotService.activeMascot?.localizedName ?? anim.nameRu,
+      streakDays: streak,
+      recordStreak: record > streak ? record : streak,
+      sad: streak == 0 && (mascotState.streakLastOpenedDate ?? '').isNotEmpty,
+      sleep: anim.nightIdle.isEmpty
+          ? MascotSleepWindow.none
+          : MascotSleepWindow(from: sleep.from, to: sleep.to),
+    );
+    final labels = buildMascotWidgetLabels(data);
+
+    Widget figure(double side) => PixelMascotView(
+          anim: anim,
+          state: MascotAnimState.live,
+          size: side,
+          level: data.level,
+          sleep: sleep,
+        );
+
+    Widget chip(String text, {required Color bg, required Color ink, double fontSize = 10}) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(99)),
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: 'Onest',
+              fontWeight: FontWeight.w700,
+              fontSize: fontSize,
+              color: ink,
+            ),
+          ),
+        );
+
+    Widget label(String text, {double fontSize = 10, FontWeight weight = FontWeight.w600, Color? color}) => Text(
+          text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontFamily: 'Onest',
+            fontWeight: weight,
+            fontSize: fontSize,
+            color: color ?? _wr('onSurfaceVariant'),
+          ),
+        );
+
+    Widget bar(double width) => Container(
+          height: 6,
+          decoration: BoxDecoration(
+            color: _wr('trackOnContainer'),
+            borderRadius: BorderRadius.circular(99),
+          ),
+          child: FractionallySizedBox(
+            alignment: Alignment.centerLeft,
+            widthFactor: data.percent / 100,
+            child: Container(
+              decoration: BoxDecoration(
+                color: _wr('primary'),
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+          ),
+        );
+
+    final body = switch (size) {
+      _MascotPreviewSize.strip => Row(
+          children: [
+            figure(40),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  label(data.name, fontSize: 13, weight: FontWeight.w800, color: _wr('onSurface')),
+                  label('${labels.stage} · ${labels.next}'),
+                ],
+              ),
+            ),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                label('${data.streakDays}',
+                    fontSize: 20, weight: FontWeight.w800, color: _wr('onPrimaryContainer')),
+                label(labels.streak, fontSize: 9),
+              ],
+            ),
+          ],
+        ),
+      _MascotPreviewSize.small => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: label(data.name,
+                      fontSize: 12, weight: FontWeight.w800, color: _wr('onSurface')),
+                ),
+                chip(labels.stage,
+                    bg: _wr('tertiaryContainer'), ink: _wr('onTertiaryContainer')),
+              ],
+            ),
+            Expanded(child: Center(child: figure(64))),
+            bar(double.infinity),
+            const SizedBox(height: 4),
+            label(labels.next, fontSize: 9),
+          ],
+        ),
+      _MascotPreviewSize.wide => Row(
+          children: [
+            Container(
+              width: 96,
+              decoration: BoxDecoration(
+                color: _wr('primaryContainer'),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              alignment: Alignment.center,
+              child: figure(74),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  label(data.name, fontSize: 17, weight: FontWeight.w800, color: _wr('onSurface')),
+                  const SizedBox(height: 2),
+                  label('${labels.stage} · ${data.streakDays} ${labels.streak}', fontSize: 11),
+                  const SizedBox(height: 10),
+                  bar(double.infinity),
+                  const SizedBox(height: 6),
+                  label(labels.next, fontSize: 10),
+                ],
+              ),
+            ),
+          ],
+        ),
+      _MascotPreviewSize.large => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              flex: 59,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: _wr('primaryContainer'),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Stack(
+                  children: [
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: FractionallySizedBox(
+                        heightFactor: 0.28,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: _wr('trackOnContainer'),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Center(child: figure(92)),
+                    Positioned(
+                      left: 10,
+                      top: 10,
+                      child: chip('${data.name} · ${labels.stage}',
+                          bg: _wr('surfaceContainer'), ink: _wr('onSurface')),
+                    ),
+                    Positioned(
+                      right: 10,
+                      top: 10,
+                      child: chip(labels.sleepDay,
+                          bg: _wr('tertiaryContainer'), ink: _wr('onTertiaryContainer'), fontSize: 9),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              flex: 26,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _mascotTile(
+                      value: '${data.streakDays}',
+                      caption: labels.streak,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _mascotTile(child: bar(double.infinity), caption: labels.next),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _mascotTile(
+                      value: '${data.recordStreak}',
+                      caption: labels.record.split(' ').first,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+    };
+
+    return AspectRatio(
+      aspectRatio: aspect,
+      child: Container(
+        padding: EdgeInsets.all(size == _MascotPreviewSize.large ? 8 : 10),
+        decoration: BoxDecoration(
+          color: size == _MascotPreviewSize.strip
+              ? _wr('primaryContainer')
+              : _wr('surfaceContainer'),
+          borderRadius: BorderRadius.circular(22),
+        ),
+        child: body,
+      ),
+    );
+  }
+
+  /// Плитка нижнего ряда «Комнаты»: крупное число или полоса и подпись.
+  Widget _mascotTile({String? value, Widget? child, required String caption}) => Container(
+        decoration: BoxDecoration(
+          color: _wr('primaryContainer'),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (value != null)
+              FittedBox(
+                child: Text(
+                  value,
+                  style: TextStyle(
+                    fontFamily: 'Unbounded',
+                    fontWeight: FontWeight.w800,
+                    fontSize: 18,
+                    color: _wr('onPrimaryContainer'),
+                  ),
+                ),
+              ),
+            if (child != null) Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: child),
+            const SizedBox(height: 4),
+            Text(
+              caption,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Onest',
+                fontWeight: FontWeight.w600,
+                fontSize: 8.5,
+                color: _wr('onSurfaceVariant'),
+              ),
+            ),
+          ],
+        ),
+      );
 
   /// Превью «Календарь лет» 2×2: сетка сверху, число снизу.
   Widget _buildYearGrid2x2Preview() {
@@ -8849,3 +9203,6 @@ class _CollapsibleWidgetSection extends StatelessWidget {
     );
   }
 }
+
+/// Размеры превью маскота в каталоге: те же четыре, что и на столе.
+enum _MascotPreviewSize { strip, small, wide, large }

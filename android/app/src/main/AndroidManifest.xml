@@ -545,6 +545,51 @@
                 android:resource="@xml/tg_map_4x4_info" />
         </receiver>
 
+        <!-- «Маскот на столе»: пиксельный персонаж пары, четыре размера -->
+        <receiver android:name=".MascotWidget4x1Provider"
+            android:exported="true"
+            android:label="Маскот · полоска">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tg_mascot_4x1_info" />
+        </receiver>
+
+        <receiver android:name=".MascotWidget2x2Provider"
+            android:exported="true"
+            android:label="Маскот · 2×2">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tg_mascot_2x2_info" />
+        </receiver>
+
+        <receiver android:name=".MascotWidget4x2Provider"
+            android:exported="true"
+            android:label="Маскот · 4×2">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tg_mascot_4x2_info" />
+        </receiver>
+
+        <receiver android:name=".MascotWidget4x4Provider"
+            android:exported="true"
+            android:label="Маскот · 4×4">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tg_mascot_4x4_info" />
+        </receiver>
+
         <!-- Новый каталог: «Кольцо года» в двух размерах -->
         <receiver android:name=".YearRingWidget2x2Provider"
             android:exported="true"

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  «Маскот на столе» 4x2 — рост.
+
+  minWidth/minHeight по формуле 70*n-30: ровно столько занимает ячейка на
+  стандартной сетке. Просить больше нельзя — лончер выдаст своё и молча
+  обрежет содержимое.
+
+  previewImage без previewLayout: разметка с пустыми данными выглядит
+  сломанной, а лончеры без поддержки previewLayout (MIUI) без картинки не
+  показывают виджет вовсе. Картинку рисует tools/gen_widget_previews.py.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/tg_mascot_4x2"
+    android:previewImage="@drawable/tg_preview_mascot_4x2"
+    android:description="@string/tg_desc_mascot_4x2"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="180dp"
+    android:minResizeHeight="100dp"
+    android:maxResizeWidth="624dp"
+    android:maxResizeHeight="276dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen" />
