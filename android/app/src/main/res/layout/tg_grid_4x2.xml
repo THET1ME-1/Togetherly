@@ -121,20 +121,24 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
             android:orientation="horizontal"
-            android:gravity="bottom">
+            android:gravity="center_vertical">
 
+            <!-- Сетке отдаётся остаток ширины, плитка стоит фиксированной:
+                 раньше было наоборот, и картинка сетки налезала на плитку и
+                 обрезалась правым краем. -->
             <ImageView
                 android:id="@+id/grid"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:adjustViewBounds="true"
-                android:contentDescription="@null" />
-
-            <FrameLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:layout_marginStart="8dp">
+                android:adjustViewBounds="true"
+                android:scaleType="fitStart"
+                android:contentDescription="@null" />
+
+            <FrameLayout
+                android:layout_width="92dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp">
 
                 <ImageView
                     android:id="@+id/tile_bg"

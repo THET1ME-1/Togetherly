@@ -91,13 +91,20 @@ open class YearGridWidgetProvider : HomeWidgetProvider() {
         val theme = WidgetTheme.from(data)
         val density = context.resources.displayMetrics.density
 
-        // Сетка растёт шестилетиями: колонок всегда двенадцать, рядов —
-        // столько, чтобы текущий месяц в неё попал. Точка при этом мельчает,
-        // число колонок не меняется (правило хендофа).
-        val rows = ((monthsDone / 72) + 1) * 6
-        val dotDp = if (layout == R.layout.tg_grid_4x2) 4.5f else 4f
-        val gapDp = if (layout == R.layout.tg_grid_4x2) 2.5f else 2f
-        val shrink = 6f / rows
+        // Колонок всегда двенадцать (точка — месяц), рядов — столько, сколько
+        // лет прожито, плюс текущий. Прежде рисовалось шесть лет вперёд, и у
+        // молодой пары пять рядов бледных точек занимали больше места, чем сам
+        // счёт; сетка при этом не влезала в ячейку и обрезалась справа.
+        val rows = (monthsDone / 12 + 1).coerceIn(1, 6)
+
+        // Точка считается по СВОБОДНОЙ ширине, а не берётся числом: у 4×2
+        // рядом стоит плитка обратного отсчёта, и картинка фиксированного
+        // размера налезала на неё.
+        val padDp = if (layout == R.layout.tg_grid_4x2) 28f else 24f
+        val tileDp = if (layout == R.layout.tg_grid_4x2) 100f else 0f
+        val gapDp = 2.5f
+        val availableDp = (minWidth - padDp - tileDp).coerceAtLeast(60f)
+        val dotDp = (availableDp / 12f - gapDp).coerceIn(3f, 7f)
 
         val views = RemoteViews(context.packageName, layout).apply {
             setOnClickPendingIntent(
@@ -125,8 +132,8 @@ open class YearGridWidgetProvider : HomeWidgetProvider() {
                 monthsDone,
                 rows,
                 12,
-                dotDp * shrink * scale * density,
-                gapDp * shrink * scale * density,
+                dotDp * density,
+                gapDp * density,
                 theme.primary,
                 theme.tertiary,
                 theme.trackOnSurface,
@@ -145,10 +152,17 @@ open class YearGridWidgetProvider : HomeWidgetProvider() {
                     setTextColor(R.id.left_label, theme.onSurfaceVariant)
 
                     setTextViewText(R.id.days_word, WidgetWords.cap(WidgetWords.days(days)))
+                    // «0 ЛЕТ 131 ДЕНЬ» читается поломкой — ровно на этом уже
+                    // ловили счётчик «дней вместе». Пока года нет, говорим
+                    // месяцами.
                     setTextViewText(
                         R.id.years_label,
-                        "$years ${WidgetWords.cap(WidgetWords.years(years))} " +
-                            "$daysIntoYear ${WidgetWords.cap(WidgetWords.days(daysIntoYear))}",
+                        if (years >= 1) {
+                            "$years ${WidgetWords.cap(WidgetWords.years(years))} · " +
+                                "$daysIntoYear ${WidgetWords.cap(WidgetWords.days(daysIntoYear))}"
+                        } else {
+                            "$monthsDone ${WidgetWords.cap(WidgetWords.months(monthsDone))}"
+                        },
                     )
                     if (startDate.isNotEmpty()) {
                         setTextViewText(R.id.start_date, startDate)
@@ -182,7 +196,12 @@ open class YearGridWidgetProvider : HomeWidgetProvider() {
                     val nextYears = years + 1
                     setTextViewText(
                         R.id.year_label,
-                        "$nextYears-й год · ещё $daysLeft",
+                        if (years >= 1) {
+                            "$years ${WidgetWords.cap(WidgetWords.years(years))} · " +
+                                "${WidgetWords.cap(WidgetWords.days(daysLeft))} до $nextYears"
+                        } else {
+                            "$monthsDone ${WidgetWords.cap(WidgetWords.months(monthsDone))} вместе"
+                        },
                     )
 
                     setTextViewTextSize(
