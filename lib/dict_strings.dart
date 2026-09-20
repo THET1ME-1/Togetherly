@@ -2533,6 +2533,41 @@ abstract class DictStrings extends AppStrings {
   @override
   String get tgCountdownMinutes => _t('tgCountdownMinutes');
   @override
+  String get mascotWidgetTitle => _t('mascotWidgetTitle');
+  @override
+  String get mascotWidgetSubtitle => _t('mascotWidgetSubtitle');
+  @override
+  String get mascotStageBaby => _t('mascotStageBaby');
+  @override
+  String get mascotStageTeen => _t('mascotStageTeen');
+  @override
+  String get mascotStageAdult => _t('mascotStageAdult');
+  @override
+  String mascotWidgetToTeen(int days) =>
+      _t('mascotWidgetToTeen').replaceAll('{days}', '$days ${tgYearDaysUnit(days)}');
+  @override
+  String mascotWidgetToAdult(int days) =>
+      _t('mascotWidgetToAdult').replaceAll('{days}', '$days ${tgYearDaysUnit(days)}');
+  @override
+  String get mascotWidgetGrown => _t('mascotWidgetGrown');
+  @override
+  String mascotWidgetStreakLabel(int days) =>
+      _t('mascotWidgetStreakLabel').replaceAll('{days}', tgYearDaysUnit(days));
+  @override
+  String mascotWidgetAwakeUntil(String time) =>
+      _t('mascotWidgetAwakeUntil').replaceAll('{time}', time);
+  @override
+  String mascotWidgetSleepsUntil(String time) =>
+      _t('mascotWidgetSleepsUntil').replaceAll('{time}', time);
+  @override
+  String get mascotWidgetNoSleep => _t('mascotWidgetNoSleep');
+  @override
+  String mascotWidgetRecord(int days) =>
+      _t('mascotWidgetRecord').replaceAll('{days}', '$days ${tgYearDaysUnit(days)}');
+  @override
+  String get mascotWidgetNoMascot => _t('mascotWidgetNoMascot');
+
+  @override
   String get tgRingTitle => _t('tgRingTitle');
   @override
   String get tgRingSubtitle => _t('tgRingSubtitle');

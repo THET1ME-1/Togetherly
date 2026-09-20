@@ -78,6 +78,9 @@ class MascotWidgetData {
   final String name;
   final int streakDays;
 
+  /// Самая длинная серия пары: её показывает плитка 4×4.
+  final int recordStreak;
+
   /// Серия оборвалась: персонаж грустит, пока её не начнут заново.
   final bool sad;
 
@@ -89,6 +92,7 @@ class MascotWidgetData {
     required this.streakDays,
     required this.sad,
     required this.sleep,
+    this.recordStreak = 0,
   });
 
   MascotStage get stage => mascotStageOf(streakDays);

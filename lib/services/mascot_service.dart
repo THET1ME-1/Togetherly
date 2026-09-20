@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/mascot.dart';
+import '../models/mascot_sleep.dart';
+import '../models/mascot_widget_data.dart';
 import 'catalog_service.dart';
+import 'mascot/mascot_widget_service.dart';
 import 'media_service.dart';
 import 'home_widget_service.dart';
 import 'level_service.dart';
@@ -27,7 +30,15 @@ class MascotService extends ChangeNotifier {
   /// Данные/состояние уже на PB через [_repo].
   final MediaService _fb = MediaService();
 
-  void _onCatalogChanged() => notifyListeners();
+  void _onCatalogChanged() {
+    notifyListeners();
+    // Атлас персонажа приезжает каталогом: до него виджету нечего резать.
+    _syncMascotWidget();
+  }
+
+  /// Окно сна лежит в профиле, а до него `MascotService` не дотягивается.
+  /// Резолвер ставит тот, кто держит `UserData` (главный экран).
+  SleepWindow Function(String mascotId)? sleepResolver;
 
   String _groupId = '';
   int _bindGeneration = 0;
@@ -158,6 +169,7 @@ class MascotService extends ChangeNotifier {
     // Record streak (stored per active mascot) may have just loaded — refresh
     // the home-screen «Огонёк» widget so its «Рекорд: N» подпись is correct.
     _syncStreakWidget();
+    _syncMascotWidget();
     notifyListeners();
   }
 
@@ -167,7 +179,47 @@ class MascotService extends ChangeNotifier {
   /// Принудительно пере-синхронизировать «Огонёк» с актуальной серией.
   /// Нужно, например, при открытии экрана виджетов, чтобы нативный виджет на
   /// рабочем столе не показывал застрявшее старое значение.
-  void resyncStreakWidget() => _syncStreakWidget();
+  void resyncStreakWidget() {
+    _syncStreakWidget();
+    _syncMascotWidget(force: true);
+  }
+
+  /// Отправляет кадры активного персонажа на рабочий стол.
+  ///
+  /// Молча выходит, пока нечего показывать: нет пары, не выбран маскот или его
+  /// атлас ещё не доехал из каталога. Пустой виджет лучше виджета с чужим
+  /// зверьком.
+  void _syncMascotWidget({bool force = false}) {
+    final id = _state.activeMascotId;
+    if (id == null || id.isEmpty) {
+      unawaited(MascotWidgetService.instance.clear(_groupId));
+      return;
+    }
+    final anim = CatalogService.instance.animById(id);
+    if (anim == null) return;
+
+    final streak = _state.activeStreak;
+    final record = activeMascot?.recordStreak ?? 0;
+    final sleep = sleepResolver?.call(id) ?? SleepWindow.standard;
+
+    unawaited(MascotWidgetService.instance.publish(
+      groupId: _groupId,
+      anim: anim,
+      force: force,
+      data: MascotWidgetData(
+        mascotId: id,
+        name: activeMascot?.localizedName ?? anim.nameRu,
+        streakDays: streak,
+        recordStreak: record > streak ? record : streak,
+        // Серия оборвалась: вчерашняя отметка была последней, и персонаж
+        // грустит — ровно как на главной.
+        sad: streak == 0 && (_state.streakLastOpenedDate ?? '').isNotEmpty,
+        sleep: anim.nightIdle.isEmpty
+            ? MascotSleepWindow.none
+            : MascotSleepWindow(from: sleep.from, to: sleep.to),
+      ),
+    ));
+  }
 
   /// Pushes the ACTIVE mascot's streak to the native «Огонёк» home widget
   /// (серия теперь per-mascot, а не общая парная).

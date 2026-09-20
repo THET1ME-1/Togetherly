@@ -1709,6 +1709,25 @@ abstract class AppStrings {
   String get tgSizeHintToday;
   String get tgSizeHintWeek;
 
+  /// Виджет «Маскот на столе».
+  String get mascotWidgetTitle;
+  String get mascotWidgetSubtitle;
+  String get mascotStageBaby;
+  String get mascotStageTeen;
+  String get mascotStageAdult;
+  /// «до взрослого 18 дней» — число со склонением подставляет реализация.
+  String mascotWidgetToTeen(int days);
+  String mascotWidgetToAdult(int days);
+  String get mascotWidgetGrown;
+  /// «12 дней серии».
+  String mascotWidgetStreakLabel(int days);
+  /// «не спит до 23:00» и «спит до 07:00»: обе подписи уезжают в виджет разом.
+  String mascotWidgetAwakeUntil(String time);
+  String mascotWidgetSleepsUntil(String time);
+  String get mascotWidgetNoSleep;
+  String mascotWidgetRecord(int days);
+  String get mascotWidgetNoMascot;
+
   /// Виджеты «Кольцо года» и «Календарь лет».
   String get tgRingTitle;
   String get tgRingSubtitle;

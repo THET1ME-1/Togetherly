@@ -860,6 +860,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _bindMascotService(String groupId) {
+    // Окно сна живёт в профиле: сервис маскота до него не дотягивается, а
+    // виджету рабочего стола оно нужно, чтобы уложить персонажа вовремя.
+    _mascotService.sleepResolver = widget.userData.sleepOf;
     _mascotService.bindToGroup(groupId);
     // Record that someone opened the app today (streak tracking).
     _mascotService.recordDailyActivity();
