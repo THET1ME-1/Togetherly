@@ -76,7 +76,7 @@ class _PairMapWidgetPreviewState extends State<PairMapWidgetPreview> {
         sizes: {for (final k in MapWidgetSize.values) k: k.size},
         nowMs: now,
       ),
-      tiles: (_, __, ___) async => null,
+      tiles: (_, _, _) async => null,
     );
   }
 

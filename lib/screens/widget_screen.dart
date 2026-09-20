@@ -749,19 +749,19 @@ class _WidgetScreenState extends State<WidgetScreen>
     await hws.syncLockScreenMood(
       enabled: enabled,
       moodEmojiAssetPath: myEntry?.imagePath ?? '',
-      moodLabel: myEntry?.localizedLabel ?? '',
+      moodLabel: myEntry?.labelFor(MoodGenders.mine) ?? '',
       userName: myName,
       partnerMoodEmojiAssetPath: partnerEntry?.imagePath ?? '',
-      partnerMoodLabel: partnerEntry?.localizedLabel ?? '',
+      partnerMoodLabel: partnerEntry?.labelFor(_partnerGender) ?? '',
       partnerUserName: partnerName,
     );
 
     // Android: постоянное уведомление на шторке / экране блокировки
     if (enabled) {
       await mns.show(
-        myMood: myEntry?.localizedLabel ?? '',
+        myMood: myEntry?.labelFor(MoodGenders.mine) ?? '',
         myName: myName,
-        partnerMood: partnerEntry?.localizedLabel ?? '',
+        partnerMood: partnerEntry?.labelFor(_partnerGender) ?? '',
         partnerName: partnerName,
       );
     } else {
@@ -2093,6 +2093,9 @@ class _WidgetScreenState extends State<WidgetScreen>
 
 
   /// Экран покупки — с карточки виджета, который закрыт замком.
+  /// Пол партнёра для подписей его настроения; пусто — общая подпись.
+  String get _partnerGender => _ws.firstPartnerData?.gender ?? '';
+
   void _openPlusScreen() => Navigator.of(context).push(
         MaterialPageRoute<void>(builder: (_) => PlusScreen(scheme: _cs)),
       );
@@ -3012,14 +3015,14 @@ class _WidgetScreenState extends State<WidgetScreen>
             line(
               myEntry == null
                   ? '${_s.tgMoodMe} · ${_s.tgMoodNotSet}'
-                  : '${_s.tgMoodMe} · ${MoodOption.byId(myEntry.moodId)?.localizedLabel ?? ''}',
+                  : '${_s.tgMoodMe} · ${myEntry.labelFor(MoodGenders.mine)}',
               _wr('primary'),
               myEntry != null,
             ),
             line(
               partnerEntry == null
                   ? '${partnerName.isEmpty ? _s.tgMoodPartner : partnerName} · ${_s.tgMoodNotSet}'
-                  : '${partnerName.isEmpty ? _s.tgMoodPartner : partnerName} · ${MoodOption.byId(partnerEntry.moodId)?.localizedLabel ?? ''}',
+                  : '${partnerName.isEmpty ? _s.tgMoodPartner : partnerName} · ${partnerEntry.labelFor(_partnerGender)}',
               _wr('tertiary'),
               partnerEntry != null,
             ),
@@ -3679,11 +3682,11 @@ class _WidgetScreenState extends State<WidgetScreen>
       groupId: _pair.pairId,
       myLabel: myToday == null
           ? ''
-          : (MoodOption.byId(myToday.moodId)?.localizedLabel ?? ''),
+          : myToday.labelFor(MoodGenders.mine),
       myMoodId: myToday?.moodId ?? '',
       partnerLabel: partnerToday == null
           ? ''
-          : (MoodOption.byId(partnerToday.moodId)?.localizedLabel ?? ''),
+          : partnerToday.labelFor(_partnerGender),
       partnerName: _pair.partnerDisplayName.trim(),
       week: week,
       matchedDays: matched,

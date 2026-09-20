@@ -68,7 +68,7 @@ void showMoodPicker({
           moodService.setMoodForToday(
             moodId: mood.id,
             imagePath: mood.imagePath,
-            label: mood.localizedLabel,
+            label: mood.myLabel,
           );
         },
         onClear: currentEmoji.isNotEmpty
@@ -155,7 +155,7 @@ void showMoodPickerForDate({
             date: date,
             moodId: mood.id,
             imagePath: mood.imagePath,
-            label: mood.localizedLabel,
+            label: mood.myLabel,
           );
         },
         onClear: existingPath.isNotEmpty
@@ -945,7 +945,7 @@ class _MoodTile extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            mood.localizedLabel,
+            mood.myLabel,
             style: TextStyle(
               fontSize: 11,
               fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,

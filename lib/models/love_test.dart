@@ -53,6 +53,42 @@ class LoveQuestion {
   final LoveFacet facet;
 
   String get text => trKey(key);
+
+  /// Текст с родом: партнёр «он» или «она», отвечающий «сам» или «сама».
+  String textFor({required bool meFemale, required bool partnerFemale}) =>
+      genderize(text, partnerFemale: partnerFemale, meFemale: meFemale);
+}
+
+/// Метки рода в утверждениях: `{p:он|она}` — род партнёра, `{i:сам|сама}` —
+/// род отвечающего. Первая форма мужская, вторая женская.
+///
+/// До 19.09.2026 все утверждения говорили о партнёре «он», и парень читал
+/// «Мне нравится он такой, какой есть» про свою девушку (обращения 154 и 172).
+final RegExp _genderMark = RegExp(r'\{([pi]):([^|{}]*)\|([^|{}]*)\}');
+
+String genderize(String s,
+    {required bool partnerFemale, required bool meFemale}) {
+  return s.replaceAllMapped(_genderMark, (m) {
+    final female = m.group(1) == 'p' ? partnerFemale : meFemale;
+    return female ? m.group(3)! : m.group(2)!;
+  });
+}
+
+/// Чей род подставлять. Пол партнёра известен — он и решает; нет — берём
+/// противоположный своему: так пара чаще всего и устроена, а пара из двух
+/// девушек пол партнёрши увидит, как только та его укажет. Без обоих полов —
+/// мужские формы, как было до меток.
+({bool meFemale, bool partnerFemale}) loveGenders({
+  required String myGender,
+  required String partnerGender,
+}) {
+  final meFemale = myGender == 'female';
+  final partnerFemale = switch (partnerGender) {
+    'female' => true,
+    'male' => false,
+    _ => myGender == 'male',
+  };
+  return (meFemale: meFemale, partnerFemale: partnerFemale);
 }
 
 /// Сколько утверждений в одном прохождении.

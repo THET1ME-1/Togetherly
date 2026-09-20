@@ -4,6 +4,8 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../utils/password_rules.dart';
+import '../utils/email_typo.dart';
+import '../dict_strings.dart' show trKey;
 import 'package:flutter/services.dart';
 import '../utils/safe_launch.dart';
 import 'package:image_picker/image_picker.dart';
@@ -232,7 +234,7 @@ class _SetupScreenState extends State<SetupScreen>
 
   Future<void> _completeSetup() async {
     final name = _nameController.text.trim();
-    final email = _emailController.text.trim();
+    var email = _emailController.text.trim();
     final password = _passwordController.text;
 
     if (name.isEmpty) {
@@ -242,6 +244,26 @@ class _SetupScreenState extends State<SetupScreen>
     if (email.isEmpty || !email.contains('@')) {
       _showError(LocaleService.current.enterValidEmail);
       return;
+    }
+    // Адрес вводят руками только без входа через Google или Apple: там почту
+    // отдаёт сам сервис, и она настоящая.
+    final typoFix = PbAuthService().isLoggedIn ? null : emailTypoFix(email);
+    if (typoFix != null) {
+      final fix = await AppDialog.confirm(
+        context,
+        title: trKey('emailTypoTitle'),
+        message: trKey('emailTypoBody')
+            .replaceAll('{typed}', email)
+            .replaceAll('{fixed}', typoFix),
+        confirmLabel: trKey('emailTypoFix'),
+        cancelLabel: trKey('emailTypoKeep'),
+        icon: Icons.alternate_email_rounded,
+      );
+      if (!mounted) return;
+      if (fix) {
+        email = typoFix;
+        _emailController.text = typoFix;
+      }
     }
     if (_selectedGender == null) {
       _showError(LocaleService.current.selectGender);

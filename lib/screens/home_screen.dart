@@ -487,11 +487,14 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Преобразует запись календаря в MemberMood для шапки.
   /// MoodEntry — каноничный источник для сегодня; HomeHeader исторически
   /// принимает MemberMood, поэтому здесь маппим.
-  MemberMood _memberMoodFromEntry(MoodEntry? entry) {
+  /// Пол партнёра для подписей его настроения; пусто — общая подпись.
+  String get _partnerGender => _widgetService.firstPartnerData?.gender ?? '';
+
+  MemberMood _memberMoodFromEntry(MoodEntry? entry, String gender) {
     if (entry == null) return const MemberMood();
     return MemberMood(
       imagePath: entry.imagePath,
-      label: entry.localizedLabel,
+      label: entry.labelFor(gender),
       updatedAt: entry.timestamp,
     );
   }
@@ -1029,9 +1032,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final partnerEntry =
         partnerEntries.isNotEmpty ? partnerEntries.first : null;
     await MoodNotificationService.instance.show(
-      myMood: myEntry?.localizedLabel ?? '',
+      myMood: myEntry?.labelFor(MoodGenders.mine) ?? '',
       myName: widget.userData.displayName,
-      partnerMood: partnerEntry?.localizedLabel ?? '',
+      partnerMood: partnerEntry?.labelFor(_partnerGender) ?? '',
       partnerName: _pairData.partnerDisplayName,
     );
   }
@@ -1233,9 +1236,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   // Читаем из MoodService — единый источник правды для сегодня.
                   // Раньше шапка читала из pairData.myMood (group memberMoods),
                   // календарь — из moodService entries, и они расходились.
-                  myMood: _memberMoodFromEntry(_moodService.myMoodToday),
+                  myMood: _memberMoodFromEntry(_moodService.myMoodToday, MoodGenders.mine),
                   moodOf: (uid) =>
-                      _memberMoodFromEntry(_moodService.partnerMoodToday(uid)),
+                      _memberMoodFromEntry(_moodService.partnerMoodToday(uid), _partnerGender),
                   statusBadgeText: _statusBadgeText,
                   statusBadgeEmoji: _statusBadgeEmoji,
                   onRelationshipTap: _showRelationshipTypeDialog,
@@ -3138,6 +3141,8 @@ class _HomeScreenState extends State<HomeScreen> {
           groupId: _pairData.pairId,
           myUid: widget.userData.uid,
           partnerName: _pairData.partnerDisplayName,
+          myGender: widget.userData.gender?.name ?? '',
+          partnerGender: _partnerGender,
         ),
       ),
     ).then((_) {

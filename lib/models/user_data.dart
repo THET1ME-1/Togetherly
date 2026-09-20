@@ -3,6 +3,7 @@ import '../utils/date_only.dart';
 import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
+import 'mood_entry.dart' show MoodGenders;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/pb_coins_service.dart';
 import '../services/plus_access.dart';
@@ -25,6 +26,14 @@ import 'profile_icon.dart';
 enum Gender { male, female, unspecified }
 
 class UserData extends ChangeNotifier {
+  /// Пол доезжает до подписей настроений при каждом изменении профиля:
+  /// «Устал» парню, «Устала» девушке (жалоба 13.09.2026).
+  @override
+  void notifyListeners() {
+    MoodGenders.mine = genderToStorage();
+    super.notifyListeners();
+  }
+
   String _displayName = '';
   String _email = '';
   String _avatarUrl = '';

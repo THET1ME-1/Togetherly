@@ -252,6 +252,17 @@
     return null;
   }
 
+  /** Ссылка ведёт на папку Google Диска, а не на файл. */
+  function isDriveFolder(raw) {
+    try {
+      const url = new URL(cleanLink(raw));
+      return url.hostname.replace(/^www\./, '') === 'drive.google.com' &&
+        /\/folders\//.test(url.pathname);
+    } catch (_) {
+      return false;
+    }
+  }
+
   function embedUrl(src) {
     switch (src.kind) {
       case 'youtube':
@@ -756,7 +767,12 @@
   /** Включает ссылку у себя и рассказывает о ней комнате. */
   function applySource(raw) {
     const src = parseSource(raw);
-    if (!src) { setStatus(I18N.t('room.badLink'), true); return false; }
+    if (!src) {
+      // Папка Диска — частая ошибка: плеера у неё нет, нужен сам файл
+      // (обращение 141). Общий отказ тут путал: Drive стоит в списке годных.
+      setStatus(I18N.t(isDriveFolder(raw) ? 'room.driveFolder' : 'room.badLink'), true);
+      return false;
+    }
     // В комнату и в историю уходит очищенный адрес, а не всё, что набралось в
     // поле: партнёр получает ссылку тем же путём и разбирает её так же.
     const url = cleanLink(raw);

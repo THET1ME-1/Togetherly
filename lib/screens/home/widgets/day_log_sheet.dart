@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../models/mood_entry.dart' show MoodGenders;
 import '../../../models/cycle_entry.dart';
 import '../../../models/pair_data.dart';
 import '../../../models/user_data.dart';
@@ -138,7 +139,7 @@ class _DayLogSheetState extends State<_DayLogSheet> {
         (a, b) => a.timestamp.isAfter(b.timestamp) ? a : b);
     final hh = latest.timestamp.hour.toString().padLeft(2, '0');
     final mm = latest.timestamp.minute.toString().padLeft(2, '0');
-    return '${latest.localizedLabel} · $hh:$mm';
+    return '${latest.labelFor(MoodGenders.mine)} · $hh:$mm';
   }
 
   String get _ailmentValue {

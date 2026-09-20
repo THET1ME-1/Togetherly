@@ -1427,6 +1427,9 @@ class _ProfileScreenState extends State<ProfileScreen>
               groupId: widget.pairData.pairId,
               myUid: widget.userData.uid,
               partnerName: widget.pairData.partnerName,
+              myGender: widget.userData.gender?.name ?? '',
+              partnerGender:
+                  widget.widgetService.firstPartnerData?.gender ?? '',
             ),
           ),
         ),

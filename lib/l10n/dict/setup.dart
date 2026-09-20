@@ -469,4 +469,42 @@ const Map<String, Map<String, String>> setupStrings = {
     'fr': 'Exigences du mot de passe',
     'de': 'Anforderungen an das Passwort',
   },
+  // Опечатка в домене почты (19.09.2026): gmail.con и подобные — письмо для
+  // смены пароля туда не уходит.
+  'emailTypoTitle': {
+    'ru': 'Проверьте почту',
+    'en': 'Check your email',
+    'pt': 'Confira o e-mail',
+    'it': 'Controlla l’e-mail',
+    'es': 'Revisa el correo',
+    'fr': 'Vérifie ton e-mail',
+    'de': 'Prüf deine E-Mail',
+  },
+  'emailTypoBody': {
+    'ru': 'Вы ввели {typed}. Может быть, {fixed}? На адрес с опечаткой не дойдёт письмо для смены пароля.',
+    'en': 'You typed {typed}. Did you mean {fixed}? A password reset email can’t reach an address with a typo.',
+    'pt': 'Você digitou {typed}. Quis dizer {fixed}? O e-mail para trocar a senha não chega a um endereço com erro.',
+    'it': 'Hai scritto {typed}. Intendevi {fixed}? L’e-mail per cambiare password non arriva a un indirizzo sbagliato.',
+    'es': 'Escribiste {typed}. ¿Quisiste decir {fixed}? El correo para cambiar la contraseña no llega a una dirección con errores.',
+    'fr': 'Tu as saisi {typed}. Tu voulais dire {fixed} ? L’e-mail de changement de mot de passe n’arrive pas à une adresse erronée.',
+    'de': 'Du hast {typed} eingegeben. Meinst du {fixed}? An eine Adresse mit Tippfehler kommt keine Mail zum Zurücksetzen des Passworts.',
+  },
+  'emailTypoFix': {
+    'ru': 'Исправить',
+    'en': 'Fix it',
+    'pt': 'Corrigir',
+    'it': 'Correggi',
+    'es': 'Corregir',
+    'fr': 'Corriger',
+    'de': 'Korrigieren',
+  },
+  'emailTypoKeep': {
+    'ru': 'Оставить как есть',
+    'en': 'Keep as is',
+    'pt': 'Manter assim',
+    'it': 'Lascia così',
+    'es': 'Dejarlo así',
+    'fr': 'Garder tel quel',
+    'de': 'So lassen',
+  },
 };

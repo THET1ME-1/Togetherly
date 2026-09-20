@@ -44,6 +44,9 @@ class MoodOption {
   /// (14.08.2026). Формы лежат в словаре под ключами вида `ru_m` и `es_f`;
   /// где их нет — язык рода не различает или слово общее, берётся обычная
   /// подпись. Пустой [gender] — человек пол не указал, ему тоже общая.
+  /// Подпись своего настроения: по полу того, кто сейчас в приложении.
+  String get myLabel => localizedLabelFor(MoodGenders.mine);
+
   String localizedLabelFor(String gender) {
     final entry = kStrings['mood_$id'];
     if (entry != null) {
@@ -651,6 +654,10 @@ class MoodEntry {
   /// Метка на текущем языке приложения (перевод по id, не хранимая строка).
   String get localizedLabel => MoodOption.byId(moodId)?.localizedLabel ?? label;
 
+  /// Подпись по полу того, чья это запись: «Устал» парню, «Устала» девушке.
+  String labelFor(String gender) =>
+      MoodOption.byId(moodId)?.localizedLabelFor(gender) ?? label;
+
   Map<String, dynamic> toJson() => {
     'id': id,
     'moodId': moodId,
@@ -697,4 +704,15 @@ class MoodEntry {
     final d = authorDate.day.toString().padLeft(2, '0');
     return '$y-$m-$d';
   }
+}
+
+/// Пол для подписей настроений (19.09.2026).
+///
+/// Запись настроения не хранит владельца, поэтому свой пол держим здесь:
+/// его ставит [UserData], как только пол известен. Пустая строка — пол не
+/// указан, тогда подпись общая.
+class MoodGenders {
+  MoodGenders._();
+
+  static String mine = '';
 }

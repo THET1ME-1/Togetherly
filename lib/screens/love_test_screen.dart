@@ -29,12 +29,19 @@ class LoveTestScreen extends StatefulWidget {
     required this.groupId,
     required this.myUid,
     required this.partnerName,
+    this.myGender = '',
+    this.partnerGender = '',
   });
 
   final AppTheme theme;
   final String groupId;
   final String myUid;
   final String partnerName;
+
+  /// Пол свой и партнёра (`male`/`female`, пусто — не указан): утверждения
+  /// говорят о партнёре «он» или «она» (обращения 154 и 172).
+  final String myGender;
+  final String partnerGender;
 
   @override
   State<LoveTestScreen> createState() => _LoveTestScreenState();
@@ -44,6 +51,11 @@ enum _Stage { loading, intro, quiz, result }
 
 class _LoveTestScreenState extends State<LoveTestScreen> {
   final Map<int, int> _answers = {};
+
+  late final ({bool meFemale, bool partnerFemale}) _genders = loveGenders(
+    myGender: widget.myGender,
+    partnerGender: widget.partnerGender,
+  );
   int _index = 0;
   _Stage _stage = _Stage.loading;
   LoveTestResult? _mine;
@@ -313,7 +325,10 @@ class _LoveTestScreenState extends State<LoveTestScreen> {
               borderRadius: BorderRadius.circular(32),
             ),
             child: Text(
-              q.text,
+              q.textFor(
+                meFemale: _genders.meFemale,
+                partnerFemale: _genders.partnerFemale,
+              ),
               style: TextStyle(
                 fontFamily: 'Unbounded',
                 fontSize: 20,
