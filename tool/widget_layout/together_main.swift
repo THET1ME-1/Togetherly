@@ -8,6 +8,7 @@
 // Запуск: tool/widget_layout/run.sh (только macOS).
 
 import AppKit
+import WidgetKit
 import SwiftUI
 
 let themes: [(String, [String: Color])] = [
