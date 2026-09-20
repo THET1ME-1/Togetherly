@@ -6,6 +6,15 @@
 // на экране не бывает.
 
 const Map<String, Map<String, String>> widgetScreenStrings = {
+  'watchRoomBackAgain': {
+    'ru': 'Нажмите ещё раз, чтобы выйти из комнаты',
+    'en': 'Press back again to leave the room',
+    'pt': 'Toque de novo para sair da sala',
+    'it': 'Premi di nuovo per uscire dalla stanza',
+    'es': 'Pulsa otra vez para salir de la sala',
+    'fr': 'Appuie encore pour quitter la salle',
+    'de': 'Noch einmal tippen, um den Raum zu verlassen',
+  },
   'tgNoteDemo': {
     'ru': 'Купи молоко и что-нибудь к чаю 🙂',
     'en': 'Grab milk and something for tea 🙂',

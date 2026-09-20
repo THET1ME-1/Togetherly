@@ -7,6 +7,8 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../models/exit_guard.dart';
+import '../../widgets/memory_save/floating_note.dart';
 import '../../services/locale_service.dart';
 import '../../services/pocketbase_service.dart';
 import '../../services/watch_channel_service.dart';
@@ -199,16 +201,55 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
     );
   }
 
+  /// Когда последний раз нажимали «назад».
+  ///
+  /// Выход из комнаты останавливает кино у обоих, и промахнуться легко:
+  /// «случайно нажимаешь и тебя выбрасывает с комнаты» (просьба пары,
+  /// 20.09.2026). Первое нажатие предупреждает, второе выпускает.
+  DateTime? _backAt;
+
+  /// Отпускать ли из комнаты. Первое нажатие показывает подсказку.
+  bool _allowLeave() {
+    final now = DateTime.now();
+    if (exitOnBack(lastPress: _backAt, now: now)) return true;
+    _backAt = now;
+    showFloatingNote(
+      context,
+      LocaleService.current.watchRoomBackAgain,
+      icon: Icons.logout_rounded,
+      duration: kExitWindow,
+    );
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = LocaleService.current;
     final cs = Theme.of(context).colorScheme;
 
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (_allowLeave() && mounted) Navigator.of(context).pop();
+      },
+      child: _roomScaffold(context, s, cs),
+    );
+  }
+
+  Widget _roomScaffold(BuildContext context, AppStrings s, ColorScheme cs) {
     return Scaffold(
       backgroundColor: cs.surface,
       appBar: AppBar(
         title: Text(widget.room, style: const TextStyle(letterSpacing: 1.4)),
         centerTitle: true,
+        leading: IconButton(
+          onPressed: () {
+            if (_allowLeave()) Navigator.of(context).pop();
+          },
+          icon: const Icon(Icons.arrow_back_rounded),
+          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
+        ),
         actions: [
           IconButton(
             onPressed: _copy,
