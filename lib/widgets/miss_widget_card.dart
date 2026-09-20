@@ -117,32 +117,53 @@ class MissWidgetCard extends StatelessWidget {
     required Color ink,
   }) =>
       Expanded(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: background,
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+        // Высота плитки зависит от того, где карточку рисуют: на столе места
+        // больше, в каталоге приложения — меньше. Поэтому аватар, кегли и
+        // отступы считаются от неё, а число ужимается под остаток. Раньше
+        // всё было жёстким, и четырёхзначный счёт вылезал на подпись
+        // «Сегодня» (снимок 20.09.2026).
+        child: LayoutBuilder(
+          builder: (context, c) {
+            final tight = c.maxHeight < 56;
+            final faceSize = tight ? 16.0 : 22.0;
+            final pad = tight ? 8.0 : 12.0;
+            final gap = tight ? 2.0 : 6.0;
+            return Container(
+              padding: EdgeInsets.symmetric(horizontal: pad, vertical: tight ? 6 : 10),
+              decoration: BoxDecoration(
+                color: background,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (face != null)
-                    SizedBox(width: 22, height: 22, child: face),
-                  if (face != null) const SizedBox(width: 7),
+                  Row(
+                    children: [
+                      if (face != null)
+                        SizedBox(width: faceSize, height: faceSize, child: face),
+                      if (face != null) SizedBox(width: tight ? 5 : 7),
+                      Expanded(
+                        child: Text(name,
+                            style: _text(tight ? 10 : 11.5, ink, w: FontWeight.w700),
+                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: gap),
                   Expanded(
-                    child: Text(name,
-                        style: _text(11.5, ink, w: FontWeight.w700),
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(count, style: _num(numSize, ink), maxLines: 1),
+                      ),
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 6),
-              Text(count, style: _num(numSize, ink), maxLines: 1),
-            ],
-          ),
+            );
+          },
         ),
       );
 

@@ -603,8 +603,8 @@ def mascot_4x4() -> None:
     img, d = canvas(424, 424)
     card(d, (0, 0, 424, 424), 32, SURFACE_CONTAINER)
     card(d, (14, 14, 410, 268), 24, PRIMARY_CONTAINER)
-    card(d, (14, 196, 410, 268), 24, TRACK_ON_CONTAINER)
-    mascot(img, 212, 158, 150)
+    card(d, (14, 200, 410, 268), 24, TRACK_ON_CONTAINER)
+    mascot(img, 212, 126, 150)
     pill(d, (30, 30, 156, 58), 14, SURFACE, "Пудя · подросток", 12, 700, ON_SURFACE)
     pill(d, (268, 30, 394, 58), 14, TERTIARY_CONTAINER, "не спит до 23:00", 11, 700, ON_TERTIARY_CONTAINER)
 

@@ -46,6 +46,9 @@ Map<String, String> mascotWidgetKeys({
   required Map<MascotWidgetFrame, String> framePaths,
   required int framePx,
   bool pixel = true,
+  String stripDay = '',
+  String stripNight = '',
+  String animManifest = '',
 }) {
   final g = groupId.isEmpty ? 'solo' : groupId;
 
@@ -60,6 +63,11 @@ Map<String, String> mascotWidgetKeys({
     'mascot_${g}_frame_px': '$framePx',
     // Пиксель-арт натив увеличивает целым числом раз, рисунок — вписывает.
     'mascot_${g}_pixel': pixel ? '1' : '0',
+    // Полоса кадров и её манифест: по ним натив оживляет персонажа. Пусто —
+    // виджет стоит на одном кадре, как было.
+    'mascot_${g}_strip_day': stripDay,
+    'mascot_${g}_strip_night': stripNight,
+    'mascot_${g}_anim': animManifest,
     'mascot_${g}_id': data.mascotId,
     'mascot_${g}_name': data.name,
     'mascot_${g}_streak': '${data.streakDays}',

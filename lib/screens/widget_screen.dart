@@ -3644,12 +3644,19 @@ class _WidgetScreenState extends State<WidgetScreen>
                         ),
                       ),
                     ),
-                    Center(child: figure(92)),
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: FractionallySizedBox(
+                        heightFactor: 0.72,
+                        alignment: Alignment.topCenter,
+                        child: Center(child: figure(92)),
+                      ),
+                    ),
                     Positioned(
                       left: 10,
                       top: 10,
                       child: chip('${data.name} · ${labels.stage}',
-                          bg: _wr('surfaceContainer'), ink: _wr('onSurface')),
+                          bg: _wr('surface'), ink: _wr('onSurface')),
                     ),
                     Positioned(
                       right: 10,
@@ -3695,9 +3702,11 @@ class _WidgetScreenState extends State<WidgetScreen>
       child: Container(
         padding: EdgeInsets.all(size == _MascotPreviewSize.large ? 8 : 10),
         decoration: BoxDecoration(
+          // Тот же фон, что у виджета на столе: карточка каталога сама
+          // розоватая, и на surfaceContainer превью сливалось с ней.
           color: size == _MascotPreviewSize.strip
               ? _wr('primaryContainer')
-              : _wr('surfaceContainer'),
+              : _wr('surface'),
           borderRadius: BorderRadius.circular(22),
         ),
         child: body,

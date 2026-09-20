@@ -138,6 +138,36 @@ void main() {
     expect(keys['mascot_g_frame_sad'], '');
   });
 
+  test('полоса кадров и манифест уезжают вместе с кадрами', () {
+    final keys = mascotWidgetKeys(
+      groupId: 'g',
+      data: data,
+      labels: labels,
+      framePaths: paths,
+      framePx: 48,
+      stripDay: '/strip_day.png',
+      stripNight: '/strip_night.png',
+      animManifest: '{"cols":12,"rows":1,"cell":48,"frames":12,"step_ms":111}',
+    );
+
+    expect(keys['mascot_g_strip_day'], '/strip_day.png');
+    expect(keys['mascot_g_strip_night'], '/strip_night.png');
+    expect(keys['mascot_g_anim'], contains('"frames":12'));
+  });
+
+  test('без полосы ключи пустые: виджет стоит на одном кадре', () {
+    final keys = mascotWidgetKeys(
+      groupId: 'g',
+      data: data,
+      labels: labels,
+      framePaths: paths,
+      framePx: 48,
+    );
+
+    expect(keys['mascot_g_strip_day'], '');
+    expect(keys['mascot_g_anim'], '');
+  });
+
   test('рисованный маскот помечен как непиксельный', () {
     final keys = mascotWidgetKeys(
       groupId: 'g',

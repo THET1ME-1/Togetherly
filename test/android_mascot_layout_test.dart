@@ -68,6 +68,17 @@ void main() {
     }
   });
 
+  test('персонаж оживает: прокрутка кадров и тап по нему', () {
+    final code = provider.readAsStringSync();
+    expect(code.contains('ACTION_PLAY'), isTrue, reason: 'нет действия прокрутки');
+    expect(code.contains('WidgetAnimPlayer.playPixel'), isTrue,
+        reason: 'кадры крутит не общий проигрыватель');
+    expect(code.contains('goAsync()'), isTrue,
+        reason: 'прокрутка в главном потоке приёмника уронит виджет по ANR');
+    expect(code.contains('setOnClickPendingIntent(R.id.mascot'), isTrue,
+        reason: 'тап по зверьку не оживляет его');
+  });
+
   test('ночь выбирается по окну сна, а не по зашитым часам', () {
     final code = provider.readAsStringSync();
     expect(code.contains('sleep_from'), isTrue);

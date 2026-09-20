@@ -118,6 +118,83 @@ object WidgetAnimPlayer {
         }
     }
 
+    /**
+     * Прокрутка пиксельного персонажа.
+     *
+     * Отличий от [play] два. Во-первых, кадр увеличивается ЦЕЛОЕ число раз и
+     * без фильтрации: дробный масштаб превращает пиксель-арт в мыло. Во-вторых,
+     * он рисуется на непрозрачной подложке цвета плитки — так битмап уходит в
+     * RGB_565 и весит вдвое меньше, а Binder держит около мегабайта на процесс.
+     *
+     * [runMs] — сколько крутить. Дальше виджет остаётся на последнем кадре.
+     */
+    fun playPixel(
+        context: Context,
+        widgetIds: IntArray,
+        path: String,
+        manifest: String,
+        imageViewId: Int,
+        targetPx: Int,
+        backgroundColor: Int,
+        runMs: Long = RUN_MS,
+        render: () -> RemoteViews,
+    ) {
+        val sheet = manifestOf(manifest) ?: return
+        val atlas = decodePixelAtlas(path) ?: return
+        val manager = AppWidgetManager.getInstance(context)
+
+        val k = maxOf(1, targetPx / sheet.cell)
+        val side = sheet.cell * k
+        val frame = Bitmap.createBitmap(side, side, Bitmap.Config.RGB_565)
+        val canvas = Canvas(frame)
+        val paint = android.graphics.Paint().apply { isFilterBitmap = false }
+        val dst = Rect(0, 0, side, side)
+
+        val started = SystemClock.elapsedRealtime()
+        var index = 0
+        try {
+            while (SystemClock.elapsedRealtime() - started < runMs) {
+                val tick = SystemClock.elapsedRealtime()
+                val i = index % sheet.frames
+                val src = Rect(
+                    (i % sheet.cols) * sheet.cell,
+                    (i / sheet.cols) * sheet.cell,
+                    (i % sheet.cols) * sheet.cell + sheet.cell,
+                    (i / sheet.cols) * sheet.cell + sheet.cell,
+                )
+                canvas.drawColor(backgroundColor)
+                canvas.drawBitmap(atlas, src, dst, paint)
+
+                val views = render()
+                views.setImageViewBitmap(imageViewId, frame)
+                widgetIds.forEach { manager.updateAppWidget(it, views) }
+
+                index++
+                val spent = SystemClock.elapsedRealtime() - tick
+                if (spent < sheet.stepMs) Thread.sleep(sheet.stepMs - spent)
+            }
+        } catch (e: InterruptedException) {
+            // Прервали — остаётся последний кадр, это нормальное завершение.
+        } finally {
+            atlas.recycle()
+        }
+    }
+
+    /** Атлас пиксель-арта: с прозрачностью и без пересчёта под плотность. */
+    private fun decodePixelAtlas(path: String): Bitmap? {
+        val f = File(path)
+        if (!f.exists() || f.length() <= 0) return null
+        return try {
+            val opts = BitmapFactory.Options().apply {
+                inScaled = false
+                inPreferredConfig = Bitmap.Config.ARGB_8888
+            }
+            BitmapFactory.decodeFile(path, opts)
+        } catch (e: Throwable) {
+            null
+        }
+    }
+
     /** Первый кадр: им виджет живёт в покое. */
     fun firstFrame(path: String, manifest: String): Bitmap? {
         val sheet = manifestOf(manifest) ?: return null

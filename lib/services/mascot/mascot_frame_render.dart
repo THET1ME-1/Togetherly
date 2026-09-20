@@ -4,6 +4,34 @@ import 'dart:ui' as ui;
 import '../../models/mascot_anim.dart';
 import '../../models/mascot_sleep.dart';
 
+/// Полоса кадров одной строки атласа плюс её манифест.
+///
+/// Виджет не умеет анимации сам: `ImageView` в чужом процессе не проигрывает
+/// ни gif, ни анимированный drawable. Кадры подсовывает натив по одному —
+/// тем же приёмом, что живое фото в парном виджете (`WidgetAnimPlayer`).
+class MascotFrameStrip {
+  /// PNG во всю строку: [frames] кадров подряд.
+  final Uint8List png;
+  final int cell;
+  final int frames;
+  final int stepMs;
+
+  const MascotFrameStrip({
+    required this.png,
+    required this.cell,
+    required this.frames,
+    required this.stepMs,
+  });
+
+  Map<String, Object> get manifest => {
+        'cols': frames,
+        'rows': 1,
+        'cell': cell,
+        'frames': frames,
+        'step_ms': stepMs,
+      };
+}
+
 /// Кадры, которые уезжают на рабочий стол.
 ///
 /// Виджет рисуется без Flutter, поэтому выбирать строку атласа ему нечем:
@@ -46,6 +74,59 @@ Future<Map<MascotWidgetFrame, Uint8List>> renderMascotWidgetFrames({
   }
 
   return out;
+}
+
+/// Вся строка [row] одной картинкой: по ней натив и крутит персонажа.
+///
+/// Кадров берём не больше [maxFrames]: каждый шаг прокрутки — своя транзакция
+/// Binder, а лишние кадры удлиняют петлю, не добавляя движения.
+Future<MascotFrameStrip?> renderMascotStrip({
+  required ui.Image sheet,
+  required MascotAnim anim,
+  required int level,
+  required DateTime now,
+  bool night = false,
+  int maxFrames = 12,
+}) async {
+  final row = night
+      ? anim.nightIdle
+      : anim.idleRow(now, _kNeverSleeps);
+  if (row.isEmpty) return null;
+
+  final frames = anim.cols < maxFrames ? anim.cols : maxFrames;
+  if (frames <= 1) return null;
+
+  final side = anim.frame.toDouble();
+  final recorder = ui.PictureRecorder();
+  final canvas = ui.Canvas(recorder);
+  final paint = ui.Paint()
+    ..filterQuality = ui.FilterQuality.none
+    ..isAntiAlias = false;
+
+  for (var i = 0; i < frames; i++) {
+    canvas.drawImageRect(
+      sheet,
+      anim.rectRow(row, i, level: level),
+      ui.Rect.fromLTWH(i * side, 0, side, side),
+      paint,
+    );
+  }
+
+  final image = await recorder.endRecording().toImage(anim.frame * frames, anim.frame);
+  try {
+    final data = await image.toByteData(format: ui.ImageByteFormat.png);
+    final bytes = data?.buffer.asUint8List();
+    if (bytes == null) return null;
+    return MascotFrameStrip(
+      png: bytes,
+      cell: anim.frame,
+      frames: frames,
+      // Скорость берём из манифеста персонажа: у каждого своя.
+      stepMs: anim.fps <= 0 ? 110 : (1000 / anim.fps).round(),
+    );
+  } finally {
+    image.dispose();
+  }
 }
 
 /// Один кадр строки [row] в PNG. Нулевой столбец: в покое поза читается на
