@@ -60,7 +60,9 @@ struct TgAvatar: View {
 }
 
 extension View {
-    func widgetAccentable(_ accentable: Bool = true) -> some View { self }
+    // `widgetAccentable` сюда не дублируем: его даёт сам WidgetKit, и вторая
+    // перегрузка делала всю цепочку модификаторов неоднозначной — компилятор
+    // спотыкался на соседнем `.font`.
     func tgBlock(_ color: Color, radius: CGFloat) -> some View {
         background(RoundedRectangle(cornerRadius: radius, style: .continuous).fill(color))
     }
