@@ -103,6 +103,7 @@ import '../services/offline/media_file_fetch.dart';
 import '../widgets/memory/media_strip.dart';
 import '../widgets/memory/reactions_row.dart';
 import '../models/memory_reaction.dart';
+import '../services/live_location_service.dart';
 
 // Экран разбит на части (один большой файл → читаемые модули). Все части —
 // `part of` этой библиотеки: приватные классы остаются библиотечно-приватными,
@@ -2499,12 +2500,13 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     );
   }
 
-  /// Чип «маршрут»: показывает дистанцию (если есть GPS) или иконку; тап
-  /// открывает место во внешних картах. Цвет — по дистанции (как пилюля фото).
+  /// Чип «маршрут»: расстояние до места, тап открывает его во внешних картах.
+  ///
+  /// Цвет тут ничего не значил: зелёный у близкого и красный у далёкого —
+  /// язык предупреждений, а место за городом не ошибка. Берём заливку темы.
   Widget _routeChip(Memory memory) {
+    final t = widget.theme;
     final dist = _distanceKm(memory.latitude!, memory.longitude!);
-    final color =
-        dist.isNotEmpty ? _distanceColor(memory.latitude!, memory.longitude!) : primary;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => _openLocationInMaps(
@@ -2513,24 +2515,22 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         memory.locationName,
       ),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        height: 36,
+        padding: EdgeInsets.symmetric(horizontal: dist.isEmpty ? 9 : 12),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.12),
-          borderRadius: BorderRadius.circular(20),
+          color: t.bgGradient[0],
+          borderRadius: BorderRadius.circular(18),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.directions_rounded, size: 14, color: color),
+            Icon(Icons.directions_rounded, size: 18, color: t.textSecondary),
             if (dist.isNotEmpty) ...[
-              const SizedBox(width: 4),
+              const SizedBox(width: 6),
               Text(
                 dist,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: color,
-                ),
+                style: AppFonts.onest(
+                    size: 13.5, weight: 600, color: t.textPrimary),
               ),
             ],
           ],
@@ -7900,85 +7900,60 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   String _distanceKm(double lat, double lng) {
     if (_userLat == null || _userLng == null) return '';
     final d = Geolocator.distanceBetween(_userLat!, _userLng!, lat, lng);
-    if (d < 1000) return '${d.round()}m';
-    return '${(d / 1000).toStringAsFixed(1)}km';
+    // Тот же формат, что на карте «Где мы»: «Рядом» ближе 50 м, метры
+    // десятками, километры по правилам языка. Прежние «3.4km» были латиницей
+    // мимо локализации.
+    return LiveLocationService.formatDistance(d);
   }
 
-  /// Color for distance pill based on proximity
-  Color _distanceColor(double lat, double lng) {
-    if (_userLat == null || _userLng == null) return widget.theme.textMuted;
-    final km = Geolocator.distanceBetween(_userLat!, _userLng!, lat, lng) / 1000;
-    if (km < 1) return const Color(0xFF22C55E);
-    if (km < 10) return const Color(0xFF16A34A);
-    if (km < 50) return const Color(0xFFF59E0B);
-    return const Color(0xFFEF4444);
-  }
-
-  /// Colored location distance pill shown on photo/video tiles.
-  /// Shows distance + color when user GPS is known; falls back to
-  /// location name (grey) when user GPS is unavailable.
+  /// Чип места под кадрами: название и расстояние.
+  ///
+  /// Был цветной светофор с обводкой — зелёный, жёлтый и красный жёстко в
+  /// коде, мимо темы. M3 различает заливкой, а цвета берёт из схемы.
   Widget _locationDistancePill(Memory memory) {
+    final t = widget.theme;
     final hasCoords = memory.latitude != null && memory.longitude != null;
-    final hasName = memory.locationName?.isNotEmpty == true;
-    if (!hasCoords && !hasName) return const SizedBox.shrink();
+    final name = memory.locationName?.trim() ?? '';
+    if (!hasCoords && name.isEmpty) return const SizedBox.shrink();
 
-    Widget pill;
-    if (hasCoords) {
-      final dist = _distanceKm(memory.latitude!, memory.longitude!);
-      if (dist.isNotEmpty) {
-        // User GPS known → colored distance pill
-        final color = _distanceColor(memory.latitude!, memory.longitude!);
-        pill = Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+    final dist =
+        hasCoords ? _distanceKm(memory.latitude!, memory.longitude!) : '';
+    final label = [
+      if (name.isNotEmpty) name,
+      if (dist.isNotEmpty) dist,
+    ].join(' · ');
+    if (label.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          height: 36,
+          padding: const EdgeInsets.only(left: 10, right: 14),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: color.withOpacity(0.35), width: 1),
+            color: t.bgGradient[0],
+            borderRadius: BorderRadius.circular(18),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.location_on_rounded, size: 12, color: color),
-              const SizedBox(width: 4),
-              Text(
-                dist,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: color,
+              Icon(Icons.place_rounded, size: 18, color: t.textSecondary),
+              const SizedBox(width: 6),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 250),
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppFonts.onest(
+                      size: 13.5, weight: 600, color: t.textPrimary),
                 ),
               ),
             ],
           ),
-        );
-      } else {
-        // No user GPS → grey pin icon only (no name on closed tiles)
-        pill = Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-          decoration: BoxDecoration(
-            color: widget.theme.surfaceMuted,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: widget.theme.divider, width: 1),
-          ),
-          child: Icon(Icons.location_on_rounded, size: 12, color: widget.theme.textMuted),
-        );
-      }
-    } else {
-      // locationName only, no coords — grey pin icon
-      pill = Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-        decoration: BoxDecoration(
-          color: widget.theme.surfaceMuted,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: widget.theme.divider, width: 1),
         ),
-        child: Icon(Icons.location_on_rounded, size: 12, color: widget.theme.textMuted),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 6, 14, 0),
-      child: Row(children: [pill]),
+      ),
     );
   }
 
