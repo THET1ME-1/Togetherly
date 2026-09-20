@@ -13,6 +13,7 @@ on:
       - 'ios/TogetherlyWidget/LoveWidget.swift'
       - 'ios/TogetherlyWidget/YearWidgets.swift'
       - 'ios/TogetherlyWidget/TogetherWidget.swift'
+      - 'ios/TogetherlyWidget/MissWidget.swift'
       - 'tool/widget_layout/**'
       - '.github/workflows/ios-widget-layout.yml'
   workflow_dispatch:

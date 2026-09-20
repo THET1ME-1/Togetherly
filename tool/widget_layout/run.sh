@@ -48,3 +48,19 @@ swiftc -swift-version 5 \
   -o "$out/together_probe" -module-name TogetherProbe
 
 "$out/together_probe" "$out"
+
+# «Скучаю»: тот же приём. Заглушки общие с «Вместе» — палитра, аватарка,
+# Store; отличается только сцена.
+mkdir -p "$out/miss"
+sed 's/^import UIKit$/import AppKit/; s/UIImage/NSImage/g; s/^private //' \
+  "$root/ios/TogetherlyWidget/MissWidget.swift" > "$out/miss/MissWidget.swift"
+cp "$root/tool/widget_layout/miss_main.swift" "$out/miss/main.swift"
+swiftc -swift-version 5 \
+  "$out/miss/MissWidget.swift" \
+  "$root/tool/widget_layout/Shims.swift" \
+  "$root/tool/widget_layout/TogetherShims.swift" \
+  "$root/tool/widget_layout/MissShims.swift" \
+  "$out/miss/main.swift" \
+  -o "$out/miss_probe" -module-name MissProbe
+
+"$out/miss_probe" "$out"

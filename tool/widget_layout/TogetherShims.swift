@@ -17,6 +17,7 @@ struct WidgetTheme {
     var primary: Color { c("primary") }
     var onPrimary: Color { c("onPrimary") }
     var onPrimarySoft: Color { c("onPrimarySoft") }
+    var primaryContainer: Color { c("primaryContainer") }
     var onPrimaryContainer: Color { c("onPrimaryContainer") }
     var blockOnPrimary: Color { c("blockOnPrimary") }
     var surface: Color { c("surface") }
