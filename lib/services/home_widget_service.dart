@@ -942,6 +942,15 @@ class HomeWidgetService {
     debugPrint('HomeWidgetService: $widgetType bound to group $groupId');
   }
 
+  Future<List<int>> _widgetIdsFallback(String key) async {
+    try {
+      return widgetIdsFromPrefs(await HomeWidget.getWidgetData<String>(key));
+    } catch (e) {
+      debugPrint('HomeWidgetService._widgetIdsFallback($key): $e');
+      return const [];
+    }
+  }
+
   Future<List<int>> getPhotoDayWidgetIds() async {
     if (!Platform.isAndroid) return const [];
     try {
@@ -953,6 +962,10 @@ class HomeWidgetService {
               .whereType<int>()
               .toList() ??
           const [];
+    } on MissingPluginException {
+      // Фоновый движок: канала главного окна тут нет, номера кладут сами
+      // виджеты (WidgetIdRegistry.kt).
+      return _widgetIdsFallback('widget_ids_photo_day');
     } catch (e) {
       debugPrint('HomeWidgetService.getPhotoDayWidgetIds failed: $e');
       return const [];
@@ -970,6 +983,10 @@ class HomeWidgetService {
               .whereType<int>()
               .toList() ??
           const [];
+    } on MissingPluginException {
+      // Фоновый движок: канала главного окна тут нет, номера кладут сами
+      // виджеты (WidgetIdRegistry.kt).
+      return _widgetIdsFallback('widget_ids_photo_grid');
     } catch (e) {
       debugPrint('HomeWidgetService.getPhotoGridWidgetIds failed: $e');
       return const [];
@@ -1026,6 +1043,10 @@ class HomeWidgetService {
               .whereType<int>()
               .toList() ??
           const [];
+    } on MissingPluginException {
+      // Фоновый движок: канала главного окна тут нет, номера кладут сами
+      // виджеты (WidgetIdRegistry.kt).
+      return _widgetIdsFallback('widget_ids_self_photo');
     } catch (e) {
       debugPrint('HomeWidgetService.getSelfPhotoWidgetIds failed: $e');
       return const [];
@@ -1043,6 +1064,10 @@ class HomeWidgetService {
               .whereType<int>()
               .toList() ??
           const [];
+    } on MissingPluginException {
+      // Фоновый движок: канала главного окна тут нет, номера кладут сами
+      // виджеты (WidgetIdRegistry.kt).
+      return _widgetIdsFallback('widget_ids_partner_photo');
     } catch (e) {
       debugPrint('HomeWidgetService.getPartnerPhotoWidgetIds failed: $e');
       return const [];
@@ -1337,6 +1362,13 @@ class HomeWidgetService {
     int widgetId,
     Map<String, String> values,
   ) async {
+    // Один кадр отменяет карусель. Иначе ключ `paths` остаётся от прежнего
+    // набора, и нативная ротация раз в 15 минут возвращает на стол старые
+    // снимки: «Фото партнёра отображает старые фото, новые не показывает»
+    // (обращение 12, 12.09.2026). Пустой `paths` ротация пропускает.
+    if (values.containsKey('path') && !values.containsKey('paths')) {
+      values = {...values, 'paths': ''};
+    }
     for (final entry in values.entries) {
       final key = _photoDayWidgetKey(widgetId, entry.key);
       if (entry.key == 'refresh_seed' || entry.key == 'rotation_interval') {
@@ -2436,11 +2468,24 @@ class HomeWidgetService {
         });
 
         // Sync index to Kotlin so the native alarm resumes from the right position.
-        await _widgetChannel.invokeMethod('updatePhotoDayCarousel', {
-          'widgetId': widgetId,
-          'paths': localPaths,
-          'currentIndex': displayIndex,
-        });
+        try {
+          await _widgetChannel.invokeMethod('updatePhotoDayCarousel', {
+            'widgetId': widgetId,
+            'paths': localPaths,
+            'currentIndex': displayIndex,
+          });
+        } on MissingPluginException {
+          // Фоновый движок: канала главного окна нет, кладём кадры и позицию
+          // сами — иначе падение обрывало перерисовку всех фото-виджетов.
+          await HomeWidget.saveWidgetData<String>(
+            'photo_day_widget_${widgetId}_paths',
+            jsonEncode(localPaths),
+          );
+          await HomeWidget.saveWidgetData<int>(
+            'photo_day_widget_${widgetId}_current_index',
+            displayIndex,
+          );
+        }
       }
 
       await _updateAllPhotoWidgetProviders();
@@ -4219,4 +4264,20 @@ class _ShrinkJob {
   const _ShrinkJob(this.bytes, this.maxSide);
   final Uint8List bytes;
   final int maxSide;
+}
+
+/// Номера виджетов из записи, которую ведёт `WidgetIdRegistry.kt`: JSON-список
+/// чисел. Мусор и пустота дают пустой список.
+List<int> widgetIdsFromPrefs(String? raw) {
+  if (raw == null || raw.isEmpty) return const [];
+  try {
+    final list = jsonDecode(raw);
+    if (list is! List) return const [];
+    return list
+        .map((id) => id is int ? id : int.tryParse(id.toString()))
+        .whereType<int>()
+        .toList();
+  } catch (_) {
+    return const [];
+  }
 }

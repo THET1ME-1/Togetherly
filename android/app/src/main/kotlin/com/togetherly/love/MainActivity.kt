@@ -154,6 +154,10 @@ class MainActivity : FlutterActivity() {
             GallerySaver.CHANNEL
         ).setMethodCallHandler(GallerySaver(applicationContext))
 
+        // Запись номеров фото-виджетов для фонового Dart: виджеты, стоявшие
+        // до обновления, ещё не успели записать себя сами.
+        WidgetIdRegistry.refresh(applicationContext)
+
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             "love_app/widgets"

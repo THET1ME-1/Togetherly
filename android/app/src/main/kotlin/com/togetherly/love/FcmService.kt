@@ -1,10 +1,8 @@
 package com.togetherly.love
 
-import android.net.Uri
 import android.util.Log
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
-import es.antonborri.home_widget.HomeWidgetBackgroundIntent
 
 /**
  * Приём пушей FCM.
@@ -41,14 +39,8 @@ class FcmService : FirebaseMessagingService() {
 
         // Данные виджетов у партнёра поменялись. Периодический WorkManager
         // подберёт это сам, но через четверть часа — а пуш даёт обновить
-        // рабочий стол сразу. Тот же путь, которым виджеты будят Dart по тапу.
-        try {
-            HomeWidgetBackgroundIntent
-                .getBroadcast(applicationContext, Uri.parse("loveapp://refresh"))
-                .send()
-        } catch (e: Exception) {
-            Log.w(TAG, "пробуждение виджетов не удалось: ${e.message}")
-        }
+        // рабочий стол сразу. Путь home_widget тут мёртв (см. WidgetRefreshWake).
+        WidgetRefreshWake.enqueue(applicationContext, WidgetRefreshWake.TASK_ALL)
     }
 
     companion object {

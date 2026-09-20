@@ -36,6 +36,7 @@ open class PhotoDayWidgetProvider : HomeWidgetProvider() {
     ) {
         ensurePendingConfigsAssigned(context, widgetData, appWidgetIds)
         scheduleRotationAlarm(context)
+        WidgetIdRegistry.refresh(context)
 
         appWidgetIds.forEach { widgetId ->
             appWidgetManager.updateAppWidget(
@@ -47,6 +48,7 @@ open class PhotoDayWidgetProvider : HomeWidgetProvider() {
 
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
         super.onDeleted(context, appWidgetIds)
+        WidgetIdRegistry.refresh(context, appWidgetIds)
         val prefs = context.getSharedPreferences("HomeWidgetPreferences", Context.MODE_PRIVATE)
         val editor = prefs.edit()
         appWidgetIds.forEach { widgetId ->

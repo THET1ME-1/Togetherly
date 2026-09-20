@@ -25,13 +25,34 @@ void main() {
       }
     });
 
-    test('масштаб картинки: не больше трёх и в пределах памяти', () {
-      for (final s in MapWidgetSize.values) {
-        for (final size in [Size(s.width, s.height), const Size(400, 420)]) {
-          final k = pixelScaleFor(size);
-          expect(k, lessThanOrEqualTo(3));
-          final bytes = size.width * k * size.height * k * 2; // RGB_565
-          expect(bytes, lessThanOrEqualTo(kMapWidgetImageBudget + 1));
+    test('картинка рисуется под плотность экрана, а не мельче', () {
+      // Телефон 19.09.2026: 520 dpi, то есть 3,25 точки на dp, ячейка 4×4 —
+      // 344×386 dp. Прежний бюджет в 950 КБ давал 1,89 и мыло.
+      const cell = Size(344, 386);
+      expect(pixelScaleFor(cell, dpr: 3.25, maxPixels: kMapWidgetMaxPixelsAndroid), 3.25);
+      expect(pixelScaleFor(const Size(170, 170), dpr: 2.75, maxPixels: kMapWidgetMaxPixelsIos), 2.75);
+    });
+
+    test('плотность безумного экрана и огромная ячейка упираются в предел точек', () {
+      for (final max in [kMapWidgetMaxPixelsAndroid, kMapWidgetMaxPixelsIos]) {
+        for (final size in [const Size(344, 386), const Size(600, 700), const Size(364, 382)]) {
+          final k = pixelScaleFor(size, dpr: 6, maxPixels: max);
+          expect(k, lessThanOrEqualTo(4));
+          final (w, h) = mapWidgetPixels(size, k);
+          expect(w * h, lessThanOrEqualTo(max));
+        }
+      }
+    });
+
+    test('размер в точках не округляется вверх за предел', () {
+      // Регресс: (w·k).round() давал на пару точек больше бюджета, и натив
+      // читал картинку вдвое меньше — «144p» на 4×4.
+      for (var w = 150.0; w <= 420; w += 7.3) {
+        for (var h = 150.0; h <= 420; h += 5.9) {
+          final size = Size(w, h);
+          final k = pixelScaleFor(size, dpr: 4, maxPixels: 475000);
+          final (pw, ph) = mapWidgetPixels(size, k);
+          expect(pw * ph, lessThanOrEqualTo(475000), reason: '$w×$h');
         }
       }
     });

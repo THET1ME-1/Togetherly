@@ -57,16 +57,31 @@ enum MapWidgetSize {
   }
 }
 
-/// Сколько байт отводим на картинку одного виджета после разжатия (RGB_565 на
-/// Android). Больше — и обновление виджета упирается в предел Binder, а на
-/// iPhone расширению отведены считанные десятки мегабайт на всё сразу.
-const double kMapWidgetImageBudget = 950000;
+/// Предел точек на картинку одного виджета. Рисуем под настоящую плотность
+/// экрана, а упираемся сюда только на огромных ячейках.
+///
+/// Android: картинка уходит лончеру через общую память, предел системы —
+/// полтора экрана в ARGB (около 20 МБ на современном телефоне). Два миллиона
+/// точек — 8 МБ. Прежний бюджет в 950 КБ «под Binder» давал 4×4 плотность 1,9
+/// при экране 3,25 и мыло (19.09.2026). Если лончер всё же откажет, провайдер
+/// повторит вдвое меньшей картинкой.
+const int kMapWidgetMaxPixelsAndroid = 2000000;
 
-/// Масштаб картинки: не больше трёх точек на точку и в пределах памяти.
-double pixelScaleFor(Size size) {
-  final byBudget = math.sqrt(kMapWidgetImageBudget / 2 / (size.width * size.height));
-  return math.min(3.0, byBudget);
+/// iPhone: картинку разжимает расширение виджетов, а ему на все виджеты
+/// приложения отведены десятки мегабайт (на парном виджете оно уже падало).
+/// 1,1 млн точек — 4,4 МБ: крупный виджет на экране 3x рисуется с плотностью
+/// 2,8, на глаз неотличимо.
+const int kMapWidgetMaxPixelsIos = 1100000;
+
+/// Масштаб картинки: плотность экрана [dpr], но в пределах [maxPixels].
+double pixelScaleFor(Size size, {required double dpr, required int maxPixels}) {
+  final byBudget = math.sqrt(maxPixels / (size.width * size.height));
+  return math.min(dpr.clamp(1.0, 4.0), byBudget);
 }
+
+/// Размер картинки в точках. Округление вниз: вверх оно выводило за предел.
+(int, int) mapWidgetPixels(Size size, double k) =>
+    ((size.width * k).floor(), (size.height * k).floor());
 
 /// Размеры виджетов iPhone по ширине экрана в точках (таблица Apple).
 Map<MapWidgetSize, Size> iosWidgetSizes(double screenWidth) {

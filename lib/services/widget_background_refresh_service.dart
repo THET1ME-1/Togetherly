@@ -5,6 +5,8 @@ import 'package:home_widget/home_widget.dart';
 import 'package:workmanager/workmanager.dart';
 
 import 'home_widget_service.dart';
+import 'locale_service.dart';
+import 'map/pair_map_widget_service.dart';
 import 'pocketbase_service.dart';
 
 /// Периодический фоновый ФОЛБЭК обновления виджетов через WorkManager (Android).
@@ -35,6 +37,11 @@ class WidgetBackgroundRefreshService {
 
   static const String _taskUnique = 'togetherly_widget_refresh';
   static const String _taskName = 'widgetRefresh';
+
+  /// Разовая задача «перерисуй только карту» — её ставит нативный провайдер
+  /// виджета «Где мы» (WidgetRefreshWake.kt), когда сменилась ячейка или
+  /// картинки ещё нет. Имя сверяет test/android_widget_wake_test.dart.
+  static const String mapTaskName = 'mapWidget';
 
   bool _initialized = false;
 
@@ -104,10 +111,22 @@ void widgetRefreshDispatcher() {
       final partnerUid =
           await HomeWidget.getWidgetData<String>('love_widget_partner_uid') ??
               '';
+      // Карта «Где мы» рисуется и без пары (заглушка «подключите партнёра»),
+      // поэтому её задача идёт раньше проверки группы.
+      if (task == WidgetBackgroundRefreshService.mapTaskName) {
+        await LocaleService.instance.init();
+        await PairMapWidgetService.instance.refreshInBackground(
+          groupId: groupId,
+          myUid: myUid,
+          partnerUid: partnerUid,
+        );
+        return true;
+      }
       if (groupId.isEmpty) return true;
 
       // Единая точка фонового обновления всех виджетов из PB (та же, что в
-      // изоляте foreground-сервиса).
+      // изоляте foreground-сервиса). Сюда же приходит разовая задача
+      // 'widgetRefresh' из тихого пуша (FcmService.kt).
       await HomeWidgetService.instance.backgroundRefreshAll(
         groupId: groupId,
         myUid: myUid,

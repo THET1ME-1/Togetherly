@@ -1,6 +1,8 @@
 package com.togetherly.love
 
 import android.appwidget.AppWidgetManager
+import android.content.Context
+import android.content.res.Configuration
 import android.os.Bundle
 
 /**
@@ -25,6 +27,27 @@ object WidgetSizing {
     /** Ширина ячейки в dp. */
     fun widthDp(options: Bundle?): Int =
         options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0) ?: 0
+
+    /**
+     * Настоящая ячейка на экране (ширина, высота) в dp. Лончер сообщает две
+     * пары: MIN_WIDTH × MAX_HEIGHT — портрет, MAX_WIDTH × MIN_HEIGHT — альбом.
+     * Минимумы обеих сторон — это ни то ни другое: у 4×2 на Pixel Launcher
+     * они дают 360×135 при настоящих 360×224. Нули — лончер ещё не сообщил.
+     */
+    fun cellDp(context: Context, options: Bundle?): Pair<Int, Int> {
+        if (options == null) return 0 to 0
+        val landscape = context.resources.configuration.orientation ==
+            Configuration.ORIENTATION_LANDSCAPE
+        val w = options.getInt(
+            if (landscape) AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH
+            else AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0,
+        )
+        val h = options.getInt(
+            if (landscape) AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT
+            else AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0,
+        )
+        return w to h
+    }
 
     /**
      * Во сколько раз растягивать кегли: 1.0 на нижней границе вилки и до

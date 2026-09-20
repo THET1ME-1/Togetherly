@@ -9,7 +9,6 @@ import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.widget.RemoteViews
-import es.antonborri.home_widget.HomeWidgetBackgroundIntent
 import es.antonborri.home_widget.HomeWidgetLaunchIntent
 import es.antonborri.home_widget.HomeWidgetProvider
 import java.io.File
@@ -71,7 +70,58 @@ open class PairMapWidgetProvider : HomeWidgetProvider() {
         val path = data.getString("map_${g}_img_$sizeId", null)
             ?: data.getString("map_${data.getString("map_latest_group", "")}_img_$sizeId", null)
 
-        val views = RemoteViews(context.packageName, R.layout.tg_map).apply {
+        // Картинка идёт лончеру через общую память, её предел — полтора экрана
+        // в ARGB, и Dart рисует с запасом. Если лончер всё же отказал
+        // (старая прошивка, свой предел), повторяем вдвое меньшей: мыло лучше
+        // пустого виджета.
+        try {
+            manager.updateAppWidget(widgetId, views(context, decode(path, sample = 1)))
+        } catch (e: Exception) {
+            Log.w(TAG, "лончер не принял картинку, шлю вдвое меньше: ${e.message}")
+            try {
+                manager.updateAppWidget(widgetId, views(context, decode(path, sample = 2)))
+            } catch (e2: Exception) {
+                Log.w(TAG, "и вдвое меньшую не принял: ${e2.message}")
+                manager.updateAppWidget(widgetId, views(context, null))
+            }
+        }
+
+        val changed = rememberDims(context, data, manager.getAppWidgetOptions(widgetId))
+        // Картинки ещё нет (виджет только что поставили) или ячейка другой
+        // пропорции — просим Dart перерисовать под неё.
+        if (changed || path == null || !File(path).exists()) wakeDart(context)
+    }
+
+    /**
+     * Записывает ячейку в dp для Dart — ту, что сейчас на экране, по
+     * ориентации. Возвращает true, если она поменялась заметно: на пару dp
+     * лончеры дёргают размер при каждом показе.
+     */
+    private fun rememberDims(context: Context, data: SharedPreferences, options: Bundle?): Boolean {
+        // Плотность экрана: в фоне у Dart окна нет, и без неё он рисовал бы
+        // наугад. Сменилась (или её ещё нет) — картинку надо перерисовать.
+        val density = context.resources.displayMetrics.density
+        val densityChanged = data.getString("mapw_density", null)?.toFloatOrNull() != density
+        if (densityChanged) data.edit().putString("mapw_density", density.toString()).apply()
+        val (w, h) = WidgetSizing.cellDp(context, options)
+        if (w <= 0 || h <= 0) return densityChanged
+        val key = "mapw_dims_$sizeId"
+        val prev = data.getString(key, null)?.split(",")?.mapNotNull { it.toIntOrNull() }
+        if (prev != null && prev.size == 2 &&
+            Math.abs(prev[0] - w) < 12 && Math.abs(prev[1] - h) < 12
+        ) {
+            return densityChanged
+        }
+        data.edit().putString(key, "$w,$h").apply()
+        return true
+    }
+
+    private fun wakeDart(context: Context) {
+        WidgetRefreshWake.enqueue(context, WidgetRefreshWake.TASK_MAP)
+    }
+
+    private fun views(context: Context, bitmap: Bitmap?) =
+        RemoteViews(context.packageName, R.layout.tg_map).apply {
             setOnClickPendingIntent(
                 R.id.widget_root,
                 HomeWidgetLaunchIntent.getActivity(
@@ -80,67 +130,30 @@ open class PairMapWidgetProvider : HomeWidgetProvider() {
                     Uri.parse("loveapp://map"),
                 ),
             )
-            val bitmap = decode(path)
             if (bitmap != null) {
                 setImageViewBitmap(R.id.map_image, bitmap)
             } else {
                 setImageViewResource(R.id.map_image, placeholder)
             }
         }
-        manager.updateAppWidget(widgetId, views)
-
-        val changed = rememberDims(data, manager.getAppWidgetOptions(widgetId))
-        // Картинки ещё нет (виджет только что поставили) или ячейка другой
-        // пропорции — просим Dart перерисовать под неё.
-        if (changed || path == null || !File(path).exists()) wakeDart(context)
-    }
 
     /**
-     * Записывает ячейку в dp для Dart. Возвращает true, если она поменялась
-     * заметно: на пару dp лончеры дёргают размер при каждом показе.
+     * Картинка целиком и в ARGB_8888: 16-битный цвет даёт полосы на заливках глобуса.
+     * Dart рисует её под плотность экрана в пределах двух миллионов точек;
+     * больше может прийти только битый файл — его ужимаем.
      */
-    private fun rememberDims(data: SharedPreferences, options: Bundle?): Boolean {
-        val w = WidgetSizing.widthDp(options)
-        val h = WidgetSizing.heightDp(options)
-        if (w <= 0 || h <= 0) return false
-        val key = "mapw_dims_$sizeId"
-        val prev = data.getString(key, null)?.split(",")?.mapNotNull { it.toIntOrNull() }
-        if (prev != null && prev.size == 2 &&
-            Math.abs(prev[0] - w) < 12 && Math.abs(prev[1] - h) < 12
-        ) {
-            return false
-        }
-        data.edit().putString(key, "$w,$h").apply()
-        return true
-    }
-
-    private fun wakeDart(context: Context) {
-        try {
-            HomeWidgetBackgroundIntent
-                .getBroadcast(context, Uri.parse("loveapp://mapwidget"))
-                .send()
-        } catch (e: Exception) {
-            Log.w(TAG, "не разбудили Dart: ${e.message}")
-        }
-    }
-
-    /**
-     * Картинка в RGB_565: вдвое легче, а прозрачность ей не нужна — углы
-     * скругляет подложка. Картинку Dart рисует в пределах бюджета памяти, но
-     * на всякий случай ужимаем то, что вдруг пришло больше.
-     */
-    private fun decode(path: String?): Bitmap? {
+    private fun decode(path: String?, sample: Int): Bitmap? {
         if (path.isNullOrEmpty() || !File(path).exists()) return null
         return try {
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeFile(path, bounds)
-            var sample = 1
-            while (bounds.outWidth / sample * (bounds.outHeight / sample) * 2 > MAX_BYTES) sample *= 2
+            var k = sample
+            while (bounds.outWidth.toLong() / k * (bounds.outHeight / k) > MAX_PIXELS) k *= 2
             BitmapFactory.decodeFile(path, BitmapFactory.Options().apply {
-                inPreferredConfig = Bitmap.Config.RGB_565
-                inSampleSize = sample
+                inPreferredConfig = Bitmap.Config.ARGB_8888
+                inSampleSize = k
             })
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.w(TAG, "картинка не прочиталась: ${e.message}")
             null
         }
@@ -149,8 +162,8 @@ open class PairMapWidgetProvider : HomeWidgetProvider() {
     companion object {
         private const val TAG = "PairMapWidget"
 
-        /** Столько же, сколько `kMapWidgetImageBudget` в Dart. */
-        private const val MAX_BYTES = 950_000
+        /** Вдвое больше `kMapWidgetMaxPixelsAndroid` в Dart. */
+        private const val MAX_PIXELS = 4_000_000L
     }
 }
 

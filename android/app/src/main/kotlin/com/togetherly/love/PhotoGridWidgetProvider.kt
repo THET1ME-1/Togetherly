@@ -24,6 +24,7 @@ class PhotoGridWidgetProvider : HomeWidgetProvider() {
         appWidgetIds: IntArray,
         widgetData: SharedPreferences,
     ) {
+        WidgetIdRegistry.refresh(context)
         appWidgetIds.forEach { widgetId ->
             val views = RemoteViews(context.packageName, R.layout.photo_grid_widget).apply {
 
@@ -76,6 +77,7 @@ class PhotoGridWidgetProvider : HomeWidgetProvider() {
 
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
         super.onDeleted(context, appWidgetIds)
+        WidgetIdRegistry.refresh(context, appWidgetIds)
         val prefs = context.getSharedPreferences("HomeWidgetPreferences", android.content.Context.MODE_PRIVATE)
         val editor = prefs.edit()
         appWidgetIds.forEach { widgetId ->

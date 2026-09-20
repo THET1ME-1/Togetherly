@@ -49,6 +49,12 @@ class PairMapWidgetInput {
   final String? myPlace;
   final String? partnerPlace;
 
+  /// Точек на точку экрана, куда встанет виджет.
+  final double pixelRatio;
+
+  /// Предел точек на картинку (свой у каждой системы).
+  final int maxPixels;
+
   const PairMapWidgetInput({
     required this.paired,
     required this.me,
@@ -63,6 +69,8 @@ class PairMapWidgetInput {
     this.partnerAvatar,
     this.myPlace,
     this.partnerPlace,
+    this.pixelRatio = 3,
+    this.maxPixels = kMapWidgetMaxPixelsAndroid,
   });
 }
 
@@ -78,7 +86,9 @@ Future<Map<MapWidgetSize, Uint8List>> renderPairMapWidgets(
   final cs = input.scheme;
   final palette = MapPalette.of(cs, fill: input.fill);
   final theme = await MapTiles.themeFor(palette);
-  final rings = land ?? await LandShapes.coarse();
+  // Подробная суша: глобус в виджете часто приближен до страны, и контур
+  // 110m там ломался заметными углами.
+  final rings = land ?? await LandShapes.detailed();
   final meAvatar = await _decode(input.myAvatar);
   final partnerAvatar = await _decode(input.partnerAvatar);
   final onFill = AppThemes.onColor(input.fill, mode: cs.brightness);
@@ -239,12 +249,13 @@ Future<Map<MapWidgetSize, Uint8List>> renderPairMapWidgets(
       },
     );
 
-    final k = pixelScaleFor(size);
+    final k = pixelScaleFor(size, dpr: input.pixelRatio, maxPixels: input.maxPixels);
+    final (pw, ph) = mapWidgetPixels(size, k);
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
     canvas.scale(k);
     art.paint(canvas);
-    final image = await recorder.endRecording().toImage((size.width * k).round(), (size.height * k).round());
+    final image = await recorder.endRecording().toImage(pw, ph);
     final png = await image.toByteData(format: ui.ImageByteFormat.png);
     image.dispose();
     if (png != null) out[kind] = png.buffer.asUint8List();
@@ -294,6 +305,11 @@ class PairMapWidgetService {
   static const _sigKey = 'mapw_sig_v1';
   static const _iosSizesKey = 'mapw_ios_sizes_v1';
   static const _placesKey = 'mapw_places_v1';
+  static const _dprKey = 'mapw_dpr_v1';
+
+  /// Меняется вместе с тем, как рисуется картинка: уже стоящие виджеты
+  /// перерисуются, хотя точки не двигались.
+  static const _renderVersion = 2;
 
   /// Провайдеры Android — по одному на размер, как у остальных виджетов.
   static const androidProviders = {
@@ -345,6 +361,8 @@ class PairMapWidgetService {
           await prefs.setDouble(_iosSizesKey, v.physicalSize.width / v.devicePixelRatio);
         }
       }
+      final views = ui.PlatformDispatcher.instance.views;
+      if (views.isNotEmpty) await prefs.setDouble(_dprKey, views.first.devicePixelRatio);
     } catch (e) {
       debugPrint('PairMapWidget: не сохранились данные для фона: $e');
     }
@@ -395,13 +413,14 @@ class PairMapWidgetService {
     final me = points?[myUid];
     final partner = points?[partnerUid];
     final sizes = await _sizes(prefs);
+    final dpr = await _pixelRatio(prefs);
     final now = DateTime.now().millisecondsSinceEpoch;
 
     final myPlace = me == null ? null : await _placeOf(prefs, me);
     final partnerPlace = partner == null ? null : await _placeOf(prefs, partner);
 
     final sig = jsonEncode([
-      groupId, paired, _pointSig(me), _pointSig(partner), myName, partnerName,
+      _renderVersion, dpr, groupId, paired, _pointSig(me), _pointSig(partner), myName, partnerName,
       meta['myAvatar'], meta['partnerAvatar'], schemeToJson(scheme, fill),
       [for (final e in sizes.entries) '${e.key.id}:${e.value.width.round()}x${e.value.height.round()}'],
       LocaleService.instance.language.code, myPlace, partnerPlace,
@@ -429,6 +448,8 @@ class PairMapWidgetService {
         nowMs: now,
         myPlace: myPlace,
         partnerPlace: partnerPlace,
+        pixelRatio: dpr,
+        maxPixels: Platform.isIOS ? kMapWidgetMaxPixelsIos : kMapWidgetMaxPixelsAndroid,
       ),
       tiles: _loadTile,
     );
@@ -485,6 +506,19 @@ class PairMapWidgetService {
       out[kind] = kind.sizeFrom(raw);
     }
     return out;
+  }
+
+  /// Плотность экрана. На Android её пишет провайдер виджета (`mapw_density`)
+  /// — в фоне окна нет и спросить не у кого; запасной путь — то, что приложение
+  /// видело на переднем плане.
+  Future<double> _pixelRatio(SharedPreferences prefs) async {
+    if (Platform.isAndroid) {
+      final raw = await HomeWidget.getWidgetData<String>('mapw_density');
+      final d = double.tryParse(raw ?? '');
+      if (d != null && d >= 1) return d;
+    }
+    final saved = prefs.getDouble(_dprKey);
+    return saved != null && saved >= 1 ? saved : 3;
   }
 
   Future<Uint8List?> _avatar(String groupId, String who, String? url) async {

@@ -6,7 +6,6 @@
 // качает разовый скрипт (в репозиторий не кладём, это десять мегабайт).
 // Картинки ложатся в build/map-widget-preview/.
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -17,7 +16,6 @@ import 'package:love_app/services/live_location_service.dart' show LivePoint;
 import 'package:love_app/services/locale_service.dart';
 import 'package:love_app/services/map/pair_map_widget_service.dart';
 import 'package:love_app/theme/app_palettes.dart';
-import 'package:love_app/theme/app_theme.dart';
 import 'package:love_app/theme/profile_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

@@ -110,6 +110,11 @@ dependencies {
     // не пишет, а четыре кадра из пяти в Togetherly — WebP.
     implementation("androidx.exifinterface:exifinterface:1.4.1")
 
+    // Разовая задача пакета workmanager из пуша и виджета карты
+    // (WidgetRefreshWake.kt). Плагин тянет work-runtime как implementation, и
+    // приложению он без этой строки не виден. Версия — как у плагина.
+    implementation("androidx.work:work-runtime:2.10.2")
+
     // Google Play Billing тянет плагин in_app_purchase_android (0.5.x = billing 8.x).
     // Свою версию сюда не прописывать: Play отклоняет обновления на библиотеке ниже 8.
 }
