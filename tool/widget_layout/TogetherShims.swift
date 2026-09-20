@@ -26,6 +26,12 @@ struct WidgetTheme {
     var onSurfaceVariant: Color { c("onSurfaceVariant") }
     var outline: Color { c("outline") }
     var trackOnSurface: Color { c("trackOnSurface") }
+    // Трек полосы роста у маскота. Держим рядом с остальными ролями: заглушка
+    // обязана знать всё, что знает настоящая тема, иначе стенд падает на том,
+    // что в приложении работает.
+    var trackOnContainer: Color { c("trackOnContainer") }
+    var onContainerSoft: Color { c("onContainerSoft") }
+    var secondaryContainer: Color { c("secondaryContainer") }
     var tertiary: Color { c("tertiary") }
     var tertiaryContainer: Color { c("tertiaryContainer") }
     var onTertiaryContainer: Color { c("onTertiaryContainer") }
