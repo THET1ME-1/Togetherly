@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Виджет «Вместе», 4×4.
+  Виджет «Вместе», 4×4 — лента событий.
 
-  Каждая заливка — ImageView с нейтральной фигурой под содержимым: цвет ставит
-  код по активной теме приложения, из RemoteViews обычный background не
-  перекрасить.
+  Фон приходит картинкой (`WidgetImages.halftone`): заливка со скруглением и
+  растр точками. Слева от строк идёт вертикальная линия с отметками — вторая
+  картинка (`WidgetImages.trackColumn`); каждая строка занимает свою четверть
+  высоты, поэтому точки приходятся ровно на её середину.
 
-  Высота ячейки 4×4 сильно зависит от лончера: Nova даёт ниже квадрата (строка
-  «1 год» схлопывалась в цветную полоску), лончер Xiaomi — заметно выше (внизу
-  оставалась треть пустой карточки). Поэтому столбец собран на wrap_content и
-  центрирован: сжиматься нечему, лишняя высота уходит в поля.
+  Строк ровно четыре, и это не случайность: пройденная веха, сегодня,
+  ближайшая и годовщина. Пустая строка прячется через View.GONE, а картинка
+  линии приходит уже под нужное число отметок.
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
@@ -20,223 +20,304 @@
         android:id="@+id/bg"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:src="@drawable/tg_shape_36"
+        android:scaleType="fitXY"
+        android:src="@drawable/tg_shape_32"
         android:contentDescription="@null" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
-        android:gravity="center_vertical"
-        android:padding="16dp">
+        android:paddingLeft="16dp"
+        android:paddingRight="16dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="16dp">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
+            android:baselineAligned="false"
             android:gravity="center_vertical">
 
             <TextView
                 android:id="@+id/couple_names"
-                android:layout_width="1dp"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:textSize="11dp"
+                android:layout_marginRight="10dp"
+                android:textSize="12dp"
                 android:textStyle="bold"
-                android:letterSpacing="0.02"
                 android:includeFontPadding="false"
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:text="" />
 
-            <ImageView
-                android:id="@+id/heart_icon"
-                android:layout_width="15dp"
-                android:layout_height="15dp"
-                android:layout_marginStart="8dp"
-                android:src="@drawable/ic_heart_timer"
-                android:contentDescription="@null" />
+            <FrameLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content">
+
+                <FrameLayout
+                    android:layout_width="28dp"
+                    android:layout_height="28dp">
+
+                    <ImageView
+                        android:id="@+id/avatar_me_bg"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:src="@drawable/tg_shape_circle"
+                        android:contentDescription="@null" />
+
+                    <ImageView
+                        android:id="@+id/avatar_me_photo"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:visibility="gone"
+                        android:contentDescription="@null" />
+
+                    <TextView
+                        android:id="@+id/avatar_me"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:gravity="center"
+                        android:textSize="11dp"
+                        android:textStyle="bold"
+                        android:includeFontPadding="false"
+                        android:text="?" />
+                </FrameLayout>
+
+                <FrameLayout
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:layout_marginLeft="20dp">
+
+                    <ImageView
+                        android:id="@+id/avatar_partner_bg"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:src="@drawable/tg_shape_circle"
+                        android:contentDescription="@null" />
+
+                    <ImageView
+                        android:id="@+id/avatar_partner_photo"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:visibility="gone"
+                        android:contentDescription="@null" />
+
+                    <TextView
+                        android:id="@+id/avatar_partner"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:gravity="center"
+                        android:textSize="11dp"
+                        android:textStyle="bold"
+                        android:includeFontPadding="false"
+                        android:text="?" />
+                </FrameLayout>
+            </FrameLayout>
         </LinearLayout>
 
-        <!-- Крупный счётчик -->
-        <FrameLayout
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="11dp">
+            android:layout_marginTop="10dp"
+            android:orientation="horizontal"
+            android:gravity="bottom">
+
+            <TextView
+                android:id="@+id/days_value"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="58dp"
+                android:textStyle="bold"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:text="0" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginLeft="10dp"
+                android:layout_marginBottom="4dp"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/days_label"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="14dp"
+                    android:textStyle="bold"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:text="" />
+
+                <TextView
+                    android:id="@+id/start_date"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:textSize="11dp"
+                    android:textStyle="bold"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:text="" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginTop="12dp"
+            android:orientation="horizontal"
+            android:baselineAligned="false">
 
             <ImageView
-                android:id="@+id/counter_bg"
-                android:layout_width="match_parent"
+                android:id="@+id/track"
+                android:layout_width="24dp"
                 android:layout_height="match_parent"
-                android:src="@drawable/tg_shape_28"
+                android:scaleType="fitXY"
                 android:contentDescription="@null" />
 
             <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:minHeight="72dp"
-                android:orientation="horizontal"
-                android:gravity="bottom"
-                android:padding="14dp">
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_marginLeft="8dp"
+                android:orientation="vertical">
 
                 <LinearLayout
-                    android:layout_width="1dp"
-                    android:layout_height="wrap_content"
+                    android:id="@+id/row_prev"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
                     android:layout_weight="1"
-                    android:orientation="vertical">
+                    android:orientation="vertical"
+                    android:gravity="center_vertical">
 
                     <TextView
-                        android:id="@+id/days_value"
-                        android:layout_width="wrap_content"
+                        android:id="@+id/prev_title"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:textSize="46dp"
+                        android:textSize="14dp"
                         android:textStyle="bold"
-                        android:letterSpacing="-0.045"
                         android:includeFontPadding="false"
                         android:maxLines="1"
-                        android:text="—" />
+                        android:ellipsize="end"
+                        android:text="" />
 
                     <TextView
-                        android:id="@+id/days_label"
-                        android:layout_width="wrap_content"
+                        android:id="@+id/prev_sub"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="3dp"
+                        android:layout_marginTop="1dp"
                         android:textSize="11dp"
                         android:textStyle="bold"
                         android:includeFontPadding="false"
-                        android:text="дней вместе" />
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        android:text="" />
                 </LinearLayout>
 
                 <LinearLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
+                    android:id="@+id/row_today"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
                     android:orientation="vertical"
-                    android:gravity="end">
+                    android:gravity="center_vertical">
 
                     <TextView
-                        android:id="@+id/months_value"
-                        android:layout_width="wrap_content"
+                        android:id="@+id/today_title"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:textSize="18dp"
+                        android:textSize="14dp"
                         android:textStyle="bold"
                         android:includeFontPadding="false"
-                        android:text="0" />
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        android:text="" />
 
                     <TextView
-                        android:id="@+id/months_label"
-                        android:layout_width="wrap_content"
+                        android:id="@+id/today_sub"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="3dp"
+                        android:layout_marginTop="1dp"
                         android:textSize="11dp"
                         android:textStyle="bold"
                         android:includeFontPadding="false"
-                        android:text="месяцев" />
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        android:text="" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/row_next"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:id="@+id/next_round_title"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textSize="14dp"
+                        android:textStyle="bold"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        android:text="" />
+
+                    <TextView
+                        android:id="@+id/next_round_when"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="1dp"
+                        android:textSize="11dp"
+                        android:textStyle="bold"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        android:text="" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/row_anni"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:id="@+id/anniversary_title"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textSize="14dp"
+                        android:textStyle="bold"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        android:text="" />
+
+                    <TextView
+                        android:id="@+id/anniversary_when"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="1dp"
+                        android:textSize="11dp"
+                        android:textStyle="bold"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        android:text="" />
                 </LinearLayout>
             </LinearLayout>
-        </FrameLayout>
-
-        <TextView
-            android:id="@+id/next_section"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="11dp"
-            android:textSize="11dp"
-            android:textStyle="bold"
-            android:letterSpacing="0.06"
-            android:includeFontPadding="false"
-            android:text="ДАЛЬШЕ" />
-
-        <FrameLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp">
-
-            <ImageView
-                android:id="@+id/next_round_bg"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:src="@drawable/tg_shape_20"
-                android:contentDescription="@null" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:paddingLeft="13dp"
-                android:paddingRight="13dp"
-                android:paddingTop="9dp"
-                android:paddingBottom="9dp">
-
-                <TextView
-                    android:id="@+id/next_round_title"
-                    android:layout_width="1dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:textSize="11dp"
-                    android:textStyle="bold"
-                    android:includeFontPadding="false"
-                    android:maxLines="1"
-                    android:ellipsize="end"
-                    android:text="" />
-
-                <TextView
-                    android:id="@+id/next_round_when"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:textSize="11dp"
-                    android:textStyle="bold"
-                    android:includeFontPadding="false"
-                    android:text="" />
-            </LinearLayout>
-        </FrameLayout>
-
-        <FrameLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp">
-
-            <ImageView
-                android:id="@+id/anniversary_bg"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:src="@drawable/tg_shape_20"
-                android:contentDescription="@null" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:paddingLeft="13dp"
-                android:paddingRight="13dp"
-                android:paddingTop="9dp"
-                android:paddingBottom="9dp">
-
-                <TextView
-                    android:id="@+id/anniversary_title"
-                    android:layout_width="1dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:textSize="11dp"
-                    android:textStyle="bold"
-                    android:includeFontPadding="false"
-                    android:maxLines="1"
-                    android:ellipsize="end"
-                    android:text="" />
-
-                <TextView
-                    android:id="@+id/anniversary_when"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
-                    android:textSize="11dp"
-                    android:textStyle="bold"
-                    android:includeFontPadding="false"
-                    android:text="" />
-            </LinearLayout>
-        </FrameLayout>
+        </LinearLayout>
     </LinearLayout>
 </FrameLayout>

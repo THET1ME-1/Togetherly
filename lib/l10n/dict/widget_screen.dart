@@ -6,6 +6,33 @@
 // на экране не бывает.
 
 const Map<String, Map<String, String>> widgetScreenStrings = {
+  'tgMilestonePassed': {
+    'ru': 'Прошли {date}',
+    'en': 'Passed {date}',
+    'pt': 'Passaram {date}',
+    'it': 'Passati {date}',
+    'es': 'Pasaron {date}',
+    'fr': 'Passé le {date}',
+    'de': 'Geschafft am {date}',
+  },
+  'tgMilestoneToday': {
+    'ru': 'Сегодня — {days}',
+    'en': 'Today — {days}',
+    'pt': 'Hoje — {days}',
+    'it': 'Oggi — {days}',
+    'es': 'Hoy — {days}',
+    'fr': 'Aujourd’hui — {days}',
+    'de': 'Heute — {days}',
+  },
+  'tgMilestoneShare': {
+    'ru': '{percent}% пути до {target}',
+    'en': '{percent}% of the way to {target}',
+    'pt': '{percent}% do caminho até {target}',
+    'it': '{percent}% del cammino verso {target}',
+    'es': '{percent}% del camino hasta {target}',
+    'fr': '{percent}% du chemin vers {target}',
+    'de': '{percent}% des Wegs bis {target}',
+  },
   'widgetSectionPair': {
     'ru': 'Вы вдвоём',
     'en': 'The two of you',

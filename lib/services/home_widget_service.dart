@@ -28,6 +28,7 @@ import '../models/timer_item.dart';
 import '../models/mood_entry.dart';
 import '../models/mood_widget_payload.dart';
 import '../models/together_caption.dart';
+import '../models/together_milestones.dart';
 import '../models/year_progress.dart';
 import 'mood_repository.dart';
 import '../models/widget_data.dart';
@@ -1753,6 +1754,40 @@ class HomeWidgetService {
   ///
   /// Дни берём из АКТИВНОГО таймера — того же, что показывает круг на главной,
   /// а не от даты регистрации пары в приложении.
+  /// Дорожка вех для виджета «Вместе»: готовые строки, натив ничего не считает.
+  ///
+  /// Склонения и слово «через» жили в Kotlin по-русски, и немец читал русский
+  /// текст. Правило прежнее: приложение собирает фразу, натив её печатает.
+  Future<void> _saveTrack(
+    String g,
+    DateTime? start,
+    DateTime? anniversaryDate,
+  ) async {
+    if (start == null) return;
+    final s = LocaleService.current;
+    final track = milestoneTrack(
+      start: start,
+      today: DateTime.now(),
+      anniversary: anniversaryDate,
+    );
+    final l = trackLabels(track, s, s.dayLogDate);
+    final pairs = <String, String>{
+      'days_label': s.tgDaysTogetherCaption(track.days),
+      'mile_percent': '${track.percent}',
+      'mile_prev_title': l.previousTitle,
+      'mile_prev_sub': l.previousSub,
+      'mile_today_title': l.todayTitle,
+      'mile_today_sub': l.todaySub,
+      'mile_next_title': l.nextTitle,
+      'mile_next_sub': l.nextSub,
+      'mile_anni_title': l.anniversaryTitle,
+      'mile_anni_sub': l.anniversarySub,
+    };
+    for (final e in pairs.entries) {
+      await HomeWidget.saveWidgetData<String>('together_${g}_${e.key}', e.value);
+    }
+  }
+
   Future<void> syncTogether({
     required String groupId,
     required int days,
@@ -1766,10 +1801,15 @@ class HomeWidgetService {
     String anniversary = '',
     String myAvatarUrl = '',
     String partnerAvatarUrl = '',
+
+    /// Своя дата из профиля: люди празднуют знакомство, а не день, когда
+    /// пара сошлась в приложении.
+    DateTime? anniversaryDate,
   }) async {
     try {
       final g = groupId.isEmpty ? 'solo' : groupId;
       await HomeWidget.saveWidgetData<String>('together_${g}_days', '$days');
+      await _saveTrack(g, start, anniversaryDate);
       await HomeWidget.saveWidgetData<String>('together_${g}_start_date', startDate);
       // Число выше остаётся для сборок расширения постарше; свежие считают
       // дни сами — от этой метки, каждый день, без приложения.

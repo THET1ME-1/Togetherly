@@ -1642,6 +1642,9 @@ abstract class AppStrings {
 
   /// Массовые действия в галерее холстов.
   /// Секции каталога виджетов.
+  String get tgMilestonePassed;
+  String get tgMilestoneToday;
+  String get tgMilestoneShare;
   String get widgetSectionPair;
   String get widgetSectionPairSub;
   String get widgetSectionTime;

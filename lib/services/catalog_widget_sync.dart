@@ -97,6 +97,7 @@ class CatalogWidgetSync {
         partnerInitial: _initial(partnerName),
         names: names,
         anniversary: start == null ? '' : _dayMonth(start),
+        anniversaryDate: pair.anniversaryDate,
         myAvatarUrl: myAvatarUrl,
         partnerAvatarUrl: pair.partnerAvatarUrl,
       );

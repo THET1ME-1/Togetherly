@@ -363,4 +363,187 @@ object WidgetImages {
         }
         return output
     }
+
+    /**
+     * Фон виджета «Вместе»: заливка [bgColor] со скруглением [cornerDp] и
+     * растр точками [dotColor], растущими к правому нижнему углу.
+     *
+     * Та же логика, что у HalftonePainter на главной кнопке листа
+     * «Добавить воспоминание»: точки мельчают к левому верху, где лежит текст,
+     * поэтому рябь не мешает читать число.
+     */
+    fun halftone(
+        widthDp: Float,
+        heightDp: Float,
+        pxPerDp: Float,
+        bgColor: Int,
+        dotColor: Int,
+        cornerDp: Float = 28f,
+    ): Bitmap? {
+        val wPx = (widthDp * pxPerDp).toInt()
+        val hPx = (heightDp * pxPerDp).toInt()
+        if (wPx <= 0 || hPx <= 0) return null
+        val output = Bitmap.createBitmap(wPx, hPx, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+        canvas.scale(pxPerDp, pxPerDp)
+
+        val paint = Paint().apply { isAntiAlias = true }
+        paint.color = bgColor
+        canvas.drawRoundRect(
+            RectF(0f, 0f, widthDp, heightDp), cornerDp, cornerDp, paint,
+        )
+
+        // Рисуем точки только внутри скругления: вне его они лезли бы на угол.
+        canvas.save()
+        val clip = android.graphics.Path().apply {
+            addRoundRect(
+                RectF(0f, 0f, widthDp, heightDp), cornerDp, cornerDp,
+                android.graphics.Path.Direction.CW,
+            )
+        }
+        canvas.clipPath(clip)
+
+        paint.color = dotColor
+        val step = 15f
+        val maxR = 5.2f
+        val far = Math.hypot(widthDp.toDouble(), heightDp.toDouble()).toFloat()
+        var y = step / 2f
+        while (y < heightDp) {
+            var x = step / 2f
+            while (x < widthDp) {
+                val t = Math.hypot(x.toDouble(), y.toDouble()).toFloat() / far
+                val r = (t - 0.18f) * maxR
+                if (r >= 0.5f) canvas.drawCircle(x, y, r, paint)
+                x += step
+            }
+            y += step
+        }
+        canvas.restore()
+        return output
+    }
+
+    /**
+     * Горизонтальная дорожка вех: линия, пройденная часть и три отметки —
+     * прошлая веха слева, сегодня по доле [percent], будущие справа.
+     *
+     * Подписи рисует не картинка, а TextView разметки: их собирает приложение
+     * на языке человека (см. `trackLabels` в models/together_milestones.dart).
+     */
+    fun trackLine(
+        widthDp: Float,
+        heightDp: Float,
+        pxPerDp: Float,
+        percent: Int,
+        hasPrevious: Boolean,
+        midStop: Boolean,
+        trackColor: Int,
+        fillColor: Int,
+        ringColor: Int,
+    ): Bitmap? {
+        val wPx = (widthDp * pxPerDp).toInt()
+        val hPx = (heightDp * pxPerDp).toInt()
+        if (wPx <= 0 || hPx <= 0) return null
+        val output = Bitmap.createBitmap(wPx, hPx, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+        canvas.scale(pxPerDp, pxPerDp)
+
+        val pad = 9f
+        val left = pad
+        val right = widthDp - pad
+        val cy = heightDp / 2f
+        val stroke = 5f
+
+        val paint = Paint().apply {
+            isAntiAlias = true
+            strokeCap = Paint.Cap.ROUND
+            strokeWidth = stroke
+        }
+        paint.color = trackColor
+        canvas.drawLine(left, cy, right, cy, paint)
+
+        val here = left + (right - left) * percent.coerceIn(0, 100) / 100f
+        paint.color = fillColor
+        canvas.drawLine(left, cy, here, cy, paint)
+
+        val dot = Paint().apply { isAntiAlias = true }
+        dot.color = if (hasPrevious) fillColor else trackColor
+        canvas.drawCircle(left, cy, 6f, dot)
+        if (midStop) {
+            dot.color = trackColor
+            canvas.drawCircle(left + (right - left) / 2f, cy, 6f, dot)
+        }
+        dot.color = trackColor
+        canvas.drawCircle(right, cy, 6f, dot)
+
+        // Сегодняшняя отметка крупнее и с обводкой цвета фона: она главная.
+        dot.color = ringColor
+        canvas.drawCircle(here, cy, 9.5f, dot)
+        dot.color = fillColor
+        canvas.drawCircle(here, cy, 7f, dot)
+        return output
+    }
+
+    /**
+     * Вертикальная лента вех для 4×4: линия сверху вниз, отметки на [stops]
+     * долях высоты (0…1) и заполненная часть до [current].
+     */
+    fun trackColumn(
+        widthDp: Float,
+        heightDp: Float,
+        pxPerDp: Float,
+        stops: FloatArray,
+        current: Int,
+        trackColor: Int,
+        fillColor: Int,
+        ringColor: Int,
+        lastColor: Int,
+    ): Bitmap? {
+        val wPx = (widthDp * pxPerDp).toInt()
+        val hPx = (heightDp * pxPerDp).toInt()
+        if (wPx <= 0 || hPx <= 0 || stops.isEmpty()) return null
+        val output = Bitmap.createBitmap(wPx, hPx, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+        canvas.scale(pxPerDp, pxPerDp)
+
+        val cx = widthDp / 2f
+        val top = heightDp * stops.first()
+        val bottom = heightDp * stops.last()
+        val paint = Paint().apply {
+            isAntiAlias = true
+            strokeWidth = 4f
+            strokeCap = Paint.Cap.ROUND
+        }
+        paint.color = trackColor
+        canvas.drawLine(cx, top, cx, bottom, paint)
+        if (current in stops.indices) {
+            paint.color = fillColor
+            canvas.drawLine(cx, top, cx, heightDp * stops[current], paint)
+        }
+
+        val dot = Paint().apply { isAntiAlias = true }
+        stops.forEachIndexed { i, s ->
+            val y = heightDp * s
+            when {
+                i == current -> {
+                    dot.color = ringColor
+                    canvas.drawCircle(cx, y, 9.5f, dot)
+                    dot.color = fillColor
+                    canvas.drawCircle(cx, y, 7f, dot)
+                }
+                i == stops.lastIndex -> {
+                    dot.color = lastColor
+                    canvas.drawCircle(cx, y, 7f, dot)
+                }
+                i < current -> {
+                    dot.color = fillColor
+                    canvas.drawCircle(cx, y, 7f, dot)
+                }
+                else -> {
+                    dot.color = trackColor
+                    canvas.drawCircle(cx, y, 7f, dot)
+                }
+            }
+        }
+        return output
+    }
 }

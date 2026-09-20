@@ -69,6 +69,16 @@ open class TogetherWidgetProvider : HomeWidgetProvider() {
             data.getString("${prefix}partner_initial", null).orEmpty().ifEmpty { "?" }
         val names = data.getString("${prefix}names", null).orEmpty()
         val anniversary = data.getString("${prefix}anniversary", null).orEmpty()
+        val daysLabel = data.getString("${prefix}days_label", null).orEmpty()
+        val milePercent = data.getString("${prefix}mile_percent", null)?.toIntOrNull() ?: 0
+        val milePrevTitle = data.getString("${prefix}mile_prev_title", null).orEmpty()
+        val milePrevSub = data.getString("${prefix}mile_prev_sub", null).orEmpty()
+        val mileTodayTitle = data.getString("${prefix}mile_today_title", null).orEmpty()
+        val mileTodaySub = data.getString("${prefix}mile_today_sub", null).orEmpty()
+        val mileNextTitle = data.getString("${prefix}mile_next_title", null).orEmpty()
+        val mileNextSub = data.getString("${prefix}mile_next_sub", null).orEmpty()
+        val mileAnniTitle = data.getString("${prefix}mile_anni_title", null).orEmpty()
+        val mileAnniSub = data.getString("${prefix}mile_anni_sub", null).orEmpty()
         val myAvatarPath = data.getString("${prefix}my_avatar_path", null)
         val partnerAvatarPath = data.getString("${prefix}partner_avatar_path", null)
 
@@ -113,174 +123,136 @@ open class TogetherWidgetProvider : HomeWidgetProvider() {
             }
             setTextViewTextSize(R.id.days_value, TypedValue.COMPLEX_UNIT_DIP, bigDp * scale)
 
+            val density = context.resources.displayMetrics.density
+            val cellW = minWidth.coerceAtLeast(120).toFloat()
+            val cellH = minHeight.coerceAtLeast(90).toFloat()
+
+            // Фон рисуем сами: растр точками поверх заливки. У RemoteViews нет
+            // способа перекрасить обычный drawable, а тем в приложении двадцать.
+            val onFill = layout != R.layout.tg_together_4x4
+            val bgColor = if (onFill) theme.primary else theme.surface
+            val dotColor = if (onFill) theme.blockOnPrimary else theme.trackOnSurface
+            WidgetImages.halftone(cellW, cellH, density, bgColor, dotColor)
+                ?.let { setImageViewBitmap(R.id.bg, it) }
+
+            val ink = if (onFill) theme.onPrimary else theme.onSurface
+            val inkSoft = if (onFill) theme.onPrimarySoft else theme.onSurfaceVariant
+            val lineTrack = if (onFill) theme.blockOnPrimary else theme.trackOnSurface
+
+            setTextColor(R.id.days_value, ink)
+            tint(R.id.avatar_me_bg, theme.avatarMine)
+            tint(R.id.avatar_partner_bg, theme.avatarPartner)
+            setTextColor(R.id.avatar_me, theme.onPrimaryContainer)
+            setTextColor(R.id.avatar_partner, theme.onTertiaryContainer)
+            setTextViewText(R.id.avatar_me, myInitial)
+            setTextViewText(R.id.avatar_partner, partnerInitial)
+
+            val myPhoto = WidgetImages.circularFromFile(myAvatarPath)
+            if (myPhoto != null) {
+                setImageViewBitmap(R.id.avatar_me_photo, myPhoto)
+                setViewVisibility(R.id.avatar_me_photo, View.VISIBLE)
+                setViewVisibility(R.id.avatar_me, View.INVISIBLE)
+            } else {
+                setViewVisibility(R.id.avatar_me_photo, View.GONE)
+                setViewVisibility(R.id.avatar_me, View.VISIBLE)
+            }
+            val partnerPhoto = WidgetImages.circularFromFile(partnerAvatarPath)
+            if (partnerPhoto != null) {
+                setImageViewBitmap(R.id.avatar_partner_photo, partnerPhoto)
+                setViewVisibility(R.id.avatar_partner_photo, View.VISIBLE)
+                setViewVisibility(R.id.avatar_partner, View.INVISIBLE)
+            } else {
+                setViewVisibility(R.id.avatar_partner_photo, View.GONE)
+                setViewVisibility(R.id.avatar_partner, View.VISIBLE)
+            }
+
             when (layout) {
                 R.layout.tg_together_2x2 -> {
-                    // Тёмная карточка primary: число и подпись поверх неё.
-                    tint(R.id.bg, theme.primary)
-                    setTextColor(R.id.days_value, theme.onPrimary)
-                    setTextColor(R.id.days_label, theme.onPrimarySoft)
-                    tint(R.id.avatar_me_bg, theme.avatarMine)
-                    tint(R.id.avatar_partner_bg, theme.avatarPartner)
-                    setTextColor(R.id.avatar_me, theme.onPrimaryContainer)
-                    setTextColor(R.id.avatar_partner, theme.onTertiaryContainer)
+                    setTextColor(R.id.days_label, inkSoft)
+                    setTextColor(R.id.mile_prev, inkSoft)
+                    setTextColor(R.id.mile_next, inkSoft)
+                    setTextViewText(R.id.days_label, daysLabel)
+                    setTextViewText(R.id.mile_prev, milePrevTitle)
+                    setTextViewText(R.id.mile_next, mileNextTitle)
 
-                    setTextViewText(R.id.avatar_me, myInitial)
-                    setTextViewText(R.id.avatar_partner, partnerInitial)
-
-                    // Настоящие аватарки поверх кружка с инициалом. Инициал —
-                    // фолбэк: остаётся, только если фото нет или не читается.
-                    val myPhoto = WidgetImages.circularFromFile(myAvatarPath)
-                    val partnerPhoto = WidgetImages.circularFromFile(partnerAvatarPath)
-                    if (myPhoto != null) {
-                        setImageViewBitmap(R.id.avatar_me_photo, myPhoto)
-                        setViewVisibility(R.id.avatar_me_photo, View.VISIBLE)
-                        setViewVisibility(R.id.avatar_me, View.INVISIBLE)
-                    } else {
-                        setViewVisibility(R.id.avatar_me_photo, View.GONE)
-                        setViewVisibility(R.id.avatar_me, View.VISIBLE)
-                    }
-                    if (partnerPhoto != null) {
-                        setImageViewBitmap(R.id.avatar_partner_photo, partnerPhoto)
-                        setViewVisibility(R.id.avatar_partner_photo, View.VISIBLE)
-                        setViewVisibility(R.id.avatar_partner, View.INVISIBLE)
-                    } else {
-                        setViewVisibility(R.id.avatar_partner_photo, View.GONE)
-                        setViewVisibility(R.id.avatar_partner, View.VISIBLE)
-                    }
+                    WidgetImages.trackLine(
+                        cellW - 28f, 22f, density, milePercent,
+                        milePrevTitle.isNotEmpty(), false,
+                        lineTrack, theme.onPrimary, theme.primary,
+                    )?.let { setImageViewBitmap(R.id.track, it) }
                 }
 
                 R.layout.tg_together_4x2 -> {
-                    // Светлая карточка primary-container.
-                    tint(R.id.bg, theme.primaryContainer)
-                    setTextColor(R.id.start_date, theme.onContainerSoft)
-                    setTextColor(R.id.days_value, theme.onPrimaryContainer)
-                    setTextColor(R.id.days_word, theme.onPrimaryContainer)
-                    setTextColor(R.id.next_label, theme.onContainerSoft)
-                    setTextColor(R.id.next_percent, theme.onContainerSoft)
-                    tint(R.id.heart_icon, theme.primary)
+                    setTextColor(R.id.days_word, inkSoft)
+                    setTextColor(R.id.start_date, inkSoft)
+                    setTextColor(R.id.mile_prev, inkSoft)
+                    setTextColor(R.id.mile_next, ink)
+                    setTextColor(R.id.mile_anni, inkSoft)
 
-                    if (startDate.isNotEmpty()) {
-                        setTextViewText(R.id.start_date, startDate)
-                    }
-                    setTextViewText(R.id.days_word, daysWord(days))
-                    val milestone = nextMilestone(days)
+                    setTextViewText(R.id.days_word, daysLabel)
+                    setTextViewText(R.id.start_date, startDate)
+                    setTextViewText(R.id.mile_prev, milePrevTitle)
                     setTextViewText(
-                        R.id.next_label,
-                        "До ${milestone.label} — ${milestone.daysLeft} " +
-                            daysWord(milestone.daysLeft),
+                        R.id.mile_next,
+                        listOf(mileNextTitle, mileNextSub)
+                            .filter { it.isNotEmpty() }
+                            .joinToString(" · "),
                     )
-                    setTextViewText(R.id.next_percent, "${milestone.percent}%")
+                    setTextViewText(R.id.mile_anni, mileAnniTitle)
 
-                    // Полоса — картинка: перекрасить progressDrawable нельзя.
-                    val density = context.resources.displayMetrics.density
-                    val barWidthPx = (((minWidth - 28).coerceAtLeast(80)) * density).toInt()
-                    val barHeightPx = (8 * density).toInt()
-                    WidgetImages.progress(
-                        barWidthPx,
-                        barHeightPx,
-                        milestone.percent,
-                        theme.trackOnContainer,
-                        theme.primary,
-                    )?.let { setImageViewBitmap(R.id.progress, it) }
+                    WidgetImages.trackLine(
+                        cellW - 32f, 26f, density, milePercent,
+                        milePrevTitle.isNotEmpty(), true,
+                        lineTrack, theme.onPrimary, theme.primary,
+                    )?.let { setImageViewBitmap(R.id.track, it) }
                 }
 
                 else -> {
-                    // Светлая карточка surface с блоком primary внутри.
-                    tint(R.id.bg, theme.surface)
-                    tint(R.id.counter_bg, theme.primary)
-                    tint(R.id.next_round_bg, theme.surfaceContainer)
-                    tint(R.id.anniversary_bg, theme.tertiaryContainer)
-                    tint(R.id.heart_icon, theme.primary)
                     setTextColor(R.id.couple_names, theme.onSurfaceVariant)
-                    setTextColor(R.id.days_value, theme.onPrimary)
-                    setTextColor(R.id.days_label, theme.onPrimarySoft)
-                    setTextColor(R.id.months_value, theme.onPrimary)
-                    setTextColor(R.id.months_label, theme.accentOnPrimary)
-                    setTextColor(R.id.next_section, theme.outline)
+                    setTextColor(R.id.days_label, theme.onSurfaceVariant)
+                    setTextColor(R.id.start_date, theme.outline)
+                    setTextColor(R.id.prev_title, theme.onSurface)
+                    setTextColor(R.id.prev_sub, theme.onSurfaceVariant)
+                    setTextColor(R.id.today_title, theme.onSurface)
+                    setTextColor(R.id.today_sub, theme.onSurfaceVariant)
                     setTextColor(R.id.next_round_title, theme.onSurface)
                     setTextColor(R.id.next_round_when, theme.onSurfaceVariant)
-                    setTextColor(R.id.anniversary_title, theme.onTertiaryContainer)
+                    setTextColor(R.id.anniversary_title, theme.onSurface)
                     setTextColor(R.id.anniversary_when, theme.tertiary)
 
-                    if (names.isNotEmpty()) {
-                        setTextViewText(R.id.couple_names, names.uppercase())
-                    }
-                    val months = days / 30
-                    setTextViewText(R.id.months_value, months.toString())
-                    setTextViewText(R.id.months_label, monthsWord(months))
+                    if (names.isNotEmpty()) setTextViewText(R.id.couple_names, names)
+                    setTextViewText(R.id.days_label, daysLabel)
+                    setTextViewText(R.id.start_date, startDate)
+                    setTextViewText(R.id.prev_title, milePrevTitle)
+                    setTextViewText(R.id.prev_sub, milePrevSub)
+                    setTextViewText(R.id.today_title, mileTodayTitle)
+                    setTextViewText(R.id.today_sub, mileTodaySub)
+                    setTextViewText(R.id.next_round_title, mileNextTitle)
+                    setTextViewText(R.id.next_round_when, mileNextSub)
+                    setTextViewText(R.id.anniversary_title, mileAnniTitle)
+                    setTextViewText(R.id.anniversary_when, mileAnniSub)
 
-                    val milestone = nextMilestone(days)
-                    setTextViewText(
-                        R.id.next_round_title,
-                        "${milestone.value} ${daysWord(milestone.value)}",
-                    )
-                    setTextViewText(
-                        R.id.next_round_when,
-                        "через ${milestone.daysLeft} ${daysWord(milestone.daysLeft)}",
-                    )
+                    // Пара в первой сотне: пройденной вехи ещё нет, и строка
+                    // «0 дней» читалась бы поломкой — прячем её целиком.
+                    val hasPrev = milePrevTitle.isNotEmpty()
+                    setViewVisibility(R.id.row_prev, if (hasPrev) View.VISIBLE else View.GONE)
 
-                    val years = max(1, days / 365 + 1)
-                    setTextViewText(R.id.anniversary_title, "$years ${yearsWord(years)}")
-                    if (anniversary.isNotEmpty()) {
-                        setTextViewText(R.id.anniversary_when, anniversary)
-                    }
+                    // Высота ленты — ровно та, что осталась под строки; точки
+                    // ставим в середину каждой.
+                    val rows = if (hasPrev) 4 else 3
+                    val stops = FloatArray(rows) { (it + 0.5f) / rows }
+                    val trackH = (cellH - 150f).coerceAtLeast(60f)
+                    WidgetImages.trackColumn(
+                        24f, trackH, density, stops,
+                        if (hasPrev) 1 else 0,
+                        theme.trackOnSurface, theme.primary, theme.surface,
+                        theme.tertiaryContainer,
+                    )?.let { setImageViewBitmap(R.id.track, it) }
                 }
             }
         }
 
         manager.updateAppWidget(widgetId, views)
-    }
-
-    /** Ближайшая круглая дата: сотни дней и годовщины, что раньше — то и берём. */
-    private fun nextMilestone(days: Int): Milestone {
-        val nextHundred = ((days / 100) + 1) * 100
-        val nextYear = ((days / 365) + 1) * 365
-        val target = if (nextHundred <= nextYear) nextHundred else nextYear
-        val prev = if (nextHundred <= nextYear) target - 100 else target - 365
-        val span = (target - prev).coerceAtLeast(1)
-        val percent = (((days - prev).toFloat() / span) * 100).roundToInt().coerceIn(0, 100)
-        val label = if (target % 365 == 0) "года" else "$target дней"
-        return Milestone(target, target - days, percent, label)
-    }
-
-    private data class Milestone(
-        val value: Int,
-        val daysLeft: Int,
-        val percent: Int,
-        val label: String,
-    )
-
-    private fun daysWord(n: Int): String {
-        val a = n % 100
-        val b = n % 10
-        return when {
-            a in 11..19 -> "дней"
-            b == 1 -> "день"
-            b in 2..4 -> "дня"
-            else -> "дней"
-        }
-    }
-
-    private fun monthsWord(n: Int): String {
-        val a = n % 100
-        val b = n % 10
-        return when {
-            a in 11..19 -> "месяцев"
-            b == 1 -> "месяц"
-            b in 2..4 -> "месяца"
-            else -> "месяцев"
-        }
-    }
-
-    private fun yearsWord(n: Int): String {
-        val a = n % 100
-        val b = n % 10
-        return when {
-            a in 11..19 -> "лет"
-            b == 1 -> "год"
-            b in 2..4 -> "года"
-            else -> "лет"
-        }
     }
 }
 

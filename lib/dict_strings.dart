@@ -2436,6 +2436,12 @@ abstract class DictStrings extends AppStrings {
   @override
   String get pixelCanvasSubtitle => _t('pixelCanvasSubtitle');
   @override
+  String get tgMilestonePassed => _t('tgMilestonePassed');
+  @override
+  String get tgMilestoneToday => _t('tgMilestoneToday');
+  @override
+  String get tgMilestoneShare => _t('tgMilestoneShare');
+  @override
   String get widgetSectionPair => _t('widgetSectionPair');
   @override
   String get widgetSectionPairSub => _t('widgetSectionPairSub');
