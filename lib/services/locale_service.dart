@@ -1646,6 +1646,7 @@ abstract class AppStrings {
   String get tgMissSent;
   String get tgMissJustNow;
   String get tgMissLastAt;
+  String get tgNoteDemo;
   String get tgMissMe;
   String get tgMissToday;
   String get tgMilestonePassed;

@@ -6,6 +6,15 @@
 // на экране не бывает.
 
 const Map<String, Map<String, String>> widgetScreenStrings = {
+  'tgNoteDemo': {
+    'ru': 'Купи молоко и что-нибудь к чаю 🙂',
+    'en': 'Grab milk and something for tea 🙂',
+    'pt': 'Compra leite e algo para o chá 🙂',
+    'it': 'Prendi il latte e qualcosa per il tè 🙂',
+    'es': 'Compra leche y algo para el té 🙂',
+    'fr': 'Prends du lait et un truc pour le thé 🙂',
+    'de': 'Hol Milch und was zum Tee 🙂',
+  },
   'tgMissSent': {
     'ru': 'Отправлено',
     'en': 'Sent',

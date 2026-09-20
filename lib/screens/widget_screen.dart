@@ -20,6 +20,7 @@ import '../services/pb_media_service.dart';
 import '../services/widget_anim_service.dart';
 import '../services/plus_service.dart';
 import '../services/ui_prefs.dart';
+import '../models/note_preview.dart';
 import '../models/together_milestones.dart';
 import '../models/widget_panels.dart';
 import '../widgets/miss_widget_card.dart';
@@ -119,6 +120,15 @@ class _WidgetScreenState extends State<WidgetScreen>
   AppTheme get _t => widget.theme;
   ColorScheme get _cs => ProfileTheme.themeFor(_t).colorScheme;
   WidgetService get _ws => widget.widgetService;
+
+  /// Текст заметки на двоих — тот самый, что лежит на рабочем столе.
+  ///
+  /// В превью каталога был зашит образец про молоко, и человек, написавший
+  /// «Спасибо», видел в приложении прежнюю рыбу: «текст на заметке не
+  /// меняется» (жалоба 20.09.2026).
+  String _noteText = '';
+  String _noteAuthor = '';
+  String _noteAt = '';
   MoodService get _moodService => widget.moodService;
   TimerService get _timerService => widget.timerService;
   MascotService get _mascotService => widget.mascotService;
@@ -270,6 +280,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     WidgetsBinding.instance.addObserver(this);
     _pair.addListener(_onDataChanged);
     _ws.addListener(_onDataChanged);
+    unawaited(_loadNote());
     _timerService.addListener(_onDataChanged);
     _moodService.addListener(_onDataChanged);
     _mascotService.addListener(_onDataChanged);
@@ -2188,6 +2199,27 @@ class _WidgetScreenState extends State<WidgetScreen>
     );
   }
 
+  /// Перечитать заметку: её правят и отсюда, и прямо с рабочего стола.
+  Future<void> _loadNote() async {
+    // Пара на первом кадре ещё может не приехать, поэтому есть запасной путь:
+    // указатель, который пишет сам сервис виджетов.
+    var g = _pair.pairId;
+    if (g.isEmpty) {
+      g = await HomeWidget.getWidgetData<String>('note_latest_group') ?? '';
+    }
+    if (g.isEmpty) g = 'solo';
+    final text = await HomeWidget.getWidgetData<String>('note_${g}_text') ?? '';
+    final author =
+        await HomeWidget.getWidgetData<String>('note_${g}_author') ?? '';
+    final at = await HomeWidget.getWidgetData<String>('note_${g}_time') ?? '';
+    if (!mounted) return;
+    setState(() {
+      _noteText = text;
+      _noteAuthor = author;
+      _noteAt = at;
+    });
+  }
+
   /// Заметка на двоих, карточкой M3.
   Widget _cardNote(bool locked) =>
       _buildGalleryItem(
@@ -2206,8 +2238,10 @@ class _WidgetScreenState extends State<WidgetScreen>
             ? (
                 label: _s.tgNoteWrite,
                 icon: Icons.edit_note_rounded,
-                onTap: () => showNoteEditorSheet(context,
-                    groupId: _pair.pairId),
+                onTap: () async {
+                  await showNoteEditorSheet(context, groupId: _pair.pairId);
+                  await _loadNote();
+                },
               )
             : null,
         sizes: [
@@ -2736,11 +2770,9 @@ class _WidgetScreenState extends State<WidgetScreen>
     final ink = paper ? paperInk : cs.onSurface;
     final faded = paper ? const Color(0xFF8A7A45) : cs.onSurfaceVariant;
 
-    final text = compact
-        ? 'Купи молоко и что-нибудь к чаю 🙂'
-        : big
-            ? 'Список на выходные:\n— забрать посылку\n— заехать к твоим\n— купить корм коту'
-            : 'Купи молоко и что-нибудь к чаю. Вечером посмотрим то кино.';
+    // Настоящая заметка пары; пока её нет — образец, потому что пустой
+    // листик в каталоге читается как сломанный виджет.
+    final text = notePreviewText(_noteText, demo: _s.tgNoteDemo);
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -2820,7 +2852,12 @@ class _WidgetScreenState extends State<WidgetScreen>
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  '${widget.userData.displayName} · 12:40',
+                  [
+                    _noteAuthor.isEmpty
+                        ? widget.userData.displayName
+                        : _noteAuthor,
+                    if (_noteAt.isNotEmpty) _noteAt,
+                  ].join(' · '),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(

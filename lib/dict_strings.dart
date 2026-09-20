@@ -2444,6 +2444,8 @@ abstract class DictStrings extends AppStrings {
   @override
   String get tgMissLastAt => _t('tgMissLastAt');
   @override
+  String get tgNoteDemo => _t('tgNoteDemo');
+  @override
   String get tgMissMe => _t('tgMissMe');
   @override
   String get tgMissToday => _t('tgMissToday');
