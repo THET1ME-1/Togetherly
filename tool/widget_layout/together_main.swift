@@ -8,7 +8,6 @@
 // Запуск: tool/widget_layout/run.sh (только macOS).
 
 import AppKit
-import WidgetKit
 import SwiftUI
 
 let themes: [(String, [String: Color])] = [
@@ -88,15 +87,19 @@ MainActor.assumeIsolated {
         WidgetTheme.current = palette
         for (caseName, data) in cases {
             Store.strings = data
+            // Размер выбираем прямым вызовом вида: `\.widgetFamily` читается,
+            // но не задаётся, и `.environment` на него не годится.
+            let d = loadTogether()
+            let t = WidgetTheme()
+            let views: [(AnyView, CGFloat, CGFloat)] = [
+                (AnyView(TogetherSmallView(data: d, t: t)), 158, 158),
+                (AnyView(TogetherMediumView(data: d, t: t)), 338, 158),
+                (AnyView(TogetherLargeView(data: d, t: t)), 338, 338),
+            ]
             var cells: [AnyView] = []
-            for (family, w, h) in [
-                (WidgetFamily.systemSmall, CGFloat(158), CGFloat(158)),
-                (WidgetFamily.systemMedium, CGFloat(338), CGFloat(158)),
-                (WidgetFamily.systemLarge, CGFloat(338), CGFloat(338)),
-            ] {
+            for (view, w, h) in views {
                 cells.append(AnyView(
-                    TogetherWidgetView()
-                        .environment(\.widgetFamily, family)
+                    view
                         .frame(width: w, height: h)
                         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                 ))

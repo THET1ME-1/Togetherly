@@ -37,7 +37,7 @@ swiftc -swift-version 5 \
 # «Вместе»: настоящий TogetherWidget.swift с теми же заглушками. Иначе Swift
 # расширения проверяет только релизный прогон, и опечатка всплывает на выпуске.
 mkdir -p "$out/together"
-sed 's/^import UIKit$/import AppKit/; s/UIImage/NSImage/g' \
+sed 's/^import UIKit$/import AppKit/; s/UIImage/NSImage/g; s/^private //' \
   "$root/ios/TogetherlyWidget/TogetherWidget.swift" > "$out/together/TogetherWidget.swift"
 cp "$root/tool/widget_layout/together_main.swift" "$out/together/main.swift"
 swiftc -swift-version 5 \
