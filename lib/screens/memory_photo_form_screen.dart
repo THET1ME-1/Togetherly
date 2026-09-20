@@ -19,6 +19,7 @@ import '../widgets/memory/media_strip.dart';
 import '../theme/profile_theme.dart';
 
 import 'map_picker_screen.dart';
+import 'date_time_picker_screen.dart';
 import '../services/plus_access.dart';
 import '../widgets/app_sheet.dart';
 import '../services/plus_service.dart';
@@ -1369,31 +1370,25 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
   /// Дата и время записи — стандартные пикеры M3 вместо самодельной пары
   /// кнопок «Дата / Время».
   Future<void> _pickCustomDate() async {
+    // Барабаны на своём экране, как у таймера и дня рождения: стоковые
+    // пикеры Material живут по своим правилам оформления и посреди
+    // приложения выглядят чужими.
     final now = DateTime.now();
-    final base = _customDate ?? now;
-    final day = await showDatePicker(
-      context: context,
-      initialDate: base,
-      firstDate: DateTime(2000),
-      lastDate: now,
-      builder: (ctx, child) => Theme(data: ProfileTheme.data(_cs), child: child!),
+    final picked = await Navigator.of(context).push<DateTime>(
+      MaterialPageRoute<DateTime>(
+        builder: (_) => DateTimePickerScreen(
+          title: LocaleService.current.memoryDateLabelForm,
+          theme: widget.theme,
+          initial: _customDate ?? now,
+          // Воспоминание — про прошлое: год из будущего выбрать нельзя.
+          firstYear: 2000,
+          lastYear: now.year,
+        ),
+        settings: const RouteSettings(name: '/date_picker'),
+      ),
     );
-    if (day == null || !mounted) return;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(base),
-      builder: (ctx, child) => Theme(data: ProfileTheme.data(_cs), child: child!),
-    );
-    if (!mounted) return;
-    setState(() {
-      _customDate = DateTime(
-        day.year,
-        day.month,
-        day.day,
-        time?.hour ?? base.hour,
-        time?.minute ?? base.minute,
-      );
-    });
+    if (picked == null || !mounted) return;
+    setState(() => _customDate = picked);
   }
 
   String _formatCustomDate(DateTime d) {
