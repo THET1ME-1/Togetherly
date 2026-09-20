@@ -48,7 +48,10 @@ void main() {
 
   test('отправка кладёт поля фигурки в тело запроса', () {
     final src = File('lib/services/pb_data_service.dart').readAsStringSync();
-    final body = src.split('Future<bool> chatSend(')[1].split('return _upsertById')[0];
+    // Тело собирает chatBody: и прямая отправка, и повтор из очереди берут
+    // поля оттуда. Раньше тест смотрел внутрь chatSend и после рефакторинга
+    // стерёг пустое место.
+    final body = src.split('Map<String, dynamic> chatBody(')[1].split('return body;')[0];
     for (final f in ['note_url', 'note_ms', 'note_shape', 'note_thumb']) {
       expect(body, contains("'$f'"), reason: 'chatSend не шлёт $f');
     }
