@@ -61,12 +61,18 @@ import '../services/music_meta_service.dart';
 import '../utils/photo_crop.dart';
 import '../services/mood_notification_service.dart';
 import '../services/mood_service.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+
+import '../models/mascot.dart';
 import '../models/mascot_anim.dart';
 import '../models/mascot_widget_data.dart';
 import '../services/catalog_service.dart';
+import '../services/offline/media_view_cache.dart';
+import '../services/mascot/mascot_art_source.dart';
 import '../services/mascot/mascot_widget_service.dart';
 import '../services/mascot_service.dart';
 import '../widgets/mascot/pixel_mascot_view.dart';
+import '../widgets/active_mascot_widget.dart' show buildMascotAssetImage;
 import '../services/timer_service.dart';
 import '../services/widget_rotation.dart';
 import '../services/widget_service.dart';
@@ -3436,9 +3442,12 @@ class _WidgetScreenState extends State<WidgetScreen>
 
     final mascotState = widget.mascotService.state;
     final id = mascotState.activeMascotId ?? '';
+    final mascot = widget.mascotService.activeMascot;
+    // Атлас есть только у пиксельных из каталога; у встроенных, каталожных
+    // рисунков и нарисованных вручную его нет, и превью берёт их картинку.
     final anim = id.isEmpty ? null : CatalogService.instance.animById(id);
 
-    if (anim == null) {
+    if (mascot == null || (!mascot.hasImage && anim == null)) {
       return AspectRatio(
         aspectRatio: aspect,
         child: Container(
@@ -3463,26 +3472,32 @@ class _WidgetScreenState extends State<WidgetScreen>
     }
 
     final streak = widget.mascotService.activeStreak;
-    final record = widget.mascotService.activeMascot?.recordStreak ?? 0;
+    final record = mascot.recordStreak;
     final sleep = widget.userData.sleepOf(id);
     final data = MascotWidgetData(
       mascotId: id,
-      name: widget.mascotService.activeMascot?.localizedName ?? anim.nameRu,
+      name: mascot.localizedName,
       streakDays: streak,
       recordStreak: record > streak ? record : streak,
       sad: streak == 0 && (mascotState.streakLastOpenedDate ?? '').isNotEmpty,
-      sleep: anim.nightIdle.isEmpty
-          ? MascotSleepWindow.none
-          : MascotSleepWindow(from: sleep.from, to: sleep.to),
+      sleep: mascotSleepsInWidget(anim)
+          ? MascotSleepWindow(from: sleep.from, to: sleep.to)
+          : MascotSleepWindow.none,
     );
     final labels = buildMascotWidgetLabels(data);
 
-    Widget figure(double side) => PixelMascotView(
-          anim: anim,
-          state: MascotAnimState.live,
-          size: side,
-          level: data.level,
-          sleep: sleep,
+    Widget figure(double side) => SizedBox(
+          width: side,
+          height: side,
+          child: anim != null
+              ? PixelMascotView(
+                  anim: anim,
+                  state: MascotAnimState.live,
+                  size: side,
+                  level: data.level,
+                  sleep: sleep,
+                )
+              : _mascotPicture(mascot),
         );
 
     Widget chip(String text, {required Color bg, required Color ink, double fontSize = 10}) => Container(
@@ -3688,6 +3703,35 @@ class _WidgetScreenState extends State<WidgetScreen>
         child: body,
       ),
     );
+  }
+
+  /// Картинка непиксельного маскота: встроенного, каталожного или
+  /// нарисованного человеком. Порядок тот же, что на главной.
+  Widget _mascotPicture(Mascot mascot) {
+    final asset = mascot.defaultAsset;
+    if (asset != null && asset.isNotEmpty) {
+      return buildMascotAssetImage(asset, fit: BoxFit.contain);
+    }
+    final catalogUrl = mascot.catalogUrl;
+    if (catalogUrl != null && catalogUrl.isNotEmpty) {
+      return CachedNetworkImage(
+        cacheManager: OfflineImageCacheManager.instance,
+        imageUrl: catalogUrl,
+        fit: BoxFit.contain,
+        placeholder: (_, __) => const SizedBox.shrink(),
+        errorWidget: (_, __, ___) => const SizedBox.shrink(),
+      );
+    }
+    final drawn = mascot.imageUrl;
+    if (drawn != null && drawn.isNotEmpty) {
+      return StorageImage(
+        imageUrl: drawn,
+        fit: BoxFit.contain,
+        placeholder: (_, __) => const SizedBox.shrink(),
+        errorWidget: (_, __, ___) => const SizedBox.shrink(),
+      );
+    }
+    return const SizedBox.shrink();
   }
 
   /// Плитка нижнего ряда «Комнаты»: крупное число или полоса и подпись.

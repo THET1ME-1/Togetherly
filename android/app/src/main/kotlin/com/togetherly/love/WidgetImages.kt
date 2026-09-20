@@ -92,6 +92,26 @@ object WidgetImages {
         }
     }
 
+    /**
+     * Обычная картинка маскота, вписанная в квадрат [targetPx] по большей
+     * стороне. Нарисованный человеком зверёк приезжает произвольного размера
+     * и произвольных пропорций, растягивать его в квадрат нельзя.
+     */
+    fun fitted(path: String?, targetPx: Int): Bitmap? {
+        if (path.isNullOrEmpty() || targetPx <= 0) return null
+        val src = PhotoDayWidgetProvider.loadScaledBitmapStatic(path, targetPx) ?: return null
+        val longest = maxOf(src.width, src.height)
+        if (longest <= targetPx) return src
+        val k = targetPx.toFloat() / longest
+        val w = maxOf(1, (src.width * k).toInt())
+        val h = maxOf(1, (src.height * k).toInt())
+        return try {
+            Bitmap.createScaledBitmap(src, w, h, true)
+        } catch (e: OutOfMemoryError) {
+            src
+        }
+    }
+
     /** Круглый аватар из файла: путь → уменьшенный bitmap → круг. */
     fun circularFromFile(path: String?, sizePx: Int = 160): Bitmap? =
         circular(PhotoDayWidgetProvider.loadScaledBitmapStatic(path, sizePx))

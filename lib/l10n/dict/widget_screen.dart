@@ -1608,15 +1608,6 @@ const Map<String, Map<String, String>> widgetScreenStrings = {
     'fr': 'dort jusqu à {time}',
     'de': 'schläft bis {time}',
   },
-  'mascotWidgetNoSleep': {
-    'ru': 'не ложится спать',
-    'en': 'never sleeps',
-    'pt': 'nunca dorme',
-    'it': 'non dorme mai',
-    'es': 'nunca duerme',
-    'fr': 'ne dort jamais',
-    'de': 'schläft nie',
-  },
   'mascotWidgetRecord': {
     'ru': 'рекорд {days}',
     'en': 'record {days}',

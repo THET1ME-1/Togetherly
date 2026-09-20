@@ -111,11 +111,15 @@ open class MascotWidgetProvider : HomeWidgetProvider() {
                 R.layout.tg_mascot_4x2 -> (heightDp - 30).coerceIn(48, 140).toFloat()
                 else -> (heightDp * 0.42f).coerceIn(64f, 200f)
             }
-            val bitmap = WidgetImages.pixelArt(
-                framePath(data, prefix, num("sleep_from", -1), num("sleep_to", -1), str("sad") == "1"),
-                (mascotDp * density).toInt(),
-                framePx,
-            )
+            val path = framePath(data, prefix, num("sleep_from", -1), num("sleep_to", -1), str("sad") == "1")
+            val targetPx = (mascotDp * density).toInt()
+            // Пиксельный кадр увеличиваем целым числом раз, рисунок человека
+            // вписываем: у него свои пропорции и свой размер.
+            val bitmap = if (str("pixel") == "0") {
+                WidgetImages.fitted(path, targetPx)
+            } else {
+                WidgetImages.pixelArt(path, targetPx, framePx)
+            }
             if (bitmap != null) setImageViewBitmap(R.id.mascot, bitmap)
 
             val stage = str("stage_label")
@@ -162,7 +166,18 @@ open class MascotWidgetProvider : HomeWidgetProvider() {
 
                 else -> {
                     setTextViewText(R.id.name, listOf(name, stage).filter { it.isNotEmpty() }.joinToString(" · "))
-                    setTextViewText(R.id.sleep_label, sleepLabel(str("sleep_label_day"), str("sleep_label_night"), num("sleep_from", -1), num("sleep_to", -1)))
+                    // Ночная сцена есть не у всех, а у рисованных её нет вовсе:
+                    // пустая подпись убирает пилюлю целиком.
+                    val sleepText = sleepLabel(
+                        str("sleep_label_day"),
+                        str("sleep_label_night"),
+                        num("sleep_from", -1),
+                        num("sleep_to", -1),
+                    )
+                    val hasSleep = sleepText.isNotEmpty()
+                    setViewVisibility(R.id.sleep_chip, if (hasSleep) View.VISIBLE else View.GONE)
+                    setViewVisibility(R.id.sleep_label, if (hasSleep) View.VISIBLE else View.GONE)
+                    setTextViewText(R.id.sleep_label, sleepText)
                     setTextViewText(R.id.streak_value, "$streak")
                     setTextViewText(R.id.streak_label, streakLabel)
                     setTextViewText(R.id.next_label, nextLabel)

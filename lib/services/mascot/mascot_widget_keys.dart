@@ -45,6 +45,7 @@ Map<String, String> mascotWidgetKeys({
   required MascotWidgetLabels labels,
   required Map<MascotWidgetFrame, String> framePaths,
   required int framePx,
+  bool pixel = true,
 }) {
   final g = groupId.isEmpty ? 'solo' : groupId;
 
@@ -57,6 +58,8 @@ Map<String, String> mascotWidgetKeys({
     'mascot_${g}_frame_night': path(MascotWidgetFrame.night),
     'mascot_${g}_frame_sad': path(MascotWidgetFrame.sad),
     'mascot_${g}_frame_px': '$framePx',
+    // Пиксель-арт натив увеличивает целым числом раз, рисунок — вписывает.
+    'mascot_${g}_pixel': pixel ? '1' : '0',
     'mascot_${g}_id': data.mascotId,
     'mascot_${g}_name': data.name,
     'mascot_${g}_streak': '${data.streakDays}',

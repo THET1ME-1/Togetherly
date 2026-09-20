@@ -45,6 +45,7 @@ void main() {
     expect(keys['mascot_grp1_frame_night'], '/data/mascot_widget/night.png');
     expect(keys['mascot_grp1_frame_sad'], '/data/mascot_widget/sad.png');
     expect(keys['mascot_grp1_record'], '64');
+    expect(keys['mascot_grp1_pixel'], '1');
     expect(keys['mascot_latest_group'], 'grp1');
   });
 
@@ -135,6 +136,20 @@ void main() {
     // виджет продолжит показывать кадр снятого персонажа.
     expect(keys['mascot_g_frame_night'], '');
     expect(keys['mascot_g_frame_sad'], '');
+  });
+
+  test('рисованный маскот помечен как непиксельный', () {
+    final keys = mascotWidgetKeys(
+      groupId: 'g',
+      data: data,
+      labels: labels,
+      framePaths: const {MascotWidgetFrame.day: '/drawn.png'},
+      framePx: 0,
+      pixel: false,
+    );
+
+    expect(keys['mascot_g_pixel'], '0');
+    expect(keys['mascot_g_frame_px'], '0');
   });
 
   test('без группы ключи уходят под solo', () {

@@ -1724,7 +1724,6 @@ abstract class AppStrings {
   /// «не спит до 23:00» и «спит до 07:00»: обе подписи уезжают в виджет разом.
   String mascotWidgetAwakeUntil(String time);
   String mascotWidgetSleepsUntil(String time);
-  String get mascotWidgetNoSleep;
   String mascotWidgetRecord(int days);
   String get mascotWidgetNoMascot;
 

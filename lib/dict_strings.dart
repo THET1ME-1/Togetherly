@@ -2560,8 +2560,6 @@ abstract class DictStrings extends AppStrings {
   String mascotWidgetSleepsUntil(String time) =>
       _t('mascotWidgetSleepsUntil').replaceAll('{time}', time);
   @override
-  String get mascotWidgetNoSleep => _t('mascotWidgetNoSleep');
-  @override
   String mascotWidgetRecord(int days) =>
       _t('mascotWidgetRecord').replaceAll('{days}', '$days ${tgYearDaysUnit(days)}');
   @override

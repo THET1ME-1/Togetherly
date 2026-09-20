@@ -4,6 +4,7 @@ import '../models/mascot.dart';
 import '../models/mascot_sleep.dart';
 import '../models/mascot_widget_data.dart';
 import 'catalog_service.dart';
+import 'mascot/mascot_art_source.dart';
 import 'mascot/mascot_widget_service.dart';
 import 'media_service.dart';
 import 'home_widget_service.dart';
@@ -191,32 +192,35 @@ class MascotService extends ChangeNotifier {
   /// зверьком.
   void _syncMascotWidget({bool force = false}) {
     final id = _state.activeMascotId;
-    if (id == null || id.isEmpty) {
+    final mascot = activeMascot;
+    if (id == null || id.isEmpty || mascot == null) {
       unawaited(MascotWidgetService.instance.clear(_groupId));
       return;
     }
+    // Атлас есть только у пиксельных из каталога. У встроенных, каталожных
+    // рисунков и нарисованных вручную его нет — виджет берёт их картинку.
     final anim = CatalogService.instance.animById(id);
-    if (anim == null) return;
 
     final streak = _state.activeStreak;
-    final record = activeMascot?.recordStreak ?? 0;
+    final record = mascot.recordStreak;
     final sleep = sleepResolver?.call(id) ?? SleepWindow.standard;
 
     unawaited(MascotWidgetService.instance.publish(
       groupId: _groupId,
+      mascot: mascot,
       anim: anim,
       force: force,
       data: MascotWidgetData(
         mascotId: id,
-        name: activeMascot?.localizedName ?? anim.nameRu,
+        name: mascot.localizedName,
         streakDays: streak,
         recordStreak: record > streak ? record : streak,
         // Серия оборвалась: вчерашняя отметка была последней, и персонаж
         // грустит — ровно как на главной.
         sad: streak == 0 && (_state.streakLastOpenedDate ?? '').isNotEmpty,
-        sleep: anim.nightIdle.isEmpty
-            ? MascotSleepWindow.none
-            : MascotSleepWindow(from: sleep.from, to: sleep.to),
+        sleep: mascotSleepsInWidget(anim)
+            ? MascotSleepWindow(from: sleep.from, to: sleep.to)
+            : MascotSleepWindow.none,
       ),
     ));
   }
