@@ -127,6 +127,17 @@ open class MissWidgetProvider : HomeWidgetProvider() {
         val partnerCount = data.getString("${prefix}partner_count", null)?.toIntOrNull() ?: 0
         val lastTime = data.getString("${prefix}last_time", null).orEmpty()
         val partnerAvatarPath = data.getString("${prefix}partner_avatar_path", null)
+        // Строки и запись чисел приходят из приложения: раньше «Скучаю»,
+        // «Отправлено» и «последний раз в …» лежали здесь по-русски, а число
+        // печаталось как есть — «1000» рвалось на две строки.
+        val myText = data.getString("${prefix}my_text", null).orEmpty()
+            .ifEmpty { myCount.toString() }
+        val partnerText = data.getString("${prefix}partner_text", null).orEmpty()
+            .ifEmpty { partnerCount.toString() }
+        val meLabel = data.getString("${prefix}me_label", null).orEmpty()
+        val sendLabel = data.getString("${prefix}send_label", null).orEmpty()
+        val whenLabel = data.getString("${prefix}when_label", null).orEmpty()
+        val todayLabel = data.getString("${prefix}today_label", null).orEmpty()
         // Отправляли ли сегодня — состояние живёт до конца дня, как в хендофе.
         val sent = data.getString("${prefix}sent_today", null) == "1"
 
@@ -163,61 +174,100 @@ open class MissWidgetProvider : HomeWidgetProvider() {
         val views = RemoteViews(context.packageName, layout).apply {
             setImageViewResource(R.id.state_icon, stateIcon)
 
+            val photo = WidgetImages.circularFromFile(partnerAvatarPath)
+
+            /** Кегль числа: чем больше знаков, тем мельче (miss_widget_spec.dart). */
+            fun countSize(text: String, base: Float): Float {
+                val digits = text.length
+                val size = when {
+                    digits <= 2 -> base
+                    digits == 3 -> base * 0.86f
+                    digits == 4 -> base * 0.74f
+                    else -> base * 0.62f
+                }
+                return if (size < 16f) 16f else size
+            }
+
+            fun bindPartnerFace() {
+                setTextViewText(R.id.avatar, partnerInitial)
+                if (photo != null) {
+                    setImageViewBitmap(R.id.avatar_photo, photo)
+                    setViewVisibility(R.id.avatar_photo, View.VISIBLE)
+                    setViewVisibility(R.id.avatar, View.INVISIBLE)
+                } else {
+                    setViewVisibility(R.id.avatar_photo, View.GONE)
+                    setViewVisibility(R.id.avatar, View.VISIBLE)
+                }
+            }
+
             when (layout) {
                 R.layout.tg_miss_2x2 -> {
-                    // Карточка на tertiary-container, пилюля — заливка tertiary.
-                    tint(R.id.bg, theme.tertiaryContainer)
-                    tint(R.id.cta_bg, theme.tertiary)
-                    tint(R.id.state_icon, theme.tertiary)
-                    setTextColor(R.id.partner_name, theme.onTertiaryContainer)
-                    setTextColor(R.id.title, theme.onTertiaryContainer)
-                    setTextColor(R.id.cta, theme.onTertiary)
+                    tint(R.id.bg, theme.surface)
+                    tint(R.id.avatar_bg, theme.avatarPartner)
+                    tint(R.id.send_bg, theme.primary)
+                    tint(R.id.state_icon, theme.onPrimary)
+                    setTextColor(R.id.avatar, theme.onTertiaryContainer)
+                    setTextColor(R.id.partner_label, theme.onSurfaceVariant)
+                    setTextColor(R.id.my_count, theme.onSurface)
+                    setTextColor(R.id.partner_count, theme.outline)
+                    setTextColor(R.id.last_time, theme.outline)
+                    setTextColor(R.id.send_label, theme.onPrimary)
 
+                    bindPartnerFace()
+                    setTextViewText(R.id.partner_label, partnerName)
+                    setTextViewText(R.id.my_count, myText)
+                    setTextViewText(R.id.partner_count, "/ $partnerText")
                     setTextViewTextSize(
-                        R.id.title, TypedValue.COMPLEX_UNIT_DIP, 24f * scale)
-                    setTextViewText(
-                        R.id.partner_name,
-                        if (partnerName.isEmpty()) "Партнёру" else dativeName(partnerName),
+                        R.id.my_count,
+                        TypedValue.COMPLEX_UNIT_DIP,
+                        countSize(myText, 30f * scale),
                     )
-                    setTextViewText(R.id.title, if (sent) "Отправлено" else "Скучаю")
-                    setTextViewText(R.id.cta, if (sent) lastTime.ifEmpty { "сегодня" } else "Отправить")
-                    setOnClickPendingIntent(R.id.widget_root, tapIntent)
+                    setTextViewText(R.id.last_time, whenLabel.ifEmpty { todayLabel })
+                    setTextViewText(R.id.send_label, sendLabel)
+
+                    setOnClickPendingIntent(R.id.send_button, tapIntent)
+                    setOnClickPendingIntent(
+                        R.id.widget_root,
+                        HomeWidgetLaunchIntentCompat.home(context),
+                    )
                 }
 
                 R.layout.tg_miss_4x2 -> {
-                    // Светлая карточка surface: моя плашка primary-container,
-                    // партнёрская — tertiary-container, кнопка — primary.
                     tint(R.id.bg, theme.surface)
                     tint(R.id.my_tile_bg, theme.primaryContainer)
                     tint(R.id.partner_tile_bg, theme.tertiaryContainer)
+                    tint(R.id.my_avatar_bg, theme.avatarMine)
+                    tint(R.id.avatar_bg, theme.avatarPartner)
                     tint(R.id.send_bg, theme.primary)
                     tint(R.id.state_icon, theme.onPrimary)
-                    setTextColor(R.id.header, theme.onSurface)
-                    setTextColor(R.id.last_time, theme.outline)
-                    setTextColor(R.id.my_label, theme.onContainerSoft)
+                    setTextColor(R.id.my_avatar, theme.onPrimaryContainer)
+                    setTextColor(R.id.avatar, theme.onTertiaryContainer)
+                    setTextColor(R.id.my_label, theme.onPrimaryContainer)
+                    setTextColor(R.id.partner_label, theme.onTertiaryContainer)
                     setTextColor(R.id.my_count, theme.onPrimaryContainer)
-                    setTextColor(R.id.partner_label, theme.tertiary)
                     setTextColor(R.id.partner_count, theme.onTertiaryContainer)
+                    setTextColor(R.id.last_time, theme.outline)
+                    setTextColor(R.id.send_label, theme.onPrimary)
 
-                    setTextViewText(R.id.my_count, myCount.toString())
-                    setTextViewText(R.id.partner_count, partnerCount.toString())
-                    setTextViewTextSize(
-                        R.id.my_count, TypedValue.COMPLEX_UNIT_DIP, 28f * scale)
-                    setTextViewTextSize(
-                        R.id.partner_count, TypedValue.COMPLEX_UNIT_DIP, 28f * scale)
-                    setTextViewText(
-                        R.id.partner_label,
-                        partnerName.ifEmpty { "Партнёр" },
-                    )
-                    setTextViewText(
+                    bindPartnerFace()
+                    setTextViewText(R.id.my_avatar, meLabel.take(1).uppercase())
+                    setTextViewText(R.id.my_label, meLabel)
+                    setTextViewText(R.id.partner_label, partnerName)
+                    setTextViewText(R.id.my_count, myText)
+                    setTextViewText(R.id.partner_count, partnerText)
+                    // Кегли считаются по ДЛИННЕЙШЕМУ из двух: плитки одинаковой
+                    // ширины, и числа в них должны быть одного роста.
+                    val longest = if (myText.length >= partnerText.length) myText else partnerText
+                    val size = countSize(longest, 30f * scale)
+                    setTextViewTextSize(R.id.my_count, TypedValue.COMPLEX_UNIT_DIP, size)
+                    setTextViewTextSize(R.id.partner_count, TypedValue.COMPLEX_UNIT_DIP, size)
+                    setTextViewText(R.id.last_time, whenLabel)
+                    setViewVisibility(
                         R.id.last_time,
-                        when {
-                            sent -> "только что"
-                            lastTime.isNotEmpty() -> "последний раз в $lastTime"
-                            else -> ""
-                        },
+                        if (whenLabel.isEmpty()) View.GONE else View.VISIBLE,
                     )
-                    // Отправляет кнопка, но по самой карточке открываем приложение.
+                    setTextViewText(R.id.send_label, sendLabel)
+
                     setOnClickPendingIntent(R.id.send_button, tapIntent)
                     setOnClickPendingIntent(
                         R.id.widget_root,
@@ -226,37 +276,28 @@ open class MissWidgetProvider : HomeWidgetProvider() {
                 }
 
                 else -> {
-                    // Полоска на primary: аватар — светлый кружок, иконка —
-                    // tertiary-container, как акцент в макете.
                     tint(R.id.bg, theme.primary)
-                    tint(R.id.avatar_bg, theme.avatarMine)
-                    tint(R.id.state_icon, theme.tertiaryContainer)
-                    setTextColor(R.id.avatar, theme.onPrimaryContainer)
+                    tint(R.id.avatar_bg, theme.avatarPartner)
+                    tint(R.id.send_bg, theme.onPrimary)
+                    tint(R.id.state_icon, theme.primary)
+                    setTextColor(R.id.avatar, theme.onTertiaryContainer)
                     setTextColor(R.id.title, theme.onPrimary)
-                    setTextColor(R.id.subtitle, theme.accentOnPrimary)
+                    setTextColor(R.id.subtitle, theme.onPrimarySoft)
 
-                    // Фотография партнёра поверх кружка с буквой, если есть.
-                    val photo = WidgetImages.circularFromFile(partnerAvatarPath)
-                    if (photo != null) {
-                        setImageViewBitmap(R.id.avatar_photo, photo)
-                        setViewVisibility(R.id.avatar_photo, View.VISIBLE)
-                        setViewVisibility(R.id.avatar, View.INVISIBLE)
-                    } else {
-                        setViewVisibility(R.id.avatar_photo, View.GONE)
-                        setViewVisibility(R.id.avatar, View.VISIBLE)
-                    }
-
-                    setTextViewText(R.id.avatar, partnerInitial)
-                    setTextViewText(R.id.title, if (sent) "Отправлено" else "Скучаю")
+                    bindPartnerFace()
+                    setTextViewText(R.id.title, sendLabel)
                     setTextViewText(
                         R.id.subtitle,
-                        if (sent) {
-                            "${partnerName.ifEmpty { "Партнёр" }} уже видит"
-                        } else {
-                            "один тап — и партнёр узнает"
-                        },
+                        listOf("$myText · $partnerText", whenLabel.ifEmpty { todayLabel })
+                            .filter { it.isNotBlank() }
+                            .joinToString(" · "),
                     )
-                    setOnClickPendingIntent(R.id.widget_root, tapIntent)
+
+                    setOnClickPendingIntent(R.id.send_button, tapIntent)
+                    setOnClickPendingIntent(
+                        R.id.widget_root,
+                        HomeWidgetLaunchIntentCompat.home(context),
+                    )
                 }
             }
         }

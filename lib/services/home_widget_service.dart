@@ -28,6 +28,7 @@ import '../models/timer_item.dart';
 import '../models/mood_entry.dart';
 import '../models/mood_widget_payload.dart';
 import '../models/together_caption.dart';
+import '../models/miss_widget_spec.dart';
 import '../models/together_milestones.dart';
 import '../models/year_progress.dart';
 import 'mood_repository.dart';
@@ -2103,6 +2104,27 @@ class HomeWidgetService {
       await HomeWidget.saveWidgetData<String>('miss_${g}_last_time', lastTime);
       await HomeWidget.saveWidgetData<String>(
           'miss_${g}_sent_today', sentToday ? '1' : '0');
+
+      // Слова собирает приложение: «Скучаю», «Отправлено» и «последний раз
+      // в 20:41» лежали в Kotlin и Swift по-русски, и немец читал русский.
+      // Числа — тоже: у пары их бывает пять знаков, и виджет обязан знать,
+      // как их сократить (см. models/miss_widget_spec.dart).
+      final s = LocaleService.current;
+      final texts = <String, String>{
+        'my_text': missCountText(myCount),
+        'partner_text': missCountText(partnerCount),
+        'me_label': s.tgMissMe,
+        'send_label': sentToday ? s.tgMissSent : s.tgMissTitle,
+        'when_label': sentToday
+            ? s.tgMissJustNow
+            : lastTime.isEmpty
+                ? ''
+                : s.tgMissLastAt.replaceAll('{time}', lastTime),
+        'today_label': s.tgMissToday,
+      };
+      for (final e in texts.entries) {
+        await HomeWidget.saveWidgetData<String>('miss_${g}_${e.key}', e.value);
+      }
       await HomeWidget.saveWidgetData<String>('miss_latest_group', g);
       for (final n in const ['MissWidget2x2Provider',
           'MissWidget4x2Provider', 'MissWidget4x1Provider']) {

@@ -1642,6 +1642,12 @@ abstract class AppStrings {
 
   /// Массовые действия в галерее холстов.
   /// Секции каталога виджетов.
+  String get tgMissSend;
+  String get tgMissSent;
+  String get tgMissJustNow;
+  String get tgMissLastAt;
+  String get tgMissMe;
+  String get tgMissToday;
   String get tgMilestonePassed;
   String get tgMilestoneToday;
   String get tgMilestoneShare;
@@ -1680,7 +1686,6 @@ abstract class AppStrings {
   String tgInDays(int days);
   String tgUntilMilestone(int target, int left);
   String tgMissAddressee(String name);
-  String get tgMissSend;
   String get tgMissStripHint;
 
   /// Виджеты «Настроение» и «До встречи» из нового каталога.

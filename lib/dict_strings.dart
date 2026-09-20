@@ -2436,6 +2436,18 @@ abstract class DictStrings extends AppStrings {
   @override
   String get pixelCanvasSubtitle => _t('pixelCanvasSubtitle');
   @override
+  String get tgMissSend => _t('tgMissSend');
+  @override
+  String get tgMissSent => _t('tgMissSent');
+  @override
+  String get tgMissJustNow => _t('tgMissJustNow');
+  @override
+  String get tgMissLastAt => _t('tgMissLastAt');
+  @override
+  String get tgMissMe => _t('tgMissMe');
+  @override
+  String get tgMissToday => _t('tgMissToday');
+  @override
   String get tgMilestonePassed => _t('tgMilestonePassed');
   @override
   String get tgMilestoneToday => _t('tgMilestoneToday');
@@ -2488,8 +2500,6 @@ abstract class DictStrings extends AppStrings {
   String get tgSizeHintStrip => _t('tgSizeHintStrip');
   @override
   String get tgNextSection => _t('tgNextSection');
-  @override
-  String get tgMissSend => _t('tgMissSend');
   @override
   String get tgMissStripHint => _t('tgMissStripHint');
   @override

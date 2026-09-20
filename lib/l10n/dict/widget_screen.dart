@@ -6,6 +6,51 @@
 // на экране не бывает.
 
 const Map<String, Map<String, String>> widgetScreenStrings = {
+  'tgMissSent': {
+    'ru': 'Отправлено',
+    'en': 'Sent',
+    'pt': 'Enviado',
+    'it': 'Inviato',
+    'es': 'Enviado',
+    'fr': 'Envoyé',
+    'de': 'Gesendet',
+  },
+  'tgMissJustNow': {
+    'ru': 'Только что',
+    'en': 'Just now',
+    'pt': 'Agora mesmo',
+    'it': 'Proprio ora',
+    'es': 'Ahora mismo',
+    'fr': 'À l’instant',
+    'de': 'Gerade eben',
+  },
+  'tgMissLastAt': {
+    'ru': 'Последний раз в {time}',
+    'en': 'Last one at {time}',
+    'pt': 'O último às {time}',
+    'it': 'L’ultimo alle {time}',
+    'es': 'El último a las {time}',
+    'fr': 'Le dernier à {time}',
+    'de': 'Zuletzt um {time}',
+  },
+  'tgMissMe': {
+    'ru': 'Вы',
+    'en': 'You',
+    'pt': 'Você',
+    'it': 'Tu',
+    'es': 'Tú',
+    'fr': 'Toi',
+    'de': 'Du',
+  },
+  'tgMissToday': {
+    'ru': 'Сегодня',
+    'en': 'Today',
+    'pt': 'Hoje',
+    'it': 'Oggi',
+    'es': 'Hoy',
+    'fr': 'Aujourd’hui',
+    'de': 'Heute',
+  },
   'tgMilestonePassed': {
     'ru': 'Прошли {date}',
     'en': 'Passed {date}',
