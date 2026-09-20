@@ -280,6 +280,11 @@ open class MascotWidgetProvider : HomeWidgetProvider() {
                 views.setTextViewText(R.id.next_label, nextLabel)
                 views.setTextViewText(R.id.record_value, "${num("record")}")
                 views.setTextViewText(R.id.record_label, str("record_label").substringBefore(' '))
+                // Подписи плиток лежат НА контейнере, а не на поверхности: в
+                // тёмной теме onSurfaceVariant на нём почти не читается.
+                views.setTextColor(R.id.streak_label, theme.onContainerSoft)
+                views.setTextColor(R.id.record_label, theme.onContainerSoft)
+                views.setTextColor(R.id.next_label, theme.onContainerSoft)
                 views.tint(R.id.tile_streak, theme.primaryContainer)
                 views.tint(R.id.floor, theme.trackOnContainer)
                 views.tint(R.id.tile_progress, theme.primaryContainer)

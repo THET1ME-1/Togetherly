@@ -14,52 +14,73 @@ import WidgetKit
 /// пускает виджет обновляться чаще нескольких раз в час. На Android персонаж
 /// двигается, на iPhone он меняет облик — день, ночь, грусть и ступень роста.
 private struct MascotData {
-    private let s = Store()
-
-    var name: String { s.string("ios_mascot_name") }
-    var stage: String { s.string("ios_mascot_stage_label") }
-    var streak: Int { Int(s.string("ios_mascot_streak")) ?? 0 }
-    var streakLabel: String { s.string("ios_mascot_streak_label") }
-    var nextLabel: String { s.string("ios_mascot_next_label") }
-    var record: Int { Int(s.string("ios_mascot_record")) ?? 0 }
-    var recordLabel: String { s.string("ios_mascot_record_label") }
-    var percent: Int { Int(s.string("ios_mascot_progress")) ?? 0 }
-    var sad: Bool { s.string("ios_mascot_sad") == "1" }
+    let name: String
+    let stage: String
+    let streak: Int
+    let streakLabel: String
+    let nextLabel: String
+    let record: Int
+    let recordLabel: String
+    let percent: Int
+    let sad: Bool
 
     /// Пиксель-арт нельзя сглаживать: он превращается в мыло. У рисованного
     /// маскота сглаживание, наоборот, нужно.
-    var isPixelArt: Bool { s.string("ios_mascot_pixel") != "0" }
+    let isPixelArt: Bool
 
-    var isSet: Bool { !name.isEmpty && !s.string("ios_mascot_frame_day").isEmpty }
+    let sleepFrom: Int
+    let sleepTo: Int
+    let sleepDay: String
+    let sleepNight: String
+    let frameDay: String
+    let frameNight: String
+    let frameSad: String
+
+    /// Значения снимаются РАЗОМ при создании, а не по одному при отрисовке:
+    /// иначе карточка читает хранилище в момент рисования, и в стенде все
+    /// размеры показывали последний набор данных.
+    init() {
+        let s = Store()
+        name = s.string("ios_mascot_name")
+        stage = s.string("ios_mascot_stage_label")
+        streak = Int(s.string("ios_mascot_streak")) ?? 0
+        streakLabel = s.string("ios_mascot_streak_label")
+        nextLabel = s.string("ios_mascot_next_label")
+        record = Int(s.string("ios_mascot_record")) ?? 0
+        recordLabel = s.string("ios_mascot_record_label")
+        percent = Int(s.string("ios_mascot_progress")) ?? 0
+        sad = s.string("ios_mascot_sad") == "1"
+        isPixelArt = s.string("ios_mascot_pixel") != "0"
+        sleepFrom = Int(s.string("ios_mascot_sleep_from")) ?? -1
+        sleepTo = Int(s.string("ios_mascot_sleep_to")) ?? -1
+        sleepDay = s.string("ios_mascot_sleep_label_day")
+        sleepNight = s.string("ios_mascot_sleep_label_night")
+        frameDay = s.string("ios_mascot_frame_day")
+        frameNight = s.string("ios_mascot_frame_night")
+        frameSad = s.string("ios_mascot_frame_sad")
+    }
+
+    var isSet: Bool { !name.isEmpty && !frameDay.isEmpty }
 
     /// Спит ли персонаж прямо сейчас. Окно задаёт человек в настройках, у
     /// каждого героя своё; −1 значит «ночной сцены нет вовсе».
     var asleep: Bool {
-        let from = Int(s.string("ios_mascot_sleep_from")) ?? -1
-        let to = Int(s.string("ios_mascot_sleep_to")) ?? -1
-        guard from >= 0, to >= 0, from != to else { return false }
+        guard sleepFrom >= 0, sleepTo >= 0, sleepFrom != sleepTo else { return false }
         let parts = Calendar.current.dateComponents([.hour, .minute], from: Date())
         let now = (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
-        return from < to ? (now >= from && now < to) : (now >= from || now < to)
+        return sleepFrom < sleepTo
+            ? (now >= sleepFrom && now < sleepTo)
+            : (now >= sleepFrom || now < sleepTo)
     }
 
     /// Подпись сна кладётся обеими половинами: ночь наступает без приложения.
-    var sleepLabel: String {
-        let night = s.string("ios_mascot_sleep_label_night")
-        return asleep && !night.isEmpty ? night : s.string("ios_mascot_sleep_label_day")
-    }
+    var sleepLabel: String { asleep && !sleepNight.isEmpty ? sleepNight : sleepDay }
 
     /// Грусть старше сна, сон старше дня — тот же порядок, что на Android.
     var framePath: String {
-        if sad {
-            let path = s.string("ios_mascot_frame_sad")
-            if !path.isEmpty { return path }
-        }
-        if asleep {
-            let path = s.string("ios_mascot_frame_night")
-            if !path.isEmpty { return path }
-        }
-        return s.string("ios_mascot_frame_day")
+        if sad, !frameSad.isEmpty { return frameSad }
+        if asleep, !frameNight.isEmpty { return frameNight }
+        return frameDay
     }
 }
 
@@ -289,7 +310,7 @@ private struct MascotLargeView: View {
                 MascotTile(
                     caption: data.streakLabel,
                     background: theme.primaryContainer,
-                    ink: theme.onSurfaceVariant
+                    ink: theme.onContainerSoft
                 ) {
                     Text("\(data.streak)")
                         .font(.system(size: 24, weight: .heavy))
@@ -301,7 +322,7 @@ private struct MascotLargeView: View {
                 MascotTile(
                     caption: data.nextLabel,
                     background: theme.primaryContainer,
-                    ink: theme.onSurfaceVariant
+                    ink: theme.onContainerSoft
                 ) {
                     MascotBar(
                         percent: data.percent,
@@ -314,7 +335,7 @@ private struct MascotLargeView: View {
                 MascotTile(
                     caption: data.recordLabel.components(separatedBy: " ").first ?? "",
                     background: theme.primaryContainer,
-                    ink: theme.onSurfaceVariant
+                    ink: theme.onContainerSoft
                 ) {
                     Text("\(data.record)")
                         .font(.system(size: 24, weight: .heavy))
