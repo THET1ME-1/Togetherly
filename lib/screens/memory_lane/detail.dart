@@ -45,6 +45,10 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
   /// Файлы записи, которые можно положить в галерею (см. memory_media.dart).
   late final List<MediaFile> _files = memoryMediaFiles(widget.memory);
 
+  /// Какой кадр показан крупно. Плёнка под обложкой — переключатель:
+  /// нажал кадр, он встал главным, прежний ушёл на его место.
+  int _coverIndex = 0;
+
   @override
   void initState() {
     super.initState();
@@ -88,6 +92,17 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
   Widget build(BuildContext context) {
     final memory = widget.memory;
     final cs = _cs;
+    if (_isMoment) {
+      return Theme(
+        data: ProfileTheme.data(cs),
+        child: DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.94,
+          maxChildSize: 0.96,
+          builder: (_, sc) => _momentLayout(memory, cs, sc),
+        ),
+      );
+    }
     return Theme(
       data: ProfileTheme.data(cs),
       child: DraggableScrollableSheet(
@@ -164,6 +179,445 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
   }
 
   // ── Кадр ──────────────────────────────────────────────────────────────────
+
+
+  /// Фото-видео пин: у него свой каркас по макету — шапка с автором,
+  /// обложка целиком и плёнка остальных кадров. Книге, музыке и фильму он
+  /// не подходит: там кадра нет вовсе.
+  bool get _isMoment {
+    final t = widget.memory.type;
+    if (t != MemoryType.photo && t != MemoryType.video) return false;
+    return _momentPhotos.isNotEmpty;
+  }
+
+  /// Кадры записи в порядке показа.
+  List<String> get _momentPhotos {
+    final m = widget.memory;
+    if (m.imageUrls?.isNotEmpty == true) return m.imageUrls!;
+    if (m.imageUrl?.isNotEmpty == true) return [m.imageUrl!];
+    return const [];
+  }
+
+  String get _myUidHere => PocketBaseService().userId ?? '';
+
+  Widget _momentLayout(Memory memory, ColorScheme cs, ScrollController sc) {
+    return ColoredBox(
+      color: cs.surface,
+      child: Stack(
+        children: [
+          Column(
+            children: [
+              _momentBar(memory, cs),
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: sc,
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 150),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _momentCover(memory, cs),
+                      const SizedBox(height: 14),
+                      _momentTitle(memory, cs),
+                      if (memory.locationName?.isNotEmpty == true ||
+                          memory.latitude != null) ...[
+                        const SizedBox(height: 12),
+                        _placeBlock(memory, cs),
+                      ],
+                      const SizedBox(height: 12),
+                      _momentReactions(memory, cs),
+                      const SizedBox(height: 14),
+                      RepaintBoundary(
+                        child: _CommentsSection(
+                          groupId: widget.groupId,
+                          memoryId: widget.memory.id,
+                          primary: cs.primary,
+                        ),
+                      ),
+                      const _KeyboardPaddingBox(),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          Positioned(left: 0, right: 0, bottom: 0, child: _momentDock(memory, cs)),
+        ],
+      ),
+    );
+  }
+
+  /// Шапка: назад, пилюля с автором и датой, справа связанная группа —
+  /// карандаш автору и «⋯». Слова «Воспоминание» тут нет: и так понятно,
+  /// что открыто, а место лучше занять тем, кто и когда это снял.
+  Widget _momentBar(Memory memory, ColorScheme cs) {
+    final total = _momentPhotos.length +
+        (memory.videoUrl?.isNotEmpty == true && _momentPhotos.isEmpty ? 1 : 0);
+    final sub = '${_fmtDate(memory.createdAt)} · '
+        '${total} ${LocaleService.current.photosUnit(total)}';
+    Widget btn(IconData icon, VoidCallback onTap,
+        {BorderRadius? radius, String? tooltip}) {
+      final b = Material(
+        color: cs.surfaceContainerHigh,
+        borderRadius: radius ?? BorderRadius.circular(24),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: SizedBox(
+              width: 48, height: 48, child: Icon(icon, size: 22, color: cs.onSurface)),
+        ),
+      );
+      return tooltip == null ? b : Tooltip(message: tooltip, child: b);
+    }
+
+    final canEdit = widget.isOwner;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
+      child: Row(
+        children: [
+          btn(Icons.arrow_back_rounded, () => Navigator.pop(context)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Container(
+              height: 48,
+              padding: const EdgeInsets.only(left: 4, right: 14),
+              decoration: BoxDecoration(
+                color: cs.surfaceContainerHigh,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Row(
+                children: [
+                  AvatarWidget(
+                    uid: memory.authorUid,
+                    liveUrl: widget.liveAuthorAvatar,
+                    fallbackUrl: memory.authorAvatar,
+                    name: memory.authorName,
+                    size: 40,
+                    primary: cs.primary,
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          memory.authorName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppFonts.onest(
+                              size: 14, weight: 700, color: cs.onSurface),
+                        ),
+                        Text(
+                          sub,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppFonts.onest(
+                              size: 11.5,
+                              weight: 500,
+                              color: cs.onSurfaceVariant),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          if (canEdit) ...[
+            btn(
+              Icons.edit_outlined,
+              () {
+                Navigator.pop(context);
+                widget.onEdit();
+              },
+              radius: const BorderRadius.horizontal(
+                  left: Radius.circular(24), right: Radius.circular(8)),
+              tooltip: LocaleService.current.editMemory,
+            ),
+            const SizedBox(width: 2),
+            btn(
+              Icons.more_vert_rounded,
+              () => _showMoreMenu(memory, cs),
+              radius: const BorderRadius.horizontal(
+                  left: Radius.circular(8), right: Radius.circular(24)),
+            ),
+          ] else
+            btn(Icons.more_vert_rounded, () => _showMoreMenu(memory, cs)),
+        ],
+      ),
+    );
+  }
+
+  /// Обложка целиком и плёнка остальных кадров под ней.
+  Widget _momentCover(Memory memory, ColorScheme cs) {
+    final photos = _momentPhotos;
+    final idx = _coverIndex.clamp(0, photos.length - 1);
+    final hasVideo = memory.videoUrl?.isNotEmpty == true;
+    Widget cover = AspectCover(
+      url: photos[idx],
+      radius: 22,
+      maxHeight: 460,
+      overlay: hasVideo && idx == 0
+          ? const Center(
+              child: Icon(Icons.play_circle_fill_rounded,
+                  color: Colors.white, size: 54),
+            )
+          : null,
+    );
+    if (memory.isAdult) cover = _BlurAfterTap(child: cover);
+
+    final others = <int>[
+      for (var i = 0; i < photos.length; i++)
+        if (i != idx) i,
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => _openFrameFromDetail(memory, idx),
+          child: cover,
+        ),
+        if (others.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          SizedBox(
+            height: 76,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              physics: const ClampingScrollPhysics(),
+              itemCount: others.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 2),
+              itemBuilder: (_, i) => FilmFrame(
+                url: photos[others[i]],
+                height: 76,
+                onTap: () => setState(() => _coverIndex = others[i]),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// Название крупно, подпись под ним обычным шрифтом.
+  Widget _momentTitle(Memory memory, ColorScheme cs) {
+    final title = memory.title?.trim() ?? '';
+    final caption = normalizeMemoryCaption(memory.caption)?.trim() ?? '';
+    if (title.isEmpty && caption.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (title.isNotEmpty)
+            Text(
+              title,
+              style: TextStyle(
+                fontFamily: ProfileTheme.displayFont,
+                fontSize: 23,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.3,
+                height: 1.2,
+                color: cs.onSurface,
+              ),
+            ),
+          if (caption.isNotEmpty)
+            Padding(
+              padding: EdgeInsets.only(top: title.isEmpty ? 0 : 6),
+              child: Text(
+                caption,
+                style: AppFonts.onest(
+                    size: 15.5, weight: 400, color: cs.onSurfaceVariant),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Место и время съёмки тёмным блоком — он заметен и не спорит с кадром.
+  Widget _placeBlock(Memory memory, ColorScheme cs) {
+    final name = memory.locationName?.trim().isNotEmpty == true
+        ? memory.locationName!.trim()
+        : '${memory.latitude?.toStringAsFixed(2)}, '
+            '${memory.longitude?.toStringAsFixed(2)}';
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+      decoration: BoxDecoration(
+        color: cs.inverseSurface,
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.place_rounded, size: 22, color: cs.onInverseSurface),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppFonts.onest(
+                        size: 15, weight: 700, color: cs.onInverseSurface)),
+                Text(_fmtDate(memory.createdAt),
+                    style: AppFonts.onest(
+                        size: 12.5,
+                        weight: 500,
+                        color: cs.onInverseSurface.withValues(alpha: 0.85))),
+              ],
+            ),
+          ),
+          if (memory.latitude != null && memory.longitude != null)
+            Material(
+              color: cs.onInverseSurface.withValues(alpha: 0.14),
+              shape: const CircleBorder(),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: () => _showMapsPickerSheet(context, memory.latitude!,
+                    memory.longitude!, memory.locationName),
+                child: SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: Icon(Icons.near_me_rounded,
+                      size: 20, color: cs.onInverseSurface),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Именные реакции и вход в комментарии.
+  Widget _momentReactions(Memory memory, ColorScheme cs) {
+    final theme = context.appTheme;
+    final uid = _myUidHere;
+    final repo = MemoryRepository();
+    final chips = <Widget>[];
+    memory.reactions.forEach((who, key) {
+      chips.add(ReactionChip(
+        uid: who,
+        name: who == memory.authorUid ? memory.authorName : '',
+        avatarUrl: who == memory.authorUid ? (memory.authorAvatar) : '',
+        reactionKey: key,
+        theme: theme,
+        isMine: who == uid,
+        onTap: who == uid
+            ? () => repo.setReaction(
+                groupId: widget.groupId, memoryId: memory.id, reaction: key)
+            : null,
+      ));
+    });
+    return Row(
+      children: [
+        for (final c in chips) ...[c, const SizedBox(width: 2)],
+        if (memory.reactionOf(uid).isEmpty)
+          AddReactionButton(
+            theme: theme,
+            onPick: (key) => repo.setReaction(
+                groupId: widget.groupId, memoryId: memory.id, reaction: key),
+          ),
+      ],
+    );
+  }
+
+  /// Низ экрана: плавающий тулбар с действиями и отдельная кнопка
+  /// сохранения — так их разделяет M3 Expressive.
+  Widget _momentDock(Memory memory, ColorScheme cs) {
+    final bottom = MediaQuery.paddingOf(context).bottom;
+    final saved = memory.isSavedBy(_myUidHere);
+    Widget ib(IconData icon, VoidCallback onTap, {bool active = false}) =>
+        Material(
+          color: active ? cs.secondaryContainer : Colors.transparent,
+          borderRadius: BorderRadius.circular(28),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: SizedBox(
+              width: 52,
+              height: 56,
+              child: Icon(icon,
+                  size: 24,
+                  color: active ? cs.onSecondaryContainer : cs.onSurface),
+            ),
+          ),
+        );
+    final repo = MemoryRepository();
+    final myReaction = memory.reactionOf(_myUidHere);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(12, 0, 12, 16 + bottom),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 72,
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: cs.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(36),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  ib(
+                    myReaction.isEmpty
+                        ? Icons.favorite_border_rounded
+                        : reactionByKey(myReaction).icon,
+                    () => repo.setReaction(
+                        groupId: widget.groupId,
+                        memoryId: memory.id,
+                        reaction: myReaction.isEmpty ? 'heart' : myReaction),
+                    active: myReaction.isNotEmpty,
+                  ),
+                  ib(Icons.reply_rounded, () => _shareFiles(memory)),
+                  ib(
+                    saved
+                        ? Icons.bookmark_rounded
+                        : Icons.bookmark_border_rounded,
+                    () => MemoryRepository()
+                        .toggleSaved(groupId: widget.groupId, memoryId: memory.id),
+                    active: saved,
+                  ),
+                  ib(Icons.push_pin_outlined, () => widget.onTogglePin(),
+                      active: memory.isPinned),
+                ],
+              ),
+            ),
+          ),
+          if (_files.isNotEmpty) ...[
+            const SizedBox(width: 10),
+            _saveButton(memory),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Открыть кадр на весь экран из пина.
+  void _openFrameFromDetail(Memory memory, int index) {
+    final items = [
+      for (var i = 0; i < _momentPhotos.length; i++)
+        GalleryItem(
+          url: _momentPhotos[i],
+          videoUrl: i == 0 ? memory.videoUrl : null,
+          memoryId: memory.id,
+          caption: memory.title ?? memory.caption ?? '',
+        ),
+    ];
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FullscreenGallery(
+          items: items,
+          initialIndex: index,
+          memoryOf: (_) => memory,
+        ),
+        settings: const RouteSettings(name: '/memory_frame'),
+      ),
+    );
+  }
 
   Widget _buildHero(Memory memory, ColorScheme cs) {
     final url = memory.imageUrl ?? memory.imageUrls?.firstOrNull ?? '';

@@ -102,6 +102,7 @@ import '../widgets/common/pin_entry_sheet.dart';
 import '../services/offline/media_file_fetch.dart';
 import '../widgets/memory/media_strip.dart';
 import '../widgets/memory/reactions_row.dart';
+import '../models/memory_reaction.dart';
 
 // Экран разбит на части (один большой файл → читаемые модули). Все части —
 // `part of` этой библиотеки: приватные классы остаются библиотечно-приватными,

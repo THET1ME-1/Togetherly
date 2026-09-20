@@ -426,4 +426,325 @@ void main() {
           bytes!.buffer.asUint8List(), flush: true);
     });
   });
+
+  testWidgets('открытый пин', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 860));
+    final theme = AppThemes.byIndex(0);
+    final cs = theme.scheme ?? ColorScheme.fromSeed(seedColor: theme.primary);
+
+    Widget ib(IconData icon, {bool active = false}) => Container(
+          width: 52,
+          height: 56,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: active ? cs.secondaryContainer : Colors.transparent,
+            borderRadius: BorderRadius.circular(28),
+          ),
+          child: Icon(icon,
+              size: 24,
+              color: active ? cs.onSecondaryContainer : cs.onSurface),
+        );
+
+    final key = GlobalKey();
+    await tester.pumpWidget(RepaintBoundary(
+      key: key,
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(
+          backgroundColor: cs.surface,
+          body: SafeArea(
+            child: Stack(children: [
+              Column(children: [
+                // шапка: назад, автор с датой, карандаш и «ещё» группой
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
+                  child: Row(children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                          color: cs.surfaceContainerHigh, shape: BoxShape.circle),
+                      child: Icon(Icons.arrow_back_rounded, color: cs.onSurface),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Container(
+                        height: 48,
+                        padding: const EdgeInsets.only(left: 4, right: 14),
+                        decoration: BoxDecoration(
+                          color: cs.surfaceContainerHigh,
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        child: Row(children: [
+                          CircleAvatar(
+                              radius: 20,
+                              backgroundColor: theme.primaryLight,
+                              child: Text('А',
+                                  style: TextStyle(
+                                      fontFamily: 'Unbounded',
+                                      fontWeight: FontWeight.w800,
+                                      color: theme.textPrimary))),
+                          const SizedBox(width: 9),
+                          Expanded(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Аня',
+                                    style: TextStyle(
+                                        fontFamily: 'Onest',
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                        color: cs.onSurface)),
+                                Text('12 сентября · 7 кадров',
+                                    style: TextStyle(
+                                        fontFamily: 'Onest',
+                                        fontSize: 11.5,
+                                        color: cs.onSurfaceVariant)),
+                              ],
+                            ),
+                          ),
+                        ]),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      width: 48,
+                      height: 48,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: cs.surfaceContainerHigh,
+                        borderRadius: const BorderRadius.horizontal(
+                            left: Radius.circular(24), right: Radius.circular(8)),
+                      ),
+                      child: Icon(Icons.edit_outlined, size: 22, color: cs.onSurface),
+                    ),
+                    const SizedBox(width: 2),
+                    Container(
+                      width: 48,
+                      height: 48,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: cs.surfaceContainerHigh,
+                        borderRadius: const BorderRadius.horizontal(
+                            left: Radius.circular(8), right: Radius.circular(24)),
+                      ),
+                      child: Icon(Icons.more_vert_rounded, size: 22, color: cs.onSurface),
+                    ),
+                  ]),
+                ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 150),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const _Frame(
+                            aspect: 1120 / 470,
+                            color: Color(0xFF6E93B8),
+                            radius: 22),
+                        const SizedBox(height: 2),
+                        SizedBox(
+                          height: 76,
+                          child: Row(children: const [
+                            _Frame(aspect: 1, color: Color(0xFFB08968)),
+                            SizedBox(width: 2),
+                            _Frame(aspect: 0.62, color: Color(0xFF7F8C6C)),
+                            SizedBox(width: 2),
+                            _Frame(aspect: 0.75, color: Color(0xFFA1748C)),
+                            SizedBox(width: 2),
+                            _Frame(aspect: 1.5, color: Color(0xFF8899AA)),
+                          ]),
+                        ),
+                        const SizedBox(height: 14),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Закат на реке',
+                                  style: TextStyle(
+                                      fontFamily: 'Unbounded',
+                                      fontSize: 23,
+                                      fontWeight: FontWeight.w700,
+                                      height: 1.2,
+                                      color: cs.onSurface)),
+                              const SizedBox(height: 6),
+                              Text('Доехали к реке за час до заката.',
+                                  style: TextStyle(
+                                      fontFamily: 'Onest',
+                                      fontSize: 15.5,
+                                      color: cs.onSurfaceVariant)),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        // блок места
+                        Container(
+                          padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+                          decoration: BoxDecoration(
+                            color: cs.inverseSurface,
+                            borderRadius: BorderRadius.circular(22),
+                          ),
+                          child: Row(children: [
+                            Icon(Icons.place_rounded,
+                                size: 22, color: cs.onInverseSurface),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Каменка',
+                                      style: TextStyle(
+                                          fontFamily: 'Onest',
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w700,
+                                          color: cs.onInverseSurface)),
+                                  Text('12 сентября, 19:40',
+                                      style: TextStyle(
+                                          fontFamily: 'Onest',
+                                          fontSize: 12.5,
+                                          color: cs.onInverseSurface
+                                              .withValues(alpha: 0.85))),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              width: 40,
+                              height: 40,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: cs.onInverseSurface.withValues(alpha: 0.14),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(Icons.near_me_rounded,
+                                  size: 20, color: cs.onInverseSurface),
+                            ),
+                          ]),
+                        ),
+                        const SizedBox(height: 12),
+                        // именные реакции
+                        Row(children: [
+                          Container(
+                            height: 40,
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            decoration: BoxDecoration(
+                                color: theme.bgGradient[0],
+                                borderRadius: BorderRadius.circular(20)),
+                            child: Row(mainAxisSize: MainAxisSize.min, children: [
+                              CircleAvatar(
+                                  radius: 14,
+                                  backgroundColor: theme.primaryLight,
+                                  child: Text('С',
+                                      style: TextStyle(
+                                          fontFamily: 'Unbounded',
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w800,
+                                          color: theme.textPrimary))),
+                              const SizedBox(width: 6),
+                              Icon(reactionByKey('heart').icon,
+                                  size: 18, color: theme.fillColor),
+                            ]),
+                          ),
+                          const SizedBox(width: 2),
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                                color: theme.bgGradient[0], shape: BoxShape.circle),
+                            child: Icon(Icons.add_reaction_outlined,
+                                size: 20, color: theme.textSecondary),
+                          ),
+                        ]),
+                      ],
+                    ),
+                  ),
+                ),
+              ]),
+              // низ: тулбар и отдельная кнопка сохранения
+              Positioned(
+                left: 12,
+                right: 12,
+                bottom: 16,
+                child: Row(children: [
+                  Expanded(
+                    child: Container(
+                      height: 72,
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: cs.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(36),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          ib(Icons.favorite_rounded, active: true),
+                          ib(Icons.reply_rounded),
+                          ib(Icons.bookmark_border_rounded),
+                          ib(Icons.push_pin_outlined),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Row(children: [
+                    Container(
+                      height: 72,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: theme.fillColor,
+                        borderRadius: const BorderRadius.horizontal(
+                            left: Radius.circular(36), right: Radius.circular(10)),
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.download_rounded,
+                            size: 22,
+                            color: AppThemes.onColor(theme.fillColor,
+                                mode: theme.brightness)),
+                        const SizedBox(width: 8),
+                        Text('7',
+                            style: TextStyle(
+                                fontFamily: 'Onest',
+                                fontSize: 17,
+                                fontWeight: FontWeight.w700,
+                                color: AppThemes.onColor(theme.fillColor,
+                                    mode: theme.brightness))),
+                      ]),
+                    ),
+                    const SizedBox(width: 2),
+                    Container(
+                      width: 46,
+                      height: 72,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: theme.fillColor,
+                        borderRadius: const BorderRadius.horizontal(
+                            left: Radius.circular(10), right: Radius.circular(36)),
+                      ),
+                      child: Icon(Icons.arrow_drop_down_rounded,
+                          color: AppThemes.onColor(theme.fillColor,
+                              mode: theme.brightness)),
+                    ),
+                  ]),
+                ]),
+              ),
+            ]),
+          ),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.runAsync(() async {
+      final boundary =
+          key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+      final image = await boundary.toImage(pixelRatio: 2);
+      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+      final dir = Directory('build/feed-preview')..createSync(recursive: true);
+      File('${dir.path}/detail.png')
+          .writeAsBytesSync(bytes!.buffer.asUint8List(), flush: true);
+    });
+  });
 }
