@@ -521,6 +521,7 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
       return GestureDetector(
         onTap: _pickMedia,
         child: Container(
+          width: double.infinity,
           height: 220,
           decoration: BoxDecoration(
             color: cs.surfaceContainerHigh,
@@ -590,52 +591,56 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
     }
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Stack(
-          children: [
-            frameAt(0, 0, cover: true),
-            Positioned(
-              left: 10,
-              bottom: 10,
-              child: Container(
-                height: 30,
-                padding: const EdgeInsets.only(left: 9, right: 12),
-                decoration: BoxDecoration(
-                  color: widget.theme.fillColor,
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.star_rounded, size: 16, color: _onFill),
-                    const SizedBox(width: 5),
-                    Text(LocaleService.current.coverLabel,
-                        style: AppFonts.onest(
-                            size: 12.5, weight: 700, color: _onFill)),
-                  ],
-                ),
-              ),
-            ),
-            Positioned(
-              right: 10,
-              top: 10,
-              child: Material(
-                color: cs.inverseSurface,
-                shape: const CircleBorder(),
-                clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  onTap: () => _removeAt(0),
-                  child: SizedBox(
-                    width: 36,
-                    height: 36,
-                    child: Icon(Icons.close_rounded,
-                        size: 20, color: cs.onInverseSurface),
+        // Обложка по центру, а метки — по её краям: у Stack во всю ширину
+        // они уезжали к краям экрана, мимо кадра.
+        Center(
+          child: Stack(
+            children: [
+              frameAt(0, 0, cover: true),
+              Positioned(
+                left: 10,
+                bottom: 10,
+                child: Container(
+                  height: 30,
+                  padding: const EdgeInsets.only(left: 9, right: 12),
+                  decoration: BoxDecoration(
+                    color: widget.theme.fillColor,
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.star_rounded, size: 16, color: _onFill),
+                      const SizedBox(width: 5),
+                      Text(LocaleService.current.coverLabel,
+                          style: AppFonts.onest(
+                              size: 12.5, weight: 700, color: _onFill)),
+                    ],
                   ),
                 ),
               ),
-            ),
-          ],
+              Positioned(
+                right: 10,
+                top: 10,
+                child: Material(
+                  color: cs.inverseSurface,
+                  shape: const CircleBorder(),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () => _removeAt(0),
+                    child: SizedBox(
+                      width: 36,
+                      height: 36,
+                      child: Icon(Icons.close_rounded,
+                          size: 20, color: cs.onInverseSurface),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 2),
         SizedBox(
