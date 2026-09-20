@@ -48,6 +48,13 @@ const _lowercaseOnPurpose = <String>{
   'pcDaysNearby', 'pcDaysOfLove', 'pcDaysTogether', 'pcMsgReceipt',
   'pcNightsUnderSky', 'pcParcelCare', 'pcParcelTo', 'pcReceiptTotal',
   'pcTelegramTitle', 'pcTicketRoute',
+  // Виджет маскота: ступень и остаток стоят ВНУТРИ строки — «Пудя ·
+  // подросток», «подросток · 12 дней серии», «до взрослого 18 дней». С
+  // заглавной они выглядели бы вторым заголовком рядом с именем.
+  'mascotStageBaby', 'mascotStageTeen', 'mascotStageAdult',
+  'mascotWidgetToTeen', 'mascotWidgetToAdult', 'mascotWidgetGrown',
+  // Подписи под числом в плитках: «12 · дней серии», «64 · рекорд».
+  'mascotWidgetStreakLabel', 'mascotWidgetRecord',
   // Чек Togetherly Wallet: значение стоит справа от точек и продолжает строку
   // «Общий бюджет ······ на двоих».
   'walletRowBudgetValue', 'walletRowPersonalValue', 'walletRowSplitValue',
