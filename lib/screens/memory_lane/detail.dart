@@ -113,14 +113,13 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
     final memory = widget.memory;
     final cs = _cs;
     if (_isMoment) {
+      // Полноценный экран, а не лист: лист утягивался вниз до чёрного и
+      // оставлял сверху просвет ленты с её шапкой.
       return Theme(
         data: ProfileTheme.data(cs),
-        child: DraggableScrollableSheet(
-          expand: false,
-          initialChildSize: 1,
-          minChildSize: 0.5,
-          maxChildSize: 1,
-          builder: (_, sc) => _momentLayout(memory, cs, sc),
+        child: Scaffold(
+          backgroundColor: cs.surface,
+          body: _momentLayout(memory, cs, null),
         ),
       );
     }
