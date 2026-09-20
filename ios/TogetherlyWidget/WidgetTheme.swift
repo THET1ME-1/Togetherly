@@ -27,6 +27,7 @@ struct WidgetTheme {
     var primaryContainer: Color { color("primaryContainer", Color(hex: 0xE9DDFF)) }
     var surface: Color { color("surface", Color(hex: 0xFFF7FA)) }
     var surfaceContainer: Color { color("surfaceContainer", Color(hex: 0xF3EBF3)) }
+    var tertiary: Color { color("tertiary", Color(hex: 0x7D5260)) }
     var tertiaryContainer: Color { color("tertiaryContainer", Color(hex: 0xFFD9E2)) }
     var secondaryContainer: Color { color("secondaryContainer", Color(hex: 0xE8DEF8)) }
 
