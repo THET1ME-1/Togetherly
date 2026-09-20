@@ -33,3 +33,18 @@ swiftc -swift-version 5 \
   -o "$out/year_probe" -module-name YearProbe
 
 "$out/year_probe" "$out"
+
+# «Вместе»: настоящий TogetherWidget.swift с теми же заглушками. Иначе Swift
+# расширения проверяет только релизный прогон, и опечатка всплывает на выпуске.
+mkdir -p "$out/together"
+sed 's/^import UIKit$/import AppKit/; s/UIImage/NSImage/g' \
+  "$root/ios/TogetherlyWidget/TogetherWidget.swift" > "$out/together/TogetherWidget.swift"
+cp "$root/tool/widget_layout/together_main.swift" "$out/together/main.swift"
+swiftc -swift-version 5 \
+  "$out/together/TogetherWidget.swift" \
+  "$root/tool/widget_layout/Shims.swift" \
+  "$root/tool/widget_layout/TogetherShims.swift" \
+  "$out/together/main.swift" \
+  -o "$out/together_probe" -module-name TogetherProbe
+
+"$out/together_probe" "$out"
