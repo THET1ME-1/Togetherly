@@ -278,10 +278,10 @@ private struct MascotLargeView: View {
                 VStack(spacing: 0) {
                     Spacer(minLength: 0)
                     // Персонаж стоит на кромке пола, а не поверх него.
-                    MascotFigure(path: data.framePath, pixelArt: data.isPixelArt, side: 118)
+                    MascotFigure(path: data.framePath, pixelArt: data.isPixelArt, side: 148)
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
                         .fill(theme.trackOnContainer)
-                        .frame(height: 44)
+                        .frame(height: 38)
                 }
 
                 HStack(alignment: .top) {
