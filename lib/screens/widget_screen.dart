@@ -22,6 +22,7 @@ import '../services/plus_service.dart';
 import '../services/ui_prefs.dart';
 import '../models/together_milestones.dart';
 import '../models/widget_panels.dart';
+import '../widgets/miss_widget_card.dart';
 import '../widgets/together_track_card.dart';
 import '../services/widget_theme_sync.dart';
 import '../models/pair_map_widget_view.dart';
@@ -2138,6 +2139,55 @@ class _WidgetScreenState extends State<WidgetScreen>
     );
   }
 
+  /// Превью «Скучаю» для каталога: тот же вид, что на рабочем столе.
+  Widget _missPreview(MissCardSize size) {
+    final myCount = _missCounts[widget.userData.uid] ?? 0;
+    final partnerCount = _missCounts[_pair.partnerUid] ?? 0;
+    final s = LocaleService.current;
+
+    Widget face(String uid, String url, String name, Color bg, Color fg) =>
+        Container(
+          decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+          clipBehavior: Clip.antiAlias,
+          alignment: Alignment.center,
+          child: url.isNotEmpty
+              ? AvatarWidget(uid: uid, liveUrl: url, name: name, size: 26, primary: bg)
+              : Text(
+                  _initialOf(name),
+                  style: TextStyle(
+                    fontFamily: 'Onest',
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: fg,
+                  ),
+                ),
+        );
+
+    return AspectRatio(
+      aspectRatio: switch (size) {
+        MissCardSize.small => 1,
+        MissCardSize.medium => 338 / 158,
+        MissCardSize.strip => 338 / 74,
+      },
+      child: MissWidgetCard(
+        size: size,
+        myCount: myCount,
+        partnerCount: partnerCount,
+        roles: WidgetThemeSync.rolesOf(_cs),
+        meLabel: s.tgMissMe,
+        partnerName: _pair.partnerDisplayName.trim(),
+        sendLabel: s.tgMissTitle,
+        whenLabel: s.tgMissToday,
+        myFace: face(widget.userData.uid, widget.userData.avatarUrl,
+            widget.userData.displayName, _wr('avatarMine'),
+            _wr('onPrimaryContainer')),
+        partnerFace: face(_pair.partnerUid, _pair.partnerAvatarUrl,
+            _pair.partnerDisplayName, _wr('avatarPartner'),
+            _wr('onTertiaryContainer')),
+      ),
+    );
+  }
+
   /// Заметка на двоих, карточкой M3.
   Widget _cardNote(bool locked) =>
       _buildGalleryItem(
@@ -2227,19 +2277,19 @@ class _WidgetScreenState extends State<WidgetScreen>
             label: '2×2',
             hint: _s.tgSizeHintCompact,
             qualifiedName: 'com.togetherly.love.MissWidget2x2Provider',
-            previewBuilder: () => _buildMiss2x2Preview(),
+            previewBuilder: () => _missPreview(MissCardSize.small),
           ),
           _WidgetSizeOption(
             label: '4×2',
             hint: _s.tgSizeHintWide,
             qualifiedName: 'com.togetherly.love.MissWidget4x2Provider',
-            previewBuilder: () => _buildMissPreview(),
+            previewBuilder: () => _missPreview(MissCardSize.medium),
           ),
           _WidgetSizeOption(
             label: '4×1',
             hint: _s.tgSizeHintStrip,
             qualifiedName: 'com.togetherly.love.MissWidget4x1Provider',
-            previewBuilder: () => _buildMiss4x1Preview(),
+            previewBuilder: () => _missPreview(MissCardSize.strip),
           ),
         ],
       );
@@ -2812,146 +2862,7 @@ class _WidgetScreenState extends State<WidgetScreen>
 
 
 
-  /// Превью «Скучаю» 2×2: tertiary-container #FFD8E4 и пилюля отправки.
-  Widget _buildMiss2x2Preview() {
-    final partnerName = _pair.partnerDisplayName.trim();
 
-    return AspectRatio(
-      aspectRatio: 1,
-      child: Container(
-        padding: EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: _wr('tertiaryContainer'),
-          borderRadius: BorderRadius.circular(32),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    partnerName.isEmpty ? '' : _s.tgMissAddressee(partnerName),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: _wr('tertiary'),
-                    ),
-                  ),
-                ),
-                Icon(Icons.favorite_rounded,
-                    size: 20, color: _wr('tertiary')),
-              ],
-            ),
-            Spacer(),
-            Text(
-              _s.tgMissTitle,
-              style: TextStyle(
-                fontSize: 26,
-                height: 1.05,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.8,
-                color: _wr('onTertiaryContainer'),
-              ),
-            ),
-            SizedBox(height: 10),
-            Container(
-              padding:
-                  EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-              decoration: BoxDecoration(
-                color: _wr('tertiary'),
-                borderRadius: BorderRadius.circular(100),
-              ),
-              child: Text(
-                _s.tgMissSend,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: _wr('onPrimary'),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Превью «Скучаю» 4×1: полоска primary высотой 92 с аватаром партнёра.
-  Widget _buildMiss4x1Preview() {
-    final partnerName = _pair.partnerDisplayName.trim();
-    final initial = _initialOf(partnerName);
-
-    return AspectRatio(
-      aspectRatio: 424 / 92,
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 20),
-        decoration: BoxDecoration(
-          color: _wr('primary'),
-          borderRadius: BorderRadius.circular(28),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: _wr('accentOnPrimary'),
-                shape: BoxShape.circle,
-              ),
-              alignment: Alignment.center,
-              child: initial.isEmpty
-                  ? Icon(Icons.favorite_rounded,
-                      size: 20, color: _wr('onPrimaryContainer'))
-                  : Text(
-                      initial,
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                        color: _wr('onPrimaryContainer'),
-                      ),
-                    ),
-            ),
-            SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _s.tgMissTitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: _wr('onPrimary'),
-                    ),
-                  ),
-                  SizedBox(height: 2),
-                  Text(
-                    _s.tgMissStripHint,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: _wr('accentOnPrimary'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(width: 12),
-            Icon(Icons.favorite_rounded,
-                size: 26, color: _wr('tertiaryContainer')),
-          ],
-        ),
-      ),
-    );
-  }
 
   /// Превью «Настроение» 2×2: отметки обоих и три кнопки выбора.
   Widget _buildMoodTiles2x2Preview() {
@@ -3763,113 +3674,6 @@ class _WidgetScreenState extends State<WidgetScreen>
     );
   }
 
-  /// Превью виджета «Скучаю» — размер 4×2 из хендофа: surface #FEF7FF,
-  /// счётчики обоих на тональных плашках и кнопка отправки 64×64.
-  Widget _buildMissPreview() {
-    final partnerName = _pair.partnerDisplayName.trim();
-    final myCount = _missCounts[widget.userData.uid] ?? 0;
-    final partnerCount = _missCounts[_pair.partnerUid] ?? 0;
-
-    Widget tile({
-      required String label,
-      required int value,
-      required Color bg,
-      required Color labelColor,
-      required Color valueColor,
-    }) =>
-        Expanded(
-          child: Container(
-            padding: EdgeInsets.fromLTRB(16, 14, 16, 14),
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: labelColor,
-                  ),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  '$value',
-                  style: TextStyle(
-                    fontSize: 34,
-                    height: 1,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -1,
-                    color: valueColor,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-
-    return AspectRatio(
-      aspectRatio: 424 / 200,
-      child: Container(
-        padding: EdgeInsets.fromLTRB(22, 20, 22, 20),
-        decoration: BoxDecoration(
-          color: _wr('surface'),
-          borderRadius: BorderRadius.circular(32),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'СКУЧАЮ СЕГОДНЯ',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.3,
-                color: _wr('onSurface'),
-              ),
-            ),
-            Spacer(),
-            Row(
-              children: [
-                tile(
-                  label: 'Я',
-                  value: myCount,
-                  bg: _wr('primaryContainer'),
-                  labelColor: _wr('onContainerSoft'),
-                  valueColor: _wr('onPrimaryContainer'),
-                ),
-                SizedBox(width: 14),
-                tile(
-                  label: partnerName.isEmpty ? 'Партнёр' : partnerName,
-                  value: partnerCount,
-                  bg: _wr('tertiaryContainer'),
-                  labelColor: _wr('tertiary'),
-                  valueColor: _wr('onTertiaryContainer'),
-                ),
-                SizedBox(width: 14),
-                Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    color: _wr('primary'),
-                    borderRadius: BorderRadius.circular(22),
-                  ),
-                  child: Icon(Icons.favorite_rounded,
-                      size: 30, color: _wr('onPrimary')),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
 
 

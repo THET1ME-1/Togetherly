@@ -22,3 +22,8 @@ struct HeartShape: Shape {
         return p
     }
 }
+
+extension Store {
+    /// «1» — да, всё остальное — нет: так же читает настоящий Store.
+    func bool01(_ key: String) -> Bool { string(key) == "1" }
+}
