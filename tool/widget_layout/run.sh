@@ -64,3 +64,19 @@ swiftc -swift-version 5 \
   -o "$out/miss_probe" -module-name MissProbe
 
 "$out/miss_probe" "$out"
+
+# «Маскот на столе»: тот же приём. Кадр берётся настоящий — спрайт из
+# tools/assets, поэтому на картинке видно, мылится персонаж или нет.
+mkdir -p "$out/mascot"
+sed 's/^import UIKit$/import AppKit/; s/UIImage/NSImage/g; s/^private //' \
+  "$root/ios/TogetherlyWidget/MascotWidget.swift" > "$out/mascot/MascotWidget.swift"
+cp "$root/tool/widget_layout/mascot_main.swift" "$out/mascot/main.swift"
+swiftc -swift-version 5 \
+  "$out/mascot/MascotWidget.swift" \
+  "$root/tool/widget_layout/Shims.swift" \
+  "$root/tool/widget_layout/TogetherShims.swift" \
+  "$root/tool/widget_layout/MascotShims.swift" \
+  "$out/mascot/main.swift" \
+  -o "$out/mascot_probe" -module-name MascotProbe
+
+(cd "$root" && "$out/mascot_probe" "$out")

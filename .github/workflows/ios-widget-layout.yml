@@ -14,6 +14,7 @@ on:
       - 'ios/TogetherlyWidget/YearWidgets.swift'
       - 'ios/TogetherlyWidget/TogetherWidget.swift'
       - 'ios/TogetherlyWidget/MissWidget.swift'
+      - 'ios/TogetherlyWidget/MascotWidget.swift'
       - 'tool/widget_layout/**'
       - '.github/workflows/ios-widget-layout.yml'
   workflow_dispatch:

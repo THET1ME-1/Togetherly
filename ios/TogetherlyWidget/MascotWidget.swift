@@ -134,30 +134,45 @@ private struct MascotWidgetView: View {
 
         Group {
             if !data.isSet {
-                VStack(spacing: 6) {
-                    Image(systemName: "pawprint.circle.fill")
-                        .font(.system(size: 26, weight: .semibold))
-                        .foregroundColor(theme.primary)
-                    Text("Выберите маскота в приложении")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(theme.onSurfaceVariant)
-                        .multilineTextAlignment(.center)
-                }
-                .padding(14)
+                MascotEmptyView(theme: theme)
             } else {
                 switch family {
-                case .systemLarge: large(theme, data)
-                case .systemMedium: medium(theme, data)
-                default: small(theme, data)
+                case .systemLarge: MascotLargeView(data: data, theme: theme)
+                case .systemMedium: MascotMediumView(data: data, theme: theme)
+                default: MascotSmallView(data: data, theme: theme)
                 }
             }
         }
         .widgetURL(URL(string: "loveapp://mascot"))
         .tgContainerBackground(theme.surface)
     }
+}
 
-    // 2×2 «Полка»: имя и ступень сверху, полоса роста снизу.
-    private func small(_ theme: WidgetTheme, _ data: MascotData) -> some View {
+/// Персонажа ещё не выбрали: виджет обязан назвать себя, иначе человек решит,
+/// что он не добавился.
+private struct MascotEmptyView: View {
+    let theme: WidgetTheme
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Image(systemName: "pawprint.circle.fill")
+                .font(.system(size: 26, weight: .semibold))
+                .foregroundColor(theme.primary)
+            Text("Выберите маскота в приложении")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(theme.onSurfaceVariant)
+                .multilineTextAlignment(.center)
+        }
+        .padding(14)
+    }
+}
+
+/// 2×2 «Полка»: имя и ступень сверху, полоса роста снизу.
+private struct MascotSmallView: View {
+    let data: MascotData
+    let theme: WidgetTheme
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 Text(data.name)
@@ -192,9 +207,14 @@ private struct MascotWidgetView: View {
         }
         .padding(14)
     }
+}
 
-    // 4×2 «Рост»: персонаж слева, счётчик и полоса справа.
-    private func medium(_ theme: WidgetTheme, _ data: MascotData) -> some View {
+/// 4×2 «Рост»: персонаж слева, счётчик и полоса справа.
+private struct MascotMediumView: View {
+    let data: MascotData
+    let theme: WidgetTheme
+
+    var body: some View {
         HStack(spacing: 12) {
             MascotFigure(path: data.framePath, pixelArt: data.isPixelArt, side: 88)
                 .frame(width: 118, height: 118)
@@ -221,15 +241,20 @@ private struct MascotWidgetView: View {
         }
         .padding(14)
     }
+}
 
-    // 4×4 «Комната»: сцена сверху, три плитки снизу.
-    private func large(_ theme: WidgetTheme, _ data: MascotData) -> some View {
+/// 4×4 «Комната»: сцена сверху, три плитки снизу.
+private struct MascotLargeView: View {
+    let data: MascotData
+    let theme: WidgetTheme
+
+    var body: some View {
         VStack(spacing: 10) {
             ZStack(alignment: .top) {
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .fill(theme.primaryContainer)
 
-                VStack {
+                VStack(spacing: 0) {
                     Spacer(minLength: 0)
                     // Персонаж стоит на кромке пола, а не поверх него.
                     MascotFigure(path: data.framePath, pixelArt: data.isPixelArt, side: 118)
