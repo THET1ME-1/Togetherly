@@ -3559,7 +3559,6 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       userLat: _userLat,
       userLng: _userLng,
       liveAuthorAvatar: _liveAvatar(memory),
-      onTogglePin: () => _togglePin(memory),
       onEdit: () => _editMemory(memory),
       onDelete: () => _confirmDelete(memory),
       onSetLocation: () => _setLocationOnMemory(memory),

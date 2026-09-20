@@ -8,7 +8,6 @@ class _MemoryDetailSheet extends StatefulWidget {
   final Color typeColor;
   final double? userLat;
   final double? userLng;
-  final VoidCallback onTogglePin;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback? onSetLocation;
@@ -24,7 +23,6 @@ class _MemoryDetailSheet extends StatefulWidget {
     required this.typeColor,
     this.userLat,
     this.userLng,
-    required this.onTogglePin,
     required this.onEdit,
     required this.onDelete,
     this.onSetLocation,
@@ -42,8 +40,14 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
   late final Animation<double> _fadeAnim;
   late final Animation<Offset> _slideAnim;
 
+  /// Запись, которую показываем. Не снимок из конструктора: закладка,
+  /// закрепление и реакции правят кэш, и без подписки на поток кнопки
+  /// оставались в прежнем виде до перезахода в пин.
+  late Memory _memory = widget.memory;
+  StreamSubscription<List<Memory>>? _watch;
+
   /// Файлы записи, которые можно положить в галерею (см. memory_media.dart).
-  late final List<MediaFile> _files = memoryMediaFiles(widget.memory);
+  late List<MediaFile> _files = memoryMediaFiles(widget.memory);
 
   /// Какой кадр показан крупно. Плёнка под обложкой — переключатель:
   /// нажал кадр, он встал главным, прежний ушёл на его место.
@@ -59,13 +63,20 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
     final uid = _myUidHere;
     if (uid.isEmpty) return;
     setState(() => _reactions = withReaction(_reactions, uid, key));
-    widget.memory.reactions
-      ..clear()
-      ..addAll(_reactions);
     MemoryRepository().setReaction(
       groupId: widget.groupId,
-      memoryId: widget.memory.id,
+      memoryId: _memory.id,
       reaction: _reactions[uid] ?? '',
+    );
+  }
+
+  /// Закрепить или открепить. Считаем от ЖИВОЙ записи, а не от снимка, с
+  /// которым открыли экран: иначе второе нажатие повторяло первое.
+  void _togglePinHere() {
+    MemoryRepository().togglePin(
+      groupId: widget.groupId,
+      memoryId: _memory.id,
+      isPinned: !_memory.isPinned,
     );
   }
 
@@ -87,10 +98,29 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _animCtrl, curve: Curves.easeOutCubic));
     _animCtrl.forward();
+    _watch = MemoryRepository().watch(widget.groupId).listen(_onRecord);
+  }
+
+  /// Свежая запись из ленты: тот же поток, что питает список, поэтому сюда
+  /// приезжают и свои правки через кэш, и реакции партнёра.
+  void _onRecord(List<Memory> list) {
+    if (!mounted) return;
+    for (final m in list) {
+      if (m.id != _memory.id) continue;
+      final files = memoryMediaFiles(m);
+      setState(() {
+        _memory = m;
+        _reactions = Map<String, String>.from(m.reactions);
+        _files = files;
+        if (_coverIndex >= _momentPhotos.length) _coverIndex = 0;
+      });
+      return;
+    }
   }
 
   @override
   void dispose() {
+    _watch?.cancel();
     _animCtrl.dispose();
     _audioPlayer?.dispose();
     super.dispose();
@@ -102,7 +132,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
   /// У фотографии и видео кадр становится героем экрана; у книги, музыки,
   /// фильма и заметки такого кадра нет — там контент рисуется внутри листа.
   bool get _hasHero {
-    final t = widget.memory.type;
+    final t = _memory.type;
     return t == MemoryType.photo ||
         t == MemoryType.video ||
         t == MemoryType.videoLink;
@@ -110,7 +140,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
 
   @override
   Widget build(BuildContext context) {
-    final memory = widget.memory;
+    final memory = _memory;
     final cs = _cs;
     if (_isMoment) {
       // Полноценный экран, а не лист: лист утягивался вниз до чёрного и
@@ -205,14 +235,14 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
   /// обложка целиком и плёнка остальных кадров. Книге, музыке и фильму он
   /// не подходит: там кадра нет вовсе.
   bool get _isMoment {
-    final t = widget.memory.type;
+    final t = _memory.type;
     if (t != MemoryType.photo && t != MemoryType.video) return false;
     return _momentPhotos.isNotEmpty;
   }
 
   /// Кадры записи в порядке показа.
   List<String> get _momentPhotos {
-    final m = widget.memory;
+    final m = _memory;
     if (m.imageUrls?.isNotEmpty == true) return m.imageUrls!;
     if (m.imageUrl?.isNotEmpty == true) return [m.imageUrl!];
     return const [];
@@ -252,7 +282,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                       RepaintBoundary(
                         child: _CommentsSection(
                           groupId: widget.groupId,
-                          memoryId: widget.memory.id,
+                          memoryId: _memory.id,
                           primary: cs.primary,
                         ),
                       ),
@@ -519,7 +549,6 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
   Widget _momentReactions(Memory memory, ColorScheme cs) {
     final theme = context.appTheme;
     final uid = _myUidHere;
-    final repo = MemoryRepository();
     final chips = <Widget>[];
     _reactions.forEach((who, key) {
       chips.add(ReactionChip(
@@ -623,7 +652,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                         .toggleSaved(groupId: widget.groupId, memoryId: memory.id),
                     active: saved,
                   ),
-                  ib(Icons.push_pin_outlined, () => widget.onTogglePin(),
+                  ib(Icons.push_pin_outlined, _togglePinHere,
                       active: memory.isPinned),
                 ],
               ),
@@ -865,7 +894,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                         RepaintBoundary(
                           child: _CommentsSection(
                             groupId: widget.groupId,
-                            memoryId: widget.memory.id,
+                            memoryId: _memory.id,
                             primary: cs.primary,
                           ),
                         ),
@@ -1027,7 +1056,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
               child: FilledButton.icon(
                 onPressed: () {
                   Navigator.pop(context);
-                  widget.onTogglePin();
+                  _togglePinHere();
                 },
                 icon: Icon(
                   memory.isPinned
@@ -1202,7 +1231,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
   }
 
   bool get _canSetPlace {
-    final m = widget.memory;
+    final m = _memory;
     return widget.onSetLocation != null &&
         m.type != MemoryType.location &&
         m.latitude == null &&
