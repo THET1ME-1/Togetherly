@@ -106,7 +106,7 @@ void main() {
       final l = trackLabels(at(131), LocaleService.current, day);
       expect(l.previousTitle, '100 дней');
       expect(l.previousSub, 'Прошли 20.8');
-      expect(l.todayTitle, 'Сегодня — 131 день');
+      expect(l.todayTitle, 'Сегодня');
       expect(l.todaySub, '31% пути до 200 дней');
       expect(l.nextTitle, '200 дней');
       expect(l.nextSub, 'через 69 дней');

@@ -329,3 +329,30 @@ enum WidgetRenderLog {
         return facts
     }
 }
+
+// MARK: - Склонения
+
+// Жили в TogetherWidget.swift, пока «Вместе» считал вехи сам. Он больше не
+// считает — подписи ему собирает приложение на языке человека, — а вот
+// «Обратный отсчёт» и «Кольцо года» по-прежнему считают дни в расширении и
+// без этих форм обойтись не могут.
+
+/// «день / дня / дней» — в русском без этого цифра выглядит машинной.
+func daysWord(_ n: Int) -> String {
+    let a = n % 100
+    let b = n % 10
+    if (11...19).contains(a) { return "дней" }
+    if b == 1 { return "день" }
+    if (2...4).contains(b) { return "дня" }
+    return "дней"
+}
+
+/// «год / года / лет».
+func yearsWord(_ n: Int) -> String {
+    let a = n % 100
+    let b = n % 10
+    if (11...19).contains(a) { return "лет" }
+    if b == 1 { return "год" }
+    if (2...4).contains(b) { return "года" }
+    return "лет"
+}

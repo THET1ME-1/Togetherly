@@ -13,7 +13,9 @@ appwidget-provider только previewImage. Картинки рисуются 
 
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+import math
+
+from PIL import Image, ImageDraw, ImageFont, ImageColor
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "android/app/src/main/res/drawable-nodpi"
@@ -103,71 +105,122 @@ def save(img: Image.Image, name: str) -> None:
     print(f"  {name}.png  {img.size[0]}×{img.size[1]}")
 
 
+
+def halftone(d, box, color, opacity=0.55):
+    """Растр точками: радиус растёт к правому нижнему углу.
+
+    Те же числа, что у виджета (`TogetherTrackSpec`): шаг 15, крупнейшая
+    точка 5.2, проявляются с 0.18 доли пути до дальнего угла.
+    """
+    x0, y0, x1, y1 = box
+    w, h = x1 - x0, y1 - y0
+    far = math.hypot(w, h)
+    step, max_r = 15, 5.2
+    r_, g_, b_ = ImageColor.getrgb(color)
+    y = step / 2
+    while y < h:
+        x = step / 2
+        while x < w:
+            t = math.hypot(x, y) / far
+            r = (t - 0.18) * max_r
+            if r >= 0.5:
+                d.ellipse(
+                    [((x0 + x - r) * S, (y0 + y - r) * S),
+                     ((x0 + x + r) * S, (y0 + y + r) * S)],
+                    fill=(r_, g_, b_, int(255 * opacity)),
+                )
+            x += step
+        y += step
+
+
+def track_line(d, x0, x1, y, percent, track, fill, ring, has_prev, mid_stop):
+    """Дорожка вех: линия, пройденная часть и отметки."""
+    d.line([(x0 * S, y * S), (x1 * S, y * S)], fill=track, width=int(5 * S))
+    here = x0 + (x1 - x0) * percent / 100
+    d.line([(x0 * S, y * S), (here * S, y * S)], fill=fill, width=int(5 * S))
+    circle(d, x0, y, 6, fill if has_prev else track)
+    if mid_stop:
+        circle(d, (x0 + x1) / 2, y, 6, track)
+    circle(d, x1, y, 6, track)
+    circle(d, here, y, 9.5, ring)
+    circle(d, here, y, 7, fill)
+
+
 # ── 01 «Вместе» ──────────────────────────────────────────────────────────────
 
 
 def together_2x2() -> None:
     img, d = canvas(200, 200)
     card(d, (0, 0, 200, 200), 32, PRIMARY)
+    halftone(d, (0, 0, 200, 200), PRIMARY_DARK)
 
-    circle(d, 35, 35, 17, PRIMARY_DARK, outline=PRIMARY, width=2)
-    text(d, (35, 36), "А", 13, 800, ON_PRIMARY_CONTAINER, anchor="mm")
-    circle(d, 59, 35, 17, TERTIARY_CONTAINER, outline=PRIMARY, width=2)
-    text(d, (59, 36), "М", 13, 800, ON_TERTIARY_CONTAINER, anchor="mm")
+    circle(d, 32, 32, 15, PRIMARY_DARK, outline=PRIMARY, width=2)
+    text(d, (32, 33), "А", 12, 800, ON_PRIMARY_CONTAINER, anchor="mm")
+    circle(d, 54, 32, 15, TERTIARY_CONTAINER, outline=PRIMARY, width=2)
+    text(d, (54, 33), "М", 12, 800, ON_TERTIARY_CONTAINER, anchor="mm")
 
-    # Число и подпись — по нижнему краю, с воздухом между ними.
-    text(d, (18, 150), "205", 54, 800, ON_PRIMARY, anchor="ls")
-    text(d, (18, 176), "дней вместе", 15, 600, CAPTION_ON_PRIMARY, anchor="ls")
+    text(d, (18, 106), "205", 48, 800, ON_PRIMARY, anchor="ls")
+    text(d, (18, 126), "дней вместе", 14, 600, CAPTION_ON_PRIMARY, anchor="ls")
+    text(d, (18, 156), "300 дней · через 95", 12, 700, CAPTION_ON_PRIMARY, anchor="ls")
+    track_line(d, 24, 176, 176, 52, PRIMARY_DARK, ON_PRIMARY, PRIMARY, True, False)
     save(img, "tg_preview_together_2x2")
-
-
 def together_4x2() -> None:
     img, d = canvas(424, 200)
-    card(d, (0, 0, 424, 200), 32, PRIMARY_CONTAINER)
+    card(d, (0, 0, 424, 200), 32, PRIMARY)
+    halftone(d, (0, 0, 424, 200), PRIMARY_DARK)
 
-    text(d, (22, 24), "С 1 ноября 2025", 13, 700, PRIMARY_ALT)
-    text(d, (22, 108), "205", 60, 800, ON_PRIMARY_CONTAINER, anchor="ls")
-    # «дней» ставим по базовой линии числа, отступив на его реальную ширину.
-    w = d.textlength("205", font=font(60, 800)) / S
-    text(d, (22 + w + 10, 108), "дней", 17, 700, ON_PRIMARY_CONTAINER, anchor="ls")
-    heart(d, 390, 42, 26, PRIMARY)
+    text(d, (22, 76), "205", 52, 800, ON_PRIMARY, anchor="ls")
+    w = d.textlength("205", font=font(52, 800)) / S
+    text(d, (22 + w + 10, 76), "дней вместе", 16, 700, CAPTION_ON_PRIMARY, anchor="ls")
+    text(d, (22, 98), "С 1 ноября 2025", 13, 600, CAPTION_ON_PRIMARY)
 
-    text(d, (22, 146), "До года — 160 дней", 13, 700, PRIMARY_ALT)
-    text(d, (402, 146), "56%", 13, 700, PRIMARY_ALT, anchor="ra")
+    circle(d, 368, 40, 15, PRIMARY_DARK, outline=PRIMARY, width=2)
+    text(d, (368, 41), "А", 12, 800, ON_PRIMARY_CONTAINER, anchor="mm")
+    circle(d, 390, 40, 15, TERTIARY_CONTAINER, outline=PRIMARY, width=2)
+    text(d, (390, 41), "М", 12, 800, ON_TERTIARY_CONTAINER, anchor="mm")
 
-    card(d, (22, 170, 402, 182), 6, TRACK_ON_CONTAINER)
-    card(d, (22, 170, 22 + (402 - 22) * 0.56, 182), 6, PRIMARY)
+    track_line(d, 30, 386, 150, 52, PRIMARY_DARK, ON_PRIMARY, PRIMARY, True, True)
+    text(d, (22, 168), "200 дней", 13, 700, CAPTION_ON_PRIMARY)
+    text(d, (212, 168), "300 дней · через 95", 13, 700, ON_PRIMARY, anchor="ma")
+    text(d, (394, 168), "1 год", 13, 700, CAPTION_ON_PRIMARY, anchor="ra")
     save(img, "tg_preview_together_4x2")
-
-
 def together_4x4() -> None:
     img, d = canvas(424, 424)
     card(d, (0, 0, 424, 424), 36, SURFACE)
+    halftone(d, (0, 0, 424, 424), TRACK_ON_CONTAINER)
 
-    text(d, (24, 26), "АНЯ + МИША", 14, 800, ON_SURFACE_VARIANT)
-    heart(d, 396, 33, 22, PRIMARY)
+    text(d, (24, 26), "АНЯ + МИША", 13, 800, ON_SURFACE_VARIANT)
+    circle(d, 368, 33, 14, PRIMARY_DARK)
+    text(d, (368, 34), "А", 11, 800, ON_PRIMARY_CONTAINER, anchor="mm")
+    circle(d, 390, 33, 14, TERTIARY_CONTAINER)
+    text(d, (390, 34), "М", 11, 800, ON_TERTIARY_CONTAINER, anchor="mm")
 
-    card(d, (24, 58, 400, 200), 28, PRIMARY)
-    text(d, (46, 152), "205", 72, 800, ON_PRIMARY, anchor="ls")
-    text(d, (46, 178), "дней вместе", 16, 600, CAPTION_ON_PRIMARY, anchor="ls")
-    text(d, (378, 152), "6", 26, 800, ON_PRIMARY, anchor="rs")
-    text(d, (378, 178), "месяцев", 12, 600, PRIMARY_DARK, anchor="rs")
+    text(d, (24, 118), "205", 68, 800, ON_SURFACE, anchor="ls")
+    w = d.textlength("205", font=font(68, 800)) / S
+    text(d, (24 + w + 12, 104), "дней вместе", 16, 700, ON_SURFACE_VARIANT, anchor="ls")
+    text(d, (24 + w + 12, 122), "с 1 ноября 2025", 13, 600, OUTLINE, anchor="ls")
 
-    text(d, (24, 224), "ДАЛЬШЕ", 13, 800, OUTLINE)
-
-    card(d, (24, 252, 400, 320), 20, SURFACE_CONTAINER)
-    text(d, (42, 286), "300 дней", 15, 700, ON_SURFACE, anchor="lm")
-    text(d, (382, 286), "через 95 дней", 13, 600, ON_SURFACE_VARIANT, anchor="rm")
-
-    card(d, (24, 332, 400, 400), 20, TERTIARY_CONTAINER)
-    text(d, (42, 366), "1 год", 15, 700, ON_TERTIARY_CONTAINER, anchor="lm")
-    text(d, (382, 366), "1 ноября", 13, 600, TERTIARY, anchor="rm")
+    rows = [
+        ("200 дней", "Прошли 20 мая", ON_SURFACE, ON_SURFACE_VARIANT),
+        ("Сегодня", "52% пути до 300 дней", ON_SURFACE, ON_SURFACE_VARIANT),
+        ("300 дней", "через 95 дней", ON_SURFACE, ON_SURFACE_VARIANT),
+        ("1 год", "1 ноября", ON_SURFACE, TERTIARY),
+    ]
+    top, bottom = 170, 390
+    ys = [top + (bottom - top) * (i + 0.5) / len(rows) for i in range(len(rows))]
+    d.line([(40 * S, ys[0] * S), (40 * S, ys[-1] * S)], fill=TRACK_ON_CONTAINER, width=int(4 * S))
+    d.line([(40 * S, ys[0] * S), (40 * S, ys[1] * S)], fill=PRIMARY, width=int(4 * S))
+    for i, (title, sub, c1, c2) in enumerate(rows):
+        if i == 1:
+            circle(d, 40, ys[i], 9.5, SURFACE)
+            circle(d, 40, ys[i], 7, PRIMARY)
+        elif i == len(rows) - 1:
+            circle(d, 40, ys[i], 7, TERTIARY_CONTAINER)
+        else:
+            circle(d, 40, ys[i], 7, PRIMARY if i < 1 else TRACK_ON_CONTAINER)
+        text(d, (62, ys[i] - 13), title, 15, 700, c1)
+        text(d, (62, ys[i] + 3), sub, 12, 600, c2)
     save(img, "tg_preview_together_4x4")
-
-
-# ── 02 «Скучаю» ──────────────────────────────────────────────────────────────
-
-
 def miss_2x2() -> None:
     img, d = canvas(200, 200)
     card(d, (0, 0, 200, 200), 32, TERTIARY_CONTAINER)

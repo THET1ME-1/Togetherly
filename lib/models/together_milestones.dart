@@ -221,8 +221,9 @@ TrackLabels trackLabels(
     previousSub: previous == null
         ? ''
         : s.tgMilestonePassed.replaceAll('{date}', formatDate(previous.date)),
-    todayTitle: s.tgMilestoneToday
-        .replaceAll('{days}', s.tgDaysMilestone(track.days)),
+    // Без сегодняшнего числа: его натив пересчитывает каждый день сам, и
+    // фраза с числом протухала бы к утру.
+    todayTitle: s.tgMilestoneToday,
     todaySub: s.tgMilestoneShare
         .replaceAll('{percent}', '${track.percent}')
         .replaceAll('{target}', _milestoneTitle(track.next, s)),

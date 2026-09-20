@@ -403,7 +403,9 @@ object WidgetImages {
         }
         canvas.clipPath(clip)
 
-        paint.color = dotColor
+        // Точки полупрозрачные: непрозрачный растр на 2×2 превращался в
+        // горошек и спорил с числом.
+        paint.color = alpha(dotColor, 0.55f)
         val step = 15f
         val maxR = 5.2f
         val far = Math.hypot(widthDp.toDouble(), heightDp.toDouble()).toFloat()

@@ -20,7 +20,9 @@ import '../services/pb_media_service.dart';
 import '../services/widget_anim_service.dart';
 import '../services/plus_service.dart';
 import '../services/ui_prefs.dart';
+import '../models/together_milestones.dart';
 import '../models/widget_panels.dart';
+import '../widgets/together_track_card.dart';
 import '../services/widget_theme_sync.dart';
 import '../models/pair_map_widget_view.dart';
 import '../models/year_ring_spec.dart';
@@ -2039,22 +2041,102 @@ class _WidgetScreenState extends State<WidgetScreen>
             label: '2×2',
             hint: _s.tgSizeHintCompact,
             qualifiedName: 'com.togetherly.love.TogetherWidget2x2Provider',
-            previewBuilder: () => _buildTogether2x2Preview(),
+            previewBuilder: () => _togetherPreview(TogetherCardSize.small),
           ),
           _WidgetSizeOption(
             label: '4×2',
             hint: _s.tgSizeHintWide,
             qualifiedName: 'com.togetherly.love.TogetherWidget4x2Provider',
-            previewBuilder: () => _buildTogetherPreview(),
+            previewBuilder: () => _togetherPreview(TogetherCardSize.medium),
           ),
           _WidgetSizeOption(
             label: '4×4',
             hint: _s.tgSizeHintLarge,
             qualifiedName: 'com.togetherly.love.TogetherWidget4x4Provider',
-            previewBuilder: () => _buildTogether4x4Preview(),
+            previewBuilder: () => _togetherPreview(TogetherCardSize.large),
           ),
         ],
       );
+
+  /// Превью «Вместе» для каталога: тот же растр и та же дорожка, что рисует
+  /// натив, и те же вехи — считает их общая модель, а не экран.
+  Widget _togetherPreview(TogetherCardSize size) {
+    final start = _togetherStart();
+    final days = _togetherDays();
+    final track = start == null
+        ? null
+        : milestoneTrack(
+            start: start,
+            today: DateTime.now(),
+            anniversary: _pair.anniversaryDate,
+          );
+    final labels = track == null
+        ? null
+        : trackLabels(track, LocaleService.current, LocaleService.current.dayLogDate);
+
+    Widget face(String uid, String url, String name, Color bg, Color fg) =>
+        Container(
+          decoration: BoxDecoration(
+            color: bg,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: size == TogetherCardSize.large
+                  ? _wr('surface')
+                  : _wr('primary'),
+              width: 2,
+            ),
+          ),
+          clipBehavior: Clip.antiAlias,
+          alignment: Alignment.center,
+          child: url.isNotEmpty
+              ? AvatarWidget(uid: uid, liveUrl: url, name: name, size: 30, primary: bg)
+              : Text(
+                  _initialOf(name),
+                  style: TextStyle(
+                    fontFamily: 'Onest',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: fg,
+                  ),
+                ),
+        );
+
+    return AspectRatio(
+      aspectRatio: switch (size) {
+        TogetherCardSize.small => 1,
+        TogetherCardSize.medium => 338 / 158,
+        TogetherCardSize.large => 1,
+      },
+      child: TogetherTrackCard(
+        size: size,
+        days: days,
+        daysLabel: LocaleService.current.tgDaysTogetherCaption(days),
+        percent: track?.percent ?? 0,
+        roles: WidgetThemeSync.rolesOf(_cs),
+        startDate: start == null
+            ? ''
+            : 'С ${LocaleService.current.dayLogDate(start)} ${start.year}',
+        names: [
+          widget.userData.displayName.trim(),
+          _pair.partnerDisplayName.trim(),
+        ].where((n) => n.isNotEmpty).join(' + '),
+        previousTitle: labels?.previousTitle ?? '',
+        previousSub: labels?.previousSub ?? '',
+        todayTitle: labels?.todayTitle ?? '',
+        todaySub: labels?.todaySub ?? '',
+        nextTitle: labels?.nextTitle ?? '',
+        nextSub: labels?.nextSub ?? '',
+        anniversaryTitle: labels?.anniversaryTitle ?? '',
+        anniversarySub: labels?.anniversarySub ?? '',
+        myAvatar: face(widget.userData.uid, widget.userData.avatarUrl,
+            widget.userData.displayName, _wr('avatarMine'),
+            _wr('onPrimaryContainer')),
+        partnerAvatar: face(_pair.partnerUid, _pair.partnerAvatarUrl,
+            _pair.partnerDisplayName, _wr('avatarPartner'),
+            _wr('onTertiaryContainer')),
+      ),
+    );
+  }
 
   /// Заметка на двоих, карточкой M3.
   Widget _cardNote(bool locked) =>
@@ -2728,275 +2810,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     return (width / 4).clamp(0.25, 1.0);
   }
 
-  Widget _buildTogether2x2Preview() {
-    final days = _togetherDays();
-    final myInitial = _initialOf(widget.userData.displayName);
-    final partnerInitial = _initialOf(_pair.partnerDisplayName);
 
-    // Фото, если оно есть, и кружок с буквой как фолбэк — ровно так же, как
-    // рисует сам виджет на рабочем столе.
-    Widget avatar(String initial, Color bg, Color fg, String uid, String url) =>
-        Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-            color: bg,
-            shape: BoxShape.circle,
-            border: Border.all(color: _wr('primary'), width: 2),
-          ),
-          clipBehavior: Clip.antiAlias,
-          alignment: Alignment.center,
-          child: url.isNotEmpty
-              ? AvatarWidget(
-                  uid: uid,
-                  liveUrl: url,
-                  name: initial,
-                  size: 34,
-                  primary: bg,
-                )
-              : (initial.isEmpty
-                  ? Icon(Icons.favorite_rounded, size: 15, color: fg)
-                  : Text(
-                      initial,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: fg,
-                      ),
-                    )),
-        );
-
-    return AspectRatio(
-      aspectRatio: 1,
-      child: Container(
-        padding: EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: _wr('primary'),
-          borderRadius: BorderRadius.circular(32),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              height: 34,
-              child: Stack(
-                children: [
-                  avatar(myInitial, _wr('accentOnPrimary'),
-                      _wr('onPrimaryContainer'), widget.userData.uid,
-                      widget.userData.avatarUrl),
-                  Positioned(
-                    left: 24,
-                    child: avatar(partnerInitial, _wr('tertiaryContainer'),
-                        _wr('onTertiaryContainer'), _pair.partnerUid,
-                        _pair.partnerAvatarUrl),
-                  ),
-                ],
-              ),
-            ),
-            Spacer(),
-            Text(
-              '$days',
-              style: TextStyle(
-                fontSize: 54,
-                height: 1.02,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -2.2,
-                color: _wr('onPrimary'),
-              ),
-            ),
-            SizedBox(height: 2),
-            Text(
-              _s.tgDaysTogetherCaption(days),
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: _wr('onPrimarySoft'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Превью «Вместе» 4×4: surface #FEF7FF, блок primary с числом 72/800
-  /// и секция «ДАЛЬШЕ» с двумя ближайшими датами.
-  Widget _buildTogether4x4Preview() {
-    final days = _togetherDays();
-    final start = _togetherStart();
-    final months = (days / 30.44).floor();
-
-    final nextHundred = ((days ~/ 100) + 1) * 100;
-    final nextYear = ((days ~/ 365) + 1) * 365;
-    final anniversary = start?.add(Duration(days: nextYear));
-
-    final myName = widget.userData.displayName.trim();
-    final partnerName = _pair.partnerDisplayName.trim();
-    final header = [myName, partnerName]
-        .where((n) => n.isNotEmpty)
-        .join(' + ')
-        .toUpperCase();
-
-    Widget row(String left, String right, Color bg, Color fg, Color subFg) =>
-        Container(
-          padding: EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  left,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: fg,
-                  ),
-                ),
-              ),
-              Text(
-                right,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: subFg,
-                ),
-              ),
-            ],
-          ),
-        );
-
-    return AspectRatio(
-      aspectRatio: 1,
-      child: Container(
-        padding: EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: _wr('surface'),
-          borderRadius: BorderRadius.circular(36),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    header.isEmpty
-                        ? _s.tgDaysTogetherCaption(days).toUpperCase()
-                        : header,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.3,
-                      color: _wr('onSurfaceVariant'),
-                    ),
-                  ),
-                ),
-                Icon(Icons.favorite_rounded,
-                    size: 22, color: _wr('primary')),
-              ],
-            ),
-            SizedBox(height: 14),
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.all(22),
-              decoration: BoxDecoration(
-                color: _wr('primary'),
-                borderRadius: BorderRadius.circular(28),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '$days',
-                          style: TextStyle(
-                            fontSize: 72,
-                            height: 1,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -3,
-                            color: _wr('onPrimary'),
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          _s.tgDaysTogetherCaption(days),
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: _wr('onPrimarySoft'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '$months',
-                        style: TextStyle(
-                          fontSize: 26,
-                          height: 1,
-                          fontWeight: FontWeight.w800,
-                          color: _wr('onPrimary'),
-                        ),
-                      ),
-                      Text(
-                        _s.tgMonthsCaption(months),
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: _wr('accentOnPrimary'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            Spacer(),
-            Text(
-              _s.tgNextSection,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.4,
-                color: _wr('outline'),
-              ),
-            ),
-            SizedBox(height: 8),
-            row(
-              _s.tgDaysMilestone(nextHundred),
-              _s.tgInDays(nextHundred - days),
-              _wr('surfaceContainer'),
-              _wr('onSurface'),
-              _wr('onSurfaceVariant'),
-            ),
-            SizedBox(height: 8),
-            row(
-              _s.tgYearsMilestone(nextYear ~/ 365),
-              anniversary == null ? '—' : _formatDayMonth(anniversary),
-              _wr('tertiaryContainer'),
-              _wr('onTertiaryContainer'),
-              _wr('tertiary'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   /// Превью «Скучаю» 2×2: tertiary-container #FFD8E4 и пилюля отправки.
   Widget _buildMiss2x2Preview() {
@@ -4057,128 +3871,6 @@ class _WidgetScreenState extends State<WidgetScreen>
     );
   }
 
-  /// Превью виджета «Вместе» — размер 4×2 из хендофа: контейнер #EADDFF,
-  /// радиус 32, число 60/800, трек прогресса до ближайшей круглой даты.
-  /// Дни берём из активного таймера, как и сам виджет.
-  Widget _buildTogetherPreview() {
-    final days = _togetherDays();
-    final start = _togetherStart();
-
-    // Ближайшая круглая дата: сотня дней или годовщина — что раньше.
-    final nextHundred = ((days ~/ 100) + 1) * 100;
-    final nextYear = ((days ~/ 365) + 1) * 365;
-    final target = nextHundred <= nextYear ? nextHundred : nextYear;
-    final prev = nextHundred <= nextYear ? target - 100 : target - 365;
-    final span = (target - prev).clamp(1, 100000);
-    final percent = (((days - prev) / span) * 100).round().clamp(0, 100);
-    final left = target - days;
-
-    final startLabel =
-        start == null ? '' : 'С ${_formatDayMonth(start)} ${start.year}';
-
-    return AspectRatio(
-      aspectRatio: 424 / 200,
-      child: Container(
-        padding: EdgeInsets.fromLTRB(22, 20, 22, 20),
-        decoration: BoxDecoration(
-          color: _wr('primaryContainer'),
-          borderRadius: BorderRadius.circular(32),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        startLabel,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: _wr('onContainerSoft'),
-                        ),
-                      ),
-                      SizedBox(height: 6),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.baseline,
-                        textBaseline: TextBaseline.alphabetic,
-                        children: [
-                          Text(
-                            '$days',
-                            style: TextStyle(
-                              fontSize: 60,
-                              height: 1.05,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -2.4,
-                              color: _wr('onPrimaryContainer'),
-                            ),
-                          ),
-                          SizedBox(width: 8),
-                          Text(
-                            // Склонение по числу: 1 день, 2 дня, 5 дней.
-                            _s.tgDaysMilestone(days).split(' ').last,
-                            style: TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w700,
-                              color: _wr('onPrimaryContainer'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(Icons.favorite_rounded,
-                    size: 26, color: _wr('primary')),
-              ],
-            ),
-            Spacer(),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _s.tgUntilMilestone(target, left),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: _wr('onContainerSoft'),
-                    ),
-                  ),
-                ),
-                Text(
-                  '$percent%',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: _wr('onContainerSoft'),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(100),
-              child: LinearProgressIndicator(
-                value: percent / 100,
-                minHeight: 12,
-                backgroundColor: _wr('trackOnContainer'),
-                valueColor:
-                    AlwaysStoppedAnimation<Color>(_wr('primary')),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
 
 

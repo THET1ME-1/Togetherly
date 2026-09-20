@@ -5,36 +5,56 @@ import UIKit
 // MARK: - Парный виджет нового каталога («Вместе»)
 //
 // Данные пишет `HomeWidgetService.syncTogether` под ключами `together_<g>_*`.
-// Дни приходят готовыми, а вот ближайшая веха считается здесь — ровно как в
-// `TogetherWidgetProvider.nextMilestone` на Android: сотни дней и годовщины,
-// что раньше, то и берём. Считать её в Dart нельзя по той же причине, по
-// которой там не считаются дни года: цифра застыла бы до открытия приложения.
+// Дни расширение считает само от метки старта — иначе число застыло бы на дне
+// последнего запуска приложения. А вот вехи и все подписи приходят готовыми:
+// сотни дней, годовщины и склонения «день / дня / дней» раньше лежали прямо
+// здесь, и немец с испанцем читали русские слова.
+//
+// Подписи нарочно без сегодняшнего числа: его расширение пересчитывает каждый
+// день, и фраза с числом протухала бы к утру.
 
 private struct TogetherData {
     let days: Int
+    let daysLabel: String
     let startDate: String
     let names: String
-    let anniversary: String
+    let percent: Int
+    let prevTitle: String
+    let prevSub: String
+    let todayTitle: String
+    let todaySub: String
+    let nextTitle: String
+    let nextSub: String
+    let anniversaryTitle: String
+    let anniversarySub: String
     let myAvatar: UIImage?
     let partnerAvatar: UIImage?
     let myInitial: String
     let partnerInitial: String
 
     var isEmpty: Bool { days <= 0 && startDate.isEmpty }
+    var hasPrevious: Bool { !prevTitle.isEmpty }
 }
 
 private func loadTogether() -> TogetherData {
     let s = Store()
     let g = s.latestGroup("together_latest_group")
     return TogetherData(
-        // Считаем сами от метки старта — иначе число застывает на дне
-        // последнего запуска приложения (см. daysSince в LockScreenWidgets).
         days: s.int("together_\(g)_start_ms") > 0
             ? daysSince(startMs: s.int("together_\(g)_start_ms"))
             : s.int("together_\(g)_days"),
+        daysLabel: s.string("together_\(g)_days_label"),
         startDate: s.string("together_\(g)_start_date"),
         names: s.string("together_\(g)_names"),
-        anniversary: s.string("together_\(g)_anniversary"),
+        percent: s.int("together_\(g)_mile_percent"),
+        prevTitle: s.string("together_\(g)_mile_prev_title"),
+        prevSub: s.string("together_\(g)_mile_prev_sub"),
+        todayTitle: s.string("together_\(g)_mile_today_title"),
+        todaySub: s.string("together_\(g)_mile_today_sub"),
+        nextTitle: s.string("together_\(g)_mile_next_title"),
+        nextSub: s.string("together_\(g)_mile_next_sub"),
+        anniversaryTitle: s.string("together_\(g)_mile_anni_title"),
+        anniversarySub: s.string("together_\(g)_mile_anni_sub"),
         myAvatar: s.uiImage("together_\(g)_my_avatar_path", maxSide: WidgetImage.avatar),
         partnerAvatar: s.uiImage("together_\(g)_partner_avatar_path", maxSide: WidgetImage.avatar),
         myInitial: s.string("together_\(g)_my_initial"),
@@ -42,38 +62,154 @@ private func loadTogether() -> TogetherData {
     )
 }
 
-/// Ближайшая круглая дата и доля пути до неё.
-struct Milestone {
-    let target: Int
-    let daysLeft: Int
-    let percent: Int
-    let label: String
+// MARK: - Растр и дорожка
 
-    static func next(days: Int) -> Milestone {
-        let nextHundred = ((days / 100) + 1) * 100
-        let nextYear = ((days / 365) + 1) * 365
-        let target = nextHundred <= nextYear ? nextHundred : nextYear
-        let prev = nextHundred <= nextYear ? target - 100 : target - 365
-        let span = max(target - prev, 1)
-        let raw = Int((Double(days - prev) / Double(span) * 100).rounded())
-        let label = target % 365 == 0 ? "года" : "\(target) дней"
-        return Milestone(
-            target: target,
-            daysLeft: target - days,
-            percent: min(max(raw, 0), 100),
-            label: label
-        )
+/// Фон растром: точки растут к правому нижнему углу и мельчают к левому
+/// верхнему, где лежит число. Та же рябь, что у HalftonePainter в приложении.
+struct TgHalftone: View {
+    let color: Color
+
+    /// Непрозрачный растр на маленькой ячейке превращается в горошек и спорит
+    /// с числом — держим его вполсилы.
+    private let dotOpacity: Double = 0.55
+
+    var body: some View {
+        Canvas { context, size in
+            let step: CGFloat = 15
+            let maxR: CGFloat = 5.2
+            let far = sqrt(size.width * size.width + size.height * size.height)
+            var y = step / 2
+            while y < size.height {
+                var x = step / 2
+                while x < size.width {
+                    let t = sqrt(x * x + y * y) / far
+                    let r = (t - 0.18) * maxR
+                    if r >= 0.5 {
+                        let rect = CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2)
+                        context.fill(Path(ellipseIn: rect), with: .color(color.opacity(dotOpacity)))
+                    }
+                    x += step
+                }
+                y += step
+            }
+        }
     }
 }
 
-/// «день / дня / дней» — в русском без этого цифра выглядит машинной.
-func daysWord(_ n: Int) -> String {
-    let a = n % 100
-    let b = n % 10
-    if (11...19).contains(a) { return "дней" }
-    if b == 1 { return "день" }
-    if (2...4).contains(b) { return "дня" }
-    return "дней"
+/// Горизонтальная дорожка вех: линия, пройденная часть и отметки.
+struct TgTrackLine: View {
+    let percent: Int
+    let hasPrevious: Bool
+    let midStop: Bool
+    let track: Color
+    let fill: Color
+    let ring: Color
+
+    var body: some View {
+        Canvas { context, size in
+            let pad: CGFloat = 9
+            let left = pad
+            let right = size.width - pad
+            let cy = size.height / 2
+            var line = Path()
+            line.move(to: CGPoint(x: left, y: cy))
+            line.addLine(to: CGPoint(x: right, y: cy))
+            context.stroke(line, with: .color(track),
+                           style: StrokeStyle(lineWidth: 5, lineCap: .round))
+
+            let here = left + (right - left) * CGFloat(min(max(percent, 0), 100)) / 100
+            var done = Path()
+            done.move(to: CGPoint(x: left, y: cy))
+            done.addLine(to: CGPoint(x: here, y: cy))
+            context.stroke(done, with: .color(fill),
+                           style: StrokeStyle(lineWidth: 5, lineCap: .round))
+
+            func dot(_ x: CGFloat, _ r: CGFloat, _ c: Color) {
+                let rect = CGRect(x: x - r, y: cy - r, width: r * 2, height: r * 2)
+                context.fill(Path(ellipseIn: rect), with: .color(c))
+            }
+            dot(left, 6, hasPrevious ? fill : track)
+            if midStop { dot((left + right) / 2, 6, track) }
+            dot(right, 6, track)
+            // Сегодняшняя отметка крупнее и с обводкой цвета фона: она главная.
+            dot(here, 9.5, ring)
+            dot(here, 7, fill)
+        }
+    }
+}
+
+/// Вертикальная лента вех для большого размера.
+struct TgTrackColumn: View {
+    let rows: Int
+    let current: Int
+    let track: Color
+    let fill: Color
+    let ring: Color
+    let last: Color
+
+    var body: some View {
+        Canvas { context, size in
+            guard rows > 0 else { return }
+            let cx = size.width / 2
+            func y(_ i: Int) -> CGFloat {
+                size.height * (CGFloat(i) + 0.5) / CGFloat(rows)
+            }
+            var line = Path()
+            line.move(to: CGPoint(x: cx, y: y(0)))
+            line.addLine(to: CGPoint(x: cx, y: y(rows - 1)))
+            context.stroke(line, with: .color(track),
+                           style: StrokeStyle(lineWidth: 4, lineCap: .round))
+
+            if current < rows {
+                var done = Path()
+                done.move(to: CGPoint(x: cx, y: y(0)))
+                done.addLine(to: CGPoint(x: cx, y: y(current)))
+                context.stroke(done, with: .color(fill),
+                               style: StrokeStyle(lineWidth: 4, lineCap: .round))
+            }
+
+            func dot(_ i: Int, _ r: CGFloat, _ c: Color) {
+                let rect = CGRect(x: cx - r, y: y(i) - r, width: r * 2, height: r * 2)
+                context.fill(Path(ellipseIn: rect), with: .color(c))
+            }
+            for i in 0..<rows {
+                if i == current {
+                    dot(i, 9.5, ring)
+                    dot(i, 7, fill)
+                } else if i == rows - 1 {
+                    dot(i, 7, last)
+                } else if i < current {
+                    dot(i, 7, fill)
+                } else {
+                    dot(i, 7, track)
+                }
+            }
+        }
+    }
+}
+
+/// Строка ленты: заголовок и подпись под ним.
+private struct TgTrackRow: View {
+    let title: String
+    let sub: String
+    let titleColor: Color
+    let subColor: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(title)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundColor(titleColor)
+                .lineLimit(1)
+            if !sub.isEmpty {
+                Text(sub)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(subColor)
+                    .lineLimit(1)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
 }
 
 // MARK: - Виды
@@ -83,27 +219,47 @@ private struct TogetherSmallView: View {
     let t: WidgetTheme
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: -8) {
                 TgAvatar(image: data.myAvatar, initial: data.myInitial,
-                         background: t.avatarMine, foreground: t.onPrimaryContainer, size: 34)
+                         background: t.avatarMine, foreground: t.onPrimaryContainer, size: 30)
                 TgAvatar(image: data.partnerAvatar, initial: data.partnerInitial,
-                         background: t.avatarPartner, foreground: t.onTertiaryContainer, size: 34)
+                         background: t.avatarPartner, foreground: t.onTertiaryContainer, size: 30)
             }
-            VStack(spacing: 0) {
-                Text("\(data.days)")
-                    .font(.system(size: 34, weight: .heavy, design: .rounded))
-                    .widgetAccentable()
-                    .foregroundColor(t.onPrimary)
-                    .minimumScaleFactor(0.5)
-                    .lineLimit(1)
-                Text(daysWord(data.days))
-                    .font(.system(size: 12, weight: .semibold))
+            .padding(.bottom, 8)
+
+            Text("\(data.days)")
+                .font(.system(size: 42, weight: .heavy, design: .rounded))
+                .widgetAccentable()
+                .foregroundColor(t.onPrimary)
+                .minimumScaleFactor(0.5)
+                .lineLimit(1)
+            Text(data.daysLabel)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(t.onPrimarySoft)
+                .lineLimit(1)
+
+            Spacer(minLength: 0)
+
+            TgTrackLine(percent: data.percent, hasPrevious: data.hasPrevious,
+                        midStop: false, track: t.blockOnPrimary,
+                        fill: t.onPrimary, ring: t.primary)
+                .frame(height: 22)
+            HStack {
+                Text(data.prevTitle)
+                    .font(.system(size: 10, weight: .bold))
                     .foregroundColor(t.onPrimarySoft)
+                    .lineLimit(1)
+                Spacer()
+                Text(data.nextTitle)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(t.onPrimarySoft)
+                    .lineLimit(1)
             }
         }
         .padding(14)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(TgHalftone(color: t.blockOnPrimary))
         .tgContainerBackground(t.primary)
     }
 }
@@ -113,56 +269,61 @@ private struct TogetherMediumView: View {
     let t: WidgetTheme
 
     var body: some View {
-        let milestone = Milestone.next(days: data.days)
-
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center) {
-                VStack(alignment: .leading, spacing: 2) {
-                    if !data.startDate.isEmpty {
-                        Text(data.startDate)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(t.onPrimarySoft)
-                    }
-                    HStack(alignment: .lastTextBaseline, spacing: 6) {
-                        Text("\(data.days)")
-                            .font(.system(size: 36, weight: .heavy, design: .rounded))
-                            .widgetAccentable()
-                            .foregroundColor(t.onPrimary)
-                            .minimumScaleFactor(0.5)
-                            .lineLimit(1)
-                        Text(daysWord(data.days))
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(t.onPrimarySoft)
-                    }
+                HStack(alignment: .lastTextBaseline, spacing: 8) {
+                    Text("\(data.days)")
+                        .font(.system(size: 42, weight: .heavy, design: .rounded))
+                        .widgetAccentable()
+                        .foregroundColor(t.onPrimary)
+                        .minimumScaleFactor(0.5)
+                        .lineLimit(1)
+                    Text(data.daysLabel)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(t.onPrimarySoft)
+                        .lineLimit(1)
                 }
                 Spacer()
-                HeartShape()
-                    .fill(t.accentOnPrimary)
-                    .frame(width: 34, height: 34)
+                HStack(spacing: -8) {
+                    TgAvatar(image: data.myAvatar, initial: data.myInitial,
+                             background: t.avatarMine, foreground: t.onPrimaryContainer, size: 30)
+                    TgAvatar(image: data.partnerAvatar, initial: data.partnerInitial,
+                             background: t.avatarPartner, foreground: t.onTertiaryContainer, size: 30)
+                }
+            }
+            if !data.startDate.isEmpty {
+                Text(data.startDate)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(t.onPrimarySoft)
+                    .lineLimit(1)
             }
 
             Spacer(minLength: 0)
 
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text("До \(milestone.label) — \(milestone.daysLeft) \(daysWord(milestone.daysLeft))")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(t.onPrimarySoft)
-                        .lineLimit(1)
-                    Spacer()
-                    Text("\(milestone.percent)%")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(t.onPrimarySoft)
-                }
-                TgProgressBar(
-                    value: Double(milestone.percent) / 100.0,
-                    track: t.blockOnPrimary,
-                    fill: t.accentOnPrimary
-                )
+            TgTrackLine(percent: data.percent, hasPrevious: data.hasPrevious,
+                        midStop: true, track: t.blockOnPrimary,
+                        fill: t.onPrimary, ring: t.primary)
+                .frame(height: 26)
+            HStack(alignment: .top) {
+                Text(data.prevTitle)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(t.onPrimarySoft)
+                    .lineLimit(1)
+                Spacer()
+                Text([data.nextTitle, data.nextSub].filter { !$0.isEmpty }.joined(separator: " · "))
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(t.onPrimary)
+                    .lineLimit(1)
+                Spacer()
+                Text(data.anniversaryTitle)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(t.onPrimarySoft)
+                    .lineLimit(1)
             }
         }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(TgHalftone(color: t.blockOnPrimary))
         .tgContainerBackground(t.primary)
     }
 }
@@ -172,98 +333,71 @@ private struct TogetherLargeView: View {
     let t: WidgetTheme
 
     var body: some View {
-        let milestone = Milestone.next(days: data.days)
-        let years = data.days / 365
+        let rows = data.hasPrevious ? 4 : 3
 
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
-                TgAvatar(image: data.myAvatar, initial: data.myInitial,
-                         background: t.avatarMine, foreground: t.onPrimaryContainer, size: 38)
-                TgAvatar(image: data.partnerAvatar, initial: data.partnerInitial,
-                         background: t.avatarPartner, foreground: t.onTertiaryContainer, size: 38)
-                VStack(alignment: .leading, spacing: 2) {
-                    if !data.names.isEmpty {
-                        Text(data.names)
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(t.onPrimary)
-                            .lineLimit(1)
-                    }
-                    if !data.startDate.isEmpty {
-                        Text(data.startDate)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(t.onPrimarySoft)
-                    }
+                if !data.names.isEmpty {
+                    Text(data.names)
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(t.onSurfaceVariant)
+                        .lineLimit(1)
                 }
                 Spacer()
+                HStack(spacing: -8) {
+                    TgAvatar(image: data.myAvatar, initial: data.myInitial,
+                             background: t.avatarMine, foreground: t.onPrimaryContainer, size: 28)
+                    TgAvatar(image: data.partnerAvatar, initial: data.partnerInitial,
+                             background: t.avatarPartner, foreground: t.onTertiaryContainer, size: 28)
+                }
             }
 
-            VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .lastTextBaseline, spacing: 10) {
                 Text("\(data.days)")
                     .font(.system(size: 58, weight: .heavy, design: .rounded))
                     .widgetAccentable()
-                    .foregroundColor(t.onPrimary)
+                    .foregroundColor(t.onSurface)
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
-                Text("\(daysWord(data.days)) вместе")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(t.onPrimarySoft)
-            }
-
-            Spacer(minLength: 0)
-
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("До \(milestone.label)")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(t.onPrimarySoft)
-                    Spacer()
-                    Text("\(milestone.daysLeft) \(daysWord(milestone.daysLeft))")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(t.onPrimarySoft)
-                }
-                TgProgressBar(
-                    value: Double(milestone.percent) / 100.0,
-                    track: t.blockOnPrimary,
-                    fill: t.accentOnPrimary,
-                    height: 8
-                )
-            }
-
-            if years > 0 || !data.anniversary.isEmpty {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        if years > 0 {
-                            Text("\(years) \(yearsWord(years))")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(t.onTertiaryContainer)
-                        }
-                        if !data.anniversary.isEmpty {
-                            Text(data.anniversary)
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(t.onTertiaryContainer.opacity(0.8))
-                                .lineLimit(1)
-                        }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(data.daysLabel)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(t.onSurfaceVariant)
+                        .lineLimit(1)
+                    if !data.startDate.isEmpty {
+                        Text(data.startDate)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(t.outline)
+                            .lineLimit(1)
                     }
-                    Spacer()
                 }
-                .padding(12)
-                .tgBlock(t.tertiaryContainer, radius: 18)
             }
+
+            HStack(alignment: .top, spacing: 8) {
+                TgTrackColumn(rows: rows, current: data.hasPrevious ? 1 : 0,
+                              track: t.trackOnSurface, fill: t.primary,
+                              ring: t.surface, last: t.tertiaryContainer)
+                    .frame(width: 24)
+                VStack(spacing: 0) {
+                    if data.hasPrevious {
+                        TgTrackRow(title: data.prevTitle, sub: data.prevSub,
+                                   titleColor: t.onSurface, subColor: t.onSurfaceVariant)
+                    }
+                    TgTrackRow(title: data.todayTitle, sub: data.todaySub,
+                               titleColor: t.onSurface, subColor: t.onSurfaceVariant)
+                    TgTrackRow(title: data.nextTitle, sub: data.nextSub,
+                               titleColor: t.onSurface, subColor: t.onSurfaceVariant)
+                    TgTrackRow(title: data.anniversaryTitle, sub: data.anniversarySub,
+                               titleColor: t.onSurface, subColor: t.tertiary)
+                }
+            }
+            .frame(maxHeight: .infinity)
         }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .tgContainerBackground(t.primary)
+        .background(TgHalftone(color: t.trackOnSurface))
+        .tgContainerBackground(t.surface)
     }
-}
-
-/// «год / года / лет».
-func yearsWord(_ n: Int) -> String {
-    let a = n % 100
-    let b = n % 10
-    if (11...19).contains(a) { return "лет" }
-    if b == 1 { return "год" }
-    if (2...4).contains(b) { return "года" }
-    return "лет"
 }
 
 struct TogetherWidgetView: View {
@@ -310,7 +444,7 @@ struct TogetherWidget: Widget {
             TogetherWidgetView().unredacted()
         }
         .configurationDisplayName("Вместе")
-        .description("Дни вместе, ближайшая круглая дата и вы двое.")
+        .description("Дни вместе, пройденные вехи и ближайшая круглая дата.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
