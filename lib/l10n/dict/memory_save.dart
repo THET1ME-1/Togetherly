@@ -6,6 +6,53 @@
 // склонения ни в одном из семи языков («Фото: 93», «37/94»).
 
 const Map<String, Map<String, String>> memorySaveStrings = {
+  // Лист сохранения из просмотра кадра: кнопка качает один кадр, стрелка
+  // предлагает всю запись или всю ленту.
+  'saveOptFrame': {
+    'ru': 'Этот кадр',
+    'en': 'This frame',
+    'pt': 'Este quadro',
+    'it': 'Questo scatto',
+    'es': 'Esta foto',
+    'fr': 'Cette image',
+    'de': 'Dieses Bild',
+  },
+  'saveOptFrameSub': {
+    'ru': 'Тот, что на экране',
+    'en': 'The one on screen',
+    'pt': 'O que está na tela',
+    'it': 'Quello a schermo',
+    'es': 'La que está en pantalla',
+    'fr': "Celle à l'écran",
+    'de': 'Das auf dem Bildschirm',
+  },
+  'saveOptMemory': {
+    'ru': 'Все кадры воспоминания',
+    'en': 'All frames of the memory',
+    'pt': 'Todos os quadros da lembrança',
+    'it': 'Tutti gli scatti del ricordo',
+    'es': 'Todas las fotos del recuerdo',
+    'fr': 'Toutes les images du souvenir',
+    'de': 'Alle Bilder der Erinnerung',
+  },
+  'saveOptFeed': {
+    'ru': 'Все кадры ленты',
+    'en': 'All frames in the feed',
+    'pt': 'Todos os quadros do mural',
+    'it': 'Tutti gli scatti del diario',
+    'es': 'Todas las fotos del muro',
+    'fr': 'Toutes les images du fil',
+    'de': 'Alle Bilder der Chronik',
+  },
+  'saveOptFeedSub': {
+    'ru': 'Все записи пары',
+    'en': 'Every record of the pair',
+    'pt': 'Todos os registros do casal',
+    'it': 'Tutte le voci della coppia',
+    'es': 'Todos los registros de la pareja',
+    'fr': 'Toutes les entrées du couple',
+    'de': 'Alle Einträge des Paares',
+  },
   // ── кнопка и лист «Что сохранить» ──
   'saveAllTooltip': {
     'ru': 'Сохранить всё в галерею',

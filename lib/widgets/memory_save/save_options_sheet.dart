@@ -9,6 +9,9 @@ import '../app_sheet.dart';
 
 enum SaveChoice { all, photos, videos, pick, cover }
 
+/// Выбор из просмотра кадра: сам кадр, вся запись, вся лента, вручную.
+enum ViewerSaveChoice { frame, memory, feed, pick }
+
 /// «5 сентября 2026» на языке приложения.
 String memoryDateLabel(DateTime d) {
   final s = LocaleService.current;
@@ -233,4 +236,108 @@ class _OptionTile extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Лист «Что сохранить» из просмотра кадра.
+///
+/// Кнопка рядом качает один кадр, тот что на экране, поэтому первым пунктом
+/// он и стоит — отмеченный как действие по умолчанию.
+Future<ViewerSaveChoice?> showViewerSaveSheet(
+  BuildContext context, {
+  required ColorScheme scheme,
+  required MediaFile current,
+  required List<MediaFile> memoryFiles,
+  required int feedCount,
+  required DateTime takenAt,
+  required String title,
+}) async {
+  final ledger = SavedMediaLedger.instance;
+  await ledger.load();
+  if (!context.mounted) return null;
+  final memory = summarizeMedia(memoryFiles);
+  final saved = ledger.countSaved(memoryFiles);
+
+  return showAppSheet<ViewerSaveChoice>(
+    context,
+    background: scheme.surfaceContainerLow,
+    builder: (ctx) => Theme(
+      data: ProfileTheme.data(scheme),
+      child: SheetScaffold(
+        title: trKey('saveSheetTitle'),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                [
+                  title,
+                  trKey('saveApproxMb').replaceAll('{n}', '${memory.megabytes}'),
+                  if (saved > 0)
+                    trKey('saveAlreadyIn').replaceAll('{n}', '$saved'),
+                ].where((e) => e.isNotEmpty).join(' · '),
+                style: TextStyle(
+                  fontFamily: 'Onest',
+                  fontSize: 13,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 10),
+              _OptionTile(
+                icon: Icons.photo_rounded,
+                label: trKey('saveOptFrame'),
+                sub: trKey('saveOptFrameSub'),
+                count: '1',
+                accent: true,
+                onTap: () => Navigator.of(ctx).pop(ViewerSaveChoice.frame),
+              ),
+              if (memoryFiles.length > 1)
+                _OptionTile(
+                  icon: Icons.done_all_rounded,
+                  label: trKey('saveOptMemory'),
+                  sub: title,
+                  count: '${memoryFiles.length}',
+                  onTap: () => Navigator.of(ctx).pop(ViewerSaveChoice.memory),
+                ),
+              if (feedCount > memoryFiles.length)
+                _OptionTile(
+                  icon: Icons.photo_library_rounded,
+                  label: trKey('saveOptFeed'),
+                  sub: trKey('saveOptFeedSub'),
+                  count: '$feedCount',
+                  onTap: () => Navigator.of(ctx).pop(ViewerSaveChoice.feed),
+                ),
+              if (memoryFiles.length > 1)
+                _OptionTile(
+                  icon: Icons.checklist_rounded,
+                  label: trKey('saveOptPick'),
+                  sub: trKey('saveOptPickSub'),
+                  chevron: true,
+                  onTap: () => Navigator.of(ctx).pop(ViewerSaveChoice.pick),
+                ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Icon(Icons.calendar_month_rounded,
+                      size: 18, color: scheme.onSurfaceVariant),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      trKey('saveDateNote')
+                          .replaceAll('{date}', memoryDateLabel(takenAt)),
+                      style: TextStyle(
+                        fontFamily: 'Onest',
+                        fontSize: 13,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }

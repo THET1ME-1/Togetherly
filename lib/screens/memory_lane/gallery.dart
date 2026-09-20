@@ -346,16 +346,22 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
   late PageController _pageController;
   late int _currentIndex;
 
+  /// Плёнка кадров под снимком — она же переключатель.
+  late final ScrollController _stripCtrl;
+
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
     _pageController = PageController(initialPage: widget.initialIndex);
+    _stripCtrl = ScrollController(
+        initialScrollOffset: (widget.initialIndex * 64.0 - 140).clamp(0, 1e6));
   }
 
   @override
   void dispose() {
     _pageController.dispose();
+    _stripCtrl.dispose();
     super.dispose();
   }
 
@@ -384,52 +390,122 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
 
   /// «Сохранить» и «Отправить» именно этот кадр. Кнопка помнит, что кадр уже в
   /// галерее, и не даёт сохранить его второй раз по ошибке.
+  /// Низ просмотрщика: именная реакция записи слева, справа кнопка
+  /// сохранения — она качает ОДИН кадр, тот что на экране, а стрелка даёт
+  /// выбор: все кадры записи, все кадры ленты, отметить вручную.
   Widget _frameActions((Memory, MediaFile) hit) {
     final (m, f) = hit;
     final queue = MediaSaveQueue.instance;
     final ledger = SavedMediaLedger.instance;
+    final theme = context.appTheme;
+    final uid = PocketBaseService().userId ?? '';
+    final repo = MemoryRepository();
     return AnimatedBuilder(
       animation: Listenable.merge([queue, ledger]),
       builder: (context, _) {
+        final chips = <Widget>[];
+        m.reactions.forEach((who, key) {
+          chips.add(ReactionChip(
+            uid: who,
+            name: who == m.authorUid ? m.authorName : '',
+            avatarUrl: who == m.authorUid ? m.authorAvatar : '',
+            reactionKey: key,
+            theme: theme,
+            isMine: who == uid,
+            onTap: who == uid
+                ? () => repo.setReaction(
+                    groupId: m.groupId, memoryId: m.id, reaction: key)
+                : null,
+          ));
+        });
         final saved = ledger.containsFile(f);
         final saving = !saved && queue.isQueued(f.key);
         return Row(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _viewerPill(
-              key: const ValueKey('viewer-save'),
-              icon: saved ? Icons.download_done_rounded : Icons.download_rounded,
-              label: saved
-                  ? trKey('viewerSaved')
-                  : saving
-                      ? trKey('viewerSaving')
-                      : trKey('viewerSave'),
-              ok: saved,
-              busy: saving,
-              onTap: saved || saving
-                  ? null
-                  : () => saveToGallery(
-                        context,
-                        title: memorySaveTitle(m),
-                        items: [SaveItem.of(m, f)],
-                        adult: m.isAdult,
-                      ),
-            ),
-            const SizedBox(width: 8),
-            _viewerPill(
-              key: const ValueKey('viewer-share'),
-              icon: Icons.ios_share_rounded,
-              label: trKey('pickShare'),
-              onTap: () => shareMemoryMedia(
-                context,
-                files: [f],
-                takenAt: m.createdAt,
+            for (final c in chips) ...[c, const SizedBox(width: 2)],
+            if (m.reactionOf(uid).isEmpty)
+              AddReactionButton(
+                theme: theme,
+                onPick: (key) => repo.setReaction(
+                    groupId: m.groupId, memoryId: m.id, reaction: key),
               ),
+            const Spacer(),
+            SaveSplitButton(
+              height: 44,
+              state: saveButtonState(
+                total: 1,
+                saved: saved ? 1 : 0,
+                done: saving ? 0 : null,
+                jobTotal: saving ? 1 : null,
+              ),
+              onSaveAll: () => saveToGallery(
+                context,
+                title: memorySaveTitle(m),
+                items: [SaveItem.of(m, f)],
+                adult: m.isAdult,
+              ),
+              onChoose: () => _chooseFromViewer(m, f),
+              onCancel: () => queue.cancel(m.id),
             ),
           ],
         );
       },
     );
+  }
+
+  /// Лист «Что сохранить» из просмотрщика: этот кадр, вся запись, вся лента
+  /// или выбрать вручную.
+  Future<void> _chooseFromViewer(Memory m, MediaFile f) async {
+    final scheme = Theme.of(context).colorScheme;
+    final memFiles = memoryMediaFiles(m);
+    final allFiles = <MediaFile>[
+      for (final it in widget.items)
+        if (_fileOf(it) case final hit?) hit.$2,
+    ];
+    final choice = await showViewerSaveSheet(
+      context,
+      scheme: scheme,
+      current: f,
+      memoryFiles: memFiles,
+      feedCount: allFiles.length,
+      takenAt: m.createdAt,
+      title: memorySaveTitle(m),
+    );
+    if (choice == null || !mounted) return;
+    switch (choice) {
+      case ViewerSaveChoice.frame:
+        await saveToGallery(context,
+            title: memorySaveTitle(m),
+            items: [SaveItem.of(m, f)],
+            adult: m.isAdult);
+      case ViewerSaveChoice.memory:
+        await saveToGallery(context,
+            title: memorySaveTitle(m),
+            items: [for (final x in memFiles) SaveItem.of(m, x)],
+            adult: m.isAdult);
+      case ViewerSaveChoice.feed:
+        await saveToGallery(
+          context,
+          title: LocaleService.current.memoryLane,
+          items: [
+            for (final it in widget.items)
+              if (_fileOf(it) case final hit?) SaveItem.of(hit.$1, hit.$2),
+          ],
+        );
+      case ViewerSaveChoice.pick:
+        final picked =
+            await showFramePicker(context, files: memFiles, scheme: scheme);
+        if (picked == null || picked.files.isEmpty || !mounted) return;
+        if (picked.share) {
+          await shareMemoryMedia(context,
+              files: picked.files, takenAt: m.createdAt);
+        } else {
+          await saveToGallery(context,
+              title: memorySaveTitle(m),
+              items: [for (final x in picked.files) SaveItem.of(m, x)],
+              adult: m.isAdult);
+        }
+    }
   }
 
   Widget _viewerPill({
@@ -483,6 +559,98 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
     );
   }
 
+
+  /// Круглая кнопка поверх кадра: стекло, чтобы читалась и на светлом.
+  /// Плёнка едет за кадром: текущий всегда виден, а не остаётся за краем.
+  void _scrollStripTo(int index) {
+    if (!_stripCtrl.hasClients) return;
+    final target = (index * 64.0) - 140;
+    _stripCtrl.animateTo(
+      target.clamp(0, _stripCtrl.position.maxScrollExtent),
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  Widget _viewerRound({required IconData icon, required VoidCallback onTap}) {
+    return Material(
+      color: Colors.black.withValues(alpha: 0.45),
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Icon(icon, color: Colors.white, size: 22),
+        ),
+      ),
+    );
+  }
+
+  /// Пилюля шапки: номер кадра, название записи и шеврон — переход к
+  /// воспоминанию. Она же говорит, из какой записи кадр, когда листаешь
+  /// дальше по сквозной ленте.
+  Widget _viewerTitlePill(int count) {
+    final memory = widget.memoryOf?.call(_current.memoryId);
+    final title = (memory?.title?.trim().isNotEmpty == true)
+        ? memory!.title!.trim()
+        : (_current.caption?.trim().isNotEmpty == true
+            ? _current.caption!.trim()
+            : LocaleService.current.memoryLane);
+    // Номер внутри записи, а не в общей ленте: «3/7» понятнее, чем «118/412».
+    final sameMemory = [
+      for (final it in widget.items)
+        if (it.memoryId == _current.memoryId) it,
+    ];
+    final inMemory = sameMemory.indexOf(_current) + 1;
+    return Material(
+      color: Colors.black.withValues(alpha: 0.45),
+      borderRadius: BorderRadius.circular(22),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => Navigator.pop(context, _current.memoryId),
+        child: Container(
+          height: 44,
+          padding: const EdgeInsets.only(left: 14, right: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '$inMemory/${sameMemory.length}',
+                style: const TextStyle(
+                  fontFamily: 'Onest',
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white70,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: 'Onest',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded,
+                  color: Colors.white70, size: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// «Ещё» у кадра: сведения и переход к записи.
+  void _openFrameMenu() => Navigator.pop(context, _current.memoryId);
+
   @override
   Widget build(BuildContext context) {
     final topPad = MediaQuery.of(context).padding.top;
@@ -492,11 +660,35 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
       backgroundColor: Colors.black,
       body: Stack(
         children: [
+          // Поля у широкого кадра занимает он сам — увеличенный и размытый.
+          // Экран остаётся про кадр, и чёрных дыр сверху и снизу больше нет.
+          Positioned.fill(
+            child: IgnorePointer(
+              child: ClipRect(
+                child: ImageFiltered(
+                  imageFilter: ui.ImageFilter.blur(sigmaX: 42, sigmaY: 42),
+                  child: Opacity(
+                    opacity: 0.5,
+                    child: StorageImage(
+                      imageUrl: _current.url,
+                      fit: BoxFit.cover,
+                      memCacheWidth: 200,
+                      errorWidget: (_, __, ___) =>
+                          const ColoredBox(color: Colors.black),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
           // Photo / video pages
           PageView.builder(
             controller: _pageController,
             itemCount: count,
-            onPageChanged: (i) => setState(() => _currentIndex = i),
+            onPageChanged: (i) {
+              setState(() => _currentIndex = i);
+              _scrollStripTo(i);
+            },
             itemBuilder: (_, i) {
               final item = widget.items[i];
               if (item.isVideo) {
@@ -561,60 +753,25 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
               );
             },
           ),
-          // Top bar: go-to-pin (left) + close (right)
+          // Шапка: крестик, пилюля с номером кадра и названием записи —
+          // она же переход к воспоминанию, и она же отвечает, из какой
+          // записи кадр, когда листаешь дальше по ленте.
           Positioned(
             top: topPad + 8,
-            left: 16,
-            right: 16,
+            left: 8,
+            right: 8,
             child: Row(
               children: [
-                GestureDetector(
-                  onTap: () => Navigator.pop(context, _current.memoryId),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.55),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.push_pin_rounded,
-                          color: Colors.white,
-                          size: 15,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          LocaleService.current.goToPin,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const Spacer(),
-                GestureDetector(
+                _viewerRound(
+                  icon: Icons.close_rounded,
                   onTap: () => Navigator.pop(context),
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.5),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.close_rounded,
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                  ),
+                ),
+                const SizedBox(width: 6),
+                Flexible(child: _viewerTitlePill(count)),
+                const Spacer(),
+                _viewerRound(
+                  icon: Icons.more_vert_rounded,
+                  onTap: () => _openFrameMenu(),
                 ),
               ],
             ),
@@ -626,51 +783,32 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
               bottom: botPad + (count > 1 ? 58 : 22),
               child: _frameActions(hit),
             ),
-          // Page indicator / counter
+          // Плёнка снизу: кадры идут сквозь все записи, текущий обведён.
           if (count > 1)
             Positioned(
-              bottom: botPad + 24,
               left: 0,
               right: 0,
-              child: count <= 20
-                  ? Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(
-                        count,
-                        (i) => AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          margin: const EdgeInsets.symmetric(horizontal: 3),
-                          width: i == _currentIndex ? 24 : 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: i == _currentIndex
-                                ? Colors.white
-                                : Colors.white.withOpacity(0.35),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                      ),
-                    )
-                  : Center(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.5),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Text(
-                          '${_currentIndex + 1} / $count',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
+              bottom: botPad + 78,
+              child: SizedBox(
+                height: 56,
+                child: ListView.separated(
+                  controller: _stripCtrl,
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  itemCount: count,
+                  separatorBuilder: (_, _) => const SizedBox(width: 2),
+                  itemBuilder: (_, i) => FilmFrame(
+                    url: widget.items[i].url,
+                    height: 56,
+                    selected: i == _currentIndex,
+                    onTap: () => _pageController.animateToPage(
+                      i,
+                      duration: const Duration(milliseconds: 280),
+                      curve: Curves.easeOutCubic,
                     ),
+                  ),
+                ),
+              ),
             ),
         ],
       ),
