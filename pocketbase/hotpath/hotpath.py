@@ -1621,8 +1621,18 @@ async def _record_activity_pg(group_id: str, auth_uid: str, uid: str,
                 return ORJSONResponse({"ok": True, "pending": True})
 
             # Оба были сегодня — день засчитан.
+            #
+            # Днём серии считаем дату ТОГО, КТО ОТМЕТИЛСЯ ПЕРВЫМ, а не дату
+            # закрытия: партнёр нередко заходит уже после полуночи, и по его
+            # дате общий день уезжал на сутки вперёд. Вчерашний день тогда
+            # выглядел пропущенным, и серия обнулялась у пары, которая была
+            # вместе оба вечера (жалоба 20.09.2026: «мы оба заходили, а серия
+            # сбросилась»; в ту ночь так закрылись 2203 пары из 4188, у 646
+            # серия упала до единицы). Ожидание после зачёта снимаем: иначе
+            # завтрашняя отметка первого совпала бы с уже закрытым днём.
+            начало = min(today, ждёт_дату) if ждёт_дату else today
             серия = (int(row["streak_days"] or 0) + 1
-                     if _день_подряд(today, прошлый) else 1)
+                     if _день_подряд(начало, прошлый) else 1)
             маскот = row["active_mascot_id"] or ""
             карта = row["mascot_streaks"]
             if isinstance(карта, str):
@@ -1635,13 +1645,14 @@ async def _record_activity_pg(group_id: str, auth_uid: str, uid: str,
             if маскот:
                 прежнее = карта.get(маскот) if isinstance(карта.get(маскот), dict) else {}
                 серия_маскота = (int(прежнее.get("s") or 0) + 1
-                                 if _день_подряд(today, str(прежнее.get("d") or ""))
+                                 if _день_подряд(начало, str(прежнее.get("d") or ""))
                                  else 1)
-                карта[маскот] = {"s": серия_маскота, "d": today}
+                карта[маскот] = {"s": серия_маскота, "d": начало}
             await c.execute(
                 "UPDATE groups SET streak_days = $1, streak_last_opened_date = $2, "
+                "streak_pending_date = '', streak_pending_uid = '', "
                 "mascot_streaks = $3, updated = $4 WHERE id = $5",
-                float(серия), today, json.dumps(карта), now_pb(), group_id)
+                float(серия), начало, json.dumps(карта), now_pb(), group_id)
 
     if маскот and серия_маскота:
         await asyncio.to_thread(_record_streak_sqlite, group_id, маскот,

@@ -2627,6 +2627,11 @@ class PbDataService {
                 : 999;
           }
 
+          // Здесь общим днём считается только точное совпадение дат: пару,
+          // где партнёр отметился уже после полуночи, запасной путь оставит
+          // ждать, а день ей засчитает сервер (там это идёт в транзакции и
+          // серия считается по дате первого — см. _record_activity_pg).
+          // Обнулить серию, как было до 20.09.2026, он при этом не может.
           final currentStreak = (d['streak_days'] as num?)?.toInt() ?? 0;
           final newStreak = daysSince(last) == 1 ? currentStreak + 1 : 1;
 
@@ -2648,6 +2653,8 @@ class PbDataService {
           await _pb.collection('groups').update(rec.id, body: {
             'streak_days': newStreak,
             'streak_last_opened_date': today,
+            'streak_pending_date': '',
+            'streak_pending_uid': '',
             if (activeMascotId != null) 'mascot_streaks': streaks,
           });
           if (activeMascotId != null) {
