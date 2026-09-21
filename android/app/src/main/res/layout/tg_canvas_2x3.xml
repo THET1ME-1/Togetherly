@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Виджет «Рисунок на столе»: холст и ничего больше.
+
+  Никаких подписей и плашек: человек ставит на стол рисунок, а не карточку о
+  рисунке. Картинку рисует приложение (`CanvasWidgetService`), натив только
+  показывает её и обрезает по скруглению.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/tg_shape_28"
+    android:clipToOutline="true">
+
+    <ImageView
+        android:id="@+id/bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@null" />
+
+    <ImageView
+        android:id="@+id/canvas"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:contentDescription="@null" />
+
+    <TextView
+        android:id="@+id/empty_label"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:paddingLeft="18dp"
+        android:paddingRight="18dp"
+        android:textSize="13dp"
+        android:textStyle="bold"
+        android:fontFamily="@font/onest_extrabold"
+        android:includeFontPadding="false"
+        android:visibility="gone"
+        android:text="" />
+</FrameLayout>

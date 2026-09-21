@@ -1709,6 +1709,11 @@ abstract class AppStrings {
   String get tgSizeHintToday;
   String get tgSizeHintWeek;
 
+  /// Меню холста в галерее рисунков.
+  String get drawAddToWidget;
+  String get drawAddToWidgetHint;
+  String get drawAddToWidgetUnsupported;
+
   /// Виджет «Маскот на столе».
   String get mascotWidgetTitle;
   String get mascotWidgetSubtitle;

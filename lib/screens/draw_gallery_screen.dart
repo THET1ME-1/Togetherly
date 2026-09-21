@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -6,6 +7,8 @@ import 'package:flutter/material.dart';
 import '../models/canvas_meta.dart';
 import '../models/pair_data.dart';
 import '../models/user_data.dart';
+import '../services/canvas/canvas_widget_service.dart';
+import '../services/canvas_repository.dart';
 import '../services/canvas_storage_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
@@ -60,6 +63,7 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
 
   String get _uid => widget.userData.uid;
   String get _groupId => widget.pairData.pairId;
+  AppStrings get _s => LocaleService.current;
   bool get _isPaired => _groupId.isNotEmpty;
 
   @override
@@ -100,6 +104,25 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
       _canvases = list;
       _loading = false;
     });
+    _publishToWidget();
+  }
+
+  /// Готовит картинки холстов для виджета рабочего стола.
+  ///
+  /// Виджету нужны готовые PNG: штрихи он собрать не может. Рисуем их здесь —
+  /// человек только что открыл галерею, значит список свежий, а лишней работы
+  /// нет: сервис сам пропускает повтор, если ничего не изменилось.
+  void _publishToWidget() {
+    if (_canvases.isEmpty) return;
+    unawaited(CanvasWidgetService.instance.publish(
+      groupId: _groupId,
+      canvases: _canvases,
+      activeId: _canvases.first.id,
+      strokesOf: (meta) => _isPaired
+          ? CanvasRepository.instance
+              .previewStrokes(_groupId, meta.id, limit: kPreviewStrokeLimit)
+          : _storage.loadLocalStrokes(_uid, meta.id),
+    ));
   }
 
   // ── Actions ─────────────────────────────────────────────────────────────
@@ -426,7 +449,7 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
     return GestureDetector(
       // В режиме выбора касание отмечает холст, а не открывает его.
       onTap: () => _selectionMode ? _toggleSelected(meta) : _openCanvas(meta),
-      onLongPress: () => _toggleSelected(meta),
+      onLongPress: () => _selectionMode ? _toggleSelected(meta) : _showCardMenu(meta),
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24),
@@ -588,6 +611,79 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
         ),
       ),
     );
+  }
+
+  /// Меню холста: долгое нажатие вместо трёх точек — плитка целиком отдана
+  /// рисунку, и значок поверх него мешал бы смотреть.
+  Future<void> _showCardMenu(CanvasMeta meta) async {
+    final t = widget.theme;
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: t.scheme?.surfaceContainerHigh ?? t.cardSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 10),
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: t.divider,
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+            const SizedBox(height: 14),
+            ListTile(
+              leading: Icon(Icons.add_to_home_screen_rounded, color: t.primary),
+              title: Text(
+                _s.drawAddToWidget,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              subtitle: Text(_s.drawAddToWidgetHint),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pinCanvasWidget(meta);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.edit_rounded, color: t.primary),
+              title: Text(_s.rename),
+              onTap: () {
+                Navigator.pop(ctx);
+                _renameCanvas(meta);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Ставит холст на рабочий стол: система спросит, куда положить виджет, и
+  /// сразу откроет выбор — в нём этот холст уже отмечен.
+  Future<void> _pinCanvasWidget(CanvasMeta meta) async {
+    await CanvasWidgetService.instance.publish(
+      groupId: _groupId,
+      canvases: _canvases,
+      activeId: meta.id,
+      force: true,
+      strokesOf: (m) => _isPaired
+          ? CanvasRepository.instance
+              .previewStrokes(_groupId, m.id, limit: kPreviewStrokeLimit)
+          : _storage.loadLocalStrokes(_uid, m.id),
+    );
+    final ok = await CanvasWidgetService.instance.pinToHomeScreen(meta.id);
+    if (!mounted) return;
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_s.drawAddToWidgetUnsupported)),
+      );
+    }
   }
 
   String _formatDate(DateTime dt) {

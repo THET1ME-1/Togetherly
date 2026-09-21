@@ -623,6 +623,28 @@ def mascot_4x4() -> None:
     save(img, "tg_preview_mascot_4x4")
 
 
+# ── «Рисунок на столе» ───────────────────────────────────────────────────────
+
+CANVAS_SHOT = ROOT / "tools/assets/canvas_preview.png"
+
+
+def canvas_preview(name: str, w: int, h: int) -> None:
+    """Превью виджета холста: сам рисунок и ничего больше."""
+    img, d = canvas(w, h)
+    card(d, (0, 0, w, h), 28, SURFACE)
+    shot = Image.open(CANVAS_SHOT).convert("RGB")
+    # Кадрируем по центру, как это делает виджет на устройстве.
+    tw, th = w * S, h * S
+    k = max(tw / shot.width, th / shot.height)
+    shot = shot.resize((max(1, int(shot.width * k)), max(1, int(shot.height * k))), Image.LANCZOS)
+    left, top = (shot.width - tw) // 2, (shot.height - th) // 2
+    shot = shot.crop((left, top, left + tw, top + th))
+    mask = Image.new("L", (tw, th), 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, tw, th), radius=28 * S, fill=255)
+    img.paste(shot, (0, 0), mask)
+    save(img, name)
+
+
 if __name__ == "__main__":
     print("Превью виджетов →", OUT)
     together_2x2()
@@ -648,4 +670,7 @@ if __name__ == "__main__":
     mascot_2x2()
     mascot_4x2()
     mascot_4x4()
+    canvas_preview("tg_preview_canvas_2x2", 200, 200)
+    canvas_preview("tg_preview_canvas_2x3", 200, 300)
+    canvas_preview("tg_preview_canvas_4x4", 424, 424)
     print("готово")

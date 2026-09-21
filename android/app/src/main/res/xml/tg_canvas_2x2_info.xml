@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  «Рисунок на столе» 2x2 — квадрат.
+
+  `configure` открывает выбор холста при добавлении, `reconfigurable` даёт
+  открыть тот же экран потом: долгое нажатие по виджету → «Настроить»
+  (Android 12+, на старых система просто зовёт configure при добавлении).
+  `configuration_optional` не ставим: без выбранного холста виджет показывал
+  бы случайный рисунок.
+
+  minWidth/minHeight по формуле 70*n-30.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/tg_canvas_2x2"
+    android:configure="com.togetherly.love.CanvasPickActivity"
+    android:widgetFeatures="reconfigurable"
+    android:previewImage="@drawable/tg_preview_canvas_2x2"
+    android:description="@string/tg_desc_canvas_2x2"
+    android:minWidth="110dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="110dp"
+    android:maxResizeWidth="624dp"
+    android:maxResizeHeight="480dp"
+    android:targetCellWidth="2"
+    android:targetCellHeight="2"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen" />

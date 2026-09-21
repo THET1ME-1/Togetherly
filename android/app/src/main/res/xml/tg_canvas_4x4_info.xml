@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  «Рисунок на столе» 4x4 — во весь ряд.
+
+  `configure` открывает выбор холста при добавлении, `reconfigurable` даёт
+  открыть тот же экран потом: долгое нажатие по виджету → «Настроить»
+  (Android 12+, на старых система просто зовёт configure при добавлении).
+  `configuration_optional` не ставим: без выбранного холста виджет показывал
+  бы случайный рисунок.
+
+  minWidth/minHeight по формуле 70*n-30.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/tg_canvas_4x4"
+    android:configure="com.togetherly.love.CanvasPickActivity"
+    android:widgetFeatures="reconfigurable"
+    android:previewImage="@drawable/tg_preview_canvas_4x4"
+    android:description="@string/tg_desc_canvas_4x4"
+    android:minWidth="250dp"
+    android:minHeight="250dp"
+    android:minResizeWidth="250dp"
+    android:minResizeHeight="250dp"
+    android:maxResizeWidth="624dp"
+    android:maxResizeHeight="480dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="4"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen" />

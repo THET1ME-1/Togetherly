@@ -163,6 +163,30 @@ class MainActivity : FlutterActivity() {
             "love_app/widgets"
         ).setMethodCallHandler { call, result ->
             when (call.method) {
+                // Кнопка «Добавить на виджет» в галерее рисунков: система сама
+                // спросит, куда положить, и откроет выбор холста
+                // (`CanvasPickActivity`) — там нужный уже отмечен.
+                "pinCanvasWidget" -> {
+                    val manager = AppWidgetManager.getInstance(this)
+                    if (!manager.isRequestPinAppWidgetSupported) {
+                        result.success(false)
+                    } else {
+                        val size = call.argument<String>("size") ?: "2x3"
+                        val provider = when (size) {
+                            "2x2" -> CanvasWidget2x2Provider::class.java
+                            "4x4" -> CanvasWidget4x4Provider::class.java
+                            else -> CanvasWidget2x3Provider::class.java
+                        }
+                        result.success(
+                            manager.requestPinAppWidget(
+                                ComponentName(this, provider),
+                                null,
+                                null,
+                            )
+                        )
+                    }
+                }
+
                 "getPhotoDayWidgetIds" -> {
                     val manager = AppWidgetManager.getInstance(this)
                     val legacy = manager.getAppWidgetIds(

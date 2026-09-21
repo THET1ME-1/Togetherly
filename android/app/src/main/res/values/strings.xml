@@ -34,4 +34,12 @@
     <string name="tg_desc_mascot_4x2">Персонаж пары, серия и полоса роста</string>
     <string name="tg_desc_mascot_4x4">Персонаж пары во весь экран: серия, рост и рекорд</string>
     <string name="tg_mascot_empty">Выберите маскота в приложении</string>
+    <string name="tg_desc_canvas_2x2">Общий рисунок пары, квадратом</string>
+    <string name="tg_desc_canvas_2x3">Общий рисунок пары, лист целиком</string>
+    <string name="tg_desc_canvas_4x4">Общий рисунок пары во весь ряд</string>
+    <string name="tg_canvas_empty">Нарисуйте что-нибудь вдвоём</string>
+    <string name="tg_canvas_pick_title">Какой рисунок показывать</string>
+    <string name="tg_canvas_pick_subtitle">Нажмите на холст, и он встанет на стол</string>
+    <string name="tg_canvas_pick_empty">Рисунков пока нет. Откройте Togetherly и нарисуйте первый.</string>
+    <string name="tg_canvas_unnamed">Без названия</string>
 </resources>

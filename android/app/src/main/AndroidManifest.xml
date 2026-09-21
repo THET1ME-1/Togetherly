@@ -545,6 +545,53 @@
                 android:resource="@xml/tg_map_4x4_info" />
         </receiver>
 
+        <!-- «Рисунок на столе»: общий холст пары, три размера -->
+        <receiver android:name=".CanvasWidget2x2Provider"
+            android:exported="true"
+            android:label="Рисунок · 2×2">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tg_canvas_2x2_info" />
+        </receiver>
+
+        <receiver android:name=".CanvasWidget2x3Provider"
+            android:exported="true"
+            android:label="Рисунок · вертикальный">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tg_canvas_2x3_info" />
+        </receiver>
+
+        <receiver android:name=".CanvasWidget4x4Provider"
+            android:exported="true"
+            android:label="Рисунок · 4×4">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tg_canvas_4x4_info" />
+        </receiver>
+
+        <!-- Выбор холста: открывается системой при добавлении виджета и по
+             кнопке «Настроить» у поставленного. -->
+        <activity
+            android:name=".CanvasPickActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
         <!-- «Маскот на столе»: пиксельный персонаж пары, четыре размера -->
         <receiver android:name=".MascotWidget4x1Provider"
             android:exported="true"

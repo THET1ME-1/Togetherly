@@ -2533,6 +2533,12 @@ abstract class DictStrings extends AppStrings {
   @override
   String get tgCountdownMinutes => _t('tgCountdownMinutes');
   @override
+  String get drawAddToWidget => _t('drawAddToWidget');
+  @override
+  String get drawAddToWidgetHint => _t('drawAddToWidgetHint');
+  @override
+  String get drawAddToWidgetUnsupported => _t('drawAddToWidgetUnsupported');
+  @override
   String get mascotWidgetTitle => _t('mascotWidgetTitle');
   @override
   String get mascotWidgetSubtitle => _t('mascotWidgetSubtitle');
