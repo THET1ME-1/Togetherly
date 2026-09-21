@@ -15,9 +15,6 @@ void main() {
   final pick = File(
     'android/app/src/main/kotlin/com/togetherly/love/CanvasPickActivity.kt',
   );
-  final overlay = File(
-    'android/app/src/main/kotlin/com/togetherly/love/CanvasDrawOverlayActivity.kt',
-  );
   final manifest = File('android/app/src/main/AndroidManifest.xml');
 
   test('все три размера объявлены классом и приёмником', () {
@@ -57,26 +54,17 @@ void main() {
     expect(provider.readAsStringSync().contains('CanvasPickActivity.canvasKey'), isTrue);
   });
 
-  test('рисование поверх стола: окно, отправка и мгновенная картинка', () {
-    final code = overlay.readAsStringSync();
-    expect(code.contains('loveapp://canvas-stroke'), isTrue,
-        reason: 'штрихи не уходят фоновому Dart');
-    expect(code.contains('canvas_pending_strokes'), isTrue,
-        reason: 'штрихи негде взять фоновому Dart');
-    expect(code.contains('bakeIntoWidgetImage'), isTrue,
-        reason: 'рисунок не появится на виджете до ответа базы');
-    expect(provider.readAsStringSync().contains('CanvasDrawOverlayActivity'), isTrue,
-        reason: 'тап по виджету не ведёт в рисование');
-    expect(
-      manifest.readAsStringSync().contains('.CanvasDrawOverlayActivity'),
-      isTrue,
-      reason: 'окно рисования не объявлено в манифесте',
-    );
+  test('тап открывает этот холст в приложении', () {
+    final code = provider.readAsStringSync();
+    // Без номера холста человек попадёт в галерею и будет искать рисунок
+    // глазами.
+    expect(code.contains('loveapp://draw?canvas='), isTrue);
+    expect(code.contains('HomeWidgetLaunchIntent'), isTrue);
   });
 
-  test('приложение принимает штрихи с рабочего стола', () {
-    final main = File('lib/main.dart').readAsStringSync();
-    expect(main.contains("host == 'canvas-stroke'"), isTrue);
-    expect(main.contains('canvas_pending_strokes'), isTrue);
+  test('приложение открывает холст по ссылке с виджета', () {
+    final home = File('lib/screens/home_screen.dart').readAsStringSync();
+    expect(home.contains("uri.host == 'draw'"), isTrue);
+    expect(home.contains('_openCanvasFromWidget'), isTrue);
   });
 }

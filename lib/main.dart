@@ -243,50 +243,6 @@ Future<void> _homeWidgetBackgroundCallback(Uri? uri) async {
     return;
   }
 
-  // Линии, нарисованные прямо на рабочем столе. Картинку виджета окно уже
-  // переписало само, здесь только запись в базу — чтобы рисунок увидел
-  // партнёр и чтобы он не пропал при следующей перерисовке.
-  if (host == 'canvas-stroke') {
-    try {
-      await PocketBaseService().init();
-      final uid = PocketBaseService().userId ?? '';
-      if (uid.isEmpty) return;
-
-      final groupId = uri.queryParameters['group']?.trim() ??
-          await HomeWidget.getWidgetData<String>('canvas_latest_group') ??
-          '';
-      final canvasId = uri.queryParameters['canvas']?.trim() ?? '';
-      if (groupId.isEmpty || groupId == 'solo' || canvasId.isEmpty) return;
-
-      final raw =
-          await HomeWidget.getWidgetData<String>('canvas_pending_strokes') ?? '';
-      if (raw.isEmpty) return;
-
-      final list = (jsonDecode(raw) as List<dynamic>).cast<Map<String, dynamic>>();
-      // Порядок продолжает рисунок, а не начинает его заново: номер берём от
-      // конца холста, иначе новые линии легли бы под старые.
-      final existing = await CanvasRepository.instance
-          .previewStrokes(groupId, canvasId, limit: 1);
-      var order = existing.isEmpty ? 0 : existing.first.orderIndex + 1;
-
-      for (final stroke in list) {
-        await CanvasRepository.instance.addStroke(groupId, canvasId, {
-          ...stroke,
-          'userId': uid,
-          'orderIndex': order++,
-          'createdAt': DateTime.now().millisecondsSinceEpoch,
-        });
-      }
-
-      // Отправленное убираем: повторный запуск фона не должен положить те же
-      // линии второй раз.
-      await HomeWidget.saveWidgetData<String>('canvas_pending_strokes', '');
-    } catch (e) {
-      debugPrint('canvas stroke from widget failed: $e');
-    }
-    return;
-  }
-
   // Заметка, написанная прямо на рабочем столе. Листик уже показал новый
   // текст — здесь только отправка партнёру.
   if (host == 'note') {

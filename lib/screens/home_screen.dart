@@ -113,6 +113,7 @@ import '../services/pair_widget_payload.dart';
 import '../services/widget_service.dart';
 import '../models/mascot.dart';
 import '../services/canvas_storage_service.dart';
+import 'draw_screen.dart';
 import '../services/mascot_service.dart';
 import '../services/live_location_service.dart';
 import '../widgets/active_mascot_widget.dart';
@@ -576,6 +577,14 @@ class _HomeScreenState extends State<HomeScreen> {
     else if (uri.host == 'miss') {
       if (_pairData.isPaired) {
         unawaited(_sendQuietNudge());
+      }
+    }
+    // loveapp://draw?canvas=… → холст с рабочего стола. Открываем именно тот
+    // рисунок, что на виджете: без номера человек попадёт в галерею и будет
+    // искать его глазами.
+    else if (uri.host == 'draw') {
+      if (mounted && _pairData.isPaired) {
+        unawaited(_openCanvasFromWidget(uri.queryParameters['canvas'] ?? ''));
       }
     }
     // loveapp://note → правка общего листика (печатать в виджете iOS не даёт).
@@ -3264,6 +3273,39 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// «Скучаю» с карточки затихшего партнёра.
+  /// Открывает холст по номеру с виджета. Не нашли — открываем галерею
+  /// рисунков: она хотя бы там, куда человек шёл.
+  Future<void> _openCanvasFromWidget(String canvasId) async {
+    try {
+      final canvases = await CanvasStorageService.instance
+          .getCanvases(widget.userData.uid, groupId: _pairData.pairId);
+      if (!mounted) return;
+      final meta = canvases.where((c) => c.id == canvasId).firstOrNull;
+      if (meta == null) {
+        _openDrawGallery();
+        return;
+      }
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => DrawScreen(
+            userData: widget.userData,
+            pairData: _pairData,
+            theme: _t,
+            canvasId: meta.id,
+            canvasName: meta.name,
+            pixelW: meta.pixelW,
+            pixelH: meta.pixelH,
+            sheetRatio: meta.effectiveRatio,
+          ),
+          settings: const RouteSettings(name: '/draw'),
+        ),
+      );
+    } catch (e) {
+      debugPrint('canvas from widget failed: $e');
+    }
+  }
+
   Future<void> _sendQuietNudge() async {
     if (_quietSending) return;
     setState(() => _quietSending = true);

@@ -579,16 +579,6 @@
                 android:resource="@xml/tg_canvas_4x4_info" />
         </receiver>
 
-        <!-- Рисование прямо с рабочего стола: прозрачное окно в облике
-             виджета, как у «Заметки на двоих». -->
-        <activity
-            android:name=".CanvasDrawOverlayActivity"
-            android:exported="false"
-            android:excludeFromRecents="true"
-            android:taskAffinity=""
-            android:launchMode="singleTop"
-            android:theme="@style/TgNoteEditorTheme" />
-
         <!-- Выбор холста: открывается системой при добавлении виджета и по
              кнопке «Настроить» у поставленного. -->
         <activity
