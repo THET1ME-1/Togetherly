@@ -69,7 +69,11 @@ struct CanvasWidget: Widget {
         }
         .configurationDisplayName("Рисунок на столе")
         .description("Общий холст пары рядом с иконками.")
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        // Широкого прямоугольника здесь нет намеренно: рисунки вертикальные,
+        // и от листа 4:5 в нём осталась бы узкая полоса поперёк рисунка.
+        // Вертикального размера WidgetKit не даёт вовсе — он есть только на
+        // Android (2×3).
+        .supportedFamilies([.systemSmall, .systemLarge])
         // Рисунок идёт под край: системные поля iOS 17 оставили бы рамку.
         .contentMarginsDisabled()
     }
