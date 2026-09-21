@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../models/canvas_meta.dart';
 import '../home_widget_service.dart';
@@ -36,6 +37,23 @@ class CanvasWidgetService {
   static const int longSide = 640;
 
   static const _channel = MethodChannel('love_app/widgets');
+
+  /// Холст, назначенный человеком в приложении.
+  ///
+  /// На iPhone выбрать холст в самом виджете нельзя (конфигурируемые виджеты
+  /// у нас рисовались чёрными), поэтому выбор живёт там же, где у фото: в
+  /// приложении. Что назначили, то и показывается.
+  static const _pinnedKey = 'canvas_widget_pinned_id';
+
+  Future<void> setPinned(String canvasId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_pinnedKey, canvasId);
+  }
+
+  Future<String> pinnedId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_pinnedKey) ?? '';
+  }
 
   String? _lastSignature;
 
@@ -73,7 +91,15 @@ class CanvasWidgetService {
     }
 
     final picked = canvases.take(maxCanvases).toList();
-    final active = activeId?.isNotEmpty == true ? activeId! : picked.first.id;
+    // Назначенный в приложении холст старше «последнего тронутого»: человек
+    // выбрал его сам, и виджет не должен переключаться у него за спиной.
+    final pinned = await pinnedId();
+    final wanted = activeId?.isNotEmpty == true
+        ? activeId!
+        : (pinned.isNotEmpty && picked.any((c) => c.id == pinned)
+            ? pinned
+            : picked.first.id);
+    final active = wanted;
     final signature = [
       groupId,
       active,

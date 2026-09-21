@@ -667,6 +667,9 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
   /// Ставит холст на рабочий стол: система спросит, куда положить виджет, и
   /// сразу откроет выбор — в нём этот холст уже отмечен.
   Future<void> _pinCanvasWidget(CanvasMeta meta) async {
+    // Выбор запоминается: на iPhone его больше негде сделать, а на Android он
+    // задаёт холст по умолчанию для новых виджетов.
+    await CanvasWidgetService.instance.setPinned(meta.id);
     await CanvasWidgetService.instance.publish(
       groupId: _groupId,
       canvases: _canvases,
