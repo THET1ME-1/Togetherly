@@ -22,8 +22,52 @@ private struct PairMapWidgetView: View {
         }
     }
 
+    /// Имя файла в общем контейнере: `mapw_<размер>_<номер>.png.jpg`
+    /// (его кладёт Dart через мост App Group).
+    private var filePrefix: String {
+        switch family {
+        case .systemSmall: return "mapw_s_"
+        case .systemLarge: return "mapw_l_"
+        default: return "mapw_m_"
+        }
+    }
+
+    /// Свежая картинка прямо из общего контейнера — на случай, когда ключ пуст
+    /// или указывает на файл, которого уже нет. Ключ пишет приложение, и если
+    /// запись не дошла, виджет оставался с заглушкой при готовой картинке под
+    /// боком (разбор 21.09.2026: за всю историю журнала карта не нарисовалась
+    /// на iPhone ни разу).
+    private func pathFromContainer() -> String {
+        guard let dir = FileManager.default.containerURL(
+            forSecurityApplicationGroupIdentifier: AppGroup.id
+        )?.appendingPathComponent("widget_media", isDirectory: true) else { return "" }
+        let files = (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
+        let mine = files.filter { $0.hasPrefix(filePrefix) }.sorted()
+        guard let last = mine.last else { return "" }
+        return dir.appendingPathComponent(last).path
+    }
+
+    /// Путь к картинке: сперва ключ от приложения, затем поиск в контейнере.
+    /// Вычисляется вне `body`: там ViewBuilder, и обычным операторам не место.
+    private var imagePath: String {
+        let stored = Store().string(key)
+        if !stored.isEmpty, FileManager.default.fileExists(atPath: stored) {
+            return stored
+        }
+        let fallback = pathFromContainer()
+        WidgetRenderLog.write(
+            family: WidgetRenderLog.familyName(family),
+            widget: "map",
+            fields: [
+                "ключ": stored.isEmpty ? "пусто" : "файла нет",
+                "контейнер": fallback.isEmpty ? "пусто" : "нашлась",
+            ]
+        )
+        return fallback
+    }
+
     var body: some View {
-        let path = Store().string(key)
+        let path = imagePath
         let theme = WidgetTheme()
         GeometryReader { geo in
             // Картинка уже нарисована под размер виджета и не крупнее тысячи
