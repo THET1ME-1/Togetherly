@@ -46,6 +46,12 @@ class WidgetDiagnostics {
     'ios_self_photo_path',
     'ios_partner_photo_path',
     'ios_photo_day_path',
+    // «Где мы»: в отчёте их не было, и поломку карты на iPhone (21.09.2026,
+    // виджет с заглушкой при живой карте в приложении) по нему было не поймать.
+    'ios_map_small_path',
+    'ios_map_medium_path',
+    'ios_map_large_path',
+    'map_latest_group',
   ];
 
   /// Собирает сводку: ключ → что с ним. Пусто, есть значение или битый путь.
