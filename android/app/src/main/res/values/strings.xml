@@ -42,4 +42,6 @@
     <string name="tg_canvas_pick_subtitle">Нажмите на холст, и он встанет на стол</string>
     <string name="tg_canvas_pick_empty">Рисунков пока нет. Откройте Togetherly и нарисуйте первый.</string>
     <string name="tg_canvas_unnamed">Без названия</string>
+    <string name="tg_canvas_draw_done">Готово</string>
+    <string name="tg_canvas_draw_undo">Отменить</string>
 </resources>

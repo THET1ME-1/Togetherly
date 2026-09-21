@@ -95,23 +95,51 @@ open class CanvasWidgetProvider : HomeWidgetProvider() {
                 setTextColor(R.id.empty_label, theme.onSurfaceVariant)
             }
 
+            // Тап по рисунку продолжает рисунок: поверх стола открывается
+            // то же окно, что и у заметки. Холста ещё нет — открываем
+            // приложение, рисовать там пока нечего.
             setOnClickPendingIntent(
                 R.id.widget_root,
-                HomeWidgetLaunchIntent.getActivity(
-                    context,
-                    MainActivity::class.java,
-                    // Ссылка несёт номер холста: без него человек попадёт в
-                    // список и будет искать свой рисунок глазами.
-                    android.net.Uri.parse(
-                        if (canvasId.isEmpty()) "loveapp://draw"
-                        else "loveapp://draw?canvas=$canvasId"
-                    ),
-                ),
+                if (bitmap != null && canvasId.isNotEmpty()) {
+                    drawIntent(context, widgetId, canvasId, group, path)
+                } else {
+                    HomeWidgetLaunchIntent.getActivity(
+                        context,
+                        MainActivity::class.java,
+                        android.net.Uri.parse("loveapp://draw"),
+                    )
+                },
             )
         }
 
         manager.updateAppWidget(widgetId, views)
     }
+}
+
+/** Окно рисования поверх стола: своё на каждый экземпляр виджета. */
+private fun drawIntent(
+    context: Context,
+    widgetId: Int,
+    canvasId: String,
+    group: String,
+    imagePath: String,
+): android.app.PendingIntent {
+    val intent = android.content.Intent(context, CanvasDrawOverlayActivity::class.java).apply {
+        putExtra(CanvasDrawOverlayActivity.EXTRA_CANVAS, canvasId)
+        putExtra(CanvasDrawOverlayActivity.EXTRA_GROUP, group)
+        putExtra(CanvasDrawOverlayActivity.EXTRA_IMAGE, imagePath)
+        addFlags(
+            android.content.Intent.FLAG_ACTIVITY_NEW_TASK or
+                android.content.Intent.FLAG_ACTIVITY_NO_ANIMATION
+        )
+    }
+    return android.app.PendingIntent.getActivity(
+        context,
+        widgetId,
+        intent,
+        android.app.PendingIntent.FLAG_UPDATE_CURRENT or
+            android.app.PendingIntent.FLAG_IMMUTABLE,
+    )
 }
 
 class CanvasWidget2x2Provider : CanvasWidgetProvider() {
