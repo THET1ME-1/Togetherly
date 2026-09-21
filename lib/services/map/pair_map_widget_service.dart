@@ -400,7 +400,10 @@ class PairMapWidgetService {
 
   Future<void> _refresh({required String groupId, required String myUid, required String partnerUid}) async {
     if (!Platform.isAndroid && !Platform.isIOS) return;
-    if (!await _anyInstalled()) return;
+    // Спрашиваем WidgetKit, стоит ли виджет, но верим ему только когда
+    // картинки уже лежат в контейнере: на iPhone список приходит пустым и
+    // тогда, когда виджет на столе есть, а без отрисовки он вечно с заглушкой.
+    if (!await _anyInstalled() && await _imagesAlive()) return;
     final prefs = await SharedPreferences.getInstance();
     final meta = _json(prefs.getString(_metaKey));
     final sameGroup = meta['g'] == groupId;
@@ -428,7 +431,11 @@ class PairMapWidgetService {
       partner == null ? '' : LivePointAge.of(partner.updatedAt, nowMs: now).unit.name,
       partner == null ? 0 : LivePointAge.of(partner.updatedAt, nowMs: now).value,
     ]);
-    if (prefs.getString(_sigKey) == sig) return;
+    // Подписи мало: на iPhone путь в контейнер мог не записаться (мост App
+    // Group вернул пусто) или файл оттуда пропал, а подпись уже стояла — и
+    // служба больше никогда не перерисовывала, потому что «всё то же самое».
+    // Виджет при этом стоял с заглушкой, пока не переедешь в другой город.
+    if (prefs.getString(_sigKey) == sig && await _imagesAlive()) return;
 
     final myAvatar = sameGroup ? await _avatar(groupId, 'my', meta['myAvatar'] as String?) : null;
     final partnerAvatar = sameGroup ? await _avatar(groupId, 'partner', meta['partnerAvatar'] as String?) : null;
@@ -454,8 +461,27 @@ class PairMapWidgetService {
       tiles: _loadTile,
     );
     if (images.isEmpty) return;
-    await _publish(groupId.isEmpty ? 'solo' : groupId, images);
-    await prefs.setString(_sigKey, sig);
+    final published = await _publish(groupId.isEmpty ? 'solo' : groupId, images);
+    // Не записалось — подпись не ставим, иначе следующий заход решит, что всё
+    // уже нарисовано, и виджет останется пустым до смены координат.
+    if (published) await prefs.setString(_sigKey, sig);
+  }
+
+  /// Лежат ли картинки там, где их ищет виджет. На iPhone это путь внутри
+  /// App Group: пустой ключ или пропавший файл значат, что рисовать надо
+  /// заново, даже если ничего не изменилось.
+  Future<bool> _imagesAlive() async {
+    if (!Platform.isIOS) return true;
+    try {
+      for (final key in iosKeys.values) {
+        final path = await HomeWidget.getWidgetData<String>(key) ?? '';
+        if (path.isEmpty || !File(path).existsSync()) return false;
+      }
+      return true;
+    } catch (e) {
+      debugPrint('PairMapWidget: не проверить картинки контейнера: $e');
+      return false;
+    }
   }
 
   static String _pointSig(LivePoint? p) =>
@@ -587,7 +613,7 @@ class PairMapWidgetService {
   }
 
   /// Кладёт картинки туда, где их видит виджет, и будит его.
-  Future<void> _publish(String g, Map<MapWidgetSize, Uint8List> images) async {
+  Future<bool> _publish(String g, Map<MapWidgetSize, Uint8List> images) async {
     final dir = Directory('${(await getApplicationSupportDirectory()).path}/map_widget');
     dir.createSync(recursive: true);
     // Имя с номером: WidgetKit держит картинку по пути, и с прежним именем
@@ -601,11 +627,20 @@ class PairMapWidgetService {
       }
     }
     if (Platform.isIOS) await HomeWidgetService.instance.clearAppGroupMedia('mapw_');
+    var ok = true;
     for (final e in images.entries) {
       final file = File('${dir.path}/map_${g}_${e.key.id}_$rev.png');
       await file.writeAsBytes(e.value, flush: true);
       if (Platform.isIOS) {
-        final path = await HomeWidgetService.instance.appGroupReadablePath(file.path, 'mapw_${e.key.id}_$rev.png');
+        // Мост в App Group отвечает не всегда. Прежде пустой ответ молча
+        // записывался в ключ, и виджет оставался с заглушкой: даём второй заход.
+        var path = await _toAppGroup(file, e.key, rev);
+        if (path.isEmpty) path = await _toAppGroup(file, e.key, rev);
+        if (path.isEmpty) {
+          ok = false;
+          debugPrint('PairMapWidget: картинка ${e.key.id} не легла в контейнер');
+          continue; // старый путь в ключе лучше пустого
+        }
         await HomeWidget.saveWidgetData<String>(iosKeys[e.key]!, path);
       } else {
         await HomeWidget.saveWidgetData<String>('map_${g}_img_${e.key.id}', file.path);
@@ -614,10 +649,22 @@ class PairMapWidgetService {
     await HomeWidget.saveWidgetData<String>('map_latest_group', g);
     if (Platform.isIOS) {
       await HomeWidget.updateWidget(iOSName: iosKind);
-      return;
+      return ok;
     }
     for (final p in androidProviders.values) {
       await HomeWidget.updateWidget(name: p, androidName: p, qualifiedAndroidName: 'com.togetherly.love.$p');
+    }
+    return ok;
+  }
+
+  /// Копия картинки в общий контейнер. Пустая строка — не получилось.
+  Future<String> _toAppGroup(File file, MapWidgetSize size, int rev) async {
+    try {
+      return await HomeWidgetService.instance
+          .appGroupReadablePath(file.path, 'mapw_${size.id}_$rev.png');
+    } catch (e) {
+      debugPrint('PairMapWidget: мост App Group молчит (${size.id}): $e');
+      return '';
     }
   }
 }
