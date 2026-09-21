@@ -81,6 +81,7 @@ struct TogetherlyWidgetBundle: WidgetBundle {
         YearRingWidget()
         YearGridWidget()
         MascotWidget()
+        CanvasWidget()
     }
 }
 

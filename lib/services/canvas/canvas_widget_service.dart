@@ -8,6 +8,7 @@ import 'package:home_widget/home_widget.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../models/canvas_meta.dart';
+import '../home_widget_service.dart';
 import '../../models/draw_stroke.dart';
 import '../../widgets/draw/canvas_preview.dart';
 import 'canvas_widget_keys.dart';
@@ -110,10 +111,44 @@ class CanvasWidgetService {
       for (final e in keys.entries) {
         await HomeWidget.saveWidgetData<String>(e.key, e.value);
       }
+      await _publishToAppGroup(items, keys);
       await _wake();
       _lastSignature = signature;
     } catch (e) {
       debugPrint('CanvasWidgetService.publish не справился: $e');
+    }
+  }
+
+  /// iPhone: картинка активного холста в контейнер App Group.
+  ///
+  /// Выбора холста на iOS нет: система не даёт открыть свой экран настройки, а
+  /// конфигурируемые виджеты в этом проекте уже пробовали — они рисовались
+  /// чёрными (разбор 18.08.2026). Показываем тот холст, который трогали
+  /// последним.
+  Future<void> _publishToAppGroup(
+    List<CanvasWidgetItem> items,
+    Map<String, String> keys,
+  ) async {
+    if (!Platform.isIOS) return;
+    try {
+      final g = keys['canvas_latest_group'] ?? 'solo';
+      final activeId = keys['canvas_${g}_active'] ?? '';
+      final active = items.firstWhere(
+        (i) => i.id == activeId,
+        orElse: () => items.first,
+      );
+
+      await HomeWidgetService.instance.clearAppGroupMedia('canvasw_');
+      final shared = await HomeWidgetService.instance.appGroupReadablePath(
+        active.path,
+        'canvasw_${DateTime.now().millisecondsSinceEpoch}.png',
+      );
+      await HomeWidget.saveWidgetData<String>('ios_canvas_path', shared);
+      await HomeWidget.saveWidgetData<String>('ios_canvas_name', active.name);
+      await HomeWidget.saveWidgetData<String>('ios_canvas_id', active.id);
+      await HomeWidget.updateWidget(iOSName: 'CanvasWidget');
+    } catch (e) {
+      debugPrint('CanvasWidgetService: iPhone не получил холст — $e');
     }
   }
 

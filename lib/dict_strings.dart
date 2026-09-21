@@ -2533,6 +2533,14 @@ abstract class DictStrings extends AppStrings {
   @override
   String get tgCountdownMinutes => _t('tgCountdownMinutes');
   @override
+  String get canvasWidgetTitle => _t('canvasWidgetTitle');
+  @override
+  String get canvasWidgetSubtitle => _t('canvasWidgetSubtitle');
+  @override
+  String get canvasWidgetSizeTall => _t('canvasWidgetSizeTall');
+  @override
+  String get canvasWidgetEmpty => _t('canvasWidgetEmpty');
+  @override
   String get drawAddToWidget => _t('drawAddToWidget');
   @override
   String get drawAddToWidgetHint => _t('drawAddToWidgetHint');

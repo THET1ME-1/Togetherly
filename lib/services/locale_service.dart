@@ -1709,6 +1709,12 @@ abstract class AppStrings {
   String get tgSizeHintToday;
   String get tgSizeHintWeek;
 
+  /// Виджет «Рисунок на столе».
+  String get canvasWidgetTitle;
+  String get canvasWidgetSubtitle;
+  String get canvasWidgetSizeTall;
+  String get canvasWidgetEmpty;
+
   /// Меню холста в галерее рисунков.
   String get drawAddToWidget;
   String get drawAddToWidgetHint;

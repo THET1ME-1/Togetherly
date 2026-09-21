@@ -41,6 +41,8 @@ import '../models/pair_data.dart';
 import '../models/ad_grants.dart';
 import '../models/user_data.dart';
 import '../services/analytics_service.dart';
+import '../services/canvas/canvas_widget_service.dart';
+import '../widgets/draw/canvas_preview.dart' show kPreviewStrokeLimit;
 import '../services/canvas_storage_service.dart';
 import '../services/canvas_repository.dart';
 import '../services/pb_data_service.dart';
@@ -739,8 +741,33 @@ class _DrawScreenState extends State<DrawScreen>
         byteData.buffer.asUint8List(),
         groupId: _groupId,
       );
+      // Заодно обновляем рабочий стол: без этого виджет показывал вчерашний
+      // рисунок, пока человек не заглянет в галерею.
+      unawaited(_syncCanvasWidget());
     } catch (e) {
       debugPrint('[Draw] thumbnail error: $e');
+    }
+  }
+
+  /// Перерисовывает картинки холстов для виджета «Рисунок на столе».
+  Future<void> _syncCanvasWidget() async {
+    try {
+      final canvases = await CanvasStorageService.instance
+          .getCanvases(_myUid, groupId: _groupId);
+      if (canvases.isEmpty) return;
+      await CanvasWidgetService.instance.publish(
+        groupId: _groupId,
+        canvases: canvases,
+        // Свежим считаем тот холст, который только что рисовали.
+        activeId: _canvasId,
+        force: true,
+        strokesOf: (meta) => _groupId.isEmpty
+            ? CanvasStorageService.instance.loadLocalStrokes(_myUid, meta.id)
+            : CanvasRepository.instance
+                .previewStrokes(_groupId, meta.id, limit: kPreviewStrokeLimit),
+      );
+    } catch (e) {
+      debugPrint('[Draw] widget sync error: $e');
     }
   }
 

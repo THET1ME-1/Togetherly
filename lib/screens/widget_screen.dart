@@ -63,14 +63,19 @@ import '../services/mood_notification_service.dart';
 import '../services/mood_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
+import '../models/canvas_meta.dart';
 import '../models/mascot.dart';
 import '../models/mascot_anim.dart';
 import '../models/mascot_widget_data.dart';
 import '../services/catalog_service.dart';
 import '../services/offline/media_view_cache.dart';
+import '../services/canvas/canvas_widget_service.dart';
+import '../services/canvas_repository.dart';
+import '../services/canvas_storage_service.dart';
 import '../services/mascot/mascot_art_source.dart';
 import '../services/mascot/mascot_widget_service.dart';
 import '../services/mascot_service.dart';
+import '../widgets/draw/canvas_preview.dart';
 import '../widgets/mascot/pixel_mascot_view.dart';
 import '../widgets/active_mascot_widget.dart' show buildMascotAssetImage;
 import '../services/timer_service.dart';
@@ -259,6 +264,10 @@ class _WidgetScreenState extends State<WidgetScreen>
 
   String get _widgetTimerKey => 'widget_timer_id_${_pair.pairId}';
 
+  /// Холсты пары для карточки «Рисунок на столе». Подгружаются один раз:
+  /// каталог открывают, чтобы поставить виджет, а не смотреть галерею.
+  List<CanvasMeta> _canvases = [];
+
   static const String _heartSvg =
       '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="m11.645 20.91-.007-.003-.022-.012a15.247 15.247 0 0 1-.383-.218 25.18 25.18 0 0 1-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0 1 12 5.052 5.5 5.5 0 0 1 16.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 0 1-4.244 3.17 15.247 15.247 0 0 1-.383.219l-.022.012-.007.004-.003.001a.752.752 0 0 1-.704 0l-.003-.001Z" /></svg>''';
   static const String _calendarSvg =
@@ -292,6 +301,9 @@ class _WidgetScreenState extends State<WidgetScreen>
     _pair.addListener(_onDataChanged);
     _ws.addListener(_onDataChanged);
     unawaited(_loadNote());
+    // Холсты для карточки «Рисунок на столе»: заодно готовятся картинки для
+    // виджета, чтобы он не встал пустым сразу после установки.
+    unawaited(_loadCanvases());
     _timerService.addListener(_onDataChanged);
     _moodService.addListener(_onDataChanged);
     _mascotService.addListener(_onDataChanged);
@@ -1096,6 +1108,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           'miss' => 'miss',
           'year_ring' => 'year_ring',
           'mascot' => 'mascot',
+          'canvas' => 'canvas',
           'year_grid' => 'year_grid',
           'map' => 'map',
           // Парный виджет тоже помнит свою связь: до 04.09.2026 он один на все
@@ -1377,6 +1390,9 @@ class _WidgetScreenState extends State<WidgetScreen>
       case 'mascot':
         // Кадры режет сервис маскота: у него и персонаж, и серия, и окно сна.
         widget.mascotService.resyncStreakWidget();
+        break;
+      case 'canvas':
+        await _syncCanvasWidget();
         break;
     }
   }
@@ -1838,6 +1854,7 @@ class _WidgetScreenState extends State<WidgetScreen>
       if (isPaired) _CatalogCard(WidgetPanels.sectionPair, _cardMap),
       if (isPaired) _CatalogCard(WidgetPanels.sectionPair, _cardStats),
       if (isPaired) _CatalogCard(WidgetPanels.sectionPair, _cardMascot),
+      if (isPaired) _CatalogCard(WidgetPanels.sectionPhotos, _cardCanvas),
 
       // ── Дни и таймеры ──
       if (isPaired) _CatalogCard(WidgetPanels.sectionTime, _cardDaysCounter),
@@ -2419,6 +2436,104 @@ class _WidgetScreenState extends State<WidgetScreen>
           ),
         ],
       );
+
+  /// Рисунок на столе: общий холст пары, только картинка.
+  Widget _cardCanvas() => _buildGalleryItem(
+        title: _s.canvasWidgetTitle,
+        subtitle: _s.canvasWidgetSubtitle,
+        svgString: _heartSvg,
+        qualifiedName: 'com.togetherly.love.CanvasWidget2x3Provider',
+        widgetType: 'canvas',
+        sizes: [
+          _WidgetSizeOption(
+            label: '2×2',
+            hint: _s.tgSizeHintCompact,
+            qualifiedName: 'com.togetherly.love.CanvasWidget2x2Provider',
+            previewBuilder: () => _buildCanvasPreview(1),
+          ),
+          _WidgetSizeOption(
+            label: '2×3',
+            hint: _s.canvasWidgetSizeTall,
+            qualifiedName: 'com.togetherly.love.CanvasWidget2x3Provider',
+            previewBuilder: () => _buildCanvasPreview(2 / 3),
+          ),
+          _WidgetSizeOption(
+            label: '4×4',
+            hint: _s.tgSizeHintLarge,
+            qualifiedName: 'com.togetherly.love.CanvasWidget4x4Provider',
+            previewBuilder: () => _buildCanvasPreview(1),
+          ),
+        ],
+      );
+
+  /// Превью: настоящий холст пары, тот же, что встанет на стол.
+  Widget _buildCanvasPreview(double aspect) {
+    final meta = _canvases.isEmpty ? null : _canvases.first;
+    if (meta == null) {
+      return AspectRatio(
+        aspectRatio: aspect,
+        child: Container(
+          decoration: BoxDecoration(
+            color: _wr('surfaceContainer'),
+            borderRadius: BorderRadius.circular(22),
+          ),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Text(
+            _s.canvasWidgetEmpty,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'Onest',
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+              color: _wr('onSurfaceVariant'),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return AspectRatio(
+      aspectRatio: aspect,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: CanvasPreview(
+          meta: meta,
+          uid: widget.userData.uid,
+          groupId: _pair.pairId,
+          background: Colors.white,
+          placeholder: Container(color: _wr('surfaceContainer')),
+        ),
+      ),
+    );
+  }
+
+  /// Подтягивает холсты и сразу готовит картинки для виджета.
+  Future<void> _loadCanvases() async {
+    try {
+      final list = await CanvasStorageService.instance
+          .getCanvases(widget.userData.uid, groupId: _pair.pairId);
+      if (!mounted) return;
+      setState(() => _canvases = list);
+      await _syncCanvasWidget();
+    } catch (e) {
+      debugPrint('widget_screen: холсты не загрузились — $e');
+    }
+  }
+
+  Future<void> _syncCanvasWidget() async {
+    if (_canvases.isEmpty) return;
+    await CanvasWidgetService.instance.publish(
+      groupId: _pair.pairId,
+      canvases: _canvases,
+      activeId: _canvases.first.id,
+      strokesOf: (meta) => _pair.pairId.isEmpty
+          ? CanvasStorageService.instance
+              .loadLocalStrokes(widget.userData.uid, meta.id)
+          : CanvasRepository.instance
+              .previewStrokes(_pair.pairId, meta.id, limit: kPreviewStrokeLimit),
+    );
+  }
 
   /// Маскот на столе: пиксельный персонаж пары в четырёх размерах.
   Widget _cardMascot() => _buildGalleryItem(
