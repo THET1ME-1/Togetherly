@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/pb_media_ref.dart';
+import '../models/upload_failure.dart';
 import '../models/upload_timeout.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
@@ -45,6 +46,25 @@ class PbMediaService {
     String? uid,
     String? groupId,
     String? kind,
+  }) async =>
+      (await uploadBytesWithReason(
+        bytes,
+        filename,
+        uid: uid,
+        groupId: groupId,
+        kind: kind,
+      ))
+          .ref;
+
+  /// То же, что [uploadBytes], но при отказе говорит причину
+  /// ([classifyUploadError]): экрану нужно отличать обрыв сети от истёкшей
+  /// сессии и слишком большого файла.
+  Future<UploadOutcome> uploadBytesWithReason(
+    List<int> bytes,
+    String filename, {
+    String? uid,
+    String? groupId,
+    String? kind,
   }) async {
     // Срок ждём по размеру файла, а не одинаковый на всё. Жёсткие шестьдесят
     // секунд обрывали 155 заливок за тридцать дней, и 93 из них были картинки
@@ -72,7 +92,7 @@ class PbMediaService {
             .timeout(limit);
         // PB мог переименовать файл (суффикс против коллизий) → берём фактическое.
         final stored = (rec.data['file'] ?? filename).toString();
-        return '$scheme$_col/${rec.id}/$stored';
+        return UploadOutcome.ok('$scheme$_col/${rec.id}/$stored');
       } catch (e) {
         lastError = e;
         final code = e is ClientException ? e.statusCode : null;
@@ -89,6 +109,11 @@ class PbMediaService {
     // ClientException укажет точную причину сбоя загрузки воспоминания.
     final statusCode = e is ClientException ? e.statusCode : null;
     final response = e is ClientException ? e.response.toString() : null;
+    final loggedIn = PocketBaseService().isLoggedIn;
+    final failure = classifyUploadError(e, loggedIn: loggedIn);
+    // Обрыв сети и протухшая сессия — не баги: первое лечит повтор, второе
+    // вход. Их в панель не шлём, чтобы не топить настоящие отказы.
+    if (!uploadErrorWorthReporting(e)) return UploadOutcome.failed(failure);
     unawaited(Sentry.captureException(e, withScope: (s) {
       s.level = SentryLevel.warning;
       s.setExtra('reason', 'PbMedia.uploadBytes failed');
@@ -98,12 +123,13 @@ class PbMediaService {
       s.setExtra('timeoutSeconds', limit.inSeconds.toString());
       s.setExtra('hasUid', (uid != null && uid.isNotEmpty).toString());
       s.setExtra('hasGroupId', (groupId != null && groupId.isNotEmpty).toString());
-      s.setExtra('loggedIn', PocketBaseService().isLoggedIn.toString());
+      s.setExtra('loggedIn', loggedIn.toString());
       s.setExtra('filename', filename);
+      s.setExtra('failure', failure.name);
       if (statusCode != null) s.setExtra('statusCode', statusCode.toString());
       if (response != null) s.setExtra('pbResponse', response);
     }));
-    return null;
+    return UploadOutcome.failed(failure);
   }
 
   /// Загружает локальный файл по пути. Читает байты, имя — из пути. Возвращает

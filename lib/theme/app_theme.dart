@@ -33,7 +33,8 @@ class AppTheme {
   /// Цвета градиента фона [сверху, снизу]
   final List<Color> bgGradient;
 
-  /// URL изображения фона из Firebase Storage (если задан — используется вместо градиента)
+  /// Картинка фона вместо градиента. Сейчас не задана ни у одной темы: обои
+  /// жили в Firebase Storage и умерли вместе с ним (402), рисуется градиент.
   final String? bgImageUrl;
 
   // ── Hero-карточка (ExpandableTimerCard) ──────────────────────────────────
@@ -194,8 +195,6 @@ abstract final class AppThemes {
     navActiveIcon: Color(0xFFFF7E8B),
     promptButtonColor: Color(0xFFFF7E8B),
     timerDialBackground: Color(0xFFFFB3BD),
-    bgImageUrl:
-        'https://firebasestorage.googleapis.com/v0/b/togetherly-d4856.firebasestorage.app/o/wallpapers%2Fpink-background.webp?alt=media',
   );
 
   // ── 1: Фиолетовая (Lavender) ──────────────────────────────────────────────
@@ -222,8 +221,6 @@ abstract final class AppThemes {
     navActiveIcon: Color(0xFF9B86BD),
     promptButtonColor: Color(0xFF9B86BD),
     timerDialBackground: Color(0xFFDBCEEC),
-    bgImageUrl:
-        'https://firebasestorage.googleapis.com/v0/b/togetherly-d4856.firebasestorage.app/o/wallpapers%2Fpurple-background.webp?alt=media',
   );
 
   // ── 2: Голубая (Dusty Sky) ────────────────────────────────────────────────
@@ -233,8 +230,6 @@ abstract final class AppThemes {
     primary: Color(0xFF7898BF), // пыльно-голубой с тёплым оттенком
     primaryLight: Color(0xFFEAF2FA),
     bgGradient: [Color(0xFFEBF2F9), Color(0xFFF5F9FE)],
-    bgImageUrl:
-        'https://firebasestorage.googleapis.com/v0/b/togetherly-d4856.firebasestorage.app/o/wallpapers%2Fblue-background.webp?alt=media',
     heroGradient: [Color(0xFFA8C6DE), Color(0xFF7898BF)],
     heroGlassOpacity: 0.18,
     heroToggleBorder: true,
@@ -272,8 +267,6 @@ abstract final class AppThemes {
     navActiveIcon: Color(0xFFCF7E5E),
     promptButtonColor: Color(0xFFCF7E5E),
     timerDialBackground: Color(0xFFF1CBB6),
-    bgImageUrl:
-        'https://firebasestorage.googleapis.com/v0/b/togetherly-d4856.firebasestorage.app/o/wallpapers%2Fpersic-background.webp?alt=media',
   );
 
   // ── 4: Шалфейная (Warm Sage) ─────────────────────────────────────────────
@@ -297,8 +290,6 @@ abstract final class AppThemes {
     navActiveIcon: Color(0xFF7EA876),
     promptButtonColor: Color(0xFF7EA876),
     timerDialBackground: Color(0xFFCEDDC6),
-    bgImageUrl:
-        'https://firebasestorage.googleapis.com/v0/b/togetherly-d4856.firebasestorage.app/o/wallpapers%2Fgreen-background.webp?alt=media',
   );
 
   // ═════════════════════════════════════════════════════════════════════════

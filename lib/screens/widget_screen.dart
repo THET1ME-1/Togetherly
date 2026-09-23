@@ -917,7 +917,7 @@ class _WidgetScreenState extends State<WidgetScreen>
           final uid = PocketBaseService().userId ?? '';
           final ts = DateTime.now().millisecondsSinceEpoch;
           // Когда pairId пустой (соло-режим), используем uid как папку.
-          // Путь с пустым сегментом (widget//uid.jpg) отклоняется Firebase Storage.
+          // Путь с пустым сегментом (widget//uid.jpg) сервер не принимает.
           final folder = _pair.pairId.isNotEmpty ? _pair.pairId : uid;
 
           if (_savePhotoAsMemory && _pair.pairId.isNotEmpty) {
@@ -7380,7 +7380,7 @@ class _WidgetScreenState extends State<WidgetScreen>
       final uid = PocketBaseService().userId ?? '';
       final groupId = _pair.pairId;
 
-      // 1. Загружаем каждое выбранное фото в Firebase Storage
+      // 1. Заливаем каждое выбранное фото на сервер
       final List<String> uploadedUrls = [];
       for (int i = 0; i < _photoGridPaths.length; i++) {
         final path = _photoGridPaths[i];

@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
 
+import '../models/invite_code_state.dart';
 import '../utils/date_only.dart';
 import '../utils/pair_time.dart';
 import 'love_test_id.dart';
@@ -1049,20 +1050,38 @@ class PbDataService {
   /// перевыпуск идёт только на пустом поле. Партнёр вводил такой код и получал
   /// «Код не найден» при живом с виду коде (95 отказов в сутки на 33 человека).
   ///
-  /// `null` — ответа нет (офлайн, таймаут): звонящий НЕ должен трогать код,
-  /// иначе рабочий код заменится на пустой при первом же обрыве связи.
+  /// `null` — ответа нет (офлайн, таймаут, нет живой сессии): звонящий НЕ
+  /// должен трогать код, иначе рабочий код заменится на пустой при первом же
+  /// обрыве связи.
+  ///
+  /// Ответ пишется в [ConfirmedInviteCodes]: экран раздаёт только те коды,
+  /// что сервер подтвердил.
   Future<bool?> inviteCodeIsMine(String code, {required String ownerUid}) async {
     if (code.isEmpty || ownerUid.isEmpty) return null;
+    // С протухшим токеном PocketBase считает запрос гостевым и отдаёт по
+    // правилу owner-only пустой список, а SDK превращает его в 404. Такой 404
+    // про код ничего не говорит, поэтому без живого токена не спрашиваем.
+    if (!_pb.authStore.isValid) return null;
     try {
       final rec = await _pb
           .collection('invite_codes')
           .getFirstListItem(_pb.filter('code = {:c}', {'c': code}))
           .timeout(const Duration(seconds: 10));
-      return rec.getStringValue('owner_uid') == ownerUid;
+      final mine = rec.getStringValue('owner_uid') == ownerUid;
+      if (mine) {
+        ConfirmedInviteCodes.confirm(code, ownerUid: ownerUid);
+      } else {
+        ConfirmedInviteCodes.forget(code);
+      }
+      return mine;
     } on ClientException catch (e) {
       // 404 — записи нет: код фантомный. Правило listRule у коллекции
-      // owner-only, так что свой код виден всегда, и 404 здесь однозначен.
-      if (e.statusCode == 404) return false;
+      // owner-only, так что свой код виден всегда, и при живом токене 404
+      // здесь однозначен.
+      if (e.statusCode == 404) {
+        ConfirmedInviteCodes.forget(code);
+        return false;
+      }
       return null;
     } catch (_) {
       return null;
@@ -1079,6 +1098,7 @@ class PbDataService {
     } catch (_) {
       // нет кода / уже удалён / гонка — некритично
     }
+    ConfirmedInviteCodes.forget(code);
   }
 
   /// Сгенерировать уникальный код, зарегистрировать (owner_uid, опц. group_id),
@@ -1109,6 +1129,7 @@ class PbDataService {
           'owner_uid': ownerUid,
           if (groupId != null && groupId.isNotEmpty) 'group_id': groupId,
         });
+        ConfirmedInviteCodes.confirm(code, ownerUid: ownerUid);
         if (oldCode != null && oldCode.isNotEmpty && oldCode != code) {
           await deleteInviteCode(oldCode);
         }
@@ -2462,6 +2483,26 @@ class PbDataService {
       return page.items;
     } catch (e) {
       debugPrint('PbData.loadStrokesPage failed: $e');
+      return const [];
+    }
+  }
+
+  /// Мета холстов пары, свежие первыми: по ним ищется уже начатая раскраска
+  /// той же картинки. Фильтр только по группе — hotpath фильтрует
+  /// `canvas_meta` по `group_id`/`canvas_id`, а у самой людной пары на проде
+  /// 54 холста, так что одна страница в сотню покрывает всех.
+  Future<List<Map<String, dynamic>>> loadCanvasMetaRows(String groupId) async {
+    if (groupId.isEmpty) return const [];
+    try {
+      final page = await _pb.collection('canvas_meta').getList(
+            page: 1,
+            perPage: 100,
+            filter: _pb.filter('group_id = {:g}', {'g': groupId}),
+            sort: '-updated_at',
+          );
+      return page.items.map((r) => r.data).toList();
+    } catch (e) {
+      debugPrint('PbData.loadCanvasMetaRows failed: $e');
       return const [];
     }
   }

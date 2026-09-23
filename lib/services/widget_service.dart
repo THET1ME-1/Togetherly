@@ -449,7 +449,7 @@ class WidgetService extends ChangeNotifier {
   Future<void> updatePhoto(String localPath) async {
     final groupId = _groupId;
     if (groupId.isEmpty) return;
-    // Загрузка в Storage (медиа §4 — пока Firebase Storage).
+    // Файл уходит в PocketBase (коллекция media), ссылка вида pb://.
     final uid = PocketBaseService().userId ?? '';
     final ts = DateTime.now().millisecondsSinceEpoch;
     final dest = 'widget/$groupId/${uid}_$ts.jpg';

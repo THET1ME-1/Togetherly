@@ -3221,6 +3221,9 @@ class _ProfileScreenState extends State<ProfileScreen>
       lastYear: DateTime.now().year,
     );
     if (picked == null || !mounted) return;
+    // Прежнюю годовщину берём ДО записи: по ней видно, не это ли предложение
+    // поставило таймер на старую дату.
+    final previous = connection?.anniversaryDate;
     await PbDataService().updateGroupFields(groupId, {
       'anniversary_date': picked.toIso8601String(),
     });
@@ -3229,7 +3232,9 @@ class _ProfileScreenState extends State<ProfileScreen>
       birthDate: widget.userData.birthDate,
     );
     if (mounted) setState(() {});
-    if (mounted) await _offerCounterFromAnniversary(context, picked);
+    if (mounted) {
+      await _offerCounterFromAnniversary(context, picked, previous: previous);
+    }
   }
 
   /// Предлагает вести «Дни вместе» от только что введённой годовщины.
@@ -3238,18 +3243,25 @@ class _ProfileScreenState extends State<ProfileScreen>
   /// даты пойдёт счёт: «указание в этих полях не начинает отсчёт... нужно
   /// ставить её там, где кружок» (@qwinken, 24.08.2026). Спрашиваем прямо
   /// здесь: согласие переводит системный таймер, а с ним главный экран,
-  /// виджеты и уведомления. Молчим, когда счётчик и так идёт с более ранней
-  /// даты — переводить его назад нечем.
+  /// виджеты и уведомления. Когда предлагать, решает
+  /// [shouldOfferCounterFromAnniversary]: назад — всегда, вперёд — только если
+  /// таймер стоит на [previous], то есть его туда поставило это же
+  /// предложение (год 2003 исправили на 2026, 23.09.2026).
   Future<void> _offerCounterFromAnniversary(
     BuildContext context,
-    DateTime anniversary,
-  ) async {
+    DateTime anniversary, {
+    DateTime? previous,
+  }) async {
     final timer = widget.timerService.systemTimer;
     if (timer == null) return;
+    if (!shouldOfferCounterFromAnniversary(
+      anniversary: anniversary,
+      timerStart: timer.startDate,
+      previousAnniversary: previous,
+    )) {
+      return;
+    }
     final a = DateTime(anniversary.year, anniversary.month, anniversary.day);
-    final current = timer.startDate;
-    final c = DateTime(current.year, current.month, current.day);
-    if (!a.isBefore(c)) return;
 
     final date = _formatCelebrationDate(a);
     final ok = await AppDialog.confirm(

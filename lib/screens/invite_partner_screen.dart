@@ -70,7 +70,7 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
   }
 
   Future<void> _share() async {
-    final code = _pair.inviteCode;
+    final code = _pair.shareableInviteCode;
     if (code.isEmpty) return;
     // Origin считаем синхронно, до await: на iPad лист без него молча не
     // открывается (та самая причина реджекта 2.1(a)).
@@ -83,7 +83,7 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
   }
 
   void _copyCode() {
-    final code = _pair.inviteCode;
+    final code = _pair.shareableInviteCode;
     if (code.isEmpty) return;
     Clipboard.setData(ClipboardData(text: code));
     HapticFeedback.selectionClick();
@@ -97,7 +97,7 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
   }
 
   void _showQr() {
-    final code = _pair.inviteCode;
+    final code = _pair.shareableInviteCode;
     if (code.isEmpty) return;
     final cs = _cs;
     showAppSheet<void>(
@@ -269,7 +269,7 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
   @override
   Widget build(BuildContext context) {
     final cs = _cs;
-    final code = _pair.inviteCode;
+    final code = _pair.shareableInviteCode;
 
     return Theme(
       data: ProfileTheme.data(cs),

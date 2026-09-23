@@ -7,6 +7,7 @@ import '../services/pb_data_service.dart';
 import '../utils/date_only.dart';
 import '../services/pb_realtime_service.dart';
 import '../services/pocketbase_service.dart';
+import 'invite_code_state.dart';
 import 'relationship_status.dart';
 import 'waiting_state.dart';
 
@@ -683,22 +684,64 @@ class Connection {
   }
 
   /// Сверяет показанный код с сервером и перевыпускает, если такого кода там
-  /// нет. Лечит фантомы: код, нарисованный старой сборкой на устройстве, и код,
-  /// оставшийся от чужого аккаунта после смены владельца телефона. Партнёр,
-  /// вводя такой код, видит «Код не найден», и человек ничего не может понять —
-  /// код-то у него на экране.
+  /// нет. Лечит фантомы: код, нарисованный старой сборкой на устройстве, код,
+  /// оставшийся от чужого аккаунта после смены владельца телефона, и код,
+  /// который сменили с другого устройства. Партнёр, вводя такой код, видит
+  /// «Код не найден», и человек ничего не может понять — код-то у него на
+  /// экране.
   ///
-  /// Молчаливые случаи: пустой код (его перевыпустит экран), состоявшаяся пара
-  /// (код уже привязан к группе) и потерянная связь (сервер не ответил —
-  /// трогать код нельзя, иначе обрыв сети сотрёт рабочий).
+  /// Подтверждённый код попадает в [ConfirmedInviteCodes] (это делает
+  /// `PbDataService`), и только такой экран раздаёт — см. [inviteCodeState].
+  /// Сервер промолчал — код остаётся в поле, но рабочим не считается. Сервер
+  /// сказал «нет», а перевыпуск не прошёл — поле пустеет: держать на экране
+  /// код, про который сервер точно знает, что его нет, нельзя.
+  ///
+  /// Без сессии сверять нечем: экран сам покажет, что связи с аккаунтом нет.
   Future<void> ensureInviteCodeIsReal() async {
     if (inviteCode.isEmpty || _uid.isEmpty) return;
-    final mine = await PbDataService()
-        .inviteCodeIsMine(inviteCode, ownerUid: _uid);
+    final checked = inviteCode;
+    final mine =
+        await PbDataService().inviteCodeIsMine(checked, ownerUid: _uid);
     if (mine != false) return;
-    debugPrint('Connection: код $inviteCode на сервере не найден — перевыпуск');
-    await regenerateCode();
+    debugPrint('Connection: код $checked на сервере не найден — перевыпуск');
+    // Прежний код на сервере не живёт, сносить там нечего.
+    final fresh = await PbDataService().generateInviteCode(
+      ownerUid: _uid,
+      groupId: isPaired && pairId.isNotEmpty ? pairId : null,
+    );
+    // Пока шла сверка, код мог смениться (перевыпуск кнопкой): свежий не
+    // трогаем.
+    if (inviteCode != checked) return;
+    inviteCode =
+        codeAfterServerCheck(current: checked, mine: mine, fresh: fresh);
+    onChanged?.call();
   }
+
+  /// Что оставить в поле кода после сверки с сервером.
+  ///
+  /// `mine`: `true` — сервер код подтвердил, `null` — промолчал (код остаётся,
+  /// но экран его не раздаёт, пока нет подтверждения), `false` — такого кода
+  /// у нас нет. В последнем случае остаётся только свежий код: прежний мёртв,
+  /// и пустое поле честнее, чем код, на который партнёр услышит «Код не
+  /// найден». Именно так жил TPNQGP 23.09.2026.
+  static String codeAfterServerCheck({
+    required String current,
+    required bool? mine,
+    required String fresh,
+  }) =>
+      mine == false ? fresh : current;
+
+  /// Можно ли показывать код и делиться им. См. [InviteCodeState].
+  InviteCodeState get inviteCodeState => inviteCodeStateOf(
+        code: inviteCode,
+        signedIn: _uid.isNotEmpty,
+        confirmed: ConfirmedInviteCodes.contains(inviteCode, ownerUid: _uid),
+      );
+
+  /// Код, который можно отдать партнёру: подтверждённый сервером в этом
+  /// запуске, иначе пусто.
+  String get shareableInviteCode =>
+      inviteCodeState == InviteCodeState.ready ? inviteCode : '';
 
   /// Что оставить на экране после попытки перевыпуска.
   ///

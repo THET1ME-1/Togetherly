@@ -31,6 +31,7 @@ import '../theme/profile_theme.dart';
 import '../widgets/connect_expressive.dart';
 import 'package:material3_expressive_loading_indicator/material3_expressive_loading_indicator.dart';
 import 'chat_screen.dart';
+import 'login_screen.dart';
 import 'home/widgets/relationship_type_dialog.dart';
 import '../widgets/app_sheet.dart';
 import '../models/widget_data.dart';
@@ -142,11 +143,14 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     if (!widget.pairData.isPaired) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        if (widget.pairData.inviteCode.isEmpty) {
-          widget.pairData.regenerateCode();
-        } else {
-          widget.pairData.ensureInviteCodeIsReal();
-        }
+        // Код на экране появится только после ответа сервера (см.
+        // `_shownCode`), поэтому по завершении перерисовываемся сами.
+        final check = widget.pairData.inviteCode.isEmpty
+            ? widget.pairData.regenerateCode()
+            : widget.pairData.ensureInviteCodeIsReal();
+        check.then((_) {
+          if (mounted) setState(() {});
+        });
       });
     }
   }
@@ -219,6 +223,29 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   }
 
   PairData get pair => widget.pairData;
+
+  /// Код, который экран вправе показать и раздать.
+  ///
+  /// Без пары — только подтверждённый сервером в этом запуске: код из памяти
+  /// телефона мог умереть на сервере (его сменили с другого устройства,
+  /// аккаунт потерял сессию), и партнёр слышал «Код не найден» 27 раз подряд
+  /// (TPNQGP, 23.09.2026). У пары код групповой, его перевыпускает сама пара.
+  String get _shownCode =>
+      pair.isPaired ? pair.inviteCode : pair.shareableInviteCode;
+
+  bool get _sessionLost =>
+      !pair.isPaired && pair.inviteCodeState == InviteCodeState.sessionLost;
+
+  /// Сессия умерла: ведём на вход, как делает запуск приложения с мёртвым
+  /// токеном. Вход с `isReturningUser` локальные данные не стирает.
+  void _signInAgain() {
+    final userData = widget.userData;
+    if (userData == null) return;
+    Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => LoginScreen(userData: userData)),
+      (_) => false,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1272,12 +1299,16 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     await pair.regenerateCode();
     if (!mounted) return;
     setState(() => _generating = false);
-    _showSnack(LocaleService.current.newCodeGenerated);
+    // Сервер не выдал код — хвалиться нечем.
+    if (_shownCode.isNotEmpty) {
+      _showSnack(LocaleService.current.newCodeGenerated);
+    }
   }
 
   void _handleCopy() {
-    if (pair.inviteCode.isEmpty) return;
-    Clipboard.setData(ClipboardData(text: pair.inviteCode));
+    final code = _shownCode;
+    if (code.isEmpty) return;
+    Clipboard.setData(ClipboardData(text: code));
     _showSnack(LocaleService.current.codeCopied);
     setState(() => _copied = true);
     Future.delayed(const Duration(milliseconds: 1300), () {
@@ -1286,10 +1317,11 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   }
 
   Future<void> _handleShare() async {
-    if (pair.inviteCode.isEmpty) return;
+    final code = _shownCode;
+    if (code.isEmpty) return;
     final origin = shareOriginFromContext(context);
     await Share.share(
-      LocaleService.current.shareInviteText(pair.inviteCode, pair.inviteLink),
+      LocaleService.current.shareInviteText(code, pair.inviteLink),
       subject: LocaleService.current.loveAppInvitation,
       sharePositionOrigin: origin,
     );
@@ -1304,7 +1336,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
       child: Builder(
         builder: (context) {
           final cs = Theme.of(context).colorScheme;
-          final loading = _generating || pair.inviteCode.isEmpty;
+          final loading = _generating || _shownCode.isEmpty;
           return SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
             padding: EdgeInsets.fromLTRB(
@@ -1385,12 +1417,15 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
             ),
           ),
           const SizedBox(height: 14),
-          AnimatedInviteCode(
-            code: pair.inviteCode,
-            loading: loading,
-            color: cs.onPrimaryContainer,
-            fontSize: 52,
-          ),
+          if (_sessionLost)
+            _sessionLostNotice(cs)
+          else
+            AnimatedInviteCode(
+              code: _shownCode,
+              loading: loading,
+              color: cs.onPrimaryContainer,
+              fontSize: 52,
+            ),
           const SizedBox(height: 18),
           GestureDetector(
             onTap: () => showRelationshipTypeSheet(context, pair: pair, theme: widget.theme, onChanged: () { if (mounted) setState(() {}); }),
@@ -1436,8 +1471,37 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     );
   }
 
+  /// Вместо кода, когда сессии нет: код из памяти мог умереть на сервере, а
+  /// проверить его или выпустить новый без входа нельзя.
+  Widget _sessionLostNotice(ColorScheme cs) {
+    final s = LocaleService.current;
+    return Column(
+      children: [
+        Text(
+          s.inviteSessionLost,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontFamily: 'Onest',
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            fontVariations: const [FontVariation('wght', 600)],
+            height: 1.35,
+            color: cs.onPrimaryContainer,
+          ),
+        ),
+        if (widget.userData != null) ...[
+          const SizedBox(height: 14),
+          FilledButton(
+            onPressed: _signInAgain,
+            child: Text(s.inviteSignInAgain),
+          ),
+        ],
+      ],
+    );
+  }
+
   Widget _actionsRow(ColorScheme cs) {
-    final hasCode = pair.inviteCode.isNotEmpty;
+    final hasCode = _shownCode.isNotEmpty;
     return Row(
       children: [
         Expanded(
@@ -1465,7 +1529,8 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
         const SizedBox(width: 10),
         _circleButton(
           cs: cs,
-          onTap: _generating ? null : _handleRegenerate,
+          // Без сессии сервер код не выдаст: кнопка только крутила бы вхолостую.
+          onTap: (_generating || _sessionLost) ? null : _handleRegenerate,
           child: _generating
               ? ExpressiveLoadingIndicator(
                   color: cs.primary,
@@ -2614,9 +2679,14 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     // Без кода показывать нечего: QR кодирует ссылку, а она без кода ведёт в
     // 404 (жалоба «партнёр не может перейти», 20.08.2026). Код выдаёт сервер,
     // и до ответа поле пустое — тогда просто ждём.
-    if (pair.inviteCode.trim().isEmpty) {
+    final shownCode = _shownCode;
+    if (shownCode.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(LocaleService.current.inviteCodeNotReady)),
+        SnackBar(
+          content: Text(_sessionLost
+              ? LocaleService.current.inviteSessionLost
+              : LocaleService.current.inviteCodeNotReady),
+        ),
       );
       return;
     }
@@ -2677,7 +2747,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
               ),
               const SizedBox(height: 22),
               Text(
-                pair.inviteCode,
+                shownCode,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'Unbounded',

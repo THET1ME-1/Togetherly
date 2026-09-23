@@ -45,6 +45,7 @@ import '../models/memory.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import '../models/memory_media.dart';
 import '../models/memory_menu.dart';
+import '../models/upload_failure.dart';
 import '../services/media_save_queue.dart';
 import '../services/media_share.dart';
 import '../services/saved_media_ledger.dart';
@@ -7631,20 +7632,32 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       if (type == MemoryType.photo &&
           mediaPaths != null &&
           mediaPaths.isNotEmpty) {
+        // Причина первого отказа: её и покажем, если не залилось ни одно.
+        UploadFailure? photoFailure;
         for (final path in mediaPaths) {
           final timestamp = DateTime.now().millisecondsSinceEpoch;
           final ext = path.split('.').last;
           final fileName = 'memory_$timestamp.$ext';
           final destination = 'memories/$_groupId/$fileName';
-          final url = await MediaService().uploadFile(path, destination);
-          if (url != null) uploadedImageUrls.add(url);
+          final outcome =
+              await MediaService().uploadFileWithReason(path, destination);
+          final url = outcome.ref;
+          if (url != null) {
+            uploadedImageUrls.add(url);
+          } else {
+            photoFailure ??= outcome.failure;
+          }
         }
         if (uploadedImageUrls.isEmpty) {
           if (mounted) {
             ScaffoldMessenger.of(context).hideCurrentSnackBar();
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(LocaleService.current.failedUploadPhotos),
+                content: Text(uploadFailureText(
+                  photoFailure ?? UploadFailure.other,
+                  LocaleService.current,
+                  video: false,
+                )),
                 backgroundColor: Colors.orange,
                 duration: const Duration(seconds: 5),
               ),
@@ -7696,26 +7709,23 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           );
         }
 
-        final url = await MediaService().uploadFile(mediaPath, destination);
+        final videoOutcome =
+            await MediaService().uploadFileWithReason(mediaPath, destination);
+        final url = videoOutcome.ref;
         if (url != null) {
           uploadedVideoUrl = url;
         } else {
-          // Загрузка видео не удалась (таймаут сети / отказ Storage / RLS).
-          // Фиксируем в Crashlytics, чтобы видеть реальную причину по жалобам.
-          unawaited(
-            Sentry.captureException(
-              'video upload returned null (memories/$_groupId)',
-              withScope: (s) {
-                s.setExtra('reason', 'memory video upload failed');
-                s.level = SentryLevel.warning;
-              },
-            ),
-          );
+          // Причину отказа сервис уже отправил в Bugsink сам (обрывы сети и
+          // протухшую сессию — нет: это не баги). Здесь только говорим её.
           if (mounted) {
             ScaffoldMessenger.of(context).hideCurrentSnackBar();
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(LocaleService.current.failedUploadVideo),
+                content: Text(uploadFailureText(
+                  videoOutcome.failure ?? UploadFailure.other,
+                  LocaleService.current,
+                  video: true,
+                )),
                 backgroundColor: Colors.orange,
                 duration: const Duration(seconds: 5),
               ),

@@ -190,4 +190,98 @@ void main() {
       );
     });
   });
+
+  group('предложить счёт от годовщины', () {
+    // Живой случай: годовщину ввели с годом 2003, согласились вести счёт от
+    // неё, и таймер ушёл на 17.07.2003. Потом год исправили на 2026, а
+    // предложения не было: переносили только назад, и счётчик застрял на
+    // 8467 днях.
+    final wrong = DateTime(2003, 7, 17);
+    final fixed = DateTime(2026, 7, 17);
+    final today = DateTime(2026, 9, 23, 12);
+
+    test('годовщина раньше таймера — предлагаем, как и раньше', () {
+      expect(
+        shouldOfferCounterFromAnniversary(
+          anniversary: DateTime(2025, 1, 5),
+          timerStart: DateTime(2026, 3, 1),
+          now: today,
+        ),
+        isTrue,
+      );
+    });
+
+    test('годовщина на том же дне, что таймер, — переносить нечего', () {
+      expect(
+        shouldOfferCounterFromAnniversary(
+          anniversary: DateTime(2026, 3, 1),
+          previousAnniversary: DateTime(2020, 3, 1),
+          timerStart: DateTime(2026, 3, 1, 18, 30),
+          now: today,
+        ),
+        isFalse,
+      );
+    });
+
+    test('таймер стоит на прежней годовщине — исправление вперёд тоже '
+        'предлагаем', () {
+      expect(
+        shouldOfferCounterFromAnniversary(
+          anniversary: fixed,
+          previousAnniversary: wrong,
+          timerStart: wrong,
+          now: today,
+        ),
+        isTrue,
+      );
+    });
+
+    test('час в таймере другой, день тот же — всё равно это прежняя '
+        'годовщина', () {
+      expect(
+        shouldOfferCounterFromAnniversary(
+          anniversary: fixed,
+          previousAnniversary: DateTime(2003, 7, 17, 0, 0),
+          timerStart: DateTime(2003, 7, 17, 21, 15),
+          now: today,
+        ),
+        isTrue,
+      );
+    });
+
+    test('таймер правили отдельно — вперёд его не двигаем', () {
+      expect(
+        shouldOfferCounterFromAnniversary(
+          anniversary: fixed,
+          previousAnniversary: wrong,
+          timerStart: DateTime(2010, 2, 14),
+          now: today,
+        ),
+        isFalse,
+      );
+    });
+
+    test('прежней годовщины не было — вперёд не предлагаем', () {
+      expect(
+        shouldOfferCounterFromAnniversary(
+          anniversary: fixed,
+          timerStart: wrong,
+          now: today,
+        ),
+        isFalse,
+      );
+    });
+
+    test('годовщина в будущем — счёт от неё не ведём', () {
+      expect(
+        shouldOfferCounterFromAnniversary(
+          anniversary: DateTime(2026, 11, 2),
+          previousAnniversary: wrong,
+          timerStart: wrong,
+          now: today,
+        ),
+        isFalse,
+      );
+    });
+  });
 }

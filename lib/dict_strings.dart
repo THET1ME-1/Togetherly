@@ -1407,6 +1407,10 @@ abstract class DictStrings extends AppStrings {
   @override
   String get inviteCodeNotReady => _t('inviteCodeNotReady');
   @override
+  String get inviteSessionLost => _t('inviteSessionLost');
+  @override
+  String get inviteSignInAgain => _t('inviteSignInAgain');
+  @override
   String get inviteQrHint => _t('inviteQrHint');
   @override
   String get enterPartnerCode => _t('enterPartnerCode');
@@ -1788,6 +1792,12 @@ abstract class DictStrings extends AppStrings {
   String get failedUploadPhotos => _t('failedUploadPhotos');
   @override
   String get failedUploadVideo => _t('failedUploadVideo');
+  @override
+  String get uploadFailedNetwork => _t('uploadFailedNetwork');
+  @override
+  String get uploadFailedSession => _t('uploadFailedSession');
+  @override
+  String get uploadFailedTooLarge => _t('uploadFailedTooLarge');
   @override
   String get memoryAddedSuccess => _t('memoryAddedSuccess');
   @override
@@ -3239,6 +3249,15 @@ abstract class DictStrings extends AppStrings {
   @override
   String get coloringNotDoneBtn => _t('coloringNotDoneBtn');
   @override
+  String get coloringJoinTitle => _t('coloringJoinTitle');
+  @override
+  String coloringJoinBody(String name) =>
+      _t('coloringJoinBody').replaceAll('{name}', name);
+  @override
+  String get coloringJoinOpen => _t('coloringJoinOpen');
+  @override
+  String get coloringJoinNew => _t('coloringJoinNew');
+  @override
   String get coloringWaitingTitle => _t('coloringWaitingTitle');
   @override
   String get coloringRevealTitle => _t('coloringRevealTitle');
@@ -3470,6 +3489,7 @@ abstract class DictStrings extends AppStrings {
   String get cropPhotoAction => _t('cropPhotoAction');
   @override
   String get cropPhotoHint => _t('cropPhotoHint');
+  String get flipPhoto => _t('flipPhoto');
   @override
   String get optionalTapToSelect => _t('optionalTapToSelect');
   @override

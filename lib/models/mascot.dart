@@ -11,7 +11,7 @@ class Mascot {
   final String id;
   String name;
 
-  /// Remote URL (Firebase Storage) for user-drawn mascots. Null for defaults.
+  /// Ссылка на рисунок маскота, нарисованного человеком. У встроенных — null.
   final String? imageUrl;
 
   /// Asset path for default company mascots. Null for user-drawn.

@@ -15,7 +15,7 @@ typedef _Photo = MemoryPhoto;
 /// Bottom-sheet для выбора фото из ленты воспоминаний.
 ///
 /// Открывается через [MemoryPhotoPicker.show] и возвращает список URL
-/// выбранных фотографий (уже загруженных на Firebase Storage — без повторной загрузки).
+/// выбранных фотографий (они уже лежат на сервере, повторной загрузки нет).
 class MemoryPhotoPicker extends StatefulWidget {
   final String groupId;
   final AppTheme theme;

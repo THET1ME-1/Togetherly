@@ -442,28 +442,60 @@ const Map<String, Map<String, String>> memoryLaneStrings = {
     'de': 'Erinnerung wird geladen...',
   },
   'failedUploadPhotos': {
-    'ru': 'Не удалось загрузить фото. Убедитесь, что Firebase Storage включён.',
-    'en': 'Failed to upload photos. Make sure Firebase Storage is enabled.',
-    'pt': 'As fotos não subiram. Confira sua conexão e tente de novo.',
-    'it':
-        'Le foto non sono state caricate. Controlla la connessione e riprova.',
-    'es':
-        'No se pudieron subir las fotos. Revisa tu conexión e inténtalo otra vez.',
-    'fr':
-        'Les photos n’ont pas pu être envoyées. Vérifie ta connexion et réessaie.',
+    'ru': 'Не удалось загрузить фото. Попробуйте ещё раз чуть позже.',
+    'en': 'Could not upload the photos. Please try again a little later.',
+    'pt': 'As fotos não subiram. Tente de novo daqui a pouco.',
+    'it': 'Le foto non sono state caricate. Riprova tra poco.',
+    'es': 'No se pudieron subir las fotos. Inténtalo de nuevo en un rato.',
+    'fr': 'Les photos n’ont pas pu être envoyées. Réessaie un peu plus tard.',
     'de':
-        'Die Fotos konnten nicht geladen werden. Prüfe deine Verbindung und versuche es noch einmal.',
+        'Die Fotos konnten nicht hochgeladen werden. Versuche es gleich noch einmal.',
   },
   'failedUploadVideo': {
-    'ru':
-        'Не удалось загрузить видео. Убедитесь, что Firebase Storage включён.',
-    'en': 'Failed to upload video. Make sure Firebase Storage is enabled.',
-    'pt': 'O vídeo não subiu. Confira sua conexão e tente de novo.',
-    'it': 'Il video non è stato caricato. Controlla la connessione e riprova.',
-    'es': 'No se pudo subir el vídeo. Revisa tu conexión e inténtalo otra vez.',
-    'fr': 'La vidéo n’a pas pu être envoyée. Vérifie ta connexion et réessaie.',
+    'ru': 'Не удалось загрузить видео. Попробуйте ещё раз чуть позже.',
+    'en': 'Could not upload the video. Please try again a little later.',
+    'pt': 'O vídeo não subiu. Tente de novo daqui a pouco.',
+    'it': 'Il video non è stato caricato. Riprova tra poco.',
+    'es': 'No se pudo subir el vídeo. Inténtalo de nuevo en un rato.',
+    'fr': 'La vidéo n’a pas pu être envoyée. Réessaie un peu plus tard.',
     'de':
-        'Das Video konnte nicht geladen werden. Prüfe deine Verbindung und versuche es noch einmal.',
+        'Das Video konnte nicht hochgeladen werden. Versuche es gleich noch einmal.',
+  },
+  'uploadFailedNetwork': {
+    'ru':
+        'Связь оборвалась, файл не загрузился. Проверьте интернет и попробуйте ещё раз.',
+    'en':
+        'The connection dropped and the file did not upload. Check your internet and try again.',
+    'pt':
+        'A conexão caiu e o arquivo não subiu. Confira sua internet e tente de novo.',
+    'it':
+        'La connessione si è interrotta e il file non è stato caricato. Controlla internet e riprova.',
+    'es':
+        'Se cortó la conexión y el archivo no se subió. Revisa tu internet e inténtalo otra vez.',
+    'fr':
+        'La connexion a été coupée, le fichier n’a pas été envoyé. Vérifie ta connexion et réessaie.',
+    'de':
+        'Die Verbindung ist abgebrochen, die Datei wurde nicht hochgeladen. Prüfe dein Internet und versuche es noch einmal.',
+  },
+  'uploadFailedSession': {
+    'ru': 'Сессия истекла. Войдите в аккаунт заново и повторите загрузку.',
+    'en': 'Your session has expired. Sign in again and retry the upload.',
+    'pt': 'Sua sessão expirou. Entre de novo e envie outra vez.',
+    'it': 'La sessione è scaduta. Accedi di nuovo e ripeti il caricamento.',
+    'es':
+        'Tu sesión ha caducado. Vuelve a iniciar sesión y sube el archivo otra vez.',
+    'fr': 'Ta session a expiré. Reconnecte-toi et relance l’envoi.',
+    'de':
+        'Deine Sitzung ist abgelaufen. Melde dich erneut an und lade noch einmal hoch.',
+  },
+  'uploadFailedTooLarge': {
+    'ru': 'Файл слишком большой. Выберите файл поменьше.',
+    'en': 'The file is too large. Choose a smaller one.',
+    'pt': 'O arquivo é grande demais. Escolha um menor.',
+    'it': 'Il file è troppo grande. Scegline uno più piccolo.',
+    'es': 'El archivo es demasiado grande. Elige uno más pequeño.',
+    'fr': 'Le fichier est trop volumineux. Choisis-en un plus petit.',
+    'de': 'Die Datei ist zu groß. Wähle eine kleinere.',
   },
   'memoryAddedSuccess': {
     'ru': 'Воспоминание добавлено!',

@@ -90,3 +90,39 @@ Future<String?> uprightPhotoFile(String path) async {
     return null;
   }
 }
+
+/// Отражает снимок слева направо. Возвращает JPEG, `null` — файл не разобрался.
+///
+/// Нужна там, где телефон сохраняет селфи уже отражённым и никак его не
+/// помечает (обращение 187, 23.09.2026): выправить такое сами мы не можем,
+/// поэтому кадр переворачивает человек. Сначала печётся ориентация из EXIF —
+/// иначе отражение ляжет поперёк повёрнутого кадра, а пометка удвоит поворот.
+Uint8List? flipPhotoBytes(Uint8List bytes, {int quality = 95}) {
+  try {
+    final decoded = img.decodeImage(bytes);
+    if (decoded == null) return null;
+    final upright = img.bakeOrientation(decoded);
+    final flipped = img.flipHorizontal(upright);
+    flipped.exif.imageIfd.orientation = 1;
+    return img.encodeJpg(flipped, quality: quality);
+  } catch (_) {
+    return null;
+  }
+}
+
+/// Отражённая копия файла во временной папке или `null`, если не вышло.
+Future<String?> flipPhotoFile(String path) async {
+  try {
+    final file = File(path);
+    if (!await file.exists()) return null;
+    if (await file.length() > 40 * 1024 * 1024) return null;
+    final flipped = await compute(flipPhotoBytes, await file.readAsBytes());
+    if (flipped == null) return null;
+    final target = '${Directory.systemTemp.path}/'
+        '${DateTime.now().microsecondsSinceEpoch}_flipped.jpg';
+    await File(target).writeAsBytes(flipped, flush: true);
+    return target;
+  } catch (_) {
+    return null;
+  }
+}

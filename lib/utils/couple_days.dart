@@ -63,6 +63,40 @@ int calendarDaysBetween(DateTime from, DateTime to) {
   return (b.difference(a).inHours / 24).round();
 }
 
+/// Предлагать ли вести «Дни вместе» от только что введённой годовщины.
+///
+/// Раньше предлагали только перенос НАЗАД: годовщина раньше даты таймера.
+/// Живой случай 23.09.2026: годовщину ввели с годом 2003, согласились вести
+/// счёт от неё, таймер ушёл на 17.07.2003. Год исправили на 2026, а
+/// предложения не было, и счётчик застрял на 8467 днях. Таймер после такого
+/// согласия ещё и считается правленым, поэтому [coupleStartDate] годовщину уже
+/// не слушает.
+///
+/// Правило:
+///  * годовщина в будущем или на том же дне, что таймер, — не предлагаем;
+///  * годовщина раньше таймера — предлагаем, как и прежде;
+///  * позже таймера — только если таймер стоит ровно на [previousAnniversary]:
+///    туда его поставило это же предложение, и исправление годовщины должно
+///    его сдвинуть. Таймер, выставленный отдельно, вперёд не трогаем.
+///
+/// Дни сравниваются без часов: в таймере бывает время, в годовщине нет.
+bool shouldOfferCounterFromAnniversary({
+  required DateTime anniversary,
+  required DateTime timerStart,
+  DateTime? previousAnniversary,
+  DateTime? now,
+}) {
+  final a = _dayOf(anniversary);
+  final today = _dayOf(now ?? DateTime.now());
+  if (a.isAfter(today)) return false;
+  final t = _dayOf(timerStart);
+  if (a == t) return false;
+  if (a.isBefore(t)) return true;
+  return previousAnniversary != null && _sameDay(previousAnniversary, t);
+}
+
+DateTime _dayOf(DateTime d) => DateTime(d.year, d.month, d.day);
+
 /// Один ли это календарный день. Час создания пары и час в таймере разные —
 /// сравнивать надо дни.
 bool _sameDay(DateTime a, DateTime b) =>

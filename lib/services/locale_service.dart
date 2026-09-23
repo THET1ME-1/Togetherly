@@ -904,6 +904,8 @@ abstract class AppStrings {
   String get inviteCodeLoading;
   String get inviteQrTitle;
   String get inviteCodeNotReady;
+  String get inviteSessionLost;
+  String get inviteSignInAgain;
   String get inviteQrHint;
   String get enterPartnerCode;
   String get inviteCodeNotFound;
@@ -1177,6 +1179,9 @@ abstract class AppStrings {
   String get uploadingMemory;
   String get failedUploadPhotos;
   String get failedUploadVideo;
+  String get uploadFailedNetwork;
+  String get uploadFailedSession;
+  String get uploadFailedTooLarge;
   String get memoryAddedSuccess;
   String failedAddMemory(String e);
   String get noMediaUrl;
@@ -2178,6 +2183,12 @@ abstract class AppStrings {
   String coloringPartnerColoring(String name);
   String get coloringDoneBtn;
   String get coloringNotDoneBtn;
+
+  /// Лист «эта раскраска уже начата»: вместо второго листа той же картинки.
+  String get coloringJoinTitle;
+  String coloringJoinBody(String name);
+  String get coloringJoinOpen;
+  String get coloringJoinNew;
   String get coloringWaitingTitle;
   String coloringWaitingHint(String name);
   String get coloringRevealTitle;
@@ -2345,6 +2356,7 @@ abstract class AppStrings {
   String get photoVideo;
   String get cropPhotoAction;
   String get cropPhotoHint;
+  String get flipPhoto;
   String get optionalTapToSelect;
   String itemsShort(int n);
 

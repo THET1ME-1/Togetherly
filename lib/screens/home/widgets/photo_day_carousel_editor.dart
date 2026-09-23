@@ -17,7 +17,7 @@ import '../../../services/offline/media_cache.dart';
 ///
 /// [onPickFromMemories] — если передан, появляется кнопка "Из ленты воспоминаний".
 /// Callback принимает максимальное количество фото, которые можно выбрать,
-/// и возвращает список выбранных https-URL (уже загруженных на Firebase Storage).
+/// и возвращает список ссылок на выбранные фото (они уже лежат на сервере).
 class PhotoDayCarouselEditor extends StatefulWidget {
   final AppTheme theme;
   final List<String> initialPaths;

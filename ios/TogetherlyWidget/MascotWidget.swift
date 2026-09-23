@@ -93,10 +93,12 @@ private struct MascotFigure: View {
 
     var body: some View {
         if !path.isEmpty, let img = WidgetImage.load(path, maxSide: 320, logAs: "mascot") {
+            // interpolation и antialiased есть только у Image, поэтому стоят
+            // до tgFullColorImage(): тот отдаёт уже View. Без полного цвета
+            // тонированная тема рисует персонажа силуэтом.
             Image(uiImage: img)
-                .resizable()
-                .interpolation(pixelArt ? .none : .medium)
-                .antialiased(!pixelArt)
+                .resizable().interpolation(pixelArt ? .none : .medium).antialiased(!pixelArt)
+                .tgFullColorImage()
                 .scaledToFit()
                 .frame(width: side, height: side)
         } else {

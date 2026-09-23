@@ -321,6 +321,27 @@ const Map<String, Map<String, String>> connectPartnerStrings = {
     'fr': 'Le code arrive encore, patiente une seconde',
     'de': 'Der Code kommt noch, warte kurz',
   },
+  // Сессия умерла, а код лежит в памяти телефона. Показывать его нельзя:
+  // сервер может его не знать, и партнёр услышит «Код не найден» (TPNQGP,
+  // 23.09.2026). Ни проверить код, ни выпустить новый без входа не выйдет.
+  'inviteSessionLost': {
+    'ru': 'Нет связи с аккаунтом. Войдите заново, чтобы получить код',
+    'en': 'Lost connection to your account. Sign in again to get a code',
+    'pt': 'Perdemos a conexão com sua conta. Entre de novo para obter um código',
+    'it': 'Collegamento all’account perso. Accedi di nuovo per avere un codice',
+    'es': 'Se perdió la conexión con tu cuenta. Vuelve a iniciar sesión para obtener un código',
+    'fr': 'Le lien avec ton compte est perdu. Reconnecte-toi pour obtenir un code',
+    'de': 'Die Verbindung zu deinem Konto ist weg. Melde dich neu an, um einen Code zu bekommen',
+  },
+  'inviteSignInAgain': {
+    'ru': 'Войти заново',
+    'en': 'Sign in again',
+    'pt': 'Entrar de novo',
+    'it': 'Accedi di nuovo',
+    'es': 'Iniciar sesión de nuevo',
+    'fr': 'Se reconnecter',
+    'de': 'Neu anmelden',
+  },
   'inviteQrHint': {
     'ru': 'Пусть партнёр наведёт камеру — приложение откроется с готовым кодом',
     'en':

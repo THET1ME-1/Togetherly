@@ -5,6 +5,7 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:video_compress/video_compress.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:path_provider/path_provider.dart';
+import '../models/upload_failure.dart';
 import 'pocketbase_service.dart';
 import 'pb_media_service.dart';
 import 'offline/connectivity_service.dart';
@@ -51,12 +52,28 @@ class MediaService {
   /// [destination] = `<kind>/<groupId>/<file>` — из него берём имя файла, kind
   /// и group_id для ACL media-коллекции (createRule/viewRule по uid+group_id,
   /// см. b8d5daf). Возвращает `pb://media/<id>/<file>` или null.
-  Future<String?> uploadFile(String path, String destination) async {
+  Future<String?> uploadFile(String path, String destination) async =>
+      (await uploadFileWithReason(path, destination)).ref;
+
+  /// То же, что [uploadFile], но при отказе говорит причину: экран покажет
+  /// «нет связи», «войдите заново» или «файл слишком большой» вместо общего
+  /// «не удалось».
+  Future<UploadOutcome> uploadFileWithReason(
+    String path,
+    String destination,
+  ) async {
     try {
       final file = File(path);
       if (!await file.exists()) {
         debugPrint('uploadFile: File does not exist: $path');
-        return null;
+        // Выбранный файл пропал до заливки (временную папку почистила
+        // система) — это не сеть и не сессия, а сбой на телефоне.
+        unawaited(Sentry.captureMessage(
+          'uploadFile: source file missing',
+          level: SentryLevel.warning,
+          withScope: (s) => s.setExtra('destination', destination),
+        ));
+        return const UploadOutcome.failed(UploadFailure.other);
       }
 
       final fileSize = await file.length();
@@ -190,9 +207,12 @@ class MediaService {
             .stash(bytes, filename, kind: kind, groupId: groupId);
         compressedTempFile?.delete().ignore();
         debugPrint('uploadFile → офлайн, отложено: $localRef');
-        return localRef;
+        // Отложить не вышло — сети нет, значит и причина в сети.
+        return localRef == null
+            ? const UploadOutcome.failed(UploadFailure.network)
+            : UploadOutcome.ok(localRef);
       }
-      final pbRef = await PbMediaService().uploadBytes(
+      final outcome = await PbMediaService().uploadBytesWithReason(
         bytes,
         filename,
         uid: PocketBaseService().userId,
@@ -200,11 +220,27 @@ class MediaService {
         kind: kind,
       );
       compressedTempFile?.delete().ignore();
-      debugPrint('uploadFile → PocketBase: $pbRef');
-      return pbRef;
-    } catch (e) {
+      debugPrint('uploadFile → PocketBase: ${outcome.ref ?? outcome.failure}');
+      return outcome;
+    } catch (e, st) {
+      // Сюда доходит только своё: чтение файла, склад офлайн-медиа, сжатие
+      // вне своих try. Отказ сервера PbMediaService разбирает и шлёт сам.
       debugPrint('uploadFile failed: $e');
-      return null;
+      final failure =
+          classifyUploadError(e, loggedIn: PocketBaseService().isLoggedIn);
+      if (uploadErrorWorthReporting(e)) {
+        unawaited(Sentry.captureException(
+          e,
+          stackTrace: st,
+          withScope: (s) {
+            s.level = SentryLevel.warning;
+            s.setExtra('reason', 'MediaService.uploadFile failed');
+            s.setExtra('destination', destination);
+            s.setExtra('failure', failure.name);
+          },
+        ));
+      }
+      return UploadOutcome.failed(failure);
     }
   }
 

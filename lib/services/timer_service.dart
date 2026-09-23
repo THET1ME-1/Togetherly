@@ -566,8 +566,8 @@ class TimerService extends ChangeNotifier {
     );
   }
 
-  /// Загружает изображение в Firebase Storage и устанавливает его фоном таймера.
-  /// Возвращает true при успехе. Старый фон (если был URL) удаляется из Storage.
+  /// Загружает изображение в PocketBase и ставит его фоном таймера.
+  /// Возвращает true при успехе. Старый фон (если был URL) удаляется.
   Future<bool> uploadTimerBackground(
     TimerItem timer,
     String localFilePath,

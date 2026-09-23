@@ -1,5 +1,9 @@
 import 'dart:async';
 
+import 'package:pocketbase/pocketbase.dart';
+
+import '../models/canvas_meta.dart';
+import '../models/coloring_join.dart';
 import '../models/draw_stroke.dart';
 import 'centrifugo_service.dart';
 import 'pb_data_service.dart';
@@ -113,6 +117,40 @@ class CanvasRepository {
         // на всю свободную область.
         'sheetRatio': ?sheetRatio,
       });
+
+  /// Листы раскрасок пары и каталог, в котором они лежат, — прямо с сервера.
+  ///
+  /// Локальный список тут не годится: холст, который партнёр завёл 17 секунд
+  /// назад, доезжает в него только когда открыта галерея. Каталог нужен,
+  /// потому что `canvas_meta` удаление холста не чистит.
+  Future<({List<ColoringSheet> sheets, Map<String, CanvasMeta> catalogue})>
+      coloringSheets(String groupId) async {
+    final results = await Future.wait([
+      _data.loadCanvasMetaRows(groupId),
+      _data.loadCanvasCatalogue(groupId),
+    ]);
+    final rows = results[0] as List<Map<String, dynamic>>;
+    final recs = results[1] as List<RecordModel>;
+    final sheets = <ColoringSheet>[
+      for (final r in rows) ?ColoringSheet.fromMetaRow(r),
+    ];
+    final catalogue = <String, CanvasMeta>{};
+    for (final r in recs) {
+      final id = (r.data['canvas_id'] ?? '').toString();
+      if (id.isEmpty) continue;
+      final ratio = (r.data['sheet_ratio'] as num?)?.toDouble();
+      catalogue[id] = CanvasMeta(
+        id: id,
+        name: (r.data['name'] ?? '').toString(),
+        createdAt: DateTime.fromMillisecondsSinceEpoch(
+            (r.data['created_at'] as num?)?.toInt() ?? 0),
+        updatedAt: DateTime.fromMillisecondsSinceEpoch(
+            (r.data['updated_at'] as num?)?.toInt() ?? 0),
+        sheetRatio: (ratio == null || ratio <= 0) ? 1.0 : ratio,
+      );
+    }
+    return (sheets: sheets, catalogue: catalogue);
+  }
 
   Future<void> renameCatalogue(String groupId, String canvasId, String name) =>
       _data.upsertCanvasCatalogue(groupId, canvasId, {

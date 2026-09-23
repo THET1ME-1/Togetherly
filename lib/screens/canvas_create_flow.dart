@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../models/canvas_meta.dart';
+import '../models/coloring_join.dart';
 import '../models/pair_data.dart';
 import '../models/user_data.dart';
+import '../services/canvas_repository.dart';
 import '../services/canvas_storage_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_sheet.dart';
 import 'coloring_catalogue_screen.dart';
 import 'draw_screen.dart';
 import 'pixel_size_screen.dart';
@@ -48,6 +51,33 @@ class CanvasCreateFlow {
         ),
       );
       if (choice == null || !context.mounted) return false;
+
+      // Пара выбирает одну картинку почти одновременно, и раньше каждый
+      // получал свой лист: у обоих закрашена своя половина, вторая пустая
+      // (пара rc3eb70972c9644 — одиннадцать листов «Кафе», ни одного общего).
+      // Уже начатый лист той же картинки предлагаем открыть.
+      final started = await _startedSheet(
+        userData: userData,
+        pairData: pairData,
+        pictureId: choice.picture.id,
+      );
+      if (!context.mounted) return false;
+      if (started != null) {
+        final join = await _askJoin(context, theme, started.name);
+        if (join == null || !context.mounted) return false;
+        if (join) {
+          // Без `coloring`: иначе рисовалка заново заведёт раскраску на листе
+          // и сотрёт партнёру его «Готово» и режим. Картинку, режим и
+          // половины экран подхватит из `canvas_meta` сам.
+          await _open(context,
+              userData: userData,
+              pairData: pairData,
+              theme: theme,
+              meta: started);
+          return true;
+        }
+      }
+      if (!context.mounted) return false;
       // Лист квадратный: раскраска нарисована 1:1, иначе половины перестали бы
       // совпадать с контуром.
       final meta = await storage.createCanvas(
@@ -90,6 +120,95 @@ class CanvasCreateFlow {
     await _open(context,
         userData: userData, pairData: pairData, theme: theme, meta: meta);
     return true;
+  }
+
+  /// Уже начатый лист раскраски [pictureId] у этой пары или null.
+  ///
+  /// Спрашивает сервер, а не локальный список: лист, заведённый партнёром
+  /// секунды назад, в локальный доезжает только при открытой галерее. Сеть
+  /// молчит — не держим человека, заводим новый лист как раньше.
+  static Future<CanvasMeta?> _startedSheet({
+    required UserData userData,
+    required PairData pairData,
+    required String pictureId,
+  }) async {
+    final groupId = pairData.pairId;
+    if (groupId.isEmpty) return null;
+    try {
+      final found = await CanvasRepository()
+          .coloringSheets(groupId)
+          .timeout(const Duration(seconds: 4));
+      final sheet = coloringSheetToJoin(
+        found.sheets,
+        pictureId: pictureId,
+        members: [userData.uid, pairData.partnerUid],
+        listed: found.catalogue.keys.toSet(),
+        now: DateTime.now(),
+      );
+      return sheet == null ? null : found.catalogue[sheet.canvasId];
+    } catch (e) {
+      debugPrint('раскраска: начатый лист не нашли: $e');
+      return null;
+    }
+  }
+
+  /// true — открыть начатый лист, false — завести новый, null — передумал.
+  static Future<bool?> _askJoin(
+      BuildContext context, AppTheme t, String name) {
+    final s = LocaleService.current;
+    return showAppSheet<bool>(
+      context,
+      background: t.cardSurface,
+      builder: (ctx) => SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: t.divider,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text(
+              s.coloringJoinTitle,
+              style: TextStyle(
+                fontSize: 21,
+                fontWeight: FontWeight.w800,
+                color: t.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              s.coloringJoinBody(name),
+              style: TextStyle(fontSize: 15, color: t.textSecondary),
+            ),
+            const SizedBox(height: 20),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
+              ),
+              child: Text(s.coloringJoinOpen, textAlign: TextAlign.center),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              style: TextButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+              ),
+              child: Text(s.coloringJoinNew, textAlign: TextAlign.center),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   static Future<void> _open(

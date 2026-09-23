@@ -2,11 +2,13 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'connections_manager.dart';
 import 'connection.dart';
+import 'invite_code_state.dart';
 import '../services/nickname_service.dart';
 
 // Re-export for convenience
 export 'connection.dart'
     show RelationshipType, GroupMember, MemberMood, MemberAilment;
+export 'invite_code_state.dart' show InviteCodeState;
 
 /// Wrapper around ConnectionsManager for backward compatibility
 /// Delegates to the active connection
@@ -25,6 +27,14 @@ class PairData extends ChangeNotifier {
   String get partnerName => _active?.partnerName ?? '';
   String get partnerAvatarUrl => _active?.partnerAvatarUrl ?? '';
   String get inviteCode => _active?.inviteCode ?? '';
+
+  /// Можно ли показывать код и делиться им: только подтверждённый сервером
+  /// в этом запуске. См. [InviteCodeState].
+  InviteCodeState get inviteCodeState =>
+      _active?.inviteCodeState ?? InviteCodeState.pending;
+
+  /// Код для партнёра — подтверждённый сервером, иначе пусто.
+  String get shareableInviteCode => _active?.shareableInviteCode ?? '';
 
   /// UID первого партнёра (для хранения псевдонима)
   String get partnerUid => _active?.partners.firstOrNull?.uid ?? '';
@@ -294,9 +304,10 @@ class PairData extends ChangeNotifier {
   /// Зовётся при открытии экрана приглашения — см. `Connection`.
   Future<void> ensureInviteCodeIsReal() async {
     if (_active == null) return;
-    final before = _active!.inviteCode;
     await _active!.ensureInviteCodeIsReal();
-    if (_active!.inviteCode != before) notifyListeners();
+    // Уведомляем и без смены кода: подтверждение сервера тоже меняет экран —
+    // ожидание сменяется самим кодом.
+    notifyListeners();
   }
 
   /// Generate group invite code (for adding more members)

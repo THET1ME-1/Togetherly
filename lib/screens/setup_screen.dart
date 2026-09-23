@@ -79,13 +79,6 @@ class _SetupScreenState extends State<SetupScreen>
     return const Color(0xFFFEEAF1);
   }
 
-  String get _bgImageUrl {
-    if (_selectedGender == Gender.male) {
-      return 'https://firebasestorage.googleapis.com/v0/b/togetherly-d4856.firebasestorage.app/o/wallpapers%2Fblue-background.webp?alt=media';
-    }
-    return 'https://firebasestorage.googleapis.com/v0/b/togetherly-d4856.firebasestorage.app/o/wallpapers%2Fpink-background.webp?alt=media';
-  }
-
   @override
   void initState() {
     super.initState();
@@ -482,27 +475,10 @@ class _SetupScreenState extends State<SetupScreen>
       body: Stack(
         fit: StackFit.expand,
         children: [
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 500),
-            child: StorageImage(
-              key: ValueKey(_bgImageUrl),
-              imageUrl: _bgImageUrl,
-              fit: BoxFit.cover,
-              width: double.infinity,
-              height: double.infinity,
-              // Заглушка под обои — фон активной темы, а не прибитый
-              // персиковый: пока картинка едет, экран не должен быть чужого
-              // цвета.
-              placeholder: (_, __) => ColoredBox(
-                  color: theme.isDark
-                      ? theme.surfaceMuted
-                      : theme.bgGradient.first),
-              errorWidget: (_, __, ___) => ColoredBox(
-                  color: theme.isDark
-                      ? theme.surfaceMuted
-                      : theme.bgGradient.first),
-            ),
-          ),
+          // Обоев больше нет: они лежали в Firebase Storage и отвечали 402,
+          // экран всё равно рисовал этот цвет.
+          ColoredBox(
+              color: theme.isDark ? theme.surfaceMuted : theme.bgGradient.first),
           SafeArea(
             child: FadeTransition(
               opacity: _fadeAnim,

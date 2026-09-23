@@ -2687,7 +2687,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     try {
-      // Upload to Firebase Storage
+      // Заливка в PocketBase
       final ext = effectivePath.split('.').last;
       final destination =
           'memories/${_pairData.pairId}/${DateTime.now().millisecondsSinceEpoch}.$ext';

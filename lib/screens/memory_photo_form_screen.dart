@@ -4,6 +4,7 @@ import 'package:exif/exif.dart';
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
 
+import '../utils/photo_orientation.dart';
 import '../utils/lost_pick.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
@@ -238,6 +239,18 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
     final item = _media[index];
     if (_isVideo(item)) return;
     final path = await cropPhoto(item.path, accentColor: _cs.primary);
+    if (path == null || !mounted) return;
+    setState(() => _media[index] = XFile(path));
+  }
+
+  /// Отражение снимка слева направо. Часть телефонов сохраняет селфи уже
+  /// зеркальным и без пометки — выправить такое сами мы не можем, поэтому
+  /// кадр переворачивает человек (обращение 187).
+  Future<void> _flipAt(int index) async {
+    if (index < 0 || index >= _media.length) return;
+    final item = _media[index];
+    if (_isVideo(item)) return;
+    final path = await flipPhotoFile(item.path);
     if (path == null || !mounted) return;
     setState(() => _media[index] = XFile(path));
   }
@@ -1138,6 +1151,28 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
                     child: Center(
                       child: Icon(Icons.play_circle_filled_rounded,
                           color: Colors.white70, size: 22),
+                    ),
+                  ),
+                if (!isVid)
+                  Positioned(
+                    left: -4,
+                    bottom: -4,
+                    child: Semantics(
+                      button: true,
+                      label: LocaleService.current.flipPhoto,
+                      child: GestureDetector(
+                        onTap: () => _flipAt(i),
+                        child: Container(
+                          width: 22,
+                          height: 22,
+                          decoration: BoxDecoration(
+                            color: cs.inverseSurface,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(Icons.flip_rounded,
+                              size: 14, color: cs.onInverseSurface),
+                        ),
+                      ),
                     ),
                   ),
                 Positioned(

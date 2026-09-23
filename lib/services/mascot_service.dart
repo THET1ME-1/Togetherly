@@ -338,8 +338,7 @@ class MascotService extends ChangeNotifier {
     await _repo.rename(_groupId, mascot.id, newName);
   }
 
-  /// Upload PNG bytes → Storage, create Mascot, save to PB.
-  /// Загрузка файла пока на Firebase Storage (медиа §4); данные — на PB.
+  /// Заливает PNG в PocketBase, заводит маскота и сохраняет его запись.
   Future<Mascot?> uploadAndSaveMascot({
     required List<int> pngBytes,
     required String name,
