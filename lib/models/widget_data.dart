@@ -57,6 +57,15 @@ class WidgetData {
     this.plus = false,
   });
 
+  /// Сколько фото владелец карточки показывает партнёру.
+  ///
+  /// Одиночное поле считается за фото, когда карусель пуста: так живут пары,
+  /// отправившие одно фото, и виджет его показывает. Через `urls.length ??`
+  /// считать нельзя — список не бывает null, и одиночное поле терялось.
+  int get sharedPhotoCount => photoForPartnerUrls.isNotEmpty
+      ? photoForPartnerUrls.length
+      : ((photoForPartnerUrl?.isNotEmpty ?? false) ? 1 : 0);
+
   /// Есть ли хоть какой-то контент
   bool get isEmpty =>
       status.isEmpty &&

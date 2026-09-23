@@ -5391,18 +5391,11 @@ class _WidgetScreenState extends State<WidgetScreen>
     final partnerName = _pair.partnerName.isNotEmpty
         ? _pair.partnerName
         : LocaleService.current.partnerFallback;
-    final partnerSharedCount =
-        _ws.firstPartnerData?.photoForPartnerUrls.length ??
-        ((_ws.firstPartnerData?.photoForPartnerUrl?.isNotEmpty ?? false)
-            ? 1
-            : 0);
+    final partnerSharedCount = _ws.firstPartnerData?.sharedPhotoCount ?? 0;
     // Сколько фото показываю партнёру я. Одиночное поле считается за фото,
     // даже когда карусель пуста: у пар, отправлявших фото сразу по обоим
     // направлениям, живо именно оно — и именно его человек не мог убрать.
-    final mySharedUrls = _ws.myData?.photoForPartnerUrls ?? const <String>[];
-    final mySharedCount = mySharedUrls.isNotEmpty
-        ? mySharedUrls.length
-        : ((_ws.myData?.photoForPartnerUrl?.isNotEmpty ?? false) ? 1 : 0);
+    final mySharedCount = _ws.myData?.sharedPhotoCount ?? 0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -5548,10 +5541,7 @@ class _WidgetScreenState extends State<WidgetScreen>
 
         // Счёт фото в виджете
         final int photoCount = isPartner
-            ? (_ws.firstPartnerData?.photoForPartnerUrls.length ??
-                  ((_ws.firstPartnerData?.photoForPartnerUrl?.isNotEmpty ?? false)
-                      ? 1
-                      : 0))
+            ? (_ws.firstPartnerData?.sharedPhotoCount ?? 0)
             : (_photoDayWidgetUrls[widgetId]?.length ?? 0);
 
         final rotationType = _photoDayWidgetRotationType[widgetId] ?? 'unlock';
@@ -5737,7 +5727,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     if (!mounted) return;
 
     final hws = HomeWidgetService.instance;
-    final partnerCount = _ws.firstPartnerData?.photoForPartnerUrls.length ?? 0;
+    final partnerCount = _ws.firstPartnerData?.sharedPhotoCount ?? 0;
     // Сырое значение бывает `none` (пока снимок был один) — в редакторе это
     // выглядело как «режим не выбран». Показываем тот, который и так работает.
     String rotationType =
