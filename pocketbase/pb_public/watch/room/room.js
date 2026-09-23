@@ -1442,8 +1442,40 @@
   /// один такой запрос висит, обработчики кнопок не навешены, код комнаты не
   /// проставлен и канал не поднят — комната открыта и мертва. Разметке для
   /// работы хватает самой себя.
+  /** Замер «касания не доходят» (обращения 164, 178, 183, 190, сентябрь 2026).
+   *
+   *  На iPhone в приложении комната иногда открывается, а касания до неё не
+   *  доходят вовсе: выход и значки приложения работают, страница молчит. Версия
+   *  — полноэкранная реклама перед комнатой, но проверить её на устройстве
+   *  нечем. Поэтому страница сама сообщает в статистику, дошло ли до неё первое
+   *  касание: «room-touch» с задержкой от открытия или «room-no-touch», если за
+   *  45 секунд не пришло ни одного. Только во встроенном браузере приложения:
+   *  в Safari и на компьютере вопроса нет. */
+  function touchProbe() {
+    if (!inAppWebView()) return;
+    const born = Date.now();
+    const platform = /iPhone|iPad|iPod/.test(navigator.userAgent) ? 'ios' : 'android';
+    let done = false;
+    const send = (name, data) => {
+      try { if (window.umami && window.umami.track) window.umami.track(name, data); } catch (_) { /* статистика не важнее комнаты */ }
+    };
+    const onTouch = () => {
+      if (done) return;
+      done = true;
+      send('room-touch', { platform, ms: Date.now() - born });
+    };
+    document.addEventListener('pointerdown', onTouch, { capture: true, passive: true, once: true });
+    document.addEventListener('touchstart', onTouch, { capture: true, passive: true, once: true });
+    setTimeout(() => {
+      if (done || document.hidden) return;
+      done = true;
+      send('room-no-touch', { platform });
+    }, 45000);
+  }
+
   function start() {
     I18N.mount();
+    touchProbe();
     followKeyboard();
     cinemaToggle();
     chatToggle();

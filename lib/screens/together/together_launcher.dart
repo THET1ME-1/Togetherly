@@ -155,6 +155,27 @@ class TogetherLauncher {
     if (dctx != null && dctx.mounted) Navigator.of(dctx).pop(); // закрыть спиннер
   }
 
+  /// Ждёт, пока полноэкранная реклама уйдёт с экрана до конца.
+  ///
+  /// Показ считается законченным раньше, чем закрылся её контроллер: по
+  /// событию SDK, по возврату приложения или по предохранителю. Если комнату
+  /// открыть в эту же секунду, встроенный браузер на iPhone рождается под
+  /// уходящей рекламой и касаний не получает (обращения 164, 178, 183, 190).
+  /// Поэтому ждём переднего плана (не дольше трёх секунд), два кадра и
+  /// короткую паузу на анимацию закрытия.
+  static Future<void> _settleAfterAd() async {
+    final binding = WidgetsBinding.instance;
+    final until = DateTime.now().add(const Duration(seconds: 3));
+    while (binding.lifecycleState != null &&
+        binding.lifecycleState != AppLifecycleState.resumed &&
+        DateTime.now().isBefore(until)) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+    await binding.endOfFrame;
+    await binding.endOfFrame;
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+  }
+
   /// Открыть комнату пары. [videoUrl] — ссылка из карточки воспоминания,
   /// её подставят в комнату сразу после открытия.
   static Future<void> open(
@@ -178,6 +199,7 @@ class TogetherLauncher {
     // после неё мёртв — открываем комнату корневым навигатором приложения.
     final allowed = await _requireStartAd(context);
     if (!allowed) return;
+    await _settleAfterAd();
 
     final navigator = LoveApp.rootNavigatorKey.currentState;
     if (navigator == null) return;

@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show Factory;
+import 'package:flutter/gestures.dart' show EagerGestureRecognizer, OneSequenceGestureRecognizer;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -267,6 +269,12 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
         children: [
           InAppWebView(
             initialUrlRequest: URLRequest(url: WebUri(_url)),
+            // Касание в зоне комнаты сразу уходит браузеру, не дожидаясь арены
+            // жестов Flutter: на iPhone после рекламы оно иначе терялось, и
+            // страница не отвечала ни на что (обращения 164, 178, 183, 190).
+            gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+              Factory<OneSequenceGestureRecognizer>(EagerGestureRecognizer.new),
+            },
             // Сессия для пропуска: в комнату пары пускают только участников,
             // и без неё страница попросила бы войти ещё раз.
             initialUserScripts: UnmodifiableListView([

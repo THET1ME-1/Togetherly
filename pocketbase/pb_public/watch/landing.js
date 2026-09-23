@@ -39,6 +39,15 @@
 
   const go = (code) => { location.href = 'room/#' + code; };
 
+  // В поле вставляют и голый код, и всю ссылку на комнату. Код живёт после «#»:
+  // если брать все буквы подряд, из ссылки выходило «httpstoge».
+  const roomCodeOf = (raw) => {
+    const text = String(raw || '').trim();
+    const hash = text.lastIndexOf('#');
+    const tail = hash >= 0 ? text.slice(hash + 1) : text;
+    return tail.toLowerCase().replace(/[^a-z0-9]/g, '');
+  };
+
   window.addEventListener('DOMContentLoaded', () => {
     drawTiles();
     if (window.I18N) I18N.mount();
@@ -57,7 +66,7 @@
     });
 
     $('#join').addEventListener('click', () => {
-      const code = ($('#joinCode').value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const code = roomCodeOf($('#joinCode').value);
       if (code.length >= 4) go(code);
       else $('#joinCode').focus();
     });
