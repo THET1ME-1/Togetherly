@@ -235,6 +235,7 @@ COLLECTIONS = {
             "clear_version": "num", "group_id": "text", "updated_at": "date",
             "coloring_id": "text", "coloring_mode": "text",
             "coloring_done": "json", "coloring_swap": "bool",
+            "coloring_outline": "text",
         },
         "sortable": {"updated_at", "id"},
         "filterable": {"id", "group_id", "canvas_id"},
