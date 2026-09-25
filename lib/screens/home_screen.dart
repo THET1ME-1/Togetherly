@@ -17,6 +17,7 @@ import 'package:home_widget/home_widget.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import '../utils/photo_crop.dart';
+import '../utils/photo_orientation.dart';
 import '../utils/safe_pick.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/love_prompt.dart';
@@ -2589,11 +2590,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final croppedPath = await cropPhoto(photo.path, accentColor: _t.primary);
     if (!mounted) return;
-    final effectivePath = croppedPath ?? photo.path;
+    // Снимок лежит здесь, а не в строке: в листе подписи его можно отразить.
+    final shot = ValueNotifier<String>(croppedPath ?? photo.path);
 
     // Геолокация запускается параллельно с диалогом — не блокирует UI.
     // Пока пользователь вводит название/описание, координаты уже грузятся.
-    final locationFuture = _resolvePhotoLocation(effectivePath);
+    final locationFuture = _resolvePhotoLocation(shot.value);
 
     // Диалог: название/описание + три тумблера «куда отправить».
     // Дефолты тумблеров запоминаются (общие ключи с виджет-экраном).
@@ -2605,8 +2607,10 @@ class _HomeScreenState extends State<HomeScreen> {
       initToPartnerWidget:
           prefs.getBool('widget_sendPhotoToPartnerWidget') ?? true,
       partnerName: _pairData.partnerName,
+      photo: shot,
     );
     if (!mounted) return;
+    final effectivePath = shot.value;
     // null = отмена; ничего не выбрано — выходим.
     if (result == null) return;
     if (!result.toMemories &&
@@ -2860,6 +2864,36 @@ class _HomeScreenState extends State<HomeScreen> {
     return (lat: lat, lng: lng, name: name);
   }
 
+  /// Превью снимка в листе подписи и кнопка «Отразить» под ним.
+  Widget _captionPhoto(ValueNotifier<String> photo) {
+    return ValueListenableBuilder<String>(
+      valueListenable: photo,
+      builder: (context, path, _) => Column(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Image.file(
+              File(path),
+              key: ValueKey(path),
+              height: 180,
+              fit: BoxFit.cover,
+              cacheHeight: 540,
+            ),
+          ),
+          const SizedBox(height: 8),
+          FilledButton.tonalIcon(
+            onPressed: () async {
+              final flipped = await flipPhotoFile(path);
+              if (flipped != null) photo.value = flipped;
+            },
+            icon: const Icon(Icons.flip_rounded),
+            label: Text(LocaleService.current.flipPhoto),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<
     ({
       String? title,
@@ -2878,6 +2912,10 @@ class _HomeScreenState extends State<HomeScreen> {
     /// снимок, видео ему отдать нечем.
     bool showPartnerWidget = true,
     String? heading,
+    /// Снимок с камеры. iPhone отдаёт селфи не таким, каким его видели в
+    /// кадре, а настройка «Зеркальное селфи» на чужие приложения не влияет:
+    /// кнопка «Отразить» под превью переворачивает кадр (обращение 187).
+    ValueNotifier<String>? photo,
   }) async {
     final titleController = TextEditingController();
     final controller = TextEditingController();
@@ -2933,6 +2971,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                     const SizedBox(height: 20),
+                    if (photo != null) ...[
+                      _captionPhoto(photo),
+                      const SizedBox(height: 16),
+                    ],
                     // Заголовок
                     TextField(
                       controller: titleController,

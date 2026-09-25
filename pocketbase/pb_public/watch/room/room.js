@@ -50,7 +50,7 @@
   const $ = (sel) => document.querySelector(sel);
   const state = {
     room: '', channel: '', me: '', centrifuge: null, sub: null,
-    player: null, kind: '', applying: false, lead: false, actedAt: 0, lastSent: 0, viewers: 1,
+    player: null, kind: '', applying: false, aimAt: null, aimUntil: 0, lead: false, actedAt: 0, lastSent: 0, viewers: 1,
     subscribed: false, outbox: [], lastLink: '', wsFallbackTried: false,
     // Что показывать пришедшему позже: ссылка, переписка этой вкладки и
     // отложенная команда для плеера, который ещё грузится.
@@ -319,15 +319,29 @@
 
     const tell = (cmd) => {
       if (state.applying) return;
+      // Команду комнаты плеер выполнил мимо: просили 30-ю секунду, а встал в
+      // начале или в конце. Так ведёт себя телефон с файлом в несколько
+      // гигабайт (обращение 189), и `seeked` у него приходит позже, чем
+      // опускается `applying`. Рассылать такое время нельзя — перематывавший
+      // прыгал бы вслед за неудачником.
+      if (state.aimAt !== null && Date.now() < state.aimUntil
+          && Math.abs(v.currentTime - state.aimAt) > DRIFT) return;
+      state.aimAt = null;
       leadHere();
       send(cmd, v.currentTime);
     };
     v.addEventListener('play', () => tell('play'));
-    v.addEventListener('pause', () => tell('pause'));
+    // Конец файла браузер тоже объявляет паузой. Своей волей её никто не
+    // нажимал, а партнёр, получив её, улетал в конец фильма.
+    v.addEventListener('pause', () => { if (!v.ended) tell('pause'); });
     // Из перемотки уходит только «играем». Браузер держит `paused`, пока
     // догружает кусок после прыжка, и прежнее `tell(v.paused ? …)` рассылало
     // партнёру ложную паузу — у обоих ролик замирал. Настоящую паузу шлёт
     // событие `pause`, оно никуда не делось.
+    // Дошли куда просили — дальше перемотки снова свои, их надо рассылать.
+    v.addEventListener('seeked', () => {
+      if (state.aimAt !== null && Math.abs(v.currentTime - state.aimAt) <= DRIFT) state.aimAt = null;
+    });
     v.addEventListener('seeked', () => { if (!v.paused) tell('play'); });
 
     if (state.pending) {
@@ -539,7 +553,13 @@
     try {
       if (state.kind === 'video' && state.player && state.player.video) {
         const v = state.player.video;
-        if (Math.abs(v.currentTime - at) > DRIFT) v.currentTime = at;
+        if (Math.abs(v.currentTime - at) > DRIFT) {
+          v.currentTime = at;
+          // Куда нас послали: пока перемотка не дошла, свои события плеера
+          // сверяются с этой точкой (см. `tell` в mountVideo).
+          state.aimAt = at;
+          state.aimUntil = Date.now() + 10000;
+        }
         if (cmd === 'play') v.play().catch(() => {});
         if (cmd === 'pause') v.pause();
       } else if (state.kind === 'youtube' && state.player && state.player.seekTo) {

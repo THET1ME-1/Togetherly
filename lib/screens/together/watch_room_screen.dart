@@ -240,10 +240,16 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
   }
 
   Widget _roomScaffold(BuildContext context, AppStrings s, ColorScheme cs) {
+    // Лёжа экран отдаётся фильму целиком: полоса шапки отъедала верх кадра,
+    // а выйти можно и жестом «назад» (обращение 194).
+    final landscape =
+        MediaQuery.orientationOf(context) == Orientation.landscape;
     return Scaffold(
       backgroundColor: cs.surface,
-      appBar: AppBar(
-        title: Text(widget.room, style: const TextStyle(letterSpacing: 1.4)),
+      appBar: landscape ? null : AppBar(
+        // Код комнаты в заголовке мозолил глаза, а нужен он только гостю из
+        // браузера — его раздают кнопки «Копировать» и «Поделиться» рядом.
+        title: Text(s.watchTogether),
         centerTitle: true,
         leading: IconButton(
           onPressed: () {
