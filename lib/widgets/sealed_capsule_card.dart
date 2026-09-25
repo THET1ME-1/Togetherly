@@ -18,6 +18,10 @@ class SealedCapsuleCard extends StatefulWidget {
   final DateTime openAt;
   final VoidCallback onTapTooEarly;
 
+  /// Удержание карточки: автор может удалить капсулу до срока. Партнёру
+  /// не передаётся — капсула не его.
+  final VoidCallback? onLongPress;
+
   const SealedCapsuleCard({
     super.key,
     required this.theme,
@@ -25,6 +29,7 @@ class SealedCapsuleCard extends StatefulWidget {
     required this.authorAvatar,
     required this.openAt,
     required this.onTapTooEarly,
+    this.onLongPress,
   });
 
   @override
@@ -65,6 +70,7 @@ class _SealedCapsuleCardState extends State<SealedCapsuleCard>
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
       child: GestureDetector(
         onTap: _onTap,
+        onLongPress: widget.onLongPress,
         child: AnimatedBuilder(
           animation: _wiggle,
           builder: (context, child) {

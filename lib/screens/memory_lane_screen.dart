@@ -1551,6 +1551,11 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           onTapTooEarly: () => _secretSnack(
             LocaleService.current.capsuleNotReady(_fmtCapsuleDate(memory.openAt!)),
           ),
+          // Отправил по ошибке или пара распалась — до срока капсулу было
+          // не убрать вовсе, писали в поддержку (письма 21 и 25.09.2026).
+          onLongPress: memory.authorUid == _myUid
+              ? () => _confirmDelete(memory)
+              : null,
         ),
       );
     }
