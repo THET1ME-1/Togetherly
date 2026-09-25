@@ -25,6 +25,9 @@ enum GiftError {
   /// Раздел выключен фичефлагом.
   disabled,
 
+  /// Подарки за ролик на сегодня кончились (три в сутки).
+  adLimit,
+
   /// Запрос не дошёл до сервера.
   network,
 
@@ -67,6 +70,7 @@ const Map<String, GiftError> _codes = {
   'gift_not_found': GiftError.giftNotFound,
   'already_reacted': GiftError.alreadyReacted,
   'disabled': GiftError.disabled,
+  'ad_limit': GiftError.adLimit,
 };
 
 GiftResult parseGiftResponse(Map<String, dynamic>? body) {

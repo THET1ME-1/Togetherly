@@ -2367,6 +2367,9 @@ abstract class AppStrings {
   String get streakRestoreYes;
   String get streakRestoreNo;
   String get streakRestoreNoAd;
+  String get giftAdTitle;
+  String get giftAdBody;
+  String get giftAdLimit;
   String get optionalTapToSelect;
   String itemsShort(int n);
 

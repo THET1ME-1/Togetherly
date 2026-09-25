@@ -29,6 +29,7 @@ class GiftsService {
     String? note,
     String? date,
     String? place,
+    bool byAd = false,
   }) async {
     final gift = GiftCatalog.byKey(giftKey);
     if (gift == null) {
@@ -46,6 +47,8 @@ class GiftsService {
         if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
         if (date != null && date.isNotEmpty) 'date': date,
         if (place != null && place.isNotEmpty) 'place': place,
+        // Подарок за ролик: сервер отдаёт его без монет, три раза в сутки.
+        if (byAd) 'ad': true,
       },
       giftId: giftId,
       giftKey: giftKey,
@@ -115,11 +118,12 @@ class GiftsService {
       );
       GiftTelemetry.step(giftId, '$step:refused',
           data: {'error': parsed.error?.name, 'status': e.statusCode});
-      // Нехватка монет — единственный отказ, который человек создаёт сам.
+      // Нехватка монет и исчерпанные ролики — отказы, которые человек создаёт сам.
       // Всё остальное (не участник, нет подарка, молчание сервера) означает
       // поломку и обязано быть видно в панели: без этого отказ выглядит как
       // «просто не работает» и чинить нечего.
-      if (parsed.error != GiftError.insufficient) {
+      if (parsed.error != GiftError.insufficient &&
+          parsed.error != GiftError.adLimit) {
         GiftTelemetry.failure(e, st,
             giftId: giftId, giftKey: giftKey, step: step, code: parsed.error);
       }

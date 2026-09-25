@@ -33,8 +33,15 @@ routerAdd("POST", "/api/gifts/send", (e) => {
   const DELAY_H = { letter: 24 };
   const MORNING = { croissant: true };
 
+  // Подарок за ролик: простые значки уходят без монет, не чаще трёх в сутки.
+  // Метка такого подарка — нулевая цена: отклик и отказ возвращают 30% и 100%
+  // от нуля, то есть монеты из воздуха не появляются.
+  const AD_GIFTS = { heart: true, star: true, fire: true, sun: true };
+  const AD_PER_DAY = 3;
+
   const body = new DynamicModel({
     giftId: "", groupId: "", giftKey: "", note: "", date: "", place: "",
+    ad: false,
   });
   e.bindBody(body);
 
@@ -45,9 +52,10 @@ routerAdd("POST", "/api/gifts/send", (e) => {
   // 500 символов резали письмо молча — человек отправлял целое, а партнёр
   // получал обрывок. Потолок оставлен только против мусора в поле.
   const note = String(body.note || "").slice(0, 20000);
-  const price = PRICES[giftKey];
+  const byAd = body.ad === true;
+  const price = byAd ? 0 : PRICES[giftKey];
 
-  if (!giftId || !groupId || !price) {
+  if (!giftId || !groupId || !PRICES[giftKey] || (byAd && !AD_GIFTS[giftKey])) {
     return e.json(400, { ok: false, error: "unknown_gift" });
   }
 
@@ -112,6 +120,23 @@ routerAdd("POST", "/api/gifts/send", (e) => {
       }
 
       const coins = user.getInt("coins") || 0;
+      if (byAd) {
+        let sent = [];
+        try {
+          sent = txApp.findRecordsByFilter(
+            "gifts",
+            "sender_uid = {:me} && price = 0 && deliver_at > {:since}",
+            "", AD_PER_DAY, 0,
+            { me: me, since: Date.now() - 24 * 60 * 60 * 1000 },
+          );
+        } catch (_) {
+          sent = [];
+        }
+        if (sent.length >= AD_PER_DAY) {
+          out = { s: 429, b: { ok: false, error: "ad_limit", coins: coins } };
+          return;
+        }
+      }
       if (coins < price) {
         out = { s: 402, b: { ok: false, error: "insufficient", coins: coins } };
         return;

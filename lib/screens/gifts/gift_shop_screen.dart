@@ -7,6 +7,9 @@ import '../../models/gift.dart';
 import '../../services/gift_result.dart';
 import '../../services/gifts_service.dart';
 import '../../services/locale_service.dart';
+import '../../services/plus_service.dart';
+import '../../services/pocketbase_service.dart';
+import '../../services/rewarded_ad_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/profile_theme.dart';
 import '../../widgets/common/scaled_asset.dart';
@@ -100,7 +103,50 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
   /// Активный фильтр уровня; null — показываем все полки.
   int? _filter;
 
-  Future<void> _send(Gift gift) async {
+  /// Ролик для подарка без монет. С Плюсом рекламы нет, подарок уходит сразу.
+  final RewardedAdService _ad = RewardedAdService();
+
+  @override
+  void initState() {
+    super.initState();
+    if (!PlusService.instance.active) _ad.load();
+  }
+
+  @override
+  void dispose() {
+    _ad.dispose();
+    super.dispose();
+  }
+
+  /// Подарок за ролик: человек сам нажал на значок в карточке, то есть уже
+  /// согласился смотреть. Досмотрел — подарок уходит бесплатно.
+  Future<void> _sendByAd(Gift gift) async {
+    if (_sending != null) return;
+    if (!PlusService.instance.active) {
+      final messenger = ScaffoldMessenger.of(context);
+      if (!_ad.isReady) {
+        _ad.load();
+        messenger.showSnackBar(
+            SnackBar(content: Text(LocaleService.current.streakRestoreNoAd)));
+        return;
+      }
+      setState(() => _sending = gift.key);
+      final earned = await _ad.show(uid: PocketBaseService().userId ?? '');
+      _ad.load();
+      if (!mounted) return;
+      // Ролик сам начисляет монеты: доводим новый баланс до профиля.
+      final coins = _ad.lastServerCoins;
+      if (coins != null) {
+        setState(() => _coins = coins);
+        widget.onCoins?.call(coins);
+      }
+      setState(() => _sending = null);
+      if (!earned) return;
+    }
+    await _send(gift, byAd: true);
+  }
+
+  Future<void> _send(Gift gift, {bool byAd = false}) async {
     if (_sending != null) return; // второй тап во время отправки
 
     String? note;
@@ -110,8 +156,8 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
     }
 
     setState(() => _sending = gift.key);
-    final res = await GiftsService.instance
-        .send(groupId: widget.groupId, giftKey: gift.key, note: note);
+    final res = await GiftsService.instance.send(
+        groupId: widget.groupId, giftKey: gift.key, note: note, byAd: byAd);
     if (!mounted) return;
 
     final s = LocaleService.current;
@@ -119,6 +165,7 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
         ? s.giftSent
         : switch (res.error) {
             GiftError.insufficient => s.giftNotEnoughCoins,
+            GiftError.adLimit => s.giftAdLimit,
             GiftError.network => s.giftNoConnection,
             _ => s.giftFailed,
           };
@@ -339,6 +386,15 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
                 bottom: 28 + MediaQuery.of(context).padding.bottom,
               ),
               children: [
+                if (_filter == null || _filter == 1)
+                  _AdGiftCard(
+                    gifts: [
+                      for (final k in const ['heart', 'star', 'fire', 'sun'])
+                        if (GiftCatalog.byKey(k) != null) GiftCatalog.byKey(k)!,
+                    ],
+                    sending: _sending,
+                    onSend: _sendByAd,
+                  ),
                 for (final tier in tiers) ...[
                   _ShelfHeader(
                     title: _tierName(tier),
@@ -362,6 +418,119 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ── Подарок за ролик ─────────────────────────────────────────────────────────
+class _AdGiftCard extends StatelessWidget {
+  const _AdGiftCard({
+    required this.gifts,
+    required this.sending,
+    required this.onSend,
+  });
+
+  final List<Gift> gifts;
+  final String? sending;
+  final ValueChanged<Gift> onSend;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final s = LocaleService.current;
+    final plus = PlusService.instance.active;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+        decoration: BoxDecoration(
+          color: cs.primaryContainer,
+          borderRadius: BorderRadius.circular(28),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(plus ? Icons.card_giftcard_rounded : Icons.play_circle_rounded,
+                    color: cs.onPrimaryContainer, size: 22),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    s.giftAdTitle,
+                    style: TextStyle(
+                      color: cs.onPrimaryContainer,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 17,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              s.giftAdBody,
+              style: TextStyle(
+                color: cs.onPrimaryContainer.withValues(alpha: 0.8),
+                fontSize: 14,
+                height: 1.3,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                for (final g in gifts)
+                  Expanded(
+                    child: Semantics(
+                      button: true,
+                      label: '${g.title}, ${s.giftAdTitle}',
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: sending == null ? () => onSend(g) : null,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          child: Column(
+                            children: [
+                              Container(
+                                width: 56,
+                                height: 56,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: cs.surface,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: sending == g.key
+                                    ? SizedBox(
+                                        width: 24,
+                                        height: 24,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2.5,
+                                            color: cs.primary),
+                                      )
+                                    : ScaledAsset(g.asset, side: 36),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                g.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: cs.onPrimaryContainer,
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

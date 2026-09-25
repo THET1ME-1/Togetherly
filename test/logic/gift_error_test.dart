@@ -28,6 +28,13 @@ void main() {
     expect(r.coins, 5);
   });
 
+  test('исчерпанные подарки за ролик разбираются в код adLimit', () {
+    final r = parseGiftResponse({'ok': false, 'error': 'ad_limit', 'coins': 40});
+    expect(r.ok, isFalse);
+    expect(r.error, GiftError.adLimit);
+    expect(r.coins, 40);
+  });
+
   test('неизвестный код ошибки не роняет разбор', () {
     final r = parseGiftResponse({'ok': false, 'error': 'что-то новое'});
     expect(r.error, GiftError.server);
