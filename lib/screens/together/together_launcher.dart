@@ -25,6 +25,11 @@ class TogetherLauncher {
   // (оффлайн / no-fill после ожидания), тогда не запираем фичу и пускаем без неё.
   static final RewardedAdService _ads = RewardedAdService();
 
+  /// Перед этой комнатой показывали рекламу. Уходит странице меткой `ad=1`:
+  /// замер касаний делит заходы на «после рекламы» и «без неё» — иначе
+  /// правки «касания после рекламы» проверить нечем (25.09.2026).
+  static bool _adShown = false;
+
   /// Предзагрузка rewarded — звать заранее (напр. при открытии карточки видео),
   /// чтобы к тапу «Смотреть вместе» ролик уже был готов. Идемпотентно.
   static void preloadStartAd() => _ads.load();
@@ -123,6 +128,7 @@ class TogetherLauncher {
     // открывается вовсе (SDK не находит контроллер), и раньше пара застревала
     // на этом шаге вдвоём. Ролик не показался — просто пускаем в комнату.
     try {
+      _adShown = true;
       await _ads.show(uid: uid);
     } catch (e) {
       debugPrint('Совместный просмотр: реклама не показалась — $e');
@@ -197,6 +203,7 @@ class TogetherLauncher {
 
     // Полноэкранная реклама пересобирает дерево, поэтому локальный контекст
     // после неё мёртв — открываем комнату корневым навигатором приложения.
+    _adShown = false;
     final allowed = await _requireStartAd(context);
     if (!allowed) return;
     await _settleAfterAd();
@@ -228,6 +235,7 @@ class TogetherLauncher {
           room: room,
           pairId: pairId,
           videoUrl: videoUrl,
+          afterAd: _adShown,
         ),
       ),
     );

@@ -32,7 +32,12 @@ class WatchRoomService {
   /// [name] — как подписывать свои сообщения в чате комнаты. Без него страница
   /// подставляет «Гость» обоим, и человек не понимает, кто с ним смотрит
   /// (жалоба тестера: «партнёр отображается как гость»).
-  static String siteUrl(String room, {String? src, String? name}) {
+  static String siteUrl(
+    String room, {
+    String? src,
+    String? name,
+    bool afterAd = false,
+  }) {
     final base = 'https://$siteHost/watch/room/';
     final query = <String, String>{};
     if (src != null && src.isNotEmpty) query['src'] = src;
@@ -42,6 +47,7 @@ class WatchRoomService {
           ? trimmed.substring(0, maxNameLength)
           : trimmed;
     }
+    if (afterAd) query['ad'] = '1';
     if (query.isEmpty) return '$base#$room';
     final encoded = query.entries
         .map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}')

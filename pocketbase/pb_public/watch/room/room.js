@@ -1474,23 +1474,46 @@
   function touchProbe() {
     if (!inAppWebView()) return;
     const born = Date.now();
-    const platform = /iPhone|iPad|iPod/.test(navigator.userAgent) ? 'ios' : 'android';
+    const ua = navigator.userAgent;
+    const platform = /iPhone|iPad|iPod/.test(ua) ? 'ios' : 'android';
+    // Разрез по причинам (25.09.2026): после правок «наугад» касания на iPhone
+    // так и терялись в 28% заходов. Кроме факта касания шлём то, что делит
+    // гипотезы: версия системы, была ли реклама (`?ad=1` ставит приложение),
+    // поднялся ли сокет (подсказка людей «выключить VPN»), доходят ли до
+    // страницы щелчки или только начало касания, которое потом отменяют.
+    const osm = ua.match(/OS (\d+)_/) || ua.match(/Android (\d+)/);
+    const os = osm ? Number(osm[1]) : 0;
+    const ad = /[?&]ad=1\b/.test(location.search) ? 1 : 0;
+    let subMs = -1;
+    const stamp = setInterval(() => {
+      if (state.subscribed && subMs < 0) { subMs = Date.now() - born; clearInterval(stamp); }
+    }, 250);
+    const n = { down: 0, start: 0, cancel: 0, click: 0, blur: 0 };
     let done = false;
     const send = (name, data) => {
       try { if (window.umami && window.umami.track) window.umami.track(name, data); } catch (_) { /* статистика не важнее комнаты */ }
     };
+    const facts = () => ({ platform, os, ad, sub: state.subscribed ? 1 : 0, subMs,
+      down: n.down, start: n.start, cancel: n.cancel, click: n.click, blur: n.blur });
     const onTouch = () => {
       if (done) return;
       done = true;
-      send('room-touch', { platform, ms: Date.now() - born });
+      send('room-touch', Object.assign(facts(), { ms: Date.now() - born }));
     };
-    document.addEventListener('pointerdown', onTouch, { capture: true, passive: true, once: true });
-    document.addEventListener('touchstart', onTouch, { capture: true, passive: true, once: true });
+    document.addEventListener('pointerdown', () => { n.down++; onTouch(); }, { capture: true, passive: true });
+    document.addEventListener('touchstart', () => { n.start++; onTouch(); }, { capture: true, passive: true });
+    document.addEventListener('touchcancel', () => { n.cancel++; }, { capture: true, passive: true });
+    document.addEventListener('click', () => { n.click++; }, { capture: true, passive: true });
+    window.addEventListener('blur', () => { n.blur++; });
     setTimeout(() => {
-      if (done || document.hidden) return;
-      done = true;
-      send('room-no-touch', { platform });
+      if (document.hidden) return;
+      if (!done) { done = true; send('room-no-touch', facts()); return; }
+      // Касания были, а щелчка ни одного: палец до страницы доходит, но
+      // нажатие гасится по пути — «ничего не нажимается».
+      if (n.click === 0) send('room-no-click', facts());
     }, 45000);
+    // Сокет так и не поднялся: страница видна, кнопки молчат.
+    setTimeout(() => { if (subMs < 0 && !document.hidden) send('room-no-socket', facts()); }, 20000);
   }
 
   function start() {

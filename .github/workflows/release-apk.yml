@@ -63,10 +63,10 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Flutter 3.38.5
+      - name: Set up Flutter 3.38.10
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: 3.38.5
+          flutter-version: 3.38.10
           channel: stable
           cache: true
 
@@ -303,10 +303,10 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Flutter 3.38.5
+      - name: Set up Flutter 3.38.10
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: 3.38.5
+          flutter-version: 3.38.10
           channel: stable
           cache: true
 
@@ -420,10 +420,10 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Flutter 3.38.5
+      - name: Set up Flutter 3.38.10
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: 3.38.5
+          flutter-version: 3.38.10
           channel: stable
           cache: true
 
@@ -581,10 +581,10 @@ jobs:
           xcodebuild -version
           echo "SDK:"; xcodebuild -showsdks | grep -i iphoneos || true
 
-      - name: Set up Flutter 3.38.5
+      - name: Set up Flutter 3.38.10
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: 3.38.5
+          flutter-version: 3.38.10
           channel: stable
           cache: true
 
