@@ -1520,6 +1520,16 @@ async def record_activity(request: Request):
             return ORJSONResponse({"ok": True, "already": True})
         return await _proxy_to_pb("/api/group/record-activity", request, body)
 
+    if body.get("restore") is True:
+        # Возврат сгоревшей серии за ролик. Идёт этим же адресом нарочно:
+        # точка входа держит отдельный маршрут на каждый путь hotpath, а
+        # перезагрузка её Caddy под нагрузкой зависает (25.09.2026).
+        ответ = await _restore_streak_pg(group_id, uid_auth, today)
+        if ответ.status_code == 200:
+            # Партнёр видит возвращённую серию сразу, а не на следующем заходе.
+            asyncio.get_running_loop().create_task(_после_правки_пары(group_id))
+        return ответ
+
     uid = str(body.get("uid") or "").strip() or uid_auth
     return await _record_activity_pg(group_id, uid_auth, uid, today)
 
@@ -1653,10 +1663,20 @@ async def _record_activity_pg(group_id: str, auth_uid: str, uid: str,
             серия_маскота = 0
             if маскот:
                 прежнее = карта.get(маскот) if isinstance(карта.get(маскот), dict) else {}
-                серия_маскота = (int(прежнее.get("s") or 0) + 1
-                                 if _день_подряд(начало, str(прежнее.get("d") or ""))
-                                 else 1)
-                карта[маскот] = {"s": серия_маскота, "d": начало}
+                было = int(прежнее.get("s") or 0)
+                подряд = _день_подряд(начало, str(прежнее.get("d") or ""))
+                серия_маскота = было + 1 if подряд else 1
+                запись = {"s": серия_маскота, "d": начало}
+                if not подряд and было >= 2:
+                    # Серия оборвалась: прежнее число помним, чтобы пара могла
+                    # вернуть его за ролик (см. `_возврат_серии`).
+                    запись.update(lost=было, lost_d=начало,
+                                  lost_g=int(row["streak_days"] or 0) if серия == 1 else 0)
+                elif подряд:
+                    for ключ in ПАМЯТЬ_ОБРЫВА:
+                        if ключ in прежнее:
+                            запись[ключ] = прежнее[ключ]
+                карта[маскот] = запись
             await c.execute(
                 "UPDATE groups SET streak_days = $1, streak_last_opened_date = $2, "
                 "streak_pending_date = '', streak_pending_uid = '', "
@@ -1669,6 +1689,117 @@ async def _record_activity_pg(group_id: str, auth_uid: str, uid: str,
     return ORJSONResponse({"ok": True, "streak": серия,
                            "mascotStreak": серия_маскота})
 
+
+
+# ── Возврат сгоревшей серии за ролик ─────────────────────────────────────────
+#
+# Просьба из чата 25.09.2026: «а есть восстановление серии как в ТикТоке?».
+# Возвращать можно сколько угодно раз — за каждый обрыв свой ролик, — но не
+# позже трёх дней после обрыва. Серия на экране — серия активного маскота
+# (`mascot_streaks`), общая `streak_days` пары идёт следом.
+
+ОКНО_ВОЗВРАТА = 3
+ПАМЯТЬ_ОБРЫВА = ("lost", "lost_d", "lost_g")
+
+
+def _дней_между(поздний: str, ранний: str) -> int | None:
+    try:
+        a = time.mktime(time.strptime(поздний, "%Y-%m-%d"))
+        b = time.mktime(time.strptime(ранний, "%Y-%m-%d"))
+    except (ValueError, TypeError):
+        return None
+    return round((a - b) / 86400)
+
+
+def _вчера(сегодня: str) -> str:
+    t = time.mktime(time.strptime(сегодня, "%Y-%m-%d")) - 86400 + 3600
+    return time.strftime("%Y-%m-%d", time.localtime(t))
+
+
+def _возврат_серии(серия_группы: int, прошлый: str, запись: dict,
+                   сегодня: str) -> tuple[dict, int, str] | None:
+    """Что станет с серией после ролика: (запись маскота, серия пары, последний
+    общий день пары) или None, если возвращать нечего.
+
+    Обрыв бывает двух видов. Пара уже вернулась, и зачёт дня сбросил серию в
+    единицу — прежнее число лежит в `lost`, его прибавляем. Пара ещё не
+    вернулась — последний общий день позавчера или раньше, на экране 0, а в
+    базе прежнее число: тогда закрываем пропуск вчерашним днём, и сегодняшний
+    общий день продолжит серию.
+    """
+    потеря = int(запись.get("lost") or 0)
+    когда = str(запись.get("lost_d") or "")
+    прошло = _дней_между(сегодня, когда) if когда else None
+    if потеря >= 2 and прошло is not None and 0 <= прошло <= ОКНО_ВОЗВРАТА:
+        новая = {к: з for к, з in запись.items() if к not in ПАМЯТЬ_ОБРЫВА}
+        новая["s"] = int(запись.get("s") or 0) + потеря
+        return новая, серия_группы + int(запись.get("lost_g") or 0), прошлый
+
+    было = int(запись.get("s") or 0)
+    день = str(запись.get("d") or "")
+    пропуск = _дней_между(сегодня, день) if день else None
+    if было >= 2 and пропуск is not None and 2 <= пропуск <= ОКНО_ВОЗВРАТА + 1:
+        вчера = _вчера(сегодня)
+        новая = dict(запись, d=вчера)
+        пропуск_пары = _дней_между(сегодня, прошлый) if прошлый else None
+        if пропуск_пары is not None and 2 <= пропуск_пары <= ОКНО_ВОЗВРАТА + 1:
+            прошлый = вчера
+        return новая, серия_группы, прошлый
+    return None
+
+
+async def _restore_streak_pg(group_id: str, auth_uid: str, today: str):
+    """Вернуть паре сгоревшую серию. Ролик смотрит клиент, сервер только
+    проверяет, что возвращать есть что и срок не вышел."""
+    async with pg.acquire() as c:
+        async with c.transaction():
+            row = await c.fetchrow(
+                "SELECT members, streak_days, streak_last_opened_date, "
+                "active_mascot_id, mascot_streaks FROM groups "
+                "WHERE id = $1 FOR UPDATE", group_id)
+            if row is None:
+                return ORJSONResponse({"ok": False, "error": "not a member"},
+                                      status_code=403)
+            члены = row["members"]
+            if isinstance(члены, str):
+                try:
+                    члены = json.loads(члены)
+                except ValueError:
+                    члены = []
+            if auth_uid not in [str(m) for m in (члены or [])]:
+                return ORJSONResponse({"ok": False, "error": "not a member"},
+                                      status_code=403)
+            маскот = row["active_mascot_id"] or ""
+            карта = row["mascot_streaks"]
+            if isinstance(карта, str):
+                try:
+                    карта = json.loads(карта)
+                except ValueError:
+                    карта = {}
+            карта = карта if isinstance(карта, dict) else {}
+            запись = карта.get(маскот) if маскот else None
+            итог = (_возврат_серии(int(row["streak_days"] or 0),
+                                   row["streak_last_opened_date"] or "",
+                                   запись, today)
+                    if isinstance(запись, dict) else None)
+            if итог is None:
+                return ORJSONResponse({"ok": False, "error": "nothing_to_restore"},
+                                      status_code=409)
+            новая, серия, прошлый = итог
+            карта[маскот] = новая
+            await c.execute(
+                "UPDATE groups SET mascot_streaks = $1, streak_days = $2, "
+                "streak_last_opened_date = $3, updated = $4 WHERE id = $5",
+                json.dumps(карта), float(серия), прошлый, now_pb(), group_id)
+
+    await asyncio.to_thread(_record_streak_sqlite, group_id, маскот,
+                            int(новая["s"]))
+    # Поля записи пары целиком: приложение кладёт их в свой кэш сразу, не
+    # дожидаясь события канала.
+    return ORJSONResponse({"ok": True, "streak": int(новая["s"]),
+                           "groupStreak": серия, "mascot_streaks": карта,
+                           "streak_days": серия,
+                           "streak_last_opened_date": прошлый})
 
 КАРТЫ_УЧАСТНИКОВ = ("member_moods", "member_names", "member_avatars",
                     "member_ailments")

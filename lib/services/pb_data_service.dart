@@ -2629,6 +2629,34 @@ class PbDataService {
     return _recordGroupActivityLocal(groupId, uid);
   }
 
+  /// Вернуть паре сгоревшую серию (ролик уже досмотрен). Идёт адресом
+  /// отметки дня с флагом `restore`: отдельного маршрута на точке входа нет.
+  /// Отдаёт новые поля записи пары для кэша или `null`, если сервер отказал
+  /// (возвращать нечего, срок вышел, нет связи).
+  Future<Map<String, dynamic>?> restoreGroupStreak(String groupId) async {
+    if (groupId.isEmpty) return null;
+    final now = DateTime.now();
+    final today = '${now.year}-${now.month.toString().padLeft(2, '0')}-'
+        '${now.day.toString().padLeft(2, '0')}';
+    try {
+      final res = await _pb.send('/api/group/record-activity',
+          method: 'POST',
+          body: {'groupId': groupId, 'today': today, 'restore': true}).timeout(
+        const Duration(seconds: 12),
+      );
+      if (res is Map && res['ok'] == true) {
+        return {
+          'mascot_streaks': res['mascot_streaks'],
+          'streak_days': res['streak_days'],
+          'streak_last_opened_date': res['streak_last_opened_date'],
+        };
+      }
+    } catch (e) {
+      debugPrint('PbData.restoreGroupStreak failed: $e');
+    }
+    return null;
+  }
+
   Future<void> _recordGroupActivityLocal(String groupId, String uid) async {
     const maxAttempts = 3;
     for (var attempt = 0; attempt < maxAttempts; attempt++) {

@@ -3644,4 +3644,22 @@ abstract class DictStrings extends AppStrings {
   String get giftNoConnection => _t('giftNoConnection');
   @override
   String get giftFailed => _t('giftFailed');
+  @override
+  String get streakRestoreAction => _t('streakRestoreAction');
+  @override
+  String get streakRestoreTitle => _t('streakRestoreTitle');
+  @override
+  String streakRestoreBody(int n) =>
+      _t('streakRestoreBody').replaceAll('{n}', '$n');
+  @override
+  String streakRestoreBodyPlus(int n) =>
+      _t('streakRestoreBodyPlus').replaceAll('{n}', '$n');
+  @override
+  String get streakRestoreWatch => _t('streakRestoreWatch');
+  @override
+  String streakRestored(int n) => _t('streakRestored').replaceAll('{n}', '$n');
+  @override
+  String get streakRestoreFailed => _t('streakRestoreFailed');
+  @override
+  String get streakRestoreNoAd => _t('streakRestoreNoAd');
 }

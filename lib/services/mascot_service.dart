@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/mascot.dart';
+import '../models/streak_restore.dart';
 import '../models/mascot_sleep.dart';
 import '../models/mascot_widget_data.dart';
 import 'catalog_service.dart';
@@ -289,6 +290,23 @@ class MascotService extends ChangeNotifier {
     await _repo.recordActivity(_groupId);
     unawaited(LevelService.instance.award(XpAction.dailyStreak));
     _syncStreakWidget();
+  }
+
+  /// Серию активного маскота можно вернуть за ролик — сколько дней вернётся.
+  StreakRestoreOffer? get restoreOffer {
+    final id = _state.activeMascotId;
+    if (id == null || id.isEmpty) return null;
+    final entry = _state.mascotStreaks[id];
+    if (entry is! Map) return null;
+    return streakRestoreOffer(Map<String, dynamic>.from(entry), DateTime.now());
+  }
+
+  /// Вернуть серию после досмотренного ролика. `false` — сервер отказал.
+  Future<bool> restoreStreak() async {
+    if (_groupId.isEmpty) return false;
+    final ok = await _repo.restoreStreak(_groupId);
+    if (ok) _syncStreakWidget();
+    return ok;
   }
 
   // ── Active mascot ──────────────────────────────────────────────────────────

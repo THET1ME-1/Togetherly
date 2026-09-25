@@ -108,6 +108,15 @@ class MascotRepository {
         .enqueue('groupUpdateFields', {'groupId': groupId, 'cols': cols});
   }
 
+  /// Вернуть сгоревшую серию. Новые поля пары сразу ложатся в кэш: экран не
+  /// ждёт события канала, чтобы показать огонёк. `false` — сервер отказал.
+  Future<bool> restoreStreak(String groupId) async {
+    final fields = await _data.restoreGroupStreak(groupId);
+    if (fields == null) return false;
+    await LocalStore.instance.patchRecordFields('groups', groupId, fields);
+    return true;
+  }
+
   /// Отметить дневную активность текущего пользователя (ведение «огонька»).
   Future<void> recordActivity(String groupId) async {
     final uid = _uid;

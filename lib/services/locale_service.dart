@@ -2357,6 +2357,14 @@ abstract class AppStrings {
   String get cropPhotoAction;
   String get cropPhotoHint;
   String get flipPhoto;
+  String get streakRestoreAction;
+  String get streakRestoreTitle;
+  String streakRestoreBody(int n);
+  String streakRestoreBodyPlus(int n);
+  String get streakRestoreWatch;
+  String streakRestored(int n);
+  String get streakRestoreFailed;
+  String get streakRestoreNoAd;
   String get optionalTapToSelect;
   String itemsShort(int n);
 
