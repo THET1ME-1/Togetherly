@@ -3667,9 +3667,13 @@ abstract class DictStrings extends AppStrings {
   @override
   String get streakRestoreNoAd => _t('streakRestoreNoAd');
   @override
-  String get giftAdTitle => _t('giftAdTitle');
-  @override
-  String get giftAdBody => _t('giftAdBody');
-  @override
   String get giftAdLimit => _t('giftAdLimit');
+  @override
+  String get giftForCoins => _t('giftForCoins');
+  @override
+  String get giftForAd => _t('giftForAd');
+  @override
+  String get giftForFree => _t('giftForFree');
+  @override
+  String get giftAdHint => _t('giftAdHint');
 }

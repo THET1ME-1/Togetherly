@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'dart:io';
+
 import 'package:love_app/models/gift.dart';
 
 /// Прайс-таблица серверного роута `pocketbase/pb_hooks/gifts.pb.js`.
@@ -15,6 +17,20 @@ const Map<String, int> serverPrices = {
 };
 
 void main() {
+  test('за рекламу можно подарить всё, кроме копилки, как и на сервере', () {
+    final src = File('pocketbase/pb_hooks/gifts.pb.js').readAsStringSync();
+    final m = RegExp(r'const NO_AD = \{([^}]*)\}').firstMatch(src);
+    expect(m, isNotNull, reason: 'в gifts.pb.js нет таблицы NO_AD');
+    final serverNoAd = RegExp(r'(\w+):\s*true')
+        .allMatches(m!.group(1)!)
+        .map((x) => x.group(1))
+        .toSet();
+    final clientNoAd =
+        GiftCatalog.all.where((g) => !g.giftableByAd).map((g) => g.key).toSet();
+    expect(clientNoAd, serverNoAd);
+    expect(clientNoAd, {'piggy'});
+  });
+
   test('в каталоге тридцать четыре подарка', () {
     expect(GiftCatalog.all.length, 34);
   });

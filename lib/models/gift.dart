@@ -161,6 +161,11 @@ class Gift {
   /// Цена уходит не в никуда, а на баланс партнёра.
   final bool transfersCoins;
 
+  /// Можно ли подарить за рекламу. Копилке нельзя: она передаёт партнёру свою
+  /// цену, а у подарка за рекламу цена нулевая. Зеркало `NO_AD` в
+  /// `gifts.pb.js`, расхождение ловит `gift_catalog_test.dart`.
+  bool get giftableByAd => !transfersCoins;
+
   /// Монет обоим, если ответ пришёл в первую минуту.
   final int mutualBonus;
 

@@ -118,11 +118,37 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
     super.dispose();
   }
 
-  /// Подарок за ролик: человек сам нажал на значок в карточке, то есть уже
-  /// согласился смотреть. Досмотрел — подарок уходит бесплатно.
-  Future<void> _sendByAd(Gift gift) async {
+  /// Тап по подарку: человек сам выбирает, чем платить — монетами или
+  /// рекламой. С Плюсом вместо рекламы «бесплатно».
+  Future<void> _choose(Gift gift) async {
     if (_sending != null) return;
-    if (!PlusService.instance.active) {
+    final byAd = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => _PaySheet(
+        gift: gift,
+        coins: _coins,
+        adAllowed: gift.giftableByAd,
+        plus: PlusService.instance.active,
+      ),
+    );
+    if (byAd == null || !mounted) return;
+    await _send(gift, byAd: byAd);
+  }
+
+  Future<void> _send(Gift gift, {bool byAd = false}) async {
+    if (_sending != null) return; // второй тап во время отправки
+
+    // Записку спрашиваем до рекламы: иначе человек досмотрит ролик, передумает
+    // на вводе, и просмотр пропадёт впустую.
+    String? note;
+    if (gift.carriesNote) {
+      note = await _askNote(gift);
+      if (note == null) return; // передумал на вводе записки
+    }
+    if (!mounted) return;
+
+    if (byAd && !PlusService.instance.active) {
       final messenger = ScaffoldMessenger.of(context);
       if (!_ad.isReady) {
         _ad.load();
@@ -134,25 +160,14 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
       final earned = await _ad.show(uid: PocketBaseService().userId ?? '');
       _ad.load();
       if (!mounted) return;
-      // Ролик сам начисляет монеты: доводим новый баланс до профиля.
+      // Реклама сама начисляет монеты: доводим новый баланс до профиля.
       final coins = _ad.lastServerCoins;
-      if (coins != null) {
-        setState(() => _coins = coins);
-        widget.onCoins?.call(coins);
-      }
-      setState(() => _sending = null);
+      setState(() {
+        _sending = null;
+        if (coins != null) _coins = coins;
+      });
+      if (coins != null) widget.onCoins?.call(coins);
       if (!earned) return;
-    }
-    await _send(gift, byAd: true);
-  }
-
-  Future<void> _send(Gift gift, {bool byAd = false}) async {
-    if (_sending != null) return; // второй тап во время отправки
-
-    String? note;
-    if (gift.carriesNote) {
-      note = await _askNote(gift);
-      if (note == null) return; // передумал на вводе записки
     }
 
     setState(() => _sending = gift.key);
@@ -386,15 +401,6 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
                 bottom: 28 + MediaQuery.of(context).padding.bottom,
               ),
               children: [
-                if (_filter == null || _filter == 1)
-                  _AdGiftCard(
-                    gifts: [
-                      for (final k in const ['heart', 'star', 'fire', 'sun'])
-                        if (GiftCatalog.byKey(k) != null) GiftCatalog.byKey(k)!,
-                    ],
-                    sending: _sending,
-                    onSend: _sendByAd,
-                  ),
                 for (final tier in tiers) ...[
                   _ShelfHeader(
                     title: _tierName(tier),
@@ -409,8 +415,7 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
                     coins: _coins,
                     sending: _sending,
                     reduce: reduce,
-                    onSend: (g) =>
-                        (_coins >= g.price && _sending == null) ? _send(g) : null,
+                    onSend: (g) => _sending == null ? _choose(g) : null,
                   ),
                 ],
               ],
@@ -422,112 +427,109 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
   }
 }
 
-// ── Подарок за ролик ─────────────────────────────────────────────────────────
-class _AdGiftCard extends StatelessWidget {
-  const _AdGiftCard({
-    required this.gifts,
-    required this.sending,
-    required this.onSend,
+// ── Выбор оплаты ─────────────────────────────────────────────────────────────
+/// Лист выбора: подарить за монеты или за рекламу. Возвращает `false` — монеты,
+/// `true` — реклама (с Плюсом — бесплатно), `null` — передумал.
+class _PaySheet extends StatelessWidget {
+  const _PaySheet({
+    required this.gift,
+    required this.coins,
+    required this.adAllowed,
+    required this.plus,
   });
 
-  final List<Gift> gifts;
-  final String? sending;
-  final ValueChanged<Gift> onSend;
+  final Gift gift;
+  final int coins;
+  final bool adAllowed;
+  final bool plus;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final s = LocaleService.current;
-    final plus = PlusService.instance.active;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-        decoration: BoxDecoration(
-          color: cs.primaryContainer,
-          borderRadius: BorderRadius.circular(28),
-        ),
+    final canPay = coins >= gift.price;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
-              children: [
-                Icon(plus ? Icons.card_giftcard_rounded : Icons.play_circle_rounded,
-                    color: cs.onPrimaryContainer, size: 22),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    s.giftAdTitle,
-                    style: TextStyle(
-                      color: cs.onPrimaryContainer,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 17,
-                    ),
-                  ),
-                ),
-              ],
+            Container(
+              width: 96,
+              height: 96,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: cs.primaryContainer,
+                shape: BoxShape.circle,
+              ),
+              child: ScaledAsset(gift.asset, side: 64),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 12),
             Text(
-              s.giftAdBody,
+              gift.title,
+              textAlign: TextAlign.center,
               style: TextStyle(
-                color: cs.onPrimaryContainer.withValues(alpha: 0.8),
-                fontSize: 14,
-                height: 1.3,
+                fontFamily: 'Unbounded',
+                fontWeight: FontWeight.w700,
+                fontVariations: const [FontVariation('wght', 700)],
+                fontSize: 20,
+                color: cs.onSurface,
               ),
             ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                for (final g in gifts)
-                  Expanded(
-                    child: Semantics(
-                      button: true,
-                      label: '${g.title}, ${s.giftAdTitle}',
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(20),
-                        onTap: sending == null ? () => onSend(g) : null,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 6),
-                          child: Column(
-                            children: [
-                              Container(
-                                width: 56,
-                                height: 56,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  color: cs.surface,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: sending == g.key
-                                    ? SizedBox(
-                                        width: 24,
-                                        height: 24,
-                                        child: CircularProgressIndicator(
-                                            strokeWidth: 2.5,
-                                            color: cs.primary),
-                                      )
-                                    : ScaledAsset(g.asset, side: 36),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                g.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: cs.onPrimaryContainer,
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: canPay ? () => Navigator.pop(context, false) : null,
+                style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(52)),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        canPay ? s.giftForCoins : s.giftNotEnoughCoins,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                  ),
-              ],
+                    const SizedBox(width: 10),
+                    ScaledAsset('assets/images/icons/coin.webp', side: 18),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${gift.price}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontFeatures: [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
+            if (adAllowed) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.tonalIcon(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52)),
+                  icon: Icon(plus
+                      ? Icons.card_giftcard_rounded
+                      : Icons.play_circle_rounded),
+                  label: Text(
+                    plus ? s.giftForFree : s.giftForAd,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                s.giftAdHint,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
+              ),
+            ],
           ],
         ),
       ),
@@ -780,7 +782,7 @@ class _GiftCardState extends State<_GiftCard> with TickerProviderStateMixin {
   }
 
   void _tap() {
-    if (!widget.affordable || widget.busy) return;
+    if (widget.busy) return;
     if (!widget.reduce) _pulse.forward(from: 0);
     widget.onSend();
   }
@@ -793,6 +795,8 @@ class _GiftCardState extends State<_GiftCard> with TickerProviderStateMixin {
     final (discBg, _) = _tierColors(cs, tier);
     final badge = _badgeOf(gift);
     final affordable = widget.affordable;
+    // Без монет подарок всё равно можно отправить за рекламу, кроме копилки.
+    final usable = affordable || gift.giftableByAd;
 
     final card = AnimatedBuilder(
       animation: _press,
@@ -884,15 +888,15 @@ class _GiftCardState extends State<_GiftCard> with TickerProviderStateMixin {
     );
 
     return GestureDetector(
-      onTapDown: affordable ? _down : null,
-      onTapUp: affordable
+      onTapDown: usable ? _down : null,
+      onTapUp: usable
           ? (_) {
               _release();
               _tap();
             }
           : null,
-      onTapCancel: affordable ? _release : null,
-      child: Opacity(opacity: affordable ? 1 : 0.55, child: card),
+      onTapCancel: usable ? _release : null,
+      child: Opacity(opacity: usable ? 1 : 0.55, child: card),
     );
   }
 }

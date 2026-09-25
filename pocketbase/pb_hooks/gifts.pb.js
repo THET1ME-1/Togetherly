@@ -33,10 +33,11 @@ routerAdd("POST", "/api/gifts/send", (e) => {
   const DELAY_H = { letter: 24 };
   const MORNING = { croissant: true };
 
-  // Подарок за ролик: простые значки уходят без монет, не чаще трёх в сутки.
+  // Подарок за рекламу: любой подарок уходит без монет, не чаще трёх в сутки.
   // Метка такого подарка — нулевая цена: отклик и отказ возвращают 30% и 100%
-  // от нуля, то есть монеты из воздуха не появляются.
-  const AD_GIFTS = { heart: true, star: true, fire: true, sun: true };
+  // от нуля, то есть монеты из воздуха не появляются. Копилка не в счёт: она
+  // передаёт партнёру свою цену, а передавать нуль незачем.
+  const NO_AD = { piggy: true };
   const AD_PER_DAY = 3;
 
   const body = new DynamicModel({
@@ -55,7 +56,7 @@ routerAdd("POST", "/api/gifts/send", (e) => {
   const byAd = body.ad === true;
   const price = byAd ? 0 : PRICES[giftKey];
 
-  if (!giftId || !groupId || !PRICES[giftKey] || (byAd && !AD_GIFTS[giftKey])) {
+  if (!giftId || !groupId || !PRICES[giftKey] || (byAd && NO_AD[giftKey])) {
     return e.json(400, { ok: false, error: "unknown_gift" });
   }
 
@@ -296,7 +297,8 @@ routerAdd("POST", "/api/gifts/react", (e) => {
 
       // Успел ответить в первую минуту — обоим по бонусу сверх возврата.
       // Отсчёт от expires_at, потому что момент отправки известен через него.
-      const bonus = MUTUAL_BONUS[gift.getString("gift_key")] || 0;
+      // Подарок за рекламу (цена 0) бонуса не даёт: иначе монеты из воздуха.
+      const bonus = price > 0 ? (MUTUAL_BONUS[gift.getString("gift_key")] || 0) : 0;
       const sentAt = (gift.getInt("expires_at") || 0) - 24 * 60 * 60 * 1000;
       const quick = bonus > 0 && sentAt > 0 && now - sentAt <= MUTUAL_WINDOW_MS;
 
