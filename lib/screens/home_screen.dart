@@ -893,8 +893,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   static const String _kStreakRestoreSeen = 'streak_restore_seen';
 
-  /// Серия сгорела и её можно вернуть — лист с роликом всплывает сам, один
-  /// раз на каждый обрыв. Дальше предложение живёт кнопкой у маскота.
+  /// Серия сгорела и её можно вернуть — приложение один раз на каждый обрыв
+  /// спрашивает «Вернуть серию?». Реклама включается только по «Да»; дальше
+  /// предложение живёт кнопкой у маскота.
   Future<void> _onMascotForRestore() async {
     final offer = _mascotService.restoreOffer;
     if (offer == null || _restoreSheetOpen || !mounted) return;
@@ -910,8 +911,8 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  /// Лист «Серия сгорела»: ролик — и серия возвращается у обоих. С Плюсом
-  /// без ролика.
+  /// Вопрос «Вернуть серию?»: «Да, посмотреть рекламу» — и серия
+  /// возвращается у обоих. С Плюсом без рекламы.
   Future<void> _openStreakRestore() async {
     final offer = _mascotService.restoreOffer;
     if (offer == null || _restoreSheetOpen || !mounted) return;
@@ -970,7 +971,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ? Icons.local_fire_department_rounded
                       : Icons.play_arrow_rounded),
                   label: Text(
-                      plus ? s.streakRestoreAction : s.streakRestoreWatch),
+                      plus ? s.streakRestoreYes : s.streakRestoreWatch),
                 ),
               ),
               const SizedBox(height: 8),
@@ -978,7 +979,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 width: double.infinity,
                 child: TextButton(
                   onPressed: () => Navigator.pop(ctx, false),
-                  child: Text(s.cancel),
+                  child: Text(s.streakRestoreNo),
                 ),
               ),
             ],
