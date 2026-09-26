@@ -1,3 +1,4 @@
+import '../services/catalog_service.dart';
 import '../services/locale_service.dart';
 
 /// Движок подарка — что подарок делает, когда долетел до партнёра.
@@ -197,6 +198,9 @@ class Gift {
   final Duration life;
 
   String get asset => 'assets/images/gifts/$key.webp';
+
+  /// Цена, которую сейчас спишет сервер: из каталога, иначе зашитая [price].
+  int get currentPrice => CatalogService.instance.giftArt(key)?.price ?? price;
 
   String get title => LocaleService.instance.isRussian ? titleRu : titleEn;
 }

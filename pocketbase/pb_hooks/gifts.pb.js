@@ -54,7 +54,17 @@ routerAdd("POST", "/api/gifts/send", (e) => {
   // получал обрывок. Потолок оставлен только против мусора в поле.
   const note = String(body.note || "").slice(0, 20000);
   const byAd = body.ad === true;
-  const price = byAd ? 0 : PRICES[giftKey];
+  // Цена из серверного каталога (запись gift_<ключ>) главнее таблицы выше:
+  // так её можно поменять без сборки и без правки хука. Таблица остаётся
+  // запасной — каталог мог не доехать или запись выключена.
+  let listPrice = PRICES[giftKey] || 0;
+  if (listPrice) {
+    try {
+      const it = $app.findRecordById("catalog_items", "gift_" + giftKey);
+      if (it.getString("kind") === "gift" && it.getBool("enabled") && it.getInt("price") > 0) listPrice = it.getInt("price");
+    } catch (_) {}
+  }
+  const price = byAd ? 0 : listPrice;
 
   if (!giftId || !groupId || !PRICES[giftKey] || (byAd && NO_AD[giftKey])) {
     return e.json(400, { ok: false, error: "unknown_gift" });

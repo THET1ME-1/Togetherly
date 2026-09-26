@@ -6,11 +6,13 @@ import 'package:flutter/material.dart' show Color;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/gift_art.dart';
 import '../models/level.dart';
 import '../models/mascot.dart';
 import '../models/mascot_anim.dart';
 import '../models/mood_entry.dart';
 import '../models/mood_pack.dart';
+import '../models/profile_icon.dart';
 import 'pb_data_service.dart';
 import 'pocketbase_service.dart';
 
@@ -36,7 +38,24 @@ class CatalogService extends ChangeNotifier {
   List<Mascot> _mascots = const [];
   Set<String> _pairOwned = const {};
   Map<String, MascotAnim> _anims = const {};
+  List<ProfileIcon> _badges = const [];
+  Map<String, GiftArt> _giftArt = const {};
   bool _initialized = false;
+
+  /// Значки профиля из каталога (kind='badge'), по полю `sort`. Зашитых в
+  /// сборку значков нет: пока каталог не загружен ни разу, список пуст.
+  List<ProfileIcon> get badges => _badges;
+
+  /// Живые картинки подарков по ключу подарка. Пусто, пока каталог не пришёл:
+  /// тогда подарок рисуется неподвижным кадром из сборки.
+  GiftArt? giftArt(String key) => _giftArt[key];
+
+  /// Подставить значки без сети — только для тестов.
+  @visibleForTesting
+  void debugSetBadges(List<ProfileIcon> badges) {
+    _badges = List.unmodifiable(badges);
+    notifyListeners();
+  }
 
   /// Встроенные и каталожные паки одним рядом, в порядке поля `sort`.
   ///
@@ -162,11 +181,23 @@ class CatalogService extends ChangeNotifier {
     final remoteMoods = <MoodOption>[];
     final mascots = <Mascot>[];
     final anims = <String, MascotAnim>{};
+    final badgeRows = <Map<String, dynamic>>[];
+    final giftArt = <String, GiftArt>{};
 
     for (final raw in rows) {
       if (raw is! Map) continue;
       final row = raw.cast<String, dynamic>();
       if (!_appAtLeast(appVersion, row['min_app'] as String?)) continue;
+
+      if (row['kind'] == 'badge') {
+        badgeRows.add(row);
+        continue;
+      }
+      if (row['kind'] == 'gift') {
+        final art = GiftArt.fromCatalog(row);
+        if (art != null) giftArt[art.key] = art;
+        continue;
+      }
 
       if (row['kind'] == 'mascot') {
         final mascot = _parseMascot(row);
@@ -221,6 +252,8 @@ class CatalogService extends ChangeNotifier {
     _remotePacks = List.unmodifiable(packs);
     _mascots = List.unmodifiable(mascots);
     _anims = Map.unmodifiable(anims);
+    _badges = List.unmodifiable(ProfileIcon.parseCatalog(badgeRows));
+    _giftArt = Map.unmodifiable(giftArt);
     MoodOption.registerRemoteMoods(remoteMoods);
     notifyListeners();
   }

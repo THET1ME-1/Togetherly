@@ -56,13 +56,20 @@ routerAdd("POST", "/api/coins/purchase-icon", (e) => {
   const safeParse = (s, fb) => { try { return JSON.parse(s || JSON.stringify(fb)) || fb; } catch (_) { return fb; } };
   const body = (e.requestInfo().body || {});
   const iconId = String(body.iconId || "");
-  const PRICES = {
-    "Paw": 20, "Sun": 20, "Moon": 20, "Rainbow": 20, "Bunny": 20, "Frog": 20,
-    "Lucky": 35, "UFO": 35, "Together": 35,
-    "Soulmate": 50, "Perfect Match": 50, "Inseparable": 50,
-  };
-  const price = PRICES[iconId];
-  if (!price) return e.json(400, { ok: false, error: "not for sale" });
+  // Значки серверные: каждый — запись `catalog_items` вида `badge` с id
+  // `badge_<слаг ключа>` (тот же расчёт в pocketbase/upload_badges.py). Цена
+  // берётся из записи, поэтому новый значок продаётся без правки этого хука и
+  // без сборки. Наградные (grantOnly) и снятые с витрины не продаются.
+  const slug = iconId.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  let item = null;
+  try { item = slug ? $app.findRecordById("catalog_items", "badge_" + slug) : null; } catch (_) { item = null; }
+  if (!item || item.getString("kind") !== "badge" || !item.getBool("enabled")) {
+    return e.json(400, { ok: false, error: "not for sale" });
+  }
+  const data = safeParse(item.getString("data"), {});
+  if (data.grantOnly || data.key !== iconId) return e.json(400, { ok: false, error: "not for sale" });
+  const price = item.getInt("price") || 0;
+  if (price <= 0) return e.json(400, { ok: false, error: "not for sale" });
   let out;
   try {
     $app.runInTransaction((txApp) => {

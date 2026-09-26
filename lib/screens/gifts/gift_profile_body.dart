@@ -10,7 +10,7 @@ import '../../services/pocketbase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common/m3_loading.dart';
 import 'gift_memo_sheet.dart';
-import '../../widgets/common/scaled_asset.dart';
+import '../../widgets/common/gift_image.dart';
 
 /// Тело профиля-«Открытки»: шапка с аватаром и чипами, полка подарков со
 /// счётчиками, столбики «скучаю» по дням недели.
@@ -403,7 +403,7 @@ class _Shelf extends StatelessWidget {
                     width: 76,
                     height: 76,
                     child: Center(
-                      child: ScaledAsset(t.gift.asset, side: 46),
+                      child: GiftImage(t.gift.key, side: 46),
                     ),
                   ),
                 ),

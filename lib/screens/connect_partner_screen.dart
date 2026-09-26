@@ -37,8 +37,8 @@ import '../widgets/app_sheet.dart';
 import '../models/widget_data.dart';
 import '../widgets/common/plus_badge.dart';
 import '../widgets/common/stable_stream_builder.dart';
-import '../widgets/common/scaled_asset.dart';
 import '../utils/invite_code.dart';
+import '../widgets/common/badge_image.dart';
 
 class ConnectPartnerScreen extends StatefulWidget {
   final PairData pairData;
@@ -964,45 +964,53 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
           color: cs.secondaryContainer,
           borderRadius: BorderRadius.circular(28)),
       child: Stack(
+        clipBehavior: Clip.none,
         children: [
-          // Место под карандаш и значок держим отступами, а не надеждой: имя
-          // лежит в том же Stack, и без запаса длинное («JB SHARAN») уезжало
-          // прямо под кнопку правки — на снимке от 17.08.2026 хвост имени
-          // перечёркнут карандашом. Сверху столько же: там значок и «Plus».
+          // Верхняя строка занята: слева «Plus», справа карандаш. Имя стоит
+          // ниже со своим значком сразу за последней буквой. Пока значок и
+          // карандаш висели по углам, длинное имя («JB SHARAN», снимок
+          // 17.08.2026) уезжало под кнопку правки, а значок отрывался от ника.
           Padding(
-            padding: EdgeInsets.only(
-              right: badgeUid != null ? 40 : 0,
-              top: badgeUid != null ? 26 : 0,
-            ),
+            padding: EdgeInsets.only(top: badgeUid != null ? 30 : 0),
             child: Align(
               alignment: Alignment.bottomLeft,
-              child: _swap(
-                'name-$title',
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.bottomLeft,
-                  child: Text(title,
-                      maxLines: 1,
-                      style: TextStyle(
-                          fontFamily: 'Unbounded',
-                          fontWeight: FontWeight.w800,
-          fontVariations: const [FontVariation('wght', 800)],
-                          fontSize: 44,
-                          height: 1.0,
-                          letterSpacing: -1.5,
-                          color: cs.onPrimaryContainer)),
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Flexible(
+                    child: _swap(
+                      'name-$title',
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.bottomLeft,
+                        child: Text(title,
+                            maxLines: 1,
+                            style: TextStyle(
+                                fontFamily: 'Unbounded',
+                                fontWeight: FontWeight.w800,
+                                fontVariations: const [FontVariation('wght', 800)],
+                                fontSize: 44,
+                                height: 1.0,
+                                letterSpacing: -1.5,
+                                color: cs.onPrimaryContainer)),
+                      ),
+                    ),
+                  ),
+                  if (badgeUid != null) ...[
+                    const SizedBox(width: 8),
+                    _badgeIcon(badgeUid),
+                  ],
+                ],
               ),
             ),
           ),
-          if (badgeUid != null)
-            Positioned(top: 0, right: 0, child: _badgeIcon(badgeUid)),
           // Своя подпись для человека: раньше карандаш стоял в карточке
           // участников, а её редизайн убрал с экрана — вместе с ней пропала и
           // возможность переименовать. Возвращаем туда, где имя и показывается.
           if (badgeUid != null)
             Positioned(
-              bottom: -6,
+              top: -8,
               right: -6,
               child: IconButton(
                 onPressed: () => _renamePartnerByUid(badgeUid),
@@ -1846,12 +1854,9 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     final badge = _partnerBadges[uid];
     if (badge == null || badge.isEmpty) return const SizedBox.shrink();
     final icon = ProfileIcon.byId(badge);
-    return Transform.translate(
-      offset: const Offset(-4, 0),
-      child: GestureDetector(
-        onTap: icon == null ? null : () => _showBadgeInfo(icon),
-        child: ScaledAsset(icon?.asset ?? 'assets/images/icons/$badge.webp', side: 38),
-      ),
+    return GestureDetector(
+      onTap: icon == null ? null : () => _showBadgeInfo(icon),
+      child: BadgeImage(badge, side: 38),
     );
   }
 
@@ -1868,7 +1873,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
             children: [
               Row(
                 children: [
-                  ScaledAsset(icon.asset, side: 40),
+                  BadgeImage(icon.id, side: 40),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(

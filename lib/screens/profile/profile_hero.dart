@@ -5,9 +5,9 @@ import '../../theme/app_theme.dart';
 import '../../theme/profile_theme.dart';
 import '../../widgets/common/plus_badge.dart';
 import '../../models/profile_icon.dart';
-import '../../widgets/common/scaled_asset.dart';
 import '../../widgets/avatar_widget.dart';
 import 'profile_banner.dart';
+import '../../widgets/common/badge_image.dart';
 
 /// Шапка профиля (приём Kadr): баннер со скруглённым низом + аватар, свисающий
 /// в кольце поверхности, справа имя и чип. Общая для СВОЕГО профиля
@@ -167,17 +167,14 @@ class ProfileHero extends StatelessWidget {
                       ),
                     ),
                   ),
+                  // Значок профиля — сразу за ником, «Plus» уже после него.
+                  if (badge.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    BadgeImage(badge, side: 28),
+                  ],
                   if (plus && theme != null) ...[
                     const SizedBox(width: 8),
                     PlusBadge(theme: theme!),
-                  ],
-                  if (badge.isNotEmpty) ...[
-                    const SizedBox(width: 6),
-                    ScaledAsset(
-                      ProfileIcon.byId(badge)?.asset ??
-                          'assets/images/icons/$badge.webp',
-                      side: 26,
-                    ),
                   ],
                   if (onEdit != null) ...[
                     const SizedBox(width: 4),

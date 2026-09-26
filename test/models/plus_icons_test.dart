@@ -1,10 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:love_app/models/profile_icon.dart';
 
+import '../helpers/badge_catalog.dart';
+
 /// Togetherly+ открывает значки профиля, которые иначе стоят по 20 монет.
 /// Наградные значки (Sponsor, Helper) покупка НЕ открывает: их выдают руками, и
 /// если их можно будет купить, они перестанут что-либо значить.
 void main() {
+  installTestBadges();
   group('Каталог значков', () {
     test('Покупаемые значки не включают наградные', () {
       expect(ProfileIcon.purchasable, isNotEmpty);

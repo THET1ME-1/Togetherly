@@ -82,6 +82,7 @@ import '../services/days_together_notification_service.dart';
 import 'date_time_picker_screen.dart';
 import '../widgets/common/redeem_code_sheet.dart';
 import '../widgets/common/scaled_asset.dart';
+import '../widgets/common/badge_image.dart';
 
 /// Entry for a partner across all connections
 class _PartnerEntry {
@@ -1325,6 +1326,8 @@ class _ProfileScreenState extends State<ProfileScreen>
       // Значок Togetherly+ у своего имени — в шапке профиля, там же, где
       // человек его и ищет.
       plus: PlusService.instance.active,
+      // Свой значок в шапку не передавался вовсе — в профиле его не было видно.
+      badge: widget.userData.equippedIcon ?? '',
       theme: _t,
       bannerUrl: widget.userData.bannerUrl,
       localBannerPath: _bannerPath,
@@ -2620,12 +2623,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   // ассета, чтобы иконка «прижималась» к имени.
                   ? Transform.translate(
                       offset: const Offset(-4, 0),
-                      child: Image.asset(
-                        ProfileIcon.byId(widget.userData.equippedIcon)?.asset ??
-                            'assets/images/icons/${widget.userData.equippedIcon}.webp',
-                        width: 38,
-                        height: 38,
-                      ),
+                      child: BadgeImage(widget.userData.equippedIcon, side: 38),
                     )
                   : Padding(
                       padding: const EdgeInsets.only(left: 6),
@@ -5487,7 +5485,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
               child: Opacity(
                 opacity: locked ? 0.5 : 1.0,
-                child: ScaledAsset(icon.asset, side: 42),
+                child: BadgeImage(icon.id, side: 42),
               ),
             ),
             const SizedBox(height: 7),
@@ -5564,7 +5562,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             children: [
               Row(
                 children: [
-                  ScaledAsset(icon.asset, side: 40),
+                  BadgeImage(icon.id, side: 40),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
@@ -5673,7 +5671,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                           ),
                         ),
                       ),
-                      Center(child: ScaledAsset(icon.asset, side: 76)),
+                      Center(child: BadgeImage(icon.id, side: 76)),
                     ],
                   ),
                 ),

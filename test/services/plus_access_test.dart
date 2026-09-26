@@ -1,11 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:love_app/models/canvas_background.dart';
 import 'package:love_app/models/profile_icon.dart';
+
+import '../helpers/badge_catalog.dart';
 import 'package:love_app/services/plus_access.dart';
 
 /// Что именно открывает Togetherly+. Правила собраны в одном месте, чтобы
 /// витрина, экраны и проверки доступа не разъезжались между собой.
 void main() {
+  installTestBadges();
   final paid = ProfileIcon.purchasable.first.id;
   final granted = ProfileIcon.all.firstWhere((i) => i.grantOnly).id;
 

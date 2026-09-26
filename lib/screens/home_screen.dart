@@ -141,6 +141,7 @@ import '../dict_strings.dart' show trKey;
 import '../services/wallet_teaser.dart';
 import '../services/media_save_queue.dart';
 import 'wallet_wait_screen.dart';
+import '../widgets/common/gift_image.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -2529,7 +2530,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         child: Row(
           children: [
-            if (sun != null) ScaledAsset(sun.asset, side: 40),
+            if (sun != null) GiftImage(sun.key, side: 40),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -2567,7 +2568,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           child: Row(
             children: [
-              ScaledAsset(gift.asset, side: 46),
+              GiftImage(gift.key, side: 46),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(

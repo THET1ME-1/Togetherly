@@ -8,7 +8,7 @@ import '../../services/gifts_service.dart';
 import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/profile_theme.dart';
-import '../../widgets/common/scaled_asset.dart';
+import '../../widgets/common/gift_image.dart';
 
 /// Получение подарка: у каждого свой способ «сработать».
 ///
@@ -408,42 +408,13 @@ class _CandleStage extends StatelessWidget {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          ScaledAsset(gift.asset, side: 170),
-          Positioned(
-            top: 6,
-            child: AnimatedOpacity(
-              opacity: blown ? 0 : 1,
-              duration: const Duration(milliseconds: 500),
-              child: AnimatedBuilder(
-                animation: idle,
-                builder: (context, child) => Transform.scale(
-                  scale: 0.86 + idle.value * 0.22,
-                  child: Transform.rotate(
-                    angle: (idle.value - 0.5) * 0.18,
-                    child: child,
-                  ),
-                ),
-                child: Container(
-                  width: 26,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(14),
-                      bottom: Radius.circular(10),
-                    ),
-                    gradient: const LinearGradient(
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
-                      colors: [Color(0xFFF2A03C), Color(0xFFFFE08A)],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
+          // Пламя живёт в самом рисунке торта; задули — ставим кадр без огня.
+          blown
+              ? const GiftImage('cake_out', side: 170, animated: false)
+              : GiftImage(gift.key, side: 170),
           if (blown)
             Positioned(
-              top: 2,
+              top: 12,
               child: _Smoke(theme: theme),
             ),
         ],
@@ -520,7 +491,7 @@ class _OpenStage extends StatelessWidget {
           AnimatedScale(
             scale: opened ? 1.08 : 1,
             duration: const Duration(milliseconds: 400),
-            child: ScaledAsset(gift.asset, side: 170),
+            child: GiftImage(gift.key, side: 170),
           ),
           AnimatedPositioned(
             duration: const Duration(milliseconds: 520),
@@ -576,7 +547,7 @@ class _CrackStage extends StatelessWidget {
               duration: dur,
               child: ClipRect(
                 clipper: _HalfClipper(left: true),
-                child: ScaledAsset(gift.asset, side: 160),
+                child: GiftImage(gift.key, side: 160, animated: false),
               ),
             ),
           ),
@@ -589,7 +560,7 @@ class _CrackStage extends StatelessWidget {
               duration: dur,
               child: ClipRect(
                 clipper: _HalfClipper(left: false),
-                child: ScaledAsset(gift.asset, side: 160),
+                child: GiftImage(gift.key, side: 160, animated: false),
               ),
             ),
           ),
@@ -659,7 +630,7 @@ class _CatchStage extends StatelessWidget {
             child: AnimatedScale(
               scale: caught ? 1.15 : 1,
               duration: const Duration(milliseconds: 300),
-              child: ScaledAsset(gift.asset, side: 120),
+              child: GiftImage(gift.key, side: 120),
             ),
           ),
         ),
@@ -698,7 +669,7 @@ class _WaterStage extends StatelessWidget {
           scale: watered ? 1.12 : 0.96,
           duration: const Duration(milliseconds: 600),
           curve: Curves.easeOutBack,
-          child: ScaledAsset(gift.asset, side: 170),
+          child: GiftImage(gift.key, side: 170),
         ),
       ),
     );
@@ -731,7 +702,7 @@ class _TapStage extends StatelessWidget {
           scale: done ? 1.2 : 0.97 + idle.value * 0.06,
           child: child,
         ),
-        child: ScaledAsset(gift.asset, side: 170),
+        child: GiftImage(gift.key, side: 170),
       ),
     );
   }
@@ -781,7 +752,7 @@ class _DoubleTapStageState extends State<_DoubleTapStage> {
               : (_nudge ? 1.08 : 0.97 + widget.idle.value * 0.06),
           child: child,
         ),
-        child: ScaledAsset(widget.gift.asset, side: 170),
+        child: GiftImage(widget.gift.key, side: 170),
       ),
     );
   }

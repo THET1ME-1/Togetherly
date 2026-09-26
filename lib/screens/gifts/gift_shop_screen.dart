@@ -14,6 +14,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/profile_theme.dart';
 import '../../widgets/app_sheet.dart';
 import '../../widgets/common/scaled_asset.dart';
+import '../../widgets/common/gift_image.dart';
 
 /// Витрина подарков: выбрал — списались монеты, партнёру улетел значок.
 ///
@@ -248,7 +249,7 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
                         shape: BoxShape.circle,
                       ),
                       padding: const EdgeInsets.all(8),
-                      child: Image.asset(gift.asset),
+                      child: GiftImage(gift.key, side: 36),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -453,7 +454,7 @@ class _PaySheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final s = LocaleService.current;
-    final canPay = coins >= gift.price;
+    final canPay = coins >= gift.currentPrice;
     final adFirst = adAllowed && !canPay;
     const minSize = Size.fromHeight(56);
 
@@ -465,7 +466,7 @@ class _PaySheet extends StatelessWidget {
         ScaledAsset('assets/images/icons/coin.webp', side: 18),
         const SizedBox(width: 4),
         Text(
-          '${gift.price}',
+          '${gift.currentPrice}',
           style: const TextStyle(
             fontWeight: FontWeight.w800,
             fontFeatures: [FontFeature.tabularFigures()],
@@ -522,7 +523,7 @@ class _PaySheet extends StatelessWidget {
                 color: cs.primaryContainer,
                 shape: BoxShape.circle,
               ),
-              child: ScaledAsset(gift.asset, side: 84),
+              child: GiftImage(gift.key, side: 84),
             ),
           ),
           const SizedBox(height: 14),
@@ -719,7 +720,7 @@ class _ShelfGrid extends StatelessWidget {
         return _GiftCard(
           gift: gift,
           petals: _petalCycle[i % _petalCycle.length],
-          affordable: coins >= gift.price,
+          affordable: coins >= gift.currentPrice,
           busy: sending == gift.key,
           reduce: reduce,
           onSend: () => onSend(gift),
@@ -844,7 +845,7 @@ class _GiftCardState extends State<_GiftCard> with TickerProviderStateMixin {
                 alignment: Alignment.center,
                 children: [
                   _GiftMark(
-                    asset: gift.asset,
+                    giftKey: gift.key,
                     discColor: discBg,
                     petals: widget.petals,
                     special: _isSpecial(gift),
@@ -883,7 +884,7 @@ class _GiftCardState extends State<_GiftCard> with TickerProviderStateMixin {
                 ScaledAsset('assets/images/icons/coin.webp', side: 14),
                 const SizedBox(width: 4),
                 Text(
-                  '${gift.price}',
+                  '${gift.currentPrice}',
                   style: TextStyle(
                     fontFamily: 'Onest',
                     color: affordable ? cs.primary : cs.onSurfaceVariant,
@@ -930,7 +931,7 @@ class _GiftCardState extends State<_GiftCard> with TickerProviderStateMixin {
 // ── Значок подарка на форме (круг/скалоп с морфингом и свечением) ────────────
 class _GiftMark extends StatelessWidget {
   const _GiftMark({
-    required this.asset,
+    required this.giftKey,
     required this.discColor,
     required this.petals,
     required this.special,
@@ -939,7 +940,7 @@ class _GiftMark extends StatelessWidget {
     required this.breathe,
   });
 
-  final String asset;
+  final String giftKey;
   final Color discColor;
   final int petals;
   final bool special;
@@ -988,7 +989,7 @@ class _GiftMark extends StatelessWidget {
               child: Center(
                 child: Opacity(
                   opacity: affordable ? 1 : 0.45,
-                  child: ScaledAsset(asset, side: 56),
+                  child: GiftImage(giftKey, side: 56),
                 ),
               ),
             ),
