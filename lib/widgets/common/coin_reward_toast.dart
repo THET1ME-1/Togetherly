@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../services/locale_service.dart';
 import '../../theme/profile_theme.dart';
+import 'coin_image.dart';
 
 /// Плашка «монеты начислены».
 ///
@@ -230,12 +231,7 @@ class _CoinToastWidgetState extends State<_CoinToastWidget>
                     // нет: круг в круге давал ощущение, что иконку забыли
                     // обрезать. У файла широкие прозрачные поля — заметная
                     // часть размера уходит в них, отсюда 44 px вместо 24.
-                    child: Image.asset(
-                      'assets/images/icons/coin.webp',
-                      width: 44,
-                      height: 44,
-                      filterQuality: FilterQuality.medium,
-                    ),
+                    child: const CoinImage(side: 44, animated: true),
                   ),
                   const SizedBox(width: 12),
                   // Текст гаснет раньше, чем стянется ширина: иначе буквы

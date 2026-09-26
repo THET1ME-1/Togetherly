@@ -83,6 +83,7 @@ import 'date_time_picker_screen.dart';
 import '../widgets/common/redeem_code_sheet.dart';
 import '../widgets/common/scaled_asset.dart';
 import '../widgets/common/badge_image.dart';
+import '../widgets/common/coin_image.dart';
 
 /// Entry for a partner across all connections
 class _PartnerEntry {
@@ -4352,7 +4353,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              ScaledAsset('assets/images/icons/coin.webp', side: 34),
+              const CoinImage(side: 34, animated: true),
               const SizedBox(width: 10),
               Text(
                 '${widget.userData.coins}',

@@ -111,11 +111,13 @@ def exists(item_id: str, token: str) -> bool:
 def upload_gift(folder: Path, token: str) -> None:
     spec = json.loads((folder / "gift.json").read_text(encoding="utf-8"))
     key = spec["key"]
-    item_id = "gift_" + slug(key)
+    # «art» — картинка интерфейса (монета TY), живёт так же, как подарок.
+    kind = spec.get("kind", "gift")
+    item_id = f"{kind}_" + slug(key)
     missing = [f for f in FILES if not (folder / f).exists()]
     if missing:
         sys.exit(f"{key}: нет файлов {', '.join(missing)}")
-    fields = {"kind": "gift", "name_ru": key, "name_en": key, "is_free": "false", "price": str(int(spec.get("price", 0))),
+    fields = {"kind": kind, "name_ru": key, "name_en": key, "is_free": "false", "price": str(int(spec.get("price", 0))),
               "min_app": "", "sort": str(int(spec.get("sort", 500))), "enabled": "true", "data": "{}"}
     files = [("files", folder / f) for f in FILES]
     url = f"{PB}/api/collections/catalog_items/records/{item_id}"
@@ -137,7 +139,7 @@ def upload_gift(folder: Path, token: str) -> None:
             for name, stored_name in zip(FILES, stored)}
     body, ctype = multipart({"data": json.dumps({"key": key, **urls}, ensure_ascii=False)}, [])
     send("PATCH", url, token, body, ctype)
-    print(f"подарок {key}: {action} ({item_id})")
+    print(f"{'подарок' if kind == 'gift' else 'картинка'} {key}: {action} ({item_id})")
 
 
 def upload(folder: Path, token: str) -> None:
@@ -198,7 +200,7 @@ def upload(folder: Path, token: str) -> None:
 
 
 def disable(key_or_slug: str, token: str) -> None:
-    item_id = key_or_slug if key_or_slug.startswith(("badge_", "gift_")) else "badge_" + slug(key_or_slug)
+    item_id = key_or_slug if key_or_slug.startswith(("badge_", "gift_", "art_")) else "badge_" + slug(key_or_slug)
     body, ctype = multipart({"enabled": "false"}, [])
     send("PATCH", f"{PB}/api/collections/catalog_items/records/{item_id}", token, body, ctype)
     print(f"{item_id}: снят с витрины (у купивших остаётся)")

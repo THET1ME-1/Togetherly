@@ -193,7 +193,7 @@ class CatalogService extends ChangeNotifier {
         badgeRows.add(row);
         continue;
       }
-      if (row['kind'] == 'gift') {
+      if (row['kind'] == 'gift' || row['kind'] == 'art') {
         final art = GiftArt.fromCatalog(row);
         if (art != null) giftArt[art.key] = art;
         continue;

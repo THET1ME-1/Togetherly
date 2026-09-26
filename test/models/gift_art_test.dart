@@ -23,6 +23,12 @@ void main() {
     expect(a.urlFor(170, animated: false), 'https://x/still.png');
   });
 
+  test('картинка интерфейса вида art (монета) разбирается так же', () {
+    final a = GiftArt.fromCatalog(row(kind: 'art', data: {'key': 'coin', 'sm': 'https://x/c.webp'}))!;
+    expect(a.key, 'coin');
+    expect(a.urlFor(44), 'https://x/c.webp');
+  });
+
   test('чужой вид, выключенная запись, пустой ключ, нет картинок — null', () {
     expect(GiftArt.fromCatalog(row(kind: 'badge')), isNull);
     expect(GiftArt.fromCatalog(row(enabled: false)), isNull);

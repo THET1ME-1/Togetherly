@@ -1,4 +1,6 @@
 /// Картинки подарка из серверного каталога (`catalog_items`, вид `gift`).
+/// Тем же видом записи живут и отдельные картинки интерфейса (`art`), например
+/// монета TY: ключ `coin`.
 ///
 /// Цена, действие и тексты подарка живут в [Gift]; сервер отдаёт только
 /// рисунок: анимацию двух размеров и неподвижный кадр. Поэтому перерисованный
@@ -24,7 +26,8 @@ class GiftArt {
   /// Строка каталога → картинки. Чужой вид, выключенная запись, пустой ключ
   /// или ни одной ссылки — null: кривая запись не должна ломать магазин.
   static GiftArt? fromCatalog(Map<String, dynamic> row) {
-    if (row['kind'] != 'gift' || row['enabled'] == false) return null;
+    final kind = row['kind'];
+    if ((kind != 'gift' && kind != 'art') || row['enabled'] == false) return null;
     final data = row['data'];
     if (data is! Map) return null;
     final key = '${data['key'] ?? ''}'.trim();
