@@ -12,6 +12,7 @@ import '../../services/pocketbase_service.dart';
 import '../../services/rewarded_ad_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/profile_theme.dart';
+import '../../widgets/app_sheet.dart';
 import '../../widgets/common/scaled_asset.dart';
 
 /// Витрина подарков: выбрал — списались монеты, партнёру улетел значок.
@@ -122,14 +123,15 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
   /// рекламой. С Плюсом вместо рекламы «бесплатно».
   Future<void> _choose(Gift gift) async {
     if (_sending != null) return;
-    final byAd = await showModalBottomSheet<bool>(
-      context: context,
-      showDragHandle: true,
-      builder: (_) => _PaySheet(
-        gift: gift,
-        coins: _coins,
-        adAllowed: gift.giftableByAd,
-        plus: PlusService.instance.active,
+    final byAd = await showAppSheet<bool>(
+      context,
+      builder: (_) => SheetScaffold(
+        child: _PaySheet(
+          gift: gift,
+          coins: _coins,
+          adAllowed: gift.giftableByAd,
+          plus: PlusService.instance.active,
+        ),
       ),
     );
     if (byAd == null || !mounted) return;
@@ -430,6 +432,10 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
 // ── Выбор оплаты ─────────────────────────────────────────────────────────────
 /// Лист выбора: подарить за монеты или за рекламу. Возвращает `false` — монеты,
 /// `true` — реклама (с Плюсом — бесплатно), `null` — передумал.
+///
+/// Главное действие залито, второе с обводкой: хватает монет — главное
+/// «За монеты», не хватает — «За рекламу», и оно встаёт первым. Две залитые
+/// кнопки подряд в светлой теме сливались в одну.
 class _PaySheet extends StatelessWidget {
   const _PaySheet({
     required this.gift,
@@ -448,90 +454,110 @@ class _PaySheet extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final s = LocaleService.current;
     final canPay = coins >= gift.price;
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 96,
-              height: 96,
+    final adFirst = adAllowed && !canPay;
+    const minSize = Size.fromHeight(56);
+
+    final coinLabel = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(child: Text(s.giftForCoins, textAlign: TextAlign.center)),
+        const SizedBox(width: 10),
+        ScaledAsset('assets/images/icons/coin.webp', side: 18),
+        const SizedBox(width: 4),
+        Text(
+          '${gift.price}',
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            fontFeatures: [FontFeature.tabularFigures()],
+          ),
+        ),
+      ],
+    );
+    final coinButton = canPay
+        ? FilledButton(
+            onPressed: () => Navigator.pop(context, false),
+            style: FilledButton.styleFrom(minimumSize: minSize),
+            child: coinLabel,
+          )
+        : OutlinedButton(
+            onPressed: null,
+            style: OutlinedButton.styleFrom(minimumSize: minSize),
+            child: coinLabel,
+          );
+
+    final adIcon = Icon(plus ? Icons.card_giftcard_rounded : Icons.play_circle_rounded);
+    final adText = Text(plus ? s.giftForFree : s.giftForAd, textAlign: TextAlign.center);
+    void onAd() => Navigator.pop(context, true);
+    final adButton = adFirst
+        ? FilledButton.icon(
+            onPressed: onAd,
+            style: FilledButton.styleFrom(minimumSize: minSize),
+            icon: adIcon,
+            label: adText,
+          )
+        : OutlinedButton.icon(
+            onPressed: onAd,
+            style: OutlinedButton.styleFrom(minimumSize: minSize),
+            icon: adIcon,
+            label: adText,
+          );
+
+    final notes = [
+      if (!canPay) s.giftNotEnoughCoins,
+      if (adAllowed && !plus) s.giftAdHint,
+    ];
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 4, 24, 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: Container(
+              width: 112,
+              height: 112,
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: cs.primaryContainer,
                 shape: BoxShape.circle,
               ),
-              child: ScaledAsset(gift.asset, side: 64),
+              child: ScaledAsset(gift.asset, side: 84),
             ),
-            const SizedBox(height: 12),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            gift.title,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'Unbounded',
+              fontWeight: FontWeight.w700,
+              fontVariations: const [FontVariation('wght', 700)],
+              fontSize: 20,
+              letterSpacing: -0.3,
+              color: cs.onSurface,
+            ),
+          ),
+          const SizedBox(height: 22),
+          if (adFirst) ...[adButton, const SizedBox(height: 10), coinButton]
+          else ...[
+            coinButton,
+            if (adAllowed) ...[const SizedBox(height: 10), adButton],
+          ],
+          if (notes.isNotEmpty) ...[
+            const SizedBox(height: 14),
             Text(
-              gift.title,
+              notes.join('. '),
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontFamily: 'Unbounded',
-                fontWeight: FontWeight.w700,
-                fontVariations: const [FontVariation('wght', 700)],
-                fontSize: 20,
-                color: cs.onSurface,
+                fontFamily: 'Onest',
+                color: cs.onSurfaceVariant,
+                fontSize: 13,
+                height: 1.35,
               ),
             ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: canPay ? () => Navigator.pop(context, false) : null,
-                style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(52)),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        canPay ? s.giftForCoins : s.giftNotEnoughCoins,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    ScaledAsset('assets/images/icons/coin.webp', side: 18),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${gift.price}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontFeatures: [FontFeature.tabularFigures()],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            if (adAllowed) ...[
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.tonalIcon(
-                  onPressed: () => Navigator.pop(context, true),
-                  style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(52)),
-                  icon: Icon(plus
-                      ? Icons.card_giftcard_rounded
-                      : Icons.play_circle_rounded),
-                  label: Text(
-                    plus ? s.giftForFree : s.giftForAd,
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                s.giftAdHint,
-                textAlign: TextAlign.center,
-                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
-              ),
-            ],
           ],
-        ),
+        ],
       ),
     );
   }
