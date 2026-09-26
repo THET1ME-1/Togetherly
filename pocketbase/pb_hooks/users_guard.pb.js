@@ -40,6 +40,9 @@ onRecordUpdateRequest((e) => {
       // владельца писать в свою запись любое поле. Место покупки и дата выдачи
       // ежемесячных монет закрыты по той же причине.
       "plus", "plus_platform", "last_plus_grant_ms",
+      // Пробы платного за рекламу и счётчик просмотров ведёт /api/coins/ad-grant.
+      // Открой их клиенту — и тема «на неделю» выдаётся себе одним PATCH.
+      "ad_grants", "ad_views_date", "ad_views_today",
     ];
     // Источник истины — ТЕЛО запроса (как в create-guard ниже). Прежнее
     // сравнение orig.get(f) vs e.record.get(f) давало ЛОЖНЫЙ 403: в PB JSVM
@@ -61,6 +64,13 @@ onRecordUpdateRequest((e) => {
       if (!empty) {
         throw new ForbiddenError("read-only economy field");
       }
+    }
+    // Счётчики рекламы пустым значением не обходятся: ноль или пустая дата
+    // обнуляют суточный потолок, и ролики начинают платить без конца. Клиент
+    // эти поля только читает, поэтому любое их появление в теле — отказ.
+    const STRICT = ["ad_rewards_date", "ad_rewards_today", "ad_views_date", "ad_views_today", "ad_grants"];
+    for (let i = 0; i < STRICT.length; i++) {
+      if (STRICT[i] in body) throw new ForbiddenError("read-only economy field");
     }
   }
 
@@ -167,6 +177,9 @@ onRecordCreateRequest((e) => {
       // владельца писать в свою запись любое поле. Место покупки и дата выдачи
       // ежемесячных монет закрыты по той же причине.
       "plus", "plus_platform", "last_plus_grant_ms",
+      // Пробы платного за рекламу и счётчик просмотров ведёт /api/coins/ad-grant.
+      // Открой их клиенту — и тема «на неделю» выдаётся себе одним PATCH.
+      "ad_grants", "ad_views_date", "ad_views_today",
     ];
     // Проверяем ТОЛЬКО реально присланные клиентом поля, а не дефолты записи:
     // e.record.get() для json-полей экономики (owned_*/granted_badges/

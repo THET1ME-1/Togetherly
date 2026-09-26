@@ -32,6 +32,20 @@ routerAdd("GET", "/api/couple/stats", (e) => {
 
   const g = JSON.stringify(groupId);
 
+  // Чат и настроения живут в hotpath (Postgres) с 14.08.2026 — SQLite их не
+  // видит. Их агрегаты приезжают одним запросом; при недоступности hotpath
+  // раздел покажет нули, а не сломается.
+  let hp = {};
+  try {
+    const hpRes = $http.send({
+      url: "http://127.0.0.1:8120/internal/couple-agg?group_id=" + encodeURIComponent(groupId),
+      timeout: 5,
+    });
+    hp = (hpRes && hpRes.json) || {};
+  } catch (_) { hp = {}; }
+  const hpNum = (k) => (typeof hp[k] === "number" ? hp[k] : 0);
+  const hpArr = (k) => (Array.isArray(hp[k]) ? hp[k] : []);
+
   const one = (sql) => {
     try {
       const m = new DynamicModel({ n: 0 });
@@ -83,13 +97,22 @@ routerAdd("GET", "/api/couple/stats", (e) => {
   // ── Итоги ─────────────────────────────────────────────────────────────────
   const VIDEO = "(file LIKE '%.mp4' OR file LIKE '%.mov' OR file LIKE '%.webm' OR file LIKE '%.m4v' OR file LIKE '%.3gp' OR file LIKE '%.avi' OR file LIKE '%.mkv')";
   out.totals = {
-    memories: one("SELECT COUNT(*) AS n FROM memories WHERE group_id = " + g + " AND deleted = false"),
+    memories: hpNum("memories_total"),  // memories в hotpath (Postgres) с 14.08
     comments: one("SELECT COUNT(*) AS n FROM memory_comments WHERE group_id = " + g),
-    messages: one("SELECT COUNT(*) AS n FROM chat_messages WHERE group_id = " + g + " AND deleted = false"),
-    moods: one("SELECT COUNT(*) AS n FROM mood_entries WHERE group_id = " + g),
+    messages: hpNum("messages"),
+    moods: hpNum("moods"),
     missYou: one("SELECT COALESCE(SUM(count),0) AS n FROM miss_you WHERE group_id = " + g),
-    strokes: one("SELECT COUNT(*) AS n FROM canvas_strokes WHERE group_id = " + g + " AND deleted = false"),
-    canvases: one("SELECT COUNT(DISTINCT canvas_id) AS n FROM canvas_meta WHERE group_id = " + g),
+    // canvas_strokes живут в hotpath (Postgres) с 14.08.2026 — SQLite их не видит.
+    strokes: (() => {
+      try {
+        const r = $http.send({
+          url: "http://127.0.0.1:8120/internal/count?col=canvas_strokes&group_id=" + encodeURIComponent(groupId),
+          timeout: 3,
+        });
+        return (r.json && r.json.n) || 0;
+      } catch (_) { return 0; }
+    })(),
+    canvases: hpNum("canvases"),  // canvas_meta в hotpath (Postgres) с 14.08
     gifts: one("SELECT COUNT(*) AS n FROM gifts WHERE group_id = " + g),
     watch: one("SELECT COUNT(*) AS n FROM watch_history WHERE group_id = " + g),
     media: one("SELECT COUNT(*) AS n FROM media WHERE group_id = " + g),
@@ -102,18 +125,9 @@ routerAdd("GET", "/api/couple/stats", (e) => {
   // Раздельный счёт по участникам: сравнение «я и партнёр» — половина смысла
   // этого экрана, а по общей сумме его не восстановить.
   out.byMember = {
-    memories: rows(
-      "SELECT author_uid AS uid, COUNT(*) AS c FROM memories WHERE group_id = " + g +
-      " AND deleted = false GROUP BY uid", { uid: "", c: 0 },
-    ).map((r) => ({ uid: r.uid, c: r.c })),
-    messages: rows(
-      "SELECT user_uid AS uid, COUNT(*) AS c FROM chat_messages WHERE group_id = " + g +
-      " AND deleted = false GROUP BY uid", { uid: "", c: 0 },
-    ).map((r) => ({ uid: r.uid, c: r.c })),
-    moods: rows(
-      "SELECT user_uid AS uid, COUNT(*) AS c FROM mood_entries WHERE group_id = " + g +
-      " GROUP BY uid", { uid: "", c: 0 },
-    ).map((r) => ({ uid: r.uid, c: r.c })),
+    memories: hpArr("by_member_memories"),
+    messages: hpArr("by_member_messages"),
+    moods: hpArr("by_member_moods"),
     missYou: rows(
       "SELECT user_uid AS uid, COALESCE(SUM(count),0) AS c FROM miss_you WHERE group_id = " + g +
       " GROUP BY uid", { uid: "", c: 0 },
@@ -128,41 +142,17 @@ routerAdd("GET", "/api/couple/stats", (e) => {
   // Три ряда на одной шкале времени: чем пара занималась и как это менялось.
   const monthsBack = "datetime('now','-12 months')";
   out.timeline = {
-    memories: rows(
-      "SELECT substr(created_at,1,7) AS m, COUNT(*) AS c FROM memories WHERE group_id = " + g +
-      " AND deleted = false AND created_at >= " + monthsBack + " GROUP BY m ORDER BY m",
-      { m: "", c: 0 },
-    ).map((r) => ({ m: r.m, c: r.c })),
-    messages: rows(
-      "SELECT strftime('%Y-%m', ts/1000, 'unixepoch') AS m, COUNT(*) AS c FROM chat_messages" +
-      " WHERE group_id = " + g + " AND deleted = false AND ts >= (strftime('%s','now')-31536000)*1000" +
-      " GROUP BY m ORDER BY m", { m: "", c: 0 },
-    ).map((r) => ({ m: r.m, c: r.c })),
-    moods: rows(
-      "SELECT substr(" + moodLocal + ",1,7) AS m, COUNT(*) AS c FROM mood_entries" +
-      " WHERE group_id = " + g + " AND timestamp >= " + monthsBack +
-      " GROUP BY m ORDER BY m", { m: "", c: 0 },
-    ).map((r) => ({ m: r.m, c: r.c })),
+    memories: hpArr("timeline_memories"),
+    messages: hpArr("timeline_messages"),
+    moods: hpArr("timeline_moods"),
   };
 
   // ── Ритм недели и суток ───────────────────────────────────────────────────
   // strftime('%w') отдаёт 0 = воскресенье; клиент разворачивает под свою неделю.
   out.rhythm = {
-    weekdayMessages: rows(
-      "SELECT CAST(strftime('%w', ts/1000, 'unixepoch') AS INTEGER) AS d, COUNT(*) AS c" +
-      " FROM chat_messages WHERE group_id = " + g + " AND deleted = false GROUP BY d",
-      { d: 0, c: 0 },
-    ).map((r) => ({ d: r.d, c: r.c })),
-    hourMessages: rows(
-      "SELECT CAST(strftime('%H', ts/1000, 'unixepoch') AS INTEGER) AS h, COUNT(*) AS c" +
-      " FROM chat_messages WHERE group_id = " + g + " AND deleted = false GROUP BY h",
-      { h: 0, c: 0 },
-    ).map((r) => ({ h: r.h, c: r.c })),
-    weekdayMemories: rows(
-      "SELECT CAST(strftime('%w', created_at) AS INTEGER) AS d, COUNT(*) AS c" +
-      " FROM memories WHERE group_id = " + g + " AND deleted = false GROUP BY d",
-      { d: 0, c: 0 },
-    ).map((r) => ({ d: r.d, c: r.c })),
+    weekdayMessages: hpArr("weekday_messages"),
+    hourMessages: hpArr("hour_messages"),
+    weekdayMemories: hpArr("weekday_memories"),
   };
 
   // ── Настроение ────────────────────────────────────────────────────────────
@@ -170,25 +160,13 @@ routerAdd("GET", "/api/couple/stats", (e) => {
   // mood_id — переводить его в баллы на сервере значило бы держать вторую
   // копию каталога и расходиться с достижениями.
   out.mood = {
-    daily: rows(
-      "SELECT substr(" + moodLocal + ",1,10) AS d, user_uid AS uid, mood_id AS id," +
-      " COUNT(*) AS c FROM mood_entries WHERE group_id = " + g +
-      " AND timestamp >= datetime('now','-90 days') GROUP BY d, uid, id ORDER BY d",
-      { d: "", uid: "", id: "", c: 0 },
-    ).map((r) => ({ d: r.d, uid: r.uid, id: r.id, c: r.c })),
-    top: rows(
-      "SELECT mood_id AS id, user_uid AS uid, COUNT(*) AS c FROM mood_entries" +
-      " WHERE group_id = " + g + " GROUP BY id, uid ORDER BY c DESC LIMIT 24",
-      { id: "", uid: "", c: 0 },
-    ).map((r) => ({ id: r.id, uid: r.uid, c: r.c })),
+    daily: hpArr("mood_daily"),
+    top: hpArr("mood_top"),
   };
 
   // ── Что ещё делали ────────────────────────────────────────────────────────
   out.breakdown = {
-    memoryTypes: rows(
-      "SELECT COALESCE(type,'') AS k, COUNT(*) AS c FROM memories WHERE group_id = " + g +
-      " AND deleted = false GROUP BY k ORDER BY c DESC", { k: "", c: 0 },
-    ).map((r) => ({ k: r.k, c: r.c })),
+    memoryTypes: hpArr("memory_types"),
     gifts: rows(
       "SELECT gift_key AS k, COUNT(*) AS c FROM gifts WHERE group_id = " + g +
       " GROUP BY k ORDER BY c DESC LIMIT 10", { k: "", c: 0 },
@@ -208,27 +186,13 @@ routerAdd("GET", "/api/couple/stats", (e) => {
   // которая только начала, врало бы вдвое.
   const since = (days) => "(strftime('%s','now')-" + (days * 86400) + ")";
   out.pace = {
-    memories30: one("SELECT COUNT(*) AS n FROM memories WHERE group_id = " + g +
-      " AND deleted = false AND created_at >= datetime('now','-30 days')"),
-    memories90: one("SELECT COUNT(*) AS n FROM memories WHERE group_id = " + g +
-      " AND deleted = false AND created_at >= datetime('now','-90 days')"),
-    messages30: one("SELECT COUNT(*) AS n FROM chat_messages WHERE group_id = " + g +
-      " AND deleted = false AND ts >= " + since(30) + "*1000"),
-    messages90: one("SELECT COUNT(*) AS n FROM chat_messages WHERE group_id = " + g +
-      " AND deleted = false AND ts >= " + since(90) + "*1000"),
-    moods30: one("SELECT COUNT(*) AS n FROM mood_entries WHERE group_id = " + g +
-      " AND timestamp >= datetime('now','-30 days')"),
-    activeDays30: one("SELECT COUNT(DISTINCT d) AS n FROM (" +
-      " SELECT date(ts/1000,'unixepoch') AS d FROM chat_messages WHERE group_id = " + g +
-      " AND deleted = false AND ts >= " + since(30) + "*1000" +
-      " UNION SELECT substr(" + moodLocal + ",1,10) FROM mood_entries WHERE group_id = " + g +
-      " AND timestamp >= datetime('now','-30 days')" +
-      " UNION SELECT substr(created_at,1,10) FROM memories WHERE group_id = " + g +
-      " AND deleted = false AND created_at >= datetime('now','-30 days'))"),
-    firstMemory: rows(
-      "SELECT MIN(created_at) AS d FROM memories WHERE group_id = " + g + " AND deleted = false",
-      { d: "" },
-    ).map((r) => r.d)[0] || "",
+    memories30: hpNum("memories30"),
+    memories90: hpNum("memories90"),
+    messages30: hpNum("messages30"),
+    messages90: hpNum("messages90"),
+    moods30: hpNum("moods30"),
+    activeDays30: hpNum("active_days30_count"),
+    firstMemory: String(hp["first_memory"] || ""),
   };
 
   return e.json(200, out);

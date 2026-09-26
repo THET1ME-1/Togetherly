@@ -96,6 +96,44 @@ routerAdd("POST", "/api/lava/webhook", (e) => {
     return "";
   };
 
+  // --- Fern: другое приложение, другие аккаунты, другая обработка ---
+  // Подписка Fern живёт в `fern_users`, и событий у неё больше, чем у разовой
+  // покупки: продление, отмена, возврат. Разбирать их здесь значит смешать два
+  // приложения в одном файле, поэтому уведомление уходит целиком в
+  // `fern.pb.js` и Togetherly к нему больше не возвращается.
+  const FERN_IDS = [$os.getenv("FERN_OFFER_MONTH"), $os.getenv("FERN_OFFER_YEAR"),
+                    $os.getenv("FERN_SKU")]
+    .map((s) => String(s || "").trim().toLowerCase())
+    .filter((s) => s !== "");
+  let ферн = false;
+  for (const key in flat) {
+    if (FERN_IDS.indexOf(String(flat[key]).trim().toLowerCase()) !== -1) {
+      ферн = true;
+      break;
+    }
+  }
+  if (ферн) {
+    try {
+      const r = $http.send({
+        url: "http://127.0.0.1:8090/api/fern/lava",
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Api-Key": secret,
+          "Authorization": auth,
+        },
+        body: JSON.stringify(payload),
+        timeout: 20,
+      });
+      return e.json(200, { ok: true, forwarded: "fern", code: r.statusCode });
+    } catch (err) {
+      // Ронять ответ нельзя: lava повторяет доставку, но человек уже заплатил.
+      // Пусть сбой будет виден в журнале, а не в пустом ответе.
+      console.log("[lava] переслать в Fern не вышло: " + err);
+      return e.json(500, { ok: false, error: "fern_unreachable" });
+    }
+  }
+
   const status = (pick(["status", "eventtype", "event", "state", "type"]) || "")
     .toLowerCase();
   const paid = status.indexOf("success") !== -1 ||
