@@ -276,8 +276,28 @@ class GiftCatalog {
         carriesNote: true, keepsForever: true),
   ];
 
+  /// Подарки сундука недели. В витрине их нет, купить или подарить их
+  /// нельзя: они только выпадают из сундука и ложатся на полку. Сервер их
+  /// ключей в прайсе `gifts.pb.js` не знает, а разыгрывает `chest.pb.js`.
+  static const List<Gift> chest = [
+    Gift(key: 'cookieheart', price: 0, engine: GiftEngine.response, titleRu: 'Печенье-сердечко', titleEn: 'Heart cookie'),
+    Gift(key: 'teddy', price: 0, engine: GiftEngine.response, titleRu: 'Мишка', titleEn: 'Teddy bear'),
+    Gift(key: 'potion', price: 0, engine: GiftEngine.response, titleRu: 'Любовное зелье', titleEn: 'Love potion'),
+    Gift(key: 'throne', price: 0, engine: GiftEngine.response, titleRu: 'Царский трон', titleEn: 'Royal throne'),
+    Gift(key: 'champagne', price: 0, engine: GiftEngine.response, titleRu: 'Шампанское', titleEn: 'Champagne'),
+    Gift(key: 'snowglobe', price: 0, engine: GiftEngine.response, titleRu: 'Снежный шар', titleEn: 'Snow globe'),
+    Gift(key: 'rose', price: 0, engine: GiftEngine.response, titleRu: 'Вечная роза', titleEn: 'Eternal rose'),
+    Gift(key: 'perfume', price: 0, engine: GiftEngine.response, titleRu: 'Духи', titleEn: 'Perfume'),
+    Gift(key: 'record', price: 0, engine: GiftEngine.response, titleRu: 'Пластинка', titleEn: 'Record'),
+    Gift(key: 'locket', price: 0, engine: GiftEngine.response, titleRu: 'Медальон', titleEn: 'Locket'),
+    Gift(key: 'rings', price: 0, engine: GiftEngine.response, titleRu: 'Парные кольца', titleEn: 'Matching rings'),
+  ];
+
   static Gift? byKey(String key) {
     for (final g in all) {
+      if (g.key == key) return g;
+    }
+    for (final g in chest) {
       if (g.key == key) return g;
     }
     return null;

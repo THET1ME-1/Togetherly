@@ -94,6 +94,8 @@ class _MemoList extends StatelessWidget {
         return _tr('от партнёра', 'from your partner');
       case GiftSender.unknown:
         return _tr('от партнёра', 'from your partner');
+      case GiftSender.chest:
+        return _tr('из сундука', 'from the chest');
     }
   }
 

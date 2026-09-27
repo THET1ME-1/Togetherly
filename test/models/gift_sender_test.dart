@@ -57,4 +57,11 @@ void main() {
       GiftSender.unknown,
     );
   });
+
+  test('подарок из сундука подписан сундуком, а не партнёром', () {
+    expect(
+      giftSenderOf(senderUid: kChestSenderUid, myUid: me, shelfOwnerUid: me),
+      GiftSender.chest,
+    );
+  });
 }

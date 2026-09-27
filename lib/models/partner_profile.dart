@@ -201,7 +201,13 @@ enum GiftSender {
 
   /// Понять нельзя — подписываем обезличенно.
   unknown,
+
+  /// Выпал из сундука недели: отправитель записи — `chest`.
+  chest,
 }
+
+/// Отправитель подарков из сундука (`chest.pb.js`).
+const String kChestSenderUid = 'chest';
 
 /// Кем подписать подарок на полке.
 ///
@@ -217,6 +223,7 @@ GiftSender giftSenderOf({
   String shelfOwnerUid = '',
 }) {
   if (senderUid.isEmpty) return GiftSender.unknown;
+  if (senderUid == kChestSenderUid) return GiftSender.chest;
   if (myUid.isNotEmpty) {
     return senderUid == myUid ? GiftSender.me : GiftSender.counterpart;
   }

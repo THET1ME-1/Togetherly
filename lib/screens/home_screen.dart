@@ -48,6 +48,7 @@ import '../services/catalog_service.dart';
 import '../widgets/mascot/pixel_mascot_view.dart';
 import '../widgets/home/quiet_partner_card.dart';
 import '../widgets/home/daily_tasks_card.dart';
+import '../widgets/chest/chest_home_card.dart';
 import '../widgets/home/wishes_card.dart';
 import '../services/shared_link_service.dart';
 import 'wishes_screen.dart';
@@ -1831,6 +1832,20 @@ class _HomeScreenState extends State<HomeScreen> {
                         : const SizedBox.shrink(),
                   ),
                 ),
+                // Сундук недели сразу под таймером (макет «Сундук недели»).
+                // Только в паре: подарок из сундука ложится на полку пары, а
+                // без группы серверу некуда его положить.
+                if (_pairData.isPaired) ...[
+                  const SizedBox(height: 8),
+                  AnimatedSlideIn(
+                    delay: const Duration(milliseconds: 140),
+                    child: ChestHomeCard(
+                      theme: _t,
+                      groupId: _pairData.pairId,
+                      onCoins: widget.userData.applyServerCoins,
+                    ),
+                  ),
+                ],
                 // Слот подсказки один на оба состояния: без пары тут стоит
                 // список первых действий (раньше — карточка «подключите
                 // партнёра»), с парой — либо строка прогресса, либо напоминание

@@ -2428,6 +2428,68 @@
       "createRule": null,
       "updateRule": null,
       "deleteRule": null
+    },
+    {
+      "name": "chest_opens",
+      "type": "base",
+      "fields": [
+        {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "required": true,
+          "system": true,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "min": 1,
+          "max": 50,
+          "autogeneratePattern": ""
+        },
+        {
+          "name": "user_uid",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "group_id",
+          "type": "text",
+          "required": false
+        },
+        {
+          "name": "day",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "prize",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "amount",
+          "type": "number"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "onCreate": true,
+          "onUpdate": false
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "onCreate": true,
+          "onUpdate": true
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX `idx_chest_opens_user_day` ON `chest_opens` (`user_uid`, `day`)",
+        "CREATE INDEX `idx_chest_opens_user_created` ON `chest_opens` (`user_uid`, `created`)"
+      ],
+      "listRule": "@request.auth.id != \"\" && user_uid = @request.auth.id",
+      "viewRule": "@request.auth.id != \"\" && user_uid = @request.auth.id",
+      "createRule": null,
+      "updateRule": null,
+      "deleteRule": null
     }
   ],
   "deleteMissing": false
