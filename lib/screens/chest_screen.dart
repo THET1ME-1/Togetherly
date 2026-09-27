@@ -17,6 +17,7 @@ import '../theme/app_theme.dart';
 import '../theme/profile_theme.dart';
 import '../widgets/chest/chest_frames.dart';
 import '../widgets/chest/chest_prize_image.dart';
+import '../widgets/chest/chest_rays.dart';
 import 'chest_prize_screen.dart';
 
 /// Экран сундука недели по макету «Сундук недели» (26.09.2026): сверху сундук
@@ -373,48 +374,57 @@ class _ChestScreenState extends State<ChestScreen> {
   }
 
   Widget _hero(ColorScheme cs) {
-    return Container(
-      padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(color: cs.surfaceContainerHigh, borderRadius: BorderRadius.circular(32)),
-      child: LayoutBuilder(
-        builder: (context, c) {
-          final side = math.min(300.0, c.maxWidth);
-          final opening = _opening;
-          final spot = opening != null && _frame >= 0 && _frame < kChestPrizeTrack.length
-              ? kChestPrizeTrack[_frame]
-              : null;
-          return Center(
-            child: SizedBox.square(
-              dimension: side,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  if (opening == null)
-                    ChestFrames(key: const ValueKey('idle'), url: _idleUrl, still: kChestStill, side: side)
-                  else
-                    ChestFrames(
-                      key: ValueKey('open$_openRun'),
-                      url: _openUrl,
-                      still: kChestStill,
-                      side: side,
-                      loop: false,
-                      onFrame: _onOpenFrame,
-                      onDone: _onOpenDone,
-                    ),
-                  if (opening != null && spot != null)
-                    Positioned(
-                      left: spot[0] * side,
-                      top: spot[1] * side,
-                      width: spot[2] * side,
-                      height: spot[2] * side,
-                      child: ChestPrizeImage(opening, side: spot[2] * side),
-                    ),
-                ],
-              ),
-            ),
-          );
-        },
+    // Фон блока — светлые лучи (макет «Фон за сундуком»), рисунок поверх.
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(32),
+      child: Stack(
+        children: [
+          Positioned.fill(child: ChestRays(scheme: cs)),
+          Padding(padding: const EdgeInsets.all(6), child: _heroArt()),
+        ],
       ),
+    );
+  }
+
+  Widget _heroArt() {
+    return LayoutBuilder(
+      builder: (context, c) {
+        final side = math.min(300.0, c.maxWidth);
+        final opening = _opening;
+        final spot = opening != null && _frame >= 0 && _frame < kChestPrizeTrack.length
+            ? kChestPrizeTrack[_frame]
+            : null;
+        return Center(
+          child: SizedBox.square(
+            dimension: side,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                if (opening == null)
+                  ChestFrames(key: const ValueKey('idle'), url: _idleUrl, still: kChestStill, side: side)
+                else
+                  ChestFrames(
+                    key: ValueKey('open$_openRun'),
+                    url: _openUrl,
+                    still: kChestStill,
+                    side: side,
+                    loop: false,
+                    onFrame: _onOpenFrame,
+                    onDone: _onOpenDone,
+                  ),
+                if (opening != null && spot != null)
+                  Positioned(
+                    left: spot[0] * side,
+                    top: spot[1] * side,
+                    width: spot[2] * side,
+                    height: spot[2] * side,
+                    child: ChestPrizeImage(opening, side: spot[2] * side),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
