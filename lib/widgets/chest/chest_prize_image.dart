@@ -41,6 +41,7 @@ class ChestPrizeImage extends StatelessWidget {
       case ChestPrizeKind.gift:
         return GiftImage(prize.key, side: side);
       case ChestPrizeKind.plus:
+      case ChestPrizeKind.plusTrial:
         return GiftImage('chest_plus', side: side);
       case ChestPrizeKind.badge:
         return BadgeImage(prize.badge?.id, side: side);

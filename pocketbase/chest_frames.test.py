@@ -128,6 +128,12 @@ def main():
     check("у подарков шанс тот же, что у старой сборки",
           all(old_gifts.get(o["key"]) == o["weight"] for o in odds if o["kind"] == "gift"), str(old_gifts))
 
+    check("у нового человека гарантия через 10 открытий", (new or {}).get("untilRare") == 10, str((new or {}).get("untilRare")))
+    trial = [o for o in odds if o["kind"] == "plus_trial"]
+    check("неделя Плюса в таблице новой сборки, 1%", trial and trial[0]["weight"] == 10, str(trial))
+    st, r = api(f"/api/collections/users/records/{me['uid']}", {"plus_trial_until": 9999999999999}, me["token"], method="PATCH")
+    check("срок недели Плюса с телефона не поставить", st == 403, f"{st}")
+
     log("=== 3. полученная рамка из розыгрыша выпадает ===")
     owned = [f"frame:{f}" for f in frames[:2]]
     sql(f"UPDATE users SET owned_features='{json.dumps(owned)}' WHERE id='{me['uid']}'")

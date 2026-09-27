@@ -52,15 +52,35 @@ class PlusService extends ChangeNotifier {
 
   bool _active = false;
 
+  /// Неделя Togetherly+ из сундука: до этого момента (мс) всё открыто, хотя
+  /// флаг `users.plus` не стоит. Срок пишет только сервер (`chest.pb.js`),
+  /// покупка и вебхуки его не видят — купить навсегда можно и во время недели.
+  int _trialUntilMs = 0;
+  Timer? _trialTimer;
+
+  bool get _trialOn => DateTime.now().millisecondsSinceEpoch < _trialUntilMs;
+
+  /// Открыт ли Плюс прямо сейчас: куплен или идёт неделя из сундука.
+  bool get _open => _active || _trialOn;
+
   /// Чей ответ сервера лежит в [_active]. Пусто — не читали ни разу.
   String _knownUid = '';
 
   /// Где лежит последний известный ответ сервера про этот аккаунт.
   static const String _cacheKey = 'plus_active';
   static const String _cacheUidKey = 'plus_active_uid';
+  static const String _trialKey = 'plus_trial_until';
 
-  /// Куплен ли Togetherly+.
-  bool get active => _active;
+  /// Открыт ли Togetherly+: куплен навсегда или идёт неделя из сундука.
+  bool get active => _open;
+
+  /// Куплен ли навсегда. Неделя из сундука сюда не входит: витрине и
+  /// ежемесячным монетам важна именно покупка.
+  bool get purchased => _active;
+
+  /// До какого момента идёт неделя из сундука; null — не идёт.
+  DateTime? get trialUntil =>
+      _trialOn ? DateTime.fromMillisecondsSinceEpoch(_trialUntilMs) : null;
 
   /// Прочитан ли флаг `users.plus` ЭТОГО аккаунта — с сервера или из локальной
   /// копии.
@@ -127,14 +147,14 @@ class PlusService extends ChangeNotifier {
 
   /// Что рисовать на месте платной вещи: открыто, под замком или не показывать
   /// вовсе. Правило одно на всё приложение — [PlusAccess.gate].
-  PlusGate get gate => PlusAccess.gate(active: _active, exists: exists);
+  PlusGate get gate => PlusAccess.gate(active: _open, exists: exists);
 
   /// Показывать ли платное место в интерфейсе. false — на этой платформе его
   /// не существует, и человек не должен о нём узнать.
   bool get visible => gate != PlusGate.hidden;
 
   /// Открыта ли возможность прямо сейчас.
-  bool allows(PlusFeature feature) => _active;
+  bool allows(PlusFeature feature) => _open;
 
   /// Поднимает последний известный ответ сервера с диска, а если его нет —
   /// ходит на сервер.
@@ -145,8 +165,9 @@ class PlusService extends ChangeNotifier {
     if (known) return;
     // Ответ, оставшийся от прежнего аккаунта, к этому человеку отношения не
     // имеет: пока не прочитали свой, платного не открываем.
-    if (_active) {
+    if (_open) {
       _active = false;
+      _applyTrial(0);
       notifyListeners();
     }
     try {
@@ -156,6 +177,7 @@ class PlusService extends ChangeNotifier {
         if (p.getString(_cacheUidKey) == uid && p.containsKey(_cacheKey)) {
           _knownUid = uid;
           final cached = p.getBool(_cacheKey) ?? false;
+          _applyTrial(p.getInt(_trialKey) ?? 0);
           if (cached != _active) {
             _active = cached;
             notifyListeners();
@@ -193,6 +215,8 @@ class PlusService extends ChangeNotifier {
             .getOne(uid)
             .timeout(const Duration(seconds: 8));
         final fresh = rec.data['plus'];
+        final trial = rec.data['plus_trial_until'];
+        setTrialUntil(trial is num ? trial.toInt() : 0);
         _setActive(fresh == true || fresh == 1);
         return;
       } catch (e) {
@@ -365,6 +389,29 @@ class PlusService extends ChangeNotifier {
     } catch (e) {
       debugPrint('PlusService.redeem failed: $e');
       return false;
+    }
+  }
+
+  /// Срок недели из сундука — из ответа сервера (профиль или открытие сундука).
+  void setTrialUntil(int ms) {
+    final before = _open;
+    _applyTrial(ms);
+    unawaited(() async {
+      try {
+        final p = await SharedPreferences.getInstance();
+        await p.setInt(_trialKey, ms);
+      } catch (_) {}
+    }());
+    if (_open != before) notifyListeners();
+  }
+
+  void _applyTrial(int ms) {
+    _trialUntilMs = ms;
+    _trialTimer?.cancel();
+    final left = ms - DateTime.now().millisecondsSinceEpoch;
+    // Неделя кончилась, пока приложение открыто, — закрываем платное сразу.
+    if (left > 0) {
+      _trialTimer = Timer(Duration(milliseconds: left + 500), notifyListeners);
     }
   }
 

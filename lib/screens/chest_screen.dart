@@ -218,7 +218,9 @@ class _ChestScreenState extends State<ChestScreen> {
         _busy = false;
         if (res.error == 'chest_limit') {
           _pendingOpenId = null;
-          _state = _state == null ? null : ChestState(left: 0, perDay: _perDay, odds: _state!.odds);
+          _state = _state == null
+              ? null
+              : ChestState(left: 0, perDay: _perDay, odds: _state!.odds, untilRare: _state!.untilRare);
         }
       });
       _snack(trKey(res.error == 'chest_limit' ? 'chestLimit' : 'chestFailed'));
@@ -232,6 +234,7 @@ class _ChestScreenState extends State<ChestScreen> {
     // иначе «Надеть» упрётся в «не твоя» до следующей синхронизации.
     if (res.ownedFeatures != null) widget.userData?.applyOwnedFeatures(res.ownedFeatures!);
     if (res.ownedIcons != null) widget.userData?.applyOwnedIcons(res.ownedIcons!);
+    if (res.plusTrialUntil != null) PlusService.instance.setTrialUntil(res.plusTrialUntil!);
     setState(() {
       _opening = res.prize;
       _animating = true;
@@ -241,7 +244,12 @@ class _ChestScreenState extends State<ChestScreen> {
       _choice = null;
       _wearWon = null;
       if (_state != null && res.left != null) {
-        _state = ChestState(left: res.left!, perDay: _perDay, odds: _state!.odds);
+        _state = ChestState(
+          left: res.left!,
+          perDay: _perDay,
+          odds: _state!.odds,
+          untilRare: res.untilRare ?? _state!.untilRare,
+        );
       }
     });
   }
@@ -304,6 +312,7 @@ class _ChestScreenState extends State<ChestScreen> {
     ChestPrizeKind.plus => trKey('chestWonPlus'),
     ChestPrizeKind.frame => trKey('chestFrameTitle').replaceAll('{name}', _frameName(p)),
     ChestPrizeKind.badge => trKey('chestBadgeTitle').replaceAll('{name}', _badgeName(p)),
+    ChestPrizeKind.plusTrial => trKey('chestPlusTrialTitle'),
   };
 
   String _title(ChestPrize p) => switch (p.kind) {
@@ -312,6 +321,7 @@ class _ChestScreenState extends State<ChestScreen> {
     ChestPrizeKind.plus => 'Togetherly+',
     ChestPrizeKind.frame => trKey('chestFrameTitle').replaceAll('{name}', _frameName(p)),
     ChestPrizeKind.badge => trKey('chestBadgeTitle').replaceAll('{name}', _badgeName(p)),
+    ChestPrizeKind.plusTrial => trKey('chestPlusTrialTitle'),
   };
 
   String _subtitle(ChestPrize p) => switch (p.kind) {
@@ -320,6 +330,7 @@ class _ChestScreenState extends State<ChestScreen> {
     ChestPrizeKind.plus => trKey('chestPlusSub'),
     ChestPrizeKind.frame => trKey('chestFrameSub'),
     ChestPrizeKind.badge => trKey('chestBadgeSub'),
+    ChestPrizeKind.plusTrial => trKey('chestPlusTrialSub'),
   };
 
   String _tierName(ChestTier t) => switch (t) {
@@ -370,6 +381,10 @@ class _ChestScreenState extends State<ChestScreen> {
             ),
             const SizedBox(height: 12),
             if (_choice != null) _pick(cs) else if (_wearWon != null) _wear(cs) else _button(cs),
+            if (_choice == null && _state?.untilRare != null) ...[
+              const SizedBox(height: 8),
+              _pity(cs, _state!.untilRare!),
+            ],
             const SizedBox(height: 8),
             Text(
               _choice != null
@@ -523,6 +538,28 @@ class _ChestScreenState extends State<ChestScreen> {
             onPressed: _choosing ? null : () => _decide(give: false),
             style: style(cs.primaryContainer, cs.onPrimaryContainer),
             child: FittedBox(fit: BoxFit.scaleDown, child: Text(trKey('chestKeep'), maxLines: 1)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Гарантия редкого приза: сколько открытий подряд уже прошло без него.
+  Widget _pity(ColorScheme cs, int untilRare) {
+    final next = untilRare <= 1;
+    final text = next
+        ? trKey('chestPityNext')
+        : trKey('chestPity').replaceAll('{n}', '${kChestPity - untilRare}').replaceAll('{m}', '$kChestPity');
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(next ? Icons.auto_awesome_rounded : Icons.shield_moon_rounded, size: 16, color: cs.primary),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            text,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: cs.onSurface),
           ),
         ),
       ],

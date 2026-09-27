@@ -8,7 +8,7 @@ import 'profile_icon.dart';
 /// же роутом `/api/chest/state`, поэтому проценты на экране совпадают с
 /// розыгрышем. Здесь — разбор ответа и запасная копия таблицы на случай, когда
 /// сервер ещё не ответил.
-enum ChestPrizeKind { coins, gift, plus, frame, badge }
+enum ChestPrizeKind { coins, gift, plus, frame, badge, plusTrial }
 
 enum ChestTier { common, rare, legendary }
 
@@ -44,6 +44,7 @@ class ChestPrize {
       'plus' => ChestPrizeKind.plus,
       'frame' => ChestPrizeKind.frame,
       'badge' => ChestPrizeKind.badge,
+      'plus_trial' => ChestPrizeKind.plusTrial,
       _ => null,
     };
     final key = (j['key'] ?? '').toString();
@@ -68,11 +69,15 @@ class ChestPrize {
 }
 
 class ChestState {
-  const ChestState({required this.left, required this.perDay, required this.odds});
+  const ChestState({required this.left, required this.perDay, required this.odds, this.untilRare});
 
   final int left;
   final int perDay;
   final List<ChestPrize> odds;
+
+  /// Через сколько открытий редкий приз гарантирован (1 — следующее). null —
+  /// сервер постарше, гарантии не знает.
+  final int? untilRare;
 
   static ChestState? fromJson(Map<String, dynamic>? j) {
     if (j == null || j['ok'] != true) return null;
@@ -84,7 +89,12 @@ class ChestState {
     ];
     if (odds.isEmpty) return null;
     final perDay = (j['perDay'] as num?)?.toInt() ?? 3;
-    return ChestState(left: ((j['left'] as num?)?.toInt() ?? perDay).clamp(0, perDay), perDay: perDay, odds: odds);
+    return ChestState(
+      left: ((j['left'] as num?)?.toInt() ?? perDay).clamp(0, perDay),
+      perDay: perDay,
+      odds: odds,
+      untilRare: (j['untilRare'] as num?)?.toInt(),
+    );
   }
 }
 
@@ -92,12 +102,15 @@ class ChestState {
 /// `chest.pb.js`. Пул делится поровну между всеми предметами редкости
 /// (подарки сундука, рамки и значки из каталога), поэтому подарок, рамка и
 /// значок одной редкости выпадают одинаково.
-const Map<String, int> kChestTierPools = {'common': 240, 'rare': 128, 'legendary': 27};
+const Map<String, int> kChestTierPools = {'common': 252, 'rare': 144, 'legendary': 36};
+
+/// Сколько открытий подряд без редкого приза до гарантии — зеркало `PITY`.
+const int kChestPity = 10;
 
 /// Вес одного предмета в запасной таблице: пул, делённый на число предметов
-/// редкости в каталоге на 27.09.2026 (обычных 12, редких 16, легендарных 9).
+/// редкости в каталоге на 28.09.2026 (обычных 12, редких 16, легендарных 9).
 /// Настоящий вес считает сервер по живому каталогу.
-const Map<ChestTier, int> _fallbackItemWeight = {ChestTier.common: 20, ChestTier.rare: 8, ChestTier.legendary: 3};
+const Map<ChestTier, int> _fallbackItemWeight = {ChestTier.common: 21, ChestTier.rare: 9, ChestTier.legendary: 4};
 
 /// Запасная таблица, пока сервер не ответил: монеты, Плюс и подарки сундука
 /// (рамок и значков без каталога показать нечем). Всё, что не разложено, —
@@ -124,7 +137,9 @@ List<ChestPrize> fallbackChestOdds({required bool withPlus}) {
   final rest = [
     const ChestPrize(key: 'coins10', kind: ChestPrizeKind.coins, amount: 10, weight: 180, tier: ChestTier.common),
     const ChestPrize(key: 'coins25', kind: ChestPrizeKind.coins, amount: 25, weight: 75, tier: ChestTier.rare),
-    if (withPlus) const ChestPrize(key: 'plus', kind: ChestPrizeKind.plus, weight: 50, tier: ChestTier.legendary),
+    if (withPlus) const ChestPrize(key: 'plus', kind: ChestPrizeKind.plus, weight: 2, tier: ChestTier.legendary),
+    if (withPlus)
+      const ChestPrize(key: 'plus7', kind: ChestPrizeKind.plusTrial, amount: 7, weight: 10, tier: ChestTier.legendary),
   ];
   final used = [...gifts, ...rest].fold<int>(0, (t, p) => t + p.weight);
   return [
@@ -134,7 +149,7 @@ List<ChestPrize> fallbackChestOdds({required bool withPlus}) {
     rest[1],
     ...gifts.where((g) => g.tier == ChestTier.rare),
     ...gifts.where((g) => g.tier == ChestTier.legendary),
-    if (withPlus) rest[2],
+    if (withPlus) ...[rest[2], rest[3]],
   ];
 }
 
@@ -160,8 +175,9 @@ List<(ChestTier, List<ChestPrize>)> chestTiers(List<ChestPrize> odds) => [
 /// сундуке, им сундук и привлекает (решение заказчика 27.09.2026). Дальше —
 /// ярусы по [chestTiers] уже без него. Нет Плюса в таблице — нет и раздела.
 List<(ChestTier?, List<ChestPrize>)> chestSections(List<ChestPrize> odds) {
-  final top = odds.where((p) => p.kind == ChestPrizeKind.plus).toList();
-  return [if (top.isNotEmpty) (null, top), ...chestTiers(odds.where((p) => p.kind != ChestPrizeKind.plus).toList())];
+  bool isPlus(ChestPrize p) => p.kind == ChestPrizeKind.plus || p.kind == ChestPrizeKind.plusTrial;
+  final top = odds.where(isPlus).toList();
+  return [if (top.isNotEmpty) (null, top), ...chestTiers(odds.where((p) => !isPlus(p)).toList())];
 }
 
 /// Где стоит приз в кадрах открытия сундука: `[x, y, сторона]` в долях

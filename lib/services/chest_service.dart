@@ -16,6 +16,8 @@ class ChestOpenResult {
     this.plus = false,
     this.ownedFeatures,
     this.ownedIcons,
+    this.plusTrialUntil,
+    this.untilRare,
     this.error,
   });
 
@@ -30,6 +32,12 @@ class ChestOpenResult {
 
   /// Купленные и выпавшие значки после открытия: выпавший жилец уже здесь.
   final List<String>? ownedIcons;
+
+  /// Срок недели Togetherly+ (мс), если сервер его прислал.
+  final int? plusTrialUntil;
+
+  /// Через сколько открытий редкий приз гарантирован после этого.
+  final int? untilRare;
 
   /// `chest_limit` — на сегодня всё; `network` — сервер не ответил; остальное
   /// — отказ сервера.
@@ -146,6 +154,8 @@ ChestOpenResult parseChestOpen(Map<String, dynamic>? j) {
     plus: j['plus'] == true,
     ownedFeatures: j['ownedFeatures'] is List ? [for (final f in j['ownedFeatures'] as List) '$f'] : null,
     ownedIcons: j['ownedIcons'] is List ? [for (final f in j['ownedIcons'] as List) '$f'] : null,
+    plusTrialUntil: (j['plusTrialUntil'] as num?)?.toInt(),
+    untilRare: (j['untilRare'] as num?)?.toInt(),
     error: prize == null ? 'unknown_prize' : null,
   );
 }

@@ -46,7 +46,8 @@ void main() {
       if (r[0] == 'coins5') continue; // «5 монет» забирает всё, что не разложено
       final p = client[r[0]];
       expect(p, isNotNull, reason: '${r[0]} нет в запасной таблице');
-      expect([p!.kind.name, '${p.amount}', '${p.weight}', p.tier.name], [r[1], r[2], r[3], r[4]]);
+      final kind = p!.kind == ChestPrizeKind.plusTrial ? 'plus_trial' : p.kind.name;
+      expect([kind, '${p.amount}', '${p.weight}', p.tier.name], [r[1], r[2], r[3], r[4]]);
     }
   });
 
@@ -79,6 +80,36 @@ void main() {
     }
     expect(byTier[ChestTier.common]!.first, greaterThan(byTier[ChestTier.rare]!.first));
     expect(byTier[ChestTier.rare]!.first, greaterThan(byTier[ChestTier.legendary]!.first));
+  });
+
+  test('гарантия редкого приза совпадает с сервером', () {
+    final pity = RegExp(r'const PITY = (\d+);').allMatches(src).map((m) => int.parse(m.group(1)!)).toSet();
+    expect(pity, {kChestPity});
+    final st = ChestState.fromJson({
+      'ok': true,
+      'left': 3,
+      'untilRare': 4,
+      'odds': [
+        {'key': 'coins5', 'kind': 'coins', 'amount': 5, 'weight': 1000, 'tier': 'common'},
+      ],
+    });
+    expect(st?.untilRare, 4);
+  });
+
+  test('неделя Плюса: свой вид приза и срок в ответе открытия', () {
+    final res = parseChestOpen({
+      'ok': true,
+      'prize': {'key': 'plus7', 'kind': 'plus_trial', 'amount': 7},
+      'plusTrialUntil': 1790000000000,
+      'untilRare': 10,
+    });
+    expect(res.prize?.kind, ChestPrizeKind.plusTrial);
+    expect(res.plusTrialUntil, 1790000000000);
+    expect(res.untilRare, 10);
+    // В списке шансов неделя стоит рядом с Плюсом навсегда, в «Главном призе».
+    final top = chestSections(fallbackChestOdds(withPlus: true)).first;
+    expect(top.$1, isNull);
+    expect(top.$2.map((p) => p.key), ['plus', 'plus7']);
   });
 
   test('значок из ответа сервера находится по id записи каталога', () {
@@ -131,9 +162,10 @@ void main() {
     final odds = fallbackChestOdds(withPlus: true);
     String pct(String key) => chestPercent(odds.firstWhere((p) => p.key == key), odds);
     expect(pct('coins10'), '18%');
-    expect(pct('rose'), '0,8%');
-    expect(pct('plus'), '5%');
-    expect(chestPercent(odds.firstWhere((p) => p.key == 'locket'), odds, decimal: '.'), '0.3%');
+    expect(pct('rose'), '0,9%');
+    expect(pct('plus'), '0,2%');
+    expect(pct('plus7'), '1%');
+    expect(chestPercent(odds.firstWhere((p) => p.key == 'locket'), odds, decimal: '.'), '0.4%');
   });
 
   test('ярусы идут от обычных к легендарным, пустые пропадают', () {
@@ -146,8 +178,8 @@ void main() {
   test('Togetherly+ стоит первым отдельным разделом и не повторяется в ярусах', () {
     final withPlus = chestSections(fallbackChestOdds(withPlus: true));
     expect(withPlus.first.$1, isNull);
-    expect(withPlus.first.$2.map((p) => p.key), ['plus']);
-    expect(withPlus.skip(1).expand((s) => s.$2).any((p) => p.key == 'plus'), isFalse);
+    expect(withPlus.first.$2.map((p) => p.key), ['plus', 'plus7']);
+    expect(withPlus.skip(1).expand((s) => s.$2).any((p) => p.key.startsWith('plus')), isFalse);
     expect(withPlus.last.$2.map((p) => p.key), ['locket', 'rings']);
     // Плюса в таблице нет (iPhone, уже куплен) — нет и главного раздела.
     expect(chestSections(fallbackChestOdds(withPlus: false)).first.$1, ChestTier.common);

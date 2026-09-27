@@ -38,11 +38,18 @@
 routerAdd("GET", "/api/chest/state", (e) => {
   // Зеркало таблицы в /api/chest/open. Вес — в десятых долях процента.
   const ODDS = [
-    ["coins5", "coins", 5, 300, "common"],
+    ["coins5", "coins", 5, 301, "common"],
     ["coins10", "coins", 10, 180, "common"],
     ["coins25", "coins", 25, 75, "rare"],
-    ["plus", "plus", 0, 50, "legendary"],
+    // Плюс навсегда — редчайший приз: выпавший Плюс навсегда снимает человека
+    // с рекламы и с покупки. Неделя Плюса — чаще: попробовал и захотел
+    // навсегда. Сумма «amount» у недели — число дней.
+    ["plus", "plus", 0, 2, "legendary"],
+    ["plus7", "plus_trial", 7, 10, "legendary"],
   ];
+  // Гарантия: если PITY - 1 открытий подряд не принесли редкого или
+  // легендарного приза (монеты не в счёт), следующее даёт его точно.
+  const PITY = 10;
   // Подарки сундука. Своего веса у них нет: шанс считается из пула редкости
   // наравне с рамками и значками из каталога (TIER_POOL ниже).
   const GIFTS = [
@@ -53,7 +60,7 @@ routerAdd("GET", "/api/chest/state", (e) => {
   ];
   // Пул редкости в десятых долях процента: делится поровну между ВСЕМИ её
   // предметами — подарком, рамкой и значком одной редкости выпадают одинаково.
-  const TIER_POOL = { common: 240, rare: 128, legendary: 27 };
+  const TIER_POOL = { common: 252, rare: 144, legendary: 36 };
   const PER_DAY = 3;
 
   const me = e.auth.id;
@@ -123,29 +130,53 @@ routerAdd("GET", "/api/chest/state", (e) => {
       { me: me, day: day }).length;
   } catch (_) { used = 0; }
 
+  // Неделя Плюса не выпадает тем, у кого Плюс или неделя уже идёт, и
+  // сборкам без флага `frames`: показать её им нечем. Её доля — в «5 монет».
+  const trialOn = (user.getInt("plus_trial_until") || 0) > Date.now();
+  const skipRow = (r) => (r[1] === "plus" && noPlus) || (r[1] === "plus_trial" && (noPlus || trialOn || !withFrames));
+  let skippedW = 0;
+  for (let i = 0; i < ODDS.length; i++) if (skipRow(ODDS[i])) skippedW += ODDS[i][3];
+  const rarePlus = { plus: 1, plus7: 1 };
+  for (let i = 0; i < items.length; i++) if (items[i][2] !== "common") rarePlus[items[i][0]] = 1;
+  let dry = 0;
+  try {
+    const last = $app.findRecordsByFilter("chest_opens", "user_uid = {:me}", "-created", PITY - 1, 0, { me: me });
+    for (let i = 0; i < last.length; i++) { if (rarePlus[last[i].getString("prize")]) break; dry++; }
+  } catch (_) { dry = 0; }
+
   const odds = [];
   for (let i = 0; i < ODDS.length; i++) {
     const r = ODDS[i];
-    if (r[1] === "plus" && noPlus) continue;
+    if (skipRow(r)) continue;
     let w = r[3];
-    if (r[0] === "coins5" && noPlus) w += 50;
-    if (r[0] === "coins5") w += frameSpare;
+    if (r[0] === "coins5") w += frameSpare + skippedW;
     odds.push({ key: r[0], kind: r[1], amount: r[2], weight: w, tier: r[4] });
   }
   for (let i = 0; i < frameOdds.length; i++) {
     const r = frameOdds[i];
     odds.push({ key: r[0], kind: r[1], amount: 0, weight: r[3], tier: r[4] });
   }
-  return e.json(200, { ok: true, perDay: PER_DAY, left: Math.max(0, PER_DAY - used), day: day, odds: odds });
+  return e.json(200, {
+    ok: true, perDay: PER_DAY, left: Math.max(0, PER_DAY - used), day: day, odds: odds,
+    // Через сколько открытий редкий приз гарантирован (1 — следующее).
+    untilRare: PITY - dry,
+  });
 }, $apis.requireAuth());
 
 routerAdd("POST", "/api/chest/open", (e) => {
   const ODDS = [
-    ["coins5", "coins", 5, 300, "common"],
+    ["coins5", "coins", 5, 301, "common"],
     ["coins10", "coins", 10, 180, "common"],
     ["coins25", "coins", 25, 75, "rare"],
-    ["plus", "plus", 0, 50, "legendary"],
+    // Плюс навсегда — редчайший приз: выпавший Плюс навсегда снимает человека
+    // с рекламы и с покупки. Неделя Плюса — чаще: попробовал и захотел
+    // навсегда. Сумма «amount» у недели — число дней.
+    ["plus", "plus", 0, 2, "legendary"],
+    ["plus7", "plus_trial", 7, 10, "legendary"],
   ];
+  // Гарантия: если PITY - 1 открытий подряд не принесли редкого или
+  // легендарного приза (монеты не в счёт), следующее даёт его точно.
+  const PITY = 10;
   // Подарки сундука. Своего веса у них нет: шанс считается из пула редкости
   // наравне с рамками и значками из каталога (TIER_POOL ниже).
   const GIFTS = [
@@ -156,7 +187,7 @@ routerAdd("POST", "/api/chest/open", (e) => {
   ];
   // Пул редкости в десятых долях процента: делится поровну между ВСЕМИ её
   // предметами — подарком, рамкой и значком одной редкости выпадают одинаково.
-  const TIER_POOL = { common: 240, rare: 128, legendary: 27 };
+  const TIER_POOL = { common: 252, rare: 144, legendary: 36 };
   const PER_DAY = 3;
   // Потолок за скользящие сутки: против перевода часов туда-обратно.
   const PER_24H = 6;
@@ -310,18 +341,37 @@ routerAdd("POST", "/api/chest/open", (e) => {
 
       const pool = [];
       let total = 0;
+      const trialOn = (user.getInt("plus_trial_until") || 0) > now;
+      const skipRow = (r) => (r[1] === "plus" && noPlus) || (r[1] === "plus_trial" && (noPlus || trialOn || !withFrames));
+      let skippedW = 0;
+      for (let i = 0; i < ODDS.length; i++) if (skipRow(ODDS[i])) skippedW += ODDS[i][3];
       for (let i = 0; i < ODDS.length; i++) {
         const r = ODDS[i];
-        if (r[1] === "plus" && noPlus) continue;
+        if (skipRow(r)) continue;
         let w = r[3];
-        if (r[0] === "coins5" && noPlus) w += 50;
-        if (r[0] === "coins5") w += frameSpare;
+        if (r[0] === "coins5") w += frameSpare + skippedW;
         pool.push([r[0], r[1], r[2], w]);
         total += w;
       }
       for (let i = 0; i < frameOdds.length; i++) {
         pool.push([frameOdds[i][0], frameOdds[i][1], 0, frameOdds[i][3], frameOdds[i][5]]);
         total += frameOdds[i][3];
+      }
+      // Гарантия редкого: считаем открытия подряд без редкого приза.
+      const rarePlus = { plus: 1, plus7: 1 };
+      for (let i = 0; i < items.length; i++) if (items[i][2] !== "common") rarePlus[items[i][0]] = 1;
+      let dry = 0;
+      try {
+        const last = txApp.findRecordsByFilter("chest_opens", "user_uid = {:me}", "-created", PITY - 1, 0, { me: me });
+        for (let i = 0; i < last.length; i++) { if (rarePlus[last[i].getString("prize")]) break; dry++; }
+      } catch (_) { dry = 0; }
+      if (dry >= PITY - 1) {
+        const rare = pool.filter((p) => rarePlus[p[0]]);
+        if (rare.length) {
+          pool.length = 0;
+          total = 0;
+          for (let i = 0; i < rare.length; i++) { pool.push(rare[i]); total += rare[i][3]; }
+        }
       }
       // Случайное число из криптостойкой строки, а не Math.random: пул JSVM
       // переиспользует рантаймы, и качеству его генератора верить незачем.
@@ -358,6 +408,13 @@ routerAdd("POST", "/api/chest/open", (e) => {
         if (ownedI.indexOf(prize[4]) === -1) ownedI.push(prize[4]);
         user.set("owned_icons", JSON.stringify(ownedI));
         txApp.save(user);
+      } else if (prize[1] === "plus_trial") {
+        // Неделя Плюса — отдельным сроком: флаг `plus` не трогаем, иначе
+        // покупка во время недели ответила бы «уже куплено», а снятие по сроку
+        // задело бы тех, кто успел купить.
+        const from = Math.max(user.getInt("plus_trial_until") || 0, now);
+        user.set("plus_trial_until", from + prize[2] * 24 * 60 * 60 * 1000);
+        txApp.save(user);
       } else if (prize[1] === "plus") {
         user.set("plus", true);
         user.set("plus_platform", "chest");
@@ -375,6 +432,8 @@ routerAdd("POST", "/api/chest/open", (e) => {
           plus: user.getBool("plus"),
           ownedFeatures: ownedF,
           ownedIcons: ownedI,
+          plusTrialUntil: user.getInt("plus_trial_until") || 0,
+          untilRare: rarePlus[prize[0]] ? PITY : PITY - dry - 1,
         },
       };
     });
