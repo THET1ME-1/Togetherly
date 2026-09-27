@@ -2469,6 +2469,14 @@
           "type": "number"
         },
         {
+          "name": "state",
+          "type": "text"
+        },
+        {
+          "name": "gift_id",
+          "type": "text"
+        },
+        {
           "name": "created",
           "type": "autodate",
           "onCreate": true,
@@ -2483,7 +2491,8 @@
       ],
       "indexes": [
         "CREATE INDEX `idx_chest_opens_user_day` ON `chest_opens` (`user_uid`, `day`)",
-        "CREATE INDEX `idx_chest_opens_user_created` ON `chest_opens` (`user_uid`, `created`)"
+        "CREATE INDEX `idx_chest_opens_user_created` ON `chest_opens` (`user_uid`, `created`)",
+        "CREATE INDEX `idx_chest_opens_user_state` ON `chest_opens` (`user_uid`, `state`)"
       ],
       "listRule": "@request.auth.id != \"\" && user_uid = @request.auth.id",
       "viewRule": "@request.auth.id != \"\" && user_uid = @request.auth.id",

@@ -105,4 +105,22 @@ void main() {
     }
     expect(kChestPrizeTrack[kChestWonFrame], isNotNull);
   });
+
+  test('запас в ленте: повторы в одну карточку, дарится самый старый', () {
+    final groups = groupChestStash(const [
+      ChestStashItem(openId: 'old', giftKey: 'throne'),
+      ChestStashItem(openId: 'r1', giftKey: 'rings'),
+      ChestStashItem(openId: 'new', giftKey: 'throne'),
+    ]);
+    expect(groups.map((g) => g.$1), ['throne', 'rings']);
+    expect(groups.first.$2, ['old', 'new']);
+  });
+
+  test('в хуке есть роуты выбора и подарок не ложится на полку при выпадении', () {
+    expect(src.contains('routerAdd("POST", "/api/chest/keep"'), isTrue);
+    expect(src.contains('routerAdd("POST", "/api/chest/give"'), isTrue);
+    final open = src.substring(src.indexOf('"/api/chest/open"'), src.indexOf('"/api/chest/keep"'));
+    expect(open.contains('findCollectionByNameOrId("gifts")'), isFalse, reason: 'open не должен создавать подарок');
+    expect(open.contains('"stash"'), isTrue);
+  });
 }

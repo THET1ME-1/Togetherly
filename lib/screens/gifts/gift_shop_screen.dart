@@ -13,6 +13,7 @@ import '../../services/rewarded_ad_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/profile_theme.dart';
 import '../../widgets/app_sheet.dart';
+import '../../widgets/chest/chest_stash_lane.dart';
 import '../../widgets/common/scaled_asset.dart';
 import '../../widgets/common/gift_image.dart';
 
@@ -404,6 +405,8 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
                 bottom: 28 + MediaQuery.of(context).padding.bottom,
               ),
               children: [
+                // Выпавшие из сундука подарки, которые ещё ждут решения.
+                if (_filter == null) ChestStashLane(groupId: widget.groupId),
                 for (final tier in tiers) ...[
                   _ShelfHeader(
                     title: _tierName(tier),

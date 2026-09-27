@@ -1842,6 +1842,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: ChestHomeCard(
                       theme: _t,
                       groupId: _pairData.pairId,
+                      partnerName: _pairData.partnerDisplayName,
                       onCoins: widget.userData.applyServerCoins,
                     ),
                   ),

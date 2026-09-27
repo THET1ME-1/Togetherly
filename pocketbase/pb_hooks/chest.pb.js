@@ -2,16 +2,23 @@
 /// сервер.
 ///
 ///   GET  /api/chest/state?tz=&platform=  — сколько осталось сегодня и шансы;
-///   POST /api/chest/open                 — разыграть приз и выдать его.
+///   POST /api/chest/open                 — разыграть приз и выдать его;
+///   POST /api/chest/keep                 — подарок из запаса себе на полку;
+///   POST /api/chest/give                 — подарок из запаса партнёру.
 ///
 /// В сундуке монеты, одиннадцать подарков, которых нет в витрине, и
 /// Togetherly+. Шансы живут только здесь: экран сундука рисует ту таблицу,
 /// что отдал `state`, поэтому проценты на экране всегда совпадают с розыгрышем.
 ///
-/// Подарок из сундука ложится на полку получившего: запись `gifts` от
-/// отправителя `chest` самому себе, сразу в состоянии `reacted`. Входящим он
-/// не считается (там отбор по `state = "sent"`), и `gifts/send` его ключей не
-/// знает — купить или подарить такой подарок нельзя.
+/// Выпавший подарок сперва лежит в запасе: запись `chest_opens` с
+/// `state = "stash"`. Человек решает сразу под сундуком или позже в ленте
+/// «Из сундука» в магазине:
+///   keep — на свою полку: запись `gifts` от отправителя `chest` самому себе,
+///          сразу `reacted`, входящим не считается (отбор там по `sent`);
+///   give — партнёру бесплатно: обычная запись `gifts` от меня партнёру с
+///          нулевой ценой, приходит с анимацией и ждёт ответа, как любой.
+/// Id подарка равен `openId`, поэтому повтор не создаёт второй записи.
+/// `gifts/send` ключей сундука не знает — купить такой подарок нельзя.
 ///
 /// Togetherly+ не выпадает на iPhone (там его не существует как понятия) и
 /// тому, у кого он уже есть. Его доля уходит в «5 монет», и таблица, которую
@@ -210,6 +217,7 @@ routerAdd("POST", "/api/chest/open", (e) => {
       rec.set("day", day);
       rec.set("prize", prize[0]);
       rec.set("amount", prize[2]);
+      rec.set("state", prize[1] === "gift" ? "stash" : "");
       txApp.save(rec);
 
       if (prize[1] === "coins") {
@@ -220,21 +228,6 @@ routerAdd("POST", "/api/chest/open", (e) => {
         user.set("plus_platform", "chest");
         user.set("last_plus_grant_ms", now);
         txApp.save(user);
-      } else {
-        // Подарок на полку: от сундука самому себе, уже принятый.
-        const g = new Record(txApp.findCollectionByNameOrId("gifts"));
-        g.set("id", openId);
-        g.set("group_id", groupId);
-        g.set("sender_uid", "chest");
-        g.set("recipient_uid", me);
-        g.set("gift_key", prize[0]);
-        g.set("price", 0);
-        g.set("refund", 0);
-        g.set("state", "reacted");
-        g.set("deliver_at", now);
-        g.set("reacted_at", now);
-        g.set("expires_at", now);
-        txApp.save(g);
       }
 
       out = {
@@ -267,6 +260,134 @@ routerAdd("POST", "/api/chest/open", (e) => {
       });
     } catch (_) {}
     try { $app.logger().error("chest/open: " + String(err)); } catch (_) {}
+    out = { s: 500, b: { ok: false, error: "internal" } };
+  }
+  return e.json(out.s, out.b);
+}, $apis.requireAuth());
+
+// Подарок из запаса — себе на полку.
+routerAdd("POST", "/api/chest/keep", (e) => {
+  const body = new DynamicModel({ openId: "" });
+  e.bindBody(body);
+  const openId = String(body.openId || "").trim();
+  if (!/^[a-z0-9]{15}$/.test(openId)) return e.json(400, { ok: false, error: "bad_request" });
+  const me = e.auth.id;
+  let out = { s: 500, b: { ok: false, error: "internal" } };
+  try {
+    $app.runInTransaction((txApp) => {
+      let rec = null;
+      try { rec = txApp.findRecordById("chest_opens", openId); } catch (_) { rec = null; }
+      if (!rec || rec.getString("user_uid") !== me) {
+        out = { s: 404, b: { ok: false, error: "not_found" } };
+        return;
+      }
+      const state = rec.getString("state");
+      if (state === "kept") {
+        out = { s: 200, b: { ok: true, repeated: true } };
+        return;
+      }
+      if (state !== "stash") {
+        out = { s: 409, b: { ok: false, error: "already_used" } };
+        return;
+      }
+      const now = Date.now();
+      const g = new Record(txApp.findCollectionByNameOrId("gifts"));
+      g.set("id", openId);
+      g.set("group_id", rec.getString("group_id"));
+      g.set("sender_uid", "chest");
+      g.set("recipient_uid", me);
+      g.set("gift_key", rec.getString("prize"));
+      g.set("price", 0);
+      g.set("refund", 0);
+      g.set("state", "reacted");
+      g.set("deliver_at", now);
+      g.set("reacted_at", now);
+      g.set("expires_at", now);
+      txApp.save(g);
+      rec.set("state", "kept");
+      rec.set("gift_id", openId);
+      txApp.save(rec);
+      out = { s: 200, b: { ok: true, repeated: false } };
+    });
+  } catch (err) {
+    try { $app.logger().error("chest/keep: " + String(err)); } catch (_) {}
+    out = { s: 500, b: { ok: false, error: "internal" } };
+  }
+  return e.json(out.s, out.b);
+}, $apis.requireAuth());
+
+// Подарок из запаса — партнёру, бесплатно. Партнёр получает обычный подарок:
+// анимация, отклик, полка. Нулевая цена значит, что отклик и отказ ничего не
+// возвращают — монеты из воздуха не появляются (как у подарка за ролик).
+routerAdd("POST", "/api/chest/give", (e) => {
+  const LIFE_MS = 24 * 60 * 60 * 1000;
+  const body = new DynamicModel({ openId: "", groupId: "" });
+  e.bindBody(body);
+  const openId = String(body.openId || "").trim();
+  const groupId = String(body.groupId || "").trim();
+  if (!/^[a-z0-9]{15}$/.test(openId) || !groupId) return e.json(400, { ok: false, error: "bad_request" });
+  const me = e.auth.id;
+
+  // Пара — из Postgres, как в gifts.pb.js: зеркало в SQLite отстаёт.
+  let members = [];
+  try {
+    const r = $http.send({
+      url: "http://127.0.0.1:8120/internal/group-read?id=" + encodeURIComponent(groupId),
+      method: "GET",
+      timeout: 8,
+    });
+    const g = (r && r.json && r.json.record) || null;
+    if (g && Array.isArray(g.members)) members = g.members;
+  } catch (_) { members = []; }
+  let isMember = false, partner = "";
+  for (let i = 0; i < members.length; i++) {
+    const m = String(members[i]);
+    if (m === me) isMember = true;
+    else if (!partner) partner = m;
+  }
+
+  let out = { s: 500, b: { ok: false, error: "internal" } };
+  try {
+    $app.runInTransaction((txApp) => {
+      let rec = null;
+      try { rec = txApp.findRecordById("chest_opens", openId); } catch (_) { rec = null; }
+      if (!rec || rec.getString("user_uid") !== me) {
+        out = { s: 404, b: { ok: false, error: "not_found" } };
+        return;
+      }
+      const state = rec.getString("state");
+      if (state === "sent") {
+        out = { s: 200, b: { ok: true, repeated: true } };
+        return;
+      }
+      if (state !== "stash") {
+        out = { s: 409, b: { ok: false, error: "already_used" } };
+        return;
+      }
+      if (!isMember || !partner) {
+        out = { s: 403, b: { ok: false, error: "not_member" } };
+        return;
+      }
+      const now = Date.now();
+      const g = new Record(txApp.findCollectionByNameOrId("gifts"));
+      g.set("id", openId);
+      g.set("group_id", groupId);
+      g.set("sender_uid", me);
+      g.set("recipient_uid", partner);
+      g.set("gift_key", rec.getString("prize"));
+      g.set("note", "");
+      g.set("price", 0);
+      g.set("state", "sent");
+      g.set("deliver_at", now);
+      g.set("expires_at", now + LIFE_MS);
+      txApp.save(g);
+      rec.set("state", "sent");
+      rec.set("gift_id", openId);
+      txApp.save(rec);
+      out = { s: 200, b: { ok: true, repeated: false } };
+    });
+  } catch (err) {
+    try { $app.logger().error("chest/give: " + String(err)); } catch (_) {}
     out = { s: 500, b: { ok: false, error: "internal" } };
   }
   return e.json(out.s, out.b);

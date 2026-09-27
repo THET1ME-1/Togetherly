@@ -7,10 +7,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:love_app/models/gift.dart';
 import 'package:love_app/screens/chest_screen.dart';
+import 'package:love_app/services/chest_service.dart';
+import 'package:love_app/services/locale_service.dart';
 import 'package:love_app/theme/app_palettes.dart';
 import 'package:love_app/theme/profile_theme.dart';
 import 'package:love_app/widgets/chest/chest_home_card.dart';
 import 'package:love_app/widgets/chest/chest_prize_image.dart';
+import 'package:love_app/widgets/chest/chest_stash_lane.dart';
 
 /// Сундук недели на живой теме «Кофе» (как на макете): блок на главной и экран
 /// сундука, на ширине 393 и 320 точек.
@@ -41,6 +44,7 @@ void main() {
   });
 
   testWidgets('сундук недели', (tester) async {
+    LocaleService.instance.setLanguage(AppLanguage.ru);
     tester.view.physicalSize = const Size(3000, 3000);
     tester.view.devicePixelRatio = 2;
     addTearDown(tester.view.reset);
@@ -94,9 +98,42 @@ void main() {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Column(children: [home(393), home(320)]),
+                Column(
+                  children: [
+                    home(393),
+                    home(320),
+                    for (final w in [393.0, 320.0])
+                      phone(
+                        w,
+                        230,
+                        // В магазине лента стоит внутри Scaffold, здесь
+                        // подложку даёт Material.
+                        Material(
+                          type: MaterialType.transparency,
+                          child: ChestStashLane(
+                            groupId: 'g',
+                            debugItems: const [
+                              ChestStashItem(openId: 'a', giftKey: 'throne'),
+                              ChestStashItem(openId: 'b', giftKey: 'throne'),
+                              ChestStashItem(openId: 'c', giftKey: 'rings'),
+                              ChestStashItem(openId: 'd', giftKey: 'cookieheart'),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
                 phone(393, 1400, ChestScreen(theme: t, groupId: 'g')),
-                phone(320, 1400, ChestScreen(theme: t, groupId: 'g')),
+                phone(
+                  320,
+                  1400,
+                  ChestScreen(
+                    theme: t,
+                    groupId: 'g',
+                    partnerName: 'Аня',
+                    debugChoice: const ChestStashItem(openId: 'x', giftKey: 'throne'),
+                  ),
+                ),
               ],
             ),
           ),

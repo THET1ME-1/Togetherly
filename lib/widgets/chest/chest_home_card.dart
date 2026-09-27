@@ -16,10 +16,11 @@ import 'chest_prize_image.dart';
 /// строка про призы и чип «осталось N из 3». Нажатие ведёт на экран сундука,
 /// по возвращении остаток перечитывается.
 class ChestHomeCard extends StatefulWidget {
-  const ChestHomeCard({super.key, required this.theme, required this.groupId, this.onCoins});
+  const ChestHomeCard({super.key, required this.theme, required this.groupId, this.partnerName, this.onCoins});
 
   final AppTheme theme;
   final String groupId;
+  final String? partnerName;
   final ValueChanged<int>? onCoins;
 
   @override
@@ -43,7 +44,12 @@ class _ChestHomeCardState extends State<ChestHomeCard> {
   Future<void> _openScreen() async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => ChestScreen(theme: widget.theme, groupId: widget.groupId, onCoins: widget.onCoins),
+        builder: (_) => ChestScreen(
+          theme: widget.theme,
+          groupId: widget.groupId,
+          partnerName: widget.partnerName,
+          onCoins: widget.onCoins,
+        ),
         settings: const RouteSettings(name: '/chest'),
       ),
     );

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../dict_strings.dart' show trKey;
 import '../models/chest.dart';
+import '../models/gift.dart';
 import '../services/catalog_service.dart';
 import '../services/chest_service.dart';
 import '../services/locale_service.dart';
@@ -26,14 +27,32 @@ import '../widgets/chest/chest_prize_image.dart';
 /// раз, приз поднимается из него по дорожке [kChestPrizeTrack], на 2,0 с
 /// появляется название выигрыша, в 3,8 с сундук снова в покое, а название
 /// остаётся — всё как на макете.
+///
+/// Выпал подарок — на месте кнопки открытия встают «Подарить» и «Оставить
+/// себе» (макет «Подарок из сундука», вариант 4Б). Ушёл с экрана, не выбрав, —
+/// подарок ждёт в ленте «Из сундука» в магазине подарков.
 class ChestScreen extends StatefulWidget {
-  const ChestScreen({super.key, required this.theme, required this.groupId, this.onCoins});
+  const ChestScreen({
+    super.key,
+    required this.theme,
+    required this.groupId,
+    this.partnerName,
+    this.onCoins,
+    this.debugChoice,
+  });
 
   final AppTheme theme;
   final String groupId;
 
+  /// Имя партнёра для подсказки под кнопкой «Подарить».
+  final String? partnerName;
+
   /// Новый баланс после монетного приза — доводится до профиля.
   final ValueChanged<int>? onCoins;
+
+  /// Превью: экран сразу в состоянии «выпал подарок, ждёт выбора».
+  @visibleForTesting
+  final ChestStashItem? debugChoice;
 
   @override
   State<ChestScreen> createState() => _ChestScreenState();
@@ -57,6 +76,12 @@ class _ChestScreenState extends State<ChestScreen> {
   /// Название выигрыша под сундуком.
   String? _won;
 
+  /// Открытие, приз которого сейчас разыгрывается, и выпавший подарок, который
+  /// ждёт выбора под сундуком.
+  String? _lastOpenId;
+  ChestStashItem? _choice;
+  bool _choosing = false;
+
   bool get _free => PlusService.instance.active;
 
   String? get _idleUrl => CatalogService.instance.giftArt('chest_idle')?.lgUrl;
@@ -65,6 +90,8 @@ class _ChestScreenState extends State<ChestScreen> {
   @override
   void initState() {
     super.initState();
+    _choice = widget.debugChoice;
+    if (_choice != null) _won = trKey('chestGiftTitle').replaceAll('{name}', GiftCatalog.byKey(_choice!.giftKey)?.title ?? '');
     if (!_free) _ad.load();
     ChestFrames.prefetch(_openUrl);
     _load();
@@ -129,6 +156,7 @@ class _ChestScreenState extends State<ChestScreen> {
       return;
     }
     _pendingOpenId = null;
+    _lastOpenId = openId;
     if (res.coins != null) widget.onCoins?.call(res.coins!);
     if (res.prize?.kind == ChestPrizeKind.plus) PlusService.instance.refresh();
     setState(() {
@@ -136,6 +164,7 @@ class _ChestScreenState extends State<ChestScreen> {
       _frame = -1;
       _openRun++;
       _won = null;
+      _choice = null;
       if (_state != null && res.left != null) {
         _state = ChestState(left: res.left!, perDay: _perDay, odds: _state!.odds);
       }
@@ -153,10 +182,29 @@ class _ChestScreenState extends State<ChestScreen> {
   void _onOpenDone() {
     if (!mounted) return;
     setState(() {
-      _won ??= _opening == null ? null : _wonText(_opening!);
+      final prize = _opening;
+      _won ??= prize == null ? null : _wonText(prize);
+      if (prize != null && prize.kind == ChestPrizeKind.gift && _lastOpenId != null) {
+        _choice = ChestStashItem(openId: _lastOpenId!, giftKey: prize.key);
+      }
       _opening = null;
       _busy = false;
     });
+  }
+
+  Future<void> _decide({required bool give}) async {
+    final choice = _choice;
+    if (choice == null || _choosing) return;
+    setState(() => _choosing = true);
+    final ok = give
+        ? await ChestService.instance.give(choice.openId, widget.groupId)
+        : await ChestService.instance.keep(choice.openId);
+    if (!mounted) return;
+    setState(() {
+      _choosing = false;
+      if (ok) _choice = null;
+    });
+    _snack(trKey(!ok ? 'chestChoiceFailed' : give ? 'chestGiven' : 'chestKept'));
   }
 
   String _wonText(ChestPrize p) => switch (p.kind) {
@@ -223,17 +271,13 @@ class _ChestScreenState extends State<ChestScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 6),
-            Text(
-              trKey('chestLeftToday').replaceAll('{n}', '$_left').replaceAll('{m}', '$_perDay'),
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant),
-            ),
             const SizedBox(height: 12),
-            _button(cs),
+            if (_choice != null) _pick(cs) else _button(cs),
             const SizedBox(height: 8),
             Text(
-              trKey(_free ? 'chestNoteFree' : 'chestNote'),
+              _choice != null
+                  ? trKey('chestChoiceNote').replaceAll('{name}', _partnerName)
+                  : trKey(_free ? 'chestNoteFree' : 'chestNote'),
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 12, height: 1.4, color: cs.onSurfaceVariant),
             ),
@@ -312,7 +356,8 @@ class _ChestScreenState extends State<ChestScreen> {
     } else if (_left <= 0 && _pendingOpenId == null) {
       label = trKey('chestTomorrow');
     } else {
-      label = trKey(_free || _pendingOpenId != null ? 'chestOpenFree' : 'chestOpenAd');
+      // Счётчик в самой кнопке: «Открыть за рекламу 2/3».
+      label = '${trKey(_free || _pendingOpenId != null ? 'chestOpenFree' : 'chestOpenAd')} $_left/$_perDay';
     }
     return SizedBox(
       width: double.infinity,
@@ -329,6 +374,44 @@ class _ChestScreenState extends State<ChestScreen> {
         ),
         child: Text(label),
       ),
+    );
+  }
+
+  String get _partnerName {
+    final n = widget.partnerName?.trim() ?? '';
+    return n.isEmpty ? trKey('chestPartner') : n;
+  }
+
+  /// «Подарить» и «Оставить себе» на месте кнопки открытия.
+  Widget _pick(ColorScheme cs) {
+    ButtonStyle style(Color bg, Color fg) => FilledButton.styleFrom(
+      backgroundColor: bg,
+      foregroundColor: fg,
+      disabledBackgroundColor: bg.withValues(alpha: 0.6),
+      disabledForegroundColor: fg,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 16),
+      shape: const StadiumBorder(),
+      textStyle: const TextStyle(fontFamily: ProfileTheme.displayFont, fontSize: 15, fontWeight: FontWeight.w700),
+    );
+    return Row(
+      children: [
+        Expanded(
+          child: FilledButton(
+            onPressed: _choosing ? null : () => _decide(give: true),
+            style: style(cs.primary, cs.onPrimary),
+            // На узком экране надпись ужимается, а не режется многоточием.
+            child: FittedBox(fit: BoxFit.scaleDown, child: Text(trKey('chestGive'), maxLines: 1)),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: FilledButton(
+            onPressed: _choosing ? null : () => _decide(give: false),
+            style: style(cs.primaryContainer, cs.onPrimaryContainer),
+            child: FittedBox(fit: BoxFit.scaleDown, child: Text(trKey('chestKeep'), maxLines: 1)),
+          ),
+        ),
+      ],
     );
   }
 
