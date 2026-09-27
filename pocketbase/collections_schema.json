@@ -965,6 +965,11 @@
           "required": false
         },
         {
+          "name": "chest_enabled",
+          "type": "bool",
+          "required": false
+        },
+        {
           "name": "wallet",
           "type": "json",
           "required": false,

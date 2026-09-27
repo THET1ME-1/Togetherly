@@ -47,7 +47,7 @@ void main() {
 
   testWidgets('сундук недели', (tester) async {
     LocaleService.instance.setLanguage(AppLanguage.ru);
-    tester.view.physicalSize = const Size(3900, 3000);
+    tester.view.physicalSize = const Size(3900, 4200);
     tester.view.devicePixelRatio = 2;
     addTearDown(tester.view.reset);
 
@@ -72,16 +72,22 @@ void main() {
       ),
       child: Text(text, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13)),
     );
-    Widget home(double w) => phone(
-      w,
-      460,
-      Padding(
+    final tDark = buildAppTheme(kPalettes.firstWhere((p) => p.name == 'Кофе'), Brightness.dark);
+    Widget home(double w, {bool dark = false}) => Container(
+      width: w,
+      height: 400,
+      margin: const EdgeInsets.all(12),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: (dark ? tDark.scheme! : cs).surface,
+        borderRadius: BorderRadius.circular(28),
+      ),
+      child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
           children: [
             ph('[таймер пары]'),
-            const SizedBox(height: 8),
-            ChestHomeCard(theme: t, groupId: 'g'),
+            ChestHomeCard(theme: dark ? tDark : t, groupId: 'g'),
             const SizedBox(height: 8),
             ph('[остальное на главной]'),
           ],
@@ -103,6 +109,7 @@ void main() {
                 Column(
                   children: [
                     home(393),
+                    home(393, dark: true),
                     home(320),
                     for (final w in [393.0, 320.0])
                       phone(

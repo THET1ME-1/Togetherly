@@ -119,6 +119,15 @@ routerAdd("POST", "/api/chest/open", (e) => {
     return e.json(400, { ok: false, error: "bad_request" });
   }
 
+  // Выключатель: app_config.chest_enabled = false — сундук не открывается,
+  // а приложение прячет блок на главной. Одна команда на сервере, без релиза.
+  try {
+    const cfg = $app.findRecordsByFilter("app_config", "", "", 1, 0);
+    if (cfg.length && !cfg[0].getBool("chest_enabled")) {
+      return e.json(403, { ok: false, error: "chest_disabled" });
+    }
+  } catch (_) {}
+
   const me = e.auth.id;
   const now = Date.now();
   const day = new Date(now + tz * 60 * 1000).toISOString().slice(0, 10);

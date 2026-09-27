@@ -3403,6 +3403,22 @@ class PbDataService {
     }
   }
 
+  /// Показывать ли сундук на главной (поле `chest_enabled` там же).
+  ///
+  /// Выключатель на случай, если сундук надо убрать без релиза — одной
+  /// командой на сервере (см. CLAUDE.md, раздел про сундук). Пока поле не
+  /// выключено явно, сундук виден; сбой сети его не прячет.
+  Future<bool> fetchChestEnabled() async {
+    try {
+      final res = await _pb.collection('app_config').getList(perPage: 1);
+      if (res.items.isEmpty) return true;
+      return res.items.first.data['chest_enabled'] != false;
+    } catch (e) {
+      debugPrint('PbData.fetchChestEnabled failed: $e');
+      return true;
+    }
+  }
+
   /// Слать ли самоотчёт о контейнере виджетов (поле `widget_diag_enabled`).
   ///
   /// По умолчанию НЕТ. Разбор пустой галереи на iPhone закончился 23.08.2026, а

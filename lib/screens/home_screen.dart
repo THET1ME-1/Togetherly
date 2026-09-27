@@ -1832,11 +1832,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         : const SizedBox.shrink(),
                   ),
                 ),
-                // Сундук недели сразу под таймером (макет «Сундук недели»).
-                // Только в паре: подарок из сундука ложится на полку пары, а
-                // без группы серверу некуда его положить.
-                if (_pairData.isPaired) ...[
-                  const SizedBox(height: 8),
+                // Сундук сразу под таймером (макет «Сундук недели»), стоит
+                // постоянно. Только в паре: подарок из сундука ложится на
+                // полку пары, а без группы серверу некуда его положить.
+                // Отступ сверху у блока свой: выключенный с сервера
+                // (`app_config.chest_enabled`) он не оставляет пустой полосы.
+                if (_pairData.isPaired)
                   AnimatedSlideIn(
                     delay: const Duration(milliseconds: 140),
                     child: ChestHomeCard(
@@ -1846,7 +1847,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       onCoins: widget.userData.applyServerCoins,
                     ),
                   ),
-                ],
                 // Слот подсказки один на оба состояния: без пары тут стоит
                 // список первых действий (раньше — карточка «подключите
                 // партнёра»), с парой — либо строка прогресса, либо напоминание
