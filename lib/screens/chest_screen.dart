@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -23,10 +24,12 @@ import '../widgets/chest/chest_prize_image.dart';
 /// Кнопка стоит сразу под сундуком, а не прилипает к низу, как на макете:
 /// список призов длинный, и до кнопки пришлось бы листать (правка заказчика).
 ///
-/// Открытие: ролик → сервер разыгрывает приз → сундук играет открытие один
-/// раз, приз поднимается из него по дорожке [kChestPrizeTrack], на 2,0 с
-/// появляется название выигрыша, в 3,8 с сундук снова в покое, а название
-/// остаётся — всё как на макете.
+/// Открытие: ролик → сервер разыгрывает приз → приложение ждёт, пока реклама
+/// закроется и экран снова рисуется, → сундук играет открытие один раз, приз
+/// поднимается из него по дорожке [kChestPrizeTrack], на 2,0 с появляется
+/// название выигрыша. Дальше сундук стоит открытым с призом до следующего
+/// открытия: по макету он возвращался к покою, и после рекламы человек видел
+/// уже закрытую крышку (жалоба 27.09.2026).
 ///
 /// Выпал подарок — на месте кнопки открытия встают «Подарить» и «Оставить
 /// себе» (макет «Подарок из сундука», вариант 4Б). Ушёл с экрана, не выбрав, —
@@ -68,8 +71,11 @@ class _ChestScreenState extends State<ChestScreen> {
   /// идёт с тем же id и без нового ролика: сервер выдаст приз один раз.
   String? _pendingOpenId;
 
-  /// Идёт анимация открытия с этим призом; кадр — для дорожки приза.
+  /// Приз в открытом сундуке; кадр — для дорожки приза. После анимации
+  /// сундук остаётся открытым с призом до следующего открытия: вернувшись из
+  /// рекламы, человек должен увидеть, что выпало, а не закрытую крышку.
   ChestPrize? _opening;
+  bool _animating = false;
   int _frame = -1;
   int _openRun = 0;
 
@@ -115,13 +121,32 @@ class _ChestScreenState extends State<ChestScreen> {
 
   void _snack(String text) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
 
+  /// Ждёт, пока приложение снова на экране и отрисовало кадр. Рекламный экран
+  /// закрывается не мгновенно, и открытие сундука не должно пройти под ним.
+  Future<void> _untilVisible() async {
+    final binding = WidgetsBinding.instance;
+    if (binding.lifecycleState != AppLifecycleState.resumed) {
+      final back = Completer<void>();
+      final listener = AppLifecycleListener(
+        onResume: () {
+          if (!back.isCompleted) back.complete();
+        },
+      );
+      await back.future.timeout(const Duration(seconds: 30), onTimeout: () {});
+      listener.dispose();
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    await binding.endOfFrame;
+  }
+
   Future<void> _open() async {
-    if (_busy || _opening != null) return;
+    if (_busy || _animating) return;
     if (_left <= 0 && _pendingOpenId == null) {
       _snack(trKey('chestLimit'));
       return;
     }
     final openId = _pendingOpenId ?? newPbId();
+    var adShown = false;
     if (_pendingOpenId == null && !_free) {
       if (!_ad.isReady) {
         _ad.load();
@@ -139,10 +164,15 @@ class _ChestScreenState extends State<ChestScreen> {
         setState(() => _busy = false);
         return;
       }
+      adShown = true;
     }
     _pendingOpenId = openId;
     setState(() => _busy = true);
-    final res = await ChestService.instance.open(openId: openId, groupId: widget.groupId);
+    // Приз разыгрывается, пока закрывается реклама и докачивается открытие.
+    final request = ChestService.instance.open(openId: openId, groupId: widget.groupId);
+    if (adShown) await _untilVisible();
+    await ChestFrames.prefetch(_openUrl);
+    final res = await request;
     if (!mounted) return;
     if (!res.ok) {
       setState(() {
@@ -161,6 +191,7 @@ class _ChestScreenState extends State<ChestScreen> {
     if (res.prize?.kind == ChestPrizeKind.plus) PlusService.instance.refresh();
     setState(() {
       _opening = res.prize;
+      _animating = true;
       _frame = -1;
       _openRun++;
       _won = null;
@@ -187,7 +218,7 @@ class _ChestScreenState extends State<ChestScreen> {
       if (prize != null && prize.kind == ChestPrizeKind.gift && _lastOpenId != null) {
         _choice = ChestStashItem(openId: _lastOpenId!, giftKey: prize.key);
       }
-      _opening = null;
+      _animating = false;
       _busy = false;
     });
   }
@@ -351,7 +382,7 @@ class _ChestScreenState extends State<ChestScreen> {
 
   Widget _button(ColorScheme cs) {
     final String label;
-    if (_busy || _opening != null) {
+    if (_busy || _animating) {
       label = trKey('chestOpening');
     } else if (_left <= 0 && _pendingOpenId == null) {
       label = trKey('chestTomorrow');
@@ -362,7 +393,7 @@ class _ChestScreenState extends State<ChestScreen> {
     return SizedBox(
       width: double.infinity,
       child: FilledButton(
-        onPressed: _busy || _opening != null ? null : _open,
+        onPressed: _busy || _animating ? null : _open,
         style: FilledButton.styleFrom(
           backgroundColor: cs.primary,
           foregroundColor: cs.onPrimary,

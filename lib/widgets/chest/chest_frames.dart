@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../services/offline/media_view_cache.dart';
@@ -11,6 +12,15 @@ import '../../services/offline/media_view_cache.dart';
 /// Сундуку нужен номер кадра: по нему приз идёт по дорожке и в нужный момент
 /// появляется название выигрыша. [Image] номера не сообщает и не умеет
 /// «проиграть один раз и сказать, что кончилось».
+///
+/// Кадры двигает [Ticker], то есть сама отрисовка экрана, а не таймер. Пока
+/// экран не рисуется — приложение за рекламой, окно ещё не вернулось, — кадр
+/// стоит на месте. С таймером открытие сундука успевало пройти невидимым,
+/// пока закрывался рекламный экран, и человек возвращался к уже закрытому
+/// сундуку (жалоба 27.09.2026). За один кадр отрисовки анимация шагает не
+/// больше чем на кадр, поэтому после подвисания она не перепрыгивает вперёд.
+///
+/// [loop] = false — проиграть один раз и остаться на последнем кадре.
 ///
 /// Файл берётся из серверного каталога через общий кэш картинок; пока он
 /// едет или сети нет, стоит [still] из сборки. Не загрузилось вовсе — [onDone]
@@ -42,17 +52,29 @@ class ChestFrames extends StatefulWidget {
     } catch (_) {}
   }
 
+  /// Файл уже в памяти — открытие можно начинать без ожидания сети.
+  static bool isReady(String? url) => url != null && _bytes.containsKey(url);
+
+  /// Тесты: положить байты файла без сети.
+  @visibleForTesting
+  static void debugPut(String url, Uint8List bytes) => _bytes[url] = bytes;
+
   static final Map<String, Uint8List> _bytes = {};
 
   @override
   State<ChestFrames> createState() => _ChestFramesState();
 }
 
-class _ChestFramesState extends State<ChestFrames> {
+class _ChestFramesState extends State<ChestFrames> with SingleTickerProviderStateMixin {
+  late final Ticker _ticker = createTicker(_onTick);
   ui.Codec? _codec;
   ui.Image? _image;
-  Timer? _timer;
   int _index = 0;
+
+  /// Когда по часам тикера показывать следующий кадр.
+  Duration _due = Duration.zero;
+  bool _fetching = false;
+  bool _stopped = false;
   bool _disposed = false;
 
   @override
@@ -84,16 +106,23 @@ class _ChestFramesState extends State<ChestFrames> {
       widget.onDone?.call();
       return;
     }
-    _next();
+    _ticker.start();
   }
 
-  Future<void> _next() async {
+  void _onTick(Duration elapsed) {
+    if (_fetching || _stopped || elapsed < _due) return;
+    _fetching = true;
+    _advance(elapsed);
+  }
+
+  Future<void> _advance(Duration elapsed) async {
     final codec = _codec;
-    if (codec == null || _disposed) return;
+    if (codec == null) return;
     final ui.FrameInfo frame;
     try {
       frame = await codec.getNextFrame();
     } catch (_) {
+      _stop();
       widget.onDone?.call();
       return;
     }
@@ -108,17 +137,24 @@ class _ChestFramesState extends State<ChestFrames> {
     widget.onFrame?.call(i);
     final last = i == codec.frameCount - 1;
     if (last && !widget.loop) {
+      _stop();
       widget.onDone?.call();
       return;
     }
     _index = last ? 0 : i + 1;
-    _timer = Timer(frame.duration == Duration.zero ? const Duration(milliseconds: 60) : frame.duration, _next);
+    _due = elapsed + (frame.duration == Duration.zero ? const Duration(milliseconds: 60) : frame.duration);
+    _fetching = false;
+  }
+
+  void _stop() {
+    _stopped = true;
+    if (_ticker.isActive) _ticker.stop();
   }
 
   @override
   void dispose() {
     _disposed = true;
-    _timer?.cancel();
+    _ticker.dispose();
     _image?.dispose();
     _codec?.dispose();
     super.dispose();
