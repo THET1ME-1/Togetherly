@@ -385,6 +385,15 @@ class UserData extends ChangeNotifier {
   bool ownsFrame(String key) =>
       _ownedFeatures.contains(AvatarFrame.featureKeyOf(key));
 
+  /// Значки из ответа сундука: выпавший жилец уже лежит в списке.
+  void applyOwnedIcons(List<String> icons) {
+    _ownedIcons
+      ..clear()
+      ..addAll(icons);
+    unawaited(_saveLocal());
+    notifyListeners();
+  }
+
   /// Покупки из ответа сундука: выпавшая рамка уже лежит в списке.
   void applyOwnedFeatures(List<String> features) {
     _ownedFeatures

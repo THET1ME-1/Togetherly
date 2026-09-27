@@ -15,6 +15,7 @@ class ChestOpenResult {
     this.coins,
     this.plus = false,
     this.ownedFeatures,
+    this.ownedIcons,
     this.error,
   });
 
@@ -26,6 +27,9 @@ class ChestOpenResult {
 
   /// Покупки человека после открытия: выпавшая рамка уже лежит здесь.
   final List<String>? ownedFeatures;
+
+  /// Купленные и выпавшие значки после открытия: выпавший жилец уже здесь.
+  final List<String>? ownedIcons;
 
   /// `chest_limit` — на сегодня всё; `network` — сервер не ответил; остальное
   /// — отказ сервера.
@@ -141,6 +145,7 @@ ChestOpenResult parseChestOpen(Map<String, dynamic>? j) {
     coins: (j['coins'] as num?)?.toInt(),
     plus: j['plus'] == true,
     ownedFeatures: j['ownedFeatures'] is List ? [for (final f in j['ownedFeatures'] as List) '$f'] : null,
+    ownedIcons: j['ownedIcons'] is List ? [for (final f in j['ownedIcons'] as List) '$f'] : null,
     error: prize == null ? 'unknown_prize' : null,
   );
 }

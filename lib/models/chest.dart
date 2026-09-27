@@ -1,5 +1,6 @@
 import 'avatar_frame.dart';
 import 'gift.dart';
+import 'profile_icon.dart';
 
 /// Что лежит в сундуке недели и с какими шансами.
 ///
@@ -7,15 +8,15 @@ import 'gift.dart';
 /// же роутом `/api/chest/state`, поэтому проценты на экране совпадают с
 /// розыгрышем. Здесь — разбор ответа и запасная копия таблицы на случай, когда
 /// сервер ещё не ответил.
-enum ChestPrizeKind { coins, gift, plus, frame }
+enum ChestPrizeKind { coins, gift, plus, frame, badge }
 
 enum ChestTier { common, rare, legendary }
 
 class ChestPrize {
   const ChestPrize({required this.key, required this.kind, required this.weight, required this.tier, this.amount = 0});
 
-  /// `coins5`, ключ подарка из [GiftCatalog.chest], `plus` или id рамки в
-  /// каталоге (`frame_cat`).
+  /// `coins5`, ключ подарка из [GiftCatalog.chest], `plus` или id рамки и
+  /// значка в каталоге (`frame_cat`, `badge_kitty`).
   final String key;
   final ChestPrizeKind kind;
 
@@ -29,10 +30,12 @@ class ChestPrize {
   Gift? get gift => kind == ChestPrizeKind.gift ? GiftCatalog.byKey(key) : null;
 
   /// Ключ рамки аватарки (`cat` из `frame_cat`); у прочих призов null.
-  String? get frameKey =>
-      kind == ChestPrizeKind.frame && key.startsWith('frame_') ? key.substring(6) : null;
+  String? get frameKey => kind == ChestPrizeKind.frame && key.startsWith('frame_') ? key.substring(6) : null;
 
   AvatarFrame? get frame => AvatarFrame.byKey(frameKey);
+
+  /// Значок-жилец из сундука; у прочих призов null.
+  ProfileIcon? get badge => kind == ChestPrizeKind.badge ? ProfileIcon.byCatalogId(key) : null;
 
   static ChestPrize? fromJson(Map<String, dynamic> j) {
     final kind = switch (j['kind']) {
@@ -40,6 +43,7 @@ class ChestPrize {
       'gift' => ChestPrizeKind.gift,
       'plus' => ChestPrizeKind.plus,
       'frame' => ChestPrizeKind.frame,
+      'badge' => ChestPrizeKind.badge,
       _ => null,
     };
     final key = (j['key'] ?? '').toString();
@@ -84,37 +88,55 @@ class ChestState {
   }
 }
 
-/// Доли рамок аватарки по редкости — зеркало `FRAME_TIER` в `chest.pb.js`.
-/// Рамки сервер берёт из каталога при каждом открытии и делит долю яруса между
-/// ними поровну; пока рамок нет, доля сидит в «5 монетах».
-const Map<String, int> kChestFrameTiers = {'common': 60, 'rare': 30, 'legendary': 15};
+/// Пул редкости в десятых долях процента — зеркало `TIER_POOL` в
+/// `chest.pb.js`. Пул делится поровну между всеми предметами редкости
+/// (подарки сундука, рамки и значки из каталога), поэтому подарок, рамка и
+/// значок одной редкости выпадают одинаково.
+const Map<String, int> kChestTierPools = {'common': 240, 'rare': 128, 'legendary': 27};
 
-/// Запасная таблица — зеркало `ODDS` в `chest.pb.js`, где рамок ещё нет:
-/// их доля ([kChestFrameTiers]) лежит в «5 монетах». [withPlus] = false —
-/// Плюса нет (iPhone или уже куплен), его доля уходит в «5 монет».
-List<ChestPrize> fallbackChestOdds({required bool withPlus}) => [
-  ChestPrize(
-    key: 'coins5',
-    kind: ChestPrizeKind.coins,
-    amount: 5,
-    weight: withPlus ? 350 : 400,
-    tier: ChestTier.common,
-  ),
-  const ChestPrize(key: 'coins10', kind: ChestPrizeKind.coins, amount: 10, weight: 200, tier: ChestTier.common),
-  const ChestPrize(key: 'cookieheart', kind: ChestPrizeKind.gift, weight: 50, tier: ChestTier.common),
-  const ChestPrize(key: 'teddy', kind: ChestPrizeKind.gift, weight: 40, tier: ChestTier.common),
-  const ChestPrize(key: 'potion', kind: ChestPrizeKind.gift, weight: 40, tier: ChestTier.common),
-  const ChestPrize(key: 'coins25', kind: ChestPrizeKind.coins, amount: 25, weight: 80, tier: ChestTier.rare),
-  const ChestPrize(key: 'throne', kind: ChestPrizeKind.gift, weight: 30, tier: ChestTier.rare),
-  const ChestPrize(key: 'champagne', kind: ChestPrizeKind.gift, weight: 30, tier: ChestTier.rare),
-  const ChestPrize(key: 'snowglobe', kind: ChestPrizeKind.gift, weight: 30, tier: ChestTier.rare),
-  const ChestPrize(key: 'rose', kind: ChestPrizeKind.gift, weight: 25, tier: ChestTier.rare),
-  const ChestPrize(key: 'perfume', kind: ChestPrizeKind.gift, weight: 25, tier: ChestTier.rare),
-  const ChestPrize(key: 'record', kind: ChestPrizeKind.gift, weight: 25, tier: ChestTier.rare),
-  const ChestPrize(key: 'locket', kind: ChestPrizeKind.gift, weight: 15, tier: ChestTier.legendary),
-  const ChestPrize(key: 'rings', kind: ChestPrizeKind.gift, weight: 10, tier: ChestTier.legendary),
-  if (withPlus) const ChestPrize(key: 'plus', kind: ChestPrizeKind.plus, weight: 50, tier: ChestTier.legendary),
-];
+/// Вес одного предмета в запасной таблице: пул, делённый на число предметов
+/// редкости в каталоге на 27.09.2026 (обычных 12, редких 16, легендарных 9).
+/// Настоящий вес считает сервер по живому каталогу.
+const Map<ChestTier, int> _fallbackItemWeight = {ChestTier.common: 20, ChestTier.rare: 8, ChestTier.legendary: 3};
+
+/// Запасная таблица, пока сервер не ответил: монеты, Плюс и подарки сундука
+/// (рамок и значков без каталога показать нечем). Всё, что не разложено, —
+/// «5 монет», сумма всегда 1000. [withPlus] = false — Плюса нет (iPhone или
+/// уже куплен), его доля тоже уходит в «5 монет».
+List<ChestPrize> fallbackChestOdds({required bool withPlus}) {
+  const tiers = {
+    'cookieheart': ChestTier.common,
+    'teddy': ChestTier.common,
+    'potion': ChestTier.common,
+    'throne': ChestTier.rare,
+    'champagne': ChestTier.rare,
+    'snowglobe': ChestTier.rare,
+    'rose': ChestTier.rare,
+    'perfume': ChestTier.rare,
+    'record': ChestTier.rare,
+    'locket': ChestTier.legendary,
+    'rings': ChestTier.legendary,
+  };
+  final gifts = [
+    for (final e in tiers.entries)
+      ChestPrize(key: e.key, kind: ChestPrizeKind.gift, weight: _fallbackItemWeight[e.value]!, tier: e.value),
+  ];
+  final rest = [
+    const ChestPrize(key: 'coins10', kind: ChestPrizeKind.coins, amount: 10, weight: 180, tier: ChestTier.common),
+    const ChestPrize(key: 'coins25', kind: ChestPrizeKind.coins, amount: 25, weight: 75, tier: ChestTier.rare),
+    if (withPlus) const ChestPrize(key: 'plus', kind: ChestPrizeKind.plus, weight: 50, tier: ChestTier.legendary),
+  ];
+  final used = [...gifts, ...rest].fold<int>(0, (t, p) => t + p.weight);
+  return [
+    ChestPrize(key: 'coins5', kind: ChestPrizeKind.coins, amount: 5, weight: 1000 - used, tier: ChestTier.common),
+    rest[0],
+    ...gifts.where((g) => g.tier == ChestTier.common),
+    rest[1],
+    ...gifts.where((g) => g.tier == ChestTier.rare),
+    ...gifts.where((g) => g.tier == ChestTier.legendary),
+    if (withPlus) rest[2],
+  ];
+}
 
 /// Доля приза от всей таблицы строкой: «35%», «2,5%». Десятичный знак — по
 /// языку ([decimal]), ноль после запятой не пишется.
@@ -139,10 +161,7 @@ List<(ChestTier, List<ChestPrize>)> chestTiers(List<ChestPrize> odds) => [
 /// ярусы по [chestTiers] уже без него. Нет Плюса в таблице — нет и раздела.
 List<(ChestTier?, List<ChestPrize>)> chestSections(List<ChestPrize> odds) {
   final top = odds.where((p) => p.kind == ChestPrizeKind.plus).toList();
-  return [
-    if (top.isNotEmpty) (null, top),
-    ...chestTiers(odds.where((p) => p.kind != ChestPrizeKind.plus).toList()),
-  ];
+  return [if (top.isNotEmpty) (null, top), ...chestTiers(odds.where((p) => p.kind != ChestPrizeKind.plus).toList())];
 }
 
 /// Где стоит приз в кадрах открытия сундука: `[x, y, сторона]` в долях

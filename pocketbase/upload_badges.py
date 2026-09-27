@@ -254,13 +254,16 @@ def upload(folder: Path, token: str) -> None:
         "key": key,
         "rarity": spec.get("rarity", "common"),
         "grantOnly": bool(spec.get("grantOnly")),
+        # Значок из сундука: не продаётся, его разыгрывает chest.pb.js.
+        "chest": bool(spec.get("chest")),
         "name": names,
         "desc": spec.get("desc") or {},
         **urls,
     }
     body, ctype = multipart({"data": json.dumps(manifest, ensure_ascii=False)}, [])
     send("PATCH", url, token, body, ctype)
-    price = "награда" if spec.get("grantOnly") else f"{fields['price']} монет"
+    price = ("из сундука, " + spec.get("rarity", "common")) if spec.get("chest") else \
+        ("награда" if spec.get("grantOnly") else f"{fields['price']} монет")
     print(f"{key}: {action} ({item_id}, {price})")
 
 

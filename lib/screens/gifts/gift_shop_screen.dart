@@ -665,6 +665,11 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
                         ? _LabelTag(trKey('shopWornBadge'), filled: true)
                         : owns
                         ? _LabelTag(trKey('shopMineBadge'))
+                        : icon.fromChest
+                        ? _LabelTag(
+                            trKey('shopFromChest'),
+                            icon: Icons.redeem_rounded,
+                          )
                         : icon.grantOnly
                         ? _LabelTag(trKey('shopAward'))
                         : _PriceTag(price: icon.price, affordable: affordable),
@@ -692,6 +697,7 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
     final worn = ud.equippedIcon == icon.id;
     final canBuy = !owns && !icon.grantOnly && icon.price > 0;
     final affordable = _wallet >= icon.price;
+    final chest = !owns && icon.fromChest && widget.groupId.isNotEmpty;
     final action = await showAppSheet<String>(
       context,
       builder: (ctx) => SheetScaffold(
@@ -701,8 +707,13 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
           lines: [
             if (icon.description.isNotEmpty) icon.description,
             trKey(
-              icon.grantOnly && !owns ? 'shopBadgeAwardHint' : 'shopBadgeHint',
+              owns || !icon.grantOnly
+                  ? 'shopBadgeHint'
+                  : icon.fromChest
+                  ? 'shopBadgeChestHint'
+                  : 'shopBadgeAwardHint',
             ),
+            if (!owns && icon.fromChest && !chest) trKey('shopChestNeedsPair'),
             if (canBuy && !affordable) LocaleService.current.giftNotEnoughCoins,
           ],
           actions: [
@@ -717,6 +728,7 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
               ),
             if (canBuy && !affordable && widget.onOpenCoins != null)
               ('coins', LocaleService.current.coinBalance, false, true),
+            if (chest) ('chest', trKey('shopOpenChest'), true, true),
           ],
         ),
       ),
@@ -724,6 +736,10 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
     if (action == null || !mounted) return;
     if (action == 'coins') {
       widget.onOpenCoins?.call();
+      return;
+    }
+    if (action == 'chest') {
+      await _openChest();
       return;
     }
     setState(() => _busyItem = icon.id);

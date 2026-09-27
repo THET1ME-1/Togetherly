@@ -18,6 +18,7 @@ class ProfileIcon {
     required this.id,
     required this.price,
     this.grantOnly = false,
+    this.fromChest = false,
     this.rarity = 'common',
     this.sort = 0,
     this.names = const {},
@@ -34,6 +35,15 @@ class ProfileIcon {
 
   /// Выдаётся только наградой (Sponsor, Helper, Fish): купить нельзя.
   final bool grantOnly;
+
+  /// Выпадает только из сундука (`data.chest`), за монеты не продаётся.
+  /// Такой значок ещё и `grantOnly` — его не открывает ни покупка, ни Плюс.
+  final bool fromChest;
+
+  /// Id записи каталога: `badge_<слаг ключа>`. Под ним значок стоит в сундуке.
+  String get catalogId => catalogIdOf(id);
+  static String catalogIdOf(String key) =>
+      'badge_${key.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_').replaceAll(RegExp(r'^_+|_+$'), '')}';
 
   /// `common`, `rare`, `legendary` или `award`.
   final String rarity;
@@ -92,13 +102,15 @@ class ProfileIcon {
     Map<String, String> strMap(Object? v) => v is Map
         ? {for (final e in v.entries) '${e.key}': '${e.value}'}
         : const {};
-    final grant = data['grantOnly'] == true;
+    final chest = data['chest'] == true;
+    final grant = data['grantOnly'] == true || chest;
     final price = row['price'];
     final sort = row['sort'];
     return ProfileIcon(
       id: key,
       price: grant ? 0 : (price is num ? price.toInt() : 0),
       grantOnly: grant,
+      fromChest: chest,
       rarity: '${data['rarity'] ?? (grant ? 'award' : 'common')}',
       sort: sort is num ? sort.toInt() : 0,
       names: strMap(data['name']),
@@ -129,6 +141,15 @@ class ProfileIcon {
   /// Значки, которые продаются (без наградных).
   static List<ProfileIcon> get purchasable =>
       all.where((i) => !i.grantOnly).toList(growable: false);
+
+  /// Значок по id записи каталога (`badge_kitty`) — так его называет сундук.
+  static ProfileIcon? byCatalogId(String? catalogId) {
+    if (catalogId == null || catalogId.isEmpty) return null;
+    for (final icon in all) {
+      if (icon.catalogId == catalogId) return icon;
+    }
+    return null;
+  }
 
   /// Поиск по ключу. null — такого значка в каталоге нет (или он ещё не загружен).
   static ProfileIcon? byId(String? id) {

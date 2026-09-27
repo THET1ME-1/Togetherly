@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Живой регресс рамок аватарки в сундуке.
+"""Живой регресс сундука: рамки, значки-жильцы и равные шансы по редкости.
 
 Рамки не продаются, их разыгрывает сундук, читая каталог при каждом
 открытии. Проверяем то, что ломается молча: сумма таблицы шансов, старые
@@ -93,15 +93,17 @@ def main():
     check("пара собрана", bool(pair), f"{st} {res}")
 
     frames = sql("SELECT id FROM catalog_items WHERE kind='frame' AND enabled=1").split()
-    log(f"рамок в каталоге: {len(frames)}")
+    badges = sql("SELECT id FROM catalog_items WHERE kind='badge' AND enabled=1 "
+                 "AND json_extract(data,'$.chest')=1").split()
+    log(f"рамок в каталоге: {len(frames)}, значков сундука: {len(badges)}")
 
     log("=== 1. старая сборка рамок не видит ===")
     st, old = api("/api/chest/state?tz=180&platform=android", None, me["token"])
     odds = (old or {}).get("odds") or []
-    check("без frames=1 рамок в таблице нет", st == 200 and not [o for o in odds if o["kind"] == "frame"], f"{st}")
+    check("без frames=1 рамок и значков в таблице нет",
+          st == 200 and not [o for o in odds if o["kind"] in ("frame", "badge")], f"{st}")
     check("таблица старой сборки даёт 1000", weights(odds) == 1000, str(weights(odds)))
-    c5 = [o for o in odds if o["key"] == "coins5"]
-    check("у старой сборки «5 монет» по-прежнему 35%", c5 and c5[0]["weight"] == 350, str(c5))
+    old_gifts = {o["key"]: o["weight"] for o in odds if o["kind"] == "gift"}
 
     log("=== 2. новая сборка видит все рамки каталога ===")
     st, new = api("/api/chest/state?tz=180&platform=android&frames=1", None, me["token"])
@@ -111,6 +113,20 @@ def main():
           str([o["key"] for o in fr]))
     check("сумма таблицы по-прежнему 1000", weights(odds) == 1000, str(weights(odds)))
     check("у рамок есть ярус", all(o["tier"] in ("common", "rare", "legendary") for o in fr))
+    bd = [o for o in odds if o["kind"] == "badge"]
+    check("каждый значок сундука в таблице", sorted(o["key"] for o in bd) == sorted(badges),
+          str([o["key"] for o in bd]))
+    # Подарок, рамка и значок одной редкости выпадают одинаково.
+    per_tier = {}
+    for o in odds:
+        if o["kind"] in ("gift", "frame", "badge"):
+            per_tier.setdefault(o["tier"], set()).add(o["weight"])
+    check("внутри редкости шанс один на всех", all(len(v) == 1 for v in per_tier.values()), str(per_tier))
+    w = {t: next(iter(v)) for t, v in per_tier.items()}
+    check("обычное чаще редкого, редкое чаще легендарного",
+          w.get("common", 0) > w.get("rare", 0) > w.get("legendary", 0), str(w))
+    check("у подарков шанс тот же, что у старой сборки",
+          all(old_gifts.get(o["key"]) == o["weight"] for o in odds if o["kind"] == "gift"), str(old_gifts))
 
     log("=== 3. полученная рамка из розыгрыша выпадает ===")
     owned = [f"frame:{f}" for f in frames[:2]]

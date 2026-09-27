@@ -5,6 +5,7 @@ import '../../models/chest.dart';
 import '../../services/pb_auth_service.dart';
 import '../../services/pocketbase_service.dart';
 import '../avatar_widget.dart';
+import '../common/badge_image.dart';
 import '../common/coin_image.dart';
 import '../common/gift_image.dart';
 
@@ -41,6 +42,8 @@ class ChestPrizeImage extends StatelessWidget {
         return GiftImage(prize.key, side: side);
       case ChestPrizeKind.plus:
         return GiftImage('chest_plus', side: side);
+      case ChestPrizeKind.badge:
+        return BadgeImage(prize.badge?.id, side: side);
       case ChestPrizeKind.frame:
         // Рамка крупнее аватарки: вся картинка рамки занимает [side].
         final avatar = side / AvatarFrame.scale;

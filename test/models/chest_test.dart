@@ -5,6 +5,8 @@ import 'package:love_app/models/chest.dart';
 import 'package:love_app/models/gift.dart';
 import 'package:love_app/services/chest_service.dart';
 
+import '../helpers/badge_catalog.dart';
+
 /// Строки таблицы `ODDS` из хука: `[ключ, вид, монет, вес, ярус]`. Таблица
 /// продублирована в обоих роутах — сверяются обе.
 List<List<String>> serverOdds(String src) {
@@ -24,27 +26,72 @@ List<List<String>> serverOdds(String src) {
 void main() {
   final src = File('pocketbase/pb_hooks/chest.pb.js').readAsStringSync();
 
-  test('запасная таблица совпадает с серверной без рамок', () {
-    // В запасной таблице рамок нет, их доля лежит в «5 монетах» — так же
-    // сервер раскладывает таблицу, когда в каталоге нет ни одной рамки.
-    final frames = kChestFrameTiers.values.fold<int>(0, (t, w) => t + w);
-    final server = [
-      for (final r in serverOdds(src))
-        r[0] == 'coins5' ? [r[0], r[1], r[2], '${int.parse(r[3]) + frames}', r[4]] : r,
+  /// Подарки сундука из хука: `["ключ", "ярус"]`, обе копии одинаковы.
+  List<List<String>> serverGifts() {
+    final blocks = RegExp(r'const GIFTS = \[(.*?)\];', dotAll: true).allMatches(src).toList();
+    expect(blocks.length, 2, reason: 'GIFTS продублирована в state и open');
+    final tables = [
+      for (final b in blocks)
+        [
+          for (final r in RegExp(r'\["(\w+)", "(\w+)"\]').allMatches(b.group(1)!)) [r.group(1)!, r.group(2)!],
+        ],
     ];
-    final client = fallbackChestOdds(withPlus: true);
-    expect(client.map((p) => [p.key, p.kind.name, '${p.amount}', '${p.weight}', p.tier.name]).toList(), server);
+    expect(tables[0], tables[1], reason: 'копии GIFTS разошлись');
+    return tables[0];
+  }
+
+  test('монеты и Плюс в запасной таблице — те же строки, что на сервере', () {
+    final client = {for (final p in fallbackChestOdds(withPlus: true)) p.key: p};
+    for (final r in serverOdds(src)) {
+      if (r[0] == 'coins5') continue; // «5 монет» забирает всё, что не разложено
+      final p = client[r[0]];
+      expect(p, isNotNull, reason: '${r[0]} нет в запасной таблице');
+      expect([p!.kind.name, '${p.amount}', '${p.weight}', p.tier.name], [r[1], r[2], r[3], r[4]]);
+    }
   });
 
-  test('доли рамок по редкости совпадают с сервером в обоих роутах', () {
-    final blocks = RegExp(r'const FRAME_TIER = \{([^}]*)\}').allMatches(src).toList();
-    expect(blocks.length, 2, reason: 'FRAME_TIER продублирована в state и open');
+  test('подарки сундука: те же ключи и ярусы, что на сервере', () {
+    final client = {
+      for (final p in fallbackChestOdds(withPlus: true).where((p) => p.kind == ChestPrizeKind.gift)) p.key: p.tier.name,
+    };
+    expect(client, {for (final g in serverGifts()) g[0]: g[1]});
+  });
+
+  test('пулы редкости совпадают с сервером в обоих роутах', () {
+    final blocks = RegExp(r'const TIER_POOL = \{([^}]*)\}').allMatches(src).toList();
+    expect(blocks.length, 2, reason: 'TIER_POOL продублирована в state и open');
     for (final b in blocks) {
       final m = {
         for (final r in RegExp(r'(\w+): (\d+)').allMatches(b.group(1)!)) r.group(1)!: int.parse(r.group(2)!),
       };
-      expect(m, kChestFrameTiers);
+      expect(m, kChestTierPools);
     }
+  });
+
+  test('одинаковая редкость — одинаковый шанс, и редкое реже обычного', () {
+    final odds = fallbackChestOdds(withPlus: true).where((p) => p.kind == ChestPrizeKind.gift);
+    final byTier = <ChestTier, Set<int>>{};
+    for (final p in odds) {
+      (byTier[p.tier] ??= {}).add(p.weight);
+    }
+    for (final w in byTier.values) {
+      expect(w.length, 1, reason: 'внутри яруса веса разные: $w');
+    }
+    expect(byTier[ChestTier.common]!.first, greaterThan(byTier[ChestTier.rare]!.first));
+    expect(byTier[ChestTier.rare]!.first, greaterThan(byTier[ChestTier.legendary]!.first));
+  });
+
+  test('значок из ответа сервера находится по id записи каталога', () {
+    installTestBadges();
+    final p = ChestPrize.fromJson({'key': 'badge_lucky', 'kind': 'badge', 'amount': 0, 'weight': 8, 'tier': 'rare'});
+    expect(p?.kind, ChestPrizeKind.badge);
+    expect(p?.badge?.id, 'Lucky');
+    final res = parseChestOpen({
+      'ok': true,
+      'prize': {'key': 'badge_lucky', 'kind': 'badge', 'amount': 0},
+      'ownedIcons': ['Lucky'],
+    });
+    expect(res.ownedIcons, ['Lucky']);
   });
 
   test('рамка из ответа сервера: ключ каталога и ключ рамки', () {
@@ -83,10 +130,10 @@ void main() {
   test('проценты: целые без запятой, половинки с запятой', () {
     final odds = fallbackChestOdds(withPlus: true);
     String pct(String key) => chestPercent(odds.firstWhere((p) => p.key == key), odds);
-    expect(pct('coins5'), '35%');
-    expect(pct('rose'), '2,5%');
+    expect(pct('coins10'), '18%');
+    expect(pct('rose'), '0,8%');
     expect(pct('plus'), '5%');
-    expect(chestPercent(odds.firstWhere((p) => p.key == 'locket'), odds, decimal: '.'), '1.5%');
+    expect(chestPercent(odds.firstWhere((p) => p.key == 'locket'), odds, decimal: '.'), '0.3%');
   });
 
   test('ярусы идут от обычных к легендарным, пустые пропадают', () {

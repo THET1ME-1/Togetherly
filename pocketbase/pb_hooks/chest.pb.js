@@ -7,7 +7,9 @@
 ///   POST /api/chest/give                 — подарок из запаса партнёру.
 ///
 /// В сундуке монеты, одиннадцать подарков, которых нет в витрине, рамки
-/// аватарки (их список берётся из каталога) и Togetherly+. Шансы живут только здесь: экран сундука рисует ту таблицу,
+/// аватарки и значки-жильцы (их список берётся из каталога) и Togetherly+.
+/// Подарки, рамки и значки одной редкости выпадают с одинаковым шансом:
+/// пул редкости (TIER_POOL) делится поровну между всеми её предметами. Шансы живут только здесь: экран сундука рисует ту таблицу,
 /// что отдал `state`, поэтому проценты на экране всегда совпадают с розыгрышем.
 ///
 /// Выпавший подарок сперва лежит в запасе: запись `chest_opens` с
@@ -36,22 +38,22 @@
 routerAdd("GET", "/api/chest/state", (e) => {
   // Зеркало таблицы в /api/chest/open. Вес — в десятых долях процента.
   const ODDS = [
-    ["coins5", "coins", 5, 245, "common"],
-    ["coins10", "coins", 10, 200, "common"],
-    ["cookieheart", "gift", 0, 50, "common"],
-    ["teddy", "gift", 0, 40, "common"],
-    ["potion", "gift", 0, 40, "common"],
-    ["coins25", "coins", 25, 80, "rare"],
-    ["throne", "gift", 0, 30, "rare"],
-    ["champagne", "gift", 0, 30, "rare"],
-    ["snowglobe", "gift", 0, 30, "rare"],
-    ["rose", "gift", 0, 25, "rare"],
-    ["perfume", "gift", 0, 25, "rare"],
-    ["record", "gift", 0, 25, "rare"],
-    ["locket", "gift", 0, 15, "legendary"],
-    ["rings", "gift", 0, 10, "legendary"],
+    ["coins5", "coins", 5, 300, "common"],
+    ["coins10", "coins", 10, 180, "common"],
+    ["coins25", "coins", 25, 75, "rare"],
     ["plus", "plus", 0, 50, "legendary"],
   ];
+  // Подарки сундука. Своего веса у них нет: шанс считается из пула редкости
+  // наравне с рамками и значками из каталога (TIER_POOL ниже).
+  const GIFTS = [
+    ["cookieheart", "common"], ["teddy", "common"], ["potion", "common"],
+    ["throne", "rare"], ["champagne", "rare"], ["snowglobe", "rare"],
+    ["rose", "rare"], ["perfume", "rare"], ["record", "rare"],
+    ["locket", "legendary"], ["rings", "legendary"],
+  ];
+  // Пул редкости в десятых долях процента: делится поровну между ВСЕМИ её
+  // предметами — подарком, рамкой и значком одной редкости выпадают одинаково.
+  const TIER_POOL = { common: 240, rare: 128, legendary: 27 };
   const PER_DAY = 3;
 
   const me = e.auth.id;
@@ -70,34 +72,49 @@ routerAdd("GET", "/api/chest/state", (e) => {
   if (!user) return e.json(404, { ok: false, error: "no_user" });
   const noPlus = ios || user.getBool("plus");
 
-  // Рамки аватарки выпадают прямо из каталога (`catalog_items`, вид `frame`):
-  // у каждой редкости своя доля, она делится поровну между рамками этой
-  // редкости. Новая рамка, заведённая на сервере, сама встаёт в розыгрыш.
-  // Уже полученная из розыгрыша выпадает, её доля (и остаток от деления)
-  // уходит в «5 монет», поэтому сумма таблицы всегда та же.
-  const FRAME_TIER = { common: 60, rare: 30, legendary: 15 };
+  // Всё, что разыгрывается по редкости: подарки сундука плюс рамки и
+  // значки из каталога (`catalog_items`: вид `frame` и `badge` с `data.chest`).
+  // Новая рамка или значок, заведённые на сервере, сами встают в розыгрыш.
+  // Уже полученные рамки и значки выпадают; каталожное не получают и сборки
+  // без флага `frames` (показать нечем). Их доля и остаток от деления уходят
+  // в «5 монет», поэтому сумма таблицы всегда 1000.
   let ownedF = [];
   try { ownedF = JSON.parse(user.getString("owned_features") || "[]") || []; } catch (_) { ownedF = []; }
-  const byTier = { common: [], rare: [], legendary: [] };
-  if (withFrames) try {
-    const recs = $app.findRecordsByFilter("catalog_items", "kind = 'frame' && enabled = true", "sort", 200, 0);
+  let ownedI = [];
+  try { ownedI = JSON.parse(user.getString("owned_icons") || "[]") || []; } catch (_) { ownedI = []; }
+  let grantedI = [];
+  try { grantedI = JSON.parse(user.getString("granted_badges") || "[]") || []; } catch (_) { grantedI = []; }
+  // [id приза, вид, ярус, можно ли выдать, ключ во владении]
+  const items = [];
+  for (let i = 0; i < GIFTS.length; i++) items.push([GIFTS[i][0], "gift", GIFTS[i][1], true, GIFTS[i][0]]);
+  try {
+    const recs = $app.findRecordsByFilter("catalog_items", "enabled = true && (kind = 'frame' || kind = 'badge')", "sort", 500, 0);
     for (let i = 0; i < recs.length; i++) {
       let d = {};
       try { d = JSON.parse(recs[i].getString("data") || "{}") || {}; } catch (_) { d = {}; }
       if (!d.key) continue;
-      byTier[FRAME_TIER[d.rarity] ? d.rarity : "common"].push(recs[i].id);
+      const kind = recs[i].getString("kind");
+      if (kind === "badge" && d.chest !== true) continue;
+      const t = TIER_POOL[d.rarity] ? d.rarity : "common";
+      const owned = kind === "frame"
+        ? ownedF.indexOf("frame:" + recs[i].id) !== -1
+        : (ownedI.indexOf(d.key) !== -1 || grantedI.indexOf(d.key) !== -1);
+      items.push([recs[i].id, kind, t, withFrames && !owned, String(d.key)]);
     }
   } catch (_) {}
+  const tierCount = { common: 0, rare: 0, legendary: 0 };
+  for (let i = 0; i < items.length; i++) tierCount[items[i][2]]++;
   const frameOdds = [];
   let frameSpare = 0;
-  for (const t in FRAME_TIER) {
-    const list = byTier[t];
-    const each = list.length ? Math.floor(FRAME_TIER[t] / list.length) : 0;
-    frameSpare += FRAME_TIER[t] - each * list.length;
-    for (let i = 0; i < list.length; i++) {
-      if (each <= 0 || ownedF.indexOf("frame:" + list[i]) !== -1) { frameSpare += each; continue; }
-      frameOdds.push([list[i], "frame", 0, each, t]);
-    }
+  for (const t in TIER_POOL) {
+    const each = tierCount[t] ? Math.floor(TIER_POOL[t] / tierCount[t]) : 0;
+    frameSpare += TIER_POOL[t] - each * tierCount[t];
+  }
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    const w = Math.floor(TIER_POOL[it[2]] / tierCount[it[2]]);
+    if (!it[3] || w <= 0) { frameSpare += w; continue; }
+    frameOdds.push([it[0], it[1], 0, w, it[2], it[4]]);
   }
 
   let used = 0;
@@ -124,22 +141,22 @@ routerAdd("GET", "/api/chest/state", (e) => {
 
 routerAdd("POST", "/api/chest/open", (e) => {
   const ODDS = [
-    ["coins5", "coins", 5, 245, "common"],
-    ["coins10", "coins", 10, 200, "common"],
-    ["cookieheart", "gift", 0, 50, "common"],
-    ["teddy", "gift", 0, 40, "common"],
-    ["potion", "gift", 0, 40, "common"],
-    ["coins25", "coins", 25, 80, "rare"],
-    ["throne", "gift", 0, 30, "rare"],
-    ["champagne", "gift", 0, 30, "rare"],
-    ["snowglobe", "gift", 0, 30, "rare"],
-    ["rose", "gift", 0, 25, "rare"],
-    ["perfume", "gift", 0, 25, "rare"],
-    ["record", "gift", 0, 25, "rare"],
-    ["locket", "gift", 0, 15, "legendary"],
-    ["rings", "gift", 0, 10, "legendary"],
+    ["coins5", "coins", 5, 300, "common"],
+    ["coins10", "coins", 10, 180, "common"],
+    ["coins25", "coins", 25, 75, "rare"],
     ["plus", "plus", 0, 50, "legendary"],
   ];
+  // Подарки сундука. Своего веса у них нет: шанс считается из пула редкости
+  // наравне с рамками и значками из каталога (TIER_POOL ниже).
+  const GIFTS = [
+    ["cookieheart", "common"], ["teddy", "common"], ["potion", "common"],
+    ["throne", "rare"], ["champagne", "rare"], ["snowglobe", "rare"],
+    ["rose", "rare"], ["perfume", "rare"], ["record", "rare"],
+    ["locket", "legendary"], ["rings", "legendary"],
+  ];
+  // Пул редкости в десятых долях процента: делится поровну между ВСЕМИ её
+  // предметами — подарком, рамкой и значком одной редкости выпадают одинаково.
+  const TIER_POOL = { common: 240, rare: 128, legendary: 27 };
   const PER_DAY = 3;
   // Потолок за скользящие сутки: против перевода часов туда-обратно.
   const PER_24H = 6;
@@ -203,11 +220,14 @@ routerAdd("POST", "/api/chest/open", (e) => {
             { me: me, day: existing.getString("day") }).length;
         } catch (_) { usedNow = 0; }
         const key = existing.getString("prize");
-        let kind = "coins";
+        let kind = "gift";
         for (let i = 0; i < ODDS.length; i++) if (ODDS[i][0] === key) kind = ODDS[i][1];
         if (key.indexOf("frame_") === 0) kind = "frame";
+        if (key.indexOf("badge_") === 0) kind = "badge";
         let ownedNow = [];
         try { ownedNow = JSON.parse(user.getString("owned_features") || "[]") || []; } catch (_) { ownedNow = []; }
+        let iconsNow = [];
+        try { iconsNow = JSON.parse(user.getString("owned_icons") || "[]") || []; } catch (_) { iconsNow = []; }
         out = {
           s: 200,
           b: {
@@ -217,6 +237,7 @@ routerAdd("POST", "/api/chest/open", (e) => {
             coins: user.getInt("coins") || 0,
             plus: user.getBool("plus"),
             ownedFeatures: ownedNow,
+            ownedIcons: iconsNow,
           },
         };
         return;
@@ -242,34 +263,49 @@ routerAdd("POST", "/api/chest/open", (e) => {
 
       // Розыгрыш по той же таблице, что показывает /api/chest/state.
       const noPlus = ios || user.getBool("plus");
-      // Рамки аватарки выпадают прямо из каталога (`catalog_items`, вид `frame`):
-      // у каждой редкости своя доля, она делится поровну между рамками этой
-      // редкости. Новая рамка, заведённая на сервере, сама встаёт в розыгрыш.
-      // Уже полученная из розыгрыша выпадает, её доля (и остаток от деления)
-      // уходит в «5 монет», поэтому сумма таблицы всегда та же.
-      const FRAME_TIER = { common: 60, rare: 30, legendary: 15 };
+      // Всё, что разыгрывается по редкости: подарки сундука плюс рамки и
+      // значки из каталога (`catalog_items`: вид `frame` и `badge` с `data.chest`).
+      // Новая рамка или значок, заведённые на сервере, сами встают в розыгрыш.
+      // Уже полученные рамки и значки выпадают; каталожное не получают и сборки
+      // без флага `frames` (показать нечем). Их доля и остаток от деления уходят
+      // в «5 монет», поэтому сумма таблицы всегда 1000.
       let ownedF = [];
       try { ownedF = JSON.parse(user.getString("owned_features") || "[]") || []; } catch (_) { ownedF = []; }
-      const byTier = { common: [], rare: [], legendary: [] };
-      if (withFrames) try {
-        const recs = txApp.findRecordsByFilter("catalog_items", "kind = 'frame' && enabled = true", "sort", 200, 0);
+      let ownedI = [];
+      try { ownedI = JSON.parse(user.getString("owned_icons") || "[]") || []; } catch (_) { ownedI = []; }
+      let grantedI = [];
+      try { grantedI = JSON.parse(user.getString("granted_badges") || "[]") || []; } catch (_) { grantedI = []; }
+      // [id приза, вид, ярус, можно ли выдать, ключ во владении]
+      const items = [];
+      for (let i = 0; i < GIFTS.length; i++) items.push([GIFTS[i][0], "gift", GIFTS[i][1], true, GIFTS[i][0]]);
+      try {
+        const recs = txApp.findRecordsByFilter("catalog_items", "enabled = true && (kind = 'frame' || kind = 'badge')", "sort", 500, 0);
         for (let i = 0; i < recs.length; i++) {
           let d = {};
           try { d = JSON.parse(recs[i].getString("data") || "{}") || {}; } catch (_) { d = {}; }
           if (!d.key) continue;
-          byTier[FRAME_TIER[d.rarity] ? d.rarity : "common"].push(recs[i].id);
+          const kind = recs[i].getString("kind");
+          if (kind === "badge" && d.chest !== true) continue;
+          const t = TIER_POOL[d.rarity] ? d.rarity : "common";
+          const owned = kind === "frame"
+            ? ownedF.indexOf("frame:" + recs[i].id) !== -1
+            : (ownedI.indexOf(d.key) !== -1 || grantedI.indexOf(d.key) !== -1);
+          items.push([recs[i].id, kind, t, withFrames && !owned, String(d.key)]);
         }
       } catch (_) {}
+      const tierCount = { common: 0, rare: 0, legendary: 0 };
+      for (let i = 0; i < items.length; i++) tierCount[items[i][2]]++;
       const frameOdds = [];
       let frameSpare = 0;
-      for (const t in FRAME_TIER) {
-        const list = byTier[t];
-        const each = list.length ? Math.floor(FRAME_TIER[t] / list.length) : 0;
-        frameSpare += FRAME_TIER[t] - each * list.length;
-        for (let i = 0; i < list.length; i++) {
-          if (each <= 0 || ownedF.indexOf("frame:" + list[i]) !== -1) { frameSpare += each; continue; }
-          frameOdds.push([list[i], "frame", 0, each, t]);
-        }
+      for (const t in TIER_POOL) {
+        const each = tierCount[t] ? Math.floor(TIER_POOL[t] / tierCount[t]) : 0;
+        frameSpare += TIER_POOL[t] - each * tierCount[t];
+      }
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        const w = Math.floor(TIER_POOL[it[2]] / tierCount[it[2]]);
+        if (!it[3] || w <= 0) { frameSpare += w; continue; }
+        frameOdds.push([it[0], it[1], 0, w, it[2], it[4]]);
       }
 
       const pool = [];
@@ -284,7 +320,7 @@ routerAdd("POST", "/api/chest/open", (e) => {
         total += w;
       }
       for (let i = 0; i < frameOdds.length; i++) {
-        pool.push([frameOdds[i][0], "frame", 0, frameOdds[i][3]]);
+        pool.push([frameOdds[i][0], frameOdds[i][1], 0, frameOdds[i][3], frameOdds[i][5]]);
         total += frameOdds[i][3];
       }
       // Случайное число из криптостойкой строки, а не Math.random: пул JSVM
@@ -316,6 +352,12 @@ routerAdd("POST", "/api/chest/open", (e) => {
         if (ownedF.indexOf(fk) === -1) ownedF.push(fk);
         user.set("owned_features", JSON.stringify(ownedF));
         txApp.save(user);
+      } else if (prize[1] === "badge") {
+        // Значок из сундука — в купленные значки (`owned_icons`), как и
+        // оплаченный монетами: клиент читает владение оттуда.
+        if (ownedI.indexOf(prize[4]) === -1) ownedI.push(prize[4]);
+        user.set("owned_icons", JSON.stringify(ownedI));
+        txApp.save(user);
       } else if (prize[1] === "plus") {
         user.set("plus", true);
         user.set("plus_platform", "chest");
@@ -332,6 +374,7 @@ routerAdd("POST", "/api/chest/open", (e) => {
           coins: user.getInt("coins") || 0,
           plus: user.getBool("plus"),
           ownedFeatures: ownedF,
+          ownedIcons: ownedI,
         },
       };
     });
