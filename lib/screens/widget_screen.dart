@@ -12,6 +12,7 @@ import '../widgets/mood_image.dart';
 import '../widgets/storage_image.dart';
 import 'package:characters/characters.dart';
 import 'package:flutter/material.dart';
+import '../widgets/common/ad_result.dart';
 import '../theme/fonts.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:image_picker/image_picker.dart';
@@ -4942,9 +4943,14 @@ class _WidgetScreenState extends State<WidgetScreen>
     try {
       final earned = await _rewardedAd.show(uid: PocketBaseService().userId ?? '');
       unawaited(_rewardedAd.load());
-      if (!earned) return;
+      if (!mounted) return;
+      if (!earned) {
+        await showAdNotEarned(context);
+        return;
+      }
       final res =
           await ud.takeAdGrant(AdGrantKind.widgetPhoto, 'days_widget_photos');
+      await untilAppVisible();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(res.kind == AdGrantOutcome.ok

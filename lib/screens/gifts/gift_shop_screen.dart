@@ -19,6 +19,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/profile_theme.dart';
 import '../../widgets/app_sheet.dart';
 import '../../widgets/avatar_widget.dart';
+import '../../widgets/common/ad_result.dart';
 import '../../widgets/common/badge_image.dart';
 import '../chest_screen.dart';
 import '../../widgets/chest/chest_stash_lane.dart';
@@ -202,7 +203,17 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
         if (coins != null) _coins = coins;
       });
       if (coins != null) widget.onCoins?.call(coins);
-      if (!earned) return;
+      if (!earned) {
+        // Ролик не засчитан (закрыли раньше, сеть рекламы не прислала
+        // награду) — говорим прямо, иначе непонятно, ушёл подарок или нет.
+        await showAdNotEarned(context);
+        return;
+      }
+      // Реклама закрывается не мгновенно: итог, показанный под её экраном,
+      // человек не видит вовсе (жалоба 28.09.2026 «посмотрел рекламу — и
+      // никакого итога»).
+      await untilAppVisible();
+      if (!mounted) return;
     }
 
     setState(() => _sending = gift.key);
@@ -233,8 +244,27 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
       if (res.coins != null) _coins = res.coins!;
     });
     if (res.coins != null) widget.onCoins?.call(res.coins!);
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
-    if (res.ok) Navigator.of(context).pop();
+    if (!res.ok) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+      return;
+    }
+    // Успех — отдельным листом с самим подарком и именем, а не снекбаром:
+    // снекбар уезжал вместе с закрытым магазином, и итога никто не видел.
+    await _showSent(gift, byAd: byAd);
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  /// Подарок ушёл: крупно сам подарок, кому и где он его увидит.
+  Future<void> _showSent(Gift gift, {required bool byAd}) {
+    final name = widget.partnerName?.trim() ?? '';
+    return showObtained(
+      context,
+      scheme: ProfileTheme.schemeFor(widget.theme),
+      art: GiftImage(gift.key, side: 140),
+      title: trKey('giftSentTitle').replaceAll('{name}', gift.title),
+      subtitle: name.isEmpty ? trKey('giftSentWhereAnon') : trKey('giftSentWhere').replaceAll('{name}', name),
+      footnote: byAd ? trKey('giftSentByAd') : null,
+    );
   }
 
   /// Записка внутрь коробки, печенья или письма. null = отменил отправку.
@@ -755,6 +785,17 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
     }
     if (!mounted) return;
     setState(() => _busyItem = null);
+    if (ok && action == 'buy') {
+      // Покупку видно листом со значком, а не только сменой чипа у ника.
+      await showObtained(
+        context,
+        scheme: ProfileTheme.schemeFor(widget.theme),
+        art: BadgeImage(icon.id, side: 120),
+        title: trKey('badgeObtainedTitle').replaceAll('{name}', icon.name),
+        subtitle: trKey('badgeObtainedWorn'),
+      );
+      return;
+    }
     if (!ok) {
       ScaffoldMessenger.of(
         context,

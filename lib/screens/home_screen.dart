@@ -6,6 +6,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../widgets/storage_image.dart';
 import 'package:exif/exif.dart';
 import 'package:flutter/material.dart';
+import '../widgets/common/ad_result.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -999,10 +1000,15 @@ class _HomeScreenState extends State<HomeScreen> {
       final earned =
           await _restoreAd.show(uid: PocketBaseService().userId ?? '');
       unawaited(_restoreAd.load());
-      if (!earned) return;
+      if (!earned) {
+        if (mounted) await showAdNotEarned(context);
+        return;
+      }
     }
 
     final ok = await _mascotService.restoreStreak();
+    // Итог — когда экран рекламы уже закрылся.
+    if (!plus) await untilAppVisible();
     if (!mounted) return;
     messenger.showSnackBar(SnackBar(
       content: Text(ok

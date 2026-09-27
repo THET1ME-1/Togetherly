@@ -1,6 +1,7 @@
 import 'dart:async';
 import '../utils/safe_launch.dart';
 import 'package:flutter/material.dart';
+import '../widgets/common/ad_result.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'couple_stats_screen.dart';
@@ -4936,7 +4937,14 @@ class _ProfileScreenState extends State<ProfileScreen>
     if (uid.isEmpty) return;
     final earned = await _rewardedAd.show(uid: uid);
     unawaited(_rewardedAd.load());
-    if (!earned || !mounted) return;
+    if (!mounted) return;
+    if (!earned) {
+      await showAdNotEarned(context);
+      return;
+    }
+    // Монеты за ролик показываем, когда экран рекламы уже закрылся.
+    await untilAppVisible();
+    if (!mounted) return;
 
     // Начисление авторитетное для ОБЕИХ сетей: и Яндекс, и AdMob на PocketBase
     // идут через серверный роут /api/coins/ad-reward (Google-SSV нет ни у той,
@@ -5218,10 +5226,14 @@ class _ProfileScreenState extends State<ProfileScreen>
     for (var i = 0; i < (kAdGrantViews[AdGrantKind.theme] ?? 2); i++) {
       final earned = await _rewardedAd.show(uid: uid);
       unawaited(_rewardedAd.load());
-      if (!earned) return false;
+      if (!earned) {
+        if (mounted) await showAdNotEarned(context);
+        return false;
+      }
     }
 
     final res = await widget.userData.takeAdGrant(AdGrantKind.theme, '$themeIndex');
+    await untilAppVisible();
     if (!mounted) return res.kind == AdGrantOutcome.ok;
     switch (res.kind) {
       case AdGrantOutcome.ok:

@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import '../widgets/common/ad_result.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -5168,10 +5169,16 @@ class _DrawScreenState extends State<DrawScreen>
     final uid = PocketBaseService().userId ?? '';
     final earned = await _rewardedAd.show(uid: uid);
     unawaited(_rewardedAd.load());
-    if (!earned) return;
+    if (!mounted) return;
+    if (!earned) {
+      await showAdNotEarned(context);
+      return;
+    }
 
     final res =
         await widget.userData.takeAdGrant(AdGrantKind.canvasBg, bg.name);
+    // Итог после ролика — когда экран рекламы уже закрылся, иначе он под ним.
+    await untilAppVisible();
     if (!mounted) return;
     if (res.kind == AdGrantOutcome.ok) {
       refreshSheet(() {});
