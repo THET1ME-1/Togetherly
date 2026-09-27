@@ -6,6 +6,7 @@ import 'package:flutter/material.dart' show Color;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/avatar_frame.dart';
 import '../models/gift_art.dart';
 import '../models/level.dart';
 import '../models/mascot.dart';
@@ -39,12 +40,18 @@ class CatalogService extends ChangeNotifier {
   Set<String> _pairOwned = const {};
   Map<String, MascotAnim> _anims = const {};
   List<ProfileIcon> _badges = const [];
+  List<AvatarFrame> _frames = const [];
   Map<String, GiftArt> _giftArt = const {};
   bool _initialized = false;
 
   /// Значки профиля из каталога (kind='badge'), по полю `sort`. Зашитых в
   /// сборку значков нет: пока каталог не загружен ни разу, список пуст.
   List<ProfileIcon> get badges => _badges;
+
+  /// Рамки аватарки из каталога (kind='frame'), по полю `sort`. Пока каталог
+  /// не загружен ни разу, список пуст, а надетая рамка рисуется заглушкой из
+  /// сборки.
+  List<AvatarFrame> get frames => _frames;
 
   /// Живые картинки подарков по ключу подарка. Пусто, пока каталог не пришёл:
   /// тогда подарок рисуется неподвижным кадром из сборки.
@@ -54,6 +61,13 @@ class CatalogService extends ChangeNotifier {
   @visibleForTesting
   void debugSetBadges(List<ProfileIcon> badges) {
     _badges = List.unmodifiable(badges);
+    notifyListeners();
+  }
+
+  /// Подставить рамки без сети — только для тестов.
+  @visibleForTesting
+  void debugSetFrames(List<AvatarFrame> frames) {
+    _frames = List.unmodifiable(frames);
     notifyListeners();
   }
 
@@ -182,6 +196,7 @@ class CatalogService extends ChangeNotifier {
     final mascots = <Mascot>[];
     final anims = <String, MascotAnim>{};
     final badgeRows = <Map<String, dynamic>>[];
+    final frameRows = <Map<String, dynamic>>[];
     final giftArt = <String, GiftArt>{};
 
     for (final raw in rows) {
@@ -191,6 +206,10 @@ class CatalogService extends ChangeNotifier {
 
       if (row['kind'] == 'badge') {
         badgeRows.add(row);
+        continue;
+      }
+      if (row['kind'] == 'frame') {
+        frameRows.add(row);
         continue;
       }
       if (row['kind'] == 'gift' || row['kind'] == 'art') {
@@ -253,6 +272,7 @@ class CatalogService extends ChangeNotifier {
     _mascots = List.unmodifiable(mascots);
     _anims = Map.unmodifiable(anims);
     _badges = List.unmodifiable(ProfileIcon.parseCatalog(badgeRows));
+    _frames = List.unmodifiable(AvatarFrame.parseCatalog(frameRows));
     _giftArt = Map.unmodifiable(giftArt);
     MoodOption.registerRemoteMoods(remoteMoods);
     notifyListeners();

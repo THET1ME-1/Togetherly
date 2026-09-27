@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../utils/couple_days.dart';
 import '../utils/safe_text.dart';
+import '../widgets/avatar_widget.dart';
 import '../widgets/common/app_dialog.dart';
 import '../widgets/storage_image.dart';
 import 'package:flutter/services.dart';
@@ -898,7 +899,10 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     return Center(
       child: PressableScale(
         onTap: uid.isEmpty ? null : () => _cycleShape(uid),
-        child: MorphAvatar(
+        child: FramedAvatar(
+          uid: uid,
+          size: size,
+          child: MorphAvatar(
           size: size,
           shapeKey: '$uid-$idx',
           shape: kAvatarShapes[idx],
@@ -908,6 +912,7 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
                   fit: BoxFit.cover,
                   errorWidget: (c, u, e) => _heroInitial(name, cs))
               : _heroInitial(name, cs),
+        ),
         ),
       ),
     );

@@ -35,6 +35,7 @@ import '../services/voice_player_service.dart';
 import '../services/note_player_service.dart';
 import '../services/note_recorder_service.dart';
 import '../services/voice_recorder_service.dart';
+import '../widgets/avatar_widget.dart';
 import '../widgets/chat/send_mic_button.dart';
 import '../widgets/chat/voice_bubble.dart';
 import 'chat/note_viewer_screen.dart';
@@ -109,8 +110,8 @@ double? _emojiOnlySize(String text) {
   return count == 1
       ? 56.0
       : count == 2
-          ? 48.0
-          : 40.0;
+      ? 48.0
+      : 40.0;
 }
 
 /// Выражение мордочки на пузыре.
@@ -190,25 +191,31 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _saveChatStyle() {
-    unawaited(_chat.saveStyle(_groupId, {
-      'face': _selectedFace?.name,
-      'color': _selectedColor?.toARGB32(),
-      'textColor': _selectedTextColor?.toARGB32(),
-      'fx': _selectedFaceX,
-      'fy': _selectedFaceY,
-    }));
+    unawaited(
+      _chat.saveStyle(_groupId, {
+        'face': _selectedFace?.name,
+        'color': _selectedColor?.toARGB32(),
+        'textColor': _selectedTextColor?.toARGB32(),
+        'fx': _selectedFaceX,
+        'fy': _selectedFaceY,
+      }),
+    );
   }
 
   /// Выбранное отправителем выражение мордочки (липкое между сообщениями;
   /// null — без лица). Ставит автор сам — лицо больше не угадывается по тексту.
   _FaceExpr? _selectedFace = _FaceExpr.happy;
+
   /// Выбранный цвет пузыря (null — цвет темы). Липкий между сообщениями.
   Color? _selectedColor;
+
   /// Выбранный цвет текста (null — авто-контраст по фону). Липкий.
   Color? _selectedTextColor;
+
   /// Позиция мордочки (доли 0..1), по умолчанию низ-центр. Липкая.
   double _selectedFaceX = 0.5;
   double _selectedFaceY = 0.78;
+
   /// До 5 недавних цветов (глобально, из prefs).
   List<Color> _recentColors = const [];
 
@@ -302,11 +309,14 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// Кнопка «вниз» показывается, когда заметно отлистали вверх от низа.
   bool _showScrollDown = false;
+
   /// Сохранённая позиция прокрутки (восстанавливаем при открытии чата).
   double? _savedScrollOffset;
+
   /// Стоял ли человек у низа в момент выхода и какое сообщение было последним.
   bool _savedWasNearBottom = false;
   int _savedLastMessageTs = 0;
+
   /// Троттлинг сохранения позиции — чтобы не писать prefs на каждый кадр.
   DateTime _lastScrollSave = DateTime.fromMillisecondsSinceEpoch(0);
 
@@ -372,19 +382,16 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Слушаем статусы прочтения партнёра(ов) для галочек ✓/✓✓ на своих
   /// сообщениях. «Прочитано» = минимальный ts среди всех, кроме меня.
   void _watchPartnerReads() {
-    _readsSub = _chat.watchReads(_groupId).listen(
-      (reads) {
-        if (!mounted) return;
-        int? minOthers;
-        reads.forEach((uid, ts) {
-          if (uid == _myUid) return;
-          minOthers = (minOthers == null || ts < minOthers!) ? ts : minOthers;
-        });
-        final next = minOthers ?? 0;
-        if (next != _partnerReadTs) setState(() => _partnerReadTs = next);
-      },
-      onError: (e) => debugPrint('watchReads error: $e'),
-    );
+    _readsSub = _chat.watchReads(_groupId).listen((reads) {
+      if (!mounted) return;
+      int? minOthers;
+      reads.forEach((uid, ts) {
+        if (uid == _myUid) return;
+        minOthers = (minOthers == null || ts < minOthers!) ? ts : minOthers;
+      });
+      final next = minOthers ?? 0;
+      if (next != _partnerReadTs) setState(() => _partnerReadTs = next);
+    }, onError: (e) => debugPrint('watchReads error: $e'));
   }
 
   Future<void> _loadBackground() async {
@@ -479,13 +486,15 @@ class _ChatScreenState extends State<ChatScreen> {
           curve: Curves.easeOutCubic,
         )
         .then((_) {
-      // Контент мог дорасти за время анимации (подгрузка/раскрытие пузырей) —
-      // добиваем до фактического низа, чтобы остановиться ровно на последнем
-      // сообщении, а не «где-то рядом».
-      if (_scrollController.hasClients) {
-        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-      }
-    });
+          // Контент мог дорасти за время анимации (подгрузка/раскрытие пузырей) —
+          // добиваем до фактического низа, чтобы остановиться ровно на последнем
+          // сообщении, а не «где-то рядом».
+          if (_scrollController.hasClients) {
+            _scrollController.jumpTo(
+              _scrollController.position.maxScrollExtent,
+            );
+          }
+        });
   }
 
   void _loadMore() {
@@ -510,8 +519,10 @@ class _ChatScreenState extends State<ChatScreen> {
     // Подгрузили старые — восстанавливаем позицию (держим расстояние от низа).
     if (_loadingMore) {
       if (_retainFromBottom != null) {
-        final target = (pos.maxScrollExtent - _retainFromBottom!)
-            .clamp(0.0, pos.maxScrollExtent);
+        final target = (pos.maxScrollExtent - _retainFromBottom!).clamp(
+          0.0,
+          pos.maxScrollExtent,
+        );
         _scrollController.jumpTo(target);
       }
       _loadingMore = false;
@@ -533,12 +544,14 @@ class _ChatScreenState extends State<ChatScreen> {
       );
       switch (where) {
         case ChatOpenPosition.savedOffset:
-          _scrollController
-              .jumpTo(_savedScrollOffset!.clamp(0.0, pos.maxScrollExtent));
+          _scrollController.jumpTo(
+            _savedScrollOffset!.clamp(0.0, pos.maxScrollExtent),
+          );
         case ChatOpenPosition.unreadMarker:
           _scrollController.jumpTo(pos.maxScrollExtent);
-          WidgetsBinding.instance
-              .addPostFrameCallback((_) => _scrollToUnread());
+          WidgetsBinding.instance.addPostFrameCallback(
+            (_) => _scrollToUnread(),
+          );
         case ChatOpenPosition.bottom:
           _scrollController.jumpTo(pos.maxScrollExtent);
       }
@@ -589,12 +602,17 @@ class _ChatScreenState extends State<ChatScreen> {
   /// выглядело как мёртвая кнопка — «@ собачка не работает».
   void _watchPins() {
     if (_groupId.isEmpty) return;
-    _pinsSub = MemoryRepository.instance.watch(_groupId).listen((list) {
-      if (!mounted) return;
-      setState(() => _pins = list);
-    }, onError: (Object e) {
-      debugPrint('[Chat] пины не приехали: $e');
-    });
+    _pinsSub = MemoryRepository.instance
+        .watch(_groupId)
+        .listen(
+          (list) {
+            if (!mounted) return;
+            setState(() => _pins = list);
+          },
+          onError: (Object e) {
+            debugPrint('[Chat] пины не приехали: $e');
+          },
+        );
   }
 
   String _memoryLabel(Memory m) {
@@ -614,17 +632,22 @@ class _ChatScreenState extends State<ChatScreen> {
   // ── Запись голосового ──
   /// Идёт запись: панель ввода уступает место полосе с таймером и волной.
   bool _recording = false;
+
   /// Палец убран, запись продолжается — «руки свободны».
   bool _voiceLocked = false;
+
   /// Что случится, если отпустить палец прямо сейчас.
   VoiceGesture _voiceGesture = VoiceGesture.recording;
+
   /// Таймер и волна записи. Отдельные нотифаеры, а не поля состояния: замеры
   /// идут каждые 60 мс, и setState на каждый тик перестраивал весь чат вместе
   /// со списком сообщений — интерфейс проседал до кадра в секунду.
-  final ValueNotifier<Duration> _voiceElapsed =
-      ValueNotifier<Duration>(Duration.zero);
-  final ValueNotifier<List<double>> _voiceLevels =
-      ValueNotifier<List<double>>(const []);
+  final ValueNotifier<Duration> _voiceElapsed = ValueNotifier<Duration>(
+    Duration.zero,
+  );
+  final ValueNotifier<List<double>> _voiceLevels = ValueNotifier<List<double>>(
+    const [],
+  );
   StreamSubscription<Duration>? _voiceElapsedSub;
   StreamSubscription<List<double>>? _voiceLevelsSub;
   StreamSubscription<void>? _voiceLimitSub;
@@ -660,8 +683,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// Таймер съёмки — своим нотифаером, как у голосовых: тик каждые 60 мс не
   /// должен перестраивать чат.
-  final ValueNotifier<Duration> _noteElapsed =
-      ValueNotifier<Duration>(Duration.zero);
+  final ValueNotifier<Duration> _noteElapsed = ValueNotifier<Duration>(
+    Duration.zero,
+  );
   StreamSubscription<Duration>? _noteElapsedSub;
   StreamSubscription<void>? _noteLimitSub;
 
@@ -750,9 +774,11 @@ class _ChatScreenState extends State<ChatScreen> {
       await VoiceRecorderService.instance.start();
     } on VoiceRecordException catch (e) {
       if (!mounted) return;
-      _toast(e.reason == VoiceRecordError.noPermission
-          ? s.voiceNoPermission
-          : s.voiceFailed);
+      _toast(
+        e.reason == VoiceRecordError.noPermission
+            ? s.voiceNoPermission
+            : s.voiceFailed,
+      );
       return;
     }
     if (!mounted) {
@@ -794,8 +820,11 @@ class _ChatScreenState extends State<ChatScreen> {
       _noteMode = mode;
       // Плюс мог кончиться с прошлой съёмки — тогда возвращаем круг, а не
       // открываем экран съёмки с формой, которой человек больше не владеет.
-      _noteShape = PlusAccess.ownsNoteShape(
-              id: saved.id, gate: PlusService.instance.gate)
+      _noteShape =
+          PlusAccess.ownsNoteShape(
+            id: saved.id,
+            gate: PlusService.instance.gate,
+          )
           ? saved
           : kNoteShapes.first;
     });
@@ -996,7 +1025,9 @@ class _ChatScreenState extends State<ChatScreen> {
     // Форма под замком: показываем витрину прямо поверх съёмки. Съёмку при
     // этом не рвём — человек закроет лист и продолжит снимать кругом.
     if (!PlusAccess.ownsNoteShape(
-        id: shape.id, gate: PlusService.instance.gate)) {
+      id: shape.id,
+      gate: PlusService.instance.gate,
+    )) {
       HapticFeedback.lightImpact();
       await showPlusPromoSheet(context);
       return;
@@ -1059,7 +1090,10 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   /// Палец подняли. [locked] — запись остаётся идти без пальца.
-  Future<void> _endVoice({required bool cancelled, required bool locked}) async {
+  Future<void> _endVoice({
+    required bool cancelled,
+    required bool locked,
+  }) async {
     if (!_recording) return;
     if (locked && !cancelled) {
       setState(() {
@@ -1117,8 +1151,11 @@ class _ChatScreenState extends State<ChatScreen> {
       replyToText: reply == null
           ? null
           : (reply.isVoice
-              ? ChatService.voiceQuote(reply, LocaleService.current.voiceMessage)
-              : reply.text),
+                ? ChatService.voiceQuote(
+                    reply,
+                    LocaleService.current.voiceMessage,
+                  )
+                : reply.text),
     );
     if (!mounted) return;
     if (ok) {
@@ -1178,15 +1215,17 @@ class _ChatScreenState extends State<ChatScreen> {
           replyToText: reply == null
               ? null
               : (reply.deleted
-                  ? LocaleService.current.chatDeletedPlaceholder
-                  // Текста у голосового нет: в цитате подписываем его словом
-                  // и длительностью, иначе ответ выглядел бы пустым.
-                  : (reply.isVoice
-                      ? ChatService.voiceQuote(
-                          reply, LocaleService.current.voiceMessage)
-                      : (reply.text.isNotEmpty
-                          ? reply.text
-                          : (reply.pinTitle ?? '📌')))),
+                    ? LocaleService.current.chatDeletedPlaceholder
+                    // Текста у голосового нет: в цитате подписываем его словом
+                    // и длительностью, иначе ответ выглядел бы пустым.
+                    : (reply.isVoice
+                          ? ChatService.voiceQuote(
+                              reply,
+                              LocaleService.current.voiceMessage,
+                            )
+                          : (reply.text.isNotEmpty
+                                ? reply.text
+                                : (reply.pinTitle ?? '📌')))),
           face: _selectedFace?.name, // выбранное автором лицо (липкое)
           color: _selectedColor?.toARGB32(),
           textColor: _selectedTextColor?.toARGB32(),
@@ -1198,8 +1237,7 @@ class _ChatScreenState extends State<ChatScreen> {
           // единственное хранилище, офлайн-очереди как у RTDB нет). Возвращаем
           // ввод, чтобы текст не потерялся и можно было повторить отправку.
           _controller.text = text;
-          _controller.selection =
-              TextSelection.collapsed(offset: text.length);
+          _controller.selection = TextSelection.collapsed(offset: text.length);
           setState(() {
             _attachedPin = pin;
             _replyingTo = reply;
@@ -1232,15 +1270,15 @@ class _ChatScreenState extends State<ChatScreen> {
         _hasStyleSnap = true;
       }
       _selectedColor = msg.color != null ? Color(msg.color!) : null;
-      _selectedTextColor =
-          msg.textColor != null ? Color(msg.textColor!) : null;
+      _selectedTextColor = msg.textColor != null ? Color(msg.textColor!) : null;
       _selectedFace = _faceFromName(msg.face);
       _selectedFaceX = msg.faceX ?? 0.5;
       _selectedFaceY = msg.faceY ?? 0.78;
     });
     _controller.text = msg.text;
-    _controller.selection =
-        TextSelection.collapsed(offset: _controller.text.length);
+    _controller.selection = TextSelection.collapsed(
+      offset: _controller.text.length,
+    );
     _focusNode.requestFocus();
   }
 
@@ -1292,20 +1330,20 @@ class _ChatScreenState extends State<ChatScreen> {
           curve: Curves.easeOutCubic,
         )
         .whenComplete(() {
-      // После прокрутки бабл уже должен быть построен — доводим точно.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final c = _msgKeys[id]?.currentContext;
-        if (c != null) {
-          Scrollable.ensureVisible(
-            c,
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOutCubic,
-            alignment: 0.35,
-          );
-        }
-        _flashHighlight(id);
-      });
-    });
+          // После прокрутки бабл уже должен быть построен — доводим точно.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            final c = _msgKeys[id]?.currentContext;
+            if (c != null) {
+              Scrollable.ensureVisible(
+                c,
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                alignment: 0.35,
+              );
+            }
+            _flashHighlight(id);
+          });
+        });
   }
 
   /// Кратко подсветить сообщение [id] (после перехода — чтобы было заметно).
@@ -1353,7 +1391,9 @@ class _ChatScreenState extends State<ChatScreen> {
         // Превью повторяет настоящий пузырь: при правке — его форма/время,
         // у нового — текущее время (размер от времени одинаков — 5 символов).
         seed: _editing?.id.hashCode ?? 0,
-        time: _formatTime(_editing?.ts ?? DateTime.now().millisecondsSinceEpoch),
+        time: _formatTime(
+          _editing?.ts ?? DateTime.now().millisecondsSinceEpoch,
+        ),
         isEdited: _editing != null,
       ),
     ).then((result) {
@@ -1369,8 +1409,9 @@ class _ChatScreenState extends State<ChatScreen> {
         // то и уходит в композер (двусторонняя синхронизация).
         if (result.text != _controller.text) {
           _controller.text = result.text;
-          _controller.selection =
-              TextSelection.collapsed(offset: _controller.text.length);
+          _controller.selection = TextSelection.collapsed(
+            offset: _controller.text.length,
+          );
         }
         // Недавние (до 5), новый цвет первым (без дублей).
         final c = result.color;
@@ -1380,7 +1421,8 @@ class _ChatScreenState extends State<ChatScreen> {
             ..._recentColors.where((x) => x.toARGB32() != c.toARGB32()),
           ].take(5).toList();
           _chat.saveRecentColors(
-              _recentColors.map((x) => x.toARGB32()).toList());
+            _recentColors.map((x) => x.toARGB32()).toList(),
+          );
         }
       });
     });
@@ -1521,7 +1563,11 @@ class _ChatScreenState extends State<ChatScreen> {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: ScaledAsset('assets/images/logo/logo.jpg', side: 30, fit: BoxFit.cover),
+                    child: ScaledAsset(
+                      'assets/images/logo/logo.jpg',
+                      side: 30,
+                      fit: BoxFit.cover,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Text(
@@ -1550,16 +1596,20 @@ class _ChatScreenState extends State<ChatScreen> {
                       children: [
                         CoinImage(side: 18),
                         const SizedBox(width: 3),
-                        Text('$_kChatBgPrice',
-                            style: const TextStyle(fontWeight: FontWeight.w700)),
+                        Text(
+                          '$_kChatBgPrice',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
                       ],
                     ),
               onTap: () => Navigator.pop(ctx, 'change'),
             ),
             if (hasBg)
               ListTile(
-                leading: Icon(Icons.delete_outline_rounded,
-                    color: Colors.red.shade400),
+                leading: Icon(
+                  Icons.delete_outline_rounded,
+                  color: Colors.red.shade400,
+                ),
                 title: Text(s.chatBgRemove),
                 onTap: () => Navigator.pop(ctx, 'remove'),
               ),
@@ -1700,8 +1750,10 @@ class _ChatScreenState extends State<ChatScreen> {
                 },
               ),
               ListTile(
-                leading: Icon(Icons.delete_outline_rounded,
-                    color: Colors.red.shade400),
+                leading: Icon(
+                  Icons.delete_outline_rounded,
+                  color: Colors.red.shade400,
+                ),
                 title: Text(s.chatDeleteMessage),
                 onTap: () {
                   Navigator.pop(ctx);
@@ -1718,8 +1770,22 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// Набор системных эмодзи-реакций (тёплый, для пары).
   static const List<String> _reactionEmojis = [
-    '❤️', '🥰', '😍', '😘', '😂', '🤗', '👍', '👏',
-    '🔥', '🎉', '😮', '😢', '🙏', '💯', '😡', '👎',
+    '❤️',
+    '🥰',
+    '😍',
+    '😘',
+    '😂',
+    '🤗',
+    '👍',
+    '👏',
+    '🔥',
+    '🎉',
+    '😮',
+    '😢',
+    '🙏',
+    '💯',
+    '😡',
+    '👎',
   ];
 
   /// Пикер реакций (по двойному тапу). Тап по уже выбранному эмодзи — снимает.
@@ -1824,8 +1890,7 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
           IconButton(
             visualDensity: VisualDensity.compact,
-            icon: Icon(Icons.close_rounded,
-                color: _t.textMuted, size: 20),
+            icon: Icon(Icons.close_rounded, color: _t.textMuted, size: 20),
             onPressed: () => setState(() => _replyingTo = null),
           ),
         ],
@@ -1846,15 +1911,14 @@ class _ChatScreenState extends State<ChatScreen> {
         ? fg.withValues(alpha: 0.20)
         : cs.surfaceContainerHighest.withValues(alpha: 0.9);
     final nameColor = isMine ? fg : cs.primary;
-    final textColor =
-        isMine ? fg.withValues(alpha: 0.78) : cs.onSurfaceVariant;
+    final textColor = isMine ? fg.withValues(alpha: 0.78) : cs.onSurfaceVariant;
     // Миниатюру берём у оригинала, если он ещё в загруженной ленте. Своего
     // поля под неё в записи нет, а заводить его ради превью — менять схему на
     // проде; цитата на воспоминание почти всегда живёт рядом с оригиналом.
     final origin = _lastMessages.cast<ChatMsg?>().firstWhere(
-          (m) => m?.id == msg.replyToId,
-          orElse: () => null,
-        );
+      (m) => m?.id == msg.replyToId,
+      orElse: () => null,
+    );
     final thumb = origin?.pinThumb;
     final hasThumb = (thumb ?? '').isNotEmpty;
     return GestureDetector(
@@ -1927,8 +1991,9 @@ class _ChatScreenState extends State<ChatScreen> {
     final mine = msg.reactions[_myUid];
     return Column(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment:
-          isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      crossAxisAlignment: isMine
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
       children: [
         for (final entry in counts.entries)
           Padding(
@@ -1940,16 +2005,14 @@ class _ChatScreenState extends State<ChatScreen> {
                 emoji: mine == entry.key ? null : entry.key,
               ),
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: mine == entry.key
                       ? _t.primary.withOpacity(0.14)
                       : _t.cardSurface,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color:
-                        mine == entry.key ? _t.primary : _t.divider,
+                    color: mine == entry.key ? _t.primary : _t.divider,
                     width: mine == entry.key ? 1.5 : 1,
                   ),
                 ),
@@ -2035,26 +2098,27 @@ class _ChatScreenState extends State<ChatScreen> {
         // в 44 точки. У заглушки с буквой открывать нечего.
         onTap: url.isEmpty
             ? null
-            : () => openWidgetPhotoView(
-                  context,
-                  imageUrl: url,
-                  authorName: name,
-                ),
-        child: SizedBox(
-          width: 44,
-          height: 44,
-          child: ClipOval(
-            child: url.isNotEmpty
-                ? StorageImage(
-                    imageUrl: url,
-                    width: 44,
-                    height: 44,
-                    fit: BoxFit.cover,
-                    memCacheWidth: 132,
-                    placeholder: (_, __) => _avatarLetter(cs, name),
-                    errorWidget: (_, __, ___) => _avatarLetter(cs, name),
-                  )
-                : _avatarLetter(cs, name),
+            : () =>
+                  openWidgetPhotoView(context, imageUrl: url, authorName: name),
+        child: FramedAvatar(
+          uid: widget.pairData.partnerUid,
+          size: 44,
+          child: SizedBox(
+            width: 44,
+            height: 44,
+            child: ClipOval(
+              child: url.isNotEmpty
+                  ? StorageImage(
+                      imageUrl: url,
+                      width: 44,
+                      height: 44,
+                      fit: BoxFit.cover,
+                      memCacheWidth: 132,
+                      placeholder: (_, __) => _avatarLetter(cs, name),
+                      errorWidget: (_, __, ___) => _avatarLetter(cs, name),
+                    )
+                  : _avatarLetter(cs, name),
+            ),
           ),
         ),
       ),
@@ -2062,18 +2126,18 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _avatarLetter(ColorScheme cs, String name) => Container(
-        color: cs.tertiaryContainer,
-        alignment: Alignment.center,
-        child: Text(
-          name.firstGraphemeUpper('♥'),
-          style: TextStyle(
-            fontFamily: ProfileTheme.displayFont,
-            fontWeight: FontWeight.w700,
-            fontSize: 16,
-            color: cs.onTertiaryContainer,
-          ),
-        ),
-      );
+    color: cs.tertiaryContainer,
+    alignment: Alignment.center,
+    child: Text(
+      name.firstGraphemeUpper('♥'),
+      style: TextStyle(
+        fontFamily: ProfileTheme.displayFont,
+        fontWeight: FontWeight.w700,
+        fontSize: 16,
+        color: cs.onTertiaryContainer,
+      ),
+    ),
+  );
 
   /// Пилюля с именем: точка присутствия, имя и время последнего визита.
   Widget _namePill(AppStrings s, ColorScheme cs) {
@@ -2350,96 +2414,100 @@ class _ChatScreenState extends State<ChatScreen> {
           Column(
             children: [
               Expanded(
-            // Во время съёмки лента не рисуется: сверху всё равно стоит
-            // непрозрачный экран камеры, а список сообщений продолжал бы
-            // раскладываться и перерисовываться каждый кадр. `Offstage`
-            // сохраняет состояние — позиция прокрутки и подписки на месте.
-            // Панель ввода при этом ОСТАЁТСЯ в дереве: палец держит кнопку на
-            // ней, и уход виджета закрыл бы арену жеста.
-            child: Offstage(
-              offstage: _noteRecording,
-              child: Stack(
-              children: [
-                StreamBuilder<List<ChatMsg>>(
-              stream: _messagesStream,
-              builder: (context, snap) {
-                // Во время пересоздания потока (пагинация) держим прошлый срез.
-                if (snap.data != null) _lastMessages = snap.data!;
-                final messages = snap.data ?? _lastMessages;
-                if (messages.isNotEmpty) {
-                  _lastMessageTs = messages.last.ts;
-                  _lastIsMine = messages.last.uid == _myUid;
-                  if (!identical(_readOf, messages)) {
-                    _readOf = messages;
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      _chat.markRead(_groupId, _lastMessageTs);
-                    });
-                  }
-                }
-                // Меньше, чем просили → достигли начала истории.
-                _hasMore = messages.length >= _limit;
+                // Во время съёмки лента не рисуется: сверху всё равно стоит
+                // непрозрачный экран камеры, а список сообщений продолжал бы
+                // раскладываться и перерисовываться каждый кадр. `Offstage`
+                // сохраняет состояние — позиция прокрутки и подписки на месте.
+                // Панель ввода при этом ОСТАЁТСЯ в дереве: палец держит кнопку на
+                // ней, и уход виджета закрыл бы арену жеста.
+                child: Offstage(
+                  offstage: _noteRecording,
+                  child: Stack(
+                    children: [
+                      StreamBuilder<List<ChatMsg>>(
+                        stream: _messagesStream,
+                        builder: (context, snap) {
+                          // Во время пересоздания потока (пагинация) держим прошлый срез.
+                          if (snap.data != null) _lastMessages = snap.data!;
+                          final messages = snap.data ?? _lastMessages;
+                          if (messages.isNotEmpty) {
+                            _lastMessageTs = messages.last.ts;
+                            _lastIsMine = messages.last.uid == _myUid;
+                            if (!identical(_readOf, messages)) {
+                              _readOf = messages;
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                _chat.markRead(_groupId, _lastMessageTs);
+                              });
+                            }
+                          }
+                          // Меньше, чем просили → достигли начала истории.
+                          _hasMore = messages.length >= _limit;
 
-                if (snap.connectionState == ConnectionState.waiting &&
-                    messages.isEmpty) {
-                  return Center(child: M3Loading(color: _t.primaryLight));
-                }
-                if (messages.isEmpty) {
-                  return _buildEmptyChat(s);
-                }
-                // Без своего uid выравнивание «моё/чужое» неверно — ВСЕ пузыри
-                // уехали бы на одну сторону. Если PocketBase ещё не отдал
-                // userId (восстановление сессии), ждём, а не рисуем криво.
-                if (_myUid.isEmpty) {
-                  return Center(child: M3Loading(color: _t.primaryLight));
-                }
+                          if (snap.connectionState == ConnectionState.waiting &&
+                              messages.isEmpty) {
+                            return Center(
+                              child: M3Loading(color: _t.primaryLight),
+                            );
+                          }
+                          if (messages.isEmpty) {
+                            return _buildEmptyChat(s);
+                          }
+                          // Без своего uid выравнивание «моё/чужое» неверно — ВСЕ пузыри
+                          // уехали бы на одну сторону. Если PocketBase ещё не отдал
+                          // userId (восстановление сессии), ждём, а не рисуем криво.
+                          if (_myUid.isEmpty) {
+                            return Center(
+                              child: M3Loading(color: _t.primaryLight),
+                            );
+                          }
 
-                final items = _itemsFor(messages);
-                return ListView.builder(
-                  // Запас прогрева: без него ряд за краем экрана начинал готовиться
-                  // ровно тогда, когда его уже листают.
-                  cacheExtent: 600,
-                  controller: _scrollController,
-                  padding: const EdgeInsets.fromLTRB(10, 12, 10, 8),
-                  itemCount: items.length,
-                  itemBuilder: (context, i) =>
-                      _buildItem(items[i], i, items.length),
-                );
-              },
-                ),
-                // FAB «вниз» — в области списка, НАД композером (не перекрывает
-                // кнопку отправки). Виден, когда отлистали заметно вверх.
-                Positioned(
-                  right: 14,
-                  bottom: 8,
-                  child: IgnorePointer(
-                    ignoring: !_showScrollDown,
-                    child: AnimatedScale(
-                      scale: _showScrollDown ? 1 : 0,
-                      duration: const Duration(milliseconds: 180),
-                      curve: Curves.easeOut,
-                      child: GestureDetector(
-                        onTap: _jumpToBottom,
-                        child: Container(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            color: _t.cardSurface,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.keyboard_arrow_down_rounded,
-                            color: _t.primary,
-                            size: 26,
+                          final items = _itemsFor(messages);
+                          return ListView.builder(
+                            // Запас прогрева: без него ряд за краем экрана начинал готовиться
+                            // ровно тогда, когда его уже листают.
+                            cacheExtent: 600,
+                            controller: _scrollController,
+                            padding: const EdgeInsets.fromLTRB(10, 12, 10, 8),
+                            itemCount: items.length,
+                            itemBuilder: (context, i) =>
+                                _buildItem(items[i], i, items.length),
+                          );
+                        },
+                      ),
+                      // FAB «вниз» — в области списка, НАД композером (не перекрывает
+                      // кнопку отправки). Виден, когда отлистали заметно вверх.
+                      Positioned(
+                        right: 14,
+                        bottom: 8,
+                        child: IgnorePointer(
+                          ignoring: !_showScrollDown,
+                          child: AnimatedScale(
+                            scale: _showScrollDown ? 1 : 0,
+                            duration: const Duration(milliseconds: 180),
+                            curve: Curves.easeOut,
+                            child: GestureDetector(
+                              onTap: _jumpToBottom,
+                              child: Container(
+                                width: 42,
+                                height: 42,
+                                decoration: BoxDecoration(
+                                  color: _t.cardSurface,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  color: _t.primary,
+                                  size: 26,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
-              ],
-            ),
-            ),
-          ),
+              ),
               if (mentionPanelVisible(_mentionQuery)) _buildMentionList(),
               // «Печатает…» теперь в хедере (см. _buildHeaderTitle).
               _buildComposer(s),
@@ -2467,8 +2535,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 onRetry: _retryCamera,
                 onFlip: _flipNoteCamera,
                 onTorch: _toggleNoteTorch,
-                onMirror: () =>
-                    setState(() => _noteMirrored = !_noteMirrored),
+                onMirror: () => setState(() => _noteMirrored = !_noteMirrored),
                 onPauseToggle: _toggleNotePause,
                 onCancel: () => _finishNote(cancelled: true),
                 onSend: () => _finishNote(cancelled: false),
@@ -2726,7 +2793,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
     // Сообщение из одних эмодзи (1–3) рисуем крупно и БЕЗ пузыря (как в
     // мессенджерах). Не трогаем удалённые, с пином, ответом или своей мордочкой.
-    final double? bigEmoji = (msg.deleted ||
+    final double? bigEmoji =
+        (msg.deleted ||
             msg.pinId != null ||
             msg.replyToId != null ||
             expr != null)
@@ -2786,8 +2854,9 @@ class _ChatScreenState extends State<ChatScreen> {
       // Крупные эмодзи + мета снизу. Цвета меты — серые (фон-то не пузырь).
       final meta = _t.textMuted;
       content = Column(
-        crossAxisAlignment:
-            isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment: isMine
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(msg.text, style: TextStyle(fontSize: bigEmoji, height: 1.05)),
@@ -2796,15 +2865,20 @@ class _ChatScreenState extends State<ChatScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (msg.isEdited) ...[
-                Text(s.chatEdited,
-                    style: TextStyle(
-                        fontSize: 10,
-                        fontStyle: FontStyle.italic,
-                        color: meta)),
+                Text(
+                  s.chatEdited,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontStyle: FontStyle.italic,
+                    color: meta,
+                  ),
+                ),
                 const SizedBox(width: 5),
               ],
-              Text(_formatTime(msg.editedTs ?? msg.ts),
-                  style: TextStyle(fontSize: 10, color: meta)),
+              Text(
+                _formatTime(msg.editedTs ?? msg.ts),
+                style: TextStyle(fontSize: 10, color: meta),
+              ),
               if (isMine) ...[
                 const SizedBox(width: 4),
                 Icon(
@@ -2821,8 +2895,9 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     } else {
       content = Column(
-        crossAxisAlignment:
-            isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment: isMine
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         children: [
           if (msg.replyToId != null) _buildReplyQuote(msg, isMine, fg),
           if (msg.pinId != null) _buildPinChip(msg, isMine, fg),
@@ -2994,8 +3069,9 @@ class _ChatScreenState extends State<ChatScreen> {
       onLongPress: () => _showMessageMenu(msg),
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment:
-            isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment: isMine
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         children: [
           if (msg.replyToId != null)
             Padding(
@@ -3076,8 +3152,7 @@ class _ChatScreenState extends State<ChatScreen> {
     // Без миниатюры показываем иконку типа записи: она берёт цвет из темы, в
     // отличие от системного эмодзи, который в тёмной теме светился пятном.
     final fallback = Center(
-      child: Icon(icon,
-          size: emojiSize, color: iconColor ?? _t.primary),
+      child: Icon(icon, size: emojiSize, color: iconColor ?? _t.primary),
     );
     if (thumb == null || thumb.isEmpty) {
       return SizedBox(width: size, height: size, child: fallback);
@@ -3190,8 +3265,10 @@ class _ChatScreenState extends State<ChatScreen> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            subtitle: Text(m.typeLabel,
-                style: TextStyle(fontSize: 11, color: _t.textMuted)),
+            subtitle: Text(
+              m.typeLabel,
+              style: TextStyle(fontSize: 11, color: _t.textMuted),
+            ),
             onTap: () => _selectMention(m),
           );
         }).toList(),
@@ -3201,9 +3278,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _buildComposer(AppStrings s) {
     return Container(
-      decoration: BoxDecoration(
-        color: _t.cardSurface,
-      ),
+      decoration: BoxDecoration(color: _t.cardSurface),
       // Когда клавиатура открыта, Scaffold уже поднимает композер над ней —
       // добавлять инсет системной навигации не нужно (иначе двойной отступ
       // и большой зазор между полем и клавиатурой).
@@ -3252,155 +3327,164 @@ class _ChatScreenState extends State<ChatScreen> {
           // Панель ввода: действия живут внутри поля, снаружи — одна кнопка.
           // Пока текста нет, она тональная и молчит; с первым символом
           // наливается primary — маленькое движение, а отклик от него живой.
-          Builder(builder: (context) {
-            final cs = ProfileTheme.themeFor(_t).colorScheme;
-            final hasText = _hasText;
-            // Идёт запись — поле ввода уступает место полосе с таймером и
-            // волной. Кнопка при этом ОСТАЁТСЯ: палец держит именно её, и
-            // вместе с ней живёт распознавание жеста. Пока её убирали из
-            // дерева, арена жеста закрывалась на первом же кадре — подсказка
-            // «влево — отмена, вверх — закрепить» висела, а вести палец было
-            // некуда и не по чему.
-            if (_recording) {
+          Builder(
+            builder: (context) {
+              final cs = ProfileTheme.themeFor(_t).colorScheme;
+              final hasText = _hasText;
+              // Идёт запись — поле ввода уступает место полосе с таймером и
+              // волной. Кнопка при этом ОСТАЁТСЯ: палец держит именно её, и
+              // вместе с ней живёт распознавание жеста. Пока её убирали из
+              // дерева, арена жеста закрывалась на первом же кадре — подсказка
+              // «влево — отмена, вверх — закрепить» висела, а вести палец было
+              // некуда и не по чему.
+              if (_recording) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: VoiceRecordingBar(
+                        elapsed: _voiceElapsed,
+                        levels: _voiceLevels,
+                        gesture: _voiceGesture,
+                        locked: _voiceLocked,
+                        onCancel: () => _finishVoice(cancelled: true),
+                        onSend: () => _finishVoice(cancelled: false),
+                      ),
+                    ),
+                    if (!_voiceLocked) ...[
+                      const SizedBox(width: 8),
+                      SendMicButton(
+                        hasText: false,
+                        editing: false,
+                        primary: cs.primary,
+                        onPrimary: cs.onPrimary,
+                        idleBackground: cs.surfaceContainerHigh,
+                        idleForeground: cs.onSurfaceVariant,
+                        onSend: _send,
+                        onRecordStart: _startVoice,
+                        onRecordGesture: _onVoiceGesture,
+                        onRecordEnd: ({required cancelled, required locked}) =>
+                            _endVoice(cancelled: cancelled, locked: locked),
+                      ),
+                    ],
+                  ],
+                );
+              }
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Expanded(
-                    child: VoiceRecordingBar(
-                      elapsed: _voiceElapsed,
-                      levels: _voiceLevels,
-                      gesture: _voiceGesture,
-                      locked: _voiceLocked,
-                      onCancel: () => _finishVoice(cancelled: true),
-                      onSend: () => _finishVoice(cancelled: false),
-                    ),
-                  ),
-                  if (!_voiceLocked) ...[
-                    const SizedBox(width: 8),
-                    SendMicButton(
-                      hasText: false,
-                      editing: false,
-                      primary: cs.primary,
-                      onPrimary: cs.onPrimary,
-                      idleBackground: cs.surfaceContainerHigh,
-                      idleForeground: cs.onSurfaceVariant,
-                      onSend: _send,
-                      onRecordStart: _startVoice,
-                      onRecordGesture: _onVoiceGesture,
-                      onRecordEnd: ({required cancelled, required locked}) =>
-                          _endVoice(cancelled: cancelled, locked: locked),
-                    ),
-                  ],
-                ],
-              );
-            }
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: cs.surfaceContainerHigh,
-                      borderRadius: BorderRadius.circular(26),
-                    ),
-                    padding: const EdgeInsets.fromLTRB(4, 3, 4, 3),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        // Прикрепить пин — вставляет '@' и открывает подсказки.
-                        IconButton(
-                          onPressed: _triggerPinPicker,
-                          icon: Icon(Icons.attach_file_rounded,
-                              size: 21, color: cs.onSurfaceVariant),
-                          tooltip: s.chatPinTooltip,
-                          visualDensity: VisualDensity.compact,
-                        ),
-                        Expanded(
-                          child: TextField(
-                            controller: _controller,
-                            focusNode: _focusNode,
-                            minLines: 1,
-                            maxLines: 5,
-                            textCapitalization: TextCapitalization.sentences,
-                            style: TextStyle(
-                              fontFamily: ProfileTheme.bodyFont,
-                              fontSize: 15,
-                              color: cs.onSurface,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: cs.surfaceContainerHigh,
+                        borderRadius: BorderRadius.circular(26),
+                      ),
+                      padding: const EdgeInsets.fromLTRB(4, 3, 4, 3),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          // Прикрепить пин — вставляет '@' и открывает подсказки.
+                          IconButton(
+                            onPressed: _triggerPinPicker,
+                            icon: Icon(
+                              Icons.attach_file_rounded,
+                              size: 21,
+                              color: cs.onSurfaceVariant,
                             ),
-                            decoration: InputDecoration(
-                              hintText: s.chatHint,
-                              hintMaxLines: 1,
-                              hintStyle: TextStyle(
+                            tooltip: s.chatPinTooltip,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          Expanded(
+                            child: TextField(
+                              controller: _controller,
+                              focusNode: _focusNode,
+                              minLines: 1,
+                              maxLines: 5,
+                              textCapitalization: TextCapitalization.sentences,
+                              style: TextStyle(
                                 fontFamily: ProfileTheme.bodyFont,
                                 fontSize: 15,
-                                color: cs.onSurfaceVariant,
+                                color: cs.onSurface,
                               ),
-                              isDense: true,
-                              filled: false,
-                              contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 4, vertical: 12),
-                              border: InputBorder.none,
-                              enabledBorder: InputBorder.none,
-                              focusedBorder: InputBorder.none,
+                              decoration: InputDecoration(
+                                hintText: s.chatHint,
+                                hintMaxLines: 1,
+                                hintStyle: TextStyle(
+                                  fontFamily: ProfileTheme.bodyFont,
+                                  fontSize: 15,
+                                  color: cs.onSurfaceVariant,
+                                ),
+                                isDense: true,
+                                filled: false,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                  vertical: 12,
+                                ),
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                              ),
                             ),
                           ),
-                        ),
-                        // Оформление сообщения: цвет, мордочка и её положение.
-                        IconButton(
-                          onPressed: _showStyleSheet,
-                          tooltip: s.chatStyleTooltip,
-                          visualDensity: VisualDensity.compact,
-                          icon: Container(
-                            width: 24,
-                            height: 24,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: _selectedColor ?? cs.primary,
-                              shape: BoxShape.circle,
-                            ),
-                            child: _selectedFace == null
-                                ? null
-                                : CustomPaint(
-                                    size: const Size(19, 11),
-                                    painter: _FacePainter(
-                                      color: (_selectedColor ?? cs.primary)
-                                                  .computeLuminance() >
-                                              0.55
-                                          ? cs.onSurface
-                                          : Colors.white,
-                                      expr: _selectedFace!,
+                          // Оформление сообщения: цвет, мордочка и её положение.
+                          IconButton(
+                            onPressed: _showStyleSheet,
+                            tooltip: s.chatStyleTooltip,
+                            visualDensity: VisualDensity.compact,
+                            icon: Container(
+                              width: 24,
+                              height: 24,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: _selectedColor ?? cs.primary,
+                                shape: BoxShape.circle,
+                              ),
+                              child: _selectedFace == null
+                                  ? null
+                                  : CustomPaint(
+                                      size: const Size(19, 11),
+                                      painter: _FacePainter(
+                                        color:
+                                            (_selectedColor ?? cs.primary)
+                                                    .computeLuminance() >
+                                                0.55
+                                            ? cs.onSurface
+                                            : Colors.white,
+                                        expr: _selectedFace!,
+                                      ),
                                     ),
-                                  ),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                SendMicButton(
-                  hasText: hasText,
-                  editing: _editing != null,
-                  noteMode: _noteMode,
-                  noteShape: _noteShape,
-                  onModeToggle: _toggleNoteMode,
-                  handsFree: _noteMode,
-                  primary: cs.primary,
-                  onPrimary: cs.onPrimary,
-                  idleBackground: cs.surfaceContainerHigh,
-                  idleForeground: cs.onSurfaceVariant,
-                  onSend: _send,
-                  onRecordStart: _noteMode ? _startNote : _startVoice,
-                  onRecordGesture:
-                      _noteMode ? _onNoteGesture : _onVoiceGesture,
-                  onRecordEnd: ({required cancelled, required locked}) =>
-                      _noteMode
-                          ? _endNote(cancelled: cancelled, locked: locked)
-                          : _endVoice(cancelled: cancelled, locked: locked),
-                ),
-              ],
-            );
-          }),
+                  const SizedBox(width: 8),
+                  SendMicButton(
+                    hasText: hasText,
+                    editing: _editing != null,
+                    noteMode: _noteMode,
+                    noteShape: _noteShape,
+                    onModeToggle: _toggleNoteMode,
+                    handsFree: _noteMode,
+                    primary: cs.primary,
+                    onPrimary: cs.onPrimary,
+                    idleBackground: cs.surfaceContainerHigh,
+                    idleForeground: cs.onSurfaceVariant,
+                    onSend: _send,
+                    onRecordStart: _noteMode ? _startNote : _startVoice,
+                    onRecordGesture: _noteMode
+                        ? _onNoteGesture
+                        : _onVoiceGesture,
+                    onRecordEnd: ({required cancelled, required locked}) =>
+                        _noteMode
+                        ? _endNote(cancelled: cancelled, locked: locked)
+                        : _endVoice(cancelled: cancelled, locked: locked),
+                  ),
+                ],
+              );
+            },
+          ),
         ],
       ),
     );
@@ -3513,7 +3597,9 @@ class _ChatBgTile extends StatelessWidget {
                     decoration: BoxDecoration(
                       borderRadius: radius,
                       border: Border.all(
-                        color: selected ? scheme.primary : scheme.outlineVariant,
+                        color: selected
+                            ? scheme.primary
+                            : scheme.outlineVariant,
                         width: selected ? 2.5 : 1,
                       ),
                     ),
@@ -3531,8 +3617,11 @@ class _ChatBgTile extends StatelessWidget {
                         shape: BoxShape.circle,
                       ),
                       alignment: Alignment.center,
-                      child: Icon(Icons.check_rounded,
-                          size: 13, color: scheme.onPrimary),
+                      child: Icon(
+                        Icons.check_rounded,
+                        size: 13,
+                        color: scheme.onPrimary,
+                      ),
                     ),
                   ),
               ],
@@ -3559,13 +3648,13 @@ class _ChatBgTile extends StatelessWidget {
   }
 
   Widget _miniBubble(double width, Color color) => Container(
-        width: width,
-        height: 11,
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(99),
-        ),
-      );
+    width: width,
+    height: 11,
+    decoration: BoxDecoration(
+      color: color,
+      borderRadius: BorderRadius.circular(99),
+    ),
+  );
 }
 
 /// Элемент-разделитель: заголовок даты в ленте чата.
@@ -3598,13 +3687,15 @@ class _BubblePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final bodyH = size.height - tailDrop;
     final body = Path()
-      ..addRRect(RRect.fromRectAndCorners(
-        Rect.fromLTWH(0, 0, size.width, bodyH),
-        topLeft: corners.topLeft,
-        topRight: corners.topRight,
-        bottomLeft: corners.bottomLeft,
-        bottomRight: corners.bottomRight,
-      ));
+      ..addRRect(
+        RRect.fromRectAndCorners(
+          Rect.fromLTWH(0, 0, size.width, bodyH),
+          topLeft: corners.topLeft,
+          topRight: corners.topRight,
+          bottomLeft: corners.bottomLeft,
+          bottomRight: corners.bottomRight,
+        ),
+      );
     final tail = Path();
     final by = bodyH;
     if (tailLeft) {
@@ -3772,8 +3863,9 @@ class _EntranceSlideState extends State<_EntranceSlide>
         final angle = p * (widget.fromRight ? 0.05 : -0.05);
         return Transform.rotate(
           angle: angle,
-          alignment:
-              widget.fromRight ? Alignment.centerRight : Alignment.centerLeft,
+          alignment: widget.fromRight
+              ? Alignment.centerRight
+              : Alignment.centerLeft,
           child: FractionalTranslation(
             translation: Offset(dx, 0),
             child: Opacity(opacity: t.value.clamp(0.0, 1.0), child: child),
@@ -3870,8 +3962,10 @@ class _SwipeToReplyState extends State<_SwipeToReply>
     vsync: this,
     duration: const Duration(milliseconds: 220),
   );
-  late final Animation<double> _curve =
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic);
+  late final Animation<double> _curve = CurvedAnimation(
+    parent: _ctrl,
+    curve: Curves.easeOutCubic,
+  );
 
   double _raw = 0; // накопленный ход пальца влево, >= 0
   double _springFrom = 0; // с какого _raw начался пружинный возврат
@@ -3940,7 +4034,13 @@ class _MsgStyle {
   final double fy;
   final String text; // текст из превью (правится прямо в листе)
   const _MsgStyle(
-      this.color, this.textColor, this.face, this.fx, this.fy, this.text);
+    this.color,
+    this.textColor,
+    this.face,
+    this.fx,
+    this.fy,
+    this.text,
+  );
 }
 
 /// Лист «оформление сообщения»: HSV-пикер цвета (любой оттенок) + 5 недавних +
@@ -4000,7 +4100,9 @@ class _StyleSheetState extends State<_StyleSheet> {
     _hsv = HSVColor.fromColor(widget.initialColor ?? widget.theme.primary);
     _autoText = widget.initialTextColor == null;
     _textHsv = HSVColor.fromColor(
-        widget.initialTextColor ?? readableTextOn(widget.initialColor ?? widget.theme.primary));
+      widget.initialTextColor ??
+          readableTextOn(widget.initialColor ?? widget.theme.primary),
+    );
     _face = widget.initialFace;
     _fx = widget.initialFx;
     _fy = widget.initialFy;
@@ -4028,27 +4130,26 @@ class _StyleSheetState extends State<_StyleSheet> {
 
   /// Пикер тронули — слой перестаёт быть «темой»/«авто» и берёт свой цвет.
   void _setActiveHsv(HSVColor v) => setState(() {
-        if (_editingText) {
-          _autoText = false;
-          _textHsv = v;
-        } else {
-          _useTheme = false;
-          _hsv = v;
-        }
-      });
+    if (_editingText) {
+      _autoText = false;
+      _textHsv = v;
+    } else {
+      _useTheme = false;
+      _hsv = v;
+    }
+  });
 
   Widget _thumb() => Container(
-        width: 14,
-        height: 14,
-        decoration: BoxDecoration(
-          color: widget.theme.isDark ? widget.theme.cardSurface : Colors.white,
-          shape: BoxShape.circle,
-          border: Border.all(
-              color: widget.theme.isDark
-                  ? widget.theme.cardBorder
-                  : Colors.black26),
-        ),
-      );
+    width: 14,
+    height: 14,
+    decoration: BoxDecoration(
+      color: widget.theme.isDark ? widget.theme.cardSurface : Colors.white,
+      shape: BoxShape.circle,
+      border: Border.all(
+        color: widget.theme.isDark ? widget.theme.cardBorder : Colors.black26,
+      ),
+    ),
+  );
 
   Widget _circleBtn({
     required bool selected,
@@ -4063,7 +4164,9 @@ class _StyleSheetState extends State<_StyleSheet> {
         height: 44,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: selected ? accent.withOpacity(0.12) : widget.theme.surfaceMuted,
+          color: selected
+              ? accent.withOpacity(0.12)
+              : widget.theme.surfaceMuted,
           shape: BoxShape.circle,
           border: Border.all(
             color: selected ? accent : widget.theme.divider,
@@ -4076,11 +4179,15 @@ class _StyleSheetState extends State<_StyleSheet> {
   }
 
   Widget _label(String t) => Align(
-        alignment: Alignment.centerLeft,
-        child: Text(t,
-            style: TextStyle(
-                fontWeight: FontWeight.w700, color: widget.theme.textPrimary)),
-      );
+    alignment: Alignment.centerLeft,
+    child: Text(
+      t,
+      style: TextStyle(
+        fontWeight: FontWeight.w700,
+        color: widget.theme.textPrimary,
+      ),
+    ),
+  );
 
   Widget _preview() {
     // Перетаскивание мордочки: глобальная точка → доли 0..1 от РЕАЛЬНОГО размера
@@ -4118,9 +4225,9 @@ class _StyleSheetState extends State<_StyleSheet> {
     // а раз размер совпал — мордочка (доля от размера) встаёт туда же.
     // Шрифт наследуем из темы (как настоящий Text — он берёт Rubik из textTheme).
     // Иначе TextPainter/поле мерили бы дефолтным Roboto и ширина не совпала бы.
-    final textStyle = DefaultTextStyle.of(context)
-        .style
-        .merge(TextStyle(color: _fg, fontSize: 15, height: 1.25));
+    final textStyle = DefaultTextStyle.of(
+      context,
+    ).style.merge(TextStyle(color: _fg, fontSize: 15, height: 1.25));
     // Те же отступы, что у настоящего пузыря: с мордочкой — просторнее.
     final bubblePad = _face == null
         ? const EdgeInsets.fromLTRB(14, 10, 14, 19)
@@ -4168,7 +4275,10 @@ class _StyleSheetState extends State<_StyleSheet> {
                   contentPadding: EdgeInsets.zero,
                   hintText: _textCtrl.text.isEmpty ? s.chatHint : null,
                   hintStyle: TextStyle(
-                      color: _fg.withOpacity(0.55), fontSize: 15, height: 1.25),
+                    color: _fg.withOpacity(0.55),
+                    fontSize: 15,
+                    height: 1.25,
+                  ),
                 ),
               ),
             ),
@@ -4187,8 +4297,10 @@ class _StyleSheetState extends State<_StyleSheet> {
                   ),
                   const SizedBox(width: 5),
                 ],
-                Text(widget.time,
-                    style: TextStyle(fontSize: 10, color: metaColor)),
+                Text(
+                  widget.time,
+                  style: TextStyle(fontSize: 10, color: metaColor),
+                ),
                 const SizedBox(width: 4),
                 Icon(Icons.done_rounded, size: 14, color: metaColor),
               ],
@@ -4231,92 +4343,109 @@ class _StyleSheetState extends State<_StyleSheet> {
   }
 
   Widget _svSquare() {
-    return LayoutBuilder(builder: (ctx, c) {
-      final w = c.maxWidth;
-      const h = 150.0;
-      void upd(Offset p) => _setActiveHsv(_activeHsv
-          .withSaturation((p.dx / w).clamp(0.0, 1.0))
-          .withValue((1 - p.dy / h).clamp(0.0, 1.0)));
-      return GestureDetector(
-        onPanDown: (d) => upd(d.localPosition),
-        onPanUpdate: (d) => upd(d.localPosition),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: SizedBox(
-            width: w,
-            height: h,
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: ColoredBox(
-                      color:
-                          HSVColor.fromAHSV(1, _activeHsv.hue, 1, 1).toColor()),
-                ),
-                const Positioned.fill(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                          colors: [Colors.white, Colors.transparent]),
+    return LayoutBuilder(
+      builder: (ctx, c) {
+        final w = c.maxWidth;
+        const h = 150.0;
+        void upd(Offset p) => _setActiveHsv(
+          _activeHsv
+              .withSaturation((p.dx / w).clamp(0.0, 1.0))
+              .withValue((1 - p.dy / h).clamp(0.0, 1.0)),
+        );
+        return GestureDetector(
+          onPanDown: (d) => upd(d.localPosition),
+          onPanUpdate: (d) => upd(d.localPosition),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox(
+              width: w,
+              height: h,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: ColoredBox(
+                      color: HSVColor.fromAHSV(
+                        1,
+                        _activeHsv.hue,
+                        1,
+                        1,
+                      ).toColor(),
                     ),
                   ),
-                ),
-                const Positioned.fill(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [Colors.transparent, Colors.black],
+                  const Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Colors.white, Colors.transparent],
+                        ),
                       ),
                     ),
                   ),
-                ),
+                  const Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [Colors.transparent, Colors.black],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: _activeHsv.saturation * w - 7,
+                    top: (1 - _activeHsv.value) * h - 7,
+                    child: _thumb(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _hueSlider() {
+    return LayoutBuilder(
+      builder: (ctx, c) {
+        final w = c.maxWidth;
+        const h = 22.0;
+        void upd(Offset p) =>
+            _setActiveHsv(_activeHsv.withHue((p.dx / w).clamp(0.0, 1.0) * 360));
+        return GestureDetector(
+          onPanDown: (d) => upd(d.localPosition),
+          onPanUpdate: (d) => upd(d.localPosition),
+          child: Container(
+            width: w,
+            height: h,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(11),
+              gradient: const LinearGradient(
+                colors: [
+                  Color(0xFFFF0000),
+                  Color(0xFFFFFF00),
+                  Color(0xFF00FF00),
+                  Color(0xFF00FFFF),
+                  Color(0xFF0000FF),
+                  Color(0xFFFF00FF),
+                  Color(0xFFFF0000),
+                ],
+              ),
+            ),
+            child: Stack(
+              children: [
                 Positioned(
-                  left: _activeHsv.saturation * w - 7,
-                  top: (1 - _activeHsv.value) * h - 7,
+                  left: (_activeHsv.hue / 360) * w - 7,
+                  top: h / 2 - 7,
                   child: _thumb(),
                 ),
               ],
             ),
           ),
-        ),
-      );
-    });
-  }
-
-  Widget _hueSlider() {
-    return LayoutBuilder(builder: (ctx, c) {
-      final w = c.maxWidth;
-      const h = 22.0;
-      void upd(Offset p) =>
-          _setActiveHsv(_activeHsv.withHue((p.dx / w).clamp(0.0, 1.0) * 360));
-      return GestureDetector(
-        onPanDown: (d) => upd(d.localPosition),
-        onPanUpdate: (d) => upd(d.localPosition),
-        child: Container(
-          width: w,
-          height: h,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(11),
-            gradient: const LinearGradient(colors: [
-              Color(0xFFFF0000),
-              Color(0xFFFFFF00),
-              Color(0xFF00FF00),
-              Color(0xFF00FFFF),
-              Color(0xFF0000FF),
-              Color(0xFFFF00FF),
-              Color(0xFFFF0000),
-            ]),
-          ),
-          child: Stack(children: [
-            Positioned(
-                left: (_activeHsv.hue / 360) * w - 7,
-                top: h / 2 - 7,
-                child: _thumb()),
-          ]),
-        ),
-      );
-    });
+        );
+      },
+    );
   }
 
   /// Кружок готового цвета — применяется к активному слою.
@@ -4374,10 +4503,13 @@ class _StyleSheetState extends State<_StyleSheet> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text(label,
-                    style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: widget.theme.textPrimary)),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: widget.theme.textPrimary,
+                  ),
+                ),
               ],
             ),
           ),
@@ -4387,11 +4519,19 @@ class _StyleSheetState extends State<_StyleSheet> {
 
     return Row(
       children: [
-        tab(s.chatStyleBackground, _bg, !_editingText,
-            () => setState(() => _editingText = false)),
+        tab(
+          s.chatStyleBackground,
+          _bg,
+          !_editingText,
+          () => setState(() => _editingText = false),
+        ),
         const SizedBox(width: 10),
-        tab(s.chatStyleTextColor, _fg, _editingText,
-            () => setState(() => _editingText = true)),
+        tab(
+          s.chatStyleTextColor,
+          _fg,
+          _editingText,
+          () => setState(() => _editingText = true),
+        ),
       ],
     );
   }
@@ -4402,7 +4542,11 @@ class _StyleSheetState extends State<_StyleSheet> {
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.fromLTRB(
-            16, 10, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
+          16,
+          10,
+          16,
+          16 + MediaQuery.of(context).viewInsets.bottom,
+        ),
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -4430,15 +4574,20 @@ class _StyleSheetState extends State<_StyleSheet> {
                       onTap: () => setState(() => _face = e),
                       child: CustomPaint(
                         size: const Size(30, 18),
-                        painter:
-                            _FacePainter(color: widget.theme.textPrimary, expr: e),
+                        painter: _FacePainter(
+                          color: widget.theme.textPrimary,
+                          expr: e,
+                        ),
                       ),
                     ),
                   _circleBtn(
                     selected: _face == null,
                     onTap: () => setState(() => _face = null),
-                    child: Icon(Icons.block_rounded,
-                        color: widget.theme.textMuted, size: 20),
+                    child: Icon(
+                      Icons.block_rounded,
+                      color: widget.theme.textMuted,
+                      size: 20,
+                    ),
                   ),
                 ],
               ),
@@ -4492,7 +4641,8 @@ class _StyleSheetState extends State<_StyleSheet> {
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 13),
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14)),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
                   onPressed: () => Navigator.pop(
                     context,
@@ -4505,8 +4655,10 @@ class _StyleSheetState extends State<_StyleSheet> {
                       _textCtrl.text,
                     ),
                   ),
-                  child: Text(LocaleService.current.done,
-                      style: const TextStyle(fontWeight: FontWeight.w700)),
+                  child: Text(
+                    LocaleService.current.done,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
                 ),
               ),
             ],

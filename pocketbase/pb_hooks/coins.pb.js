@@ -116,6 +116,8 @@ routerAdd("POST", "/api/coins/purchase-feature", (e) => {
     // Вид ключа владения → значение `kind` в каталоге. Новый вид платного
     // добавляется сюда одной строкой; сами элементы по-прежнему заводятся
     // записью в `catalog_items`, без сборки.
+    // Рамок аватарки тут нет намеренно: они не продаются, а выпадают из
+    // сундука (`chest.pb.js`), который и кладёт ключ `frame:frame_<ключ>`.
     const KINDS = { "mascot": "mascot_anim", "mood_pack": "mood_pack" };
     const wantKind = KINDS[kind];
     if (!wantKind || !itemId) return e.json(400, { ok: false, error: "not for sale" });
@@ -146,6 +148,8 @@ routerAdd("POST", "/api/coins/purchase-feature", (e) => {
   // поделиться и в новой, иначе персонаж достался бы только ему.
   const shareToGroups = (txApp, rec, key) => {
     if (key.indexOf(":") <= 0) return;
+    // Рамка аватарки своя у каждого: партнёр видит её на тебе, но не носит сам.
+    if (key.indexOf("frame:") === 0) return;
     const parse = (s, fb) => { try { return JSON.parse(s || JSON.stringify(fb)) || fb; } catch (_) { return fb; } };
     // `group_ids` — это relation, а не json: строкой его читать бесполезно,
     // нужен getStringSlice. На этом раздача купленного молча не работала.

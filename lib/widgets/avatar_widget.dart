@@ -4,6 +4,8 @@ import 'storage_image.dart';
 import 'widget_content_view.dart';
 import '../services/pocketbase_service.dart';
 import '../services/pb_auth_service.dart';
+import '../services/avatar_frames.dart';
+import 'common/avatar_frame_image.dart';
 
 /// Unified avatar widget used everywhere a user picture is displayed.
 ///
@@ -30,6 +32,13 @@ class AvatarWidget extends StatelessWidget {
   /// строки. Кружок с буквой не открывается вовсе — показывать нечего.
   final bool tapToView;
 
+  /// Рисовать ли рамку, которую человек надел. Рамка выступает за круг
+  /// аватарки, места в раскладке не занимает.
+  final bool showFrame;
+
+  /// Показать эту рамку вместо надетой — примерка в магазине.
+  final String? frame;
+
   const AvatarWidget({
     super.key,
     required this.uid,
@@ -39,6 +48,8 @@ class AvatarWidget extends StatelessWidget {
     required this.size,
     required this.primary,
     this.tapToView = false,
+    this.showFrame = true,
+    this.frame,
   });
 
   String _resolveUrl() {
@@ -74,7 +85,7 @@ class AvatarWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final url = _resolveUrl();
-    final picture = _picture(url);
+    final picture = _framed(_picture(url));
     if (!tapToView || url.isEmpty) return picture;
     return GestureDetector(
       onTap: () => openWidgetPhotoView(
@@ -84,6 +95,11 @@ class AvatarWidget extends StatelessWidget {
       ),
       child: picture,
     );
+  }
+
+  Widget _framed(Widget picture) {
+    if (!showFrame) return picture;
+    return FramedAvatar(uid: uid, size: size, frame: frame, child: picture);
   }
 
   Widget _picture(String url) {
@@ -103,6 +119,46 @@ class AvatarWidget extends StatelessWidget {
               errorWidget: (_, __, ___) => _placeholder(),
             )
           : _placeholder(),
+    );
+  }
+}
+
+/// Надевает на круглую аватарку стороны [size] рамку человека [uid].
+///
+/// Для мест, которые рисуют круг сами (шапка главной, чат, экран связей), а
+/// не через [AvatarWidget]. Рамка выступает за круг и места не занимает.
+class FramedAvatar extends StatelessWidget {
+  const FramedAvatar({
+    super.key,
+    required this.uid,
+    required this.size,
+    required this.child,
+    this.frame,
+  });
+
+  final String uid;
+  final double size;
+  final Widget child;
+
+  /// Показать эту рамку вместо надетой — примерка в магазине.
+  final String? frame;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: AvatarFrames.instance,
+      builder: (context, _) {
+        final key = frame ?? AvatarFrames.instance.frameOf(uid);
+        if (key == null || key.isEmpty) return child;
+        return SizedBox.square(
+          dimension: size,
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [child, AvatarFrameImage(key, avatarSize: size)],
+          ),
+        );
+      },
     );
   }
 }

@@ -36,6 +36,13 @@ class ProfileHero extends StatelessWidget {
   final VoidCallback? onPickBanner;
   final VoidCallback? onTapAvatar;
 
+  /// Нажатие на саму аватарку — магазин рамок. Смена фото тогда уходит на
+  /// кнопку камеры в углу.
+  final VoidCallback? onTapFrame;
+
+  /// Нажатие на значок у ника — магазин значков.
+  final VoidCallback? onTapBadge;
+
   /// Вход в настройки прямо из шапки. Задан только у своего профиля: у
   /// партнёрского настраивать нечего.
   final VoidCallback? onSettings;
@@ -55,6 +62,8 @@ class ProfileHero extends StatelessWidget {
     this.onEdit,
     this.onPickBanner,
     this.onTapAvatar,
+    this.onTapFrame,
+    this.onTapBadge,
     this.onSettings,
   });
 
@@ -95,8 +104,11 @@ class ProfileHero extends StatelessWidget {
                             shape: BoxShape.circle,
                             color: Colors.black.withValues(alpha: 0.30),
                           ),
-                          child: const Icon(Icons.settings_rounded,
-                              size: 18, color: Colors.white),
+                          child: const Icon(
+                            Icons.settings_rounded,
+                            size: 18,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ),
@@ -107,38 +119,48 @@ class ProfileHero extends StatelessWidget {
               left: 20,
               bottom: -40,
               child: GestureDetector(
-                onTap: onTapAvatar,
+                onTap: onTapFrame ?? onTapAvatar,
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
                     Container(
                       padding: const EdgeInsets.all(3),
                       decoration: BoxDecoration(
-                          shape: BoxShape.circle, color: cs.surface),
+                        shape: BoxShape.circle,
+                        color: cs.surface,
+                      ),
                       child: AvatarWidget(
                         uid: uid,
                         liveUrl: avatarUrl,
                         name: name,
                         size: 84,
                         primary: cs.primary,
-                        // В своём профиле нажатие уже занято сменой фото, а в
-                        // партнёрском не делало ничего — там и открываем.
-                        tapToView: onTapAvatar == null,
+                        // В своём профиле нажатие занято (рамки или смена
+                        // фото), а в партнёрском не делало ничего — там и
+                        // открываем фото.
+                        tapToView: onTapAvatar == null && onTapFrame == null,
                       ),
                     ),
                     if (onTapAvatar != null)
                       Positioned(
                         right: -2,
                         bottom: -2,
-                        child: Container(
-                          padding: const EdgeInsets.all(5),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: cs.primary,
-                            border: Border.all(color: cs.surface, width: 2),
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: onTapAvatar,
+                          child: Container(
+                            padding: const EdgeInsets.all(5),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: cs.primary,
+                              border: Border.all(color: cs.surface, width: 2),
+                            ),
+                            child: Icon(
+                              Icons.photo_camera_rounded,
+                              size: 14,
+                              color: cs.onPrimary,
+                            ),
                           ),
-                          child: Icon(Icons.photo_camera_rounded,
-                              size: 14, color: cs.onPrimary),
                         ),
                       ),
                   ],
@@ -170,7 +192,31 @@ class ProfileHero extends StatelessWidget {
                   // Значок профиля — сразу за ником, «Plus» уже после него.
                   if (badge.isNotEmpty) ...[
                     const SizedBox(width: 6),
-                    BadgeImage(badge, side: 28),
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: onTapBadge,
+                      child: BadgeImage(badge, side: 28),
+                    ),
+                  ] else if (onTapBadge != null) ...[
+                    // Значка нет — кружок «добавить», чтобы было куда нажать.
+                    const SizedBox(width: 6),
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: onTapBadge,
+                      child: Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: cs.surfaceContainerHigh,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.add_reaction_outlined,
+                          size: 16,
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
                   ],
                   if (plus && theme != null) ...[
                     const SizedBox(width: 8),
@@ -180,8 +226,11 @@ class ProfileHero extends StatelessWidget {
                     const SizedBox(width: 4),
                     GestureDetector(
                       onTap: onEdit,
-                      child: Icon(Icons.edit_rounded,
-                          size: 18, color: cs.onSurfaceVariant),
+                      child: Icon(
+                        Icons.edit_rounded,
+                        size: 18,
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ],
@@ -189,8 +238,10 @@ class ProfileHero extends StatelessWidget {
               if (subtitle.isNotEmpty) ...[
                 const SizedBox(height: 9),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 11,
+                    vertical: 7,
+                  ),
                   decoration: BoxDecoration(
                     color: cs.surfaceContainerHigh,
                     borderRadius: BorderRadius.circular(14),

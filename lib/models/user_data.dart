@@ -22,6 +22,8 @@ import 'level.dart';
 import 'custom_theme.dart';
 import 'mascot_sleep.dart';
 import 'profile_icon.dart';
+import 'avatar_frame.dart';
+import '../services/avatar_frames.dart';
 
 enum Gender { male, female, unspecified }
 
@@ -45,6 +47,8 @@ class UserData extends ChangeNotifier {
   bool _hasSeenWelcome = false;
   String _uid = '';
   String? _badge;
+  // Надетая рамка аватарки (ключ каталога). Пишет её сам человек, как badge.
+  String? _frame;
 
   // ── Дата рождения (только день+месяц важны для поздравлений) ──
   DateTime? _birthDate;
@@ -370,6 +374,37 @@ class UserData extends ChangeNotifier {
   /// Закреплённая рядом с именем иконка. null — не выбрана.
   String? get equippedIcon =>
       (_badge != null && _badge!.isNotEmpty) ? _badge : null;
+
+  // ── Рамки аватарки ─────────────────────────────────────────────────────────
+  /// Надетая рамка. null — без рамки.
+  String? get equippedFrame =>
+      (_frame != null && _frame!.isNotEmpty) ? _frame : null;
+
+  /// Получена ли рамка. Выдаёт её только сундук: ключ `frame:frame_<ключ>`
+  /// в `owned_features` пишет сервер.
+  bool ownsFrame(String key) =>
+      _ownedFeatures.contains(AvatarFrame.featureKeyOf(key));
+
+  /// Покупки из ответа сундука: выпавшая рамка уже лежит в списке.
+  void applyOwnedFeatures(List<String> features) {
+    _ownedFeatures
+      ..clear()
+      ..addAll(features);
+    unawaited(_saveLocal());
+    notifyListeners();
+  }
+
+  /// Надевает рамку (или снимает, если [key] пустой). Надеть можно только
+  /// полученную. Поле косметическое и пишется напрямую, как значок.
+  Future<void> setFrame(String? key) async {
+    final clear = key == null || key.isEmpty;
+    if (!clear && !ownsFrame(key)) return;
+    _frame = clear ? null : key;
+    await _saveLocal();
+    notifyListeners();
+    await PbDataService().updateUserProfile(
+        PocketBaseService().userId ?? "", {'frame': _frame ?? ''});
+  }
 
   /// Доступна ли иконка: куплена, выдана наградой или открыта Togetherly+.
   /// Наградные значки покупка не открывает — см. [PlusAccess.ownsIcon].
@@ -825,6 +860,8 @@ class UserData extends ChangeNotifier {
       _amoled = prefs.getBool('amoled') ?? false;
       _blobAnimationEnabled = prefs.getBool('blobAnimationEnabled') ?? true;
       _badge = prefs.getString('badge');
+      _frame = prefs.getString('avatarFrame');
+      AvatarFrames.instance.setMine(_frame);
       _coins = prefs.getInt('coins') ?? 0;
       _devCoinsGranted = prefs.getBool('devCoinsGranted') ?? false;
       _devCoinsChecked = prefs.getBool('devCoinsChecked') ?? false;
@@ -891,6 +928,8 @@ class UserData extends ChangeNotifier {
         if (serverBanner.isNotEmpty) _bannerUrl = serverBanner;
         _applyGenderString(data['gender'] as String?);
         _badge = data['badge'] as String?;
+        // Старый сервер поля не отдаёт — тогда держим то, что надето локально.
+        if (data.containsKey('frame')) _frame = data['frame'] as String?;
 
         final cloudCoins = data['coins'];
         if (cloudCoins is int) _coins = cloudCoins;
@@ -992,6 +1031,12 @@ class UserData extends ChangeNotifier {
         await prefs.setString('badge', _badge!);
       } else {
         await prefs.remove('badge');
+      }
+      AvatarFrames.instance.setMine(_frame);
+      if (_frame != null) {
+        await prefs.setString('avatarFrame', _frame!);
+      } else {
+        await prefs.remove('avatarFrame');
       }
       await prefs.setInt('coins', _coins);
       await prefs.setBool('devCoinsGranted', _devCoinsGranted);
@@ -1284,6 +1329,8 @@ class UserData extends ChangeNotifier {
     _ownedFeatures.clear();
     _grantedBadges.clear();
     _badge = null;
+    _frame = null;
+    unawaited(AvatarFrames.instance.clear());
     _adRewardsToday = 0;
     _adRewardsDate = '';
     _mascotSleep = const {};
@@ -1295,6 +1342,7 @@ class UserData extends ChangeNotifier {
     await prefs.remove('ownedFeatures');
     await prefs.remove('grantedBadges');
     await prefs.remove('badge');
+    await prefs.remove('avatarFrame');
     await prefs.remove('adRewardsToday');
     await prefs.remove('adRewardsDate');
     await prefs.remove('mascotSleep');

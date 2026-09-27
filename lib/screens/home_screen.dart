@@ -1845,6 +1845,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       groupId: _pairData.pairId,
                       partnerName: _pairData.partnerDisplayName,
                       onCoins: widget.userData.applyServerCoins,
+                      userData: widget.userData,
                     ),
                   ),
                 // Слот подсказки один на оба состояния: без пары тут стоит

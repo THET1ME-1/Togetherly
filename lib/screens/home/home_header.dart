@@ -1,3 +1,5 @@
+import '../../services/pocketbase_service.dart';
+import '../../widgets/avatar_widget.dart';
 import '../../widgets/mood_image.dart';
 import '../../widgets/storage_image.dart';
 import '../../widgets/widget_content_view.dart';
@@ -85,8 +87,9 @@ class HomeHeader extends StatelessWidget {
                 myAvatarUrl: myAvatarUrl,
                 partnerUid: partners.isEmpty ? '' : partners.first.uid,
                 partnerName: partners.isEmpty ? '' : partners.first.name,
-                partnerAvatarUrl:
-                    partners.isEmpty ? null : partners.first.avatar,
+                partnerAvatarUrl: partners.isEmpty
+                    ? null
+                    : partners.first.avatar,
                 height: kHeaderControlHeight,
               ),
             ],
@@ -103,6 +106,7 @@ class HomeHeader extends StatelessWidget {
       return _avatarWithMood(
         context,
         myAvatarUrl,
+        uid: PocketBaseService().userId ?? '',
         name: myDisplayName,
         mood: myMood,
         moodPosition: MoodBadgePosition.bottomRight,
@@ -113,12 +117,15 @@ class HomeHeader extends StatelessWidget {
       width: kHeaderControlHeight + shown.length * _avatarStep,
       height: kHeaderControlHeight,
       child: Stack(
+        // Рамки аватарок выступают за кружки — не обрезаем их по шапке.
+        clipBehavior: Clip.none,
         children: [
           Positioned(
             left: 0,
             child: _avatarWithMood(
               context,
               myAvatarUrl,
+              uid: PocketBaseService().userId ?? '',
               name: myDisplayName,
               mood: myMood,
               moodPosition: MoodBadgePosition.topLeft,
@@ -130,6 +137,7 @@ class HomeHeader extends StatelessWidget {
               child: _avatarWithMood(
                 context,
                 shown[i].avatar,
+                uid: shown[i].uid,
                 name: shown[i].name,
                 mood: moodOf(shown[i].uid),
                 moodPosition: MoodBadgePosition.bottomRight,
@@ -148,6 +156,7 @@ class HomeHeader extends StatelessWidget {
   Widget _avatarWithMood(
     BuildContext context,
     String url, {
+    required String uid,
     String? name,
     required MemberMood mood,
     required MoodBadgePosition moodPosition,
@@ -159,11 +168,12 @@ class HomeHeader extends StatelessWidget {
       onTap: url.isEmpty
           ? null
           : () => openWidgetPhotoView(context, imageUrl: url, authorName: name),
-      child: _avatarStack(url, name, mood, moodPosition, badge),
+      child: _avatarStack(uid, url, name, mood, moodPosition, badge),
     );
   }
 
   Widget _avatarStack(
+    String uid,
     String url,
     String? name,
     MemberMood mood,
@@ -174,25 +184,30 @@ class HomeHeader extends StatelessWidget {
       width: kHeaderControlHeight,
       height: kHeaderControlHeight,
       child: Stack(
+        clipBehavior: Clip.none,
         children: [
-          Container(
-            width: kHeaderControlHeight,
-            height: kHeaderControlHeight,
-            padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: theme.bgGradient.first,
-            ),
-            child: ClipOval(
-              child: url.isNotEmpty
-                  ? StorageImage(
-                      imageUrl: url,
-                      fit: BoxFit.cover,
-                      memCacheWidth: 120,
-                      errorWidget: (context, url, error) =>
-                          _avatarPlaceholder(name),
-                    )
-                  : _avatarPlaceholder(name),
+          FramedAvatar(
+            uid: uid,
+            size: kHeaderControlHeight,
+            child: Container(
+              width: kHeaderControlHeight,
+              height: kHeaderControlHeight,
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: theme.bgGradient.first,
+              ),
+              child: ClipOval(
+                child: url.isNotEmpty
+                    ? StorageImage(
+                        imageUrl: url,
+                        fit: BoxFit.cover,
+                        memCacheWidth: 120,
+                        errorWidget: (context, url, error) =>
+                            _avatarPlaceholder(name),
+                      )
+                    : _avatarPlaceholder(name),
+              ),
             ),
           ),
           if (mood.isNotEmpty && mood.imagePath.isNotEmpty)
@@ -284,8 +299,7 @@ class HomeHeader extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            if (active)
-              Icon(Icons.expand_more_rounded, size: 16, color: fg),
+            if (active) Icon(Icons.expand_more_rounded, size: 16, color: fg),
           ],
         ),
       ),

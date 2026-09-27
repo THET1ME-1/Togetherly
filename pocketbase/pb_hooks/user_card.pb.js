@@ -55,6 +55,9 @@ routerAdd("GET", "/api/user/card", (e) => {
     avatar_url: rec.getString("avatar_url"),
     banner_url: rec.getString("banner_url"),
     badge: rec.getString("badge"),
+    // Надетая рамка аватарки (ключ из каталога, вид `frame`). Её видят все,
+    // у кого есть твоя аватарка.
+    frame: rec.getString("frame"),
     gender: rec.getString("gender"),
     birth_date: rec.getString("birth_date"),
     // Ночная сцена маскота: её показывают обоим, поле правит сам человек.

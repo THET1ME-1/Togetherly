@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../dict_strings.dart' show trKey;
 import '../../models/chest.dart';
+import '../../models/user_data.dart';
 import '../../screens/chest_screen.dart';
 import '../../services/catalog_service.dart';
 import '../../services/chest_service.dart';
@@ -26,12 +27,22 @@ import 'chest_prize_image.dart';
 /// блок должен выделяться на главной. Цвет из палитры, а не свой, чтобы блок
 /// жил во всех двадцати пяти палитрах (решение заказчика 27.09.2026).
 class ChestHomeCard extends StatefulWidget {
-  const ChestHomeCard({super.key, required this.theme, required this.groupId, this.partnerName, this.onCoins});
+  const ChestHomeCard({
+    super.key,
+    required this.theme,
+    required this.groupId,
+    this.partnerName,
+    this.onCoins,
+    this.userData,
+  });
 
   final AppTheme theme;
   final String groupId;
   final String? partnerName;
   final ValueChanged<int>? onCoins;
+
+  /// Профиль — сундук кладёт туда выпавшую рамку и надевает её.
+  final UserData? userData;
 
   @override
   State<ChestHomeCard> createState() => _ChestHomeCardState();
@@ -64,6 +75,7 @@ class _ChestHomeCardState extends State<ChestHomeCard> {
           groupId: widget.groupId,
           partnerName: widget.partnerName,
           onCoins: widget.onCoins,
+          userData: widget.userData,
         ),
         settings: const RouteSettings(name: '/chest'),
       ),

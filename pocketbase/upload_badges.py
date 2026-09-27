@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Кладёт значки профиля и картинки подарков в серверный каталог Togetherly.
+"""Кладёт значки профиля, рамки аватарки и картинки подарков в серверный каталог Togetherly.
+
+Рамка аватарки — запись вида `frame` с id `frame_<ключ>` и `frame.json` в
+папке. Всё про рамку живёт в этой записи: редкость, названия и подписи на
+семи языках, анимация и неподвижный кадр. За монеты рамки не продаются, их
+разыгрывает сундук (`chest.pb.js`): он читает рамки из каталога при каждом
+открытии, поэтому новая рамка сразу встаёт в розыгрыш и в магазин, без сборки
+приложения и без правки хука. Доля в сундуке зависит от редкости.
 
 Подарок — такая же запись, только вида `gift` с id `gift_<ключ>` и
 `gift.json` в папке вместо `badge.json`. Цена и действие подарка живут в
@@ -23,6 +30,8 @@
     python3 upload_badges.py --dir /tmp/badges            все значки из папки
     python3 upload_badges.py --dir /tmp/badges --only fish
     python3 upload_badges.py --dir /tmp/badges --disable fish   снять с витрины
+    python3 upload_badges.py --dir /tmp/frames              рамки (папки с frame.json)
+    python3 upload_badges.py --disable frame_cat            снять рамку с витрины
 
 Папка значка:
 
@@ -144,7 +153,61 @@ def upload_gift(folder: Path, token: str) -> None:
     print(f"{'подарок' if kind == 'gift' else 'картинка'} {key}: {action} ({item_id})")
 
 
+def upload_frame(folder: Path, token: str) -> None:
+    spec = json.loads((folder / "frame.json").read_text(encoding="utf-8"))
+    key = spec["key"]
+    item_id = "frame_" + slug(key)
+    missing = [f for f in FILES if not (folder / f).exists()]
+    if missing:
+        sys.exit(f"{key}: нет файлов {', '.join(missing)}")
+    names = spec.get("name") or {}
+    if spec.get("rarity") not in ("common", "rare", "legendary"):
+        sys.exit(f"{key}: редкость должна быть common, rare или legendary")
+    fields = {
+        "kind": "frame",
+        "name_ru": names.get("ru", key),
+        "name_en": names.get("en", key),
+        "is_free": "false",
+        "price": "0",
+        "min_app": "",
+        "sort": str(int(spec.get("sort", 500))),
+        "enabled": "true",
+        "data": "{}",
+    }
+    files = [("files", folder / f) for f in FILES]
+    url = f"{PB}/api/collections/catalog_items/records/{item_id}"
+    if exists(item_id, token):
+        body, ctype = multipart({"files": ""}, [])
+        send("PATCH", url, token, body, ctype)
+        body, ctype = multipart(fields, files)
+        rec = send("PATCH", url, token, body, ctype)
+        action = "обновлена"
+    else:
+        fields["id"] = item_id
+        body, ctype = multipart(fields, files)
+        rec = send("POST", f"{PB}/api/collections/catalog_items/records", token, body, ctype)
+        action = "заведена"
+    stored = rec.get("files") or []
+    if len(stored) != len(FILES):
+        sys.exit(f"{key}: залилось {len(stored)} файлов из {len(FILES)}")
+    urls = {name.split(".")[0]: f"{PUBLIC}/api/files/catalog_items/{rec['id']}/{stored_name}"
+            for name, stored_name in zip(FILES, stored)}
+    manifest = {
+        "key": key,
+        "rarity": spec.get("rarity", "common"),
+        "name": names,
+        "desc": spec.get("desc") or {},
+        **urls,
+    }
+    body, ctype = multipart({"data": json.dumps(manifest, ensure_ascii=False)}, [])
+    send("PATCH", url, token, body, ctype)
+    print(f"рамка {key}: {action} ({item_id}, {spec['rarity']}, в сундуке)")
+
+
 def upload(folder: Path, token: str) -> None:
+    if (folder / "frame.json").exists():
+        upload_frame(folder, token)
+        return
     if (folder / "gift.json").exists():
         upload_gift(folder, token)
         return
@@ -202,7 +265,7 @@ def upload(folder: Path, token: str) -> None:
 
 
 def disable(key_or_slug: str, token: str) -> None:
-    item_id = key_or_slug if key_or_slug.startswith(("badge_", "gift_", "art_")) else "badge_" + slug(key_or_slug)
+    item_id = key_or_slug if key_or_slug.startswith(("badge_", "gift_", "art_", "frame_")) else "badge_" + slug(key_or_slug)
     body, ctype = multipart({"enabled": "false"}, [])
     send("PATCH", f"{PB}/api/collections/catalog_items/records/{item_id}", token, body, ctype)
     print(f"{item_id}: снят с витрины (у купивших остаётся)")
@@ -221,7 +284,8 @@ def main() -> None:
             disable(k, token)
         if args.dir:
             root = Path(args.dir)
-            folders = sorted(p for p in root.iterdir() if (p / "badge.json").exists() or (p / "gift.json").exists())
+            folders = sorted(p for p in root.iterdir()
+                             if any((p / f).exists() for f in ("badge.json", "gift.json", "frame.json")))
             if args.only:
                 folders = [p for p in folders if p.name in args.only]
             if not folders:

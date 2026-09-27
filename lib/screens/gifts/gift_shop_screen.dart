@@ -3,7 +3,12 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 
+import '../../dict_strings.dart' show trKey;
+import '../../models/avatar_frame.dart';
 import '../../models/gift.dart';
+import '../../models/profile_icon.dart';
+import '../../models/user_data.dart';
+import '../../services/catalog_service.dart';
 import '../../services/gift_result.dart';
 import '../../services/gifts_service.dart';
 import '../../services/locale_service.dart';
@@ -13,11 +18,20 @@ import '../../services/rewarded_ad_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/profile_theme.dart';
 import '../../widgets/app_sheet.dart';
+import '../../widgets/avatar_widget.dart';
+import '../../widgets/common/badge_image.dart';
+import '../chest_screen.dart';
 import '../../widgets/chest/chest_stash_lane.dart';
 import '../../widgets/common/gift_image.dart';
 import '../../widgets/common/coin_image.dart';
 import '../../widgets/common/coin_sheet.dart';
 
+/// Магазин: подарки, значки и рамки на трёх вкладках под общей шапкой
+/// (макет «Магазин», 27.09.2026). Карточка везде одна — «Ценник» подарков:
+/// ценник в углу, крупный рисунок, название. Купленное помечено «Твой»,
+/// надетое выделено тоном карточки. Цены значков и подарков приходят из
+/// серверного каталога, рамки не продаются — они выпадают из сундука.
+///
 /// Витрина подарков: выбрал — списались монеты, партнёру улетел значок.
 ///
 /// Экран собран по M3 Expressive, вариант «Ценник» (26.09.2026): полки по
@@ -35,11 +49,33 @@ class GiftShopScreen extends StatefulWidget {
     required this.groupId,
     required this.coins,
     this.onCoins,
+    this.userData,
+    this.initialTab = ShopTab.gifts,
+    this.showGifts = true,
+    this.partnerName,
+    this.onOpenCoins,
   });
 
   final AppTheme theme;
   final String groupId;
   final int coins;
+
+  /// Профиль: значки и рамки, купленное и надетое. Без него магазин — одни
+  /// подарки, как раньше.
+  final UserData? userData;
+
+  /// Какая вкладка открыта первой: плитка «Магазин» ведёт к подаркам,
+  /// значок у ника — к значкам, аватарка — к рамкам.
+  final ShopTab initialTab;
+
+  /// Подарки дарят только в паре и только при включённом разделе.
+  final bool showGifts;
+
+  /// Имя партнёра — для сундука, куда ведёт вкладка рамок.
+  final String? partnerName;
+
+  /// Кошелёк в шапке открывает лист монет.
+  final VoidCallback? onOpenCoins;
 
   /// Новый баланс после отправки — чтобы главный экран не показывал старый.
   final ValueChanged<int>? onCoins;
@@ -47,6 +83,8 @@ class GiftShopScreen extends StatefulWidget {
   @override
   State<GiftShopScreen> createState() => _GiftShopScreenState();
 }
+
+enum ShopTab { gifts, badges, frames }
 
 // ── M3-кривые движения ───────────────────────────────────────────────────────
 const Cubic _emphasized = Cubic(0.2, 0.0, 0.0, 1.0);
@@ -65,14 +103,31 @@ String _tierName(int tier) {
   };
 }
 
-
-
 class _GiftShopScreenState extends State<GiftShopScreen> {
   /// Тестовая сборка (`--dart-define=GIFTS_FORCE=true`) показывает код отказа.
   static const bool _diagnostics = bool.fromEnvironment('GIFTS_FORCE');
 
   late int _coins = widget.coins;
   String? _sending;
+
+  late final List<ShopTab> _tabs = [
+    if (widget.showGifts) ShopTab.gifts,
+    if (widget.userData != null) ...[ShopTab.badges, ShopTab.frames],
+  ];
+  late ShopTab _tab = _tabs.contains(widget.initialTab)
+      ? widget.initialTab
+      : _tabs.first;
+
+  /// Фильтр по редкости на вкладках значков и рамок; null — все.
+  String? _badgeRarity;
+  String? _frameRarity;
+
+  /// Значок или рамка, по которым сейчас идёт запрос.
+  String? _busyItem;
+
+  /// Баланс: профиль знает его точнее всех, магазин держит свой на случай,
+  /// когда открыт без профиля.
+  int get _wallet => widget.userData?.coins ?? _coins;
 
   /// Активный фильтр уровня; null — показываем все полки.
   int? _filter;
@@ -128,7 +183,8 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
       if (!_ad.isReady) {
         _ad.load();
         messenger.showSnackBar(
-            SnackBar(content: Text(LocaleService.current.streakRestoreNoAd)));
+          SnackBar(content: Text(LocaleService.current.streakRestoreNoAd)),
+        );
         return;
       }
       setState(() => _sending = gift.key);
@@ -147,7 +203,11 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
 
     setState(() => _sending = gift.key);
     final res = await GiftsService.instance.send(
-        groupId: widget.groupId, giftKey: gift.key, note: note, byAd: byAd);
+      groupId: widget.groupId,
+      giftKey: gift.key,
+      note: note,
+      byAd: byAd,
+    );
     if (!mounted) return;
 
     final s = LocaleService.current;
@@ -169,8 +229,7 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
       if (res.coins != null) _coins = res.coins!;
     });
     if (res.coins != null) widget.onCoins?.call(res.coins!);
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(text)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
     if (res.ok) Navigator.of(context).pop();
   }
 
@@ -190,14 +249,18 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
         curve: _emphasizedDecelerate,
         builder: (ctx, v, child) => Opacity(
           opacity: v.clamp(0, 1),
-          child: Transform.translate(offset: Offset(0, (1 - v) * 40), child: child),
+          child: Transform.translate(
+            offset: Offset(0, (1 - v) * 40),
+            child: child,
+          ),
         ),
         child: Padding(
           padding: EdgeInsets.only(
             left: 16,
             right: 16,
             top: 20,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom +
+            bottom:
+                MediaQuery.of(ctx).viewInsets.bottom +
                 MediaQuery.of(ctx).padding.bottom +
                 20,
           ),
@@ -225,14 +288,17 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Text(gift.title,
-                          style: TextStyle(
-                              fontFamily: 'Unbounded',
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-        fontVariations: const [FontVariation('wght', 700)],
-                              letterSpacing: -0.3,
-                              color: cs.onSurface)),
+                      child: Text(
+                        gift.title,
+                        style: TextStyle(
+                          fontFamily: 'Unbounded',
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          fontVariations: const [FontVariation('wght', 700)],
+                          letterSpacing: -0.3,
+                          color: cs.onSurface,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -297,7 +363,30 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
       child: Scaffold(
         backgroundColor: cs.surface,
         appBar: _appBar(cs),
-        body: _body(cs),
+        body: ListenableBuilder(
+          listenable: Listenable.merge([
+            CatalogService.instance,
+            if (widget.userData != null) widget.userData!,
+          ]),
+          builder: (context, _) => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_tabs.length > 1)
+                _ShopTabs(
+                  tabs: _tabs,
+                  selected: _tab,
+                  onPick: (t) => setState(() => _tab = t),
+                ),
+              Expanded(
+                child: switch (_tab) {
+                  ShopTab.gifts => _body(cs),
+                  ShopTab.badges => _badgesBody(cs),
+                  ShopTab.frames => _framesBody(cs),
+                },
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -310,12 +399,12 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
       elevation: 0,
       iconTheme: IconThemeData(color: cs.onSurface),
       title: Text(
-        s.giftShopTitle,
+        _tabs.length > 1 ? trKey('shopTitle') : s.giftShopTitle,
         style: TextStyle(
           fontFamily: 'Unbounded',
           color: cs.onSurface,
           fontWeight: FontWeight.w800,
-        fontVariations: const [FontVariation('wght', 800)],
+          fontVariations: const [FontVariation('wght', 800)],
           letterSpacing: -0.4,
           fontSize: 22,
         ),
@@ -324,28 +413,32 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
         Padding(
           padding: const EdgeInsets.only(right: 14),
           child: Center(
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(2, 2, 16, 2),
-              decoration: BoxDecoration(
-                color: cs.secondaryContainer,
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const CoinImage(side: 40),
-                  Text(
-                    '$_coins',
-                    style: TextStyle(
-                      fontFamily: 'Unbounded',
-                      color: cs.onSecondaryContainer,
-                      fontWeight: FontWeight.w700,
-                      fontVariations: const [FontVariation('wght', 700)],
-                      fontSize: 17,
-                      fontFeatures: const [FontFeature.tabularFigures()],
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: widget.onOpenCoins,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(2, 2, 16, 2),
+                decoration: BoxDecoration(
+                  color: cs.secondaryContainer,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CoinImage(side: 40),
+                    Text(
+                      '$_wallet',
+                      style: TextStyle(
+                        fontFamily: 'Unbounded',
+                        color: cs.onSecondaryContainer,
+                        fontWeight: FontWeight.w700,
+                        fontVariations: const [FontVariation('wght', 700)],
+                        fontSize: 17,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -361,16 +454,23 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _FilterBar(selected: _filter, onPick: _pickFilter),
+        _FilterBar<int?>(
+          items: [
+            (null, trKey('shopFilterAll')),
+            (1, _tierName(1)),
+            (2, _tierName(2)),
+            (3, _tierName(3)),
+          ],
+          selected: _filter,
+          onPick: _pickFilter,
+        ),
         Expanded(
           child: AnimatedSwitcher(
             duration: const Duration(milliseconds: 320),
             switchInCurve: _emphasizedDecelerate,
             switchOutCurve: _emphasized,
-            transitionBuilder: (child, anim) => FadeTransition(
-              opacity: anim,
-              child: child,
-            ),
+            transitionBuilder: (child, anim) =>
+                FadeTransition(opacity: anim, child: child),
             child: ListView(
               key: ValueKey(_filter),
               padding: EdgeInsets.only(
@@ -381,14 +481,11 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
                 if (_filter == null) ChestStashLane(groupId: widget.groupId),
                 for (final tier in tiers) ...[
                   _ShelfHeader(title: _tierName(tier)),
-                  _ShelfGrid(
-                    gifts: GiftCatalog.all
+                  _giftGrid(
+                    GiftCatalog.all
                         .where((g) => _tierOf(g.price) == tier)
                         .toList(),
-                    coins: _coins,
-                    sending: _sending,
-                    reduce: reduce,
-                    onSend: (g) => _sending == null ? _choose(g) : null,
+                    reduce,
                   ),
                 ],
               ],
@@ -397,6 +494,307 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
         ),
       ],
     );
+  }
+
+  // ── Подарки ──────────────────────────────────────────────────────────────
+  Widget _giftGrid(List<Gift> gifts, bool reduce) {
+    return _CardGrid(
+      count: gifts.length,
+      builder: (context, i) {
+        final gift = gifts[i];
+        final affordable = _wallet >= gift.currentPrice;
+        // Без монет подарок всё равно можно отправить за рекламу, кроме копилки.
+        final usable = affordable || gift.giftableByAd;
+        return _ShopCard(
+          tag: _PriceTag(price: gift.currentPrice, affordable: affordable),
+          art: (side) => GiftImage(gift.key, side: side),
+          title: gift.title,
+          muted: !affordable,
+          usable: usable,
+          busy: _sending == gift.key,
+          reduce: reduce,
+          onTap: () => _sending == null ? _choose(gift) : null,
+        );
+      },
+    );
+  }
+
+  // ── Значки ───────────────────────────────────────────────────────────────
+  Widget _rarityBar(
+    String? selected,
+    List<String> present,
+    ValueChanged<String?> onPick,
+  ) {
+    String name(String r) => switch (r) {
+      'rare' => trKey('shopRarityRare'),
+      'legendary' => trKey('shopRarityLegendary'),
+      'award' => trKey('shopRarityAward'),
+      _ => trKey('shopRarityCommon'),
+    };
+    const order = ['common', 'rare', 'legendary', 'award'];
+    return _FilterBar<String?>(
+      items: [
+        (null, trKey('shopFilterAll')),
+        for (final r in order)
+          if (present.contains(r)) (r, name(r)),
+      ],
+      selected: selected,
+      onPick: onPick,
+    );
+  }
+
+  Widget _emptyNote(ColorScheme cs, String text) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(32),
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontFamily: 'Onest',
+          fontSize: 14,
+          color: cs.onSurfaceVariant,
+        ),
+      ),
+    ),
+  );
+
+  Widget _badgesBody(ColorScheme cs) {
+    final ud = widget.userData!;
+    final all = ProfileIcon.all;
+    if (all.isEmpty) return _emptyNote(cs, trKey('shopLoading'));
+    final shown = _badgeRarity == null
+        ? all
+        : all.where((i) => i.rarity == _badgeRarity).toList();
+    final reduce = MediaQuery.of(context).disableAnimations;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _rarityBar(
+          _badgeRarity,
+          {for (final i in all) i.rarity}.toList(),
+          (r) => setState(() => _badgeRarity = r),
+        ),
+        Expanded(
+          child: ListView(
+            padding: EdgeInsets.only(
+              top: 6,
+              bottom: 28 + MediaQuery.of(context).padding.bottom,
+            ),
+            children: [
+              _CardGrid(
+                count: shown.length,
+                builder: (context, i) {
+                  final icon = shown[i];
+                  final owns = ud.ownsIcon(icon.id);
+                  final worn = ud.equippedIcon == icon.id;
+                  final affordable = _wallet >= icon.price;
+                  return _ShopCard(
+                    tag: worn
+                        ? _LabelTag(trKey('shopWornBadge'), filled: true)
+                        : owns
+                        ? _LabelTag(trKey('shopMineBadge'))
+                        : icon.grantOnly
+                        ? _LabelTag(trKey('shopAward'))
+                        : _PriceTag(price: icon.price, affordable: affordable),
+                    art: (side) => BadgeImage(icon.id, side: side * 0.86),
+                    title: icon.name,
+                    selected: worn,
+                    muted: !owns && (icon.grantOnly || !affordable),
+                    busy: _busyItem == icon.id,
+                    reduce: reduce,
+                    onTap: () => _openBadge(icon),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _openBadge(ProfileIcon icon) async {
+    final ud = widget.userData!;
+    if (_busyItem != null) return;
+    final owns = ud.ownsIcon(icon.id);
+    final worn = ud.equippedIcon == icon.id;
+    final canBuy = !owns && !icon.grantOnly && icon.price > 0;
+    final affordable = _wallet >= icon.price;
+    final action = await showAppSheet<String>(
+      context,
+      builder: (ctx) => SheetScaffold(
+        child: _ItemSheet(
+          art: BadgeImage(icon.id, side: 104),
+          title: icon.name,
+          lines: [
+            if (icon.description.isNotEmpty) icon.description,
+            trKey(
+              icon.grantOnly && !owns ? 'shopBadgeAwardHint' : 'shopBadgeHint',
+            ),
+            if (canBuy && !affordable) LocaleService.current.giftNotEnoughCoins,
+          ],
+          actions: [
+            if (worn) ('off', trKey('shopTakeOff'), false, true),
+            if (owns && !worn) ('wear', trKey('shopWear'), true, true),
+            if (canBuy)
+              (
+                'buy',
+                trKey('shopBuyFor').replaceAll('{n}', '${icon.price}'),
+                true,
+                affordable,
+              ),
+            if (canBuy && !affordable && widget.onOpenCoins != null)
+              ('coins', LocaleService.current.coinBalance, false, true),
+          ],
+        ),
+      ),
+    );
+    if (action == null || !mounted) return;
+    if (action == 'coins') {
+      widget.onOpenCoins?.call();
+      return;
+    }
+    setState(() => _busyItem = icon.id);
+    var ok = true;
+    if (action == 'off') {
+      await ud.setBadgeIcon(null);
+    } else if (action == 'wear') {
+      await ud.setBadgeIcon(icon.id);
+    } else if (action == 'buy') {
+      ok = await ud.purchaseIcon(icon);
+      // Купленный значок сразу надевается: ради этого его и брали.
+      if (ok) await ud.setBadgeIcon(icon.id);
+    }
+    if (!mounted) return;
+    setState(() => _busyItem = null);
+    if (!ok) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(trKey('shopFailed'))));
+    }
+  }
+
+  // ── Рамки ────────────────────────────────────────────────────────────────
+  /// Своя аватарка с рамкой [frame] — рамка занимает сторону [side] целиком.
+  Widget _framedMe(String frame, double side) {
+    final ud = widget.userData!;
+    final cs = Theme.of(context).colorScheme;
+    return SizedBox.square(
+      dimension: side,
+      child: Center(
+        child: AvatarWidget(
+          uid: ud.uid.isNotEmpty ? ud.uid : (PocketBaseService().userId ?? ''),
+          liveUrl: ud.avatarUrl,
+          name: ud.displayName,
+          size: side / AvatarFrame.scale,
+          primary: cs.primary,
+          frame: frame,
+        ),
+      ),
+    );
+  }
+
+  Widget _framesBody(ColorScheme cs) {
+    final ud = widget.userData!;
+    final all = AvatarFrame.all;
+    if (all.isEmpty) return _emptyNote(cs, trKey('shopLoading'));
+    final shown = _frameRarity == null
+        ? all
+        : all.where((f) => f.rarity == _frameRarity).toList();
+    final reduce = MediaQuery.of(context).disableAnimations;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _rarityBar(
+          _frameRarity,
+          {for (final f in all) f.rarity}.toList(),
+          (r) => setState(() => _frameRarity = r),
+        ),
+        Expanded(
+          child: ListView(
+            padding: EdgeInsets.only(
+              top: 6,
+              bottom: 28 + MediaQuery.of(context).padding.bottom,
+            ),
+            children: [
+              _CardGrid(
+                count: shown.length,
+                builder: (context, i) {
+                  final f = shown[i];
+                  final owns = ud.ownsFrame(f.key);
+                  final worn = ud.equippedFrame == f.key;
+                  return _ShopCard(
+                    tag: worn
+                        ? _LabelTag(trKey('shopWornFrame'), filled: true)
+                        : owns
+                        ? _LabelTag(trKey('shopMineFrame'))
+                        : _LabelTag(
+                            trKey('shopFromChest'),
+                            icon: Icons.redeem_rounded,
+                          ),
+                    art: (side) => _framedMe(f.key, side),
+                    title: f.name,
+                    selected: worn,
+                    muted: !owns,
+                    busy: _busyItem == f.key,
+                    reduce: reduce,
+                    onTap: () => _openFrame(f),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _openFrame(AvatarFrame f) async {
+    final ud = widget.userData!;
+    if (_busyItem != null) return;
+    final owns = ud.ownsFrame(f.key);
+    final worn = ud.equippedFrame == f.key;
+    final chest = !owns && widget.groupId.isNotEmpty;
+    final action = await showAppSheet<String>(
+      context,
+      builder: (ctx) => SheetScaffold(
+        child: _ItemSheet(
+          art: _framedMe(f.key, 200),
+          title: f.name,
+          lines: [
+            if (f.description.isNotEmpty) f.description,
+            trKey('shopFrameHint'),
+            if (!owns) trKey('shopFrameChestHint'),
+            if (!owns && !chest) trKey('shopChestNeedsPair'),
+          ],
+          actions: [
+            if (worn) ('off', trKey('shopTakeOff'), false, true),
+            if (owns && !worn) ('wear', trKey('shopWear'), true, true),
+            if (chest) ('chest', trKey('shopOpenChest'), true, true),
+          ],
+        ),
+      ),
+    );
+    if (action == null || !mounted) return;
+    if (action == 'chest') {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ChestScreen(
+            theme: widget.theme,
+            groupId: widget.groupId,
+            partnerName: widget.partnerName,
+            onCoins: widget.onCoins,
+            userData: ud,
+          ),
+          settings: const RouteSettings(name: '/chest'),
+        ),
+      );
+      return;
+    }
+    setState(() => _busyItem = f.key);
+    await ud.setFrame(action == 'off' ? null : f.key);
+    if (!mounted) return;
+    setState(() => _busyItem = null);
   }
 }
 
@@ -456,8 +854,13 @@ class _PaySheet extends StatelessWidget {
             child: coinLabel,
           );
 
-    final adIcon = Icon(plus ? Icons.card_giftcard_rounded : Icons.play_circle_rounded);
-    final adText = Text(plus ? s.giftForFree : s.giftForAd, textAlign: TextAlign.center);
+    final adIcon = Icon(
+      plus ? Icons.card_giftcard_rounded : Icons.play_circle_rounded,
+    );
+    final adText = Text(
+      plus ? s.giftForFree : s.giftForAd,
+      textAlign: TextAlign.center,
+    );
     void onAd() => Navigator.pop(context, true);
     final adButton = adFirst
         ? FilledButton.icon(
@@ -510,8 +913,11 @@ class _PaySheet extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 22),
-          if (adFirst) ...[adButton, const SizedBox(height: 10), coinButton]
-          else ...[
+          if (adFirst) ...[
+            adButton,
+            const SizedBox(height: 10),
+            coinButton,
+          ] else ...[
             coinButton,
             if (adAllowed) ...[const SizedBox(height: 10), adButton],
           ],
@@ -534,21 +940,99 @@ class _PaySheet extends StatelessWidget {
   }
 }
 
-// ── Фильтр-чипы уровней ──────────────────────────────────────────────────────
-class _FilterBar extends StatelessWidget {
-  const _FilterBar({required this.selected, required this.onPick});
-  final int? selected;
-  final ValueChanged<int?> onPick;
+// ── Вкладки ──────────────────────────────────────────────────────────────────
+/// Группа-пилюля M3: общая тональная подложка, выбранная вкладка залита
+/// цветом темы, линий нет.
+class _ShopTabs extends StatelessWidget {
+  const _ShopTabs({
+    required this.tabs,
+    required this.selected,
+    required this.onPick,
+  });
+  final List<ShopTab> tabs;
+  final ShopTab selected;
+  final ValueChanged<ShopTab> onPick;
+
+  static String _label(ShopTab t) => switch (t) {
+    ShopTab.gifts => trKey('shopTabGifts'),
+    ShopTab.badges => trKey('shopTabBadges'),
+    ShopTab.frames => trKey('shopTabFrames'),
+  };
 
   @override
   Widget build(BuildContext context) {
-    final ru = LocaleService.instance.isRussian;
-    final items = <(int?, String)>[
-      (null, ru ? 'Все' : 'All'),
-      (1, _tierName(1)),
-      (2, _tierName(2)),
-      (3, _tierName(3)),
-    ];
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          children: [
+            for (final t in tabs)
+              Expanded(
+                child: Semantics(
+                  selected: t == selected,
+                  button: true,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => onPick(t),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 260),
+                      curve: _emphasized,
+                      constraints: const BoxConstraints(minHeight: 40),
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: t == selected ? cs.primary : Colors.transparent,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          _label(t),
+                          maxLines: 1,
+                          style: TextStyle(
+                            fontFamily: 'Onest',
+                            fontWeight: FontWeight.w700,
+                            fontVariations: const [FontVariation('wght', 700)],
+                            fontSize: 15,
+                            color: t == selected
+                                ? cs.onPrimary
+                                : cs.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Фильтр-чипы ──────────────────────────────────────────────────────────────
+class _FilterBar<T> extends StatelessWidget {
+  const _FilterBar({
+    required this.items,
+    required this.selected,
+    required this.onPick,
+  });
+  final List<(T, String)> items;
+  final T selected;
+  final ValueChanged<T> onPick;
+
+  @override
+  Widget build(BuildContext context) {
     return SizedBox(
       height: 52,
       child: ListView.separated(
@@ -557,11 +1041,11 @@ class _FilterBar extends StatelessWidget {
         itemCount: items.length,
         separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (context, i) {
-          final (tier, label) = items[i];
+          final (value, label) = items[i];
           return _FilterChip(
             label: label,
-            selected: selected == tier,
-            onTap: () => onPick(tier),
+            selected: selected == value,
+            onTap: () => onPick(value),
           );
         },
       ),
@@ -570,8 +1054,11 @@ class _FilterBar extends StatelessWidget {
 }
 
 class _FilterChip extends StatelessWidget {
-  const _FilterChip(
-      {required this.label, required this.selected, required this.onTap});
+  const _FilterChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -598,10 +1085,9 @@ class _FilterChip extends StatelessWidget {
             style: TextStyle(
               fontFamily: 'Onest',
               fontWeight: FontWeight.w700,
-        fontVariations: const [FontVariation('wght', 700)],
+              fontVariations: const [FontVariation('wght', 700)],
               fontSize: 13.5,
-              color:
-                  selected ? cs.onSecondaryContainer : cs.onSurfaceVariant,
+              color: selected ? cs.onSecondaryContainer : cs.onSurfaceVariant,
             ),
           ),
         ),
@@ -635,80 +1121,168 @@ class _ShelfHeader extends StatelessWidget {
   }
 }
 
-// ── Сетка полки ──────────────────────────────────────────────────────────────
-/// Две колонки всегда: подарок должен быть крупным. Высоту карточки
+// ── Сетка ────────────────────────────────────────────────────────────────────
+/// Две колонки всегда: рисунок должен быть крупным. Высоту карточки
 /// считаем из ширины колонки и настоящей высоты подписи — число
 /// `childAspectRatio` верно только для той ширины и того шрифта, под
 /// которые его подбирали.
-class _ShelfGrid extends StatelessWidget {
-  const _ShelfGrid({
-    required this.gifts,
-    required this.coins,
-    required this.sending,
-    required this.reduce,
-    required this.onSend,
-  });
+class _CardGrid extends StatelessWidget {
+  const _CardGrid({required this.count, required this.builder});
 
-  final List<Gift> gifts;
-  final int coins;
-  final String? sending;
-  final bool reduce;
-  final ValueChanged<Gift> onSend;
+  final int count;
+  final IndexedWidgetBuilder builder;
 
   static const double _gap = 10;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, box) {
-      final col = (box.maxWidth - 32 - _gap) / 2;
-      final extent = _GiftCard.heightFor(context, col);
-      return GridView.builder(
-        // Запас прогрева: без него ряд за краем экрана начинал готовиться
-        // ровно тогда, когда его уже листают.
-        cacheExtent: 600,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          mainAxisSpacing: _gap,
-          crossAxisSpacing: _gap,
-          mainAxisExtent: extent,
-        ),
-        itemCount: gifts.length,
-        itemBuilder: (context, i) {
-          final gift = gifts[i];
-          return _GiftCard(
-            gift: gift,
-            affordable: coins >= gift.currentPrice,
-            busy: sending == gift.key,
-            reduce: reduce,
-            onSend: () => onSend(gift),
-          );
-        },
-      );
-    });
+    return LayoutBuilder(
+      builder: (context, box) {
+        final col = (box.maxWidth - 32 - _gap) / 2;
+        final extent = _ShopCard.heightFor(context, col);
+        return GridView.builder(
+          // Запас прогрева: без него ряд за краем экрана начинал готовиться
+          // ровно тогда, когда его уже листают.
+          cacheExtent: 600,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: _gap,
+            crossAxisSpacing: _gap,
+            mainAxisExtent: extent,
+          ),
+          itemCount: count,
+          itemBuilder: builder,
+        );
+      },
+    );
   }
 }
 
-// ── Карточка подарка («Ценник») ──────────────────────────────────────────────
-/// Цена ярлыком цвета темы в левом верхнем углу, под ним подарок во всю
-/// ширину карточки, внизу название. Ни подложек, ни подписей-характеристик:
-/// подарок и цена должны читаться с первого взгляда.
-class _GiftCard extends StatefulWidget {
-  const _GiftCard({
-    required this.gift,
-    required this.affordable,
-    required this.busy,
+// ── Ярлыки в углу карточки ───────────────────────────────────────────────────
+const BorderRadius _tagRadius = BorderRadius.only(
+  topLeft: Radius.circular(999),
+  topRight: Radius.circular(999),
+  bottomRight: Radius.circular(999),
+  bottomLeft: Radius.circular(10),
+);
+
+/// Цена ярлыком цвета темы с монетой. Нажатие открывает монету TY крупно.
+class _PriceTag extends StatelessWidget {
+  const _PriceTag({required this.price, required this.affordable});
+  final int price;
+  final bool affordable;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => showCoinSheet(context),
+      child: Container(
+        height: _ShopCard._tag,
+        padding: const EdgeInsets.fromLTRB(2, 0, 14, 0),
+        decoration: BoxDecoration(
+          color: affordable ? cs.primary : cs.surfaceContainerHighest,
+          borderRadius: _tagRadius,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CoinImage(side: 38),
+            Text(
+              '$price',
+              style: TextStyle(
+                fontFamily: 'Unbounded',
+                fontWeight: FontWeight.w700,
+                fontVariations: const [FontVariation('wght', 700)],
+                fontSize: 20,
+                height: 1,
+                color: affordable ? cs.onPrimary : cs.onSurfaceVariant,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Ярлык словом: «Твой», «Надет», «Из сундука». Залитый — надетое, светлая
+/// плашка — купленное или откуда берётся, чтобы не сливаться с карточкой.
+class _LabelTag extends StatelessWidget {
+  const _LabelTag(this.text, {this.filled = false, this.icon});
+  final String text;
+  final bool filled;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final fg = filled ? cs.onPrimary : cs.onSecondaryContainer;
+    return Container(
+      height: _ShopCard._tag,
+      padding: EdgeInsets.fromLTRB(icon == null ? 14 : 10, 0, 14, 0),
+      decoration: BoxDecoration(
+        color: filled ? cs.primary : cs.surface,
+        borderRadius: _tagRadius,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 18, color: fg),
+            const SizedBox(width: 4),
+          ],
+          Flexible(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'Onest',
+                fontWeight: FontWeight.w700,
+                fontVariations: const [FontVariation('wght', 700)],
+                fontSize: 14,
+                color: fg,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Карточка («Ценник») ──────────────────────────────────────────────────────
+/// Ярлык в левом верхнем углу, под ним рисунок во всю ширину карточки, внизу
+/// название. Надетое выделено тоном карточки (`secondaryContainer`), обводок
+/// нет. Движение — пружина на нажатии (перелёт) и подскок рисунка на тапе.
+class _ShopCard extends StatefulWidget {
+  const _ShopCard({
+    required this.tag,
+    required this.art,
+    required this.title,
     required this.reduce,
-    required this.onSend,
+    required this.onTap,
+    this.selected = false,
+    this.muted = false,
+    this.usable = true,
+    this.busy = false,
   });
 
-  final Gift gift;
-  final bool affordable;
-  final bool busy;
+  final Widget tag;
+  final Widget Function(double side) art;
+  final String title;
   final bool reduce;
-  final VoidCallback onSend;
+  final VoidCallback onTap;
+  final bool selected;
+  final bool muted;
+  final bool usable;
+  final bool busy;
 
   static const double _pad = 10;
   static const double _tag = 40;
@@ -723,10 +1297,10 @@ class _GiftCard extends StatefulWidget {
   }
 
   @override
-  State<_GiftCard> createState() => _GiftCardState();
+  State<_ShopCard> createState() => _ShopCardState();
 }
 
-class _GiftCardState extends State<_GiftCard> with TickerProviderStateMixin {
+class _ShopCardState extends State<_ShopCard> with TickerProviderStateMixin {
   /// Пружина масштаба на нажатии: 0 — покой, 1 — вжато; отпускание —
   /// SpringSimulation с перелётом (карточка «пружинит» назад).
   late final AnimationController _press = AnimationController(
@@ -736,7 +1310,7 @@ class _GiftCardState extends State<_GiftCard> with TickerProviderStateMixin {
     upperBound: 1,
   );
 
-  /// Подарок подпрыгивает на тапе (0→1→0).
+  /// Рисунок подпрыгивает на тапе (0→1→0).
   late final AnimationController _pulse = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 420),
@@ -751,7 +1325,11 @@ class _GiftCardState extends State<_GiftCard> with TickerProviderStateMixin {
 
   void _down(_) {
     if (widget.reduce) return;
-    _press.animateTo(1, duration: const Duration(milliseconds: 110), curve: _emphasized);
+    _press.animateTo(
+      1,
+      duration: const Duration(milliseconds: 110),
+      curve: _emphasized,
+    );
   }
 
   void _release() {
@@ -759,29 +1337,29 @@ class _GiftCardState extends State<_GiftCard> with TickerProviderStateMixin {
       _press.value = 0;
       return;
     }
-    _press.animateWith(SpringSimulation(
-      const SpringDescription(mass: 1, stiffness: 480, damping: 17),
-      _press.value,
-      0,
-      _press.velocity,
-    ));
+    _press.animateWith(
+      SpringSimulation(
+        const SpringDescription(mass: 1, stiffness: 480, damping: 17),
+        _press.value,
+        0,
+        _press.velocity,
+      ),
+    );
   }
 
   void _tap() {
     if (widget.busy) return;
     if (!widget.reduce) _pulse.forward(from: 0);
-    widget.onSend();
+    widget.onTap();
   }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final gift = widget.gift;
-    final affordable = widget.affordable;
-    // Без монет подарок всё равно можно отправить за рекламу, кроме копилки.
-    final usable = affordable || gift.giftableByAd;
-    final tagBg = affordable ? cs.primary : cs.surfaceContainerHighest;
-    final tagFg = affordable ? cs.onPrimary : cs.onSurfaceVariant;
+    final selected = widget.selected;
+    final titleColor = selected
+        ? cs.onSecondaryContainer
+        : (widget.muted ? cs.onSurfaceVariant : cs.onSurface);
 
     final card = AnimatedBuilder(
       animation: _press,
@@ -789,109 +1367,78 @@ class _GiftCardState extends State<_GiftCard> with TickerProviderStateMixin {
         final scale = 1 - 0.05 * _press.value; // перелёт даёт scale > 1
         return Transform.scale(scale: scale, child: child);
       },
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 260),
+        curve: _emphasized,
         decoration: BoxDecoration(
-          color: cs.surfaceContainerHigh,
+          color: selected ? cs.secondaryContainer : cs.surfaceContainerHigh,
           borderRadius: BorderRadius.circular(32),
         ),
-        padding: const EdgeInsets.all(_GiftCard._pad),
-        child: LayoutBuilder(builder: (context, box) {
-          final art = box.maxWidth * _GiftCard._art;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                // Ценник открывает монету TY крупно; нажатие мимо него — это
-                // подарок, как и раньше.
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => showCoinSheet(context),
-                  child: Container(
-                  height: _GiftCard._tag,
-                  padding: const EdgeInsets.fromLTRB(2, 0, 14, 0),
-                  decoration: BoxDecoration(
-                    color: tagBg,
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(999),
-                      topRight: Radius.circular(999),
-                      bottomRight: Radius.circular(999),
-                      bottomLeft: Radius.circular(10),
+        padding: const EdgeInsets.all(_ShopCard._pad),
+        child: LayoutBuilder(
+          builder: (context, box) {
+            final art = box.maxWidth * _ShopCard._art;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Align(alignment: Alignment.centerLeft, child: widget.tag),
+                Expanded(
+                  child: Center(
+                    child: AnimatedBuilder(
+                      animation: _pulse,
+                      builder: (context, child) {
+                        final p = math.sin(_pulse.value * math.pi);
+                        return Transform.translate(
+                          offset: Offset(0, -8 * p),
+                          child: Transform.scale(
+                            scale: 1 + 0.08 * p,
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: widget.art(art),
                     ),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const CoinImage(side: 38),
-                      Text(
-                        '${gift.currentPrice}',
-                        style: TextStyle(
-                          fontFamily: 'Unbounded',
-                          fontWeight: FontWeight.w700,
-                          fontVariations: const [FontVariation('wght', 700)],
-                          fontSize: 20,
-                          height: 1,
-                          color: tagFg,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                        ),
-                      ),
-                    ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  widget.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'Unbounded',
+                    fontWeight: FontWeight.w700,
+                    fontVariations: const [FontVariation('wght', 700)],
+                    fontSize: _ShopCard._name,
+                    height: 1.3,
+                    letterSpacing: -0.2,
+                    color: titleColor,
                   ),
                 ),
-                ),
-              ),
-              Expanded(
-                child: Center(
-                  child: AnimatedBuilder(
-                    animation: _pulse,
-                    builder: (context, child) {
-                      final p = math.sin(_pulse.value * math.pi);
-                      return Transform.translate(
-                        offset: Offset(0, -8 * p),
-                        child: Transform.scale(scale: 1 + 0.08 * p, child: child),
-                      );
-                    },
-                    child: GiftImage(gift.key, side: art),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                gift.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'Unbounded',
-                  fontWeight: FontWeight.w700,
-                  fontVariations: const [FontVariation('wght', 700)],
-                  fontSize: _GiftCard._name,
-                  height: 1.3,
-                  letterSpacing: -0.2,
-                  color: affordable ? cs.onSurface : cs.onSurfaceVariant,
-                ),
-              ),
-              SizedBox(
-                height: 6,
-                child: widget.busy
-                    ? Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(2),
-                          child: LinearProgressIndicator(
-                            minHeight: 2,
-                            backgroundColor: cs.surfaceContainerHighest,
+                SizedBox(
+                  height: 6,
+                  child: widget.busy
+                      ? Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(2),
+                            child: LinearProgressIndicator(
+                              minHeight: 2,
+                              backgroundColor: cs.surfaceContainerHighest,
+                            ),
                           ),
-                        ),
-                      )
-                    : null,
-              ),
-            ],
-          );
-        }),
+                        )
+                      : null,
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
 
+    final usable = widget.usable;
     return GestureDetector(
       onTapDown: usable ? _down : null,
       onTapUp: usable
@@ -902,6 +1449,92 @@ class _GiftCardState extends State<_GiftCard> with TickerProviderStateMixin {
           : null,
       onTapCancel: usable ? _release : null,
       child: Opacity(opacity: usable ? 1 : 0.55, child: card),
+    );
+  }
+}
+
+// ── Лист значка или рамки ────────────────────────────────────────────────────
+/// Рисунок крупно, название, пояснения и кнопки. Кнопка — (действие, подпись,
+/// залитая, доступна); лист возвращает действие.
+class _ItemSheet extends StatelessWidget {
+  const _ItemSheet({
+    required this.art,
+    required this.title,
+    required this.lines,
+    required this.actions,
+  });
+
+  final Widget art;
+  final String title;
+  final List<String> lines;
+  final List<(String, String, bool, bool)> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    const minSize = Size.fromHeight(56);
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 4, 24, 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(child: art),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'Unbounded',
+              fontWeight: FontWeight.w700,
+              fontVariations: const [FontVariation('wght', 700)],
+              fontSize: 20,
+              letterSpacing: -0.3,
+              color: cs.onSurface,
+            ),
+          ),
+          for (final line in lines) ...[
+            const SizedBox(height: 8),
+            Text(
+              line,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Onest',
+                color: cs.onSurfaceVariant,
+                fontSize: 13.5,
+                height: 1.4,
+              ),
+            ),
+          ],
+          if (actions.isNotEmpty) const SizedBox(height: 20),
+          for (var i = 0; i < actions.length; i++) ...[
+            if (i > 0) const SizedBox(height: 10),
+            Builder(
+              builder: (context) {
+                final (id, label, filled, enabled) = actions[i];
+                final onPressed = enabled
+                    ? () => Navigator.pop(context, id)
+                    : null;
+                final child = FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(label, maxLines: 1),
+                );
+                return filled
+                    ? FilledButton(
+                        onPressed: onPressed,
+                        style: FilledButton.styleFrom(minimumSize: minSize),
+                        child: child,
+                      )
+                    : OutlinedButton(
+                        onPressed: onPressed,
+                        style: OutlinedButton.styleFrom(minimumSize: minSize),
+                        child: child,
+                      );
+              },
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../dict_strings.dart' show trKey;
 import '../models/chest.dart';
 import '../models/gift.dart';
+import '../models/user_data.dart';
 import '../services/catalog_service.dart';
 import '../services/chest_service.dart';
 import '../services/locale_service.dart';
@@ -43,6 +44,7 @@ class ChestScreen extends StatefulWidget {
     required this.groupId,
     this.partnerName,
     this.onCoins,
+    this.userData,
     this.debugChoice,
   });
 
@@ -54,6 +56,9 @@ class ChestScreen extends StatefulWidget {
 
   /// Новый баланс после монетного приза — доводится до профиля.
   final ValueChanged<int>? onCoins;
+
+  /// Профиль: выпавшая рамка ложится во владение и надевается отсюда.
+  final UserData? userData;
 
   /// Превью: экран сразу в состоянии «выпал подарок, ждёт выбора».
   @visibleForTesting
@@ -89,6 +94,9 @@ class _ChestScreenState extends State<ChestScreen> {
   String? _lastOpenId;
   ChestStashItem? _choice;
   bool _choosing = false;
+
+  /// Выпавшая рамка (ключ), которую предлагаем надеть под сундуком.
+  String? _frameWon;
 
   bool get _free => PlusService.instance.active;
 
@@ -220,6 +228,9 @@ class _ChestScreenState extends State<ChestScreen> {
     _lastOpenId = openId;
     if (res.coins != null) widget.onCoins?.call(res.coins!);
     if (res.prize?.kind == ChestPrizeKind.plus) PlusService.instance.refresh();
+    // Выпавшая рамка уже во владении на сервере — кладём её и в профиль,
+    // иначе «Надеть» упрётся в «не твоя» до следующей синхронизации.
+    if (res.ownedFeatures != null) widget.userData?.applyOwnedFeatures(res.ownedFeatures!);
     setState(() {
       _opening = res.prize;
       _animating = true;
@@ -227,6 +238,7 @@ class _ChestScreenState extends State<ChestScreen> {
       _openRun++;
       _won = null;
       _choice = null;
+      _frameWon = null;
       if (_state != null && res.left != null) {
         _state = ChestState(left: res.left!, perDay: _perDay, odds: _state!.odds);
       }
@@ -248,6 +260,9 @@ class _ChestScreenState extends State<ChestScreen> {
       _won ??= prize == null ? null : _wonText(prize);
       if (prize != null && prize.kind == ChestPrizeKind.gift && _lastOpenId != null) {
         _choice = ChestStashItem(openId: _lastOpenId!, giftKey: prize.key);
+      }
+      if (prize != null && prize.kind == ChestPrizeKind.frame && widget.userData != null) {
+        _frameWon = prize.frameKey;
       }
       _animating = false;
       _busy = false;
@@ -277,22 +292,27 @@ class _ChestScreenState extends State<ChestScreen> {
     );
   }
 
+  String _frameName(ChestPrize p) => p.frame?.name ?? p.frameKey ?? p.key;
+
   String _wonText(ChestPrize p) => switch (p.kind) {
     ChestPrizeKind.coins => trKey('chestWonCoins').replaceAll('{n}', '${p.amount}'),
     ChestPrizeKind.gift => trKey('chestGiftTitle').replaceAll('{name}', p.gift?.title ?? p.key),
     ChestPrizeKind.plus => trKey('chestWonPlus'),
+    ChestPrizeKind.frame => trKey('chestFrameTitle').replaceAll('{name}', _frameName(p)),
   };
 
   String _title(ChestPrize p) => switch (p.kind) {
     ChestPrizeKind.coins => trKey('chestCoins').replaceAll('{n}', '${p.amount}'),
     ChestPrizeKind.gift => trKey('chestGiftTitle').replaceAll('{name}', p.gift?.title ?? p.key),
     ChestPrizeKind.plus => 'Togetherly+',
+    ChestPrizeKind.frame => trKey('chestFrameTitle').replaceAll('{name}', _frameName(p)),
   };
 
   String _subtitle(ChestPrize p) => switch (p.kind) {
     ChestPrizeKind.coins => trKey('chestCoinsSub'),
     ChestPrizeKind.gift => trKey('chestGiftSub'),
     ChestPrizeKind.plus => trKey('chestPlusSub'),
+    ChestPrizeKind.frame => trKey('chestFrameSub'),
   };
 
   String _tierName(ChestTier t) => switch (t) {
@@ -342,7 +362,12 @@ class _ChestScreenState extends State<ChestScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            if (_choice != null) _pick(cs) else _button(cs),
+            if (_choice != null)
+              _pick(cs)
+            else if (_frameWon != null)
+              _wear(cs)
+            else
+              _button(cs),
             const SizedBox(height: 8),
             Text(
               _choice != null
@@ -496,6 +521,45 @@ class _ChestScreenState extends State<ChestScreen> {
             onPressed: _choosing ? null : () => _decide(give: false),
             style: style(cs.primaryContainer, cs.onPrimaryContainer),
             child: FittedBox(fit: BoxFit.scaleDown, child: Text(trKey('chestKeep'), maxLines: 1)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// «Надеть» и «Позже» под выпавшей рамкой. «Позже» возвращает кнопку
+  /// открытия: рамка уже твоя и ждёт в магазине на вкладке «Рамки».
+  Widget _wear(ColorScheme cs) {
+    ButtonStyle style(Color bg, Color fg) => FilledButton.styleFrom(
+      backgroundColor: bg,
+      foregroundColor: fg,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 16),
+      shape: const StadiumBorder(),
+      textStyle: const TextStyle(fontFamily: ProfileTheme.displayFont, fontSize: 15, fontWeight: FontWeight.w700),
+    );
+    final key = _frameWon!;
+    return Row(
+      children: [
+        Expanded(
+          child: FilledButton(
+            onPressed: () async {
+              final ud = widget.userData;
+              if (ud == null) return;
+              await ud.setFrame(key);
+              if (!mounted) return;
+              setState(() => _frameWon = null);
+              _snack(trKey('chestFrameWorn'));
+            },
+            style: style(cs.primary, cs.onPrimary),
+            child: FittedBox(fit: BoxFit.scaleDown, child: Text(trKey('shopWear'), maxLines: 1)),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: FilledButton(
+            onPressed: () => setState(() => _frameWon = null),
+            style: style(cs.primaryContainer, cs.onPrimaryContainer),
+            child: FittedBox(fit: BoxFit.scaleDown, child: Text(trKey('chestLater'), maxLines: 1)),
           ),
         ),
       ],

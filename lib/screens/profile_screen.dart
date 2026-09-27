@@ -34,7 +34,6 @@ import '../models/ad_grants.dart';
 import '../models/user_data.dart';
 import '../models/pair_data.dart';
 import '../models/connection.dart';
-import '../models/profile_icon.dart';
 import '../services/locale_service.dart';
 import '../services/ui_prefs.dart';
 import '../theme/app_theme.dart';
@@ -60,6 +59,7 @@ import 'welcome_screen.dart';
 import 'achievements_screen.dart';
 import 'memory_lane_screen.dart';
 import 'gifts/gift_profile_body.dart';
+import '../dict_strings.dart' show trKey;
 import 'gifts/gift_shop_screen.dart';
 import 'gifts/partner_profile_screen.dart';
 import 'gifts/gift_shelf_screen.dart';
@@ -83,7 +83,6 @@ import 'date_time_picker_screen.dart';
 import '../widgets/common/redeem_code_sheet.dart';
 import '../widgets/common/badge_image.dart';
 import '../widgets/common/coin_image.dart';
-import '../widgets/common/coin_sheet.dart';
 
 /// Entry for a partner across all connections
 class _PartnerEntry {
@@ -853,12 +852,15 @@ class _ProfileScreenState extends State<ProfileScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
+              // Плитка «Магазин» с балансом (макет «Магазин», 27.09.2026):
+              // подарки, значки и рамки в одном месте, монеты — кошельком
+              // в шапке магазина.
               child: _quickTile(
-                icon: Icons.monetization_on_rounded,
+                icon: Icons.storefront_rounded,
                 value: '${widget.userData.coins}',
-                label: _s.coinBalance,
+                label: trKey('shopTitle'),
                 accent: true,
-                onTap: () => _showCoinShop(context),
+                onTap: () => _openShop(context, ShopTab.gifts),
               ),
             ),
             const SizedBox(width: 10),
@@ -1336,6 +1338,8 @@ class _ProfileScreenState extends State<ProfileScreen>
       onEdit: () => _editProfile(context),
       onPickBanner: () => _pickBanner(context),
       onTapAvatar: () => _editProfile(context),
+      onTapFrame: () => _openShop(context, ShopTab.frames),
+      onTapBadge: () => _openShop(context, ShopTab.badges),
       onSettings: () => _openSettings(context),
     );
   }
@@ -2336,6 +2340,32 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
+  /// Магазин на нужной вкладке: плитка «Магазин» и строка в «Отношениях»
+  /// ведут к подаркам, значок у ника — к значкам, аватарка — к рамкам.
+  void _openShop(BuildContext context, ShopTab tab) {
+    final paired = widget.pairData.isPaired;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => GiftShopScreen(
+          theme: _t,
+          groupId: paired ? widget.pairData.pairId : '',
+          coins: widget.userData.coins,
+          // Роут подарков возвращает новый баланс, и он обязан доехать до
+          // профиля: иначе кошелёк на экране остаётся полным, а сервер уже
+          // списал монеты.
+          onCoins: widget.userData.applyServerCoins,
+          userData: widget.userData,
+          initialTab: tab,
+          showGifts: paired && widget.giftsEnabled,
+          partnerName: widget.pairData.partnerDisplayName,
+          onOpenCoins: () => _showCoinShop(context),
+        ),
+        settings: const RouteSettings(name: '/shop'),
+      ),
+    );
+  }
+
   /// Вход в магазин подарков — тот же, что был на главной.
   Widget _giftShopEntry(BuildContext context) {
     final cs = _cs;
@@ -2344,21 +2374,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       borderRadius: BorderRadius.circular(24),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => GiftShopScreen(
-              theme: _t,
-              groupId: widget.pairData.pairId,
-              coins: widget.userData.coins,
-              // Роут подарков возвращает новый баланс, и он обязан доехать до
-              // профиля: иначе кошелёк на экране остаётся полным, а сервер уже
-              // списал монеты.
-              onCoins: widget.userData.applyServerCoins,
-            ),
-            settings: const RouteSettings(name: '/gifts'),
-          ),
-        ),
+        onTap: () => _openShop(context, ShopTab.gifts),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
@@ -2618,7 +2634,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             // Закреплённая иконка-бейдж. Тап открывает магазин иконок,
             // где можно сменить/купить/снять иконку.
             GestureDetector(
-              onTap: () => _showIconPicker(context),
+              onTap: () => _openShop(context, ShopTab.badges),
               child: widget.userData.equippedIcon != null
                   // Лёгкий сдвиг влево компенсирует прозрачные поля внутри
                   // ассета, чтобы иконка «прижималась» к имени.
@@ -4435,7 +4451,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         ),
         onTap: () {
           Navigator.pop(ctx);
-          _showIconPicker(context);
+          _openShop(context, ShopTab.badges);
         },
       ),
       const SizedBox(height: 10),
@@ -5229,666 +5245,6 @@ class _ProfileScreenState extends State<ProfileScreen>
         break;
     }
     return false;
-  }
-
-  // ═══════════════════════════════════════════════════
-  // Магазин профильных иконок
-  // ═══════════════════════════════════════════════════
-
-  void _showIconPicker(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setSheet) {
-          final equipped = widget.userData.equippedIcon;
-          // Сортировка: сначала купленные/доступные, затем продаваемые
-          // по возрастанию цены, в конце — награды (Sponsor/Helper).
-          final icons = [...ProfileIcon.all]
-            ..sort((a, b) {
-              int rank(ProfileIcon i) {
-                if (widget.userData.ownsIcon(i.id)) return 0;
-                if (i.grantOnly) return 2;
-                return 1;
-              }
-
-              final ra = rank(a), rb = rank(b);
-              if (ra != rb) return ra.compareTo(rb);
-              return a.price.compareTo(b.price);
-            });
-
-          return DraggableScrollableSheet(
-            initialChildSize: 0.78,
-            minChildSize: 0.4,
-            maxChildSize: 0.95,
-            expand: false,
-            builder: (_, scrollController) => Container(
-              decoration: BoxDecoration(
-                color: _t.cardSurface,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-              ),
-              child: Column(
-                children: [
-                  // Handle + заголовок + баланс
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
-                    child: Column(
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: _t.divider,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        Text(
-                          _s.iconShopTitle,
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            color: _t.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              _s.iconShopSubtitle,
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: _t.textMuted,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            CoinImage(side: 16),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${widget.userData.coins}',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                                color: _t.textPrimary,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 18),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      controller: scrollController,
-                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
-                      child: Column(
-                        children: [
-                          // ── «Без иконки» ──
-                          _noIconTile(
-                            selected: equipped == null,
-                            onTap: equipped == null
-                                ? null
-                                : () async {
-                                    await widget.userData.setBadgeIcon(null);
-                                    // Шторка могла закрыться за время await.
-                                    if (ctx.mounted) setSheet(() {});
-                                    if (mounted) setState(() {});
-                                  },
-                          ),
-                          const SizedBox(height: 16),
-                          // ── Сетка иконок ──
-                          // Две колонки, как витрина подарков («Ценник»):
-                          // значок крупно, цена ярлыком в углу. Высота клетки
-                          // считается из ширины и настоящей высоты подписи.
-                          LayoutBuilder(builder: (context, box) {
-                          final col = (box.maxWidth - 10) / 2;
-                          return GridView.count(
-                            crossAxisCount: 2,
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            mainAxisSpacing: 10,
-                            crossAxisSpacing: 10,
-                            childAspectRatio: col / _iconCellHeight(context, col),
-                            children: icons.map((icon) {
-                              return _iconCell(
-                                icon: icon,
-                                isEquipped: equipped == icon.id,
-                                owned: widget.userData.ownsIcon(icon.id),
-                                onTap: () async {
-                                  if (equipped == icon.id) {
-                                    // Повторный тап по закреплённой иконке снимает её.
-                                    await widget.userData.setBadgeIcon(null);
-                                  } else if (widget.userData.ownsIcon(
-                                    icon.id,
-                                  )) {
-                                    await widget.userData.setBadgeIcon(icon.id);
-                                  } else if (icon.grantOnly) {
-                                    // Награда — купить нельзя, показываем инфо.
-                                    _showIconInfo(icon, rewardLocked: true);
-                                    return;
-                                  } else {
-                                    final bought = await _confirmPurchaseIcon(
-                                      context,
-                                      icon,
-                                    );
-                                    if (bought) {
-                                      await widget.userData.setBadgeIcon(
-                                        icon.id,
-                                      );
-                                    }
-                                  }
-                                  // После await шторка могла закрыться — setSheet
-                                  // на размонтированном StatefulBuilder иначе
-                                  // падает (_element! == null внутри setState).
-                                  if (ctx.mounted) setSheet(() {});
-                                  if (mounted) setState(() {});
-                                },
-                              );
-                            }).toList(),
-                          );
-                          }),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _noIconTile({required bool selected, required VoidCallback? onTap}) {
-    return Material(
-      color: selected ? _accentLight.withValues(alpha: 0.55) : _t.surfaceMuted,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: selected ? _accent : Colors.transparent,
-              width: 2,
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: _t.cardSurface,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.block_rounded, size: 18, color: _t.textMuted),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  _s.noIconOption,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: _t.textSecondary,
-                  ),
-                ),
-              ),
-              if (selected)
-                Icon(Icons.check_circle_rounded, size: 20, color: _accent),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  static const double _cellPad = 10;
-  static const double _cellTag = 40;
-  static const double _cellArt = 0.72;
-  static const double _cellName = 15;
-
-  /// Высота клетки значка при ширине колонки [width].
-  double _iconCellHeight(BuildContext context, double width) {
-    final nameH = MediaQuery.textScalerOf(context).scale(_cellName) * 1.3;
-    return _cellPad +
-        _cellTag +
-        (width - 2 * _cellPad) * _cellArt +
-        6 +
-        nameH +
-        _cellPad +
-        4;
-  }
-
-  /// Клетка значка в стиле «Ценник», как витрина подарков: ярлык в углу
-  /// говорит, что со значком сейчас — цена с монетой, надет, куплен или
-  /// выдаётся только наградой.
-  Widget _iconCell({
-    required ProfileIcon icon,
-    required bool isEquipped,
-    required bool owned,
-    required VoidCallback onTap,
-  }) {
-    final cs = _cs;
-    final rewardLocked = !owned && icon.grantOnly;
-    final Color tagBg;
-    final Color tagFg;
-    final Widget tagChild;
-    if (isEquipped) {
-      tagBg = cs.primary;
-      tagFg = cs.onPrimary;
-      tagChild = Icon(Icons.check_rounded, size: 24, color: tagFg);
-    } else if (owned) {
-      tagBg = cs.surfaceContainerHighest;
-      tagFg = cs.onSurfaceVariant;
-      tagChild = Icon(Icons.check_rounded, size: 22, color: tagFg);
-    } else if (rewardLocked) {
-      tagBg = cs.surfaceContainerHighest;
-      tagFg = cs.onSurfaceVariant;
-      tagChild = Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.lock_rounded, size: 16, color: tagFg),
-          const SizedBox(width: 4),
-          Flexible(
-            child: Text(
-              _s.iconRewardOnly,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontFamily: 'Onest',
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: tagFg,
-              ),
-            ),
-          ),
-        ],
-      );
-    } else {
-      tagBg = cs.primary;
-      tagFg = cs.onPrimary;
-      tagChild = Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const CoinImage(side: 38),
-          Text(
-            '${icon.price}',
-            style: TextStyle(
-              fontFamily: 'Unbounded',
-              fontWeight: FontWeight.w700,
-              fontVariations: const [FontVariation('wght', 700)],
-              fontSize: 20,
-              height: 1,
-              color: tagFg,
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
-          ),
-        ],
-      );
-    }
-    final priced = !isEquipped && !owned && !rewardLocked;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.all(_cellPad),
-        decoration: BoxDecoration(
-          color: isEquipped ? cs.primaryContainer : cs.surfaceContainerHigh,
-          borderRadius: BorderRadius.circular(32),
-        ),
-        child: LayoutBuilder(
-          builder: (context, box) => Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                // Ценник с ценой открывает монету TY крупно.
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: priced ? () => showCoinSheet(context) : null,
-                  child: Container(
-                  height: _cellTag,
-                  constraints: const BoxConstraints(minWidth: _cellTag),
-                  padding: EdgeInsets.fromLTRB(priced ? 2 : 10, 0, priced ? 14 : 10, 0),
-                  decoration: BoxDecoration(
-                    color: tagBg,
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(999),
-                      topRight: Radius.circular(999),
-                      bottomRight: Radius.circular(999),
-                      bottomLeft: Radius.circular(10),
-                    ),
-                  ),
-                  child: tagChild,
-                ),
-                ),
-              ),
-              Expanded(
-                child: Center(
-                  child: Opacity(
-                    opacity: rewardLocked ? 0.55 : 1.0,
-                    child: BadgeImage(icon.id, side: box.maxWidth * _cellArt),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                icon.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'Unbounded',
-                  fontWeight: FontWeight.w700,
-                  fontVariations: const [FontVariation('wght', 700)],
-                  fontSize: _cellName,
-                  height: 1.3,
-                  letterSpacing: -0.2,
-                  color: isEquipped ? cs.onPrimaryContainer : cs.onSurface,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showIconInfo(ProfileIcon icon, {bool rewardLocked = false}) {
-    showAppSheet<void>(
-      context,
-      builder: (ctx) => SheetScaffold(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  BadgeImage(icon.id, side: 40),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      icon.name,
-                      style: TextStyle(
-                        fontFamily: 'Unbounded',
-                        fontSize: 19,
-                        fontWeight: FontWeight.w700,
-                        fontVariations: const [FontVariation('wght', 700)],
-                        letterSpacing: -0.3,
-                        color: _cs.onSurface,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                rewardLocked
-                    ? '${icon.description}\n\n${_s.iconRewardHint}'
-                    : icon.description,
-                style: TextStyle(
-                  fontFamily: 'Onest',
-                  fontSize: 15,
-                  height: 1.4,
-                  color: _cs.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 22),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _cs.primary,
-                    foregroundColor: _cs.onPrimary,
-                    shape: const StadiumBorder(),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: Text(
-                    _s.ok,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Диалог подтверждения покупки иконки. Возвращает true при успешной покупке.
-  Future<bool> _confirmPurchaseIcon(
-    BuildContext context,
-    ProfileIcon icon,
-  ) async {
-    final canAfford = widget.userData.coins >= icon.price;
-    final confirmed = await showAppSheet<bool>(
-      context,
-      background: Colors.transparent,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.fromLTRB(
-          12,
-          0,
-          12,
-          MediaQuery.of(ctx).padding.bottom + 12,
-        ),
-        child: Container(
-          decoration: BoxDecoration(
-            color: _t.cardSurface,
-            borderRadius: BorderRadius.circular(28),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // ── Hero с иконкой ──
-              ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(28),
-                ),
-                child: Container(
-                  height: 150,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [_accent, _accent.withOpacity(0.7)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
-                  child: Stack(
-                    children: [
-                      Positioned(
-                        top: -20,
-                        right: -10,
-                        child: Container(
-                          width: 90,
-                          height: 90,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.10),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ),
-                      Center(child: BadgeImage(icon.id, side: 76)),
-                    ],
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
-                child: Column(
-                  children: [
-                    Text(
-                      icon.name,
-                      style: TextStyle(
-                        fontSize: 19,
-                        fontWeight: FontWeight.w800,
-                        color: _t.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      icon.description,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 13, color: _t.textMuted),
-                    ),
-                    const SizedBox(height: 16),
-                    // ── Цена ──
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _accentLight,
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          CoinImage(side: 28),
-                          const SizedBox(width: 10),
-                          Text(
-                            '${icon.price}',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w800,
-                              height: 1.0,
-                              color: _accent,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          _s.coinBalance,
-                          style: TextStyle(fontSize: 13, color: _t.textMuted),
-                        ),
-                        const SizedBox(width: 6),
-                        CoinImage(side: 16),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${widget.userData.coins}',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: canAfford
-                                ? _t.textPrimary
-                                : Colors.red.shade400,
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (!canAfford) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        _s.notEnoughCoins,
-                        style: TextStyle(
-                          color: Colors.red.shade400,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          gradient: canAfford
-                              ? LinearGradient(
-                                  colors: [_accent, _accent.withOpacity(0.7)],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                )
-                              : null,
-                          color: canAfford ? null : _t.surfaceMuted,
-                        ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(16),
-                            onTap: canAfford
-                                ? () => Navigator.pop(ctx, true)
-                                : null,
-                            child: Center(
-                              child: Text(
-                                canAfford
-                                    ? _s.buyThemeConfirm
-                                    : _s.notEnoughCoins,
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  color: canAfford
-                                      ? Colors.white
-                                      : _t.textMuted,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 44,
-                      child: TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        style: TextButton.styleFrom(
-                          foregroundColor: _t.textMuted,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                        child: Text(
-                          _s.cancel,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    if (confirmed != true) return false;
-    final ok = await widget.userData.purchaseIcon(icon);
-    if (!mounted) return ok;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(ok ? _s.iconPurchased : _s.coinPurchaseError),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
-    );
-    return ok;
   }
 
   /// Письмо со ссылкой на смену пароля — на почту аккаунта.

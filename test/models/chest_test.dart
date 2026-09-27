@@ -24,10 +24,41 @@ List<List<String>> serverOdds(String src) {
 void main() {
   final src = File('pocketbase/pb_hooks/chest.pb.js').readAsStringSync();
 
-  test('запасная таблица совпадает с серверной', () {
-    final server = serverOdds(src);
+  test('запасная таблица совпадает с серверной без рамок', () {
+    // В запасной таблице рамок нет, их доля лежит в «5 монетах» — так же
+    // сервер раскладывает таблицу, когда в каталоге нет ни одной рамки.
+    final frames = kChestFrameTiers.values.fold<int>(0, (t, w) => t + w);
+    final server = [
+      for (final r in serverOdds(src))
+        r[0] == 'coins5' ? [r[0], r[1], r[2], '${int.parse(r[3]) + frames}', r[4]] : r,
+    ];
     final client = fallbackChestOdds(withPlus: true);
     expect(client.map((p) => [p.key, p.kind.name, '${p.amount}', '${p.weight}', p.tier.name]).toList(), server);
+  });
+
+  test('доли рамок по редкости совпадают с сервером в обоих роутах', () {
+    final blocks = RegExp(r'const FRAME_TIER = \{([^}]*)\}').allMatches(src).toList();
+    expect(blocks.length, 2, reason: 'FRAME_TIER продублирована в state и open');
+    for (final b in blocks) {
+      final m = {
+        for (final r in RegExp(r'(\w+): (\d+)').allMatches(b.group(1)!)) r.group(1)!: int.parse(r.group(2)!),
+      };
+      expect(m, kChestFrameTiers);
+    }
+  });
+
+  test('рамка из ответа сервера: ключ каталога и ключ рамки', () {
+    final p = ChestPrize.fromJson({'key': 'frame_cat', 'kind': 'frame', 'amount': 0, 'weight': 5, 'tier': 'legendary'});
+    expect(p?.kind, ChestPrizeKind.frame);
+    expect(p?.frameKey, 'cat');
+    final res = parseChestOpen({
+      'ok': true,
+      'prize': {'key': 'frame_cat', 'kind': 'frame', 'amount': 0},
+      'left': 2,
+      'ownedFeatures': ['frame:frame_cat'],
+    });
+    expect(res.ok, isTrue);
+    expect(res.ownedFeatures, ['frame:frame_cat']);
   });
 
   test('веса дают ровно сто процентов — с Плюсом и без', () {

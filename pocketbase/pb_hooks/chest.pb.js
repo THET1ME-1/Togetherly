@@ -6,8 +6,8 @@
 ///   POST /api/chest/keep                 — подарок из запаса себе на полку;
 ///   POST /api/chest/give                 — подарок из запаса партнёру.
 ///
-/// В сундуке монеты, одиннадцать подарков, которых нет в витрине, и
-/// Togetherly+. Шансы живут только здесь: экран сундука рисует ту таблицу,
+/// В сундуке монеты, одиннадцать подарков, которых нет в витрине, рамки
+/// аватарки (их список берётся из каталога) и Togetherly+. Шансы живут только здесь: экран сундука рисует ту таблицу,
 /// что отдал `state`, поэтому проценты на экране всегда совпадают с розыгрышем.
 ///
 /// Выпавший подарок сперва лежит в запасе: запись `chest_opens` с
@@ -36,7 +36,7 @@
 routerAdd("GET", "/api/chest/state", (e) => {
   // Зеркало таблицы в /api/chest/open. Вес — в десятых долях процента.
   const ODDS = [
-    ["coins5", "coins", 5, 350, "common"],
+    ["coins5", "coins", 5, 245, "common"],
     ["coins10", "coins", 10, 200, "common"],
     ["cookieheart", "gift", 0, 50, "common"],
     ["teddy", "gift", 0, 40, "common"],
@@ -59,6 +59,9 @@ routerAdd("GET", "/api/chest/state", (e) => {
   let tz = parseInt(q.get("tz") || "0", 10);
   if (!isFinite(tz) || tz < -840 || tz > 840) tz = 0;
   const ios = (q.get("platform") || "") === "ios";
+  // Рамки разыгрываются только сборкам, которые умеют их показать (`frames=1`).
+  // Старым их доля целиком остаётся в «5 монет», таблица у них прежняя.
+  const withFrames = (q.get("frames") || "") === "1";
   const shifted = new Date(Date.now() + tz * 60 * 1000);
   const day = shifted.toISOString().slice(0, 10);
 
@@ -66,6 +69,36 @@ routerAdd("GET", "/api/chest/state", (e) => {
   try { user = $app.findRecordById("users", me); } catch (_) { user = null; }
   if (!user) return e.json(404, { ok: false, error: "no_user" });
   const noPlus = ios || user.getBool("plus");
+
+  // Рамки аватарки выпадают прямо из каталога (`catalog_items`, вид `frame`):
+  // у каждой редкости своя доля, она делится поровну между рамками этой
+  // редкости. Новая рамка, заведённая на сервере, сама встаёт в розыгрыш.
+  // Уже полученная из розыгрыша выпадает, её доля (и остаток от деления)
+  // уходит в «5 монет», поэтому сумма таблицы всегда та же.
+  const FRAME_TIER = { common: 60, rare: 30, legendary: 15 };
+  let ownedF = [];
+  try { ownedF = JSON.parse(user.getString("owned_features") || "[]") || []; } catch (_) { ownedF = []; }
+  const byTier = { common: [], rare: [], legendary: [] };
+  if (withFrames) try {
+    const recs = $app.findRecordsByFilter("catalog_items", "kind = 'frame' && enabled = true", "sort", 200, 0);
+    for (let i = 0; i < recs.length; i++) {
+      let d = {};
+      try { d = JSON.parse(recs[i].getString("data") || "{}") || {}; } catch (_) { d = {}; }
+      if (!d.key) continue;
+      byTier[FRAME_TIER[d.rarity] ? d.rarity : "common"].push(recs[i].id);
+    }
+  } catch (_) {}
+  const frameOdds = [];
+  let frameSpare = 0;
+  for (const t in FRAME_TIER) {
+    const list = byTier[t];
+    const each = list.length ? Math.floor(FRAME_TIER[t] / list.length) : 0;
+    frameSpare += FRAME_TIER[t] - each * list.length;
+    for (let i = 0; i < list.length; i++) {
+      if (each <= 0 || ownedF.indexOf("frame:" + list[i]) !== -1) { frameSpare += each; continue; }
+      frameOdds.push([list[i], "frame", 0, each, t]);
+    }
+  }
 
   let used = 0;
   try {
@@ -79,14 +112,19 @@ routerAdd("GET", "/api/chest/state", (e) => {
     if (r[1] === "plus" && noPlus) continue;
     let w = r[3];
     if (r[0] === "coins5" && noPlus) w += 50;
+    if (r[0] === "coins5") w += frameSpare;
     odds.push({ key: r[0], kind: r[1], amount: r[2], weight: w, tier: r[4] });
+  }
+  for (let i = 0; i < frameOdds.length; i++) {
+    const r = frameOdds[i];
+    odds.push({ key: r[0], kind: r[1], amount: 0, weight: r[3], tier: r[4] });
   }
   return e.json(200, { ok: true, perDay: PER_DAY, left: Math.max(0, PER_DAY - used), day: day, odds: odds });
 }, $apis.requireAuth());
 
 routerAdd("POST", "/api/chest/open", (e) => {
   const ODDS = [
-    ["coins5", "coins", 5, 350, "common"],
+    ["coins5", "coins", 5, 245, "common"],
     ["coins10", "coins", 10, 200, "common"],
     ["cookieheart", "gift", 0, 50, "common"],
     ["teddy", "gift", 0, 40, "common"],
@@ -106,8 +144,9 @@ routerAdd("POST", "/api/chest/open", (e) => {
   // Потолок за скользящие сутки: против перевода часов туда-обратно.
   const PER_24H = 6;
 
-  const body = new DynamicModel({ openId: "", groupId: "", tz: 0, platform: "" });
+  const body = new DynamicModel({ openId: "", groupId: "", tz: 0, platform: "", frames: false });
   e.bindBody(body);
+  const withFrames = body.frames === true;
   const openId = String(body.openId || "").trim();
   const groupId = String(body.groupId || "").trim();
   let tz = parseInt(String(body.tz), 10);
@@ -166,6 +205,9 @@ routerAdd("POST", "/api/chest/open", (e) => {
         const key = existing.getString("prize");
         let kind = "coins";
         for (let i = 0; i < ODDS.length; i++) if (ODDS[i][0] === key) kind = ODDS[i][1];
+        if (key.indexOf("frame_") === 0) kind = "frame";
+        let ownedNow = [];
+        try { ownedNow = JSON.parse(user.getString("owned_features") || "[]") || []; } catch (_) { ownedNow = []; }
         out = {
           s: 200,
           b: {
@@ -174,6 +216,7 @@ routerAdd("POST", "/api/chest/open", (e) => {
             left: Math.max(0, PER_DAY - usedNow),
             coins: user.getInt("coins") || 0,
             plus: user.getBool("plus"),
+            ownedFeatures: ownedNow,
           },
         };
         return;
@@ -199,6 +242,36 @@ routerAdd("POST", "/api/chest/open", (e) => {
 
       // Розыгрыш по той же таблице, что показывает /api/chest/state.
       const noPlus = ios || user.getBool("plus");
+      // Рамки аватарки выпадают прямо из каталога (`catalog_items`, вид `frame`):
+      // у каждой редкости своя доля, она делится поровну между рамками этой
+      // редкости. Новая рамка, заведённая на сервере, сама встаёт в розыгрыш.
+      // Уже полученная из розыгрыша выпадает, её доля (и остаток от деления)
+      // уходит в «5 монет», поэтому сумма таблицы всегда та же.
+      const FRAME_TIER = { common: 60, rare: 30, legendary: 15 };
+      let ownedF = [];
+      try { ownedF = JSON.parse(user.getString("owned_features") || "[]") || []; } catch (_) { ownedF = []; }
+      const byTier = { common: [], rare: [], legendary: [] };
+      if (withFrames) try {
+        const recs = txApp.findRecordsByFilter("catalog_items", "kind = 'frame' && enabled = true", "sort", 200, 0);
+        for (let i = 0; i < recs.length; i++) {
+          let d = {};
+          try { d = JSON.parse(recs[i].getString("data") || "{}") || {}; } catch (_) { d = {}; }
+          if (!d.key) continue;
+          byTier[FRAME_TIER[d.rarity] ? d.rarity : "common"].push(recs[i].id);
+        }
+      } catch (_) {}
+      const frameOdds = [];
+      let frameSpare = 0;
+      for (const t in FRAME_TIER) {
+        const list = byTier[t];
+        const each = list.length ? Math.floor(FRAME_TIER[t] / list.length) : 0;
+        frameSpare += FRAME_TIER[t] - each * list.length;
+        for (let i = 0; i < list.length; i++) {
+          if (each <= 0 || ownedF.indexOf("frame:" + list[i]) !== -1) { frameSpare += each; continue; }
+          frameOdds.push([list[i], "frame", 0, each, t]);
+        }
+      }
+
       const pool = [];
       let total = 0;
       for (let i = 0; i < ODDS.length; i++) {
@@ -206,8 +279,13 @@ routerAdd("POST", "/api/chest/open", (e) => {
         if (r[1] === "plus" && noPlus) continue;
         let w = r[3];
         if (r[0] === "coins5" && noPlus) w += 50;
+        if (r[0] === "coins5") w += frameSpare;
         pool.push([r[0], r[1], r[2], w]);
         total += w;
+      }
+      for (let i = 0; i < frameOdds.length; i++) {
+        pool.push([frameOdds[i][0], "frame", 0, frameOdds[i][3]]);
+        total += frameOdds[i][3];
       }
       // Случайное число из криптостойкой строки, а не Math.random: пул JSVM
       // переиспользует рантаймы, и качеству его генератора верить незачем.
@@ -232,6 +310,12 @@ routerAdd("POST", "/api/chest/open", (e) => {
       if (prize[1] === "coins") {
         user.set("coins", (user.getInt("coins") || 0) + prize[2]);
         txApp.save(user);
+      } else if (prize[1] === "frame") {
+        // Рамка — навсегда, тем же ключом владения, что и прочий каталог.
+        const fk = "frame:" + prize[0];
+        if (ownedF.indexOf(fk) === -1) ownedF.push(fk);
+        user.set("owned_features", JSON.stringify(ownedF));
+        txApp.save(user);
       } else if (prize[1] === "plus") {
         user.set("plus", true);
         user.set("plus_platform", "chest");
@@ -247,6 +331,7 @@ routerAdd("POST", "/api/chest/open", (e) => {
           left: Math.max(0, PER_DAY - today - 1),
           coins: user.getInt("coins") || 0,
           plus: user.getBool("plus"),
+          ownedFeatures: ownedF,
         },
       };
     });

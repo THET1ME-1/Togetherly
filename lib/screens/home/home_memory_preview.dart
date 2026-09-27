@@ -6,6 +6,7 @@ import '../../models/pair_data.dart';
 import '../../models/user_data.dart';
 import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/avatar_widget.dart';
 import '../../widgets/storage_image.dart';
 import '../memory_lane_screen.dart';
 
@@ -335,7 +336,10 @@ class _PreviewCard extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
       child: Row(
         children: [
-          Container(
+          FramedAvatar(
+            uid: memory.authorUid,
+            size: 40,
+            child: Container(
             width: 40,
             height: 40,
             decoration: BoxDecoration(
@@ -353,6 +357,7 @@ class _PreviewCard extends StatelessWidget {
                     )
                   : _avatarFallback(),
             ),
+          ),
           ),
           const SizedBox(width: 10),
           Expanded(

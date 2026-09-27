@@ -8,6 +8,7 @@ import 'package:pocketbase/pocketbase.dart';
 import '../models/invite_code_state.dart';
 import '../utils/date_only.dart';
 import '../utils/pair_time.dart';
+import 'avatar_frames.dart';
 import 'love_test_id.dart';
 import 'offline/local_store.dart';
 import 'pb_errors.dart';
@@ -3073,11 +3074,14 @@ class PbDataService {
           .send('/api/user/card', method: 'GET', query: {'uid': uid})
           .timeout(const Duration(seconds: 10));
       if (res is! Map || res['ok'] != true) return null;
+      // Рамку аватарки знает весь экран, а не только тот, кто спросил карточку.
+      AvatarFrames.instance.put(uid, res['frame']);
       return {
         'displayName': res['display_name'],
         'avatarUrl': res['avatar_url'],
         'bannerUrl': res['banner_url'],
         'badge': res['badge'],
+        'frame': res['frame'],
         'gender': res['gender'],
         'birthDate': res['birth_date'],
         'mascotSleep': res['mascot_sleep'],
@@ -3106,6 +3110,7 @@ class PbDataService {
       'bannerUrl': d['banner_url'],
       'gender': d['gender'],
       'badge': d['badge'],
+      'frame': d['frame'],
       'coins': d['coins'],
       'ownedThemes': d['owned_themes'],
       'ownedIcons': d['owned_icons'],
@@ -3190,6 +3195,7 @@ class PbDataService {
     // (pb_hooks/coins.pb.js через $app.save). Прямой клиентский PATCH этих полей
     // отвергает pb_hooks/users_guard.pb.js. Клиент их только читает (см. UserData).
     put('badge', 'badge'); // выбранный к показу значок (косметика, не владение)
+    put('frame', 'frame'); // надетая рамка аватарки, тоже косметика
     put('pairId', 'pair_id');
     put('pairIds', 'pair_ids', json: true);
     put('inviteCode', 'invite_code');

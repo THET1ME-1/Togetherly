@@ -1,3 +1,4 @@
+import 'avatar_frame.dart';
 import 'gift.dart';
 
 /// Что лежит в сундуке недели и с какими шансами.
@@ -6,14 +7,15 @@ import 'gift.dart';
 /// же роутом `/api/chest/state`, поэтому проценты на экране совпадают с
 /// розыгрышем. Здесь — разбор ответа и запасная копия таблицы на случай, когда
 /// сервер ещё не ответил.
-enum ChestPrizeKind { coins, gift, plus }
+enum ChestPrizeKind { coins, gift, plus, frame }
 
 enum ChestTier { common, rare, legendary }
 
 class ChestPrize {
   const ChestPrize({required this.key, required this.kind, required this.weight, required this.tier, this.amount = 0});
 
-  /// `coins5`, ключ подарка из [GiftCatalog.chest] или `plus`.
+  /// `coins5`, ключ подарка из [GiftCatalog.chest], `plus` или id рамки в
+  /// каталоге (`frame_cat`).
   final String key;
   final ChestPrizeKind kind;
 
@@ -26,11 +28,18 @@ class ChestPrize {
 
   Gift? get gift => kind == ChestPrizeKind.gift ? GiftCatalog.byKey(key) : null;
 
+  /// Ключ рамки аватарки (`cat` из `frame_cat`); у прочих призов null.
+  String? get frameKey =>
+      kind == ChestPrizeKind.frame && key.startsWith('frame_') ? key.substring(6) : null;
+
+  AvatarFrame? get frame => AvatarFrame.byKey(frameKey);
+
   static ChestPrize? fromJson(Map<String, dynamic> j) {
     final kind = switch (j['kind']) {
       'coins' => ChestPrizeKind.coins,
       'gift' => ChestPrizeKind.gift,
       'plus' => ChestPrizeKind.plus,
+      'frame' => ChestPrizeKind.frame,
       _ => null,
     };
     final key = (j['key'] ?? '').toString();
@@ -75,7 +84,13 @@ class ChestState {
   }
 }
 
-/// Запасная таблица — зеркало `ODDS` в `chest.pb.js`. [withPlus] = false —
+/// Доли рамок аватарки по редкости — зеркало `FRAME_TIER` в `chest.pb.js`.
+/// Рамки сервер берёт из каталога при каждом открытии и делит долю яруса между
+/// ними поровну; пока рамок нет, доля сидит в «5 монетах».
+const Map<String, int> kChestFrameTiers = {'common': 60, 'rare': 30, 'legendary': 15};
+
+/// Запасная таблица — зеркало `ODDS` в `chest.pb.js`, где рамок ещё нет:
+/// их доля ([kChestFrameTiers]) лежит в «5 монетах». [withPlus] = false —
 /// Плюса нет (iPhone или уже куплен), его доля уходит в «5 монет».
 List<ChestPrize> fallbackChestOdds({required bool withPlus}) => [
   ChestPrize(
