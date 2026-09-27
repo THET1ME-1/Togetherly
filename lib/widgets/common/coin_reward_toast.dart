@@ -231,7 +231,7 @@ class _CoinToastWidgetState extends State<_CoinToastWidget>
                     // нет: круг в круге давал ощущение, что иконку забыли
                     // обрезать. У файла широкие прозрачные поля — заметная
                     // часть размера уходит в них, отсюда 44 px вместо 24.
-                    child: const CoinImage(side: 44, animated: true),
+                    child: const CoinImage(side: 44),
                   ),
                   const SizedBox(width: 12),
                   // Текст гаснет раньше, чем стянется ширина: иначе буквы

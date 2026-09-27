@@ -14,15 +14,16 @@ import '../../theme/app_theme.dart';
 import '../../theme/profile_theme.dart';
 import '../../widgets/app_sheet.dart';
 import '../../widgets/chest/chest_stash_lane.dart';
-import '../../widgets/common/scaled_asset.dart';
 import '../../widgets/common/gift_image.dart';
+import '../../widgets/common/coin_image.dart';
+import '../../widgets/common/coin_sheet.dart';
 
 /// Витрина подарков: выбрал — списались монеты, партнёру улетел значок.
 ///
-/// Экран собран по M3 Expressive: тональные полки по уровням цены, обычные
-/// подарки на круге, «событийные» — на живой скалопированной форме, которая
-/// морфит и светится. Движение — не каскад, а материаловское: пружина на
-/// нажатии (перелёт), морфинг-вспышка круг→скалоп на тапе, emphasized-кривые.
+/// Экран собран по M3 Expressive, вариант «Ценник» (26.09.2026): полки по
+/// уровням цены, в две колонки. Цена — ярлык цвета темы в углу карточки с
+/// монетой, под ним живой подарок во всю ширину, внизу название. Движение —
+/// пружина на нажатии (перелёт) и подскок подарка на тапе.
 ///
 /// Баланс приходит снаружи и обновляется через [onCoins]: экран не ходит в
 /// профиль сам, потому что источник истины по монетам — ответ серверного
@@ -55,9 +56,6 @@ const Cubic _emphasizedDecelerate = Cubic(0.05, 0.7, 0.1, 1.0);
 /// 3 — событие (40–60). Уровень задаёт тональный цвет и «крутость» формы.
 int _tierOf(int price) => price <= 15 ? 1 : (price <= 30 ? 2 : 3);
 
-/// Событийные подарки (3-й уровень) — самые крутые: живая форма + свечение.
-bool _isSpecial(Gift g) => _tierOf(g.price) == 3;
-
 String _tierName(int tier) {
   final ru = LocaleService.instance.isRussian;
   return switch (tier) {
@@ -67,34 +65,7 @@ String _tierName(int tier) {
   };
 }
 
-/// Бейдж характера подарка выводится из самой модели [Gift], а не хардкодится:
-/// добавится новый подарок — подпись подтянется по его свойствам.
-String? _badgeOf(Gift g) {
-  final ru = LocaleService.instance.isRussian;
-  if (g.keepsForever) return ru ? 'навсегда' : 'forever';
-  if (g.opens != GiftOpens.none) return ru ? 'вместе' : 'together';
-  if (g.transfersCoins) return ru ? 'монеты' : 'coins';
-  if (g.mutualBonus > 0) return ru ? '+бонус' : '+bonus';
-  if (g.wantsReply) return ru ? 'желание' : 'wish';
-  if (g.piercesQuietHours) return ru ? 'срочно' : 'urgent';
-  if (g.carriesNote) return ru ? 'записка' : 'note';
-  if (g.writesToFeed) return ru ? 'в ленту' : 'to feed';
-  if (g.deliversAtMorning) return ru ? 'утром' : 'morning';
-  if (g.carriesDate) return ru ? 'дата' : 'date';
-  if (g.carriesPlace) return ru ? 'место' : 'place';
-  return null;
-}
 
-/// (фон, текст) тонального контейнера уровня.
-(Color, Color) _tierColors(ColorScheme cs, int tier) => switch (tier) {
-      1 => (cs.primaryContainer, cs.onPrimaryContainer),
-      2 => (cs.tertiaryContainer, cs.onTertiaryContainer),
-      _ => (cs.secondaryContainer, cs.onSecondaryContainer),
-    };
-
-/// Число лепестков формы — стабильно по позиции, чтобы формы не «прыгали» между
-/// перерисовками, но соседи отличались.
-const List<int> _petalCycle = [8, 6, 12, 7, 5, 10];
 
 class _GiftShopScreenState extends State<GiftShopScreen> {
   /// Тестовая сборка (`--dart-define=GIFTS_FORCE=true`) показывает код отказа.
@@ -354,7 +325,7 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
           padding: const EdgeInsets.only(right: 14),
           child: Center(
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              padding: const EdgeInsets.fromLTRB(2, 2, 16, 2),
               decoration: BoxDecoration(
                 color: cs.secondaryContainer,
                 borderRadius: BorderRadius.circular(999),
@@ -362,14 +333,15 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  ScaledAsset('assets/images/icons/coin.webp', side: 18),
-                  const SizedBox(width: 6),
+                  const CoinImage(side: 40),
                   Text(
                     '$_coins',
                     style: TextStyle(
+                      fontFamily: 'Unbounded',
                       color: cs.onSecondaryContainer,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      fontVariations: const [FontVariation('wght', 700)],
+                      fontSize: 17,
                       fontFeatures: const [FontFeature.tabularFigures()],
                     ),
                   ),
@@ -408,12 +380,7 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
                 // Выпавшие из сундука подарки, которые ещё ждут решения.
                 if (_filter == null) ChestStashLane(groupId: widget.groupId),
                 for (final tier in tiers) ...[
-                  _ShelfHeader(
-                    title: _tierName(tier),
-                    count: GiftCatalog.all
-                        .where((g) => _tierOf(g.price) == tier)
-                        .length,
-                  ),
+                  _ShelfHeader(title: _tierName(tier)),
                   _ShelfGrid(
                     gifts: GiftCatalog.all
                         .where((g) => _tierOf(g.price) == tier)
@@ -466,7 +433,7 @@ class _PaySheet extends StatelessWidget {
       children: [
         Flexible(child: Text(s.giftForCoins, textAlign: TextAlign.center)),
         const SizedBox(width: 10),
-        ScaledAsset('assets/images/icons/coin.webp', side: 18),
+        CoinImage(side: 18),
         const SizedBox(width: 4),
         Text(
           '${gift.currentPrice}',
@@ -645,48 +612,34 @@ class _FilterChip extends StatelessWidget {
 
 // ── Заголовок полки ──────────────────────────────────────────────────────────
 class _ShelfHeader extends StatelessWidget {
-  const _ShelfHeader({required this.title, required this.count});
+  const _ShelfHeader({required this.title});
   final String title;
-  final int count;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
-      child: Row(
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontFamily: 'Unbounded',
-              fontWeight: FontWeight.w700,
-        fontVariations: const [FontVariation('wght', 700)],
-              fontSize: 15,
-              letterSpacing: -0.2,
-              color: cs.onSurface,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(child: Container(height: 1, color: cs.outlineVariant)),
-          const SizedBox(width: 10),
-          Text(
-            '$count',
-            style: TextStyle(
-              fontFamily: 'Onest',
-              fontWeight: FontWeight.w700,
-        fontVariations: const [FontVariation('wght', 700)],
-              fontSize: 12,
-              color: cs.onSurfaceVariant,
-            ),
-          ),
-        ],
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontFamily: 'Unbounded',
+          fontWeight: FontWeight.w700,
+          fontVariations: const [FontVariation('wght', 700)],
+          fontSize: 18,
+          letterSpacing: -0.3,
+          color: cs.onSurface,
+        ),
       ),
     );
   }
 }
 
 // ── Сетка полки ──────────────────────────────────────────────────────────────
+/// Две колонки всегда: подарок должен быть крупным. Высоту карточки
+/// считаем из ширины колонки и настоящей высоты подписи — число
+/// `childAspectRatio` верно только для той ширины и того шрифта, под
+/// которые его подбирали.
 class _ShelfGrid extends StatelessWidget {
   const _ShelfGrid({
     required this.gifts,
@@ -702,42 +655,49 @@ class _ShelfGrid extends StatelessWidget {
   final bool reduce;
   final ValueChanged<Gift> onSend;
 
+  static const double _gap = 10;
+
   @override
   Widget build(BuildContext context) {
-    return GridView.builder(
-      // Запас прогрева: без него ряд за краем экрана начинал готовиться
-      // ровно тогда, когда его уже листают.
-      cacheExtent: 600,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 190,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        childAspectRatio: 0.82,
-      ),
-      itemCount: gifts.length,
-      itemBuilder: (context, i) {
-        final gift = gifts[i];
-        return _GiftCard(
-          gift: gift,
-          petals: _petalCycle[i % _petalCycle.length],
-          affordable: coins >= gift.currentPrice,
-          busy: sending == gift.key,
-          reduce: reduce,
-          onSend: () => onSend(gift),
-        );
-      },
-    );
+    return LayoutBuilder(builder: (context, box) {
+      final col = (box.maxWidth - 32 - _gap) / 2;
+      final extent = _GiftCard.heightFor(context, col);
+      return GridView.builder(
+        // Запас прогрева: без него ряд за краем экрана начинал готовиться
+        // ровно тогда, когда его уже листают.
+        cacheExtent: 600,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          mainAxisSpacing: _gap,
+          crossAxisSpacing: _gap,
+          mainAxisExtent: extent,
+        ),
+        itemCount: gifts.length,
+        itemBuilder: (context, i) {
+          final gift = gifts[i];
+          return _GiftCard(
+            gift: gift,
+            affordable: coins >= gift.currentPrice,
+            busy: sending == gift.key,
+            reduce: reduce,
+            onSend: () => onSend(gift),
+          );
+        },
+      );
+    });
   }
 }
 
-// ── Карточка подарка ─────────────────────────────────────────────────────────
+// ── Карточка подарка («Ценник») ──────────────────────────────────────────────
+/// Цена ярлыком цвета темы в левом верхнем углу, под ним подарок во всю
+/// ширину карточки, внизу название. Ни подложек, ни подписей-характеристик:
+/// подарок и цена должны читаться с первого взгляда.
 class _GiftCard extends StatefulWidget {
   const _GiftCard({
     required this.gift,
-    required this.petals,
     required this.affordable,
     required this.busy,
     required this.reduce,
@@ -745,11 +705,22 @@ class _GiftCard extends StatefulWidget {
   });
 
   final Gift gift;
-  final int petals;
   final bool affordable;
   final bool busy;
   final bool reduce;
   final VoidCallback onSend;
+
+  static const double _pad = 10;
+  static const double _tag = 40;
+  static const double _art = 0.78;
+  static const double _name = 15;
+
+  /// Высота карточки при ширине колонки [width].
+  static double heightFor(BuildContext context, double width) {
+    final scaler = MediaQuery.textScalerOf(context);
+    final nameH = scaler.scale(_name) * 1.3;
+    return _pad + _tag + (width - 2 * _pad) * _art + 4 + nameH + _pad + 6;
+  }
 
   @override
   State<_GiftCard> createState() => _GiftCardState();
@@ -765,31 +736,16 @@ class _GiftCardState extends State<_GiftCard> with TickerProviderStateMixin {
     upperBound: 1,
   );
 
-  /// Вспышка-морфинг круг→скалоп на тапе (0→1→0).
+  /// Подарок подпрыгивает на тапе (0→1→0).
   late final AnimationController _pulse = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 460),
+    duration: const Duration(milliseconds: 420),
   );
-
-  /// Живой морфинг событийных подарков (петля).
-  AnimationController? _breathe;
-
-  @override
-  void initState() {
-    super.initState();
-    if (_isSpecial(widget.gift) && !widget.reduce) {
-      _breathe = AnimationController(
-        vsync: this,
-        duration: const Duration(milliseconds: 3400),
-      )..repeat(reverse: true);
-    }
-  }
 
   @override
   void dispose() {
     _press.dispose();
     _pulse.dispose();
-    _breathe?.dispose();
     super.dispose();
   }
 
@@ -821,99 +777,118 @@ class _GiftCardState extends State<_GiftCard> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final gift = widget.gift;
-    final tier = _tierOf(gift.price);
-    final (discBg, _) = _tierColors(cs, tier);
-    final badge = _badgeOf(gift);
     final affordable = widget.affordable;
     // Без монет подарок всё равно можно отправить за рекламу, кроме копилки.
     final usable = affordable || gift.giftableByAd;
+    final tagBg = affordable ? cs.primary : cs.surfaceContainerHighest;
+    final tagFg = affordable ? cs.onPrimary : cs.onSurfaceVariant;
 
     final card = AnimatedBuilder(
       animation: _press,
       builder: (context, child) {
-        final scale = 1 - 0.06 * _press.value; // перелёт даёт scale > 1
+        final scale = 1 - 0.05 * _press.value; // перелёт даёт scale > 1
         return Transform.scale(scale: scale, child: child);
       },
       child: Container(
         decoration: BoxDecoration(
           color: cs.surfaceContainerHigh,
-          borderRadius: BorderRadius.circular(26),
+          borderRadius: BorderRadius.circular(32),
         ),
-        padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  _GiftMark(
-                    giftKey: gift.key,
-                    discColor: discBg,
-                    petals: widget.petals,
-                    special: _isSpecial(gift),
-                    affordable: affordable,
-                    pulse: _pulse,
-                    breathe: _breathe,
-                  ),
-                  if (badge != null)
-                    Positioned(
-                      top: 0,
-                      left: 0,
-                      child: _Badge(text: badge),
+        padding: const EdgeInsets.all(_GiftCard._pad),
+        child: LayoutBuilder(builder: (context, box) {
+          final art = box.maxWidth * _GiftCard._art;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                // Ценник открывает монету TY крупно; нажатие мимо него — это
+                // подарок, как и раньше.
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => showCoinSheet(context),
+                  child: Container(
+                  height: _GiftCard._tag,
+                  padding: const EdgeInsets.fromLTRB(2, 0, 14, 0),
+                  decoration: BoxDecoration(
+                    color: tagBg,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(999),
+                      topRight: Radius.circular(999),
+                      bottomRight: Radius.circular(999),
+                      bottomLeft: Radius.circular(10),
                     ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              gift.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontFamily: 'Unbounded',
-                fontWeight: FontWeight.w600,
-        fontVariations: const [FontVariation('wght', 600)],
-                fontSize: 13.5,
-                letterSpacing: -0.2,
-                color: affordable ? cs.onSurface : cs.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 5),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ScaledAsset('assets/images/icons/coin.webp', side: 14),
-                const SizedBox(width: 4),
-                Text(
-                  '${gift.currentPrice}',
-                  style: TextStyle(
-                    fontFamily: 'Onest',
-                    color: affordable ? cs.primary : cs.onSurfaceVariant,
-                    fontWeight: FontWeight.w800,
-        fontVariations: const [FontVariation('wght', 800)],
-                    fontSize: 13.5,
-                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const CoinImage(side: 38),
+                      Text(
+                        '${gift.currentPrice}',
+                        style: TextStyle(
+                          fontFamily: 'Unbounded',
+                          fontWeight: FontWeight.w700,
+                          fontVariations: const [FontVariation('wght', 700)],
+                          fontSize: 20,
+                          height: 1,
+                          color: tagFg,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 5),
-            SizedBox(
-              height: 2,
-              child: widget.busy
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(2),
-                      child: LinearProgressIndicator(
-                        minHeight: 2,
-                        backgroundColor: cs.surfaceContainerHighest,
-                      ),
-                    )
-                  : null,
-            ),
-          ],
-        ),
+                ),
+              ),
+              Expanded(
+                child: Center(
+                  child: AnimatedBuilder(
+                    animation: _pulse,
+                    builder: (context, child) {
+                      final p = math.sin(_pulse.value * math.pi);
+                      return Transform.translate(
+                        offset: Offset(0, -8 * p),
+                        child: Transform.scale(scale: 1 + 0.08 * p, child: child),
+                      );
+                    },
+                    child: GiftImage(gift.key, side: art),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                gift.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Unbounded',
+                  fontWeight: FontWeight.w700,
+                  fontVariations: const [FontVariation('wght', 700)],
+                  fontSize: _GiftCard._name,
+                  height: 1.3,
+                  letterSpacing: -0.2,
+                  color: affordable ? cs.onSurface : cs.onSurfaceVariant,
+                ),
+              ),
+              SizedBox(
+                height: 6,
+                child: widget.busy
+                    ? Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(2),
+                          child: LinearProgressIndicator(
+                            minHeight: 2,
+                            backgroundColor: cs.surfaceContainerHighest,
+                          ),
+                        ),
+                      )
+                    : null,
+              ),
+            ],
+          );
+        }),
       ),
     );
 
@@ -927,169 +902,6 @@ class _GiftCardState extends State<_GiftCard> with TickerProviderStateMixin {
           : null,
       onTapCancel: usable ? _release : null,
       child: Opacity(opacity: usable ? 1 : 0.55, child: card),
-    );
-  }
-}
-
-// ── Значок подарка на форме (круг/скалоп с морфингом и свечением) ────────────
-class _GiftMark extends StatelessWidget {
-  const _GiftMark({
-    required this.giftKey,
-    required this.discColor,
-    required this.petals,
-    required this.special,
-    required this.affordable,
-    required this.pulse,
-    required this.breathe,
-  });
-
-  final String giftKey;
-  final Color discColor;
-  final int petals;
-  final bool special;
-  final bool affordable;
-  final Animation<double> pulse;
-  final Animation<double>? breathe;
-
-  @override
-  Widget build(BuildContext context) {
-    final listenables = <Listenable>[pulse];
-    if (breathe != null) listenables.add(breathe!);
-
-    return AnimatedBuilder(
-      animation: Listenable.merge(listenables),
-      builder: (context, _) {
-        // Вспышка тапа: 0→1→0, добавляет амплитуду и лёгкий «поп» масштаба.
-        final p = math.sin(pulse.value * math.pi);
-
-        double amp; // 0 = круг, >0 = скалоп
-        double rot; // разворот формы
-        if (special) {
-          final b = breathe == null
-              ? 0.5
-              : Curves.easeInOut.transform(breathe!.value);
-          amp = 0.10 + 0.09 * b + 0.10 * p;
-          rot = (b - 0.5) * 0.6 + p * 0.5;
-        } else {
-          amp = 0.20 * p; // обычный подарок морфит в скалоп только на тапе
-          rot = p * 0.6;
-        }
-
-        final scale = 1 + 0.10 * p;
-
-        return Transform.scale(
-          scale: scale,
-          child: SizedBox(
-            width: 92,
-            height: 92,
-            child: CustomPaint(
-              painter: _ScallopPainter(
-                fill: discColor,
-                petals: petals,
-                amp: amp.clamp(0, 0.5),
-                rotation: rot,
-              ),
-              child: Center(
-                child: Opacity(
-                  opacity: affordable ? 1 : 0.45,
-                  child: GiftImage(giftKey, side: 56),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// Форма-подложка: круг при [amp]≈0, скалопированная «ромашка» при amp>0.
-/// Контур сглажен замкнутым Catmull-Rom — те же кривые, что у блоба проекта.
-class _ScallopPainter extends CustomPainter {
-  _ScallopPainter({
-    required this.fill,
-    required this.petals,
-    required this.amp,
-    required this.rotation,
-  });
-
-  final Color fill;
-  final int petals;
-  final double amp;
-  final double rotation;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final path = _shape(size);
-    canvas.drawPath(path, Paint()..color = fill..isAntiAlias = true);
-  }
-
-  Path _shape(Size size) {
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final r = math.min(cx, cy);
-    if (petals <= 0 || amp <= 0.004) {
-      return Path()..addOval(Rect.fromCircle(center: Offset(cx, cy), radius: r));
-    }
-    final steps = petals * 2;
-    final pts = <Offset>[];
-    for (int i = 0; i < steps; i++) {
-      final a = (i / steps) * 2 * math.pi - math.pi / 2 + rotation;
-      final rad = i.isEven ? r : r * (1 - amp);
-      pts.add(Offset(cx + rad * math.cos(a), cy + rad * math.sin(a)));
-    }
-    return _catmullRom(pts);
-  }
-
-  static Path _catmullRom(List<Offset> pts) {
-    final n = pts.length;
-    final path = Path();
-    for (int i = 0; i < n; i++) {
-      final p0 = pts[(i - 1 + n) % n];
-      final p1 = pts[i];
-      final p2 = pts[(i + 1) % n];
-      final p3 = pts[(i + 2) % n];
-      final cp1 = Offset(p1.dx + (p2.dx - p0.dx) / 6, p1.dy + (p2.dy - p0.dy) / 6);
-      final cp2 = Offset(p2.dx - (p3.dx - p1.dx) / 6, p2.dy - (p3.dy - p1.dy) / 6);
-      if (i == 0) path.moveTo(p1.dx, p1.dy);
-      path.cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, p2.dx, p2.dy);
-    }
-    path.close();
-    return path;
-  }
-
-  @override
-  bool shouldRepaint(_ScallopPainter old) =>
-      old.amp != amp ||
-      old.rotation != rotation ||
-      old.fill != fill ||
-      old.petals != petals;
-}
-
-// ── Бейдж характера ──────────────────────────────────────────────────────────
-class _Badge extends StatelessWidget {
-  const _Badge({required this.text});
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontFamily: 'Onest',
-          fontWeight: FontWeight.w700,
-        fontVariations: const [FontVariation('wght', 700)],
-          fontSize: 10.5,
-          color: cs.onSurfaceVariant,
-        ),
-      ),
     );
   }
 }

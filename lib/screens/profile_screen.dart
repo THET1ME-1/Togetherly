@@ -81,9 +81,9 @@ import '../services/celebration_notification_service.dart';
 import '../services/days_together_notification_service.dart';
 import 'date_time_picker_screen.dart';
 import '../widgets/common/redeem_code_sheet.dart';
-import '../widgets/common/scaled_asset.dart';
 import '../widgets/common/badge_image.dart';
 import '../widgets/common/coin_image.dart';
+import '../widgets/common/coin_sheet.dart';
 
 /// Entry for a partner across all connections
 class _PartnerEntry {
@@ -1830,7 +1830,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                ScaledAsset('assets/images/icons/coin.webp', side: 11),
+                CoinImage(side: 11),
                 const SizedBox(width: 2),
                 Text(
                   '${p.price}',
@@ -4353,7 +4353,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              const CoinImage(side: 34, animated: true),
+              const CoinImage(side: 34),
               const SizedBox(width: 10),
               Text(
                 '${widget.userData.coins}',
@@ -4711,7 +4711,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                             ],
                           ),
                         ),
-                        ScaledAsset('assets/images/icons/coin.webp', side: 22),
+                        CoinImage(side: 22),
                       ],
                     ),
                     const Spacer(),
@@ -5048,7 +5048,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ),
                 child: Row(
                   children: [
-                    ScaledAsset('assets/images/icons/coin.webp', side: 28),
+                    CoinImage(side: 28),
                     const SizedBox(width: 10),
                     Text(
                       '${t.price}',
@@ -5304,10 +5304,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                               ),
                             ),
                             const SizedBox(width: 10),
-                            ScaledAsset(
-                              'assets/images/icons/coin.webp',
-                              side: 16,
-                            ),
+                            CoinImage(side: 16),
                             const SizedBox(width: 4),
                             Text(
                               '${widget.userData.coins}',
@@ -5343,13 +5340,18 @@ class _ProfileScreenState extends State<ProfileScreen>
                           ),
                           const SizedBox(height: 16),
                           // ── Сетка иконок ──
-                          GridView.count(
-                            crossAxisCount: 3,
+                          // Две колонки, как витрина подарков («Ценник»):
+                          // значок крупно, цена ярлыком в углу. Высота клетки
+                          // считается из ширины и настоящей высоты подписи.
+                          LayoutBuilder(builder: (context, box) {
+                          final col = (box.maxWidth - 10) / 2;
+                          return GridView.count(
+                            crossAxisCount: 2,
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
-                            mainAxisSpacing: 14,
-                            crossAxisSpacing: 14,
-                            childAspectRatio: 0.72,
+                            mainAxisSpacing: 10,
+                            crossAxisSpacing: 10,
+                            childAspectRatio: col / _iconCellHeight(context, col),
                             children: icons.map((icon) {
                               return _iconCell(
                                 icon: icon,
@@ -5386,7 +5388,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                                 },
                               );
                             }).toList(),
-                          ),
+                          );
+                          }),
                         ],
                       ),
                     ),
@@ -5447,105 +5450,153 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
+  static const double _cellPad = 10;
+  static const double _cellTag = 40;
+  static const double _cellArt = 0.72;
+  static const double _cellName = 15;
+
+  /// Высота клетки значка при ширине колонки [width].
+  double _iconCellHeight(BuildContext context, double width) {
+    final nameH = MediaQuery.textScalerOf(context).scale(_cellName) * 1.3;
+    return _cellPad +
+        _cellTag +
+        (width - 2 * _cellPad) * _cellArt +
+        6 +
+        nameH +
+        _cellPad +
+        4;
+  }
+
+  /// Клетка значка в стиле «Ценник», как витрина подарков: ярлык в углу
+  /// говорит, что со значком сейчас — цена с монетой, надет, куплен или
+  /// выдаётся только наградой.
   Widget _iconCell({
     required ProfileIcon icon,
     required bool isEquipped,
     required bool owned,
     required VoidCallback onTap,
   }) {
-    final locked = !owned;
+    final cs = _cs;
+    final rewardLocked = !owned && icon.grantOnly;
+    final Color tagBg;
+    final Color tagFg;
+    final Widget tagChild;
+    if (isEquipped) {
+      tagBg = cs.primary;
+      tagFg = cs.onPrimary;
+      tagChild = Icon(Icons.check_rounded, size: 24, color: tagFg);
+    } else if (owned) {
+      tagBg = cs.surfaceContainerHighest;
+      tagFg = cs.onSurfaceVariant;
+      tagChild = Icon(Icons.check_rounded, size: 22, color: tagFg);
+    } else if (rewardLocked) {
+      tagBg = cs.surfaceContainerHighest;
+      tagFg = cs.onSurfaceVariant;
+      tagChild = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.lock_rounded, size: 16, color: tagFg),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              _s.iconRewardOnly,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'Onest',
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: tagFg,
+              ),
+            ),
+          ),
+        ],
+      );
+    } else {
+      tagBg = cs.primary;
+      tagFg = cs.onPrimary;
+      tagChild = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const CoinImage(side: 38),
+          Text(
+            '${icon.price}',
+            style: TextStyle(
+              fontFamily: 'Unbounded',
+              fontWeight: FontWeight.w700,
+              fontVariations: const [FontVariation('wght', 700)],
+              fontSize: 20,
+              height: 1,
+              color: tagFg,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
+      );
+    }
+    final priced = !isEquipped && !owned && !rewardLocked;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        padding: const EdgeInsets.all(_cellPad),
         decoration: BoxDecoration(
-          color: isEquipped
-              ? _accentLight.withValues(alpha: 0.55)
-              : _t.surfaceMuted,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: isEquipped ? _accent : Colors.transparent,
-            width: 2.5,
-          ),
+          color: isEquipped ? cs.primaryContainer : cs.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(32),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // Рамка-подложка, чтобы все иконки выглядели одинаково и крупно.
-            Container(
-              width: 56,
-              height: 56,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: _t.cardSurface,
-                borderRadius: BorderRadius.circular(15),
-              ),
-              child: Opacity(
-                opacity: locked ? 0.5 : 1.0,
-                child: BadgeImage(icon.id, side: 42),
-              ),
-            ),
-            const SizedBox(height: 7),
-            Text(
-              icon.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isEquipped ? FontWeight.w700 : FontWeight.w500,
-                color: isEquipped ? _accent : _t.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 5),
-            // Нижняя строка: закреплено / куплено / награда / цена
-            if (isEquipped)
-              Icon(Icons.check_circle_rounded, size: 18, color: _accent)
-            else if (owned)
-              Icon(Icons.check_rounded, size: 16, color: _t.textMuted)
-            else if (icon.grantOnly)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.lock_rounded, size: 11, color: _t.textMuted),
-                  const SizedBox(width: 3),
-                  Flexible(
-                    child: Text(
-                      _s.iconRewardOnly,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: _t.textMuted,
-                      ),
+        child: LayoutBuilder(
+          builder: (context, box) => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                // Ценник с ценой открывает монету TY крупно.
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: priced ? () => showCoinSheet(context) : null,
+                  child: Container(
+                  height: _cellTag,
+                  constraints: const BoxConstraints(minWidth: _cellTag),
+                  padding: EdgeInsets.fromLTRB(priced ? 2 : 10, 0, priced ? 14 : 10, 0),
+                  decoration: BoxDecoration(
+                    color: tagBg,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(999),
+                      topRight: Radius.circular(999),
+                      bottomRight: Radius.circular(999),
+                      bottomLeft: Radius.circular(10),
                     ),
                   ),
-                ],
-              )
-            else
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ScaledAsset('assets/images/icons/coin.webp', side: 15),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${icon.price}',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: _t.textPrimary,
-                    ),
-                  ),
-                ],
+                  child: tagChild,
+                ),
+                ),
               ),
-          ],
+              Expanded(
+                child: Center(
+                  child: Opacity(
+                    opacity: rewardLocked ? 0.55 : 1.0,
+                    child: BadgeImage(icon.id, side: box.maxWidth * _cellArt),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                icon.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'Unbounded',
+                  fontWeight: FontWeight.w700,
+                  fontVariations: const [FontVariation('wght', 700)],
+                  fontSize: _cellName,
+                  height: 1.3,
+                  letterSpacing: -0.2,
+                  color: isEquipped ? cs.onPrimaryContainer : cs.onSurface,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -5709,10 +5760,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          ScaledAsset(
-                            'assets/images/icons/coin.webp',
-                            side: 28,
-                          ),
+                          CoinImage(side: 28),
                           const SizedBox(width: 10),
                           Text(
                             '${icon.price}',
@@ -5735,7 +5783,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                           style: TextStyle(fontSize: 13, color: _t.textMuted),
                         ),
                         const SizedBox(width: 6),
-                        ScaledAsset('assets/images/icons/coin.webp', side: 16),
+                        CoinImage(side: 16),
                         const SizedBox(width: 4),
                         Text(
                           '${widget.userData.coins}',

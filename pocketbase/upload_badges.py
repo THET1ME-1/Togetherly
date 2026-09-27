@@ -119,7 +119,9 @@ def upload_gift(folder: Path, token: str) -> None:
         sys.exit(f"{key}: нет файлов {', '.join(missing)}")
     fields = {"kind": kind, "name_ru": key, "name_en": key, "is_free": "false", "price": str(int(spec.get("price", 0))),
               "min_app": "", "sort": str(int(spec.get("sort", 500))), "enabled": "true", "data": "{}"}
-    files = [("files", folder / f) for f in FILES]
+    # xl.webp — крупная анимация, есть не у всех (монета TY для листа).
+    names = list(FILES) + (["xl.webp"] if (folder / "xl.webp").exists() else [])
+    files = [("files", folder / f) for f in names]
     url = f"{PB}/api/collections/catalog_items/records/{item_id}"
     if exists(item_id, token):
         body, ctype = multipart({"files": ""}, [])
@@ -133,10 +135,10 @@ def upload_gift(folder: Path, token: str) -> None:
         rec = send("POST", f"{PB}/api/collections/catalog_items/records", token, body, ctype)
         action = "заведён"
     stored = rec.get("files") or []
-    if len(stored) != len(FILES):
-        sys.exit(f"{key}: залилось {len(stored)} файлов из {len(FILES)}")
+    if len(stored) != len(names):
+        sys.exit(f"{key}: залилось {len(stored)} файлов из {len(names)}")
     urls = {name.split(".")[0]: f"{PUBLIC}/api/files/catalog_items/{rec['id']}/{stored_name}"
-            for name, stored_name in zip(FILES, stored)}
+            for name, stored_name in zip(names, stored)}
     body, ctype = multipart({"data": json.dumps({"key": key, **urls}, ensure_ascii=False)}, [])
     send("PATCH", url, token, body, ctype)
     print(f"{'подарок' if kind == 'gift' else 'картинка'} {key}: {action} ({item_id})")

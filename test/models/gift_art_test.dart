@@ -29,6 +29,12 @@ void main() {
     expect(a.urlFor(44), 'https://x/c.webp');
   });
 
+  test('крупный показ берёт xl, если он есть', () {
+    final a = GiftArt.fromCatalog(row(kind: 'art', data: {'key': 'coin', 'sm': 'https://x/s', 'lg': 'https://x/l', 'xl': 'https://x/xl'}))!;
+    expect(a.urlFor(300), 'https://x/xl');
+    expect(a.urlFor(120), 'https://x/l');
+  });
+
   test('чужой вид, выключенная запись, пустой ключ, нет картинок — null', () {
     expect(GiftArt.fromCatalog(row(kind: 'badge')), isNull);
     expect(GiftArt.fromCatalog(row(enabled: false)), isNull);

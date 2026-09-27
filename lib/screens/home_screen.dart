@@ -136,13 +136,13 @@ import '../widgets/note_editor_sheet.dart';
 import '../services/pb_media_service.dart';
 import '../services/widget_anim_service.dart';
 import 'snap_capture_screen.dart';
-import '../widgets/common/scaled_asset.dart';
 import '../services/offline/media_view_cache.dart';
 import '../dict_strings.dart' show trKey;
 import '../services/wallet_teaser.dart';
 import '../services/media_save_queue.dart';
 import 'wallet_wait_screen.dart';
 import '../widgets/common/gift_image.dart';
+import '../widgets/common/coin_image.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -2110,7 +2110,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      ScaledAsset('assets/images/icons/coin.webp', side: 16),
+                      CoinImage(side: 16),
                       const SizedBox(width: 4),
                       Text(
                         '${t.price}',

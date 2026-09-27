@@ -7,7 +7,7 @@
 /// подарок доезжает до людей без обновления приложения, а без сети остаётся
 /// неподвижный кадр из сборки.
 class GiftArt {
-  const GiftArt({required this.key, this.price, this.smUrl, this.lgUrl, this.stillUrl});
+  const GiftArt({required this.key, this.price, this.smUrl, this.lgUrl, this.xlUrl, this.stillUrl});
 
   final String key;
 
@@ -17,9 +17,14 @@ class GiftArt {
   final String? lgUrl;
   final String? stillUrl;
 
+  /// Крупная анимация 720 px — есть не у всех; сейчас только у монеты для
+  /// листа «монета TY».
+  final String? xlUrl;
+
   /// До 64 точек хватает маленькой анимации, крупнее — большая.
   String? urlFor(double logicalSize, {bool animated = true}) {
     if (!animated) return stillUrl ?? smUrl ?? lgUrl;
+    if (logicalSize > 160 && xlUrl != null) return xlUrl;
     return logicalSize <= 64 ? (smUrl ?? lgUrl ?? stillUrl) : (lgUrl ?? smUrl ?? stillUrl);
   }
 
@@ -38,7 +43,7 @@ class GiftArt {
     }
 
     final p = row['price'];
-    final art = GiftArt(key: key, price: p is num && p > 0 ? p.toInt() : null, smUrl: url('sm'), lgUrl: url('lg'), stillUrl: url('still'));
+    final art = GiftArt(key: key, price: p is num && p > 0 ? p.toInt() : null, smUrl: url('sm'), lgUrl: url('lg'), xlUrl: url('xl'), stillUrl: url('still'));
     if (art.smUrl == null && art.lgUrl == null && art.stillUrl == null) return null;
     return art;
   }

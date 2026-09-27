@@ -53,6 +53,7 @@ import '../widgets/common/plus_badge.dart';
 import '../widgets/plus/plus_promo_sheet.dart';
 import '../widgets/common/stable_stream_builder.dart';
 import '../widgets/common/scaled_asset.dart';
+import '../widgets/common/coin_image.dart';
 
 /// Цена смены фона чата в монетах (зеркало CONSUMABLE_PRICES на сервере).
 const int _kChatBgPrice = 20;
@@ -1547,7 +1548,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   : Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        ScaledAsset('assets/images/icons/coin.webp', side: 18),
+                        CoinImage(side: 18),
                         const SizedBox(width: 3),
                         Text('$_kChatBgPrice',
                             style: const TextStyle(fontWeight: FontWeight.w700)),

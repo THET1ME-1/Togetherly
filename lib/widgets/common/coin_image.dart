@@ -4,14 +4,14 @@ import 'package:flutter/material.dart';
 import '../../services/catalog_service.dart';
 import '../../services/offline/media_view_cache.dart';
 
-/// Монета TY. В мелких местах — неподвижный кадр из сборки, там, где монета
-/// крупная ([animated]), — живая: два объёмных оборота на месте и блик. Живая
-/// приезжает серверным каталогом (запись `art_coin`); пока её нет, стоит кадр.
+/// Монета TY, живая везде: два объёмных оборота на месте и блик. Анимация
+/// приезжает серверным каталогом (запись `art_coin`); пока её нет или нет
+/// сети, стоит неподвижный кадр из сборки. [animated] = false — только кадр.
 ///
 /// [side] — размер всей картинки, как у прежнего `ScaledAsset`: поля у
 /// файла те же, раскладка вокруг не меняется.
 class CoinImage extends StatelessWidget {
-  const CoinImage({super.key, required this.side, this.animated = false});
+  const CoinImage({super.key, required this.side, this.animated = true});
 
   static const String asset = 'assets/images/icons/coin.webp';
 

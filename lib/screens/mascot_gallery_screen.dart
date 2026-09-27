@@ -33,6 +33,7 @@ import '../widgets/active_mascot_widget.dart' show buildMascotAssetImage;
 import '../widgets/mascot/pixel_mascot_view.dart';
 import 'mascot_draw_screen.dart';
 import '../services/offline/media_view_cache.dart';
+import '../widgets/common/coin_image.dart';
 
 class MascotGalleryScreen extends StatefulWidget {
   final MascotService mascotService;
@@ -1073,10 +1074,7 @@ class _MascotCard extends StatelessWidget {
                             // абстрактный алмаз рядом с числом читался как
                             // вторая валюта, которой в проекте нет.
                             if (mascot.unlock.isPremium)
-                              Image.asset('assets/images/icons/coin.webp',
-                                  width: 13,
-                                  height: 13,
-                                  filterQuality: FilterQuality.medium)
+                              CoinImage(side: 13)
                             else
                               Icon(Icons.lock_rounded,
                                   color: Theme.of(context)
