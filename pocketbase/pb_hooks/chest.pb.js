@@ -156,8 +156,11 @@ routerAdd("GET", "/api/chest/state", (e) => {
     const r = frameOdds[i];
     odds.push({ key: r[0], kind: r[1], amount: 0, weight: r[3], tier: r[4] });
   }
+  // Копилка пары для блока на главной: `group` шлют сборки с копилкой.
+  let jar = null;
+  try { jar = require(`${__hooks}/pair_jar.js`).state(me, String(q.get("group") || "")); } catch (_) { jar = null; }
   return e.json(200, {
-    ok: true, perDay: PER_DAY, left: Math.max(0, PER_DAY - used), day: day, odds: odds,
+    ok: true, perDay: PER_DAY, left: Math.max(0, PER_DAY - used), day: day, odds: odds, jar: jar,
     // Через сколько открытий редкий приз гарантирован (1 — следующее).
     untilRare: PITY - dry,
   });
@@ -192,9 +195,13 @@ routerAdd("POST", "/api/chest/open", (e) => {
   // Потолок за скользящие сутки: против перевода часов туда-обратно.
   const PER_24H = 6;
 
-  const body = new DynamicModel({ openId: "", groupId: "", tz: 0, platform: "", frames: false });
+  const body = new DynamicModel({ openId: "", groupId: "", tz: 0, platform: "", frames: false, bonus: false });
   e.bindBody(body);
   const withFrames = body.frames === true;
+  // Открытие из копилки пары: без ролика и сверх трёх в день. День такой
+  // записи пишется с приставкой «b», поэтому в дневной счёт она не входит.
+  const fromJar = body.bonus === true;
+  const jarLib = require(`${__hooks}/pair_jar.js`);
   const openId = String(body.openId || "").trim();
   const groupId = String(body.groupId || "").trim();
   let tz = parseInt(String(body.tz), 10);
@@ -284,10 +291,15 @@ routerAdd("POST", "/api/chest/open", (e) => {
         today = txApp.findRecordsByFilter("chest_opens", "user_uid = {:me} && day = {:day}", "", PER_DAY, 0,
           { me: me, day: day }).length;
         const since = new Date(now - 24 * 60 * 60 * 1000).toISOString().replace("T", " ");
-        lastDay = txApp.findRecordsByFilter("chest_opens", "user_uid = {:me} && created >= {:since}", "", PER_24H, 0,
+        lastDay = txApp.findRecordsByFilter("chest_opens", "user_uid = {:me} && created >= {:since} && day !~ 'b'", "", PER_24H, 0,
           { me: me, since: since }).length;
       } catch (_) { today = 0; lastDay = 0; }
-      if (today >= PER_DAY || lastDay >= PER_24H) {
+      if (fromJar) {
+        if (!jarLib.takeBonus(txApp, groupId, me)) {
+          out = { s: 409, b: { ok: false, error: "no_bonus", left: Math.max(0, PER_DAY - today) } };
+          return;
+        }
+      } else if (today >= PER_DAY || lastDay >= PER_24H) {
         out = { s: 429, b: { ok: false, error: "chest_limit", left: 0 } };
         return;
       }
@@ -387,7 +399,7 @@ routerAdd("POST", "/api/chest/open", (e) => {
       rec.set("id", openId);
       rec.set("user_uid", me);
       rec.set("group_id", groupId);
-      rec.set("day", day);
+      rec.set("day", fromJar ? "b" + day : day);
       rec.set("prize", prize[0]);
       rec.set("amount", prize[2]);
       rec.set("state", prize[1] === "gift" ? "stash" : "");
@@ -427,9 +439,10 @@ routerAdd("POST", "/api/chest/open", (e) => {
         b: {
           ok: true, repeated: false,
           prize: { key: prize[0], kind: prize[1], amount: prize[2] },
-          left: Math.max(0, PER_DAY - today - 1),
+          left: Math.max(0, PER_DAY - today - (fromJar ? 0 : 1)),
           coins: user.getInt("coins") || 0,
           plus: user.getBool("plus"),
+          jarBonus: jarLib.bonusLeft(txApp, groupId, me),
           ownedFeatures: ownedF,
           ownedIcons: ownedI,
           plusTrialUntil: user.getInt("plus_trial_until") || 0,
@@ -457,6 +470,17 @@ routerAdd("POST", "/api/chest/open", (e) => {
     } catch (_) {}
     try { $app.logger().error("chest/open: " + String(err)); } catch (_) {}
     out = { s: 500, b: { ok: false, error: "internal" } };
+  }
+  // С Плюсом сундук открывается без ролика, и капля падает за само открытие;
+  // остальным её кладёт роут награды за ролик.
+  if (out.s === 200 && out.b && out.b.repeated === false && !fromJar) {
+    try {
+      const u = $app.findRecordById("users", me);
+      if (u.getBool("plus") || (u.getInt("plus_trial_until") || 0) > Date.now()) {
+        const jar = jarLib.addDrop(me, groupId);
+        if (jar) { out.b.jar = jar; out.b.jarBonus = jar.bonus; }
+      }
+    } catch (_) {}
   }
   return e.json(out.s, out.b);
 }, $apis.requireAuth());

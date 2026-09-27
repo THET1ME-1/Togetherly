@@ -11,6 +11,8 @@ import 'package:love_app/screens/chest_prize_screen.dart';
 import 'package:love_app/screens/chest_screen.dart';
 import 'package:love_app/services/chest_service.dart';
 import 'package:love_app/services/locale_service.dart';
+import 'package:love_app/services/pair_jar_service.dart';
+import 'package:love_app/models/pair_jar.dart';
 import 'package:love_app/theme/app_palettes.dart';
 import 'package:love_app/theme/profile_theme.dart';
 import 'package:love_app/widgets/chest/chest_home_card.dart';
@@ -75,7 +77,7 @@ void main() {
     final tDark = buildAppTheme(kPalettes.firstWhere((p) => p.name == 'Кофе'), Brightness.dark);
     Widget home(double w, {bool dark = false}) => Container(
       width: w,
-      height: 400,
+      height: 440,
       margin: const EdgeInsets.all(12),
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
@@ -177,6 +179,11 @@ void main() {
         ),
       ),
     );
+    // Копилка пары: четыре мои капли, три партнёра, одно открытие ждёт.
+    PairJarService.instance.apply(
+      const PairJar(drops: [true, true, true, true, false, false, false], bonus: 1),
+    );
+    await tester.pump();
     await tester.runAsync(() async {
       final ctx = key.currentContext!;
       await precacheImage(const AssetImage(kChestStill), ctx);

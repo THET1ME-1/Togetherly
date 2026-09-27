@@ -371,6 +371,16 @@ routerAdd("POST", "/api/coins/ad-reward", (e) => {
                            viewsLeft: Math.max(0, VIEW_CAP - viewsToday - 1) } };
     });
   } catch (err) { return e.json(500, { ok: false, error: "tx failed" }); }
+  // Копилка пары: капля падает за каждый засчитанный ролик, и после дневного
+  // предела монет тоже — ролик за сундук или подарок человек досмотрел.
+  // Сбой копилки начисление монет не ломает.
+  try {
+    const body = e.requestInfo().body || {};
+    const jar = require(`${__hooks}/pair_jar.js`).addDrop(e.auth.id, String(body.groupId || ""));
+    if (jar) out.b.jar = jar;
+  } catch (err) {
+    try { $app.logger().warn("pair_jar: " + String(err)); } catch (_) {}
+  }
   return e.json(out.s, out.b);
 }, $apis.requireAuth());
 

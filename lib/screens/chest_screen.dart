@@ -12,12 +12,15 @@ import '../services/chest_service.dart';
 import '../services/locale_service.dart';
 import '../services/offline/pb_id.dart';
 import '../services/plus_service.dart';
+import '../services/pair_jar_service.dart';
 import '../services/pocketbase_service.dart';
 import '../services/rewarded_ad_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/profile_theme.dart';
+import '../utils/readable_text.dart';
 import '../widgets/chest/chest_frames.dart';
 import '../widgets/chest/chest_prize_image.dart';
+import '../widgets/chest/jar_drops.dart';
 import '../widgets/chest/chest_rays.dart';
 import 'chest_prize_screen.dart';
 
@@ -111,13 +114,19 @@ class _ChestScreenState extends State<ChestScreen> {
       _won = trKey('chestGiftTitle').replaceAll('{name}', GiftCatalog.byKey(_choice!.giftKey)?.title ?? '');
     }
     if (!_free) _ad.load();
+    PairJarService.instance.addListener(_onJar);
     ChestFrames.prefetch(_openUrl);
     _load();
     _clock = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
   }
 
+  void _onJar() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    PairJarService.instance.removeListener(_onJar);
     _clock?.cancel();
     _ad.dispose();
     super.dispose();
@@ -149,7 +158,7 @@ class _ChestScreenState extends State<ChestScreen> {
   }
 
   Future<void> _load() async {
-    final st = await ChestService.instance.state();
+    final st = await ChestService.instance.state(groupId: widget.groupId);
     if (mounted && st != null) setState(() => _state = st);
   }
 
@@ -178,15 +187,23 @@ class _ChestScreenState extends State<ChestScreen> {
     await binding.endOfFrame;
   }
 
-  Future<void> _open() async {
+  /// Открытия из копилки пары, что ждут меня.
+  int get _jarBonus => PairJarService.instance.jar?.bonus ?? 0;
+
+  /// Открытие из копилки после обрыва связи повторяется тем же видом.
+  bool _pendingFromJar = false;
+
+  Future<void> _open({bool fromJar = false}) async {
     if (_busy || _animating) return;
-    if (_left <= 0 && _pendingOpenId == null) {
+    if (_pendingOpenId != null) fromJar = _pendingFromJar;
+    if (fromJar && _jarBonus <= 0 && _pendingOpenId == null) return;
+    if (!fromJar && _left <= 0 && _pendingOpenId == null) {
       _snack(trKey('chestLimit'));
       return;
     }
     final openId = _pendingOpenId ?? newPbId();
     var adShown = false;
-    if (_pendingOpenId == null && !_free) {
+    if (_pendingOpenId == null && !_free && !fromJar) {
       if (!_ad.isReady) {
         _ad.load();
         _snack(LocaleService.current.streakRestoreNoAd);
@@ -206,9 +223,10 @@ class _ChestScreenState extends State<ChestScreen> {
       adShown = true;
     }
     _pendingOpenId = openId;
+    _pendingFromJar = fromJar;
     setState(() => _busy = true);
     // Приз разыгрывается, пока закрывается реклама и докачивается открытие.
-    final request = ChestService.instance.open(openId: openId, groupId: widget.groupId);
+    final request = ChestService.instance.open(openId: openId, groupId: widget.groupId, fromJar: fromJar);
     if (adShown) await _untilVisible();
     await ChestFrames.prefetch(_openUrl);
     final res = await request;
@@ -216,17 +234,22 @@ class _ChestScreenState extends State<ChestScreen> {
     if (!res.ok) {
       setState(() {
         _busy = false;
+        if (res.error == 'no_bonus') {
+          _pendingOpenId = null;
+          PairJarService.instance.setBonus(0);
+        }
         if (res.error == 'chest_limit') {
           _pendingOpenId = null;
           _state = _state == null
               ? null
-              : ChestState(left: 0, perDay: _perDay, odds: _state!.odds, untilRare: _state!.untilRare);
+              : ChestState(left: 0, perDay: _perDay, odds: _state!.odds, untilRare: _state!.untilRare, jar: _state!.jar);
         }
       });
       _snack(trKey(res.error == 'chest_limit' ? 'chestLimit' : 'chestFailed'));
       return;
     }
     _pendingOpenId = null;
+    _pendingFromJar = false;
     _lastOpenId = openId;
     if (res.coins != null) widget.onCoins?.call(res.coins!);
     if (res.prize?.kind == ChestPrizeKind.plus) PlusService.instance.refresh();
@@ -249,6 +272,7 @@ class _ChestScreenState extends State<ChestScreen> {
           perDay: _perDay,
           odds: _state!.odds,
           untilRare: res.untilRare ?? _state!.untilRare,
+          jar: PairJarService.instance.jar,
         );
       }
     });
@@ -380,7 +404,14 @@ class _ChestScreenState extends State<ChestScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            if (_choice != null) _pick(cs) else if (_wearWon != null) _wear(cs) else _button(cs),
+            if (_choice != null)
+              _pick(cs)
+            else if (_wearWon != null)
+              _wear(cs)
+            else ...[
+              if (_jarBonus > 0 || _pendingFromJar) ...[_jarButton(cs), const SizedBox(height: 8)],
+              _button(cs),
+            ],
             if (_choice == null && _state?.untilRare != null) ...[
               const SizedBox(height: 8),
               _pity(cs, _state!.untilRare!),
@@ -393,6 +424,7 @@ class _ChestScreenState extends State<ChestScreen> {
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 12, height: 1.4, color: cs.onSurfaceVariant),
             ),
+            if (PairJarService.instance.jar != null) ...[const SizedBox(height: 10), _jarRow(cs)],
             const SizedBox(height: 8),
             for (final (tier, prizes) in chestSections(_odds)) ...[
               Padding(
@@ -502,6 +534,63 @@ class _ChestScreenState extends State<ChestScreen> {
           ),
         ),
         child: Text(label),
+      ),
+    );
+  }
+
+  /// Открыть из копилки пары: без ролика и сверх трёх в день.
+  Widget _jarButton(ColorScheme cs) {
+    final busy = _busy || _animating;
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton(
+        onPressed: busy ? null : () => _open(fromJar: true),
+        style: FilledButton.styleFrom(
+          backgroundColor: cs.primaryContainer,
+          foregroundColor: readableTextOn(cs.primaryContainer),
+          disabledBackgroundColor: cs.primaryContainer.withValues(alpha: 0.6),
+          disabledForegroundColor: readableTextOn(cs.primaryContainer),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          shape: const StadiumBorder(),
+          textStyle: const TextStyle(fontFamily: ProfileTheme.displayFont, fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            busy ? trKey('chestOpening') : trKey('jarOpen').replaceAll('{n}', '${_jarBonus > 0 ? _jarBonus : 1}'),
+            maxLines: 1,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Копилка пары под кнопкой: капли и как она работает.
+  Widget _jarRow(ColorScheme cs) {
+    final jar = PairJarService.instance.jar!;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(color: cs.surfaceContainerLow, borderRadius: BorderRadius.circular(20)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            trKey('jarTitle'),
+            style: TextStyle(
+              fontFamily: ProfileTheme.displayFont,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: cs.onSurface,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            jar.capped ? trKey('jarCapped') : trKey('jarHint'),
+            style: TextStyle(fontSize: 12.5, height: 1.35, color: cs.onSurfaceVariant),
+          ),
+          const SizedBox(height: 8),
+          JarDrops(jar: jar, mine: cs.primary, partner: cs.primaryContainer, dropHeight: 26, gap: 2),
+        ],
       ),
     );
   }

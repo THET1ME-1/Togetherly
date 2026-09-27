@@ -56,6 +56,8 @@ import 'screens/login_screen.dart';
 import 'screens/force_update_screen.dart';
 import 'widgets/common/m3_loading.dart';
 import 'widgets/offline_sync_banner.dart';
+import 'services/pair_jar_service.dart';
+import 'widgets/chest/jar_toast.dart';
 
 // ATT/трекинг убран НАМЕРЕННО: приложение НЕ отслеживает пользователей
 // (в App Store Connect: App Privacy → Tracking = None). Без ATT-авторизации
@@ -568,6 +570,8 @@ void main() async {
       systemNavigationBarContrastEnforced: false,
     ),
   );
+  // Строка «+1 в копилку пары» после любого ролика.
+  PairJarService.instance.onDrop = showJarToast;
   runApp(const LoveApp());
 }
 

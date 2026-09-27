@@ -2504,6 +2504,73 @@
       "createRule": null,
       "updateRule": null,
       "deleteRule": null
+    },
+    {
+      "name": "pair_jars",
+      "type": "base",
+      "fields": [
+        {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "required": true,
+          "system": true,
+          "pattern": "^[a-z0-9]+$",
+          "min": 15,
+          "max": 15,
+          "autogeneratePattern": "[a-z0-9]{15}"
+        },
+        {
+          "name": "group_id",
+          "type": "text",
+          "required": true,
+          "max": 64
+        },
+        {
+          "name": "drops",
+          "type": "json",
+          "maxSize": 4000
+        },
+        {
+          "name": "day",
+          "type": "text",
+          "max": 10
+        },
+        {
+          "name": "jars_today",
+          "type": "number"
+        },
+        {
+          "name": "bonus",
+          "type": "json",
+          "maxSize": 2000
+        },
+        {
+          "name": "last",
+          "type": "json",
+          "maxSize": 2000
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "onCreate": true,
+          "onUpdate": false
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "onCreate": true,
+          "onUpdate": true
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX `idx_pair_jars_group` ON `pair_jars` (`group_id`)"
+      ],
+      "listRule": null,
+      "viewRule": null,
+      "createRule": null,
+      "updateRule": null,
+      "deleteRule": null
     }
   ],
   "deleteMissing": false

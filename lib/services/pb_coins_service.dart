@@ -89,7 +89,9 @@ class PbCoinsService {
   /// вышло не больше трёх и чтобы одно задание не оплатили дважды.
   Future<Map<String, dynamic>?> taskReward(String taskId) =>
       _call('task-reward', {'task_id': taskId});
-  Future<Map<String, dynamic>?> adReward() => _call('ad-reward');
+  /// [groupId] — пара, в копилку которой падает капля за ролик.
+  Future<Map<String, dynamic>?> adReward({String? groupId}) =>
+      _call('ad-reward', {if (groupId != null && groupId.isNotEmpty) 'groupId': groupId});
 
   /// Просит временную награду за рекламу: [kind] — ключ из `adGrantKey`,
   /// [id] — номер темы строкой или id фона.

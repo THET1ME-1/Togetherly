@@ -1,5 +1,6 @@
 import 'avatar_frame.dart';
 import 'gift.dart';
+import 'pair_jar.dart';
 import 'profile_icon.dart';
 
 /// Что лежит в сундуке недели и с какими шансами.
@@ -69,7 +70,7 @@ class ChestPrize {
 }
 
 class ChestState {
-  const ChestState({required this.left, required this.perDay, required this.odds, this.untilRare});
+  const ChestState({required this.left, required this.perDay, required this.odds, this.untilRare, this.jar});
 
   final int left;
   final int perDay;
@@ -78,6 +79,9 @@ class ChestState {
   /// Через сколько открытий редкий приз гарантирован (1 — следующее). null —
   /// сервер постарше, гарантии не знает.
   final int? untilRare;
+
+  /// Копилка пары; null — сервер постарше или пары нет.
+  final PairJar? jar;
 
   static ChestState? fromJson(Map<String, dynamic>? j) {
     if (j == null || j['ok'] != true) return null;
@@ -94,6 +98,7 @@ class ChestState {
       perDay: perDay,
       odds: odds,
       untilRare: (j['untilRare'] as num?)?.toInt(),
+      jar: PairJar.fromJson(j['jar']),
     );
   }
 }

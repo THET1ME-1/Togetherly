@@ -5,10 +5,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import '../models/ad_show_finished.dart';
+import '../models/pair_jar.dart';
 import 'package:yandex_mobileads/mobile_ads.dart' as yandex;
 
 import '../config/ad_units.dart';
 
+import 'pair_jar_service.dart';
 import 'pb_coins_service.dart';
 
 /// Загрузка и показ rewarded-видео Яндекса. AdMob убран 28.09.2026: стоял
@@ -305,8 +307,11 @@ class RewardedAdService {
   /// применяет точный баланс и не рисует фейк при лимите.
   Future<void> _grantAdReward() async {
     try {
-      final res = await PbCoinsService().adReward();
+      final res = await PbCoinsService().adReward(groupId: PairJarService.instance.groupId);
       if (res != null) {
+        // Копилка пары: капля падает за каждый засчитанный ролик, и после
+        // дневного предела монет тоже.
+        PairJarService.instance.applyDrop(PairJar.fromJson(res['jar']));
         _lastRewardGranted = res['ok'] == true;
         _lastRateLimited = res['rateLimited'] == true;
         final c = res['coins'];
