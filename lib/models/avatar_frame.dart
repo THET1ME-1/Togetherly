@@ -31,6 +31,7 @@ class AvatarFrame {
     this.smUrl,
     this.lgUrl,
     this.stillUrl,
+    this.hole = avatarR,
   });
 
   final String key;
@@ -49,6 +50,28 @@ class AvatarFrame {
 
   /// Неподвижный кадр 448 px.
   final String? stillUrl;
+
+  /// Радиус фото под рамкой в единицах холста 0..100 (`data.hole`). Рисунок
+  /// рамки частью лежит внутри круга [avatarR], и фото целиком уходило под неё
+  /// на треть площади. Фото ужимается до [hole], и его край прячется под
+  /// внутренний контур; место в раскладке аватарка занимает прежнее.
+  final double hole;
+
+  /// Радиус фото, под который считан [scale].
+  static const double avatarR = 31;
+
+  /// Во сколько раз ужать фото под этой рамкой.
+  double get photoScale => hole / avatarR;
+
+  /// Радиусы рамок из сборки — на случай, когда каталога ещё нет.
+  static const Map<String, double> bundledHole = {
+    'wreath': 26.5, 'cloud': 27, 'ribbon': 27.5, 'hearts': 31, 'daisies': 30.5,
+    'cat': 30.5, 'lights': 31, 'donut': 28, 'clock': 27.5,
+  };
+
+  /// Масштаб фото под рамкой [key]: из каталога, иначе из сборки.
+  static double photoScaleFor(String key) =>
+      (byKey(key)?.hole ?? bundledHole[key] ?? avatarR) / avatarR;
 
   /// Картинка рамки больше самой аватарки: фото занимает круг радиуса 31 на
   /// холсте 100, рамка выступает за его край.
@@ -115,6 +138,8 @@ class AvatarFrame {
         ? {for (final e in v.entries) '${e.key}': '${e.value}'}
         : const {};
     final sort = row['sort'];
+    final rawHole = data['hole'];
+    final hole = rawHole is num ? rawHole.toDouble().clamp(18.0, avatarR) : (bundledHole[key] ?? avatarR);
     return AvatarFrame(
       key: key,
       rarity: '${data['rarity'] ?? 'common'}',
@@ -124,6 +149,7 @@ class AvatarFrame {
       smUrl: sm,
       lgUrl: lg,
       stillUrl: still,
+      hole: hole,
     );
   }
 

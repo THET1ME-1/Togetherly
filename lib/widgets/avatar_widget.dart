@@ -4,7 +4,9 @@ import 'storage_image.dart';
 import 'widget_content_view.dart';
 import '../services/pocketbase_service.dart';
 import '../services/pb_auth_service.dart';
+import '../models/avatar_frame.dart';
 import '../services/avatar_frames.dart';
+import '../services/catalog_service.dart';
 import 'common/avatar_frame_image.dart';
 
 /// Unified avatar widget used everywhere a user picture is displayed.
@@ -152,10 +154,21 @@ class FramedAvatar extends StatelessWidget {
         if (key == null || key.isEmpty) return child;
         return SizedBox.square(
           dimension: size,
-          child: Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.center,
-            children: [child, AvatarFrameImage(key, avatarSize: size)],
+          child: ListenableBuilder(
+            listenable: CatalogService.instance,
+            builder: (context, _) {
+              // Фото ужимается до внутреннего края рамки, иначе рамка
+              // закрывает его край (AvatarFrame.hole).
+              final k = AvatarFrame.photoScaleFor(key);
+              return Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.center,
+                children: [
+                  k >= 1 ? child : Transform.scale(scale: k, child: child),
+                  AvatarFrameImage(key, avatarSize: size),
+                ],
+              );
+            },
           ),
         );
       },

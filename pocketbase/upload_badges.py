@@ -197,6 +197,8 @@ def upload_frame(folder: Path, token: str) -> None:
         "rarity": spec.get("rarity", "common"),
         "name": names,
         "desc": spec.get("desc") or {},
+        # Радиус фото под рамкой, единицы холста 0..100 (31 — фото целиком).
+        "hole": float(spec.get("hole", 31)),
         **urls,
     }
     body, ctype = multipart({"data": json.dumps(manifest, ensure_ascii=False)}, [])
