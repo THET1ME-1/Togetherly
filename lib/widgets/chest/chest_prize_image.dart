@@ -63,3 +63,38 @@ class ChestPrizeImage extends StatelessWidget {
     }
   }
 }
+
+/// Приз, вылетающий из сундука, в кадре [spot] дорожки [kChestPrizeTrack]
+/// (доли стороны сцены [stage]: левый край, верх, сторона).
+///
+/// Картинка рисуется ОДИН раз в конечном размере, а рост — масштабом при
+/// отрисовке. Пока размер приза менялся каждые 60 мс, у картинки менялся
+/// размер декодирования, и она перезагружалась на каждом кадре: между
+/// загрузками — пусто, приз мигал «есть — нет» всё время подъёма (жалоба
+/// 28.09.2026).
+class ChestPrizeFlight extends StatelessWidget {
+  const ChestPrizeFlight({super.key, required this.prize, required this.spot, required this.stage});
+
+  final ChestPrize prize;
+  final List<double> spot;
+  final double stage;
+
+  /// Самый крупный размер приза на дорожке — в нём картинка и декодируется.
+  static final double maxShare = kChestPrizeTrack.fold<double>(0, (m, s) => s == null ? m : (s[2] > m ? s[2] : m));
+
+  @override
+  Widget build(BuildContext context) {
+    final full = maxShare * stage;
+    return Positioned(
+      left: spot[0] * stage,
+      top: spot[1] * stage,
+      width: spot[2] * stage,
+      height: spot[2] * stage,
+      child: FittedBox(
+        fit: BoxFit.contain,
+        clipBehavior: Clip.none,
+        child: SizedBox.square(dimension: full, child: ChestPrizeImage(prize, side: full)),
+      ),
+    );
+  }
+}

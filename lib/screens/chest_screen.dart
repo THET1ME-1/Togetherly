@@ -494,14 +494,7 @@ class _ChestScreenState extends State<ChestScreen> {
                     onFrame: _onOpenFrame,
                     onDone: _onOpenDone,
                   ),
-                if (opening != null && spot != null)
-                  Positioned(
-                    left: spot[0] * side,
-                    top: spot[1] * side,
-                    width: spot[2] * side,
-                    height: spot[2] * side,
-                    child: ChestPrizeImage(opening, side: spot[2] * side),
-                  ),
+                if (opening != null && spot != null) ChestPrizeFlight(prize: opening, spot: spot, stage: side),
               ],
             ),
           ),
