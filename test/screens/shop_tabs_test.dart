@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:love_app/dict_strings.dart' show trKey;
 import 'package:love_app/models/avatar_frame.dart';
+import 'package:love_app/models/gift.dart';
 import 'package:love_app/models/user_data.dart';
 import 'package:love_app/screens/gifts/gift_shop_screen.dart';
 import 'package:love_app/services/catalog_service.dart';
@@ -22,7 +23,7 @@ void main() {
     AvatarFrame(key: 'cat', rarity: 'legendary', sort: 90, stillUrl: 'https://x/c.png'),
   ];
 
-  Future<void> pumpShop(WidgetTester tester, ShopTab tab, {double scale = 1.3}) async {
+  Future<void> pumpShop(WidgetTester tester, ShopTab tab, {double scale = 1.3, bool gifts = false}) async {
     installTestBadges();
     CatalogService.instance.debugSetFrames(frames);
     final ud = UserData()..applyOwnedFeatures(const ['frame:frame_cat']);
@@ -34,12 +35,12 @@ void main() {
         data: MediaQueryData(size: const Size(320, 720), textScaler: TextScaler.linear(scale)),
         child: GiftShopScreen(
           theme: buildAppTheme(kPalettes[0], Brightness.light),
-          groupId: '',
+          groupId: gifts ? 'g' : '',
           coins: 25,
           onCoins: (_) {},
           userData: ud,
           initialTab: tab,
-          showGifts: false,
+          showGifts: gifts,
         ),
       ),
     ));
@@ -67,5 +68,25 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.text(trKey('shopFromChest')), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('подарки сундука стоят своей полкой «Из сундука», без цены', (tester) async {
+    await pumpShop(tester, ShopTab.gifts, gifts: true);
+    // Чип фильтра открывает только полку сундука.
+    final chip = find.text(trKey('shopFromChest'));
+    // Лента фильтров — первая прокрутка экрана, чип сундука в ней последний.
+    await tester.scrollUntilVisible(chip, 80, scrollable: find.byType(Scrollable).first);
+    await tester.ensureVisible(chip.first);
+    await tester.pumpAndSettle(const Duration(milliseconds: 100));
+    await tester.tap(chip.first);
+    // Смена полки идёт через AnimatedSwitcher: ждём, пока уйдёт прежний список.
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text(GiftCatalog.chest.first.title), findsOneWidget);
+    // Карточек сундука видно несколько, у каждой пометка вместо цены; ценников
+    // с монетой на полке нет вовсе.
+    expect(find.text(trKey('shopFromChest')).evaluate().length, greaterThan(2));
+    expect(find.text('10'), findsNothing);
+    expect(find.text('15'), findsNothing);
   });
 }

@@ -94,7 +94,11 @@ const Cubic _emphasizedDecelerate = Cubic(0.05, 0.7, 0.1, 1.0);
 /// 3 — событие (40–60). Уровень задаёт тональный цвет и «крутость» формы.
 int _tierOf(int price) => price <= 15 ? 1 : (price <= 30 ? 2 : 3);
 
+/// Полка подарков сундука: в продаже их нет, они только выпадают.
+const int _chestShelf = 4;
+
 String _tierName(int tier) {
+  if (tier == _chestShelf) return trKey('shopFromChest');
   final ru = LocaleService.instance.isRussian;
   return switch (tier) {
     1 => ru ? 'Каждый день' : 'Everyday',
@@ -449,7 +453,7 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
 
   Widget _body(ColorScheme cs) {
     final reduce = MediaQuery.of(context).disableAnimations;
-    final tiers = _filter == null ? const [1, 2, 3] : [_filter!];
+    final tiers = _filter == null ? const [1, 2, 3, _chestShelf] : [_filter!];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -460,6 +464,7 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
             (1, _tierName(1)),
             (2, _tierName(2)),
             (3, _tierName(3)),
+            (_chestShelf, _tierName(_chestShelf)),
           ],
           selected: _filter,
           onPick: _pickFilter,
@@ -481,12 +486,15 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
                 if (_filter == null) ChestStashLane(groupId: widget.groupId),
                 for (final tier in tiers) ...[
                   _ShelfHeader(title: _tierName(tier)),
-                  _giftGrid(
-                    GiftCatalog.all
-                        .where((g) => _tierOf(g.price) == tier)
-                        .toList(),
-                    reduce,
-                  ),
+                  if (tier == _chestShelf)
+                    _chestGiftGrid(reduce)
+                  else
+                    _giftGrid(
+                      GiftCatalog.all
+                          .where((g) => _tierOf(g.price) == tier)
+                          .toList(),
+                      reduce,
+                    ),
                 ],
               ],
             ),
@@ -516,6 +524,70 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
           onTap: () => _sending == null ? _choose(gift) : null,
         );
       },
+    );
+  }
+
+  /// Подарки сундука: та же карточка, вместо цены «Из сундука». Купить или
+  /// подарить их отсюда нельзя — нажатие объясняет это и ведёт в сундук.
+  Widget _chestGiftGrid(bool reduce) {
+    const gifts = GiftCatalog.chest;
+    return _CardGrid(
+      count: gifts.length,
+      builder: (context, i) {
+        final gift = gifts[i];
+        return _ShopCard(
+          tag: _LabelTag(trKey('shopFromChest'), icon: Icons.redeem_rounded),
+          art: (side) => GiftImage(gift.key, side: side),
+          title: gift.title,
+          muted: true,
+          reduce: reduce,
+          onTap: () => _openChestGift(gift),
+        );
+      },
+    );
+  }
+
+  Future<void> _openChestGift(Gift gift) async {
+    final cs = Theme.of(context).colorScheme;
+    final chest = widget.groupId.isNotEmpty;
+    final action = await showAppSheet<String>(
+      context,
+      builder: (ctx) => SheetScaffold(
+        child: _ItemSheet(
+          art: Container(
+            width: 132,
+            height: 132,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: cs.primaryContainer,
+              shape: BoxShape.circle,
+            ),
+            child: GiftImage(gift.key, side: 100),
+          ),
+          title: gift.title,
+          lines: [
+            trKey('shopGiftChestHint'),
+            if (!chest) trKey('shopChestNeedsPair'),
+          ],
+          actions: [if (chest) ('chest', trKey('shopOpenChest'), true, true)],
+        ),
+      ),
+    );
+    if (action == 'chest' && mounted) await _openChest();
+  }
+
+  Future<void> _openChest() {
+    return Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChestScreen(
+          theme: widget.theme,
+          groupId: widget.groupId,
+          partnerName: widget.partnerName,
+          onCoins: widget.onCoins,
+          userData: widget.userData,
+        ),
+        settings: const RouteSettings(name: '/chest'),
+      ),
     );
   }
 
@@ -777,18 +849,7 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
     );
     if (action == null || !mounted) return;
     if (action == 'chest') {
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => ChestScreen(
-            theme: widget.theme,
-            groupId: widget.groupId,
-            partnerName: widget.partnerName,
-            onCoins: widget.onCoins,
-            userData: ud,
-          ),
-          settings: const RouteSettings(name: '/chest'),
-        ),
-      );
+      await _openChest();
       return;
     }
     setState(() => _busyItem = f.key);

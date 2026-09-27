@@ -155,6 +155,15 @@ const Map<String, Map<String, String>> shopStrings = {
     'fr': 'Les cadres ne s’achètent pas, ils sortent du coffre de la semaine.',
     'de': 'Rahmen kann man nicht kaufen, sie kommen aus der Wochentruhe.',
   },
+  'shopGiftChestHint': {
+    'ru': 'Этот подарок не продаётся, он выпадает из сундука недели. Выпавший можно подарить партнёру или оставить себе.',
+    'en': 'This gift isn’t sold, it drops from the weekly chest. Once you get it, give it to your partner or keep it.',
+    'pt': 'Este presente não se vende, sai do baú da semana. Quando sair, podes oferecê-lo ao teu par ou ficar com ele.',
+    'it': 'Questo regalo non si compra, esce dal forziere della settimana. Quando esce, puoi regalarlo al partner o tenerlo.',
+    'es': 'Este regalo no se vende, sale del cofre de la semana. Cuando te toque, regálaselo a tu pareja o quédatelo.',
+    'fr': 'Ce cadeau ne s’achète pas, il sort du coffre de la semaine. Une fois obtenu, offre-le à ton partenaire ou garde-le.',
+    'de': 'Dieses Geschenk gibt es nicht zu kaufen, es kommt aus der Wochentruhe. Dann verschenkst du es oder behältst es.',
+  },
   'shopOpenChest': {
     'ru': 'Открыть сундук',
     'en': 'Open the chest',

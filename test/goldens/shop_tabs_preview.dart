@@ -11,6 +11,7 @@ import 'package:love_app/models/avatar_frame.dart';
 import 'package:love_app/models/user_data.dart';
 import 'package:love_app/screens/gifts/gift_shop_screen.dart';
 import 'package:love_app/services/catalog_service.dart';
+import 'package:love_app/services/locale_service.dart';
 import 'package:love_app/theme/app_palettes.dart';
 import 'package:love_app/theme/profile_theme.dart';
 
@@ -40,7 +41,10 @@ void main() {
           '/artifacts/material_fonts/MaterialIcons-Regular.otf',
     ]);
   });
-  setUp(() => SharedPreferences.setMockInitialValues({}));
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    await LocaleService.instance.setLanguage(AppLanguage.ru);
+  });
 
   const keys = ['wreath', 'hearts', 'daisies', 'cloud', 'ribbon', 'lights', 'donut', 'clock', 'cat'];
   const names = ['Венок', 'Сердечки', 'Ромашки', 'Облачко', 'Ленточка', 'Гирлянда', 'Пончик', 'Циферблат', 'Котик'];
@@ -55,7 +59,7 @@ void main() {
   ];
 
   // Значки тянут картинки из сети, а её в тестах нет — снимаем только рамки.
-  for (final tab in [ShopTab.frames]) {
+  for (final tab in [ShopTab.frames, ShopTab.gifts]) {
     for (final dark in [false, true]) {
       testWidgets('$tab ${dark ? 'тёмная' : 'светлая'}', (tester) async {
         installTestBadges();
@@ -85,6 +89,17 @@ void main() {
         ));
         await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 600)));
         await tester.pump(const Duration(milliseconds: 500));
+        if (tab == ShopTab.gifts) {
+          // Чип «Из сундука» последний в ленте фильтров: листаем к нему.
+          final chip = find.text('Из сундука');
+          await tester.scrollUntilVisible(chip, 80, scrollable: find.byType(Scrollable).first);
+          await tester.ensureVisible(chip.first);
+          await tester.pumpAndSettle();
+          await tester.tap(chip.first);
+          await tester.pumpAndSettle();
+          await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 600)));
+          await tester.pump(const Duration(milliseconds: 100));
+        }
         expect(tester.takeException(), isNull);
         await tester.runAsync(() async {
           final b = key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
