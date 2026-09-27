@@ -12,6 +12,7 @@ import '../services/chest_service.dart';
 import '../services/locale_service.dart';
 import '../services/offline/pb_id.dart';
 import '../services/plus_service.dart';
+import '../services/chest_sound.dart';
 import '../services/pair_jar_service.dart';
 import '../services/pocketbase_service.dart';
 import '../services/rewarded_ad_service.dart';
@@ -116,6 +117,8 @@ class _ChestScreenState extends State<ChestScreen> {
     }
     if (!_free) _ad.load();
     PairJarService.instance.addListener(_onJar);
+    ChestSound.instance.addListener(_onJar);
+    unawaited(ChestSound.instance.load());
     ChestFrames.prefetch(_openUrl);
     _load();
     _clock = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
@@ -128,6 +131,8 @@ class _ChestScreenState extends State<ChestScreen> {
   @override
   void dispose() {
     PairJarService.instance.removeListener(_onJar);
+    ChestSound.instance.removeListener(_onJar);
+    unawaited(ChestSound.instance.stop());
     _clock?.cancel();
     _ad.dispose();
     super.dispose();
@@ -185,6 +190,8 @@ class _ChestScreenState extends State<ChestScreen> {
       return;
     }
     final openId = _pendingOpenId ?? newPbId();
+    // Плеер звука готовится, пока идут реклама и розыгрыш.
+    ChestSound.instance.prepare();
     var adShown = false;
     if (_pendingOpenId == null && !_free && !fromJar) {
       if (!_ad.isReady) {
@@ -245,6 +252,7 @@ class _ChestScreenState extends State<ChestScreen> {
     setState(() {
       _opening = res.prize;
       _animating = true;
+      _soundStarted = false;
       _frame = -1;
       _openRun++;
       _won = null;
@@ -262,8 +270,16 @@ class _ChestScreenState extends State<ChestScreen> {
     });
   }
 
+  /// Звук открытия уже пошёл для этого прогона анимации.
+  bool _soundStarted = false;
+
   void _onOpenFrame(int i) {
     if (!mounted) return;
+    if (!_soundStarted) {
+      _soundStarted = true;
+      ChestSound.instance.start(i);
+    }
+    ChestSound.instance.haptic(_frame, i);
     setState(() {
       _frame = i;
       if (i >= kChestWonFrame && _won == null && _opening != null) _won = _wonText(_opening!);
@@ -359,6 +375,14 @@ class _ChestScreenState extends State<ChestScreen> {
           surfaceTintColor: Colors.transparent,
           elevation: 0,
           iconTheme: IconThemeData(color: cs.onSurface),
+          actions: [
+            IconButton(
+              tooltip: trKey(ChestSound.instance.enabled ? 'chestSoundOff' : 'chestSoundOn'),
+              icon: Icon(ChestSound.instance.enabled ? Icons.volume_up_rounded : Icons.volume_off_rounded),
+              onPressed: () => ChestSound.instance.setEnabled(!ChestSound.instance.enabled),
+            ),
+            const SizedBox(width: 4),
+          ],
           title: Text(
             trKey('chestTitle'),
             style: TextStyle(

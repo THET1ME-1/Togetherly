@@ -497,4 +497,22 @@ const Map<String, Map<String, String>> shopStrings = {
     'fr': 'Il est déjà à côté de ton pseudo, ton partenaire le voit. Change-le dans la boutique.',
     'de': 'Es steht schon neben deinem Namen, dein Partner sieht es. Wechseln kannst du im Shop.',
   },
+  'chestSoundOff': {
+    'ru': 'Выключить звук сундука',
+    'en': 'Mute the chest',
+    'pt': 'Silenciar o baú',
+    'it': 'Silenzia il forziere',
+    'es': 'Silenciar el cofre',
+    'fr': 'Couper le son du coffre',
+    'de': 'Truhe stumm schalten',
+  },
+  'chestSoundOn': {
+    'ru': 'Включить звук сундука',
+    'en': 'Unmute the chest',
+    'pt': 'Ativar o som do baú',
+    'it': 'Attiva il suono del forziere',
+    'es': 'Activar el sonido del cofre',
+    'fr': 'Remettre le son du coffre',
+    'de': 'Truhenton einschalten',
+  },
 };

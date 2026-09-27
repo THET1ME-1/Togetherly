@@ -51,6 +51,8 @@ dependencies:
   geocoding: ^3.0.0
   path_provider: ^2.1.5
   just_audio: ^0.9.42
+  # Сессия звука iPhone: звук сундука не играет поверх чужой музыки.
+  audio_session: ^0.1.25
   # Запись голосовых: 7.x требует Flutter 3.44, у нас 3.41 — держим 6.x.
   record: ^6.2.1
   # Голосовая связь в комнате совместного просмотра (WebRTC между двумя).
@@ -159,6 +161,7 @@ flutter:
     - assets/images/icons/
     - assets/images/gifts/
     - assets/images/frames/
+    - assets/sounds/
     - assets/images/logo/
     - assets/icons/
     - assets/mascots/
