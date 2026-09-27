@@ -20,6 +20,7 @@ import '../theme/profile_theme.dart';
 import '../widgets/common/stable_stream_builder.dart';
 import '../widgets/avatar_widget.dart';
 import '../widgets/miss_you/custom_vibe_sheet.dart';
+import '../widgets/miss_you/heart_field.dart';
 import '../widgets/settings_scaffold.dart';
 
 /// Экран «Скучаю» — вместо панельки под кнопкой в шапке.
@@ -87,6 +88,9 @@ class _MissYouScreenState extends State<MissYouScreen>
   /// История импульсов за сегодня и вчера. null — ещё не пришла или сервер
   /// её не знает: тогда внизу прежняя карточка «последнее от партнёра».
   List<MissYouEvent>? _events;
+
+  /// Фон карточки с сердцем: нажатие пускает по нему волну.
+  final GlobalKey<HeartFieldState> _field = GlobalKey();
 
   /// Ответы, ушедшие с этого экрана, пока история не перечиталась.
   final Set<String> _justReplied = {};
@@ -210,6 +214,7 @@ class _MissYouScreenState extends State<MissYouScreen>
     if (widget.groupId.isEmpty) return;
     HapticFeedback.mediumImpact();
     _pulse.forward(from: 0);
+    _field.currentState?.pulse();
     _spawnHearts();
     setState(() => _mine = _mine.tap(DateTime.now()));
     _scheduleStaleSweep();
@@ -472,16 +477,40 @@ class _MissYouScreenState extends State<MissYouScreen>
 
   Widget _hero(ColorScheme cs) {
     final myCount = _mine.display;
-    return Container(
-      decoration: BoxDecoration(
+    // Живой фон — поле сердечек (макет «Фон сердца «Скучаю»», вариант Б):
+    // лежит под содержимым карточки, волна идёт от центра большого сердца.
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(28),
+      child: ColoredBox(
         color: cs.surfaceContainer,
-        borderRadius: BorderRadius.circular(28),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: HeartField(
+                key: _field,
+                color: _fill,
+                center: (size) => Offset(size.width / 2, _heroTop + _heartBox / 2),
+              ),
+            ),
+            _heroBody(cs, myCount),
+          ],
+        ),
       ),
-      padding: const EdgeInsets.fromLTRB(16, 22, 16, 16),
+    );
+  }
+
+  /// Верхний отступ карточки и высота места под сердцем — от них считается
+  /// центр волны фона.
+  static const double _heroTop = 22;
+  static const double _heartBox = 152;
+
+  Widget _heroBody(ColorScheme cs, int myCount) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, _heroTop, 16, 16),
       child: Column(
         children: [
           SizedBox(
-            height: 152,
+            height: _heartBox,
             child: Stack(
               clipBehavior: Clip.none,
               alignment: Alignment.center,
@@ -501,29 +530,6 @@ class _MissYouScreenState extends State<MissYouScreen>
                       );
                     },
                   ),
-                ),
-                // Волна от нажатия: кольцо расходится и гаснет. Рисуется под
-                // кнопкой, поэтому идёт в стопке раньше неё.
-                AnimatedBuilder(
-                  animation: _pulse,
-                  builder: (context, _) {
-                    final p = _pulse.value;
-                    if (p == 0 || p == 1) return const SizedBox.shrink();
-                    return Transform.scale(
-                      scale: 1 + 0.55 * Curves.easeOut.transform(p),
-                      child: Container(
-                        width: 132,
-                        height: 132,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: _fill.withValues(alpha: 0.42 * (1 - p)),
-                            width: 3,
-                          ),
-                        ),
-                      ),
-                    );
-                  },
                 ),
                 ScaleTransition(
                   scale: _pulseScale,
