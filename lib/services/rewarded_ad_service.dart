@@ -5,30 +5,26 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import '../models/ad_show_finished.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:yandex_mobileads/mobile_ads.dart' as yandex;
 
 import '../config/ad_units.dart';
 
 import 'pb_coins_service.dart';
 
-/// Загрузка и показ rewarded-видео по схеме «водопад»: сначала Яндекс, и если
-/// у Яндекса нет рекламы ([onAdFailedToLoad]) — резерв из AdMob (Google).
+/// Загрузка и показ rewarded-видео Яндекса. AdMob убран 28.09.2026: стоял
+/// резервом и за месяц приносил центы. Нет объявления — фоновый повтор загрузки.
 ///
-/// У Яндекса Google-SSV нет: факт досмотра возвращается из [show] (`true`), и
-/// награда начисляется серверным callable [FirebaseService.callGrantAdReward]
-/// (авторитетно, с дневным лимитом) прямо в [_showYandex]. AdMob (резерв) выдаёт
-/// награду НЕ сам — это делает серверный SSV-callback (Cloud Function
-/// adSsvCallback), который проверяет подпись Google и начисляет коины по `uid`
-/// из `customData`.
+/// Факт досмотра возвращается из [show] (`true`), награду начисляет сервер
+/// (`/api/coins/ad-reward`, с дневным лимитом) прямо в [_showYandex].
 class RewardedAdService {
-  // AdMob — резервная сеть. Debug использует официальный test-блок Google.
-  static const String _testRewardedAdUnit =
-      'ca-app-pub-3940256099942544/5224354917';
+  RewardedAdService({this.chest = false});
+
+  /// Ролик сундука недели: свой блок Яндекса, чтобы вся статистика сундука
+  /// лежала в одном блоке РСЯ.
+  final bool chest;
   // Яндекс — основная сеть. Debug использует официальный demo-блок Яндекса.
   static const String _demoYandexRewardedUnit = 'demo-rewarded-yandex';
 
-  RewardedAd? _ad;
   yandex.RewardedAd? _yandexAd;
   yandex.RewardedAdLoader? _yandexLoader;
   bool _isLoading = false;
@@ -52,18 +48,14 @@ class RewardedAdService {
   int _retryCount = 0;
   bool _disposed = false;
 
-  String get _adUnitId =>
-      kDebugMode
-          ? _testRewardedAdUnit
-          : AdUnits.admobRewarded(ios: Platform.isIOS);
-
-  String get _yandexAdUnitId =>
-      kDebugMode
-          ? _demoYandexRewardedUnit
+  String get _yandexAdUnitId => kDebugMode
+      ? _demoYandexRewardedUnit
+      : chest
+          ? AdUnits.yandexRewardedChest(ios: Platform.isIOS)
           : AdUnits.yandexRewarded(ios: Platform.isIOS);
 
   /// Готова реклама хоть из одной сети.
-  bool get isReady => _ad != null || _yandexAd != null;
+  bool get isReady => _yandexAd != null;
 
   /// True, если показанная реклама была из Яндекса (нет Google-SSV → награду
   /// начисляет серверный callable `grantAdReward`, авторитетно).
@@ -71,7 +63,7 @@ class RewardedAdService {
   bool get lastShowWasYandex => _lastShowWasYandex;
 
   /// Авторитетный баланс коинов после Яндекс-показа (из ответа `grantAdReward`).
-  /// null — для AdMob-пути (там баланс приходит позже через SSV) или если
+  /// null, если
   /// callable не ответил (не задеплоен/оффлайн) — тогда баланс надо подтянуть
   /// с сервера отдельно.
   int? _lastServerCoins;
@@ -87,7 +79,7 @@ class RewardedAdService {
   bool _lastRateLimited = false;
   bool get lastRateLimited => _lastRateLimited;
 
-  /// Предзагружает рекламу: сначала Яндекс, при неудаче — AdMob.
+  /// Предзагружает ролик Яндекса; при отказе — фоновый повтор.
   /// Безопасно дёргать несколько раз.
   Future<void> load() async {
     if (_disposed) return;
@@ -96,33 +88,6 @@ class RewardedAdService {
     _retryTimer?.cancel();
     _isLoading = true;
     unawaited(_loadYandex());
-  }
-
-  /// Резервная загрузка AdMob — вызывается, когда Яндекс не дал рекламы.
-  Future<void> _loadAdMob() async {
-    if (_disposed) return;
-    try {
-      await RewardedAd.load(
-        adUnitId: _adUnitId,
-        request: const AdRequest(),
-        rewardedAdLoadCallback: RewardedAdLoadCallback(
-          onAdLoaded: (ad) {
-            _ad = ad;
-            _isLoading = false;
-            _retryCount = 0; // успех — сбрасываем backoff
-          },
-          onAdFailedToLoad: (error) {
-            debugPrint('AdMob rewarded failed ($error)');
-            _ad = null;
-            // Обе сети не дали рекламу → планируем фоновый ретрай каскада.
-            _scheduleRetry();
-          },
-        ),
-      );
-    } catch (e) {
-      debugPrint('AdMob rewarded load exception: $e');
-      _scheduleRetry();
-    }
   }
 
   /// Планирует фоновую перезагрузку каскада после полного провала обеих сетей.
@@ -151,9 +116,9 @@ class RewardedAdService {
         onAdFailedToLoad: (error) {
           debugPrint(
               'Yandex rewarded failed: ${error.code} ${error.description}'
-              ' → AdMob fallback');
+              ' → retry');
           _yandexAd = null;
-          unawaited(_loadAdMob());
+          _scheduleRetry();
         },
       );
       await _yandexLoader!.loadAd(
@@ -161,17 +126,15 @@ class RewardedAdService {
             yandex.AdRequestConfiguration(adUnitId: _yandexAdUnitId),
       );
     } catch (e) {
-      debugPrint('Yandex rewarded load exception: $e → AdMob fallback');
-      unawaited(_loadAdMob());
+      debugPrint('Yandex rewarded load exception: $e → retry');
+      _scheduleRetry();
     }
   }
 
-  /// Показывает загруженную рекламу (Яндекс в приоритете, иначе AdMob-резерв).
+  /// Показывает загруженный ролик Яндекса.
   ///
-  /// `uid` — uid пользователя, передаётся в SSV `custom_data` (только AdMob).
-  /// Возвращает true, если пользователь досмотрел до награды. Для Яндекса
-  /// награда начисляется внутри [_showYandex] (callable), для AdMob — на сервере
-  /// через SSV.
+  /// Возвращает true, если человек досмотрел до награды; награду начисляет
+  /// сервер внутри [_showYandex]. [uid] оставлен ради прежних вызовов.
   Future<bool> show({required String uid}) async {
     // Уже идёт показ — игнорируем повторный вызов (двойной тап/гонка), иначе
     // запустится второй ролик подряд.
@@ -186,78 +149,11 @@ class RewardedAdService {
         _lastShowWasYandex = true;
         return await _showYandex(_yandexAd!);
       }
-      if (_ad != null) {
-        _lastShowWasYandex = false;
-        return await _showAdMob(_ad!);
-      }
       return false;
     } finally {
       _isShowing = false;
     }
   }
-
-  Future<bool> _showAdMob(RewardedAd ad) async {
-    _ad = null; // одноразовая
-
-    bool earned = false;
-    final completer = Completer<bool>();
-
-    ad.fullScreenContentCallback = FullScreenContentCallback(
-      onAdDismissedFullScreenContent: (ad) {
-        ad.dispose();
-        if (!completer.isCompleted) completer.complete(earned);
-      },
-      onAdFailedToShowFullScreenContent: (ad, error) {
-        debugPrint('RewardedAd show failed: $error');
-        unawaited(Sentry.captureException(
-          'AdMob rewarded failed to show: ${error.code} ${error.message}',
-          withScope: (s) {
-            s.setExtra('reason', 'admob rewarded show failed');
-            s.level = SentryLevel.warning;
-          },
-        ));
-        ad.dispose();
-        if (!completer.isCompleted) completer.complete(false);
-      },
-    );
-
-    try {
-      ad.show(
-        onUserEarnedReward: (_, reward) {
-          earned = true;
-        },
-      );
-    } catch (e) {
-      debugPrint('AdMob rewarded show() бросил — $e');
-      if (!completer.isCompleted) completer.complete(false);
-    }
-    // Предохранитель: если ни onAdDismissed, ни onAdFailedToShow не пришли
-    // (нативный показ не состоялся молча), ожидание иначе не кончается никогда
-    // и запирает экран, который его ждёт.
-    // Ждём так же, как у Яндекса: событие SDK, возврат приложения или
-    // предохранитель. Награда при этом читается из `earned` — её ставит
-    // onUserEarnedReward, и он приходит ДО закрытия.
-    await _awaitAdClosed(completer, 'AdMob rewarded');
-    // Наградой считаем то, что успел проставить onUserEarnedReward: он
-    // приходит ДО закрытия, а само закрытие могло и не прийти.
-    final result = earned;
-    if (result) {
-      // У AdMob на PocketBase серверного SSV-callback нет (adSsvCallback не
-      // портирован), поэтому начисляем тем же авторитетным роутом, что и Яндекс
-      // (/api/coins/ad-reward). Без этого сервер не видит просмотр → суточный
-      // счётчик «X/3» откатывался к нулю при следующем синке профиля, а коины
-      // держались лишь оптимистично (ensureCoinsAtLeast).
-      await _grantAdReward();
-    } else {
-      // Закрыл рекламу до награды — коинов не будет.
-      // Breadcrumb (не ошибка: чаще это просто ранний выход пользователя).
-      Sentry.addBreadcrumb(Breadcrumb(
-          message: 'ad_reward: AdMob dismissed without earned reward',
-          level: SentryLevel.info));
-    }
-    return result;
-  }
-
 
   /// Ждёт закрытия показа: событие от SDK, возврат приложения на передний план
   /// или предохранитель — что случится раньше.
@@ -403,10 +299,8 @@ class RewardedAdService {
     return earned;
   }
 
-  /// Серверное начисление за rewarded-показ. Ни у Яндекса, ни у AdMob на
-  /// PocketBase нет Google-SSV, поэтому начисляем авторитетным роутом
-  /// `/api/coins/ad-reward` для ОБЕИХ сетей: Яндекс зовёт из onRewarded, AdMob —
-  /// после досмотра. С дневным лимитом на сервере. Результат — в
+  /// Серверное начисление за rewarded-показ авторитетным роутом
+  /// `/api/coins/ad-reward`, зовётся из onRewarded. С дневным лимитом на сервере. Результат — в
   /// [lastServerCoins]/[lastRewardGranted]/[lastRateLimited]: вызывающий
   /// применяет точный баланс и не рисует фейк при лимите.
   Future<void> _grantAdReward() async {
@@ -470,8 +364,6 @@ class RewardedAdService {
     _disposed = true;
     _retryTimer?.cancel();
     _retryTimer = null;
-    _ad?.dispose();
-    _ad = null;
     _yandexAd = null;
     unawaited(_yandexLoader?.destroy() ?? Future.value());
     _yandexLoader = null;

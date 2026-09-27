@@ -91,6 +91,9 @@ module.exports = function collectIncome() {
         formats: slice("period=30days&entity_field=block_type&field=partner_wo_nds&field=shows"),
         geo: slice("period=30days&dimension_field=geo|country&field=partner_wo_nds&field=shows"),
         os: slice("period=30days&entity_field=os&field=partner_wo_nds&field=shows"),
+        // По блокам: у сундука свой блок «Сундук» (28.09.2026), его доход и
+        // показы видны отдельной строкой. Название блока — из кабинета РСЯ.
+        blocks: slice("period=30days&entity_field=block_caption&field=partner_wo_nds&field=shows"),
       };
     } catch (err) {
       result.sources.rsya = { ok: false, reason: String(err).slice(0, 200) };

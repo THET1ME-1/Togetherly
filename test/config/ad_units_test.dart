@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:love_app/config/ad_units.dart';
 
@@ -21,6 +23,14 @@ void main() {
       }
     });
 
+    test('у сундука свой блок, не общий ролик за награду', () {
+      for (final ios in [true, false]) {
+        expect(AdUnits.yandexRewardedChest(ios: ios), isNot(AdUnits.yandexRewarded(ios: ios)));
+      }
+      expect(AdUnits.yandexRewardedChest(ios: true), 'R-M-19461868-4');
+      expect(AdUnits.yandexRewardedChest(ios: false), 'R-M-19386995-4');
+    });
+
     test('iOS-блоки из приложения 19461868, Android — из 19386995', () {
       expect(AdUnits.yandexBanner(ios: true), startsWith('R-M-19461868-'));
       expect(AdUnits.yandexRewarded(ios: true), startsWith('R-M-19461868-'));
@@ -41,25 +51,20 @@ void main() {
     });
   });
 
-  group('AdMob', () {
-    test('межстраничные заведены на обеих платформах и они разные', () {
-      final ios = AdUnits.admobInterstitial(ios: true);
-      final android = AdUnits.admobInterstitial(ios: false);
-      expect(ios, isNotEmpty);
-      expect(android, isNotEmpty);
-      expect(ios, isNot(android));
-    });
-
-    test('где блока нет — пустая строка, а не чужой идентификатор', () {
-      // Пустая строка выводит сеть из водопада молча; чужой unit сыпал бы
-      // отказами загрузки и не давал показов.
-      expect(AdUnits.admobBanner(ios: true), isEmpty);
-      expect(AdUnits.admobRewarded(ios: true), isEmpty);
-    });
-
-    test('андроидные блоки на месте', () {
-      expect(AdUnits.admobBanner(ios: false), contains('1956369312643059'));
-      expect(AdUnits.admobRewarded(ios: false), contains('1956369312643059'));
-    });
+  test('AdMob из приложения убран целиком', () {
+    // Стоял первым в водопаде и за месяц приносил центы против сотен долларов
+    // у РСЯ, забирая при этом показы. Вернуть его можно только осознанно.
+    for (final f in [
+      'lib/config/ad_units.dart',
+      'lib/services/rewarded_ad_service.dart',
+      'lib/services/interstitial_ad_service.dart',
+      'lib/widgets/common/ad_banner.dart',
+    ]) {
+      final src = File(f).readAsStringSync();
+      expect(src.contains('ca-app-pub-'), isFalse, reason: '$f: блок AdMob');
+      expect(src.contains("package:google_mobile_ads"), isFalse, reason: '$f: пакет AdMob');
+    }
+    final main = File('lib/main.dart').readAsStringSync();
+    expect(main.contains('MobileAds.instance.initialize'), isFalse, reason: 'AdMob не инициализируется');
   });
 }

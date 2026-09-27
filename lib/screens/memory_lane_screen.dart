@@ -9,9 +9,7 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
-import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
-import '../config/ad_units.dart';
 import '../theme/fonts.dart';
 import '../widgets/storage_image.dart';
 import '../utils/safe_text.dart';
@@ -601,9 +599,6 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   // первые шесть карточек шли без рекламы, и до первого баннера долистывали
   // не все — отсюда трёхкратный разрыв между запросами и показами в РСЯ.
 
-  // Блок берётся из AdUnits: у Android и iOS они разные, а зашитый андроидный
-  // на iPhone показов не давал.
-  String get _bannerAdUnit => AdUnits.admobBanner(ios: Platform.isIOS);
 
   /// Секции ленты (заголовок даты + тайлы) с full-width баннером после каждого
   /// N-го воспоминания. Счётчик ГЛОБАЛЬНЫЙ — не сбрасывается между днями.
@@ -653,7 +648,6 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         // сеть. С ключом инстанс баннера переживает ребилды.
         child: AdBanner(
           key: ValueKey('memlane_ad_$adIndex'),
-          adUnitId: kDebugMode ? '' : _bannerAdUnit,
           slot: 'memlane',
         ),
       ),

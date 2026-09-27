@@ -1,10 +1,8 @@
 import 'dart:async';
 import '../utils/safe_launch.dart';
 import 'dart:io';
-import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:in_app_update/in_app_update.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../config/ad_units.dart';
 import '../widgets/storage_image.dart';
 import 'package:exif/exif.dart';
 import 'package:flutter/material.dart';
@@ -154,10 +152,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // Блок берётся из AdUnits: у Android и iOS они разные, а зашитый андроидный
-  // на iPhone показов не давал.
-  String get _homeAdUnit => AdUnits.admobBanner(ios: Platform.isIOS);
-
   // -- Theme --
   AppTheme get _t => widget.userData.theme;
   Color get primary => _t.primary;
@@ -1874,7 +1868,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     padding: const EdgeInsets.only(top: 8),
                     child: AdBanner(
                       key: const ValueKey('home_ad'),
-                      adUnitId: kDebugMode ? '' : _homeAdUnit,
                       framed: true,
                       label: LocaleService.current.adLabel,
                       slot: 'home',

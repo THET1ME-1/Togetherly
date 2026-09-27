@@ -69,7 +69,7 @@ class ChestScreen extends StatefulWidget {
 }
 
 class _ChestScreenState extends State<ChestScreen> {
-  final RewardedAdService _ad = RewardedAdService();
+  final RewardedAdService _ad = RewardedAdService(chest: true);
 
   ChestState? _state;
   bool _busy = false;

@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:yandex_mobileads/mobile_ads.dart' as yandex;
 
 import '../config/ad_units.dart';
@@ -16,30 +15,23 @@ import '../config/ad_units.dart';
 /// а за это снимают аккаунт целиком. Обязательный показ бывает только
 /// межстраничным, и кнопку закрытия внутри рисует сама сеть.
 ///
-/// Водопад тот же, что у наградного: сперва Яндекс, при отказе — AdMob.
+/// Сеть одна — Яндекс: AdMob убран 28.09.2026. Нет объявления — нет и показа.
 class InterstitialAdService {
-  // AdMob. В отладке — официальный тестовый блок Google.
-  static const String _testAdMobUnit = 'ca-app-pub-3940256099942544/1033173712';
-
   // Яндекс. В отладке — демо-блок из документации.
   static const String _demoYandexUnit = 'demo-interstitial-yandex';
 
-  InterstitialAd? _adMob;
   yandex.InterstitialAd? _yandexAd;
   yandex.InterstitialAdLoader? _yandexLoader;
   bool _isLoading = false;
   bool _isShowing = false;
   bool _disposed = false;
 
-  String get _adMobUnit => kDebugMode
-      ? _testAdMobUnit
-      : AdUnits.admobInterstitial(ios: Platform.isIOS);
   String get _yandexUnit => kDebugMode
       ? _demoYandexUnit
       : AdUnits.yandexInterstitial(ios: Platform.isIOS);
 
-  /// Ролик загружен хотя бы одной сетью.
-  bool get isReady => _adMob != null || _yandexAd != null;
+  /// Ролик загружен.
+  bool get isReady => _yandexAd != null;
 
   /// Предзагрузка. Звать заранее — на входе в экран, а не в момент показа:
   /// загрузка занимает секунды, и ждать её человеку не за чем.
@@ -52,7 +44,7 @@ class InterstitialAdService {
 
   Future<void> _loadYandex() async {
     if (_yandexUnit.isEmpty) {
-      unawaited(_loadAdMob());
+      _isLoading = false;
       return;
     }
     try {
@@ -63,9 +55,9 @@ class InterstitialAdService {
         },
         onAdFailedToLoad: (error) {
           debugPrint('Yandex interstitial failed: ${error.code} '
-              '${error.description} → AdMob');
+              '${error.description}');
           _yandexAd = null;
-          unawaited(_loadAdMob());
+          _isLoading = false;
         },
       );
       await _yandexLoader!.loadAd(
@@ -73,35 +65,7 @@ class InterstitialAdService {
             yandex.AdRequestConfiguration(adUnitId: _yandexUnit),
       );
     } catch (e) {
-      debugPrint('Yandex interstitial load exception: $e → AdMob');
-      unawaited(_loadAdMob());
-    }
-  }
-
-  Future<void> _loadAdMob() async {
-    if (_disposed) return;
-    if (_adMobUnit.isEmpty) {
-      _isLoading = false;
-      return;
-    }
-    try {
-      await InterstitialAd.load(
-        adUnitId: _adMobUnit,
-        request: const AdRequest(),
-        adLoadCallback: InterstitialAdLoadCallback(
-          onAdLoaded: (ad) {
-            _adMob = ad;
-            _isLoading = false;
-          },
-          onAdFailedToLoad: (error) {
-            debugPrint('AdMob interstitial failed ($error)');
-            _adMob = null;
-            _isLoading = false;
-          },
-        ),
-      );
-    } catch (e) {
-      debugPrint('AdMob interstitial load exception: $e');
+      debugPrint('Yandex interstitial load exception: $e');
       _isLoading = false;
     }
   }
@@ -118,8 +82,7 @@ class InterstitialAdService {
     if (_isShowing || !isReady) return false;
     _isShowing = true;
     try {
-      if (_yandexAd != null) return await _showYandex(timeout);
-      return await _showAdMob(timeout);
+      return await _showYandex(timeout);
     } finally {
       _isShowing = false;
       // Ролик одноразовый: следующий заказываем сразу, чтобы к следующему
@@ -155,35 +118,8 @@ class InterstitialAdService {
     }
   }
 
-  Future<bool> _showAdMob(Duration timeout) async {
-    final ad = _adMob;
-    if (ad == null) return false;
-    _adMob = null;
-    final done = Completer<bool>();
-    ad.fullScreenContentCallback = FullScreenContentCallback(
-      onAdDismissedFullScreenContent: (ad) {
-        ad.dispose();
-        if (!done.isCompleted) done.complete(true);
-      },
-      onAdFailedToShowFullScreenContent: (ad, error) {
-        debugPrint('AdMob interstitial show failed: $error');
-        ad.dispose();
-        if (!done.isCompleted) done.complete(false);
-      },
-    );
-    try {
-      await ad.show();
-    } catch (e) {
-      debugPrint('AdMob interstitial show exception: $e');
-      return false;
-    }
-    return done.future.timeout(timeout, onTimeout: () => true);
-  }
-
   void dispose() {
     _disposed = true;
-    _adMob?.dispose();
-    _adMob = null;
     unawaited(_yandexAd?.destroy() ?? Future<void>.value());
     _yandexAd = null;
   }

@@ -7,7 +7,6 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
-import '../config/ad_units.dart';
 import '../widgets/note_editor_sheet.dart';
 import '../widgets/mood_image.dart';
 import '../widgets/storage_image.dart';
@@ -2854,13 +2853,11 @@ class _WidgetScreenState extends State<WidgetScreen>
       );
 
   Widget _buildAdBanner(String slot) {
-    final realId = AdUnits.admobBanner(ios: Platform.isIOS);
     // Стабильный ключ: без него при каждом setState (раскрытие/сворачивание
     // карточек выше) Flutter может пересоздать элемент баннера и дёрнуть
-    // новый loadAd — лишние запросы и риск спама в AdMob.
+    // новый запрос рекламы — лишние запросы и спам в сеть.
     return AdBanner(
       key: ValueKey(slot),
-      adUnitId: kDebugMode ? '' : realId,
       slot: 'widgets',
     );
   }

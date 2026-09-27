@@ -63,9 +63,12 @@ import 'widgets/offline_sync_banner.dart';
 // Так снят реджект 2.1: ATT-попап всё равно не мог показаться на устройстве
 // ревьюера с выключенным системным тумблером «Allow Apps to Request to Track».
 
-/// Запрашивает согласие GDPR (UMP), затем инициализирует AdMob/Yandex SDK.
-/// MobileAds.initialize() ДОЛЖЕН вызываться ПОСЛЕ завершения consent flow,
-/// иначе на EEA-устройствах SDK стартует без согласия и реклама блокируется.
+/// Запрашивает согласие GDPR (UMP), затем инициализирует рекламу Яндекса.
+///
+/// AdMob убран 28.09.2026, но окно согласия Google (UMP) осталось: без него
+/// рекламу в ЕЭЗ показывать нельзя. UMP пишет стандартную строку согласия
+/// IAB TCF, её читает и SDK Яндекса. Инициализация — только ПОСЛЕ согласия,
+/// иначе на устройствах из ЕЭЗ SDK стартует без него.
 Future<void> _initConsentAndAds() async {
   final params = ConsentRequestParameters(
     consentDebugSettings: kDebugMode
@@ -98,27 +101,7 @@ Future<void> _initConsentAndAds() async {
   // Таймаут 5 с — не блокируем запуск если UMP завис
   await completer.future.timeout(const Duration(seconds: 5), onTimeout: () {});
 
-  // Redmi Note 12 Pro (Alex) — для тестирования рекламы в release-сборках
-  const releaseTestDeviceIds = <String>['766303ABCCDC5AE221EAA39549B48EF5'];
-
-  try {
-    await MobileAds.instance.initialize();
-    final testIds = [
-      if (kDebugMode) ...const <String>[],
-      ...releaseTestDeviceIds,
-    ];
-    if (testIds.isNotEmpty) {
-      MobileAds.instance.updateRequestConfiguration(
-        RequestConfiguration(testDeviceIds: testIds),
-      );
-    }
-  } catch (e) {
-    debugPrint('AdMob init failed: $e');
-  }
-
-  // Яндекс — резервная сеть (водопад): если AdMob не отдаёт рекламу
-  // (onAdFailedToLoad), баннер/rewarded грузятся из Яндекса. Инициализируем
-  // рядом с AdMob; обе SDK живут параллельно и не конфликтуют.
+  // Реклама одна — Яндекс.
   try {
     await yandex.MobileAds.initialize();
   } catch (e) {
