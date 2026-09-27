@@ -183,6 +183,7 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
     }
     if (!mounted) return;
 
+    var adShown = false;
     if (byAd && !PlusService.instance.active) {
       final messenger = ScaffoldMessenger.of(context);
       if (!_ad.isReady) {
@@ -192,37 +193,41 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
         );
         return;
       }
+      // `_sending` держится до самого итога: пока ждём возврата с рекламы,
+      // второй тап по подарку не должен пройти защиту.
       setState(() => _sending = gift.key);
       final earned = await _ad.show(uid: PocketBaseService().userId ?? '');
       _ad.load();
       if (!mounted) return;
       // Реклама сама начисляет монеты: доводим новый баланс до профиля.
       final coins = _ad.lastServerCoins;
-      setState(() {
-        _sending = null;
-        if (coins != null) _coins = coins;
-      });
-      if (coins != null) widget.onCoins?.call(coins);
+      if (coins != null) {
+        setState(() => _coins = coins);
+        widget.onCoins?.call(coins);
+      }
       if (!earned) {
         // Ролик не засчитан (закрыли раньше, сеть рекламы не прислала
         // награду) — говорим прямо, иначе непонятно, ушёл подарок или нет.
+        setState(() => _sending = null);
         await showAdNotEarned(context);
         return;
       }
-      // Реклама закрывается не мгновенно: итог, показанный под её экраном,
-      // человек не видит вовсе (жалоба 28.09.2026 «посмотрел рекламу — и
-      // никакого итога»).
-      await untilAppVisible();
-      if (!mounted) return;
+      adShown = true;
     }
 
     setState(() => _sending = gift.key);
-    final res = await GiftsService.instance.send(
+    // Подарок уходит сразу после ролика, а итог ждёт, пока экран рекламы
+    // закроется: показанный под ним, он не виден вовсе (жалоба 28.09.2026
+    // «посмотрел рекламу — и никакого итога»). Ждать до отправки нельзя —
+    // уйди человек на рабочий стол, просмотр пропал бы.
+    final request = GiftsService.instance.send(
       groupId: widget.groupId,
       giftKey: gift.key,
       note: note,
       byAd: byAd,
     );
+    if (adShown) await untilAppVisible();
+    final res = await request;
     if (!mounted) return;
 
     final s = LocaleService.current;
@@ -261,7 +266,7 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
       context,
       scheme: ProfileTheme.schemeFor(widget.theme),
       art: GiftImage(gift.key, side: 140),
-      title: trKey('giftSentTitle').replaceAll('{name}', gift.title),
+      title: trKey('giftSentTitle'),
       subtitle: name.isEmpty ? trKey('giftSentWhereAnon') : trKey('giftSentWhere').replaceAll('{name}', name),
       footnote: byAd ? trKey('giftSentByAd') : null,
     );

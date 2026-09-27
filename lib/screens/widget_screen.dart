@@ -4941,6 +4941,10 @@ class _WidgetScreenState extends State<WidgetScreen>
     if (ud == null) return;
     setState(() => _daysPhotosBusy = true);
     try {
+      if (!await ensureAdReady(_rewardedAd)) {
+        if (mounted) showAdNote(context, LocaleService.current.adNotReady);
+        return;
+      }
       final earned = await _rewardedAd.show(uid: PocketBaseService().userId ?? '');
       unawaited(_rewardedAd.load());
       if (!mounted) return;

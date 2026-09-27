@@ -21,6 +21,7 @@ import '../utils/readable_text.dart';
 import '../widgets/chest/chest_frames.dart';
 import '../widgets/chest/chest_prize_image.dart';
 import '../widgets/chest/jar_drops.dart';
+import '../widgets/common/ad_result.dart';
 import '../widgets/chest/chest_rays.dart';
 import 'chest_prize_screen.dart';
 
@@ -169,24 +170,6 @@ class _ChestScreenState extends State<ChestScreen> {
 
   void _snack(String text) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
 
-  /// Ждёт, пока приложение снова на экране и отрисовало кадр. Рекламный экран
-  /// закрывается не мгновенно, и открытие сундука не должно пройти под ним.
-  Future<void> _untilVisible() async {
-    final binding = WidgetsBinding.instance;
-    if (binding.lifecycleState != AppLifecycleState.resumed) {
-      final back = Completer<void>();
-      final listener = AppLifecycleListener(
-        onResume: () {
-          if (!back.isCompleted) back.complete();
-        },
-      );
-      await back.future.timeout(const Duration(seconds: 30), onTimeout: () {});
-      listener.dispose();
-    }
-    await Future<void>.delayed(const Duration(milliseconds: 400));
-    await binding.endOfFrame;
-  }
-
   /// Открытия из копилки пары, что ждут меня.
   int get _jarBonus => PairJarService.instance.jar?.bonus ?? 0;
 
@@ -218,6 +201,7 @@ class _ChestScreenState extends State<ChestScreen> {
       if (adCoins != null) widget.onCoins?.call(adCoins);
       if (!earned) {
         setState(() => _busy = false);
+        await showAdNotEarned(context);
         return;
       }
       adShown = true;
@@ -227,7 +211,7 @@ class _ChestScreenState extends State<ChestScreen> {
     setState(() => _busy = true);
     // Приз разыгрывается, пока закрывается реклама и докачивается открытие.
     final request = ChestService.instance.open(openId: openId, groupId: widget.groupId, fromJar: fromJar);
-    if (adShown) await _untilVisible();
+    if (adShown) await untilAppVisible();
     await ChestFrames.prefetch(_openUrl);
     final res = await request;
     if (!mounted) return;

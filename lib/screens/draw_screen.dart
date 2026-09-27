@@ -5166,12 +5166,19 @@ class _DrawScreenState extends State<DrawScreen>
     );
     if (ok != true) return;
 
+    // Проба запускается из открытого листа фонов: снекбар экрана лёг бы под
+    // него, поэтому все итоги — плашкой в корневом Overlay (overSheet).
+    if (!await ensureAdReady(_rewardedAd)) {
+      if (mounted) showAdNote(context, s.adNotReady, overSheet: true);
+      return;
+    }
+    if (!mounted) return;
     final uid = PocketBaseService().userId ?? '';
     final earned = await _rewardedAd.show(uid: uid);
     unawaited(_rewardedAd.load());
     if (!mounted) return;
     if (!earned) {
-      await showAdNotEarned(context);
+      await showAdNotEarned(context, overSheet: true);
       return;
     }
 
@@ -5180,18 +5187,12 @@ class _DrawScreenState extends State<DrawScreen>
     // Итог после ролика — когда экран рекламы уже закрылся, иначе он под ним.
     await untilAppVisible();
     if (!mounted) return;
-    if (res.kind == AdGrantOutcome.ok) {
-      refreshSheet(() {});
-      messenger.showSnackBar(SnackBar(
-        content: Text(s.adTrialTakenToday),
-        behavior: SnackBarBehavior.floating,
-      ));
-    } else {
-      messenger.showSnackBar(SnackBar(
-        content: Text(s.adRewardLimitReached),
-        behavior: SnackBarBehavior.floating,
-      ));
-    }
+    if (res.kind == AdGrantOutcome.ok) refreshSheet(() {});
+    showAdNote(
+      context,
+      res.kind == AdGrantOutcome.ok ? s.adTrialTakenToday : s.adRewardLimitReached,
+      overSheet: true,
+    );
   }
 
   Widget _backgroundTile(

@@ -5224,6 +5224,12 @@ class _ProfileScreenState extends State<ProfileScreen>
     // Две рекламы подряд: цена пробы в просмотрах живёт в kAdGrantViews, и
     // сервер сверяет её сам — клиент только показывает ролики.
     for (var i = 0; i < (kAdGrantViews[AdGrantKind.theme] ?? 2); i++) {
+      // Второй ролик после первого ещё грузится: ждём его, а не пишем «не
+      // засчитан» — первый-то засчитан, просто показать пока нечего.
+      if (!await ensureAdReady(_rewardedAd)) {
+        if (mounted) showAdNote(context, _s.adNotReady);
+        return false;
+      }
       final earned = await _rewardedAd.show(uid: uid);
       unawaited(_rewardedAd.load());
       if (!earned) {

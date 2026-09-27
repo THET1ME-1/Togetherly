@@ -13,6 +13,7 @@ void main() {
     'lib/screens/widget_screen.dart': 1,
     'lib/screens/profile_screen.dart': 2,
     'lib/screens/home_screen.dart': 1,
+    'lib/screens/chest_screen.dart': 1,
   };
   for (final e in screens.entries) {
     test('${e.key}: ролик не молчит и итог виден', () {
@@ -22,6 +23,22 @@ void main() {
       expect(src.contains('untilAppVisible()'), isTrue, reason: 'итог — после закрытия рекламы');
     });
   }
+
+  test('ролика нет — «реклама не готова», а не «не засчитан»', () {
+    for (final f in ['lib/screens/draw_screen.dart', 'lib/screens/widget_screen.dart', 'lib/screens/profile_screen.dart']) {
+      expect(File(f).readAsStringSync().contains('ensureAdReady('), isTrue, reason: f);
+    }
+  });
+
+  test('проба фона из листа говорит поверх листа', () {
+    final src = File('lib/screens/draw_screen.dart').readAsStringSync();
+    expect(src.contains('showAdNotEarned(context, overSheet: true)'), isTrue);
+  });
+
+  test('копии ожидания экрана нет: одна на всё приложение', () {
+    expect(File('lib/screens/chest_screen.dart').readAsStringSync().contains('Future<void> _untilVisible'), isFalse);
+    expect(File('lib/screens/gifts/gift_shop_screen.dart').readAsStringSync().contains('Future<void> _untilVisible'), isFalse);
+  });
 
   test('подарок и значок подтверждаются листом с самой вещью', () {
     final src = File('lib/screens/gifts/gift_shop_screen.dart').readAsStringSync();
