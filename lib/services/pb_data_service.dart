@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
 
+import '../models/miss_you_event.dart';
 import '../models/invite_code_state.dart';
 import '../utils/date_only.dart';
 import '../utils/pair_time.dart';
@@ -2771,6 +2772,7 @@ class PbDataService {
     String vibe = 'miss_you',
     String? text,
     int count = 1,
+    String? replyTo,
   }) async {
     if (groupId.isEmpty || uid.isEmpty) return false;
     // DATA-8: атомарный серверный инкремент; при недоступности — локальный RMW.
@@ -2785,10 +2787,30 @@ class PbDataService {
       // Частые нажатия приезжают пачкой: по одному запросу на тап человек
       // упирался в ограничитель, и половина «скучаю» пропадала.
       'count': count,
+      // Ответ на конкретный импульс из истории дня.
+      if (replyTo != null && replyTo.isNotEmpty) 'replyTo': replyTo,
     });
     if (r == _GroupRouteResult.ok) return true;
     if (r == _GroupRouteResult.backpressure) return false;
     return _incrementMissYouLocal(groupId, uid, vibe: vibe, text: text);
+  }
+
+  /// История импульсов пары с [sinceMs] (сервер отдаёт не старше двух суток).
+  /// Тот же маршрут, что и импульс, с флагом `history`: новый путь пришлось бы
+  /// заводить в Caddy на обоих серверах. null — сервер не ответил или старый.
+  Future<List<MissYouEvent>?> missYouHistory(String groupId, int sinceMs) async {
+    if (groupId.isEmpty) return null;
+    try {
+      final res = await _pb
+          .send('/api/group/miss-you', method: 'POST', body: {'groupId': groupId, 'history': true, 'since': sinceMs})
+          .timeout(const Duration(seconds: 12));
+      if (res is Map && res['ok'] == true && res['events'] is List) {
+        return MissYouEvent.parseList(res['events']);
+      }
+    } catch (e) {
+      debugPrint('PbData.missYouHistory: $e');
+    }
+    return null;
   }
 
   Future<bool> _incrementMissYouLocal(

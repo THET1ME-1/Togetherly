@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../dict_strings.dart' show trKey;
+import '../models/miss_you_event.dart';
 import '../models/miss_you_state.dart';
 import '../models/optimistic_count.dart';
 import '../models/tile_columns.dart';
@@ -18,6 +20,7 @@ import '../theme/profile_theme.dart';
 import '../widgets/common/stable_stream_builder.dart';
 import '../widgets/avatar_widget.dart';
 import '../widgets/miss_you/custom_vibe_sheet.dart';
+import '../widgets/settings_scaffold.dart';
 
 /// Экран «Скучаю» — вместо панельки под кнопкой в шапке.
 ///
@@ -42,7 +45,12 @@ class MissYouScreen extends StatefulWidget {
     required this.partnerUid,
     required this.partnerName,
     this.partnerAvatarUrl,
+    this.debugEvents,
   });
+
+  /// История для тестов и превью: без сервера экран её не получит.
+  @visibleForTesting
+  final List<MissYouEvent>? debugEvents;
 
   final AppTheme theme;
   final String groupId;
@@ -75,6 +83,16 @@ class _MissYouScreenState extends State<MissYouScreen>
   Timer? _staleTimer;
 
   List<String> _wishes = const [];
+
+  /// История импульсов за сегодня и вчера. null — ещё не пришла или сервер
+  /// её не знает: тогда внизу прежняя карточка «последнее от партнёра».
+  List<MissYouEvent>? _events;
+
+  /// Ответы, ушедшие с этого экрана, пока история не перечиталась.
+  final Set<String> _justReplied = {};
+  bool _showAll = false;
+  Timer? _historyDebounce;
+  static const int _collapsed = 5;
 
   late final AnimationController _pulse;
   late final Animation<double> _pulseScale;
@@ -124,6 +142,7 @@ class _MissYouScreenState extends State<MissYouScreen>
       duration: const Duration(milliseconds: 620),
     )..forward();
 
+    _events = widget.debugEvents;
     _loadWishes();
     if (widget.groupId.isNotEmpty) {
       _sub = _repo.watchState(widget.groupId).listen((s) {
@@ -131,8 +150,19 @@ class _MissYouScreenState extends State<MissYouScreen>
         _mine = _mine.confirm(s.myCount, now: DateTime.now());
         setState(() => _state = s);
         _scheduleStaleSweep();
+        // Запись счётчика двинулась — значит, в истории новый импульс.
+        _historyDebounce?.cancel();
+        _historyDebounce = Timer(const Duration(milliseconds: 500), _loadHistory);
       });
+      _loadHistory();
     }
+  }
+
+  Future<void> _loadHistory() async {
+    if (widget.groupId.isEmpty) return;
+    final list = await _repo.history(widget.groupId);
+    if (!mounted || list == null) return;
+    setState(() => _events = list);
   }
 
   /// Протухшие ожидания уходят сами: без этого последняя надбавка висела бы до
@@ -153,6 +183,7 @@ class _MissYouScreenState extends State<MissYouScreen>
   void dispose() {
     _sub?.cancel();
     _staleTimer?.cancel();
+    _historyDebounce?.cancel();
     _pulse.dispose();
     _intro.dispose();
     for (final h in _hearts) {
@@ -175,7 +206,7 @@ class _MissYouScreenState extends State<MissYouScreen>
 
   // ── Отправка ────────────────────────────────────────────────────────────────
 
-  Future<void> _sendMissYou() async {
+  Future<void> _sendMissYou({String? replyTo}) async {
     if (widget.groupId.isEmpty) return;
     HapticFeedback.mediumImpact();
     _pulse.forward(from: 0);
@@ -184,14 +215,14 @@ class _MissYouScreenState extends State<MissYouScreen>
     _scheduleStaleSweep();
     var ok = false;
     try {
-      ok = await _repo.sendMissYou(widget.groupId);
+      ok = await _repo.sendMissYou(widget.groupId, replyTo: replyTo);
     } catch (_) {
       ok = false;
     }
     if (!ok && mounted) setState(() => _mine = _mine.failed());
   }
 
-  Future<void> _sendVibe(String type, {String? text}) async {
+  Future<void> _sendVibe(String type, {String? text, String? replyTo}) async {
     if (widget.groupId.isEmpty) return;
     HapticFeedback.mediumImpact();
     _spawnHearts(icon: vibeIcon(type));
@@ -200,6 +231,7 @@ class _MissYouScreenState extends State<MissYouScreen>
         groupId: widget.groupId,
         vibeType: type,
         customText: text,
+        replyTo: replyTo,
       );
       if (text != null && text.isNotEmpty) {
         final next = await CustomWishesStore.add(_wishes, text);
@@ -249,6 +281,17 @@ class _MissYouScreenState extends State<MissYouScreen>
     await _sendVibe(_replyVibe);
   }
 
+  /// Ответ на конкретный импульс из истории дня тем же импульсом.
+  Future<void> _replyTo(MissYouEvent e) async {
+    setState(() => _justReplied.add(e.id));
+    final vibe = missYouReplyVibe(e.vibe);
+    if (vibe == 'miss_you') {
+      await _sendMissYou(replyTo: e.id);
+    } else {
+      await _sendVibe(vibe, replyTo: e.id);
+    }
+  }
+
   void _spawnHearts({IconData icon = Icons.favorite_rounded}) {
     const extra = [
       Icons.favorite_border_rounded,
@@ -296,6 +339,12 @@ class _MissYouScreenState extends State<MissYouScreen>
             children: [
               _appear(0, _hero(cs)),
               const SizedBox(height: 12),
+              // История дня сразу под сердцем (макет, вариант А): первое, что
+              // ищут, открыв экран, — что прислали, пока тебя не было.
+              if (_events != null) ...[
+                _appear(1, _history(cs)),
+                const SizedBox(height: 12),
+              ],
               _appear(
                 1,
                 Column(
@@ -307,7 +356,7 @@ class _MissYouScreenState extends State<MissYouScreen>
                   ],
                 ),
               ),
-              if (_state.partner?.lastVibe.isNotEmpty ?? false) ...[
+              if (_events == null && (_state.partner?.lastVibe.isNotEmpty ?? false)) ...[
                 const SizedBox(height: 12),
                 _appear(2, _latest(cs)),
               ],
@@ -404,7 +453,8 @@ class _MissYouScreenState extends State<MissYouScreen>
           builder: (context, seenSnap) {
             final label = lastSeenLabel(seenSnap.data, _s.yesterday);
             if (label.isEmpty) return const SizedBox.shrink();
-            return Text(label, style: _caption(cs));
+            // Одна дата без подписи («23.09») не читалась как последний визит.
+            return Text(trKey('missYouSeenAt').replaceAll('{t}', label), style: _caption(cs));
           },
         );
       },
@@ -690,6 +740,148 @@ class _MissYouScreenState extends State<MissYouScreen>
                   fontSize: 13, fontWeight: FontWeight.w700),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  // ── История дня ─────────────────────────────────────────────────────────────
+
+  String _eventLabel(MissYouEvent e) =>
+      e.vibe == 'custom' && e.text.isNotEmpty ? e.text : vibeLabel(e.vibe, _s);
+
+  /// Импульсы сегодня (или вчера, если сегодня тихо) блоками, как строки
+  /// настроек: у каждого свой, крайние скруглены сильнее, линий нет. На
+  /// импульс партнёра — кнопка ответа тем же; ответил — галочка.
+  Widget _history(ColorScheme cs) {
+    final all = _events!;
+    final day = missYouDay(all, DateTime.now());
+    final replied = {...missYouReplied(all, widget.myUid), ..._justReplied};
+    final byId = {for (final e in all) e.id: e};
+    final events = day.events;
+    final shown = _showAll || events.length <= _collapsed + 1 ? events : events.sublist(0, _collapsed);
+    final title = day.yesterday ? trKey('missYouYesterdayTitle') : trKey('missYouToday');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionLabel(cs, events.isEmpty ? title : '$title · ${events.length}'),
+        const SizedBox(height: 8),
+        _blocks(cs, [
+          if (events.isEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+              child: Text(trKey('missYouEmptyDay'), style: _caption(cs).copyWith(fontSize: 13, height: 1.35)),
+            ),
+          for (final e in shown)
+            _eventRow(cs, e, replied: replied.contains(e.id), original: e.replyTo == null ? null : byId[e.replyTo]),
+          if (shown.length < events.length)
+            InkWell(
+              onTap: () => setState(() => _showAll = true),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                child: Center(
+                  child: Text(
+                    trKey('missYouShowMore').replaceAll('{n}', '${events.length - shown.length}'),
+                    style: TextStyle(fontFamily: ProfileTheme.bodyFont, fontSize: 13.5, fontWeight: FontWeight.w700, color: cs.primary),
+                  ),
+                ),
+              ),
+            ),
+        ]),
+      ],
+    );
+  }
+
+  /// Блоки формы [SettingsGroup] — свой у каждой строки, крайние углы 28,
+  /// внутренние 8, зазор 4, линий нет. Без `AppearOnScroll` группы: экран и
+  /// так въезжает целиком, а строки, ждущие прокрутки, на коротком экране не
+  /// появлялись вовсе.
+  Widget _blocks(ColorScheme cs, List<Widget> rows) {
+    const outer = Radius.circular(SettingsGroup.outerRadius);
+    const inner = Radius.circular(SettingsGroup.innerRadius);
+    return Column(
+      children: [
+        for (var i = 0; i < rows.length; i++) ...[
+          if (i > 0) const SizedBox(height: SettingsGroup.gap),
+          Material(
+            color: cs.surfaceContainerHigh,
+            clipBehavior: Clip.antiAlias,
+            borderRadius: BorderRadius.vertical(
+              top: i == 0 ? outer : inner,
+              bottom: i == rows.length - 1 ? outer : inner,
+            ),
+            child: rows[i],
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _eventRow(ColorScheme cs, MissYouEvent e, {required bool replied, MissYouEvent? original}) {
+    final mine = e.uid == widget.myUid;
+    final name = mine
+        ? _s.missYouYou
+        : (widget.partnerName.isEmpty ? _s.missYouPartner : widget.partnerName);
+    final sub = original != null
+        ? trKey('missYouInReplyTo').replaceAll('{x}', _eventLabel(original))
+        : name;
+    final hh = '${e.at.hour.toString().padLeft(2, '0')}:${e.at.minute.toString().padLeft(2, '0')}';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 9, 10, 9),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 42,
+            child: Text(
+              hh,
+              style: _caption(cs).copyWith(fontSize: 12.5, fontFeatures: const [FontFeature.tabularFigures()]),
+            ),
+          ),
+          AvatarWidget(
+            uid: mine ? widget.myUid : widget.partnerUid,
+            fallbackUrl: mine ? widget.myAvatarUrl : widget.partnerAvatarUrl,
+            name: mine ? widget.myName : widget.partnerName,
+            size: 28,
+            primary: cs.primary,
+            showFrame: false,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  e.count > 1 ? '${_eventLabel(e)} ×${e.count}' : _eventLabel(e),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: ProfileTheme.bodyFont,
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w600,
+                    color: cs.onSurface,
+                  ),
+                ),
+                Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: _caption(cs)),
+              ],
+            ),
+          ),
+          if (!mine) ...[
+            const SizedBox(width: 8),
+            replied
+                ? Tooltip(
+                    message: trKey('missYouReplied'),
+                    child: SizedBox.square(
+                      dimension: 40,
+                      child: Icon(Icons.check_rounded, size: 20, color: cs.primary),
+                    ),
+                  )
+                : IconButton.filled(
+                    tooltip: trKey('missYouReplyTip'),
+                    onPressed: () => _replyTo(e),
+                    style: IconButton.styleFrom(backgroundColor: _fill, foregroundColor: _onFill),
+                    icon: const Icon(Icons.reply_rounded, size: 20),
+                  ),
+          ],
         ],
       ),
     );

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import '../models/miss_you_event.dart';
 import '../models/miss_you_state.dart';
 import 'analytics_service.dart';
 import 'pb_data_service.dart';
@@ -51,7 +52,7 @@ class MissYouRepository {
   /// ответа не знает, что отправка сорвалась (`incrementMissYou` возвращает
   /// false и при таймауте, и при отказе роута). Раньше надбавка в такой
   /// ситуации оставалась висеть — число «жило своей жизнью».
-  Future<bool> sendMissYou(String groupId, {int count = 1}) async {
+  Future<bool> sendMissYou(String groupId, {int count = 1, String? replyTo}) async {
     final uid = _uid;
     if (uid == null || groupId.isEmpty) return false;
     final ok = await _data.incrementMissYou(
@@ -59,6 +60,7 @@ class MissYouRepository {
       uid,
       vibe: 'miss_you',
       count: count,
+      replyTo: replyTo,
     );
     if (ok) unawaited(AnalyticsService.instance.logMissYouSent());
     return ok;
@@ -71,6 +73,7 @@ class MissYouRepository {
     required String groupId,
     required String vibeType,
     String? customText,
+    String? replyTo,
   }) async {
     final uid = _uid;
     if (uid == null || groupId.isEmpty) return false;
@@ -79,10 +82,15 @@ class MissYouRepository {
       uid,
       vibe: vibeType,
       text: customText,
+      replyTo: replyTo,
     );
     if (ok) {
       unawaited(AnalyticsService.instance.logVibeSent(vibeType: vibeType));
     }
     return ok;
   }
+
+  /// История импульсов пары: сегодня и вчера по часам телефона.
+  Future<List<MissYouEvent>?> history(String groupId) =>
+      _data.missYouHistory(groupId, missYouHistorySince(DateTime.now()));
 }

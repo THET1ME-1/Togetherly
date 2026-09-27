@@ -44,6 +44,7 @@ import json
 import logging
 import os
 import re
+import random
 import secrets
 import sqlite3
 import threading
@@ -1337,6 +1338,82 @@ async def healthz():
     return {"ok": True}
 
 
+# ── История импульсов «Скучаю» (miss_you_events) ─────────────────────────────
+
+_ИМПУЛЬС_ПОДПИСЬ = {
+    "miss_you": "Я скучаю",
+    "thinking_of_you": "Думаю о тебе",
+    "want_hug": "Хочу обнять",
+}
+
+
+def _miss_reply_push_text(вайб: str, текст: str | None) -> str:
+    """Тело пуша об ответе: на что именно ответили. Свой текст — как есть."""
+    подпись = (текст or "").strip() if вайб == "custom" else ""
+    if not подпись:
+        подпись = _ИМПУЛЬС_ПОДПИСЬ.get(вайб, "Я скучаю")
+    if len(подпись) > 60:
+        подпись = подпись[:57] + "…"
+    return f"В ответ на «{подпись}»"
+
+
+def _miss_event_json(row) -> dict:
+    """Строка истории для приложения: время — мс эпохи, ответ — id или null."""
+    return {
+        "id": row["id"],
+        "uid": row["user_uid"],
+        "vibe": row["vibe"],
+        "text": row["text"] or "",
+        "count": int(row["count"] or 1),
+        "replyTo": row["reply_to"],
+        "at": int(row["created"].timestamp() * 1000),
+    }
+
+
+async def _miss_history(group_id: str, since_ms: int | None) -> list[dict]:
+    """События пары с отметки [since_ms] (полночь телефона), но не старше
+    двух суток; новые первыми. Изредка подчищает строки старше трёх дней."""
+    now = time.time()
+    floor = now - 48 * 3600
+    since = max(floor, (since_ms or 0) / 1000)
+    rows = await pg.fetch(
+        "SELECT * FROM miss_you_events WHERE group_id = $1 AND created >= to_timestamp($2) "
+        "ORDER BY created DESC LIMIT 200",
+        group_id, since,
+    )
+    if random.random() < 0.005:
+        try:
+            await pg.execute("DELETE FROM miss_you_events WHERE created < now() - interval '3 days'")
+        except Exception as e:
+            log.warning("miss_you_events cleanup: %s", e)
+    return [_miss_event_json(r) for r in rows]
+
+
+async def _miss_event_add(group_id: str, uid: str, vibe: str, text: str,
+                          times: int, reply_to: str | None) -> None:
+    """Импульс в историю. Тот же импульс того же человека в пределах минуты
+    (и не ответ) прибавляется к последней строке, а не плодит новую."""
+    if not reply_to:
+        upd = await pg.fetchval(
+            """
+            UPDATE miss_you_events SET count = count + $5, created = now()
+             WHERE id = (SELECT id FROM miss_you_events
+                          WHERE group_id = $1 AND user_uid = $2 AND vibe = $3 AND text = $4
+                            AND reply_to IS NULL AND created > now() - interval '60 seconds'
+                          ORDER BY created DESC LIMIT 1)
+            RETURNING id
+            """,
+            group_id, uid, vibe, text, times,
+        )
+        if upd:
+            return
+    await pg.execute(
+        "INSERT INTO miss_you_events (id, group_id, user_uid, vibe, text, count, reply_to) "
+        "VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        _new_id(), group_id, uid, vibe, text, times, reply_to,
+    )
+
+
 @app.post("/api/group/miss-you")
 async def miss_you(request: Request):
     """Импульс «Скучаю»: один запрос — одна строка вверх.
@@ -1365,13 +1442,28 @@ async def miss_you(request: Request):
         return _err(400, "bad params")
 
     group_id = str(body.get("groupId") or "").strip()
-    uid = str(body.get("uid") or "").strip()
+    uid = str(body.get("uid") or "").strip() or uid_auth
     vibe = str(body.get("vibe") or "miss_you")
     text = str(body.get("text") or "")
+    reply_to = str(body.get("replyTo") or "").strip() or None
     if not group_id or not uid:
         return _err(400, "bad params")
     if group_id not in groups:
         return ORJSONResponse({"ok": False, "error": "not a member"}, status_code=403)
+
+    # История за день — тем же маршрутом с флагом: у точки входа на каждый
+    # путь hotpath свой маршрут в Caddy, заводить новый ради чтения незачем.
+    if body.get("history") is True:
+        try:
+            since_ms = int(body.get("since") or 0)
+        except Exception:
+            since_ms = 0
+        try:
+            events = await _miss_history(group_id, since_ms)
+        except Exception as e:
+            log.warning("miss history %s: %s", group_id, e)
+            return _err(500, "history failed")
+        return ORJSONResponse({"ok": True, "events": events})
 
     # Клиент копит частые тапы и шлёт их одним запросом; потолок двадцать —
     # дальше это зажатый палец, а не человек.
@@ -1423,6 +1515,22 @@ async def miss_you(request: Request):
         rid, group_id, uid, float(times), now_iso, vibe, text, wd, vibe_key,
     )
 
+    # Ответ — только на импульс этой же пары и не на свой собственный.
+    if reply_to:
+        try:
+            автор = await pg.fetchval(
+                "SELECT user_uid FROM miss_you_events WHERE id = $1 AND group_id = $2",
+                reply_to, group_id)
+        except Exception:
+            автор = None
+        if not автор or автор == uid:
+            reply_to = None
+    try:
+        await _miss_event_add(group_id, uid, vibe, text, times, reply_to)
+    except Exception as e:
+        # История — приятное дополнение: её сбой не должен ронять сам импульс.
+        log.warning("miss_you_events %s: %s", group_id, e)
+
     rec = _record_json("miss_you", row)
     await _publish("miss_you", "update", rec)
     # Уведомление второму. При переезде коллекции в hotpath оно пропало: пуш
@@ -1431,8 +1539,10 @@ async def miss_you(request: Request):
     # выглядело как «сердечко прилетело, а телефон молчит» (жалоба 16.08.2026).
     теперь_мс = int(time.time() * 1000)
     if _можно_слать_miss(group_id, теперь_мс):
-        ушло = await _notify_group(group_id, uid, "Скучает по тебе",
-                                   _miss_you_push_text(text), "miss")
+        ушло = await _notify_group(
+            group_id, uid, "Скучает по тебе",
+            _miss_reply_push_text(vibe, text) if reply_to else _miss_you_push_text(text),
+            "miss")
         if ушло:
             _отметить_miss(group_id, теперь_мс)
     return ORJSONResponse({"ok": True, "count": _num(row["count"])})
