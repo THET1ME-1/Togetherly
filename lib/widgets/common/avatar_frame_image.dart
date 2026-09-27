@@ -24,6 +24,12 @@ class AvatarFrameImage extends StatelessWidget {
   final double avatarSize;
   final bool animated;
 
+  // fit: BoxFit.contain у каждой картинки обязателен. Без него Flutter рисует
+  // её по BoxFit.scaleDown: файл меньше квадрата рамки (кадр из сборки 256
+  // точек, анимация 384) не растягивается и ложится в середину, то есть рамка
+  // выходит меньше самой аватарки. Предел декодирования картинку не
+  // увеличивает (ResizeImage без allowUpscaling), так что спасает только fit.
+
   /// Мельче этого аватарка рисуется в строках и списках, где живая рамка у
   /// каждой строки только мельтешит и ест память на декодирование кадров.
   static const double _minAnimated = 32;
@@ -49,6 +55,7 @@ class AvatarFrameImage extends StatelessWidget {
               asset,
               width: side,
               height: side,
+              fit: BoxFit.contain,
               cacheWidth: decode,
               gaplessPlayback: true,
             );
@@ -62,6 +69,7 @@ class AvatarFrameImage extends StatelessWidget {
             imageUrl: stillUrl,
             width: side,
             height: side,
+            fit: BoxFit.contain,
             memCacheWidth: decode,
             fadeInDuration: Duration.zero,
             placeholder: (_, _) => SizedBox.square(dimension: side),
@@ -76,6 +84,7 @@ class AvatarFrameImage extends StatelessWidget {
                 imageUrl: url,
                 width: side,
                 height: side,
+                fit: BoxFit.contain,
                 memCacheWidth: decode,
                 memCacheHeight: decode,
                 fadeInDuration: Duration.zero,
