@@ -101,14 +101,14 @@ const Map<String, Map<String, String>> chestStrings = {
     'fr': 'Ouverture…',
     'de': 'Wird geöffnet…',
   },
-  'chestTomorrow': {
-    'ru': 'Завтра новые',
-    'en': 'More tomorrow',
-    'pt': 'Amanhã há mais',
-    'it': 'Domani ce ne sono altri',
-    'es': 'Mañana habrá más',
-    'fr': 'D’autres demain',
-    'de': 'Morgen gibt es neue',
+  'chestCountdown': {
+    'ru': 'Откроется через {t}',
+    'en': 'Opens in {t}',
+    'pt': 'Abre daqui a {t}',
+    'it': 'Si apre tra {t}',
+    'es': 'Se abre en {t}',
+    'fr': 'S’ouvre dans {t}',
+    'de': 'Öffnet in {t}',
   },
   'chestNote': {
     'ru': 'Приз не продаётся и не выводится в деньги. Сундук только за просмотр рекламы.',

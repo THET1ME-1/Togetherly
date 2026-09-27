@@ -104,12 +104,39 @@ class _ChestScreenState extends State<ChestScreen> {
     if (!_free) _ad.load();
     ChestFrames.prefetch(_openUrl);
     _load();
+    _clock = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
   }
 
   @override
   void dispose() {
+    _clock?.cancel();
     _ad.dispose();
     super.dispose();
+  }
+
+  /// Часы отсчёта на кнопке, когда открытия на сегодня кончились. Дневной
+  /// лимит сервер считает по местному времени, поэтому отсчёт идёт до полуночи
+  /// телефона; в полночь остаток перечитывается.
+  Timer? _clock;
+
+  void _tick() {
+    if (!mounted || _left > 0 || _pendingOpenId != null) return;
+    if (_untilMidnight() <= Duration.zero) {
+      _load();
+    } else {
+      setState(() {});
+    }
+  }
+
+  Duration _untilMidnight() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day + 1).difference(now);
+  }
+
+  String _countdown() {
+    final d = _untilMidnight();
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${two(d.inHours)}:${two(d.inMinutes % 60)}:${two(d.inSeconds % 60)}';
   }
 
   Future<void> _load() async {
@@ -393,10 +420,12 @@ class _ChestScreenState extends State<ChestScreen> {
 
   Widget _button(ColorScheme cs) {
     final String label;
+    final out = _left <= 0 && _pendingOpenId == null;
     if (_busy || _animating) {
       label = trKey('chestOpening');
-    } else if (_left <= 0 && _pendingOpenId == null) {
-      label = trKey('chestTomorrow');
+    } else if (out) {
+      // Открытия кончились — вместо кнопки отсчёт до полуночи.
+      label = trKey('chestCountdown').replaceAll('{t}', _countdown());
     } else {
       // Счётчик в самой кнопке: «Открыть за рекламу 2/3».
       label = '${trKey(_free || _pendingOpenId != null ? 'chestOpenFree' : 'chestOpenAd')} $_left/$_perDay';
@@ -404,7 +433,7 @@ class _ChestScreenState extends State<ChestScreen> {
     return SizedBox(
       width: double.infinity,
       child: FilledButton(
-        onPressed: _busy || _animating ? null : _open,
+        onPressed: _busy || _animating || out ? null : _open,
         style: FilledButton.styleFrom(
           backgroundColor: cs.primary,
           foregroundColor: cs.onPrimary,
@@ -412,7 +441,13 @@ class _ChestScreenState extends State<ChestScreen> {
           disabledForegroundColor: cs.onPrimary,
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           shape: const StadiumBorder(),
-          textStyle: const TextStyle(fontFamily: ProfileTheme.displayFont, fontSize: 16, fontWeight: FontWeight.w700),
+          // Цифры одной ширины: иначе надпись с отсчётом дёргается каждую секунду.
+          textStyle: const TextStyle(
+            fontFamily: ProfileTheme.displayFont,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            fontFeatures: [FontFeature.tabularFigures()],
+          ),
         ),
         child: Text(label),
       ),
