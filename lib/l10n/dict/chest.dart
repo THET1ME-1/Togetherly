@@ -2,6 +2,15 @@
 // {name} заменяет код экрана.
 
 const Map<String, Map<String, String>> chestStrings = {
+  'chestChance': {
+    'ru': 'Шанс {p}',
+    'en': 'Chance {p}',
+    'pt': 'Hipótese {p}',
+    'it': 'Probabilità {p}',
+    'es': 'Probabilidad {p}',
+    'fr': 'Chance {p}',
+    'de': 'Chance {p}',
+  },
   'chestTitle': {
     'ru': 'Сундук',
     'en': 'Chest',

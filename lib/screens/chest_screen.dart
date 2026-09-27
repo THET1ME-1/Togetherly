@@ -17,6 +17,7 @@ import '../theme/app_theme.dart';
 import '../theme/profile_theme.dart';
 import '../widgets/chest/chest_frames.dart';
 import '../widgets/chest/chest_prize_image.dart';
+import 'chest_prize_screen.dart';
 
 /// Экран сундука недели по макету «Сундук недели» (26.09.2026): сверху сундук
 /// крупно, под ним кнопка открытия, ниже все призы с шансами по ярусам.
@@ -97,7 +98,9 @@ class _ChestScreenState extends State<ChestScreen> {
   void initState() {
     super.initState();
     _choice = widget.debugChoice;
-    if (_choice != null) _won = trKey('chestGiftTitle').replaceAll('{name}', GiftCatalog.byKey(_choice!.giftKey)?.title ?? '');
+    if (_choice != null) {
+      _won = trKey('chestGiftTitle').replaceAll('{name}', GiftCatalog.byKey(_choice!.giftKey)?.title ?? '');
+    }
     if (!_free) _ad.load();
     ChestFrames.prefetch(_openUrl);
     _load();
@@ -235,7 +238,15 @@ class _ChestScreenState extends State<ChestScreen> {
       _choosing = false;
       if (ok) _choice = null;
     });
-    _snack(trKey(!ok ? 'chestChoiceFailed' : give ? 'chestGiven' : 'chestKept'));
+    _snack(
+      trKey(
+        !ok
+            ? 'chestChoiceFailed'
+            : give
+            ? 'chestGiven'
+            : 'chestKept',
+      ),
+    );
   }
 
   String _wonText(ChestPrize p) => switch (p.kind) {
@@ -446,39 +457,66 @@ class _ChestScreenState extends State<ChestScreen> {
     );
   }
 
+  String get _decimal => LocaleService.instance.language.code == 'en' ? '.' : ',';
+
+  /// Приз во весь экран: крупно и живым, с названием и шансом.
+  void _preview(ChestPrize p) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        settings: const RouteSettings(name: '/chest/prize'),
+        builder: (_) => ChestPrizeScreen(
+          theme: widget.theme,
+          prize: p,
+          title: _title(p),
+          subtitle: _subtitle(p),
+          tier: _tierName(p.tier),
+          chance: chestPercent(p, _odds, decimal: _decimal),
+        ),
+      ),
+    );
+  }
+
   Widget _row(ColorScheme cs, ChestPrize p) {
-    final decimal = LocaleService.instance.language.code == 'en' ? '.' : ',';
-    return Container(
-      padding: const EdgeInsets.fromLTRB(6, 6, 14, 6),
-      decoration: BoxDecoration(color: cs.surfaceContainerLow, borderRadius: BorderRadius.circular(20)),
-      child: Row(
-        children: [
-          ChestPrizeImage(p, side: 52),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _title(p),
-                  style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: cs.onSurface),
+    final decimal = _decimal;
+    return Material(
+      color: cs.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => _preview(p),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(6, 6, 14, 6),
+          child: Row(
+            children: [
+              ChestPrizeImage(p, side: 52),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _title(p),
+                      style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: cs.onSurface),
+                    ),
+                    Text(_subtitle(p), style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
+                  ],
                 ),
-                Text(_subtitle(p), style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
-              ],
-            ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                chestPercent(p, _odds, decimal: decimal),
+                style: TextStyle(
+                  fontFamily: ProfileTheme.displayFont,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: cs.onSurface,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 10),
-          Text(
-            chestPercent(p, _odds, decimal: decimal),
-            style: TextStyle(
-              fontFamily: ProfileTheme.displayFont,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-              color: cs.onSurface,
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

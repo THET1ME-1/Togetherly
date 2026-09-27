@@ -32,6 +32,9 @@ class GiftImage extends StatelessWidget {
       width: full,
       height: full,
       cacheWidth: decode,
+      // Без fit картинка не растёт больше своего файла: кадр 256 точек на
+      // полноэкранном показе приза оставался в четверть экрана.
+      fit: BoxFit.contain,
       errorBuilder: (_, _, _) => SizedBox.square(dimension: full),
     );
     return SizedBox.square(
@@ -51,6 +54,7 @@ class GiftImage extends StatelessWidget {
               height: full,
               memCacheWidth: decode,
               memCacheHeight: decode,
+              fit: BoxFit.contain,
               fadeInDuration: Duration.zero,
               placeholder: (_, _) => still,
               errorWidget: (_, _, _) => still,

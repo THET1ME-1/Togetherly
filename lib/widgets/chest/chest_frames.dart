@@ -66,7 +66,9 @@ class ChestFrames extends StatefulWidget {
 }
 
 class _ChestFramesState extends State<ChestFrames> with SingleTickerProviderStateMixin {
-  late final Ticker _ticker = createTicker(_onTick);
+  // Создаётся в initState, а не лениво: иначе виджет, закрытый до загрузки
+  // файла, создавал бы тикер впервые в dispose — на уже отцепленном элементе.
+  late final Ticker _ticker;
   ui.Codec? _codec;
   ui.Image? _image;
   int _index = 0;
@@ -80,6 +82,7 @@ class _ChestFramesState extends State<ChestFrames> with SingleTickerProviderStat
   @override
   void initState() {
     super.initState();
+    _ticker = createTicker(_onTick);
     _start();
   }
 

@@ -22,7 +22,16 @@ class CoinImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final dpr = MediaQuery.maybeDevicePixelRatioOf(context) ?? 2.0;
     final decode = (side * dpr).round();
-    final still = Image.asset(asset, width: side, height: side, cacheWidth: decode, filterQuality: FilterQuality.medium);
+    // fit: без него картинка не растёт больше своего файла, и на крупном
+    // показе монета оставалась маленькой.
+    final still = Image.asset(
+      asset,
+      width: side,
+      height: side,
+      cacheWidth: decode,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.medium,
+    );
     if (!animated) return still;
     return ListenableBuilder(
       listenable: CatalogService.instance,
@@ -36,6 +45,7 @@ class CoinImage extends StatelessWidget {
           height: side,
           memCacheWidth: decode,
           memCacheHeight: decode,
+          fit: BoxFit.contain,
           fadeInDuration: Duration.zero,
           placeholder: (_, _) => still,
           errorWidget: (_, _, _) => still,

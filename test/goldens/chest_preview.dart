@@ -6,6 +6,8 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:love_app/models/gift.dart';
+import 'package:love_app/models/chest.dart';
+import 'package:love_app/screens/chest_prize_screen.dart';
 import 'package:love_app/screens/chest_screen.dart';
 import 'package:love_app/services/chest_service.dart';
 import 'package:love_app/services/locale_service.dart';
@@ -45,7 +47,7 @@ void main() {
 
   testWidgets('сундук недели', (tester) async {
     LocaleService.instance.setLanguage(AppLanguage.ru);
-    tester.view.physicalSize = const Size(3000, 3000);
+    tester.view.physicalSize = const Size(3900, 3000);
     tester.view.devicePixelRatio = 2;
     addTearDown(tester.view.reset);
 
@@ -133,6 +135,34 @@ void main() {
                     partnerName: 'Аня',
                     debugChoice: const ChestStashItem(openId: 'x', giftKey: 'throne'),
                   ),
+                ),
+                Column(
+                  children: [
+                    phone(
+                      393,
+                      760,
+                      ChestPrizeScreen(
+                        theme: t,
+                        prize: fallbackChestOdds(withPlus: true).firstWhere((p) => p.key == 'coins25'),
+                        title: '25 монет',
+                        subtitle: 'Монеты на баланс',
+                        tier: 'Редкие',
+                        chance: '8%',
+                      ),
+                    ),
+                    phone(
+                      320,
+                      600,
+                      ChestPrizeScreen(
+                        theme: t,
+                        prize: fallbackChestOdds(withPlus: true).firstWhere((p) => p.key == 'throne'),
+                        title: 'Подарок «Царский трон»',
+                        subtitle: 'Подаришь или оставишь себе',
+                        tier: 'Редкие',
+                        chance: '3%',
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
