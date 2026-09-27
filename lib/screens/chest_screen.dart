@@ -324,11 +324,11 @@ class _ChestScreenState extends State<ChestScreen> {
               style: TextStyle(fontSize: 12, height: 1.4, color: cs.onSurfaceVariant),
             ),
             const SizedBox(height: 8),
-            for (final (tier, prizes) in chestTiers(_odds)) ...[
+            for (final (tier, prizes) in chestSections(_odds)) ...[
               Padding(
                 padding: const EdgeInsets.fromLTRB(4, 8, 4, 2),
                 child: Text(
-                  _tierName(tier),
+                  tier == null ? trKey('chestTierTop') : _tierName(tier),
                   style: TextStyle(
                     fontFamily: ProfileTheme.displayFont,
                     fontSize: 14,

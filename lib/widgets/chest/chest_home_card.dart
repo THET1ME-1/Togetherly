@@ -95,7 +95,16 @@ class _ChestHomeCardState extends State<ChestHomeCard> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      trKey(PlusService.instance.active ? 'chestCardTextFree' : 'chestCardText'),
+                      // Togetherly+ — главный приз, с него описание и начинается.
+                      // На iPhone Плюса нет как понятия, а купившему его не
+                      // выиграть — им прежний текст.
+                      trKey(
+                        PlusService.instance.active
+                            ? 'chestCardTextFree'
+                            : PlusService.instance.visible
+                            ? 'chestCardTextPlus'
+                            : 'chestCardText',
+                      ),
                       style: TextStyle(fontSize: 13, height: 1.35, color: cs.onSurfaceVariant),
                     ),
                     const SizedBox(height: 4),

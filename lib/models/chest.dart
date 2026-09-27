@@ -118,6 +118,18 @@ List<(ChestTier, List<ChestPrize>)> chestTiers(List<ChestPrize> odds) => [
     if (odds.where((p) => p.tier == t).toList() case final list when list.isNotEmpty) (t, list),
 ];
 
+/// Разделы списка шансов на экране сундука. Togetherly+ стоит отдельно в
+/// самом верху (`null` вместо яруса — «Главный приз»): это самое ценное в
+/// сундуке, им сундук и привлекает (решение заказчика 27.09.2026). Дальше —
+/// ярусы по [chestTiers] уже без него. Нет Плюса в таблице — нет и раздела.
+List<(ChestTier?, List<ChestPrize>)> chestSections(List<ChestPrize> odds) {
+  final top = odds.where((p) => p.kind == ChestPrizeKind.plus).toList();
+  return [
+    if (top.isNotEmpty) (null, top),
+    ...chestTiers(odds.where((p) => p.kind != ChestPrizeKind.plus).toList()),
+  ];
+}
+
 /// Где стоит приз в кадрах открытия сундука: `[x, y, сторона]` в долях
 /// картинки, `null` — приз ещё внутри. Снято с той же формулы, что
 /// `chestOpen` на макете (подъём, размер, покачивание, горло сундука), при

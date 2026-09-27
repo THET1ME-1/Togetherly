@@ -65,6 +65,16 @@ void main() {
     expect(chestTiers(fallbackChestOdds(withPlus: true).where((p) => p.tier == ChestTier.rare).toList()).length, 1);
   });
 
+  test('Togetherly+ стоит первым отдельным разделом и не повторяется в ярусах', () {
+    final withPlus = chestSections(fallbackChestOdds(withPlus: true));
+    expect(withPlus.first.$1, isNull);
+    expect(withPlus.first.$2.map((p) => p.key), ['plus']);
+    expect(withPlus.skip(1).expand((s) => s.$2).any((p) => p.key == 'plus'), isFalse);
+    expect(withPlus.last.$2.map((p) => p.key), ['locket', 'rings']);
+    // Плюса в таблице нет (iPhone, уже куплен) — нет и главного раздела.
+    expect(chestSections(fallbackChestOdds(withPlus: false)).first.$1, ChestTier.common);
+  });
+
   test('состояние: незнакомый подарок пропускается, остаток не выходит за рамки', () {
     final st = ChestState.fromJson({
       'ok': true,

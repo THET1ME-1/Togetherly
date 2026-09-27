@@ -2,6 +2,24 @@
 // {name} заменяет код экрана.
 
 const Map<String, Map<String, String>> chestStrings = {
+  'chestTierTop': {
+    'ru': 'Главный приз',
+    'en': 'Top prize',
+    'pt': 'Prémio principal',
+    'it': 'Premio principale',
+    'es': 'Premio principal',
+    'fr': 'Gros lot',
+    'de': 'Hauptpreis',
+  },
+  'chestCardTextPlus': {
+    'ru': 'Togetherly+ навсегда, монеты и подарки, которых нет в магазине. Открывается за рекламу.',
+    'en': 'Togetherly+ forever, coins and gifts you can’t buy in the shop. Opens for a video.',
+    'pt': 'Togetherly+ para sempre, moedas e presentes que não estão na loja. Abre com um vídeo.',
+    'it': 'Togetherly+ per sempre, monete e regali che non trovi nel negozio. Si apre con un video.',
+    'es': 'Togetherly+ para siempre, monedas y regalos que no están en la tienda. Se abre con un vídeo.',
+    'fr': 'Togetherly+ pour toujours, des pièces et des cadeaux absents de la boutique. S’ouvre avec une vidéo.',
+    'de': 'Togetherly+ für immer, Münzen und Geschenke, die es im Shop nicht gibt. Öffnet sich für ein Video.',
+  },
   'chestChance': {
     'ru': 'Шанс {p}',
     'en': 'Chance {p}',
