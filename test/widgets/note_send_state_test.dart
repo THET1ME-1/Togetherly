@@ -144,4 +144,35 @@ void main() {
       expect(nextUnseenNote(msgs, finishedId: 'нет', myUid: 'me'), isNull);
     });
   });
+
+  group('следующее голосовое после дослушанного', () {
+    ChatMsg v(String id, {String uid = 'her', int ts = 0, int heard = 0}) =>
+        ChatMsg(
+          id: id,
+          uid: uid,
+          name: 'Аня',
+          text: '',
+          ts: ts,
+          voiceUrl: '/tmp/$id.m4a',
+          voiceMs: 5000,
+          voiceHeardAt: heard == 0 ? null : heard,
+        );
+    final msgs = [
+      v('a', ts: 100),
+      _note('n', ts: 150),
+      v('mine', uid: 'me', ts: 160),
+      v('b', ts: 200, heard: 1),
+      v('c', ts: 300),
+    ];
+
+    test('кружки, свои и прослушанные пропускаем', () {
+      expect(nextUnheardVoice(msgs, finishedId: 'a', myUid: 'me')?.id, 'c');
+      expect(nextUnheardVoice(msgs, finishedId: 'c', myUid: 'me'), isNull);
+    });
+
+    test('цепочки не смешиваются: после кружка голосовое не включаем', () {
+      expect(nextUnseenNote(msgs, finishedId: 'a', myUid: 'me')?.id, 'n');
+      expect(nextUnseenNote(msgs, finishedId: 'n', myUid: 'me'), isNull);
+    });
+  });
 }

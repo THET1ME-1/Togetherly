@@ -355,6 +355,8 @@ class _ChatScreenState extends State<ChatScreen> {
     _loadChatBackground();
     _noteFinishedSub =
         NotePlayerService.instance.finished.listen(_onNoteFinished);
+    _voiceFinishedSub =
+        VoicePlayerService.instance.finished.listen(_onVoiceFinished);
     _controller.addListener(_onTextChanged);
     _scrollController.addListener(_onScroll);
   }
@@ -448,6 +450,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _noteElapsedSub?.cancel();
     _noteLimitSub?.cancel();
     _noteFinishedSub?.cancel();
+    _voiceFinishedSub?.cancel();
     _noteElapsed.dispose();
     // Камера не должна пережить экран: иначе индикатор съёмки горит дальше.
     unawaited(NoteRecorderService.instance.release());
@@ -701,6 +704,34 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// Досмотренный кружок включает следующий непросмотренный кружок партнёра.
   StreamSubscription<String>? _noteFinishedSub;
+
+  /// Дослушанное голосовое включает следующее непрослушанное голосовое
+  /// партнёра — так же, как кружки.
+  StreamSubscription<String>? _voiceFinishedSub;
+
+  Future<void> _onVoiceFinished(String id) async {
+    if (!mounted) return;
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) return;
+    final next = nextUnheardVoice(_lastMessages, finishedId: id, myUid: _myUid);
+    final voice = next?.voice;
+    if (next == null || voice == null) return;
+    // Следующее далеко за экраном — не тащим ленту, включат руками.
+    final ctx = _keyFor(next.id).currentContext;
+    if (ctx == null) return;
+    await Scrollable.ensureVisible(
+      ctx,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOutCubic,
+      alignment: 0.5,
+    );
+    if (!mounted) return;
+    await VoicePlayerService.instance.toggle(
+      messageId: next.id,
+      url: voice.url,
+      knownDuration: voice.duration,
+    );
+  }
 
   Future<void> _onNoteFinished(String id) async {
     if (!mounted) return;

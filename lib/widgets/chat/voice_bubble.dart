@@ -92,6 +92,15 @@ class _VoiceBubbleState extends State<VoiceBubble> {
         final st = _player.state;
         final playing = current && st.playing;
         final loading = current && st.loading;
+        // Заиграло не от касания (следующее после дослушанного) — тоже
+        // прослушано: точка у пузыря гаснет, автор видит отметку.
+        if (playing && !_heard && !widget.isMine) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted || _heard) return;
+            setState(() => _heard = true);
+            unawaited(ChatService.instance.markVoiceHeard(widget.msg.id));
+          });
+        }
         final progress = current ? st.progress : 0.0;
         final shown = current && st.position > Duration.zero
             ? st.position

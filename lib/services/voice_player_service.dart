@@ -46,9 +46,13 @@ class VoicePlayerService extends ChangeNotifier {
       if (_state.messageId.isEmpty) return;
       if (s.processingState == ProcessingState.completed) {
         // Дослушали до конца: бегунок в начало, кнопка снова «слушать».
+        final done = _state.messageId;
         _player.pause();
         _player.seek(Duration.zero);
         _set(const VoicePlayback());
+        // Один раз за проигрыш: следующие события «конец» приходят уже с
+        // пустым состоянием и отсекаются проверкой выше.
+        _finished.add(done);
       } else {
         _set(_state.copy(
           playing: s.playing,
@@ -71,6 +75,12 @@ class VoicePlayerService extends ChangeNotifier {
   static const List<double> speeds = [1.0, 1.5, 2.0];
 
   final AudioPlayer _player = AudioPlayer();
+
+  final StreamController<String> _finished = StreamController<String>.broadcast();
+
+  /// id голосового, которое только что дослушали до конца. По нему чат
+  /// включает следующее непрослушанное.
+  Stream<String> get finished => _finished.stream;
   VoicePlayback _state = const VoicePlayback();
   double _speed = 1.0;
 
