@@ -25,6 +25,8 @@ import '../theme/app_theme.dart';
 import 'pb_auth_service.dart';
 import '../models/ios_widget_gaps.dart';
 import '../models/countdown_widget.dart';
+import '../models/memory.dart';
+import '../models/partner_task_photos.dart';
 import '../models/timer_item.dart';
 import '../models/mood_entry.dart';
 import '../models/mood_widget_payload.dart';
@@ -1146,9 +1148,14 @@ class HomeWidgetService {
       final wd = await _readWidgetData(groupId, partnerUid);
 
       if (wd != null) {
+        final urls = await _withPartnerTaskPhotos(
+          wd.photoForPartnerUrls,
+          groupId: groupId,
+          partnerUid: partnerUid,
+        );
         final result = {
           'photoUrl': wd.photoForPartnerUrl ?? '',
-          'photoUrls': wd.photoForPartnerUrls.join(','),
+          'photoUrls': urls.join(','),
           'authorName': wd.displayName,
           'authorUid': partnerUid,
         };
@@ -1159,10 +1166,16 @@ class HomeWidgetService {
       debugPrint('_getPartnerWidgetData doc read failed: $e');
     }
 
-    // Партнёр ещё не открывал виджеты — возвращаем имя из memberNames
+    // Партнёр ещё не открывал виджеты — возвращаем имя из memberNames. Фото
+    // из заданий дня у него при этом могут быть.
+    final taskUrls = await _withPartnerTaskPhotos(
+      const [],
+      groupId: groupId,
+      partnerUid: partnerUid,
+    );
     final result = {
       'photoUrl': '',
-      'photoUrls': '',
+      'photoUrls': taskUrls.join(','),
       'authorName': partnerName.isNotEmpty ? partnerName : '',
       'authorUid': partnerUid.isNotEmpty ? partnerUid : '',
     };
@@ -4101,6 +4114,62 @@ class HomeWidgetService {
   /// проход: он уже не пойдёт в сеть за тем, что лежит на диске.
   static const Duration _iosCatalogBudget = Duration(seconds: 90);
 
+  // ── Фото из заданий дня в «Фото партнёра» ──
+  //
+  // Настройка лежит в HomeWidgetPreferences, а не в обычных prefs: её читает
+  // и фоновое обновление виджетов, где своего экрана нет.
+
+  Future<bool> getPartnerTaskPhotos() async =>
+      (await HomeWidget.getWidgetData<String>(kPartnerTaskPhotosKey)) == '1';
+
+  Future<void> setPartnerTaskPhotos(bool on) async {
+    await HomeWidget.saveWidgetData<String>(kPartnerTaskPhotosKey, on ? '1' : '0');
+    _taskPhotosCache.clear();
+    invalidateWidgetDataCache();
+  }
+
+  final Map<String, ({DateTime at, List<String> urls})> _taskPhotosCache = {};
+
+  /// Карусель «Фото партнёра» плюс его снимки из заданий дня, если человек
+  /// это включил. Лента читается не чаще раза в 10 минут на пару.
+  Future<List<String>> _withPartnerTaskPhotos(
+    List<String> sent, {
+    String? groupId,
+    String? partnerUid,
+  }) async {
+    try {
+      if (!await getPartnerTaskPhotos()) return sent;
+      final g = groupId ??
+          (await HomeWidget.getWidgetData<String>('love_widget_group_id')) ??
+          '';
+      final p = partnerUid ??
+          (await HomeWidget.getWidgetData<String>('love_widget_partner_uid')) ??
+          '';
+      if (g.isEmpty || p.isEmpty) return sent;
+      final key = '$g|$p';
+      final hit = _taskPhotosCache[key];
+      List<String> tasks;
+      if (hit != null &&
+          DateTime.now().difference(hit.at) < const Duration(minutes: 10)) {
+        tasks = hit.urls;
+      } else {
+        final recs = await PbDataService().loadMemories(g, limit: 60);
+        final memories = <Memory>[];
+        for (final r in recs) {
+          try {
+            memories.add(Memory.fromPb(r));
+          } catch (_) {}
+        }
+        tasks = partnerTaskPhotos(memories, partnerUid: p);
+        _taskPhotosCache[key] = (at: DateTime.now(), urls: tasks);
+      }
+      return mergePartnerCarousel(sent, tasks);
+    } catch (e) {
+      debugPrint('HomeWidgetService._withPartnerTaskPhotos failed: $e');
+      return sent;
+    }
+  }
+
   Future<void> syncIosPhotoWidgets({
     required List<String>? myPhotos,
     required List<String>? partnerPhotos,
@@ -4134,6 +4203,9 @@ class HomeWidgetService {
     String dayAuthor = '',
     List<String>? gridPhotos,
   }) async {
+    if (partnerPhotos != null) {
+      partnerPhotos = await _withPartnerTaskPhotos(partnerPhotos);
+    }
     if (myPhotos == null && partnerPhotos == null && gridPhotos == null) return;
     // «Фото дня» на айфоне не наполнялось НИКОГДА: единственное место, где
     // пишется `ios_photo_day_path`, лежит за списком Android-виджетов

@@ -20,6 +20,7 @@ import '../services/pb_media_service.dart';
 import '../services/widget_anim_service.dart';
 import '../services/plus_service.dart';
 import '../services/ui_prefs.dart';
+import '../dict_strings.dart' show trKey;
 import '../models/countdown_widget.dart';
 import '../models/note_preview.dart';
 import '../models/together_milestones.dart';
@@ -250,6 +251,9 @@ class _WidgetScreenState extends State<WidgetScreen>
   // Фото-виджет (личный) и Фото партнёра — две независимые карточки
   bool _savePhotoAsMemory = true;
 
+  /// Подмешивать в «Фото партнёра» его снимки из заданий дня.
+  bool _partnerTaskPhotos = false;
+
   List<int> _personalWidgetIds = [];
   List<int> _partnerWidgetIds = [];
   Map<int, String> _photoDayWidgetNames = const {};
@@ -352,6 +356,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     final photoDayWidgetsFuture = _loadPhotoDayWidgetsSilent();
     final statsFuture = _loadStatsSilent();
     final daysPhotosFuture = hws.isDaysCounterPhotosEnabled(groupId: _pair.pairId);
+    final taskPhotosFuture = hws.getPartnerTaskPhotos();
 
     final results = await Future.wait([
       pinSupportedFuture,
@@ -372,6 +377,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     final photoDayState = results[4] as Map<String, dynamic>;
     final statsState = results[5] as Map<String, dynamic>;
     final daysPhotos = results[6] as bool;
+    final taskPhotos = await taskPhotosFuture;
 
     setState(() {
       _canPinWidgets = canPin;
@@ -379,6 +385,7 @@ class _WidgetScreenState extends State<WidgetScreen>
       _lockScreenMoodEnabled = lockEnabled;
       _savePhotoAsMemory = photoDaySave;
       _daysPhotosEnabled = daysPhotos;
+      _partnerTaskPhotos = taskPhotos;
       _photoGridCount = photoGridCount;
       _personalWidgetIds = List<int>.from(photoDayState['personalIds'] ?? []);
       _partnerWidgetIds = List<int>.from(photoDayState['partnerIds'] ?? []);
@@ -600,10 +607,25 @@ class _WidgetScreenState extends State<WidgetScreen>
   Future<void> _loadPhotoDayPrefs() async {
     final hws = HomeWidgetService.instance;
     final save = await hws.getPhotoDaySaveMemory(_pair.pairId);
+    final tasks = await hws.getPartnerTaskPhotos();
 
     if (mounted) {
-      setState(() => _savePhotoAsMemory = save);
+      setState(() {
+        _savePhotoAsMemory = save;
+        _partnerTaskPhotos = tasks;
+      });
     }
+  }
+
+  /// Включает снимки из заданий дня в «Фото партнёра» и сразу перерисовывает
+  /// виджеты: иначе человек увидел бы их только через 15 минут.
+  Future<void> _togglePartnerTaskPhotos(bool value) async {
+    setState(() => _partnerTaskPhotos = value);
+    final hws = HomeWidgetService.instance;
+    await hws.setPartnerTaskPhotos(value);
+    if (_pair.pairId.isEmpty) return;
+    await hws.refreshPhotoOfDay(_pair.pairId);
+    await _ws.syncNow();
   }
 
   Future<void> _loadPhotoDayWidgets() async {
@@ -5474,6 +5496,34 @@ class _WidgetScreenState extends State<WidgetScreen>
             ),
           ),
         ],
+        const SizedBox(height: 12),
+        _buildGlassCard(
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      trKey('partnerTaskPhotosTitle'),
+                      style: AppFonts.onest(size: 12, weight: 600, color: _t.textPrimary),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      trKey('partnerTaskPhotosHint').replaceAll('{name}', partnerName),
+                      style: AppFonts.onest(size: 11, color: _t.textMuted),
+                    ),
+                  ],
+                ),
+              ),
+              Switch.adaptive(
+                value: _partnerTaskPhotos,
+                activeColor: _t.primary,
+                onChanged: _togglePartnerTaskPhotos,
+              ),
+            ],
+          ),
+        ),
         const SizedBox(height: 16),
         Text(
           LocaleService.current.widgetInstances,

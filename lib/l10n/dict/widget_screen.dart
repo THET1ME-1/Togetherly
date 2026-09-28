@@ -1689,4 +1689,22 @@ const Map<String, Map<String, String>> widgetScreenStrings = {
     'fr': 'Dessinez quelque chose ensemble',
     'de': 'Zeichnet etwas zusammen',
   },
+  'partnerTaskPhotosTitle': {
+    'ru': 'Фото из заданий дня',
+    'en': 'Daily task photos',
+    'pt': 'Fotos das tarefas do dia',
+    'it': 'Foto dei compiti del giorno',
+    'es': 'Fotos de las tareas del día',
+    'fr': 'Photos des défis du jour',
+    'de': 'Fotos aus den Tagesaufgaben',
+  },
+  'partnerTaskPhotosHint': {
+    'ru': 'Снимки, которые {name} выкладывает в заданиях дня, тоже появятся в виджете',
+    'en': 'Photos {name} posts in daily tasks will also show up in the widget',
+    'pt': 'As fotos que {name} publica nas tarefas do dia também vão aparecer no widget',
+    'it': 'Anche le foto che {name} pubblica nei compiti del giorno appariranno nel widget',
+    'es': 'Las fotos que {name} sube en las tareas del día también aparecerán en el widget',
+    'fr': 'Les photos que {name} publie dans les défis du jour apparaîtront aussi dans le widget',
+    'de': 'Fotos, die {name} in den Tagesaufgaben teilt, erscheinen auch im Widget',
+  },
 };
