@@ -3329,4 +3329,13 @@ const Map<String, Map<String, String>> chatStrings = {
     'fr': 'Forme',
     'de': 'Form',
   },
+  'chatQuickReactionTitle': {
+    'ru': 'Реакция на двойное касание',
+    'en': 'Double-tap reaction',
+    'pt': 'Reação ao toque duplo',
+    'it': 'Reazione al doppio tocco',
+    'es': 'Reacción al doble toque',
+    'fr': 'Réaction au double appui',
+    'de': 'Reaktion auf Doppeltippen',
+  },
 };

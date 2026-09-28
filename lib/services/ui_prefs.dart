@@ -1,4 +1,5 @@
 import '../models/chat_look.dart';
+import '../models/chat_reaction.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Лёгкие локальные UI-настройки (без сервера). Единый источник ключей, чтобы
@@ -151,6 +152,20 @@ class UiPrefs {
   /// мордочки), `material` — обычные пузыри, `sticker` — наклейка, `pixel` —
   /// пиксель. Хранится локально:
   /// это дело вкуса каждого, а не пары.
+  /// Реакция двойного касания в чате (эмодзи). Своя у каждого.
+  static const String kQuickReaction = 'chat_quick_reaction';
+
+  static Future<String> quickReaction() async {
+    final p = await SharedPreferences.getInstance();
+    final v = p.getString(kQuickReaction) ?? '';
+    return v.isEmpty ? kDefaultQuickReaction : v;
+  }
+
+  static Future<void> setQuickReaction(String emoji) async {
+    final p = await SharedPreferences.getInstance();
+    await p.setString(kQuickReaction, emoji);
+  }
+
   static const String kChatLook = 'chat_look';
 
   static Future<ChatLook> chatLook() async {

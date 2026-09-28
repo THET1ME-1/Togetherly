@@ -42,6 +42,9 @@ import '../dict_strings.dart' show trKey;
 import '../widgets/chat/voice_bubble.dart';
 import '../widgets/chat/bubble_looks.dart';
 import '../widgets/chat/chat_look_sheet.dart';
+import '../widgets/chat/reaction_art.dart';
+import '../widgets/app_sheet.dart';
+import '../models/chat_reaction.dart';
 import '../models/chat_look.dart';
 import 'chat/note_viewer_screen.dart';
 import '../widgets/chat/note_bubble.dart';
@@ -351,6 +354,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _loadRecentColors();
     _loadChatStyle();
     _loadChatLook();
+    _loadQuickReaction();
     _loadNoteMode();
     _loadChatBackground();
     _noteFinishedSub =
@@ -638,6 +642,48 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// Обычный вид Material вместо нашего: прямые скругления, без хвостиков,
   /// наклона и мордочек. Переключается в меню шапки, хранится локально.
+  /// Реакция двойного касания — своя у каждого, выбирается в меню чата.
+  String _quickReaction = kDefaultQuickReaction;
+
+  /// Где пришлось второе касание: оттуда выпрыгивает реакция.
+  Offset? _doubleTapAt;
+
+  Future<void> _loadQuickReaction() async {
+    final v = await UiPrefs.quickReaction();
+    if (mounted && v != _quickReaction) setState(() => _quickReaction = v);
+  }
+
+  /// Двойное касание: ставит выбранную реакцию или снимает её, если стоит.
+  void _quickReact(ChatMsg msg) {
+    if (msg.deleted) return;
+    final next = quickReactionToggle(
+        mine: msg.reactions[_myUid], quick: _quickReaction);
+    HapticFeedback.lightImpact();
+    _chat.setReaction(groupId: _groupId, messageId: msg.id, emoji: next);
+    final at = _doubleTapAt;
+    if (next != null && at != null) showReactionBurst(context, next, at);
+  }
+
+  /// Выбор реакции двойного касания (меню чата).
+  Future<void> _pickQuickReaction() async {
+    final picked = await showAppSheet<String>(
+      context,
+      builder: (ctx) => SheetScaffold(
+        title: trKey('chatQuickReactionTitle'),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          child: ReactionGrid(
+            selected: _quickReaction,
+            onPick: (e) => Navigator.of(ctx).pop(e),
+          ),
+        ),
+      ),
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _quickReaction = picked);
+    await UiPrefs.setQuickReaction(picked);
+  }
+
   /// Вид пузырей: наш, обычный, наклейка или пиксель (`ChatLook`).
   ChatLook _look = ChatLook.cozy;
   bool get _materialLook => _look == ChatLook.material;
@@ -1805,6 +1851,24 @@ class _ChatScreenState extends State<ChatScreen> {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
+            // Полный набор реакций — по долгому нажатию, сверху меню.
+            // Двойное касание ставит одну, выбранную в меню чата.
+            if (!msg.deleted)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 12, 8, 4),
+                child: ReactionGrid(
+                  size: 34,
+                  selected: msg.reactions[_myUid],
+                  onPick: (e) {
+                    Navigator.pop(ctx);
+                    _chat.setReaction(
+                      groupId: _groupId,
+                      messageId: msg.id,
+                      emoji: msg.reactions[_myUid] == e ? null : e,
+                    );
+                  },
+                ),
+              ),
             ListTile(
               leading: Icon(Icons.reply_rounded, color: _t.primary),
               title: Text(s.chatReply),
@@ -1836,85 +1900,6 @@ class _ChatScreenState extends State<ChatScreen> {
             ],
             const SizedBox(height: 8),
           ],
-        ),
-      ),
-    );
-  }
-
-  /// Набор системных эмодзи-реакций (тёплый, для пары).
-  static const List<String> _reactionEmojis = [
-    '❤️',
-    '🥰',
-    '😍',
-    '😘',
-    '😂',
-    '🤗',
-    '👍',
-    '👏',
-    '🔥',
-    '🎉',
-    '😮',
-    '😢',
-    '🙏',
-    '💯',
-    '😡',
-    '👎',
-  ];
-
-  /// Пикер реакций (по двойному тапу). Тап по уже выбранному эмодзи — снимает.
-  void _showReactionPicker(ChatMsg msg) {
-    final mine = msg.reactions[_myUid];
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: _t.cardSurface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 18),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: _t.divider,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 4,
-                runSpacing: 4,
-                children: [
-                  for (final e in _reactionEmojis)
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        _chat.setReaction(
-                          groupId: _groupId,
-                          messageId: msg.id,
-                          emoji: mine == e ? null : e,
-                        );
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: mine == e
-                              ? _t.primary.withOpacity(0.18)
-                              : Colors.transparent,
-                        ),
-                        child: Text(e, style: const TextStyle(fontSize: 30)),
-                      ),
-                    ),
-                ],
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -2092,7 +2077,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(entry.key, style: const TextStyle(fontSize: 14)),
+                    ReactionArt(emoji: entry.key, size: 20),
                     if (entry.value > 1) ...[
                       const SizedBox(width: 3),
                       Text(
@@ -2349,6 +2334,7 @@ class _ChatScreenState extends State<ChatScreen> {
         onSelected: (v) {
           if (v == 'bg') _changeBackground();
           if (v == 'look') _pickChatLook();
+          if (v == 'quick') _pickQuickReaction();
         },
         itemBuilder: (ctx) => [
           PopupMenuItem<String>(
@@ -2369,6 +2355,16 @@ class _ChatScreenState extends State<ChatScreen> {
                     color: cs.primary, size: 20),
                 const SizedBox(width: 12),
                 Text(trKey('chatLookTitle')),
+              ],
+            ),
+          ),
+          PopupMenuItem<String>(
+            value: 'quick',
+            child: Row(
+              children: [
+                ReactionArt(emoji: _quickReaction, size: 22),
+                const SizedBox(width: 12),
+                Flexible(child: Text(trKey('chatQuickReactionTitle'))),
               ],
             ),
           ),
@@ -3032,7 +3028,8 @@ class _ChatScreenState extends State<ChatScreen> {
       // долгий — меню), но без фона/хвоста/наклона.
       tilted = GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onDoubleTap: () => _showReactionPicker(msg),
+        onDoubleTapDown: (d) => _doubleTapAt = d.globalPosition,
+        onDoubleTap: () => _quickReact(msg),
         onLongPress: () => _showMessageMenu(msg),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
@@ -3081,7 +3078,8 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
       );
       final bubble = GestureDetector(
-        onDoubleTap: msg.deleted ? null : () => _showReactionPicker(msg),
+        onDoubleTapDown: (d) => _doubleTapAt = d.globalPosition,
+        onDoubleTap: msg.deleted ? null : () => _quickReact(msg),
         onLongPress: msg.deleted ? null : () => _showMessageMenu(msg),
         // Мордочка — оверлеем в выбранной автором позиции (доли 0..1), по
         // умолчанию низ-центр. IgnorePointer — чтобы не перехватывала тапы.

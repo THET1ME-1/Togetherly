@@ -162,6 +162,7 @@ flutter:
     - assets/images/gifts/
     - assets/images/frames/
     - assets/images/ailments/
+    - assets/images/reactions/
     - assets/sounds/
     - assets/images/logo/
     - assets/icons/
