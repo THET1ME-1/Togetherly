@@ -226,15 +226,29 @@ routerAdd("POST", "/api/lava/checkout", (e) => {
   if (paymentMethod) payload.paymentMethod = paymentMethod;
   if (promoCode) payload.promoCode = promoCode;
 
+  const sendInvoice = () => $http.send({
+    url: "https://gate.lava.top/api/v2/invoice",
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
+    body: JSON.stringify(payload),
+    timeout: 15,
+  });
+
   let res;
   try {
-    res = $http.send({
-      url: "https://gate.lava.top/api/v2/invoice",
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
-      body: JSON.stringify(payload),
-      timeout: 15,
-    });
+    res = sendInvoice();
+    // С 27.09.2026 14:47 UTC lava отвечает на PAY2ME «Restricted payment
+    // method type»: СБП у аккаунта продавца выключен. Каждая покупка и
+    // подарок Плюса из приложения падали, кнопка молчала. Без явного способа
+    // счёт создаётся, и страница оплаты та же, где проходит прямая ссылка
+    // на товар. Способ, который lava запретила, снимаем и пробуем ещё раз.
+    if (res.statusCode === 400 && payload.paymentMethod &&
+        String(res.raw || "").indexOf("Restricted payment method") >= 0) {
+      $app.logger().warn("lava/checkout: способ оплаты запрещён, счёт без способа",
+        "method", payload.paymentMethod, "email", email);
+      delete payload.paymentMethod;
+      res = sendInvoice();
+    }
   } catch (err) {
     return e.json(502, { ok: false, error: "lava_unreachable" });
   }
