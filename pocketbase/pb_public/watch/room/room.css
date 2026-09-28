@@ -376,6 +376,22 @@
  * снизу, полупрозрачной полосой, и его видно, не выходя из просмотра.
  */
 .room-body.cinema .top--room { display: none; }
+/* В приложении шапка одна — эта: без логотипа, с «назад» слева. Логотип на
+   узком экране сжимался до «TY wa», и рядом стояла вторая шапка приложения. */
+.app-chrome .top--room .brand { display: none; }
+.app-chrome .top--room #back { margin-right: auto; }
+/* Свёрнутая шапка: её место отдаётся плееру и чату, вернуть — круглой
+   кнопкой в правом верхнем углу поверх комнаты. */
+.room-body.top-folded .top--room { display: none; }
+.unfold {
+  position: fixed; z-index: 30;
+  top: calc(env(safe-area-inset-top, 0px) + 8px); right: calc(env(safe-area-inset-right, 0px) + 10px);
+  width: 40px; height: 40px; border-radius: 50%; border: 0; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--card) 86%, transparent); color: var(--ink);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.unfold[hidden] { display: none; }
+.room-body.cinema .unfold { display: none; }
 .room-body.cinema .stage-wrap {
   padding: 0;
   gap: 0;

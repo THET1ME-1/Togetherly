@@ -1534,7 +1534,16 @@
 
     state.room = room;
     $('#code').textContent = room;
-    if (navigator.share) $('#share').hidden = false;
+    // Приложение без своей шапки: «назад», «скопировать» и «поделиться»
+    // отдаём ему — у WebView нет ни navigator.share, ни надёжного буфера.
+    const chrome = !!window.__togetherlyChrome && inAppWebView();
+    if (chrome) {
+      document.body.classList.add('app-chrome');
+      $('#back').hidden = false;
+      $('#share').hidden = false;
+    } else if (navigator.share) {
+      $('#share').hidden = false;
+    }
 
     // Приложение открывает комнату сразу с роликом: /watch/room/?src=<адрес>#код.
     const params = new URLSearchParams(location.search);
@@ -1612,13 +1621,37 @@
       if (e.key === 'Enter') $('#send').click();
     });
 
+    const toApp = (name) => {
+      const bridge = window.flutter_inappwebview;
+      if (!window.__togetherlyChrome || !bridge || typeof bridge.callHandler !== 'function') return false;
+      bridge.callHandler(name, { url: shareLink() });
+      return true;
+    };
+    $('#back').addEventListener('click', () => { toApp('watchBack'); });
+
+    // Сворачивание шапки: выбор помним на этом устройстве.
+    const fold = (on) => {
+      document.body.classList.toggle('top-folded', on);
+      $('#unfold').hidden = !on;
+      try { localStorage.setItem('tw.topFolded', on ? '1' : '0'); } catch (_) {}
+      // Плеер и чат пересчитывают высоту по resize.
+      window.dispatchEvent(new Event('resize'));
+    };
+    $('#fold').addEventListener('click', () => fold(true));
+    $('#unfold').addEventListener('click', () => fold(false));
+    try { if (localStorage.getItem('tw.topFolded') === '1') fold(true); } catch (_) {}
     const share = $('#share');
     if (share) {
       share.addEventListener('click', () => {
+        if (toApp('watchShare')) return;
         navigator.share({ url: shareLink() }).catch(() => {});
       });
     }
     $('#copy').addEventListener('click', async () => {
+      if (toApp('watchCopy')) {
+        setStatus(I18N.t('room.copied'), true);
+        return;
+      }
       try {
         await navigator.clipboard.writeText(shareLink());
         setStatus(I18N.t('room.copied'), true);

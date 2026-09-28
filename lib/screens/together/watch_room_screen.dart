@@ -38,13 +38,7 @@ class WatchRoomScreen extends StatefulWidget {
   /// Пара, чью историю просмотров пополняем.
   final String pairId;
 
-  const WatchRoomScreen({
-    super.key,
-    required this.room,
-    required this.pairId,
-    this.videoUrl,
-    this.afterAd = false,
-  });
+  const WatchRoomScreen({super.key, required this.room, required this.pairId, this.videoUrl, this.afterAd = false});
 
   @override
   State<WatchRoomScreen> createState() => _WatchRoomScreenState();
@@ -123,14 +117,8 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
       VoiceCallState.live => 'live',
       VoiceCallState.failed => 'failed',
     };
-    final data = jsonEncode({
-      'state': state,
-      'micOn': voice?.micOn ?? true,
-      'speakerOn': voice?.speakerOn ?? true,
-    });
-    unawaited(web.evaluateJavascript(
-      source: 'window.watchVoiceState && window.watchVoiceState($data)',
-    ));
+    final data = jsonEncode({'state': state, 'micOn': voice?.micOn ?? true, 'speakerOn': voice?.speakerOn ?? true});
+    unawaited(web.evaluateJavascript(source: 'window.watchVoiceState && window.watchVoiceState($data)'));
   }
 
   /// Нажатие на странице: позвонить, положить трубку, приглушить микрофон.
@@ -160,9 +148,7 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
     } else {
       await voice.start();
       if (mounted && voice.state == VoiceCallState.failed) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(LocaleService.current.voiceNoPermission)),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(LocaleService.current.voiceNoPermission)));
       }
     }
   }
@@ -178,11 +164,11 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
   /// Адрес открытой комнаты: с роликом, если пришли из карточки или карусели,
   /// и со своим именем — иначе страница подписывает обоих «Гость».
   String get _url => WatchRoomService.siteUrl(
-        widget.room,
-        src: widget.videoUrl,
-        name: PocketBaseService().userName,
-        afterAd: widget.afterAd,
-      );
+    widget.room,
+    src: widget.videoUrl,
+    name: PocketBaseService().userName,
+    afterAd: widget.afterAd,
+  );
 
   /// Ссылка для партнёра — без ролика и без имени: он войдёт в ту же комнату,
   /// получит источник от нас по каналу и подпишется своим именем.
@@ -191,21 +177,15 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
   Future<void> _share() async {
     // Без якоря на iPad лист не открывается вовсе, и кнопка выглядит мёртвой —
     // ровно за это прилетал реджект 2.1(a) по «Scan to Connect».
-    await Share.share(
-      _inviteUrl,
-      sharePositionOrigin: shareOriginFromContext(context),
-    );
+    await Share.share(_inviteUrl, sharePositionOrigin: shareOriginFromContext(context));
   }
 
   Future<void> _copy() async {
     await Clipboard.setData(ClipboardData(text: _inviteUrl));
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(LocaleService.current.linkCopied),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(LocaleService.current.linkCopied), behavior: SnackBarBehavior.floating));
   }
 
   /// Когда последний раз нажимали «назад».
@@ -245,109 +225,109 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
   }
 
   Widget _roomScaffold(BuildContext context, AppStrings s, ColorScheme cs) {
-    // Лёжа экран отдаётся фильму целиком: полоса шапки отъедала верх кадра,
-    // а выйти можно и жестом «назад» (обращение 194).
-    final landscape =
-        MediaQuery.orientationOf(context) == Orientation.landscape;
     return Scaffold(
       backgroundColor: cs.surface,
-      appBar: landscape ? null : AppBar(
-        // Код комнаты в заголовке мозолил глаза, а нужен он только гостю из
-        // браузера — его раздают кнопки «Копировать» и «Поделиться» рядом.
-        title: Text(s.watchTogether),
-        centerTitle: true,
-        leading: IconButton(
-          onPressed: () {
-            if (_allowLeave()) Navigator.of(context).pop();
-          },
-          icon: const Icon(Icons.arrow_back_rounded),
-          tooltip: MaterialLocalizations.of(context).backButtonTooltip,
-        ),
-        actions: [
-          IconButton(
-            onPressed: _copy,
-            icon: const Icon(Icons.copy_rounded),
-            tooltip: s.copyLink,
-          ),
-          IconButton(
-            onPressed: _share,
-            icon: const Icon(Icons.ios_share_rounded),
-            tooltip: s.copyLink,
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          InAppWebView(
-            initialUrlRequest: URLRequest(url: WebUri(_url)),
-            // Касание в зоне комнаты сразу уходит браузеру, не дожидаясь арены
-            // жестов Flutter: на iPhone после рекламы оно иначе терялось, и
-            // страница не отвечала ни на что (обращения 164, 178, 183, 190).
-            gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
-              Factory<OneSequenceGestureRecognizer>(EagerGestureRecognizer.new),
-            },
-            // Сессия для пропуска: в комнату пары пускают только участников,
-            // и без неё страница попросила бы войти ещё раз.
-            initialUserScripts: UnmodifiableListView([
-              UserScript(
-                source: WatchRoomService.authScript(
-                  token: PocketBaseService.instance.pb.authStore.token,
-                  name: PocketBaseService().userName,
+      // Своей шапки нет: её рисует страница комнаты — «назад», код,
+      // «скопировать», «поделиться», звонок и сворачивание. Две шапки подряд
+      // съедали высоту и повторяли одно и то же (28.09.2026).
+      body: SafeArea(
+        bottom: false,
+        child: Stack(
+          children: [
+            InAppWebView(
+              initialUrlRequest: URLRequest(url: WebUri(_url)),
+              // Касание в зоне комнаты сразу уходит браузеру, не дожидаясь арены
+              // жестов Flutter: на iPhone после рекламы оно иначе терялось, и
+              // страница не отвечала ни на что (обращения 164, 178, 183, 190).
+              gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+                Factory<OneSequenceGestureRecognizer>(EagerGestureRecognizer.new),
+              },
+              // Сессия для пропуска: в комнату пары пускают только участников,
+              // и без неё страница попросила бы войти ещё раз.
+              initialUserScripts: UnmodifiableListView([
+                UserScript(
+                  source: WatchRoomService.authScript(
+                    token: PocketBaseService.instance.pb.authStore.token,
+                    name: PocketBaseService().userName,
+                  ),
+                  injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
                 ),
-                injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+              ]),
+              initialSettings: InAppWebViewSettings(
+                // Видео должно запускаться командой партнёра, а не только пальцем.
+                mediaPlaybackRequiresUserGesture: false,
+                allowsInlineMediaPlayback: true,
+                javaScriptEnabled: true,
+                transparentBackground: true,
+                supportZoom: false,
               ),
-            ]),
-            initialSettings: InAppWebViewSettings(
-              // Видео должно запускаться командой партнёра, а не только пальцем.
-              mediaPlaybackRequiresUserGesture: false,
-              allowsInlineMediaPlayback: true,
-              javaScriptEnabled: true,
-              transparentBackground: true,
-              supportZoom: false,
+              onWebViewCreated: (c) {
+                _web = c;
+                // Кнопка звонка стоит в шапке комнаты, а связь поднимает
+                // приложение: у страницы нет ни микрофона пары, ни сигналинга.
+                // Кнопки шапки страницы: «назад», «скопировать», «поделиться».
+                c.addJavaScriptHandler(
+                  handlerName: 'watchBack',
+                  callback: (_) {
+                    if (mounted && _allowLeave()) Navigator.of(context).pop();
+                    return null;
+                  },
+                );
+                c.addJavaScriptHandler(
+                  handlerName: 'watchCopy',
+                  callback: (_) {
+                    _copy();
+                    return null;
+                  },
+                );
+                c.addJavaScriptHandler(
+                  handlerName: 'watchShare',
+                  callback: (_) {
+                    _share();
+                    return null;
+                  },
+                );
+                c.addJavaScriptHandler(
+                  handlerName: 'watchVoice',
+                  callback: (args) {
+                    final info = (args.isNotEmpty && args.first is Map)
+                        ? Map<String, dynamic>.from(args.first as Map)
+                        : const <String, dynamic>{};
+                    unawaited(_onVoiceAction((info['action'] ?? '').toString()));
+                    return null;
+                  },
+                );
+                // Комната сама сообщает, что включили: иначе приложение не знает,
+                // что происходит внутри встроенного браузера.
+                c.addJavaScriptHandler(
+                  handlerName: 'watchSource',
+                  callback: (args) {
+                    final info = (args.isNotEmpty && args.first is Map)
+                        ? Map<String, dynamic>.from(args.first as Map)
+                        : const <String, dynamic>{};
+                    unawaited(
+                      WatchHistoryService.remember(
+                        groupId: widget.pairId,
+                        url: (info['url'] ?? '').toString(),
+                        kind: (info['kind'] ?? '').toString(),
+                        title: (info['title'] ?? '').toString(),
+                        thumb: (info['thumb'] ?? '').toString(),
+                      ),
+                    );
+                    return null;
+                  },
+                );
+              },
+              onLoadStop: (c, _) {
+                if (mounted) setState(() => _loading = false);
+                // Страница перезагрузилась (поворот, возврат назад) — она снова
+                // ничего не знает про звонок.
+                _pushVoice();
+              },
             ),
-            onWebViewCreated: (c) {
-              _web = c;
-              // Кнопка звонка стоит в шапке комнаты, а связь поднимает
-              // приложение: у страницы нет ни микрофона пары, ни сигналинга.
-              c.addJavaScriptHandler(
-                handlerName: 'watchVoice',
-                callback: (args) {
-                  final info = (args.isNotEmpty && args.first is Map)
-                      ? Map<String, dynamic>.from(args.first as Map)
-                      : const <String, dynamic>{};
-                  unawaited(_onVoiceAction((info['action'] ?? '').toString()));
-                  return null;
-                },
-              );
-              // Комната сама сообщает, что включили: иначе приложение не знает,
-              // что происходит внутри встроенного браузера.
-              c.addJavaScriptHandler(
-                handlerName: 'watchSource',
-                callback: (args) {
-                  final info = (args.isNotEmpty && args.first is Map)
-                      ? Map<String, dynamic>.from(args.first as Map)
-                      : const <String, dynamic>{};
-                  unawaited(WatchHistoryService.remember(
-                    groupId: widget.pairId,
-                    url: (info['url'] ?? '').toString(),
-                    kind: (info['kind'] ?? '').toString(),
-                    title: (info['title'] ?? '').toString(),
-                    thumb: (info['thumb'] ?? '').toString(),
-                  ));
-                  return null;
-                },
-              );
-            },
-            onLoadStop: (c, _) {
-              if (mounted) setState(() => _loading = false);
-              // Страница перезагрузилась (поворот, возврат назад) — она снова
-              // ничего не знает про звонок.
-              _pushVoice();
-            },
-          ),
-          if (_loading)
-            Center(child: M3Loading(color: Theme.of(context).colorScheme.primary)),
-        ],
+            if (_loading) Center(child: M3Loading(color: Theme.of(context).colorScheme.primary)),
+          ],
+        ),
       ),
     );
   }

@@ -69,6 +69,9 @@ class WatchRoomService {
     final data = jsonEncode({'token': token, 'name': (name ?? '').trim()});
     return '(function(){'
         "if(location.hostname!=='$siteHost')return;"
+        // Шапку рисует страница комнаты: «назад», код, «скопировать»,
+        // «поделиться» и звонок — своей шапки у экрана приложения больше нет.
+        'window.__togetherlyChrome=1;'
         'window.__togetherlyAuth=$data;'
         '})();';
   }

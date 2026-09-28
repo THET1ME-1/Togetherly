@@ -36,6 +36,17 @@ void main() {
       expect(_payload(js)['name'], "O'Neil \"Z\" </script>");
     });
 
+    test('экран без своей шапки говорит об этом странице', () {
+      final js = WatchRoomService.authScript(token: 't');
+      expect(js, contains('window.__togetherlyChrome=1;'));
+      final room = File('pocketbase/pb_public/watch/room/room.js').readAsStringSync();
+      expect(room, contains('window.__togetherlyChrome'));
+      for (final h in ['watchBack', 'watchCopy', 'watchShare']) {
+        expect(room, contains("'$h'"));
+        expect(File('lib/screens/together/watch_room_screen.dart').readAsStringSync(), contains("'$h'"));
+      }
+    });
+
     test('имя room.js и Dart совпадает', () {
       final room = File('pocketbase/pb_public/watch/room/room.js').readAsStringSync();
       expect(room, contains('window.__togetherlyAuth'));
