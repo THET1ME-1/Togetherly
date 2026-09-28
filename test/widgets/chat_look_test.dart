@@ -99,7 +99,11 @@ void main() {
     await t.pumpWidget(MaterialApp(
       home: RepaintBoundary(
         key: key,
-        child: Container(
+        // Как в чате: пузыри лежат на Material, без него Flutter метит текст
+        // жёлтым подчёркиванием (признак отсутствующей темы, не вёрстки).
+        child: Material(
+          type: MaterialType.transparency,
+          child: Container(
           color: const Color(0xFFFFF8F6),
           padding: const EdgeInsets.all(16),
           child: Row(children: [
@@ -119,6 +123,7 @@ void main() {
                   child: const Padding(padding: EdgeInsets.fromLTRB(14, 10, 14, 22), child: Text('Почти, в маршрутке', style: TextStyle(fontFamily: 'Onest', fontSize: 15, color: Colors.white))))),
             ])),
           ]),
+        ),
         ),
       ),
     ));
