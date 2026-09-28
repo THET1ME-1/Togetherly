@@ -5,7 +5,7 @@ import 'package:love_app/models/memory.dart';
 /// Задания дня: каталог из двухсот штук лежал с июля без механики. Здесь
 /// проверяется выбор набора и его закрытие — то, чего не хватало.
 void main() {
-  final day = DateTime.utc(2026, 8, 2);
+  final day = DateTime.utc(2026, 10, 2);
 
   group('dailyTasksFor', () {
     test('выдаёт ровно три задания', () {
@@ -37,9 +37,9 @@ void main() {
 
     test('время суток на набор не влияет', () {
       final morning = dailyTasksFor(
-          day: DateTime.utc(2026, 8, 2, 7), pairId: 'g1');
+          day: DateTime.utc(2026, 10, 2, 7), pairId: 'g1');
       final evening = dailyTasksFor(
-          day: DateTime.utc(2026, 8, 2, 23), pairId: 'g1');
+          day: DateTime.utc(2026, 10, 2, 23), pairId: 'g1');
       expect(morning.map((t) => t.id), evening.map((t) => t.id));
     });
 
@@ -58,12 +58,12 @@ void main() {
   group('DailyTaskProgress', () {
     test('вчерашний прогресс на сегодня не переносится', () {
       final old = DailyTaskProgress(
-          date: '2026-08-01', done: const {'photo_now'});
+          date: '2026-10-01', done: const {'photo_now'});
       expect(old.doneOn(day), isEmpty);
     });
 
     test('сегодняшний прогресс читается', () {
-      final p = DailyTaskProgress(date: '2026-08-02', done: const {'photo_now'});
+      final p = DailyTaskProgress(date: '2026-10-02', done: const {'photo_now'});
       expect(p.doneOn(day), {'photo_now'});
     });
 
@@ -100,9 +100,9 @@ void main() {
     });
 
     test('прогресс переживает круг через хранилище', () {
-      final p = DailyTaskProgress(date: '2026-08-02', done: const {'a', 'b'});
+      final p = DailyTaskProgress(date: '2026-10-02', done: const {'a', 'b'});
       final back = DailyTaskProgress.fromMap(p.toMap());
-      expect(back.date, '2026-08-02');
+      expect(back.date, '2026-10-02');
       expect(back.done, {'a', 'b'});
     });
   });
@@ -153,4 +153,68 @@ void main() {
       expect(closed, target.id);
     });
   });
+
+  group('каталог', () {
+    test('заданий не меньше четырёхсот, id и тексты не повторяются', () {
+      final all = DailyTask.all;
+      expect(all.length, greaterThanOrEqualTo(400));
+      expect(all.map((t) => t.id).toSet().length, all.length);
+      expect(all.map((t) => t._ruForTest).toSet().length, all.length);
+    });
+
+    test('у каждого типа пина есть задания, включая своё видео', () {
+      final types = DailyTask.all.map((t) => t.type).toSet();
+      expect(types, containsAll(MemoryType.values));
+    });
+  });
+
+  group('порядок по дням', () {
+    final start = DateTime.utc(2026, 9, 28);
+    DailyTaskDay dayAt(int i, [String pair = 'g1']) => dailyTaskDayFor(
+        day: start.add(Duration(days: i)), pairId: pair);
+
+    test('пока не пройден каталог, задание не повторяется', () {
+      // Три основных плюс бонус в день: 400 заданий хватает на сто дней.
+      final seen = <String>{};
+      final days = DailyTask.all.length ~/ 4 - 5;
+      for (var i = 0; i < days; i++) {
+        final d = dayAt(i);
+        for (final t in [...d.main, if (d.bonus != null) d.bonus!]) {
+          expect(seen.add(t.id), isTrue, reason: 'повтор ${t.id} в день $i');
+        }
+      }
+    });
+
+    test('типы основных разные каждый день, бонус есть всегда', () {
+      for (var i = 0; i < 400; i++) {
+        final d = dayAt(i, 'g7');
+        expect(d.main.length, 3);
+        expect(d.main.map((t) => t.type).toSet().length, 3, reason: 'день $i');
+        expect(d.bonus, isNotNull, reason: 'день $i');
+        expect(d.main.map((t) => t.id), isNot(contains(d.bonus!.id)));
+      }
+    });
+
+    test('два дня подряд без общих заданий', () {
+      for (var i = 0; i < 300; i++) {
+        final a = dayAt(i, 'g3').main.map((t) => t.id).toSet();
+        final b = dayAt(i + 1, 'g3').main.map((t) => t.id).toSet();
+        expect(a.intersection(b), isEmpty, reason: 'дни $i и ${i + 1}');
+      }
+    });
+
+    test('бонус закрывается пином своего типа, когда передан в список', () {
+      final d = dayAt(0);
+      final closed = closeByMemory(
+        tasks: [...d.main, d.bonus!],
+        alreadyDone: d.main.map((t) => t.id).toSet(),
+        type: d.bonus!.type,
+      );
+      expect(closed, d.bonus!.id);
+    });
+  });
+}
+
+extension on DailyTask {
+  String get _ruForTest => title('П');
 }

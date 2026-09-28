@@ -240,7 +240,9 @@ class Wish {
       );
 
   /// Промах по чекбоксу отменяют кнопкой в снекбаре — след отметки стирается
-  /// целиком, иначе в архиве останется чужое имя и дата.
+  /// целиком, иначе в архиве останется чужое имя и дата. Поля вещи при этом
+  /// остаются: автор снимает галочку полным `wishUpsert`, и без них вещь
+  /// уехала бы на сервер делом, без картинки, цены и ссылки.
   Wish undone() => Wish(
         id: id,
         title: title,
@@ -252,6 +254,12 @@ class Wish {
         doneAt: null,
         doneBy: '',
         doneNote: '',
+        isItem: isItem,
+        price: price,
+        currency: currency,
+        url: url,
+        image: image,
+        shop: shop,
         createdAt: createdAt,
       );
 }

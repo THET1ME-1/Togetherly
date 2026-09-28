@@ -3,10 +3,11 @@ import 'package:flutter/material.dart';
 import '../../models/daily_task.dart';
 import '../../models/symbol_catalog.dart';
 import '../../services/daily_task_service.dart';
-import '../../services/locale_service.dart';
+import '../../dict_strings.dart';
 import '../../theme/fonts.dart';
 
-/// Задания дня на главной: три штуки, галочка за каждое.
+/// Задания дня на главной: три штуки, галочка за каждое. Закрыли все три —
+/// четвёртой строкой открывается бонусное, без монеты.
 ///
 /// Карточка того же вида, что остальные блоки главной — тональный контейнер,
 /// радиус 28, без теней и обводок. Задание закрывается самим действием:
@@ -62,9 +63,19 @@ class _DailyTasksCardState extends State<DailyTasksCard> {
     if (today.isEmpty) return const SizedBox.shrink();
 
     final cs = Theme.of(context).colorScheme;
-    final ru = LocaleService.instance.isRussian;
     final done = _tasks.doneCount;
     final all = _tasks.allDone;
+    final bonus = _tasks.bonus;
+    final bonusDone = _tasks.bonusDone;
+    // Подпись под заголовком: пока основные не закрыты — как пользоваться,
+    // открылся бонус — что он без монеты, закрыт и он — до завтра.
+    final hint = bonusDone || (all && bonus == null)
+        ? trKey('tasks_all_done')
+        : all
+            ? trKey('tasks_bonus_hint')
+            : trKey(widget.onOpenTask != null
+                ? 'tasks_tap_hint'
+                : 'tasks_add_hint');
 
     return Container(
       margin: const EdgeInsets.only(top: 8),
@@ -80,7 +91,7 @@ class _DailyTasksCardState extends State<DailyTasksCard> {
             children: [
               Expanded(
                 child: Text(
-                  ru ? 'Задания дня' : 'Today’s tasks',
+                  trKey('tasks_title'),
                   style: AppFonts.unbounded(
                       size: 17, weight: 600, color: cs.onSurface),
                 ),
@@ -108,15 +119,7 @@ class _DailyTasksCardState extends State<DailyTasksCard> {
           ),
           const SizedBox(height: 6),
           Text(
-            all
-                ? (ru ? 'Всё на сегодня — до завтра' : 'All done — see you tomorrow')
-                : (widget.onOpenTask != null
-                    ? (ru
-                        ? 'Нажмите на задание — откроется, что для него нужно'
-                        : 'Tap a task — it opens what the task needs')
-                    : (ru
-                        ? 'Добавьте пин в ленту, и задание закроется само'
-                        : 'Add a pin to the feed and the task closes itself')),
+            hint,
             style: AppFonts.onest(size: 12.5, color: cs.onSurfaceVariant),
           ),
           const SizedBox(height: 12),
@@ -133,6 +136,19 @@ class _DailyTasksCardState extends State<DailyTasksCard> {
                     : () => widget.onOpenTask!(task),
               ),
             ),
+          // Бонус встаёт четвёртой строкой, только когда закрыты три
+          // основных: раньше он отвлекал бы от них.
+          if (bonus != null)
+            _TaskRow(
+              task: bonus,
+              done: bonusDone,
+              partnerName: widget.partnerName,
+              scheme: cs,
+              bonusLabel: trKey('tasks_bonus_label'),
+              onTap: widget.onOpenTask == null
+                  ? null
+                  : () => widget.onOpenTask!(bonus),
+            ),
         ],
       ),
     );
@@ -146,6 +162,7 @@ class _TaskRow extends StatelessWidget {
     required this.partnerName,
     required this.scheme,
     this.onTap,
+    this.bonusLabel,
   });
 
   final DailyTask task;
@@ -153,6 +170,9 @@ class _TaskRow extends StatelessWidget {
   final String partnerName;
   final ColorScheme scheme;
   final VoidCallback? onTap;
+
+  /// Ярлык над текстом бонусного задания. У основных его нет.
+  final String? bonusLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -198,16 +218,39 @@ class _TaskRow extends StatelessWidget {
         Expanded(
           child: Padding(
             padding: const EdgeInsets.only(top: 2),
-            child: Text(
-              task.title(partnerName),
-              style: AppFonts.onest(
-                size: 14.5,
-                height: 1.35,
-                weight: done ? 500 : 600,
-                color: done ? scheme.onSurfaceVariant : scheme.onSurface,
-                // Закрытое задание гасим цветом, а не зачёркиванием: строка
-                // остаётся читаемой, а список не пестрит линиями.
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (bonusLabel != null)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: scheme.tertiaryContainer,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      bonusLabel!,
+                      style: AppFonts.onest(
+                        size: 11,
+                        weight: 700,
+                        color: scheme.onTertiaryContainer,
+                      ),
+                    ),
+                  ),
+                Text(
+                  task.title(partnerName),
+                  style: AppFonts.onest(
+                    size: 14.5,
+                    height: 1.35,
+                    weight: done ? 500 : 600,
+                    color: done ? scheme.onSurfaceVariant : scheme.onSurface,
+                    // Закрытое задание гасим цветом, а не зачёркиванием:
+                    // строка остаётся читаемой, а список не пестрит линиями.
+                  ),
+                ),
+              ],
             ),
           ),
         ),

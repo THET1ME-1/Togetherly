@@ -4472,8 +4472,11 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     _formTaskId = taskId;
         // Заметка живёт в той же форме, что фото: без выбранного медиа она сама
         // сохраняет пин типом text (`_effectiveType`). Отдельной плитки в листе
-        // выбора у заметки нет, а задание дня приводит сюда напрямую.
-        if (type == MemoryType.photo || type == MemoryType.text) {
+        // выбора у заметки нет, а задание дня приводит сюда напрямую. Своё
+        // видео снимается здесь же: с одним роликом форма сохраняет `video`.
+        if (type == MemoryType.photo ||
+            type == MemoryType.text ||
+            type == MemoryType.video) {
           Navigator.push(
             context,
             MaterialPageRoute(

@@ -12,8 +12,8 @@ import 'pb_data_service.dart';
 
 /// Задания дня для пары.
 ///
-/// Каталог из двухсот заданий лежал с июля без механики — здесь она. Набор на
-/// день считается из даты и id пары ([dailyTasksFor]), поэтому у обоих
+/// Каталог лежал с июля без механики — здесь она. Набор на
+/// день считается из даты и id пары ([dailyTaskDayFor]), поэтому у обоих
 /// партнёров он совпадает без единого запроса к серверу и меняется сам в
 /// полночь.
 ///
@@ -46,6 +46,17 @@ class DailyTaskService extends ChangeNotifier {
   int get doneCount => today.where(isDone).length;
 
   bool get allDone => today.isNotEmpty && doneCount == today.length;
+
+  /// Бонус дня: появляется, когда закрыты все три основных. До этого null —
+  /// карточка его не показывает, и пин его не закрывает.
+  DailyTask? get bonus => allDone
+      ? dailyTaskDayFor(day: DateTime.now(), pairId: _groupId).bonus
+      : null;
+
+  bool get bonusDone {
+    final b = bonus;
+    return b != null && isDone(b);
+  }
 
   /// Привязка к паре: зовётся там же, где остальные сервисы получают группу.
   void bind({required String groupId}) {
@@ -124,7 +135,8 @@ class DailyTaskService extends ChangeNotifier {
       {String? fromTaskId}) async {
     if (_groupId.isEmpty) return null;
     final now = DateTime.now();
-    final tasks = today;
+    final extra = bonus;
+    final tasks = [...today, ?extra];
     final closedId = closeByMemory(
       tasks: tasks,
       alreadyDone: _progress.doneOn(now),
@@ -140,7 +152,11 @@ class DailyTaskService extends ChangeNotifier {
     unawaited(_data.updateGroupFields(_groupId, {
       'daily_tasks': _progress.toMap(),
     }));
-    unawaited(PbCoinsService().taskReward(closedId));
+    // Бонус монеты не просит: сервер платит максимум за три задания в сутки,
+    // а четвёртый запрос только отбился бы отказом.
+    if (closedId != extra?.id) {
+      unawaited(PbCoinsService().taskReward(closedId));
+    }
     return DailyTask.byId(closedId);
   }
 }
