@@ -37,7 +37,11 @@ import '../services/note_recorder_service.dart';
 import '../services/voice_recorder_service.dart';
 import '../widgets/avatar_widget.dart';
 import '../widgets/chat/send_mic_button.dart';
+import '../dict_strings.dart' show trKey;
 import '../widgets/chat/voice_bubble.dart';
+import '../widgets/chat/bubble_looks.dart';
+import '../widgets/chat/chat_look_sheet.dart';
+import '../models/chat_look.dart';
 import 'chat/note_viewer_screen.dart';
 import '../widgets/chat/note_bubble.dart';
 import '../widgets/widget_content_view.dart';
@@ -627,7 +631,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// Обычный вид Material вместо нашего: прямые скругления, без хвостиков,
   /// наклона и мордочек. Переключается в меню шапки, хранится локально.
-  bool _materialLook = false;
+  /// Вид пузырей: наш, обычный, наклейка или пиксель (`ChatLook`).
+  ChatLook _look = ChatLook.cozy;
+  bool get _materialLook => _look == ChatLook.material;
 
   // ── Запись голосового ──
   /// Идёт запись: панель ввода уступает место полосе с таймером и волной.
@@ -690,9 +696,9 @@ class _ChatScreenState extends State<ChatScreen> {
   StreamSubscription<void>? _noteLimitSub;
 
   Future<void> _loadChatLook() async {
-    final value = await UiPrefs.chatLookMaterial();
-    if (!mounted || value == _materialLook) return;
-    setState(() => _materialLook = value);
+    final value = await UiPrefs.chatLook();
+    if (!mounted || value == _look) return;
+    setState(() => _look = value);
   }
 
   /// Узор фона. Картинка (общая у пары или своя) всегда перекрывает узор —
@@ -2275,7 +2281,7 @@ class _ChatScreenState extends State<ChatScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         onSelected: (v) {
           if (v == 'bg') _changeBackground();
-          if (v == 'look') _toggleChatLook();
+          if (v == 'look') _pickChatLook();
         },
         itemBuilder: (ctx) => [
           PopupMenuItem<String>(
@@ -2292,15 +2298,10 @@ class _ChatScreenState extends State<ChatScreen> {
             value: 'look',
             child: Row(
               children: [
-                Icon(
-                  _materialLook
-                      ? Icons.auto_awesome_rounded
-                      : Icons.chat_bubble_outline_rounded,
-                  color: cs.primary,
-                  size: 20,
-                ),
+                Icon(Icons.chat_bubble_outline_rounded,
+                    color: cs.primary, size: 20),
                 const SizedBox(width: 12),
-                Text(_materialLook ? s.chatLookCozy : s.chatLookMaterial),
+                Text(trKey('chatLookTitle')),
               ],
             ),
           ),
@@ -2341,21 +2342,20 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  /// Переключить вид пузырей. Хранится локально: наш чат нравится не всем, и
+  /// Выбрать вид пузырей. Хранится локально: наш чат нравится не всем, и
   /// это вкус каждого, а не решение пары.
-  Future<void> _toggleChatLook() async {
-    final next = !_materialLook;
-    setState(() => _materialLook = next);
-    await UiPrefs.setChatLookMaterial(next);
-    if (!mounted) return;
-    final s = LocaleService.current;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(milliseconds: 1800),
-        content: Text(next ? s.chatLookMaterialOn : s.chatLookCozyOn),
-      ),
+  Future<void> _pickChatLook() async {
+    final picked = await showChatLookSheet(
+      context,
+      current: _look,
+      mine: _t.primary,
+      partner: _t.isDark
+          ? _t.cardSurface
+          : Color.lerp(_t.primary, Colors.white, 0.62)!,
     );
+    if (picked == null || !mounted || picked == _look) return;
+    setState(() => _look = picked);
+    await UiPrefs.setChatLook(picked);
   }
 
   /// Тап по пилюле — тот же лист, что и раньше открывался по аватару.
@@ -2365,7 +2365,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget build(BuildContext context) {
     final s = LocaleService.current;
-    return Scaffold(
+    return StickerBoilScope(
+      active: _look == ChatLook.sticker,
+      child: Scaffold(
       backgroundColor: _t.bgGradient.last,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(70),
@@ -2544,6 +2546,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
         ],
       ),
+    ),
     );
   }
 
@@ -2786,10 +2789,15 @@ class _ChatScreenState extends State<ChatScreen> {
             bottomLeft: Radius.circular(15 + _seededUnit(seed, 3) * 17),
             bottomRight: Radius.circular(15 + _seededUnit(seed, 4) * 17),
           );
-    final tilt = _materialLook ? 0.0 : (_seededUnit(seed, 5) - 0.5) * 0.045;
+    final tilt = switch (_look) {
+      ChatLook.material || ChatLook.pixel => 0.0,
+      _ => (_seededUnit(seed, 5) - 0.5) * 0.045,
+    };
     // Выражение мордочки — то, что ВЫБРАЛ отправитель (msg.face). Нет → без
     // лица. В обычном виде мордочек нет вовсе: это украшение нашего чата.
-    final expr = _materialLook ? null : _faceFromName(msg.face);
+    final expr = (_look == ChatLook.cozy || _look == ChatLook.sticker)
+        ? _faceFromName(msg.face)
+        : null;
 
     // Сообщение из одних эмодзи (1–3) рисуем крупно и БЕЗ пузыря (как в
     // мессенджерах). Не трогаем удалённые, с пином, ответом или своей мордочкой.
@@ -2944,7 +2952,11 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     // Хвостик — примета нашего вида; в обычном пузырь просто прямоугольный.
-    final tailDrop = _materialLook ? 0.0 : 9.0;
+    final tailDrop = switch (_look) {
+      ChatLook.cozy => 9.0,
+      ChatLook.pixel => PixelBubblePainter.tailDrop,
+      _ => 0.0,
+    };
     final hasReactions = msg.reactions.isNotEmpty;
 
     final Widget tilted;
@@ -2963,13 +2975,29 @@ class _ChatScreenState extends State<ChatScreen> {
     } else {
       // Пузырь: форма (кривые углы + хвостик-клювик со стороны отправителя)
       // рисуется painter'ом, текст/лицо — поверх. Тап — реакции, долгое — меню.
+      final CustomPainter shell = switch (_look) {
+        ChatLook.sticker => StickerBubblePainter(
+            color: bg,
+            seed: seed,
+            frame: StickerBoilScope.of(context),
+          ),
+        ChatLook.pixel => PixelBubblePainter(color: bg, tailLeft: !isMine),
+        _ => _BubblePainter(
+            color: bg,
+            corners: corners,
+            tailLeft: !isMine,
+            tailDrop: tailDrop,
+          ),
+      };
+      // Наклейке нужны поля под кайму и контур, пикселю — под хвостик-лесенку.
+      final extra = _look == ChatLook.sticker ? kStickerInset : 0.0;
+      // У нашего и обычного низ прежний (+9 под хвостик, у обычного — воздух).
+      final low = switch (_look) {
+        ChatLook.cozy || ChatLook.material => 9.0,
+        _ => tailDrop,
+      };
       final core = CustomPaint(
-        painter: _BubblePainter(
-          color: bg,
-          corners: corners,
-          tailLeft: !isMine,
-          tailDrop: tailDrop,
-        ),
+        painter: shell,
         child: Container(
           constraints: BoxConstraints(
             maxWidth:
@@ -2978,8 +3006,10 @@ class _ChatScreenState extends State<ChatScreen> {
           // С мордочкой — заметно больше воздуха вокруг текста, чтобы лицу было
           // куда встать; без неё — компактно (низ = padding + tailDrop 9).
           padding: expr == null
-              ? const EdgeInsets.fromLTRB(14, 10, 14, 19)
-              : const EdgeInsets.fromLTRB(18, 22, 18, 31),
+              ? EdgeInsets.fromLTRB(14 + extra, 10 + extra, 14 + extra,
+                  10 + low + extra)
+              : EdgeInsets.fromLTRB(18 + extra, 22 + extra, 18 + extra,
+                  22 + low + extra),
           child: content,
         ),
       );

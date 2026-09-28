@@ -1,3 +1,4 @@
+import '../models/chat_look.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Лёгкие локальные UI-настройки (без сервера). Единый источник ключей, чтобы
@@ -146,19 +147,20 @@ class UiPrefs {
     await p.setBool(kWidgetPinned, true);
   }
 
-  /// Вид чата: `cozy` — наш (кривые углы, хвостики, лёгкий наклон, мордочки),
-  /// `material` — обычные пузыри Material 3 без украшений. Хранится локально:
+  /// Вид чата (`ChatLook`): `cozy` — наш (кривые углы, хвостики, наклон,
+  /// мордочки), `material` — обычные пузыри, `sticker` — наклейка, `pixel` —
+  /// пиксель. Хранится локально:
   /// это дело вкуса каждого, а не пары.
   static const String kChatLook = 'chat_look';
 
-  static Future<bool> chatLookMaterial() async {
+  static Future<ChatLook> chatLook() async {
     final p = await SharedPreferences.getInstance();
-    return (p.getString(kChatLook) ?? 'cozy') == 'material';
+    return chatLookFromName(p.getString(kChatLook));
   }
 
-  static Future<void> setChatLookMaterial(bool value) async {
+  static Future<void> setChatLook(ChatLook look) async {
     final p = await SharedPreferences.getInstance();
-    await p.setString(kChatLook, value ? 'material' : 'cozy');
+    await p.setString(kChatLook, look.name);
   }
 
   /// Узор фона чата (имя значения `ChatBackground`). По умолчанию «точки»:
