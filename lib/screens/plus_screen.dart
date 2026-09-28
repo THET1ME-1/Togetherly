@@ -431,7 +431,11 @@ class _PlusScreenState extends State<PlusScreen> {
             ),
           ),
         ),
-        ],
+        // Подпись про оплату почтой и код из бота — только рядом с кнопкой
+        // ввода кода. На iPhone и в Play кода ввести негде, а подпись
+        // обещала его: человек платил с другой почты и не находил, куда код
+        // девать (обращение 203, 28.09.2026). Заодно там внешняя оплата под
+        // запретом магазина, и упоминать её незачем.
         const SizedBox(height: 12),
         Text(
           _s.plusHowItWorks,
@@ -443,6 +447,7 @@ class _PlusScreenState extends State<PlusScreen> {
             color: _cs.onSurfaceVariant,
           ),
         ),
+        ],
       ],
     );
   }
