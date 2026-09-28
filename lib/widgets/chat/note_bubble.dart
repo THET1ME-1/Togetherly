@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -187,6 +188,12 @@ class _NoteBubbleState extends State<NoteBubble> {
           final playing = current && st.playing;
           final unseen = !_seen && !widget.isMine;
           final send = _sendView;
+          // Кнопки и значки ставим внутрь вписанного круга формы, а не к
+          // краю квадрата: у сердца низ сходится в острие, у звезды и клевера
+          // края вырезаны, и привязанное к низу уезжало за контур.
+          final shapeCenter = Alignment(
+              shape.centerX * 2 - 1, shape.centerY * 2 - 1);
+          final hintRect = noteHintRect(shape, widget.size);
           final sending = send == NoteSendView.compressing ||
               send == NoteSendView.uploading ||
               send == NoteSendView.waiting;
@@ -242,9 +249,10 @@ class _NoteBubbleState extends State<NoteBubble> {
                     // за контуром.
                     if (current && !st.loading)
                       Positioned(
-                        left: 0,
-                        right: 0,
-                        bottom: widget.size * 0.08,
+                        left: hintRect.left,
+                        top: hintRect.top,
+                        width: hintRect.width,
+                        height: hintRect.height,
                         child: Center(
                           // Играет молча — подсказываем словами, что звук
                           // включается касанием: значок без подписи не
@@ -252,7 +260,11 @@ class _NoteBubbleState extends State<NoteBubble> {
                           // звук включён: вдвоём они не помещались в узкий
                           // низ круга.
                           child: st.muted && playing
-                              ? _SoundHint(maxWidth: widget.size * 0.62)
+                              ? (hintRect.width < 96
+                                  // Узко даже для короткой подписи — один
+                                  // значок, мелкий текст никто не прочтёт.
+                                  ? const _Glyph(icon: Icons.volume_off_rounded)
+                                  : _SoundHint(maxWidth: hintRect.width))
                               : widget.onOpenFull == null
                                   ? const SizedBox.shrink()
                                   : GestureDetector(
@@ -267,13 +279,15 @@ class _NoteBubbleState extends State<NoteBubble> {
                       ),
                     if (current && st.loading)
                       Positioned.fill(
-                        child: Center(
+                        child: Align(
+                          alignment: shapeCenter,
                           child: M3Loading(size: 34, color: cs.primary),
                         ),
                       ),
                     if (!current && sending)
                       Positioned.fill(
-                        child: Center(
+                        child: Align(
+                          alignment: shapeCenter,
                           child: send == NoteSendView.waiting
                               ? _Badge(
                                   color: cs.surfaceContainerHigh,
@@ -290,7 +304,8 @@ class _NoteBubbleState extends State<NoteBubble> {
                       ),
                     if (!current && send == NoteSendView.failed)
                       Positioned.fill(
-                        child: Center(
+                        child: Align(
+                          alignment: shapeCenter,
                           child: GestureDetector(
                             onTap: _retry,
                             child: _Badge(
@@ -602,4 +617,61 @@ class _SoundHint extends StatelessWidget {
           ),
         ),
       );
+}
+
+
+/// Где на кружке стоят кнопки «звук» и «развернуть».
+///
+/// Полоса высотой 34 точки, как можно ниже (чтобы не закрывать лицо), но там,
+/// где форма ещё достаточно широкая. Ширину меряем по настоящему контуру
+/// формы: у сердца низ сходится в острие, у звезды и клевера края вырезаны,
+/// и полоса, привязанная к низу квадрата, уезжала за контур.
+Rect noteHintRect(NoteShape shape, double size) {
+  const h = 34.0;
+  final c = Offset(shape.centerX * size, shape.centerY * size);
+  final unit = size / 2;
+  final pts = <Offset>[
+    for (var i = 0; i < shape.profile.length; i++)
+      c +
+          Offset.fromDirection(
+              2 * math.pi * i / shape.profile.length, shape.profile[i] * unit),
+  ];
+  // Полуширина формы на высоте y вокруг центра: ближайшие к центру
+  // пересечения контура слева и справа.
+  double halfAt(double y) {
+    var left = double.negativeInfinity, right = double.infinity;
+    for (var i = 0; i < pts.length; i++) {
+      final a = pts[i], b = pts[(i + 1) % pts.length];
+      if ((a.dy - y) * (b.dy - y) > 0 || a.dy == b.dy) continue;
+      final x = a.dx + (b.dx - a.dx) * (y - a.dy) / (b.dy - a.dy);
+      if (x <= c.dx && x > left) left = x;
+      if (x >= c.dx && x < right) right = x;
+    }
+    if (left.isInfinite || right.isInfinite) return 0;
+    return math.min(c.dx - left, right - c.dx);
+  }
+
+  double bandHalf(double top) =>
+      [top, top + h / 2, top + h].map(halfAt).reduce(math.min);
+
+  // Отступ от контура, чтобы подложка не касалась обода.
+  const pad = 8.0;
+  final want = size * 0.31;
+  var bestTop = c.dy - h / 2;
+  var bestHalf = bandHalf(bestTop) - pad;
+  for (var k = 0.72; k >= 0; k -= 0.04) {
+    final top = c.dy + unit * k - h / 2;
+    final half = bandHalf(top) - pad;
+    if (half >= want) {
+      bestTop = top;
+      bestHalf = half;
+      break;
+    }
+    if (half > bestHalf) {
+      bestTop = top;
+      bestHalf = half;
+    }
+  }
+  bestHalf = math.max(bestHalf, 16);
+  return Rect.fromLTWH(c.dx - bestHalf, bestTop, bestHalf * 2, h);
 }
