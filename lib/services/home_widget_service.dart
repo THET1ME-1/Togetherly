@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/widget_couple_art.dart';
@@ -468,7 +469,16 @@ class HomeWidgetService {
             androidName: 'LoveWidgetProvider',
           );
           debugPrint('refreshLoveWidgetFromServer: картинки догнали');
-        } catch (_) {}
+        } catch (e, st) {
+          // Картинки доехали, а перерисовать виджет не вышло: на столе
+          // останется старое фото до следующего прохода. Раньше это глоталось
+          // молча, и жалоба «фото в виджете не меняется» не оставляла следа.
+          debugPrint('refreshLoveWidgetFromServer: перерисовать не вышло — $e');
+          unawaited(Sentry.captureException(e, stackTrace: st, withScope: (s) {
+            s.level = SentryLevel.warning;
+            s.setTag('widget', 'love_redraw_after_images');
+          }));
+        }
       }).catchError((Object e) {
         debugPrint('refreshLoveWidgetFromServer: догнать не вышло — $e');
       }));
@@ -3457,15 +3467,13 @@ class HomeWidgetService {
     if (activeTimers.isEmpty) return null;
     final prefs = await SharedPreferences.getInstance();
     final savedId = prefs.getString('widget_timer_id_$groupId');
-    if (savedId != null) {
-      try {
-        return activeTimers.firstWhere((t) => t.id == savedId);
-      } catch (_) {}
+    // Выбранный для виджета, иначе основной (системный или свой), иначе первый.
+    for (final t in activeTimers) {
+      if (savedId != null && t.id == savedId) return t;
     }
-    // Дефолтный таймер (может быть системным или пользовательским)
-    try {
-      return activeTimers.firstWhere((t) => t.isDefault);
-    } catch (_) {}
+    for (final t in activeTimers) {
+      if (t.isDefault) return t;
+    }
     return activeTimers.first;
   }
 
@@ -3615,10 +3623,8 @@ class HomeWidgetService {
     final prefs = await SharedPreferences.getInstance();
     final savedId = prefs.getString('widget_timer_id_$groupId');
     TimerItem? timer;
-    if (savedId != null) {
-      try {
-        timer = activeTimers.firstWhere((t) => t.id == savedId);
-      } catch (_) {}
+    for (final t in activeTimers) {
+      if (savedId != null && t.id == savedId) timer = t;
     }
     // Fallback: default timer first (includes system/relationship timer),
     // then first non-system, then any timer.

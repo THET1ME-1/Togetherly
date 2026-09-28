@@ -1,10 +1,8 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import '../widgets/note_editor_sheet.dart';
@@ -4624,75 +4622,6 @@ class _WidgetScreenState extends State<WidgetScreen>
   // ВИДЖЕТ-ПРЕВЬЮ: Счётчик дней
   // ════════════════════════════════════════════════════════════════════════════
 
-  static const String _flameSvg =
-      '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M12.963 2.286a.75.75 0 0 0-1.071-.136 9.742 9.742 0 0 0-3.539 6.177 7.547 7.547 0 0 1-1.705-1.715.75.75 0 0 0-1.152-.082A9 9 0 1 0 15.68 4.534a7.46 7.46 0 0 1-2.717-2.248ZM15.75 14.25a3.75 3.75 0 1 1-7.313-1.172c.628.465 1.35.81 2.133 1a5.99 5.99 0 0 1 1.925-3.547 3.75 3.75 0 0 1 3.255 3.719Z" clip-rule="evenodd" /></svg>''';
-
-  /// Иллюстративный превью виджета «Огонёк пары».
-  Widget _buildStreakPreview() {
-    return Container(
-      width: double.infinity,
-      height: 200,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFFFB23E), Color(0xFFFF6A3D), Color(0xFFF9417B)],
-        ),
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text('🔥', style: TextStyle(fontSize: 76)),
-            const SizedBox(width: 18),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  LocaleService.current.streakTogetherCaps,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    letterSpacing: 1.4,
-                  ),
-                ),
-                Text(
-                  '${_mascotService.activeStreak}',
-                  style: const TextStyle(
-                    fontSize: 64,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    height: 1.05,
-                  ),
-                ),
-                Text(
-                  LocaleService.current.daysInARow,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  LocaleService.current.keepItUp,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.white.withValues(alpha: 0.8),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildDaysCounterPreview() {
     final s = LocaleService.current;
     // Берём тот же активный таймер, что и виджет на рабочем столе
@@ -4937,7 +4866,6 @@ class _WidgetScreenState extends State<WidgetScreen>
   /// Проба «наших фото» в виджете дней: неделя за один просмотр рекламы.
   Future<void> _tryDaysPhotosTrial() async {
     final ud = widget.userData;
-    if (ud == null) return;
     setState(() => _daysPhotosBusy = true);
     try {
       if (!await ensureAdReady(_rewardedAd)) {
@@ -5019,155 +4947,6 @@ class _WidgetScreenState extends State<WidgetScreen>
         content: Text(msg),
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
-  // ════════════════════════════════════════════════════════════════════════════
-  // ВИДЖЕТ-ПРЕВЬЮ: Таймер
-  // ════════════════════════════════════════════════════════════════════════════
-
-  Widget _buildTimerPreview() {
-    final timer = _widgetTimer;
-
-    if (timer == null) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
-        decoration: BoxDecoration(
-          color: _t.primary.withOpacity(0.04),
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: _t.primary.withOpacity(0.08)),
-        ),
-        child: Column(
-          children: [
-            Icon(Icons.timer_off_rounded, size: 36, color: _t.textMuted),
-            const SizedBox(height: 8),
-            Text(
-              LocaleService.current.noTimersWidget,
-              style: AppFonts.onest(size: 13, color: _t.textMuted),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              LocaleService.current.addTimerHint,
-              style: AppFonts.onest(size: 11, color: _t.textMuted),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      );
-    }
-
-    final days = timer.daysElapsed.abs();
-    final isCountdown = timer.isCountdown;
-    final daysLabel = isCountdown
-        ? LocaleService.current.daysLeft
-        : LocaleService.current.daysElapsed;
-    final date = timer.formattedStartDate;
-    final isRomantic = _pair.relationshipType == RelationshipType.couple ||
-        _pair.relationshipType == RelationshipType.married;
-
-    final bgColors = isRomantic
-        ? [const Color(0xFFFDF2F8), const Color(0xFFEDE9FE)]
-        : [const Color(0xFFFFFBF0), const Color(0xFFFEF3C7)];
-    final borderColor = isRomantic
-        ? const Color(0xFFEDD5EA)
-        : const Color(0xFFE8D5A3);
-    final numberColor = isRomantic
-        ? const Color(0xFFB5488A)
-        : const Color(0xFFC2760A);
-    final titleColor = isRomantic
-        ? const Color(0xFFC084B8)
-        : const Color(0xFF9C7A3A);
-    final labelColor = isRomantic
-        ? const Color(0xFF9B7AA8)
-        : const Color(0xFFA8936A);
-    final dateColor = isRomantic
-        ? const Color(0xFFC4A8D4)
-        : const Color(0xFFC4B080);
-    final iconColor = isRomantic
-        ? const Color(0xFFD4609A)
-        : const Color(0xFFE8A020);
-    final decoColor = isRomantic
-        ? const Color(0xFFD4609A)
-        : const Color(0xFFE8A020);
-
-    return Container(
-      width: double.infinity,
-      height: 116,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: bgColors,
-        ),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: borderColor),
-      ),
-      child: Stack(
-        children: [
-          // Декоративная иконка справа (полупрозрачная)
-          Positioned(
-            right: 8,
-            top: 0,
-            bottom: 0,
-            child: Opacity(
-              opacity: 0.12,
-              child: Icon(
-                isRomantic ? Icons.favorite_rounded : Icons.star_rounded,
-                size: 90,
-                color: decoColor,
-              ),
-            ),
-          ),
-          // Контент слева
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 100, 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Иконка + заголовок
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      isRomantic ? Icons.favorite_rounded : Icons.star_rounded,
-                      size: 12,
-                      color: iconColor,
-                    ),
-                    const SizedBox(width: 5),
-                    Flexible(
-                      child: Text(
-                        timer.title,
-                        style: AppFonts.onest(size: 10, letterSpacing: 0.4, color: titleColor),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                // Большое число
-                Text(
-                  '$days',
-                  style: AppFonts.onest(size: 42, weight: 900, height: 1.05, letterSpacing: -0.5, color: numberColor),
-                ),
-                // Подпись
-                Text(
-                  daysLabel,
-                  style: AppFonts.onest(size: 11, color: labelColor),
-                ),
-                if (date.isNotEmpty) ...[
-                  const SizedBox(height: 3),
-                  Text(
-                    date,
-                    style: AppFonts.onest(size: 9, letterSpacing: 0.2, color: dateColor),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -9041,16 +8820,6 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
   }
 
   // ── Music metadata fetching (same logic as Memory Lane) ──
-
-  String _decodeHtmlEntities(String text) => text
-      .replaceAll('&amp;', '&')
-      .replaceAll('&lt;', '<')
-      .replaceAll('&gt;', '>')
-      .replaceAll('&quot;', '"')
-      .replaceAll('&#39;', "'")
-      .replaceAll('&apos;', "'")
-      .replaceAll('&#x27;', "'")
-      .replaceAll('&nbsp;', ' ');
 
   /// Метаданные трека по ссылке. Разбор живёт в [MusicMetaService] — одной
   /// копией на оба экрана: пока копий было две, они разошлись, и в виджете
