@@ -3,12 +3,14 @@ import 'dart:async';
 import 'package:characters/characters.dart';
 import 'package:flutter/foundation.dart';
 
+import '../models/countdown_widget.dart';
 import '../models/mood_entry.dart';
 import '../models/pair_data.dart';
 import '../models/timer_item.dart';
 import '../utils/couple_days.dart';
 import '../theme/app_theme.dart';
 import 'home_widget_service.dart';
+import 'locale_service.dart';
 import 'map/pair_map_widget_service.dart';
 import 'mood_service.dart';
 import 'pb_data_service.dart';
@@ -35,6 +37,16 @@ class CatalogWidgetSync {
 
   static String _dayMonth(DateTime d) => '${d.day} ${_months[d.month - 1]}';
 
+  static const _monthsEn = <String>[
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+
+  /// Подпись даты на чипе «До встречи» — как в превью экрана «Виджеты».
+  static String _countdownDate(DateTime d) => LocaleService.instance.isRussian
+      ? _dayMonth(d)
+      : '${_monthsEn[d.month - 1]} ${d.day}';
+
   static String _initial(String name) {
     final trimmed = name.trim();
     if (trimmed.isEmpty) return '';
@@ -58,6 +70,8 @@ class CatalogWidgetSync {
     TimerItem? systemTimer,
     TimerItem? defaultTimer,
     int memoriesCount = 0,
+    /// Все таймеры пары: из обратных отсчётов собирается «До встречи».
+    List<TimerItem> timers = const [],
     /// Тема приложения: картинка виджета «Где мы» рисуется её цветами.
     AppTheme? theme,
   }) async {
@@ -108,6 +122,24 @@ class CatalogWidgetSync {
         memoriesCount: memoriesCount,
         startDateLabel: start == null ? '' : 'с ${_dayMonth(start)} ${start.year}',
       );
+
+      // Пустой список — таймеры ещё не загрузились (системный есть всегда):
+      // не стираем виджет раньше времени.
+      if (timers.isNotEmpty) {
+        await hws.syncCountdownEvents(
+          groupId: pair.pairId,
+          events: countdownEventsFor(
+            timers,
+            now: DateTime.now(),
+            dateLabel: _countdownDate,
+          ),
+          from: coupleStartDate(
+            timerStart: timer?.startDate,
+            groupStart: pair.startDate,
+            anniversary: pair.anniversaryDate,
+          ),
+        );
+      }
 
       await _syncMoodTiles(pair: pair, moods: moods);
       await _syncMiss(pair: pair, myUid: myUid);

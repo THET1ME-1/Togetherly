@@ -3,9 +3,12 @@ import WidgetKit
 
 // MARK: - Обратный отсчёт до события
 //
-// Данные пишет `HomeWidgetService.syncCountdown` (`tgcd_<g>_*`). Дни, часы и
-// минуты приезжают посчитанными — так же, как на Android: событие у пары одно,
-// и пересчитывать его на устройстве незачем, приложение освежает виджет само.
+// Данные пишет `HomeWidgetService.syncCountdownEvents` (`tgcd_<g>_*`): список
+// ближайших событий с их моментом. Остаток считается здесь по часам телефона
+// на каждой записи ленты — правило `countdownAt` в
+// `lib/models/countdown_widget.dart`. Готовые числа приложение писало только с
+// экрана «Виджеты», и виджет застывал (обращение 197); они остались запасом
+// для данных, записанных старой сборкой.
 
 private struct CountdownData {
     let title: String
@@ -18,9 +21,13 @@ private struct CountdownData {
     var isEmpty: Bool { title.isEmpty && date.isEmpty }
 }
 
-private func loadCountdown() -> CountdownData {
+private func loadCountdown(now: Date = Date()) -> CountdownData {
     let s = Store()
     let g = s.latestGroup("tgcd_latest_group")
+    if let raw = s.stringOrNil("tgcd_\(g)_events") {
+        let fromMs = Int64(s.string("tgcd_\(g)_from_ms")) ?? 0
+        return countdownTick(raw: raw, nowMs: Int64(now.timeIntervalSince1970 * 1000), fromMs: fromMs)
+    }
     return CountdownData(
         title: s.string("tgcd_\(g)_title"),
         date: s.string("tgcd_\(g)_date"),
@@ -31,11 +38,47 @@ private func loadCountdown() -> CountdownData {
     )
 }
 
+/// Остаток до первого ненаступившего события; все прошли — пустые данные.
+private func countdownTick(raw: String, nowMs: Int64, fromMs: Int64) -> CountdownData {
+    let empty = CountdownData(title: "", date: "", days: 0, hours: 0, minutes: 0, percent: 0)
+    guard let bytes = raw.data(using: .utf8),
+          let list = try? JSONSerialization.jsonObject(with: bytes) as? [[String: Any]]
+    else { return empty }
+    var at = Int64.max
+    var title = ""
+    var date = ""
+    for item in list {
+        guard let t = (item["at"] as? NSNumber)?.int64Value else { continue }
+        if t > nowMs && t < at {
+            at = t
+            title = item["t"] as? String ?? ""
+            date = item["d"] as? String ?? ""
+        }
+    }
+    if at == Int64.max { return empty }
+    let leftMin = (at - nowMs) / 60000
+    let dayMin: Int64 = 24 * 60
+    let from = (fromMs > 0 && fromMs < at) ? fromMs : at - 30 * dayMin * 60000
+    let start = from > nowMs ? nowMs : from
+    let total = at - start
+    let passed = nowMs - start
+    let percent = total <= 0 ? 100 : min(100, max(0, Int((Double(passed) * 100 / Double(total)).rounded())))
+    return CountdownData(
+        title: title,
+        date: date,
+        days: Int(leftMin / dayMin),
+        hours: Int((leftMin % dayMin) / 60),
+        minutes: Int(leftMin % 60),
+        percent: percent
+    )
+}
+
 private struct CountdownView: View {
+    var now: Date = Date()
     @Environment(\.widgetFamily) private var family
 
     var body: some View {
-        let data = loadCountdown()
+        let data = loadCountdown(now: now)
         let t = WidgetTheme()
 
         if data.isEmpty {
@@ -100,8 +143,8 @@ private struct CountdownView: View {
 
 struct CountdownWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "CountdownWidget2x2Provider", provider: RefreshProvider()) { _ in
-            CountdownView().unredacted()
+        StaticConfiguration(kind: "CountdownWidget2x2Provider", provider: RefreshProvider()) { entry in
+            CountdownView(now: entry.date).unredacted()
         }
         .configurationDisplayName("Обратный отсчёт")
         .description("Сколько осталось до вашего события.")

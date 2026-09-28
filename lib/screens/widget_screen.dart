@@ -20,6 +20,7 @@ import '../services/pb_media_service.dart';
 import '../services/widget_anim_service.dart';
 import '../services/plus_service.dart';
 import '../services/ui_prefs.dart';
+import '../models/countdown_widget.dart';
 import '../models/note_preview.dart';
 import '../models/together_milestones.dart';
 import '../models/widget_panels.dart';
@@ -4199,41 +4200,17 @@ class _WidgetScreenState extends State<WidgetScreen>
     );
   }
 
-  /// Отдаём виджету «До встречи» ближайший обратный отсчёт.
-  ///
-  /// Событие — таймер с `isCountdown`; берём самый близкий из ещё не
-  /// наступивших. Прогресс считаем от момента создания отсчёта, поэтому
-  /// полоса растёт по мере приближения даты.
+  /// Отдаём виджету «До встречи» ближайшие обратные отсчёты. Остаток виджет
+  /// считает сам; полоса идёт от даты пары.
   Future<void> _syncCountdownWidget() async {
-    final now = DateTime.now();
-    final upcoming = _timerService.timers
-        .where((t) => t.isCountdown && t.startDate.isAfter(now))
-        .toList()
-      ..sort((a, b) => a.startDate.compareTo(b.startDate));
-
-    if (upcoming.isEmpty) {
-      await HomeWidgetService.instance.syncCountdown(groupId: _pair.pairId);
-      return;
-    }
-
-    final event = upcoming.first;
-    final left = event.startDate.difference(now);
-    // Отсчёт идёт от даты пары: она всегда раньше события, значит полоса
-    // никогда не окажется пустой из-за отрицательного знаменателя.
-    final from = _togetherStart() ?? now.subtract(const Duration(days: 30));
-    final total = event.startDate.difference(from).inMinutes;
-    final passed = now.difference(from).inMinutes;
-    final percent =
-        total <= 0 ? 100 : ((passed / total) * 100).round().clamp(0, 100);
-
-    await HomeWidgetService.instance.syncCountdown(
+    await HomeWidgetService.instance.syncCountdownEvents(
       groupId: _pair.pairId,
-      title: event.title,
-      dateLabel: _formatDayMonth(event.startDate).toUpperCase(),
-      daysLeft: left.inDays,
-      hoursLeft: left.inHours % 24,
-      minutesLeft: left.inMinutes % 60,
-      percent: percent,
+      events: countdownEventsFor(
+        _timerService.timers,
+        now: DateTime.now(),
+        dateLabel: _formatDayMonth,
+      ),
+      from: _togetherStart(),
     );
   }
 

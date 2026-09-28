@@ -1094,6 +1094,7 @@ class _HomeScreenState extends State<HomeScreen> {
       systemTimer: _timerService.systemTimer,
       defaultTimer: _timerService.defaultTimer,
       memoriesCount: _recentMemories.length,
+      timers: _timerService.timers,
       theme: _t,
     );
   }

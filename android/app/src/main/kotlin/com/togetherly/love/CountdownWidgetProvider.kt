@@ -16,8 +16,11 @@ import es.antonborri.home_widget.HomeWidgetProvider
  * Два размера из хендофа: 2×2 (название и крупное число дней) и 4×2 (дни,
  * часы, минуты плюс полоса пройденного пути).
  *
- * Секунды не тикают: лончер обновляет виджет минутами, и бегущие секунды
- * показывали бы неправду. Данные считает Flutter — здесь только отрисовка.
+ * Секунды не тикают: лончер обновляет виджет раз в полчаса, и бегущие
+ * секунды показывали бы неправду. Остаток считается ЗДЕСЬ по часам телефона
+ * из списка событий `tgcd_<g>_events` — правило `countdownAt` в
+ * `lib/models/countdown_widget.dart`. Пока приходили готовые числа, их писал
+ * только экран «Виджеты», и виджет застывал (обращение 197).
  */
 open class CountdownWidgetProvider : HomeWidgetProvider() {
 
@@ -52,12 +55,24 @@ open class CountdownWidgetProvider : HomeWidgetProvider() {
         val g = WidgetGroupHelper.getOrBind(context, "tgcd", widgetId)
         val prefix = if (g.isEmpty()) "" else "tgcd_${g}_"
 
-        val title = data.getString("${prefix}title", null).orEmpty()
-        val dateLabel = data.getString("${prefix}date", null).orEmpty()
-        val days = data.getString("${prefix}days", null)?.toIntOrNull() ?: 0
-        val hours = data.getString("${prefix}hours", null)?.toIntOrNull() ?: 0
-        val minutes = data.getString("${prefix}minutes", null)?.toIntOrNull() ?: 0
-        val percent = data.getString("${prefix}percent", null)?.toIntOrNull() ?: 0
+        var title = data.getString("${prefix}title", null).orEmpty()
+        var dateLabel = data.getString("${prefix}date", null).orEmpty()
+        var days = data.getString("${prefix}days", null)?.toIntOrNull() ?: 0
+        var hours = data.getString("${prefix}hours", null)?.toIntOrNull() ?: 0
+        var minutes = data.getString("${prefix}minutes", null)?.toIntOrNull() ?: 0
+        var percent = data.getString("${prefix}percent", null)?.toIntOrNull() ?: 0
+
+        val eventsRaw = data.getString("${prefix}events", null)
+        if (eventsRaw != null) {
+            val fromMs = data.getString("${prefix}from_ms", null)?.toLongOrNull() ?: 0L
+            val tick = tick(eventsRaw, System.currentTimeMillis(), fromMs)
+            title = tick?.title.orEmpty()
+            dateLabel = tick?.date.orEmpty()
+            days = tick?.days ?: 0
+            hours = tick?.hours ?: 0
+            minutes = tick?.minutes ?: 0
+            percent = tick?.percent ?: 0
+        }
 
         val options = manager.getAppWidgetOptions(widgetId)
         val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0)
@@ -137,6 +152,53 @@ open class CountdownWidgetProvider : HomeWidgetProvider() {
         }
 
         manager.updateAppWidget(widgetId, views)
+    }
+
+    private data class Tick(
+        val title: String,
+        val date: String,
+        val days: Int,
+        val hours: Int,
+        val minutes: Int,
+        val percent: Int,
+    )
+
+    /** Остаток до первого ненаступившего события; null — все прошли. */
+    private fun tick(raw: String, nowMs: Long, fromMs: Long): Tick? {
+        var at = Long.MAX_VALUE
+        var title = ""
+        var date = ""
+        try {
+            val arr = org.json.JSONArray(raw)
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                val t = o.optLong("at", 0L)
+                if (t > nowMs && t < at) {
+                    at = t
+                    title = o.optString("t", "")
+                    date = o.optString("d", "")
+                }
+            }
+        } catch (_: Exception) {
+            return null
+        }
+        if (at == Long.MAX_VALUE) return null
+        val leftMin = (at - nowMs) / 60000L
+        val dayMin = 24L * 60L
+        val from = if (fromMs in 1 until at) fromMs else at - 30L * dayMin * 60000L
+        val start = if (from > nowMs) nowMs else from
+        val total = at - start
+        val passed = nowMs - start
+        val percent = if (total <= 0) 100
+        else Math.round(passed * 100.0 / total).toInt().coerceIn(0, 100)
+        return Tick(
+            title = title,
+            date = date,
+            days = (leftMin / dayMin).toInt(),
+            hours = ((leftMin % dayMin) / 60L).toInt(),
+            minutes = (leftMin % 60L).toInt(),
+            percent = percent,
+        )
     }
 
     private fun daysWord(n: Int): String = plural(n, "день", "дня", "дней")

@@ -24,6 +24,7 @@ import 'pair_widget_payload.dart';
 import '../theme/app_theme.dart';
 import 'pb_auth_service.dart';
 import '../models/ios_widget_gaps.dart';
+import '../models/countdown_widget.dart';
 import '../models/timer_item.dart';
 import '../models/mood_entry.dart';
 import '../models/mood_widget_payload.dart';
@@ -2043,24 +2044,39 @@ class HomeWidgetService {
     }
   }
 
-  /// Данные виджета «До встречи»: ближайший обратный отсчёт.
-  Future<void> syncCountdown({
+  /// Данные виджета «До встречи»: ближайшие обратные отсчёты пары.
+  ///
+  /// В виджет уходят сами события с их моментом ([CountdownEvent]), а дни,
+  /// часы и минуты натив считает по своим часам — правило [countdownAt].
+  /// Готовые числа пишутся рядом только для первой отрисовки: пока их писал
+  /// один экран «Виджеты», они застывали, и виджет приходилось ставить
+  /// заново (обращение 197).
+  Future<void> syncCountdownEvents({
     required String groupId,
-    String title = '',
-    String dateLabel = '',
-    int daysLeft = 0,
-    int hoursLeft = 0,
-    int minutesLeft = 0,
-    int percent = 0,
+    required List<CountdownEvent> events,
+    DateTime? from,
   }) async {
     try {
       final g = groupId.isEmpty ? 'solo' : groupId;
-      await HomeWidget.saveWidgetData<String>('tgcd_${g}_title', title);
-      await HomeWidget.saveWidgetData<String>('tgcd_${g}_date', dateLabel);
-      await HomeWidget.saveWidgetData<String>('tgcd_${g}_days', '$daysLeft');
-      await HomeWidget.saveWidgetData<String>('tgcd_${g}_hours', '$hoursLeft');
-      await HomeWidget.saveWidgetData<String>('tgcd_${g}_minutes', '$minutesLeft');
-      await HomeWidget.saveWidgetData<String>('tgcd_${g}_percent', '$percent');
+      final fromMs = from?.millisecondsSinceEpoch ?? 0;
+      final tick = countdownAt(
+        events,
+        nowMs: DateTime.now().millisecondsSinceEpoch,
+        fromMs: fromMs,
+      );
+      await HomeWidget.saveWidgetData<String>(
+          'tgcd_${g}_events', encodeCountdownEvents(events));
+      await HomeWidget.saveWidgetData<String>('tgcd_${g}_from_ms', '$fromMs');
+      await HomeWidget.saveWidgetData<String>(
+          'tgcd_${g}_title', tick?.event.title ?? '');
+      await HomeWidget.saveWidgetData<String>(
+          'tgcd_${g}_date', tick?.event.dateLabel ?? '');
+      await HomeWidget.saveWidgetData<String>('tgcd_${g}_days', '${tick?.days ?? 0}');
+      await HomeWidget.saveWidgetData<String>('tgcd_${g}_hours', '${tick?.hours ?? 0}');
+      await HomeWidget.saveWidgetData<String>(
+          'tgcd_${g}_minutes', '${tick?.minutes ?? 0}');
+      await HomeWidget.saveWidgetData<String>(
+          'tgcd_${g}_percent', '${tick?.percent ?? 0}');
       await HomeWidget.saveWidgetData<String>('tgcd_latest_group', g);
 
       for (final n in const ['CountdownWidget2x2Provider',
@@ -2072,7 +2088,7 @@ class HomeWidgetService {
         );
       }
     } catch (e) {
-      debugPrint('HomeWidgetService.syncCountdown failed: $e');
+      debugPrint('HomeWidgetService.syncCountdownEvents failed: $e');
     }
   }
 
