@@ -64,7 +64,13 @@ void showFloatingNote(
     ),
   );
   overlay.insert(entry);
+  // Убираем по своему флагу, а не по `entry.mounted`: запись, вставленная
+  // без кадра (приложение под рекламой или свёрнуто), ещё «не смонтирована»,
+  // и проверка оставила бы плашку навсегда.
+  var removed = false;
   Timer(duration, () {
-    if (entry.mounted) entry.remove();
+    if (removed) return;
+    removed = true;
+    entry.remove();
   });
 }

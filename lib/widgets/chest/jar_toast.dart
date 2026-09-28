@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../dict_strings.dart' show trKey;
 import '../../main.dart' show LoveApp;
 import '../../models/pair_jar.dart';
+import '../common/ad_result.dart';
 import 'jar_drops.dart';
 
 /// Строка после ролика: капля упала в копилку пары, сколько набралось.
@@ -13,8 +14,14 @@ import 'jar_drops.dart';
 /// возврат серии), поэтому строка кладётся в корневой `Overlay` — выше любого
 /// маршрута и нижнего листа — и уходит сама. Так человек узнаёт про копилку,
 /// не заходя на главную.
-void showJarToast(PairJar jar) {
+///
+/// Награда за ролик приходит, пока реклама ещё на экране и кадры не рисуются.
+/// Поэтому строка ждёт, пока приложение снова видно, а убирается по флагу, а
+/// не по `entry.mounted`: вставленная без кадра запись «не смонтирована», и
+/// таймер её пропускал — строка оставалась навсегда (жалоба 28.09.2026).
+Future<void> showJarToast(PairJar jar) async {
   if (!jar.added) return;
+  await untilAppVisible();
   final overlay = LoveApp.rootNavigatorKey.currentState?.overlay;
   final context = LoveApp.rootNavigatorKey.currentContext;
   if (overlay == null || context == null) return;
@@ -82,7 +89,10 @@ void showJarToast(PairJar jar) {
     ),
   );
   overlay.insert(entry);
-  Timer(Duration(milliseconds: jar.filled ? 3200 : 2200), () {
-    if (entry.mounted) entry.remove();
+  var removed = false;
+  Timer(Duration(milliseconds: jar.filled ? 2800 : 1800), () {
+    if (removed) return;
+    removed = true;
+    entry.remove();
   });
 }
