@@ -10,6 +10,18 @@ import unittest
 from asc_release_notes import build_localizations, strip_unsupported
 
 
+def notes(locale):
+    """Текущий файл заметок. Тест сверяется с ним, а не с отдельным словом:
+    каждая версия пишет новый текст, и слово из прошлой редакции роняло
+    проверку на ровном месте."""
+    return (
+        pathlib.Path(__file__).resolve().parent.parent
+        / "distribution"
+        / "whatsnew"
+        / f"whatsnew-{locale}"
+    ).read_text(encoding="utf-8")
+
+
 class StripUnsupported(unittest.TestCase):
     def test_снимает_эмодзи_заголовка(self):
         # Apple отвергла заявку 1.26.0 дословно так: «What's New in This
@@ -58,7 +70,7 @@ class BuildLocalizations(unittest.TestCase):
         # заполнена целиком, — основную.
         built = build_localizations("ru")
         self.assertEqual([item["locale"] for item in built], ["ru"])
-        self.assertIn("Виджеты", built[0]["whats_new"])
+        self.assertEqual(built[0]["whats_new"], strip_unsupported(notes("ru-RU")))
 
     def test_для_чужой_локали_берёт_английский_текст(self):
         english = (
@@ -77,8 +89,8 @@ class BuildLocalizations(unittest.TestCase):
         # целиком («You must provide a value for the attribute whatsNew»).
         built = build_localizations("ru", ["ru", "en-US"])
         self.assertEqual([item["locale"] for item in built], ["ru", "en-US"])
-        self.assertIn("Виджеты", built[0]["whats_new"])
-        self.assertIn("Widgets", built[1]["whats_new"])
+        self.assertEqual(built[0]["whats_new"], strip_unsupported(notes("ru-RU")))
+        self.assertEqual(built[1]["whats_new"], strip_unsupported(notes("en-US")))
 
     def test_основная_локаль_идёт_первой_и_не_дублируется(self):
         built = build_localizations("ru", ["en-US", "ru", "en-US"])
