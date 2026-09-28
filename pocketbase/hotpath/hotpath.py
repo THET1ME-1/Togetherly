@@ -129,7 +129,10 @@ COLLECTIONS = {
             "note_thumb": "text", "note_seen_at": "num", "note_hearts": "text",
         },
         "sortable": {"ts", "updated", "id"},
-        "filterable": {"id", "group_id", "user_uid", "deleted", "ts", "updated"},
+        "filterable": {"id", "group_id", "user_uid", "deleted", "ts", "updated",
+                       "text", "voice_url", "note_url", "pin_id"},
+        # Поиск по переписке: `text ~ 'слово'` → ILIKE внутри своей пары.
+        "searchable": {"text"},
         "create_owner_field": None,
         "guard": "chat",
         "delete_guard": "author",
@@ -535,12 +538,19 @@ _COND = re.compile(
     r"""(?:'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)"|(true|false)|(-?\d+(?:\.\d+)?))"""
     r"""\s*\)*\s*$"""
 )
-# `~` у PocketBase — поиск подстроки, но приложение шлёт его ровно в одном
-# смысле: `members ~ '<uid>'`, то есть «состоит ли человек в паре». На jsonb
-# это containment, он же идёт по индексу; для остальных колонок оператор не
-# принимаем, чтобы случайный LIKE не превратился в скан 22 тысяч строк.
+# `~` у PocketBase — поиск подстроки. Приложение шлёт его в двух смыслах:
+# `members ~ '<uid>'` («состоит ли человек в паре», на jsonb это containment
+# по индексу) и `text ~ 'слово'` — поиск по переписке (28.09.2026). Второй
+# разрешён только колонкам из `searchable` коллекции и всегда внутри своих
+# пар: правило группы добавляет `group_id` к любому запросу, поэтому скан идёт
+# по одной переписке, а не по миллионам сообщений всех пар.
 _OPS = {"=": "=", "!=": "<>", ">": ">", "<": "<", ">=": ">=", "<=": "<=",
-        "~": "@>"}
+        "~": "~"}
+
+
+def _like_pattern(s: str) -> str:
+    """Подстрока для ILIKE: `%` и `_` из запроса — буквы, а не шаблон."""
+    return "%" + s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
 
 
 def _parse_filter(expr: str, allowed: set) -> list[tuple[str, str, object]]:
@@ -564,11 +574,8 @@ def _parse_filter(expr: str, allowed: set) -> list[tuple[str, str, object]]:
         else:
             raw = v_sq if v_sq is not None else (v_dq or "")
             val = raw.replace("\\'", "'").replace('\\"', '"')
-        if op == "~":
-            # только по json-колонке и только строкой: members ~ '<uid>'
-            if not isinstance(val, str):
-                raise ValueError(part)
-            val = json.dumps([val])
+        if op == "~" and not isinstance(val, str):
+            raise ValueError(part)
         out.append((field, _OPS[op], val))
     return out
 
@@ -3321,11 +3328,15 @@ async def list_records(col: str, request: Request):
     where, args = [], []
     filtered_group = None
     for field, op, val in conds:
-        if op == "@>":
-            if meta["columns"].get(field) != "json":
+        if op == "~":
+            if meta["columns"].get(field) == "json":
+                args.append(json.dumps([val]))
+                where.append(f"{field} @> ${len(args)}::jsonb")
+            elif field in meta.get("searchable", ()):
+                args.append(_like_pattern(str(val)))
+                where.append(f"{field} ILIKE ${len(args)} ESCAPE '\\'")
+            else:
                 return _err(400, "Something went wrong while processing your request.")
-            args.append(val)
-            where.append(f"{field} @> ${len(args)}::jsonb")
             continue
         args.append(_coerce(col, field, val))
         where.append(f"{field} {op} ${len(args)}")

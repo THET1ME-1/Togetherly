@@ -43,6 +43,7 @@ import '../widgets/chat/voice_bubble.dart';
 import '../widgets/chat/bubble_looks.dart';
 import '../widgets/chat/chat_look_sheet.dart';
 import '../widgets/chat/reaction_art.dart';
+import 'chat/chat_search_screen.dart';
 import '../widgets/app_sheet.dart';
 import '../models/chat_reaction.dart';
 import '../models/chat_look.dart';
@@ -662,6 +663,41 @@ class _ChatScreenState extends State<ChatScreen> {
     _chat.setReaction(groupId: _groupId, messageId: msg.id, emoji: next);
     final at = _doubleTapAt;
     if (next != null && at != null) showReactionBurst(context, next, at);
+  }
+
+  /// Поиск по переписке. Найденное сообщение чат подгружает в ленту и
+  /// подсвечивает: у давнего сообщения ленту сперва надо дотянуть до него.
+  Future<void> _openSearch() async {
+    final found = await Navigator.of(context).push<ChatMsg>(MaterialPageRoute(
+      builder: (_) => Theme(
+        data: ProfileTheme.themeFor(_t),
+        child: ChatSearchScreen(groupId: _groupId, myUid: _myUid),
+      ),
+    ));
+    if (found == null || !mounted) return;
+    await _jumpTo(found);
+  }
+
+  Future<void> _jumpTo(ChatMsg m) async {
+    if (!_lastMessages.any((x) => x.id == m.id)) {
+      final newer = await PbDataService().countChatSince(_groupId, m.ts);
+      if (!mounted || newer == null) return;
+      final need = newer + 20;
+      if (need > _limit) {
+        setState(() {
+          _limit = need;
+          _messagesStream = _chat.watchMessages(_groupId, limit: _limit);
+        });
+      }
+      // Лента приезжает потоком — ждём, пока нужное сообщение в неё попадёт.
+      for (var i = 0; i < 40 && mounted; i++) {
+        if (_lastMessages.any((x) => x.id == m.id)) break;
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+      }
+      if (!mounted) return;
+      await WidgetsBinding.instance.endOfFrame;
+    }
+    _scrollToMessage(m.id);
   }
 
   /// Выбор реакции двойного касания (меню чата).
@@ -2335,8 +2371,19 @@ class _ChatScreenState extends State<ChatScreen> {
           if (v == 'bg') _changeBackground();
           if (v == 'look') _pickChatLook();
           if (v == 'quick') _pickQuickReaction();
+          if (v == 'search') _openSearch();
         },
         itemBuilder: (ctx) => [
+          PopupMenuItem<String>(
+            value: 'search',
+            child: Row(
+              children: [
+                Icon(Icons.search_rounded, color: cs.primary, size: 20),
+                const SizedBox(width: 12),
+                Flexible(child: Text(trKey('chatSearchTitle'))),
+              ],
+            ),
+          ),
           PopupMenuItem<String>(
             value: 'bg',
             child: Row(

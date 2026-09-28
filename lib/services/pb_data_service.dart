@@ -3036,6 +3036,40 @@ class PbDataService {
     }
   }
 
+  /// Поиск по переписке: [filter] собирает `chatSearchFilter`. null — не
+  /// ответил сервер (экран скажет «нет связи», а не «ничего не нашлось»).
+  Future<List<RecordModel>?> searchChat(String filter, {int limit = 40}) async {
+    try {
+      final res = await _pb.collection('chat_messages').getList(
+            perPage: limit,
+            filter: filter,
+            sort: '-ts',
+            skipTotal: true,
+          );
+      return res.items;
+    } catch (e) {
+      debugPrint('PbData.searchChat failed: $e');
+      return null;
+    }
+  }
+
+  /// Сколько сообщений пары не старше [ts] — столько надо подгрузить в ленту,
+  /// чтобы найденное старое сообщение в неё попало.
+  Future<int?> countChatSince(String groupId, int ts) async {
+    if (groupId.isEmpty) return null;
+    try {
+      final res = await _pb.collection('chat_messages').getList(
+            perPage: 1,
+            filter: _pb.filter('group_id = {:g} && deleted != true && ts >= {:t}',
+                {'g': groupId, 't': ts}),
+          );
+      return res.totalItems;
+    } catch (e) {
+      debugPrint('PbData.countChatSince failed: $e');
+      return null;
+    }
+  }
+
   /// Последние [limit] сообщений (новые сверху; разверни на стороне UI).
   Future<List<RecordModel>> loadMessages(String groupId, {int limit = 100}) async {
     if (groupId.isEmpty) return const [];
