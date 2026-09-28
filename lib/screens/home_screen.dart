@@ -2494,6 +2494,7 @@ class _HomeScreenState extends State<HomeScreen> {
       gift: gift,
       senderName: _pairData.partnerDisplayName,
       note: (raw['note'] ?? '').toString(),
+      photo: (raw['photo'] ?? '').toString(),
     );
     if (accepted == true) {
       await _loadIncomingGifts();

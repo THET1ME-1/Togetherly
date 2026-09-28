@@ -29,6 +29,7 @@ class GiftsService {
     String? note,
     String? date,
     String? place,
+    String? photo,
     bool byAd = false,
   }) async {
     final gift = GiftCatalog.byKey(giftKey);
@@ -47,6 +48,8 @@ class GiftsService {
         if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
         if (date != null && date.isNotEmpty) 'date': date,
         if (place != null && place.isNotEmpty) 'place': place,
+        // Снимок уже лежит в хранилище пары: едет только ссылка `pb://media/…`.
+        if (photo != null && photo.isNotEmpty) 'photo': photo,
         // Подарок за ролик: сервер отдаёт его без монет, три раза в сутки.
         if (byAd) 'ad': true,
       },

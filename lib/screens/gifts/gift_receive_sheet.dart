@@ -9,6 +9,7 @@ import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/profile_theme.dart';
 import '../../widgets/common/gift_image.dart';
+import '../../widgets/gifts/gift_photo_card.dart';
 
 /// Получение подарка: у каждого свой способ «сработать».
 ///
@@ -23,6 +24,7 @@ class GiftReceiveSheet extends StatefulWidget {
     required this.gift,
     required this.senderName,
     this.note,
+    this.photo,
   });
 
   final AppTheme theme;
@@ -30,6 +32,9 @@ class GiftReceiveSheet extends StatefulWidget {
   final Gift gift;
   final String senderName;
   final String? note;
+
+  /// Снимок дарителя (`pb://media/…`), приложенный к «Кадру».
+  final String? photo;
 
   /// Возвращает true, если подарок приняли.
   static Future<bool?> show(
@@ -39,6 +44,7 @@ class GiftReceiveSheet extends StatefulWidget {
     required Gift gift,
     required String senderName,
     String? note,
+    String? photo,
   }) {
     return showModalBottomSheet<bool>(
       context: context,
@@ -50,6 +56,7 @@ class GiftReceiveSheet extends StatefulWidget {
         gift: gift,
         senderName: senderName,
         note: note,
+        photo: photo,
       ),
     );
   }
@@ -100,8 +107,10 @@ class _GiftReceiveSheetState extends State<GiftReceiveSheet>
         HapticFeedback.heavyImpact();
       }
     }
-    final res = await GiftsService.instance
-        .react(widget.giftId, reply: _replyCtrl.text);
+    final res = await GiftsService.instance.react(
+      widget.giftId,
+      reply: _replyCtrl.text,
+    );
     if (!mounted) return;
     setState(() {
       _busy = false;
@@ -153,13 +162,15 @@ class _GiftReceiveSheetState extends State<GiftReceiveSheet>
     final hint = LocaleService.instance.isRussian
         ? actionHintRu(widget.gift.action)
         : actionHintEn(widget.gift.action);
+    final hasPhoto = widget.photo?.trim().isNotEmpty == true;
 
     return Container(
       padding: EdgeInsets.only(
         left: 20,
         right: 20,
         top: 12,
-        bottom: MediaQuery.of(context).viewInsets.bottom +
+        bottom:
+            MediaQuery.of(context).viewInsets.bottom +
             MediaQuery.of(context).padding.bottom +
             28,
       ),
@@ -167,147 +178,177 @@ class _GiftReceiveSheetState extends State<GiftReceiveSheet>
         color: cs.surfaceContainerLow,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: cs.onSurfaceVariant.withValues(alpha: 0.35),
-              borderRadius: BorderRadius.circular(2),
+      // Прокрутка на случай маленького экрана и крупного шрифта: сцена,
+      // снимок, записка и кнопки вместе бывают выше экрана.
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: cs.onSurfaceVariant.withValues(alpha: 0.35),
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
-          ),
-          const SizedBox(height: 18),
-          Text(
-            s.giftFromPartner(widget.senderName),
-            style: TextStyle(
+            const SizedBox(height: 18),
+            Text(
+              s.giftFromPartner(widget.senderName),
+              style: TextStyle(
                 fontFamily: ProfileTheme.bodyFont,
                 fontSize: 14,
-                color: cs.onSurfaceVariant),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            widget.gift.title,
-            style: TextStyle(
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              widget.gift.title,
+              style: TextStyle(
                 fontFamily: ProfileTheme.displayFont,
                 fontSize: 22,
                 fontWeight: FontWeight.w800,
-                color: cs.onSurface),
-          ),
-          const SizedBox(height: 20),
-          SizedBox(height: 220, child: _stage()),
-          const SizedBox(height: 16),
-          if (_done) ...[
-            Text(s.giftAccepted,
-                style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: t.textPrimary)),
-            if (_flipResult != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                _flipResult! ? s.giftFlipYou : s.giftFlipPartner,
-                style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: t.textPrimary),
-              ),
-            ],
-            if (widget.note?.trim().isNotEmpty == true) ...[
-              const SizedBox(height: 12),
-              _NoteCard(theme: t, text: widget.note!.trim()),
-            ],
-          ] else ...[
-            Text(
-              _error ?? hint,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: _error != null ? t.textPrimary : t.textSecondary,
+                color: cs.onSurface,
               ),
             ),
-            if (widget.gift.wantsReply) ...[
+            const SizedBox(height: 20),
+            // Со снимком сцена ниже: иначе кадр дарителя уезжает за экран.
+            SizedBox(height: hasPhoto ? 140 : 220, child: _stage()),
+            if (hasPhoto) ...[
               const SizedBox(height: 12),
-              TextField(
-                controller: _replyCtrl,
-                keyboardType: TextInputType.multiline,
-                minLines: 1,
-                maxLines: 6,
-                style: TextStyle(color: cs.onSurface),
-                decoration: InputDecoration(
-                  hintText: s.giftWishHint,
-                  hintStyle: TextStyle(color: cs.onSurfaceVariant),
-                  filled: true,
-                  fillColor: cs.surfaceContainerHigh,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none,
-                  ),
+              GiftPhotoCard(
+                photo: widget.photo!.trim(),
+                scheme: cs,
+                authorName: widget.senderName,
+                maxHeight: 220,
+              ),
+            ],
+            const SizedBox(height: 16),
+            if (_done) ...[
+              Text(
+                s.giftAccepted,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: t.textPrimary,
                 ),
               ),
-              const SizedBox(height: 4),
-              FilledButton(
-                onPressed: _busy ? null : _accept,
-                style: FilledButton.styleFrom(
+              if (_flipResult != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _flipResult! ? s.giftFlipYou : s.giftFlipPartner,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: t.textPrimary,
+                  ),
+                ),
+              ],
+              if (widget.note?.trim().isNotEmpty == true) ...[
+                const SizedBox(height: 12),
+                _NoteCard(theme: t, text: widget.note!.trim()),
+              ],
+            ] else ...[
+              Text(
+                _error ?? hint,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: _error != null ? t.textPrimary : t.textSecondary,
+                ),
+              ),
+              if (widget.gift.wantsReply) ...[
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _replyCtrl,
+                  keyboardType: TextInputType.multiline,
+                  minLines: 1,
+                  maxLines: 6,
+                  style: TextStyle(color: cs.onSurface),
+                  decoration: InputDecoration(
+                    hintText: s.giftWishHint,
+                    hintStyle: TextStyle(color: cs.onSurfaceVariant),
+                    filled: true,
+                    fillColor: cs.surfaceContainerHigh,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                FilledButton(
+                  onPressed: _busy ? null : _accept,
+                  style: FilledButton.styleFrom(
                     backgroundColor: cs.primary,
                     foregroundColor: cs.onPrimary,
                     minimumSize: const Size.fromHeight(50),
-                    shape: const StadiumBorder()),
-                child: Text(s.giftWishSend),
-              ),
-            ],
-            if (widget.gift.action == GiftAction.invite) ...[
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: _busy ? null : _decline,
-                      child: Text(s.giftDecline,
-                          style: TextStyle(color: cs.onSurfaceVariant)),
-                    ),
+                    shape: const StadiumBorder(),
                   ),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: _busy ? null : _accept,
-                      style: FilledButton.styleFrom(
+                  child: Text(s.giftWishSend),
+                ),
+              ],
+              if (widget.gift.action == GiftAction.invite) ...[
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: _busy ? null : _decline,
+                        child: Text(
+                          s.giftDecline,
+                          style: TextStyle(color: cs.onSurfaceVariant),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: _busy ? null : _accept,
+                        style: FilledButton.styleFrom(
                           backgroundColor: cs.primary,
                           foregroundColor: cs.onPrimary,
                           minimumSize: const Size.fromHeight(50),
-                          shape: const StadiumBorder()),
-                      child: Text(s.giftAccept),
+                          shape: const StadiumBorder(),
+                        ),
+                        child: Text(s.giftAccept),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ],
-            if (widget.gift.action == GiftAction.coinFlip) ...[
-              const SizedBox(height: 12),
-              FilledButton(
-                onPressed: _busy ? null : _flip,
-                style: FilledButton.styleFrom(
+                  ],
+                ),
+              ],
+              if (widget.gift.action == GiftAction.coinFlip) ...[
+                const SizedBox(height: 12),
+                FilledButton(
+                  onPressed: _busy ? null : _flip,
+                  style: FilledButton.styleFrom(
                     backgroundColor: cs.primary,
                     foregroundColor: cs.onPrimary,
                     minimumSize: const Size.fromHeight(50),
-                    shape: const StadiumBorder()),
-                child: Text(s.giftFlipCoin),
+                    shape: const StadiumBorder(),
+                  ),
+                  child: Text(s.giftFlipCoin),
+                ),
+              ],
+              if (widget.gift.action == GiftAction.catchIt && _misses > 0) ...[
+                const SizedBox(height: 4),
+                Text(
+                  s.giftBunnyMisses(_misses),
+                  style: TextStyle(fontSize: 12.5, color: t.textMuted),
+                ),
+              ],
+            ],
+            const SizedBox(height: 8),
+            if (_busy)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
               ),
-            ],
-            if (widget.gift.action == GiftAction.catchIt && _misses > 0) ...[
-              const SizedBox(height: 4),
-              Text(s.giftBunnyMisses(_misses),
-                  style: TextStyle(fontSize: 12.5, color: t.textMuted)),
-            ],
           ],
-          const SizedBox(height: 8),
-          if (_busy)
-            const Padding(
-              padding: EdgeInsets.only(top: 8),
-              child: SizedBox(
-                  width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2)),
-            ),
-        ],
+        ),
       ),
     );
   }
@@ -412,11 +453,7 @@ class _CandleStage extends StatelessWidget {
           blown
               ? const GiftImage('cake_out', side: 170, animated: false)
               : GiftImage(gift.key, side: 170),
-          if (blown)
-            Positioned(
-              top: 12,
-              child: _Smoke(theme: theme),
-            ),
+          if (blown) Positioned(top: 12, child: _Smoke(theme: theme)),
         ],
       ),
     );
@@ -625,8 +662,8 @@ class _CatchStage extends StatelessWidget {
             onTap: caught
                 ? null
                 : catchable
-                    ? onHit
-                    : onMiss,
+                ? onHit
+                : onMiss,
             child: AnimatedScale(
               scale: caught ? 1.15 : 1,
               duration: const Duration(milliseconds: 300),
@@ -776,9 +813,10 @@ class _NoteCard extends StatelessWidget {
       child: Text(
         text,
         style: TextStyle(
-            fontSize: 15,
-            height: 1.45,
-            color: ProfileTheme.themeFor(theme).colorScheme.onSurface),
+          fontSize: 15,
+          height: 1.45,
+          color: ProfileTheme.themeFor(theme).colorScheme.onSurface,
+        ),
       ),
     );
   }

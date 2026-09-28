@@ -1763,6 +1763,12 @@
           "max": 80
         },
         {
+          "name": "photo",
+          "type": "text",
+          "required": false,
+          "max": 300
+        },
+        {
           "name": "deliver_at",
           "type": "number",
           "required": false

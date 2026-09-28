@@ -42,7 +42,7 @@ routerAdd("POST", "/api/gifts/send", (e) => {
 
   const body = new DynamicModel({
     giftId: "", groupId: "", giftKey: "", note: "", date: "", place: "",
-    ad: false,
+    photo: "", ad: false,
   });
   e.bindBody(body);
 
@@ -68,6 +68,27 @@ routerAdd("POST", "/api/gifts/send", (e) => {
 
   if (!giftId || !groupId || !PRICES[giftKey] || (byAd && NO_AD[giftKey])) {
     return e.json(400, { ok: false, error: "unknown_gift" });
+  }
+
+  // Снимок дарителя к «Кадру» (28.09.2026). Берём только ссылку на файл
+  // хранилища ЭТОЙ пары: чужой адрес партнёр открыть не сможет, а голая
+  // ссылка наружу превратила бы подарок в способ подсунуть что угодно.
+  const PHOTO_GIFTS = { photo: true };
+  const photo = String(body.photo || "").trim();
+  if (photo) {
+    const m = /^pb:\/\/media\/([a-z0-9]{15})\/[A-Za-z0-9_.\-]{1,200}$/.exec(photo);
+    let okPhoto = false;
+    if (m && PHOTO_GIFTS[giftKey]) {
+      try {
+        okPhoto = $app.findRecordById("media", m[1]).getString("group_id") === groupId;
+      } catch (_) {
+        okPhoto = false;
+      }
+    }
+    if (!okPhoto) {
+      $app.logger().warn("gifts: снимок к подарку отклонён", "gift", giftKey, "photo", photo.slice(0, 120));
+      return e.json(400, { ok: false, error: "bad_photo" });
+    }
   }
 
   let out = { s: 500, b: { ok: false, error: "internal" } };
@@ -167,6 +188,7 @@ routerAdd("POST", "/api/gifts/send", (e) => {
       // Дата для обратного отсчёта (отпуск, билет, ужин) и место (лапка).
       if (body.date) rec.set("date", String(body.date).slice(0, 40));
       if (body.place) rec.set("place", String(body.place).slice(0, 80));
+      if (photo) rec.set("photo", photo);
       // Отложенная доставка: письмо ждёт сутки, завтрак — ближайшее утро.
       let deliverAt = now;
       if (DELAY_H[giftKey]) {

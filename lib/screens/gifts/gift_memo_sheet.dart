@@ -6,6 +6,7 @@ import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/profile_theme.dart';
 import '../../widgets/app_sheet.dart';
+import '../../widgets/gifts/gift_photo_card.dart';
 
 /// Что осталось от подарков одного вида: даты, записки, ответы, место встречи.
 ///
@@ -198,6 +199,15 @@ class _MemoCard extends StatelessWidget {
                 fontWeight: FontWeight.w600,
                 color: scheme.onSurfaceVariant),
           ),
+          if (memo.photo.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            GiftPhotoCard(
+              photo: memo.photo,
+              scheme: scheme,
+              authorName: senderLabel,
+              maxHeight: 220,
+            ),
+          ],
           if (memo.note.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(

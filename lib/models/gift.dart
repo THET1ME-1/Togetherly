@@ -117,6 +117,7 @@ class Gift {
     required this.titleEn,
     this.action = GiftAction.tap,
     this.carriesNote = false,
+    this.carriesPhoto = false,
     this.wantsReply = false,
     this.keepsForever = false,
     this.transfersCoins = false,
@@ -152,6 +153,11 @@ class Gift {
 
   /// Даритель может вложить текст: записку, предсказание, письмо, посвящение.
   final bool carriesNote;
+
+  /// Даритель может приложить свой снимок. Просьба из поддержки (обращение
+  /// 20, 07.09.2026): «Кадр» просил фото у партнёра, а приложить своё было
+  /// нельзя, хотя к «Песне» текст прикладывается.
+  final bool carriesPhoto;
 
   /// Получатель пишет ответ, и он возвращается дарителю (желание на звезду).
   final bool wantsReply;
@@ -241,7 +247,8 @@ class GiftCatalog {
         carriesNote: true),
     Gift(key: 'song', price: 20, engine: GiftEngine.response, titleRu: 'Песня', titleEn: 'Song', carriesNote: true),
     Gift(key: 'photo', price: 20, engine: GiftEngine.response, titleRu: 'Кадр', titleEn: 'Photo',
-        action: GiftAction.invite, opens: GiftOpens.addPhoto, refundsOnDecline: true),
+        action: GiftAction.invite, opens: GiftOpens.addPhoto, refundsOnDecline: true,
+        carriesPhoto: true),
     Gift(key: 'piggy', price: 20, engine: GiftEngine.response, titleRu: 'Копилка', titleEn: 'Piggy bank',
         action: GiftAction.transfer, transfersCoins: true),
     Gift(key: 'bouquet', price: 25, engine: GiftEngine.response, titleRu: 'Букет', titleEn: 'Bouquet',

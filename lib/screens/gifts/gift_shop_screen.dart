@@ -24,6 +24,7 @@ import '../../widgets/common/badge_image.dart';
 import '../chest_screen.dart';
 import '../../widgets/chest/chest_stash_lane.dart';
 import '../../widgets/common/gift_image.dart';
+import '../../widgets/gifts/gift_photo_sheet.dart';
 import '../../widgets/common/coin_image.dart';
 import '../../widgets/common/coin_sheet.dart';
 
@@ -183,6 +184,21 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
     }
     if (!mounted) return;
 
+    // Снимок к «Кадру» — тоже до рекламы: загрузка идёт прямо в листе, и её
+    // провал человек видит раньше, чем отдаст ролик или монеты.
+    String? photo;
+    if (gift.carriesPhoto) {
+      photo = await showGiftPhotoSheet(
+        context,
+        gift: gift,
+        scheme: ProfileTheme.schemeFor(widget.theme),
+        groupId: widget.groupId,
+        uid: PocketBaseService().userId ?? '',
+      );
+      if (photo == null) return; // передумал дарить
+    }
+    if (!mounted) return;
+
     var adShown = false;
     if (byAd && !PlusService.instance.active) {
       final messenger = ScaffoldMessenger.of(context);
@@ -224,6 +240,7 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
       groupId: widget.groupId,
       giftKey: gift.key,
       note: note,
+      photo: photo,
       byAd: byAd,
     );
     if (adShown) await untilAppVisible();

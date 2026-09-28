@@ -50,6 +50,7 @@ class GiftMemo {
     this.sentAt,
     this.senderUid = '',
     this.note = '',
+    this.photo = '',
     this.reply = '',
     this.place = '',
     this.date,
@@ -67,6 +68,9 @@ class GiftMemo {
   /// Что вложил даритель.
   final String note;
 
+  /// Снимок дарителя, ссылка `pb://media/…`. Пусто, если не прикладывал.
+  final String photo;
+
   /// Что ответил получатель (желание на звезду, согласие на свидание).
   final String reply;
 
@@ -81,7 +85,11 @@ class GiftMemo {
   /// Есть ли что перечитать. Подарок без единого слова открывать незачем —
   /// на полке он и так виден.
   bool get hasText =>
-      note.isNotEmpty || reply.isNotEmpty || place.isNotEmpty || date != null;
+      note.isNotEmpty ||
+      photo.isNotEmpty ||
+      reply.isNotEmpty ||
+      place.isNotEmpty ||
+      date != null;
 }
 
 DateTime? _memoDate(Object? raw) {
@@ -107,6 +115,7 @@ GiftMemo _memoOf(Map<String, dynamic> r) => GiftMemo(
       sentAt: _memoDate(r['created']),
       senderUid: _memoText(r['sender_uid']),
       note: _memoText(r['note']),
+      photo: _memoText(r['photo']),
       reply: _memoText(r['reply']),
       place: _memoText(r['place']),
       date: _memoDate(r['date']),

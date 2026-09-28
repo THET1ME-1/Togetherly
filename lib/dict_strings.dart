@@ -11,6 +11,7 @@ import 'l10n/dict/shop.dart';
 import 'l10n/dict/common.dart';
 import 'l10n/dict/connect_partner.dart';
 import 'l10n/dict/daily_tasks.dart';
+import 'l10n/dict/gift_photo.dart';
 import 'l10n/dict/date_helpers.dart';
 import 'l10n/dict/draw_gallery_canvas.dart';
 import 'l10n/dict/draw_screen.dart';
@@ -80,6 +81,7 @@ const Map<String, Map<String, String>> kStrings = {
   ...commonStrings,
   ...connectPartnerStrings,
   ...dailyTasksStrings,
+  ...giftPhotoStrings,
   ...dateHelpersStrings,
   ...drawGalleryCanvasStrings,
   ...drawScreenStrings,
