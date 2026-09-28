@@ -31,4 +31,17 @@ void main() {
     await t.pump(const Duration(milliseconds: 300));
     expect(find.textContaining('3'), findsNothing);
   });
+
+  testWidgets('строку закрывают касанием, не дожидаясь таймера', (t) async {
+    await t.pumpWidget(MaterialApp(navigatorKey: LoveApp.rootNavigatorKey, home: const Scaffold()));
+    showJarToast(const PairJar(drops: [true, true, true, true], added: true));
+    for (var i = 0; i < 8; i++) {
+      await t.pump(const Duration(milliseconds: 100));
+    }
+    expect(find.textContaining('4'), findsWidgets);
+    await t.tap(find.textContaining('4').first);
+    await t.pump();
+    expect(find.textContaining('4'), findsNothing);
+    await t.pump(const Duration(seconds: 3));
+  });
 }

@@ -24,7 +24,7 @@ Future<void> showJarToast(PairJar jar) async {
   await untilAppVisible();
   final overlay = LoveApp.rootNavigatorKey.currentState?.overlay;
   final context = LoveApp.rootNavigatorKey.currentContext;
-  if (overlay == null || context == null) return;
+  if (overlay == null || context == null || !context.mounted) return;
   final cs = Theme.of(context).colorScheme;
   final bottom = MediaQuery.of(context).padding.bottom + 96;
   final text = jar.filled
@@ -33,12 +33,24 @@ Future<void> showJarToast(PairJar jar) async {
   // Наполнилась — показываем полную копилку, а не пустую новую.
   final shown = jar.filled ? PairJar(size: jar.size, drops: List.filled(jar.size, true), bonus: jar.bonus) : jar;
   late final OverlayEntry entry;
+  var removed = false;
+  void close() {
+    if (removed) return;
+    removed = true;
+    entry.remove();
+  }
+
   entry = OverlayEntry(
     builder: (_) => Positioned(
       left: 16,
       right: 16,
       bottom: bottom,
-      child: IgnorePointer(
+      // Закрыть можно касанием или смахиванием — не ждать таймера.
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: close,
+        onVerticalDragEnd: (_) => close(),
+        onHorizontalDragEnd: (_) => close(),
         child: Center(
           child: TweenAnimationBuilder<double>(
             tween: Tween(begin: 0, end: 1),
@@ -89,10 +101,5 @@ Future<void> showJarToast(PairJar jar) async {
     ),
   );
   overlay.insert(entry);
-  var removed = false;
-  Timer(Duration(milliseconds: jar.filled ? 2800 : 1800), () {
-    if (removed) return;
-    removed = true;
-    entry.remove();
-  });
+  Timer(Duration(milliseconds: jar.filled ? 2800 : 1800), close);
 }
