@@ -95,6 +95,9 @@ import '../widgets/common/app_dialog.dart';
 import '../widgets/common/stable_stream_builder.dart';
 import '../widgets/memory_date_field.dart';
 import '../widgets/memory/add_memory_sheet.dart';
+import '../widgets/memory/on_this_day_shelf.dart';
+import '../models/on_this_day.dart';
+import '../dict_strings.dart' show trKey;
 import '../widgets/rating_widgets.dart';
 import '../services/movie_search_service.dart';
 import '../widgets/common/pin_entry_sheet.dart';
@@ -503,6 +506,48 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   }
 
   // ── Organize memories ──
+
+  List<Memory>? _otdSource;
+  DateTime? _otdDay;
+  List<OnThisDayShelf> _otdCache = const [];
+
+  /// Полка «В этот день». Пересчёт только при новой ленте или смене дня:
+  /// лента пересобирается на каждое касание, а записей бывают тысячи.
+  List<OnThisDayShelf> get _onThisDay {
+    final now = DateTime.now();
+    final day = DateTime(now.year, now.month, now.day);
+    if (!identical(_otdSource, _memories) || _otdDay != day) {
+      _otdSource = _memories;
+      _otdDay = day;
+      _otdCache = onThisDay(_memories, now: now);
+    }
+    return _otdCache;
+  }
+
+  /// Одна запись — сразу её карточка, несколько — лист со всеми записями дня.
+  void _openOnThisDay(OnThisDayShelf shelf) {
+    if (shelf.memories.length == 1) {
+      _showMemoryDetail(shelf.memories.single);
+      return;
+    }
+    showAppSheet(
+      context,
+      builder: (ctx) => SheetScaffold(
+        title: onThisDayLabel(shelf),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(ctx).size.height * 0.72,
+          ),
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            children: [for (final m in shelf.memories) _memoryTile(m)],
+          ),
+        ),
+      ),
+    );
+  }
+
   List<Memory> get _pinnedMemories {
     if (widget.filterMode != MemoryFilterMode.none) return [];
     return _memories
@@ -889,6 +934,20 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 ]
                 else ...[
                   const SliverToBoxAdapter(child: SizedBox(height: 6)),
+                  // «В этот день»: что было месяц и год назад. Только в обычной
+                  // ленте — в фильтре и в режиме выбора она сбивала бы с толку.
+                  if (!_feedFiltered &&
+                      !_selecting &&
+                      widget.filterMode == MemoryFilterMode.none &&
+                      _onThisDay.isNotEmpty) ...[
+                    _sectionHeader(trKey('otdTitle'), icon: Icons.history_rounded),
+                    SliverToBoxAdapter(
+                      child: OnThisDayShelfRow(
+                        items: _onThisDay,
+                        onOpen: _openOnThisDay,
+                      ),
+                    ),
+                  ],
                   // Pinned section (only in normal mode)
                   if (_pinnedMemories.isNotEmpty) ...[
                     _sectionHeader(LocaleService.current.pinned,
