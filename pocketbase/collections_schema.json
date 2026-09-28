@@ -621,6 +621,15 @@
           "system": false
         },
         {
+          "name": "deliver_at",
+          "type": "number",
+          "required": false,
+          "presentable": false,
+          "onlyInt": true,
+          "hidden": false,
+          "system": false
+        },
+        {
           "name": "note_seen_at",
           "type": "number",
           "required": false,

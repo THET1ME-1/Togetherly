@@ -43,9 +43,11 @@ import '../widgets/chat/voice_bubble.dart';
 import '../widgets/chat/bubble_looks.dart';
 import '../widgets/chat/chat_look_sheet.dart';
 import '../widgets/chat/reaction_art.dart';
+import '../widgets/memory_save/floating_note.dart';
 import 'chat/chat_search_screen.dart';
 import '../widgets/app_sheet.dart';
 import '../models/chat_reaction.dart';
+import '../models/scheduled_message.dart';
 import '../models/chat_look.dart';
 import 'chat/note_viewer_screen.dart';
 import '../widgets/chat/note_bubble.dart';
@@ -1321,7 +1323,7 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  Future<void> _send() async {
+  Future<void> _send({int? deliverAt}) async {
     // Защита от повторной отправки: при плохой сети await может «висеть»,
     // и повторный тап по кнопке отправил бы дубликат.
     if (_sending) return;
@@ -1386,6 +1388,7 @@ class _ChatScreenState extends State<ChatScreen> {
           textColor: _selectedTextColor?.toARGB32(),
           faceX: _selectedFace == null ? null : _selectedFaceX,
           faceY: _selectedFace == null ? null : _selectedFaceY,
+          deliverAt: deliverAt,
         );
         if (!ok && mounted) {
           // Сообщение не сохранилось (у мигрированной группы Supabase —
@@ -1405,6 +1408,59 @@ class _ChatScreenState extends State<ChatScreen> {
     } finally {
       _sending = false;
     }
+  }
+
+  String _hm(DateTime d) =>
+      '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+
+  /// Когда придёт придержанное: время, а если не сегодня — ещё и «завтра».
+  String _formatDeliver(int ms) {
+    final d = DateTime.fromMillisecondsSinceEpoch(ms);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final day = DateTime(d.year, d.month, d.day);
+    if (day == today) return trKey('chatAtTime').replaceAll('{t}', _hm(d));
+    if (day == today.add(const Duration(days: 1))) {
+      return trKey('chatTomorrowAt').replaceAll('{t}', _hm(d));
+    }
+    return trKey('chatDateAt')
+        .replaceAll('{d}', '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}')
+        .replaceAll('{t}', _hm(d));
+  }
+
+  /// Долгое нажатие на «отправить»: календарь, потом часы. Сообщение
+  /// придёт партнёру в выбранный момент, даже если приложение будет закрыто.
+  Future<void> _sendLater() async {
+    if (_controller.text.trim().isEmpty && _attachedPin == null) return;
+    HapticFeedback.mediumImpact();
+    final now = DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      initialDate: now,
+      firstDate: DateTime(now.year, now.month, now.day),
+      lastDate: now.add(kScheduleMaxAhead),
+      helpText: trKey('chatSendLaterTitle'),
+    );
+    if (date == null || !mounted) return;
+    final soon = now.add(const Duration(hours: 1));
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: soon.hour, minute: 0),
+      helpText: trKey('chatSendLaterTitle'),
+    );
+    if (time == null || !mounted) return;
+    final at = scheduledMoment(date, time.hour, time.minute);
+    if (at == null) {
+      showFloatingNote(context, trKey('chatSendPast'), icon: Icons.schedule_rounded);
+      return;
+    }
+    await _send(deliverAt: at.millisecondsSinceEpoch);
+    if (!mounted) return;
+    showFloatingNote(
+      context,
+      trKey('chatScheduledAt').replaceAll('{t}', _formatDeliver(at.millisecondsSinceEpoch)),
+      icon: Icons.schedule_rounded,
+    );
   }
 
   void _startEdit(ChatMsg msg) {
@@ -1913,6 +1969,15 @@ class _ChatScreenState extends State<ChatScreen> {
                 _startReply(msg);
               },
             ),
+            if (msg.uid == _myUid && isHeld(msg.deliverAt))
+              ListTile(
+                leading: Icon(Icons.send_rounded, color: _t.primary),
+                title: Text(trKey('chatSendNow')),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _chat.sendNow(msg.id);
+                },
+              ),
             if (msg.uid == _myUid) ...[
               ListTile(
                 leading: Icon(Icons.edit_rounded, color: _t.primary),
@@ -3039,21 +3104,33 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
                 const SizedBox(width: 5),
               ],
-              Text(
-                _formatTime(msg.editedTs ?? msg.ts),
-                style: TextStyle(fontSize: 10, color: metaColor),
-              ),
-              if (isMine && !msg.deleted) ...[
-                const SizedBox(width: 4),
-                Icon(
-                  msg.ts <= _partnerReadTs
-                      ? Icons.done_all_rounded
-                      : Icons.done_rounded,
-                  size: 14,
-                  color: msg.ts <= _partnerReadTs
-                      ? const Color(0xFF8FD3FF)
-                      : metaColor,
+              // «К утру»: вместо времени и галочек — когда придёт.
+              if (isMine && isHeld(msg.deliverAt)) ...[
+                Icon(Icons.schedule_rounded, size: 13, color: metaColor),
+                const SizedBox(width: 3),
+                Text(
+                  trKey('chatScheduledAt')
+                      .replaceAll('{t}', _formatDeliver(msg.deliverAt!)),
+                  style: TextStyle(
+                      fontSize: 10, color: metaColor, fontWeight: FontWeight.w600),
                 ),
+              ] else ...[
+                Text(
+                  _formatTime(msg.editedTs ?? msg.ts),
+                  style: TextStyle(fontSize: 10, color: metaColor),
+                ),
+                if (isMine && !msg.deleted) ...[
+                  const SizedBox(width: 4),
+                  Icon(
+                    msg.ts <= _partnerReadTs
+                        ? Icons.done_all_rounded
+                        : Icons.done_rounded,
+                    size: 14,
+                    color: msg.ts <= _partnerReadTs
+                        ? const Color(0xFF8FD3FF)
+                        : metaColor,
+                  ),
+                ],
               ],
             ],
           ),
@@ -3614,6 +3691,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     idleBackground: cs.surfaceContainerHigh,
                     idleForeground: cs.onSurfaceVariant,
                     onSend: _send,
+                    onSendLater: _sendLater,
                     onRecordStart: _noteMode ? _startNote : _startVoice,
                     onRecordGesture: _noteMode
                         ? _onNoteGesture

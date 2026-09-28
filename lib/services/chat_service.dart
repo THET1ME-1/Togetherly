@@ -78,6 +78,7 @@ class ChatService {
     int? textColor,
     double? faceX,
     double? faceY,
+    int? deliverAt,
   }) async {
     final trimmed = text.trim();
     if (groupId.isEmpty || _uid.isEmpty || trimmed.isEmpty) return false;
@@ -103,6 +104,7 @@ class ChatService {
       'text_color': ?textColor,
       'face_x': ?faceX,
       'face_y': ?faceY,
+      'deliver_at': ?deliverAt,
     });
     // 2) в очередь (camelCase — как ожидает PbDataService.chatSend)
     await OutboxService.instance.enqueue('chatUpsert', {
@@ -124,6 +126,7 @@ class ChatService {
         'textColor': textColor,
         'faceX': faceX,
         'faceY': faceY,
+        'deliverAt': deliverAt,
       },
     });
     // Пуш партнёру — через PbPushService (SSE на chat_messages при отправке очереди).
@@ -300,6 +303,21 @@ class ChatService {
       },
     });
     return true;
+  }
+
+  /// Отправить придержанное «к утру» сообщение прямо сейчас. Срок ставим
+  /// «сейчас», а не ноль: сервер выпускает его с `ts = срок`, и с нулём оно
+  /// встало бы в начало переписки. Выпуск — в пределах двадцати секунд.
+  Future<void> sendNow(String messageId) async {
+    if (messageId.isEmpty) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await LocalStore.instance.patchRecordFields('chat_messages', messageId, {
+      'deliver_at': 0,
+    });
+    await OutboxService.instance.enqueue('chatUpdate', {
+      'id': messageId,
+      'fields': {'deliver_at': now},
+    });
   }
 
   /// Отметить чужую фигурку просмотренной. Ставит СМОТРЯЩИЙ и на первом же

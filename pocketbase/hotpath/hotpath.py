@@ -127,7 +127,12 @@ COLLECTIONS = {
             "voice_ms": "num", "voice_peaks": "text", "voice_heard_at": "num",
             "note_url": "text", "note_ms": "num", "note_shape": "text",
             "note_thumb": "text", "note_seen_at": "num", "note_hearts": "text",
+            "deliver_at": "num",
         },
+        # Сообщение «к утру» (28.09.2026): пока deliver_at в будущем, его видит
+        # только автор, партнёру оно не рассылается и пуш не уходит. Выпускает
+        # `_deliver_worker`: ставит ts = deliver_at и рассылает как обычное.
+        "hold": ("deliver_at", "user_uid"),
         "sortable": {"ts", "updated", "id"},
         "filterable": {"id", "group_id", "user_uid", "deleted", "ts", "updated",
                        "text", "voice_url", "note_url", "pin_id"},
@@ -546,6 +551,33 @@ _COND = re.compile(
 # по одной переписке, а не по миллионам сообщений всех пар.
 _OPS = {"=": "=", "!=": "<>", ">": ">", "<": "<", ">=": ">=", "<=": "<=",
         "~": "~"}
+
+
+def _now_ms() -> int:
+    return int(time.time() * 1000)
+
+
+def _held(meta: dict, rec: dict) -> bool:
+    """Запись придержана до своего срока (сообщение «к утру»)."""
+    hold = meta.get("hold")
+    if not hold:
+        return False
+    try:
+        return float(rec.get(hold[0]) or 0) > _now_ms()
+    except (TypeError, ValueError):
+        return False
+
+
+def _hold_cond(meta: dict, uid: str, args: list) -> str | None:
+    """Условие «придержанное видит только автор» для SELECT."""
+    hold = meta.get("hold")
+    if not hold:
+        return None
+    field, owner = hold
+    args.append(float(_now_ms()))
+    args.append(uid)
+    return (f"({field} IS NULL OR {field} = 0 OR {field} <= ${len(args) - 1} "
+            f"OR {owner} = ${len(args)})")
 
 
 def _like_pattern(s: str) -> str:
@@ -3376,6 +3408,10 @@ async def list_records(col: str, request: Request):
         args.append(list(groups))
         where.append(f"group_id = ANY(${len(args)})")
 
+    hold = _hold_cond(meta, uid, args)
+    if hold:
+        where.append(hold)
+
     order = meta["default_sort"]
     sort = q.get("sort", "")
     if sort:
@@ -3439,6 +3475,9 @@ async def get_record(col: str, rid: str, request: Request):
             rid, uid, list(groups)]
     else:
         cond, args = "group_id = ANY($2)", [rid, list(groups)]
+    hold = _hold_cond(meta, uid, args)
+    if hold:
+        cond = f"{cond} AND {hold}"
     async with pg.acquire() as c:
         row = await c.fetchrow(f"SELECT * FROM {col} WHERE id = $1 AND {cond}", *args)
     if row is None:
@@ -3532,8 +3571,11 @@ async def create_record(col: str, request: Request):
                 "id": {"code": "validation_not_unique", "message": "Value must be unique."}
             })
     rec = _record_json(col, row)
-    asyncio.get_running_loop().create_task(_publish(col, "create", rec))
-    asyncio.get_running_loop().create_task(_after_create(col, rec))
+    # Придержанное «к утру» не рассылаем и не пушим: это сделает
+    # `_deliver_worker`, когда придёт срок.
+    if not _held(meta, rec):
+        asyncio.get_running_loop().create_task(_publish(col, "create", rec))
+        asyncio.get_running_loop().create_task(_after_create(col, rec))
     return rec
 
 
@@ -3653,8 +3695,11 @@ async def update_record(col: str, rid: str, request: Request):
         asyncio.get_running_loop().create_task(
             _после_правки_пары(rid, [str(m) for m in участники] + [uid]))
     else:
-        asyncio.get_running_loop().create_task(_publish(col, "update", rec))
-        asyncio.get_running_loop().create_task(_after_update(col, rec))
+        # Правка придержанного сообщения партнёру не уходит — иначе оно
+        # приехало бы к нему раньше срока.
+        if not _held(meta, rec):
+            asyncio.get_running_loop().create_task(_publish(col, "update", rec))
+            asyncio.get_running_loop().create_task(_after_update(col, rec))
     return rec
 
 
@@ -3697,6 +3742,33 @@ async def delete_record(col: str, rid: str, request: Request):
 
 
 # ── запуск ───────────────────────────────────────────────────────────────────
+
+
+async def _deliver_worker() -> None:
+    """Выпускает сообщения «к утру», чей срок пришёл.
+
+    Раз в двадцать секунд: срок наступил — `ts` становится сроком (сообщение
+    встаёт в ленте туда, когда пришло), `deliver_at` обнуляется, `updated`
+    двигается (дельта-синхронизация клиента его подберёт), дальше рассылка и
+    пуш ровно как у свежего сообщения. Правкой, а не созданием: клиент кладёт
+    оба события одинаково, а автор запись уже знает.
+    """
+    while True:
+        await asyncio.sleep(20)
+        try:
+            async with pg.acquire() as c:
+                rows = await c.fetch(
+                    "UPDATE chat_messages SET ts = deliver_at, deliver_at = 0, updated = $2 "
+                    "WHERE deliver_at > 0 AND deliver_at <= $1 RETURNING *",
+                    float(_now_ms()), now_pb())
+            for row in rows:
+                rec = _record_json("chat_messages", row)
+                await _publish("chat_messages", "update", rec)
+                await _after_create("chat_messages", rec)
+            if rows:
+                log.info("к утру: выпущено %d", len(rows))
+        except Exception as e:  # noqa: BLE001 — воркер не должен умирать
+            log.warning("к утру: сбой выпуска: %s", e)
 
 
 def _claim_background_role() -> bool:
@@ -3750,6 +3822,7 @@ async def _startup():
         asyncio.get_running_loop().create_task(_counter_worker())
         asyncio.get_running_loop().create_task(_presence_mirror_worker())
         asyncio.get_running_loop().create_task(_зеркало_воркер())
+        asyncio.get_running_loop().create_task(_deliver_worker())
 
 
 @app.on_event("shutdown")

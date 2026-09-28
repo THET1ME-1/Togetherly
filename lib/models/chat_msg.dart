@@ -74,6 +74,10 @@ class ChatMsg {
   /// экрана. Страж `chat_guard.pb.js` пускает не-автора ровно в это поле.
   final int? voiceHeardAt;
 
+  /// «К утру»: до этого момента (epoch-ms) сообщение видит только автор,
+  /// партнёру его выпустит сервер. null — обычное сообщение.
+  final int? deliverAt;
+
   const ChatMsg({
     required this.id,
     required this.uid,
@@ -104,6 +108,7 @@ class ChatMsg {
     this.noteThumb,
     this.noteSeenAt,
     this.noteHearts,
+    this.deliverAt,
   });
 
   /// Голосовое сообщение или null, если это обычный текст.
@@ -195,6 +200,7 @@ class ChatMsg {
       voiceMs: nzInt(m['voice_ms']),
       voicePeaks: nz(m['voice_peaks']),
       voiceHeardAt: nzInt(m['voice_heard_at']),
+      deliverAt: nzInt(m['deliver_at']),
       noteUrl: nz(m['note_url']),
       noteMs: nzInt(m['note_ms']),
       noteShape: nz(m['note_shape']),

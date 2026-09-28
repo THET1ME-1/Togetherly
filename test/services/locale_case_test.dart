@@ -13,6 +13,8 @@ import 'package:love_app/dict_strings.dart';
 /// список закрытый, поэтому новая строчная строка валит тест и требует решения:
 /// либо заглавная, либо запись сюда с объяснением.
 const _lowercaseOnPurpose = <String>{
+  // Кусочки подписи «Придёт {t}» / «у вас {mine}»: встают внутрь фразы.
+  'chatAtTime', 'chatTomorrowAt', 'chatDateAt',
   // Хвосты строки истории «Скучаю»: встают после имени или времени.
   'missYouInReplyTo',
   'missYouSeenAt',

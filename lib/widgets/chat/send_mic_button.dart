@@ -57,6 +57,9 @@ class SendMicButton extends StatefulWidget {
 
   final VoidCallback onSend;
 
+  /// Долгое нажатие при набранном тексте: «отправить к утру» и своё время.
+  final VoidCallback? onSendLater;
+
   /// Палец опустился на микрофон: начинаем запись.
   final VoidCallback onRecordStart;
 
@@ -80,6 +83,7 @@ class SendMicButton extends StatefulWidget {
     required this.idleBackground,
     required this.idleForeground,
     required this.onSend,
+    this.onSendLater,
     required this.onRecordStart,
     required this.onRecordGesture,
     required this.onRecordEnd,
@@ -296,6 +300,9 @@ class _SendMicButtonState extends State<SendMicButton> {
           onPointerCancel: active ? null : (_) => _end(),
           child: GestureDetector(
             onTap: active ? widget.onSend : null,
+            onLongPress: widget.hasText && !widget.editing
+                ? widget.onSendLater
+                : null,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 220),
               curve: Curves.easeOut,
