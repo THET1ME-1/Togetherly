@@ -55,7 +55,10 @@ class FakeNotePlayer extends ChangeNotifier implements NotePlayer {
   Future<void> togglePlay() async => toggles++;
 
   @override
-  Future<void> toggleSound() async {}
+  Future<void> toggleSound() async {
+    _state = _state.copy(muted: !_state.muted);
+    notifyListeners();
+  }
 
   @override
   Future<void> seekFraction(double fraction) async => seeks.add(fraction);

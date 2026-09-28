@@ -4,10 +4,12 @@ import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../dict_strings.dart' show trKey;
 import '../../services/locale_service.dart';
 import '../../services/note_recorder_service.dart';
 import '../../services/plus_access.dart';
 import '../../theme/motion.dart';
+import '../common/m3_loading.dart';
 import 'note_shape_view.dart';
 import 'note_shapes.dart';
 
@@ -210,16 +212,7 @@ class NoteRecorderOverlay extends StatelessWidget {
     if (c == null || !c.value.isInitialized) {
       return ColoredBox(
         color: cs.surfaceContainerHigh,
-        child: Center(
-          child: SizedBox(
-            width: 30,
-            height: 30,
-            child: CircularProgressIndicator(
-              strokeWidth: 2.6,
-              color: cs.onSurfaceVariant,
-            ),
-          ),
-        ),
+        child: Center(child: M3Loading(size: 40, color: cs.primary)),
       );
     }
     // Превью зеркалим, файл — нет: иначе надпись на футболке уедет задом
@@ -285,67 +278,12 @@ class NoteRecorderOverlay extends StatelessWidget {
     );
   }
 
-  /// Лента форм: тап меняет маску морфом, съёмка при этом не прерывается.
-  Widget _shapeStrip(ColorScheme cs) {
-    return SizedBox(
-      height: 54,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: kNoteShapes.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 6),
-        itemBuilder: (context, i) {
-          final item = kNoteShapes[i];
-          final active = item.id == shape.id;
-          final locked =
-              !PlusAccess.ownsNoteShape(id: item.id, gate: plusGate);
-          return GestureDetector(
-            // Тап по запертой форме тоже уходит наверх: экран покажет витрину
-            // Togetherly+. Молчаливая кнопка читалась бы как поломка.
-            onTap: () => onShape(item),
-            behavior: HitTestBehavior.opaque,
-            child: AnimatedContainer(
-              duration: Motion.short4,
-              curve: Motion.standard,
-              width: 46,
-              height: 46,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: active ? cs.secondaryContainer : Colors.transparent,
-                shape: BoxShape.circle,
-              ),
-              child: AnimatedScale(
-                duration: Motion.short4,
-                curve: Motion.emphasized,
-                scale: active ? 1.08 : 0.92,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  alignment: Alignment.center,
-                  children: [
-                    NoteShapeGlyph(
-                      shape: item,
-                      size: 28,
-                      color: active
-                          ? cs.onSecondaryContainer
-                          : cs.onSurfaceVariant
-                              .withValues(alpha: locked ? 0.45 : 1),
-                    ),
-                    if (locked)
-                      Positioned(
-                        right: -3,
-                        bottom: -3,
-                        child: Icon(Icons.lock_rounded,
-                            size: 13, color: cs.onSurfaceVariant),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
+  Widget _shapeStrip(ColorScheme cs) => _ShapePicker(
+        shape: shape,
+        plusGate: plusGate,
+        onShape: onShape,
+        cs: cs,
+      );
 
   Widget _bottomBar(BuildContext context, ColorScheme cs, AppStrings s) {
     return Padding(
@@ -372,17 +310,27 @@ class NoteRecorderOverlay extends StatelessWidget {
                     width: 58,
                     child: ValueListenableBuilder<Duration>(
                       valueListenable: elapsed,
-                      builder: (_, value, _) => Text(
-                        _fmt(value),
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                          color: cancelling
-                              ? cs.onErrorContainer
-                              : cs.onSurface,
-                        ),
-                      ),
+                      builder: (_, value, _) {
+                        // Последние секунды — обратным счётом и цветом ошибки:
+                        // иначе съёмка обрывалась посреди фразы без
+                        // предупреждения (каждый десятый упирался в предел).
+                        final left = NoteRecorderService.maxDuration - value;
+                        final ending = recording &&
+                            left <= const Duration(seconds: 5);
+                        return Text(
+                          ending ? '−${_fmt(left + const Duration(milliseconds: 999))}' : _fmt(value),
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                            color: cancelling
+                                ? cs.onErrorContainer
+                                : ending
+                                    ? cs.error
+                                    : cs.onSurface,
+                          ),
+                        );
+                      },
                     ),
                   ),
                   const Spacer(),
@@ -535,4 +483,150 @@ class _RecDotState extends State<_RecDot> with SingleTickerProviderStateMixin {
               BoxDecoration(color: widget.color, shape: BoxShape.circle),
         ),
       );
+}
+
+/// Выбор формы. По умолчанию свёрнут в одну кнопку с текущей формой: 99%
+/// кружков снимают кругом, и лента из десяти форм с замками занимала экран
+/// съёмки впустую. Касание раскрывает ленту, выбор сворачивает её обратно.
+class _ShapePicker extends StatefulWidget {
+  const _ShapePicker({
+    required this.shape,
+    required this.plusGate,
+    required this.onShape,
+    required this.cs,
+  });
+
+  final NoteShape shape;
+  final PlusGate plusGate;
+  final ValueChanged<NoteShape> onShape;
+  final ColorScheme cs;
+
+  @override
+  State<_ShapePicker> createState() => _ShapePickerState();
+}
+
+class _ShapePickerState extends State<_ShapePicker> {
+  bool _open = false;
+
+  NoteShape get shape => widget.shape;
+  PlusGate get plusGate => widget.plusGate;
+
+  void onShape(NoteShape s) {
+    widget.onShape(s);
+    // Запертая форма уводит на витрину — лента остаётся открытой, чтобы
+    // вернувшись, человек выбрал другую.
+    if (PlusAccess.ownsNoteShape(id: s.id, gate: plusGate)) {
+      setState(() => _open = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = widget.cs;
+    return AnimatedSize(
+      duration: Motion.short4,
+      curve: Motion.standard,
+      child: _open ? _strip(cs) : _collapsed(cs),
+    );
+  }
+
+  Widget _collapsed(ColorScheme cs) {
+    return SizedBox(
+      height: 54,
+      child: Center(
+        child: Material(
+          color: cs.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(24),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(24),
+            onTap: () => setState(() => _open = true),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 10, 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  NoteShapeGlyph(
+                      shape: shape, size: 22, color: cs.onSurfaceVariant),
+                  const SizedBox(width: 8),
+                  Text(
+                    trKey('noteShapeLabel'),
+                    style: TextStyle(
+                      fontFamily: 'Onest',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurface,
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  Icon(Icons.expand_less_rounded,
+                      size: 20, color: cs.onSurfaceVariant),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _strip(ColorScheme cs) {
+    return SizedBox(
+      height: 54,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: kNoteShapes.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 6),
+        itemBuilder: (context, i) {
+          final item = kNoteShapes[i];
+          final active = item.id == shape.id;
+          final locked =
+              !PlusAccess.ownsNoteShape(id: item.id, gate: plusGate);
+          return GestureDetector(
+            // Тап по запертой форме тоже уходит наверх: экран покажет витрину
+            // Togetherly+. Молчаливая кнопка читалась бы как поломка.
+            onTap: () => onShape(item),
+            behavior: HitTestBehavior.opaque,
+            child: AnimatedContainer(
+              duration: Motion.short4,
+              curve: Motion.standard,
+              width: 46,
+              height: 46,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: active ? cs.secondaryContainer : Colors.transparent,
+                shape: BoxShape.circle,
+              ),
+              child: AnimatedScale(
+                duration: Motion.short4,
+                curve: Motion.emphasized,
+                scale: active ? 1.08 : 0.92,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.center,
+                  children: [
+                    NoteShapeGlyph(
+                      shape: item,
+                      size: 28,
+                      color: active
+                          ? cs.onSecondaryContainer
+                          : cs.onSurfaceVariant
+                              .withValues(alpha: locked ? 0.45 : 1),
+                    ),
+                    if (locked)
+                      Positioned(
+                        right: -3,
+                        bottom: -3,
+                        child: Icon(Icons.lock_rounded,
+                            size: 13, color: cs.onSurfaceVariant),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
 }

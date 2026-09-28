@@ -94,6 +94,12 @@ class NotePlayerService extends ChangeNotifier implements NotePlayer {
   Duration _lastPosition = Duration.zero;
   DateTime _lastStamp = DateTime.now();
 
+  final StreamController<String> _finished = StreamController<String>.broadcast();
+
+  /// id кружка, который только что досмотрели до конца. Приходит один раз за
+  /// проигрыш: по нему чат включает следующий непросмотренный.
+  Stream<String> get finished => _finished.stream;
+
   /// Кто последним отдал звук: если человек включил звук на одной фигурке,
   /// следующая тоже играет со звуком — иначе приходится тапать каждую.
   bool _soundOn = false;
@@ -254,6 +260,9 @@ class NotePlayerService extends ChangeNotifier implements NotePlayer {
         pos >= v.duration - const Duration(milliseconds: 80);
     if (finished && !v.isPlaying) {
       // Досмотрели: бегунок в начало, обод гаснет, кадр остаётся последним.
+      // Событие — только на переходе из «играет»: плагин присылает конец
+      // несколькими обновлениями подряд.
+      if (_state.playing) _finished.add(_state.messageId);
       _lastPosition = Duration.zero;
       _set(_state.copy(
           playing: false, position: Duration.zero, duration: v.duration));

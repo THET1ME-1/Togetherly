@@ -9,7 +9,12 @@ import 'package:visibility_detector/visibility_detector.dart';
 import '../../models/chat_msg.dart';
 import '../../models/shape_note.dart';
 import '../../services/chat_service.dart';
+import '../../dict_strings.dart' show trKey;
 import '../../services/note_player_service.dart';
+import '../../services/note_send_status.dart';
+import '../../services/offline/connectivity_service.dart';
+import '../../services/offline/outbox_service.dart';
+import '../common/m3_loading.dart';
 import '../storage_image.dart';
 import 'note_shape_view.dart';
 import 'note_shapes.dart';
@@ -59,6 +64,25 @@ class NoteBubble extends StatefulWidget {
 
 class _NoteBubbleState extends State<NoteBubble> {
   late final NotePlayer _player = widget.player ?? NotePlayerService.instance;
+
+  /// Свой кружок слушает ещё и отправку: очередь, её провалы и проценты
+  /// сжатия. Чужому это ни к чему.
+  late final Listenable _watch = widget.isMine
+      ? Listenable.merge([
+          _player,
+          NoteSendStatus.instance,
+          OutboxService.instance.pendingCount,
+          OutboxService.instance.poisonCount,
+        ])
+      : _player;
+
+  NoteSendView get _sendView => noteSendView(
+        mine: widget.isMine,
+        pending: OutboxService.instance.isPending('chat_messages', widget.msg.id),
+        poisoned:
+            OutboxService.instance.isPoisoned('chat_messages', widget.msg.id),
+        active: NoteSendStatus.instance.of(widget.msg.id),
+      );
 
   /// Фигурку уже смотрели. Отметка серверная (`note_seen_at`), ставит
   /// смотрящий — автору важно знать, что дошло до глаз.
@@ -156,12 +180,33 @@ class _NoteBubbleState extends State<NoteBubble> {
       key: ValueKey('note-vis-${widget.msg.id}'),
       onVisibilityChanged: _onVisibility,
       child: AnimatedBuilder(
-        animation: _player,
+        animation: _watch,
         builder: (context, _) {
           final current = _player.isCurrent(widget.msg.id);
           final st = _player.state;
           final playing = current && st.playing;
           final unseen = !_seen && !widget.isMine;
+          final send = _sendView;
+          final sending = send == NoteSendView.compressing ||
+              send == NoteSendView.uploading ||
+              send == NoteSendView.waiting;
+          // Кружок заиграл не от касания по нему (следующий после досмотренного,
+          // полный экран) — он тоже считается просмотренным.
+          if (playing && unseen) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _markSeen();
+            });
+          }
+          // Обод при отправке показывает, сколько сжато; загрузка — почти
+          // полный круг, на ней мы долю не знаем.
+          final sendProgress = switch (send) {
+            NoteSendView.compressing =>
+              0.08 + 0.72 * (NoteSendStatus.instance.of(widget.msg.id)?.progress ?? 0),
+            NoteSendView.uploading => 0.9,
+            NoteSendView.waiting => 0.08,
+            NoteSendView.failed => 1.0,
+            NoteSendView.none => null,
+          };
 
           return Column(
             crossAxisAlignment: widget.isMine
@@ -181,44 +226,77 @@ class _NoteBubbleState extends State<NoteBubble> {
                       messageId: widget.msg.id,
                       playing: playing,
                       unseen: unseen,
-                      color: unseen ? cs.primary : cs.outlineVariant,
+                      sendProgress: sendProgress,
+                      // Просмотренный обод не гаснет в серую нитку: он остаётся
+                      // цветом темы, только тише.
+                      color: send == NoteSendView.failed
+                          ? cs.error
+                          : (unseen || sendProgress != null)
+                              ? cs.primary
+                              : cs.primary.withValues(alpha: 0.35),
                       child: _content(current, cs),
                     ),
-                    // Значки живут в самой широкой части формы, а не по углам:
-                    // у звёздочки и клевера углы за контуром.
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: widget.size * 0.06,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (current && st.muted && playing) ...[
-                            const _Glyph(icon: Icons.volume_off_rounded),
-                            const SizedBox(width: 8),
-                          ],
-                          if (widget.onOpenFull != null)
-                            GestureDetector(
-                              onTap: () {
-                                _openedFull = true;
-                                widget.onOpenFull!.call();
-                              },
-                              child: const _Glyph(
-                                  icon: Icons.open_in_full_rounded),
-                            ),
-                        ],
+                    // Кнопки появляются, только когда кружок включён: на каждом
+                    // кружке ленты они висели всегда и засоряли её. Живут в
+                    // самой широкой части формы — у звёздочки и клевера углы
+                    // за контуром.
+                    if (current && !st.loading)
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: widget.size * 0.08,
+                        child: Center(
+                          // Играет молча — подсказываем словами, что звук
+                          // включается касанием: значок без подписи не
+                          // понимали. «Развернуть» встаёт на её место, когда
+                          // звук включён: вдвоём они не помещались в узкий
+                          // низ круга.
+                          child: st.muted && playing
+                              ? _SoundHint(maxWidth: widget.size * 0.62)
+                              : widget.onOpenFull == null
+                                  ? const SizedBox.shrink()
+                                  : GestureDetector(
+                                      onTap: () {
+                                        _openedFull = true;
+                                        widget.onOpenFull!.call();
+                                      },
+                                      child: const _Glyph(
+                                          icon: Icons.open_in_full_rounded),
+                                    ),
+                        ),
                       ),
-                    ),
                     if (current && st.loading)
                       Positioned.fill(
                         child: Center(
-                          child: SizedBox(
-                            width: 26,
-                            height: 26,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.4,
-                              color: cs.onSurfaceVariant,
+                          child: M3Loading(size: 34, color: cs.primary),
+                        ),
+                      ),
+                    if (!current && sending)
+                      Positioned.fill(
+                        child: Center(
+                          child: send == NoteSendView.waiting
+                              ? _Badge(
+                                  color: cs.surfaceContainerHigh,
+                                  child: Icon(Icons.schedule_rounded,
+                                      size: 22, color: cs.onSurfaceVariant),
+                                )
+                              : M3Loading(
+                                  size: 34,
+                                  color: cs.primary,
+                                  contained: true,
+                                  containerColor: cs.surfaceContainerHigh,
+                                ),
+                        ),
+                      ),
+                    if (!current && send == NoteSendView.failed)
+                      Positioned.fill(
+                        child: Center(
+                          child: GestureDetector(
+                            onTap: _retry,
+                            child: _Badge(
+                              color: cs.errorContainer,
+                              child: Icon(Icons.refresh_rounded,
+                                  size: 24, color: cs.onErrorContainer),
                             ),
                           ),
                         ),
@@ -227,7 +305,7 @@ class _NoteBubbleState extends State<NoteBubble> {
                 ),
               ),
               const SizedBox(height: 6),
-              _meta(cs, current, st, unseen),
+              _meta(cs, current, st, unseen, send),
             ],
           );
         },
@@ -288,11 +366,50 @@ class _NoteBubbleState extends State<NoteBubble> {
     );
   }
 
-  Widget _meta(ColorScheme cs, bool current, NotePlayback st, bool unseen) {
+  void _retry() => unawaited(
+      OutboxService.instance.retryPoisonFor('chat_messages', widget.msg.id));
+
+  Widget _meta(ColorScheme cs, bool current, NotePlayback st, bool unseen,
+      NoteSendView send) {
     final shown = current && st.position > Duration.zero
         ? st.duration - st.position
         : _note.duration;
-    final style = TextStyle(fontSize: 11, color: cs.onSurfaceVariant);
+    final style = TextStyle(fontSize: 12, color: cs.onSurfaceVariant);
+    if (send == NoteSendView.failed) {
+      // Кнопка, а не подпись: по мелкому тексту в ленте не попадают.
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.error_outline_rounded, size: 16, color: cs.error),
+          const SizedBox(width: 4),
+          Text(trKey('noteSendFailed'),
+              style: style.copyWith(color: cs.error, fontWeight: FontWeight.w600)),
+          const SizedBox(width: 4),
+          TextButton(
+            onPressed: _retry,
+            style: TextButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              minimumSize: const Size(0, 36),
+            ),
+            child: Text(trKey('noteSendRetry')),
+          ),
+        ],
+      );
+    }
+    final sendingLabel = switch (send) {
+      NoteSendView.compressing => trKey('noteSendCompressing').replaceAll(
+          '{p}',
+          '${((NoteSendStatus.instance.of(widget.msg.id)?.progress ?? 0) * 100).round()}'),
+      NoteSendView.uploading => trKey('noteSendUploading'),
+      NoteSendView.waiting => ConnectivityService.instance.isOnline
+          ? trKey('noteSendQueued')
+          : trKey('noteSendOffline'),
+      _ => null,
+    };
+    if (sendingLabel != null) {
+      return Text(sendingLabel, style: style.copyWith(color: cs.primary));
+    }
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -339,6 +456,9 @@ class _NoteRing extends StatefulWidget {
   final String messageId;
   final bool playing;
   final bool unseen;
+
+  /// Доля отправки своего кружка; null — не отправляется.
+  final double? sendProgress;
   final Color color;
   final Widget child;
 
@@ -349,6 +469,7 @@ class _NoteRing extends StatefulWidget {
     required this.messageId,
     required this.playing,
     required this.unseen,
+    this.sendProgress,
     required this.color,
     required this.child,
   });
@@ -372,7 +493,7 @@ class _NoteRingState extends State<_NoteRing>
   void didUpdateWidget(covariant _NoteRing old) {
     super.didUpdateWidget(old);
     if (old.playing != widget.playing) _sync();
-    if (!widget.playing) _progress.value = widget.unseen ? 1 : 0;
+    if (!widget.playing) _progress.value = widget.sendProgress ?? 1;
   }
 
   void _sync() {
@@ -402,7 +523,9 @@ class _NoteRingState extends State<_NoteRing>
       size: widget.size,
       ringColor: widget.color,
       ringWidth: 4,
-      ringProgress: widget.playing ? 0 : (widget.unseen ? 1 : 0),
+      // Обод есть всегда: у непросмотренного он яркий, у просмотренного тихий.
+      // Пока он пропадал совсем, кружок после просмотра выглядел выключенным.
+      ringProgress: widget.playing ? 0 : (widget.sendProgress ?? 1),
       ringListenable: widget.playing ? _progress : null,
       ringValue: widget.playing ? () => _progress.value : null,
       child: widget.child,
@@ -423,5 +546,60 @@ class _Glyph extends StatelessWidget {
           shape: BoxShape.circle,
         ),
         child: Icon(icon, size: 18, color: Colors.white),
+      );
+}
+
+
+/// Круглая подложка под значок посреди кружка.
+class _Badge extends StatelessWidget {
+  final Color color;
+  final Widget child;
+  const _Badge({required this.color, required this.child});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: 52,
+        height: 52,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        alignment: Alignment.center,
+        child: child,
+      );
+}
+
+/// «Коснитесь — звук» поверх кружка, который играет молча.
+class _SoundHint extends StatelessWidget {
+  final double maxWidth;
+  const _SoundHint({required this.maxWidth});
+
+  @override
+  Widget build(BuildContext context) => ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: Container(
+          height: 32,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: const Color(0x66000000),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.volume_off_rounded, size: 17, color: Colors.white),
+                const SizedBox(width: 5),
+                Text(
+                  trKey('noteTapForSound'),
+                  maxLines: 1,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       );
 }

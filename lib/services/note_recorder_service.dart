@@ -71,9 +71,12 @@ class NoteRecorderService {
   static final NoteRecorderService instance = NoteRecorderService._();
   factory NoteRecorderService() => instance;
 
-  /// Полминуты. Столько живёт мысль, ради которой достают камеру; всё длиннее
-  /// у пары и так уходит в голосовые (там предел три минуты).
-  static const Duration maxDuration = Duration(seconds: 30);
+  /// Минута. Сперва стояли полминуты, но каждый десятый кружок упирался в
+  /// предел (90-й процентиль длины 29 с на 3291 кружке, 28.09.2026) — людей
+  /// обрывало посреди фразы. Минута при 540p весит около 7 МБ, сервер её
+  /// потом ужимает (`note_shrink.py`). Последние пять секунд экран считает
+  /// вслух.
+  static const Duration maxDuration = Duration(seconds: 60);
 
   /// Короче — случайный тап по кнопке, а не желание что-то показать.
   static const Duration minDuration = Duration(milliseconds: 900);

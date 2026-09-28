@@ -33,6 +33,7 @@ import '../theme/app_theme.dart';
 import '../theme/profile_theme.dart';
 import '../services/voice_player_service.dart';
 import '../services/note_player_service.dart';
+import '../models/note_autoplay.dart';
 import '../services/note_recorder_service.dart';
 import '../services/voice_recorder_service.dart';
 import '../widgets/avatar_widget.dart';
@@ -352,6 +353,8 @@ class _ChatScreenState extends State<ChatScreen> {
     _loadChatLook();
     _loadNoteMode();
     _loadChatBackground();
+    _noteFinishedSub =
+        NotePlayerService.instance.finished.listen(_onNoteFinished);
     _controller.addListener(_onTextChanged);
     _scrollController.addListener(_onScroll);
   }
@@ -444,6 +447,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (_recording) unawaited(VoiceRecorderService.instance.cancel());
     _noteElapsedSub?.cancel();
     _noteLimitSub?.cancel();
+    _noteFinishedSub?.cancel();
     _noteElapsed.dispose();
     // Камера не должна пережить экран: иначе индикатор съёмки горит дальше.
     unawaited(NoteRecorderService.instance.release());
@@ -694,6 +698,38 @@ class _ChatScreenState extends State<ChatScreen> {
   );
   StreamSubscription<Duration>? _noteElapsedSub;
   StreamSubscription<void>? _noteLimitSub;
+
+  /// Досмотренный кружок включает следующий непросмотренный кружок партнёра.
+  StreamSubscription<String>? _noteFinishedSub;
+
+  Future<void> _onNoteFinished(String id) async {
+    if (!mounted) return;
+    // Поверх открыт полный экран — он листает кружки сам, лента не дёргается.
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) return;
+    final next = nextUnseenNote(_lastMessages, finishedId: id, myUid: _myUid);
+    final note = next?.note;
+    if (next == null || note == null) return;
+    // Следующий далеко за экраном (его ещё не построили) — не тащим ленту
+    // через полпереписки, человек включит его сам.
+    final ctx = _keyFor(next.id).currentContext;
+    if (ctx == null) return;
+    final player = NotePlayerService.instance;
+    final sound = !player.state.muted;
+    await Scrollable.ensureVisible(
+      ctx,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOutCubic,
+      alignment: 0.5,
+    );
+    if (!mounted) return;
+    await player.open(
+      messageId: next.id,
+      url: note.url,
+      knownDuration: note.duration,
+      sound: sound,
+    );
+  }
 
   Future<void> _loadChatLook() async {
     final value = await UiPrefs.chatLook();

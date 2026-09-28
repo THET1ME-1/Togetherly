@@ -12,6 +12,7 @@ import 'backoff.dart';
 import 'connectivity_service.dart';
 import 'local_store.dart';
 import '../../models/memory_reaction.dart';
+import '../note_send_status.dart';
 
 /// Очередь офлайн-записи (outbox).
 ///
@@ -26,6 +27,19 @@ import '../../models/memory_reaction.dart';
 /// 404-как-успех, set-saved по желаемому состоянию. Исключение — counterInc
 /// (инкремент счётчика-подсказки): возможен косметический дрейф, как и в текущем
 /// онлайн-коде.
+/// Предел на одну операцию очереди.
+///
+/// Двадцати секунд хватает любой записи в базу, но не кружку: его сперва
+/// жмёт кодек (до трёх минут на слабом телефоне), потом он грузится. Пока
+/// предел был общим, почти каждый кружок «проваливался» по таймауту, хотя
+/// работа продолжалась, и очередь запускала вторую отправку поверх первой.
+/// После пяти таких провалов кружок отравлялся — иногда уже доехав.
+Duration outboxOpTimeout(String type) => switch (type) {
+      'chatNote' => const Duration(minutes: 8),
+      'chatVoice' => const Duration(minutes: 3),
+      _ => const Duration(seconds: 20),
+    };
+
 class OutboxService {
   OutboxService._();
   static final OutboxService instance = OutboxService._();
@@ -82,6 +96,34 @@ class OutboxService {
   /// Есть ли в очереди неотправленная правка записи [id] коллекции [collection].
   bool isPending(String collection, String id) =>
       id.isNotEmpty && _pendingKeys.contains('$collection:$id');
+
+  /// Ключи записей, чья отправка сдалась после [_maxAttempts] попыток. Без них
+  /// такая запись выглядела отправленной: из очереди она пропадает, а на
+  /// сервер так и не доехала.
+  final Set<String> _poisonKeys = <String>{};
+
+  /// Отправка записи [id] сдалась и ждёт повтора руками.
+  bool isPoisoned(String collection, String id) =>
+      id.isNotEmpty && _poisonKeys.contains('$collection:$id');
+
+  /// Вернуть в очередь только операции одной записи (кнопка «Повторить» у
+  /// конкретного сообщения), остальные отравленные не трогаем.
+  Future<void> retryPoisonFor(String collection, String id) async {
+    final db = await LocalStore.instance.database();
+    if (db == null) return;
+    final key = '$collection:$id';
+    for (final s in await _poison.find(db)) {
+      if (_parseOp(s.value)?.rkey != key) continue;
+      await _store.add(db, {
+        'type': s.value['type'],
+        'payload': s.value['payload'],
+        'attempts': 0,
+      });
+      await _poison.record(s.key).delete(db);
+    }
+    await _updatePending();
+    unawaited(flush());
+  }
 
   /// Ключи операций, которые прямо сейчас обрабатывает flush (сетевые вызовы
   /// параллельных полос) — коалесинг в них НЕ мёржит (иначе гонка: применилось
@@ -239,7 +281,7 @@ class OutboxService {
         // как провал → ретрай; операции идемпотентны по id.
         final apply = applyOverride ?? _apply;
         ok = await apply(parsed.type, parsed.payload)
-            .timeout(const Duration(seconds: 20), onTimeout: () => false);
+            .timeout(outboxOpTimeout(parsed.type), onTimeout: () => false);
       } catch (_) {
         ok = false;
       } finally {
@@ -411,6 +453,7 @@ class OutboxService {
       activeCount.value = 0;
       poisonCount.value = 0;
       _pendingKeys.clear();
+      _poisonKeys.clear();
       return;
     }
     final snaps = await _store.find(db);
@@ -423,7 +466,14 @@ class OutboxService {
     }
     activeCount.value = active;
     unawaited(_reportIfStuck());
-    poisonCount.value = await _poison.count(db);
+    final poison = await _poison.find(db);
+    _poisonKeys
+      ..clear()
+      ..addAll([
+        for (final s in poison)
+          if (_parseOp(s.value)?.rkey case final k?) k,
+      ]);
+    poisonCount.value = poison.length;
     // Пересчитываем «грязные» ключи: записи с неотправленными правками, которые
     // кэш-слой не должен перезатирать серверным стейлом. Разбор защищён
     // (_parseOp) — битая запись не должна ронять пересчёт счётчика.
@@ -914,6 +964,14 @@ class OutboxService {
       }
       var toUpload = path;
       File? shrunk;
+      final status = NoteSendStatus.instance;
+      status.set(id, const NoteSendState(NoteSendPhase.compressing));
+      // Доля готовности кодека — чтобы под кружком шли проценты, а не
+      // безликое «отправляется» на минуту.
+      final progressSub = VideoCompress.compressProgress$.subscribe((v) {
+        status.set(id,
+            NoteSendState(NoteSendPhase.compressing, (v / 100).clamp(0.0, 1.0)));
+      });
       try {
         final info = await VideoCompress.compressVideo(
           path,
@@ -924,7 +982,8 @@ class OutboxService {
           quality: VideoQuality.Res960x540Quality,
           deleteOrigin: false,
           includeAudio: true,
-        ).timeout(const Duration(minutes: 2));
+        // Минута видео на слабом телефоне жмётся дольше двух минут.
+        ).timeout(const Duration(minutes: 3));
         final out = info?.file;
         if (out != null && await out.exists()) {
           shrunk = out;
@@ -932,7 +991,10 @@ class OutboxService {
         }
       } catch (e) {
         debugPrint('outbox.chatNote: сжатие не вышло, грузим как есть: $e');
+      } finally {
+        progressSub.unsubscribe();
       }
+      status.set(id, const NoteSendState(NoteSendPhase.uploading));
       final uploaded = await PbMediaService.instance.uploadFile(
         toUpload,
         uid: msg['uid'] as String?,
@@ -942,7 +1004,10 @@ class OutboxService {
       try {
         if (shrunk != null && await shrunk.exists()) await shrunk.delete();
       } catch (_) {/* уберёт система */}
-      if (uploaded == null) return false; // сеть/сервер — повторим позже
+      if (uploaded == null) {
+        status.clear(id); // подождёт в очереди, подпись станет «ждёт»
+        return false; // сеть/сервер — повторим позже
+      }
       url = uploaded;
       msg['noteUrl'] = url;
       // Файл на устройстве вот-вот исчезнет, а фигурка должна продолжать
@@ -953,6 +1018,7 @@ class OutboxService {
     }
 
     final ok = await PbDataService().chatSend(groupId, id, msg);
+    NoteSendStatus.instance.clear(id);
     if (ok) {
       for (final path in [path, thumbPath]) {
         if (path.isEmpty) continue;
