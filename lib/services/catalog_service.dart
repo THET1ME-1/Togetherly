@@ -42,6 +42,7 @@ class CatalogService extends ChangeNotifier {
   List<ProfileIcon> _badges = const [];
   List<AvatarFrame> _frames = const [];
   Map<String, GiftArt> _giftArt = const {};
+  Map<String, GiftArt> _ailmentArt = const {};
   bool _initialized = false;
 
   /// Значки профиля из каталога (kind='badge'), по полю `sort`. Зашитых в
@@ -56,6 +57,9 @@ class CatalogService extends ChangeNotifier {
   /// Живые картинки подарков по ключу подарка. Пусто, пока каталог не пришёл:
   /// тогда подарок рисуется неподвижным кадром из сборки.
   GiftArt? giftArt(String key) => _giftArt[key];
+
+  /// Анимированный значок самочувствия по id (`catalog_items`, вид `ailment`).
+  GiftArt? ailmentArt(String id) => _ailmentArt[id];
 
   /// Подставить значки без сети — только для тестов.
   @visibleForTesting
@@ -198,6 +202,7 @@ class CatalogService extends ChangeNotifier {
     final badgeRows = <Map<String, dynamic>>[];
     final frameRows = <Map<String, dynamic>>[];
     final giftArt = <String, GiftArt>{};
+    final ailmentArt = <String, GiftArt>{};
 
     for (final raw in rows) {
       if (raw is! Map) continue;
@@ -210,6 +215,11 @@ class CatalogService extends ChangeNotifier {
       }
       if (row['kind'] == 'frame') {
         frameRows.add(row);
+        continue;
+      }
+      if (row['kind'] == 'ailment') {
+        final art = GiftArt.fromCatalog(row);
+        if (art != null) ailmentArt[art.key] = art;
         continue;
       }
       if (row['kind'] == 'gift' || row['kind'] == 'art') {
@@ -274,6 +284,7 @@ class CatalogService extends ChangeNotifier {
     _badges = List.unmodifiable(ProfileIcon.parseCatalog(badgeRows));
     _frames = List.unmodifiable(AvatarFrame.parseCatalog(frameRows));
     _giftArt = Map.unmodifiable(giftArt);
+    _ailmentArt = Map.unmodifiable(ailmentArt);
     MoodOption.registerRemoteMoods(remoteMoods);
     notifyListeners();
   }

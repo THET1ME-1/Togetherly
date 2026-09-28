@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../../widgets/common/ailment_icon.dart';
 import '../../../theme/profile_theme.dart';
 import '../../../theme/theme_scope.dart';
 import '../../../widgets/mood_image.dart';
@@ -963,7 +964,7 @@ class _MoodTile extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Single ailment tile (emoji-based, no asset pipeline)
+//  Single ailment tile — значок той же рукой, что значки профиля
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _AilmentChip extends StatelessWidget {
@@ -999,7 +1000,7 @@ class _AilmentChip extends StatelessWidget {
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOutCubic,
         height: 44,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.only(left: 4, right: 16),
         decoration: BoxDecoration(
           color: fill,
           borderRadius: BorderRadius.circular(22),
@@ -1007,8 +1008,8 @@ class _AilmentChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(ailment.emoji, style: const TextStyle(fontSize: 18)),
-            const SizedBox(width: 8),
+            AilmentIcon(id: ailment.id, emoji: ailment.emoji, size: 38),
+            const SizedBox(width: 4),
             Text(
               ailment.localizedLabel,
               style: TextStyle(

@@ -7,6 +7,7 @@ import '../widgets/storage_image.dart';
 import 'package:exif/exif.dart';
 import 'package:flutter/material.dart';
 import '../widgets/common/ad_result.dart';
+import '../widgets/common/ailment_icon.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -2396,7 +2397,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             child: Row(
               children: [
-                Text(a.emoji, style: const TextStyle(fontSize: 18)),
+                AilmentIcon(id: a.id, emoji: a.emoji, size: 28),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
