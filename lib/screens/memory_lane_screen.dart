@@ -289,6 +289,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   }
   List<Memory> _memories = [];
   bool _loading = true;
+
+  /// Роли схемы активной темы. Всё цветное на экране берётся отсюда: вшитые
+  /// красный, серый и синий в двадцати пяти темах и тёмном режиме выглядели
+  /// чужими (шлифовка 28.09.2026).
+  ColorScheme get _cs => ProfileTheme.schemeFor(widget.theme);
+
   // Ленивая пагинация ленты: рендерим окно из последних N воспоминаний и растим
   // его по мере прокрутки. Данные все в кэше — это окно ПО UI, не по сети.
   static const int _feedPageSize = 30;
@@ -709,12 +715,6 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     return LocaleService.current.fullMonths[DateTime.now().month];
   }
 
-  String _timeStr(DateTime dt) {
-    final h = dt.hour.toString().padLeft(2, '0');
-    final m = dt.minute.toString().padLeft(2, '0');
-    return '$h:$m';
-  }
-
   // ══════════════════════════════════════════════
   //  BUILD
   // ══════════════════════════════════════════════
@@ -823,7 +823,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(Icons.photo_album_outlined,
-                      size: 32, color: Colors.grey.shade300),
+                      size: 32, color: _cs.outline),
                   const SizedBox(height: 8),
                   Text(
                     s.noMemoriesYet,
@@ -1874,122 +1874,6 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     }
   }
 
-  /// Мозаика-коллаж медиа (фото 17): 1 — крупно, 2 — в ряд, 3 — 1+2, 4+ — два
-  /// сверху и до 3 снизу, последняя ячейка с «+N», если фото больше.
-  Widget _mediaCollage(Memory memory, List<String> photos, bool hasVideo) {
-    const r = 14.0;
-    const gap = 4.0;
-    final n = photos.length;
-
-    Widget tile(int i, {bool overlay = false, int remaining = 0}) {
-      Widget cell = Stack(
-        fit: StackFit.expand,
-        children: [
-          // Фото заполняет ячейку и ОБРЕЗАЕТСЯ по её форме (cover), без
-          // искажения пропорций — как в системной галерее. Positioned.fill +
-          // ClipRRect снаружи гарантируют жёсткие границы и кроп.
-          Positioned.fill(
-            child: StorageImage(
-              imageUrl: photos[i],
-              fit: BoxFit.cover,
-              // ВАЖНО: задаём ТОЛЬКО ширину кэша. Если задать и width, и height,
-              // Flutter декодирует фото точно в 500×500 (квадрат), ИГНОРИРУЯ
-              // пропорции → вертикальное фото сжимается ещё ДО cover. С одной
-              // лишь шириной пропорции сохраняются, и cover честно обрезает.
-              memCacheWidth: 700,
-              errorWidget: (_, __, ___) => Container(
-                color: widget.theme.surfaceMuted,
-                child: Icon(Icons.broken_image_rounded,
-                    color: widget.theme.textMuted, size: 26),
-              ),
-            ),
-          ),
-          if (hasVideo && i == 0)
-            const Center(
-              child: Icon(Icons.play_circle_fill_rounded,
-                  color: Colors.white, size: 42),
-            ),
-          if (overlay)
-            Container(
-              color: Colors.black.withOpacity(0.45),
-              alignment: Alignment.center,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.add, color: Colors.white, size: 26),
-                  Text('$remaining',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w700)),
-                ],
-              ),
-            ),
-        ],
-      );
-      if (memory.isAdult) cell = _BlurAfterTap(child: cell);
-      return ClipRRect(borderRadius: BorderRadius.circular(r), child: cell);
-    }
-
-    if (n == 1) {
-      return AspectRatio(aspectRatio: 4 / 3, child: tile(0));
-    }
-    if (n == 2) {
-      return AspectRatio(
-        aspectRatio: 2 / 1,
-        child: Row(children: [
-          Expanded(child: tile(0)),
-          const SizedBox(width: gap),
-          Expanded(child: tile(1)),
-        ]),
-      );
-    }
-    if (n == 3) {
-      return AspectRatio(
-        aspectRatio: 3 / 2,
-        child: Row(children: [
-          Expanded(flex: 2, child: tile(0)),
-          const SizedBox(width: gap),
-          Expanded(
-            child: Column(children: [
-              Expanded(child: tile(1)),
-              const SizedBox(height: gap),
-              Expanded(child: tile(2)),
-            ]),
-          ),
-        ]),
-      );
-    }
-    // n >= 4
-    final bottomCount = n >= 5 ? 3 : 2;
-    final shown = 2 + bottomCount;
-    final remaining = n - shown;
-    return Column(children: [
-      AspectRatio(
-        aspectRatio: 2 / 1,
-        child: Row(children: [
-          Expanded(child: tile(0)),
-          const SizedBox(width: gap),
-          Expanded(child: tile(1)),
-        ]),
-      ),
-      const SizedBox(height: gap),
-      AspectRatio(
-        aspectRatio: bottomCount == 3 ? 3 / 1 : 2 / 1,
-        child: Row(children: [
-          for (int k = 0; k < bottomCount; k++) ...[
-            if (k > 0) const SizedBox(width: gap),
-            Expanded(
-              child: tile(2 + k,
-                  overlay: k == bottomCount - 1 && remaining > 0,
-                  remaining: remaining),
-            ),
-          ],
-        ]),
-      ),
-    ]);
-  }
-
   /// Футер карточки: комментарии + закладка (лайков НЕТ — по требованию).
   /// Низ карточки: именные реакции, комментарии числом, сохранение медиа.
   ///
@@ -2365,10 +2249,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
 
   /// Медиа-ячейка для видео без обложки (тёмный фон + play), в стиле коллажа.
   Widget _videoOnlyCell(Memory memory) {
+    // Тёмная подложка под белым значком — это кадр видео, а не карточка:
+    // тёмный тон темы вместо вшитого серого.
     Widget cell = Container(
       color: widget.theme.isDark
           ? widget.theme.surfaceMuted
-          : Colors.grey.shade900,
+          : _cs.inverseSurface,
       child: const Center(
         child: Icon(Icons.play_circle_fill_rounded,
             color: Colors.white, size: 48),
@@ -3066,20 +2952,20 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: Colors.amber.withValues(alpha: 0.14),
+        color: _cs.tertiaryContainer,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.star_rounded, size: 11, color: Colors.amber.shade700),
+          Icon(Icons.star_rounded, size: 11, color: _cs.onTertiaryContainer),
           const SizedBox(width: 4),
           Text(
             LocaleService.current.kpRating(rating),
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
-              color: Colors.amber.shade800,
+              color: _cs.onTertiaryContainer,
             ),
           ),
         ],
@@ -3641,560 +3527,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       );
       return;
     }
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      elevation: 0,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      backgroundColor: widget.theme.cardSurface,
+    showAppSheet(
+      context,
+      background: widget.theme.cardSurface,
       builder: (_) => sheet,
-    );
-  }
-
-  // ignore: unused_element
-  void _showMemoryDetailLEGACY(Memory memory) {
-    AudioPlayer? audioPlayer;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      backgroundColor: widget.theme.cardSurface,
-      builder: (_) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return DraggableScrollableSheet(
-              expand: false,
-              initialChildSize:
-                  memory.type == MemoryType.photo ||
-                      memory.type == MemoryType.video
-                  ? 0.85
-                  : 0.7,
-              maxChildSize: 0.95,
-              builder: (_, scrollController) => SingleChildScrollView(
-                controller: scrollController,
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: widget.theme.divider,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    // Type badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _memoryTypeColor(memory.type).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SvgPicture.asset(
-                            _typeSvgAsset(memory.type),
-                            width: 14,
-                            height: 14,
-                            colorFilter: ColorFilter.mode(
-                              _memoryTypeColor(memory.type),
-                              BlendMode.srcIn,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            memory.typeLabel,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: _memoryTypeColor(memory.type),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // ── PHOTO detail ──
-                    if (memory.type == MemoryType.photo) ...[
-                      if ((memory.imageUrls?.isNotEmpty == true) ||
-                          (memory.imageUrl != null &&
-                              memory.imageUrl!.isNotEmpty))
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: AspectRatio(
-                            aspectRatio: 1.0,
-                            child: StorageImage(
-                              imageUrl: memory.imageUrls?.isNotEmpty == true
-                                  ? memory.imageUrls!.first
-                                  : memory.imageUrl!,
-                              width: double.infinity,
-                              height: double.infinity,
-                              fit: BoxFit.cover,
-                              errorWidget: (context, url, error) => Container(
-                                color: widget.theme.surfaceMuted,
-                                child: Center(
-                                  child: Icon(
-                                    Icons.broken_image_rounded,
-                                    color: widget.theme.textMuted,
-                                    size: 48,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        )
-                      else
-                        Container(
-                          height: 200,
-                          decoration: BoxDecoration(
-                            color: widget.theme.surfaceMuted,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.image_not_supported_rounded,
-                                  color: widget.theme.textMuted,
-                                  size: 48,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  LocaleService.current.photoNotUploaded,
-                                  style: TextStyle(color: widget.theme.textMuted),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                    ],
-
-                    // ── VIDEO detail ── (также для смешанного фото+видео пина)
-                    if (memory.type == MemoryType.video ||
-                        (memory.type == MemoryType.photo &&
-                            memory.videoUrl?.isNotEmpty == true)) ...[
-                      if (memory.type == MemoryType.photo)
-                        const SizedBox(height: 12),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: Stack(
-                          children: [
-                            if (memory.imageUrl != null &&
-                                memory.imageUrl!.isNotEmpty)
-                              StorageImage(
-                                imageUrl: memory.imageUrl!,
-                                width: double.infinity,
-                                height: 220,
-                                fit: BoxFit.cover,
-                                errorWidget: (context, url, error) => Container(
-                                  height: 220,
-                                  color: widget.theme.isDark
-                                      ? widget.theme.surfaceMuted
-                                      : Colors.grey.shade900,
-                                ),
-                              )
-                            else
-                              Container(
-                                height: 220,
-                                color: widget.theme.isDark
-                                    ? widget.theme.surfaceMuted
-                                    : Colors.grey.shade900,
-                              ),
-                            Container(
-                              height: 220,
-                              color: Colors.black.withOpacity(0.4),
-                            ),
-                            SizedBox(
-                              height: 220,
-                              width: double.infinity,
-                              child: Center(
-                                child: GestureDetector(
-                                  onTap: () {
-                                    final url = memory.videoUrl;
-                                    if (url != null && url.isNotEmpty) {
-                                      safeLaunchUrl(
-                                        Uri.parse(url),
-                                        mode: LaunchMode.externalApplication,
-                                      );
-                                    }
-                                  },
-                                  child: Container(
-                                    padding: const EdgeInsets.all(18),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.9),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(
-                                      Icons.play_arrow_rounded,
-                                      size: 40,
-                                      color: Color(0xFFEC4899),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-
-                    // ── LOCATION detail ──
-                    if (memory.type == MemoryType.location) ...[
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: widget.theme.isDark
-                              ? widget.theme.surfaceMuted
-                              : const Color(0xFFF0FAF4),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                              color: widget.theme.isDark
-                                  ? widget.theme.cardBorder
-                                  : const Color(0xFFD1F0DE)),
-                        ),
-                        child: Column(
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(10),
-                                  decoration: BoxDecoration(
-                                    color: const Color(
-                                      0xFF22C55E,
-                                    ).withOpacity(0.12),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: const Icon(
-                                    Icons.location_on_rounded,
-                                    color: Color(0xFF22C55E),
-                                    size: 24,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        memory.locationName ??
-                                            LocaleService
-                                                .current
-                                                .unknownLocation,
-                                        style: TextStyle(
-                                          fontSize: 17,
-                                          fontWeight: FontWeight.w700,
-                                          color: widget.theme.textPrimary,
-                                        ),
-                                      ),
-                                      if (memory.latitude != null)
-                                        Text(
-                                          '${memory.latitude!.toStringAsFixed(5)}, ${memory.longitude?.toStringAsFixed(5) ?? ""}',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: widget.theme.textMuted,
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            if (memory.latitude != null &&
-                                memory.longitude != null) ...[
-                              const SizedBox(height: 12),
-                              SizedBox(
-                                width: double.infinity,
-                                child: OutlinedButton.icon(
-                                  onPressed: () {
-                                    final url =
-                                        'https://www.google.com/maps?q=${memory.latitude},${memory.longitude}';
-                                    safeLaunchUrl(
-                                      Uri.parse(url),
-                                      mode: LaunchMode.externalApplication,
-                                    );
-                                  },
-                                  icon: const Icon(Icons.map_rounded, size: 18),
-                                  label: Text(
-                                    LocaleService.current.openInGoogleMaps,
-                                  ),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: const Color(0xFF22C55E),
-                                    side: const BorderSide(
-                                      color: Color(0xFF22C55E),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ],
-
-                    // ── MUSIC detail with playback ──
-                    if (memory.type == MemoryType.music) ...[
-                      _buildMusicDetailWidget(memory, audioPlayer, (player) {
-                        setState(() => audioPlayer = player);
-                      }),
-                    ],
-
-                    // ── TEXT / NOTE detail ──
-                    if (memory.type == MemoryType.text) ...[
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: widget.theme.isDark
-                              ? widget.theme.surfaceMuted
-                              : const Color(0xFFFFFBEB),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                              color: widget.theme.isDark
-                                  ? widget.theme.cardBorder
-                                  : const Color(0xFFFEF3C7)),
-                        ),
-                        child: Text(
-                          memory.caption ?? '',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: widget.theme.textPrimary,
-                            height: 1.6,
-                          ),
-                        ),
-                      ),
-                    ],
-
-                    // Caption (for non-text types)
-                    if (memory.type != MemoryType.text &&
-                        memory.caption != null &&
-                        memory.caption!.isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      Text(
-                        memory.caption!,
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: widget.theme.textPrimary,
-                          height: 1.5,
-                        ),
-                      ),
-                    ],
-
-                    const SizedBox(height: 20),
-                    // Author + time
-                    Row(
-                      children: [
-                        AvatarWidget(
-                          uid: memory.authorUid,
-                          liveUrl: _liveAvatar(memory),
-                          fallbackUrl: memory.authorAvatar,
-                          name: _liveName(memory),
-                          size: 28,
-                          primary: primary,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          _liveName(memory),
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: widget.theme.textSecondary,
-                          ),
-                        ),
-                        const Spacer(),
-                        Text(
-                          _formatFullDate(memory.createdAt),
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: widget.theme.textMuted,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    // Action buttons — две строки по 2 кнопки
-                    Column(
-                      children: [
-                        // Строка 1: Pin + Save
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: () {
-                                  audioPlayer?.dispose();
-                                  Navigator.pop(context);
-                                  _togglePin(memory);
-                                },
-                                icon: Icon(
-                                  memory.isPinned
-                                      ? Icons.push_pin_rounded
-                                      : Icons.push_pin_outlined,
-                                  size: 16,
-                                ),
-                                label: Text(
-                                  memory.isPinned
-                                      ? LocaleService.current.unpinMemory
-                                      : LocaleService.current.pinMemory,
-                                ),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: primary,
-                                  side: BorderSide(
-                                    color: primary.withOpacity(0.3),
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            if (memoryMediaFiles(memory).isNotEmpty) ...[
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: () {
-                                    audioPlayer?.dispose();
-                                    Navigator.pop(context);
-                                    _saveMemoryToGallery(memory);
-                                  },
-                                  icon: const Icon(
-                                    Icons.download_rounded,
-                                    size: 16,
-                                  ),
-                                  label: Text(
-                                    LocaleService.current.saveToDevice,
-                                  ),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: Colors.blue.shade600,
-                                    side: BorderSide(
-                                      color: Colors.blue.shade200,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                        // Строка 2: Edit + Delete (только для своих записей)
-                        if (memory.authorUid == _myUid) ...[
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: () {
-                                    audioPlayer?.dispose();
-                                    Navigator.pop(context);
-                                    _editMemory(memory);
-                                  },
-                                  icon: const Icon(
-                                    Icons.edit_rounded,
-                                    size: 16,
-                                  ),
-                                  label: Text(LocaleService.current.editMemory),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: widget.theme.textSecondary,
-                                    side: BorderSide(
-                                      color: widget.theme.divider,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: () {
-                                    audioPlayer?.dispose();
-                                    Navigator.pop(context);
-                                    _confirmDelete(memory);
-                                  },
-                                  icon: const Icon(
-                                    Icons.delete_outline_rounded,
-                                    size: 16,
-                                  ),
-                                  label: Text(
-                                    LocaleService.current.deleteMemory,
-                                  ),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: Colors.red.shade400,
-                                    side: BorderSide(
-                                      color: Colors.red.shade200,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ],
-                    ),
-
-                    // ── Comments section ──
-                    const SizedBox(height: 24),
-                    _CommentsSection(
-                      groupId: _groupId,
-                      memoryId: memory.id,
-                      primary: primary,
-                    ),
-
-                    const _KeyboardPaddingBox(),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    ).whenComplete(() {
-      audioPlayer?.dispose();
-    });
-  }
-
-  // ── Music player widget for detail view ──
-  Widget _buildMusicDetailWidget(
-    Memory memory,
-    AudioPlayer? player,
-    void Function(AudioPlayer) onPlayer,
-  ) {
-    return _MusicPlayerWidget(
-      memory: memory,
-      player: player,
-      onPlayerCreated: onPlayer,
-      primary: primary,
-      typeColor: _memoryTypeColor(MemoryType.music),
-    );
-  }
-
-  String _formatFullDate(DateTime dt) {
-    final s = LocaleService.current;
-    return s.formatDateAt(
-      s.shortMonths[dt.month],
-      dt.day,
-      dt.year,
-      _timeStr(dt),
     );
   }
 
@@ -4330,14 +3666,15 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     );
   }
 
+  /// Строка про замок секретных записей. Всплывает поверх всего: её зовут и
+  /// из листа ввода PIN, а снекбар под листом не виден.
   void _secretSnack(String msg, {bool error = false}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      behavior: SnackBarBehavior.floating,
-      backgroundColor: error ? Colors.orange : primary,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    ));
+    showFloatingNote(
+      context,
+      msg,
+      icon: error ? Icons.error_outline_rounded : Icons.lock_rounded,
+    );
   }
 
   // ── Капсула времени ───────────────────────────────────────────────────────
@@ -4363,12 +3700,11 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
 
   void _showMemoryActions(Memory memory) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      backgroundColor: widget.theme.cardSurface,
+    // Общий лист приложения: без него последняя строка меню («Удалить»)
+    // уходила под кнопки навигации у телефонов с кнопочной панелью.
+    showAppSheet(
+      context,
+      background: widget.theme.cardSurface,
       builder: (_) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -4448,10 +3784,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                     secretUnlocked: _secretUnlocked)
                 .isNotEmpty)
               ListTile(
-                leading: Icon(
-                  Icons.download_rounded,
-                  color: Colors.blue.shade600,
-                ),
+                leading: Icon(Icons.download_rounded, color: primary),
                 title: Text(LocaleService.current.saveToDevice),
                 onTap: () {
                   Navigator.pop(context);
@@ -4468,13 +3801,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 },
               ),
               ListTile(
-                leading: Icon(
-                  Icons.delete_outline_rounded,
-                  color: Colors.red.shade400,
-                ),
+                leading: Icon(Icons.delete_outline_rounded, color: _cs.error),
                 title: Text(
                   LocaleService.current.deleteMemory,
-                  style: TextStyle(color: Colors.red.shade400),
+                  style: TextStyle(color: _cs.error),
                 ),
                 onTap: () {
                   Navigator.pop(context);
@@ -4734,13 +4064,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     // может изменить её, и тогда пин переедет в нужную точку ленты.
     DateTime editDate = memory.createdAt;
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      backgroundColor: widget.theme.cardSurface,
+    showAppSheet(
+      context,
+      background: widget.theme.cardSurface,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setState) {
           return SingleChildScrollView(
@@ -4970,70 +4296,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 const SizedBox(height: 20),
                 // 18+ toggle for photo edits
                 if (memory.type == MemoryType.photo) ...[
-                  GestureDetector(
-                    onTap: () => setState(() => isAdultEdit = !isAdultEdit),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isAdultEdit
-                            ? Colors.red.shade50
-                            : widget.theme.surfaceMuted,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: isAdultEdit
-                              ? Colors.red.shade200
-                              : widget.theme.divider,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            isAdultEdit
-                                ? Icons.lock_rounded
-                                : Icons.lock_open_rounded,
-                            size: 18,
-                            color: isAdultEdit
-                                ? Colors.red.shade400
-                                : widget.theme.textMuted,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  LocaleService.current.adultContent,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: isAdultEdit
-                                        ? Colors.red.shade600
-                                        : widget.theme.textSecondary,
-                                  ),
-                                ),
-                                Text(
-                                  LocaleService.current.photoBlurred,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: isAdultEdit
-                                        ? Colors.red.shade400
-                                        : widget.theme.textMuted,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Switch(
-                            value: isAdultEdit,
-                            onChanged: (v) => setState(() => isAdultEdit = v),
-                            activeColor: Colors.red.shade400,
-                          ),
-                        ],
-                      ),
-                    ),
+                  _AdultToggle(
+                    value: isAdultEdit,
+                    scheme: _cs,
+                    onChanged: (v) => setState(() => isAdultEdit = v),
                   ),
                   const SizedBox(height: 12),
                 ],
@@ -5789,13 +5055,9 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     // Дата воспоминания: если задана — пин уезжает в прошлое на ленте.
     DateTime? customDate;
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      backgroundColor: widget.theme.cardSurface,
+    showAppSheet(
+      context,
+      background: widget.theme.cardSurface,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setState) {
           return SingleChildScrollView(
@@ -6021,16 +5283,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                           }
                         } catch (e) {
                           debugPrint('Pick photos failed: $e');
+                          // Форма живёт в листе — снекбар ушёл бы под него.
                           if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  LocaleService.current.failedSelectPhotos(
-                                    e.toString(),
-                                  ),
-                                ),
-                                backgroundColor: Colors.red,
-                              ),
+                            showFloatingNote(
+                              context,
+                              LocaleService.current.failedSelectPhotos(e.toString()),
+                              icon: Icons.error_outline_rounded,
                             );
                           }
                         }
@@ -6067,70 +5325,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                     ),
                   // 18+ toggle for photo pins
                   const SizedBox(height: 8),
-                  GestureDetector(
-                    onTap: () => setState(() => isAdultPhoto = !isAdultPhoto),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isAdultPhoto
-                            ? Colors.red.shade50
-                            : widget.theme.surfaceMuted,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: isAdultPhoto
-                              ? Colors.red.shade200
-                              : widget.theme.divider,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            isAdultPhoto
-                                ? Icons.lock_rounded
-                                : Icons.lock_open_rounded,
-                            size: 18,
-                            color: isAdultPhoto
-                                ? Colors.red.shade400
-                                : widget.theme.textMuted,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  LocaleService.current.adultContent,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: isAdultPhoto
-                                        ? Colors.red.shade600
-                                        : widget.theme.textSecondary,
-                                  ),
-                                ),
-                                Text(
-                                  LocaleService.current.photoBlurred,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: isAdultPhoto
-                                        ? Colors.red.shade400
-                                        : widget.theme.textMuted,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Switch(
-                            value: isAdultPhoto,
-                            onChanged: (v) => setState(() => isAdultPhoto = v),
-                            activeColor: Colors.red.shade400,
-                          ),
-                        ],
-                      ),
-                    ),
+                  _AdultToggle(
+                    value: isAdultPhoto,
+                    scheme: _cs,
+                    onChanged: (v) => setState(() => isAdultPhoto = v),
                   ),
                   // ── Location for photo ──
                   const SizedBox(height: 8),
@@ -6188,11 +5386,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                     setState(() => isLoadingLocation = true);
                                     try {
                                       if (!await Geolocator.isLocationServiceEnabled()) {
+                                        // Форма в листе: снекбар ушёл бы под него.
                                         if (context.mounted) {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(
-                                              content: Text(LocaleService.current.locationServicesDisabled),
-                                            ),
+                                          showFloatingNote(
+                                            context,
+                                            LocaleService.current.locationServicesDisabled,
+                                            icon: Icons.location_off_rounded,
                                           );
                                         }
                                         if (context.mounted) setState(() => isLoadingLocation = false);
@@ -6205,10 +5404,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                       if (perm == LocationPermission.denied ||
                                           perm == LocationPermission.deniedForever) {
                                         if (context.mounted) {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(
-                                              content: Text(LocaleService.current.locationPermissionDenied),
-                                            ),
+                                          showFloatingNote(
+                                            context,
+                                            LocaleService.current.locationPermissionDenied,
+                                            icon: Icons.location_off_rounded,
                                           );
                                         }
                                         if (context.mounted) setState(() => isLoadingLocation = false);
@@ -6438,15 +5637,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                         } catch (e) {
                           debugPrint('Pick video failed: $e');
                           if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  LocaleService.current.failedSelectVideo(
-                                    e.toString(),
-                                  ),
-                                ),
-                                backgroundColor: Colors.red,
-                              ),
+                            showFloatingNote(
+                              context,
+                              LocaleService.current.failedSelectVideo(e.toString()),
+                              icon: Icons.error_outline_rounded,
                             );
                           }
                         }
@@ -6459,7 +5653,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                           color: selectedMedia != null
                               ? (widget.theme.isDark
                                   ? widget.theme.surfaceMuted
-                                  : Colors.grey.shade900)
+                                  : _cs.inverseSurface)
                               : widget.theme.surfaceMuted,
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(color: widget.theme.divider),
@@ -6684,13 +5878,13 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                 Container(
                                   padding: const EdgeInsets.all(4),
                                   decoration: BoxDecoration(
-                                    color: Colors.green.withOpacity(0.1),
+                                    color: _cs.primaryContainer,
                                     shape: BoxShape.circle,
                                   ),
-                                  child: const Icon(
+                                  child: Icon(
                                     Icons.check_circle_rounded,
                                     size: 18,
-                                    color: Colors.green,
+                                    color: _cs.onPrimaryContainer,
                                   ),
                                 ),
                               ],
@@ -6937,16 +6131,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                         await Geolocator.isLocationServiceEnabled();
                                     if (!serviceEnabled) {
                                       if (context.mounted) {
-                                        ScaffoldMessenger.of(
+                                        showFloatingNote(
                                           context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              LocaleService
-                                                  .current
-                                                  .locationServicesDisabled,
-                                            ),
-                                          ),
+                                          LocaleService.current.locationServicesDisabled,
+                                          icon: Icons.location_off_rounded,
                                         );
                                       }
                                       if (context.mounted) setState(() => isLoadingLocation = false);
@@ -6965,16 +6153,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                         permission ==
                                             LocationPermission.deniedForever) {
                                       if (context.mounted) {
-                                        ScaffoldMessenger.of(
+                                        showFloatingNote(
                                           context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              LocaleService
-                                                  .current
-                                                  .locationPermissionDenied,
-                                            ),
-                                          ),
+                                          LocaleService.current.locationPermissionDenied,
+                                          icon: Icons.location_off_rounded,
                                         );
                                       }
                                       if (context.mounted) setState(() => isLoadingLocation = false);
@@ -7010,16 +6192,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                                   } catch (e) {
                                     debugPrint('Get location failed: $e');
                                     if (context.mounted) {
-                                      ScaffoldMessenger.of(
+                                      showFloatingNote(
                                         context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            LocaleService
-                                                .current
-                                                .failedGetLocation,
-                                          ),
-                                        ),
+                                        LocaleService.current.failedGetLocation,
+                                        icon: Icons.location_off_rounded,
                                       );
                                     }
                                   }
@@ -7652,9 +6828,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(e.message),
           behavior: SnackBarBehavior.floating,
-          backgroundColor: Colors.orange,
           duration: const Duration(seconds: 4),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ));
       }
       return;
@@ -7666,15 +6840,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         SnackBar(
           content: Row(
             children: [
-              SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
-              ),
+              M3Loading(size: 24, color: _cs.inversePrimary),
               const SizedBox(width: 12),
-              Text(LocaleService.current.uploadingMemory),
+              Expanded(child: Text(LocaleService.current.uploadingMemory)),
             ],
           ),
+          behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 30),
         ),
       );
@@ -7716,7 +6887,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   LocaleService.current,
                   video: false,
                 )),
-                backgroundColor: Colors.orange,
+                behavior: SnackBarBehavior.floating,
                 duration: const Duration(seconds: 5),
               ),
             );
@@ -7784,7 +6955,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   LocaleService.current,
                   video: true,
                 )),
-                backgroundColor: Colors.orange,
+                behavior: SnackBarBehavior.floating,
                 duration: const Duration(seconds: 5),
               ),
             );
@@ -7862,7 +7033,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(LocaleService.current.memoryAddedSuccess),
-            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 2),
           ),
         );
@@ -7875,7 +7046,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(LocaleService.current.failedAddMemory(e.toString())),
-            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
@@ -8224,6 +7395,76 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             fontSize: 14,
             fontWeight: FontWeight.w700,
             color: primary,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Переключатель «18+» у фото: размытие до касания.
+///
+/// Был собран дважды (правка и создание), оба раза из вшитых красных оттенков
+/// с рамкой — в цветных и тёмных темах выглядел чужим. Теперь один, на ролях
+/// ошибки из темы и без рамки: включённый — заливка `errorContainer`.
+class _AdultToggle extends StatelessWidget {
+  const _AdultToggle({
+    required this.value,
+    required this.scheme,
+    required this.onChanged,
+  });
+
+  final bool value;
+  final ColorScheme scheme;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = scheme;
+    final ink = value ? cs.onErrorContainer : cs.onSurfaceVariant;
+    return Material(
+      color: value ? cs.errorContainer : cs.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => onChanged(!value),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+          child: Row(
+            children: [
+              Icon(
+                value ? Icons.lock_rounded : Icons.lock_open_rounded,
+                size: 20,
+                color: ink,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      LocaleService.current.adultContent,
+                      style: TextStyle(
+                        fontFamily: 'Onest',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: value ? cs.onErrorContainer : cs.onSurface,
+                      ),
+                    ),
+                    Text(
+                      LocaleService.current.photoBlurred,
+                      style: TextStyle(fontFamily: 'Onest', fontSize: 12, color: ink),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: value,
+                onChanged: onChanged,
+                activeThumbColor: cs.onError,
+                activeTrackColor: cs.error,
+              ),
+            ],
           ),
         ),
       ),
