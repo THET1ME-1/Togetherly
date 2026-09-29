@@ -64,6 +64,10 @@ class ChestService {
 
   static final ChestService instance = ChestService._();
 
+  /// Сколько ждать ответа на открытие. Дольше — «сундук не открылся,
+  /// нажмите ещё раз», ролик заново смотреть не придётся.
+  static const Duration openLimit = Duration(seconds: 15);
+
   int get _tz => DateTime.now().timeZoneOffset.inMinutes;
   String get _platform => Platform.isIOS ? 'ios' : 'android';
 
@@ -99,7 +103,10 @@ class ChestService {
           'frames': true,
           if (fromJar) 'bonus': true,
         },
-      );
+        // Без предела ответ, потерянный по дороге, держал кнопку на
+        // «Открываем…» навсегда. Повтор идёт тем же openId, а сервер
+        // отвечает на него прежним призом, поэтому второй раз не разыграет.
+      ).timeout(openLimit);
       body = res is Map ? Map<String, dynamic>.from(res) : null;
     } on ClientException catch (e) {
       // Отказ сервера (лимит, чужая пара) приходит исключением с телом ответа.

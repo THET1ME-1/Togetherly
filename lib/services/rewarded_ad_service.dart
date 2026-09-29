@@ -250,8 +250,11 @@ class RewardedAdService {
     }
     // Если награда засчитана — дожидаемся завершения серверного начисления,
     // чтобы вызывающий получил актуальные lastServerCoins/lastRewardGranted.
+    // Ждём не дольше [kAdGrantWait]: потерянный ответ держал бы вызывающий
+    // экран на спиннере навсегда (сундук стоял на «Открываем…», обращение
+    // 211). Начисление при этом доходит само, баланс подтянется позже.
     if (grantFuture != null) {
-      await grantFuture;
+      await grantFuture!.timeout(kAdGrantWait, onTimeout: () {});
     }
     // Событие награды теряется по дороге: за тридцать дней 214 показов
     // кончились «монет нет», и в 188 из них ролик держал экран дольше
@@ -270,7 +273,7 @@ class RewardedAdService {
         )) {
       earned = true;
       grantedByWatch = true;
-      await _grantAdReward();
+      await _grantAdReward().timeout(kAdGrantWait, onTimeout: () {});
       Sentry.addBreadcrumb(Breadcrumb(
         message: 'Yandex rewarded: награда засчитана без onRewarded '
             '(${watch.away.inSeconds} с за рекламой)',

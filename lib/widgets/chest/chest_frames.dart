@@ -44,13 +44,26 @@ class ChestFrames extends StatefulWidget {
   final VoidCallback? onDone;
 
   /// Скачать файл заранее: открытие должно начаться сразу после ролика.
-  static Future<void> prefetch(String? url) async {
-    if (url == null || _bytes.containsKey(url)) return;
+  ///
+  /// Ждём не дольше [prefetchLimit]: файл весит полтора мегабайта, и на
+  /// медленной или зависшей сети кнопка стояла на «Открываем…» без конца
+  /// (обращение 211, 29.09.2026). Не успел — сундук открывается без
+  /// анимации, [onDone] приходит сразу. Экран и виджет ждут одну загрузку.
+  static Future<void> prefetch(String? url) {
+    if (url == null || _bytes.containsKey(url)) return Future.value();
+    return _loading[url] ??= _fetch(url).whenComplete(() => _loading.remove(url));
+  }
+
+  static Future<void> _fetch(String url) async {
     try {
-      final f = await OfflineImageCacheManager.instance.getSingleFile(url);
+      final f = await OfflineImageCacheManager.instance.getSingleFile(url).timeout(prefetchLimit);
       _bytes[url] = await f.readAsBytes();
     } catch (_) {}
   }
+
+  static const Duration prefetchLimit = Duration(seconds: 8);
+
+  static final Map<String, Future<void>> _loading = {};
 
   /// Файл уже в памяти — открытие можно начинать без ожидания сети.
   static bool isReady(String? url) => url != null && _bytes.containsKey(url);
