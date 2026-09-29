@@ -90,8 +90,12 @@ class PbCoinsService {
   Future<Map<String, dynamic>?> taskReward(String taskId) =>
       _call('task-reward', {'task_id': taskId});
   /// [groupId] — пара, в копилку которой падает капля за ролик.
-  Future<Map<String, dynamic>?> adReward({String? groupId}) =>
-      _call('ad-reward', {if (groupId != null && groupId.isNotEmpty) 'groupId': groupId});
+  /// [chestOpenId] — ролик за сундук: сервер пишет номер открытия в журнал,
+  /// и ролик без открытия находится (`tools/chest_lost_ads.py`).
+  Future<Map<String, dynamic>?> adReward({String? groupId, String? chestOpenId}) => _call('ad-reward', {
+        if (groupId != null && groupId.isNotEmpty) 'groupId': groupId,
+        if (chestOpenId != null && chestOpenId.isNotEmpty) 'chestOpenId': chestOpenId,
+      });
 
   /// Просит временную награду за рекламу: [kind] — ключ из `adGrantKey`,
   /// [id] — номер темы строкой или id фона.

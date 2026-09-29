@@ -81,6 +81,18 @@ class RewardedAdService {
   bool _lastRateLimited = false;
   bool get lastRateLimited => _lastRateLimited;
 
+  /// Ответ о начислении не пришёл за [kAdGrantWait] — показ отпустили без
+  /// него. Для телеметрии: отличает потерю ответа от отказа.
+  bool _lastGrantTimedOut = false;
+  bool get lastGrantTimedOut => _lastGrantTimedOut;
+
+  /// Сколько секунд приложение было за рекламой в прошлом показе.
+  int _lastSecondsAway = 0;
+  int get lastSecondsAway => _lastSecondsAway;
+
+  /// Номер открытия сундука, за который идёт этот ролик (уходит в начисление).
+  String? _chestOpenId;
+
   /// Предзагружает ролик Яндекса; при отказе — фоновый повтор.
   /// Безопасно дёргать несколько раз.
   Future<void> load() async {
@@ -137,7 +149,8 @@ class RewardedAdService {
   ///
   /// Возвращает true, если человек досмотрел до награды; награду начисляет
   /// сервер внутри [_showYandex]. [uid] оставлен ради прежних вызовов.
-  Future<bool> show({required String uid}) async {
+  /// [chestOpenId] — ролик за сундук: номер открытия едет в начисление.
+  Future<bool> show({required String uid, String? chestOpenId}) async {
     // Уже идёт показ — игнорируем повторный вызов (двойной тап/гонка), иначе
     // запустится второй ролик подряд.
     if (_isShowing) return false;
@@ -146,6 +159,9 @@ class RewardedAdService {
     _lastServerCoins = null;
     _lastRewardGranted = false;
     _lastRateLimited = false;
+    _lastGrantTimedOut = false;
+    _lastSecondsAway = 0;
+    _chestOpenId = chestOpenId;
     try {
       if (_yandexAd != null) {
         _lastShowWasYandex = true;
@@ -235,13 +251,16 @@ class RewardedAdService {
     // навсегда, и вход в совместный просмотр замирал на спиннере у обоих
     // партнёров. Ошибку показа считаем закрытием без награды, а на само
     // ожидание ставим предохранитель.
+    // Сам вызов show() тоже ограничен: SDK, не нашедший куда показать,
+    // может не ответить вовсе. Дальше решает ожидание закрытия.
     try {
-      await ad.show();
+      await ad.show().timeout(kAdShowStart, onTimeout: () {});
     } catch (e) {
       debugPrint('Yandex rewarded show() бросил — $e');
       finish();
     }
     final watch = await _awaitAdClosed(dismissed, 'Yandex rewarded');
+    _lastSecondsAway = watch.away.inSeconds;
     // onRewarded может прийти вплотную к закрытию (или сразу после) — даём ему
     // долететь, прежде чем решить, что награды не было. Окно щедрое: грант всё
     // равно идёт внутри колбэка, лишнего ожидания на успешном пути нет.
@@ -254,7 +273,7 @@ class RewardedAdService {
     // экран на спиннере навсегда (сундук стоял на «Открываем…», обращение
     // 211). Начисление при этом доходит само, баланс подтянется позже.
     if (grantFuture != null) {
-      await grantFuture!.timeout(kAdGrantWait, onTimeout: () {});
+      await grantFuture!.timeout(kAdGrantWait, onTimeout: () => _lastGrantTimedOut = true);
     }
     // Событие награды теряется по дороге: за тридцать дней 214 показов
     // кончились «монет нет», и в 188 из них ролик держал экран дольше
@@ -273,7 +292,7 @@ class RewardedAdService {
         )) {
       earned = true;
       grantedByWatch = true;
-      await _grantAdReward().timeout(kAdGrantWait, onTimeout: () {});
+      await _grantAdReward().timeout(kAdGrantWait, onTimeout: () => _lastGrantTimedOut = true);
       Sentry.addBreadcrumb(Breadcrumb(
         message: 'Yandex rewarded: награда засчитана без onRewarded '
             '(${watch.away.inSeconds} с за рекламой)',
@@ -310,7 +329,7 @@ class RewardedAdService {
   /// применяет точный баланс и не рисует фейк при лимите.
   Future<void> _grantAdReward() async {
     try {
-      final res = await PbCoinsService().adReward(groupId: PairJarService.instance.groupId);
+      final res = await PbCoinsService().adReward(groupId: PairJarService.instance.groupId, chestOpenId: _chestOpenId);
       if (res != null) {
         // Копилка пары: капля падает за каждый засчитанный ролик, и после
         // дневного предела монет тоже.

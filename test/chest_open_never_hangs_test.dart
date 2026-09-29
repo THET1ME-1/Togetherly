@@ -32,6 +32,18 @@ void main() {
         reason: 'потерянный ответ держит кнопку на «Открываем…» навсегда');
   });
 
+  test('обрыв и молчание сети повторяются сами тем же номером', () {
+    final source = read('lib/services/chest_service.dart');
+    expect(source.contains("error == 'network' || error == 'timeout'"), isTrue);
+    expect(RegExp(r'openAttempts\s*=\s*[2-9]').hasMatch(source), isTrue,
+        reason: 'без повтора человек видит отказ на первом же обрыве');
+  });
+
+  test('сам вызов показа рекламы ограничен', () {
+    final source = read('lib/services/rewarded_ad_service.dart');
+    expect(source.contains('ad.show().timeout(kAdShowStart'), isTrue);
+  });
+
   test('файл анимации ждётся с пределом, экран и виджет ждут одну загрузку', () {
     final source = read('lib/widgets/chest/chest_frames.dart');
     expect(source.contains('getSingleFile(url).timeout(prefetchLimit)'), isTrue,

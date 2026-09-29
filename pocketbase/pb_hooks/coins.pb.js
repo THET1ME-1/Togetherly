@@ -381,6 +381,17 @@ routerAdd("POST", "/api/coins/ad-reward", (e) => {
   } catch (err) {
     try { $app.logger().warn("pair_jar: " + String(err)); } catch (_) {}
   }
+  // Ролик за сундук: номер открытия связывает ролик с записью chest_opens.
+  // Ролик есть, открытия с тем же номером нет — открытие потерялось по
+  // дороге (обращение 211; ищет tools/chest_lost_ads.py). Удачные запросы
+  // PocketBase в журнал не пишет, поэтому строку кладём сами.
+  try {
+    const b = e.requestInfo().body || {};
+    const chestOpenId = String(b.chestOpenId || "");
+    if (/^[a-z0-9]{15}$/.test(chestOpenId)) {
+      $app.logger().warn("chest ad", "uid", e.auth.id, "open_id", chestOpenId, "granted", out.b.ok === true);
+    }
+  } catch (_) {}
   return e.json(out.s, out.b);
 }, $apis.requireAuth());
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:pocketbase/pocketbase.dart';
@@ -5,6 +6,7 @@ import 'package:pocketbase/pocketbase.dart';
 import '../models/chest.dart';
 import '../models/gift.dart';
 import '../models/pair_jar.dart';
+import 'chest_telemetry.dart';
 import 'pair_jar_service.dart';
 import 'pocketbase_service.dart';
 
@@ -66,7 +68,7 @@ class ChestService {
 
   /// Сколько ждать ответа на открытие. Дольше — «сундук не открылся,
   /// нажмите ещё раз», ролик заново смотреть не придётся.
-  static const Duration openLimit = Duration(seconds: 15);
+  static const Duration openLimit = Duration(seconds: 12);
 
   int get _tz => DateTime.now().timeZoneOffset.inMinutes;
   String get _platform => Platform.isIOS ? 'ios' : 'android';
@@ -87,8 +89,29 @@ class ChestService {
   }
 
   /// [fromJar] — открытие из копилки пары: без ролика и сверх трёх в день.
+  ///
+  /// Обрыв и молчание сети повторяются один раз сами: номер тот же, и сервер
+  /// второй раз не разыгрывает. Человек видит отказ, только если не прошли
+  /// обе попытки.
   Future<ChestOpenResult> open({required String openId, required String groupId, bool fromJar = false}) async {
+    var res = await _openOnce(openId: openId, groupId: groupId, fromJar: fromJar);
+    for (var attempt = 2; attempt <= openAttempts && _retryable(res.error); attempt++) {
+      ChestTelemetry.step(openId, 'open:retry', data: {'attempt': attempt, 'after': res.error});
+      await Future<void>.delayed(const Duration(milliseconds: 1500));
+      res = await _openOnce(openId: openId, groupId: groupId, fromJar: fromJar);
+    }
+    return res;
+  }
+
+  /// Сколько раз пробуем открыть, прежде чем сказать человеку «не открылся».
+  static const int openAttempts = 2;
+
+  static bool _retryable(String? error) => error == 'network' || error == 'timeout';
+
+  Future<ChestOpenResult> _openOnce({required String openId, required String groupId, required bool fromJar}) async {
     Map<String, dynamic>? body;
+    final watch = Stopwatch()..start();
+    ChestTelemetry.step(openId, 'open:send', data: {'jar': fromJar});
     try {
       final res = await PocketBaseService().pb.send(
         '/api/chest/open',
@@ -108,14 +131,29 @@ class ChestService {
         // отвечает на него прежним призом, поэтому второй раз не разыграет.
       ).timeout(openLimit);
       body = res is Map ? Map<String, dynamic>.from(res) : null;
+    } on TimeoutException {
+      ChestTelemetry.step(openId, 'open:timeout', data: {'ms': watch.elapsedMilliseconds});
+      return const ChestOpenResult(ok: false, error: 'timeout');
     } on ClientException catch (e) {
       // Отказ сервера (лимит, чужая пара) приходит исключением с телом ответа.
-      if (e.response.isEmpty) return const ChestOpenResult(ok: false, error: 'network');
+      if (e.response.isEmpty) {
+        ChestTelemetry.step(openId, 'open:network', data: {
+          'ms': watch.elapsedMilliseconds,
+          'status': e.statusCode,
+          'cause': '${e.originalError}'.split('\n').first,
+        });
+        return const ChestOpenResult(ok: false, error: 'network');
+      }
       body = Map<String, dynamic>.from(e.response);
-    } catch (_) {
+    } catch (e) {
+      ChestTelemetry.step(openId, 'open:network', data: {'ms': watch.elapsedMilliseconds, 'cause': '$e'.split('\n').first});
       return const ChestOpenResult(ok: false, error: 'network');
     }
     final res = parseChestOpen(body);
+    ChestTelemetry.step(openId, res.ok ? 'open:ok' : 'open:refused', data: {
+      'ms': watch.elapsedMilliseconds,
+      if (!res.ok) 'error': res.error,
+    });
     PairJarService.instance.apply(res.jar);
     if (res.jarBonus != null) PairJarService.instance.setBonus(res.jarBonus!);
     return res;

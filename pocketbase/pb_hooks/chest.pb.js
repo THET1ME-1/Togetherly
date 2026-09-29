@@ -501,6 +501,15 @@ routerAdd("POST", "/api/chest/open", (e) => {
       }
     } catch (_) {}
   }
+  // Отказы и повторы роут пишет сам: PocketBase заносит в журнал только
+  // ошибки своего уровня. Повтор — признак ответа, потерянного по дороге:
+  // телефон не узнал о призе и спросил тем же номером снова.
+  if (out.s !== 200 || (out.b && out.b.repeated === true)) {
+    try {
+      $app.logger().warn("chest open", "uid", me, "open_id", openId, "status", out.s,
+        "result", String((out.b && out.b.error) || "repeated"), "jar", fromJar);
+    } catch (_) {}
+  }
   return e.json(out.s, out.b);
 }, $apis.requireAuth());
 

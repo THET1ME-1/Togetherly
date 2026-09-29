@@ -5,10 +5,13 @@ import 'package:flutter/material.dart';
 
 import '../dict_strings.dart' show trKey;
 import '../models/chest.dart';
+import '../models/chest_pending.dart';
 import '../models/gift.dart';
 import '../models/user_data.dart';
 import '../services/catalog_service.dart';
+import '../services/chest_pending_store.dart';
 import '../services/chest_service.dart';
+import '../services/chest_telemetry.dart';
 import '../services/locale_service.dart';
 import '../services/offline/pb_id.dart';
 import '../services/plus_service.dart';
@@ -121,6 +124,7 @@ class _ChestScreenState extends State<ChestScreen> {
     unawaited(ChestSound.instance.load());
     ChestFrames.prefetch(_openUrl);
     _load();
+    _restorePending();
     _clock = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
   }
 
@@ -163,6 +167,18 @@ class _ChestScreenState extends State<ChestScreen> {
     return '${two(d.inHours)}:${two(d.inMinutes % 60)}:${two(d.inSeconds % 60)}';
   }
 
+  /// Ролик досмотрен в прошлый раз, а сундук так и не открылся: кнопка
+  /// открывает его без рекламы.
+  Future<void> _restorePending() async {
+    final item = await ChestPendingStore.read(widget.groupId);
+    if (item == null || !mounted || _pendingOpenId != null || _busy) return;
+    ChestTelemetry.step(item.openId, 'pending:restored', data: {'jar': item.fromJar, 'age_s': DateTime.now().difference(item.at).inSeconds});
+    setState(() {
+      _pendingOpenId = item.openId;
+      _pendingFromJar = item.fromJar;
+    });
+  }
+
   Future<void> _load() async {
     final st = await ChestService.instance.state(groupId: widget.groupId);
     if (mounted && st != null) setState(() => _state = st);
@@ -190,6 +206,8 @@ class _ChestScreenState extends State<ChestScreen> {
       return;
     }
     final openId = _pendingOpenId ?? newPbId();
+    final total = Stopwatch()..start();
+    ChestTelemetry.step(openId, 'tap', data: {'pending': _pendingOpenId != null, 'jar': fromJar, 'free': _free});
     // Плеер звука готовится, пока идут реклама и розыгрыш.
     ChestSound.instance.prepare();
     var adShown = false;
@@ -200,8 +218,22 @@ class _ChestScreenState extends State<ChestScreen> {
         return;
       }
       setState(() => _busy = true);
-      final earned = await _ad.show(uid: PocketBaseService().userId ?? '');
+      final earned = await _ad.show(uid: PocketBaseService().userId ?? '', chestOpenId: openId);
       _ad.load();
+      ChestTelemetry.step(openId, 'ad:closed', data: {
+        'earned': earned,
+        'away_s': _ad.lastSecondsAway,
+        'granted': _ad.lastRewardGranted,
+        'grant_timed_out': _ad.lastGrantTimedOut,
+      });
+      // Досмотренный ролик ложится на диск ДО всего остального: уйдёт человек
+      // с экрана или приложение выгрузят — открытие дойдёт без новой рекламы.
+      if (earned) {
+        unawaited(ChestPendingStore.write(
+          widget.groupId,
+          ChestPending(openId: openId, fromJar: false, at: DateTime.now()),
+        ));
+      }
       if (!mounted) return;
       // Ролик и сам начисляет монеты — доводим баланс до профиля.
       final adCoins = _ad.lastServerCoins;
@@ -213,6 +245,12 @@ class _ChestScreenState extends State<ChestScreen> {
       }
       adShown = true;
     }
+    if (_pendingOpenId == null && fromJar) {
+      unawaited(ChestPendingStore.write(
+        widget.groupId,
+        ChestPending(openId: openId, fromJar: true, at: DateTime.now()),
+      ));
+    }
     _pendingOpenId = openId;
     _pendingFromJar = fromJar;
     setState(() => _busy = true);
@@ -220,7 +258,24 @@ class _ChestScreenState extends State<ChestScreen> {
     final request = ChestService.instance.open(openId: openId, groupId: widget.groupId, fromJar: fromJar);
     if (adShown) await untilAppVisible();
     await ChestFrames.prefetch(_openUrl);
+    if (!ChestFrames.isReady(_openUrl)) ChestTelemetry.step(openId, 'anim:skip');
     final res = await request;
+    // Итог на диске фиксируется и тогда, когда экран уже закрыт: иначе
+    // следующий заход предложил бы открыть то, что уже открылось.
+    final settled = res.ok || res.error == 'no_bonus' || res.error == 'chest_limit' || res.error == 'conflict';
+    if (settled) unawaited(ChestPendingStore.clear(widget.groupId));
+    if (!res.ok && res.error != 'chest_limit' && res.error != 'no_bonus') {
+      ChestTelemetry.failure(openId, 'open', res.error ?? 'unknown', data: {
+        'ms': total.elapsedMilliseconds,
+        'ad': adShown,
+        'jar': fromJar,
+        'grant_timed_out': adShown && _ad.lastGrantTimedOut,
+        'away_s': adShown ? _ad.lastSecondsAway : 0,
+      });
+    } else if (res.ok && total.elapsed > const Duration(seconds: 20)) {
+      // Открылось, но так долго, что человек мог решить «не работает».
+      ChestTelemetry.failure(openId, 'open', 'slow', data: {'ms': total.elapsedMilliseconds, 'ad': adShown});
+    }
     if (!mounted) return;
     if (!res.ok) {
       setState(() {
