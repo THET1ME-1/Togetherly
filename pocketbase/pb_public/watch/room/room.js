@@ -45,12 +45,14 @@
   /// Сколько ждём подключения, прежде чем свалиться на запасной адрес.
   const CONNECT_TIMEOUT = 7000;
   const DRIFT = 1.5;          // допустимое расхождение, секунды
+  const MISS = 10;            // дальше этого от цели перемотка считается промахом, секунды
+  const HAND_MS = 1500;       // событие плеера считается ручным, если касание было не раньше
   const HEARTBEAT = 3000;     // как часто ведущий шлёт своё время
 
   const $ = (sel) => document.querySelector(sel);
   const state = {
     room: '', channel: '', me: '', centrifuge: null, sub: null,
-    player: null, kind: '', applying: false, aimAt: null, aimUntil: 0, lead: false, actedAt: 0, lastSent: 0, viewers: 1,
+    player: null, kind: '', applying: false, aimAt: null, touchedAt: 0, lead: false, actedAt: 0, lastSent: 0, viewers: 1,
     subscribed: false, outbox: [], lastLink: '', wsFallbackTried: false,
     // Что показывать пришедшему позже: ссылка, переписка этой вкладки и
     // отложенная команда для плеера, который ещё грузится.
@@ -317,15 +319,29 @@
     state.player = { video: v };
     setManual(false);
 
+    // Руками ли тронули плеер: касание, клик или клавиша по нему самому.
+    const byHand = () => Date.now() - state.touchedAt < HAND_MS;
+    ['pointerdown', 'touchstart', 'keydown'].forEach((ev) =>
+      v.addEventListener(ev, () => { state.touchedAt = Date.now(); }, { capture: true, passive: true }));
+    // Человек сам повёл ползунок — прежняя цель комнаты ему больше не указ.
+    v.addEventListener('seeking', () => { if (byHand()) state.aimAt = null; });
+
     const tell = (cmd) => {
       if (state.applying) return;
       // Команду комнаты плеер выполнил мимо: просили 30-ю секунду, а встал в
       // начале или в конце. Так ведёт себя телефон с файлом в несколько
-      // гигабайт (обращение 189), и `seeked` у него приходит позже, чем
-      // опускается `applying`. Рассылать такое время нельзя — перематывавший
-      // прыгал бы вслед за неудачником.
-      if (state.aimAt !== null && Date.now() < state.aimUntil
-          && Math.abs(v.currentTime - state.aimAt) > DRIFT) return;
+      // гигабайт (обращение 189), и `seeked` у него приходит и через две
+      // секунды, и через двадцать. Промахнувшийся плеер не рассылает своё
+      // время вовсе, пока до цели не дошёл: прежний срок в десять секунд
+      // истекал раньше опоздавшего `seeked`, и компьютер снова улетал в
+      // начало. Пауза или «играть», нажатые руками на таком телефоне,
+      // уходят без времени (`stay`): партнёр остаётся там, где стоит. Вести
+      // комнату такой плеер не берётся — его время неверное.
+      if (state.aimAt !== null && Math.abs(v.currentTime - state.aimAt) > DRIFT) {
+        if (!byHand()) return;
+        send(cmd, 0, { stay: true });
+        return;
+      }
       state.aimAt = null;
       leadHere();
       send(cmd, v.currentTime);
@@ -340,7 +356,13 @@
     // событие `pause`, оно никуда не делось.
     // Дошли куда просили — дальше перемотки снова свои, их надо рассылать.
     v.addEventListener('seeked', () => {
-      if (state.aimAt !== null && Math.abs(v.currentTime - state.aimAt) <= DRIFT) state.aimAt = null;
+      if (state.aimAt === null) return;
+      // Встать на ближайший ключевой кадр в паре секунд от цели — это доехал,
+      // а не промах; промах — начало или конец файла.
+      if (Math.abs(v.currentTime - state.aimAt) <= MISS) { state.aimAt = null; return; }
+      // Промах виден и человеку у этого экрана: иначе он смотрит начало
+      // фильма и не понимает, почему партнёр видит другое.
+      setStatus(I18N.t('room.seekMissed'), true);
     });
     v.addEventListener('seeked', () => { if (!v.paused) tell('play'); });
 
@@ -548,7 +570,10 @@
     } catch (_) { return 0; }
   };
 
-  function apply(cmd, at) {
+  /** `stay` — команда без времени: выполнить паузу или «играть» там, где
+   *  стоим. Её шлёт плеер, промахнувшийся с перемоткой (см. `tell`). */
+  function apply(cmd, at, stay) {
+    if (stay) at = ytTime();
     state.applying = true;
     try {
       if (state.kind === 'video' && state.player && state.player.video) {
@@ -558,7 +583,6 @@
           // Куда нас послали: пока перемотка не дошла, свои события плеера
           // сверяются с этой точкой (см. `tell` в mountVideo).
           state.aimAt = at;
-          state.aimUntil = Date.now() + 10000;
         }
         if (cmd === 'play') v.play().catch(() => {});
         if (cmd === 'pause') v.pause();
@@ -810,7 +834,7 @@
       case 'play':
       case 'pause':
         yieldTo(data.from);
-        apply(data.t, data.at);
+        apply(data.t, data.at, data.stay === true);
         break;
       case 'source': {
         const src = parseSource(data.url);
@@ -840,6 +864,11 @@
         // Ведущий чужое время не догоняет: иначе двое подтягивают друг друга
         // по очереди и ролик дёргается у обоих.
         if (state.lead) break;
+        // Свой файл ещё не дошёл до прошлой цели (телефон с тяжёлым файлом):
+        // такт ведущего раз в три секунды начинал бы долгую перемотку заново,
+        // и плеер так и не доезжал бы никуда. Ждём, пока дойдёт, или новой
+        // команды — её `play`/`pause` выполнят как обычно.
+        if (state.kind === 'video' && state.aimAt !== null) break;
         if (state.kind && Math.abs(ytTime() - data.at) > DRIFT) {
           apply(data.playing ? 'play' : 'pause', data.at);
         }
@@ -1054,6 +1083,8 @@
     // 13 августа 2026 проверки ведущего тут не было, и время слали ОБА.
     setInterval(() => {
       if (!state.lead || !state.kind || !isPlaying()) return;
+      // Промахнувшийся с перемоткой плеер своё неверное время не раздаёт.
+      if (state.kind === 'video' && state.aimAt !== null) return;
       send('sync', ytTime(), { playing: true });
     }, HEARTBEAT);
   }

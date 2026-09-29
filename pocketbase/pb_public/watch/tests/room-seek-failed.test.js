@@ -75,19 +75,21 @@ const start = (page) => page.evaluate(async () => {
   return !v.paused;
 });
 
-(async () => {
-  const srv = ARG ? null : await serve();
-  const host = ARG || `http://127.0.0.1:${PORT}`;
-  const room = (await (await fetch(PROD + '/api/watch/new', { method: 'POST' })).json()).room;
+/** Перемотка «ползунком»: касание плеера, потом прыжок — как делает человек. */
+const seekByHand = (page, t) => page.evaluate((t) => {
+  const v = document.querySelector('#player video');
+  v.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+  v.currentTime = t;
+}, t);
 
-  const browser = await chromium.launch({
-    args: ['--autoplay-policy=no-user-gesture-required', '--mute-audio'],
-  });
+/** Сценарий: у второго зрителя `seeked` опаздывает на `lateMs`. */
+async function scenario(browser, host, lateMs, handPause) {
+  const room = (await (await fetch(PROD + '/api/watch/new', { method: 'POST' })).json()).room;
   const a = await (await browser.newContext()).newPage();
   const bCtx = await browser.newContext();
   // Второй зритель — телефон с тяжёлым файлом: перемотка встаёт в начало и
   // отчитывается с опозданием.
-  await bCtx.addInitScript(() => {
+  await bCtx.addInitScript((late) => {
     const desc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'currentTime');
     Object.defineProperty(HTMLMediaElement.prototype, 'currentTime', {
       configurable: true,
@@ -97,11 +99,11 @@ const start = (page) => page.evaluate(async () => {
     const add = EventTarget.prototype.addEventListener;
     EventTarget.prototype.addEventListener = function (type, fn, opts) {
       if (this instanceof HTMLMediaElement && type === 'seeked' && typeof fn === 'function') {
-        return add.call(this, type, (e) => setTimeout(() => fn.call(this, e), 2500), opts);
+        return add.call(this, type, (e) => setTimeout(() => fn.call(this, e), late), opts);
       }
       return add.call(this, type, fn, opts);
     };
-  });
+  }, lateMs);
   const b = await bCtx.newPage();
 
   await a.goto(host + '/watch/room/?src=' + encodeURIComponent(CLIP) + '#' + room,
@@ -117,12 +119,42 @@ const start = (page) => page.evaluate(async () => {
   await a.waitForTimeout(3000);
 
   // Первый перематывает на 30-ю секунду, как это делает человек ползунком.
-  await a.evaluate(() => { document.querySelector('#player video').currentTime = 30; });
-  await a.waitForTimeout(9000);
+  await seekByHand(a, 30);
+  await a.waitForTimeout(lateMs + 6000);
 
   const ta = await at(a);
-  check('перематывавший остался на своём месте', ta >= 30,
+  check(`опоздание ${lateMs / 1000} с: перематывавший остался на своём месте`, ta >= 30,
     't1=' + ta.toFixed(1) + ' t2=' + (await at(b)).toFixed(1));
+
+  if (handPause) {
+    // Человек на промахнувшемся телефоне жмёт паузу: партнёр замирает там,
+    // куда перемотал, а не в начале фильма.
+    await b.evaluate(() => {
+      const v = document.querySelector('#player video');
+      v.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      v.pause();
+    });
+    await a.waitForTimeout(3000);
+    const t = await at(a);
+    const paused = await a.evaluate(() => document.querySelector('#player video').paused);
+    check('пауза с телефона остановила партнёра на его месте', paused && t >= 30,
+      't1=' + t.toFixed(1) + ' пауза=' + paused);
+  }
+  await a.context().close();
+  await bCtx.close();
+}
+
+(async () => {
+  const srv = ARG ? null : await serve();
+  const host = ARG || `http://127.0.0.1:${PORT}`;
+  const browser = await chromium.launch({
+    args: ['--autoplay-policy=no-user-gesture-required', '--mute-audio'],
+  });
+
+  await scenario(browser, host, 2500, false);
+  // Телефон из обращения отчитывался дольше десяти секунд, и прежняя защита
+  // к тому времени уже снималась (жалоба 25.09 после первой правки).
+  await scenario(browser, host, 14000, true);
 
   await browser.close();
   if (srv) srv.close();
