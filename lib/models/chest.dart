@@ -70,11 +70,34 @@ class ChestPrize {
 }
 
 class ChestState {
-  const ChestState({required this.left, required this.perDay, required this.odds, this.untilRare, this.jar});
+  const ChestState({
+    required this.left,
+    required this.perDay,
+    required this.odds,
+    this.untilRare,
+    this.jar,
+    this.today = const [],
+  });
 
   final int left;
   final int perDay;
   final List<ChestPrize> odds;
+
+  /// Что выпало сегодня, по порядку открытий. Приз разыгрывается, как только
+  /// ролик засчитан; ушёл с экрана до анимации — здесь видно, что он был.
+  /// Пусто — ничего не открывали или сервер постарше.
+  final List<ChestPrize> today;
+
+  /// То же состояние с другим остатком и ещё одним призом дня — после
+  /// удачного открытия, без лишнего запроса.
+  ChestState afterOpen({required int left, int? untilRare, PairJar? jar, ChestPrize? prize}) => ChestState(
+    left: left,
+    perDay: perDay,
+    odds: odds,
+    untilRare: untilRare ?? this.untilRare,
+    jar: jar,
+    today: [...today, ?prize],
+  );
 
   /// Через сколько открытий редкий приз гарантирован (1 — следующее). null —
   /// сервер постарше, гарантии не знает.
@@ -99,6 +122,11 @@ class ChestState {
       odds: odds,
       untilRare: (j['untilRare'] as num?)?.toInt(),
       jar: PairJar.fromJson(j['jar']),
+      today: [
+        if (j['today'] case final List won)
+          for (final r in won)
+            if (r is Map) ?ChestPrize.fromJson(Map<String, dynamic>.from(r)),
+      ],
     );
   }
 }

@@ -231,9 +231,7 @@ class _ChestScreenState extends State<ChestScreen> {
         }
         if (res.error == 'chest_limit') {
           _pendingOpenId = null;
-          _state = _state == null
-              ? null
-              : ChestState(left: 0, perDay: _perDay, odds: _state!.odds, untilRare: _state!.untilRare, jar: _state!.jar);
+          _state = _state?.afterOpen(left: 0, jar: _state!.jar);
         }
       });
       _snack(trKey(res.error == 'chest_limit' ? 'chestLimit' : 'chestFailed'));
@@ -259,12 +257,11 @@ class _ChestScreenState extends State<ChestScreen> {
       _choice = null;
       _wearWon = null;
       if (_state != null && res.left != null) {
-        _state = ChestState(
+        _state = _state!.afterOpen(
           left: res.left!,
-          perDay: _perDay,
-          odds: _state!.odds,
-          untilRare: res.untilRare ?? _state!.untilRare,
+          untilRare: res.untilRare,
           jar: PairJarService.instance.jar,
+          prize: res.prize,
         );
       }
     });
@@ -423,6 +420,11 @@ class _ChestScreenState extends State<ChestScreen> {
             if (_choice == null && _state?.untilRare != null) ...[
               const SizedBox(height: 8),
               _pity(cs, _state!.untilRare!),
+            ],
+            // Пока идёт анимация, последний приз ещё «тайна» — строка ждёт её конца.
+            if (!_animating && (_state?.today.isNotEmpty ?? false)) ...[
+              const SizedBox(height: 8),
+              _today(cs, _state!.today),
             ],
             const SizedBox(height: 8),
             Text(
@@ -628,6 +630,26 @@ class _ChestScreenState extends State<ChestScreen> {
             onPressed: _choosing ? null : () => _decide(give: false),
             style: style(cs.primaryContainer, cs.onPrimaryContainer),
             child: FittedBox(fit: BoxFit.scaleDown, child: Text(trKey('chestKeep'), maxLines: 1)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Что уже выпало сегодня. Приз разыгрывается, как только ролик засчитан;
+  /// ушёл с экрана посреди открытия (нажал уведомление) — приз твой, а видно
+  /// его только здесь. Без строки это читалось как «попытка сгорела».
+  Widget _today(ColorScheme cs, List<ChestPrize> won) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.redeem_rounded, size: 16, color: cs.primary),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            trKey('chestToday').replaceAll('{list}', won.map(_title).join(', ')),
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: cs.onSurface),
           ),
         ),
       ],

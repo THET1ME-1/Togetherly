@@ -130,6 +130,25 @@ routerAdd("GET", "/api/chest/state", (e) => {
       { me: me, day: day }).length;
   } catch (_) { used = 0; }
 
+  // Призы за сегодня по порядку, вместе с открытиями из копилки (их день
+  // с приставкой «b»). Приз разыгрывается, как только ролик засчитан; ушёл
+  // человек с экрана до анимации — без этого списка он не узнает, что выпало,
+  // и решит, что попытка сгорела (письмо 29.09.2026). Вид восстанавливается
+  // по ключу так же, как в повторе открытия.
+  const today = [];
+  try {
+    const won = $app.findRecordsByFilter("chest_opens", "user_uid = {:me} && (day = {:day} || day = {:bday})", "created", 20, 0,
+      { me: me, day: day, bday: "b" + day });
+    for (let i = 0; i < won.length; i++) {
+      const key = won[i].getString("prize");
+      let kind = "gift";
+      for (let j = 0; j < ODDS.length; j++) if (ODDS[j][0] === key) kind = ODDS[j][1];
+      if (key.indexOf("frame_") === 0) kind = "frame";
+      if (key.indexOf("badge_") === 0) kind = "badge";
+      today.push({ key: key, kind: kind, amount: won[i].getInt("amount") });
+    }
+  } catch (_) {}
+
   // Неделя Плюса не выпадает тем, у кого Плюс или неделя уже идёт, и
   // сборкам без флага `frames`: показать её им нечем. Её доля — в «5 монет».
   const trialOn = (user.getInt("plus_trial_until") || 0) > Date.now();
@@ -160,7 +179,7 @@ routerAdd("GET", "/api/chest/state", (e) => {
   let jar = null;
   try { jar = require(`${__hooks}/pair_jar.js`).state(me, String(q.get("group") || "")); } catch (_) { jar = null; }
   return e.json(200, {
-    ok: true, perDay: PER_DAY, left: Math.max(0, PER_DAY - used), day: day, odds: odds, jar: jar,
+    ok: true, perDay: PER_DAY, left: Math.max(0, PER_DAY - used), day: day, odds: odds, jar: jar, today: today,
     // Через сколько открытий редкий приз гарантирован (1 — следующее).
     untilRare: PITY - dry,
   });

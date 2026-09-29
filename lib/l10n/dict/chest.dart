@@ -155,6 +155,17 @@ const Map<String, Map<String, String>> chestStrings = {
     'fr': 'Légendaires',
     'de': 'Legendär',
   },
+  // Под сундуком: что уже выпало сегодня. Приз разыгрывается, как только
+  // ролик засчитан, и ушедший с экрана до анимации иначе не узнает о нём.
+  'chestToday': {
+    'ru': 'Сегодня выпало: {list}',
+    'en': 'Won today: {list}',
+    'pt': 'Hoje você ganhou: {list}',
+    'it': 'Vinto oggi: {list}',
+    'es': 'Hoy te tocó: {list}',
+    'fr': 'Gagné aujourd’hui : {list}',
+    'de': 'Heute gewonnen: {list}',
+  },
   'chestCoins': {
     'ru': '{n} монет',
     'en': '{n} coins',

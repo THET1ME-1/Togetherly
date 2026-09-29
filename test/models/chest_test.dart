@@ -201,6 +201,41 @@ void main() {
     expect(ChestState.fromJson({'ok': false}), isNull);
   });
 
+  // Приз разыгрывается, как только ролик засчитан, а анимация идёт на экране
+  // сундука. Ушёл с него (нажал уведомление посреди ролика) — приз твой, но
+  // ты его не видел, и выглядит это как «попытка сгорела» (письмо 29.09.2026).
+  // Поэтому состояние несёт призы за сегодня, экран их перечисляет.
+  test('состояние: призы за сегодня по порядку, у старого сервера — пусто', () {
+    final st = ChestState.fromJson({
+      'ok': true,
+      'perDay': 3,
+      'left': 1,
+      'odds': [
+        {'key': 'coins5', 'kind': 'coins', 'amount': 5, 'weight': 1000, 'tier': 'common'},
+      ],
+      'today': [
+        {'key': 'rings', 'kind': 'gift', 'amount': 0},
+        {'key': 'unicorn', 'kind': 'gift', 'amount': 0},
+        {'key': 'coins5', 'kind': 'coins', 'amount': 5},
+      ],
+    })!;
+    expect(st.today.map((p) => p.key), ['rings', 'coins5']);
+    expect(st.today.last.amount, 5);
+    final old = ChestState.fromJson({
+      'ok': true,
+      'odds': [
+        {'key': 'coins5', 'kind': 'coins', 'amount': 5, 'weight': 1000, 'tier': 'common'},
+      ],
+    })!;
+    expect(old.today, isEmpty);
+  });
+
+  test('хук отдаёт призы за сегодня в состоянии сундука', () {
+    final state = RegExp(r'routerAdd\("GET", "/api/chest/state".*?\n\}, \$apis', dotAll: true).firstMatch(src)!.group(0)!;
+    expect(state, contains('today: today'), reason: 'state обязан отдавать список призов за сегодня');
+    expect(state, contains('"b" + day'), reason: 'открытия из копилки пары тоже призы этого дня');
+  });
+
   test('ответ открытия: приз, лимит и молчание сервера', () {
     final ok = parseChestOpen({
       'ok': true,
