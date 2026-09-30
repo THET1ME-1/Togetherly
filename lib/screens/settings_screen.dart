@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../dict_strings.dart';
 import '../services/locale_service.dart';
 import '../theme/profile_theme.dart';
 import '../widgets/app_icon_sheet.dart';
@@ -33,6 +34,7 @@ class SettingsScreen extends StatelessWidget {
     required this.onDrawTools,
     required this.onTelegramChannel,
     required this.onBugBot,
+    this.onHelp,
     required this.onAbout,
     required this.onChangePassword,
     required this.onLogout,
@@ -93,6 +95,9 @@ class SettingsScreen extends StatelessWidget {
   /// поддержке, а про бота знали только те, кому его присылали в ответ.
   final VoidCallback onTelegramChannel;
   final VoidCallback onBugBot;
+
+  /// Справка «Как сделать».
+  final VoidCallback? onHelp;
   final VoidCallback onAbout;
   /// Письмо со ссылкой на смену пароля — на почту аккаунта.
   ///
@@ -373,6 +378,22 @@ class SettingsScreen extends StatelessWidget {
                 ],
               ),
 
+              // Справка отдельной группой, а не внутри «О приложении»: тот
+              // сворачивается, а ответ должен быть виден сразу.
+              if (onHelp != null) ...[
+                const SizedBox(height: 20),
+                SettingsGroup([
+                  SettingsRow(
+                    icon: Icons.help_rounded,
+                    title: trKey('help.title'),
+                    subtitle: trKey('help.subtitle'),
+                    iconBg: scheme.primaryContainer,
+                    iconFg: scheme.onPrimaryContainer,
+                    trailing: const SettingsChevron(),
+                    onTap: onHelp,
+                  ),
+                ]),
+              ],
               SettingsCollapsible(
                 prefsKey: 'about',
                 title: s.aboutApp,

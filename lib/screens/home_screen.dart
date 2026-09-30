@@ -2025,6 +2025,10 @@ class _HomeScreenState extends State<HomeScreen> {
       widgetService: _widgetService,
       giftsEnabled: _giftsEnabled,
       onSwitchToHome: () => setState(() => _selectedNavIndex = 0),
+      onSwitchTab: (i) {
+        setState(() => _selectedNavIndex = i);
+        if (i == 0) unawaited(_loadSideActionPref());
+      },
     );
   }
 

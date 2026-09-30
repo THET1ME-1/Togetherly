@@ -5,6 +5,7 @@ import 'l10n/dict/ads.dart';
 import 'l10n/dict/ailments.dart';
 import 'l10n/dict/app_icons.dart';
 import 'l10n/dict/chat.dart';
+import 'l10n/dict/help.dart';
 import 'l10n/dict/chest.dart';
 import 'l10n/dict/miss_you_history.dart';
 import 'l10n/dict/shop.dart';
@@ -78,6 +79,7 @@ const Map<String, Map<String, String>> kStrings = {
   ...ailmentsStrings,
   ...appIconsStrings,
   ...chatStrings,
+  ...helpStrings,
   ...commonStrings,
   ...connectPartnerStrings,
   ...dailyTasksStrings,

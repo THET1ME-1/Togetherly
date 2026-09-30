@@ -84,6 +84,8 @@ import 'date_time_picker_screen.dart';
 import '../widgets/common/redeem_code_sheet.dart';
 import '../widgets/common/badge_image.dart';
 import '../widgets/common/coin_image.dart';
+import '../models/help_items.dart';
+import 'help_screen.dart';
 
 /// Entry for a partner across all connections
 class _PartnerEntry {
@@ -99,6 +101,10 @@ class ProfileScreen extends StatefulWidget {
   final WidgetService widgetService;
   final VoidCallback? onSwitchToHome;
 
+  /// Переключить нижнюю вкладку главного экрана: справка «Как сделать» ведёт
+  /// ответом прямо на «Связь», «Виджеты» и другие.
+  final void Function(int index)? onSwitchTab;
+
   /// Раздел подарков включён на сервере (`app_config.gifts_enabled`). Личный
   /// профиль-«Открытка» и вход в профиль партнёра показываются только при нём —
   /// иначе не «протечём» фичу тем, у кого она выключена.
@@ -110,6 +116,7 @@ class ProfileScreen extends StatefulWidget {
     required this.timerService,
     required this.widgetService,
     this.onSwitchToHome,
+    this.onSwitchTab,
     this.giftsEnabled = false,
   });
 
@@ -479,6 +486,57 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Future<void> _openBugBot() async {
     await _openExternalUri(_bugBotUri);
+  }
+
+  /// Справка «Как сделать». Открывается из шапки профиля и из настроек.
+  void _openHelp(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => HelpScreen(
+          scheme: _cs,
+          plusInStore: PlusService.buysInStore,
+          onAction: _runHelpAction,
+          onWriteUs: _openBugBot,
+        ),
+        settings: const RouteSettings(name: '/help'),
+      ),
+    );
+  }
+
+  /// «Открыть» под ответом справки. Вкладки и настройки открываются с чистого
+  /// листа: справку и настройки под ней закрываем, иначе нужный экран
+  /// оказался бы под ними.
+  void _runHelpAction(HelpAction action) {
+    void toTab(int index) {
+      Navigator.of(context).popUntil((r) => r.isFirst);
+      widget.onSwitchTab?.call(index);
+    }
+
+    switch (action) {
+      case HelpAction.tabHome:
+        toTab(0);
+      case HelpAction.tabWidgets:
+        toTab(1);
+      case HelpAction.tabConnect:
+        toTab(2);
+      case HelpAction.tabProfile:
+        toTab(3);
+      case HelpAction.tabWatch:
+        toTab(4);
+      case HelpAction.settings:
+        Navigator.of(context).popUntil((r) => r.isFirst);
+        _openSettings(context);
+      case HelpAction.plusSheet:
+        _openPlus(context);
+      case HelpAction.plusSite:
+        // Сюда попадают только сборки с сайта и RuStore: в Play и на iPhone
+        // справка этот ответ не показывает (см. helpItems). Отсечка ещё раз
+        // здесь: ссылка мимо биллинга в этих сборках — снятие из магазина.
+        if (Platform.isIOS || PlusService.buysInStore) return;
+        _openExternalUri(Uri.parse(PlusService.purchaseUrl));
+      case HelpAction.telegram:
+        _openTelegramChannel();
+    }
   }
 
   /// Письмо в поддержку: тема и версия подставляются сами, человеку остаётся
@@ -1342,6 +1400,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       onTapFrame: () => _openShop(context, ShopTab.frames),
       onTapBadge: () => _openShop(context, ShopTab.badges),
       onSettings: () => _openSettings(context),
+      onHelp: () => _openHelp(context),
     );
   }
 
@@ -2028,6 +2087,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             onDrawTools: _openDrawTools,
             onTelegramChannel: _openTelegramChannel,
             onBugBot: _openBugBot,
+            onHelp: () => _openHelp(ctx),
             onAbout: _openAboutApp,
             onChangePassword: () => _openChangePassword(ctx),
             onLogout: () => _showLogoutDialog(ctx),

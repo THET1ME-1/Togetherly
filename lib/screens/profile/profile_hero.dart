@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../dict_strings.dart';
 import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/profile_theme.dart';
@@ -47,6 +48,9 @@ class ProfileHero extends StatelessWidget {
   /// партнёрского настраивать нечего.
   final VoidCallback? onSettings;
 
+  /// Справка «Как сделать» — кнопка «?» рядом с шестерёнкой.
+  final VoidCallback? onHelp;
+
   const ProfileHero({
     super.key,
     required this.cs,
@@ -65,7 +69,39 @@ class ProfileHero extends StatelessWidget {
     this.onTapFrame,
     this.onTapBadge,
     this.onSettings,
+    this.onHelp,
   });
+
+  /// Круглая кнопка поверх баннера. Тёмная подложка тут не для красоты: под
+  /// ней бывает светлая фотография, и белый значок без неё пропадает.
+  Widget _bannerButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return Semantics(
+      button: true,
+      label: label,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: SizedBox(
+          width: 50,
+          height: 50,
+          child: Center(
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.black.withValues(alpha: 0.30),
+              ),
+              child: Icon(icon, size: 18, color: Colors.white),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -81,38 +117,26 @@ class ProfileHero extends StatelessWidget {
               background: cs.primaryContainer,
               onPick: onPickBanner,
             ),
-            // Шестерёнка стоит слева от кнопки баннера. Тёмная подложка тут не
-            // для красоты: под ней бывает светлая фотография, и белый значок
-            // без неё пропадает.
+            // Шестерёнка стоит слева от кнопки баннера, «?» — слева от неё.
             if (onSettings != null)
               Positioned(
                 top: 4,
                 right: onPickBanner != null ? 48 : 4,
-                child: Semantics(
-                  button: true,
+                child: _bannerButton(
+                  icon: Icons.settings_rounded,
                   label: LocaleService.current.settingsOpen,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: onSettings,
-                    child: SizedBox(
-                      width: 50,
-                      height: 50,
-                      child: Center(
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.black.withValues(alpha: 0.30),
-                          ),
-                          child: const Icon(
-                            Icons.settings_rounded,
-                            size: 18,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+                  onTap: onSettings!,
+                ),
+              ),
+            if (onHelp != null)
+              Positioned(
+                top: 4,
+                right: (onPickBanner != null ? 48 : 4) +
+                    (onSettings != null ? 44 : 0),
+                child: _bannerButton(
+                  icon: Icons.help_rounded,
+                  label: trKey('help.title'),
+                  onTap: onHelp!,
                 ),
               ),
             Positioned(
