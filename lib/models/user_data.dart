@@ -1168,6 +1168,15 @@ class UserData extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Почту уже сменил сервер (смена по коду, email_change_service.dart), здесь
+  /// только запоминаем новую. updateProfile для этого не годится: он заодно
+  /// гоняет на сервер имя, пол и аватар.
+  Future<void> setEmail(String email) async {
+    _email = email;
+    await _saveLocal();
+    notifyListeners();
+  }
+
   Future<void> updateProfile({
     String? displayName,
     String? email,

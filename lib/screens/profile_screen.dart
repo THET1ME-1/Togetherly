@@ -85,6 +85,7 @@ import '../widgets/common/redeem_code_sheet.dart';
 import '../widgets/common/badge_image.dart';
 import '../widgets/common/coin_image.dart';
 import '../models/help_items.dart';
+import '../widgets/common/email_change_sheet.dart';
 import 'help_screen.dart';
 
 /// Entry for a partner across all connections
@@ -2088,6 +2089,17 @@ class _ProfileScreenState extends State<ProfileScreen>
             onTelegramChannel: _openTelegramChannel,
             onBugBot: _openBugBot,
             onHelp: () => _openHelp(ctx),
+            onChangeEmail: () async {
+              final email = await showEmailChangeSheet(ctx, scheme: _cs);
+              if (email == null) return;
+              await widget.userData.setEmail(email);
+              setSheetState(() {});
+              if (!ctx.mounted) return;
+              ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                content: Text(trKey('emailChangeDone')),
+                behavior: SnackBarBehavior.floating,
+              ));
+            },
             onAbout: _openAboutApp,
             onChangePassword: () => _openChangePassword(ctx),
             onLogout: () => _showLogoutDialog(ctx),

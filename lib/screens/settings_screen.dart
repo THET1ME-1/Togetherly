@@ -35,6 +35,7 @@ class SettingsScreen extends StatelessWidget {
     required this.onTelegramChannel,
     required this.onBugBot,
     this.onHelp,
+    this.onChangeEmail,
     required this.onAbout,
     required this.onChangePassword,
     required this.onLogout,
@@ -98,6 +99,9 @@ class SettingsScreen extends StatelessWidget {
 
   /// Справка «Как сделать».
   final VoidCallback? onHelp;
+
+  /// Смена почты кодом из письма.
+  final VoidCallback? onChangeEmail;
   final VoidCallback onAbout;
   /// Письмо со ссылкой на смену пароля — на почту аккаунта.
   ///
@@ -468,6 +472,16 @@ class SettingsScreen extends StatelessWidget {
                           ),
                         );
                       },
+                    ),
+                  // Смена почты кодом: раньше её правили руками по просьбе
+                  // в приёмную («у меня не та почта»).
+                  if (onChangeEmail != null)
+                    SettingsRow(
+                      icon: Icons.mark_email_read_rounded,
+                      title: trKey('emailChangeTitle'),
+                      subtitle: trKey('emailChangeHint'),
+                      trailing: const SettingsChevron(),
+                      onTap: onChangeEmail,
                     ),
                   SettingsRow(
                     icon: Icons.lock_reset_rounded,
