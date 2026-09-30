@@ -103,8 +103,91 @@ class ProfileHero extends StatelessWidget {
     );
   }
 
+  static const double _bannerHeight = 168;
+
+  /// На сколько аватар свисает с баннера вниз.
+  static const double _overhang = 40;
+
+  /// Аватар с рамкой-подложкой: 84 + по 3 с каждой стороны.
+  static const double _avatarBox = 90;
+
   @override
   Widget build(BuildContext context) {
+    // Аватар стоит во ВНЕШНЕМ Stack, который накрывает и баннер, и строку с
+    // именем. Раньше он жил в Stack баннера и свисал за его нижний край, а
+    // Flutter не пропускает нажатия к детям за границей Stack: кнопка камеры
+    // целиком сидела в свисающей части и не нажималась вовсе, нижняя половина
+    // аватара не открывала рамки (обращение 216, 30.09.2026).
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        ConstrainedBox(
+          // Тело не короче свисающего аватара: иначе его низ снова окажется
+          // за границей и перестанет нажиматься.
+          constraints:
+              const BoxConstraints(minHeight: _bannerHeight + _overhang + 2),
+          child: _body(),
+        ),
+        Positioned(
+          left: 20,
+          top: _bannerHeight + _overhang - _avatarBox,
+          child: _avatar(),
+        ),
+      ],
+    );
+  }
+
+  Widget _avatar() {
+    return GestureDetector(
+      onTap: onTapFrame ?? onTapAvatar,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: cs.surface,
+            ),
+            child: AvatarWidget(
+              uid: uid,
+              liveUrl: avatarUrl,
+              name: name,
+              size: 84,
+              primary: cs.primary,
+              // В своём профиле нажатие занято (рамки или смена фото), а в
+              // партнёрском не делало ничего — там и открываем фото.
+              tapToView: onTapAvatar == null && onTapFrame == null,
+            ),
+          ),
+          if (onTapAvatar != null)
+            Positioned(
+              right: -2,
+              bottom: -2,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onTapAvatar,
+                child: Container(
+                  padding: const EdgeInsets.all(5),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: cs.primary,
+                    border: Border.all(color: cs.surface, width: 2),
+                  ),
+                  child: Icon(
+                    Icons.photo_camera_rounded,
+                    size: 14,
+                    color: cs.onPrimary,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _body() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -116,6 +199,7 @@ class ProfileHero extends StatelessWidget {
               localPath: localBannerPath,
               background: cs.primaryContainer,
               onPick: onPickBanner,
+              height: _bannerHeight,
             ),
             // Шестерёнка стоит слева от кнопки баннера, «?» — слева от неё.
             if (onSettings != null)
@@ -139,58 +223,6 @@ class ProfileHero extends StatelessWidget {
                   onTap: onHelp!,
                 ),
               ),
-            Positioned(
-              left: 20,
-              bottom: -40,
-              child: GestureDetector(
-                onTap: onTapFrame ?? onTapAvatar,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(3),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: cs.surface,
-                      ),
-                      child: AvatarWidget(
-                        uid: uid,
-                        liveUrl: avatarUrl,
-                        name: name,
-                        size: 84,
-                        primary: cs.primary,
-                        // В своём профиле нажатие занято (рамки или смена
-                        // фото), а в партнёрском не делало ничего — там и
-                        // открываем фото.
-                        tapToView: onTapAvatar == null && onTapFrame == null,
-                      ),
-                    ),
-                    if (onTapAvatar != null)
-                      Positioned(
-                        right: -2,
-                        bottom: -2,
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: onTapAvatar,
-                          child: Container(
-                            padding: const EdgeInsets.all(5),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: cs.primary,
-                              border: Border.all(color: cs.surface, width: 2),
-                            ),
-                            child: Icon(
-                              Icons.photo_camera_rounded,
-                              size: 14,
-                              color: cs.onPrimary,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
           ],
         ),
         Padding(
