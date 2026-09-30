@@ -549,6 +549,53 @@ const Map<String, Map<String, String>> helpStrings = {
     'de': 'Nach einer halben Stunde nichts? Schreib uns, wir schauen uns dein Konto an.',
   },
 
+  // ── Сменить почту ────────────────────────────────────────────────────────
+  'help.email.q': {
+    'ru': 'Как сменить почту',
+    'en': 'How to change the email',
+    'pt': 'Como mudar o e-mail',
+    'it': 'Come cambiare l’e-mail',
+    'es': 'Cómo cambiar el correo',
+    'fr': 'Comment changer l’e-mail',
+    'de': 'Wie man die E-Mail ändert',
+  },
+  'help.email.path': {
+    'ru': '{profile} → {settingsTitle} → {emailChangeTitle}',
+    'en': '{profile} → {settingsTitle} → {emailChangeTitle}',
+    'pt': '{profile} → {settingsTitle} → {emailChangeTitle}',
+    'it': '{profile} → {settingsTitle} → {emailChangeTitle}',
+    'es': '{profile} → {settingsTitle} → {emailChangeTitle}',
+    'fr': '{profile} → {settingsTitle} → {emailChangeTitle}',
+    'de': '{profile} → {settingsTitle} → {emailChangeTitle}',
+  },
+  'help.email.s1': {
+    'ru': 'Откройте профиль и нажмите шестерёнку.',
+    'en': 'Open your profile and tap the gear.',
+    'pt': 'Abra o perfil e toque na engrenagem.',
+    'it': 'Apri il profilo e tocca l’ingranaggio.',
+    'es': 'Abre el perfil y toca el engranaje.',
+    'fr': 'Ouvrez votre profil et touchez la roue dentée.',
+    'de': 'Öffne dein Profil und tippe auf das Zahnrad.',
+  },
+  'help.email.s2': {
+    'ru': 'Внизу нажмите «{emailChangeTitle}» и введите новый адрес.',
+    'en': 'At the bottom, tap «{emailChangeTitle}» and enter the new address.',
+    'pt': 'Embaixo, toque em «{emailChangeTitle}» e digite o novo endereço.',
+    'it': 'In basso tocca «{emailChangeTitle}» e scrivi il nuovo indirizzo.',
+    'es': 'Abajo, toca «{emailChangeTitle}» y escribe la nueva dirección.',
+    'fr': 'En bas, touchez «{emailChangeTitle}» et saisissez la nouvelle adresse.',
+    'de': 'Tippe unten auf «{emailChangeTitle}» und gib die neue Adresse ein.',
+  },
+  'help.email.s3': {
+    'ru': 'Введите код из письма, которое придёт на новый адрес. Почта сменится сразу.',
+    'en': 'Enter the code from the email sent to the new address. The email changes right away.',
+    'pt': 'Digite o código do e-mail enviado ao novo endereço. O e-mail muda na hora.',
+    'it': 'Inserisci il codice dall’e-mail arrivata al nuovo indirizzo. L’e-mail cambia subito.',
+    'es': 'Escribe el código del correo que llegará a la nueva dirección. El correo cambia al momento.',
+    'fr': 'Saisissez le code reçu à la nouvelle adresse. L’e-mail change tout de suite.',
+    'de': 'Gib den Code aus der E-Mail an die neue Adresse ein. Die E-Mail ändert sich sofort.',
+  },
+
   // ── Пол ──────────────────────────────────────────────────────────────────
   'help.gender.q': {
     'ru': 'Как поменять пол',

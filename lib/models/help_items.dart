@@ -73,6 +73,8 @@ List<HelpItem> helpItems({required bool plusInStore}) => [
           HelpAction.settings),
       const HelpItem(
           'resetMail', HelpTopic.account, Icons.mark_email_unread_rounded),
+      const HelpItem('email', HelpTopic.account, Icons.mark_email_read_rounded,
+          HelpAction.settings),
       const HelpItem('gender', HelpTopic.account, Icons.transgender_rounded,
           HelpAction.tabProfile),
       const HelpItem('telegram', HelpTopic.account, Icons.send_rounded,
