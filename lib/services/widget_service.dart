@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:home_widget/home_widget.dart';
+import '../dict_strings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/widget_data.dart';
 import '../models/memory.dart';
@@ -813,6 +814,11 @@ class WidgetService extends ChangeNotifier {
       // Контейнер теперь про эту пару: следующий проход не станет стирать
       // половину, данные которой ещё едут.
       if (_groupId.isNotEmpty) _containerPairId = _groupId;
+
+      // Подписи подсказки на пустой половине — на языке приложения.
+      for (final e in kPairWidgetHintLabels.entries) {
+        await HomeWidget.saveWidgetData<String>(e.key, trKey(e.value));
+      }
 
       // ── Обновить виджет на рабочем столе (текстовые данные сразу) ──
       await HomeWidget.updateWidget(

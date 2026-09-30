@@ -42,4 +42,13 @@
     <string name="tg_canvas_pick_subtitle">Нажмите на холст, и он встанет на стол</string>
     <string name="tg_canvas_pick_empty">Рисунков пока нет. Откройте Togetherly и нарисуйте первый.</string>
     <string name="tg_canvas_unnamed">Без названия</string>
+
+    <!-- Подсказки на пустой половине парного виджета (PairWidgetHint). Язык
+         приложения пишет Flutter, это запасной вариант до первой записи. -->
+    <string name="love_hint_fail_title">Фото не загрузилось</string>
+    <string name="love_hint_fail_sub">Нажмите, чтобы обновить</string>
+    <string name="love_hint_own_title">Добавьте фото и настроение</string>
+    <string name="love_hint_own_sub">Нажмите на виджет</string>
+    <string name="love_hint_partner_title">У партнёра пока пусто</string>
+    <string name="love_hint_partner_sub">Фото и настроение появятся здесь</string>
 </resources>

@@ -222,6 +222,21 @@ class LoveWidgetProvider : HomeWidgetProvider() {
                 setViewVisibility(R.id.my_avatar, View.GONE)
             }
 
+            applyHint(
+                context, widgetData,
+                PairWidgetHint.decide(
+                    mine = true,
+                    photoPath = myPhotoPath,
+                    photoShown = myBgBitmap != null,
+                    hasMood = myEmojiBitmap != null ||
+                        !widgetData.getString(key("my_mood"), null).isNullOrEmpty(),
+                    hasText = myStatus.isNotEmpty() || myMessage.isNotEmpty() ||
+                        myMusicTitle.isNotEmpty(),
+                ),
+                R.id.my_center, R.id.my_hint, R.id.my_hint_icon,
+                R.id.my_hint_title, R.id.my_hint_sub,
+            )
+
             // ═══════════ Сторона партнёра ═══════════
             val partnerStatus = widgetData.getString(key("partner_status"), null)
                 .takeIf { !it.isNullOrEmpty() } ?: ""
@@ -287,7 +302,45 @@ class LoveWidgetProvider : HomeWidgetProvider() {
             } else {
                 setViewVisibility(R.id.partner_avatar, View.GONE)
             }
+
+            applyHint(
+                context, widgetData,
+                PairWidgetHint.decide(
+                    mine = false,
+                    photoPath = partnerPhotoPath,
+                    photoShown = partnerBgBitmap != null,
+                    hasMood = partnerEmojiBitmap != null ||
+                        !widgetData.getString(key("partner_mood"), null).isNullOrEmpty(),
+                    hasText = partnerStatus.isNotEmpty() ||
+                        partnerMessage.isNotEmpty() || partnerMusicTitle.isNotEmpty(),
+                ),
+                R.id.partner_center, R.id.partner_hint, R.id.partner_hint_icon,
+                R.id.partner_hint_title, R.id.partner_hint_sub,
+            )
         }
+    }
+
+    /** Подсказка вместо центра половины: фото не дошло или половина пуста. */
+    private fun RemoteViews.applyHint(
+        context: Context,
+        data: SharedPreferences,
+        hint: PairWidgetHint,
+        centerId: Int,
+        hintId: Int,
+        iconId: Int,
+        titleId: Int,
+        subId: Int,
+    ) {
+        if (hint == PairWidgetHint.NONE) {
+            setViewVisibility(hintId, View.GONE)
+            setViewVisibility(centerId, View.VISIBLE)
+            return
+        }
+        setViewVisibility(centerId, View.GONE)
+        setViewVisibility(hintId, View.VISIBLE)
+        setImageViewResource(iconId, hint.iconRes)
+        setTextViewText(titleId, hint.title(context, data))
+        setTextViewText(subId, hint.sub(context, data))
     }
 
     private fun getCircularEmoji(bitmap: Bitmap): Bitmap {

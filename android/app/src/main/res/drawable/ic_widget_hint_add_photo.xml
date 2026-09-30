@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Значок «добавить фото» подсказки парного виджета: контур снят со шрифта Material Icons во Flutter, как в приложении. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp"
+    android:height="20dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+    <group android:scaleY="-1" android:translateY="512">
+        <path android:fillColor="#FFFFFFFF" android:pathData="M448 405H405V448C405 460 396 469 384 469C372 469 363 460 363 448V405H320C308 405 299 396 299 384C299 372 308 363 320 363H363V320C363 308 372 299 384 299C396 299 405 308 405 320V363H448C460 363 469 372 469 384C469 396 460 405 448 405ZM341 320V341H320C308 341 298 346 290 354C282 362 277 372 277 384C277 392 279 399 283 405H107C83 405 64 386 64 363V107C64 83 83 64 107 64H363C386 64 405 83 405 107V283C399 280 392 277 384 277C360 278 341 297 341 320ZM340 107H128C119 107 114 117 119 124L162 180C166 186 175 185 179 179L213 128L269 202C273 208 282 208 286 202L349 124C354 117 349 107 340 107Z" />
+    </group>
+</vector>

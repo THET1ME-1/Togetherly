@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Значок «обновить» подсказки парного виджета: контур снят со шрифта Material Icons во Flutter, как в приложении. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp"
+    android:height="20dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+    <group android:scaleY="-1" android:translateY="512">
+        <path android:fillColor="#FFFFFFFF" android:pathData="M377 377C342 411 292 431 238 426C160 418 96 354 87 276C75 173 155 85 256 85C324 85 383 125 410 183C417 197 406 213 391 213C383 213 375 209 372 202C348 150 290 117 227 131C179 142 141 180 131 228C113 311 176 384 256 384C291 384 323 369 346 346L314 314C300 300 310 277 329 277H405C417 277 427 287 427 299V375C427 394 404 404 390 390L377 377Z" />
+    </group>
+</vector>

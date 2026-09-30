@@ -15,6 +15,10 @@ private struct LoveSide {
     let musicArtist: String
     let avatar: UIImage?
     let photo: UIImage?
+    /// Путь к фото, как его записало приложение. Путь есть, а картинки нет —
+    /// значит фото не дошло или не открылось.
+    let photoPath: String
+    let mine: Bool
 
     var musicLine: String {
         guard !musicTitle.isEmpty else { return "" }
@@ -26,6 +30,62 @@ private struct LoveSide {
     var isEmpty: Bool {
         moodEmoji == nil && moodText.isEmpty && status.isEmpty && message.isEmpty
             && musicTitle.isEmpty && avatar == nil && photo == nil
+    }
+
+    /// Что показать вместо пустоты. Правило то же, что у Android
+    /// (PairWidgetHint.kt): не дошедшее фото важнее настроения, «пусто» —
+    /// только когда нечего показать вовсе. Аватарка в углу не в счёт.
+    var hint: LoveHint {
+        if !photoPath.isEmpty && photo == nil { return .photoFailed }
+        if photo != nil || moodEmoji != nil || !moodText.isEmpty || !status.isEmpty
+            || !message.isEmpty || !musicTitle.isEmpty {
+            return .hidden
+        }
+        return mine ? .ownEmpty : .partnerEmpty
+    }
+}
+
+/// Подсказка на пустой половине: жалобы «виджет пустой» — самая большая
+/// группа в приёмной, а закрашенная цветом половина ничего не объясняла.
+/// Подписи на языке приложения пишет Flutter (`love_hint_<key>_title/_sub`),
+/// до первой записи стоят русские.
+enum LoveHint {
+    case hidden, photoFailed, ownEmpty, partnerEmpty
+
+    var key: String {
+        switch self {
+        case .hidden: return ""
+        case .photoFailed: return "fail"
+        case .ownEmpty: return "own"
+        case .partnerEmpty: return "partner"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .hidden: return ""
+        case .photoFailed: return "arrow.clockwise"
+        case .ownEmpty: return "photo.badge.plus"
+        case .partnerEmpty: return "heart"
+        }
+    }
+
+    var fallbackTitle: String {
+        switch self {
+        case .hidden: return ""
+        case .photoFailed: return "Фото не загрузилось"
+        case .ownEmpty: return "Добавьте фото и настроение"
+        case .partnerEmpty: return "У партнёра пока пусто"
+        }
+    }
+
+    var fallbackSub: String {
+        switch self {
+        case .hidden: return ""
+        case .photoFailed: return "Нажмите, чтобы обновить"
+        case .ownEmpty: return "Нажмите на виджет"
+        case .partnerEmpty: return "Фото и настроение появятся здесь"
+        }
     }
 }
 
@@ -73,7 +133,9 @@ private func loadLove() -> (me: LoveSide, partner: LoveSide) {
         musicTitle: s.string(key("my_music_title")),
         musicArtist: s.string(key("my_music_artist")),
         avatar: s.uiImage(key("my_avatar_path"), maxSide: LoveWidgetImage.avatar),
-        photo: s.uiImage(key("my_photo_path"), maxSide: LoveWidgetImage.photo)
+        photo: s.uiImage(key("my_photo_path"), maxSide: LoveWidgetImage.photo),
+        photoPath: s.string(key("my_photo_path")),
+        mine: true
     )
     let partner = LoveSide(
         moodEmoji: s.uiImage(key("partner_mood_emoji_path"), maxSide: LoveWidgetImage.emoji),
@@ -83,7 +145,9 @@ private func loadLove() -> (me: LoveSide, partner: LoveSide) {
         musicTitle: s.string(key("partner_music_title")),
         musicArtist: s.string(key("partner_music_artist")),
         avatar: s.uiImage(key("partner_avatar_path"), maxSide: LoveWidgetImage.avatar),
-        photo: s.uiImage(key("partner_photo_path"), maxSide: LoveWidgetImage.photo)
+        photo: s.uiImage(key("partner_photo_path"), maxSide: LoveWidgetImage.photo),
+        photoPath: s.string(key("partner_photo_path")),
+        mine: false
     )
     return (me, partner)
 }
@@ -124,7 +188,11 @@ private struct LovePanel: View {
                 TgSurface(isLeft ? Color(hex: 0xFFCDD9) : Color(hex: 0xE8DAFF))
             }
 
-            // Центральный контент
+            // Центральный контент или подсказка вместо пустоты.
+            if side.hint != .hidden {
+                LoveHintView(hint: side.hint)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
             VStack(spacing: 0) {
                 if let emoji = side.moodEmoji {
                     Image(uiImage: emoji).resizable().tgFullColorImage()
@@ -151,6 +219,7 @@ private struct LovePanel: View {
             .padding(.horizontal, 6)
             .padding(.vertical, 10)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
 
             // Аватарка в нижнем углу
             if let avatar = side.avatar {
@@ -172,6 +241,57 @@ private struct LovePanel: View {
     private func avatarView(_ image: UIImage) -> some View {
         Image(uiImage: image).resizable().tgFullColorImage().scaledToFit()
             .frame(width: 22, height: 22).clipShape(Circle())
+    }
+}
+
+/// Подсказка на половине: значок на «печеньке» M3, заголовок и подпись.
+private struct LoveHintView: View {
+    let hint: LoveHint
+
+    var body: some View {
+        let s = Store()
+        let title = s.string("love_hint_\(hint.key)_title")
+        let sub = s.string("love_hint_\(hint.key)_sub")
+        VStack(spacing: 0) {
+            ZStack {
+                LoveCookieShape().fill(Color(hex: 0xFF7E8B))
+                Image(systemName: hint.symbol)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.white)
+            }
+            .frame(width: 36, height: 36)
+            Text(title.isEmpty ? hint.fallbackTitle : title)
+                .font(.system(size: 11, weight: .bold))
+                .foregroundColor(Color(hex: 0x3B2A2C))
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .padding(.top, 6)
+            Text(sub.isEmpty ? hint.fallbackSub : sub)
+                .font(.system(size: 9))
+                .foregroundColor(Color(hex: 0x6B5A6E))
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .padding(.top, 2)
+        }
+        .padding(.horizontal, 8)
+    }
+}
+
+/// «Печенька» M3 из девяти лепестков — та же, что widget_hint_cookie.xml.
+private struct LoveCookieShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        let c = CGPoint(x: rect.midX, y: rect.midY)
+        let base = min(rect.width, rect.height) / 2 / 1.075
+        let steps = 180
+        for k in 0...steps {
+            let t = Double(k) / Double(steps) * 2 * Double.pi
+            let r = base * CGFloat(1 + 0.075 * cos(9 * t))
+            let pt = CGPoint(x: c.x + r * CGFloat(cos(t)), y: c.y + r * CGFloat(sin(t)))
+            if k == 0 { p.move(to: pt) } else { p.addLine(to: pt) }
+        }
+        p.closeSubpath()
+        return p
     }
 }
 

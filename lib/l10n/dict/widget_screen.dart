@@ -6,6 +6,62 @@
 // на экране не бывает.
 
 const Map<String, Map<String, String>> widgetScreenStrings = {
+  // Подсказки на пустой половине парного виджета (PairWidgetHint.kt).
+  'loveHintFailTitle': {
+    'ru': 'Фото не загрузилось',
+    'en': 'Photo didn’t load',
+    'pt': 'A foto não carregou',
+    'it': 'La foto non si è caricata',
+    'es': 'La foto no cargó',
+    'fr': 'La photo n’a pas chargé',
+    'de': 'Foto nicht geladen',
+  },
+  'loveHintFailSub': {
+    'ru': 'Нажмите, чтобы обновить',
+    'en': 'Tap to refresh',
+    'pt': 'Toque para atualizar',
+    'it': 'Tocca per aggiornare',
+    'es': 'Toca para actualizar',
+    'fr': 'Touchez pour actualiser',
+    'de': 'Tippen zum Aktualisieren',
+  },
+  'loveHintOwnTitle': {
+    'ru': 'Добавьте фото и настроение',
+    'en': 'Add a photo and mood',
+    'pt': 'Adicione foto e humor',
+    'it': 'Aggiungi foto e umore',
+    'es': 'Añade foto y ánimo',
+    'fr': 'Ajoutez photo et humeur',
+    'de': 'Foto und Stimmung hinzufügen',
+  },
+  'loveHintOwnSub': {
+    'ru': 'Нажмите на виджет',
+    'en': 'Tap the widget',
+    'pt': 'Toque no widget',
+    'it': 'Tocca il widget',
+    'es': 'Toca el widget',
+    'fr': 'Touchez le widget',
+    'de': 'Tippe auf das Widget',
+  },
+  'loveHintPartnerTitle': {
+    'ru': 'У партнёра пока пусто',
+    'en': 'Nothing from your partner yet',
+    'pt': 'Nada do seu par ainda',
+    'it': 'Ancora niente dal partner',
+    'es': 'Aún nada de tu pareja',
+    'fr': 'Rien de votre partenaire pour l’instant',
+    'de': 'Vom Partner noch nichts',
+  },
+  'loveHintPartnerSub': {
+    'ru': 'Фото и настроение появятся здесь',
+    'en': 'Their photo and mood will show here',
+    'pt': 'A foto e o humor aparecem aqui',
+    'it': 'Foto e umore compariranno qui',
+    'es': 'Su foto y ánimo aparecerán aquí',
+    'fr': 'Photo et humeur s’afficheront ici',
+    'de': 'Foto und Stimmung erscheinen hier',
+  },
+
   'watchRoomBackAgain': {
     'ru': 'Нажмите ещё раз, чтобы выйти из комнаты',
     'en': 'Press back again to leave the room',

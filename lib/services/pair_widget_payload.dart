@@ -221,6 +221,18 @@ List<PairRefreshTarget> pairsToRefresh({
   return out;
 }
 
+/// Подписи подсказки на пустой половине парного виджета (`PairWidgetHint.kt`):
+/// ключ в данных виджета → ключ словаря. Язык знает только приложение, поэтому
+/// подписи пишет оно; нативная сторона без них берёт русские из ресурсов.
+const Map<String, String> kPairWidgetHintLabels = {
+  'love_hint_fail_title': 'loveHintFailTitle',
+  'love_hint_fail_sub': 'loveHintFailSub',
+  'love_hint_own_title': 'loveHintOwnTitle',
+  'love_hint_own_sub': 'loveHintOwnSub',
+  'love_hint_partner_title': 'loveHintPartnerTitle',
+  'love_hint_partner_sub': 'loveHintPartnerSub',
+};
+
 /// Ключи с файлами: по ним чистится и запись, и сама картинка в контейнере.
 const List<String> kPairWidgetFileKeys = [
   'my_photo_path',

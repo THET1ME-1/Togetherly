@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Значок «сердце» подсказки парного виджета: контур снят со шрифта Material Icons во Flutter, как в приложении. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp"
+    android:height="20dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+    <group android:scaleY="-1" android:translateY="512">
+        <path android:fillColor="#FFFFFFFF" android:pathData="M419 427C363 465 294 447 256 403C218 447 149 465 93 427C63 406 44 372 43 335C40 253 113 186 225 84L227 83C243 68 268 68 285 83L287 85C399 186 472 253 469 336C468 372 449 406 419 427ZM258 116 256 114 254 116C152 208 85 269 85 331C85 373 117 405 160 405C193 405 225 384 236 355H276C287 384 319 405 352 405C395 405 427 373 427 331C427 269 360 208 258 116Z" />
+    </group>
+</vector>
