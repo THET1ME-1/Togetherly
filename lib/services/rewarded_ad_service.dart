@@ -132,6 +132,7 @@ class RewardedAdService {
               'Yandex rewarded failed: ${error.code} ${error.description}'
               ' → retry');
           _yandexAd = null;
+          _reportLoadFailure('${error.code}', error.description);
           _scheduleRetry();
         },
       );
@@ -141,8 +142,38 @@ class RewardedAdService {
       );
     } catch (e) {
       debugPrint('Yandex rewarded load exception: $e → retry');
+      _reportLoadFailure('exception', '$e');
       _scheduleRetry();
     }
+  }
+
+  /// Сообщал ли уже этот запуск, что ролик не грузится.
+  static bool _loadFailureReported = false;
+
+  /// Почему ролик не загрузился. Раньше код ошибки Яндекса уходил только в
+  /// debugPrint, и на жалобу «реклама не грузится третий день» (обращение 210)
+  /// ответить было нечем: не видно, пустой ли показ, сеть или запрет на
+  /// телефоне. Каждая неудача — крошкой, последняя попытка — событием, не
+  /// чаще раза за запуск, чтобы один телефон без рекламы не засыпал панель.
+  void _reportLoadFailure(String code, String description) {
+    Sentry.addBreadcrumb(Breadcrumb(
+      message: 'Yandex rewarded load failed: $code $description',
+      level: SentryLevel.info,
+    ));
+    final lastTry = _retryCount >= _retryBackoff.length - 1;
+    if (!lastTry || _loadFailureReported) return;
+    _loadFailureReported = true;
+    unawaited(Sentry.captureMessage(
+      'Yandex rewarded never loaded',
+      level: SentryLevel.warning,
+      withScope: (s) {
+        s.setTag('ad_error_code', code);
+        s.setExtra('ad_error', description);
+        s.setExtra('ad_unit', _yandexAdUnitId);
+        s.setExtra('chest', chest);
+        s.setExtra('attempts', _retryCount + 1);
+      },
+    ));
   }
 
   /// Показывает загруженный ролик Яндекса.
