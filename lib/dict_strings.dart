@@ -1171,12 +1171,6 @@ abstract class DictStrings extends AppStrings {
   @override
   String get moodCalendarTitle => _t('moodCalendarTitle');
   @override
-  String get moodSettings => _t('moodSettings');
-  @override
-  String get moodMultiplePerDay => _t('moodMultiplePerDay');
-  @override
-  String get moodMultiplePerDaySubtitle => _t('moodMultiplePerDaySubtitle');
-  @override
   String get zoomIn => _t('zoomIn');
   @override
   String get zoomOut => _t('zoomOut');

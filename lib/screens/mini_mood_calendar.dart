@@ -521,37 +521,14 @@ class _DayCellState extends State<_DayCell> with TickerProviderStateMixin {
   }
 
   void _maybeStartTimer() {
-    // Для сегодняшней ячейки НИКОГДА не циклим — должна совпадать с шапкой,
-    // которая показывает только последнюю запись. Цикл для прошлых дат
-    // имеет смысл показать историю настроений за день — НО только если включён
-    // режим «несколько настроений в день». В одиночном режиме (по умолчанию)
-    // день показывает последнее настроение без мелькания, даже если в данных
-    // случайно остались дубли (напр. после смены пака настроений: поставили
-    // классическое, потом розовое — оба записались, и иконка мигала classic↔pink
-    // каждые 5 сек). _currentIndex=0 → build берёт entries[0] = последнюю запись.
-    if (isToday || !widget.moodService.allowMultipleMoodsPerDay) {
-      _timer?.cancel();
-      _timer = null;
-      _currentIndex = 0;
-      return;
-    }
-    final entries = widget.moodService.myEntriesForDay(widget.date);
-    if (entries.length > 1 && _timer == null) {
-      _timer = Timer.periodic(const Duration(seconds: 5), (_) {
-        if (mounted) {
-          setState(() {
-            final entries = widget.moodService.myEntriesForDay(widget.date);
-            if (entries.length > 1) {
-              _currentIndex = (_currentIndex + 1) % entries.length;
-            }
-          });
-        }
-      });
-    } else if (entries.length <= 1) {
-      _timer?.cancel();
-      _timer = null;
-      _currentIndex = 0;
-    }
+    // Ячейка показывает последнюю запись дня и не мелькает. Раньше при режиме
+    // «несколько настроений в день» прошлые дни перебирали записи каждые пять
+    // секунд. С 30.09.2026 каждая смена настроения хранится всегда, и перебор
+    // мигал бы у всех, поэтому его нет: историю дня показывает лист дня (две
+    // дорожки, DayMoodLanes). _currentIndex=0 → build берёт entries[0].
+    _timer?.cancel();
+    _timer = null;
+    _currentIndex = 0;
   }
 
   @override

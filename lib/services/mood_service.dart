@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../models/mood_entry.dart';
 import '../models/pair_data.dart';
 import 'mood_repository.dart';
@@ -20,14 +19,11 @@ class MoodService extends ChangeNotifier {
 
   String? get _uid => PocketBaseService().userId;
 
-  // ── Настройка: несколько настроений в день ───────────────────────────────
-  // false (по умолчанию) — одно настроение в день: setMoodForToday/ForDate
-  // удаляют прежние записи дня перед добавлением. true — каждое настроение
-  // сохраняется отдельной записью (как было в ранних версиях).
-  static const String _kMultiplePerDayKey = 'mood_allow_multiple_per_day';
-  bool _settingsLoaded = false;
-  bool _allowMultiplePerDay = false;
-  bool get allowMultipleMoodsPerDay => _allowMultiplePerDay;
+  // Каждая смена настроения за сегодня хранится отдельной записью: из них
+  // лист дня собирает историю (две дорожки). До 30.09.2026 это решал
+  // переключатель «Несколько настроений в день», выключенный по умолчанию, и
+  // у большинства новая отметка стирала прежнюю. Календарь, статистика и
+  // виджет берут последнюю запись дня — см. [MoodEntry.latestPerDay].
 
   String _groupId = '';
   String get groupId => _groupId;
@@ -47,26 +43,6 @@ class MoodService extends ChangeNotifier {
     _widgetService = widgetService;
   }
 
-  /// Загружает настройки из SharedPreferences (идемпотентно).
-  Future<void> loadSettings() async {
-    if (_settingsLoaded) return;
-    _settingsLoaded = true;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      _allowMultiplePerDay = prefs.getBool(_kMultiplePerDayKey) ?? false;
-    } catch (_) {}
-    notifyListeners();
-  }
-
-  Future<void> setAllowMultipleMoodsPerDay(bool value) async {
-    _settingsLoaded = true;
-    _allowMultiplePerDay = value;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_kMultiplePerDayKey, value);
-    } catch (_) {}
-    notifyListeners();
-  }
 
   // ── Состояние (источник правды — live-стримы PB) ─────────────────────────
   /// Мои записи настроений (плоский отсортированный список — публичный API).
@@ -100,7 +76,6 @@ class MoodService extends ChangeNotifier {
 
   /// Привязаться к группе и начать слушать.
   void bindToGroup(String groupId) {
-    loadSettings();
     if (groupId == _groupId && groupId.isNotEmpty) return;
     unbindFromGroup(notify: false);
     _groupId = groupId;
@@ -175,32 +150,23 @@ class MoodService extends ChangeNotifier {
   }
 
   /// Установить настроение на сегодня атомарно во всех источниках.
-  /// Удаляет старые записи за сегодня (чтобы mini_mood_calendar не циклил
-  /// между старыми и новыми эмодзи), пишет новую запись в календарь,
-  /// обновляет group memberMoods и widgetData. Единая точка входа для всех
-  /// пикеров — гарантирует согласованность header/calendar/widget.
+  /// Прежние записи за сегодня остаются: это история дня. Новая запись идёт
+  /// в календарь, затем в group memberMoods и widgetData. Единая точка входа
+  /// для всех пикеров — гарантирует согласованность header/calendar/widget.
   Future<void> setMoodForToday({
     required String moodId,
     required String imagePath,
     required String label,
   }) async {
     if (_groupId.isEmpty) return;
-    final today = DateTime.now();
 
-    // 1. В одиночном режиме удаляем все существующие записи на сегодня. В
-    // мультирежиме записи дня сохраняются, новое добавляется отдельной записью.
-    if (!_allowMultiplePerDay) {
-      final existing = myEntriesForDay(today);
-      await Future.wait(existing.map((e) => _repo.delete(e.id)));
-    }
-
-    // 2. Календарь — каноничный источник.
+    // 1. Календарь — каноничный источник.
     await addMood(moodId: moodId, imagePath: imagePath, label: label);
 
-    // 3. Group memberMoods — для шапки и партнёра.
+    // 2. Group memberMoods — для шапки и партнёра.
     await _pairData?.setMood(imagePath, label);
 
-    // 4. WidgetData — для нативного виджета. skipCalendar: уже добавили выше.
+    // 3. WidgetData — для нативного виджета. skipCalendar: уже добавили выше.
     await _widgetService?.updateMood(imagePath, label, skipCalendar: true);
   }
 
@@ -223,12 +189,11 @@ class MoodService extends ChangeNotifier {
       return;
     }
 
-    // Прошлая дата — только календарь. В одиночном режиме заменяем запись дня,
-    // в мультирежиме добавляем ещё одну.
-    if (!_allowMultiplePerDay) {
-      final existing = myEntriesForDay(date);
-      await Future.wait(existing.map((e) => _repo.delete(e.id)));
-    }
+    // Прошлая дата — только календарь, и это поправка задним числом, а не
+    // смена настроения: запись дня заменяется. Время у неё текущее, а не то,
+    // когда настроение было, поэтому в истории дня ей не место.
+    final existing = myEntriesForDay(date);
+    await Future.wait(existing.map((e) => _repo.delete(e.id)));
     await addMood(
       moodId: moodId,
       imagePath: imagePath,
@@ -315,10 +280,11 @@ class MoodService extends ChangeNotifier {
     return map;
   }
 
-  /// Статистика за период: {moodId: count}
+  /// Статистика за период: {moodId: число дней}. День считается одним
+  /// настроением — последним за день, сколько бы раз его ни меняли.
   Map<String, int> myStats({required DateTime from, required DateTime to}) {
     final counts = <String, int>{};
-    for (final e in _myEntries) {
+    for (final e in MoodEntry.latestPerDay(_myEntries)) {
       if (e.timestamp.isAfter(from) &&
           e.timestamp.isBefore(to.add(const Duration(days: 1)))) {
         counts[e.moodId] = (counts[e.moodId] ?? 0) + 1;
@@ -332,7 +298,7 @@ class MoodService extends ChangeNotifier {
     required DateTime from,
     required DateTime to,
   }) {
-    final entries = _partnerEntries[uid] ?? [];
+    final entries = MoodEntry.latestPerDay(_partnerEntries[uid] ?? const []);
     final counts = <String, int>{};
     for (final e in entries) {
       if (e.timestamp.isAfter(from) &&

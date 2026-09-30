@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../models/mood_entry.dart' show MoodGenders;
+import '../../../models/mood_entry.dart' show MoodEntry, MoodGenders;
+import '../../../widgets/mood/day_mood_lanes.dart';
 import '../../../models/cycle_entry.dart';
 import '../../../models/pair_data.dart';
 import '../../../models/user_data.dart';
@@ -229,68 +230,100 @@ class _DayLogSheetState extends State<_DayLogSheet> {
   @override
   Widget build(BuildContext context) {
     final showCycle = CycleService.availableFor(widget.userData);
+    final lanes = _lanes();
+    // Прокрутка нужна дорожкам: день с десятком смен настроения выше экрана.
     return SheetScaffold(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _s.dayLogDate(widget.day),
-                  style: TextStyle(
-                    fontFamily: 'Unbounded',
-                    fontSize: 21,
-                    fontWeight: FontWeight.w700,
-                    fontVariations: const [FontVariation('wght', 700)],
-                    letterSpacing: -0.4,
-                    color: _cs.onSurface,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _s.dayLogDate(widget.day),
+                    style: TextStyle(
+                      fontFamily: 'Unbounded',
+                      fontSize: 21,
+                      fontWeight: FontWeight.w700,
+                      fontVariations: const [FontVariation('wght', 700)],
+                      letterSpacing: -0.4,
+                      color: _cs.onSurface,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  '${_s.dayLogWeekday(widget.day)} · ${_s.dayLogWhat}',
-                  style: TextStyle(
-                    fontFamily: 'Onest',
-                    fontSize: 13.5,
-                    color: _cs.onSurfaceVariant,
+                  const SizedBox(height: 3),
+                  Text(
+                    '${_s.dayLogWeekday(widget.day)} · ${_s.dayLogWhat}',
+                    style: TextStyle(
+                      fontFamily: 'Onest',
+                      fontSize: 13.5,
+                      color: _cs.onSurfaceVariant,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 14),
-          _LogCard(
-            icon: Icons.sentiment_satisfied_rounded,
-            title: _s.moodTabLabel,
-            value: _moodValue,
-            background: _cs.primaryContainer,
-            foreground: _cs.onPrimaryContainer,
-            onTap: _openMood,
-          ),
-          _LogCard(
-            icon: Icons.monitor_heart_rounded,
-            title: _s.ailmentTabLabel,
-            value: _ailmentValue,
-            background: _cs.secondaryContainer,
-            foreground: _cs.onSecondaryContainer,
-            enabled: _isToday,
-            onTap: _openAilment,
-          ),
-          if (showCycle)
+            const SizedBox(height: 14),
+            if (lanes != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                child: lanes,
+              ),
             _LogCard(
-              icon: Icons.autorenew_rounded,
-              title: _s.cycleTitle,
-              value: _cycleValue,
-              background: _cs.errorContainer,
-              foreground: _cs.onErrorContainer,
-              onTap: _openCycle,
+              icon: Icons.sentiment_satisfied_rounded,
+              title: _s.moodTabLabel,
+              value: _moodValue,
+              background: _cs.primaryContainer,
+              foreground: _cs.onPrimaryContainer,
+              onTap: _openMood,
             ),
-        ],
+            _LogCard(
+              icon: Icons.monitor_heart_rounded,
+              title: _s.ailmentTabLabel,
+              value: _ailmentValue,
+              background: _cs.secondaryContainer,
+              foreground: _cs.onSecondaryContainer,
+              enabled: _isToday,
+              onTap: _openAilment,
+            ),
+            if (showCycle)
+              _LogCard(
+                icon: Icons.autorenew_rounded,
+                title: _s.cycleTitle,
+                value: _cycleValue,
+                background: _cs.errorContainer,
+                foreground: _cs.onErrorContainer,
+                onTap: _openCycle,
+              ),
+          ],
+        ),
       ),
+    );
+  }
+
+  /// История дня двумя дорожками: вы и партнёр. Нет отметок ни у кого —
+  /// блока нет, лист выглядит как раньше.
+  Widget? _lanes() {
+    final pair = widget.pairData;
+    final mine = widget.moodService.myEntriesForDay(widget.day);
+    final theirs = pair.partnerUid.isEmpty
+        ? const <MoodEntry>[]
+        : widget.moodService.partnerEntriesForDay(pair.partnerUid, widget.day);
+    if (mine.isEmpty && theirs.isEmpty) return null;
+    return DayMoodLanes(
+      mine: mine,
+      theirs: theirs,
+      myName: widget.userData?.displayName ?? '',
+      partnerName: pair.partnerDisplayName,
+      myUid: widget.userData?.uid ?? '',
+      partnerUid: pair.partnerUid,
+      myAvatarUrl: widget.userData?.avatarUrl,
+      partnerAvatarUrl: pair.partnerAvatarUrl,
+      myGender: MoodGenders.mine,
+      partnerGender: widget.widgetService.firstPartnerData?.gender ?? '',
     );
   }
 }

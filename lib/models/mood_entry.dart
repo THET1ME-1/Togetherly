@@ -704,6 +704,22 @@ class MoodEntry {
     final d = authorDate.day.toString().padLeft(2, '0');
     return '$y-$m-$d';
   }
+
+  /// По одной записи на день — последней по времени, новые дни сверху.
+  ///
+  /// С 30.09.2026 каждая смена настроения хранится (история дня в листе дня),
+  /// а календарь, статистика и графики по-прежнему считают день одним
+  /// настроением. Без этого человек, сменивший настроение пять раз, весил бы в
+  /// «самом частом» и в среднем впятеро больше того, кто отметился однажды.
+  static List<MoodEntry> latestPerDay(Iterable<MoodEntry> entries) {
+    final byDay = <String, MoodEntry>{};
+    for (final e in entries) {
+      final cur = byDay[e.dayKey];
+      if (cur == null || e.timestamp.isAfter(cur.timestamp)) byDay[e.dayKey] = e;
+    }
+    return byDay.values.toList()
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+  }
 }
 
 /// Пол для подписей настроений (19.09.2026).

@@ -24,6 +24,8 @@ import '../services/mood_service.dart';
 import '../services/widget_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/profile_theme.dart';
+import '../widgets/app_sheet.dart';
+import '../widgets/mood/day_mood_lanes.dart';
 import '../theme/cycle_colors.dart';
 import '../utils/cycle_math.dart';
 import '../widgets/cycle/cycle_tips_strip.dart';
@@ -105,7 +107,6 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
     final now = DateTime.now();
     _calAnchor = DateTime(now.year, now.month, now.day);
     _mood.addListener(_onChanged);
-    _mood.loadSettings();
     // Отметки цикла рисуются прямо в сетке настроений, поэтому экран следит и
     // за ними: поставленная в листе менструация красит ячейку сразу.
     _cycle.addListener(_onChanged);
@@ -162,76 +163,6 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
 
   void _onChanged() {
     if (mounted) setState(() {});
-  }
-
-  void _showMoodSettings() {
-    final s = LocaleService.current;
-    final primary = widget.theme.primary;
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: widget.theme.cardSurface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: widget.theme.divider,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                s.moodSettings,
-                style: AppFonts.onest(size: 18, weight: 800, color: widget.theme.textPrimary),
-              ),
-              const SizedBox(height: 16),
-              StatefulBuilder(
-                builder: (ctx, setSheetState) => Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            s.moodMultiplePerDay,
-                            style: AppFonts.onest(size: 14, weight: 600, color: widget.theme.textPrimary),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            s.moodMultiplePerDaySubtitle,
-                            style: AppFonts.onest(size: 12, color: widget.theme.textMuted),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Switch.adaptive(
-                      value: _mood.allowMultipleMoodsPerDay,
-                      activeColor: primary,
-                      onChanged: (v) {
-                        _mood.setAllowMultipleMoodsPerDay(v);
-                        setSheetState(() {});
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   // ── Период (для статистики) ──
@@ -332,11 +263,6 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
                         (_calendarScale + 0.15).clamp(0.7, 1.5))
                     : null,
                 tooltip: LocaleService.current.zoomIn,
-              ),
-              IconButton(
-                icon: const Icon(Icons.tune_rounded, size: 22),
-                onPressed: _showMoodSettings,
-                tooltip: LocaleService.current.moodSettings,
               ),
             ],
           ),
@@ -918,7 +844,9 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
         if (stats.isNotEmpty)
           MoodRingStats(counts: stats, scheme: Theme.of(context).colorScheme),
         const SizedBox(height: 16),
-        if (entries.isNotEmpty) _buildAnalytics(scheme, entries),
+        // Аналитика считает день одним настроением — последним за день.
+        if (entries.isNotEmpty)
+          _buildAnalytics(scheme, MoodEntry.latestPerDay(entries)),
         if (!isPartner && CycleService.unlockedFor(widget.userData))
           _buildCycleBlock(scheme),
         // Цикл партнёрши: только когда она делится отметками и их хватило на
@@ -1295,7 +1223,7 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
     return GestureDetector(
       onTap: () {
         if (isPartner) {
-          if (hasMood) _showDayDetail(day, moods, isPartner: true);
+          if (hasMood) _showDayLanes(day, moods);
           return;
         }
         if (isFuture) return;
@@ -1838,6 +1766,47 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
   // ═══════════════════════════════════════════
   //  ДЕТАЛИ ДНЯ
   // ═══════════════════════════════════════════
+
+  /// День в календаре партнёра: история дня обоих двумя дорожками. Раньше
+  /// здесь был список одних его отметок, а свои приходилось искать долгим
+  /// нажатием в своём календаре.
+  void _showDayLanes(DateTime day, List<MoodEntry> theirs) {
+    // В группе партнёров бывает несколько: берём того, чьи это записи.
+    final owner = _pair.partners.firstWhere(
+      (p) => _mood
+          .partnerEntriesForDay(p.uid, day)
+          .any((e) => theirs.any((t) => t.id == e.id)),
+      orElse: () => _pair.partners.first,
+    );
+    final cs = ProfileTheme.schemeFor(widget.theme);
+    showAppSheet<void>(
+      context,
+      background: cs.surfaceContainerLow,
+      builder: (_) => Theme(
+        data: ProfileTheme.data(cs),
+        child: SheetScaffold(
+          title: LocaleService.current.dayLogDate(day),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: DayMoodLanes(
+              mine: _mood.myEntriesForDay(day),
+              theirs: theirs,
+              myName: widget.userData?.displayName ?? '',
+              partnerName: owner.name,
+              myUid: widget.userData?.uid ?? '',
+              partnerUid: owner.uid,
+              myAvatarUrl: widget.userData?.avatarUrl,
+              partnerAvatarUrl: owner.avatar,
+              myGender: MoodGenders.mine,
+              partnerGender: owner.uid == _pair.partnerUid
+                  ? (_ws.firstPartnerData?.gender ?? '')
+                  : '',
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   void _showDayDetail(
     DateTime day,

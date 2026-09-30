@@ -747,9 +747,6 @@ abstract class AppStrings {
 
   // ── Mood Calendar Screen ──
   String get moodCalendarTitle;
-  String get moodSettings;
-  String get moodMultiplePerDay;
-  String get moodMultiplePerDaySubtitle;
   String get zoomIn;
   String get zoomOut;
   String get week;
