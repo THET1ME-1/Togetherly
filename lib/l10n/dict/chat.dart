@@ -6,6 +6,15 @@
 // на экране не бывает.
 
 const Map<String, Map<String, String>> chatStrings = {
+  'chatDrawingTitle': {
+    'ru': 'Рисунок',
+    'en': 'Drawing',
+    'pt': 'Desenho',
+    'it': 'Disegno',
+    'es': 'Dibujo',
+    'fr': 'Dessin',
+    'de': 'Zeichnung',
+  },
   'chatTitle': {
     'ru': 'Чат',
     'en': 'Chat',

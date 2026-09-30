@@ -40,6 +40,8 @@ import '../widgets/avatar_widget.dart';
 import '../widgets/chat/send_mic_button.dart';
 import '../dict_strings.dart' show trKey;
 import '../widgets/chat/voice_bubble.dart';
+import '../widgets/chat/chat_drawing_card.dart';
+import '../models/chat_drawing.dart';
 import '../widgets/chat/bubble_looks.dart';
 import '../widgets/chat/chat_look_sheet.dart';
 import '../widgets/chat/reaction_art.dart';
@@ -3083,8 +3085,21 @@ class _ChatScreenState extends State<ChatScreen> {
             : CrossAxisAlignment.start,
         children: [
           if (msg.replyToId != null) _buildReplyQuote(msg, isMine, fg),
-          if (msg.pinId != null) _buildPinChip(msg, isMine, fg),
-          if (msg.text.isNotEmpty)
+          if (isChatDrawing(msg.pinId))
+            ChatDrawingCard(
+              imageUrl: msg.pinThumb ?? '',
+              title: msg.pinTitle ?? trKey('chatDrawingTitle'),
+              foreground: fg,
+              onTap: () {
+                final url = msg.pinThumb ?? '';
+                if (url.isEmpty) return;
+                openWidgetPhotoView(context,
+                    imageUrl: url, authorName: msg.name);
+              },
+            )
+          else if (msg.pinId != null)
+            _buildPinChip(msg, isMine, fg),
+          if (showsChatText(pinId: msg.pinId, text: msg.text))
             MdMessageText(
               msg.text,
               style: TextStyle(color: fg, fontSize: 15, height: 1.25),

@@ -50,6 +50,8 @@ import '../services/pb_data_service.dart';
 import '../services/offline/outbox_service.dart';
 import '../services/media_service.dart';
 import '../services/locale_service.dart';
+import '../services/chat_service.dart';
+import '../dict_strings.dart';
 import '../services/pocketbase_service.dart';
 import '../services/rewarded_ad_service.dart';
 import '../utils/canvas_pinch.dart';
@@ -3012,6 +3014,48 @@ class _DrawScreenState extends State<DrawScreen>
     }
   }
 
+  /// Отправить рисунок партнёру в чат: снимок холста уходит карточкой.
+  Future<void> _sendToChat() async {
+    if (_saving || _groupId.isEmpty) return;
+    setState(() => _saving = true);
+    var ok = false;
+    try {
+      final boundary =
+          _canvasKey.currentContext?.findRenderObject()
+              as RenderRepaintBoundary?;
+      if (boundary != null) {
+        // 2x хватает для карточки и полного экрана, а файл вдвое легче, чем
+        // у «Поделиться» (там 2.5x на печать).
+        final image = await boundary.toImage(pixelRatio: 2);
+        final byteData =
+            await image.toByteData(format: ui.ImageByteFormat.png);
+        if (byteData != null) {
+          final dir = await getTemporaryDirectory();
+          final file = File(
+              '${dir.path}/chat_drawing_${DateTime.now().millisecondsSinceEpoch}.png');
+          await file.writeAsBytes(byteData.buffer.asUint8List(), flush: true);
+          ok = await ChatService.instance.sendDrawing(
+            groupId: _groupId,
+            senderName: widget.userData.displayName,
+            canvasId: widget.canvasId,
+            canvasName: widget.canvasName ?? trKey('chatDrawingTitle'),
+            pngPath: file.path,
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('[Draw] send to chat error: $e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+    if (ok) {
+      _showMessage(trKey('drawSentToChat'));
+    } else {
+      _showMessage(trKey('drawSendToChatFailed'),
+          backgroundColor: Colors.red.shade700);
+    }
+  }
+
   //  Bottom sheet pickers
 
   /// Лист палитры: готовые цвета, недавние и вход в полный пикер.
@@ -3886,6 +3930,8 @@ class _DrawScreenState extends State<DrawScreen>
       icon: Icon(Icons.more_horiz_rounded, size: 21, color: t.textPrimary),
       onSelected: (value) {
         switch (value) {
+          case 'send-to-chat':
+            _sendToChat();
           case 'background':
             _openBackgroundSheet();
           case 'palm':
@@ -3901,6 +3947,19 @@ class _DrawScreenState extends State<DrawScreen>
         }
       },
       itemBuilder: (ctx) => [
+        // Первым: о нём просили в отзыве, и из холста это самое частое
+        // действие после «Поделиться».
+        if (_groupId.isNotEmpty)
+          PopupMenuItem(
+            value: 'send-to-chat',
+            child: Row(
+              children: [
+                const Icon(Icons.send_rounded, size: 20),
+                const SizedBox(width: 12),
+                Text(trKey('drawSendToChat')),
+              ],
+            ),
+          ),
         PopupMenuItem(
           value: 'replay',
           child: Row(

@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/chat_drawing.dart';
 import '../models/chat_msg.dart';
 import '../models/shape_note.dart';
 import '../models/voice_note.dart';
@@ -16,6 +17,7 @@ import 'offline/local_store.dart';
 import 'offline/outbox_service.dart';
 import 'offline/pb_id.dart';
 import 'centrifugo_service.dart';
+import 'media_service.dart';
 import 'pb_data_service.dart';
 import 'pb_realtime_service.dart';
 import 'pocketbase_service.dart';
@@ -131,6 +133,36 @@ class ChatService {
     });
     // Пуш партнёру — через PbPushService (SSE на chat_messages при отправке очереди).
     return true; // оптимистично: сообщение в кэше и очереди
+  }
+
+  /// Отправить рисунок: снимок холста [pngPath] заливается в хранилище, а в
+  /// чат уходит сообщение с пином рисунка (см. `chat_drawing.dart`).
+  ///
+  /// Заливка идёт сразу, а не очередью: без файла на сервере партнёр увидит
+  /// пустую карточку. Не залилось или легло только на телефон
+  /// (`localfile://`) — возвращаем false, и холст скажет «не отправилось».
+  Future<bool> sendDrawing({
+    required String groupId,
+    required String senderName,
+    required String canvasId,
+    required String canvasName,
+    required String pngPath,
+  }) async {
+    if (groupId.isEmpty || _uid.isEmpty) return false;
+    final outcome = await MediaService().uploadFileWithReason(
+      pngPath,
+      'chat_drawings/$groupId/${DateTime.now().millisecondsSinceEpoch}.png',
+    );
+    final ref = outcome.ref;
+    if (ref == null || ref.startsWith('localfile://')) return false;
+    return send(
+      groupId: groupId,
+      senderName: senderName,
+      text: kChatDrawingText,
+      pinId: chatDrawingPinId(canvasId),
+      pinTitle: canvasName,
+      pinThumb: ref,
+    );
   }
 
   /// Отправить голосовое. [capture] — то, что вернул [VoiceRecorderService].
