@@ -106,6 +106,7 @@ import '../widgets/memory/media_strip.dart';
 import '../widgets/memory/reactions_row.dart';
 import '../models/memory_reaction.dart';
 import '../services/live_location_service.dart';
+import '../widgets/common/keyboard_aware.dart';
 
 // Экран разбит на части (один большой файл → читаемые модули). Все части —
 // `part of` этой библиотеки: приватные классы остаются библиотечно-приватными,

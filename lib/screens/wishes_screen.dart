@@ -19,6 +19,7 @@ import '../widgets/common/app_dialog.dart';
 import '../widgets/common/stable_stream_builder.dart';
 import '../widgets/storage_image.dart';
 import '../widgets/wishes/wish_category_sheet.dart';
+import '../widgets/wishes/wish_details_sheet.dart';
 import '../widgets/wishes/wish_form_sheet.dart';
 import 'plus_screen.dart';
 
@@ -427,11 +428,19 @@ class _WishesScreenState extends State<WishesScreen> {
                                   authorName: _nameOf(wish.authorUid),
                                   authorAvatarUrl: _avatarOf(wish.authorUid),
                                   onToggle: () => _toggle(wish),
+                                  // Чужое не правим, но читать его надо
+                                  // целиком: в списке описание в одну строку.
                                   onTap: wish.done
                                       ? () => _editDoneNote(wish)
                                       : mine
                                           ? () => _edit(wish)
-                                          : null,
+                                          : () => showWishDetailsSheet(
+                                                context,
+                                                theme: widget.theme,
+                                                wish: wish,
+                                                authorName:
+                                                    _nameOf(wish.authorUid),
+                                              ),
                                   onLongPress:
                                       mine ? () => _remove(wish) : null,
                                   onEditDate: wish.done

@@ -153,76 +153,85 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
         ),
       );
     }
+    // Спрашиваем здесь, снаружи подъёма: под ним клавиатуры уже не видно.
+    final typing = keyboardOpen(context);
+    // Лист сам над клавиатурой не поднимается: поле комментария оставалось
+    // под ней, и человек писал вслепую (отзыв из Play 02.09.2026).
     return Theme(
       data: ProfileTheme.data(cs),
-      child: DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: _hasHero ? 0.92 : 0.8,
-        maxChildSize: 0.96,
-        builder: (_, sc) => LayoutBuilder(
-          builder: (context, box) {
-            final heroHeight = _hasHero ? box.maxHeight * 0.46 : 0.0;
-            return ColoredBox(
-              color: cs.surface,
-              child: Stack(
-                children: [
-                  if (_hasHero)
+      child: LiftAboveKeyboard(
+        child: DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: _hasHero ? 0.92 : 0.8,
+          maxChildSize: 0.96,
+          builder: (_, sc) => LayoutBuilder(
+            builder: (context, box) {
+              final heroHeight = _hasHero ? box.maxHeight * 0.46 : 0.0;
+              return ColoredBox(
+                color: cs.surface,
+                child: Stack(
+                  children: [
+                    if (_hasHero)
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        height: heroHeight + 26,
+                        child: RepaintBoundary(
+                          child: _buildHero(memory, cs),
+                        ),
+                      ),
                     Positioned(
-                      top: 0,
+                      top: _hasHero ? heroHeight : 0,
                       left: 0,
                       right: 0,
-                      height: heroHeight + 26,
-                      child: RepaintBoundary(
-                        child: _buildHero(memory, cs),
+                      bottom: 0,
+                      child: _buildSheetBody(memory, cs, sc),
+                    ),
+                    // Кнопки поверх кадра: подложка нужна, чтобы они читались
+                    // и на светлой фотографии, и на тёмной.
+                    Positioned(
+                      top: 12,
+                      left: 12,
+                      child: _circleOverlay(
+                        cs,
+                        icon: Icons.arrow_back_rounded,
+                        onTap: () => Navigator.pop(context),
+                        glass: _hasHero,
                       ),
                     ),
-                  Positioned(
-                    top: _hasHero ? heroHeight : 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: _buildSheetBody(memory, cs, sc),
-                  ),
-                  // Кнопки поверх кадра: подложка нужна, чтобы они читались и
-                  // на светлой фотографии, и на тёмной.
-                  Positioned(
-                    top: 12,
-                    left: 12,
-                    child: _circleOverlay(
-                      cs,
-                      icon: Icons.arrow_back_rounded,
-                      onTap: () => Navigator.pop(context),
-                      glass: _hasHero,
-                    ),
-                  ),
-                  Positioned(
-                    top: 12,
-                    right: 12,
-                    child: Row(
-                      children: [
-                        _typePill(memory, cs, glass: _hasHero),
-                        if (_menuActions(memory).isNotEmpty) ...[
-                          const SizedBox(width: 8),
-                          _circleOverlay(
-                            cs,
-                            icon: Icons.more_vert_rounded,
-                            onTap: () => _showMoreMenu(memory, cs),
-                            glass: _hasHero,
-                          ),
+                    Positioned(
+                      top: 12,
+                      right: 12,
+                      child: Row(
+                        children: [
+                          _typePill(memory, cs, glass: _hasHero),
+                          if (_menuActions(memory).isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            _circleOverlay(
+                              cs,
+                              icon: Icons.more_vert_rounded,
+                              onTap: () => _showMoreMenu(memory, cs),
+                              glass: _hasHero,
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
-                  ),
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: _buildActionBar(memory, cs),
-                  ),
-                ],
-              ),
-            );
-          },
+                    // Пока идёт набор, панель уходит: иначе она ложится
+                    // поверх поля комментария.
+                    if (!typing)
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: _buildActionBar(memory, cs),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
         ),
       ),
     );
@@ -293,7 +302,11 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
               ),
             ],
           ),
-          Positioned(left: 0, right: 0, bottom: 0, child: _momentDock(memory, cs)),
+          // Контекст экрана лежит выше Scaffold и видит клавиатуру. Пока
+          // идёт набор, тулбар уходит, иначе он закрывает поле комментария.
+          if (!keyboardOpen(context))
+            Positioned(
+                left: 0, right: 0, bottom: 0, child: _momentDock(memory, cs)),
         ],
       ),
     );
