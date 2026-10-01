@@ -366,8 +366,19 @@ routerAdd("POST", "/api/gifts/react", (e) => {
       if (gift.getString("gift_key") === "salute") {
         // Воспоминания живут в hotpath (Postgres) с 14.08.2026 — коллекции
         // `memories` в этой базе больше нет, запись идёт служебным роутом.
+        // Автор обязан лежать и в `data`: приложение читает его оттуда, а не
+        // из колонки. Без него запись показывалась от «?», удалить её не мог
+        // никто, а первая же реакция затирала и колонку (обращение 219).
         try {
           const nowIso = new Date(now).toISOString();
+          const senderUid = gift.getString("sender_uid");
+          let senderName = "";
+          let senderAvatar = "";
+          try {
+            const s = txApp.findRecordById("users", senderUid);
+            senderName = s.getString("display_name") || s.getString("name");
+            senderAvatar = s.getString("avatar_url");
+          } catch (_) {}
           $http.send({
             url: "http://127.0.0.1:8120/internal/record",
             method: "POST",
@@ -375,7 +386,9 @@ routerAdd("POST", "/api/gifts/react", (e) => {
             body: JSON.stringify({
               collection: "memories",
               group_id: gift.getString("group_id"),
-              author_uid: gift.getString("sender_uid"),
+              author_uid: senderUid,
+              author_name: senderName,
+              author_avatar: senderAvatar,
               type: "gift",
               created_at: nowIso,
               data: JSON.stringify({
@@ -383,6 +396,9 @@ routerAdd("POST", "/api/gifts/react", (e) => {
                 giftKey: "salute",
                 title: "Салют",
                 createdAt: nowIso,
+                authorUid: senderUid,
+                authorName: senderName,
+                authorAvatar: senderAvatar,
               }),
             }),
             timeout: 5,

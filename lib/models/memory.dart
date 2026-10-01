@@ -390,6 +390,17 @@ class Memory {
             ? Map<String, dynamic>.from(jsonDecode(raw) as Map)
             : <String, dynamic>{});
     map['id'] = rec.id;
+    // Автор живёт и в колонках: запись, заведённую сервером (салют из
+    // подарков), без автора в json показывали от «?» и не давали удалить.
+    for (final (key, col) in const [
+      ('authorUid', 'author_uid'),
+      ('authorName', 'author_name'),
+      ('authorAvatar', 'author_avatar'),
+    ]) {
+      final v = (map[key] ?? '').toString();
+      final c = (rec.data[col] ?? '').toString();
+      if (v.isEmpty && c.isNotEmpty) map[key] = c;
+    }
     map['createdAt'] ??= rec.data['created_at'];
     if (map['editedAt'] == null && rec.data['edited_at'] != null) {
       map['editedAt'] = rec.data['edited_at'];
