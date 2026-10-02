@@ -27,6 +27,31 @@ void main() {
       expect(l.shifted(HomeBlock.lane, 1).order, l.order);
     });
 
+    test('перетаскивание на главной не трогает спрятанных', () {
+      // На экране: сундук, маскоты, задания, лента (карта спрятана,
+      // желания выключены с сервера).
+      final l = const HomeLayout().withBlock(HomeBlock.map, shown: false);
+      final shown = [
+        HomeBlock.chest, HomeBlock.mascot, HomeBlock.tasks, HomeBlock.lane,
+      ];
+      // Ленту наверх.
+      final up = l.dragged(shown, 3, 0);
+      expect(up.order.first, HomeBlock.lane);
+      expect(up.hiddenBlocks, {HomeBlock.map});
+      // Сундук вниз в самый конец (to = длина, как у onReorder).
+      final down = l.dragged(shown, 0, 4);
+      expect(down.order.last, HomeBlock.chest);
+      // Маскоты за задания: карта осталась между сундуком и заданиями.
+      final mid = l.dragged(shown, 1, 3);
+      expect(mid.order, [
+        HomeBlock.chest, HomeBlock.map, HomeBlock.tasks, HomeBlock.wishes,
+        HomeBlock.mascot, HomeBlock.lane,
+      ]);
+      // Отпустили на месте — ничего не изменилось.
+      expect(l.dragged(shown, 2, 2).order, l.order);
+      expect(l.dragged(shown, 2, 3).order, l.order);
+    });
+
     test('перестановка как у ReorderableListView', () {
       final l = const HomeLayout().moved(0, 5);
       expect(l.order.last, HomeBlock.chest);

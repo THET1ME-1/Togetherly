@@ -72,6 +72,28 @@ class HomeLayout {
     return HomeLayout(order: list, hiddenBlocks: hiddenBlocks, hiddenTabs: hiddenTabs);
   }
 
+  /// Перетаскивание на главной: [shown] — блоки, которые сейчас на экране,
+  /// [from] и [to] — индексы в нём, как их отдаёт `onReorder` (то есть [to]
+  /// ещё до удаления перетаскиваемого). Спрятанные и не показанные сейчас
+  /// блоки (желания выключены с сервера, нет пары) остаются на своих местах
+  /// относительно соседей: блок встаёт перед тем, кто оказался за ним.
+  HomeLayout dragged(List<HomeBlock> shown, int from, int to) {
+    if (from < 0 || from >= shown.length) return this;
+    final target = to > from ? to - 1 : to;
+    if (target == from) return this;
+    final b = shown[from];
+    final next = [...shown]..removeAt(from);
+    next.insert(target.clamp(0, next.length), b);
+    final pos = next.indexOf(b);
+    final list = [...order]..remove(b);
+    if (pos + 1 < next.length) {
+      list.insert(list.indexOf(next[pos + 1]), b);
+    } else {
+      list.insert(list.indexOf(next[pos - 1]) + 1, b);
+    }
+    return HomeLayout(order: list, hiddenBlocks: hiddenBlocks, hiddenTabs: hiddenTabs);
+  }
+
   /// Сдвиг блока на шаг вверх ([delta] = -1) или вниз (+1) среди ВИДИМЫХ:
   /// спрятанные соседи не должны съедать нажатие «Выше».
   HomeLayout shifted(HomeBlock b, int delta) {

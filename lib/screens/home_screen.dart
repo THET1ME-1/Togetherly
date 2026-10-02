@@ -1767,12 +1767,14 @@ class _HomeScreenState extends State<HomeScreen> {
         myBirthDate != null &&
         CelebrationNotificationService.isToday(myBirthDate);
 
-    return SingleChildScrollView(
+    // Список, а не SingleChildScrollView: блоки ниже ряда действий лежат в
+    // SliverReorderableList, и при перетаскивании блока к краю экрана
+    // прокручивается вся главная, а не невидимый внутренний список.
+    return CustomScrollView(
       physics: const BouncingScrollPhysics(),
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).padding.bottom + 100,
-      ),
-      child: Column(
+      slivers: [
+        SliverToBoxAdapter(
+          child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── Баннер праздника (если сегодня годовщина или ДР) ──
@@ -1870,10 +1872,16 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
-          ..._buildHomeBlocks(),
-          const SizedBox(height: 40),
         ],
-      ),
+          ),
+        ),
+        ..._buildHomeBlocks(),
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: 40 + MediaQuery.of(context).padding.bottom + 100,
+          ),
+        ),
+      ],
     );
   }
 
@@ -2065,25 +2073,75 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
         ];
-    final out = <Widget>[
-      if (prompt != null && !(paired && layout.showsBlock(HomeBlock.chest)))
-        promptBlock(),
-    ];
+    // Блоки, которые сейчас на экране, и их виджеты. Подсказка едет вместе с
+    // сундуком, события дня — вместе с лентой: перетаскивают блок, а не то,
+    // что к нему прицеплено.
+    final shown = <HomeBlock>[];
+    final items = <Widget>[];
     for (final b in layout.visibleBlocks) {
       final w = block(b);
       if (w == null) continue;
-      if (b == HomeBlock.lane) out.addAll(events());
-      out.add(GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onLongPress: () => showHomeBlockMenu(context, b),
-        child: w,
+      shown.add(b);
+      items.add(Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (b == HomeBlock.lane) ...events(),
+          w,
+          if (b == HomeBlock.chest && prompt != null) promptBlock(),
+        ],
       ));
-      if (b == HomeBlock.chest && prompt != null) out.add(promptBlock());
     }
-    if (!layout.showsBlock(HomeBlock.lane)) out.addAll(events());
-    // Кнопки «Настроить главную» на самой главной нет: полная раскладка живёт
-    // только в настройках (решение владельца 02.10.2026).
-    return out;
+    final plus = PlusService.instance.active;
+    final svc = HomeLayoutService.instance;
+
+    return [
+      if (prompt != null && !shown.contains(HomeBlock.chest))
+        SliverToBoxAdapter(child: promptBlock()),
+      // Долгое нажатие на блок поднимает его, дальше он едет за пальцем, а
+      // главная прокручивается сама у края. Только с Плюсом; без него долгое
+      // нажатие рассказывает, что так можно. Вложенные жесты (долгое нажатие
+      // на воспоминание в ленте) выигрывают, поэтому блок берут за пустое
+      // место. Кнопок «Выше/Ниже» нет — владелец 02.10.2026: «нормальное
+      // перетаскивание, не кнопками».
+      SliverReorderableList(
+        itemCount: items.length,
+        onReorderStart: (_) => HapticFeedback.mediumImpact(),
+        onReorder: (from, to) =>
+            svc.update(svc.saved.dragged(shown, from, to)),
+        proxyDecorator: (child, _, anim) => AnimatedBuilder(
+          animation: anim,
+          builder: (context, child) => Transform.scale(
+            scale: 1 + 0.03 * Curves.easeOut.transform(anim.value),
+            child: child,
+          ),
+          child: Material(color: Colors.transparent, child: child),
+        ),
+        itemBuilder: (context, i) {
+          final b = shown[i];
+          return plus
+              ? ReorderableDelayedDragStartListener(
+                  key: ValueKey(b),
+                  index: i,
+                  child: items[i],
+                )
+              : GestureDetector(
+                  key: ValueKey(b),
+                  behavior: HitTestBehavior.translucent,
+                  onLongPress: homeLayoutAvailable
+                      ? () => showHomeLayoutPlusPitch(context)
+                      : null,
+                  child: items[i],
+                );
+        },
+      ),
+      if (!shown.contains(HomeBlock.lane))
+        SliverToBoxAdapter(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: events(),
+          ),
+        ),
+    ];
   }
 
   Widget _buildMascotRow() {

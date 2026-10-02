@@ -18,8 +18,9 @@ import 'settings_scaffold.dart';
 ///   * [showHomeLayoutSheet] — лист со всем сразу: вкладки, блоки с ручкой для
 ///     перетаскивания и «Вернуть как было». Открывается только из настроек:
 ///     кнопку на главной владелец убрал (02.10.2026);
-///   * [showHomeBlockMenu] — долгое нажатие на блок главной: выше, ниже,
-///     скрыть.
+///   * долгое нажатие на блок главной поднимает его для перетаскивания
+///     (`_buildHomeBlocks` в `home_screen.dart`), без Плюса открывает
+///     [showHomeLayoutPlusPitch].
 ///
 /// Без Плюса всё видно, но тумблеры выключены, а первой строкой стоит вход в
 /// Togetherly+. Там, где Плюса не существует ([PlusService.visible] false и
@@ -339,111 +340,40 @@ class _HomeLayoutEditor extends StatelessWidget {
   }
 }
 
-/// Долгое нажатие на блок главной. С Плюсом — выше, ниже, скрыть и вход в
-/// полную раскладку; без него — то же меню под замком с входом в Плюс.
-Future<void> showHomeBlockMenu(BuildContext context, HomeBlock block) async {
-  if (!homeLayoutAvailable) return;
+/// Долгое нажатие на блок главной без Плюса: блок не поднимается, а лист
+/// говорит, что двигать и прятать блоки можно с Togetherly+. С Плюсом то же
+/// нажатие поднимает блок, и его перетаскивают пальцем (см. `_buildHomeBlocks`
+/// в `home_screen.dart`).
+Future<void> showHomeLayoutPlusPitch(BuildContext context) async {
+  if (!homeLayoutAvailable || PlusService.instance.active) return;
   HapticFeedback.mediumImpact();
   final cs = Theme.of(context).colorScheme;
-  final plus = PlusService.instance.active;
-  final svc = HomeLayoutService.instance;
-  final layout = svc.saved;
-  final visible = layout.visibleBlocks;
-  final i = visible.indexOf(block);
-  final messenger = ScaffoldMessenger.of(context);
-
-  final action = await showAppSheet<String>(
+  final open = await showAppSheet<bool>(
     context,
     background: cs.surface,
-    builder: (ctx) {
-      Widget row(String id, IconData icon, String title,
-          {bool enabled = true, int index = 0, int count = 1}) {
-        const outer = Radius.circular(SettingsGroup.outerRadius);
-        const inner = Radius.circular(SettingsGroup.innerRadius);
-        return Padding(
-          padding: EdgeInsets.only(top: index > 0 ? SettingsGroup.gap : 0),
+    builder: (ctx) => Theme(
+      data: ProfileTheme.data(cs),
+      child: SheetScaffold(
+        title: trKey('homeLayoutTitle'),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
           child: Material(
-            color: cs.surfaceContainerHigh,
-            borderRadius: BorderRadius.vertical(
-              top: index == 0 ? outer : inner,
-              bottom: index == count - 1 ? outer : inner,
-            ),
+            color: cs.primaryContainer,
+            borderRadius: BorderRadius.circular(SettingsGroup.outerRadius),
             clipBehavior: Clip.antiAlias,
-            child: Opacity(
-              opacity: enabled ? 1 : 0.45,
-              child: SettingsRow(
-                icon: icon,
-                title: title,
-                onTap: enabled ? () => Navigator.pop(ctx, id) : null,
-              ),
-            ),
-          ),
-        );
-      }
-
-      return Theme(
-        data: ProfileTheme.data(cs),
-        child: SheetScaffold(
-          title: homeBlockName(block),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (!plus) ...[
-                  Material(
-                    color: cs.primaryContainer,
-                    borderRadius:
-                        BorderRadius.circular(SettingsGroup.outerRadius),
-                    clipBehavior: Clip.antiAlias,
-                    child: SettingsRow(
-                      icon: Icons.workspace_premium_rounded,
-                      title: trKey('homeLayoutPlusOpen'),
-                      subtitle: trKey('homeLayoutPlusLock'),
-                      iconBg: cs.primary,
-                      iconFg: cs.onPrimary,
-                      trailing: const SettingsChevron(),
-                      onTap: () => Navigator.pop(ctx, 'plus'),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                row('up', Icons.arrow_upward_rounded, trKey('homeBlockUp'),
-                    enabled: plus && i > 0, index: 0, count: 3),
-                row('down', Icons.arrow_downward_rounded,
-                    trKey('homeBlockDown'),
-                    enabled: plus && i >= 0 && i < visible.length - 1,
-                    index: 1,
-                    count: 3),
-                row('hide', Icons.visibility_off_rounded,
-                    trKey('homeBlockHide'),
-                    enabled: plus, index: 2, count: 3),
-              ],
+            child: SettingsRow(
+              icon: Icons.workspace_premium_rounded,
+              title: trKey('homeLayoutPlusOpen'),
+              subtitle: trKey('homeLayoutPlusLock'),
+              iconBg: cs.primary,
+              iconFg: cs.onPrimary,
+              trailing: const SettingsChevron(),
+              onTap: () => Navigator.pop(ctx, true),
             ),
           ),
         ),
-      );
-    },
+      ),
+    ),
   );
-  if (action == null || !context.mounted) return;
-  switch (action) {
-    case 'plus':
-      await _openPlus(context);
-    case 'up':
-      svc.update(svc.saved.shifted(block, -1));
-    case 'down':
-      svc.update(svc.saved.shifted(block, 1));
-    case 'hide':
-      final before = svc.saved;
-      svc.update(before.withBlock(block, shown: false));
-      messenger.showSnackBar(SnackBar(
-        content: Text(trKey('homeBlockHidden')),
-        behavior: SnackBarBehavior.floating,
-        action: SnackBarAction(
-          label: trKey('homeBlockUndo'),
-          onPressed: () => svc.update(before),
-        ),
-      ));
-  }
+  if (open == true && context.mounted) await _openPlus(context);
 }
