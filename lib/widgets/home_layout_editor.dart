@@ -16,9 +16,10 @@ import 'settings_scaffold.dart';
 ///   * [HomeLayoutSettingsSection] — секция «Главный экран» в настройках:
 ///     тумблеры вкладок и блоков и строка «Порядок блоков»;
 ///   * [showHomeLayoutSheet] — лист со всем сразу: вкладки, блоки с ручкой для
-///     перетаскивания и «Вернуть как было»;
+///     перетаскивания и «Вернуть как было». Открывается только из настроек:
+///     кнопку на главной владелец убрал (02.10.2026);
 ///   * [showHomeBlockMenu] — долгое нажатие на блок главной: выше, ниже,
-///     скрыть, настроить.
+///     скрыть.
 ///
 /// Без Плюса всё видно, но тумблеры выключены, а первой строкой стоит вход в
 /// Togetherly+. Там, где Плюса не существует ([PlusService.visible] false и
@@ -409,18 +410,15 @@ Future<void> showHomeBlockMenu(BuildContext context, HomeBlock block) async {
                   const SizedBox(height: 12),
                 ],
                 row('up', Icons.arrow_upward_rounded, trKey('homeBlockUp'),
-                    enabled: plus && i > 0, index: 0, count: 4),
+                    enabled: plus && i > 0, index: 0, count: 3),
                 row('down', Icons.arrow_downward_rounded,
                     trKey('homeBlockDown'),
                     enabled: plus && i >= 0 && i < visible.length - 1,
                     index: 1,
-                    count: 4),
+                    count: 3),
                 row('hide', Icons.visibility_off_rounded,
                     trKey('homeBlockHide'),
-                    enabled: plus, index: 2, count: 4),
-                row('all', Icons.dashboard_customize_rounded,
-                    trKey('homeLayoutCustomize'),
-                    index: 3, count: 4),
+                    enabled: plus, index: 2, count: 3),
               ],
             ),
           ),
@@ -447,7 +445,5 @@ Future<void> showHomeBlockMenu(BuildContext context, HomeBlock block) async {
           onPressed: () => svc.update(before),
         ),
       ));
-    case 'all':
-      await showHomeLayoutSheet(context);
   }
 }

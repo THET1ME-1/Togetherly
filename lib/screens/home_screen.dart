@@ -2081,21 +2081,8 @@ class _HomeScreenState extends State<HomeScreen> {
       if (b == HomeBlock.chest && prompt != null) out.add(promptBlock());
     }
     if (!layout.showsBlock(HomeBlock.lane)) out.addAll(events());
-    // Вход в раскладку внизу главной: у кого Плюс — настроить, у кого нет —
-    // узнать, что так можно.
-    if (paired && homeLayoutAvailable) {
-      out.add(Padding(
-        padding: const EdgeInsets.only(top: 16),
-        child: Center(
-          child: TextButton.icon(
-            onPressed: () => showHomeLayoutSheet(context),
-            icon: const Icon(Icons.dashboard_customize_rounded, size: 18),
-            label: Text(trKey('homeLayoutCustomize')),
-            style: TextButton.styleFrom(foregroundColor: _t.textMuted),
-          ),
-        ),
-      ));
-    }
+    // Кнопки «Настроить главную» на самой главной нет: полная раскладка живёт
+    // только в настройках (решение владельца 02.10.2026).
     return out;
   }
 
