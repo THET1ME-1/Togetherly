@@ -1482,6 +1482,8 @@ abstract class AppStrings {
   String get notifDrawInvite;
   String get notifComments;
   String get notifCommentsSub;
+  String get notifChest;
+  String get notifChestSub;
   String get notifDrawInviteSub;
 
   /// Подпись над рекламным блоком.

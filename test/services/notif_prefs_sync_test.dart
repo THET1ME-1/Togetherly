@@ -41,6 +41,31 @@ void main() {
     });
   });
 
+  group('утренний сундук', () {
+    // Колонка на сервере перевёрнута: у сборок, не знающих про неё, ноль, и
+    // ноль обязан значить «присылать».
+    test('не трогал тумблер — пуш нужен', () {
+      expect(chestPushBody(null), {'notifChestOff': false});
+    });
+
+    test('выключил — сервер молчит', () {
+      expect(chestPushBody(false), {'notifChestOff': true});
+      expect(chestPushBody(true), {'notifChestOff': false});
+    });
+
+    test('поле проходит белый список профиля', () {
+      final pb = File('lib/services/pb_data_service.dart').readAsStringSync();
+      expect(pb.contains("put('notifChestOff', 'notif_chest_off')"), isTrue,
+          reason: 'updateUserProfile молча выбрасывает незнакомый ключ');
+    });
+
+    test('сервер читает ту же колонку', () {
+      final script =
+          File('pocketbase/chest_morning_push.py').readAsStringSync();
+      expect(script.contains('notif_chest_off'), isTrue);
+    });
+  });
+
   group('проводка', () {
     String read(String path) => File(path).readAsStringSync();
 

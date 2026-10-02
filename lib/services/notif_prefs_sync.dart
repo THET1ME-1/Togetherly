@@ -27,6 +27,7 @@ class NotifPrefsSync {
     try {
       await PbDataService().updateUserProfile(uid, {
         ...notifPrefsBody(stored),
+        ...chestPushBody(prefs.getBool(kNotifChestPref)),
         // Метка говорит серверу, что нули в колонках — выбор человека, а не
         // незаполненное поле.
         'notifSyncedAt': DateTime.now().toUtc().toIso8601String(),
@@ -48,6 +49,15 @@ const Map<String, String> notifPrefKeys = {
   'notif_draw': 'notifDraw',
   'notif_comments': 'notifComments',
 };
+
+/// Утренний пуш «Сундук снова полный» (`pocketbase/chest_morning_push.py`).
+/// На сервере колонка ПЕРЕВЁРНУТА — `notif_chest_off`: новое булево поле у
+/// всех ноль, и прямая колонка выключила бы пуш каждому, чья сборка про неё
+/// не знает. Ноль в `notif_chest_off` значит «присылать».
+const String kNotifChestPref = 'notif_chest';
+
+Map<String, dynamic> chestPushBody(bool? stored) =>
+    {'notifChestOff': !(stored ?? true)};
 
 /// Тело запроса к профилю. Значения нет — значит человек тумблер не трогал, а
 /// приложение показывает его включённым; таким и отправляем.

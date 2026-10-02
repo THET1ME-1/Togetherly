@@ -232,6 +232,9 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   /// Комментарии под воспоминанием — отдельно от самой ленты.
   bool _notifComments = true;
+
+  /// Утренний пуш «Сундук снова полный» (`pocketbase/chest_morning_push.py`).
+  bool _notifChest = true;
   // Постоянный счётчик «дней вместе» в шторке. Состояние хранит сам сервис
   // (DaysTogetherNotificationService), здесь — только зеркало для тумблера.
   bool _notifDaysTogether = false;
@@ -340,6 +343,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       _notifChat = prefs.getBool(_kNotifChat) ?? true;
       _notifDraw = prefs.getBool(_kNotifDraw) ?? true;
       _notifComments = prefs.getBool(_kNotifComments) ?? true;
+      _notifChest = prefs.getBool(kNotifChestPref) ?? true;
       _notifDaysTogether = daysTogether;
       _lockScreenMood = prefs.getBool(_kLockScreenMood) ?? false;
       _sideActionIsArrow = prefs.getBool(UiPrefs.kHomeSideActionArrow) ?? true;
@@ -385,6 +389,9 @@ class _ProfileScreenState extends State<ProfileScreen>
         break;
       case _kNotifComments:
         PbDataService().updateUserProfile(uid, {'notifComments': value});
+        break;
+      case kNotifChestPref:
+        PbDataService().updateUserProfile(uid, chestPushBody(value));
         break;
     }
   }
@@ -4000,6 +4007,22 @@ class _ProfileScreenState extends State<ProfileScreen>
                   onTap: () {
                     setModal(() => _notifDraw = !_notifDraw);
                     _saveNotifPref(_kNotifDraw, _notifDraw);
+                  },
+                ),
+                SettingsRow(
+                  icon: Icons.redeem_rounded,
+                  title: s.notifChest,
+                  subtitle: s.notifChestSub,
+                  trailing: Switch(
+                    value: _notifChest,
+                    onChanged: (v) {
+                      setModal(() => _notifChest = v);
+                      _saveNotifPref(kNotifChestPref, v);
+                    },
+                  ),
+                  onTap: () {
+                    setModal(() => _notifChest = !_notifChest);
+                    _saveNotifPref(kNotifChestPref, _notifChest);
                   },
                 ),
                 // Постоянный счётчик «дней вместе» — локальное уведомление,

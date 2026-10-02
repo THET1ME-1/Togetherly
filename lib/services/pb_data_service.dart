@@ -3264,6 +3264,8 @@ class PbDataService {
     put('notifChat', 'notif_chat');
     put('notifDraw', 'notif_draw');
     put('notifComments', 'notif_comments');
+    // Утренний сундук: колонка перевёрнута, ноль — присылать (NotifPrefsSync).
+    put('notifChestOff', 'notif_chest_off');
     // Метка «телефон присылал настройки». Без неё сервер не знает, ноль в
     // колонке — выбор человека или ещё не заполненное поле, и молчал тем, кто
     // не открывал вкладку «Профиль» (обращение №133, 06.09.2026).

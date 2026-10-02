@@ -83,6 +83,9 @@ USERS_CUSTOM = [
     # отличит «выключил» от «ещё не спрашивали»: до 06.09.2026 он молчал всем,
     # кто не открывал вкладку «Профиль» (18 481 аккаунт).
     text("notif_synced_at"),
+    # Утренний пуш «Сундук снова полный». Перевёрнут намеренно: у старых
+    # сборок тут ноль, и ноль значит «присылать».
+    boolean("notif_chest_off"),
     jsonf("solo_timers"),
     date("updated_at"), date("last_daily_bonus_at"),
     date("last_memory_reward_at"), text("ad_rewards_date"),
