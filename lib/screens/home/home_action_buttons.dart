@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../models/home_layout.dart';
 import '../../widgets/mood_image.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../theme/app_theme.dart';
@@ -37,6 +38,9 @@ class HomeActionButtons extends StatelessWidget {
   /// Кнопка Togetherly Wallet в середине ряда. null — ряд из четырёх.
   final VoidCallback? onWallet;
 
+  /// Кнопки, которые человек спрятал (раскладка главной, только с Плюсом).
+  final Set<HomeAction> hidden;
+
   const HomeActionButtons({
     super.key,
     required this.theme,
@@ -49,6 +53,7 @@ class HomeActionButtons extends StatelessWidget {
     this.onPostHold,
     this.postButtonKey,
     this.onWallet,
+    this.hidden = const {},
   });
 
   static const String _drawSvg =
@@ -96,6 +101,19 @@ class HomeActionButtons extends StatelessWidget {
     // места: ряд отдавал раскладке высоту без учёта смещения, и следующий блок
     // (карточка маскота) подлезал средним кнопкам под низ. Добираем отступ
     // ровно на величину изгиба.
+    //
+    // С Плюсом часть кнопок можно спрятать ([hidden]). Полный ряд рисуется
+    // прежней вёрсткой из четырёх или пяти, укороченный — [_customRow].
+    final present = [
+      HomeAction.draw,
+      HomeAction.mood,
+      if (onWallet != null) HomeAction.wallet,
+      HomeAction.calendar,
+      HomeAction.post,
+    ];
+    final shown = [for (final a in present) if (!hidden.contains(a)) a];
+    if (shown.isEmpty) return const SizedBox.shrink();
+    if (shown.length != present.length) return _customRow(context, shown);
     if (onWallet != null) return _fiveRow(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: _bend),
@@ -151,6 +169,98 @@ class HomeActionButtons extends StatelessWidget {
               width: width,
               height: height,
             ),
+          ],
+        );
+      }),
+    );
+  }
+
+  /// Ряд из оставшихся кнопок, когда часть спрятана. Ширина пилюли считается
+  /// так же, как в полном ряду (от экрана, в пределах 56–74), дуга —
+  /// парабола с самой глубокой точкой в середине; у одной и двух кнопок дуги
+  /// нет.
+  Widget _customRow(BuildContext context, List<HomeAction> shown) {
+    final n = shown.length;
+    final bend = n >= 3 ? _bend : 0.0;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bend),
+      child: LayoutBuilder(builder: (context, box) {
+        final free = box.maxWidth.isFinite
+            ? box.maxWidth
+            : MediaQuery.of(context).size.width;
+        final width =
+            ((free - _gap * (n - 1)) / n).clamp(_pillMinWidth, _pillMaxWidth);
+        final height = width * _pillRatio;
+        double dip(int i) {
+          if (n < 3) return 0;
+          // Четыре — та же дуга, что у прежнего ряда без Wallet.
+          if (n == 4) return (i == 1 || i == 2) ? bend : 0;
+          final mid = (n - 1) / 2;
+          final k = (i - mid) / mid;
+          return bend * (1 - k * k);
+        }
+
+        final fill = theme.fillColor;
+        Widget button(HomeAction a, int i) => switch (a) {
+              HomeAction.draw => _pillButton(
+                  index: i,
+                  svgIcon: _drawSvg,
+                  onTap: onDraw,
+                  width: width,
+                  height: height,
+                  dy: dip(i),
+                ),
+              HomeAction.mood => _pillButton(
+                  index: i,
+                  svgIcon: _moodSvg,
+                  onTap: onMood,
+                  moodImagePath: myMoodImagePath,
+                  width: width,
+                  height: height,
+                  dy: dip(i),
+                ),
+              HomeAction.wallet => Semantics(
+                  button: true,
+                  label: 'Togetherly Wallet',
+                  child: _pillButton(
+                    index: i,
+                    svgIcon: _walletSvg,
+                    onTap: onWallet,
+                    width: width,
+                    height: height,
+                    dy: dip(i),
+                    fill: fill,
+                    iconColor:
+                        AppThemes.onColor(fill, mode: theme.brightness),
+                  ),
+                ),
+              HomeAction.calendar => _pillButton(
+                  index: i,
+                  svgIcon: _calendarSvg,
+                  onTap: onCalendar,
+                  width: width,
+                  height: height,
+                  dy: dip(i),
+                ),
+              HomeAction.post => _pillButton(
+                  index: i,
+                  svgIcon: _postSvg,
+                  onTap: onPost,
+                  onLongPress: onPostHold,
+                  key: postButtonKey,
+                  width: width,
+                  height: height,
+                  dy: dip(i),
+                ),
+            };
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            for (var i = 0; i < n; i++) ...[
+              if (i > 0) const SizedBox(width: _gap),
+              button(shown[i], i),
+            ],
           ],
         );
       }),
