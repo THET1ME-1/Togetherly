@@ -86,10 +86,15 @@ class SettingsCollapsible extends StatefulWidget {
     super.key,
     required this.prefsKey,
     required this.title,
-    required this.children,
+    this.children = const [],
+    this.body,
     this.icon,
     this.color,
   });
+
+  /// Своё содержимое вместо [SettingsGroup] из [children] — когда строки
+  /// должны жить в одном списке (перетаскивание блоков главной).
+  final Widget? body;
 
   /// Имя секции в хранилище — без приставки экрана, её добавляет виджет.
   final String prefsKey;
@@ -173,7 +178,7 @@ class _SettingsCollapsibleState extends State<SettingsCollapsible> {
           curve: Motion.standard,
           alignment: Alignment.topCenter,
           child: _open
-              ? SettingsGroup(widget.children)
+              ? (widget.body ?? SettingsGroup(widget.children))
               : const SizedBox(width: double.infinity),
         ),
       ],
