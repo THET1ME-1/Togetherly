@@ -4367,6 +4367,13 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   /// Лист «Добавить воспоминание»: главное и полка (макет А, 19.09.2026).
   /// Раскладка и цвета живут в [AddMemorySheetBody], здесь только куда вести.
   void _showAddMemorySheet() {
+    // Без пары `_saveNewMemory` выходит первой строкой: форма закрывалась,
+    // и запись пропадала молча (обращение 224, 02.10.2026). Говорим до формы.
+    if (_groupId.isEmpty) {
+      showFloatingNote(context, LocaleService.current.needsPartnerHint,
+          icon: Icons.favorite_border_rounded);
+      return;
+    }
     final cs = ProfileTheme.themeFor(widget.theme).colorScheme;
     showAppSheet<void>(
       context,
@@ -4470,6 +4477,11 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     String? taskId,
     List<XFile> initialMedia = const [],
   }) {
+    if (_groupId.isEmpty) {
+      showFloatingNote(context, LocaleService.current.needsPartnerHint,
+          icon: Icons.favorite_border_rounded);
+      return;
+    }
     _formTaskId = taskId;
         // Заметка живёт в той же форме, что фото: без выбранного медиа она сама
         // сохраняет пин типом text (`_effectiveType`). Отдельной плитки в листе
