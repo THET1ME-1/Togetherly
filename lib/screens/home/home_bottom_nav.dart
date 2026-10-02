@@ -30,12 +30,19 @@ class HomeBottomNav extends StatelessWidget {
   /// Ключ значка чата — по нему его находят тесты.
   static const Key chatBadgeKey = Key('nav_chat_badge');
 
+  /// Вкладки «Виджеты» и «Смотрим»: с Togetherly+ их можно убрать из панели
+  /// (раскладка главной, `HomeLayout`).
+  final bool showWidgets;
+  final bool showWatch;
+
   const HomeBottomNav({
     super.key,
     required this.selectedIndex,
     required this.theme,
     required this.isPaired,
     required this.onTap,
+    this.showWidgets = true,
+    this.showWatch = true,
     this.onCreatePin,
     this.sideIsArrow = false,
     this.onSideLongPress,
@@ -108,7 +115,7 @@ class HomeBottomNav extends StatelessWidget {
                   badgeColor: primary,
                   onTap: () => onTap(0),
                 ),
-                NavBarItem(
+                if (showWidgets) NavBarItem(
                   svgIcon: _widgetsIcon,
                   index: 1,
                   label: s.widgets,
@@ -119,7 +126,7 @@ class HomeBottomNav extends StatelessWidget {
                   badgeColor: primary,
                   onTap: () => onTap(1),
                 ),
-                NavBarItem(
+                if (showWatch) NavBarItem(
                   svgIcon: _watchIcon,
                   index: 4,
                   label: s.watchTogether,

@@ -5,6 +5,7 @@ import '../dict_strings.dart';
 import '../services/locale_service.dart';
 import '../theme/profile_theme.dart';
 import '../widgets/app_icon_sheet.dart';
+import '../widgets/home_layout_editor.dart';
 import '../widgets/settings_scaffold.dart';
 
 /// Экран настроек.
@@ -250,6 +251,10 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ],
               ),
+
+              // Скрыть лишние вкладки и блоки главной, переставить блоки —
+              // с Togetherly+ (отзыв 02.10.2026, «кто-то минимализм любит»).
+              const HomeLayoutSettingsSection(),
 
               SettingsCollapsible(
                 prefsKey: 'notifications',

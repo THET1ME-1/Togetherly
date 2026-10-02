@@ -9,6 +9,7 @@ import '../../models/gift.dart';
 import '../../models/profile_icon.dart';
 import '../../models/user_data.dart';
 import '../../services/catalog_service.dart';
+import '../../services/frame_gift_service.dart';
 import '../../services/gift_result.dart';
 import '../../services/gifts_service.dart';
 import '../../services/locale_service.dart';
@@ -161,7 +162,9 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
       context,
       builder: (_) => SheetScaffold(
         child: _PaySheet(
-          gift: gift,
+          art: GiftImage(gift.key, side: 84),
+          title: gift.title,
+          price: gift.currentPrice,
           coins: _coins,
           adAllowed: gift.giftableByAd,
           plus: PlusService.instance.active,
@@ -906,6 +909,8 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
     final owns = ud.ownsFrame(f.key);
     final worn = ud.equippedFrame == f.key;
     final chest = !owns && widget.groupId.isNotEmpty;
+    // Свою рамку можно отдать партнёру: она переходит к нему целиком.
+    final give = owns && widget.groupId.isNotEmpty;
     final action = await showAppSheet<String>(
       context,
       builder: (ctx) => SheetScaffold(
@@ -921,6 +926,7 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
           actions: [
             if (worn) ('off', trKey('shopTakeOff'), false, true),
             if (owns && !worn) ('wear', trKey('shopWear'), true, true),
+            if (give) ('give', trKey('frameGive'), false, true),
             if (chest) ('chest', trKey('shopOpenChest'), true, true),
           ],
         ),
@@ -931,10 +937,126 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
       await _openChest();
       return;
     }
+    if (action == 'give') {
+      await _giveFrame(f);
+      return;
+    }
     setState(() => _busyItem = f.key);
     await ud.setFrame(action == 'off' ? null : f.key);
     if (!mounted) return;
     setState(() => _busyItem = null);
+  }
+
+  /// Отдать рамку партнёру за монеты или ролик (с Плюсом — бесплатно).
+  /// Сперва спрашиваем сервер: цену он знает сам, а есть ли рамка у
+  /// партнёра, должно выясниться ДО ролика, иначе просмотр пропадёт.
+  Future<void> _giveFrame(AvatarFrame f) async {
+    final ud = widget.userData!;
+    if (_busyItem != null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busyItem = f.key);
+    final quote = await FrameGiftService.instance.quote(
+      key: f.key,
+      groupId: widget.groupId,
+    );
+    if (!mounted) return;
+    setState(() => _busyItem = null);
+    if (quote == null) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(LocaleService.current.giftNoConnection)),
+      );
+      return;
+    }
+    if (quote.partnerHas) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(trKey('frameGivePartnerHas'))),
+      );
+      return;
+    }
+    ud.applyServerCoins(quote.coins);
+    final plus = PlusService.instance.active;
+    final byAd = await showAppSheet<bool>(
+      context,
+      builder: (_) => SheetScaffold(
+        child: _PaySheet(
+          art: _framedMe(f.key, 96),
+          title: f.name,
+          price: quote.price,
+          coins: _wallet,
+          adAllowed: quote.adLeft > 0,
+          plus: plus,
+          lead: trKey('frameGiveMoves'),
+        ),
+      ),
+    );
+    if (byAd == null || !mounted) return;
+
+    var adShown = false;
+    if (byAd && !plus) {
+      if (!_ad.isReady) {
+        _ad.load();
+        messenger.showSnackBar(
+          SnackBar(content: Text(LocaleService.current.streakRestoreNoAd)),
+        );
+        return;
+      }
+      setState(() => _busyItem = f.key);
+      final earned = await _ad.show(uid: PocketBaseService().userId ?? '');
+      _ad.load();
+      if (!mounted) return;
+      final coins = _ad.lastServerCoins;
+      if (coins != null) {
+        setState(() => _coins = coins);
+        widget.onCoins?.call(coins);
+      }
+      if (!earned) {
+        setState(() => _busyItem = null);
+        await showAdNotEarned(context);
+        return;
+      }
+      adShown = true;
+    }
+
+    setState(() => _busyItem = f.key);
+    final request = FrameGiftService.instance.give(
+      key: f.key,
+      groupId: widget.groupId,
+      byAd: byAd,
+    );
+    if (adShown) await untilAppVisible();
+    final res = await request;
+    if (!mounted) return;
+    setState(() {
+      _busyItem = null;
+      if (res.coins != null) _coins = res.coins!;
+    });
+    if (res.coins != null) widget.onCoins?.call(res.coins!);
+    if (res.ok && res.ownedFeatures != null) {
+      ud.applyFrameGiven(res.ownedFeatures!, res.frame);
+    }
+    if (!res.ok) {
+      final s = LocaleService.current;
+      final text = switch (res.error) {
+        'insufficient' => s.giftNotEnoughCoins,
+        'ad_limit' => s.giftAdLimit,
+        'partner_has' => trKey('frameGivePartnerHas'),
+        'network' => s.giftNoConnection,
+        _ => s.giftFailed,
+      };
+      messenger.showSnackBar(SnackBar(content: Text(text)));
+      return;
+    }
+    final name = widget.partnerName?.trim() ?? '';
+    await showObtained(
+      context,
+      scheme: ProfileTheme.schemeFor(widget.theme),
+      art: _framedMe(f.key, 140),
+      title: trKey('frameGivenTitle'),
+      subtitle: name.isEmpty
+          ? trKey('frameGivenWhereAnon')
+          : trKey('frameGivenWhere').replaceAll('{name}', name),
+      footnote: byAd ? trKey('giftSentByAd') : null,
+    );
   }
 }
 
@@ -947,22 +1069,31 @@ class _GiftShopScreenState extends State<GiftShopScreen> {
 /// кнопки подряд в светлой теме сливались в одну.
 class _PaySheet extends StatelessWidget {
   const _PaySheet({
-    required this.gift,
+    required this.art,
+    required this.title,
+    required this.price,
     required this.coins,
     required this.adAllowed,
     required this.plus,
+    this.lead,
   });
 
-  final Gift gift;
+  /// Рисунок в круге над названием: подарок или своя аватарка в рамке.
+  final Widget art;
+  final String title;
+  final int price;
   final int coins;
   final bool adAllowed;
   final bool plus;
+
+  /// Строка под названием, до кнопок: у рамки — что она уйдёт от тебя.
+  final String? lead;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final s = LocaleService.current;
-    final canPay = coins >= gift.currentPrice;
+    final canPay = coins >= price;
     final adFirst = adAllowed && !canPay;
     const minSize = Size.fromHeight(56);
 
@@ -974,7 +1105,7 @@ class _PaySheet extends StatelessWidget {
         CoinImage(side: 18),
         const SizedBox(width: 4),
         Text(
-          '${gift.currentPrice}',
+          '$price',
           style: const TextStyle(
             fontWeight: FontWeight.w800,
             fontFeatures: [FontFeature.tabularFigures()],
@@ -1036,12 +1167,12 @@ class _PaySheet extends StatelessWidget {
                 color: cs.primaryContainer,
                 shape: BoxShape.circle,
               ),
-              child: GiftImage(gift.key, side: 84),
+              child: art,
             ),
           ),
           const SizedBox(height: 14),
           Text(
-            gift.title,
+            title,
             textAlign: TextAlign.center,
             style: TextStyle(
               fontFamily: 'Unbounded',
@@ -1052,6 +1183,19 @@ class _PaySheet extends StatelessWidget {
               color: cs.onSurface,
             ),
           ),
+          if (lead != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              lead!,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Onest',
+                color: cs.onSurfaceVariant,
+                fontSize: 13.5,
+                height: 1.4,
+              ),
+            ),
+          ],
           const SizedBox(height: 22),
           if (adFirst) ...[
             adButton,

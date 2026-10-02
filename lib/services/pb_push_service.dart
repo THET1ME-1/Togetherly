@@ -5,8 +5,10 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:pocketbase/pocketbase.dart';
 
 import '../models/chat_msg.dart';
+import '../models/avatar_frame.dart';
 import '../models/gift.dart';
 import '../models/gift_effect.dart';
+import 'frame_gift_service.dart';
 import '../dict_strings.dart';
 import 'chat_service.dart';
 import 'centrifugo_service.dart';
@@ -231,7 +233,16 @@ class PbPushService {
         if (r == null || r.data['recipient_uid'] != myUid) return;
         if (r.data['state'] != 'sent') return;
         if (!_pref('notif_gifts')) return; // поля нет в профиле → _pref даёт true
-        final gift = GiftCatalog.byKey((r.data['gift_key'] ?? '').toString());
+        final giftKey = (r.data['gift_key'] ?? '').toString();
+        // Партнёр отдал рамку: в тексте её название, а не подарка.
+        final frameKey = FrameGiftService.frameKeyOf(giftKey);
+        if (frameKey != null) {
+          final name = AvatarFrame.byKey(frameKey)?.name ?? frameKey;
+          _notify(('gift${r.id}').hashCode, partner,
+              trKey('framePushBody').replaceAll('{frame}', name));
+          return;
+        }
+        final gift = GiftCatalog.byKey(giftKey);
         if (gift == null) return; // подарок из будущей версии приложения
         // Ракета проходит сквозь подаренную тихую ночь: она для срочного.
         _notify(('gift${r.id}').hashCode, partner,

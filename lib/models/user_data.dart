@@ -24,6 +24,7 @@ import 'mascot_sleep.dart';
 import 'profile_icon.dart';
 import 'avatar_frame.dart';
 import '../services/avatar_frames.dart';
+import '../services/home_layout_service.dart';
 
 enum Gender { male, female, unspecified }
 
@@ -399,6 +400,18 @@ class UserData extends ChangeNotifier {
     _ownedFeatures
       ..clear()
       ..addAll(features);
+    unawaited(_saveLocal());
+    notifyListeners();
+  }
+
+  /// Рамка ушла партнёру: покупки без неё и надетая рамка из ответа сервера
+  /// (отданную он уже снял).
+  void applyFrameGiven(List<String> features, String? frame) {
+    _ownedFeatures
+      ..clear()
+      ..addAll(features);
+    _frame = (frame == null || frame.isEmpty) ? null : frame;
+    AvatarFrames.instance.setMine(_frame);
     unawaited(_saveLocal());
     notifyListeners();
   }
@@ -1349,6 +1362,7 @@ class UserData extends ChangeNotifier {
     _badge = null;
     _frame = null;
     unawaited(AvatarFrames.instance.clear());
+    unawaited(HomeLayoutService.instance.clear());
     _adRewardsToday = 0;
     _adRewardsDate = '';
     _mascotSleep = const {};

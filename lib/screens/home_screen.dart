@@ -132,6 +132,13 @@ import '../services/days_together_notification_service.dart';
 import '../services/mood_notification_service.dart';
 import '../widgets/celebration_banner.dart';
 import '../widgets/app_sheet.dart';
+import '../widgets/avatar_widget.dart';
+import '../widgets/home_layout_editor.dart';
+import '../models/home_layout.dart';
+import '../services/home_layout_service.dart';
+import '../models/avatar_frame.dart';
+import '../services/frame_gift_service.dart';
+import '../services/gifts_service.dart';
 import '../widgets/note_editor_sheet.dart';
 import '../services/pb_media_service.dart';
 import '../services/widget_anim_service.dart';
@@ -283,6 +290,9 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _pairData.addListener(_onPairChanged);
     widget.userData.addListener(_onUserChanged);
+    HomeLayoutService.instance.addListener(_onLayoutChanged);
+    PlusService.instance.addListener(_onLayoutChanged);
+    unawaited(HomeLayoutService.instance.ensureLoaded());
     _moodService.addListener(_onMoodServiceChanged);
     _timerService.addListener(_onTimerServiceChanged);
     // Единая точка входа для всех пикеров настроения — MoodService.setMoodForToday.
@@ -487,6 +497,8 @@ class _HomeScreenState extends State<HomeScreen> {
     _timerService.removeListener(_onTimerServiceChanged);
     _pairData.removeListener(_onPairChanged);
     widget.userData.removeListener(_onUserChanged);
+    HomeLayoutService.instance.removeListener(_onLayoutChanged);
+    PlusService.instance.removeListener(_onLayoutChanged);
     _moodService.removeListener(_onMoodServiceChanged);
     _widgetService.dispose();
     _pairData.dispose();
@@ -1278,6 +1290,25 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// Раскладка главной или Плюс поменялись. Открытая вкладка, которую только
+  /// что спрятали, уступает место главной.
+  void _onLayoutChanged() {
+    if (!mounted) return;
+    setState(() {
+      if (!_navTabShown(_selectedNavIndex)) _selectedNavIndex = 0;
+    });
+  }
+
+  /// Видна ли вкладка нижней панели с этим номером.
+  bool _navTabShown(int index) {
+    final layout = HomeLayoutService.instance.current;
+    return switch (index) {
+      1 => layout.showsTab(HomeTab.widgets),
+      4 => layout.showsTab(HomeTab.watch),
+      _ => true,
+    };
+  }
+
   void _onUserChanged() {
     if (mounted) setState(() {});
     // Тема пары меняется через userData → синкаем виджеты рабочего стола,
@@ -1424,6 +1455,8 @@ class _HomeScreenState extends State<HomeScreen> {
               selectedIndex: _selectedNavIndex,
               theme: _t,
               isPaired: _pairData.isPaired,
+              showWidgets: _navTabShown(1),
+              showWatch: _navTabShown(4),
               onTap: (i) {
                 setState(() => _selectedNavIndex = i);
                 // Возврат на главную — освежаем режим боковой кнопки (мог
@@ -1834,139 +1867,236 @@ class _HomeScreenState extends State<HomeScreen> {
                         : const SizedBox.shrink(),
                   ),
                 ),
-                // Сундук сразу под таймером (макет «Сундук недели»), стоит
-                // постоянно. Только в паре: подарок из сундука ложится на
-                // полку пары, а без группы серверу некуда его положить.
-                // Отступ сверху у блока свой: выключенный с сервера
-                // (`app_config.chest_enabled`) он не оставляет пустой полосы.
-                if (_pairData.isPaired)
-                  AnimatedSlideIn(
-                    delay: const Duration(milliseconds: 140),
-                    child: ChestHomeCard(
-                      theme: _t,
-                      groupId: _pairData.pairId,
-                      partnerName: _pairData.partnerDisplayName,
-                      onCoins: widget.userData.applyServerCoins,
-                      userData: widget.userData,
-                    ),
-                  ),
-                // Слот подсказки один на оба состояния: без пары тут стоит
-                // список первых действий (раньше — карточка «подключите
-                // партнёра»), с парой — либо строка прогресса, либо напоминание
-                // о затихшем партнёре. Пусто у тех, кто всё прошёл.
-                if (_homePrompt() case final prompt?) ...[
-                  const SizedBox(height: 8),
-                  AnimatedSlideIn(
-                    delay: const Duration(milliseconds: 200),
-                    child: prompt,
-                  ),
-                ],
-                if (_pairData.isPaired) ...[
-                  const SizedBox(height: 8),
-                  AnimatedSlideIn(
-                    delay: const Duration(milliseconds: 160),
-                    child: _buildMascotRow(),
-                  ),
-                  // Реклама между маскотом и картой — единственное место на
-                  // главной, где она никому не мешает: до сгиба ничего не
-                  // трогает, а в зону видимости попадает при первом же
-                  // движении пальца. Выше по экрану её ставить нельзя, там
-                  // таймер и настроения, ради которых приложение открывают.
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: AdBanner(
-                      key: const ValueKey('home_ad'),
-                      framed: true,
-                      label: LocaleService.current.adLabel,
-                      slot: 'home',
-                    ),
-                  ),
-                  // Карта «Где мы»: live-геопозиция обоих партнёров.
-                  AnimatedSlideIn(
-                    delay: const Duration(milliseconds: 240),
-                    child: LiveMapCard(
-                      pairId: _pairData.pairId,
-                      partnerUid: _pairData.partnerUid,
-                      partnerName: _pairData.partnerDisplayName,
-                      partnerAvatarUrl: _pairData.partnerAvatarUrl,
-                      theme: _t,
-                    ),
-                  ),
-                  // «Хочу с тобой»: общий список желаний пары. Стоит после
-                  // карты — это раздел, а не событие дня, и наверх лезть ему
-                  // незачем.
-                  AnimatedSlideIn(
-                    delay: const Duration(milliseconds: 260),
-                    child: DailyTasksCard(
-                      groupId: _pairData.pairId,
-                      partnerName: _pairData.partnerDisplayName,
-                      // Задание знает свой тип пина, поэтому лист выбора
-                      // пропускаем и открываем сразу нужную форму.
-                      onOpenTask: (task) => _openMemoryLane(
-                        openCreateType: task.type,
-                        openCreateTaskId: task.id,
-                      ),
-                    ),
-                  ),
-                  if (_wishesEnabled)
-                    AnimatedSlideIn(
-                      delay: const Duration(milliseconds: 280),
-                      child: WishesCard(
-                        theme: _t,
-                        groupId: _pairData.pairId,
-                        myUid: PocketBaseService().userId ?? '',
-                        myName: widget.userData.displayName,
-                        partnerUid: _pairData.partnerUid,
-                        partnerName: _pairData.partnerDisplayName,
-                        myAvatarUrl: widget.userData.avatarUrl,
-                        partnerAvatarUrl: _pairData.partnerAvatarUrl,
-                      ),
-                    ),
-                ],
-                const SizedBox(height: 40),
               ],
             ),
           ),
-          // Достижения и магазин подарков уехали в профиль, в блок «Наша
-          // пара»: открывают их изредка, а место между картой и лентой они
-          // занимали каждый день. Статистика переехала туда же и раньше.
-          if (_sunriseOn)
-            AnimatedSlideIn(
-              delay: const Duration(milliseconds: 40),
-              child: _sunriseBanner(),
-            ),
-          // Пришедший подарок остаётся на главной: это событие сегодняшнего
-          // дня, а не раздел.
-          if (_pairData.isPaired && _giftsEnabled && _incomingGifts.isNotEmpty)
-            AnimatedSlideIn(
-              delay: const Duration(milliseconds: 240),
-              child: _incomingGiftEntry(),
-            ),
-          AnimatedSlideIn(
-            delay: const Duration(milliseconds: 240),
-            // В паре — встроенная НАСТОЯЩАЯ Лента (те же карточки _memoryTile,
-            // первые 3). Без пары — лёгкая заглушка «подключись».
-            child: _pairData.isPaired
-                ? MemoryLaneScreen(
-                    pairData: _pairData,
-                    theme: _t,
-                    userData: widget.userData,
-                    embedded: true,
-                    previewLimit: 3,
-                    onNavTab: (i) => setState(() => _selectedNavIndex = i),
-                  )
-                : MemoryLanePreview(
-                    isPaired: false,
-                    memories: const [],
-                    pairData: _pairData,
-                    theme: _t,
-                    userData: widget.userData,
-                  ),
-          ),
+          ..._buildHomeBlocks(),
           const SizedBox(height: 40),
         ],
       ),
     );
+  }
+
+  /// Блоки главной ниже ряда действий — в порядке раскладки
+  /// ([HomeLayoutService]). Без Togetherly+ раскладка всегда по умолчанию:
+  /// сундук, маскоты, карта, задания, желания, лента.
+  ///
+  /// Долгое нажатие на блок открывает его меню: выше, ниже, скрыть. Вложенные
+  /// жесты (долгое нажатие на воспоминание в ленте) выигрывают у внешнего,
+  /// поэтому меню блока открывается с пустого места блока.
+  List<Widget> _buildHomeBlocks() {
+    final paired = _pairData.isPaired;
+    final layout = HomeLayoutService.instance.current;
+    const side = EdgeInsets.symmetric(horizontal: 24);
+    // Слот подсказки один на оба состояния: без пары тут стоит
+    // список первых действий (раньше — карточка «подключите
+    // партнёра»), с парой — либо строка прогресса, либо напоминание
+    // о затихшем партнёре. Пусто у тех, кто всё прошёл. Стоит под сундуком,
+    // а если сундук спрятан — первым.
+    final prompt = _homePrompt();
+    final hasEvents =
+        _sunriseOn || (paired && _giftsEnabled && _incomingGifts.isNotEmpty);
+    Widget promptBlock() => Padding(
+          padding: side.copyWith(top: 8),
+          child: AnimatedSlideIn(
+            delay: const Duration(milliseconds: 200),
+            child: prompt!,
+          ),
+        );
+
+    Widget? block(HomeBlock b) {
+      switch (b) {
+        case HomeBlock.chest:
+          // Сундук сразу под таймером (макет «Сундук недели»), стоит
+          // постоянно. Только в паре: подарок из сундука ложится на
+          // полку пары, а без группы серверу некуда его положить.
+          // Отступ сверху у блока свой: выключенный с сервера
+          // (`app_config.chest_enabled`) он не оставляет пустой полосы.
+          if (!paired) return null;
+          return Padding(
+            padding: side,
+            child: AnimatedSlideIn(
+              delay: const Duration(milliseconds: 140),
+              child: ChestHomeCard(
+                theme: _t,
+                groupId: _pairData.pairId,
+                partnerName: _pairData.partnerDisplayName,
+                onCoins: widget.userData.applyServerCoins,
+                userData: widget.userData,
+              ),
+            ),
+          );
+        case HomeBlock.mascot:
+          if (!paired) return null;
+          return Padding(
+            padding: side,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 8),
+                AnimatedSlideIn(
+                  delay: const Duration(milliseconds: 160),
+                  child: _buildMascotRow(),
+                ),
+                // Реклама сразу под маскотом — единственное место на
+                // главной, где она никому не мешает: до сгиба ничего не
+                // трогает, а в зону видимости попадает при первом же
+                // движении пальца. Выше по экрану её ставить нельзя, там
+                // таймер и настроения, ради которых приложение открывают.
+                // Раскладку меняют только с Плюсом, а с ним рекламы нет,
+                // так что у тех, кто её видит, место прежнее.
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: AdBanner(
+                    key: const ValueKey('home_ad'),
+                    framed: true,
+                    label: LocaleService.current.adLabel,
+                    slot: 'home',
+                  ),
+                ),
+              ],
+            ),
+          );
+        case HomeBlock.map:
+          // Карта «Где мы»: live-геопозиция обоих партнёров.
+          if (!paired) return null;
+          return Padding(
+            padding: side,
+            child: AnimatedSlideIn(
+              delay: const Duration(milliseconds: 240),
+              child: LiveMapCard(
+                pairId: _pairData.pairId,
+                partnerUid: _pairData.partnerUid,
+                partnerName: _pairData.partnerDisplayName,
+                partnerAvatarUrl: _pairData.partnerAvatarUrl,
+                theme: _t,
+              ),
+            ),
+          );
+        case HomeBlock.tasks:
+          if (!paired) return null;
+          return Padding(
+            padding: side,
+            child: AnimatedSlideIn(
+              delay: const Duration(milliseconds: 260),
+              child: DailyTasksCard(
+                groupId: _pairData.pairId,
+                partnerName: _pairData.partnerDisplayName,
+                // Задание знает свой тип пина, поэтому лист выбора
+                // пропускаем и открываем сразу нужную форму.
+                onOpenTask: (task) => _openMemoryLane(
+                  openCreateType: task.type,
+                  openCreateTaskId: task.id,
+                ),
+              ),
+            ),
+          );
+        case HomeBlock.wishes:
+          // «Хочу с тобой»: общий список желаний пары — раздел, а не
+          // событие дня, и наверх лезть ему незачем.
+          if (!paired || !_wishesEnabled) return null;
+          return Padding(
+            padding: side,
+            child: AnimatedSlideIn(
+              delay: const Duration(milliseconds: 280),
+              child: WishesCard(
+                theme: _t,
+                groupId: _pairData.pairId,
+                myUid: PocketBaseService().userId ?? '',
+                myName: widget.userData.displayName,
+                partnerUid: _pairData.partnerUid,
+                partnerName: _pairData.partnerDisplayName,
+                myAvatarUrl: widget.userData.avatarUrl,
+                partnerAvatarUrl: _pairData.partnerAvatarUrl,
+              ),
+            ),
+          );
+        case HomeBlock.lane:
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Над лентой уже стоит событие со своим отступом — второй не нужен.
+              if (!hasEvents) const SizedBox(height: 40),
+              AnimatedSlideIn(
+                delay: const Duration(milliseconds: 240),
+                // В паре — встроенная НАСТОЯЩАЯ Лента (те же карточки
+                // _memoryTile, первые 3). Без пары — лёгкая заглушка
+                // «подключись».
+                child: paired
+                    ? MemoryLaneScreen(
+                        pairData: _pairData,
+                        theme: _t,
+                        userData: widget.userData,
+                        embedded: true,
+                        previewLimit: 3,
+                        onNavTab: (i) => setState(() => _selectedNavIndex = i),
+                      )
+                    : MemoryLanePreview(
+                        isPaired: false,
+                        memories: const [],
+                        pairData: _pairData,
+                        theme: _t,
+                        userData: widget.userData,
+                      ),
+              ),
+            ],
+          );
+      }
+    }
+
+    // Рассвет от «Солнца» и пришедший подарок — события сегодняшнего дня, а
+    // не разделы: не прячутся и стоят над лентой, а без ленты — в конце.
+    // Достижения и магазин подарков уехали в профиль, в блок «Наша пара».
+    List<Widget> events() => [
+          if (_sunriseOn)
+            Padding(
+              padding: const EdgeInsets.only(top: 40),
+              child: AnimatedSlideIn(
+                delay: const Duration(milliseconds: 40),
+                child: _sunriseBanner(),
+              ),
+            ),
+          if (paired && _giftsEnabled && _incomingGifts.isNotEmpty)
+            Padding(
+              padding: EdgeInsets.only(top: _sunriseOn ? 0 : 40),
+              child: AnimatedSlideIn(
+                delay: const Duration(milliseconds: 240),
+                child: _incomingGiftEntry(),
+              ),
+            ),
+        ];
+    final out = <Widget>[
+      if (prompt != null && !(paired && layout.showsBlock(HomeBlock.chest)))
+        promptBlock(),
+    ];
+    for (final b in layout.visibleBlocks) {
+      final w = block(b);
+      if (w == null) continue;
+      if (b == HomeBlock.lane) out.addAll(events());
+      out.add(GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onLongPress: () => showHomeBlockMenu(context, b),
+        child: w,
+      ));
+      if (b == HomeBlock.chest && prompt != null) out.add(promptBlock());
+    }
+    if (!layout.showsBlock(HomeBlock.lane)) out.addAll(events());
+    // Вход в раскладку внизу главной: у кого Плюс — настроить, у кого нет —
+    // узнать, что так можно.
+    if (paired && homeLayoutAvailable) {
+      out.add(Padding(
+        padding: const EdgeInsets.only(top: 16),
+        child: Center(
+          child: TextButton.icon(
+            onPressed: () => showHomeLayoutSheet(context),
+            icon: const Icon(Icons.dashboard_customize_rounded, size: 18),
+            label: Text(trKey('homeLayoutCustomize')),
+            style: TextButton.styleFrom(foregroundColor: _t.textMuted),
+          ),
+        ),
+      ));
+    }
+    return out;
   }
 
   Widget _buildMascotRow() {
@@ -2489,6 +2619,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Открывает подарок: свечу задувают, коробку открывают, зайчика ловят.
   Future<void> _openIncomingGift(Map<String, dynamic> raw) async {
+    final frameKey =
+        FrameGiftService.frameKeyOf((raw['gift_key'] ?? '').toString());
+    if (frameKey != null) {
+      await _openIncomingFrame((raw['id'] ?? '').toString(), frameKey);
+      return;
+    }
     final gift = GiftCatalog.byKey((raw['gift_key'] ?? '').toString());
     if (gift == null) return;
     final accepted = await GiftReceiveSheet.show(
@@ -2506,6 +2642,104 @@ class _HomeScreenState extends State<HomeScreen> {
     } else if (accepted == false) {
       await _loadIncomingGifts(); // отказ тоже убирает подарок из списка
     }
+  }
+
+  /// Партнёр отдал свою рамку. Она уже лежит в покупках (сервер переложил её
+  /// при отправке), лист только показывает её на своей аватарке и предлагает
+  /// надеть. Любой ответ закрывает подарок откликом.
+  Future<void> _openIncomingFrame(String giftId, String frameKey) async {
+    final ud = widget.userData;
+    unawaited(ud.refreshCoinsFromServer());
+    final cs = ProfileTheme.themeFor(_t).colorScheme;
+    final frame = AvatarFrame.byKey(frameKey);
+    final frameName = frame?.name ?? frameKey;
+    final sender = _pairData.partnerDisplayName.trim();
+    const side = 168.0;
+    final wear = await showAppSheet<bool>(
+      context,
+      background: cs.surfaceContainerHigh,
+      builder: (ctx) => Theme(
+        data: ProfileTheme.data(cs),
+        child: SheetScaffold(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: SizedBox.square(
+                    dimension: side,
+                    child: Center(
+                      child: AvatarWidget(
+                        uid: ud.uid.isNotEmpty
+                            ? ud.uid
+                            : (PocketBaseService().userId ?? ''),
+                        liveUrl: ud.avatarUrl,
+                        name: ud.displayName,
+                        size: side / AvatarFrame.scale,
+                        primary: cs.primary,
+                        frame: frameKey,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  trKey('frameReceivedTitle').replaceAll('{frame}', frameName),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: ProfileTheme.displayFont,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: cs.onSurface,
+                  ),
+                ),
+                if (sender.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    trKey('frameReceivedFrom').replaceAll('{name}', sender),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'Onest',
+                      fontSize: 14.5,
+                      height: 1.4,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 18),
+                FilledButton(
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(52),
+                    shape: const StadiumBorder(),
+                  ),
+                  child: Text(trKey('shopWear')),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                  ),
+                  child: Text(trKey('frameReceivedLater')),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (!mounted) return;
+    // Закрыл лист смахиванием — подарок остаётся на главной, как обычный.
+    if (wear == null) return;
+    await GiftsService.instance.react(giftId);
+    if (wear) {
+      await ud.refreshCoinsFromServer();
+      await ud.setFrame(frameKey);
+    }
+    await _loadIncomingGifts();
   }
 
   /// Принятое приглашение ведёт туда, куда звало: в чат, на карту, к таймеру.
@@ -2575,10 +2809,30 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Подарок ждёт действия — карточка заметная, с самим значком.
   Widget _incomingGiftEntry() {
     final raw = _incomingGifts.first;
-    final gift = GiftCatalog.byKey((raw['gift_key'] ?? '').toString());
-    if (gift == null) return const SizedBox.shrink();
+    final giftKey = (raw['gift_key'] ?? '').toString();
+    final frameKey = FrameGiftService.frameKeyOf(giftKey);
+    final gift = GiftCatalog.byKey(giftKey);
+    if (gift == null && frameKey == null) return const SizedBox.shrink();
     final s = LocaleService.current;
     final cs = ProfileTheme.themeFor(_t).colorScheme;
+    final ud = widget.userData;
+    final Widget art = frameKey != null
+        ? SizedBox.square(
+            dimension: 46,
+            child: Center(
+              child: AvatarWidget(
+                uid: ud.uid.isNotEmpty
+                    ? ud.uid
+                    : (PocketBaseService().userId ?? ''),
+                liveUrl: ud.avatarUrl,
+                name: ud.displayName,
+                size: 46 / AvatarFrame.scale,
+                primary: cs.primary,
+                frame: frameKey,
+              ),
+            ),
+          )
+        : GiftImage(gift!.key, side: 46);
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
       child: GestureDetector(
@@ -2591,13 +2845,16 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           child: Row(
             children: [
-              GiftImage(gift.key, side: 46),
+              art,
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(s.giftIncomingTitle,
+                    Text(
+                        frameKey != null
+                            ? trKey('frameIncomingTitle')
+                            : s.giftIncomingTitle,
                         style: TextStyle(
                             fontFamily: ProfileTheme.displayFont,
                             fontSize: 15,
