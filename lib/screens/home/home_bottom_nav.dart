@@ -35,6 +35,11 @@ class HomeBottomNav extends StatelessWidget {
   final bool showWidgets;
   final bool showWatch;
 
+  /// Номера вкладок слева направо: 0 главная, 1 виджеты, 4 «Смотрим»,
+  /// 2 «Связь», 3 профиль. С Плюсом порядок меняют в настройках.
+  final List<int> order;
+  static const List<int> defaultOrder = [0, 1, 4, 2, 3];
+
   const HomeBottomNav({
     super.key,
     required this.selectedIndex,
@@ -43,6 +48,7 @@ class HomeBottomNav extends StatelessWidget {
     required this.onTap,
     this.showWidgets = true,
     this.showWatch = true,
+    this.order = defaultOrder,
     this.onCreatePin,
     this.sideIsArrow = false,
     this.onSideLongPress,
@@ -104,62 +110,34 @@ class HomeBottomNav extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                NavBarItem(
-                  svgIcon: _homeIcon,
-                  index: 0,
-                  label: s.home,
-                  isActive: selectedIndex == 0,
-                  activeColor: activeColor,
-                  activeBg: activeBg,
-                  inactiveColor: inactiveColor,
-                  badgeColor: primary,
-                  onTap: () => onTap(0),
-                ),
-                if (showWidgets) NavBarItem(
-                  svgIcon: _widgetsIcon,
-                  index: 1,
-                  label: s.widgets,
-                  isActive: selectedIndex == 1,
-                  activeColor: activeColor,
-                  activeBg: activeBg,
-                  inactiveColor: inactiveColor,
-                  badgeColor: primary,
-                  onTap: () => onTap(1),
-                ),
-                if (showWatch) NavBarItem(
-                  svgIcon: _watchIcon,
-                  index: 4,
-                  label: s.watchTogether,
-                  isActive: selectedIndex == 4,
-                  activeColor: activeColor,
-                  activeBg: activeBg,
-                  inactiveColor: inactiveColor,
-                  badgeColor: primary,
-                  onTap: () => onTap(4),
-                ),
-                NavBarItem(
-                  svgIcon: _invitesIcon,
-                  index: 2,
-                  label: s.connect,
-                  isActive: selectedIndex == 2,
-                  activeColor: activeColor,
-                  activeBg: activeBg,
-                  inactiveColor: inactiveColor,
-                  badgeColor: primary,
-                  showBadge: !isPaired,
-                  onTap: () => onTap(2),
-                ),
-                NavBarItem(
-                  svgIcon: _profileIcon,
-                  index: 3,
-                  label: s.profile,
-                  isActive: selectedIndex == 3,
-                  activeColor: activeColor,
-                  activeBg: activeBg,
-                  inactiveColor: inactiveColor,
-                  badgeColor: primary,
-                  onTap: () => onTap(3),
-                ),
+                // Порядок задаёт [order] (раскладка главной с Плюсом),
+                // спрятанные вкладки пропускаются.
+                for (final i in order)
+                  if ((i != 1 || showWidgets) && (i != 4 || showWatch))
+                    NavBarItem(
+                      svgIcon: switch (i) {
+                        0 => _homeIcon,
+                        1 => _widgetsIcon,
+                        4 => _watchIcon,
+                        2 => _invitesIcon,
+                        _ => _profileIcon,
+                      },
+                      index: i,
+                      label: switch (i) {
+                        0 => s.home,
+                        1 => s.widgets,
+                        4 => s.watchTogether,
+                        2 => s.connect,
+                        _ => s.profile,
+                      },
+                      isActive: selectedIndex == i,
+                      activeColor: activeColor,
+                      activeBg: activeBg,
+                      inactiveColor: inactiveColor,
+                      badgeColor: primary,
+                      showBadge: i == 2 && !isPaired,
+                      onTap: () => onTap(i),
+                    ),
               ],
             ),
           ),

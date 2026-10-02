@@ -1,26 +1,47 @@
-/// Раскладка главного экрана с Togetherly+: какие вкладки нижней панели и
-/// какие блоки главной показывать и в каком порядке идут блоки (просьба из
-/// отзыва 02.10.2026: «ненужный функционал скрывать… кто-то минимализм любит»).
+/// Раскладка главного экрана с Togetherly+: какие вкладки нижней панели,
+/// какие кнопки ряда под таймером и какие блоки главной показывать, и в каком
+/// порядке идут блоки (просьба из отзыва 02.10.2026: «ненужный функционал
+/// скрывать… кто-то минимализм любит»).
 ///
-/// Двигаются и прячутся только блоки ниже ряда быстрых действий. Календарь
-/// настроений, таймер и сам ряд остаются на месте: ради них приложение
-/// открывают, а вёрстку таймера трогать нельзя (см. «Карточку таймера не
-/// трогать» в CLAUDE.md проекта).
+/// Двигаются и прячутся блоки ниже ряда быстрых действий. Календарь
+/// настроений и таймер остаются всегда: ради них приложение открывают, а
+/// вёрстку таймера трогать нельзя (см. «Карточку таймера не трогать» в
+/// CLAUDE.md проекта). В самом ряду кнопки можно только спрятать, их порядок
+/// задан дугой.
 ///
 /// Без Плюса раскладка хранится, но не действует: [effective] отдаёт порядок
 /// по умолчанию. Кончился Плюс — главная возвращается целиком, купил снова —
 /// прежняя раскладка на месте.
 enum HomeBlock { chest, mascot, map, tasks, wishes, lane }
 
-/// Вкладки, которые можно убрать из нижней панели. Главная, «Связь» и
-/// профиль остаются всегда: без них не попасть ни в пару, ни в настройки.
-enum HomeTab { widgets, watch }
+/// Вкладки нижней панели. Переставлять можно все, убрать — только «Виджеты»
+/// и «Смотрим»: без главной, «Связи» и профиля не попасть ни в пару, ни в
+/// настройки.
+enum HomeTab {
+  home(0),
+  widgets(1),
+  watch(4),
+  connect(2),
+  profile(3);
+
+  const HomeTab(this.navIndex);
+
+  /// Номер вкладки в `HomeScreen._selectedNavIndex`.
+  final int navIndex;
+
+  bool get canHide => this == widgets || this == watch;
+}
+
+/// Кнопки ряда под таймером, слева направо по дуге.
+enum HomeAction { draw, mood, wallet, calendar, post }
 
 class HomeLayout {
   const HomeLayout({
     this.order = defaultOrder,
     this.hiddenBlocks = const {},
     this.hiddenTabs = const {},
+    this.hiddenActions = const {},
+    this.tabOrder = HomeTab.values,
   });
 
   /// Порядок, в котором блоки стояли до раскладки.
@@ -36,6 +57,42 @@ class HomeLayout {
   final List<HomeBlock> order;
   final Set<HomeBlock> hiddenBlocks;
   final Set<HomeTab> hiddenTabs;
+  final Set<HomeAction> hiddenActions;
+
+  /// Вкладки нижней панели слева направо, вместе со спрятанными.
+  final List<HomeTab> tabOrder;
+
+  /// Номера видимых вкладок по порядку — для `HomeBottomNav.order`.
+  List<int> get navOrder => [
+        for (final t in tabOrder)
+          if (showsTab(t)) t.navIndex,
+      ];
+
+  HomeLayout _copy({
+    List<HomeBlock>? order,
+    Set<HomeBlock>? hiddenBlocks,
+    Set<HomeTab>? hiddenTabs,
+    Set<HomeAction>? hiddenActions,
+    List<HomeTab>? tabOrder,
+  }) =>
+      HomeLayout(
+        order: order ?? this.order,
+        hiddenBlocks: hiddenBlocks ?? this.hiddenBlocks,
+        hiddenTabs: hiddenTabs ?? this.hiddenTabs,
+        hiddenActions: hiddenActions ?? this.hiddenActions,
+        tabOrder: tabOrder ?? this.tabOrder,
+      );
+
+  /// Переставляет вкладку, индексы как у `onReorder` (то есть [to] ещё до
+  /// удаления перетаскиваемой).
+  HomeLayout tabMoved(int from, int to) {
+    if (from < 0 || from >= tabOrder.length) return this;
+    final target = to > from ? to - 1 : to;
+    final list = [...tabOrder];
+    final t = list.removeAt(from);
+    list.insert(target.clamp(0, list.length), t);
+    return _copy(tabOrder: list);
+  }
 
   /// Раскладка, которая действует сейчас: без Плюса — по умолчанию.
   HomeLayout effective({required bool plus}) =>
@@ -47,19 +104,23 @@ class HomeLayout {
 
   bool showsBlock(HomeBlock b) => !hiddenBlocks.contains(b);
   bool showsTab(HomeTab t) => !hiddenTabs.contains(t);
+  bool showsAction(HomeAction a) => !hiddenActions.contains(a);
 
-  HomeLayout withBlock(HomeBlock b, {required bool shown}) => HomeLayout(
-        order: order,
-        hiddenBlocks: shown
-            ? ({...hiddenBlocks}..remove(b))
-            : {...hiddenBlocks, b},
-        hiddenTabs: hiddenTabs,
+  HomeLayout withBlock(HomeBlock b, {required bool shown}) => _copy(
+        hiddenBlocks:
+            shown ? ({...hiddenBlocks}..remove(b)) : {...hiddenBlocks, b},
       );
 
-  HomeLayout withTab(HomeTab t, {required bool shown}) => HomeLayout(
-        order: order,
-        hiddenBlocks: hiddenBlocks,
-        hiddenTabs: shown ? ({...hiddenTabs}..remove(t)) : {...hiddenTabs, t},
+  HomeLayout withTab(HomeTab t, {required bool shown}) {
+    if (!shown && !t.canHide) return this;
+    return _copy(
+      hiddenTabs: shown ? ({...hiddenTabs}..remove(t)) : {...hiddenTabs, t},
+    );
+  }
+
+  HomeLayout withAction(HomeAction a, {required bool shown}) => _copy(
+        hiddenActions:
+            shown ? ({...hiddenActions}..remove(a)) : {...hiddenActions, a},
       );
 
   /// Переставляет блок с места [from] на место [to] (индексы в [order], как
@@ -69,7 +130,7 @@ class HomeLayout {
     final list = [...order];
     final b = list.removeAt(from);
     list.insert(to.clamp(0, list.length), b);
-    return HomeLayout(order: list, hiddenBlocks: hiddenBlocks, hiddenTabs: hiddenTabs);
+    return _copy(order: list);
   }
 
   /// Перетаскивание на главной: [shown] — блоки, которые сейчас на экране,
@@ -91,30 +152,17 @@ class HomeLayout {
     } else {
       list.insert(list.indexOf(next[pos - 1]) + 1, b);
     }
-    return HomeLayout(order: list, hiddenBlocks: hiddenBlocks, hiddenTabs: hiddenTabs);
-  }
-
-  /// Сдвиг блока на шаг вверх ([delta] = -1) или вниз (+1) среди ВИДИМЫХ:
-  /// спрятанные соседи не должны съедать нажатие «Выше».
-  HomeLayout shifted(HomeBlock b, int delta) {
-    final visible = visibleBlocks;
-    final i = visible.indexOf(b);
-    final j = i + delta;
-    if (i < 0 || j < 0 || j >= visible.length) return this;
-    final other = visible[j];
-    final list = [...order];
-    final ib = list.indexOf(b), io = list.indexOf(other);
-    list[ib] = other;
-    list[io] = b;
-    return HomeLayout(order: list, hiddenBlocks: hiddenBlocks, hiddenTabs: hiddenTabs);
+    return _copy(order: list);
   }
 
   bool get isDefault =>
       hiddenBlocks.isEmpty &&
       hiddenTabs.isEmpty &&
-      _sameOrder(order, defaultOrder);
+      hiddenActions.isEmpty &&
+      _sameOrder(order, defaultOrder) &&
+      _sameOrder(tabOrder, HomeTab.values);
 
-  static bool _sameOrder(List<HomeBlock> a, List<HomeBlock> b) {
+  static bool _sameOrder<T>(List<T> a, List<T> b) {
     if (a.length != b.length) return false;
     for (var i = 0; i < a.length; i++) {
       if (a[i] != b[i]) return false;
@@ -126,6 +174,8 @@ class HomeLayout {
         'order': [for (final b in order) b.name],
         'hiddenBlocks': [for (final b in hiddenBlocks) b.name],
         'hiddenTabs': [for (final t in hiddenTabs) t.name],
+        'hiddenActions': [for (final a in hiddenActions) a.name],
+        'tabOrder': [for (final t in tabOrder) t.name],
       };
 
   /// Разбор сохранённого. Незнакомые имена (блок убрали из приложения)
@@ -134,8 +184,8 @@ class HomeLayout {
   static HomeLayout fromJson(Object? raw) {
     if (raw is! Map) return const HomeLayout();
     List<T> names<T extends Enum>(Object? v, List<T> values) {
-      if (v is! List) return const [];
       final out = <T>[];
+      if (v is! List) return out;
       for (final x in v) {
         for (final e in values) {
           if (e.name == x && !out.contains(e)) out.add(e);
@@ -151,10 +201,23 @@ class HomeLayout {
       final prev = i == 0 ? -1 : order.indexOf(defaultOrder[i - 1]);
       order.insert(prev + 1, b);
     }
+    // Вкладки: пропавшие в сохранённом встают на своё место по умолчанию.
+    final tabs = names(raw['tabOrder'], HomeTab.values);
+    for (var i = 0; i < HomeTab.values.length; i++) {
+      final t = HomeTab.values[i];
+      if (tabs.contains(t)) continue;
+      final prev = i == 0 ? -1 : tabs.indexOf(HomeTab.values[i - 1]);
+      tabs.insert(prev + 1, t);
+    }
     return HomeLayout(
       order: order,
       hiddenBlocks: names(raw['hiddenBlocks'], HomeBlock.values).toSet(),
-      hiddenTabs: names(raw['hiddenTabs'], HomeTab.values).toSet(),
+      hiddenTabs: {
+        for (final t in names(raw['hiddenTabs'], HomeTab.values))
+          if (t.canHide) t,
+      },
+      hiddenActions: names(raw['hiddenActions'], HomeAction.values).toSet(),
+      tabOrder: tabs,
     );
   }
 }

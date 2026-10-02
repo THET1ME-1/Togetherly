@@ -16,15 +16,56 @@ void main() {
       expect(custom.effective(plus: true).showsTab(HomeTab.watch), isFalse);
     });
 
-    test('сдвиг шагает через спрятанных соседей', () {
-      // сундук, маскоты, [карта спрятана], задания…
-      final l = const HomeLayout().withBlock(HomeBlock.map, shown: false);
-      final up = l.shifted(HomeBlock.tasks, -1);
-      expect(up.visibleBlocks.take(3).toList(),
-          [HomeBlock.chest, HomeBlock.tasks, HomeBlock.mascot]);
-      // Крайние не двигаются.
-      expect(l.shifted(HomeBlock.chest, -1).order, l.order);
-      expect(l.shifted(HomeBlock.lane, 1).order, l.order);
+    test('кнопки ряда прячутся и переживают сохранение', () {
+      final l = const HomeLayout()
+          .withAction(HomeAction.wallet, shown: false)
+          .withAction(HomeAction.draw, shown: false);
+      expect(l.showsAction(HomeAction.wallet), isFalse);
+      expect(l.showsAction(HomeAction.mood), isTrue);
+      expect(l.isDefault, isFalse);
+      final back = HomeLayout.fromJson(l.toJson());
+      expect(back.hiddenActions, {HomeAction.wallet, HomeAction.draw});
+      expect(l.effective(plus: false).hiddenActions, isEmpty);
+      expect(l.withAction(HomeAction.wallet, shown: true)
+          .withAction(HomeAction.draw, shown: true).isDefault, isTrue);
+    });
+
+    test('порядок вкладок: перестановка, панель и сохранение', () {
+      // Профиль в начало (to = 0), «Смотрим» спрятана.
+      final l = const HomeLayout()
+          .tabMoved(4, 0)
+          .withTab(HomeTab.watch, shown: false);
+      expect(l.tabOrder.first, HomeTab.profile);
+      // Панель получает номера вкладок без спрятанной.
+      expect(l.navOrder, [3, 0, 1, 2]);
+      expect(const HomeLayout().navOrder, [0, 1, 4, 2, 3]);
+      final back = HomeLayout.fromJson(l.toJson());
+      expect(back.tabOrder, l.tabOrder);
+      expect(back.hiddenTabs, {HomeTab.watch});
+      // Главную, «Связь» и профиль не спрятать, даже подсунув в сохранённое.
+      expect(const HomeLayout().withTab(HomeTab.home, shown: false).isDefault,
+          isTrue);
+      expect(
+          HomeLayout.fromJson({'hiddenTabs': ['profile', 'widgets']})
+              .hiddenTabs,
+          {HomeTab.widgets});
+      // В сохранённом не было вкладки — она встала на своё место.
+      expect(
+          HomeLayout.fromJson({'tabOrder': ['profile', 'home', 'connect']})
+              .tabOrder,
+          [HomeTab.profile, HomeTab.home, HomeTab.widgets, HomeTab.watch,
+            HomeTab.connect]);
+      expect(const HomeLayout().tabMoved(1, 4).tabOrder,
+          [HomeTab.home, HomeTab.watch, HomeTab.connect, HomeTab.widgets,
+            HomeTab.profile]);
+    });
+
+    test('сохранённое без порядка не падает', () {
+      // Старая запись или чужое поле: порядка нет, блоки встают как обычно.
+      final l = HomeLayout.fromJson({'hiddenTabs': ['watch']});
+      expect(l.order, HomeLayout.defaultOrder);
+      expect(l.hiddenTabs, {HomeTab.watch});
+      expect(l.hiddenActions, isEmpty);
     });
 
     test('перетаскивание на главной не трогает спрятанных', () {

@@ -1457,6 +1457,7 @@ class _HomeScreenState extends State<HomeScreen> {
               isPaired: _pairData.isPaired,
               showWidgets: _navTabShown(1),
               showWatch: _navTabShown(4),
+              order: HomeLayoutService.instance.current.navOrder,
               onTap: (i) {
                 setState(() => _selectedNavIndex = i);
                 // Возврат на главную — освежаем режим боковой кнопки (мог
@@ -1865,6 +1866,10 @@ class _HomeScreenState extends State<HomeScreen> {
                             onPost: _postPhoto,
                             onPostHold: _postSnap,
                             onWallet: _openWallet,
+                            // С Плюсом лишние кнопки ряда можно спрятать в
+                            // настройках, раздел «Главный экран».
+                            hidden: HomeLayoutService.instance.current
+                                .hiddenActions,
                           )
                         : const SizedBox.shrink(),
                   ),
