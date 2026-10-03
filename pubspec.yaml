@@ -207,3 +207,9 @@ dependency_overrides:
   # vector_tile_renderer 6.1 держит vector_tile ^2 (protobuf ^3), а centrifuge
   # требует protobuf >=5. vector_tile 4 — тот же декодер на protobuf 6.
   vector_tile: ^4.0.0
+  # Копия 1.2.0-beta.3 с одной правкой: браузер регистрируется с политикой
+  # жестов DoNotBlockGesture. Без неё на iOS 26 после рекламы перед комнатой
+  # касания в комнату не доходят (обращения 226, 229). Обновляя плагин,
+  # перенести правку в InAppWebViewFlutterPlugin.swift.
+  flutter_inappwebview_ios:
+    path: third_party/flutter_inappwebview_ios

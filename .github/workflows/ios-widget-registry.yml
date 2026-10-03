@@ -67,7 +67,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           # Та же версия, что собирает релизы: на другой ломаются поды.
-          flutter-version: 3.38.10
+          flutter-version: 3.47.6
           channel: stable
           cache: true
 
