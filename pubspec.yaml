@@ -47,7 +47,11 @@ dependencies:
   material_color_utilities: ">=0.11.1 <0.14.0"
   flutter_local_notifications: ^21.0.0
   file_picker: ^8.0.7
-  geolocator: ^13.0.2
+  # geolocator_android до 5.0.2 ронял приложение на прошивках без сервисов
+  # Google (test/geolocator_without_gms_test.dart). Выше 5.0.2 не пускать:
+  # с 5.0.3 плагин тянет Android Gradle Plugin 9, а проект на 8.11.
+  geolocator: ^14.0.2
+  geolocator_android: 5.0.2
   geocoding: ^3.0.0
   path_provider: ^2.1.5
   just_audio: ^0.9.42
