@@ -168,12 +168,26 @@ class ReelsFeed {
   /// Ролик играет в комнате: скрытая страница открывает его тоже, без звука.
   /// Площадка засчитывает просмотр и отвечает похожими — так рекомендации
   /// идут за тем, что пара правда смотрит.
+  ///
+  /// Не на каждый свайп: у браузеров приложения один процесс на всех, и
+  /// полная загрузка m.youtube.com на каждый ролик тормозила саму ленту.
+  /// Открываем, только если ролик смотрят хотя бы [watchAfter] и прошлый
+  /// раз был не ближе [watchEvery].
   Future<void> watching(String id) async {
     if (!ReelQueue.isId(id)) return;
     _queue.markShown(id);
     final url = source.watchUrl(id);
-    if (url.isNotEmpty) await _go(url);
+    if (url.isEmpty) return;
+    _watchTimer?.cancel();
+    _watchTimer = Timer(watchAfter, () {
+      if (_disposed || DateTime.now().difference(_lastNav) < watchEvery) return;
+      unawaited(_go(url));
+    });
   }
+
+  static const Duration watchAfter = Duration(seconds: 4);
+  static const Duration watchEvery = Duration(seconds: 25);
+  Timer? _watchTimer;
 
   /// «Обновить рекомендации»: запас в сторону, лента открывается заново.
   Future<void> refresh() async {
@@ -223,6 +237,7 @@ class ReelsFeed {
 
   Future<void> dispose() async {
     _disposed = true;
+    _watchTimer?.cancel();
     _arrived?.complete();
     _arrived = null;
     final v = _view;

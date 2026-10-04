@@ -557,8 +557,14 @@
     },
   };
   const canKeep = (key) => keySrc(key) === 'shorts' || !!(FRAMES[keySrc(key)] || {}).keep;
+  // Прошлый ролик живым держим только у YouTube: без этого он показал бы свои
+  // кнопки. Плееры остальных площадок крутят свой код и на паузе, а у WebView
+  // он идёт в одном потоке со страницей — лишний плеер добавлял рывков
+  // (замер room-reels-perf: 8% тяжёлых кадров анимации против 4%).
+  const canKeepPrev = (key) => keySrc(key) === 'shorts';
 
-  function makeCard(key) {
+  /** [lazy] — плеер поднимет `card.boot()` позже (после анимации свайпа). */
+  function makeCard(key, lazy) {
     const node = document.createElement('div');
     node.className = 'rl-card';
     const frame = document.createElement('div');
@@ -570,8 +576,12 @@
     el.cards.appendChild(node);
     const card = { id: key, el: node, api: null, ready: false, active: false, dead: false };
     const src = keySrc(key);
-    if (src === 'shorts') ytCard(card, holder, keyId(key));
-    else frameCard(card, holder, src, keyId(key));
+    card.boot = () => {
+      card.boot = null;
+      if (src === 'shorts') ytCard(card, holder, keyId(key));
+      else frameCard(card, holder, src, keyId(key));
+    };
+    if (!lazy) card.boot();
     return card;
   }
 
@@ -745,37 +755,64 @@
   }
 
   function swapTo(id, isBack) {
+    flushSettle();
     let card = null;
     if (cards.prev && cards.prev.id === id) { card = cards.prev; cards.prev = null; }
     else if (cards.next && cards.next.id === id) { card = cards.next; cards.next = null; }
-    else { card = makeCard(id); place(card, isBack ? '-100%' : '100%', false); }
+    // Новый плеер (не загруженный заранее) поднимаем после того, как карточки
+    // доедут: плееры площадок работают в одном потоке со страницей (у WebView
+    // нет отдельных процессов для iframe), и их запуск посреди анимации рвал
+    // свайп — замер room-reels-perf, 04.10.2026.
+    else { card = makeCard(id, true); place(card, isBack ? '-100%' : '100%', false); }
     const old = cards.cur;
     cards.cur = card;
     card.active = true;
     card.el.classList.add('is-cur');
-    void card.el.offsetWidth;
-    place(card, '0', true);
+    requestAnimationFrame(() => place(card, '0', true));
     if (old) {
-      shelve(old);
+      old.active = false;
+      old.el.classList.remove('is-cur');
       place(old, isBack ? '100%' : '-100%', true);
-      if (isBack || !canKeep(old.id)) setTimeout(() => drop(old), 380);
-      else {
-        // Ушедший вверх ролик и есть прошлый: свайп вниз вернёт его сразу.
-        if (cards.prev) drop(cards.prev);
-        cards.prev = old;
-      }
     }
-    wake(card);
-    if (card.nudge) card.nudge();
-    setTimeout(() => { preloadNext(); ensurePrev(); }, 450);
+    // Команды плеерам — тоже после анимации: «играть», «пауза» и звук
+    // запускают декодирование, и посреди сдвига это давало рывки.
+    pendingSettle = () => {
+      if (old && !old.dead) {
+        shelve(old);
+        if (isBack || !canKeepPrev(old.id)) drop(old);
+        else {
+          // Ушедший вверх ролик и есть прошлый: свайп вниз вернёт его сразу.
+          if (cards.prev && cards.prev !== old) drop(cards.prev);
+          cards.prev = old;
+        }
+      }
+      if (card.dead || cards.cur !== card) return;
+      if (card.boot) card.boot();
+      wake(card);
+      if (card.nudge) card.nudge();
+      idle(() => { preloadNext(); ensurePrev(); });
+    };
+    settleTimer = setTimeout(flushSettle, SLIDE_MS);
   }
+  const SLIDE_MS = 320;
+  let settleTimer = 0;
+  let pendingSettle = null;
+  /** Доделать прошлую смену сразу — новый свайп пришёл раньше, чем она доехала. */
+  function flushSettle() {
+    clearTimeout(settleTimer);
+    const f = pendingSettle;
+    pendingSettle = null;
+    if (f) f();
+  }
+  /** Свободное время потока — для заранее загружаемых плееров. */
+  const idle = (fn) => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 1500 }) : setTimeout(fn, 600));
 
   /** Над экраном лежит ролик, на который ведёт «назад». */
   function ensurePrev() {
     const want = S.back.length ? S.back[S.back.length - 1].id : '';
     if (cards.prev && cards.prev.id === want) return;
     if (cards.prev) { drop(cards.prev); cards.prev = null; }
-    if (!want || !canKeep(want)) return;
+    if (!want || !canKeepPrev(want)) return;
     cards.prev = makeCard(want);
     place(cards.prev, '-100%', false);
   }
@@ -793,7 +830,10 @@
     // Сборка без этого обработчика может не ответить вовсе — ждём недолго.
     const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     try { await Promise.race([b.callHandler('reelsRefresh', {}), wait(3000)]); } catch (_) {}
-    await Promise.race([pull(10), wait(14000)]);
+    // Запрос ленты мог уже идти (тогда pull сразу выходит) — ждём, пока
+    // придёт хоть один свежий ролик, до 14 секунд.
+    pull(10);
+    for (let t = 0; t < 14000 && !S.mine.some((x) => !S.seen.has(x)); t += 300) await wait(300);
     refreshing = false;
     el.refresh.classList.remove('is-busy');
     const id = S.mine.find((x) => !S.seen.has(x));
