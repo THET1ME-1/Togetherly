@@ -11,6 +11,15 @@ import 'package:yandex_mobileads/mobile_ads.dart' as yandex;
 
 import '../../config/ad_units.dart';
 
+/// Отказ баннера из-за сети, а не из-за отсутствия объявления: «Ad request
+/// failed with network error» в журнале обращения 231. Только по тексту: номер
+/// кода у сетевой ошибки и у «нет объявления» в разных версиях SDK разный, а
+/// принять «нет объявления» за сеть значит отключить баннеры тем, у кого всё
+/// в порядке.
+@visibleForTesting
+bool bannerFailIsNetwork(String description) =>
+    description.toLowerCase().contains('network');
+
 /// Демо-блок Яндекса для отладочной сборки, в релизе — наш блок.
 const String _demoYandexBannerUnit = 'demo-banner-yandex';
 
@@ -52,6 +61,17 @@ class AdBanner extends StatefulWidget {
 }
 
 class _AdBannerState extends State<AdBanner> {
+  /// Сколько раз баннер упал с ошибкой сети за этот запуск.
+  ///
+  /// Где Яндекс недоступен, каждый новый экран создавал платформенный вид
+  /// баннера, ловил «network error» и убирал его — раз в полминуты, весь
+  /// сеанс (обращение 231, Realme 10 Pro, 04.10.2026: после любого действия
+  /// приложение переставало принимать нажатия и прокрутку). Вид Android,
+  /// который создают и тут же убирают посреди перехода, — главный подозреваемый.
+  /// После второго такого отказа баннеры до перезапуска не создаём вовсе.
+  static int _networkFails = 0;
+  static const int _maxNetworkFails = 2;
+
   yandex.BannerAd? _yandexAd;
   bool _yandexFailed = false;
 
@@ -107,6 +127,10 @@ class _AdBannerState extends State<AdBanner> {
   void _loadYandex() {
     if (!mounted || _yandexAd != null || _yandexFailed) return;
     if (!Platform.isAndroid && !Platform.isIOS) return;
+    if (_networkFails >= _maxNetworkFails) {
+      setState(() => _yandexFailed = true);
+      return;
+    }
 
     final unit = kDebugMode
         ? _demoYandexBannerUnit
@@ -124,6 +148,7 @@ class _AdBannerState extends State<AdBanner> {
       ),
       onAdFailedToLoad: (error) {
         debugPrint('Yandex banner failed: ${error.code} ${error.description}');
+        if (bannerFailIsNetwork(error.description)) _networkFails++;
         if (mounted) setState(() => _yandexFailed = true);
       },
     );
