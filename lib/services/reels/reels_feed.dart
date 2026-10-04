@@ -6,24 +6,29 @@ import 'package:flutter/painting.dart' show Size;
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../../models/reel_queue.dart';
+import '../../models/reels_source.dart';
 
-/// Лента YouTube Shorts этого телефона — в скрытом браузере.
+/// Лента площадки этого телефона — в скрытом браузере.
 ///
-/// Человек как будто сам листает m.youtube.com/shorts: куки браузера живут
-/// между запусками, поэтому рекомендации у каждого свои и учатся на том, что
-/// смотрели. Страница ничего не показывает и звука не даёт — она только
+/// Человек как будто сам листает ленту площадки: куки браузера живут между
+/// запусками, поэтому рекомендации у каждого свои и учатся на том, что он
+/// смотрит. Страница ничего не показывает и звука не даёт — она только
 /// приносит номера роликов, а смотрят оба в комнате официальным плеером.
 ///
-/// Номера приходят из ответа `youtubei/v1/reel/reel_watch_sequence`: его
-/// страница просит сама, открыв ролик, и в нём около восьми следующих.
-/// Перехват стоит на `fetch` и `XMLHttpRequest` в начале документа.
-class ShortsFeed {
-  ShortsFeed({this.onIds});
+/// Номера ловит скрипт в начале документа: перехват `fetch` и
+/// `XMLHttpRequest`, ответ ленты разбирается правилом своей площадки
+/// ([script]). ВК и Дзен кладут первые ролики прямо в разметку — их скрипт
+/// берёт и оттуда.
+class ReelsFeed {
+  ReelsFeed(this.source, {this.onIds});
+
+  final ReelsSource source;
 
   /// Пришли новые номера — комната получает их сразу, не дожидаясь вопроса.
   final void Function(List<String> ids)? onIds;
 
-  static const String home = 'https://m.youtube.com/shorts/';
+  static const String _desktopUa =
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36';
 
   final ReelQueue _queue = ReelQueue();
   HeadlessInAppWebView? _view;
@@ -32,22 +37,28 @@ class ShortsFeed {
   bool _disposed = false;
 
   /// Скрипт страницы: перехват ответов ленты, тишина, согласие на куки.
-  static const String script = r'''
+  /// Правила площадок повторяет разведка (`reels_source.dart`).
+  static String script(ReelsSource source) => '''
 (function(){
-  if (window.__tgShorts) return; window.__tgShorts = 1;
-  var tell = function(text){
-    try {
-      var out = [], re = /"videoId":"([A-Za-z0-9_-]{11})"/g, m;
-      while ((m = re.exec(text))) out.push(m[1]);
-      if (out.length) window.flutter_inappwebview.callHandler('shortsIds', out);
-    } catch (e) {}
+  if (window.__tgReels) return; window.__tgReels = 1;
+  var SRC = '${source.key}';
+  var tell = function(ids){ if (ids.length) try { window.flutter_inappwebview.callHandler('reelIds', ids); } catch (e) {} };
+  var uniq = function(a){ var s = {}, o = []; a.forEach(function(x){ if (x && !s[x]) { s[x] = 1; o.push(x); } }); return o; };
+  var all = function(text, re, map){ var out = [], m; while ((m = re.exec(text))) out.push(map ? map(m) : m[1]); return out; };
+  var RULES = {
+    shorts: { url: /youtubei\\/v1\\/reel\\/reel_watch_sequence/, pick: function(t){ return all(t, /"videoId":"([A-Za-z0-9_-]{11})"/g); } },
+    tiktok: { url: /api\\/(recommend|preload)\\/item_list/, pick: function(t){ try { return (JSON.parse(t).itemList || []).map(function(i){ return String(i.id); }); } catch (e) { return []; } } },
+    rutube: { url: /shorts\\/lenta/, pick: function(t){ return all(t, /"id":"([0-9a-f]{32})"/g); } },
+    vk: { url: /shortVideo\\.getRecom/, pick: function(t){ return all(t, /video_ext\\.php\\?oid=(-?\\d+)&(?:amp;)?id=(\\d+)&(?:amp;)?hash=([0-9a-f]+)/g, function(m){ return m[1] + '_' + m[2] + '_' + m[3]; }); } },
+    dzen: { url: /video-recommend/, pick: function(t){ return all(t, /"videoContentId":"([A-Za-z0-9_-]{6,})"/g); } }
   };
-  var wanted = function(u){ return /youtubei\/v1\/reel\/reel_watch_sequence/.test(String(u || '')); };
+  var R = RULES[SRC];
+  var heard = function(u, t){ try { if (R.url.test(String(u || ''))) tell(uniq(R.pick(t))); } catch (e) {} };
   var f = window.fetch;
   if (f) window.fetch = function(input){
     var u = typeof input === 'string' ? input : (input && input.url) || '';
     return f.apply(this, arguments).then(function(r){
-      try { if (wanted(u)) r.clone().text().then(tell, function(){}); } catch (e) {}
+      try { if (R.url.test(u)) r.clone().text().then(function(t){ heard(u, t); }, function(){}); } catch (e) {}
       return r;
     });
   };
@@ -55,10 +66,14 @@ class ShortsFeed {
   XMLHttpRequest.prototype.open = function(m, u){ this.__tgU = u; return open.apply(this, arguments); };
   XMLHttpRequest.prototype.send = function(){
     var x = this;
-    x.addEventListener('load', function(){ try { if (wanted(x.__tgU)) tell(x.responseText); } catch (e) {} });
+    x.addEventListener('load', function(){ try { heard(x.__tgU, x.responseText); } catch (e) {} });
     return send.apply(this, arguments);
   };
-  // Ни звука: ролик здесь играет только ради того, чтобы платформа его
+  // ВК и Дзен первые ролики кладут прямо в разметку.
+  if (SRC === 'vk' || SRC === 'dzen') document.addEventListener('DOMContentLoaded', function(){
+    try { tell(uniq(R.pick(document.documentElement.innerHTML))); } catch (e) {}
+  });
+  // Ни звука: ролик здесь играет только ради того, чтобы площадка его
   // засчитала, слушают его в комнате.
   var hush = function(v){ try { v.muted = true; v.volume = 0; if (window.__tgStop) v.pause(); } catch (e) {} };
   var play = HTMLMediaElement.prototype.play;
@@ -68,7 +83,7 @@ class ShortsFeed {
   // скрытом браузере грел телефон и тормозил ленту в комнате.
   setTimeout(function(){ window.__tgStop = 1; }, 12000);
   // Экран согласия на куки (часть стран Европы) — отказываемся от лишнего.
-  if (/^consent\./.test(location.hostname)) setTimeout(function(){
+  if (/^consent\\./.test(location.hostname)) setTimeout(function(){
     var b = Array.prototype.slice.call(document.querySelectorAll('button')).find(function(x){
       return /reject|отклон|refuz|ablehnen|rechazar|refuser|rifiuta/i.test((x.textContent || '') + (x.getAttribute('aria-label') || ''));
     });
@@ -81,19 +96,21 @@ class ShortsFeed {
   Future<void> start() async {
     if (_view != null || _disposed) return;
     final view = HeadlessInAppWebView(
-      initialUrlRequest: URLRequest(url: WebUri(home)),
-      initialSize: const Size(390, 844),
+      initialUrlRequest: URLRequest(url: WebUri(source.home)),
+      initialSize: source.desktop ? const Size(1280, 900) : const Size(390, 844),
       initialUserScripts: UnmodifiableListView([
-        UserScript(source: script, injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START),
+        UserScript(source: script(source), injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START),
       ]),
       initialSettings: InAppWebViewSettings(
         javaScriptEnabled: true,
         mediaPlaybackRequiresUserGesture: false,
         allowsInlineMediaPlayback: true,
+        userAgent: source.desktop ? _desktopUa : null,
+        preferredContentMode: source.desktop ? UserPreferredContentMode.DESKTOP : UserPreferredContentMode.RECOMMENDED,
       ),
       onWebViewCreated: (c) {
         c.addJavaScriptHandler(
-          handlerName: 'shortsIds',
+          handlerName: 'reelIds',
           callback: (args) {
             final ids = args.isNotEmpty && args.first is List ? (args.first as List) : const [];
             _accept(ids);
@@ -102,7 +119,7 @@ class ShortsFeed {
         );
       },
       onConsoleMessage: (_, m) {
-        if (kDebugMode) debugPrint('ShortsFeed: ${m.message}');
+        if (kDebugMode) debugPrint('ReelsFeed(${source.key}): ${m.message}');
       },
     );
     _view = view;
@@ -110,7 +127,7 @@ class ShortsFeed {
     try {
       await view.run();
     } catch (e) {
-      debugPrint('ShortsFeed: скрытая страница не поднялась: $e');
+      debugPrint('ReelsFeed: скрытая страница не поднялась: $e');
     }
   }
 
@@ -118,7 +135,7 @@ class ShortsFeed {
     final before = _queue.length;
     final added = _queue.add(ids);
     if (added == 0) return;
-    debugPrint('ShortsFeed: +$added (в запасе ${_queue.length})');
+    debugPrint('ReelsFeed(${source.key}): +$added (в запасе ${_queue.length})');
     _arrived?.complete();
     _arrived = null;
     // Комнату будим, только если запас был пуст: иначе она сама спросит.
@@ -126,7 +143,7 @@ class ShortsFeed {
   }
 
   /// До [n] номеров. Пусто — ждём ленту до [wait], пока страница раскачается.
-  Future<List<String>> take(int n, {Duration wait = const Duration(seconds: 12)}) async {
+  Future<List<String>> take(int n, {Duration wait = const Duration(seconds: 14)}) async {
     if (_queue.length == 0) {
       _refill();
       final arrived = _arrived ??= Completer<void>();
@@ -138,20 +155,29 @@ class ShortsFeed {
   }
 
   /// Ролик играет в комнате: скрытая страница открывает его тоже, без звука.
-  /// Платформа засчитывает просмотр и отвечает следующими по нему — так
-  /// рекомендации идут за тем, что пара правда смотрит.
+  /// Площадка засчитывает просмотр и отвечает похожими — так рекомендации
+  /// идут за тем, что пара правда смотрит.
   Future<void> watching(String id) async {
     if (!ReelQueue.isId(id)) return;
     _queue.markShown(id);
-    await _go('https://m.youtube.com/shorts/$id');
+    final url = source.watchUrl(id);
+    if (url.isNotEmpty) await _go(url);
   }
 
-  /// Запас кончается: листаем скрытую ленту дальше от последнего номера.
+  /// «Обновить рекомендации»: запас в сторону, лента открывается заново.
+  Future<void> refresh() async {
+    _queue.dropPending();
+    await _go(source.home);
+  }
+
+  /// Запас кончается: Shorts листаем дальше от последнего номера, остальные
+  /// открываем заново — каждая загрузка ленты приносит свежую подборку.
   void _refill() {
     // Страница только что открыта и ещё отвечает — не дёргаем её.
-    if (DateTime.now().difference(_lastNav) < const Duration(seconds: 4)) return;
+    if (DateTime.now().difference(_lastNav) < const Duration(seconds: 6)) return;
     final last = _queue.last;
-    unawaited(_go(last == null ? home : 'https://m.youtube.com/shorts/$last'));
+    final url = source == ReelsSource.shorts && last != null ? source.watchUrl(last) : source.home;
+    unawaited(_go(url));
   }
 
   Future<void> _go(String url) async {
@@ -161,15 +187,8 @@ class ShortsFeed {
     try {
       await c.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
     } catch (e) {
-      debugPrint('ShortsFeed: переход не удался: $e');
+      debugPrint('ReelsFeed: переход не удался: $e');
     }
-  }
-
-  /// «Обновить рекомендации»: запас в сторону, скрытая лента открывается
-  /// заново с главной Shorts — платформа присылает свежую подборку.
-  Future<void> refresh() async {
-    _queue.dropPending();
-    await _go(home);
   }
 
   /// Приложение свернули: скрытая страница засыпает и не крутит ролик.

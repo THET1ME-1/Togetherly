@@ -8,7 +8,7 @@ import 'package:love_app/models/reels_source.dart';
 import 'package:love_app/widgets/reels/reels_start_sheet.dart';
 
 /// Лист выбора площадки «Лент вдвоём»: на 320 точках и шрифте 1.3 ничего не
-/// вылезает, работает только Shorts, остальные помечены «скоро».
+/// вылезает, у площадок настоящие иконки, выбор возвращается.
 /// Картинка для глаз: REELS_PREVIEW=1 → build/reels/start-sheet.png.
 void main() {
   for (final w in [320.0, 393.0]) {
@@ -43,7 +43,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       expect(find.text('TikTok'), findsOneWidget);
-      // «Скоро» нажать нельзя — выбор остаётся на Shorts.
+      // У каждой площадки — настоящая иконка приложения, а не буквы.
+      expect(find.byType(Image), findsNWidgets(ReelsSource.values.length));
       await tester.tap(find.text('TikTok'));
       await tester.pumpAndSettle();
       if (Platform.environment['REELS_PREVIEW'] == '1') {
@@ -57,7 +58,7 @@ void main() {
       }
       await tester.tap(find.byType(FilledButton));
       await tester.pumpAndSettle();
-      expect(picked, ReelsSource.shorts);
+      expect(picked, ReelsSource.tiktok);
     });
   }
 }

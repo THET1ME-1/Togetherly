@@ -2275,7 +2275,7 @@ abstract class AppStrings {
   String get reelsStartTitle;
   String get reelsStartWatch;
   String get reelsShortsHint;
-  String get reelsSoon;
+  String get reelsTiktokHint;
   String get watchPartnerInBrowser;
 
   /// Код комнаты не пришёл — предлагаем спросить заново, а не молчать

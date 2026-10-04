@@ -487,7 +487,7 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
     if (_room.isEmpty) return;
     final source = await showReelsStartSheet(context);
     if (source == null || !mounted) return;
-    await TogetherLauncher.open(context, pairId: widget.pairData.pairId, reels: true);
+    await TogetherLauncher.open(context, pairId: widget.pairData.pairId, reels: true, reelsSource: source);
   }
 
   /// Свой ролик открываем в комнате пары: файл лежит у нас и отдаётся прямой

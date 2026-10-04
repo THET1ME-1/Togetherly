@@ -6,7 +6,8 @@ import '../app_sheet.dart';
 
 /// Лист перед «Лентами вдвоём»: откуда смотреть. Возвращает выбранную
 /// площадку или null, если лист закрыли. Макет — шаг 2 артефакта «Ленты
-/// вдвоём».
+/// вдвоём». Значки — настоящие иконки приложений площадок
+/// (`assets/images/reels/`).
 Future<ReelsSource?> showReelsStartSheet(BuildContext context) {
   return showAppSheet<ReelsSource>(context, builder: (_) => const _ReelsStartSheet());
 }
@@ -49,11 +50,7 @@ class _ReelsStartSheetState extends State<_ReelsStartSheet> {
               ),
             ),
             for (final src in ReelsSource.values) ...[
-              _SourceRow(
-                source: src,
-                picked: src == _picked,
-                onTap: src.available ? () => setState(() => _picked = src) : null,
-              ),
+              _SourceRow(source: src, picked: src == _picked, onTap: () => setState(() => _picked = src)),
               const SizedBox(height: 4),
             ],
           ],
@@ -68,58 +65,42 @@ class _SourceRow extends StatelessWidget {
 
   final ReelsSource source;
   final bool picked;
-  final VoidCallback? onTap;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final s = LocaleService.current;
     final cs = Theme.of(context).colorScheme;
-    final on = picked && source.available;
-    final fg = on ? cs.onPrimaryContainer : cs.onSurface;
-    return Opacity(
-      opacity: source.available ? 1 : .55,
-      child: Material(
-        color: on ? cs.primaryContainer : cs.surface,
+    final fg = picked ? cs.onPrimaryContainer : cs.onSurface;
+    return Material(
+      color: picked ? cs.primaryContainer : cs.surface,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: on ? cs.surface : cs.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    source.badge,
-                    style: TextStyle(fontFamily: 'Unbounded', fontSize: 12, fontWeight: FontWeight.w800, color: fg),
-                  ),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              Image.asset(source.icon, width: 40, height: 40, filterQuality: FilterQuality.medium),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      source.title,
+                      style: TextStyle(fontFamily: 'Onest', fontSize: 15, fontWeight: FontWeight.w700, color: fg),
+                    ),
+                    Text(
+                      source == ReelsSource.tiktok ? s.reelsTiktokHint : s.reelsShortsHint,
+                      style: TextStyle(fontFamily: 'Onest', fontSize: 12.5, color: fg.withValues(alpha: .75)),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        source.title,
-                        style: TextStyle(fontFamily: 'Onest', fontSize: 15, fontWeight: FontWeight.w700, color: fg),
-                      ),
-                      Text(
-                        source.available ? s.reelsShortsHint : s.reelsSoon,
-                        style: TextStyle(fontFamily: 'Onest', fontSize: 12.5, color: fg.withValues(alpha: .75)),
-                      ),
-                    ],
-                  ),
-                ),
-                if (on) Icon(Icons.check_rounded, color: fg),
-              ],
-            ),
+              ),
+              if (picked) Icon(Icons.check_rounded, color: fg),
+            ],
           ),
         ),
       ),

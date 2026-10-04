@@ -78,7 +78,12 @@
     return b && typeof b.callHandler === 'function' ? b : null;
   };
 
+  // Площадка своей ленты выбрана в приложении (`?feed=`); партнёр может
+  // смотреть другую — у каждого ролика своя метка в ключе.
+  const SOURCES = { shorts: 'SHORTS', tiktok: 'TIKTOK', rutube: 'RUTUBE', vk: 'ВК КЛИПЫ', dzen: 'ДЗЕН' };
+  const feedParam = (new URLSearchParams(location.search).get('feed') || 'shorts').toLowerCase();
   const S = {
+    src: SOURCES[feedParam] ? feedParam : 'shorts',
     me: '', name: '', partnerId: '', partnerName: '',
     mine: [], theirs: [], seen: new Set(),
     cur: null, back: [],
@@ -378,8 +383,11 @@
 
   function addMine(ids) {
     let added = 0;
-    (ids || []).forEach((id) => {
-      if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{11}$/.test(id)) return;
+    (ids || []).forEach((raw) => {
+      if (typeof raw !== 'string') return;
+      // Приложение отдаёт голые номера своей площадки — ключ собираем здесь.
+      const id = raw.indexOf(':') > 0 ? raw : S.src + ':' + raw;
+      if (!/^[a-z]+:-?[A-Za-z0-9_-]{6,80}$/.test(id)) return;
       if (S.seen.has(id) || S.mine.indexOf(id) >= 0) return;
       S.mine.push(id);
       added++;
@@ -478,7 +486,7 @@
     // Ролик из своей ленты: скрытая страница приложения «смотрит» его тоже,
     // без звука. Так платформа засчитывает просмотр, а рекомендации учатся.
     const b = bridge();
-    if (b && cur.owner === S.me) { try { b.callHandler('reelsWatching', { id: cur.id }); } catch (_) {} }
+    if (b && cur.owner === S.me && keySrc(cur.id) === S.src) { try { b.callHandler('reelsWatching', { id: keyId(cur.id) }); } catch (_) {} }
   }
 
   // ── плеер ────────────────────────────────────────────────────────────────
@@ -511,7 +519,43 @@
   const cards = { cur: null, next: null, prev: null };
   let cardSeq = 0;
 
-  function makeCard(id) {
+  // Ключ ролика — «площадка:номер» («tiktok:7654…», «vk:-2326_4562_c1df»):
+  // у партнёра может быть своя площадка, и по ключу видно, чем играть.
+  // Ключ без площадки — Shorts: так шлют сборки, вышедшие до остальных лент.
+  const keySrc = (key) => (key.indexOf(':') > 0 ? key.slice(0, key.indexOf(':')) : 'shorts');
+  const keyId = (key) => (key.indexOf(':') > 0 ? key.slice(key.indexOf(':') + 1) : key);
+
+  /** Плееры площадок, кроме YouTube: официальный iframe и его команды.
+   *  `keep: false` — команд у плеера нет (Дзен), поэтому заранее под экраном
+   *  его не держим: молчать по просьбе он не умеет. */
+  const FRAMES = {
+    tiktok: {
+      url: (id) => 'https://www.tiktok.com/player/v1/' + id + '?autoplay=1&loop=1&controls=0&progress_bar=0&play_button=0&volume_control=0&fullscreen_button=0&timestamp=0&music_info=0&description=0&rel=0&native_context_menu=0&closed_caption=0',
+      say: (w, cmd) => w.postMessage({ type: { play: 'play', pause: 'pause', mute: 'mute', unmute: 'unMute' }[cmd], 'x-tiktok-player': true }, '*'),
+      keep: true,
+    },
+    rutube: {
+      url: (id) => 'https://rutube.ru/play/embed/' + id + '/?autoplay=1',
+      say: (w, cmd) => w.postMessage(JSON.stringify({ type: 'player:' + { play: 'play', pause: 'pause', mute: 'mute', unmute: 'unMute' }[cmd], data: {} }), '*'),
+      // Rutube в конце ролика встаёт: повтор просим сами.
+      ended: (m) => m && m.type === 'player:changeState' && m.data && (m.data.state === 'completed' || m.data.state === 'stopped'),
+      keep: true,
+    },
+    vk: {
+      url: (id) => { const p = id.split('_'); return 'https://vk.com/video_ext.php?oid=' + p[0] + '&id=' + p[1] + '&hash=' + p[2] + '&autoplay=1&loop=1&js_api=1'; },
+      init: (w) => w.postMessage({ method: 'init' }, '*'),
+      say: (w, cmd) => w.postMessage({ method: cmd }, '*'),
+      ended: (m) => m && m.event === 'ended',
+      keep: true,
+    },
+    dzen: {
+      url: (id) => 'https://dzen.ru/embed/' + id + '?autoplay=1&mute=0&loop=1',
+      keep: false,
+    },
+  };
+  const canKeep = (key) => keySrc(key) === 'shorts' || !!(FRAMES[keySrc(key)] || {}).keep;
+
+  function makeCard(key) {
     const node = document.createElement('div');
     node.className = 'rl-card';
     const frame = document.createElement('div');
@@ -521,10 +565,27 @@
     frame.appendChild(holder);
     node.appendChild(frame);
     el.cards.appendChild(node);
-    const card = { id, el: node, player: null, ready: false, active: false, dead: false };
+    const card = { id: key, el: node, api: null, ready: false, active: false, dead: false };
+    const src = keySrc(key);
+    if (src === 'shorts') ytCard(card, holder, keyId(key));
+    else frameCard(card, holder, src, keyId(key));
+    return card;
+  }
+
+  /** Ролик не открылся: соседний — просто убрать, текущий — листать дальше.
+   *  Листает тот, кто его включил, чтобы двое не перескочили дважды. */
+  function failed(card) {
+    if (card === cards.next) { drop(card); cards.next = null; return; }
+    if (card === cards.prev) { drop(card); cards.prev = null; return; }
+    if (card !== cards.cur || !S.cur || S.cur.by !== S.me) return;
+    R.say(T.unavailable);
+    setTimeout(next, 600);
+  }
+
+  function ytCard(card, holder, id) {
     whenYT(() => {
       if (card.dead) return;
-      card.player = new YT.Player(holder.id, {
+      const p = new YT.Player(holder.id, {
         videoId: id,
         // Повтор делает сам плеер (`loop` с `playlist` из одного ролика):
         // наш перезапуск через seekTo снова вызывал его кнопки.
@@ -536,27 +597,72 @@
             // Под экраном ролик играет без звука в четверть скорости: кнопки
             // YouTube за это время прячутся, а ролик почти не уходит вперёд.
             // Останавливать его нельзя — пауза снова вызывает кнопки.
-            else { try { card.player.mute(); card.player.setPlaybackRate(0.25); card.player.playVideo(); } catch (_) {} }
+            else card.api.shelve();
           },
-          onError: () => {
-            if (card === cards.next) { drop(card); cards.next = null; return; }
-            if (card === cards.prev) { drop(card); cards.prev = null; return; }
-            // Ролик закрыт для встраивания или удалён. Дальше листает тот,
-            // кто его включил, чтобы двое не перескочили дважды.
-            if (card !== cards.cur || !S.cur || S.cur.by !== S.me) return;
-            R.say(T.unavailable);
-            setTimeout(next, 600);
-          },
+          onError: () => failed(card),
         },
       });
+      card.api = {
+        play: () => p.playVideo(),
+        pause: () => p.pauseVideo(),
+        mute: () => p.mute(),
+        unmute: () => { p.unMute(); p.setVolume(100); },
+        muted: () => p.isMuted(),
+        // Без паузы и без перемотки: и то и другое вызывает кнопки YouTube.
+        shelve: () => { p.mute(); p.setPlaybackRate(0.25); p.playVideo(); },
+        wake: () => p.setPlaybackRate(1),
+        destroy: () => p.destroy(),
+      };
     });
-    return card;
   }
+
+  function frameCard(card, holder, src, id) {
+    const spec = FRAMES[src];
+    if (!spec) { setTimeout(() => failed(card), 0); return; }
+    const f = document.createElement('iframe');
+    f.src = spec.url(id);
+    f.allow = 'autoplay; encrypted-media; picture-in-picture';
+    // Страница комнаты без реферера (ради дисков), а площадкам он нужен.
+    f.referrerPolicy = 'strict-origin-when-cross-origin';
+    holder.appendChild(f);
+    card.frame = f;
+    card.spec = spec;
+    const say = (cmd) => { try { if (spec.say) spec.say(f.contentWindow, cmd); } catch (_) {} };
+    card.api = {
+      play: () => say('play'),
+      pause: () => say('pause'),
+      mute: () => say('mute'),
+      unmute: () => say('unmute'),
+      muted: () => false,
+      shelve: () => { say('mute'); say('pause'); },
+      wake: () => {},
+      destroy: () => f.remove(),
+    };
+    f.addEventListener('load', () => {
+      card.ready = true;
+      try { if (spec.init) spec.init(f.contentWindow); } catch (_) {}
+      // Плееры поднимаются не сразу и первые команды теряют — повторяем.
+      [0, 700, 1800, 3500].forEach((ms) => setTimeout(() => {
+        if (card.dead) return;
+        if (card.active) wake(card); else card.api.shelve();
+      }, ms));
+    });
+  }
+
+  // Ответы плееров площадок: конец ролика — повтор.
+  window.addEventListener('message', (e) => {
+    const all = [cards.cur, cards.next, cards.prev];
+    const card = all.find((c) => c && c.frame && c.frame.contentWindow === e.source);
+    if (!card || !card.spec || !card.spec.ended) return;
+    let m = e.data;
+    if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { return; } }
+    if (card.active && card.spec.ended(m)) card.api.play();
+  });
 
   function drop(card) {
     if (!card) return;
     card.dead = true;
-    try { if (card.player) card.player.destroy(); } catch (_) {}
+    try { if (card.api) card.api.destroy(); } catch (_) {}
     card.el.remove();
   }
 
@@ -564,11 +670,11 @@
    *  `seekTo` вызывает у YouTube полный набор кнопок поверх ролика (проверено
    *  перебором в scratchpad/ytui), а смена скорости и звука — нет. */
   function wake(card) {
-    if (!card.ready) return;
+    if (!card.ready || !card.api) return;
     try {
-      card.player.setPlaybackRate(1);
-      if (S.wantMuted) card.player.mute(); else { card.player.unMute(); card.player.setVolume(100); }
-      card.player.playVideo();
+      card.api.wake();
+      if (S.wantMuted) card.api.mute(); else card.api.unmute();
+      card.api.play();
     } catch (_) {}
     checkSound(card);
   }
@@ -596,11 +702,12 @@
     if (cards.prev) place(cards.prev, '-100%', true);
   }
 
-  /** Карточка ушла с экрана: тихо и в четверть скорости, без паузы. */
+  /** Карточка ушла с экрана: молчит (YouTube — в четверть скорости, без
+   *  паузы; остальные — на паузе). */
   function shelve(card) {
     card.active = false;
     card.el.classList.remove('is-cur');
-    try { card.player.mute(); card.player.setPlaybackRate(0.25); } catch (_) {}
+    try { if (card.api) card.api.shelve(); } catch (_) {}
   }
 
   function swapTo(id, isBack) {
@@ -617,7 +724,7 @@
     if (old) {
       shelve(old);
       place(old, isBack ? '100%' : '-100%', true);
-      if (isBack) setTimeout(() => drop(old), 380);
+      if (isBack || !canKeep(old.id)) setTimeout(() => drop(old), 380);
       else {
         // Ушедший вверх ролик и есть прошлый: свайп вниз вернёт его сразу.
         if (cards.prev) drop(cards.prev);
@@ -633,7 +740,7 @@
     const want = S.back.length ? S.back[S.back.length - 1].id : '';
     if (cards.prev && cards.prev.id === want) return;
     if (cards.prev) { drop(cards.prev); cards.prev = null; }
-    if (!want) return;
+    if (!want || !canKeep(want)) return;
     cards.prev = makeCard(want);
     place(cards.prev, '-100%', false);
   }
@@ -669,7 +776,7 @@
     const id = peekNext();
     if (cards.next && cards.next.id === id) return;
     if (cards.next) { drop(cards.next); cards.next = null; }
-    if (!id) return;
+    if (!id || !canKeep(id)) return;
     cards.next = makeCard(id);
     place(cards.next, '100%', false);
   }
@@ -681,9 +788,9 @@
   function checkSound(card) {
     clearTimeout(soundCheck);
     soundCheck = setTimeout(() => {
-      if (card !== cards.cur || !card.player || S.paused) return;
+      if (card !== cards.cur || !card.api || S.paused) return;
       let muted = false;
-      try { muted = card.player.isMuted(); } catch (_) {}
+      try { muted = card.api.muted(); } catch (_) {}
       if (muted && !S.wantMuted) {
         S.wantMuted = true;
         el.sound.hidden = false;
@@ -695,7 +802,7 @@
     S.wantMuted = false;
     el.sound.hidden = true;
     const c = cards.cur;
-    try { c.player.unMute(); c.player.setVolume(100); c.player.playVideo(); } catch (_) {}
+    try { c.api.unmute(); c.api.play(); } catch (_) {}
   }
 
   function togglePause(tell) {
@@ -709,7 +816,7 @@
     S.paused = p;
     el.root.classList.toggle('is-paused', p);
     const c = cards.cur;
-    try { if (p) c.player.pauseVideo(); else c.player.playVideo(); } catch (_) {}
+    try { if (p) c.api.pause(); else c.api.play(); } catch (_) {}
   }
 
   // ── ход, реакции ─────────────────────────────────────────────────────────
@@ -723,6 +830,7 @@
     av.textContent = initial(mine ? S.name : S.partnerName);
     av.classList.toggle('is-partner', !mine);
     $('b', el.pill).textContent = mine ? T.mine : T.theirs(pName);
+    $('.rl-src', el.pill).textContent = SOURCES[S.cur ? keySrc(S.cur.id) : S.src] || 'SHORTS';
     el.input.placeholder = T.write();
   }
 
@@ -879,7 +987,9 @@
         return true;
       case 'reels-reel':
         notePartner(data);
-        if (S.cur && S.cur.id !== data.id && !data.back) { S.back.push(S.cur); if (S.back.length > 30) S.back.shift(); }
+        // Тот же ролик (напоминание листающего) — ничего не перезапускаем.
+        if (S.cur && S.cur.id === data.id) return true;
+        if (S.cur && !data.back) { S.back.push(S.cur); if (S.back.length > 30) S.back.shift(); }
         if (data.back) {
           const i = S.back.map((x) => x.id).lastIndexOf(data.id);
           if (i >= 0) S.back.splice(i);
@@ -919,14 +1029,23 @@
     if (asleep === on) return;
     asleep = on;
     [cards.cur, cards.next, cards.prev].forEach((c) => {
-      if (!c || !c.player || !c.ready) return;
+      if (!c || !c.api || !c.ready) return;
       try {
-        if (on) c.player.pauseVideo();
-        else if (c !== cards.cur || !S.paused) c.player.playVideo();
+        if (on) c.api.pause();
+        else if (c !== cards.cur) c.api.shelve();
+        else if (!S.paused) c.api.play();
       } catch (_) {}
     });
   }
   window.reelsSleep = (on) => sleep(!!on);
+
+  // Сообщение о свайпе может разминуться с партнёром: он заходил в комнату
+  // в ту же секунду (проверка смешанных лент, 04.10.2026). Листавший
+  // последним раз в 12 секунд напоминает, какой ролик идёт.
+  setInterval(() => {
+    if (!S.cur || S.cur.by !== S.me || !R.subscribed() || S.viewers < 2) return;
+    R.send('reels-reel', { id: S.cur.id, owner: S.cur.owner, by: S.me, name: S.name });
+  }, 12000);
   document.addEventListener('visibilitychange', () => sleep(document.hidden));
   // Для проверок: что сейчас играет и чья очередь (tests/room-reels.test.js).
   window.__reelsState = () => ({ cur: S.cur, mine: S.mine.length, theirs: S.theirs.length, viewers: S.viewers, partner: S.partnerId });

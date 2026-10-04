@@ -3,6 +3,7 @@ import 'dart:async';
 import '../../services/plus_service.dart';
 import 'package:flutter/material.dart';
 import '../../main.dart';
+import '../../models/reels_source.dart';
 import '../../services/locale_service.dart';
 import '../../services/pocketbase_service.dart';
 import '../../services/rewarded_ad_service.dart';
@@ -189,6 +190,7 @@ class TogetherLauncher {
     required String pairId,
     String? videoUrl,
     bool reels = false,
+    ReelsSource reelsSource = ReelsSource.shorts,
   }) async {
     final messenger = ScaffoldMessenger.of(context);
     final s = LocaleService.current;
@@ -242,6 +244,7 @@ class TogetherLauncher {
           videoUrl: videoUrl,
           afterAd: _adShown,
           reels: reels,
+          reelsSource: reelsSource,
         ),
       ),
     );

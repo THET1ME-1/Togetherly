@@ -13,8 +13,10 @@ class ReelQueue {
   final List<String> _queue = [];
   final Set<String> _known = {};
 
-  /// Номер ролика YouTube: ровно 11 знаков из латиницы, цифр, `-` и `_`.
-  static final RegExp _id = RegExp(r'^[A-Za-z0-9_-]{11}$');
+  /// Номер ролика любой площадки: латиница, цифры, `-` и `_`, от 6 до 80
+  /// знаков. Shorts — 11, TikTok — 19 цифр, Rutube — 32, ВК — три части
+  /// через `_` (`-2326…_4562…_c1df…`), Дзен — 12.
+  static final RegExp _id = RegExp(r'^[A-Za-z0-9_-]{6,80}$');
 
   static bool isId(String s) => _id.hasMatch(s);
 

@@ -38,11 +38,14 @@ class WatchRoomService {
     String? name,
     bool afterAd = false,
     bool reels = false,
+    String? feed,
   }) {
     final base = 'https://$siteHost/watch/room/';
     final query = <String, String>{};
     // Ленты вдвоём: та же комната пары, поверх неё режим коротких роликов.
+    // `feed` — площадка своей ленты (shorts, tiktok, rutube, vk, dzen).
     if (reels) query['reels'] = '1';
+    if (reels && feed != null && feed.isNotEmpty) query['feed'] = feed;
     if (src != null && src.isNotEmpty) query['src'] = src;
     final trimmed = (name ?? '').trim();
     if (trimmed.isNotEmpty) {

@@ -15,7 +15,9 @@ import '../../services/chat_service.dart';
 import '../../widgets/memory_save/floating_note.dart';
 import '../../services/locale_service.dart';
 import '../../services/pocketbase_service.dart';
-import '../../services/reels/shorts_feed.dart';
+import '../../models/reels_source.dart';
+import '../../services/reels/reels_feed.dart';
+import '../../services/reels/reels_proxy.dart';
 import '../../services/watch_channel_service.dart';
 import '../../services/watch_history_service.dart';
 import '../../services/watch_room_service.dart';
@@ -42,8 +44,12 @@ class WatchRoomScreen extends StatefulWidget {
   final String pairId;
 
   /// Ленты вдвоём: короткие ролики по очереди из лент обоих. Комната та же,
-  /// а ленту Shorts этого телефона держит скрытый браузер ([ShortsFeed]).
+  /// а ленту выбранной площадки этого телефона держит скрытый браузер
+  /// ([ReelsFeed]).
   final bool reels;
+
+  /// Чья площадка подаёт ленту этого телефона (выбор в листе перед лентами).
+  final ReelsSource reelsSource;
 
   const WatchRoomScreen({
     super.key,
@@ -52,6 +58,7 @@ class WatchRoomScreen extends StatefulWidget {
     this.videoUrl,
     this.afterAd = false,
     this.reels = false,
+    this.reelsSource = ReelsSource.shorts,
   });
 
   @override
@@ -70,21 +77,26 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
   WatchChannel? _room;
   WatchVoiceService? _voice;
 
-  /// Лента Shorts этого телефона — только в режиме лент.
-  ShortsFeed? _feed;
+  /// Лента площадки этого телефона — только в режиме лент.
+  ReelsFeed? _feed;
 
   @override
   void initState() {
     super.initState();
     unawaited(_openVoice());
     WidgetsBinding.instance.addObserver(this);
-    if (widget.reels) {
-      // Скрытая страница раскачивается несколько секунд — поднимаем её сразу,
-      // пока грузится комната.
-      final feed = ShortsFeed(onIds: _pushFeed);
-      _feed = feed;
-      unawaited(feed.start());
-    }
+    if (widget.reels) unawaited(_startFeed());
+  }
+
+  /// Скрытая страница раскачивается несколько секунд — поднимаем её сразу,
+  /// пока грузится комната. Посредник для TikTok нужен обоим: ролик из ленты
+  /// партнёра играет и у того, кто сам выбрал другую площадку.
+  Future<void> _startFeed() async {
+    await ReelsProxy.enable();
+    if (!mounted) return;
+    final feed = ReelsFeed(widget.reelsSource, onIds: _pushFeed);
+    _feed = feed;
+    await feed.start();
   }
 
   /// Свёрнутое приложение: ленты засыпают. Плееры страницы и скрытая лента
@@ -229,6 +241,7 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
     _voice?.dispose();
     unawaited(_room?.dispose() ?? Future<void>.value());
     unawaited(_feed?.dispose() ?? Future<void>.value());
+    if (widget.reels) unawaited(ReelsProxy.disable());
     super.dispose();
   }
 
@@ -240,6 +253,7 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
     name: PocketBaseService().userName,
     afterAd: widget.afterAd,
     reels: widget.reels,
+    feed: widget.reels ? widget.reelsSource.key : null,
   );
 
   /// Ссылка для партнёра — без ролика и без имени: он войдёт в ту же комнату,
