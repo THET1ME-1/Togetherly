@@ -71,6 +71,31 @@ void main() {
     }
   });
 
+  // Вход с правильной почтой находит аккаунт, заведённый с опечаткой
+  // (обращения 208, 223, 232, 04.10.2026).
+  test('каждый вариант для входа сводится обратно к правильному адресу', () {
+    for (final email in ['a@gmail.com', 'a@icloud.com', 'a@mail.ru', 'a@yandex.ru']) {
+      final variants = emailTypoVariants(email);
+      expect(variants, isNotEmpty, reason: email);
+      for (final v in variants) {
+        expect(emailTypoFix(v), email, reason: v);
+      }
+    }
+  });
+
+  test('вариантов для входа нет у редких доменов и у самих опечаток', () {
+    expect(emailTypoVariants('a@togetherly.day'), isEmpty);
+    expect(emailTypoVariants('a@gmail.con'), isEmpty);
+    expect(emailTypoVariants('abc'), isEmpty);
+    expect(emailTypoVariants(' Ivan@Gmail.com '), contains('Ivan@gmail.con'));
+  });
+
+  test('экран входа пробует варианты только после неверного пароля', () {
+    final src = File('lib/screens/login_screen.dart').readAsStringSync();
+    expect(src, contains('emailTypoVariants(email)'));
+    expect(src, contains('AuthFailure.badCredentials'));
+  });
+
   test('экран регистрации спрашивает про опечатку до создания аккаунта', () {
     final src = File('lib/screens/setup_screen.dart').readAsStringSync();
     final ask = src.indexOf('emailTypoFix(email)');

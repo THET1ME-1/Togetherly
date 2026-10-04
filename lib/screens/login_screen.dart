@@ -8,6 +8,7 @@ import '../models/user_data.dart';
 import '../services/pb_auth_service.dart';
 import '../services/locale_service.dart';
 import '../utils/auth_failure.dart';
+import '../utils/email_typo.dart';
 import '../widgets/auth_widgets.dart';
 import '../theme/theme_scope.dart';
 import '../theme/profile_theme.dart';
@@ -114,10 +115,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final auth = PbAuthService();
-      final user = await auth.signInWithEmail(
-        email: email,
-        password: password,
-      );
+      final user = await _signInAllowingTypo(auth, email, password);
 
       if (user == null) {
         if (mounted) setState(() => _isLoading = false);
@@ -172,6 +170,31 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
       _showError(_authErrorMessage(e));
+    }
+  }
+
+  /// Вход, который находит аккаунт, заведённый на почту с опечаткой.
+  ///
+  /// Около 1270 аккаунтов на проде лежат на `gmail.con`, `gmai.com` и похожих.
+  /// Человек входит с правильной почтой, получает «неверный пароль» и заводит
+  /// новый пустой аккаунт, теряя пару (обращения 208, 223, 232). Если пароль не
+  /// подошёл, пробуем тот же пароль с частыми опечатками этого домена. Без
+  /// пароля так никуда не войти. Найденный аккаунт главная попросит исправить.
+  Future<Object?> _signInAllowingTypo(
+      PbAuthService auth, String email, String password) async {
+    try {
+      return await auth.signInWithEmail(email: email, password: password);
+    } catch (e) {
+      if (AuthFailure.of(e) != AuthFailure.badCredentials) rethrow;
+      for (final typo in emailTypoVariants(email)) {
+        try {
+          final user = await auth.signInWithEmail(email: typo, password: password);
+          if (user != null) return user;
+        } catch (_) {
+          // Нет такого аккаунта или другой пароль — пробуем следующий.
+        }
+      }
+      rethrow;
     }
   }
 

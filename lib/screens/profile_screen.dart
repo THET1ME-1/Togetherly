@@ -11,6 +11,7 @@ import '../models/partner_profile.dart';
 import 'package:flutter/services.dart';
 import '../utils/safe_text.dart';
 import '../utils/couple_days.dart';
+import '../utils/email_typo.dart';
 import '../widgets/common/app_dialog.dart';
 import '../widgets/common/plus_badge.dart';
 import '../widgets/level_avatar.dart';
@@ -2097,7 +2098,9 @@ class _ProfileScreenState extends State<ProfileScreen>
             onBugBot: _openBugBot,
             onHelp: () => _openHelp(ctx),
             onChangeEmail: () async {
-              final email = await showEmailChangeSheet(ctx, scheme: _cs);
+              final email = await showEmailChangeSheet(ctx,
+                  scheme: _cs,
+                  initialEmail: emailTypoFix(widget.userData.email) ?? '');
               if (email == null) return;
               await widget.userData.setEmail(email);
               setSheetState(() {});

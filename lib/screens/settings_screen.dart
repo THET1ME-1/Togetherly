@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../dict_strings.dart';
 import '../services/locale_service.dart';
 import '../theme/profile_theme.dart';
+import '../utils/email_typo.dart';
 import '../widgets/app_icon_sheet.dart';
 import '../widgets/home_layout_editor.dart';
 import '../widgets/settings_scaffold.dart';
@@ -461,7 +462,22 @@ class SettingsScreen extends StatelessWidget {
                 icon: Icons.person_rounded,
                 color: scheme.error,
                 children: [
-                  if (accountEmail.isNotEmpty)
+                  // Почта с опечаткой (gmail.con и подобные): письмо для смены
+                  // пароля туда не дойдёт — строка предупреждает и ведёт
+                  // исправлять, а не копировать.
+                  if (accountEmail.isNotEmpty &&
+                      emailTypoFix(accountEmail) != null &&
+                      onChangeEmail != null)
+                    SettingsRow(
+                      icon: Icons.alternate_email_rounded,
+                      title: accountEmail,
+                      subtitle: trKey('emailTypoAccountHint'),
+                      iconBg: scheme.errorContainer,
+                      iconFg: scheme.onErrorContainer,
+                      trailing: const SettingsChevron(),
+                      onTap: onChangeEmail,
+                    )
+                  else if (accountEmail.isNotEmpty)
                     SettingsRow(
                       icon: Icons.alternate_email_rounded,
                       title: accountEmail,

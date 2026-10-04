@@ -15,21 +15,28 @@ Future<String?> showEmailChangeSheet(
   BuildContext context, {
   required ColorScheme scheme,
   EmailChangeService? service,
+  String initialEmail = '',
 }) {
   return showAppSheet<String>(
     context,
     background: scheme.surfaceContainerLow,
     builder: (_) => Theme(
       data: ProfileTheme.data(scheme),
-      child: EmailChangeSheet(service: service ?? EmailChangeService.instance),
+      child: EmailChangeSheet(
+        service: service ?? EmailChangeService.instance,
+        initialEmail: initialEmail,
+      ),
     ),
   );
 }
 
 class EmailChangeSheet extends StatefulWidget {
-  const EmailChangeSheet({super.key, required this.service});
+  const EmailChangeSheet({super.key, required this.service, this.initialEmail = ''});
 
   final EmailChangeService service;
+
+  /// Готовый адрес в поле — исправление опечатки в почте аккаунта.
+  final String initialEmail;
 
   @override
   State<EmailChangeSheet> createState() => _EmailChangeSheetState();
@@ -45,6 +52,12 @@ class _EmailChangeSheetState extends State<EmailChangeSheet> {
   String _error = '';
   int _resendIn = 0;
   Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    _email.text = widget.initialEmail;
+  }
 
   @override
   void dispose() {

@@ -8,6 +8,7 @@ import 'package:exif/exif.dart';
 import 'package:flutter/material.dart';
 import '../widgets/common/ad_result.dart';
 import '../widgets/common/ailment_icon.dart';
+import '../widgets/common/email_typo_prompt.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -355,6 +356,11 @@ class _HomeScreenState extends State<HomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final pending = SharedLinkService.instance.consumePending();
       if (pending != null && pending.isNotEmpty) _openSharedLink(pending);
+    });
+    // Почта аккаунта с опечаткой (gmail.con и подобные) — предложить исправить.
+    // С паузой: на старте главная и так открывает ссылки и подсказки.
+    Future<void>.delayed(const Duration(seconds: 4), () {
+      if (mounted) unawaited(maybeAskToFixEmailTypo(context, widget.userData));
     });
 
     _deepLinkSub = DeepLinkService().inviteCodeStream.listen((code) {

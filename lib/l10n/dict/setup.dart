@@ -507,4 +507,33 @@ const Map<String, Map<String, String>> setupStrings = {
     'fr': 'Garder tel quel',
     'de': 'So lassen',
   },
+  // Аккаунт уже заведён на почту с опечаткой (около 1270 на проде, 04.10.2026):
+  // предлагаем исправить, пока человек ещё помнит пароль.
+  'emailTypoAccountBody': {
+    'ru': 'Почта аккаунта — {typed}. Похоже, в ней опечатка, и письмо для смены пароля туда не дойдёт. Исправить на {fixed}? Придёт код на новый адрес.',
+    'en': 'Your account email is {typed}. It looks like a typo, and a password reset email can’t reach it. Change it to {fixed}? We’ll send a code to the new address.',
+    'pt': 'O e-mail da conta é {typed}. Parece ter um erro, e o e-mail para trocar a senha não chega lá. Trocar para {fixed}? Enviaremos um código ao novo endereço.',
+    'it': 'L’e-mail dell’account è {typed}. Sembra esserci un errore e l’e-mail per cambiare password non arriverà. Cambiarla in {fixed}? Invieremo un codice al nuovo indirizzo.',
+    'es': 'El correo de la cuenta es {typed}. Parece tener un error y el correo para cambiar la contraseña no llegará. ¿Cambiarlo a {fixed}? Enviaremos un código a la nueva dirección.',
+    'fr': 'L’e-mail du compte est {typed}. Il semble contenir une faute, et l’e-mail de changement de mot de passe n’y arrivera pas. Le remplacer par {fixed} ? Un code sera envoyé à la nouvelle adresse.',
+    'de': 'Die E-Mail des Kontos ist {typed}. Sie scheint einen Tippfehler zu haben, eine Mail zum Zurücksetzen des Passworts kommt dort nicht an. Auf {fixed} ändern? Wir schicken einen Code an die neue Adresse.',
+  },
+  'emailTypoAccountHint': {
+    'ru': 'Похоже, опечатка — нажмите, чтобы исправить',
+    'en': 'Looks like a typo — tap to fix',
+    'pt': 'Parece um erro — toque para corrigir',
+    'it': 'Sembra un errore — tocca per correggere',
+    'es': 'Parece un error: toca para corregir',
+    'fr': 'Une faute ? Touche pour corriger',
+    'de': 'Sieht nach Tippfehler aus — tippen zum Korrigieren',
+  },
+  'emailTypoLater': {
+    'ru': 'Позже',
+    'en': 'Later',
+    'pt': 'Depois',
+    'it': 'Più tardi',
+    'es': 'Más tarde',
+    'fr': 'Plus tard',
+    'de': 'Später',
+  },
 };
