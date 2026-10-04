@@ -2272,6 +2272,10 @@ abstract class AppStrings {
   String get gamesForTwoHint;
   String get reelsTogether;
   String get reelsTogetherHint;
+  String get reelsStartTitle;
+  String get reelsStartWatch;
+  String get reelsShortsHint;
+  String get reelsSoon;
   String get watchPartnerInBrowser;
 
   /// Код комнаты не пришёл — предлагаем спросить заново, а не молчать

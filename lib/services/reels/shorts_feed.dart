@@ -60,10 +60,13 @@ class ShortsFeed {
   };
   // Ни звука: ролик здесь играет только ради того, чтобы платформа его
   // засчитала, слушают его в комнате.
-  var hush = function(v){ try { v.muted = true; v.volume = 0; } catch (e) {} };
+  var hush = function(v){ try { v.muted = true; v.volume = 0; if (window.__tgStop) v.pause(); } catch (e) {} };
   var play = HTMLMediaElement.prototype.play;
   HTMLMediaElement.prototype.play = function(){ hush(this); return play.apply(this, arguments); };
   setInterval(function(){ document.querySelectorAll('video,audio').forEach(hush); }, 400);
+  // Просмотр засчитан — дальше ролик не крутим: бесконечный повтор в
+  // скрытом браузере грел телефон и тормозил ленту в комнате.
+  setTimeout(function(){ window.__tgStop = 1; }, 12000);
   // Экран согласия на куки (часть стран Европы) — отказываемся от лишнего.
   if (/^consent\./.test(location.hostname)) setTimeout(function(){
     var b = Array.prototype.slice.call(document.querySelectorAll('button')).find(function(x){
@@ -160,6 +163,25 @@ class ShortsFeed {
     } catch (e) {
       debugPrint('ShortsFeed: переход не удался: $e');
     }
+  }
+
+  /// Приложение свернули: скрытая страница засыпает и не крутит ролик.
+  Future<void> sleep() async {
+    final c = _view?.webViewController;
+    if (c == null) return;
+    try {
+      await c.evaluateJavascript(source: "window.__tgStop=1;document.querySelectorAll('video').forEach(function(v){try{v.pause()}catch(e){}});");
+      if (defaultTargetPlatform == TargetPlatform.android) await c.pause();
+    } catch (_) {}
+  }
+
+  /// Вернулись — страница снова слушает ленту (ролик не включаем).
+  Future<void> wake() async {
+    final c = _view?.webViewController;
+    if (c == null) return;
+    try {
+      if (defaultTargetPlatform == TargetPlatform.android) await c.resume();
+    } catch (_) {}
   }
 
   Future<void> dispose() async {

@@ -58,7 +58,7 @@ class WatchRoomScreen extends StatefulWidget {
   State<WatchRoomScreen> createState() => _WatchRoomScreenState();
 }
 
-class _WatchRoomScreenState extends State<WatchRoomScreen> {
+class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingObserver {
   bool _loading = true;
 
   /// Страница комнаты: ей уходит состояние звонка, от неё приходят нажатия.
@@ -77,6 +77,7 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
   void initState() {
     super.initState();
     unawaited(_openVoice());
+    WidgetsBinding.instance.addObserver(this);
     if (widget.reels) {
       // Скрытая страница раскачивается несколько секунд — поднимаем её сразу,
       // пока грузится комната.
@@ -85,6 +86,25 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
       unawaited(feed.start());
     }
   }
+
+  /// Свёрнутое приложение: ленты засыпают. Плееры страницы и скрытая лента
+  /// иначе крутят видео, пока человека нет, а при возврате просыпаются разом —
+  /// отсюда лаги после разворота (жалоба 04.10.2026).
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!widget.reels) return;
+    final away = state == AppLifecycleState.paused || state == AppLifecycleState.hidden;
+    if (state != AppLifecycleState.resumed && !away) return;
+    unawaited(_web?.evaluateJavascript(source: 'window.reelsSleep && window.reelsSleep(${away ? 'true' : 'false'})'));
+    unawaited(away ? (_feed?.sleep() ?? Future<void>.value()) : (_feed?.wake() ?? Future<void>.value()));
+  }
+
+  /// Ролик в лентах идёт во весь экран, под строку состояния. Странице
+  /// нужно знать, где кончаются строка и системные кнопки: env() в WebView
+  /// отвечает по-разному, поэтому отступы передаём сами.
+  String _insetScript(EdgeInsets pad) => '(function(){var s=document.documentElement.style;'
+      "s.setProperty('--app-top','${pad.top.toStringAsFixed(1)}px');"
+      "s.setProperty('--app-bottom','${pad.bottom.toStringAsFixed(1)}px');})();";
 
   /// Свежие номера ленты — странице, которая ждёт первый ролик.
   void _pushFeed(List<String> ids) {
@@ -204,6 +224,7 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _voice?.removeListener(_onVoiceChanged);
     _voice?.dispose();
     unawaited(_room?.dispose() ?? Future<void>.value());
@@ -290,6 +311,10 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
       // «скопировать», «поделиться», звонок и сворачивание. Две шапки подряд
       // съедали высоту и повторяли одно и то же (28.09.2026).
       body: SafeArea(
+        // В лентах ролик заходит под строку состояния, как в TikTok: чёрная
+        // полоса над ним читалась пустой шапкой. Отступ кнопкам страница
+        // берёт из `_insetScript`.
+        top: !widget.reels,
         bottom: false,
         child: Stack(
           children: [
@@ -311,6 +336,11 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
                   ),
                   injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
                 ),
+                if (widget.reels)
+                  UserScript(
+                    source: _insetScript(MediaQuery.paddingOf(context)),
+                    injectionTime: UserScriptInjectionTime.AT_DOCUMENT_END,
+                  ),
               ]),
               initialSettings: InAppWebViewSettings(
                 // Видео должно запускаться командой партнёра, а не только пальцем.
@@ -418,6 +448,9 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
                 // Страница перезагрузилась (поворот, возврат назад) — она снова
                 // ничего не знает про звонок.
                 _pushVoice();
+                if (widget.reels) {
+                  unawaited(c.evaluateJavascript(source: _insetScript(MediaQuery.paddingOf(context))));
+                }
               },
             ),
             if (_loading) Center(child: M3Loading(color: Theme.of(context).colorScheme.primary)),

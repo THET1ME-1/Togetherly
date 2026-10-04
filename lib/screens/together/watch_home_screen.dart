@@ -15,6 +15,7 @@ import '../../models/watch_room_load.dart';
 import '../../services/watch_room_service.dart';
 import '../../services/plus_service.dart';
 import '../../services/watch_videos_service.dart';
+import '../../widgets/reels/reels_start_sheet.dart';
 import 'together_launcher.dart';
 import 'watch_player_screen.dart';
 import '../../theme/app_theme.dart';
@@ -480,9 +481,12 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
     await _loadRecent();
   }
 
-  /// Ленты вдвоём: та же комната пары в режиме коротких роликов.
+  /// Ленты вдвоём: та же комната пары в режиме коротких роликов. Сперва лист
+  /// выбора площадки.
   Future<void> _openReels() async {
     if (_room.isEmpty) return;
+    final source = await showReelsStartSheet(context);
+    if (source == null || !mounted) return;
     await TogetherLauncher.open(context, pairId: widget.pairData.pairId, reels: true);
   }
 

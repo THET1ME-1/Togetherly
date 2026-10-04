@@ -146,7 +146,17 @@ const check = (n, c, x = '') => { console.log((c ? '  ✓ ' : '  ✗ ') + n, x);
   // Ход переходит, только если у партнёра есть что показать; иначе листаем
   // свою ленту — это тоже верно, но проверять тогда нечего.
   const partnerHas = (await cur(pa)).theirs > 0 && s1a.pill === 'Твой ход';
-  await swipe(pa);
+  // Следующий ролик уже ждёт под экраном — свайп не грузит его с нуля.
+  check('следующий ролик загружен заранее', await pa.evaluate(() => document.querySelectorAll('.rl-card').length === 2));
+  // Посреди свайпа видны оба ролика: текущий уехал вверх, следующий выехал.
+  await pa.mouse.move(196, 600); await pa.mouse.down();
+  await pa.mouse.move(196, 420, { steps: 6 });
+  await pa.waitForTimeout(150);
+  const mid = await pa.evaluate(() => Array.from(document.querySelectorAll('.rl-card')).map((c) => Math.round(c.getBoundingClientRect().top)));
+  await pa.screenshot({ path: path.join(OUT, '2-drag.png') });
+  check('ролик едет за пальцем', mid.some((t) => t < -100) && mid.some((t) => t > 300 && t < 852), mid.join(', '));
+  await pa.mouse.move(196, 300, { steps: 3 });
+  await pa.mouse.up();
   await pa.waitForTimeout(2500);
   const s2a = await cur(pa), s2b = await cur(pb);
   console.log('   после свайпа Аня:', s2a, '\n   Боря:', s2b);
@@ -181,7 +191,12 @@ const check = (n, c, x = '') => { console.log((c ? '  ✓ ' : '  ✗ ') + n, x);
   await pa.waitForTimeout(500);
   await pa.screenshot({ path: path.join(OUT, '5-chat.png') });
   check('чат открылся листом', await pa.evaluate(() => document.querySelector('.rl').classList.contains('chat-open')));
-  await pa.click('.rl-chatbtn');
+  // Закрыть свайпом вниз за шапку листа.
+  const grab = await pa.evaluate(() => { const r = document.querySelector('.rl-grab').getBoundingClientRect(); return [r.left + 60, r.top + 10]; });
+  await pa.mouse.move(grab[0], grab[1]); await pa.mouse.down();
+  await pa.mouse.move(grab[0], grab[1] + 220, { steps: 8 }); await pa.mouse.up();
+  await pa.waitForTimeout(500);
+  check('чат закрылся свайпом вниз', await pa.evaluate(() => !document.querySelector('.rl').classList.contains('chat-open')));
 
   // Пауза касанием.
   await pb.mouse.click(196, 500);
@@ -195,7 +210,7 @@ const check = (n, c, x = '') => { console.log((c ? '  ✓ ' : '  ✗ ') + n, x);
   await pa.evaluate(() => window.watchVoiceState({ state: 'off' }));
   await pa.waitForTimeout(200);
   const call = await pa.evaluate(() => { const r = document.querySelector('.rl-call').getBoundingClientRect(); return [r.width, r.height]; });
-  check('кнопка звонка круглая', call[0] === 40 && call[1] === 40, call.join('×'));
+  check('кнопка звонка круглая и тонкая', call[0] === call[1] && call[0] <= 44, call.join('×'));
   // Отправка лежит внутри поля, а не торчит из него.
   const inside = await pa.evaluate(() => {
     const f = document.querySelector('.rl-compose').getBoundingClientRect();

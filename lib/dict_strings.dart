@@ -3400,6 +3400,14 @@ abstract class DictStrings extends AppStrings {
   @override
   String get reelsTogetherHint => _t('reelsTogetherHint');
   @override
+  String get reelsStartTitle => _t('reelsStartTitle');
+  @override
+  String get reelsStartWatch => _t('reelsStartWatch');
+  @override
+  String get reelsShortsHint => _t('reelsShortsHint');
+  @override
+  String get reelsSoon => _t('reelsSoon');
+  @override
   String get watchPartnerInBrowser => _t('watchPartnerInBrowser');
   @override
   String get watchCodeRetry => _t('watchCodeRetry');

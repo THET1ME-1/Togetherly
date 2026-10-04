@@ -93,15 +93,17 @@
     root.className = 'rl';
     root.innerHTML = `
       <div class="rl-stage">
-        <div class="rl-frame"><div id="rlPlayer"></div></div>
+        <div class="rl-cards"></div>
         <div class="rl-shade"></div>
         <div class="rl-tap"></div>
         <div class="rl-paused">${ic(IC.play)}</div>
         <div class="rl-wait"><span class="rl-spin"></span><b></b><span></span></div>
       </div>
       <div class="rl-sheet">
-        <span class="rl-handle"></span>
-        <div class="rl-tabs"><span>${T.ourChat}</span></div>
+        <div class="rl-grab">
+          <span class="rl-handle"></span>
+          <div class="rl-head"><b>${T.ourChat}</b><button class="rl-x" aria-label="${T.back}">${ic(IC.close)}</button></div>
+        </div>
         <div class="rl-list"></div>
       </div>
       <div class="rl-ui">
@@ -113,7 +115,6 @@
         <div class="rl-side">
         <div class="rl-voice" hidden>
           <button class="rl-ib accent rl-call" aria-label="${T.call}">${ic(IC.call)}</button>
-          <span class="rl-vlabel">${T.call}</span>
           <span class="rl-av lg is-partner rl-vwho" hidden></span>
           <button class="rl-ib accent rl-mic" aria-label="${T.mic}" hidden>${ic(IC.mic)}</button>
           <button class="rl-ib end rl-hang" aria-label="${T.hang}" hidden>${ic(IC.end)}</button>
@@ -138,7 +139,7 @@
 
     el = {
       root,
-      stage: $('.rl-stage', root), tap: $('.rl-tap', root), frame: $('.rl-frame', root),
+      stage: $('.rl-stage', root), tap: $('.rl-tap', root), cards: $('.rl-cards', root),
       wait: $('.rl-wait', root), pill: $('.rl-pill', root), hint: $('.rl-hint', root),
       voice: $('.rl-voice', root), rail: $('.rl-rail', root), react: $('.rl-react', root),
       pick: $('.rl-pick', root), feed: $('.rl-feed', root), sound: $('.rl-sound', root),
@@ -156,7 +157,8 @@
     $('.rl-back', root).addEventListener('click', leave);
     el.react.addEventListener('click', (e) => { e.stopPropagation(); el.pick.hidden ? openPick() : closePick(); });
     $('.rl-chatbtn', root).addEventListener('click', () => setChat(!el.root.classList.contains('chat-open')));
-    $('.rl-handle', root).addEventListener('click', () => setChat(false));
+    $('.rl-x', root).addEventListener('click', () => setChat(false));
+    wireSheetDrag();
     $('.rl-share', root).addEventListener('click', share);
     el.prev.addEventListener('click', previous);
     el.sound.addEventListener('click', unmute);
@@ -201,7 +203,9 @@
       const live = !document.getElementById('voiceMic').hidden;
       const micOn = document.getElementById('voiceMic').getAttribute('aria-pressed') !== 'false';
       $('.rl-call', el.voice).hidden = busy;
-      $('.rl-vlabel', el.voice).hidden = busy;
+      // В покое — одна круглая кнопка, без подложки и подписи: колонке звонка
+      // подложка нужна, только когда в ней трубка, микрофон и время.
+      el.voice.classList.toggle('is-idle', !busy);
       const who = $('.rl-vwho', el.voice);
       who.hidden = !live;
       who.textContent = initial(S.partnerName);
@@ -300,17 +304,35 @@
 
   let wheelLock = false;
   function wireGestures() {
-    let y0 = 0, t0 = 0, moved = false, lastTap = 0, single = 0;
-    el.tap.addEventListener('pointerdown', (e) => { y0 = e.clientY; t0 = Date.now(); moved = false; });
-    el.tap.addEventListener('pointermove', (e) => { if (Math.abs(e.clientY - y0) > 12) moved = true; });
-    el.tap.addEventListener('pointerup', (e) => {
+    let y0 = 0, t0 = 0, moved = false, down = false, lastTap = 0, single = 0;
+    el.tap.addEventListener('pointerdown', (e) => {
+      y0 = e.clientY; t0 = Date.now(); moved = false; down = true;
+      try { el.tap.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    el.tap.addEventListener('pointermove', (e) => {
+      if (!down) return;
       const dy = e.clientY - y0;
-      if (moved && Math.abs(dy) > 50 && Date.now() - t0 < 900) {
+      if (!moved && Math.abs(dy) > 12) { moved = true; closePick(); }
+      // Ролик едет за пальцем, следующий выезжает снизу — как в лентах.
+      if (moved && !el.root.classList.contains('chat-open')) dragCards(dy);
+    });
+    const finish = (e) => {
+      if (!down) return;
+      down = false;
+      const dy = e.clientY - y0;
+      const h = el.stage.clientHeight || 1;
+      const fast = Date.now() - t0 < 350 && Math.abs(dy) > 40;
+      if (moved && (Math.abs(dy) > h * 0.18 || fast)) {
         if (el.root.classList.contains('chat-open')) { if (dy > 0) setChat(false); return; }
-        if (dy < 0) next(); else previous();
+        if (!(dy < 0 ? next() : previous())) settleCards();
         return;
       }
-      if (moved) return;
+      if (moved) { settleCards(); return; }
+      onTap(e);
+    };
+    el.tap.addEventListener('pointerup', finish);
+    el.tap.addEventListener('pointercancel', (e) => { if (down) { down = false; settleCards(); } });
+    const onTap = (e) => {
       if (!el.pick.hidden) { closePick(); return; }
       if (document.activeElement === el.input) { el.input.blur(); return; }
       const now = Date.now();
@@ -324,7 +346,7 @@
       }
       lastTap = now;
       single = setTimeout(() => togglePause(true), 300);
-    });
+    };
     el.tap.addEventListener('wheel', (e) => {
       if (Math.abs(e.deltaY) < 30 || wheelLock) return;
       wheelLock = true; setTimeout(() => { wheelLock = false; }, 700);
@@ -363,6 +385,7 @@
     if (!added) return;
     announce();
     if (S.started && !S.cur) next();
+    else preloadSoon();
   }
 
   let announceTimer = 0;
@@ -409,21 +432,32 @@
     if (S.mine.length < 4) pull(8);
     if (!id) {
       if (!S.cur) showWait(bridge() ? T.loading : T.noFeed, bridge() ? T.loadingSub : T.noFeedSub, !!bridge());
-      return;
+      return false;
     }
     if (owner === S.me) announce();
     if (S.cur) { S.back.push(S.cur); if (S.back.length > 30) S.back.shift(); }
     const cur = { id, owner, by: S.me };
     show(cur);
     R.send('reels-reel', { id, owner, by: S.me, name: S.name });
+    return true;
+  }
+
+  /** Какой ролик покажет следующий свайп — по тем же правилам, что [next],
+   *  только ничего не забирая из очередей. Его плеер грузится заранее. */
+  function peekNext() {
+    const together = S.viewers > 1 && S.partnerId;
+    const first = (arr) => arr.find((x) => !S.seen.has(x)) || '';
+    if (together && (!S.cur || S.cur.owner === S.me)) return first(S.theirs) || first(S.mine);
+    return first(S.mine) || (together ? first(S.theirs) : '');
   }
 
   function previous() {
     const prev = S.back.pop();
-    if (!prev) return;
+    if (!prev) return false;
     const cur = { id: prev.id, owner: prev.owner, by: S.me };
     show(cur, true);
     R.send('reels-reel', { id: cur.id, owner: cur.owner, by: S.me, name: S.name, back: true });
+    return true;
   }
 
   function show(cur, isBack) {
@@ -438,10 +472,7 @@
     hideWait();
     paintTurn();
     paintReact();
-    el.frame.classList.remove('rl-slide');
-    void el.frame.offsetWidth;
-    if (!isBack) el.frame.classList.add('rl-slide');
-    play(cur.id);
+    swapTo(cur.id, !!isBack);
     // Ролик из своей ленты: скрытая страница приложения «смотрит» его тоже,
     // без звука. Так платформа засчитывает просмотр, а рекомендации учатся.
     const b = bridge();
@@ -468,65 +499,153 @@
     document.head.appendChild(tag);
   }
 
-  let soundCheck = 0;
-  function play(id) {
+  // Каждый ролик — своя карточка со своим плеером. Следующий грузится заранее
+  // под экраном и тихо играет: свайп просто сдвигает карточки, а кнопки,
+  // которые YouTube показывает первые секунды после старта, успевают
+  // спрятаться до показа. Раньше один плеер перезаряжался `loadVideoById` и
+  // сам перезапускал повтор — и кнопка паузы всплывала в центре без конца.
+  const cards = { cur: null, next: null };
+  let cardSeq = 0;
+
+  function makeCard(id) {
+    const node = document.createElement('div');
+    node.className = 'rl-card';
+    const frame = document.createElement('div');
+    frame.className = 'rl-frame';
+    const holder = document.createElement('div');
+    holder.id = 'rlCard' + (++cardSeq);
+    frame.appendChild(holder);
+    node.appendChild(frame);
+    el.cards.appendChild(node);
+    const card = { id, el: node, player: null, ready: false, active: false, dead: false };
     whenYT(() => {
-      if (!S.player) {
-        S.player = new YT.Player('rlPlayer', {
-          videoId: id,
-          playerVars: { autoplay: 1, controls: 0, playsinline: 1, rel: 0, modestbranding: 1, fs: 0, iv_load_policy: 3, disablekb: 1, loop: 1, playlist: id },
-          events: {
-            onReady: () => {
-              S.ready = true;
-              const iframe = S.player.getIframe && S.player.getIframe();
-              if (iframe) iframe.referrerPolicy = 'strict-origin-when-cross-origin';
-              if (S.wantMuted) S.player.mute();
-              S.player.playVideo();
-              checkSound();
-            },
-            onStateChange: (e) => {
-              if (e.data === YT.PlayerState.ENDED) { S.player.seekTo(0, true); S.player.playVideo(); }
-            },
-            onError: () => {
-              // Ролик закрыт для встраивания или удалён. Дальше листает тот,
-              // кто его включил, чтобы двое не перескочили дважды.
-              if (!S.cur || S.cur.by !== S.me) return;
-              R.say(T.unavailable);
-              setTimeout(next, 600);
-            },
+      if (card.dead) return;
+      card.player = new YT.Player(holder.id, {
+        videoId: id,
+        // Повтор делает сам плеер (`loop` с `playlist` из одного ролика):
+        // наш перезапуск через seekTo снова вызывал его кнопки.
+        playerVars: { autoplay: 1, mute: 1, controls: 0, playsinline: 1, rel: 0, modestbranding: 1, fs: 0, iv_load_policy: 3, disablekb: 1, loop: 1, playlist: id },
+        events: {
+          onReady: () => {
+            card.ready = true;
+            if (card.active) wake(card);
+            // Под экраном ролик играет без звука в четверть скорости: кнопки
+            // YouTube за это время прячутся, а ролик почти не уходит вперёд.
+            // Останавливать его нельзя — пауза снова вызывает кнопки.
+            else { try { card.player.mute(); card.player.setPlaybackRate(0.25); card.player.playVideo(); } catch (_) {} }
           },
-        });
-        return;
-      }
-      if (!S.ready) { setTimeout(() => play(id), 300); return; }
-      S.player.loadVideoById({ videoId: id });
-      checkSound();
+          onError: () => {
+            if (card === cards.next) { drop(card); cards.next = null; return; }
+            // Ролик закрыт для встраивания или удалён. Дальше листает тот,
+            // кто его включил, чтобы двое не перескочили дважды.
+            if (card !== cards.cur || !S.cur || S.cur.by !== S.me) return;
+            R.say(T.unavailable);
+            setTimeout(next, 600);
+          },
+        },
+      });
     });
+    return card;
   }
 
+  function drop(card) {
+    if (!card) return;
+    card.dead = true;
+    try { if (card.player) card.player.destroy(); } catch (_) {}
+    card.el.remove();
+  }
+
+  /** Карточка стала текущей: обычная скорость и звук. Без перемотки в начало:
+   *  `seekTo` вызывает у YouTube полный набор кнопок поверх ролика (проверено
+   *  перебором в scratchpad/ytui), а смена скорости и звука — нет. */
+  function wake(card) {
+    if (!card.ready) return;
+    try {
+      card.player.setPlaybackRate(1);
+      if (S.wantMuted) card.player.mute(); else { card.player.unMute(); card.player.setVolume(100); }
+      card.player.playVideo();
+    } catch (_) {}
+    checkSound(card);
+  }
+
+  const place = (card, y, animate) => {
+    if (!card) return;
+    card.el.style.transition = animate ? 'transform .3s cubic-bezier(.2, 0, 0, 1)' : 'none';
+    card.el.style.transform = 'translate3d(0,' + y + ',0)';
+  };
+
+  /** Палец тянет: текущая едет за ним, следующая выезжает снизу. */
+  function dragCards(dy) {
+    const h = el.stage.clientHeight;
+    // Назад тянется туже: прошлого ролика под рукой нет, это лишь отклик.
+    const y = dy < 0 ? dy : dy * 0.45;
+    place(cards.cur, y + 'px', false);
+    if (cards.next) place(cards.next, (h + Math.min(0, dy)) + 'px', false);
+  }
+
+  /** Свайп не дотянул — всё на место. */
+  function settleCards() {
+    place(cards.cur, '0', true);
+    if (cards.next) place(cards.next, '100%', true);
+  }
+
+  function swapTo(id, isBack) {
+    let card = cards.next && cards.next.id === id ? cards.next : null;
+    if (card) cards.next = null;
+    else { card = makeCard(id); place(card, isBack ? '-100%' : '100%', false); }
+    const old = cards.cur;
+    cards.cur = card;
+    card.active = true;
+    card.el.classList.add('is-cur');
+    void card.el.offsetWidth;
+    place(card, '0', true);
+    if (old) {
+      old.el.classList.remove('is-cur');
+      try { old.player && old.player.mute(); } catch (_) {}
+      place(old, isBack ? '100%' : '-100%', true);
+      setTimeout(() => drop(old), 380);
+    }
+    wake(card);
+    setTimeout(preloadNext, 450);
+  }
+
+  /** Следующий ролик заранее, под экраном. */
+  function preloadNext() {
+    if (!S.cur) return;
+    const id = peekNext();
+    if (cards.next && cards.next.id === id) return;
+    if (cards.next) { drop(cards.next); cards.next = null; }
+    if (!id) return;
+    cards.next = makeCard(id);
+    place(cards.next, '100%', false);
+  }
+  let preloadTimer = 0;
+  const preloadSoon = () => { clearTimeout(preloadTimer); preloadTimer = setTimeout(preloadNext, 300); };
+
   /** Браузер без касания не даст звук: тогда играем без него и предлагаем включить. */
-  function checkSound() {
+  let soundCheck = 0;
+  function checkSound(card) {
     clearTimeout(soundCheck);
     soundCheck = setTimeout(() => {
-      if (!S.player || S.paused) return;
-      let st = -1;
-      try { st = S.player.getPlayerState(); } catch (_) {}
-      if (st !== YT.PlayerState.PLAYING && st !== YT.PlayerState.BUFFERING) {
+      if (card !== cards.cur || !card.player || S.paused) return;
+      let muted = false;
+      try { muted = card.player.isMuted(); } catch (_) {}
+      if (muted && !S.wantMuted) {
         S.wantMuted = true;
-        try { S.player.mute(); S.player.playVideo(); } catch (_) {}
         el.sound.hidden = false;
       }
-    }, 1800);
+    }, 1200);
   }
 
   function unmute() {
     S.wantMuted = false;
     el.sound.hidden = true;
-    try { S.player.unMute(); S.player.setVolume(100); S.player.playVideo(); } catch (_) {}
+    const c = cards.cur;
+    try { c.player.unMute(); c.player.setVolume(100); c.player.playVideo(); } catch (_) {}
   }
 
   function togglePause(tell) {
-    if (!S.player || !S.cur) return;
+    if (!cards.cur || !S.cur) return;
     if (!el.sound.hidden) { unmute(); return; }
     setPaused(!S.paused);
     if (tell) R.send('reels-pause', { id: S.cur.id, paused: S.paused });
@@ -535,7 +654,8 @@
   function setPaused(p) {
     S.paused = p;
     el.root.classList.toggle('is-paused', p);
-    try { if (p) S.player.pauseVideo(); else S.player.playVideo(); } catch (_) {}
+    const c = cards.cur;
+    try { if (p) c.player.pauseVideo(); else c.player.playVideo(); } catch (_) {}
   }
 
   // ── ход, реакции ─────────────────────────────────────────────────────────
@@ -612,7 +732,39 @@
     closePick();
     el.root.classList.toggle('chat-open', on);
     $('.rl-chatbtn', el.root).classList.toggle('is-on', on);
+    const sheet = $('.rl-sheet', el.root);
+    sheet.style.transition = '';
+    sheet.style.transform = '';
     if (on) setTimeout(() => { el.list.scrollTop = el.list.scrollHeight; }, 50);
+  }
+
+  /** Лист чата закрывается свайпом вниз — за шапку листа или по переписке,
+   *  когда она уже прокручена до верха. */
+  function wireSheetDrag() {
+    const sheet = $('.rl-sheet', el.root);
+    let y0 = 0, dy = 0, on = false;
+    sheet.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('.rl-x')) return;
+      const fromHead = !!e.target.closest('.rl-grab');
+      if (!fromHead && el.list.scrollTop > 0) return;
+      y0 = e.clientY; dy = 0; on = true;
+    });
+    sheet.addEventListener('pointermove', (e) => {
+      if (!on) return;
+      dy = Math.max(0, e.clientY - y0);
+      if (dy < 8) return;
+      sheet.style.transition = 'none';
+      sheet.style.transform = 'translateY(' + dy + 'px)';
+    });
+    const end = () => {
+      if (!on) return;
+      on = false;
+      if (dy > Math.min(120, sheet.clientHeight * 0.25)) { setChat(false); return; }
+      sheet.style.transition = '';
+      sheet.style.transform = '';
+    };
+    sheet.addEventListener('pointerup', end);
+    sheet.addEventListener('pointercancel', end);
   }
 
   async function share() {
@@ -672,6 +824,7 @@
         notePartner(data);
         S.theirs = (data.ids || []).filter((x) => !S.seen.has(x));
         if (S.started && !S.cur) next();
+        else preloadSoon();
         return true;
       case 'reels-reel':
         notePartner(data);
@@ -706,6 +859,24 @@
 
   // Приложение досылает свежие номера само, когда скрытая лента их принесла.
   window.reelsFeedPush = (ids) => addMine(ids);
+
+  // Свёрнутое приложение: оба плеера спят. Иначе, пока человека нет, они
+  // крутят видео, а при возврате просыпаются разом — отсюда лаги. Зовёт
+  // приложение (жизненный цикл), браузер — сменой видимости вкладки.
+  let asleep = false;
+  function sleep(on) {
+    if (asleep === on) return;
+    asleep = on;
+    [cards.cur, cards.next].forEach((c) => {
+      if (!c || !c.player || !c.ready) return;
+      try {
+        if (on) c.player.pauseVideo();
+        else if (c !== cards.cur || !S.paused) c.player.playVideo();
+      } catch (_) {}
+    });
+  }
+  window.reelsSleep = (on) => sleep(!!on);
+  document.addEventListener('visibilitychange', () => sleep(document.hidden));
   // Для проверок: что сейчас играет и чья очередь (tests/room-reels.test.js).
   window.__reelsState = () => ({ cur: S.cur, mine: S.mine.length, theirs: S.theirs.length, viewers: S.viewers, partner: S.partnerId });
 
