@@ -188,6 +188,7 @@ class TogetherLauncher {
     BuildContext context, {
     required String pairId,
     String? videoUrl,
+    bool reels = false,
   }) async {
     final messenger = ScaffoldMessenger.of(context);
     final s = LocaleService.current;
@@ -204,9 +205,13 @@ class TogetherLauncher {
     // Полноэкранная реклама пересобирает дерево, поэтому локальный контекст
     // после неё мёртв — открываем комнату корневым навигатором приложения.
     _adShown = false;
-    final allowed = await _requireStartAd(context);
-    if (!allowed) return;
-    await _settleAfterAd();
+    // В ленты пускаем без ролика: реклама там будет карточкой между роликами,
+    // а стена перед входом отпугнула бы от новой функции (решение 04.10.2026).
+    if (!reels) {
+      final allowed = await _requireStartAd(context);
+      if (!allowed) return;
+      await _settleAfterAd();
+    }
 
     final navigator = LoveApp.rootNavigatorKey.currentState;
     if (navigator == null) return;
@@ -236,6 +241,7 @@ class TogetherLauncher {
           pairId: pairId,
           videoUrl: videoUrl,
           afterAd: _adShown,
+          reels: reels,
         ),
       ),
     );

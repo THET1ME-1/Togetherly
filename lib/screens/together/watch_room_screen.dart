@@ -13,6 +13,7 @@ import '../../models/exit_guard.dart';
 import '../../widgets/memory_save/floating_note.dart';
 import '../../services/locale_service.dart';
 import '../../services/pocketbase_service.dart';
+import '../../services/reels/shorts_feed.dart';
 import '../../services/watch_channel_service.dart';
 import '../../services/watch_history_service.dart';
 import '../../services/watch_room_service.dart';
@@ -38,7 +39,18 @@ class WatchRoomScreen extends StatefulWidget {
   /// Пара, чью историю просмотров пополняем.
   final String pairId;
 
-  const WatchRoomScreen({super.key, required this.room, required this.pairId, this.videoUrl, this.afterAd = false});
+  /// Ленты вдвоём: короткие ролики по очереди из лент обоих. Комната та же,
+  /// а ленту Shorts этого телефона держит скрытый браузер ([ShortsFeed]).
+  final bool reels;
+
+  const WatchRoomScreen({
+    super.key,
+    required this.room,
+    required this.pairId,
+    this.videoUrl,
+    this.afterAd = false,
+    this.reels = false,
+  });
 
   @override
   State<WatchRoomScreen> createState() => _WatchRoomScreenState();
@@ -56,10 +68,27 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
   WatchChannel? _room;
   WatchVoiceService? _voice;
 
+  /// Лента Shorts этого телефона — только в режиме лент.
+  ShortsFeed? _feed;
+
   @override
   void initState() {
     super.initState();
     unawaited(_openVoice());
+    if (widget.reels) {
+      // Скрытая страница раскачивается несколько секунд — поднимаем её сразу,
+      // пока грузится комната.
+      final feed = ShortsFeed(onIds: _pushFeed);
+      _feed = feed;
+      unawaited(feed.start());
+    }
+  }
+
+  /// Свежие номера ленты — странице, которая ждёт первый ролик.
+  void _pushFeed(List<String> ids) {
+    final web = _web;
+    if (web == null || ids.isEmpty) return;
+    unawaited(web.evaluateJavascript(source: 'window.reelsFeedPush && window.reelsFeedPush(${jsonEncode(ids)})'));
   }
 
   /// Голос поднимается ЗАРАНЕЕ, а не по нажатию: канал должен слушать зов
@@ -158,6 +187,7 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
     _voice?.removeListener(_onVoiceChanged);
     _voice?.dispose();
     unawaited(_room?.dispose() ?? Future<void>.value());
+    unawaited(_feed?.dispose() ?? Future<void>.value());
     super.dispose();
   }
 
@@ -168,6 +198,7 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
     src: widget.videoUrl,
     name: PocketBaseService().userName,
     afterAd: widget.afterAd,
+    reels: widget.reels,
   );
 
   /// Ссылка для партнёра — без ролика и без имени: он войдёт в ту же комнату,
@@ -294,6 +325,42 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
                         ? Map<String, dynamic>.from(args.first as Map)
                         : const <String, dynamic>{};
                     unawaited(_onVoiceAction((info['action'] ?? '').toString()));
+                    return null;
+                  },
+                );
+                // Ленты: страница просит номера роликов, сообщает, что играет
+                // из нашей ленты, и отправляет ссылку на ролик.
+                c.addJavaScriptHandler(
+                  handlerName: 'reelsFeed',
+                  callback: (args) async {
+                    final feed = _feed;
+                    if (feed == null) return const <String>[];
+                    final info = (args.isNotEmpty && args.first is Map)
+                        ? Map<String, dynamic>.from(args.first as Map)
+                        : const <String, dynamic>{};
+                    final need = int.tryParse('${info['need'] ?? 8}') ?? 8;
+                    return feed.take(need.clamp(1, 20));
+                  },
+                );
+                c.addJavaScriptHandler(
+                  handlerName: 'reelsWatching',
+                  callback: (args) {
+                    final info = (args.isNotEmpty && args.first is Map)
+                        ? Map<String, dynamic>.from(args.first as Map)
+                        : const <String, dynamic>{};
+                    unawaited(_feed?.watching((info['id'] ?? '').toString()) ?? Future<void>.value());
+                    return null;
+                  },
+                );
+                c.addJavaScriptHandler(
+                  handlerName: 'reelsShare',
+                  callback: (args) async {
+                    final info = (args.isNotEmpty && args.first is Map)
+                        ? Map<String, dynamic>.from(args.first as Map)
+                        : const <String, dynamic>{};
+                    final url = (info['url'] ?? '').toString();
+                    if (url.isEmpty || !mounted) return null;
+                    await Share.share(url, sharePositionOrigin: shareOriginFromContext(context));
                     return null;
                   },
                 );

@@ -69,6 +69,20 @@
     // событиями: последнее услышанное держим здесь.
     remote: { time: 0, playing: false, ready: false },
   };
+
+  // Режим лент (`?reels=1`, reels.js) живёт поверх этой же комнаты: канал,
+  // чат и звонок берёт отсюда, а ролики, очередь и реакции ведёт сам. Ему
+  // нужен узкий вход — отправить в канал, показать реплику, узнать себя.
+  let reelsHook = null;
+  window.__togetherlyRoom = {
+    send: (type, extra) => send(type, 0, extra),
+    onReels: (fn) => { reelsHook = typeof fn === 'function' ? fn : null; },
+    me: () => state.me,
+    name: () => state.name,
+    viewers: () => state.viewers,
+    subscribed: () => state.subscribed,
+    say: (text) => setStatus(text, true),
+  };
   const LOG_LIMIT = 60;
 
   const PLATFORMS = [
@@ -830,6 +844,9 @@
 
   function onMessage(data) {
     if (!data || data.from === state.me) return;
+    // Режим лент (reels.js) разбирает свои сообщения сам: ролик, реакция,
+    // очередь. Чат, «я здесь» и звонок идут по обычному пути комнаты.
+    if (reelsHook && reelsHook(data)) return;
     switch (data.t) {
       case 'play':
       case 'pause':
@@ -978,6 +995,7 @@
   function setViewers(n) {
     const was = state.viewers;
     state.viewers = n;
+    if (reelsHook && n !== was) reelsHook({ t: 'reels-viewers', n });
     const el = $('#viewers');
     if (el) el.textContent = n === 1 ? I18N.t('room.alone') : I18N.t('room.viewers', { n });
     // Комната открыта сразу, поэтому приход партнёра отмечаем строкой в чате.
@@ -1041,6 +1059,7 @@
       flushOutbox();
       // Просим тех, кто уже внутри, прислать ссылку и переписку.
       send('hello');
+      if (reelsHook) reelsHook({ t: 'reels-subscribed' });
       // Пришли с готовым роликом (приложение открывает комнату с ?src=):
       // включаем только теперь. До подписки publish уходит в никуда, и партнёр
       // остаётся с пустым экраном — ровно это и ломало свои ролики.

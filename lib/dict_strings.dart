@@ -3394,6 +3394,10 @@ abstract class DictStrings extends AppStrings {
   @override
   String get gamesForTwoHint => _t('gamesForTwoHint');
   @override
+  String get reelsTogether => _t('reelsTogether');
+  @override
+  String get reelsTogetherHint => _t('reelsTogetherHint');
+  @override
   String get watchPartnerInBrowser => _t('watchPartnerInBrowser');
   @override
   String get watchCodeRetry => _t('watchCodeRetry');

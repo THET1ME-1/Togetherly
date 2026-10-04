@@ -371,6 +371,13 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
           ),
           const SizedBox(height: 12),
           _TonalCard(
+            icon: Icons.swipe_up_rounded,
+            title: s.reelsTogether,
+            subtitle: s.reelsTogetherHint,
+            onTap: _room.isEmpty ? null : _openReels,
+          ),
+          const SizedBox(height: 12),
+          _TonalCard(
             icon: Icons.open_in_new_rounded,
             title: s.watchOpenOnSite,
             subtitle: s.watchOnSiteHint,
@@ -471,6 +478,12 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
     if (_room.isEmpty) return;
     await TogetherLauncher.open(context, pairId: widget.pairData.pairId);
     await _loadRecent();
+  }
+
+  /// Ленты вдвоём: та же комната пары в режиме коротких роликов.
+  Future<void> _openReels() async {
+    if (_room.isEmpty) return;
+    await TogetherLauncher.open(context, pairId: widget.pairData.pairId, reels: true);
   }
 
   /// Свой ролик открываем в комнате пары: файл лежит у нас и отдаётся прямой
