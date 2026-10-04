@@ -82,6 +82,17 @@ class ReelsFeed {
   // Просмотр засчитан — дальше ролик не крутим: бесконечный повтор в
   // скрытом браузере грел телефон и тормозил ленту в комнате.
   setTimeout(function(){ window.__tgStop = 1; }, 12000);
+  // Плашка куки TikTok (в Европе и Молдове) — отказ от необязательных.
+  // Согласие ложится в общие куки браузеров приложения, и плашка уходит
+  // и из плеера в комнате.
+  if (SRC === 'tiktok') setInterval(function(){
+    try {
+      var host = document.querySelector('tiktok-cookie-banner');
+      var root = host && host.shadowRoot;
+      var btns = root ? root.querySelectorAll('button') : [];
+      if (btns.length) btns[0].click();
+    } catch (e) {}
+  }, 2000);
   // Экран согласия на куки (часть стран Европы) — отказываемся от лишнего.
   if (/^consent\\./.test(location.hostname)) setTimeout(function(){
     var b = Array.prototype.slice.call(document.querySelectorAll('button')).find(function(x){

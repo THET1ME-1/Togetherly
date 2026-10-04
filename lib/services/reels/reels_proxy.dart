@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:http/http.dart' as http;
 
 /// Посредник для TikTok, пока открыты «Ленты вдвоём».
 ///
@@ -18,7 +19,32 @@ class ReelsProxy {
   static const List<String> _hosts = ['tiktok.com', 'www.tiktok.com', 'm.tiktok.com'];
   static bool _on = false;
 
+  /// Закрыт ли TikTok с этого адреса. Из России страница ролика приходит с
+  /// `"statusMsg":"ru_cross_border_block"` (код 10204), из других стран — с
+  /// кодом 0. Ответ помним на весь запуск: адрес за сеанс не меняется.
+  static bool? _blocked;
+
+  static Future<bool> _isBlocked() async {
+    final known = _blocked;
+    if (known != null) return known;
+    try {
+      final res = await http
+          .get(Uri.parse('https://www.tiktok.com/@tiktok/video/7654645616496168200'), headers: {'User-Agent': _desktopUa})
+          .timeout(const Duration(seconds: 12));
+      return _blocked = res.body.contains('ru_cross_border_block');
+    } catch (_) {
+      // TikTok не ответил вовсе — похоже на блокировку, посредник поможет.
+      return _blocked = true;
+    }
+  }
+
+  static const String _desktopUa =
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36';
+
+  /// Включить посредника, если TikTok с этого адреса закрыт. Где он открыт,
+  /// ходим напрямую: лишний круг через Францию только замедлял бы плеер.
   static Future<void> enable() async {
+    if (!await _isBlocked()) return;
     try {
       if (defaultTargetPlatform == TargetPlatform.android) {
         // «Только эти хосты через посредника» — обратный список обхода.

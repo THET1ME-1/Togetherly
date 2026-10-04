@@ -149,7 +149,10 @@ const check = (n, c, x = '') => { console.log((c ? '  ✓ ' : '  ✗ ') + n, x);
   check('подсказки про свайп нет', await pa.evaluate(() => !document.querySelector('.rl-hint')));
   check('на месте «назад» — обновление рекомендаций', await pa.isVisible('.rl-refresh'));
   // Следующий ролик уже ждёт под экраном — свайп не грузит его с нуля.
-  check('следующий ролик загружен заранее', await pa.evaluate(() => document.querySelectorAll('.rl-card').length === 2));
+  // Закрытый для встраивания ролик под экраном заменяется следующим — даём
+  // на это пару секунд.
+  const hasNext = await pa.waitForFunction(() => Array.from(document.querySelectorAll('.rl-card')).some((c) => c.getBoundingClientRect().top >= 800), null, { timeout: 6000 }).then(() => true, () => false);
+  check('следующий ролик загружен заранее', hasNext);
   // Посреди свайпа видны оба ролика: текущий уехал вверх, следующий выехал.
   await pa.mouse.move(196, 600); await pa.mouse.down();
   await pa.mouse.move(196, 420, { steps: 6 });

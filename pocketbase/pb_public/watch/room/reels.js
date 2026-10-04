@@ -532,6 +532,7 @@
     tiktok: {
       url: (id) => 'https://www.tiktok.com/player/v1/' + id + '?autoplay=1&loop=1&controls=0&progress_bar=0&play_button=0&volume_control=0&fullscreen_button=0&timestamp=0&music_info=0&description=0&rel=0&native_context_menu=0&closed_caption=0',
       say: (w, cmd) => w.postMessage({ type: { play: 'play', pause: 'pause', mute: 'mute', unmute: 'unMute' }[cmd], 'x-tiktok-player': true }, '*'),
+      playing: (m) => m && m.type === 'onStateChange' && m.value === 1,
       keep: true,
     },
     rutube: {
@@ -539,6 +540,7 @@
       say: (w, cmd) => w.postMessage(JSON.stringify({ type: 'player:' + { play: 'play', pause: 'pause', mute: 'mute', unmute: 'unMute' }[cmd], data: {} }), '*'),
       // Rutube в конце ролика встаёт: повтор просим сами.
       ended: (m) => m && m.type === 'player:changeState' && m.data && (m.data.state === 'completed' || m.data.state === 'stopped'),
+      playing: (m) => m && m.type === 'player:changeState' && m.data && m.data.state === 'playing',
       keep: true,
     },
     vk: {
@@ -546,6 +548,7 @@
       init: (w) => w.postMessage({ method: 'init' }, '*'),
       say: (w, cmd) => w.postMessage({ method: cmd }, '*'),
       ended: (m) => m && m.event === 'ended',
+      playing: (m) => m && (m.event === 'started' || m.event === 'resumed'),
       keep: true,
     },
     dzen: {
@@ -642,7 +645,16 @@
       mute: () => say('mute'),
       unmute: () => say('unmute'),
       muted: () => false,
-      shelve: () => { say('mute'); say('pause'); },
+      shelve: () => { card.playing = false; say('mute'); say('pause'); },
+      // После сворачивания система ставит видео на паузу. Плеер с командами
+      // будим «играть», а Дзен их не понимает — его перезагружаем, и он
+      // стартует сам (эмулятор, 04.10.2026: после возврата был чёрный экран).
+      revive: () => {
+        if (spec.say) { say('play'); if (card.nudge) card.nudge(); return; }
+        const u = f.src;
+        f.src = 'about:blank';
+        setTimeout(() => { f.src = u; }, 50);
+      },
       wake: () => {},
       destroy: () => f.remove(),
     };
@@ -655,16 +667,30 @@
         if (card.active) wake(card); else card.api.shelve();
       }, ms));
     });
+    // Плеер ВК на телефоне принимает «играть» не с первого раза и стоит с
+    // кнопкой на кадре (эмулятор, 04.10.2026). Пока он сам не скажет, что
+    // пошёл, текущий ролик будим раз в полторы секунды, до 15 секунд.
+    let tries = 0;
+    card.nudge = () => {
+      clearInterval(card.nudgeTimer);
+      tries = 0;
+      card.nudgeTimer = setInterval(() => {
+        if (card.dead || !card.active || card.playing || ++tries > 10) { clearInterval(card.nudgeTimer); return; }
+        try { if (spec.init) spec.init(f.contentWindow); } catch (_) {}
+        if (!S.paused) { if (!S.wantMuted) card.api.unmute(); card.api.play(); }
+      }, 1500);
+    };
   }
 
-  // Ответы плееров площадок: конец ролика — повтор.
+  // Ответы плееров площадок: пошёл — больше не будим, конец ролика — повтор.
   window.addEventListener('message', (e) => {
     const all = [cards.cur, cards.next, cards.prev];
     const card = all.find((c) => c && c.frame && c.frame.contentWindow === e.source);
-    if (!card || !card.spec || !card.spec.ended) return;
+    if (!card || !card.spec) return;
     let m = e.data;
     if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { return; } }
-    if (card.active && card.spec.ended(m)) card.api.play();
+    if (card.spec.playing && card.spec.playing(m)) card.playing = true;
+    if (card.active && card.spec.ended && card.spec.ended(m)) card.api.play();
   });
 
   function drop(card) {
@@ -740,6 +766,7 @@
       }
     }
     wake(card);
+    if (card.nudge) card.nudge();
     setTimeout(() => { preloadNext(); ensurePrev(); }, 450);
   }
 
@@ -1041,7 +1068,7 @@
       try {
         if (on) c.api.pause();
         else if (c !== cards.cur) c.api.shelve();
-        else if (!S.paused) c.api.play();
+        else if (!S.paused) (c.api.revive || c.api.play)();
       } catch (_) {}
     });
   }
