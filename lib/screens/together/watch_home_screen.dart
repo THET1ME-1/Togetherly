@@ -14,6 +14,10 @@ import '../../services/watch_history_service.dart';
 import '../../models/watch_room_load.dart';
 import '../../services/watch_room_service.dart';
 import '../../services/plus_service.dart';
+import '../../services/plus_access.dart';
+import '../../services/pb_data_service.dart';
+import '../../models/widget_data.dart';
+import '../plus_screen.dart';
 import '../../services/watch_videos_service.dart';
 import '../../widgets/reels/reels_start_sheet.dart';
 import 'together_launcher.dart';
@@ -57,10 +61,26 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
 
   List<WatchVideo> get _videos => [..._uploaded, ..._lane];
 
+  /// Плюс партнёра: совместная лента открыта, если он есть хотя бы у одного.
+  bool _partnerPlus = false;
+
+  PlusGate get _reelsGate => PlusAccess.pairGate(mine: PlusService.instance.gate, partnerPlus: _partnerPlus);
+
+  /// Флаг лежит в карточке виджета партнёра — его ставит сервер.
+  Future<void> _loadPartnerPlus() async {
+    final uid = widget.pairData.partnerUid;
+    if (widget.pairData.pairId.isEmpty || uid.isEmpty) return;
+    final rec = await PbDataService().loadWidget(widget.pairData.pairId, uid);
+    if (!mounted || rec == null) return;
+    final has = WidgetData.fromPb(rec).plus;
+    if (has != _partnerPlus) setState(() => _partnerPlus = has);
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    unawaited(_loadPartnerPlus());
     _loadRoom();
     _loadRecent();
     _listenVideos();
@@ -371,13 +391,18 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
             onTap: _openInApp,
           ),
           const SizedBox(height: 12),
-          _TonalCard(
-            icon: Icons.swipe_up_rounded,
-            title: s.reelsTogether,
-            subtitle: s.reelsTogetherHint,
-            onTap: _room.isEmpty ? null : _openReels,
-          ),
-          const SizedBox(height: 12),
+          // Совместная лента — по Togetherly+ (хватает Плюса у одного из
+          // пары). Где Плюса нет вовсе, плитки нет: вести некуда.
+          if (_reelsGate != PlusGate.hidden) ...[
+            _TonalCard(
+              icon: Icons.swipe_up_rounded,
+              title: s.reelsTogether,
+              subtitle: s.reelsTogetherHint,
+              plusLocked: _reelsGate == PlusGate.locked,
+              onTap: _room.isEmpty ? null : _openReels,
+            ),
+            const SizedBox(height: 12),
+          ],
           _TonalCard(
             icon: Icons.open_in_new_rounded,
             title: s.watchOpenOnSite,
@@ -485,6 +510,14 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
   /// выбора площадки.
   Future<void> _openReels() async {
     if (_room.isEmpty) return;
+    if (_reelsGate == PlusGate.locked) {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => PlusScreen(scheme: Theme.of(context).colorScheme)),
+      );
+      // Вернулся с покупкой — плитка откроется сама.
+      if (mounted) setState(() {});
+      return;
+    }
     final source = await showReelsStartSheet(context);
     if (source == null || !mounted) return;
     await TogetherLauncher.open(context, pairId: widget.pairData.pairId, reels: true, reelsSource: source);
@@ -717,11 +750,15 @@ class _TonalCard extends StatelessWidget {
   final String subtitle;
   final VoidCallback? onTap;
 
+  /// Чип «Togetherly+» с замком у названия: касание ведёт на витрину.
+  final bool plusLocked;
+
   const _TonalCard({
     required this.icon,
     required this.title,
     required this.subtitle,
     this.onTap,
+    this.plusLocked = false,
   });
 
   @override
@@ -757,7 +794,38 @@ class _TonalCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(title, style: text.titleMedium),
+                    // Название переносится, чип встаёт следом: на 320 точках
+                    // при крупном шрифте в одну строку они не помещаются.
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(title, style: text.titleMedium),
+                        if (plusLocked)
+                          Container(
+                            padding: const EdgeInsets.fromLTRB(8, 4, 10, 4),
+                            decoration: BoxDecoration(
+                              color: cs.secondaryContainer,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.lock_rounded, size: 13, color: cs.onSecondaryContainer),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Togetherly+',
+                                  style: text.labelSmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: cs.onSecondaryContainer,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
                     const SizedBox(height: 2),
                     Text(
                       subtitle,

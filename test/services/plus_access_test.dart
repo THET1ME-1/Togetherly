@@ -186,4 +186,18 @@ void main() {
       );
     });
   });
+
+  group('Совместная лента: Плюса хватает у одного из пары', () {
+    test('свой Плюс открывает', () {
+      expect(PlusAccess.pairGate(mine: PlusGate.open, partnerPlus: false), PlusGate.open);
+    });
+    test('Плюс партнёра открывает и мне', () {
+      expect(PlusAccess.pairGate(mine: PlusGate.locked, partnerPlus: true), PlusGate.open);
+      expect(PlusAccess.pairGate(mine: PlusGate.hidden, partnerPlus: true), PlusGate.open);
+    });
+    test('ни у кого нет — замок, а где Плюса нет вовсе — скрыто', () {
+      expect(PlusAccess.pairGate(mine: PlusGate.locked, partnerPlus: false), PlusGate.locked);
+      expect(PlusAccess.pairGate(mine: PlusGate.hidden, partnerPlus: false), PlusGate.hidden);
+    });
+  });
 }

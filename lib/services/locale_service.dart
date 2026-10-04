@@ -1910,6 +1910,8 @@ abstract class AppStrings {
   String get plusThemesBody;
   String get plusCycleTitle;
   String get plusCycleBody;
+  String get plusReelsTitle;
+  String get plusReelsBody;
   String get plusWidgetsTitle;
   String get plusWidgetsBody;
   String get plusColoringTitle;

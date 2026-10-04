@@ -33,6 +33,13 @@ class PlusAccess {
     return exists ? PlusGate.locked : PlusGate.hidden;
   }
 
+  /// Фича на двоих (совместная лента): хватает Плюса у одного из пары, как с
+  /// купленным маскотом или циклом. Иначе пара платила бы за один общий
+  /// вечер дважды. [mine] — свой [gate], [partnerPlus] — флаг из карточки
+  /// виджета партнёра (его ставит сервер, дорисовать себе нельзя).
+  static PlusGate pairGate({required PlusGate mine, required bool partnerPlus}) =>
+      mine == PlusGate.open || partnerPlus ? PlusGate.open : mine;
+
   /// Потолок файла в PocketBase (`media.file.maxSize`). Выше него не пропустит
   /// сервер, поэтому клиентские лимиты не имеют права его превышать.
   static const int serverFileLimit = 200 * 1024 * 1024;
