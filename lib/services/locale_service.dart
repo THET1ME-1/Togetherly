@@ -2275,6 +2275,11 @@ abstract class AppStrings {
   String get reelsTogether;
   String get reelsTogetherHint;
   String get reelsSavedCaption;
+  String reelsInvitedBy(String name, String feed);
+  String get reelsJoin;
+  String get reelsLater;
+  String get reelsAskPartnerTitle;
+  String get reelsAskPartnerBody;
   String get reelsStartTitle;
   String get reelsStartWatch;
   String get reelsShortsHint;

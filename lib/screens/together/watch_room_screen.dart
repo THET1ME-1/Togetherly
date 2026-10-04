@@ -17,7 +17,9 @@ import '../../services/locale_service.dart';
 import '../../services/pocketbase_service.dart';
 import '../../models/reels_source.dart';
 import '../../services/reels/reels_feed.dart';
+import '../../services/plus_service.dart';
 import '../../services/reels/reel_save.dart';
+import '../../services/reels/reels_invite.dart';
 import '../../services/reels/reels_proxy.dart';
 import '../../services/watch_channel_service.dart';
 import '../../services/watch_history_service.dart';
@@ -87,7 +89,15 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
     unawaited(_openVoice());
     WidgetsBinding.instance.addObserver(this);
     if (widget.reels) unawaited(_startFeed());
+    // Ленту запускает купивший — он и зовёт партнёра: тому придёт пуш
+    // «Аня зовёт смотреть TikTok», по которому он войдёт без своего Плюса.
+    if (widget.reels && PlusService.instance.active) {
+      _invited = true;
+      unawaited(ReelsInvite.send(widget.pairId, widget.reelsSource));
+    }
   }
+
+  bool _invited = false;
 
   /// Скрытая страница раскачивается несколько секунд — поднимаем её сразу,
   /// пока грузится комната. Посредник для TikTok нужен обоим: ролик из ленты
@@ -255,6 +265,7 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
     unawaited(_room?.dispose() ?? Future<void>.value());
     unawaited(_feed?.dispose() ?? Future<void>.value());
     if (widget.reels) unawaited(ReelsProxy.disable());
+    if (_invited) unawaited(ReelsInvite.stop(widget.pairId));
     super.dispose();
   }
 

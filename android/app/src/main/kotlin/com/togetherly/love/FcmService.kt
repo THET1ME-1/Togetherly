@@ -32,7 +32,12 @@ class FcmService : FirebaseMessagingService() {
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
-        if (message.notification != null) return
+        if (message.notification != null) {
+            // Зов в совместную ленту при открытом приложении: система баннер не
+            // рисует, а человеку надо успеть ответить — спрашивает Dart листом.
+            if (message.data["kind"] == "reels") ReelsInviteBridge.arrived(message.data)
+            return
+        }
 
         val kind = message.data["kind"] ?: return
         if (kind != "widgets") return

@@ -62,6 +62,65 @@ import WidgetKit
     setupGalleryChannel(engineBridge.pluginRegistry)
     setupApnsChannel(engineBridge.pluginRegistry)
     setupLocationAlwaysChannel(engineBridge.pluginRegistry)
+    setupReelsInviteChannel(engineBridge.pluginRegistry)
+  }
+
+  // MARK: - Зов в совместную ленту
+
+  /// «Аня зовёт смотреть TikTok» (`pb_hooks/reels_invite.pb.js`) — из системы
+  /// во Flutter, канал `love_app/reels_invite`. Касание по пушу на холодном
+  /// старте приходит раньше, чем Dart начнёт слушать, — тогда зов лежит в
+  /// `pendingReelsInvite`, и Dart забирает его вопросом `pending`. Пока Dart
+  /// хоть раз не спросил, считаем, что он не слушает.
+  private var reelsInviteChannel: FlutterMethodChannel?
+  private var pendingReelsInvite: [String: String]?
+  private var reelsDartListens = false
+
+  private func setupReelsInviteChannel(_ registry: FlutterPluginRegistry) {
+    guard let messenger = registry
+      .registrar(forPlugin: "TogetherlyReelsInvite")?
+      .messenger()
+    else { return }
+    let channel = FlutterMethodChannel(name: "love_app/reels_invite", binaryMessenger: messenger)
+    channel.setMethodCallHandler { [weak self] call, result in
+      guard call.method == "pending" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      self?.reelsDartListens = true
+      result(self?.pendingReelsInvite)
+      self?.pendingReelsInvite = nil
+    }
+    reelsInviteChannel = channel
+  }
+
+  private func reelsInvite(from info: [AnyHashable: Any]) -> [String: String]? {
+    guard (info["kind"] as? String) == "reels" else { return nil }
+    return [
+      "kind": "reels",
+      "feed": info["feed"] as? String ?? "",
+      "group": info["group"] as? String ?? "",
+      "name": info["name"] as? String ?? "",
+    ]
+  }
+
+  /// Зов пришёл, пока приложение на экране: баннер не рисуем, спрашивает
+  /// Dart листом. Пока Dart не слушает — обычный баннер.
+  override func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    willPresent notification: UNNotification,
+    withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+  ) {
+    if let invite = reelsInvite(from: notification.request.content.userInfo) {
+      if reelsDartListens, let channel = reelsInviteChannel {
+        channel.invokeMethod("arrived", arguments: invite)
+        completionHandler([])
+      } else {
+        completionHandler([.banner, .list, .sound])
+      }
+      return
+    }
+    super.userNotificationCenter(center, willPresent: notification, withCompletionHandler: completionHandler)
   }
 
   // MARK: - Разрешение «Всегда» для карты «Где мы»
@@ -306,6 +365,13 @@ import WidgetKit
     withCompletionHandler completionHandler: @escaping () -> Void
   ) {
     let info = response.notification.request.content.userInfo
+    if let invite = reelsInvite(from: info) {
+      if reelsDartListens, let channel = reelsInviteChannel {
+        channel.invokeMethod("opened", arguments: invite)
+      } else {
+        pendingReelsInvite = invite
+      }
+    }
     if (info["kind"] as? String) == "wallet",
        let raw = info["url"] as? String,
        let url = URL(string: raw) {

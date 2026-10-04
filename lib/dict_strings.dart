@@ -3403,6 +3403,13 @@ abstract class DictStrings extends AppStrings {
   String get reelsTogetherHint => _t('reelsTogetherHint');
   String get reelsSavedCaption => _t('reelsSavedCaption');
   @override
+  String reelsInvitedBy(String name, String feed) =>
+      _t('reelsInvitedBy').replaceAll('{name}', name).replaceAll('{feed}', feed);
+  String get reelsJoin => _t('reelsJoin');
+  String get reelsLater => _t('reelsLater');
+  String get reelsAskPartnerTitle => _t('reelsAskPartnerTitle');
+  String get reelsAskPartnerBody => _t('reelsAskPartnerBody');
+  @override
   String get reelsStartTitle => _t('reelsStartTitle');
   @override
   String get reelsStartWatch => _t('reelsStartWatch');

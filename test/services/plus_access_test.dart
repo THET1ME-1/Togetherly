@@ -187,17 +187,24 @@ void main() {
     });
   });
 
-  group('Совместная лента: Плюса хватает у одного из пары', () {
-    test('свой Плюс открывает', () {
-      expect(PlusAccess.pairGate(mine: PlusGate.open, partnerPlus: false), PlusGate.open);
+  group('Совместная лента: запускает купивший, партнёр входит по зову', () {
+    ReelsEntry e(PlusGate mine, {bool partner = false, bool invited = false}) =>
+        PlusAccess.reelsEntry(mine: mine, partnerPlus: partner, invited: invited);
+    test('свой Плюс — запускаю', () {
+      expect(e(PlusGate.open), ReelsEntry.start);
+      expect(e(PlusGate.open, invited: true), ReelsEntry.start);
     });
-    test('Плюс партнёра открывает и мне', () {
-      expect(PlusAccess.pairGate(mine: PlusGate.locked, partnerPlus: true), PlusGate.open);
-      expect(PlusAccess.pairGate(mine: PlusGate.hidden, partnerPlus: true), PlusGate.open);
+    test('без Плюса по зову — вхожу', () {
+      expect(e(PlusGate.locked, partner: true, invited: true), ReelsEntry.join);
+      expect(e(PlusGate.hidden, invited: true), ReelsEntry.join);
     });
-    test('ни у кого нет — замок, а где Плюса нет вовсе — скрыто', () {
-      expect(PlusAccess.pairGate(mine: PlusGate.locked, partnerPlus: false), PlusGate.locked);
-      expect(PlusAccess.pairGate(mine: PlusGate.hidden, partnerPlus: false), PlusGate.hidden);
+    test('Плюс у партнёра, но он не зовёт — сам не запущу', () {
+      expect(e(PlusGate.locked, partner: true), ReelsEntry.askPartner);
+      expect(e(PlusGate.hidden, partner: true), ReelsEntry.askPartner);
+    });
+    test('ни у кого нет — витрина, а где Плюса нет вовсе — скрыто', () {
+      expect(e(PlusGate.locked), ReelsEntry.buy);
+      expect(e(PlusGate.hidden), ReelsEntry.hidden);
     });
   });
 }

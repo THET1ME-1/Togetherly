@@ -94,6 +94,8 @@ import 'love_test_screen.dart';
 import 'live_map_screen.dart';
 import 'memory_lane_screen.dart';
 import 'together/together_launcher.dart';
+import '../services/reels/reels_invite.dart';
+import '../widgets/common/app_dialog.dart';
 import 'mini_mood_calendar.dart';
 import 'mood_calendar_screen.dart';
 import 'plus_screen.dart';
@@ -285,6 +287,28 @@ class _HomeScreenState extends State<HomeScreen> {
   // I/O лаги. Не Firestore reads, но UX-критично на слабых телефонах.
   Timer? _syncMoodWidgetDebounce;
   Timer? _moodStreakRewardDebounce;
+  StreamSubscription<({ReelsInvite invite, bool opened})>? _reelsInviteSub;
+
+  /// Партнёр зовёт в совместную ленту. По касанию на пуш входим сразу, а
+  /// зов, пришедший при открытом приложении, спрашивает листом: человек мог
+  /// быть посреди чата или рисунка.
+  Future<void> _onReelsInvite(({ReelsInvite invite, bool opened}) e) async {
+    if (!mounted) return;
+    final invite = e.invite;
+    if (!e.opened) {
+      final s = LocaleService.current;
+      final go = await AppDialog.confirm(
+        context,
+        title: s.reelsInvitedBy(invite.name.isEmpty ? s.partner : invite.name, invite.source.title),
+        message: s.reelsTogetherHint,
+        confirmLabel: s.reelsJoin,
+        cancelLabel: s.reelsLater,
+        icon: Icons.swipe_up_rounded,
+      );
+      if (!go || !mounted) return;
+    }
+    await TogetherLauncher.open(context, pairId: invite.groupId, reels: true, reelsSource: invite.source);
+  }
 
   @override
   void initState() {
@@ -311,6 +335,10 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadWishesFlag();
     _loadIncomingGifts();
     _listenGifts();
+    // Зов в совместную ленту: касание по пушу открывает ленту сразу, а пуш,
+    // пришедший, пока человек в приложении, предлагает войти листом.
+    _reelsInviteSub = ReelsInviteBus.instance.invites.listen(_onReelsInvite);
+    unawaited(ReelsInviteBus.instance.init());
 
     // Присутствие: «я жив» летит в канал пары через Centrifugo, а в базу
     // уходит редкая отметка «был в сети». До 14 августа 2026 это была запись
@@ -483,6 +511,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    unawaited(_reelsInviteSub?.cancel());
     final giftsOff = _giftsUnsub;
     _giftsUnsub = null;
     if (giftsOff != null) unawaited(giftsOff());

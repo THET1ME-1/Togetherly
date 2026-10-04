@@ -2,6 +2,24 @@ import '../models/canvas_background.dart';
 import '../models/profile_icon.dart';
 
 /// Что показывать на месте платной вещи.
+/// Что делает плитка совместной ленты ([PlusAccess.reelsEntry]).
+enum ReelsEntry {
+  /// Свой Плюс — запускаю ленту и зову партнёра.
+  start,
+
+  /// Партнёр зовёт — вхожу без своего Плюса.
+  join,
+
+  /// Плюс у партнёра, но он сейчас не зовёт — объясняем, как войти.
+  askPartner,
+
+  /// Плюса нет ни у кого — замок и витрина.
+  buy,
+
+  /// Плюса здесь не продают и никто не зовёт — плитки нет.
+  hidden,
+}
+
 enum PlusGate {
   /// Куплено — фича работает.
   open,
@@ -33,12 +51,16 @@ class PlusAccess {
     return exists ? PlusGate.locked : PlusGate.hidden;
   }
 
-  /// Фича на двоих (совместная лента): хватает Плюса у одного из пары, как с
-  /// купленным маскотом или циклом. Иначе пара платила бы за один общий
-  /// вечер дважды. [mine] — свой [gate], [partnerPlus] — флаг из карточки
-  /// виджета партнёра (его ставит сервер, дорисовать себе нельзя).
-  static PlusGate pairGate({required PlusGate mine, required bool partnerPlus}) =>
-      mine == PlusGate.open || partnerPlus ? PlusGate.open : mine;
+  /// Совместная лента (решение 05.10.2026): запускает только купивший, а
+  /// партнёр входит по его зову и без своего Плюса. [mine] — свой [gate],
+  /// [partnerPlus] — флаг из карточки виджета партнёра (ставит сервер),
+  /// [invited] — партнёр сейчас зовёт (`/api/reels/active` или пуш).
+  static ReelsEntry reelsEntry({required PlusGate mine, required bool partnerPlus, required bool invited}) {
+    if (mine == PlusGate.open) return ReelsEntry.start;
+    if (invited) return ReelsEntry.join;
+    if (partnerPlus) return ReelsEntry.askPartner;
+    return mine == PlusGate.hidden ? ReelsEntry.hidden : ReelsEntry.buy;
+  }
 
   /// Потолок файла в PocketBase (`media.file.maxSize`). Выше него не пропустит
   /// сервер, поэтому клиентские лимиты не имеют права его превышать.

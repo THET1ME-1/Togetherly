@@ -15,6 +15,8 @@ import '../../models/watch_room_load.dart';
 import '../../services/watch_room_service.dart';
 import '../../services/plus_service.dart';
 import '../../services/plus_access.dart';
+import '../../services/reels/reels_invite.dart';
+import '../../widgets/common/app_dialog.dart';
 import '../../services/pb_data_service.dart';
 import '../../models/widget_data.dart';
 import '../plus_screen.dart';
@@ -61,10 +63,23 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
 
   List<WatchVideo> get _videos => [..._uploaded, ..._lane];
 
-  /// Плюс партнёра: совместная лента открыта, если он есть хотя бы у одного.
+  /// Плюс партнёра: с ним ленту запускает он, а я вхожу по его зову.
   bool _partnerPlus = false;
 
-  PlusGate get _reelsGate => PlusAccess.pairGate(mine: PlusService.instance.gate, partnerPlus: _partnerPlus);
+  /// Партнёр сейчас зовёт в ленту (`/api/reels/active`).
+  ReelsInvite? _invite;
+
+  ReelsEntry get _reelsEntry => PlusAccess.reelsEntry(
+        mine: PlusService.instance.gate,
+        partnerPlus: _partnerPlus,
+        invited: _invite != null,
+      );
+
+  Future<void> _loadInvite() async {
+    final invite = await ReelsInvite.active(widget.pairData.pairId);
+    if (!mounted) return;
+    if (invite?.source != _invite?.source || (invite == null) != (_invite == null)) setState(() => _invite = invite);
+  }
 
   /// Флаг лежит в карточке виджета партнёра — его ставит сервер.
   Future<void> _loadPartnerPlus() async {
@@ -81,6 +96,7 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     unawaited(_loadPartnerPlus());
+    unawaited(_loadInvite());
     _loadRoom();
     _loadRecent();
     _listenVideos();
@@ -121,7 +137,10 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
   /// замечает как раз тот, кто ждёт ролик партнёра.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) unawaited(_refreshAll());
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_refreshAll());
+      unawaited(_loadInvite());
+    }
   }
 
   Future<void> _refreshAll() async {
@@ -391,14 +410,16 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
             onTap: _openInApp,
           ),
           const SizedBox(height: 12),
-          // Совместная лента — по Togetherly+ (хватает Плюса у одного из
-          // пары). Где Плюса нет вовсе, плитки нет: вести некуда.
-          if (_reelsGate != PlusGate.hidden) ...[
+          // Совместная лента — по Togetherly+: запускает купивший, партнёр
+          // входит по его зову. Где Плюса нет вовсе и никто не зовёт, плитки нет.
+          if (_reelsEntry != ReelsEntry.hidden) ...[
             _TonalCard(
               icon: Icons.swipe_up_rounded,
               title: s.reelsTogether,
-              subtitle: s.reelsTogetherHint,
-              plusLocked: _reelsGate == PlusGate.locked,
+              subtitle: _invite != null && _reelsEntry == ReelsEntry.join
+                  ? s.reelsInvitedBy(_invite!.name.isEmpty ? s.partner : _invite!.name, _invite!.source.title)
+                  : s.reelsTogetherHint,
+              plusLocked: _reelsEntry == ReelsEntry.buy || _reelsEntry == ReelsEntry.askPartner,
               onTap: _room.isEmpty ? null : _openReels,
             ),
             const SizedBox(height: 12),
@@ -510,17 +531,35 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
   /// выбора площадки.
   Future<void> _openReels() async {
     if (_room.isEmpty) return;
-    if (_reelsGate == PlusGate.locked) {
-      await Navigator.of(context).push(
-        MaterialPageRoute<void>(builder: (_) => PlusScreen(scheme: Theme.of(context).colorScheme)),
-      );
-      // Вернулся с покупкой — плитка откроется сама.
-      if (mounted) setState(() {});
-      return;
+    // Зов мог кончиться, пока экран стоял открытым: спрашиваем свежий.
+    await _loadInvite();
+    if (!mounted) return;
+    switch (_reelsEntry) {
+      case ReelsEntry.hidden:
+        return;
+      case ReelsEntry.buy:
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => PlusScreen(scheme: Theme.of(context).colorScheme)),
+        );
+        // Вернулся с покупкой — плитка откроется сама.
+        if (mounted) setState(() {});
+        return;
+      case ReelsEntry.askPartner:
+        await AppDialog.info(
+          context,
+          title: LocaleService.current.reelsAskPartnerTitle,
+          message: LocaleService.current.reelsAskPartnerBody,
+        );
+        return;
+      case ReelsEntry.join:
+        // Вхожу по зову — площадку выбрал тот, кто позвал.
+        await TogetherLauncher.open(context, pairId: widget.pairData.pairId, reels: true, reelsSource: _invite!.source);
+        return;
+      case ReelsEntry.start:
+        final source = await showReelsStartSheet(context);
+        if (source == null || !mounted) return;
+        await TogetherLauncher.open(context, pairId: widget.pairData.pairId, reels: true, reelsSource: source);
     }
-    final source = await showReelsStartSheet(context);
-    if (source == null || !mounted) return;
-    await TogetherLauncher.open(context, pairId: widget.pairData.pairId, reels: true, reelsSource: source);
   }
 
   /// Свой ролик открываем в комнате пары: файл лежит у нас и отдаётся прямой

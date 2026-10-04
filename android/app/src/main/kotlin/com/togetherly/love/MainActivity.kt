@@ -53,7 +53,10 @@ class MainActivity : FlutterActivity() {
         takeSharedText(intent)
         // Пересоздание активности (поворот, тема) приносит тот же интент, и пуш
         // открыл бы Wallet второй раз.
-        if (savedInstanceState == null) openWalletFromPush(intent)
+        if (savedInstanceState == null) {
+            openWalletFromPush(intent)
+            ReelsInviteBridge.fromIntent(intent, warm = false)
+        }
     }
 
     // Приложение уже живёт в фоне: система переиспользует активность и шлёт
@@ -62,6 +65,7 @@ class MainActivity : FlutterActivity() {
         super.onNewIntent(intent)
         takeSharedText(intent)
         openWalletFromPush(intent)
+        ReelsInviteBridge.fromIntent(intent, warm = true)
         pendingSharedText?.let { text ->
             sharedTextChannel?.invokeMethod("shared", text)
             pendingSharedText = null
@@ -121,6 +125,7 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        ReelsInviteBridge.detach()
         userPresentReceiver?.let {
             try { unregisterReceiver(it) } catch (_: Exception) {}
         }
@@ -130,6 +135,7 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        ReelsInviteBridge.attach(flutterEngine.dartExecutor.binaryMessenger)
 
         sharedTextChannel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,

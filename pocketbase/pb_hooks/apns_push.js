@@ -74,10 +74,24 @@ const NOTIF_FIELD = {
   draw: "notif_draw",
 };
 
-function sendTo(uid, title, body, thread) {
+/// [opts] — необязательно: `force` шлёт и тому, кто сейчас в приложении
+/// (зов в совместную ленту: внутри приложения его никто иначе не покажет),
+/// `data` — дополнительные поля пуша рядом с `kind` (площадка, пара).
+function sendTo(uid, title, body, thread, opts) {
   let user;
   try { user = $app.findRecordById("users", uid); } catch (_) { return; }
-  if (isOnline(uid)) return;
+  if (!(opts && opts.force) && isOnline(uid)) return;
+  // Значения — только строки (FCM иначе отказывает), а служебные ключи
+  // Firebase (`from`, `notification`, `message_type`, `google.*`, `gcm.*`)
+  // отбрасываем: с ними FCM отвечает INVALID_ARGUMENT, и релей вычищает
+  // живой токен как мёртвый.
+  const data = { kind: thread };
+  if (opts && opts.data) {
+    for (const k in opts.data) {
+      if (/^(from|notification|message_type|collapse_key)$|^(google|gcm)\./.test(k)) continue;
+      data[k] = String(opts.data[k]);
+    }
+  }
 
   // Человек выключил этот вид уведомлений в приложении. Переключатели
   // доезжали сюда с самого начала, но их никто не читал: пуши уходили всем
@@ -101,7 +115,7 @@ function sendTo(uid, title, body, thread) {
           body: body,
           thread: thread,
           sandbox: !!user.get("apns_sandbox"),
-          data: { kind: thread },
+          data: data,
         }),
         timeout: 10,
       });
@@ -130,7 +144,7 @@ function sendTo(uid, title, body, thread) {
           // Одна строка на вид события: новое сообщение заменяет прежнее в
           // шторке, а не копится десятком одинаковых баннеров.
           tag: thread,
-          data: { kind: thread },
+          data: data,
         }),
         timeout: 10,
       });
@@ -147,7 +161,7 @@ function sendTo(uid, title, body, thread) {
 }
 
 /// Всем участникам группы, кроме автора.
-function notifyGroup(groupId, authorUid, title, body, thread) {
+function notifyGroup(groupId, authorUid, title, body, thread, opts) {
   if (!groupId) return;
   let group;
   try { group = $app.findRecordById("groups", groupId); } catch (_) { return; }
@@ -156,7 +170,7 @@ function notifyGroup(groupId, authorUid, title, body, thread) {
   for (let i = 0; i < members.length; i++) {
     const uid = String(members[i] || "");
     if (!uid || uid === authorUid) continue;
-    sendTo(uid, title, body, thread);
+    sendTo(uid, title, body, thread, opts);
   }
 }
 
