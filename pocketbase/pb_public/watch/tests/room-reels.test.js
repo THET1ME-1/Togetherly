@@ -208,6 +208,8 @@ const check = (n, c, x = '') => { console.log((c ? '  ✓ ' : '  ✗ ') + n, x);
   await pa.evaluate(() => window.watchVoiceState({ state: 'live', micOn: true }));
   await pa.waitForTimeout(200);
   await pa.screenshot({ path: path.join(OUT, '8-live.png') });
+  const gap = await pa.evaluate(() => document.querySelector('.rl-rail').getBoundingClientRect().top - document.querySelector('.rl-voice').getBoundingClientRect().bottom);
+  check('в разговоре звонок и действия не налезают', gap >= 8, gap + ' px между ними');
 
   // Узкий экран: ничего не налезает.
   await pa.setViewportSize({ width: 320, height: 640 });

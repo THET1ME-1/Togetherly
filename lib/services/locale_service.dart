@@ -1608,6 +1608,7 @@ abstract class AppStrings {
   String chatTyping(String name);
   String get chatEdited;
   String get chatDeletedPlaceholder;
+  String get chatCallTitle;
   String get chatSendFailed;
   String get chatWaitsForPartner;
   String get chatAttachPin;

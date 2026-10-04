@@ -508,6 +508,16 @@ const Map<String, Map<String, String>> chatStrings = {
     'fr': 'Message supprimé',
     'de': 'Nachricht gelöscht',
   },
+  // Запись о звонке из совместного просмотра и лент: карточка в чате.
+  'chatCallTitle': {
+    'ru': 'Звонок',
+    'en': 'Call',
+    'pt': 'Chamada',
+    'it': 'Chiamata',
+    'es': 'Llamada',
+    'fr': 'Appel',
+    'de': 'Anruf',
+  },
   // Пары ещё нет: плитка чата на экране приглашения объясняет, чего ждать,
   // вместо того чтобы вести в чат, из которого сообщение не уходит.
   'chatWaitsForPartner': {

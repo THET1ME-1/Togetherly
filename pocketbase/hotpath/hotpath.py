@@ -128,6 +128,8 @@ COLLECTIONS = {
             "note_url": "text", "note_ms": "num", "note_shape": "text",
             "note_thumb": "text", "note_seen_at": "num", "note_hearts": "text",
             "deliver_at": "num",
+            # Запись о звонке в комнате или лентах: длительность, мс.
+            "call_ms": "num",
         },
         # Сообщение «к утру» (28.09.2026): пока deliver_at в будущем, его видит
         # только автор, партнёру оно не рассылается и пуш не уходит. Выпускает

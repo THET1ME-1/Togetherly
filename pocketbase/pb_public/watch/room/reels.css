@@ -24,7 +24,11 @@ body.reels {
   --rl-on-pc: #90003B;
   --rl-partner: #CFE5FF;
   --rl-on-partner: #003258;
-  --rl-scrim: rgba(29, 16, 18, .58);
+  /* Подложки матовые: прозрачность меньше, читаемость даёт размытие ролика
+     за ними (правило «матовое стекло» ниже). */
+  --rl-scrim: rgba(29, 16, 18, .4);
+  --rl-frost: rgba(255, 244, 245, .8);
+  --rl-blur: blur(18px) saturate(1.5);
   --rl-surface: #FFF8F7;
   --rl-sc-low: #FFF0F1;
   --rl-sc-high: #FDE2E5;
@@ -84,6 +88,12 @@ body.reels .stage-wrap {
 .rl-ui { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
 .rl-ui > * { pointer-events: auto; }
 .rl-ib { width: 40px; height: 40px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--rl-scrim); color: #fff; }
+
+/* Матовое стекло: всё полупрозрачное поверх ролика размывает его за собой. */
+.rl-ib, .rl-pill, .rl-voice, .rl-hint, .rl-rail, .rl-paused, .rl-compose, .rl-pick, .rl-pop, .rl-feed .rl-msg, .rl-match, .rl-sound {
+  -webkit-backdrop-filter: var(--rl-blur);
+  backdrop-filter: var(--rl-blur);
+}
 .rl-ib.accent { background: var(--rl-accent); color: var(--rl-on-accent); }
 .rl-ib.end { background: var(--rl-end); color: #fff; }
 .rl-ib.mute { background: rgba(255, 255, 255, .16); color: #fff; }
@@ -97,8 +107,14 @@ body.reels .stage-wrap {
 .rl-av.lg { width: 40px; height: 40px; font-size: 13px; }
 .rl-av.talking { box-shadow: 0 0 0 2px var(--rl-accent); }
 
-/* звонок: справа под шапкой */
-.rl-voice { position: absolute; top: calc(var(--rl-top) + 48px); right: 12px; display: grid; gap: 8px; justify-items: center; background: var(--rl-scrim); border-radius: 28px; padding: 6px; }
+/* Правая колонка: звонок и под ним действия, одним потоком с зазором 12.
+   Порознь, с заданными координатами, они налезали друг на друга, как только
+   звонок разрастался (аватар, микрофон, отбой). */
+.rl-ui > .rl-side { position: absolute; top: calc(var(--rl-top) + 48px); right: 12px; display: flex; flex-direction: column; align-items: center; gap: 12px; pointer-events: none; }
+.rl-side > * { pointer-events: auto; }
+
+/* звонок */
+.rl-voice { display: grid; gap: 8px; justify-items: center; background: var(--rl-scrim); border-radius: 28px; padding: 6px; }
 .rl-voice[hidden] { display: none; }
 .rl-voice [hidden] { display: none; }
 .rl-vlabel { font: 600 10px/1 'Onest', sans-serif; padding: 0 2px 3px; }
@@ -112,7 +128,7 @@ body.reels .stage-wrap {
 .rl-hint[hidden] { display: none; }
 
 /* столбик действий справа */
-.rl-rail { position: absolute; right: 12px; top: calc(var(--rl-top) + 206px); display: grid; gap: 4px; background: var(--rl-scrim); border-radius: 28px; padding: 4px; }
+.rl-rail { display: grid; gap: 4px; background: var(--rl-scrim); border-radius: 28px; padding: 4px; }
 .rl-rx { width: 44px; height: 44px; border-radius: 22px; display: grid; place-items: center; transition: transform .12s, background .16s; }
 .rl-rx:active { transform: scale(.9); }
 .rl-rx.is-on { background: var(--rl-pc); color: var(--rl-on-pc); }
@@ -121,7 +137,7 @@ body.reels .stage-wrap {
 .rl-rx .rl-art { width: 32px; height: 32px; }
 
 /* выбор реакции: ряд слева от столбика */
-.rl-pick { position: absolute; right: 70px; z-index: 6; display: flex; gap: 2px; padding: 4px; border-radius: 28px; background: var(--rl-surface);
+.rl-pick { position: absolute; right: 70px; z-index: 6; display: flex; gap: 2px; padding: 4px; border-radius: 28px; background: var(--rl-frost);
   transform-origin: right center; animation: rl-pick .18s cubic-bezier(.2, 0, 0, 1); }
 .rl-pick[hidden] { display: none; }
 .rl-pick button { width: 44px; height: 44px; border-radius: 22px; display: grid; place-items: center; transition: transform .12s, background .16s; }
@@ -131,7 +147,7 @@ body.reels .stage-wrap {
 @keyframes rl-pick { from { transform: scale(.6); opacity: 0; } to { transform: none; opacity: 1; } }
 
 /* реакция партнёра у столбика */
-.rl-pop { position: absolute; right: 70px; z-index: 5; display: flex; gap: 6px; align-items: center; background: var(--rl-surface); color: var(--rl-ink);
+.rl-pop { position: absolute; right: 70px; z-index: 5; display: flex; gap: 6px; align-items: center; background: var(--rl-frost); color: var(--rl-ink);
   border-radius: 18px 18px 6px 18px; padding: 4px 8px 4px 4px; pointer-events: none; animation: rl-pop 2.6s ease forwards; }
 .rl-pop .rl-art { width: 34px; height: 34px; }
 @keyframes rl-pop { 0% { transform: translateX(12px) scale(.8); opacity: 0; } 10% { transform: none; opacity: 1; } 82% { opacity: 1; } 100% { opacity: 0; transform: translateY(-12px); } }
@@ -141,7 +157,7 @@ body.reels .stage-wrap {
 @keyframes rl-burst { 0% { transform: scale(.3); opacity: 0; } 22% { transform: scale(1.08); opacity: 1; } 62% { transform: scale(1); opacity: 1; } 100% { transform: translateY(-56px) scale(.8); opacity: 0; } }
 
 /* совпадение */
-.rl-match { position: absolute; left: 12px; right: 72px; bottom: calc(var(--rl-bottom) + 64px); z-index: 6; background: var(--rl-inverse); color: var(--rl-on-inverse);
+.rl-match { position: absolute; left: 12px; right: 72px; bottom: calc(var(--rl-bottom) + 64px); z-index: 6; background: rgba(60, 44, 47, .82); color: var(--rl-on-inverse);
   border-radius: 28px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; pointer-events: none; animation: rl-match 3.4s ease forwards; }
 .rl-match .rl-art { width: 48px; height: 48px; flex: none; }
 .rl-match b { display: block; font: 800 16px/1.15 'Unbounded', sans-serif; }
@@ -150,6 +166,7 @@ body.reels .stage-wrap {
 
 /* свежие реплики над полем */
 .rl-feed { position: absolute; left: 12px; right: 72px; bottom: calc(var(--rl-bottom) + 58px); display: grid; gap: 6px; justify-items: start; pointer-events: none; transition: opacity .6s; }
+.rl-feed .rl-msg:not(.me):not(.sys) { background: var(--rl-frost); }
 .rl-msg { max-width: 100%; border-radius: 20px 20px 20px 6px; padding: 8px 12px; font: 500 13.5px/1.35 'Onest', sans-serif; background: var(--rl-sc-high); color: var(--rl-ink); overflow-wrap: anywhere; }
 .rl-msg b { font-weight: 700; }
 .rl-msg.me { justify-self: end; border-radius: 20px 20px 6px 20px; background: var(--rl-accent); color: var(--rl-on-accent); }
@@ -157,7 +174,7 @@ body.reels .stage-wrap {
 .rl-msg.old { opacity: .55; }
 
 /* поле ввода: своё, кнопка внутри */
-.rl-compose { position: absolute; left: 12px; right: 12px; bottom: var(--rl-bottom); height: 48px; border-radius: 24px; background: rgba(255, 240, 241, .94);
+.rl-compose { position: absolute; left: 12px; right: 12px; bottom: var(--rl-bottom); height: 48px; border-radius: 24px; background: var(--rl-frost);
   display: flex; align-items: center; gap: 6px; padding: 0 6px 0 16px; }
 .rl-compose input { flex: 1; min-width: 0; height: 40px; border: 0; outline: 0; background: transparent; color: var(--rl-ink); font: 500 15px 'Onest', sans-serif; padding: 0; user-select: text; -webkit-user-select: text; }
 .rl-compose input::placeholder { color: var(--rl-ink-soft); }
@@ -193,7 +210,11 @@ body.reels .stage-wrap {
 .rl.chat-open .rl-sheet { transform: none; }
 .rl.chat-open .rl-ui { z-index: 8; }
 .rl.chat-open .rl-feed, .rl.chat-open .rl-match, .rl.chat-open .rl-pop, .rl.chat-open .rl-pick, .rl.chat-open .rl-sound { display: none; }
-.rl.chat-open .rl-rail { top: calc(43% - 52px); right: auto; left: 12px; grid-auto-flow: column; align-items: center; }
+/* С открытым чатом колонка распадается: звонок остаётся справа вверху,
+   действия встают строкой над листом. */
+.rl.chat-open .rl-ui > .rl-side { position: static; }
+.rl.chat-open .rl-voice { position: absolute; top: calc(var(--rl-top) + 48px); right: 12px; }
+.rl.chat-open .rl-rail { position: absolute; top: calc(43% - 52px); left: 12px; grid-auto-flow: column; align-items: center; }
 .rl.chat-open .rl-rx { width: 40px; height: 40px; }
 .rl.chat-open .rl-rx .rl-art { width: 28px; height: 28px; }
 .rl.chat-open .rl-compose { background: var(--rl-sc-highest); }

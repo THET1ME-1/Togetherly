@@ -9,7 +9,9 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData, SystemUiOv
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../models/call_record.dart';
 import '../../models/exit_guard.dart';
+import '../../services/chat_service.dart';
 import '../../widgets/memory_save/floating_note.dart';
 import '../../services/locale_service.dart';
 import '../../services/pocketbase_service.dart';
@@ -109,11 +111,29 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
     }
     final voice = WatchVoiceService(channel: room, me: me);
     voice.addListener(_onVoiceChanged);
+    voice.onCallEnded = (talked, peer) => _recordCall(me, talked, peer);
     setState(() {
       _room = room;
       _voice = voice;
     });
     _pushVoice();
+  }
+
+  /// Разговор кончился — запись «Звонок · 4:12» в чат пары. Пишет один из
+  /// двоих (`writesCallRecord`), иначе в истории было бы по две записи.
+  /// Работает и после ухода с экрана: отбой при закрытии тоже разговор.
+  void _recordCall(String me, Duration talked, String peer) {
+    if (talked < kMinCallRecord || widget.pairId.isEmpty) return;
+    if (!writesCallRecord(me: me, peer: peer)) return;
+    final ms = talked.inMilliseconds;
+    unawaited(
+      ChatService.instance.send(
+        groupId: widget.pairId,
+        senderName: PocketBaseService().userName,
+        text: callRecordText(LocaleService.current.chatCallTitle, ms),
+        callMs: ms,
+      ),
+    );
   }
 
   void _onRoomMessage(Map<String, dynamic> data) {

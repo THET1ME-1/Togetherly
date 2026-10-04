@@ -2947,6 +2947,7 @@ class PbDataService {
       'note_shape': msg['noteShape'],
       'note_thumb': msg['noteThumb'],
       'deliver_at': msg['deliverAt'],
+      'call_ms': msg['callMs'],
     }..removeWhere((k, v) => v == null);
     return body;
   }

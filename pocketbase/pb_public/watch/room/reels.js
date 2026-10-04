@@ -110,6 +110,7 @@
           <span class="rl-pill"><span class="rl-av"></span><b></b><span class="rl-src">SHORTS</span></span>
         </div>
         <div class="rl-hint" hidden>${ic(IC.swipe)}<span></span></div>
+        <div class="rl-side">
         <div class="rl-voice" hidden>
           <button class="rl-ib accent rl-call" aria-label="${T.call}">${ic(IC.call)}</button>
           <span class="rl-vlabel">${T.call}</span>
@@ -123,6 +124,7 @@
           <button class="rl-rx rl-chatbtn" aria-label="${T.chat}">${ic(IC.chat)}</button>
           <button class="rl-rx rl-share" aria-label="${T.share}">${ic(IC.share)}</button>
           <button class="rl-rx rl-prev" aria-label="${T.prev}" disabled>${ic(IC.undo)}</button>
+        </div>
         </div>
         <div class="rl-pick" hidden></div>
         <div class="rl-feed"></div>
@@ -211,9 +213,8 @@
       $('.rl-hang', el.voice).hidden = !busy;
       const time = $('.rl-vtime', el.voice);
       const t = document.getElementById('voiceTime');
-      // В разговоре счётчика нет (как в макете): столбик звонка иначе
-      // упирается в столбик действий. «Звоним…» виден, пока ждём ответа.
-      time.hidden = !busy || live;
+      // Пока ждём ответа — «Звоним…», в разговоре — время разговора.
+      time.hidden = !busy;
       time.textContent = t ? t.textContent : '';
     };
     new MutationObserver(paint).observe(v, { subtree: true, attributes: true, childList: true, characterData: true });

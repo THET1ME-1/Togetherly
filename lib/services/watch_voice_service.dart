@@ -61,9 +61,26 @@ class WatchVoiceService extends ChangeNotifier {
 
   bool get active => _state != VoiceCallState.off;
 
+  /// Разговор кончился: сколько говорили и с кем. Экран кладёт запись в чат
+  /// пары (`call_record.dart`).
+  void Function(Duration talked, String peer)? onCallEnded;
+
+  DateTime? _liveSince;
+  String _talkPeer = '';
+
   void _set(VoiceCallState s) {
     if (_state == s) return;
     _state = s;
+    // Время разговора считается от первого «на связи» до отбоя или обрыва.
+    // Временная потеря связи (connecting) разговор не прерывает.
+    if (s == VoiceCallState.live && _liveSince == null) {
+      _liveSince = DateTime.now();
+      _talkPeer = _peer;
+    } else if ((s == VoiceCallState.off || s == VoiceCallState.failed) && _liveSince != null) {
+      final talked = DateTime.now().difference(_liveSince!);
+      _liveSince = null;
+      onCallEnded?.call(talked, _talkPeer);
+    }
     notifyListeners();
   }
 

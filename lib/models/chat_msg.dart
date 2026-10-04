@@ -78,6 +78,11 @@ class ChatMsg {
   /// партнёру его выпустит сервер. null — обычное сообщение.
   final int? deliverAt;
 
+  /// Запись о звонке в комнате или лентах: длительность разговора, epoch-мс
+  /// не нужен — время звонка это `ts`. В `text` лежит «Звонок · 4:12»,
+  /// чтобы сборки без этого поля показали его обычной репликой.
+  final int? callMs;
+
   const ChatMsg({
     required this.id,
     required this.uid,
@@ -109,7 +114,10 @@ class ChatMsg {
     this.noteSeenAt,
     this.noteHearts,
     this.deliverAt,
+    this.callMs,
   });
+
+  bool get isCall => (callMs ?? 0) > 0;
 
   /// Голосовое сообщение или null, если это обычный текст.
   VoiceNote? get voice =>
@@ -201,6 +209,7 @@ class ChatMsg {
       voicePeaks: nz(m['voice_peaks']),
       voiceHeardAt: nzInt(m['voice_heard_at']),
       deliverAt: nzInt(m['deliver_at']),
+      callMs: nzInt(m['call_ms']),
       noteUrl: nz(m['note_url']),
       noteMs: nzInt(m['note_ms']),
       noteShape: nz(m['note_shape']),

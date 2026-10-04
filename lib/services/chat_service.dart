@@ -81,6 +81,7 @@ class ChatService {
     double? faceX,
     double? faceY,
     int? deliverAt,
+    int? callMs,
   }) async {
     final trimmed = text.trim();
     if (groupId.isEmpty || _uid.isEmpty || trimmed.isEmpty) return false;
@@ -107,6 +108,7 @@ class ChatService {
       'face_x': ?faceX,
       'face_y': ?faceY,
       'deliver_at': ?deliverAt,
+      'call_ms': ?callMs,
     });
     // 2) в очередь (camelCase — как ожидает PbDataService.chatSend)
     await OutboxService.instance.enqueue('chatUpsert', {
@@ -129,6 +131,7 @@ class ChatService {
         'faceX': faceX,
         'faceY': faceY,
         'deliverAt': deliverAt,
+        'callMs': callMs,
       },
     });
     // Пуш партнёру — через PbPushService (SSE на chat_messages при отправке очереди).

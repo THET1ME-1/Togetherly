@@ -11,6 +11,7 @@ import '../utils/safe_text.dart';
 import '../utils/readable_text.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../models/call_record.dart';
 import '../models/chat_msg.dart';
 import '../models/chat_open_position.dart';
 import '../models/chat_mention.dart';
@@ -3031,6 +3032,40 @@ class _ChatScreenState extends State<ChatScreen> {
                       : metaColor,
                 ),
               ],
+            ],
+          ),
+        ],
+      );
+    } else if (msg.isCall) {
+      // Звонок из комнаты или лент: значок трубки, «Звонок» и длительность.
+      // Текст «Звонок · 4:12» в записи — для сборок, которые карточку не знают.
+      content = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(color: fg.withValues(alpha: .14), shape: BoxShape.circle),
+            child: Icon(Icons.call_rounded, size: 20, color: fg),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                s.chatCallTitle,
+                style: TextStyle(fontFamily: 'Onest', fontSize: 15, fontWeight: FontWeight.w700, color: fg),
+              ),
+              Text(
+                '${callDuration(msg.callMs!)} · ${_formatTime(msg.ts)}',
+                style: TextStyle(
+                  fontFamily: 'Onest',
+                  fontSize: 12,
+                  color: metaColor,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
             ],
           ),
         ],
