@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'config/sentry_config.dart';
 import 'services/crash_noise.dart';
+import 'services/stale_pointer_sweeper.dart';
 import 'utils/safe_pick.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -279,6 +280,9 @@ Future<void> _homeWidgetBackgroundCallback(Uri? uri) async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Потерянное системным жестом касание запирало все нажатия до перезапуска
+  // (обращение 231, Realme): досылаем ему отмену.
+  StalePointerSweeper.install();
 
   // Android отдаёт приложению 60 Гц, даже когда экран умеет 120: анимации и
   // перемотка видео на глаз становятся ступенчатыми. Просим максимум.
