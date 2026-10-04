@@ -276,6 +276,15 @@ const Map<String, Map<String, String>> profileScreenStrings = {
     'fr': 'Des vidéos courtes à tour de rôle : une de ton fil, puis une de celui de ton partenaire',
     'de': 'Kurze Clips abwechselnd: einer aus deinem Feed, dann einer aus dem deines Partners',
   },
+  'reelsSavedCaption': {
+    'ru': 'Из совместной ленты',
+    'en': 'From our shared feed',
+    'pt': 'Do nosso feed compartilhado',
+    'it': 'Dal nostro feed condiviso',
+    'es': 'De nuestro feed compartido',
+    'fr': 'De notre fil partagé',
+    'de': 'Aus unserem gemeinsamen Feed',
+  },
   'watchCodeRetry': {
     'ru': 'Получить код',
     'en': 'Get the code',

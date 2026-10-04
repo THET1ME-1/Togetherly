@@ -39,6 +39,8 @@
     noFeed: 'Ленту даёт приложение', noFeedSub: 'Откройте «Ленты» в Togetherly на телефоне — ролики пойдут и сюда',
     match: 'Совпало!', matchSub: 'Вам обоим зашёл этот ролик', sound: 'Включить звук',
     copied: 'Ссылка скопирована', ourChat: 'Наш чат', empty: 'Здесь пока пусто', unavailable: 'Ролик недоступен, листаем дальше',
+    save: 'Сохранить в воспоминания', saved: 'Ролик в воспоминаниях', savedSub: 'Он ждёт вас в ленте воспоминаний',
+    savedBy: (n) => n + ' сохраняет ролик', saveFailed: 'Не сохранилось, попробуйте ещё раз', needApp: 'Сохранять можно из приложения Togetherly',
   } : {
     mine: 'Your feed', theirs: (n) => 'Feed · ' + n, partner: 'partner',
     refresh: 'Refresh recommendations', refreshing: 'Picking fresh clips…',
@@ -49,6 +51,8 @@
     noFeed: 'The feed comes from the app', noFeedSub: 'Open Feeds in Togetherly on your phone and the clips will show up here too',
     match: 'It’s a match!', matchSub: 'You both liked this one', sound: 'Turn sound on',
     copied: 'Link copied', ourChat: 'Our chat', empty: 'Nothing here yet', unavailable: 'Clip unavailable, moving on',
+    save: 'Save to memories', saved: 'Saved to memories', savedSub: 'Find it in your memory lane',
+    savedBy: (n) => n + ' saved this clip', saveFailed: 'Didn’t save, try again', needApp: 'Saving works in the Togetherly app',
   };
 
   // Значки — из того же набора Material Symbols Rounded, что в приложении
@@ -58,6 +62,8 @@
     swipe: '', send: '', share: '', undo: '', play: '', close: '', sound: '',
   };
   IC.refresh = '';
+  IC.save = '';
+  IC.saved = '';
   const ic = (c) => '<span class="ms" aria-hidden="true">' + c + '</span>';
   // На iPhone нет системного «назад»: без своей кнопки из лент не выйти.
   const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
@@ -87,7 +93,7 @@
     me: '', name: '', partnerId: '', partnerName: '',
     mine: [], theirs: [], seen: new Set(),
     cur: null, back: [],
-    viewers: 1, reacts: {},
+    viewers: 1, reacts: {}, saved: new Set(),
     started: false, paused: false,
     player: null, ready: false, wantMuted: false, pulling: false,
   };
@@ -129,6 +135,7 @@
         </div>
         <div class="rl-rail">
           <button class="rl-rx rl-react" aria-label="${T.react}">${artImg('❤️', true)}</button>
+          <button class="rl-rx rl-save" aria-label="${T.save}">${ic(IC.save)}</button>
           <button class="rl-rx rl-chatbtn" aria-label="${T.chat}">${ic(IC.chat)}</button>
           <button class="rl-rx rl-share" aria-label="${T.share}">${ic(IC.share)}</button>
           <button class="rl-rx rl-prev" aria-label="${T.prev}" disabled>${ic(IC.undo)}</button>
@@ -150,6 +157,7 @@
       voice: $('.rl-voice', root), rail: $('.rl-rail', root), react: $('.rl-react', root),
       pick: $('.rl-pick', root), feed: $('.rl-feed', root), sound: $('.rl-sound', root),
       list: $('.rl-list', root), prev: $('.rl-prev', root), input: $('.rl-input', root),
+      save: $('.rl-save', root),
     };
 
     REACT.forEach(([, e]) => {
@@ -167,6 +175,7 @@
     $('.rl-x', root).addEventListener('click', () => setChat(false));
     wireSheetDrag();
     $('.rl-share', root).addEventListener('click', share);
+    el.save.addEventListener('click', save);
     el.prev.addEventListener('click', previous);
     el.sound.addEventListener('click', unmute);
     $('.rl-compose', root).addEventListener('submit', (e) => { e.preventDefault(); sendText(); });
@@ -482,6 +491,7 @@
     hideWait();
     paintTurn();
     paintReact();
+    paintSave();
     swapTo(cur.id, !!isBack);
     // Ролик из своей ленты: скрытая страница приложения «смотрит» его тоже,
     // без звука. Так платформа засчитывает просмотр, а рекомендации учатся.
@@ -1001,9 +1011,76 @@
     sheet.addEventListener('pointercancel', end);
   }
 
+  /** Адрес ролика для человека. Те же правила — `ReelLink.url` в приложении:
+   *  разъедутся, и «Отправить» с «Сохранить» поведут в разные места. */
+  function watchUrl(key) {
+    const id = keyId(key);
+    switch (keySrc(key)) {
+      case 'tiktok': return 'https://www.tiktok.com/@/video/' + id;
+      case 'rutube': return 'https://rutube.ru/shorts/' + id + '/';
+      case 'vk': { const p = id.split('_'); return 'https://vk.com/clip' + p[0] + '_' + p[1]; }
+      case 'dzen': return 'https://dzen.ru/embed/' + id;
+      default: return 'https://youtube.com/shorts/' + id;
+    }
+  }
+
+  // ── закладка: ролик в ленту воспоминаний пары ───────────────────────────
+
+  const savedKey = (key) => keySrc(key) + ':' + keyId(key);
+
+  function paintSave() {
+    const on = !!(S.cur && S.saved.has(savedKey(S.cur.id)));
+    el.save.classList.toggle('is-on', on);
+    el.save.innerHTML = ic(on ? IC.saved : IC.save);
+    el.save.setAttribute('aria-label', on ? T.saved : T.save);
+  }
+
+  async function save() {
+    if (!S.cur || el.save.classList.contains('is-busy')) return;
+    const key = savedKey(S.cur.id);
+    if (S.saved.has(key)) { toast(T.saved, T.savedSub); return; }
+    const b = bridge();
+    if (!b) { toast(T.needApp); return; }
+    el.save.classList.add('is-busy');
+    let ok = false;
+    try {
+      const r = await Promise.race([
+        b.callHandler('reelsSave', { key }),
+        new Promise((res) => setTimeout(() => res(null), 15000)),
+      ]);
+      ok = !!(r && r.ok);
+    } catch (_) {}
+    el.save.classList.remove('is-busy');
+    if (!ok) { toast(T.saveFailed); return; }
+    S.saved.add(key);
+    paintSave();
+    toast(T.saved, T.savedSub);
+    R.send('reels-saved', { id: key, name: S.name });
+  }
+
+  function theirSave(data) {
+    const key = savedKey(String(data.id || ''));
+    if (S.saved.has(key)) return;
+    S.saved.add(key);
+    if (S.cur && savedKey(S.cur.id) === key) { paintSave(); toast(T.savedBy(S.partnerName || T.partner)); }
+  }
+
+  /** Короткая плашка над столбиком: что случилось с роликом. */
+  function toast(title, sub) {
+    const old = $('.rl-toast', el.root);
+    if (old) old.remove();
+    const t = document.createElement('div');
+    t.className = 'rl-toast';
+    t.innerHTML = ic(IC.saved) + '<span><b></b><small></small></span>';
+    t.querySelector('b').textContent = title;
+    t.querySelector('small').textContent = sub || '';
+    el.root.appendChild(t);
+    setTimeout(() => t.remove(), 2800);
+  }
+
   async function share() {
     if (!S.cur) return;
-    const url = 'https://youtube.com/shorts/' + S.cur.id;
+    const url = watchUrl(S.cur.id);
     const b = bridge();
     if (b) { try { await b.callHandler('reelsShare', { url }); return; } catch (_) {} }
     if (navigator.share) { navigator.share({ url }).catch(() => {}); return; }
@@ -1075,6 +1152,10 @@
       case 'reels-react':
         notePartner(data);
         theirReaction(data);
+        return true;
+      case 'reels-saved':
+        notePartner(data);
+        theirSave(data);
         return true;
       case 'reels-pause':
         if (S.cur && data.id === S.cur.id) setPaused(!!data.paused);

@@ -3399,6 +3399,7 @@ abstract class DictStrings extends AppStrings {
   String get reelsTogether => _t('reelsTogether');
   @override
   String get reelsTogetherHint => _t('reelsTogetherHint');
+  String get reelsSavedCaption => _t('reelsSavedCaption');
   @override
   String get reelsStartTitle => _t('reelsStartTitle');
   @override

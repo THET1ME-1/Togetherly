@@ -17,6 +17,7 @@ import '../../services/locale_service.dart';
 import '../../services/pocketbase_service.dart';
 import '../../models/reels_source.dart';
 import '../../services/reels/reels_feed.dart';
+import '../../services/reels/reel_save.dart';
 import '../../services/reels/reels_proxy.dart';
 import '../../services/watch_channel_service.dart';
 import '../../services/watch_history_service.dart';
@@ -430,6 +431,20 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
                   callback: (_) async {
                     await _feed?.refresh();
                     return null;
+                  },
+                );
+                // Закладка: ролик ложится в ленту воспоминаний пары.
+                c.addJavaScriptHandler(
+                  handlerName: 'reelsSave',
+                  callback: (args) async {
+                    final info = (args.isNotEmpty && args.first is Map)
+                        ? Map<String, dynamic>.from(args.first as Map)
+                        : const <String, dynamic>{};
+                    final ok = await ReelSave.save(
+                      groupId: widget.pairId,
+                      key: (info['key'] ?? '').toString(),
+                    );
+                    return {'ok': ok};
                   },
                 );
                 c.addJavaScriptHandler(

@@ -2272,6 +2272,7 @@ abstract class AppStrings {
   String get gamesForTwoHint;
   String get reelsTogether;
   String get reelsTogetherHint;
+  String get reelsSavedCaption;
   String get reelsStartTitle;
   String get reelsStartWatch;
   String get reelsShortsHint;
