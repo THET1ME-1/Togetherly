@@ -174,6 +174,47 @@ const check = (n, c, x = '') => { console.log((c ? '  ✓ ' : '  ✗ ') + n, x);
   const s6 = await st(A.page);
   check('назад к сохранённому — закладка снова горит', s6.cur === s0.cur && s6.on, s6.cur);
 
+  // Обложка: у Rutube она есть по номеру — под экраном ждёт картинка, а не чёрное.
+  const poster = await A.page.evaluate(() => Array.from(document.querySelectorAll('.rl-card .rl-poster')).map((i) => i.naturalWidth));
+  check('у роликов Rutube есть обложка', poster.length > 0 && poster.every((w) => w > 0), poster.join(', '));
+
+  // Ведущий. Листала Аня — лента у неё; Боря видит, кто листает.
+  const lead = (p) => p.evaluate(() => { const l = document.querySelector('.rl-lead'); return { shown: !l.hidden, text: l.textContent, cur: window.__reelsState().cur.id }; });
+  const swipeUp = async (p) => { await p.mouse.move(196, 600); await p.mouse.down(); await p.mouse.move(196, 250, { steps: 8 }); await p.mouse.up(); };
+  const la = await lead(A.page), lb = await lead(B.page);
+  check('у ведущей плашки нет', !la.shown);
+  check('ведомому видно, кто листает', lb.shown && lb.text.includes('Листает Аня'), lb.text);
+  await swipeUp(B.page);
+  await B.page.waitForTimeout(1500);
+  const lb2 = await lead(B.page), la2 = await lead(A.page);
+  check('свайп ведомого ленту не листает', lb2.cur === lb.cur && la2.cur === la.cur, lb.cur + ' → ' + lb2.cur);
+  await B.page.click('.rl-lead button');
+  await A.page.waitForTimeout(1500);
+  const la3 = await lead(A.page), lb3 = await lead(B.page);
+  check('«Листать мне» забирает ленту', !lb3.shown && la3.shown && la3.text.includes('Листает Боря'), la3.text);
+  check('Ане плашка, что листает Боря', (await st(A.page)).toast.includes('Теперь листает Боря'));
+  await swipeUp(B.page);
+  await B.page.waitForTimeout(2000);
+  const lb4 = await lead(B.page), la4 = await lead(A.page);
+  check('теперь листает Боря, и у Ани тот же ролик', lb4.cur !== lb3.cur && la4.cur === lb4.cur, lb4.cur);
+  await swipeUp(A.page);
+  await A.page.waitForTimeout(1500);
+  check('свайп Ани теперь не листает', (await lead(A.page)).cur === la4.cur);
+  await A.page.click('.rl-lead button');
+  await B.page.waitForTimeout(1500);
+
+  // Чат: ролик уезжает вверх целиком, а не сжимается — плеер не перекладывается.
+  const frameH = () => A.page.evaluate(() => Math.round(document.querySelector('.rl-card.is-cur .rl-frame').getBoundingClientRect().height));
+  const h0 = await frameH();
+  await A.page.click('.rl-chatbtn');
+  await A.page.waitForTimeout(600);
+  const h1 = await frameH();
+  const shift = await A.page.evaluate(() => getComputedStyle(document.querySelector('.rl-cards')).transform);
+  check('чат открывается без смены размера плеера', h0 === h1 && shift !== 'none', h0 + ' / ' + h1 + ', ' + shift);
+  await A.page.screenshot({ path: path.join(OUT, 'save-chat.png') });
+  await A.page.click('.rl-x');
+  await A.page.waitForTimeout(600);
+
   // Медленная сеть под видео: анимации реакций едут по 6 секунд. Раньше всё
   // это время на кнопке висело прежнее сердце, хотя выбран огонь.
   await A.page.route('**/api/files/catalog_items/**', (r) => setTimeout(() => r.continue().catch(() => {}), 6000));

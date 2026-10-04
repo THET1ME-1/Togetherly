@@ -41,6 +41,7 @@
     copied: 'Ссылка скопирована', ourChat: 'Наш чат', empty: 'Здесь пока пусто', unavailable: 'Ролик недоступен, листаем дальше',
     save: 'Сохранить в воспоминания', saved: 'Ролик в воспоминаниях', savedSub: 'Он ждёт вас в ленте воспоминаний',
     savedBy: (n) => n + ' сохраняет ролик', saveFailed: 'Не сохранилось, попробуйте ещё раз', needApp: 'Сохранять можно из приложения Togetherly',
+    leads: (n) => 'Листает ' + n, take: 'Листать мне', tookLead: (n) => 'Теперь листает ' + n, youLead: 'Теперь листаете вы',
   } : {
     mine: 'Your feed', theirs: (n) => 'Feed · ' + n, partner: 'partner',
     refresh: 'Refresh recommendations', refreshing: 'Picking fresh clips…',
@@ -53,6 +54,7 @@
     copied: 'Link copied', ourChat: 'Our chat', empty: 'Nothing here yet', unavailable: 'Clip unavailable, moving on',
     save: 'Save to memories', saved: 'Saved to memories', savedSub: 'Find it in your memory lane',
     savedBy: (n) => n + ' saved this clip', saveFailed: 'Didn’t save, try again', needApp: 'Saving works in the Togetherly app',
+    leads: (n) => n + ' is scrolling', take: 'Let me scroll', tookLead: (n) => n + ' is scrolling now', youLead: 'You’re scrolling now',
   };
 
   // Значки — из того же набора Material Symbols Rounded, что в приложении
@@ -110,6 +112,8 @@
     mine: [], theirs: [], seen: new Set(),
     cur: null, back: [],
     viewers: 1, reacts: {}, saved: new Set(),
+    // Ведущий: листает он, второй смотрит то же. Пусто — ещё никто не листал.
+    lead: '',
     started: false, paused: false,
     player: null, ready: false, wantMuted: false, pulling: false,
   };
@@ -142,6 +146,7 @@
           <button class="rl-ib rl-refresh" aria-label="${T.refresh}">${ic(IC.refresh)}</button>
           <span class="rl-pill"><span class="rl-av"></span><b></b><span class="rl-src">SHORTS</span></span>
         </div>
+        <div class="rl-lead" hidden><span></span><button type="button">${T.take}</button></div>
         <div class="rl-voice" hidden>
           <button class="rl-ib accent rl-call" aria-label="${T.call}">${ic(IC.call)}</button>
           <span class="rl-av lg is-partner rl-vwho" hidden></span>
@@ -173,8 +178,9 @@
       voice: $('.rl-voice', root), rail: $('.rl-rail', root), react: $('.rl-react', root),
       pick: $('.rl-pick', root), feed: $('.rl-feed', root), sound: $('.rl-sound', root),
       list: $('.rl-list', root), prev: $('.rl-prev', root), input: $('.rl-input', root),
-      save: $('.rl-save', root),
+      save: $('.rl-save', root), lead: $('.rl-lead', root),
     };
+    $('button', el.lead).addEventListener('click', takeLead);
 
     REACT.forEach(([, e]) => {
       const b = document.createElement('button');
@@ -192,7 +198,7 @@
     wireSheetDrag();
     $('.rl-share', root).addEventListener('click', share);
     el.save.addEventListener('click', save);
-    el.prev.addEventListener('click', previous);
+    el.prev.addEventListener('click', () => go(false));
     el.sound.addEventListener('click', unmute);
     $('.rl-compose', root).addEventListener('submit', (e) => { e.preventDefault(); sendText(); });
     el.input.addEventListener('focus', closePick);
@@ -206,6 +212,8 @@
     loadArt();
     showWait(T.loading, T.loadingSub, true);
     paintTurn();
+    // Вход: панели выезжают на места, а не появляются разом.
+    requestAnimationFrame(() => requestAnimationFrame(() => root.classList.add('is-in')));
   }
 
   /** Анимированные рисунки реакций лежат в каталоге — тянем, когда есть сеть. */
@@ -337,33 +345,52 @@
   let wheelLock = false;
   function wireGestures() {
     let y0 = 0, t0 = 0, moved = false, down = false, lastTap = 0, single = 0;
+    // Скорость пальца — по последним 90 мс движения: по ней решаем, улетит ли
+    // ролик, и с какой скоростью он доедет. Раньше любой свайп доезжал за
+    // одинаковые 300 мс по одной кривой, и лента ощущалась «деревянной».
+    let samples = [], raf = 0, lastDy = 0;
     el.tap.addEventListener('pointerdown', (e) => {
-      y0 = e.clientY; t0 = Date.now(); moved = false; down = true;
+      y0 = e.clientY; t0 = performance.now(); moved = false; down = true;
+      samples = [[t0, 0]];
       try { el.tap.setPointerCapture(e.pointerId); } catch (_) {}
     });
     el.tap.addEventListener('pointermove', (e) => {
       if (!down) return;
       const dy = e.clientY - y0;
-      if (!moved && Math.abs(dy) > 12) { moved = true; closePick(); }
+      const now = performance.now();
+      samples.push([now, dy]);
+      while (samples.length > 2 && now - samples[0][0] > 90) samples.shift();
+      if (!moved && Math.abs(dy) > 10) { moved = true; closePick(); }
+      if (!moved || el.root.classList.contains('chat-open')) return;
       // Ролик едет за пальцем, следующий выезжает снизу — как в лентах.
-      if (moved && !el.root.classList.contains('chat-open')) dragCards(dy);
+      // Сдвиг ставим раз в кадр: событий касания бывает больше, чем кадров.
+      lastDy = dy;
+      if (!raf) raf = requestAnimationFrame(() => { raf = 0; if (down) dragCards(lastDy); });
     });
     const finish = (e) => {
       if (!down) return;
       down = false;
+      cancelAnimationFrame(raf); raf = 0;
       const dy = e.clientY - y0;
       const h = el.stage.clientHeight || 1;
-      const fast = Date.now() - t0 < 350 && Math.abs(dy) > 40;
-      if (moved && (Math.abs(dy) > h * 0.18 || fast)) {
-        if (el.root.classList.contains('chat-open')) { if (dy > 0) setChat(false); return; }
-        if (!(dy < 0 ? next() : previous())) settleCards();
-        return;
-      }
-      if (moved) { settleCards(); return; }
-      onTap(e);
+      const [ta, ya] = samples[0];
+      const v = (dy - ya) / Math.max(16, performance.now() - ta);   // точек в мс, минус — вверх
+      if (!moved) { onTap(e); return; }
+      if (el.root.classList.contains('chat-open')) { if (dy > h * 0.18 || v > 0.5) setChat(false); return; }
+      const flick = Math.abs(v) > 0.45 && Math.sign(v) === Math.sign(dy);
+      // Дотянул далеко, но в конце резко повёл обратно — передумал.
+      const undo = Math.abs(v) > 0.3 && Math.sign(v) === -Math.sign(dy);
+      if (!flick && (Math.abs(dy) < h * 0.2 || undo)) { settleCards(); return; }
+      if (!leads()) { settleCards(); nudgeLead(); return; }
+      // Остаток пути — со скоростью пальца: бросок долетает быстро, медленное
+      // перетаскивание дотягивается мягко.
+      slideMs = Math.round(Math.min(360, Math.max(170, (h - Math.abs(dy)) / Math.max(Math.abs(v), 1.5))));
+      const went = go(dy < 0);
+      slideMs = SLIDE_MS;
+      if (!went) settleCards();
     };
     el.tap.addEventListener('pointerup', finish);
-    el.tap.addEventListener('pointercancel', (e) => { if (down) { down = false; settleCards(); } });
+    el.tap.addEventListener('pointercancel', () => { if (down) { down = false; cancelAnimationFrame(raf); raf = 0; settleCards(); } });
     const onTap = (e) => {
       if (!el.pick.hidden) { closePick(); return; }
       if (document.activeElement === el.input) { el.input.blur(); return; }
@@ -382,12 +409,12 @@
     el.tap.addEventListener('wheel', (e) => {
       if (Math.abs(e.deltaY) < 30 || wheelLock) return;
       wheelLock = true; setTimeout(() => { wheelLock = false; }, 700);
-      if (e.deltaY > 0) next(); else previous();
+      go(e.deltaY > 0);
     }, { passive: true });
     document.addEventListener('keydown', (e) => {
       if (e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
-      if (e.key === 'ArrowDown') next();
-      if (e.key === 'ArrowUp') previous();
+      if (e.key === 'ArrowDown') go(true);
+      if (e.key === 'ArrowUp') go(false);
       if (e.key === ' ') { e.preventDefault(); togglePause(true); }
     });
   }
@@ -428,7 +455,10 @@
     clearTimeout(announceTimer);
     announceTimer = setTimeout(() => {
       if (!R.subscribed()) return;
-      R.send('reels-queue', { ids: S.mine.slice(0, 4), name: S.name });
+      const ids = S.mine.slice(0, 4);
+      const thumbs = {};
+      ids.forEach((k) => { if (THUMBS[k]) thumbs[k] = THUMBS[k]; });
+      R.send('reels-queue', { ids, name: S.name, thumbs });
     }, 150);
   }
 
@@ -473,8 +503,17 @@
     if (S.cur) { S.back.push(S.cur); if (S.back.length > 30) S.back.shift(); }
     const cur = { id, owner, by: S.me };
     show(cur);
-    R.send('reels-reel', { id, owner, by: S.me, name: S.name });
+    R.send('reels-reel', { id, owner, by: S.me, name: S.name, lead: S.lead });
     return true;
+  }
+
+  /** Человек листает сам (палец, колесо, кнопка): лента у него. Сам запуск
+   *  первого ролика ведущего не назначает — иначе вошедший вторым, не
+   *  дождавшись ролика партнёра, забирал ленту себе. */
+  function go(down) {
+    if (!leads()) { nudgeLead(); return false; }
+    if (S.viewers > 1 && S.partnerId && S.lead !== S.me) { S.lead = S.me; paintLead(); }
+    return down ? next() : previous();
   }
 
   /** Какой ролик покажет следующий свайп — по тем же правилам, что [next],
@@ -491,7 +530,7 @@
     if (!prev) return false;
     const cur = { id: prev.id, owner: prev.owner, by: S.me };
     show(cur, true);
-    R.send('reels-reel', { id: cur.id, owner: cur.owner, by: S.me, name: S.name, back: true });
+    R.send('reels-reel', { id: cur.id, owner: cur.owner, by: S.me, name: S.name, back: true, lead: S.lead });
     return true;
   }
 
@@ -590,6 +629,27 @@
   const canKeepPrev = (key) => keySrc(key) === 'shorts';
 
   /** [lazy] — плеер поднимет `card.boot()` позже (после анимации свайпа). */
+  /** Обложка ролика без запросов: Shorts и Rutube отдают её по номеру,
+   *  TikTok — из ленты приложения (`reelsThumbs`). У ВК и Дзена её нет. */
+  const THUMBS = {};
+  window.reelsThumbsPush = (map) => { if (map && typeof map === 'object') Object.assign(THUMBS, map); };
+  function posterOf(key) {
+    if (THUMBS[key]) return THUMBS[key];
+    const id = keyId(key);
+    switch (keySrc(key)) {
+      case 'shorts': return 'https://i.ytimg.com/vi/' + id + '/oar2.jpg';
+      case 'rutube': return 'https://rutube.ru/api/video/' + id + '/thumbnail/?redirect=1';
+      default: return '';
+    }
+  }
+
+  /** Плеер пошёл — обложка и заглушка уходят. */
+  function live(card) {
+    if (card.live || card.dead) return;
+    card.live = true;
+    card.el.classList.add('is-live');
+  }
+
   function makeCard(key, lazy) {
     const node = document.createElement('div');
     node.className = 'rl-card';
@@ -599,6 +659,22 @@
     holder.id = 'rlCard' + (++cardSeq);
     frame.appendChild(holder);
     node.appendChild(frame);
+    // Пока плеер площадки поднимается, на карточке обложка ролика, а без неё —
+    // переливающаяся заглушка. Раньше тут было чёрное.
+    const poster = posterOf(key);
+    if (poster) {
+      const img = document.createElement('img');
+      img.className = 'rl-poster';
+      img.alt = '';
+      img.decoding = 'async';
+      img.addEventListener('error', () => {
+        // У старых Shorts вертикальной обложки нет — берём обычную.
+        if (keySrc(key) === 'shorts' && !img.dataset.alt) { img.dataset.alt = '1'; img.src = 'https://i.ytimg.com/vi/' + keyId(key) + '/hqdefault.jpg'; } else img.remove();
+      });
+      img.src = poster;
+      node.appendChild(img);
+    }
+    node.appendChild(document.createElement('i')).className = 'rl-shimmer';
     el.cards.appendChild(node);
     const card = { id: key, el: node, api: null, ready: false, active: false, dead: false };
     const src = keySrc(key);
@@ -647,6 +723,7 @@
             else card.api.shelve();
           },
           onError: () => failed(card),
+          onStateChange: (ev) => { if (ev && ev.data === 1) live(card); },
         },
       });
       card.api = {
@@ -696,6 +773,8 @@
     };
     f.addEventListener('load', () => {
       card.ready = true;
+      // Дзен о себе не сообщает: обложку снимаем, когда плеер загрузился.
+      if (!spec.playing) setTimeout(() => live(card), 1200);
       try { if (spec.init) spec.init(f.contentWindow); } catch (_) {}
       // Плееры поднимаются не сразу и первые команды теряют — повторяем.
       [0, 700, 1800, 3500].forEach((ms) => setTimeout(() => {
@@ -725,7 +804,7 @@
     if (!card || !card.spec) return;
     let m = e.data;
     if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { return; } }
-    if (card.spec.playing && card.spec.playing(m)) card.playing = true;
+    if (card.spec.playing && card.spec.playing(m)) { card.playing = true; live(card); }
     if (card.active && card.spec.ended && card.spec.ended(m)) card.api.play();
   });
 
@@ -749,27 +828,34 @@
     checkSound(card);
   }
 
-  const place = (card, y, animate) => {
+  // Уход ролика начинается со скорости пальца и мягко тормозит; возврат на
+  // место — тоже торможением, без отскока (так в лентах площадок).
+  const EASE_GO = 'cubic-bezier(.17, .84, .32, 1)';
+  const EASE_BACK = 'cubic-bezier(.22, 1, .36, 1)';
+  /** [ms] — 0: без анимации (палец ведёт сам). */
+  const place = (card, y, ms, ease) => {
     if (!card) return;
-    card.el.style.transition = animate ? 'transform .3s cubic-bezier(.2, 0, 0, 1)' : 'none';
+    card.el.style.transition = ms ? 'transform ' + ms + 'ms ' + (ease || EASE_GO) : 'none';
     card.el.style.transform = 'translate3d(0,' + y + ',0)';
   };
+  /** Тянуть некуда (нет соседа или листает партнёр) — лента пружинит. */
+  const rubber = (d, h) => Math.sign(d) * (h * 0.22) * (1 - 1 / (Math.abs(d) / (h * 0.5) + 1));
 
   /** Палец тянет: текущая едет за ним, соседняя выезжает с той стороны. */
   function dragCards(dy) {
     const h = el.stage.clientHeight;
-    // Назад без прошлого ролика тянется туже — это лишь отклик на жест.
-    const y = dy < 0 || cards.prev ? dy : dy * 0.45;
-    place(cards.cur, y + 'px', false);
-    if (cards.next) place(cards.next, (h + Math.min(0, dy)) + 'px', false);
-    if (cards.prev) place(cards.prev, (-h + Math.max(0, dy)) + 'px', false);
+    const free = leads() && (dy < 0 ? !!(cards.next || peekNext()) : S.back.length > 0);
+    const y = free ? dy : rubber(dy, h);
+    place(cards.cur, y + 'px', 0);
+    if (cards.next) place(cards.next, (h + Math.min(0, y)) + 'px', 0);
+    if (cards.prev) place(cards.prev, (-h + Math.max(0, y)) + 'px', 0);
   }
 
   /** Свайп не дотянул — всё на место. */
   function settleCards() {
-    place(cards.cur, '0', true);
-    if (cards.next) place(cards.next, '100%', true);
-    if (cards.prev) place(cards.prev, '-100%', true);
+    place(cards.cur, '0', 340, EASE_BACK);
+    if (cards.next) place(cards.next, '100%', 340, EASE_BACK);
+    if (cards.prev) place(cards.prev, '-100%', 340, EASE_BACK);
   }
 
   /** Карточка ушла с экрана: молчит (YouTube — в четверть скорости, без
@@ -789,16 +875,18 @@
     // доедут: плееры площадок работают в одном потоке со страницей (у WebView
     // нет отдельных процессов для iframe), и их запуск посреди анимации рвал
     // свайп — замер room-reels-perf, 04.10.2026.
-    else { card = makeCard(id, true); place(card, isBack ? '-100%' : '100%', false); }
+    else { card = makeCard(id, true); place(card, isBack ? '-100%' : '100%', 0); }
     const old = cards.cur;
+    const ms = slideMs;
     cards.cur = card;
     card.active = true;
     card.el.classList.add('is-cur');
-    requestAnimationFrame(() => place(card, '0', true));
+    if (!old) card.el.classList.add('is-first');
+    requestAnimationFrame(() => place(card, '0', old ? ms : 0));
     if (old) {
       old.active = false;
       old.el.classList.remove('is-cur');
-      place(old, isBack ? '100%' : '-100%', true);
+      place(old, isBack ? '100%' : '-100%', ms);
     }
     // Команды плеерам — тоже после анимации: «играть», «пауза» и звук
     // запускают декодирование, и посреди сдвига это давало рывки.
@@ -816,11 +904,15 @@
       if (card.boot) card.boot();
       wake(card);
       if (card.nudge) card.nudge();
-      idle(() => { preloadNext(); ensurePrev(); });
+      // Следующий грузим сразу, как карточки доехали: прежде он ждал
+      // простоя потока до полутора секунд, и быстрый второй свайп попадал
+      // на ещё не начатую загрузку — чёрный экран.
+      setTimeout(() => { preloadNext(); ensurePrev(); }, 60);
     };
-    settleTimer = setTimeout(flushSettle, SLIDE_MS);
+    settleTimer = setTimeout(flushSettle, old ? ms : 0);
   }
   const SLIDE_MS = 320;
+  let slideMs = SLIDE_MS;
   let settleTimer = 0;
   let pendingSettle = null;
   /** Доделать прошлую смену сразу — новый свайп пришёл раньше, чем она доехала. */
@@ -830,8 +922,6 @@
     pendingSettle = null;
     if (f) f();
   }
-  /** Свободное время потока — для заранее загружаемых плееров. */
-  const idle = (fn) => (window.requestIdleCallback ? requestIdleCallback(fn, { timeout: 1500 }) : setTimeout(fn, 600));
 
   /** Над экраном лежит ролик, на который ведёт «назад». */
   function ensurePrev() {
@@ -849,6 +939,8 @@
   async function refreshFeed() {
     const b = bridge();
     if (!b || refreshing) return;
+    if (!leads()) { nudgeLead(); return; }
+    if (S.viewers > 1 && S.partnerId) { S.lead = S.me; paintLead(); }
     refreshing = true;
     el.refresh.classList.add('is-busy');
     S.mine = [];
@@ -868,7 +960,7 @@
     announce();
     if (S.cur) { S.back.push(S.cur); if (S.back.length > 30) S.back.shift(); }
     show({ id, owner: S.me, by: S.me });
-    R.send('reels-reel', { id, owner: S.me, by: S.me, name: S.name });
+    R.send('reels-reel', { id, owner: S.me, by: S.me, name: S.name, lead: S.me });
   }
 
   /** Следующий ролик заранее, под экраном. */
@@ -933,6 +1025,37 @@
     $('b', el.pill).textContent = mine ? T.mine : T.theirs(pName);
     $('.rl-src', el.pill).textContent = SOURCES[S.cur ? keySrc(S.cur.id) : S.src] || 'SHORTS';
     el.input.placeholder = T.write();
+  }
+
+  // ── ведущий ──────────────────────────────────────────────────────────────
+  // Листает один: иначе двое тянут ленту в разные стороны, и каждый свайп
+  // одного перебивает другого. Второй смотрит то же и может забрать ленту
+  // себе кнопкой — без спроса, как пульт на диване.
+
+  /** Могу ли я листать: один в комнате, ведущего нет или ведущий я. */
+  function leads() {
+    return S.viewers < 2 || !S.partnerId || !S.lead || S.lead === S.me;
+  }
+
+  function paintLead() {
+    const follower = !leads();
+    el.lead.hidden = !follower;
+    if (follower) $('span', el.lead).textContent = T.leads(S.partnerName || T.partner);
+  }
+
+  /** Ведомый тянет ленту — подсвечиваем, кто листает и как забрать. */
+  function nudgeLead() {
+    paintLead();
+    el.lead.classList.remove('is-nudge');
+    void el.lead.offsetWidth;
+    el.lead.classList.add('is-nudge');
+  }
+
+  function takeLead() {
+    S.lead = S.me;
+    paintLead();
+    R.send('reels-lead', { lead: S.me, name: S.name });
+    toast(T.youLead);
   }
 
   function openPick() {
@@ -1139,16 +1262,25 @@
         return true;
       case 'reels-viewers':
         S.viewers = data.n;
+        // Остался один — лента снова у него.
+        if (S.viewers < 2) S.lead = '';
         paintTurn();
+        paintLead();
         return true;
       case 'hello':
         // Новичку — наш ролик и наша очередь. Комнате «hello» тоже нужен.
-        if (S.cur) R.send('reels-state', { to: data.from, cur: S.cur, name: S.name, ids: S.mine.slice(0, 4) });
+        if (S.cur) {
+          // Пришёл второй, а лента уже идёт: ведёт тот, кто листал.
+          if (!S.lead) S.lead = S.me;
+          R.send('reels-state', { to: data.from, cur: S.cur, name: S.name, ids: S.mine.slice(0, 4), lead: S.lead });
+        }
         else announce();
         return false;
       case 'reels-state':
         if (data.to !== S.me) return true;
         notePartner(data);
+        if (data.lead) S.lead = data.lead;
+        paintLead();
         if (Array.isArray(data.ids)) S.theirs = data.ids.filter((x) => !S.seen.has(x));
         if (data.cur && data.cur.id && (!S.cur || S.cur.id !== data.cur.id)) {
           if (S.cur) S.back.push(S.cur);
@@ -1157,12 +1289,17 @@
         return true;
       case 'reels-queue':
         notePartner(data);
+        if (data.thumbs && typeof data.thumbs === 'object') {
+          Object.keys(data.thumbs).forEach((k) => { if (/^https:\/\//.test(String(data.thumbs[k]))) THUMBS[k] = String(data.thumbs[k]); });
+        }
         S.theirs = (data.ids || []).filter((x) => !S.seen.has(x));
         if (S.started && !S.cur) next();
         else preloadSoon();
         return true;
       case 'reels-reel':
         notePartner(data);
+        if (data.lead) S.lead = data.lead;
+        paintLead();
         // Тот же ролик (напоминание листающего) — ничего не перезапускаем.
         if (S.cur && S.cur.id === data.id) return true;
         if (S.cur && !data.back) { S.back.push(S.cur); if (S.back.length > 30) S.back.shift(); }
@@ -1181,6 +1318,12 @@
         notePartner(data);
         theirSave(data);
         return true;
+      case 'reels-lead':
+        notePartner(data);
+        S.lead = data.lead || '';
+        paintLead();
+        if (S.lead && S.lead !== S.me) toast(T.tookLead(S.partnerName || T.partner));
+        return true;
       case 'reels-pause':
         if (S.cur && data.id === S.cur.id) setPaused(!!data.paused);
         return true;
@@ -1195,7 +1338,7 @@
     const changed = S.partnerId !== data.from || (data.name && S.partnerName !== data.name);
     S.partnerId = data.from;
     if (data.name) S.partnerName = data.name;
-    if (changed) paintTurn();
+    if (changed) { paintTurn(); paintLead(); }
   }
 
   // Приложение досылает свежие номера само, когда скрытая лента их принесла.
@@ -1223,8 +1366,8 @@
   // в ту же секунду (проверка смешанных лент, 04.10.2026). Листавший
   // последним раз в 12 секунд напоминает, какой ролик идёт.
   setInterval(() => {
-    if (!S.cur || S.cur.by !== S.me || !R.subscribed() || S.viewers < 2) return;
-    R.send('reels-reel', { id: S.cur.id, owner: S.cur.owner, by: S.me, name: S.name });
+    if (!S.cur || S.cur.by !== S.me || !R.subscribed() || S.viewers < 2 || (S.lead && S.lead !== S.me)) return;
+    R.send('reels-reel', { id: S.cur.id, owner: S.cur.owner, by: S.me, name: S.name, lead: S.lead });
   }, 12000);
   document.addEventListener('visibilitychange', () => sleep(document.hidden));
   // Для проверок: что сейчас играет и чья очередь (tests/room-reels.test.js).

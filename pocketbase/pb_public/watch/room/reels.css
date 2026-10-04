@@ -224,8 +224,15 @@ body.reels .stage-wrap {
 .rl-list small { display: block; font-size: 10.5px; opacity: .65; margin-top: 2px; }
 .rl-list .rl-empty { margin: auto; color: var(--rl-ink-soft); font-size: 13px; }
 
-.rl.chat-open .rl-stage { height: 46%; }
+/* Чат открыт — ролик уезжает вверх целиком, его размер не меняется. Раньше
+   сцена ужималась до 46% высоты, и каждый плеер площадки перекладывал свою
+   страницу под новый размер: лист выезжал рывками. Сдвиг дешёвый — его
+   делает видеокарта. */
+.rl-cards { transition: transform .32s cubic-bezier(.2, 0, 0, 1); }
+.rl.chat-open .rl-cards { transform: translate3d(0, -28%, 0); }
 .rl.chat-open .rl-sheet { transform: none; }
+.rl.chat-open .rl-rail { animation: rl-fade .26s ease both; }
+@keyframes rl-fade { from { opacity: 0; } to { opacity: 1; } }
 .rl.chat-open .rl-ui { z-index: 8; }
 .rl.chat-open .rl-feed, .rl.chat-open .rl-match, .rl.chat-open .rl-pop, .rl.chat-open .rl-pick, .rl.chat-open .rl-sound { display: none; }
 /* С открытым чатом колонка распадается: звонок остаётся справа вверху,
@@ -237,8 +244,40 @@ body.reels .stage-wrap {
 
 body.reels.typing .rl-rail { display: none; }
 
+/* Обложка, пока плеер площадки поднимается, и переливающаяся заглушка под ней.
+   Уходят, когда ролик пошёл (`is-live`). Заглушка движется сдвигом, а не
+   фоном: сдвиг не перерисовывает экран. */
+.rl-poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; pointer-events: none; transition: opacity .28s ease; }
+.rl-shimmer { position: absolute; inset: 0; z-index: 2; overflow: hidden; pointer-events: none; transition: opacity .28s ease; }
+.rl-shimmer::before { content: ''; position: absolute; top: 0; bottom: 0; left: -60%; width: 60%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .09), transparent); animation: rl-shine 1.3s cubic-bezier(.4, 0, .2, 1) infinite; }
+@keyframes rl-shine { to { transform: translate3d(270%, 0, 0); } }
+.rl-card.is-live .rl-poster, .rl-card.is-live .rl-shimmer { opacity: 0; }
+.rl-card.is-live .rl-shimmer::before { animation: none; }
+/* Первый ролик входа проявляется из темноты. */
+.rl-card.is-first { animation: rl-fade .5s ease both; }
+
+/* Вход: шапка спускается, столбик выезжает справа, поле — снизу. */
+.rl:not(.is-in) .rl-top, .rl:not(.is-in) .rl-voice { opacity: 0; transform: translate3d(0, -14px, 0); }
+.rl:not(.is-in) .rl-rail { opacity: 0; transform: translate3d(18px, 0, 0); }
+.rl:not(.is-in) .rl-compose { opacity: 0; transform: translate3d(0, 18px, 0); }
+.rl-top, .rl-voice, .rl-rail, .rl-compose { transition: opacity .42s ease, transform .5s cubic-bezier(.2, .8, .2, 1); }
+.rl-voice, .rl.is-in .rl-voice { transition-delay: .04s; }
+.rl.is-in .rl-rail { transition-delay: .1s; }
+.rl.is-in .rl-compose { transition-delay: .16s; }
+
+/* Кто листает: видно ведомому, касание забирает ленту себе. */
+.rl-lead { position: absolute; top: calc(var(--rl-top) + 48px); left: 12px; display: inline-flex; align-items: center; gap: 4px; height: 34px; padding: 0 4px 0 12px; border-radius: 999px;
+  background: var(--rl-scrim); -webkit-backdrop-filter: var(--rl-blur); backdrop-filter: var(--rl-blur); font-size: 12.5px; font-weight: 600; animation: rl-fade .3s ease both; }
+.rl-lead[hidden] { display: none; }
+.rl-lead button { height: 26px; padding: 0 10px; border-radius: 999px; background: var(--rl-accent); color: var(--rl-on-accent); font: 700 12px/1 'Onest', sans-serif; }
+.rl-lead.is-nudge { animation: rl-nudge .42s cubic-bezier(.3, 0, .2, 1); }
+@keyframes rl-nudge { 25% { transform: translate3d(-5px, 0, 0); } 50% { transform: translate3d(5px, 0, 0); } 75% { transform: translate3d(-2px, 0, 0); } }
+.rl.chat-open .rl-lead { display: none; }
+
 @media (prefers-reduced-motion: reduce) {
-  .rl-sheet { transition: none; }
+  .rl-sheet, .rl-cards, .rl-top, .rl-voice, .rl-rail, .rl-compose { transition: none; }
+  .rl-shimmer::before, .rl-card.is-first, .rl-lead, .rl-lead.is-nudge { animation: none; }
   /* Плашки сами исчезают к концу анимации; без неё их снимает таймер. */
   .rl-pop, .rl-match, .rl-toast, .rl-burst, .rl-pick { animation: none; }
 }

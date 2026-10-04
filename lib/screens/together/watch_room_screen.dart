@@ -95,7 +95,7 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
   Future<void> _startFeed() async {
     await ReelsProxy.enable();
     if (!mounted) return;
-    final feed = ReelsFeed(widget.reelsSource, onIds: _pushFeed);
+    final feed = ReelsFeed(widget.reelsSource, onIds: _pushFeed, onThumbs: _pushThumbs);
     _feed = feed;
     await feed.start();
   }
@@ -124,6 +124,18 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
     final web = _web;
     if (web == null || ids.isEmpty) return;
     unawaited(web.evaluateJavascript(source: 'window.reelsFeedPush && window.reelsFeedPush(${jsonEncode(ids)})'));
+  }
+
+  /// Обложки роликов копятся здесь: лента может принести их раньше, чем
+  /// загрузится страница, — тогда отдаём их в [_onPageLoaded].
+  final Map<String, String> _thumbs = {};
+
+  void _pushThumbs(Map<String, String> thumbs) {
+    _thumbs.addAll(thumbs);
+    if (_thumbs.length > 400) _thumbs.remove(_thumbs.keys.first);
+    final web = _web;
+    if (web == null) return;
+    unawaited(web.evaluateJavascript(source: 'window.reelsThumbsPush && window.reelsThumbsPush(${jsonEncode(thumbs)})'));
   }
 
   /// Голос поднимается ЗАРАНЕЕ, а не по нажатию: канал должен слушать зов
@@ -487,6 +499,7 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
                 _pushVoice();
                 if (widget.reels) {
                   unawaited(c.evaluateJavascript(source: _insetScript(MediaQuery.paddingOf(context))));
+                  if (_thumbs.isNotEmpty) _pushThumbs(Map.of(_thumbs));
                 }
               },
             ),

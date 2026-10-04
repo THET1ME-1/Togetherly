@@ -20,12 +20,16 @@ import '../../models/reels_source.dart';
 /// ([script]). ВК и Дзен кладут первые ролики прямо в разметку — их скрипт
 /// берёт и оттуда.
 class ReelsFeed {
-  ReelsFeed(this.source, {this.onIds});
+  ReelsFeed(this.source, {this.onIds, this.onThumbs});
 
   final ReelsSource source;
 
   /// Пришли новые номера — комната получает их сразу, не дожидаясь вопроса.
   final void Function(List<String> ids)? onIds;
+
+  /// Обложки роликов («площадка:номер» → адрес картинки), если площадка их
+  /// отдаёт в ответе ленты (TikTok). Комната ставит их, пока плеер грузится.
+  final void Function(Map<String, String> thumbs)? onThumbs;
 
   static const String _desktopUa =
       'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36';
@@ -47,13 +51,21 @@ class ReelsFeed {
   var all = function(text, re, map){ var out = [], m; while ((m = re.exec(text))) out.push(map ? map(m) : m[1]); return out; };
   var RULES = {
     shorts: { url: /youtubei\\/v1\\/reel\\/reel_watch_sequence/, pick: function(t){ return all(t, /"videoId":"([A-Za-z0-9_-]{11})"/g); } },
-    tiktok: { url: /api\\/(recommend|preload)\\/item_list/, pick: function(t){ try { return (JSON.parse(t).itemList || []).map(function(i){ return String(i.id); }); } catch (e) { return []; } } },
+    tiktok: { url: /api\\/(recommend|preload)\\/item_list/, pick: function(t){ try { return (JSON.parse(t).itemList || []).map(function(i){ return String(i.id); }); } catch (e) { return []; } },
+      thumbs: function(t){ var o = {}; try { (JSON.parse(t).itemList || []).forEach(function(i){ var v = i.video || {}; var c = v.cover || v.originCover; if (i.id && c) o[String(i.id)] = c; }); } catch (e) {} return o; } },
     rutube: { url: /shorts\\/lenta/, pick: function(t){ return all(t, /"id":"([0-9a-f]{32})"/g); } },
     vk: { url: /shortVideo\\.getRecom/, pick: function(t){ return all(t, /video_ext\\.php\\?oid=(-?\\d+)&(?:amp;)?id=(\\d+)&(?:amp;)?hash=([0-9a-f]+)/g, function(m){ return m[1] + '_' + m[2] + '_' + m[3]; }); } },
     dzen: { url: /video-recommend/, pick: function(t){ return all(t, /"videoContentId":"([A-Za-z0-9_-]{6,})"/g); } }
   };
   var R = RULES[SRC];
-  var heard = function(u, t){ try { if (R.url.test(String(u || ''))) tell(uniq(R.pick(t))); } catch (e) {} };
+  var heard = function(u, t){
+    try {
+      if (!R.url.test(String(u || ''))) return;
+      tell(uniq(R.pick(t)));
+      // Обложки — чтобы в комнате вместо чёрного экрана сразу была картинка.
+      if (R.thumbs) { var th = R.thumbs(t); if (Object.keys(th).length) window.flutter_inappwebview.callHandler('reelThumbs', th); }
+    } catch (e) {}
+  };
   var f = window.fetch;
   if (f) window.fetch = function(input){
     var u = typeof input === 'string' ? input : (input && input.url) || '';
@@ -125,6 +137,20 @@ class ReelsFeed {
           callback: (args) {
             final ids = args.isNotEmpty && args.first is List ? (args.first as List) : const [];
             _accept(ids);
+            return null;
+          },
+        );
+        c.addJavaScriptHandler(
+          handlerName: 'reelThumbs',
+          callback: (args) {
+            final raw = args.isNotEmpty && args.first is Map ? (args.first as Map) : const {};
+            final out = <String, String>{};
+            raw.forEach((k, v) {
+              final id = '$k';
+              final url = '$v';
+              if (ReelQueue.isId(id) && url.startsWith('https://') && url.length < 2000) out['${source.key}:$id'] = url;
+            });
+            if (out.isNotEmpty) onThumbs?.call(out);
             return null;
           },
         );
