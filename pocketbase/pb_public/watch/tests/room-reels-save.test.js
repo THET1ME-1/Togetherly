@@ -174,6 +174,26 @@ const check = (n, c, x = '') => { console.log((c ? '  ✓ ' : '  ✗ ') + n, x);
   const s6 = await st(A.page);
   check('назад к сохранённому — закладка снова горит', s6.cur === s0.cur && s6.on, s6.cur);
 
+  // Медленная сеть под видео: анимации реакций едут по 6 секунд. Раньше всё
+  // это время на кнопке висело прежнее сердце, хотя выбран огонь.
+  await A.page.route('**/api/files/catalog_items/**', (r) => setTimeout(() => r.continue().catch(() => {}), 6000));
+  const reactImg = () => A.page.evaluate(() => { const i = document.querySelector('.rl-react img'); return { src: i.getAttribute('src'), w: i.naturalWidth }; });
+  await A.page.tap('.rl-react');
+  await A.page.waitForTimeout(300);
+  await A.page.tap('.rl-pick button[data-e="🔥"]');
+  await A.page.waitForTimeout(400);
+  const r1 = await reactImg();
+  check('огонь на кнопке сразу, без ожидания анимации', r1.src === 'reactions/fire.webp' && r1.w > 0, r1.src);
+  await A.page.waitForTimeout(7500);
+  const r2 = await reactImg();
+  check('догрузилась — огонь ожил', /catalog_items\/reaction_fire\//.test(r2.src), r2.src.split('/').slice(-2).join('/'));
+  await A.page.tap('.rl-react');
+  await A.page.waitForTimeout(300);
+  await A.page.tap('.rl-pick button[data-e="👍"]');
+  await A.page.waitForTimeout(400);
+  const r3 = await reactImg();
+  check('смена реакции видна сразу', /reactions\/thumbs_up\.webp|reaction_thumbs_up/.test(r3.src), r3.src.split('/').pop());
+
   check('ошибок в странице нет', errors.length === 0, errors.slice(0, 3).join(' | '));
   await browser.close(); srv.close();
   console.log(ok ? 'ВСЁ ПРОШЛО' : 'ЕСТЬ ПРОВАЛЫ');

@@ -73,11 +73,27 @@
   const REACT = [['heart', '❤️'], ['laugh', '😂'], ['wow', '😮'], ['cry', '😢'], ['fire', '🔥'], ['thumbs_up', '👍']];
   const ART = { '❤️': 'heart', '❤': 'heart', '😂': 'laugh', '😮': 'wow', '😢': 'cry', '🥺': 'cry', '🔥': 'fire', '👍': 'thumbs_up' };
   const MOVING = {};   // id рисунка → анимированный файл из каталога
-  const artOf = (e, still) => {
-    const id = ART[e] || 'heart';
-    return (!still && MOVING[id]) || ('reactions/' + id + '.webp');
-  };
-  const artImg = (e, still) => '<img class="rl-art" alt="" src="' + artOf(e, still) + '">';
+  const stillOf = (e) => 'reactions/' + (ART[e] || 'heart') + '.webp';
+  /** Рисунок реакции встаёт сразу неподвижным (лежит рядом со страницей, пара
+   *  килобайт), анимация из каталога подменяет его, только когда догрузилась.
+   *  Раньше картинке сразу давали адрес анимации, а браузер до конца загрузки
+   *  держит прежнюю: пока под видео ехали 90 КБ, на кнопке висело сердце,
+   *  хотя выбран огонь (04.10.2026). */
+  function setArt(img, e, still) {
+    img.dataset.e = e;
+    img.src = stillOf(e);
+    const moving = MOVING[ART[e] || 'heart'];
+    if (still || !moving) return;
+    const pre = new Image();
+    pre.onload = () => { if (img.dataset.e === e) img.src = moving; };
+    pre.src = moving;
+  }
+  const artImg = (e, still) => '<img class="rl-art" alt="" data-e="' + e + '"' + (still ? ' data-still="1"' : '') + ' src="' + stillOf(e) + '">';
+  /** Ожить рисункам, вставленным разметкой ([artImg]). */
+  const liven = (node) => node.querySelectorAll('img.rl-art').forEach((i) => setArt(i, i.dataset.e, i.dataset.still === '1'));
+  /** Открыли выбор — анимации всех шести тянем заранее, чтобы выбранная
+   *  ожила сразу. */
+  const warmArt = () => REACT.forEach(([id]) => { if (MOVING[id]) new Image().src = MOVING[id]; });
 
   const bridge = () => {
     const b = window.flutter_inappwebview;
@@ -380,7 +396,7 @@
     const h = document.createElement('img');
     h.className = 'rl-burst';
     h.alt = '';
-    h.src = artOf(e);
+    setArt(h, e);
     const box = el.root.getBoundingClientRect();
     h.style.left = (x - box.left) + 'px';
     h.style.top = (y - box.top) + 'px';
@@ -920,6 +936,7 @@
   }
 
   function openPick() {
+    warmArt();
     const r = el.react.getBoundingClientRect();
     const box = el.root.getBoundingClientRect();
     el.pick.style.top = (r.top - box.top + r.height / 2 - 26) + 'px';
@@ -940,7 +957,12 @@
 
   function paintReact() {
     const r = (S.cur && S.reacts[S.cur.id]) || {};
-    $('img', el.react).src = artOf(r.me || '❤️', !r.me);
+    const img = $('img', el.react);
+    // Та же реакция — картинку не трогаем, иначе анимация начнётся заново.
+    if (img.dataset.e !== (r.me || '❤️') || (img.dataset.still === '1') !== !r.me) {
+      img.dataset.still = r.me ? '' : '1';
+      setArt(img, r.me || '❤️', !r.me);
+    }
     el.react.classList.toggle('is-on', !!r.me);
   }
 
@@ -952,6 +974,7 @@
     pop.className = 'rl-pop';
     pop.innerHTML = '<span class="rl-av is-partner"></span>' + artImg(r.them);
     pop.firstChild.textContent = initial(S.partnerName);
+    liven(pop);
     const rr = el.react.getBoundingClientRect();
     const box = el.root.getBoundingClientRect();
     pop.style.top = (rr.top - box.top + 2) + 'px';
@@ -968,6 +991,7 @@
     m.innerHTML = artImg(e) + '<span><b></b><small></small></span>';
     m.querySelector('b').textContent = T.match;
     m.querySelector('small').textContent = T.matchSub;
+    liven(m);
     el.root.appendChild(m);
     setTimeout(() => m.remove(), 3500);
   }
