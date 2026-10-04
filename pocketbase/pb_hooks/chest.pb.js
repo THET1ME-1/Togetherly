@@ -77,7 +77,10 @@ routerAdd("GET", "/api/chest/state", (e) => {
   let user = null;
   try { user = $app.findRecordById("users", me); } catch (_) { user = null; }
   if (!user) return e.json(404, { ok: false, error: "no_user" });
-  const noPlus = ios || user.getBool("plus");
+  // Плюс разыгрывается и на iPhone: он там давно продаётся через App Store.
+  // Прежде iOS исключался, и за неделю 5243 открытия с iPhone не дали ни
+  // одного Плюса (04.10.2026).
+  const noPlus = user.getBool("plus");
 
   // Всё, что разыгрывается по редкости: подарки сундука плюс рамки и
   // значки из каталога (`catalog_items`: вид `frame` и `badge` с `data.chest`).
@@ -324,7 +327,8 @@ routerAdd("POST", "/api/chest/open", (e) => {
       }
 
       // Розыгрыш по той же таблице, что показывает /api/chest/state.
-      const noPlus = ios || user.getBool("plus");
+      // iPhone наравне с Android: Плюс на iOS продаётся через App Store.
+      const noPlus = user.getBool("plus");
       // Всё, что разыгрывается по редкости: подарки сундука плюс рамки и
       // значки из каталога (`catalog_items`: вид `frame` и `badge` с `data.chest`).
       // Новая рамка или значок, заведённые на сервере, сами встают в розыгрыш.
