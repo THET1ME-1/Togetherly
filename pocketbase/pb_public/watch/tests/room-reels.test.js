@@ -168,7 +168,9 @@ const check = (n, c, x = '') => { console.log((c ? '  ✓ ' : '  ✗ ') + n, x);
   await pa.screenshot({ path: path.join(OUT, '2-ania.png') });
 
   // Назад: прошлый ролик лежит над экраном и выезжает за пальцем сверху.
-  check('прошлый ролик ждёт над экраном', await pa.evaluate(() => document.querySelectorAll('.rl-card').length === 3));
+  // Следующего может и не быть (очередь партнёра кончилась) — смотрим именно
+  // на карточку над экраном.
+  check('прошлый ролик ждёт над экраном', await pa.evaluate(() => Array.from(document.querySelectorAll('.rl-card')).some((c) => c.getBoundingClientRect().bottom <= 1)));
   await pa.mouse.move(196, 250); await pa.mouse.down();
   await pa.mouse.move(196, 450, { steps: 6 });
   await pa.waitForTimeout(150);

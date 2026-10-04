@@ -575,7 +575,15 @@
   /** Ролик не открылся: соседний — просто убрать, текущий — листать дальше.
    *  Листает тот, кто его включил, чтобы двое не перескочили дважды. */
   function failed(card) {
-    if (card === cards.next) { drop(card); cards.next = null; return; }
+    if (card === cards.next) {
+      // Закрытый для встраивания ролик вычёркиваем и грузим следующий.
+      drop(card); cards.next = null;
+      S.seen.add(card.id);
+      S.mine = S.mine.filter((x) => x !== card.id);
+      S.theirs = S.theirs.filter((x) => x !== card.id);
+      preloadSoon();
+      return;
+    }
     if (card === cards.prev) { drop(card); cards.prev = null; return; }
     if (card !== cards.cur || !S.cur || S.cur.by !== S.me) return;
     R.say(T.unavailable);
