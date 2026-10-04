@@ -27,6 +27,15 @@ void main() {
     expect(q.add(['AAAAAAAAAAA']), 0);
   });
 
+  test('обновление выбрасывает запас, но просмотренное не возвращает', () {
+    final q = ReelQueue()..add(['AAAAAAAAAAA', 'BBBBBBBBBBB']);
+    q.take(1);
+    q.dropPending();
+    expect(q.length, 0);
+    // Показанный не вернётся, а невиденный из сброшенного может прийти снова.
+    expect(q.add(['AAAAAAAAAAA', 'BBBBBBBBBBB', 'CCCCCCCCCCC']), 2);
+  });
+
   test('запас не растёт без конца', () {
     final q = ReelQueue(limit: 3);
     q.add(List.generate(10, (i) => 'A' * 10 + '$i'));

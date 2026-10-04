@@ -165,6 +165,13 @@ class ShortsFeed {
     }
   }
 
+  /// «Обновить рекомендации»: запас в сторону, скрытая лента открывается
+  /// заново с главной Shorts — платформа присылает свежую подборку.
+  Future<void> refresh() async {
+    _queue.dropPending();
+    await _go(home);
+  }
+
   /// Приложение свернули: скрытая страница засыпает и не крутит ролик.
   Future<void> sleep() async {
     final c = _view?.webViewController;

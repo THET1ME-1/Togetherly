@@ -122,7 +122,7 @@ const check = (n, c, x = '') => { console.log((c ? '  ✓ ' : '  ✗ ') + n, x);
 
   const cur = (p) => p.evaluate(() => {
     const st = window.__reelsState();
-    return Object.assign(st, { id: st.cur && st.cur.id, pill: document.querySelector('.rl-pill b').textContent, hint: document.querySelector('.rl-hint span').textContent });
+    return Object.assign(st, { id: st.cur && st.cur.id, pill: document.querySelector('.rl-pill b').textContent });
   });
   const playing = (p) => p.evaluate(() => {
     const st = window.__reelsState();
@@ -145,7 +145,9 @@ const check = (n, c, x = '') => { console.log((c ? '  ✓ ' : '  ✗ ') + n, x);
   const before = await playing(pb);
   // Ход переходит, только если у партнёра есть что показать; иначе листаем
   // свою ленту — это тоже верно, но проверять тогда нечего.
-  const partnerHas = (await cur(pa)).theirs > 0 && s1a.pill === 'Твой ход';
+  const partnerHas = (await cur(pa)).theirs > 0 && s1a.pill === 'Твоя лента';
+  check('подсказки про свайп нет', await pa.evaluate(() => !document.querySelector('.rl-hint')));
+  check('на месте «назад» — обновление рекомендаций', await pa.isVisible('.rl-refresh'));
   // Следующий ролик уже ждёт под экраном — свайп не грузит его с нуля.
   check('следующий ролик загружен заранее', await pa.evaluate(() => document.querySelectorAll('.rl-card').length === 2));
   // Посреди свайпа видны оба ролика: текущий уехал вверх, следующий выехал.
@@ -164,6 +166,23 @@ const check = (n, c, x = '') => { console.log((c ? '  ✓ ' : '  ✗ ') + n, x);
   if (partnerHas) check('ход перешёл', s2a.pill !== s1a.pill, s1a.pill + ' → ' + s2a.pill);
   else check('ролик из ленты того, кто ещё не показывал', s2a.pill !== s1a.pill || s2a.theirs === 0, s1a.pill + ' → ' + s2a.pill);
   await pa.screenshot({ path: path.join(OUT, '2-ania.png') });
+
+  // Назад: прошлый ролик лежит над экраном и выезжает за пальцем сверху.
+  check('прошлый ролик ждёт над экраном', await pa.evaluate(() => document.querySelectorAll('.rl-card').length === 3));
+  await pa.mouse.move(196, 250); await pa.mouse.down();
+  await pa.mouse.move(196, 450, { steps: 6 });
+  await pa.waitForTimeout(150);
+  const midBack = await pa.evaluate(() => Array.from(document.querySelectorAll('.rl-card')).map((c) => Math.round(c.getBoundingClientRect().top)));
+  await pa.screenshot({ path: path.join(OUT, '2-back-drag.png') });
+  check('назад тоже едет за пальцем', midBack.some((t) => t < 0 && t > -700) && midBack.some((t) => t > 150 && t < 260), midBack.join(', '));
+  await pa.mouse.move(196, 600, { steps: 3 });
+  await pa.mouse.up();
+  await pa.waitForTimeout(1500);
+  check('свайп вниз вернул прошлый ролик', (await cur(pa)).id === s1a.id, (await cur(pa)).id + ' / ' + s1a.id);
+  check('у Бори тоже вернулся', (await cur(pb)).id === s1a.id);
+  // Снова вперёд, чтобы дальше всё шло как было.
+  await swipe(pa);
+  await pa.waitForTimeout(2000);
 
   // Реакция: Аня открывает выбор и ставит 😂, у Бори всплывает.
   await pa.click('.rl-react');

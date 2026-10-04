@@ -27,11 +27,11 @@
   if (!R) return;
 
   const RU = (window.I18N && window.I18N.lang) !== 'en';
-  // Имена не склоняем — «ход Боря» читается ошибкой, поэтому имя всегда в
-  // именительном: «Листает Боря».
+  // В плашке — чья лента сейчас играет. Имена не склоняем («лента Бори» из
+  // имени не собрать), поэтому имя в именительном: «Лента · Боря».
   const T = RU ? {
-    mine: 'Твой ход', theirs: (n) => 'Листает ' + n, partner: 'партнёр',
-    hintMine: (n) => 'Свайп вверх — дальше листает ' + n, hintTheirs: 'Свайп вверх — твой ход', hintAlone: 'Свайп вверх — следующий',
+    mine: 'Твоя лента', theirs: (n) => 'Лента · ' + n, partner: 'партнёр',
+    refresh: 'Обновить рекомендации', refreshing: 'Подбираем свежие ролики…',
     call: 'Позвонить', react: 'Реакция', chat: 'Чат', share: 'Отправить ролик', prev: 'Прошлый ролик', back: 'Назад',
     mic: 'Микрофон', hang: 'Положить трубку', ringing: 'Звоним…', failed: 'Не вышло',
     write: () => 'Написать…', send: 'Отправить',
@@ -40,8 +40,8 @@
     match: 'Совпало!', matchSub: 'Вам обоим зашёл этот ролик', sound: 'Включить звук',
     copied: 'Ссылка скопирована', ourChat: 'Наш чат', empty: 'Здесь пока пусто', unavailable: 'Ролик недоступен, листаем дальше',
   } : {
-    mine: 'Your turn', theirs: (n) => n + ' is scrolling', partner: 'partner',
-    hintMine: (n) => 'Swipe up — ' + n + ' goes next', hintTheirs: 'Swipe up — your turn', hintAlone: 'Swipe up for the next one',
+    mine: 'Your feed', theirs: (n) => 'Feed · ' + n, partner: 'partner',
+    refresh: 'Refresh recommendations', refreshing: 'Picking fresh clips…',
     call: 'Call', react: 'React', chat: 'Chat', share: 'Send clip', prev: 'Previous clip', back: 'Back',
     mic: 'Microphone', hang: 'Hang up', ringing: 'Calling…', failed: 'Failed',
     write: () => 'Message…', send: 'Send',
@@ -57,7 +57,10 @@
     back: '', call: '', end: '', mic: '', micOff: '', chat: '',
     swipe: '', send: '', share: '', undo: '', play: '', close: '', sound: '',
   };
+  IC.refresh = '';
   const ic = (c) => '<span class="ms" aria-hidden="true">' + c + '</span>';
+  // На iPhone нет системного «назад»: без своей кнопки из лент не выйти.
+  const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
 
   // Реакции — наши рисунки (те же, что в чате приложения), а не системные
   // эмодзи. По каналу ездит эмодзи, рисунок подставляется при показе.
@@ -108,11 +111,10 @@
       </div>
       <div class="rl-ui">
         <div class="rl-top">
-          <button class="rl-ib rl-back" aria-label="${T.back}">${ic(IC.back)}</button>
+          ${IOS ? `<button class="rl-ib rl-back" aria-label="${T.back}">${ic(IC.back)}</button>` : ''}
+          <button class="rl-ib rl-refresh" aria-label="${T.refresh}">${ic(IC.refresh)}</button>
           <span class="rl-pill"><span class="rl-av"></span><b></b><span class="rl-src">SHORTS</span></span>
         </div>
-        <div class="rl-hint" hidden>${ic(IC.swipe)}<span></span></div>
-        <div class="rl-side">
         <div class="rl-voice" hidden>
           <button class="rl-ib accent rl-call" aria-label="${T.call}">${ic(IC.call)}</button>
           <span class="rl-av lg is-partner rl-vwho" hidden></span>
@@ -125,7 +127,6 @@
           <button class="rl-rx rl-chatbtn" aria-label="${T.chat}">${ic(IC.chat)}</button>
           <button class="rl-rx rl-share" aria-label="${T.share}">${ic(IC.share)}</button>
           <button class="rl-rx rl-prev" aria-label="${T.prev}" disabled>${ic(IC.undo)}</button>
-        </div>
         </div>
         <div class="rl-pick" hidden></div>
         <div class="rl-feed"></div>
@@ -140,7 +141,7 @@
     el = {
       root,
       stage: $('.rl-stage', root), tap: $('.rl-tap', root), cards: $('.rl-cards', root),
-      wait: $('.rl-wait', root), pill: $('.rl-pill', root), hint: $('.rl-hint', root),
+      wait: $('.rl-wait', root), pill: $('.rl-pill', root), refresh: $('.rl-refresh', root),
       voice: $('.rl-voice', root), rail: $('.rl-rail', root), react: $('.rl-react', root),
       pick: $('.rl-pick', root), feed: $('.rl-feed', root), sound: $('.rl-sound', root),
       list: $('.rl-list', root), prev: $('.rl-prev', root), input: $('.rl-input', root),
@@ -154,7 +155,8 @@
       el.pick.appendChild(b);
     });
 
-    $('.rl-back', root).addEventListener('click', leave);
+    if (IOS) $('.rl-back', root).addEventListener('click', leave);
+    el.refresh.addEventListener('click', refreshFeed);
     el.react.addEventListener('click', (e) => { e.stopPropagation(); el.pick.hidden ? openPick() : closePick(); });
     $('.rl-chatbtn', root).addEventListener('click', () => setChat(!el.root.classList.contains('chat-open')));
     $('.rl-x', root).addEventListener('click', () => setChat(false));
@@ -504,7 +506,9 @@
   // которые YouTube показывает первые секунды после старта, успевают
   // спрятаться до показа. Раньше один плеер перезаряжался `loadVideoById` и
   // сам перезапускал повтор — и кнопка паузы всплывала в центре без конца.
-  const cards = { cur: null, next: null };
+  // Прошлый ролик тоже живёт — над экраном: свайп вниз тянет его за пальцем,
+  // как свайп вверх тянет следующий.
+  const cards = { cur: null, next: null, prev: null };
   let cardSeq = 0;
 
   function makeCard(id) {
@@ -536,6 +540,7 @@
           },
           onError: () => {
             if (card === cards.next) { drop(card); cards.next = null; return; }
+            if (card === cards.prev) { drop(card); cards.prev = null; return; }
             // Ролик закрыт для встраивания или удалён. Дальше листает тот,
             // кто его включил, чтобы двое не перескочили дважды.
             if (card !== cards.cur || !S.cur || S.cur.by !== S.me) return;
@@ -574,24 +579,34 @@
     card.el.style.transform = 'translate3d(0,' + y + ',0)';
   };
 
-  /** Палец тянет: текущая едет за ним, следующая выезжает снизу. */
+  /** Палец тянет: текущая едет за ним, соседняя выезжает с той стороны. */
   function dragCards(dy) {
     const h = el.stage.clientHeight;
-    // Назад тянется туже: прошлого ролика под рукой нет, это лишь отклик.
-    const y = dy < 0 ? dy : dy * 0.45;
+    // Назад без прошлого ролика тянется туже — это лишь отклик на жест.
+    const y = dy < 0 || cards.prev ? dy : dy * 0.45;
     place(cards.cur, y + 'px', false);
     if (cards.next) place(cards.next, (h + Math.min(0, dy)) + 'px', false);
+    if (cards.prev) place(cards.prev, (-h + Math.max(0, dy)) + 'px', false);
   }
 
   /** Свайп не дотянул — всё на место. */
   function settleCards() {
     place(cards.cur, '0', true);
     if (cards.next) place(cards.next, '100%', true);
+    if (cards.prev) place(cards.prev, '-100%', true);
+  }
+
+  /** Карточка ушла с экрана: тихо и в четверть скорости, без паузы. */
+  function shelve(card) {
+    card.active = false;
+    card.el.classList.remove('is-cur');
+    try { card.player.mute(); card.player.setPlaybackRate(0.25); } catch (_) {}
   }
 
   function swapTo(id, isBack) {
-    let card = cards.next && cards.next.id === id ? cards.next : null;
-    if (card) cards.next = null;
+    let card = null;
+    if (cards.prev && cards.prev.id === id) { card = cards.prev; cards.prev = null; }
+    else if (cards.next && cards.next.id === id) { card = cards.next; cards.next = null; }
     else { card = makeCard(id); place(card, isBack ? '-100%' : '100%', false); }
     const old = cards.cur;
     cards.cur = card;
@@ -600,13 +615,52 @@
     void card.el.offsetWidth;
     place(card, '0', true);
     if (old) {
-      old.el.classList.remove('is-cur');
-      try { old.player && old.player.mute(); } catch (_) {}
+      shelve(old);
       place(old, isBack ? '100%' : '-100%', true);
-      setTimeout(() => drop(old), 380);
+      if (isBack) setTimeout(() => drop(old), 380);
+      else {
+        // Ушедший вверх ролик и есть прошлый: свайп вниз вернёт его сразу.
+        if (cards.prev) drop(cards.prev);
+        cards.prev = old;
+      }
     }
     wake(card);
-    setTimeout(preloadNext, 450);
+    setTimeout(() => { preloadNext(); ensurePrev(); }, 450);
+  }
+
+  /** Над экраном лежит ролик, на который ведёт «назад». */
+  function ensurePrev() {
+    const want = S.back.length ? S.back[S.back.length - 1].id : '';
+    if (cards.prev && cards.prev.id === want) return;
+    if (cards.prev) { drop(cards.prev); cards.prev = null; }
+    if (!want) return;
+    cards.prev = makeCard(want);
+    place(cards.prev, '-100%', false);
+  }
+
+  /** «Обновить рекомендации»: свой запас в сторону, скрытая лента начинает
+   *  заново, и первый свежий ролик включается сам. */
+  let refreshing = false;
+  async function refreshFeed() {
+    const b = bridge();
+    if (!b || refreshing) return;
+    refreshing = true;
+    el.refresh.classList.add('is-busy');
+    S.mine = [];
+    if (cards.next) { drop(cards.next); cards.next = null; }
+    // Сборка без этого обработчика может не ответить вовсе — ждём недолго.
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    try { await Promise.race([b.callHandler('reelsRefresh', {}), wait(3000)]); } catch (_) {}
+    await Promise.race([pull(10), wait(14000)]);
+    refreshing = false;
+    el.refresh.classList.remove('is-busy');
+    const id = S.mine.find((x) => !S.seen.has(x));
+    if (!id) return;
+    S.mine = S.mine.filter((x) => x !== id);
+    announce();
+    if (S.cur) { S.back.push(S.cur); if (S.back.length > 30) S.back.shift(); }
+    show({ id, owner: S.me, by: S.me });
+    R.send('reels-reel', { id, owner: S.me, by: S.me, name: S.name });
   }
 
   /** Следующий ролик заранее, под экраном. */
@@ -669,10 +723,7 @@
     av.textContent = initial(mine ? S.name : S.partnerName);
     av.classList.toggle('is-partner', !mine);
     $('b', el.pill).textContent = mine ? T.mine : T.theirs(pName);
-    const together = S.viewers > 1 && S.partnerId;
-    el.hint.hidden = !S.cur;
-    $('span:last-child', el.hint).textContent = !together ? T.hintAlone : (mine ? T.hintMine(pName) : T.hintTheirs);
-    el.input.placeholder = T.write(together ? S.partnerName : '');
+    el.input.placeholder = T.write();
   }
 
   function openPick() {
@@ -867,7 +918,7 @@
   function sleep(on) {
     if (asleep === on) return;
     asleep = on;
-    [cards.cur, cards.next].forEach((c) => {
+    [cards.cur, cards.next, cards.prev].forEach((c) => {
       if (!c || !c.player || !c.ready) return;
       try {
         if (on) c.player.pauseVideo();

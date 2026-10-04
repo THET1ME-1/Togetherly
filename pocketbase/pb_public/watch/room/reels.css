@@ -96,7 +96,7 @@ body.reels .stage-wrap {
 .rl-ib { width: 40px; height: 40px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--rl-scrim); color: #fff; }
 
 /* Матовое стекло: всё полупрозрачное поверх ролика размывает его за собой. */
-.rl-ib, .rl-pill, .rl-voice, .rl-hint, .rl-rail, .rl-paused, .rl-compose, .rl-pick, .rl-pop, .rl-feed .rl-msg, .rl-match, .rl-sound {
+.rl-ib, .rl-pill, .rl-voice, .rl-rail, .rl-paused, .rl-compose, .rl-pick, .rl-pop, .rl-feed .rl-msg, .rl-match, .rl-sound {
   -webkit-backdrop-filter: var(--rl-blur);
   backdrop-filter: var(--rl-blur);
 }
@@ -113,14 +113,10 @@ body.reels .stage-wrap {
 .rl-av.lg { width: 40px; height: 40px; font-size: 13px; }
 .rl-av.talking { box-shadow: 0 0 0 2px var(--rl-accent); }
 
-/* Правая колонка: звонок и под ним действия, одним потоком с зазором 12.
-   Порознь, с заданными координатами, они налезали друг на друга, как только
-   звонок разрастался (аватар, микрофон, отбой). */
-.rl-ui > .rl-side { position: absolute; top: calc(var(--rl-top) + 48px); right: 12px; display: flex; flex-direction: column; align-items: center; gap: 12px; pointer-events: none; }
-.rl-side > * { pointer-events: auto; }
-
-/* звонок */
-.rl-voice { display: grid; gap: 8px; justify-items: center; background: var(--rl-scrim); border-radius: 28px; padding: 6px; }
+/* Звонок — справа в строке шапки; в разговоре капсула растёт вниз. Действия
+   — внизу над полем ввода, под большим пальцем (просьба 04.10.2026: «тянуться
+   неудобно»), поэтому друг на друга они больше не налезают. */
+.rl-voice { position: absolute; top: var(--rl-top); right: 12px; display: grid; gap: 8px; justify-items: center; background: var(--rl-scrim); border-radius: 28px; padding: 6px; }
 /* В покое — одна круглая кнопка 44, без подложки: толстая капсула с подписью
    спорила с роликом. */
 .rl-voice.is-idle { background: none; padding: 0; -webkit-backdrop-filter: none; backdrop-filter: none; }
@@ -129,15 +125,11 @@ body.reels .stage-wrap {
 .rl-voice [hidden] { display: none; }
 .rl-vtime { font: 700 10px/1 'Onest', sans-serif; font-variant-numeric: tabular-nums; padding-bottom: 2px; }
 
-/* подсказка хода: слева, на уровне звонка */
-.rl-hint { position: absolute; left: 12px; top: calc(var(--rl-top) + 48px); height: 32px; max-width: calc(100% - 92px); white-space: nowrap; overflow: hidden;
-  background: var(--rl-scrim); border-radius: 999px; padding: 0 12px 0 8px; display: inline-flex; gap: 6px; align-items: center; font: 600 12px/1 'Onest', sans-serif; }
-.rl-hint .ms { font-size: 18px; }
-.rl-hint span:last-child { overflow: hidden; text-overflow: ellipsis; }
-.rl-hint[hidden] { display: none; }
+/* обновление рекомендаций крутится, пока скрытая лента подбирает свежее */
+.rl-refresh.is-busy .ms { animation: rl-spin .9s linear infinite; }
 
-/* столбик действий справа */
-.rl-rail { display: grid; gap: 4px; background: var(--rl-scrim); border-radius: 28px; padding: 4px; }
+/* столбик действий справа, прямо над полем ввода */
+.rl-rail { position: absolute; right: 12px; bottom: calc(var(--rl-bottom) + 60px); display: grid; gap: 4px; background: var(--rl-scrim); border-radius: 28px; padding: 4px; }
 .rl-rx { width: 44px; height: 44px; border-radius: 22px; display: grid; place-items: center; transition: transform .12s, background .16s; }
 .rl-rx:active { transform: scale(.9); }
 .rl-rx.is-on { background: var(--rl-pc); color: var(--rl-on-pc); }
@@ -227,14 +219,12 @@ body.reels .stage-wrap {
 .rl.chat-open .rl-feed, .rl.chat-open .rl-match, .rl.chat-open .rl-pop, .rl.chat-open .rl-pick, .rl.chat-open .rl-sound { display: none; }
 /* С открытым чатом колонка распадается: звонок остаётся справа вверху,
    действия встают строкой над листом. */
-.rl.chat-open .rl-ui > .rl-side { position: static; }
-.rl.chat-open .rl-voice { position: absolute; top: calc(var(--rl-top) + 48px); right: 12px; }
-.rl.chat-open .rl-rail { position: absolute; top: calc(43% - 52px); left: 12px; grid-auto-flow: column; align-items: center; }
+.rl.chat-open .rl-rail { top: calc(43% - 52px); bottom: auto; right: auto; left: 12px; grid-auto-flow: column; align-items: center; }
 .rl.chat-open .rl-rx { width: 40px; height: 40px; }
 .rl.chat-open .rl-rx .rl-art { width: 28px; height: 28px; }
 .rl.chat-open .rl-compose { background: var(--rl-sc-highest); }
 
-body.reels.typing .rl-rail, body.reels.typing .rl-hint { display: none; }
+body.reels.typing .rl-rail { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .rl-sheet { transition: none; }

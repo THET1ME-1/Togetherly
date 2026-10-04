@@ -410,6 +410,14 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
                     return null;
                   },
                 );
+                // «Обновить рекомендации»: скрытая лента начинается заново.
+                c.addJavaScriptHandler(
+                  handlerName: 'reelsRefresh',
+                  callback: (_) async {
+                    await _feed?.refresh();
+                    return null;
+                  },
+                );
                 c.addJavaScriptHandler(
                   handlerName: 'reelsShare',
                   callback: (args) async {
