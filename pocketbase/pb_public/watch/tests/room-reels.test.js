@@ -172,16 +172,16 @@ const check = (n, c, x = '') => { console.log((c ? '  ✓ ' : '  ✗ ') + n, x);
   await pb.screenshot({ path: path.join(OUT, '4-match.png') });
 
   // Чат.
-  await pb.fill('#message', 'ахаха смотри');
-  await pb.click('#send');
+  await pb.fill('.rl-input', 'ахаха смотри');
+  await pb.click('.rl-send');
   await pa.waitForTimeout(900);
-  const feedText = await pa.evaluate(() => document.querySelector('.rl-feedchat').textContent);
+  const feedText = await pa.evaluate(() => document.querySelector('.rl-feed').textContent);
   check('реплика Бори видна у Ани над полем', /ахаха/.test(feedText), feedText);
   await pa.click('.rl-chatbtn');
   await pa.waitForTimeout(500);
   await pa.screenshot({ path: path.join(OUT, '5-chat.png') });
   check('чат открылся листом', await pa.evaluate(() => document.querySelector('.rl').classList.contains('chat-open')));
-  await pa.click('.rl-close');
+  await pa.click('.rl-chatbtn');
 
   // Пауза касанием.
   await pb.mouse.click(196, 500);
@@ -191,7 +191,25 @@ const check = (n, c, x = '') => { console.log((c ? '  ✓ ' : '  ✗ ') + n, x);
   const calls = await pa.evaluate(() => window.__feedCalls.map((c) => c[0]));
   check('страница сообщает приложению, что смотрит', calls.includes('reelsWatching'), calls.join(','));
 
-  // Узкий экран и крупный шрифт: ничего не налезает.
+  // Звонок: приложение ответило мостом — кнопка круглая, 40 на 40.
+  await pa.evaluate(() => window.watchVoiceState({ state: 'off' }));
+  await pa.waitForTimeout(200);
+  const call = await pa.evaluate(() => { const r = document.querySelector('.rl-call').getBoundingClientRect(); return [r.width, r.height]; });
+  check('кнопка звонка круглая', call[0] === 40 && call[1] === 40, call.join('×'));
+  // Отправка лежит внутри поля, а не торчит из него.
+  const inside = await pa.evaluate(() => {
+    const f = document.querySelector('.rl-compose').getBoundingClientRect();
+    const s = document.querySelector('.rl-send').getBoundingClientRect();
+    return s.left >= f.left && s.right <= f.right && s.top >= f.top && s.bottom <= f.bottom;
+  });
+  check('кнопка «отправить» внутри поля', inside);
+  check('реакции — наши рисунки, не эмодзи', await pa.evaluate(() => /reactions\/heart|catalog_items/.test(document.querySelector('.rl-react img').src)));
+  await pa.screenshot({ path: path.join(OUT, '7-call.png') });
+  await pa.evaluate(() => window.watchVoiceState({ state: 'live', micOn: true }));
+  await pa.waitForTimeout(200);
+  await pa.screenshot({ path: path.join(OUT, '8-live.png') });
+
+  // Узкий экран: ничего не налезает.
   await pa.setViewportSize({ width: 320, height: 640 });
   await pa.waitForTimeout(400);
   await pa.screenshot({ path: path.join(OUT, '6-narrow.png') });

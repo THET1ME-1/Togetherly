@@ -5,7 +5,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show Factory;
 import 'package:flutter/gestures.dart' show EagerGestureRecognizer, OneSequenceGestureRecognizer;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show Clipboard, ClipboardData;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData, SystemUiOverlayStyle;
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -251,13 +251,21 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> {
         if (didPop) return;
         if (_allowLeave() && mounted) Navigator.of(context).pop();
       },
-      child: _roomScaffold(context, s, cs),
+      // В лентах строка состояния светлыми значками по чёрному.
+      child: widget.reels
+          ? AnnotatedRegion<SystemUiOverlayStyle>(
+              value: SystemUiOverlayStyle.light,
+              child: _roomScaffold(context, s, cs),
+            )
+          : _roomScaffold(context, s, cs),
     );
   }
 
   Widget _roomScaffold(BuildContext context, AppStrings s, ColorScheme cs) {
     return Scaffold(
-      backgroundColor: cs.surface,
+      // Ленты идут по чёрному полю во весь экран: светлая полоса над роликом
+      // выглядела бы чужой рамкой.
+      backgroundColor: widget.reels ? Colors.black : cs.surface,
       // Своей шапки нет: её рисует страница комнаты — «назад», код,
       // «скопировать», «поделиться», звонок и сворачивание. Две шапки подряд
       // съедали высоту и повторяли одно и то же (28.09.2026).
