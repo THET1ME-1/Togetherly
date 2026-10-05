@@ -34,7 +34,7 @@
     refresh: 'Обновить рекомендации', refreshing: 'Подбираем свежие ролики…',
     call: 'Позвонить', react: 'Реакция', chat: 'Чат', share: 'Отправить ролик', prev: 'Прошлый ролик', back: 'Назад',
     mic: 'Микрофон', hang: 'Положить трубку', ringing: 'Звоним…', failed: 'Не вышло',
-    write: () => 'Написать…', send: 'Отправить',
+    write: () => 'Твоя реплика…', send: 'Отправить',
     loading: 'Собираем ленту…', loadingSub: 'Первые ролики приходят за несколько секунд',
     noFeed: 'Ленту даёт приложение', noFeedSub: 'Откройте «Ленты» в Togetherly на телефоне — ролики пойдут и сюда',
     match: 'Совпало!', matchSub: 'Вам обоим зашёл этот ролик', sound: 'Включить звук',
@@ -47,7 +47,7 @@
     refresh: 'Refresh recommendations', refreshing: 'Picking fresh clips…',
     call: 'Call', react: 'React', chat: 'Chat', share: 'Send clip', prev: 'Previous clip', back: 'Back',
     mic: 'Microphone', hang: 'Hang up', ringing: 'Calling…', failed: 'Failed',
-    write: () => 'Message…', send: 'Send',
+    write: () => 'Your line…', send: 'Send',
     loading: 'Gathering your feed…', loadingSub: 'The first clips arrive in a few seconds',
     noFeed: 'The feed comes from the app', noFeedSub: 'Open Feeds in Togetherly on your phone and the clips will show up here too',
     match: 'It’s a match!', matchSub: 'You both liked this one', sound: 'Turn sound on',
@@ -164,10 +164,12 @@
         <div class="rl-pick" hidden></div>
         <div class="rl-feed"></div>
         <button class="rl-sound" hidden>${ic(IC.sound)}${T.sound}</button>
-        <form class="rl-compose" autocomplete="off">
+        <form class="rl-compose" id="rlCompose" autocomplete="off">
           <input class="rl-input" enterkeyhint="send" maxlength="500">
-          <button class="rl-send" type="submit" aria-label="${T.send}">${ic(IC.send)}</button>
         </form>
+        <!-- Отправка — нижняя кнопка столбика справа (макет «Своя реплика»),
+             поэтому стоит вне поля и шлёт форму атрибутом form. -->
+        <button class="rl-send" type="submit" form="rlCompose" aria-label="${T.send}" disabled>${ic(IC.send)}</button>
       </div>`;
     document.body.appendChild(root);
 
@@ -178,8 +180,9 @@
       voice: $('.rl-voice', root), rail: $('.rl-rail', root), react: $('.rl-react', root),
       pick: $('.rl-pick', root), feed: $('.rl-feed', root), sound: $('.rl-sound', root),
       list: $('.rl-list', root), prev: $('.rl-prev', root), input: $('.rl-input', root),
-      save: $('.rl-save', root), lead: $('.rl-lead', root),
+      save: $('.rl-save', root), lead: $('.rl-lead', root), send: $('.rl-send', root),
     };
+    el.input.addEventListener('input', syncTyping);
     $('button', el.lead).addEventListener('click', takeLead);
 
     REACT.forEach(([, e]) => {
@@ -338,6 +341,15 @@
     box.value = text;
     btn.click();
     el.input.value = '';
+    syncTyping();
+  }
+
+  // Пока в поле есть текст, оно красится как своя реплика, а кнопка отправки
+  // оживает; пустое поле — матовое, кнопка приглушена и не нажимается.
+  function syncTyping() {
+    const live = !!el.input.value.trim();
+    el.root.classList.toggle('is-typing', live);
+    el.send.disabled = !live;
   }
 
   // ── жесты по ролику: свайп, касание, двойное касание ─────────────────────

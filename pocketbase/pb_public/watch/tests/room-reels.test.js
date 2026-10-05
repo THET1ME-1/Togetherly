@@ -205,9 +205,21 @@ const check = (n, c, x = '') => { console.log((c ? '  ✓ ' : '  ✗ ') + n, x);
   check('совпадение у Бори', await pb.isVisible('.rl-match'));
   await pb.screenshot({ path: path.join(OUT, '4-match.png') });
 
-  // Чат.
+  // Чат. Пустое поле — отправка приглушена и не нажимается; с текстом поле
+  // красится как своя реплика, кнопка оживает; после отправки — снова пусто.
+  check('пустое поле: отправка выключена', await pb.evaluate(() => document.querySelector('.rl-send').disabled));
   await pb.fill('.rl-input', 'ахаха смотри');
+  const typing = await pb.evaluate(() => ({
+    on: document.querySelector('.rl').classList.contains('is-typing'),
+    send: !document.querySelector('.rl-send').disabled,
+    bg: getComputedStyle(document.querySelector('.rl-compose')).backgroundColor,
+  }));
+  check('с текстом поле красится как реплика, отправка включена', typing.on && typing.send && /255, 126, 155/.test(typing.bg), JSON.stringify(typing));
+  await pb.waitForTimeout(500);
+  await pb.screenshot({ path: path.join(OUT, '4b-typing.png') });
   await pb.click('.rl-send');
+  check('после отправки поле пустое, кнопка снова выключена', await pb.evaluate(() =>
+    !document.querySelector('.rl-input').value && document.querySelector('.rl-send').disabled && !document.querySelector('.rl').classList.contains('is-typing')));
   await pa.waitForTimeout(900);
   const feedText = await pa.evaluate(() => document.querySelector('.rl-feed').textContent);
   check('реплика Бори видна у Ани над полем', /ахаха/.test(feedText), feedText);
@@ -235,13 +247,14 @@ const check = (n, c, x = '') => { console.log((c ? '  ✓ ' : '  ✗ ') + n, x);
   await pa.waitForTimeout(200);
   const call = await pa.evaluate(() => { const r = document.querySelector('.rl-call').getBoundingClientRect(); return [r.width, r.height]; });
   check('кнопка звонка круглая и тонкая', call[0] === call[1] && call[0] <= 44, call.join('×'));
-  // Отправка лежит внутри поля, а не торчит из него.
-  const inside = await pa.evaluate(() => {
+  // Отправка — нижняя ячейка столбика справа, на одной линии с полем.
+  const inRail = await pa.evaluate(() => {
     const f = document.querySelector('.rl-compose').getBoundingClientRect();
+    const r = document.querySelector('.rl-rail').getBoundingClientRect();
     const s = document.querySelector('.rl-send').getBoundingClientRect();
-    return s.left >= f.left && s.right <= f.right && s.top >= f.top && s.bottom <= f.bottom;
+    return s.left >= r.left && s.right <= r.right && s.bottom <= r.bottom && s.top >= f.top - 4 && s.left >= f.right;
   });
-  check('кнопка «отправить» внутри поля', inside);
+  check('кнопка «отправить» внизу столбика, рядом с полем', inRail);
   check('реакции — наши рисунки, не эмодзи', await pa.evaluate(() => /reactions\/heart|catalog_items/.test(document.querySelector('.rl-react img').src)));
   await pa.screenshot({ path: path.join(OUT, '7-call.png') });
   await pa.evaluate(() => window.watchVoiceState({ state: 'live', micOn: true }));

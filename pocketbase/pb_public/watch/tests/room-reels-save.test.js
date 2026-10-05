@@ -128,7 +128,7 @@ const check = (n, c, x = '') => { console.log((c ? '  ✓ ' : '  ✗ ') + n, x);
   const compose = await box(A.page, '.rl-compose');
   check('столбик из пяти кнопок на экране', rail.top > 0 && rail.bottom < 852 && rail.h > 230, JSON.stringify(rail));
   check('столбик не налезает на звонок', rail.top >= voice.bottom || voice.top === 0 && voice.bottom === 0, 'верх ' + Math.round(rail.top) + ', низ звонка ' + Math.round(voice.bottom));
-  check('столбик над полем сообщения', rail.bottom <= compose.top, Math.round(rail.bottom) + ' / ' + Math.round(compose.top));
+  check('столбик справа от поля сообщения', rail.left >= compose.right, Math.round(rail.left) + ' / ' + Math.round(compose.right));
 
   await A.page.click('.rl-save');
   await A.page.waitForTimeout(800);
