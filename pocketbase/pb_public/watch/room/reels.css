@@ -48,6 +48,12 @@ body.reels {
   height: var(--vph, 100dvh);
 }
 
+/* Лента ещё не встала: вместо комнаты чёрный экран, как у самой ленты.
+   Метку `reels-boot` ставит index.html до первой отрисовки. */
+html.reels-boot,
+html.reels-boot body.room-body:not(.reels) { background: #000; }
+html.reels-boot body.room-body:not(.reels) > * { visibility: hidden; }
+
 /* Обычная комната под лентами живёт, но не видна: её кнопки и поле нажимает
    reels.js, а переписку он переносит к себе в лист. */
 body.reels > .top,
