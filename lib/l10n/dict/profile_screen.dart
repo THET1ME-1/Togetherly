@@ -339,6 +339,15 @@ const Map<String, Map<String, String>> profileScreenStrings = {
     'fr': 'Obtenir le code',
     'de': 'Code abrufen',
   },
+  'watchFromComputer': {
+    'ru': 'С компьютера · код',
+    'en': 'From a computer · code',
+    'pt': 'Pelo computador · código',
+    'it': 'Dal computer · codice',
+    'es': 'Desde el ordenador · código',
+    'fr': 'Depuis l’ordinateur · code',
+    'de': 'Am Computer · Code',
+  },
   'watchPartnerInBrowser': {
     'ru': 'Партнёр смотрит в браузере?',
     'en': 'Partner watching in a browser?',

@@ -2285,6 +2285,7 @@ abstract class AppStrings {
   String get reelsShortsHint;
   String get reelsTiktokHint;
   String get watchPartnerInBrowser;
+  String get watchFromComputer;
 
   /// Код комнаты не пришёл — предлагаем спросить заново, а не молчать
   /// прочерком (жалоба «нет кода», 16.08.2026).

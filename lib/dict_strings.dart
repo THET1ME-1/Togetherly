@@ -3419,6 +3419,7 @@ abstract class DictStrings extends AppStrings {
   String get reelsTiktokHint => _t('reelsTiktokHint');
   @override
   String get watchPartnerInBrowser => _t('watchPartnerInBrowser');
+  String get watchFromComputer => _t('watchFromComputer');
   @override
   String get watchCodeRetry => _t('watchCodeRetry');
   @override

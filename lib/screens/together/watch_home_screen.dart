@@ -26,6 +26,9 @@ import 'together_launcher.dart';
 import 'watch_player_screen.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/storage_image.dart';
+import '../../widgets/together/watch_home_blocks.dart';
+import '../../services/pocketbase_service.dart';
+import '../../services/pb_auth_service.dart';
 
 /// Вход в совместный просмотр.
 ///
@@ -379,12 +382,42 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
     );
   }
 
+  /// Плитки под главной карточкой: слева высокая совместная лента, справа
+  /// игры и вход с компьютера. Ленты нет (Плюса тут не продают и никто не
+  /// зовёт) — игры и компьютер встают рядом.
+  Widget _bento(AppStrings s) {
+    return WatchBento(
+      // Совместная лента — по Togetherly+: запускает купивший, партнёр
+      // входит по его зову.
+      reels: _reelsEntry == ReelsEntry.hidden
+          ? null
+          : (w) => WatchReelsTile(
+                title: s.reelsTogether,
+                text: _invite != null && _reelsEntry == ReelsEntry.join
+                    ? s.reelsInvitedBy(_invite!.name.isEmpty ? s.partner : _invite!.name, _invite!.source.title)
+                    : s.reelsTogetherHint,
+                plusLocked: _reelsEntry == ReelsEntry.buy || _reelsEntry == ReelsEntry.askPartner,
+                onTap: _room.isEmpty ? null : _openReels,
+                titleWidth: w,
+              ),
+      games: (w) => WatchGamesTile(title: s.gamesForTwo, text: s.gamesForTwoHint, onTap: _openGames, titleWidth: w),
+      computer: WatchComputerTile(
+        code: _room,
+        loading: _loading,
+        onCopy: _copyCode,
+        onOpenSite: _openOnSite,
+        onRetry: _loading ? null : () => _loadRoom(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = LocaleService.current;
     final cs = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
     final partner = widget.pairData.partnerName;
+    final me = PocketBaseService().userId ?? '';
+    final profile = PbAuthService().currentProfile() ?? const <String, dynamic>{};
 
     return RefreshIndicator(
       onRefresh: _refreshAll,
@@ -394,13 +427,20 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
         children: [
-          _Hero(cs: cs, text: text),
-          const SizedBox(height: 14),
-          _PrimaryCard(
-            title: partner.isEmpty
-                ? s.watchTogether
-                : s.watchWithPartner(partner),
+          // Вариант А макета «Афиша и плитки» (выбран 05.10.2026): кино —
+          // главная карточка, ниже плитки, а не ряд одинаковых строк.
+          WatchLead(title: s.watchHeroTitle, text: s.watchHeroText),
+          const SizedBox(height: 12),
+          WatchKinoCard(
+            theme: widget.theme,
+            title: partner.isEmpty ? s.watchTogether : s.watchWithPartner(partner),
             subtitle: s.watchRoomOpensForBoth,
+            myUid: me,
+            myAvatar: (profile['avatarUrl'] as String?) ?? '',
+            myName: (profile['displayName'] as String?) ?? '',
+            partnerUid: widget.pairData.partnerUid,
+            partnerAvatar: widget.pairData.partnerAvatarUrl,
+            partnerName: partner,
             // У купившего Togetherly+ рекламы перед комнатой нет вовсе
             // (`TogetherLauncher` пропускает её по `PlusService.active`), и
             // обещать её в подписи — врать человеку, который как раз заплатил,
@@ -409,55 +449,10 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
             enabled: !_loading && _room.isNotEmpty,
             onTap: _openInApp,
           ),
-          const SizedBox(height: 12),
-          // Совместная лента — по Togetherly+: запускает купивший, партнёр
-          // входит по его зову. Где Плюса нет вовсе и никто не зовёт, плитки нет.
-          if (_reelsEntry != ReelsEntry.hidden) ...[
-            _TonalCard(
-              icon: Icons.swipe_up_rounded,
-              title: s.reelsTogether,
-              subtitle: _invite != null && _reelsEntry == ReelsEntry.join
-                  ? s.reelsInvitedBy(_invite!.name.isEmpty ? s.partner : _invite!.name, _invite!.source.title)
-                  : s.reelsTogetherHint,
-              plusLocked: _reelsEntry == ReelsEntry.buy || _reelsEntry == ReelsEntry.askPartner,
-              onTap: _room.isEmpty ? null : _openReels,
-            ),
-            const SizedBox(height: 12),
-          ],
-          _TonalCard(
-            icon: Icons.open_in_new_rounded,
-            title: s.watchOpenOnSite,
-            subtitle: s.watchOnSiteHint,
-            onTap: _room.isEmpty ? null : _openOnSite,
-          ),
-          const SizedBox(height: 12),
-          _CodeRow(
-            code: _room,
-            loading: _loading,
-            onCopy: _copyCode,
-            onRetry: _loading ? null : () => _loadRoom(),
-          ),
-          const SizedBox(height: 20),
-          // Игры к комнате не привязаны: они на одном телефоне, кода не просят.
-          // Поэтому стоят ПОСЛЕ строки кода, за отступом — иначе читались бы
-          // продолжением связки «комната — сайт — код».
-          _TonalCard(
-            icon: Icons.sports_esports_rounded,
-            title: s.gamesForTwo,
-            subtitle: s.gamesForTwoHint,
-            onTap: _openGames,
-          ),
-          const SizedBox(height: 20),
-          Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 12),
-            child: Text(
-              s.watchOurVideos,
-              style: text.titleMedium?.copyWith(
-                color: cs.onSurface,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
+          const SizedBox(height: 10),
+          _bento(s),
+          const SizedBox(height: 10),
+          WatchSectionHeader(title: s.watchOurVideos, count: _videos.length),
           // M3 multi-browse карусель: контейнер каждого кадра сужается маской,
           // а содержимое остаётся в полном размере (parallax). Первый слот —
           // плитка загрузки, дальше свои ролики.
@@ -492,17 +487,8 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
             ),
           ),
           if (_recent.isNotEmpty) ...[
-            const SizedBox(height: 20),
-            Padding(
-              padding: const EdgeInsets.only(left: 4, bottom: 12),
-              child: Text(
-                s.watchRecent,
-                style: text.titleMedium?.copyWith(
-                  color: cs.onSurface,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
+            const SizedBox(height: 10),
+            WatchSectionHeader(title: s.watchRecent),
             SizedBox(
               height: 132,
               child: ListView.separated(
@@ -625,351 +611,6 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
       videoUrl: entry.url,
     );
     await _loadRecent();
-  }
-}
-
-class _Hero extends StatelessWidget {
-  final ColorScheme cs;
-  final TextTheme text;
-
-  const _Hero({required this.cs, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    final s = LocaleService.current;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(22, 22, 22, 24),
-      decoration: BoxDecoration(
-        color: cs.primaryContainer,
-        borderRadius: BorderRadius.circular(28),
-      ),
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Positioned(
-            right: -18,
-            bottom: -34,
-            child: Text(
-              '♥',
-              style: TextStyle(
-                fontSize: 116,
-                height: 1,
-                color: cs.onPrimaryContainer.withValues(alpha: 0.14),
-              ),
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                s.watchHeroTitle,
-                style: text.headlineSmall?.copyWith(
-                  color: cs.onPrimaryContainer,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: 240,
-                child: Text(
-                  s.watchHeroText,
-                  style: text.bodyMedium?.copyWith(
-                    color: cs.onPrimaryContainer.withValues(alpha: 0.86),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PrimaryCard extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final String? note;
-  final bool enabled;
-  final VoidCallback onTap;
-
-  const _PrimaryCard({
-    required this.title,
-    required this.subtitle,
-    this.note,
-    required this.enabled,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
-
-    return Opacity(
-      opacity: enabled ? 1 : 0.55,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: enabled ? onTap : null,
-          borderRadius: BorderRadius.circular(28),
-          child: Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: cs.primary,
-              borderRadius: BorderRadius.circular(28),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: cs.onPrimary.withValues(alpha: 0.22),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.play_arrow_rounded,
-                    color: cs.onPrimary,
-                    size: 30,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        title,
-                        style: text.titleMedium?.copyWith(color: cs.onPrimary),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: text.bodySmall?.copyWith(
-                          color: cs.onPrimary.withValues(alpha: 0.86),
-                        ),
-                      ),
-                      if (note != null) ...[
-                        const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 11,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: cs.onPrimary.withValues(alpha: 0.22),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            note!,
-                            style:
-                                text.labelSmall?.copyWith(color: cs.onPrimary),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _TonalCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback? onTap;
-
-  /// Чип «Togetherly+» с замком у названия: касание ведёт на витрину.
-  final bool plusLocked;
-
-  const _TonalCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    this.onTap,
-    this.plusLocked = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(28),
-        child: Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: cs.surfaceContainerHigh,
-            borderRadius: BorderRadius.circular(28),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: cs.primaryContainer,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: cs.onPrimaryContainer, size: 26),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Название переносится, чип встаёт следом: на 320 точках
-                    // при крупном шрифте в одну строку они не помещаются.
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Text(title, style: text.titleMedium),
-                        if (plusLocked)
-                          Container(
-                            padding: const EdgeInsets.fromLTRB(8, 4, 10, 4),
-                            decoration: BoxDecoration(
-                              color: cs.secondaryContainer,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.lock_rounded, size: 13, color: cs.onSecondaryContainer),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Togetherly+',
-                                  style: text.labelSmall?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    color: cs.onSecondaryContainer,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: text.bodySmall?.copyWith(
-                        color: cs.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CodeRow extends StatelessWidget {
-  final String code;
-  final bool loading;
-
-  /// Спросить код заново. Нужен, когда его так и не дали: без этого человек
-  /// смотрит на прочерк и не знает, что делать.
-  final VoidCallback? onRetry;
-  final VoidCallback onCopy;
-
-  const _CodeRow({
-    required this.code,
-    required this.loading,
-    required this.onCopy,
-    this.onRetry,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final s = LocaleService.current;
-    final cs = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainer,
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  s.watchPartnerInBrowser,
-                  style: text.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-                ),
-                const SizedBox(height: 2),
-                if (loading)
-                  Text(
-                    '…',
-                    style: text.titleLarge?.copyWith(letterSpacing: 1.2),
-                  )
-                else if (code.isEmpty)
-                  // Код не дали — говорим об этом словами и даём повторить.
-                  // Прежде тут стоял молчаливый прочерк, и человек писал в
-                  // поддержку «нет кода» (16.08.2026).
-                  InkWell(
-                    onTap: onRetry,
-                    borderRadius: BorderRadius.circular(8),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.refresh_rounded,
-                            size: 18,
-                            color: cs.primary,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            s.watchCodeRetry,
-                            style: text.titleSmall?.copyWith(color: cs.primary),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                else
-                  Text(
-                    code,
-                    style: text.titleLarge?.copyWith(letterSpacing: 1.2),
-                  ),
-              ],
-            ),
-          ),
-          IconButton.filledTonal(
-            onPressed: code.isEmpty ? null : onCopy,
-            icon: const Icon(Icons.copy_rounded, size: 20),
-            tooltip: s.copyLink,
-          ),
-        ],
-      ),
-    );
   }
 }
 
