@@ -11,6 +11,7 @@ import '../../services/watch_room_service.dart';
 import '../../services/watch_videos_service.dart';
 import 'watch_player_screen.dart';
 import 'watch_room_screen.dart';
+import '../../widgets/common/coin_image.dart';
 import '../../widgets/common/m3_loading.dart';
 
 /// Вход в совместный просмотр.
@@ -93,12 +94,13 @@ class TogetherLauncher {
               const SizedBox(height: 16),
               Text(s.watchTogether, style: Theme.of(ctx).textTheme.headlineSmall),
               const SizedBox(height: 8),
-              Text(
-                s.watchTogetherAdPrompt,
-                style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
+              // Эмодзи 🪙 в строке — метка: на экране вместо него живая
+              // монета TY, как везде в приложении.
+              Text.rich(TextSpan(
+                children: coinSpans(s.watchTogetherAdPrompt, Theme.of(ctx).textTheme.bodyMedium?.copyWith(
                       color: cs.onSurfaceVariant,
-                    ),
-              ),
+                    )),
+              )),
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
