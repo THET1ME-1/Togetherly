@@ -24,6 +24,7 @@ import 'package:latlong2/latlong.dart' show LatLng;
 import 'package:just_audio/just_audio.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../utils/safe_launch.dart';
+import '../utils/video_link_thumb.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:exif/exif.dart';

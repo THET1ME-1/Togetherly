@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:pocketbase/pocketbase.dart';
 import 'package:video_compress/video_compress.dart';
 
+import '../utils/video_link_thumb.dart';
 import 'pocketbase_service.dart';
 import 'pb_realtime_service.dart';
 
@@ -256,25 +257,42 @@ class WatchVideosService {
       for (final r in res.items) {
         final raw = r.data['data'];
         if (raw is! Map) continue;
-        final url = (raw['videoUrl'] ?? '').toString();
-        if (url.isEmpty) continue;
-        out.add(
-          WatchVideo(
-            id: r.id,
-            title: (raw['title'] ?? raw['text'] ?? '').toString(),
-            url: url,
-            thumbUrl: (raw['imageUrl'] ?? raw['thumbnailUrl'] ?? '').toString(),
-            seconds: 0,
-            // Не «начинается на pb://», а «откроет ли это вкладка комнаты»:
-            // защищённый файл по обычному https туда уезжал и висел спиннером.
-            appOnly: !playsInRoom(url),
-          ),
-        );
+        final v = fromMemoryData(r.id, raw);
+        if (v != null) out.add(v);
       }
       return out;
     } catch (_) {
       return const [];
     }
+  }
+
+  /// Плитка «Наших видео» из данных воспоминания; без ролика — null.
+  ///
+  /// Обложка: своя, а без неё — кадр площадки по ссылке ([videoLinkThumb]).
+  /// У ссылок своя почти никогда не сохраняется, и раньше такие плитки
+  /// стояли серыми. Подпись: название, иначе подпись к воспоминанию.
+  static WatchVideo? fromMemoryData(String id, Map raw) {
+    final url = (raw['videoUrl'] ?? '').toString();
+    if (url.isEmpty) return null;
+    String pick(List<String> keys) {
+      for (final k in keys) {
+        final s = (raw[k] ?? '').toString().trim();
+        if (s.isNotEmpty) return s;
+      }
+      return '';
+    }
+
+    final own = pick(const ['imageUrl', 'thumbnailUrl']);
+    return WatchVideo(
+      id: id,
+      title: pick(const ['title', 'caption', 'text']),
+      url: url,
+      thumbUrl: own.isNotEmpty ? own : videoLinkThumb(url),
+      seconds: 0,
+      // Не «начинается на pb://», а «откроет ли это вкладка комнаты»:
+      // защищённый файл по обычному https туда уезжал и висел спиннером.
+      appOnly: !playsInRoom(url),
+    );
   }
 
   /// Загружает ролик. Возвращает запись или null, если файл слишком большой
