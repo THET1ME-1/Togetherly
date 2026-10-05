@@ -59,7 +59,6 @@ void main() {
                 WatchKinoCard(
                   theme: t,
                   title: s.watchWithPartner('JB SHARAN'),
-                  subtitle: s.watchRoomOpensForBoth,
                   hint: s.watchKinoSources,
                   myUid: '',
                   myAvatar: '',

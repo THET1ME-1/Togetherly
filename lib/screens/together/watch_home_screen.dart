@@ -434,7 +434,6 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
           WatchKinoCard(
             theme: widget.theme,
             title: partner.isEmpty ? s.watchTogether : s.watchWithPartner(partner),
-            subtitle: s.watchRoomOpensForBoth,
             hint: s.watchKinoSources,
             myUid: me,
             myAvatar: (profile['avatarUrl'] as String?) ?? '',

@@ -189,7 +189,6 @@ class WatchKinoCard extends StatelessWidget {
     super.key,
     required this.theme,
     required this.title,
-    required this.subtitle,
     required this.hint,
     required this.myUid,
     required this.myAvatar,
@@ -204,7 +203,6 @@ class WatchKinoCard extends StatelessWidget {
 
   final AppTheme theme;
   final String title;
-  final String subtitle;
 
   /// «Ссылка, файл или Shorts» — слева от кнопки запуска.
   final String hint;
@@ -274,11 +272,6 @@ class WatchKinoCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
                 _BalancedText(title, _title(25, on).copyWith(height: 1.1), maxLines: 3),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: TextStyle(fontFamily: 'Onest', letterSpacing: 0, fontSize: 14, height: 1.45, color: on.withValues(alpha: 0.9)),
-                ),
                 const SizedBox(height: 14),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
