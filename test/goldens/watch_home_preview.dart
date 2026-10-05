@@ -54,7 +54,7 @@ void main() {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                WatchLead(title: s.watchHeroTitle, text: s.watchHeroText),
+                WatchLead(title: s.watchHeroTitle),
                 const SizedBox(height: 12),
                 WatchKinoCard(
                   theme: t,

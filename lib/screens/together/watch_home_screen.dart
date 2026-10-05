@@ -429,7 +429,7 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
         children: [
           // Вариант А макета «Афиша и плитки» (выбран 05.10.2026): кино —
           // главная карточка, ниже плитки, а не ряд одинаковых строк.
-          WatchLead(title: s.watchHeroTitle, text: s.watchHeroText),
+          WatchLead(title: s.watchHeroTitle),
           const SizedBox(height: 12),
           WatchKinoCard(
             theme: widget.theme,

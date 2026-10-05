@@ -64,39 +64,29 @@ class _BalancedText extends StatelessWidget {
   }
 }
 
-/// Заголовок экрана: крупно Unbounded, под ним строка.
+/// Заголовок экрана: крупно Unbounded. Строку-пояснение под ним убрали
+/// (05.10.2026): «пауза у одного, пауза у обоих» и так понятно.
 class WatchLead extends StatelessWidget {
-  const WatchLead({super.key, required this.title, required this.text});
+  const WatchLead({super.key, required this.title});
 
   final String title;
-  final String text;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 6, 4, 2),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _BalancedText(
-            title,
-            TextStyle(
-              fontFamily: 'Unbounded',
-              letterSpacing: 0,
-              fontSize: 26,
-              height: 1.08,
-              fontWeight: FontWeight.w800,
-              fontVariations: const [FontVariation('wght', 800)],
-              color: cs.onSurface,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            text,
-            style: TextStyle(fontFamily: 'Onest', letterSpacing: 0, fontSize: 14, color: cs.onSurfaceVariant),
-          ),
-        ],
+      child: _BalancedText(
+        title,
+        TextStyle(
+          fontFamily: 'Unbounded',
+          letterSpacing: 0,
+          fontSize: 26,
+          height: 1.08,
+          fontWeight: FontWeight.w800,
+          fontVariations: const [FontVariation('wght', 800)],
+          color: cs.onSurface,
+        ),
       ),
     );
   }
