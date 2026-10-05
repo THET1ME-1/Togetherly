@@ -187,20 +187,31 @@ class Superuser:
 
     def __enter__(self):
         self.email = "tmp-thumbs-%s@x.local" % secrets.token_hex(3)
-        password = secrets.token_urlsafe(16)
+        # Только буквы и цифры: пароль с дефисом впереди командная строка
+        # PocketBase принимает за флаг, суперюзера не заводит и отвечает
+        # кодом 0 — вход потом получал 400 (05.10.2026).
+        password = secrets.token_hex(16)
         subprocess.run([PB_DIR + "/pocketbase", "superuser", "create", self.email, password],
                        cwd=PB_DIR, check=True, capture_output=True)
-        req = urllib.request.Request(
-            PB + "/api/collections/_superusers/auth-with-password",
-            data=json.dumps({"identity": self.email, "password": password}).encode(),
-            headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=30) as r:
-            self.token = json.load(r)["token"]
+        try:
+            req = urllib.request.Request(
+                PB + "/api/collections/_superusers/auth-with-password",
+                data=json.dumps({"identity": self.email, "password": password}).encode(),
+                headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=30) as r:
+                self.token = json.load(r)["token"]
+        except Exception:
+            # __exit__ при сбое в __enter__ не зовётся — убираем за собой сами.
+            self._drop()
+            raise
         return self
 
-    def __exit__(self, *exc):
+    def _drop(self):
         subprocess.run([PB_DIR + "/pocketbase", "superuser", "delete", self.email],
                        cwd=PB_DIR, check=False, capture_output=True)
+
+    def __exit__(self, *exc):
+        self._drop()
 
 
 def upload(token: str, path: str, uid: str, group_id: str) -> str:

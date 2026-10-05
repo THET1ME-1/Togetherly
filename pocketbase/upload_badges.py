@@ -66,7 +66,9 @@ def slug(key: str) -> str:
 
 def superuser_token() -> tuple[str, str]:
     email = f"tmp-badges-{secrets.token_hex(3)}@x.local"
-    password = secrets.token_urlsafe(12)
+    # Только буквы и цифры: пароль с дефисом впереди командная строка
+    # PocketBase принимает за флаг и суперюзера не заводит (05.10.2026).
+    password = secrets.token_hex(16)
     subprocess.run([f"{PB_DIR}/pocketbase", "superuser", "create", email, password],
                    cwd=PB_DIR, check=True, capture_output=True)
     req = urllib.request.Request(
