@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/reels_source.dart';
+import '../../models/symbol_catalog.dart';
 import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../avatar_widget.dart';
@@ -13,6 +14,56 @@ import '../avatar_widget.dart';
 /// и тёмная плитка «С компьютера» с кодом комнаты. Плоско, без теней и
 /// обводок; цвета — роли схемы и заливка темы ([AppTheme.fillColor]).
 
+/// Заголовок с ровными строками, как `text-wrap: balance` в макете: ширина
+/// ужимается, пока число строк не растёт. Иначе «Одно кино на / двоих»
+/// оставляет одно слово висеть внизу.
+class _BalancedText extends StatelessWidget {
+  const _BalancedText(this.text, this.style, {this.maxLines});
+
+  final String text;
+  final TextStyle style;
+  final int? maxLines;
+
+  @override
+  Widget build(BuildContext context) {
+    final merged = DefaultTextStyle.of(context).style.merge(style);
+    final scaler = MediaQuery.textScalerOf(context);
+    return LayoutBuilder(
+      builder: (context, c) {
+        final max = c.maxWidth;
+        TextPainter lay(double w) => TextPainter(
+          text: TextSpan(text: text, style: merged),
+          textDirection: TextDirection.ltr,
+          textScaler: scaler,
+          maxLines: maxLines,
+        )..layout(maxWidth: w);
+        final lines = lay(max).computeLineMetrics().length;
+        var width = max;
+        if (max.isFinite && lines > 1) {
+          var lo = max / 2, hi = max;
+          for (var i = 0; i < 12; i++) {
+            final mid = (lo + hi) / 2;
+            final p = lay(mid);
+            if (p.computeLineMetrics().length > lines || p.didExceedMaxLines) {
+              lo = mid;
+            } else {
+              hi = mid;
+            }
+          }
+          width = hi + 1;
+        }
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: SizedBox(
+            width: width.clamp(0, max),
+            child: Text(text, style: style, maxLines: maxLines, overflow: maxLines == null ? null : TextOverflow.ellipsis),
+          ),
+        );
+      },
+    );
+  }
+}
+
 /// Заголовок экрана: крупно Unbounded, под ним строка.
 class WatchLead extends StatelessWidget {
   const WatchLead({super.key, required this.title, required this.text});
@@ -24,14 +75,15 @@ class WatchLead extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 4, 4, 2),
+      padding: const EdgeInsets.fromLTRB(4, 6, 4, 2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          _BalancedText(
             title,
-            style: TextStyle(
+            TextStyle(
               fontFamily: 'Unbounded',
+              letterSpacing: 0,
               fontSize: 26,
               height: 1.08,
               fontWeight: FontWeight.w800,
@@ -40,7 +92,10 @@ class WatchLead extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          Text(text, style: TextStyle(fontFamily: 'Onest', fontSize: 14, color: cs.onSurfaceVariant)),
+          Text(
+            text,
+            style: TextStyle(fontFamily: 'Onest', letterSpacing: 0, fontSize: 14, color: cs.onSurfaceVariant),
+          ),
         ],
       ),
     );
@@ -72,7 +127,7 @@ class _Chip extends StatelessWidget {
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontFamily: 'Onest', fontSize: 12, fontWeight: FontWeight.w700, color: fg),
+              style: TextStyle(fontFamily: 'Onest', letterSpacing: 0, fontSize: 12, fontWeight: FontWeight.w700, color: fg),
             ),
           ),
         ],
@@ -99,13 +154,19 @@ class _FitTitle extends StatelessWidget {
     final max = maxWidth;
     if (max == null || max <= 0) return Text(text, style: style);
     final scaler = MediaQuery.textScalerOf(context);
-    var size = style.fontSize ?? 15;
+    // Мерить тем же стилем, каким нарисует Text: он сливается с темой, а у M3
+    // там разрядка 0.25 — без неё слово мерилось уже, чем выходило на экране.
+    final full = DefaultTextStyle.of(context).style.merge(style);
+    var size = full.fontSize ?? 15;
     final words = text.split(RegExp(r'\s+'));
     double widest(double s) {
       var w = 0.0;
       for (final word in words) {
         final tp = TextPainter(
-          text: TextSpan(text: word, style: style.copyWith(fontSize: s)),
+          text: TextSpan(
+            text: word,
+            style: full.copyWith(fontSize: s),
+          ),
           textDirection: TextDirection.ltr,
           textScaler: scaler,
           maxLines: 1,
@@ -114,6 +175,7 @@ class _FitTitle extends StatelessWidget {
       }
       return w;
     }
+
     while (size > 10 && widest(size) > max) {
       size -= 0.5;
     }
@@ -122,13 +184,14 @@ class _FitTitle extends StatelessWidget {
 }
 
 TextStyle _title(double size, Color color) => TextStyle(
-      fontFamily: 'Unbounded',
-      fontSize: size,
-      height: 1.12,
-      fontWeight: FontWeight.w800,
-      fontVariations: const [FontVariation('wght', 800)],
-      color: color,
-    );
+  fontFamily: 'Unbounded',
+  letterSpacing: 0,
+  fontSize: size,
+  height: 1.12,
+  fontWeight: FontWeight.w800,
+  fontVariations: const [FontVariation('wght', 800)],
+  color: color,
+);
 
 /// Главная карточка: смотреть кино с партнёром.
 class WatchKinoCard extends StatelessWidget {
@@ -137,6 +200,7 @@ class WatchKinoCard extends StatelessWidget {
     required this.theme,
     required this.title,
     required this.subtitle,
+    required this.hint,
     required this.myUid,
     required this.myAvatar,
     required this.myName,
@@ -151,6 +215,9 @@ class WatchKinoCard extends StatelessWidget {
   final AppTheme theme;
   final String title;
   final String subtitle;
+
+  /// «Ссылка, файл или Shorts» — слева от кнопки запуска.
+  final String hint;
   final String myUid;
   final String myAvatar;
   final String myName;
@@ -168,12 +235,12 @@ class WatchKinoCard extends StatelessWidget {
     final fill = theme.fillColor;
     final on = AppThemes.onColor(fill, mode: theme.brightness);
     Widget avatar(String uid, String url, String name) => Container(
-          padding: const EdgeInsets.all(3),
-          decoration: BoxDecoration(color: fill, shape: BoxShape.circle),
-          // Заглушка с буквой красится этим цветом: основной цвет темы совпал
-          // бы с карточкой, и без фото аватарки не было бы видно.
-          child: AvatarWidget(uid: uid, liveUrl: url, name: name, size: 42, primary: on, showFrame: false),
-        );
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(color: fill, shape: BoxShape.circle),
+      // Заглушка с буквой красится этим цветом: основной цвет темы совпал
+      // бы с карточкой, и без фото аватарки не было бы видно.
+      child: AvatarWidget(uid: uid, liveUrl: url, name: name, size: 42, primary: on, showFrame: false),
+    );
     return Opacity(
       opacity: enabled ? 1 : 0.6,
       child: Material(
@@ -195,8 +262,7 @@ class WatchKinoCard extends StatelessWidget {
                       child: Stack(
                         children: [
                           avatar(myUid, myAvatar, myName),
-                          if (partnerUid.isNotEmpty)
-                            Positioned(left: 34, child: avatar(partnerUid, partnerAvatar, partnerName)),
+                          if (partnerUid.isNotEmpty) Positioned(left: 34, child: avatar(partnerUid, partnerAvatar, partnerName)),
                         ],
                       ),
                     ),
@@ -206,29 +272,45 @@ class WatchKinoCard extends StatelessWidget {
                         alignment: Alignment.centerRight,
                         child: note == null
                             ? const SizedBox.shrink()
-                            : _Chip(icon: Icons.bolt_rounded, label: note!, fg: on, bg: on.withValues(alpha: 0.22)),
+                            : _Chip(
+                                icon: const IconData(0xea0b, fontFamily: SymbolCatalog.fontFamily),
+                                label: note!,
+                                fg: on,
+                                bg: on.withValues(alpha: 0.24),
+                              ),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 14),
-                Text(title, style: _title(25, on), maxLines: 3, overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 12),
+                _BalancedText(title, _title(25, on).copyWith(height: 1.1), maxLines: 3),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: TextStyle(fontFamily: 'Onest', letterSpacing: 0, fontSize: 14, height: 1.45, color: on.withValues(alpha: 0.9)),
+                ),
+                const SizedBox(height: 14),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Expanded(
                       child: Text(
-                        subtitle,
-                        style: TextStyle(fontFamily: 'Onest', fontSize: 14, color: on.withValues(alpha: 0.9)),
+                        hint,
+                        style: TextStyle(
+                          fontFamily: 'Onest',
+                          letterSpacing: 0,
+                          fontSize: 13,
+                          height: 1.45,
+                          color: on.withValues(alpha: 0.9),
+                        ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     Container(
                       width: 64,
                       height: 64,
                       decoration: BoxDecoration(color: on, shape: BoxShape.circle),
-                      child: Icon(Icons.play_arrow_rounded, size: 36, color: fill),
+                      child: Icon(const IconData(0xe037, fontFamily: SymbolCatalog.fontFamily), size: 36, color: fill),
                     ),
                   ],
                 ),
@@ -265,14 +347,7 @@ class _Tile extends StatelessWidget {
 
 /// Совместная лента: высокая плитка с иконками площадок.
 class WatchReelsTile extends StatelessWidget {
-  const WatchReelsTile({
-    super.key,
-    required this.title,
-    required this.text,
-    required this.plusLocked,
-    this.onTap,
-    this.titleWidth,
-  });
+  const WatchReelsTile({super.key, required this.title, required this.text, required this.plusLocked, this.onTap, this.titleWidth});
 
   /// Ширина под заголовок, см. [_FitTitle].
   final double? titleWidth;
@@ -318,19 +393,31 @@ class WatchReelsTile extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 14),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _FitTitle(title, _title(15.5, fg), titleWidth),
-              const SizedBox(height: 6),
-              Text(text, style: TextStyle(fontFamily: 'Onest', fontSize: 13, height: 1.35, color: fg.withValues(alpha: 0.86))),
-            ],
+          // Отступ внутри детей, а не отдельной коробкой: spaceBetween делил бы
+          // свободное место и на неё, и заголовок уезжал бы вниз от макета.
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _FitTitle(title, _title(15.5, fg).copyWith(height: 1.15), titleWidth),
+                const SizedBox(height: 6),
+                Text(
+                  text,
+                  style: TextStyle(fontFamily: 'Onest', letterSpacing: 0, fontSize: 13, height: 1.45, color: fg.withValues(alpha: 0.86)),
+                ),
+              ],
+            ),
           ),
           if (plusLocked)
             Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: _Chip(icon: Icons.lock_rounded, label: 'Togetherly+', fg: fg, bg: fg.withValues(alpha: 0.12)),
+              padding: const EdgeInsets.only(top: 8),
+              child: _Chip(
+                icon: const IconData(0xe899, fontFamily: SymbolCatalog.fontFamily),
+                label: 'Togetherly+',
+                fg: fg,
+                bg: fg.withValues(alpha: 0.12),
+              ),
             )
           else
             const SizedBox(height: 0),
@@ -364,14 +451,15 @@ class WatchGamesTile extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(color: fg.withValues(alpha: 0.12), shape: BoxShape.circle),
-            child: Icon(Icons.sports_esports_rounded, color: fg, size: 24),
+            child: Icon(const IconData(0xea28, fontFamily: SymbolCatalog.fontFamily), color: fg, size: 24),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           _FitTitle(
             title,
             TextStyle(
               fontFamily: 'Unbounded',
-              fontSize: 14,
+              letterSpacing: 0,
+              fontSize: 14.5,
               height: 1.2,
               fontWeight: FontWeight.w600,
               fontVariations: const [FontVariation('wght', 600)],
@@ -379,8 +467,11 @@ class WatchGamesTile extends StatelessWidget {
             ),
             titleWidth,
           ),
-          const SizedBox(height: 4),
-          Text(text, style: TextStyle(fontFamily: 'Onest', fontSize: 12.5, height: 1.3, color: fg.withValues(alpha: 0.85))),
+          const SizedBox(height: 8),
+          Text(
+            text,
+            style: TextStyle(fontFamily: 'Onest', letterSpacing: 0, fontSize: 12.5, height: 1.45, color: fg.withValues(alpha: 0.85)),
+          ),
         ],
       ),
     );
@@ -414,17 +505,17 @@ class WatchComputerTile extends StatelessWidget {
     final bg = cs.inverseSurface;
     final fg = cs.onInverseSurface;
     Widget action(IconData icon, String tip, VoidCallback? onTap) => Tooltip(
-          message: tip,
-          child: Material(
-            color: fg.withValues(alpha: 0.14),
-            shape: const CircleBorder(),
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: onTap,
-              child: SizedBox(width: 40, height: 40, child: Icon(icon, size: 19, color: fg)),
-            ),
-          ),
-        );
+      message: tip,
+      child: Material(
+        color: fg.withValues(alpha: 0.14),
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: SizedBox(width: 38, height: 38, child: Icon(icon, size: 19, color: fg)),
+        ),
+      ),
+    );
     final Widget codeText;
     if (loading) {
       codeText = Text('…', style: _title(19, fg));
@@ -436,9 +527,14 @@ class WatchComputerTile extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.refresh_rounded, size: 18, color: fg),
+            Icon(const IconData(0xe5d5, fontFamily: SymbolCatalog.fontFamily), size: 18, color: fg),
             const SizedBox(width: 6),
-            Flexible(child: Text(s.watchCodeRetry, style: TextStyle(fontFamily: 'Onest', fontSize: 14, fontWeight: FontWeight.w700, color: fg))),
+            Flexible(
+              child: Text(
+                s.watchCodeRetry,
+                style: TextStyle(fontFamily: 'Onest', letterSpacing: 0, fontSize: 14, fontWeight: FontWeight.w700, color: fg),
+              ),
+            ),
           ],
         ),
       );
@@ -454,15 +550,18 @@ class WatchComputerTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(s.watchFromComputer, style: TextStyle(fontFamily: 'Onest', fontSize: 12, color: fg.withValues(alpha: 0.8))),
-          const SizedBox(height: 6),
+          Text(
+            s.watchFromComputer,
+            style: TextStyle(fontFamily: 'Onest', letterSpacing: 0, fontSize: 12, color: fg.withValues(alpha: 0.8)),
+          ),
+          const SizedBox(height: 8),
           codeText,
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Row(
             children: [
-              action(Icons.copy_rounded, s.copyLink, code.isEmpty ? null : onCopy),
+              action(const IconData(0xe14d, fontFamily: SymbolCatalog.fontFamily), s.copyLink, code.isEmpty ? null : onCopy),
               const SizedBox(width: 8),
-              action(Icons.open_in_new_rounded, s.watchOpenOnSite, code.isEmpty ? null : onOpenSite),
+              action(const IconData(0xe89e, fontFamily: SymbolCatalog.fontFamily), s.watchOpenOnSite, code.isEmpty ? null : onOpenSite),
             ],
           ),
         ],
@@ -493,43 +592,53 @@ class WatchBento extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scale = MediaQuery.textScalerOf(context).scale(1);
-    return LayoutBuilder(builder: (context, c) {
-      final half = (c.maxWidth - _gap) / 2;
-      final title = half - _pad * 2;
-      if (reels != null && half / scale < _sideBySideMin) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            reels!(c.maxWidth - _pad * 2),
-            const SizedBox(height: _gap),
-            IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [Expanded(child: games(title)), const SizedBox(width: _gap), Expanded(child: computer)],
+    return LayoutBuilder(
+      builder: (context, c) {
+        final half = (c.maxWidth - _gap) / 2;
+        final title = half - _pad * 2;
+        if (reels != null && half / scale < _sideBySideMin) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              reels!(c.maxWidth - _pad * 2),
+              const SizedBox(height: _gap),
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(child: games(title)),
+                    const SizedBox(width: _gap),
+                    Expanded(child: computer),
+                  ],
+                ),
               ),
-            ),
-          ],
-        );
-      }
-      final reelsTile = reels?.call(title);
-      return IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: reelsTile == null
-              ? [Expanded(child: games(title)), const SizedBox(width: _gap), Expanded(child: computer)]
-              : [
-                  Expanded(child: reelsTile),
-                  const SizedBox(width: _gap),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [games(title), const SizedBox(height: _gap), computer],
+            ],
+          );
+        }
+        final reelsTile = reels?.call(title);
+        return IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: reelsTile == null
+                ? [Expanded(child: games(title)), const SizedBox(width: _gap), Expanded(child: computer)]
+                : [
+                    Expanded(child: reelsTile),
+                    const SizedBox(width: _gap),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          games(title),
+                          const SizedBox(height: _gap),
+                          computer,
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-        ),
-      );
-    });
+                  ],
+          ),
+        );
+      },
+    );
   }
 }
 
@@ -551,6 +660,7 @@ class WatchSectionHeader extends StatelessWidget {
             title,
             style: TextStyle(
               fontFamily: 'Unbounded',
+              letterSpacing: 0,
               fontSize: 16,
               fontWeight: FontWeight.w600,
               fontVariations: const [FontVariation('wght', 600)],
@@ -565,7 +675,16 @@ class WatchSectionHeader extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8),
               alignment: Alignment.center,
               decoration: BoxDecoration(color: cs.secondaryContainer, borderRadius: BorderRadius.circular(999)),
-              child: Text('$count', style: TextStyle(fontFamily: 'Onest', fontSize: 12, fontWeight: FontWeight.w700, color: cs.onSecondaryContainer)),
+              child: Text(
+                '$count',
+                style: TextStyle(
+                  fontFamily: 'Onest',
+                  letterSpacing: 0,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: cs.onSecondaryContainer,
+                ),
+              ),
             ),
           ],
         ],

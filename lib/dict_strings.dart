@@ -3420,6 +3420,9 @@ abstract class DictStrings extends AppStrings {
   @override
   String get watchPartnerInBrowser => _t('watchPartnerInBrowser');
   String get watchFromComputer => _t('watchFromComputer');
+  String get watchReelsTileHint => _t('watchReelsTileHint');
+  String get watchGamesTileHint => _t('watchGamesTileHint');
+  String get watchKinoSources => _t('watchKinoSources');
   @override
   String get watchCodeRetry => _t('watchCodeRetry');
   @override

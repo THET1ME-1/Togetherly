@@ -2286,6 +2286,9 @@ abstract class AppStrings {
   String get reelsTiktokHint;
   String get watchPartnerInBrowser;
   String get watchFromComputer;
+  String get watchReelsTileHint;
+  String get watchGamesTileHint;
+  String get watchKinoSources;
 
   /// Код комнаты не пришёл — предлагаем спросить заново, а не молчать
   /// прочерком (жалоба «нет кода», 16.08.2026).
@@ -3310,7 +3313,7 @@ class _RuStrings extends DictStrings {
   @override
   String watchWithPartner(String name) => 'Смотреть с $name';
   @override
-  String watchVideoAdd(int mb) => 'Загрузить до $mb МБ';
+  String watchVideoAdd(int mb) => 'Добавить видео\nдо $mb МБ';
   @override
   String watchVideoTooBig(int mb) =>
       'Видео больше $mb МБ: сожмите его или выберите короче';
@@ -4131,7 +4134,7 @@ class _EnStrings extends DictStrings {
   @override
   String watchWithPartner(String name) => 'Watch with $name';
   @override
-  String watchVideoAdd(int mb) => 'Upload up to $mb MB';
+  String watchVideoAdd(int mb) => 'Add a video\nup to $mb MB';
   @override
   String watchVideoTooBig(int mb) =>
       'The video is over $mb MB: compress it or pick a shorter one';

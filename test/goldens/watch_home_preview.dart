@@ -27,6 +27,7 @@ void main() {
   setUpAll(() async {
     await _font('Onest', 'assets/fonts/Onest.ttf');
     await _font('Unbounded', 'assets/fonts/Unbounded.ttf');
+    await _font('MaterialSymbolsRounded', 'assets/fonts/MaterialSymbolsRounded.ttf');
     await _font('MaterialIcons', '${Platform.environment['HOME']}/snap/flutter/common/flutter/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf');
   });
 
@@ -59,6 +60,7 @@ void main() {
                   theme: t,
                   title: s.watchWithPartner('JB SHARAN'),
                   subtitle: s.watchRoomOpensForBoth,
+                  hint: s.watchKinoSources,
                   myUid: '',
                   myAvatar: '',
                   myName: 'Саня',
@@ -73,12 +75,12 @@ void main() {
                 WatchBento(
                   reels: (tw) => WatchReelsTile(
                     title: s.reelsTogether,
-                    text: locked ? s.reelsTogetherHint : s.reelsInvitedBy('JB SHARAN', 'TikTok'),
+                    text: locked ? s.watchReelsTileHint : s.reelsInvitedBy('JB SHARAN', 'TikTok'),
                     plusLocked: locked,
                     onTap: () {},
                     titleWidth: tw,
                   ),
-                  games: (tw) => WatchGamesTile(title: s.gamesForTwo, text: s.gamesForTwoHint, onTap: () {}, titleWidth: tw),
+                  games: (tw) => WatchGamesTile(title: s.gamesForTwo, text: s.watchGamesTileHint, onTap: () {}, titleWidth: tw),
                   computer: pc,
                 ),
                 const SizedBox(height: 10),

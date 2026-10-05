@@ -395,12 +395,12 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
                 title: s.reelsTogether,
                 text: _invite != null && _reelsEntry == ReelsEntry.join
                     ? s.reelsInvitedBy(_invite!.name.isEmpty ? s.partner : _invite!.name, _invite!.source.title)
-                    : s.reelsTogetherHint,
+                    : s.watchReelsTileHint,
                 plusLocked: _reelsEntry == ReelsEntry.buy || _reelsEntry == ReelsEntry.askPartner,
                 onTap: _room.isEmpty ? null : _openReels,
                 titleWidth: w,
               ),
-      games: (w) => WatchGamesTile(title: s.gamesForTwo, text: s.gamesForTwoHint, onTap: _openGames, titleWidth: w),
+      games: (w) => WatchGamesTile(title: s.gamesForTwo, text: s.watchGamesTileHint, onTap: _openGames, titleWidth: w),
       computer: WatchComputerTile(
         code: _room,
         loading: _loading,
@@ -435,6 +435,7 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
             theme: widget.theme,
             title: partner.isEmpty ? s.watchTogether : s.watchWithPartner(partner),
             subtitle: s.watchRoomOpensForBoth,
+            hint: s.watchKinoSources,
             myUid: me,
             myAvatar: (profile['avatarUrl'] as String?) ?? '',
             myName: (profile['displayName'] as String?) ?? '',
@@ -457,11 +458,12 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
           // а содержимое остаётся в полном размере (parallax). Первый слот —
           // плитка загрузки, дальше свои ролики.
           SizedBox(
-            height: 200,
+            height: 180,
             child: CarouselView.weighted(
               flexWeights: const [3, 2, 1],
               itemSnapping: true,
-              shrinkExtent: 48,
+              shrinkExtent: 40,
+              padding: const EdgeInsets.only(right: 8),
               backgroundColor: cs.surfaceContainerHighest,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(26),
@@ -786,7 +788,6 @@ class _UploadTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = LocaleService.current;
     final cs = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
 
     return ColoredBox(
       color: cs.secondaryContainer,
@@ -820,17 +821,21 @@ class _UploadTile extends StatelessWidget {
                       size: 30,
                     ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
               child: Text(
                 busy ? s.watchVideoUploading : s.watchVideoAdd(limitMb),
                 textAlign: TextAlign.center,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: text.labelLarge?.copyWith(
-                  color: cs.onSecondaryContainer,
+                style: TextStyle(
+                  fontFamily: 'Onest',
+                  fontSize: 13,
+                  height: 1.3,
+                  letterSpacing: 0,
                   fontWeight: FontWeight.w600,
+                  color: cs.onSecondaryContainer,
                 ),
               ),
             ),
