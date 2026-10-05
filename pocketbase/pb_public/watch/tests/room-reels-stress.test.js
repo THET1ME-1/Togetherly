@@ -91,7 +91,7 @@ const check = (n, c, x = '') => { console.log((c ? '  ✓ ' : '  ✗ ') + n, x);
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto(`http://127.0.0.1:${PORT}/watch/room/?reels=1&feed=rutube&name=A#${room}`);
+  await page.goto(`http://127.0.0.1:${PORT}/watch/reels/?feed=rutube&name=A#${room}`);
   await page.waitForTimeout(9000);
   const cdp = await ctx.newCDPSession(page);
   const touch = (type, y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x: 196, y }] });

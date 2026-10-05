@@ -62,6 +62,16 @@ void main() {
       expect(Uri.parse(plain).queryParameters.containsKey('ad'), isFalse);
     });
 
+    test('совместная лента открывается своей страницей, а не поверх комнаты', () {
+      final url = WatchRoomService.siteUrl('abcd2345', reels: true, feed: 'tiktok', name: 'Аня');
+      final u = Uri.parse(url);
+      expect(u.path, '/watch/reels/');
+      expect(u.queryParameters['feed'], 'tiktok');
+      expect(u.queryParameters['name'], 'Аня');
+      expect(u.queryParameters.containsKey('reels'), isFalse);
+      expect(u.fragment, 'abcd2345');
+    });
+
     test('пустое имя в адрес не попадает', () {
       expect(
         WatchRoomService.siteUrl('abcd2345', name: '   '),

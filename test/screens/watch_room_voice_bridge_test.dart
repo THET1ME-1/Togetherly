@@ -19,6 +19,25 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   final screen = File('lib/screens/together/watch_room_screen.dart').readAsStringSync();
   final page = File('pocketbase/pb_public/watch/room/room.js').readAsStringSync();
+  // Совместная лента — своя страница со своими кнопками звонка; мост к
+  // приложению у неё общий с комнатой (pair.js).
+  final reels = File('pocketbase/pb_public/watch/reels/reels.js').readAsStringSync();
+  final pair = File('pocketbase/pb_public/watch/pair.js').readAsStringSync();
+
+  test('мост звонка зовёт приложение тем же именем', () {
+    expect(pair.contains("callHandler('watchVoice'"), isTrue);
+    expect(pair.contains('window.watchVoiceState'), isTrue,
+        reason: 'приложение отвечает именно этим вызовом');
+  });
+
+  test('лента зовёт те же действия звонка', () {
+    for (final action in ['call', 'hangup', 'mic']) {
+      expect(reels.contains("say('$action')"), isTrue, reason: 'лента обязана слать действие $action');
+    }
+    for (final state in ['connecting', 'live', 'failed']) {
+      expect(reels.contains("'$state'"), isTrue, reason: 'лента знает $state');
+    }
+  });
 
   test('экран комнаты не отрезает высоту у WebView', () {
     expect(screen.contains('bottomNavigationBar'), isFalse,

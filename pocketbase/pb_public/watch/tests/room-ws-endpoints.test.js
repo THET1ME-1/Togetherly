@@ -44,9 +44,10 @@ function serve() {
   });
 }
 
-/* Адреса, объявленные самой комнатой: тест обязан проверять их, а не свои. */
+/* Адреса, объявленные самой страницей: тест обязан проверять их, а не свои.
+   Подключение общее у комнаты и совместной ленты — в pair.js (05.10.2026). */
 function endpointsFromRoomJs() {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'room', 'room.js'), 'utf8');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'pair.js'), 'utf8');
   return [...src.matchAll(/endpoint:\s*'(wss:\/\/[^']+)'/g)].map((m) => m[1]);
 }
 

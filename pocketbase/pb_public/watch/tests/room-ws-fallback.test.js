@@ -18,7 +18,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const room = readFileSync(join(here, '..', 'room', 'room.js'), 'utf8');
+// Подключение общее у комнаты и совместной ленты — в pair.js (05.10.2026).
+const room = readFileSync(join(here, '..', 'pair.js'), 'utf8');
 
 test('первым идёт путь через тот же порт, что у самой страницы', () => {
   const list = room.slice(room.indexOf('const WS = ['));

@@ -111,7 +111,7 @@ const check = (n, c, x = '') => { console.log((c ? '  ✓ ' : '  ✗ ') + n, x);
     }, { token: auth.token, name, feed: feed.slice() });
     const page = await ctx.newPage();
     page.on('pageerror', (e) => console.log('  [ошибка ' + name + ']', e.message));
-    await page.goto(`http://127.0.0.1:${PORT}/watch/room/?reels=1&name=${encodeURIComponent(name)}#${room}`);
+    await page.goto(`http://127.0.0.1:${PORT}/watch/reels/?name=${encodeURIComponent(name)}#${room}`);
     return page;
   };
 

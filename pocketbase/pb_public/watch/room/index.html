@@ -2,6 +2,18 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
+<script>
+/* Совместная лента с 05.10.2026 живёт на своей странице (/watch/reels/).
+   Выпущенные сборки приложения открывают её прежним адресом этой комнаты с
+   `?reels=1` — уводим их туда до первой отрисовки, с теми же параметрами и
+   кодом комнаты, чтобы комната не мелькнула. `stop()` обрывает то, что
+   браузер успел запросить заранее (стили и скрипт комнаты): ни грузить, ни
+   запускать их незачем. */
+if (/[?&]reels=1\b/.test(location.search)) {
+  window.stop();
+  location.replace('../reels/' + location.search + location.hash);
+}
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Комната — Togetherly</title>
 <meta name="robots" content="noindex">
@@ -17,7 +29,6 @@
 <meta name="theme-color" content="#150D0F">
 <link rel="stylesheet" href="../landing.css?v=20260812">
 <link rel="stylesheet" href="room.css?v=20260928">
-<link rel="stylesheet" href="reels.css?v=20261005c">
 <script>
 /* В комнате смотрят кино, поэтому тёмная тема здесь по умолчанию: светлую
    получает только тот, кто выбрал её сам. */
@@ -25,15 +36,10 @@
   try {
     document.documentElement.dataset.theme = localStorage.getItem('watch-theme') || 'dark';
   } catch (e) { document.documentElement.dataset.theme = 'dark'; }
-  /* Совместная лента живёт поверх этой же страницы, а включает её reels.js
-     только после загрузки. До этого браузер успевал нарисовать обычную
-     комнату, и при входе в ленту она мелькала на секунду. Метка ставится до
-     первой отрисовки, reels.css прячет комнату, пока лента не встала. */
-  if (/[?&]reels=1\b/.test(location.search)) document.documentElement.classList.add('reels-boot');
 })();
 /* Приложение сообщает состояние звонка вызовом window.watchVoiceState. Оно
-   может прийти раньше, чем выполнится room.js, поэтому первое значение просто
-   запоминаем — настоящий обработчик применит его при запуске. */
+   может прийти раньше, чем выполнится pair.js, поэтому первое значение просто
+   запоминаем — `TgPair.voice` применит его при запуске. */
 window.watchVoiceState = (s) => { window.__voicePending = s; };
 </script>
 <script defer src="https://analytics.togetherly.day/script.js" data-website-id="00feef0e-ea5b-435a-8455-af0dc5ac18cb"></script>
@@ -205,8 +211,7 @@ window.watchVoiceState = (s) => { window.__voicePending = s; };
      таймаута — room.js тогда не выполняется вовсе, и комната открывается
      мёртвой (жалоба с айфона 18.08.2026). Его грузит whenYT() в room.js, и
      только когда включают ролик с ютуба. Стережёт tests/room-youtube-hang.test.js. -->
-<script src="room.js?v=20261005b"></script>
-<!-- Ленты вдвоём (?reels=1): без этого параметра скрипт ничего не делает. -->
-<script src="reels.js?v=20261005a"></script>
+<script src="../pair.js?v=20261005a"></script>
+<script src="room.js?v=20261005c"></script>
 </body>
 </html>

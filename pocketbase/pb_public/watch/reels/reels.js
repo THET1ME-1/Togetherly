@@ -1,7 +1,9 @@
-/* Ленты вдвоём: короткие ролики по очереди из лент обоих.
+/* Совместная лента: короткие ролики по очереди из лент обоих.
  *
- * Живёт поверх комнаты пары (`?reels=1`): канал, чат и звонок берёт у room.js
- * через `window.__togetherlyRoom`, а сам ведёт ролики, очередь и реакции.
+ * Своя страница (/watch/reels/#код). Канал пары, вход по сессии и мост звонка
+ * — общие с комнатой совместного просмотра (`../pair.js`, `TgPair`); ролики,
+ * очередь, реакции, чат и кнопки звонка лента ведёт сама. До 05.10.2026 она
+ * жила поверх страницы комнаты и нажимала её спрятанные кнопки.
  *
  * Откуда ролики. Ленту платформы держит приложение — скрытым браузером, где
  * человек как будто листает Shorts сам. Оттуда приходят только номера роликов
@@ -14,17 +16,19 @@
  * сам: ролик из ленты Ани, следующий из ленты Бори. Один в комнате — листает
  * свою ленту.
  *
- * Кнопки звонка и поле сообщения лента рисует свои, по макету, а нажатия
- * передаёт спрятанным кнопкам комнаты: у сайта у .btn и .input минимальная
- * высота 56, и перенесённые узлы вытягивались в овал. Переписку лента читает
- * из спрятанного #chat комнаты.
+ * Чат — тот же, что в комнате: сообщения `chat {text, name}`, историю новичку
+ * отдаёт `state {to, log}` в ответ на его `hello`. Поэтому партнёр, оставшийся
+ * в комнате, и партнёр в ленте пишут друг другу как обычно.
  */
 (() => {
   'use strict';
 
-  if (!/[?&]reels=1\b/.test(location.search)) return;
-  const R = window.__togetherlyRoom;
-  if (!R) return;
+  const P = window.TgPair;
+  if (!P) return;
+  /** Канал пары: есть, когда сервер пустил (`TgPair.enter`). */
+  let ch = null;
+  const send = (type, extra) => { if (ch) ch.send(type, 0, extra); };
+  const subscribed = () => !!(ch && ch.subscribed());
 
   const RU = (window.I18N && window.I18N.lang) !== 'en';
   // В плашке — чья лента сейчас играет. Имена не склоняем («лента Бори» из
@@ -42,6 +46,12 @@
     save: 'Сохранить в воспоминания', saved: 'Ролик в воспоминаниях', savedSub: 'Он ждёт вас в ленте воспоминаний',
     savedBy: (n) => n + ' сохраняет ролик', saveFailed: 'Не сохранилось, попробуйте ещё раз', needApp: 'Сохранять можно из приложения Togetherly',
     leads: (n) => 'Листает ' + n, take: 'Листать мне', tookLead: (n) => 'Теперь листает ' + n, youLead: 'Теперь листаете вы',
+    you: 'Вы', guest: 'Гость', joined: 'Партнёр в ленте', lost: 'Связь потеряна, переподключаемся…',
+    authTitle: 'Нужно войти', authSub: 'Ленту пары открывают её участники. Войдите на странице комнаты.',
+    strangerTitle: 'Это лента другой пары', strangerSub: 'Откройте совместную ленту из своего приложения.',
+    missingTitle: 'Такой комнаты нет', missingSub: 'Откройте совместную ленту из приложения Togetherly.',
+    offlineTitle: 'Нет связи', offlineSub: 'Проверьте интернет и откройте ленту ещё раз.',
+    toRoom: 'Войти', toHome: 'На главную',
   } : {
     mine: 'Your feed', theirs: (n) => 'Feed · ' + n, partner: 'partner',
     refresh: 'Refresh recommendations', refreshing: 'Picking fresh clips…',
@@ -55,6 +65,12 @@
     save: 'Save to memories', saved: 'Saved to memories', savedSub: 'Find it in your memory lane',
     savedBy: (n) => n + ' saved this clip', saveFailed: 'Didn’t save, try again', needApp: 'Saving works in the Togetherly app',
     leads: (n) => n + ' is scrolling', take: 'Let me scroll', tookLead: (n) => n + ' is scrolling now', youLead: 'You’re scrolling now',
+    you: 'You', guest: 'Guest', joined: 'Your partner is here', lost: 'Connection lost, reconnecting…',
+    authTitle: 'Sign in first', authSub: 'Only the couple can open their feed. Sign in on the room page.',
+    strangerTitle: 'This is another couple’s feed', strangerSub: 'Open the shared feed from your own app.',
+    missingTitle: 'No such room', missingSub: 'Open the shared feed from the Togetherly app.',
+    offlineTitle: 'No connection', offlineSub: 'Check your internet and open the feed again.',
+    toRoom: 'Sign in', toHome: 'Home',
   };
 
   // Значки — из того же набора Material Symbols Rounded, что в приложении
@@ -131,7 +147,7 @@
         <div class="rl-shade"></div>
         <div class="rl-tap"></div>
         <div class="rl-paused">${ic(IC.play)}</div>
-        <div class="rl-wait"><span class="rl-spin"></span><b></b><span></span></div>
+        <div class="rl-wait"><span class="rl-spin"></span><b></b><span class="rl-wait-sub"></span><a class="rl-go" hidden></a></div>
       </div>
       <div class="rl-sheet">
         <div class="rl-grab">
@@ -230,25 +246,41 @@
       .catch(() => {});
   }
 
-  // ── звонок: свои кнопки, связь в приложении ──────────────────────────────
+  // ── звонок: свои кнопки, связь в приложении (`TgPair.voice`) ─────────────
 
   function wireVoice() {
-    const v = document.getElementById('voice');
-    if (!v) return;
-    const press = (id) => { const b = document.getElementById(id); if (b) b.click(); };
-    $('.rl-call', el.voice).addEventListener('click', () => press('voiceCall'));
-    $('.rl-mic', el.voice).addEventListener('click', () => press('voiceMic'));
-    $('.rl-hang', el.voice).addEventListener('click', () => press('voiceHang'));
-    const paint = () => {
-      // Комната открывает кнопку, только когда приложение ответило мостом.
-      el.voice.hidden = v.hidden;
-      const busy = !document.getElementById('voiceHang').hidden;
-      const live = !document.getElementById('voiceMic').hidden;
-      const micOn = document.getElementById('voiceMic').getAttribute('aria-pressed') !== 'false';
+    // В браузере без приложения звонить нечем — колонки звонка нет вовсе.
+    if (!P.voice.bridged()) return;
+    $('.rl-call', el.voice).addEventListener('click', () => P.voice.say('call'));
+    $('.rl-mic', el.voice).addEventListener('click', () => P.voice.say('mic'));
+    $('.rl-hang', el.voice).addEventListener('click', () => P.voice.say('hangup'));
+
+    const time = $('.rl-vtime', el.voice);
+    const mmss = (sec) => Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+    let timer = 0;
+    // Секунды считаются от начала разговора, а не сложением тиков: свёрнутая
+    // страница усыпляет интервалы, и счёт отстал бы от настоящего времени.
+    const clock = (on) => {
+      if (!on) { clearInterval(timer); timer = 0; return; }
+      if (timer) return;
+      const since = Date.now();
+      time.textContent = mmss(0);
+      timer = setInterval(() => { time.textContent = mmss(Math.floor((Date.now() - since) / 1000)); }, 1000);
+    };
+
+    /** Состояние присылает приложение: off, connecting, live, failed. */
+    P.voice.onState((data) => {
+      // Приложение отозвалось — значит звонок отсюда оно понимает. Раньше
+      // ответа кнопку не показываем: у старых сборок она была бы мёртвой.
+      el.voice.hidden = false;
+      const now = String((data && data.state) || 'off');
+      const live = now === 'live';
+      const busy = live || now === 'connecting';
+      const micOn = !data || data.micOn !== false;
       $('.rl-call', el.voice).hidden = busy;
       // В покое — одна круглая кнопка, без подложки и подписи: колонке звонка
       // подложка нужна, только когда в ней трубка, микрофон и время.
-      el.voice.classList.toggle('is-idle', !busy);
+      el.voice.classList.toggle('is-idle', !busy && now !== 'failed');
       const who = $('.rl-vwho', el.voice);
       who.hidden = !live;
       who.textContent = initial(S.partnerName);
@@ -258,28 +290,28 @@
       mic.className = 'rl-ib rl-mic ' + (micOn ? 'accent' : 'mute');
       mic.innerHTML = ic(micOn ? IC.mic : IC.micOff);
       $('.rl-hang', el.voice).hidden = !busy;
-      const time = $('.rl-vtime', el.voice);
-      const t = document.getElementById('voiceTime');
-      // Пока ждём ответа — «Звоним…», в разговоре — время разговора.
-      time.hidden = !busy;
-      time.textContent = t ? t.textContent : '';
-    };
-    new MutationObserver(paint).observe(v, { subtree: true, attributes: true, childList: true, characterData: true });
-    paint();
+      // Пока ждём ответа — «Звоним…», в разговоре — время, не поднялось —
+      // «Не вышло».
+      clock(live);
+      if (now === 'connecting') time.textContent = T.ringing;
+      else if (now === 'failed') time.textContent = T.failed;
+      time.hidden = !(busy || now === 'failed');
+    });
   }
 
-  // ── переписка: читаем спрятанный чат комнаты ─────────────────────────────
+  // ── переписка ────────────────────────────────────────────────────────────
+  //
+  // Сервер ничего не хранит: переписка живёт в открытых страницах пары, и
+  // новичку её отдаёт тот, кто внутри (`state.log` в ответ на `hello`).
 
-  function readMsg(node) {
-    const whoEl = node.querySelector('.msg__who');
-    const who = whoEl ? whoEl.textContent : '';
-    let text = '';
-    node.childNodes.forEach((c) => { if (c !== whoEl) text += c.textContent; });
-    return {
-      who, text,
-      mine: node.classList.contains('msg--mine'),
-      sys: node.classList.contains('msg--system'),
-    };
+  const LOG_LIMIT = 60;
+  /** Переписка этой страницы: `{from, name, text}`, как в комнате. */
+  const log = [];
+  let gotHistory = false;
+
+  function remember(from, name, text) {
+    log.push({ from, name, text });
+    if (log.length > LOG_LIMIT) log.shift();
   }
 
   function bubble(m, inList) {
@@ -302,46 +334,56 @@
 
   let fadeTimer = 0;
   function wireChat() {
-    const chat = document.getElementById('chat');
-    if (!chat) return;
-    const empty = () => {
-      if (el.list.children.length) return;
-      const e = document.createElement('span');
-      e.className = 'rl-empty';
-      e.textContent = T.empty;
-      el.list.appendChild(e);
-    };
-    empty();
-    new MutationObserver((recs) => {
-      recs.forEach((r) => r.addedNodes.forEach((n) => {
-        if (!(n instanceof HTMLElement) || !n.classList.contains('msg')) return;
-        const m = readMsg(n);
-        if (!m.sys && !m.mine && m.who) S.partnerName = S.partnerName || m.who;
-        const e = $('.rl-empty', el.list);
-        if (e) e.remove();
-        el.list.appendChild(bubble(m, true));
-        el.list.scrollTop = el.list.scrollHeight;
-        // Над полем — две последние, старшая бледнее, через 7 секунд гаснут.
-        el.feed.appendChild(bubble(m, false));
-        while (el.feed.children.length > 2) el.feed.firstChild.remove();
-        Array.from(el.feed.children).forEach((c, i, all) => c.classList.toggle('old', i < all.length - 1));
-        el.feed.style.opacity = '1';
-        clearTimeout(fadeTimer);
-        fadeTimer = setTimeout(() => { el.feed.style.opacity = '0'; }, 7000);
-      }));
-    }).observe(chat, { childList: true });
+    const e = document.createElement('span');
+    e.className = 'rl-empty';
+    e.textContent = T.empty;
+    el.list.appendChild(e);
+  }
+
+  /** Реплика в лист чата и над полем: `{who, text, mine, sys}`. */
+  function addMsg(m) {
+    const e = $('.rl-empty', el.list);
+    if (e) e.remove();
+    el.list.appendChild(bubble(m, true));
+    el.list.scrollTop = el.list.scrollHeight;
+    // Над полем — две последние, старшая бледнее, через 7 секунд гаснут.
+    el.feed.appendChild(bubble(m, false));
+    while (el.feed.children.length > 2) el.feed.firstChild.remove();
+    Array.from(el.feed.children).forEach((c, i, all) => c.classList.toggle('old', i < all.length - 1));
+    el.feed.style.opacity = '1';
+    clearTimeout(fadeTimer);
+    fadeTimer = setTimeout(() => { el.feed.style.opacity = '0'; }, 7000);
   }
 
   function sendText() {
     const text = el.input.value.trim();
     if (!text) return;
-    const box = document.getElementById('message');
-    const btn = document.getElementById('send');
-    if (!box || !btn) return;
-    box.value = text;
-    btn.click();
+    const name = S.name || T.guest;
+    addMsg({ who: T.you, text, mine: true });
+    remember(S.me, name, text);
+    // До подписки реплика придерживается и уходит, когда канал встал.
+    send('chat', { text, name });
     el.input.value = '';
     syncTyping();
+  }
+
+  /** Чужая реплика: из канала или из истории, которую прислал партнёр. */
+  function theirText(data) {
+    const name = String(data.name || '') || T.guest;
+    remember(data.from, name, String(data.text || ''));
+    addMsg({ who: name, text: String(data.text || ''), mine: false });
+  }
+
+  /** История переписки — ответ на наш `hello` (от комнаты или ленты). */
+  function adoptHistory(data) {
+    if (gotHistory || data.to !== S.me || !Array.isArray(data.log)) return;
+    gotHistory = true;
+    data.log.forEach((m) => {
+      if (!m || typeof m.text !== 'string') return;
+      const mine = m.from === S.me;
+      remember(m.from, m.name, m.text);
+      addMsg({ who: mine ? T.you : (m.name || T.guest), text: m.text, mine });
+    });
   }
 
   // Пока в поле есть текст, оно красится как своя реплика, а кнопка отправки
@@ -466,11 +508,11 @@
   function announce() {
     clearTimeout(announceTimer);
     announceTimer = setTimeout(() => {
-      if (!R.subscribed()) return;
+      if (!subscribed()) return;
       const ids = S.mine.slice(0, 4);
       const thumbs = {};
       ids.forEach((k) => { if (THUMBS[k]) thumbs[k] = THUMBS[k]; });
-      R.send('reels-queue', { ids, name: S.name, thumbs });
+      send('reels-queue', { ids, name: S.name, thumbs });
     }, 150);
   }
 
@@ -515,7 +557,7 @@
     if (S.cur) { S.back.push(S.cur); if (S.back.length > 30) S.back.shift(); }
     const cur = { id, owner, by: S.me };
     show(cur);
-    R.send('reels-reel', { id, owner, by: S.me, name: S.name, lead: S.lead });
+    send('reels-reel', { id, owner, by: S.me, name: S.name, lead: S.lead });
     return true;
   }
 
@@ -542,7 +584,7 @@
     if (!prev) return false;
     const cur = { id: prev.id, owner: prev.owner, by: S.me };
     show(cur, true);
-    R.send('reels-reel', { id: cur.id, owner: cur.owner, by: S.me, name: S.name, back: true, lead: S.lead });
+    send('reels-reel', { id: cur.id, owner: cur.owner, by: S.me, name: S.name, back: true, lead: S.lead });
     return true;
   }
 
@@ -713,7 +755,7 @@
     }
     if (card === cards.prev) { drop(card); cards.prev = null; return; }
     if (card !== cards.cur || !S.cur || S.cur.by !== S.me) return;
-    R.say(T.unavailable);
+    say(T.unavailable);
     setTimeout(next, 600);
   }
 
@@ -758,7 +800,8 @@
     const f = document.createElement('iframe');
     f.src = spec.url(id);
     f.allow = 'autoplay; encrypted-media; picture-in-picture';
-    // Страница комнаты без реферера (ради дисков), а площадкам он нужен.
+    // Площадкам реферер нужен: YouTube без него отвечает ошибкой 153. Ставим
+    // явно — если странице когда-нибудь закроют реферер, плееры не замолчат.
     f.referrerPolicy = 'strict-origin-when-cross-origin';
     holder.appendChild(f);
     card.frame = f;
@@ -972,7 +1015,7 @@
     announce();
     if (S.cur) { S.back.push(S.cur); if (S.back.length > 30) S.back.shift(); }
     show({ id, owner: S.me, by: S.me });
-    R.send('reels-reel', { id, owner: S.me, by: S.me, name: S.name, lead: S.me });
+    send('reels-reel', { id, owner: S.me, by: S.me, name: S.name, lead: S.me });
   }
 
   /** Следующий ролик заранее, под экраном. */
@@ -1014,7 +1057,7 @@
     if (!cards.cur || !S.cur) return;
     if (!el.sound.hidden) { unmute(); return; }
     setPaused(!S.paused);
-    if (tell) R.send('reels-pause', { id: S.cur.id, paused: S.paused });
+    if (tell) send('reels-pause', { id: S.cur.id, paused: S.paused });
   }
 
   function setPaused(p) {
@@ -1066,7 +1109,7 @@
   function takeLead() {
     S.lead = S.me;
     paintLead();
-    R.send('reels-lead', { lead: S.me, name: S.name });
+    send('reels-lead', { lead: S.me, name: S.name });
     toast(T.youLead);
   }
 
@@ -1086,7 +1129,7 @@
     const r = S.reacts[S.cur.id] || (S.reacts[S.cur.id] = {});
     r.me = r.me === e ? '' : e;
     paintReact();
-    R.send('reels-react', { id: S.cur.id, e: r.me });
+    send('reels-react', { id: S.cur.id, e: r.me });
     if (r.me && r.me === r.them) matched(r.me);
   }
 
@@ -1214,7 +1257,7 @@
     S.saved.add(key);
     paintSave();
     toast(T.saved, T.savedSub);
-    R.send('reels-saved', { id: key, name: S.name });
+    send('reels-saved', { id: key, name: S.name });
   }
 
   function theirSave(data) {
@@ -1225,12 +1268,12 @@
   }
 
   /** Короткая плашка над столбиком: что случилось с роликом. */
-  function toast(title, sub) {
+  function toast(title, sub, icon) {
     const old = $('.rl-toast', el.root);
     if (old) old.remove();
     const t = document.createElement('div');
     t.className = 'rl-toast';
-    t.innerHTML = ic(IC.saved) + '<span><b></b><small></small></span>';
+    t.innerHTML = (icon === '' ? '' : ic(icon || IC.saved)) + '<span><b></b><small></small></span>';
     t.querySelector('b').textContent = title;
     t.querySelector('small').textContent = sub || '';
     el.root.appendChild(t);
@@ -1243,51 +1286,79 @@
     const b = bridge();
     if (b) { try { await b.callHandler('reelsShare', { url }); return; } catch (_) {} }
     if (navigator.share) { navigator.share({ url }).catch(() => {}); return; }
-    try { await navigator.clipboard.writeText(url); R.say(T.copied); } catch (_) { R.say(url); }
+    try { await navigator.clipboard.writeText(url); say(T.copied); } catch (_) { say(url); }
   }
+
+  /** Без звука и без значка: что случилось со связью или роликом. */
+  const say = (text) => toast(text, '', '');
 
   function leave() {
     const b = bridge();
     if (b && window.__togetherlyChrome) { try { b.callHandler('watchBack', {}); return; } catch (_) {} }
-    location.href = location.pathname + location.hash;
+    location.href = '../room/' + location.hash;
   }
 
-  function showWait(title, sub, spin) {
+  /** Экран ожидания посреди ленты. [go] — кнопка-ссылка `{href, label}`. */
+  function showWait(title, sub, spin, go) {
     el.wait.hidden = false;
     $('.rl-spin', el.wait).style.display = spin ? '' : 'none';
     $('b', el.wait).textContent = title;
-    $('span:last-child', el.wait).textContent = sub;
+    $('.rl-wait-sub', el.wait).textContent = sub;
+    const a = $('.rl-go', el.wait);
+    a.hidden = !go;
+    if (go) { a.href = go.href; a.textContent = go.label; }
   }
   function hideWait() { el.wait.hidden = true; }
 
   // ── канал ────────────────────────────────────────────────────────────────
 
+  /** Подписка встала (и после переподключения тоже). */
+  let startTimer = 0;
+  function onSubscribed(opened) {
+    if (!ch) ch = opened;
+    S.me = ch.me;
+    announce();
+    pull(10);
+    // Партнёр уже листает — его ролик придёт ответом на наш «hello».
+    clearTimeout(startTimer);
+    startTimer = setTimeout(() => { S.started = true; if (!S.cur) next(); }, 1500);
+  }
+
+  /** Сколько людей в канале. Приход партнёра отмечаем строкой в чате, но не
+   *  чаще раза в полминуты: переподключения дают дребезг 1↔2. */
+  let joinedAt = -Infinity;
+  function onViewers(n) {
+    const was = S.viewers;
+    S.viewers = n;
+    // Остался один — лента снова у него.
+    if (S.viewers < 2) S.lead = '';
+    if (n > 1 && was <= 1 && performance.now() - joinedAt > 30000) {
+      joinedAt = performance.now();
+      addMsg({ text: T.joined, sys: true });
+    }
+    paintTurn();
+    paintLead();
+  }
+
   function onMessage(data) {
     switch (data.t) {
-      case 'reels-subscribed':
-        S.me = R.me();
-        S.name = R.name() || '';
-        announce();
-        pull(10);
-        // Партнёр уже листает — его ролик придёт ответом на «hello» комнаты.
-        setTimeout(() => { S.started = true; if (!S.cur) next(); }, 1500);
-        return true;
-      case 'reels-viewers':
-        S.viewers = data.n;
-        // Остался один — лента снова у него.
-        if (S.viewers < 2) S.lead = '';
-        paintTurn();
-        paintLead();
-        return true;
       case 'hello':
-        // Новичку — наш ролик и наша очередь. Комнате «hello» тоже нужен.
+        // Новичку — наш ролик, наша очередь и переписка. Переписку ждёт и
+        // партнёр в комнате: она отвечает на «hello» тем же `state`.
         if (S.cur) {
           // Пришёл второй, а лента уже идёт: ведёт тот, кто листал.
           if (!S.lead) S.lead = S.me;
-          R.send('reels-state', { to: data.from, cur: S.cur, name: S.name, ids: S.mine.slice(0, 4), lead: S.lead });
-        }
-        else announce();
-        return false;
+          send('reels-state', { to: data.from, cur: S.cur, name: S.name, ids: S.mine.slice(0, 4), lead: S.lead });
+        } else announce();
+        if (log.length) send('state', { to: data.from, url: '', file: null, playing: false, log: log.slice(-LOG_LIMIT) });
+        return;
+      case 'state':
+        adoptHistory(data);
+        return;
+      case 'chat':
+        if (data.name) notePartner(data);
+        theirText(data);
+        return;
       case 'reels-state':
         if (data.to !== S.me) return true;
         notePartner(data);
@@ -1340,7 +1411,7 @@
         if (S.cur && data.id === S.cur.id) setPaused(!!data.paused);
         return true;
       default:
-        if (data.t === 'chat' && data.name) notePartner(data);
+        // Команды плеера комнаты (play, pause, sync, source) ленте ни к чему.
         return false;
     }
   }
@@ -1378,14 +1449,44 @@
   // в ту же секунду (проверка смешанных лент, 04.10.2026). Листавший
   // последним раз в 12 секунд напоминает, какой ролик идёт.
   setInterval(() => {
-    if (!S.cur || S.cur.by !== S.me || !R.subscribed() || S.viewers < 2 || (S.lead && S.lead !== S.me)) return;
-    R.send('reels-reel', { id: S.cur.id, owner: S.cur.owner, by: S.me, name: S.name, lead: S.lead });
+    if (!S.cur || S.cur.by !== S.me || !subscribed() || S.viewers < 2 || (S.lead && S.lead !== S.me)) return;
+    send('reels-reel', { id: S.cur.id, owner: S.cur.owner, by: S.me, name: S.name, lead: S.lead });
   }, 12000);
   document.addEventListener('visibilitychange', () => sleep(document.hidden));
   // Для проверок: что сейчас играет и чья очередь (tests/room-reels.test.js).
   window.__reelsState = () => ({ cur: S.cur, mine: S.mine.length, theirs: S.theirs.length, viewers: S.viewers, partner: S.partnerId });
 
-  R.onReels(onMessage);
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build);
-  else build();
+  /** Не пустили: говорим, почему, и куда идти. Вход есть на странице комнаты
+   *  пары — там экран у двери; из приложения лента открывается со сессией. */
+  function denied(err) {
+    const why = err && err.denied;
+    const room = { href: '../room/' + location.hash, label: T.toRoom };
+    const home = { href: '../', label: T.toHome };
+    if (!why) showWait(T.offlineTitle, T.offlineSub, false);
+    else if (why === 'auth_required') showWait(T.authTitle, T.authSub, false, room);
+    else if (why === 'not_member') showWait(T.strangerTitle, T.strangerSub, false, home);
+    else showWait(T.missingTitle, T.missingSub, false, home);
+  }
+
+  function start() {
+    build();
+    P.viewport(['.rl-input']);
+    // Имя приходит от приложения (?name=): им подписаны реплики и ход ленты.
+    const params = new URLSearchParams(location.search);
+    S.name = (params.get('name') || '').trim().slice(0, 32);
+    const room = P.roomFromHash();
+    if (!room) { denied({ denied: 'not_found' }); return; }
+    P.enter(room, {
+      message: onMessage,
+      viewers: onViewers,
+      subscribed: onSubscribed,
+      status: (kind) => { if (kind === 'lost') say(T.lost); },
+    }).then((opened) => {
+      ch = opened;
+      S.me = opened.me;
+    }, denied);
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
 })();

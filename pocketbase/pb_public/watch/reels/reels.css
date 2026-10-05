@@ -1,14 +1,10 @@
-/* Ленты вдвоём — короткие ролики поверх комнаты пары.
+/* Совместная лента — короткие ролики из лент обоих, своя страница
+ * (/watch/reels/). Стилей сайта и комнаты здесь нет: всё, что нужно, — ниже.
  *
- * Работает только с классом `reels` на теле (его ставит reels.js по `?reels=1`).
  * Раскладка и размеры — из утверждённого макета «Ленты вдвоём» (v6): поля 12,
  * кнопки 40, столбик справа на 44, подсказка хода на уровне звонка, свежие
  * реплики над полем ввода, поле 48 с кнопкой 36 внутри. Чат целиком ужимает
  * ролик в верхнюю половину, столбик встаёт строкой.
- *
- * Кнопки комнаты (звонок, поле сообщения) лента рисует СВОИ: у сайта у .btn и
- * .input минимальная высота 56, и круг 40 вытягивался в овал. Нажатия уходят
- * в спрятанные кнопки комнаты.
  */
 
 @font-face {
@@ -16,8 +12,26 @@
   src: url('symbols.woff2?v=2') format('woff2');
   font-display: block;
 }
+@font-face {
+  font-family: 'Onest';
+  src: url('../fonts/Onest.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Unbounded';
+  src: url('../fonts/Unbounded.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+* { box-sizing: border-box; }
+/* Атрибут hidden сильнее любого display ниже. */
+[hidden] { display: none !important; }
+html { background: #000; color-scheme: dark; }
 
 body.reels {
+  margin: 0;
   --rl-accent: #FF7E9B;
   --rl-on-accent: #4A0018;
   --rl-pc: #FFD9DE;
@@ -48,28 +62,6 @@ body.reels {
   height: var(--vph, 100dvh);
 }
 
-/* Лента ещё не встала: вместо комнаты чёрный экран, как у самой ленты.
-   Метку `reels-boot` ставит index.html до первой отрисовки. */
-html.reels-boot,
-html.reels-boot body.room-body:not(.reels) { background: #000; }
-html.reels-boot body.room-body:not(.reels) > * { visibility: hidden; }
-
-/* Обычная комната под лентами живёт, но не видна: её кнопки и поле нажимает
-   reels.js, а переписку он переносит к себе в лист. */
-body.reels > .top,
-body.reels > .unfold,
-body.reels > .note,
-body.reels .stage-wrap {
-  position: absolute !important;
-  width: 1px !important;
-  height: 1px !important;
-  overflow: hidden !important;
-  clip-path: inset(50%) !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
-}
-
-.rl, .rl * { box-sizing: border-box; }
 .rl { position: fixed; left: 0; right: 0; top: var(--vpt, 0px); height: var(--vph, 100dvh); overflow: hidden; color: #fff;
   font: 500 14px/1.35 'Onest', system-ui, sans-serif; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
 /* Сброс через :where — нулевая сила, иначе он перебивает заливку кнопок. */
@@ -226,7 +218,9 @@ body.reels.typing .rl-send, .rl.chat-open .rl-send { right: 12px; bottom: var(--
 .rl-wait { position: absolute; left: 24px; right: 24px; top: 50%; transform: translateY(-50%); z-index: 3; display: grid; justify-items: center; gap: 12px; text-align: center; }
 .rl-wait[hidden] { display: none; }
 .rl-wait b { font: 800 18px/1.2 'Unbounded', sans-serif; }
-.rl-wait span:last-child { font-size: 14px; opacity: .85; max-width: 32ch; }
+.rl-wait-sub { font-size: 14px; opacity: .85; max-width: 32ch; }
+/* Куда идти, если в ленту не пустили: вход на странице комнаты или главная. */
+.rl-go { margin-top: 4px; height: 48px; padding: 0 24px; border-radius: 999px; display: inline-flex; align-items: center; background: var(--rl-accent); color: var(--rl-on-accent); font: 700 15px/1 'Onest', sans-serif; text-decoration: none; }
 .rl-spin { width: 40px; height: 40px; border-radius: 50%; border: 4px solid rgba(255, 255, 255, .2); border-top-color: var(--rl-accent); animation: rl-spin .9s linear infinite; }
 @keyframes rl-spin { to { transform: rotate(360deg); } }
 .rl-sound { position: absolute; left: 50%; bottom: calc(var(--rl-bottom) + 132px); transform: translateX(-50%); z-index: 5; height: 40px; border-radius: 999px;

@@ -32,7 +32,7 @@ void main() {
     });
 
     test('страница строит те же адреса (reels.js, watchUrl)', () {
-      final js = File('pocketbase/pb_public/watch/room/reels.js').readAsStringSync();
+      final js = File('pocketbase/pb_public/watch/reels/reels.js').readAsStringSync();
       for (final part in [
         "'https://www.tiktok.com/@/video/' + id",
         "'https://rutube.ru/shorts/' + id + '/'",

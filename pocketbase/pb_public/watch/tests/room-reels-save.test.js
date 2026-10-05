@@ -99,7 +99,7 @@ const check = (n, c, x = '') => { console.log((c ? '  ✓ ' : '  ✗ ') + n, x);
     }, { token: auth.token, name, feed });
     const page = await ctx.newPage();
     page.on('pageerror', (e) => errors.push(name + ': ' + e.message));
-    await page.goto(`http://127.0.0.1:${PORT}/watch/room/?reels=1&feed=rutube&name=${encodeURIComponent(name)}#${room}`);
+    await page.goto(`http://127.0.0.1:${PORT}/watch/reels/?feed=rutube&name=${encodeURIComponent(name)}#${room}`);
     return { page, ctx };
   };
   const half = Math.floor(ids.length / 2);

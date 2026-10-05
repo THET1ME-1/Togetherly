@@ -84,7 +84,7 @@ async function harvest(browser) {
     try { new PerformanceObserver((l) => l.getEntries().forEach((e) => window.__long.push(Math.round(e.duration)))).observe({ type: 'longtask', buffered: true }); } catch (_) {}
   }, { token: auth.token, feed });
   const page = await ctx.newPage();
-  await page.goto(`http://127.0.0.1:${PORT}/watch/room/?reels=1&feed=rutube&name=A#${room}`);
+  await page.goto(`http://127.0.0.1:${PORT}/watch/reels/?feed=rutube&name=A#${room}`);
   await page.waitForTimeout(12000);
   const cdp = await ctx.newCDPSession(page);
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: THROTTLE });

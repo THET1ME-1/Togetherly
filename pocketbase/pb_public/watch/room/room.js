@@ -7,43 +7,13 @@
  * Синхронизация: тот, кто трогает плеер, шлёт в канал своё состояние
  * (играет/пауза + секунда). Остальные подтягиваются, если разошлись больше
  * чем на полторы секунды — иначе дёрганье от каждого мелкого расхождения.
+ *
+ * Канал, вход, звонок и подстройку под клавиатуру комната берёт у
+ * `../pair.js` (`TgPair`) — они общие с совместной лентой (`/watch/reels/`).
  */
 (() => {
   'use strict';
 
-  // Два адреса одного и того же Centrifugo, по порядку.
-  //
-  // Первый ведёт прямо в него, второй — через Caddy. Пока путь был один, через
-  // прокси, комната умирала вместе с его перегрузкой: страница открывалась
-  // (статику Caddy отдавал), а сокет не поднимался вовсе — `dial tcp
-  // 127.0.0.1:8443: i/o timeout`. Со стороны это выглядело как «нас не
-  // закидывает в одну комнату» и «не работает интерфейс во время совместного
-  // просмотра» (три жалобы за вечер 15.08.2026), хотя сам Centrifugo был
-  // здоров и на прямой адрес отвечал мгновенно.
-  //
-  // Клиент перебирает список сам: не открылся первый — идёт ко второму. Так
-  // прямой порт остаётся быстрым путём, а прокси прикрывает сети, где 8443
-  // закрыт.
-  //
-  // Прямой адрес переехал на своё имя 17.08.2026: раньше тут стоял
-  // `togetherly.duckdns.org` — поддомен динамического DNS, который человек
-  // видел в адресной строке комнаты. `rt.togetherly.day` ведёт на ту же машину
-  // и покрыт тем же сертификатом (SAN на оба имени), поэтому вкладки,
-  // открытые со старым адресом, продолжают работать.
-  // Порядок важен: первым идёт путь через 443 — тот самый, по которому уже
-  // пришла эта страница, значит он у человека проходит. Нестандартный 8443 у
-  // части операторов не отвергается, а МОЛЧА проглатывается: соединение висит
-  // до TCP-таймаута, close не приходит, и перебор внутри centrifuge-js не
-  // трогается с места. Со стороны это «у одного всё нажимается, а другой
-  // просто существует в комнате» (21.08.2026: четыре живые комнаты, где
-  // приложение в канале есть, а страница так и не подписалась).
-  const WS = [
-    { transport: 'websocket', endpoint: 'wss://togetherly.day/connection/websocket' },
-    { transport: 'websocket', endpoint: 'wss://rt.togetherly.day:8443/connection/websocket' },
-  ];
-
-  /// Сколько ждём подключения, прежде чем свалиться на запасной адрес.
-  const CONNECT_TIMEOUT = 7000;
   const DRIFT = 1.5;          // допустимое расхождение, секунды
   const MISS = 10;            // дальше этого от цели перемотка считается промахом, секунды
   const HAND_MS = 1500;       // событие плеера считается ручным, если касание было не раньше
@@ -51,9 +21,9 @@
 
   const $ = (sel) => document.querySelector(sel);
   const state = {
-    room: '', channel: '', me: '', centrifuge: null, sub: null,
+    room: '', me: '',
     player: null, kind: '', applying: false, aimAt: null, touchedAt: 0, lead: false, actedAt: 0, lastSent: 0, viewers: 1,
-    subscribed: false, outbox: [], lastLink: '', wsFallbackTried: false,
+    lastLink: '',
     // Что показывать пришедшему позже: ссылка, переписка этой вкладки и
     // отложенная команда для плеера, который ещё грузится.
     url: '', log: [], synced: false, pending: null, joinedAt: 0,
@@ -70,19 +40,9 @@
     remote: { time: 0, playing: false, ready: false },
   };
 
-  // Режим лент (`?reels=1`, reels.js) живёт поверх этой же комнаты: канал,
-  // чат и звонок берёт отсюда, а ролики, очередь и реакции ведёт сам. Ему
-  // нужен узкий вход — отправить в канал, показать реплику, узнать себя.
-  let reelsHook = null;
-  window.__togetherlyRoom = {
-    send: (type, extra) => send(type, 0, extra),
-    onReels: (fn) => { reelsHook = typeof fn === 'function' ? fn : null; },
-    me: () => state.me,
-    name: () => state.name,
-    viewers: () => state.viewers,
-    subscribed: () => state.subscribed,
-    say: (text) => setStatus(text, true),
-  };
+  /** Канал пары (`TgPair.enter`): есть, когда сервер пустил. */
+  let ch = null;
+  const subscribed = () => !!(ch && ch.subscribed());
   const LOG_LIMIT = 60;
 
   const PLATFORMS = [
@@ -102,76 +62,9 @@
 
   // ── комната ───────────────────────────────────────────────────────────────
 
-  function roomFromHash() {
-    return (location.hash || '').replace('#', '').toLowerCase()
-      .replace(/[^a-z0-9]/g, '').slice(0, 12);
-  }
-
-  /** Имя гостя живёт в браузере: без него каждая перезагрузка вкладки
-   *  выглядела бы приходом нового зрителя. */
-  function guestId() {
-    const KEY = 'watch-guest';
-    try {
-      const saved = localStorage.getItem(KEY);
-      if (/^g[a-z0-9]{14}$/.test(saved || '')) return saved;
-      const abc = 'abcdefghijklmnopqrstuvwxyz0123456789';
-      const bytes = new Uint8Array(14);
-      crypto.getRandomValues(bytes);
-      let id = 'g';
-      for (let i = 0; i < bytes.length; i++) id += abc[bytes[i] % abc.length];
-      localStorage.setItem(KEY, id);
-      return id;
-    } catch (_) {
-      return '';
-    }
-  }
-
-  /** Зрители считаются по людям, а не по соединениям: у одного человека их
-   *  бывает несколько, пока старое не отвалилось.
-   *
-   *  Приложение вдобавок держит в канале СВОЁ подключение — не ради картинки, а
-   *  ради голоса: WebRTC поднимает оно, а зов партнёра ходит по каналу комнаты.
-   *  Открыто оно всегда, даже когда никто не звонит, и человек, зашедший один,
-   *  видел «смотрят: 2» (жалоба 20.08.2026, подтверждена присутствием живого
-   *  канала). Такие подключения помечены в `chan_info` подписки — метку ставит
-   *  сервер, поэтому счёт чинится и у выпущенных сборок. */
-  function countViewers(presence) {
-    const clients = (presence && presence.clients) || {};
-    const people = new Set();
-    Object.keys(clients).forEach((k) => {
-      const c = clients[k] || {};
-      const info = c.chanInfo || c.chan_info;
-      if (info && info.app) return;
-      people.add(c.user);
-    });
-    return Math.max(1, people.size);
-  }
-
-  /** Сессия Togetherly, с которой страница просит пропуск.
-   *
-   *  Новые сборки приложения кладут её сами (`window.__togetherlyAuth`, скрипт
-   *  в начале документа). В браузере она лежит там же, куда её кладёт SDK
-   *  PocketBase после входа — на этой странице или на /club. Без сессии в
-   *  комнату пары не пустят: код мог уйти в чужие руки. */
-  function storedAuth() {
-    try {
-      const given = window.__togetherlyAuth;
-      if (given && typeof given.token === 'string' && given.token) {
-        return { token: given.token, who: String(given.name || ''), fromApp: true };
-      }
-    } catch (_) { /* нет — ищем в хранилище */ }
-    try {
-      const saved = JSON.parse(localStorage.getItem('pocketbase_auth') || 'null');
-      if (saved && typeof saved.token === 'string' && saved.token) {
-        const rec = saved.record || saved.model || {};
-        return { token: saved.token, who: String(rec.email || rec.name || ''), fromApp: false };
-      }
-    } catch (_) { /* хранилище закрыто */ }
-    return null;
-  }
-
-  /** Страница открыта во встроенном браузере приложения. */
-  const inAppWebView = () => !!window.flutter_inappwebview;
+  const roomFromHash = TgPair.roomFromHash;
+  const storedAuth = TgPair.storedAuth;
+  const inAppWebView = TgPair.inApp;
 
   // ── источники видео ───────────────────────────────────────────────────────
 
@@ -762,32 +655,10 @@
 
   // ── обмен ────────────────────────────────────────────────────────────────
 
-  // Публиковать в канал разрешено ТОЛЬКО подписчику (allow_publish_for_subscriber),
-  // а подписка ставится раундтрипом с токеном. Отправка до неё — это
-  // «103 permission denied» на сервере и потерянное сообщение: у себя реплика
-  // появляется, до партнёра не доходит. Так и выглядела жалоба «чат в
-  // совместном просмотре перестал работать» (19 августа 2026): подписка рвётся
-  // при каждом обрыве связи, а send этого не проверял.
+  /** В канал пары. До подписки реплика и ссылка придерживаются, команды
+   *  плеера отбрасываются (`TgPair`). */
   function send(type, at, extra) {
-    if (!state.sub) return;
-    const payload = Object.assign({ t: type, at: at || 0, from: state.me }, extra || {});
-    if (state.subscribed) {
-      state.sub.publish(payload).catch(() => {});
-      return;
-    }
-    // Реплику, ссылку на ролик и «я здесь» придержим до подписки, команды
-    // плеера отбросим: через секунду они уже врут о времени.
-    if (type === 'chat' || type === 'source' || type === 'file' || type === 'hello') {
-      state.outbox.push(payload);
-      if (state.outbox.length > 20) state.outbox.shift();
-    }
-  }
-
-  /** Слить придержанное — зовётся, когда подписка встала. */
-  function flushOutbox() {
-    if (!state.sub || !state.subscribed) return;
-    const queued = state.outbox.splice(0, state.outbox.length);
-    queued.forEach((payload) => state.sub.publish(payload).catch(() => {}));
+    if (ch) ch.send(type, at, extra);
   }
 
   // ── кто кого догоняет ────────────────────────────────────────────────────
@@ -842,11 +713,11 @@
     return true;
   }
 
+  /** Чужое сообщение канала (свои отсекает `TgPair`). Сообщения ленты
+   *  (`reels-*`) комната пропускает: партнёр может смотреть ленту, пока ты
+   *  здесь, — его реплики при этом доходят обычным `chat`. */
   function onMessage(data) {
-    if (!data || data.from === state.me) return;
-    // Режим лент (reels.js) разбирает свои сообщения сам: ролик, реакция,
-    // очередь. Чат, «я здесь» и звонок идут по обычному пути комнаты.
-    if (reelsHook && reelsHook(data)) return;
+    if (!data) return;
     switch (data.t) {
       case 'play':
       case 'pause':
@@ -995,7 +866,6 @@
   function setViewers(n) {
     const was = state.viewers;
     state.viewers = n;
-    if (reelsHook && n !== was) reelsHook({ t: 'reels-viewers', n });
     const el = $('#viewers');
     if (el) el.textContent = n === 1 ? I18N.t('room.alone') : I18N.t('room.viewers', { n });
     // Комната открыта сразу, поэтому приход партнёра отмечаем строкой в чате.
@@ -1018,48 +888,17 @@
 
   // ── подключение ──────────────────────────────────────────────────────────
 
-  async function connect(room) {
-    const headers = { 'Content-Type': 'application/json' };
-    const auth = storedAuth();
-    if (auth) headers.Authorization = auth.token;
-    const res = await fetch('/api/watch/token', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ room, guest: guestId() }),
-    });
-    let data = {};
-    try { data = await res.json(); } catch (_) { data = {}; }
-    if (!data.ok) {
-      const err = new Error(data.error || 'token');
-      // Отказ сервера — это не обрыв связи: человеку нужен экран у двери.
-      // Голая 404 без тела (маршрута нет, выкладка в процессе) отказом не
-      // считается — это поломка, а не «комнаты нет».
-      if (data.error && [400, 401, 403, 404].indexOf(res.status) >= 0) err.denied = data.error;
-      throw err;
-    }
-
-    state.room = room;
-    state.me = data.userId;
-    state.channel = data.channel;
-
-    const centrifuge = new Centrifuge(WS, { token: data.connectionToken });
-    const sub = centrifuge.newSubscription(data.channel, {
-      token: data.subscriptionToken,
-    });
-
-    const refreshViewers = () => {
-      sub.presence().then((p) => setViewers(countViewers(p))).catch(() => {});
-    };
-
-    sub.on('publication', (ctx) => onMessage(ctx.data));
-    sub.on('subscribed', () => {
-      state.subscribed = true;
-      setStatus(I18N.t('room.ready'));
-      refreshViewers();
-      flushOutbox();
-      // Просим тех, кто уже внутри, прислать ссылку и переписку.
-      send('hello');
-      if (reelsHook) reelsHook({ t: 'reels-subscribed' });
+  /** Что комната делает с событиями канала (`TgPair.enter`). */
+  const channelEvents = {
+    message: onMessage,
+    viewers: setViewers,
+    status: (kind) => {
+      if (kind === 'ready') setStatus(I18N.t('room.ready'));
+      else if (kind === 'offline') setStatus(I18N.t('room.offline'));
+      else if (kind === 'connecting') setStatus(I18N.t('room.connecting'));
+      else if (kind === 'lost') setStatus(I18N.t('room.lost'), true);
+    },
+    subscribed: () => {
       // Пришли с готовым роликом (приложение открывает комнату с ?src=):
       // включаем только теперь. До подписки publish уходит в никуда, и партнёр
       // остаётся с пустым экраном — ровно это и ломало свои ролики.
@@ -1068,38 +907,13 @@
         state.wanted = '';
         applySource(wanted);
       }
-    });
-    sub.on('join', refreshViewers);
-    sub.on('leave', refreshViewers);
-    sub.on('unsubscribed', () => { state.subscribed = false; });
-    sub.on('subscribing', () => { state.subscribed = false; });
-    sub.on('error', () => setStatus(I18N.t('room.lost'), true));
+    },
+  };
 
-    centrifuge.on('connected', () => setStatus(I18N.t('room.ready')));
-    centrifuge.on('disconnected', () => setStatus(I18N.t('room.offline')));
-
-    sub.subscribe();
-    centrifuge.connect();
-
-    state.centrifuge = centrifuge;
-    state.sub = sub;
-
-    // Сторож висящего порта: если за CONNECT_TIMEOUT подключиться не вышло,
-    // пересобираем клиента на СЛЕДУЮЩЕМ адресе. Своими силами centrifuge-js
-    // этого не сделает — ему нужен close, а заблокированный порт его не даёт.
-    if (!state.wsFallbackTried) {
-      setTimeout(() => {
-        if (state.subscribed || centrifuge.state === 'connected') return;
-        state.wsFallbackTried = true;
-        try { centrifuge.disconnect(); } catch (_) {}
-        WS.reverse();
-        connect(room).catch(() => setStatus(I18N.t('room.lost'), true));
-      }, CONNECT_TIMEOUT);
-    }
-
-    // Ведущий — тот, кто последним трогал плеер: он раз в три секунды шлёт
-    // своё время, чтобы вылечить накопленный дрейф. Остальные молчат — до
-    // 13 августа 2026 проверки ведущего тут не было, и время слали ОБА.
+  /** Ведущий — тот, кто последним трогал плеер: он раз в три секунды шлёт
+   *  своё время, чтобы вылечить накопленный дрейф. Остальные молчат — до
+   *  13 августа 2026 проверки ведущего тут не было, и время слали ОБА. */
+  function heartbeat() {
     setInterval(() => {
       if (!state.lead || !state.kind || !isPlaying()) return;
       // Промахнувшийся с перемоткой плеер своё неверное время не раздаёт.
@@ -1116,108 +930,15 @@
 
   window.addEventListener('message', onFrameMessage);
 
-  /// Держит высоту страницы равной ВИДИМОЙ области.
+  /// Голос: кнопка в шапке комнаты, связь в приложении (`TgPair.voice`).
   ///
-  /// На iPhone клавиатура не уменьшает 100dvh внутри WKWebView: страница
-  /// остаётся во весь экран, строка со ссылкой прячется под клавиатурой, а
-  /// прокрутки у комнаты нет (`overflow: hidden`). Человек тапает по полю,
-  /// печатает и не видит ни строки, ни результата — жалоба «ссылка не
-  /// вводится на iOS». visualViewport знает настоящую высоту, отдаём её в CSS
-  /// и заодно подводим сфокусированное поле к глазам.
-  function followKeyboard() {
-    const vv = window.visualViewport;
-    // Высота видимого: visualViewport точнее, но без него остаётся окно —
-    // раньше страница в таком случае не делала ничего и жила на 100dvh.
-    const seen = () => (vv ? vv.height : window.innerHeight);
-    const shift = () => (vv ? vv.offsetTop : 0);
-    // Клавиатура СЧИТАЕТСЯ открытой, когда видимая область заметно меньше окна.
-    // Раньше сжатие кадра включал сам фокус — и на десктопе, где никакая
-    // клавиатура не выезжает, страница всё равно подпрыгивала: кадр ужимался,
-    // нижний ряд уезжал вверх на 166 px, а палец бил в то место, где кнопка
-    // «Включить» была секунду назад. Отсюда жалобы «кнопка не работает» и
-    // «сообщение не отправляется» — нажатие промахивалось мимо уехавшей кнопки.
-    const keyboardOpen = () => seen() < window.innerHeight * 0.8;
-    let lastH = -1;
-    let lastT = -1;
-    // Полная высота экрана при этой ширине — без клавиатуры. На Android
-    // клавиатура урезает окно целиком, и `keyboardOpen` её не видит; плеер
-    // ленты, считавший ширину от урезанной высоты, сужался до края экрана и
-    // показывал свои кнопки — лайки и счётчик TikTok (05.10.2026). Новая
-    // ширина (поворот) сбрасывает запомненное.
-    let fullW = -1;
-    let fullH = 0;
-    const apply = () => {
-      const h = seen();
-      const t = shift();
-      const w = window.innerWidth;
-      const root = document.documentElement.style;
-      if (Math.abs(w - fullW) > 1) { fullW = w; fullH = 0; }
-      if (h > fullH) { fullH = h; root.setProperty('--vph-full', fullH + 'px'); }
-      if (Math.abs(h - lastH) < 1 && Math.abs(t - lastT) < 1) return;
-      lastH = h;
-      lastT = t;
-      root.setProperty('--vph', h + 'px');
-      // Клавиатура не только урезает видимое, но и прокручивает документ:
-      // без этого сдвига страница уезжает вверх, а прокрутки у комнаты нет.
-      root.setProperty('--vpt', t + 'px');
-      document.body.classList.toggle('typing', keyboardOpen());
-    };
-    apply();
-    if (vv) {
-      vv.addEventListener('resize', apply);
-      vv.addEventListener('scroll', apply);
-    }
-    // Окно и поворот: события visualViewport шлёт СИСТЕМА — на клавиатуру и
-    // поворот экрана. В приложении высоту WebView меняет сам Flutter (полоса
-    // голоса выезжает, когда поднялся канал, и отрезает снизу 84 точки), и до
-    // страницы это доходит не всегда.
-    window.addEventListener('resize', apply);
-    window.addEventListener('orientationchange', apply);
-    if (window.ResizeObserver) {
-      new ResizeObserver(apply).observe(document.documentElement);
-    }
-    // Последняя страховка — сверка раз в полсекунды. Дешёвая (два числа) и
-    // единственная, что спасает самый глухой WebView: 20.08.2026 два человека
-    // с айфонов написали «опять ничего не нажимается, даже после обновления».
-    // Страница держала высоту прежнего экрана, поле сообщения и «Отправить»
-    // оставались за нижним краем WebView, а прокрутки у комнаты нет.
-    setInterval(apply, 500);
-    for (const id of ['#link', '#message']) {
-      const el = $(id);
-      if (!el) continue;
-      el.addEventListener('blur', () => {
-        // Класс снимет apply(), когда клавиатура уедет и вьюпорт вернёт высоту.
-        // Здесь его не трогаем: blur приходит и при переходе между полями.
-        if (!keyboardOpen()) document.body.classList.remove('typing');
-      });
-      el.addEventListener('focus', () => {
-        // Safari сам прокручивает документ к полю, а комната прибита к видимой
-        // области — от такой прокрутки она только уезжает. Возвращаем на место,
-        // когда клавиатура доехала. Сжатие кадра включает apply() по факту
-        // выехавшей клавиатуры, а не по самому фокусу.
-        setTimeout(() => window.scrollTo(0, 0), 300);
-      });
-    }
-  }
-
-
-  /// Голос: кнопка в шапке комнаты, связь в приложении.
-  ///
-  /// Микрофон, WebRTC и сигналинг живут в приложении — страница только
-  /// показывает состояние и отправляет нажатия мостом. В обычном браузере
-  /// моста нет, поэтому группа кнопок остаётся скрытой: звонить там нечем.
-  ///
-  /// Кнопка появляется НЕ по наличию моста, а после первого ответа
-  /// приложения. Мост есть в любой сборке с WebView, включая выпущенные до
-  /// 20.08.2026 — они про звонок из страницы не знают и рисуют свою полосу
-  /// снизу. Появись кнопка у них, человек нажимал бы на мёртвое.
-  ///
-  /// Разговор объявляется классом `calling` на теле: на телефоне шапке нужно
-  /// освободить место, и решает это CSS, а не скрипт.
+  /// В обычном браузере моста нет, поэтому группа кнопок остаётся скрытой:
+  /// звонить там нечем. Во встроенном она появляется после первого ответа
+  /// приложения. Разговор объявляется классом `calling` на теле: на телефоне
+  /// шапке нужно освободить место, и решает это CSS, а не скрипт.
   function voiceBridge() {
     const box = $('#voice');
-    const bridge = window.flutter_inappwebview;
-    if (!box || !bridge || typeof bridge.callHandler !== 'function') return;
+    if (!box || !TgPair.voice.bridged()) return;
 
     const call = $('#voiceCall');
     const hang = $('#voiceHang');
@@ -1225,16 +946,9 @@
     const state = $('#voiceState');
     const time = $('#voiceTime');
 
-    const say = (action) => {
-      try {
-        bridge.callHandler('watchVoice', { action });
-      } catch (_) {
-        // Мост пропал вместе с экраном — показывать тут нечего.
-      }
-    };
-    call.addEventListener('click', () => say('call'));
-    hang.addEventListener('click', () => say('hangup'));
-    mic.addEventListener('click', () => say('mic'));
+    call.addEventListener('click', () => TgPair.voice.say('call'));
+    hang.addEventListener('click', () => TgPair.voice.say('hangup'));
+    mic.addEventListener('click', () => TgPair.voice.say('mic'));
 
     const mmss = (sec) => Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
 
@@ -1277,9 +991,8 @@
       state.hidden = !(busy || now === 'failed');
     };
 
-    window.watchVoiceState = apply;
-    // Приложение могло ответить раньше, чем страница дошла до этой строки.
-    if (window.__voicePending) apply(window.__voicePending);
+    // Приложение могло ответить раньше этой строки — последнее придёт сразу.
+    TgPair.voice.onState(apply);
   }
 
   /// Кадр во всю площадь, чат поверх.
@@ -1366,25 +1079,18 @@
   // мешали смотреть). Отказ показываем экраном с понятным следующим шагом —
   // войти, сменить аккаунт или завести свою комнату, — а не «нет связи».
 
-  /// Сколько раз ждём поручительства приложения, прежде чем просить вход.
-  /// Выпущенные сборки открывают комнату без сессии, и пускает их сервер по
-  /// СВОЕМУ подключению приложения к каналу, а оно поднимается рядом со
-  /// страницей и может не успеть к первому запросу.
-  const APP_WAIT_TRIES = 10;
-  const APP_WAIT_STEP = 2000;
-  let appWaited = 0;
-
-  /** Входит в комнату; отказ сервера открывает экран у двери. */
-  function enter(room) {
-    return connect(room).then(hideGate, (err) => {
+  /** Входит в комнату; отказ сервера открывает экран у двери. Поручительства
+   *  приложения ждёт `TgPair.enter`; [waitApp] = false — человек только что
+   *  вошёл сам, ждать нечего. */
+  function enter(room, waitApp) {
+    return TgPair.enter(room, channelEvents, waitApp).then((opened) => {
+      ch = opened;
+      state.room = room;
+      state.me = opened.me;
+      hideGate();
+    }, (err) => {
       const why = err && err.denied;
       if (!why) { setStatus(I18N.t('room.lost'), true); return; }
-      if (why === 'auth_required' && inAppWebView() && appWaited < APP_WAIT_TRIES) {
-        appWaited += 1;
-        setStatus(I18N.t('room.connecting'));
-        setTimeout(() => enter(room), APP_WAIT_STEP);
-        return;
-      }
       if (why === 'auth_required') showGate('closed');
       else if (why === 'not_member') showGate('stranger');
       else showGate('missing');
@@ -1461,8 +1167,7 @@
     try {
       await signIn();
       gateSay('');
-      appWaited = APP_WAIT_TRIES;
-      await enter(state.room);
+      await enter(state.room, false);
     } catch (err) {
       const status = err && err.status;
       gateSay(I18N.t(status === 400 ? 'gate.badPair' : 'gate.fail'), true);
@@ -1546,14 +1251,14 @@
     const ad = /[?&]ad=1\b/.test(location.search) ? 1 : 0;
     let subMs = -1;
     const stamp = setInterval(() => {
-      if (state.subscribed && subMs < 0) { subMs = Date.now() - born; clearInterval(stamp); }
+      if (subscribed() && subMs < 0) { subMs = Date.now() - born; clearInterval(stamp); }
     }, 250);
     const n = { down: 0, start: 0, cancel: 0, click: 0, blur: 0 };
     let done = false;
     const send = (name, data) => {
       try { if (window.umami && window.umami.track) window.umami.track(name, data); } catch (_) { /* статистика не важнее комнаты */ }
     };
-    const facts = () => ({ platform, os, ad, sub: state.subscribed ? 1 : 0, subMs,
+    const facts = () => ({ platform, os, ad, sub: subscribed() ? 1 : 0, subMs,
       down: n.down, start: n.start, cancel: n.cancel, click: n.click, blur: n.blur });
     const onTouch = () => {
       if (done) return;
@@ -1579,7 +1284,7 @@
   function start() {
     I18N.mount();
     touchProbe();
-    followKeyboard();
+    TgPair.viewport(['#link', '#message']);
     cinemaToggle();
     chatToggle();
     voiceBridge();
@@ -1620,6 +1325,7 @@
 
     wireGate();
     enter(room);
+    heartbeat();
 
     $('#apply').addEventListener('click', () => {
       const el = $('#link');

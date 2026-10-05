@@ -40,11 +40,12 @@ class WatchRoomService {
     bool reels = false,
     String? feed,
   }) {
-    final base = 'https://$siteHost/watch/room/';
-    final query = <String, String>{};
-    // Ленты вдвоём: та же комната пары, поверх неё режим коротких роликов.
+    // Совместная лента — своя страница (/watch/reels/) в том же канале пары,
+    // что и комната (05.10.2026). Сборки постарше открывают её прежним
+    // адресом комнаты с `?reels=1`, и страница комнаты уводит их туда.
     // `feed` — площадка своей ленты (shorts, tiktok, rutube, vk, dzen).
-    if (reels) query['reels'] = '1';
+    final base = 'https://$siteHost/watch/${reels ? 'reels' : 'room'}/';
+    final query = <String, String>{};
     if (reels && feed != null && feed.isNotEmpty) query['feed'] = feed;
     if (src != null && src.isNotEmpty) query['src'] = src;
     final trimmed = (name ?? '').trim();

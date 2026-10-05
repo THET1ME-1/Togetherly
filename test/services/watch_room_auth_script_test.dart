@@ -47,9 +47,14 @@ void main() {
       }
     });
 
-    test('имя room.js и Dart совпадает', () {
-      final room = File('pocketbase/pb_public/watch/room/room.js').readAsStringSync();
-      expect(room, contains('window.__togetherlyAuth'));
+    test('имя совпадает с тем, где сессию ищет страница (pair.js)', () {
+      // Сессию читает общий модуль комнаты и совместной ленты.
+      final pair = File('pocketbase/pb_public/watch/pair.js').readAsStringSync();
+      expect(pair, contains('window.__togetherlyAuth'));
+      for (final page in ['room/index.html', 'reels/index.html']) {
+        expect(File('pocketbase/pb_public/watch/$page').readAsStringSync(), contains('pair.js'),
+            reason: '$page обязана подключать pair.js');
+      }
     });
   });
 

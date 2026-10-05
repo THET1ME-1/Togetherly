@@ -9,7 +9,9 @@ const { chromium } = require('/home/alelx/.hermes/hermes-agent/node_modules/play
 const VIDEO = 'https://togetherly.day/api/files/watch_videos/' +
   'e8e5yaidogj6r9x/2cd1b6a2ce095ced39d3ec5deaf74b5c_vygwrxdr49.mp4';
 const base = 'https://togetherly.day/watch/room/';
-const ROOM = 'srcp4k9m';
+// Комната настоящая, от сервера: набранный руками код с 16.09.2026 никуда не
+// пускает, и тест с выдуманным кодом молча видел экран «Такой комнаты нет».
+const newRoom = async () => (await (await fetch('https://togetherly.day/api/watch/new', { method: 'POST' })).json()).room;
 
 const open = async (b, url) => {
   const c = await b.newContext();
@@ -20,6 +22,7 @@ const open = async (b, url) => {
 
 (async () => {
   const b = await chromium.launch();
+  const ROOM = await newRoom();
   let ok = true;
   const check = (name, cond, extra = '') => {
     console.log((cond ? '  ✓ ' : '  ✗ ') + name, extra);
