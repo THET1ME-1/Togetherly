@@ -2,6 +2,11 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        // RuStore перенёс хранилище SDK: artifactory-external.vkpartner.ru
+        // отвечает 404 с 01.10.2026, а flutter_rustore_billing 9.1.0 всё ещё
+        // прописывает старый адрес. Без нового сборка падает на
+        // `Could not find ru.rustore.sdk:billingclient:9.1.0` (05.10.2026).
+        maven { url = uri("https://nexus-external.rustore.ru/repository/maven-rustore-exposed") }
     }
 
     // androidx.datastore держим на 1.1.7, пока не выйдет версия, собранная
