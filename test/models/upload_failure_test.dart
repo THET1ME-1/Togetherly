@@ -101,6 +101,65 @@ void main() {
     });
   });
 
+  // Семь видео-воспоминаний легли в бакет по 0 байт: сжатие вернуло пустой
+  // файл (или облачный ролик не скачался на телефон), а заливка не смотрела
+  // на размер. Пустой файл не лечится ни повтором, ни входом.
+  group('каким файлом заливать', () {
+    test('сжатый годен — берём сжатый', () {
+      expect(
+        pickUploadSource(originalBytes: 9000000, compressedBytes: 3000000),
+        UploadSource.compressed,
+      );
+    });
+
+    test('сжатие вернуло пустой файл — берём исходник', () {
+      expect(
+        pickUploadSource(originalBytes: 9000000, compressedBytes: 0),
+        UploadSource.original,
+      );
+    });
+
+    test('сжатия не было — исходник', () {
+      expect(
+        pickUploadSource(originalBytes: 5000),
+        UploadSource.original,
+      );
+    });
+
+    test('сжатый тяжелее при onlyIfSmaller — исходник', () {
+      expect(
+        pickUploadSource(
+          originalBytes: 1000,
+          compressedBytes: 1200,
+          onlyIfSmaller: true,
+        ),
+        UploadSource.original,
+      );
+    });
+
+    test('пустой WebP не меньше исходника по сути — исходник', () {
+      expect(
+        pickUploadSource(
+          originalBytes: 1000,
+          compressedBytes: 0,
+          onlyIfSmaller: true,
+        ),
+        UploadSource.original,
+      );
+    });
+
+    test('пустой исходник и пустое сжатие — заливать нечего', () {
+      expect(pickUploadSource(originalBytes: 0, compressedBytes: 0), isNull);
+      expect(pickUploadSource(originalBytes: 0), isNull);
+    });
+
+    test('пустой исходник, но сжатие дало байты — всё равно нечего', () {
+      // Кодек не может честно сжать пустоту в ролик: такой результат —
+      // мусор, а не видео.
+      expect(pickUploadSource(originalBytes: 0, compressedBytes: 500), isNull);
+    });
+  });
+
   group('что слать в Bugsink', () {
     test('обрыв сети — не краш', () {
       expect(
@@ -185,6 +244,13 @@ void main() {
             .toLowerCase(),
         contains('войдите'),
       );
+    });
+
+    test('пустой файл — просим выбрать заново, а не повторить', () {
+      final text =
+          uploadFailureText(UploadFailure.emptyFile, ru, video: true);
+      expect(text.toLowerCase(), contains('пуст'));
+      expect(text, isNot(uploadFailureText(UploadFailure.other, ru, video: true)));
     });
 
     test('прочее для фото и видео — разные строки', () {

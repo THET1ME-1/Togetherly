@@ -1179,6 +1179,7 @@ abstract class AppStrings {
   String get uploadFailedNetwork;
   String get uploadFailedSession;
   String get uploadFailedTooLarge;
+  String get uploadFailedEmpty;
   String get memoryAddedSuccess;
   String failedAddMemory(String e);
   String get noMediaUrl;

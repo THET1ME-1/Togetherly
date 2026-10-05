@@ -78,6 +78,15 @@ class MediaService {
 
       final fileSize = await file.length();
       debugPrint('uploadFile: Starting upload of $destination ($fileSize bytes)');
+      if (pickUploadSource(originalBytes: fileSize) == null) {
+        // Пустой исходник: облачный ролик выбран, но не скачан на телефон.
+        unawaited(Sentry.captureMessage(
+          'uploadFile: empty source file',
+          level: SentryLevel.warning,
+          withScope: (s) => s.setExtra('destination', destination),
+        ));
+        return const UploadOutcome.failed(UploadFailure.emptyFile);
+      }
 
       final ext = path.split('.').last.toLowerCase();
 
@@ -108,7 +117,12 @@ class MediaService {
             final webpFile = File(xFile.path);
             final webpSize = await webpFile.length();
             debugPrint('uploadFile: WebP conversion $fileSize → $webpSize bytes');
-            if (webpSize < fileSize) {
+            if (pickUploadSource(
+                  originalBytes: fileSize,
+                  compressedBytes: webpSize,
+                  onlyIfSmaller: true,
+                ) ==
+                UploadSource.compressed) {
               fileToUpload = webpFile;
               uploadDestination = destination.replaceAll(
                 RegExp(r'\.(jpg|jpeg|png)$', caseSensitive: false),
@@ -152,16 +166,34 @@ class MediaService {
             onTimeout: () =>
                 throw TimeoutException('VideoCompress.compressVideo timed out'),
           );
-          if (info?.file != null) {
-            compressedTempFile = info!.file!;
-            fileToUpload = compressedTempFile;
-            uploadDestination = destination.replaceAll(
-              RegExp(r'\.(mov|avi|mkv)$', caseSensitive: false),
-              '.mp4',
-            );
+          final compressed = info?.file;
+          if (compressed != null) {
+            final compressedSize =
+                await compressed.exists() ? await compressed.length() : 0;
             debugPrint(
-              'uploadFile: Video compressed $fileSize → ${await fileToUpload.length()} bytes',
+              'uploadFile: Video compressed $fileSize → $compressedSize bytes',
             );
+            if (pickUploadSource(
+                  originalBytes: fileSize,
+                  compressedBytes: compressedSize,
+                ) ==
+                UploadSource.compressed) {
+              compressedTempFile = compressed;
+              fileToUpload = compressed;
+              uploadDestination = destination.replaceAll(
+                RegExp(r'\.(mov|avi|mkv)$', caseSensitive: false),
+                '.mp4',
+              );
+            } else {
+              // Кодек отдал пустой файл: так в бакет легли видео по 0 байт.
+              // Грузим исходник, а случай отмечаем — по нему видно телефоны.
+              compressed.delete().ignore();
+              unawaited(Sentry.captureMessage(
+                'uploadFile: video compress returned empty file',
+                level: SentryLevel.warning,
+                withScope: (s) => s.setExtra('original_bytes', fileSize),
+              ));
+            }
           }
         } catch (e) {
           debugPrint('uploadFile: Video compression failed, uploading original: $e');
@@ -188,6 +220,11 @@ class MediaService {
       // возвращаем `pb://`-ссылку. Путь uploadDestination = `<kind>/<groupId>/<file>`
       // → из него берём имя файла, kind и group_id.
       final bytes = await fileToUpload.readAsBytes();
+      if (bytes.isEmpty) {
+        // Файл опустел между проверкой и чтением — заливать нечего.
+        compressedTempFile?.delete().ignore();
+        return const UploadOutcome.failed(UploadFailure.emptyFile);
+      }
       final segments = uploadDestination.split('/');
       final filename = segments.last;
       final kind = segments.length > 1 ? segments.first : null;

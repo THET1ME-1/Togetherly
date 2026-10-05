@@ -24,6 +24,10 @@ enum UploadFailure {
   /// Файл больше предела поля `media.file` или прокси.
   tooLarge,
 
+  /// Файл пустой: облачный ролик не скачался на телефон или кодек отдал
+  /// пустоту. Повтор не поможет, нужно выбрать файл заново.
+  emptyFile,
+
   /// Всё остальное: ответ сервера 5xx, отказ правил, сбой на телефоне.
   other,
 }
@@ -85,9 +89,34 @@ String uploadFailureText(
       return s.uploadFailedSession;
     case UploadFailure.tooLarge:
       return s.uploadFailedTooLarge;
+    case UploadFailure.emptyFile:
+      return s.uploadFailedEmpty;
     case UploadFailure.other:
       return video ? s.failedUploadVideo : s.failedUploadPhotos;
   }
+}
+
+/// Какой файл заливать: исходный или его сжатую копию.
+enum UploadSource { original, compressed }
+
+/// Выбор файла для заливки; null — заливать нечего.
+///
+/// До 05.10.2026 сжатый результат брался без взгляда на размер, и семь
+/// видео-воспоминаний легли в бакет по 0 байт: обложки у них нет и не будет.
+/// Пустое сжатие уступает исходнику, пустой исходник не заливается вовсе —
+/// байты, которые кодек «сжал» из пустоты, видео не являются.
+/// [onlyIfSmaller] — для WebP: копия тяжелее исходника не нужна.
+UploadSource? pickUploadSource({
+  required int originalBytes,
+  int? compressedBytes,
+  bool onlyIfSmaller = false,
+}) {
+  if (originalBytes <= 0) return null;
+  final c = compressedBytes;
+  if (c != null && c > 0 && (!onlyIfSmaller || c < originalBytes)) {
+    return UploadSource.compressed;
+  }
+  return UploadSource.original;
 }
 
 /// Итог заливки: ссылка или причина отказа.

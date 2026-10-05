@@ -1807,6 +1807,8 @@ abstract class DictStrings extends AppStrings {
   @override
   String get uploadFailedTooLarge => _t('uploadFailedTooLarge');
   @override
+  String get uploadFailedEmpty => _t('uploadFailedEmpty');
+  @override
   String get memoryAddedSuccess => _t('memoryAddedSuccess');
   @override
   String get noMediaUrl => _t('noMediaUrl');

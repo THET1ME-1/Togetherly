@@ -497,6 +497,15 @@ const Map<String, Map<String, String>> memoryLaneStrings = {
     'fr': 'Le fichier est trop volumineux. Choisis-en un plus petit.',
     'de': 'Die Datei ist zu groß. Wähle eine kleinere.',
   },
+  'uploadFailedEmpty': {
+    'ru': 'Файл пустой. Если он в облаке, дождитесь загрузки на телефон и выберите его снова.',
+    'en': 'The file is empty. If it’s in the cloud, wait for it to download to your phone and pick it again.',
+    'pt': 'O arquivo está vazio. Se ele estiver na nuvem, espere baixar no celular e escolha de novo.',
+    'it': 'Il file è vuoto. Se è nel cloud, aspetta che si scarichi sul telefono e sceglilo di nuovo.',
+    'es': 'El archivo está vacío. Si está en la nube, espera a que se descargue en el móvil y elígelo de nuevo.',
+    'fr': 'Le fichier est vide. S’il est dans le cloud, attends qu’il soit téléchargé sur le téléphone et choisis-le à nouveau.',
+    'de': 'Die Datei ist leer. Liegt sie in der Cloud, warte, bis sie aufs Handy geladen ist, und wähle sie erneut.',
+  },
   'memoryAddedSuccess': {
     'ru': 'Воспоминание добавлено!',
     'en': 'Memory added successfully!',
