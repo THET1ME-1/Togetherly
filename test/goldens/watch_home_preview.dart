@@ -33,7 +33,7 @@ void main() {
 
   testWidgets('блоки экрана «Смотрим»', (tester) async {
     LocaleService.instance.setLanguage(AppLanguage.ru);
-    tester.view.physicalSize = const Size(2400, 2000);
+    tester.view.physicalSize = const Size(2400, 2600);
     tester.view.devicePixelRatio = 2;
     addTearDown(tester.view.reset);
     final s = LocaleService.current;
@@ -41,7 +41,7 @@ void main() {
 
     Widget phone(AppTheme t, double w, {double scale = 1, bool locked = true}) {
       final cs = t.scheme!;
-      final pc = WatchComputerTile(code: '2x4vhuku', loading: false, onCopy: () {}, onOpenSite: () {});
+      Widget pc(double tw) => WatchComputerTile(code: '2x4vhuku', loading: false, onCopy: () {}, onOpenSite: () {}, titleWidth: tw);
       return Theme(
         data: ProfileTheme.data(cs),
         child: MediaQuery(
@@ -125,5 +125,31 @@ void main() {
       Directory('build/watch-home').createSync(recursive: true);
       File('build/watch-home/blocks.png').writeAsBytesSync(bytes!.buffer.asUint8List());
     });
+
+    // Кадры отклика: держим палец 300 мс, отпускаем, смотрим через 150 и
+    // 500 мс — `build/watch-home/press-<что>-<кадр>.png`.
+    Future<void> shot(String name) => tester.runAsync(() async {
+          final boundary = key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+          final img = await boundary.toImage(pixelRatio: 1);
+          final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
+          File('build/watch-home/$name.png').writeAsBytesSync(bytes!.buffer.asUint8List());
+        });
+    Future<void> press(String name, Finder target) async {
+      final g = await tester.startGesture(tester.getCenter(target.first));
+      await tester.pump(const Duration(milliseconds: 300));
+      await shot('press-$name-0');
+      await g.up();
+      await tester.pump(const Duration(milliseconds: 150));
+      await shot('press-$name-1');
+      await tester.pump(const Duration(milliseconds: 350));
+      await shot('press-$name-2');
+      await tester.pump(const Duration(seconds: 2));
+    }
+
+    await press('kino', find.byIcon(const IconData(0xe037, fontFamily: 'MaterialSymbolsRounded')));
+    await press('reels', find.byType(WatchReelsTile));
+    await press('games', find.byType(WatchGamesTile));
+    await press('copy', find.byIcon(const IconData(0xe14d, fontFamily: 'MaterialSymbolsRounded')));
+    expect(tester.takeException(), isNull, reason: 'отклик без падений');
   });
 }

@@ -27,6 +27,7 @@ import 'watch_player_screen.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/storage_image.dart';
 import '../../widgets/together/watch_home_blocks.dart';
+import '../../widgets/together/watch_pattern.dart';
 import '../../services/pocketbase_service.dart';
 import '../../services/pb_auth_service.dart';
 
@@ -382,6 +383,9 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
     );
   }
 
+  /// Раскладка узоров карточек: своя у каждой пары и не скачет между заходами.
+  int get _seed => watchPatternSeed(widget.pairData.pairId);
+
   /// Плитки под главной карточкой: слева высокая совместная лента, справа
   /// игры и вход с компьютера. Ленты нет (Плюса тут не продают и никто не
   /// зовёт) — игры и компьютер встают рядом.
@@ -399,14 +403,17 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
                 plusLocked: _reelsEntry == ReelsEntry.buy || _reelsEntry == ReelsEntry.askPartner,
                 onTap: _room.isEmpty ? null : _openReels,
                 titleWidth: w,
+                seed: _seed,
               ),
-      games: (w) => WatchGamesTile(title: s.gamesForTwo, text: s.watchGamesTileHint, onTap: _openGames, titleWidth: w),
-      computer: WatchComputerTile(
+      games: (w) => WatchGamesTile(title: s.gamesForTwo, text: s.watchGamesTileHint, onTap: _openGames, titleWidth: w, seed: _seed),
+      computer: (w) => WatchComputerTile(
+        titleWidth: w,
         code: _room,
         loading: _loading,
         onCopy: _copyCode,
         onOpenSite: _openOnSite,
         onRetry: _loading ? null : () => _loadRoom(),
+        seed: _seed,
       ),
     );
   }
@@ -430,7 +437,7 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
           // Вариант А макета «Афиша и плитки» (выбран 05.10.2026): кино —
           // главная карточка, ниже плитки, а не ряд одинаковых строк.
           WatchLead(title: s.watchHeroTitle),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           WatchKinoCard(
             theme: widget.theme,
             title: partner.isEmpty ? s.watchTogether : s.watchWithPartner(partner),
@@ -448,8 +455,9 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
             note: PlusService.instance.active ? null : s.watchAfterShortAd,
             enabled: !_loading && _room.isNotEmpty,
             onTap: _openInApp,
+            seed: _seed,
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           _bento(s),
           const SizedBox(height: 10),
           WatchSectionHeader(title: s.watchOurVideos, count: _videos.length),
