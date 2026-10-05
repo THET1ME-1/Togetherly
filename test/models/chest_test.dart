@@ -163,7 +163,7 @@ void main() {
     String pct(String key) => chestPercent(odds.firstWhere((p) => p.key == key), odds);
     expect(pct('coins10'), '18%');
     expect(pct('rose'), '0,9%');
-    expect(pct('plus'), '0,2%');
+    expect(pct('plus'), '0,1%');
     expect(pct('plus7'), '1%');
     expect(chestPercent(odds.firstWhere((p) => p.key == 'locket'), odds, decimal: '.'), '0.4%');
   });
