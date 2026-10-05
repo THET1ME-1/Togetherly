@@ -65,6 +65,20 @@ void main() {
         reason: 'текст задания берётся из каталога, а не пишется заново');
   });
 
+  test('каждая карточка ленты без общей шапки ставит подпись сама', () {
+    // Стикер текстовой заметки шапки не рисует, и текстовые ответы на
+    // задания стояли без подписи (обращение 236, 05.10.2026).
+    final feed = File('lib/screens/memory_lane_screen.dart').readAsStringSync();
+    final tiles = RegExp(r'\n  Widget (_[a-zA-Z]+Tile)\(Memory memory\) \{([\s\S]*?)\n  \}\n').allMatches(feed);
+    expect(tiles.length, greaterThanOrEqualTo(7), reason: 'карточки ленты нашлись');
+    for (final t in tiles) {
+      final body = t.group(2)!;
+      if (t.group(1) == '_memoryTile') continue;
+      expect(body.contains('_cardHeader(') || body.contains('_dailyTaskNote('), isTrue,
+          reason: '${t.group(1)}: без шапки и без подписи ответ на задание не отмечен');
+    }
+  });
+
   test('подпись переведена на все семь языков', () {
     final row = memoryLaneFeedStrings['memoryDailyTaskBadge'];
     expect(row, isNotNull, reason: 'ключ подписи заведён');

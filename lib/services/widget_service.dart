@@ -439,6 +439,7 @@ class WidgetService extends ChangeNotifier {
           authorAvatar: a.avatar,
           type: MemoryType.text,
           caption: '💬 $message',
+          countsForDailyTask: false,
         );
       } catch (e) {
         debugPrint('Widget → Memory (msg) failed: $e');
@@ -473,6 +474,7 @@ class WidgetService extends ChangeNotifier {
           type: MemoryType.photo,
           imageUrl: url,
           caption: LocaleService.current.widgetPhotoCaption,
+          countsForDailyTask: false,
         );
       } catch (e) {
         debugPrint('Widget → Memory (photo) failed: $e');
@@ -536,6 +538,7 @@ class WidgetService extends ChangeNotifier {
           musicArtist: artist,
           musicUrl: url,
           musicCoverUrl: coverUrl,
+          countsForDailyTask: false,
         );
       } catch (e) {
         debugPrint('Widget → Memory (music) failed: $e');

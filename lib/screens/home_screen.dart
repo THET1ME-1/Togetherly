@@ -4086,11 +4086,16 @@ class _HomeScreenState extends State<HomeScreen> {
   /// GitHub-репо (браузер докачивает файл и вызывает системный установщик).
   void _showGithubUpdateSheet(GithubUpdate upd) {
     final p = primary;
+    // Без isScrollControlled Flutter режет лист по 9/16 высоты экрана, и с
+    // длинными заметками к версии кнопка «Обновить» уезжала под системную
+    // панель — нажать её было нельзя (обращение 236, 05.10.2026).
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isDismissible: true,
       enableDrag: true,
+      isScrollControlled: true,
+      useSafeArea: true,
       builder: (ctx) => Container(
         decoration: BoxDecoration(
           color: _t.cardSurface,
@@ -4159,7 +4164,9 @@ class _HomeScreenState extends State<HomeScreen> {
               // не было ничего, и человек не понимал, ради чего обновляться.
               Container(
                 width: double.infinity,
-                constraints: const BoxConstraints(maxHeight: 260),
+                // Заметки прокручиваются внутри, а кнопки всегда на экране:
+                // на низком телефоне 260 точек заметок съели бы и их.
+                constraints: BoxConstraints(maxHeight: (MediaQuery.sizeOf(ctx).height * 0.32).clamp(120.0, 260.0)),
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: _t.surfaceMuted,

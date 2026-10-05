@@ -126,6 +126,11 @@ class MemoryRepository {
     /// Задание дня, из строки которого открыли форму: оно закроется даже если
     /// тип пина оказался другим (текст плюс снимок — это уже `photo`).
     String? dailyTaskId,
+    /// false — запись сделало само приложение (копия сообщения, фото или
+    /// песни с виджета), а не человек: такая не закрывает задание дня.
+    /// Иначе утреннее сообщение в виджете отмечало «Вспомни любимый момент»,
+    /// хотя на задание никто не отвечал (обращение 236, 05.10.2026).
+    bool countsForDailyTask = true,
   }) async {
     final uid = _uid;
     if (uid == null || groupId.isEmpty) {
@@ -200,8 +205,10 @@ class MemoryRepository {
     // Задание дня закрывается тем же пином: тип совпал — задание засчитано,
     // монету выдаёт сервер. Пин чужого типа не делает ничего, но пин из самой
     // строки задания закрывает её независимо от типа.
-    unawaited(DailyTaskService.instance
-        .onMemoryCreated(type, fromTaskId: dailyTaskId));
+    if (countsForDailyTask || dailyTaskId != null) {
+      unawaited(DailyTaskService.instance
+          .onMemoryCreated(type, fromTaskId: dailyTaskId));
+    }
     unawaited(AnalyticsService.instance.logMemoryAdded(type: type.name));
     return memory;
   }

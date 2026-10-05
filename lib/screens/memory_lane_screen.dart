@@ -2537,12 +2537,17 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     final body = hasCaption
         ? memory.caption!
         : (hasTitle ? memory.title! : '');
+    // Шапки у стикера нет, а подпись «Задание дня» живёт в шапке — поэтому
+    // текстовые ответы на задания стояли в ленте без неё, хотя у музыки и
+    // места она была (обращение 236, 05.10.2026). Ставим её над стикером.
+    final task = _dailyTaskNote(memory);
 
     return _baseTile(
       memory: memory,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (task != null) task,
           // ── Жёлтый стикер-листик (post-it). Без хедера сверху — автор
           // подписан внизу в стиле стикера. Плоский (без тени/бордера). ──
           Padding(
