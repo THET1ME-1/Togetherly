@@ -66,18 +66,29 @@ class ReelsFeed {
       if (R.thumbs) { var th = R.thumbs(t); if (Object.keys(th).length) window.flutter_inappwebview.callHandler('reelThumbs', th); }
     } catch (e) {}
   };
+  // Видео скрытой странице не нужно: она только приносит номера. Ролики,
+  // которые лента TikTok качала заранее, отнимали канал у плеера в комнате:
+  // 8 МБ видео за первые полминуты против мегабайта у самого ролика (замер
+  // 05.10.2026), и на мобильном интернете ролик в комнате грузился минутами.
+  // Номера ленты от этого не пропадают.
+  var VIDEO = /\\/video\\/tos\\/|\\/aweme\\/v1\\/play|videoplayback|\\.(mp4|m4s|webm)(\\?|\$)/;
   var f = window.fetch;
   if (f) window.fetch = function(input){
     var u = typeof input === 'string' ? input : (input && input.url) || '';
+    if (VIDEO.test(String(u))) return Promise.reject(new TypeError('Failed to fetch'));
     return f.apply(this, arguments).then(function(r){
       try { if (R.url.test(u)) r.clone().text().then(function(t){ heard(u, t); }, function(){}); } catch (e) {}
       return r;
     });
   };
   var open = XMLHttpRequest.prototype.open, send = XMLHttpRequest.prototype.send;
-  XMLHttpRequest.prototype.open = function(m, u){ this.__tgU = u; return open.apply(this, arguments); };
+  XMLHttpRequest.prototype.open = function(m, u){ this.__tgU = u; this.__tgNo = VIDEO.test(String(u || '')); return open.apply(this, arguments); };
   XMLHttpRequest.prototype.send = function(){
     var x = this;
+    if (x.__tgNo) {
+      setTimeout(function(){ try { x.dispatchEvent(new ProgressEvent('error')); x.dispatchEvent(new ProgressEvent('loadend')); } catch (e) {} }, 0);
+      return;
+    }
     x.addEventListener('load', function(){ try { heard(x.__tgU, x.responseText); } catch (e) {} });
     return send.apply(this, arguments);
   };
@@ -85,8 +96,19 @@ class ReelsFeed {
   if (SRC === 'vk' || SRC === 'dzen') document.addEventListener('DOMContentLoaded', function(){
     try { tell(uniq(R.pick(document.documentElement.innerHTML))); } catch (e) {}
   });
-  // Ни звука: ролик здесь играет только ради того, чтобы площадка его
-  // засчитала, слушают его в комнате.
+  // Ни звука: видео сюда не доходит (см. VIDEO выше), а если площадка
+  // всё же что-то включит, слушают ролик в комнате.
+  // Прямая ссылка на ролик в самом элементе (плеер страницы ролика) — тоже мимо.
+  var srcd = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src');
+  if (srcd && srcd.set) Object.defineProperty(HTMLMediaElement.prototype, 'src', {
+    configurable: true, enumerable: srcd.enumerable, get: srcd.get,
+    set: function(v){ if (VIDEO.test(String(v || ''))) return; srcd.set.call(this, v); }
+  });
+  var setAttr = Element.prototype.setAttribute;
+  Element.prototype.setAttribute = function(n, v){
+    if ((this instanceof HTMLMediaElement || this instanceof HTMLSourceElement) && String(n).toLowerCase() === 'src' && VIDEO.test(String(v || ''))) return;
+    return setAttr.apply(this, arguments);
+  };
   var hush = function(v){ try { v.muted = true; v.volume = 0; if (window.__tgStop) v.pause(); } catch (e) {} };
   var play = HTMLMediaElement.prototype.play;
   HTMLMediaElement.prototype.play = function(){ hush(this); return play.apply(this, arguments); };
