@@ -292,14 +292,17 @@ const Map<String, Map<String, String>> chestStrings = {
     'fr': 'Cadeau envoyé',
     'de': 'Geschenk gesendet',
   },
+  // Где полка, говорим прямо: на том же экране упомянут магазин и раздел
+  // «Из сундука», и оставленный подарок искали там (обращение 234, 05.10.2026),
+  // а живёт он в профиле, в «Что вам дарили».
   'chestKept': {
-    'ru': 'Подарок на твоей полке',
-    'en': 'The gift is on your shelf',
-    'pt': 'O presente está na tua estante',
-    'it': 'Il regalo è sulla tua mensola',
-    'es': 'El regalo está en tu estante',
-    'fr': 'Le cadeau est sur ton étagère',
-    'de': 'Das Geschenk steht in deinem Regal',
+    'ru': 'Подарок на полке: Профиль → «Что вам дарили»',
+    'en': 'The gift is on your shelf: Profile → “Gifts you received”',
+    'pt': 'O presente está na estante: Perfil → “O que você recebeu”',
+    'it': 'Il regalo è sulla mensola: Profilo → “Cosa hai ricevuto”',
+    'es': 'El regalo está en el estante: Perfil → «Lo que has recibido»',
+    'fr': 'Le cadeau est sur l’étagère : Profil → « Ce que tu as reçu »',
+    'de': 'Das Geschenk steht im Regal: Profil → „Was du bekommen hast“',
   },
   'chestStashTitle': {
     'ru': 'Из сундука',
