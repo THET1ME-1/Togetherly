@@ -77,10 +77,12 @@ body.reels .stage-wrap {
 .rl-stage { position: absolute; left: 0; right: 0; top: 0; height: 100%; overflow: hidden; background: #000; }
 /* Плеер выше экрана на 140 точек: сверху и снизу срезается своя полоса YouTube
    (название канала, кнопки), иначе она ложится на нашу шапку и поле ввода. */
+/* Ширина плеера — от ПОЛНОЙ высоты экрана (--vph-full, без клавиатуры): края
+   плеера с кнопками площадки остаются за экраном и при открытой клавиатуре. */
 /* Карточки роликов: текущая на месте, следующая ждёт под экраном. */
 .rl-cards { position: absolute; inset: 0; }
 .rl-card { position: absolute; inset: 0; overflow: hidden; background: #000; transform: translate3d(0, 100%, 0); will-change: transform; }
-.rl-frame { position: absolute; left: 50%; top: 50%; width: max(100%, calc(var(--vph, 100dvh) * 9 / 16)); height: calc(max(100%, 100vw * 16 / 9) + 140px); transform: translate(-50%, -50%); }
+.rl-frame { position: absolute; left: 50%; top: 50%; width: max(100%, calc(var(--vph-full, var(--vph, 100dvh)) * 9 / 16)); height: calc(max(100%, 100vw * 16 / 9) + 140px); transform: translate(-50%, -50%); }
 .rl-frame iframe { width: 100%; height: 100%; border: 0; display: block; pointer-events: none; }
 /* Обёртка плеера: YouTube заменяет её своим iframe, остальные площадки кладут
    iframe внутрь — без высоты у обёртки он сжимался в полоску сверху. */

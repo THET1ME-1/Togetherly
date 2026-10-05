@@ -1139,13 +1139,23 @@
     const keyboardOpen = () => seen() < window.innerHeight * 0.8;
     let lastH = -1;
     let lastT = -1;
+    // Полная высота экрана при этой ширине — без клавиатуры. На Android
+    // клавиатура урезает окно целиком, и `keyboardOpen` её не видит; плеер
+    // ленты, считавший ширину от урезанной высоты, сужался до края экрана и
+    // показывал свои кнопки — лайки и счётчик TikTok (05.10.2026). Новая
+    // ширина (поворот) сбрасывает запомненное.
+    let fullW = -1;
+    let fullH = 0;
     const apply = () => {
       const h = seen();
       const t = shift();
+      const w = window.innerWidth;
+      const root = document.documentElement.style;
+      if (Math.abs(w - fullW) > 1) { fullW = w; fullH = 0; }
+      if (h > fullH) { fullH = h; root.setProperty('--vph-full', fullH + 'px'); }
       if (Math.abs(h - lastH) < 1 && Math.abs(t - lastT) < 1) return;
       lastH = h;
       lastT = t;
-      const root = document.documentElement.style;
       root.setProperty('--vph', h + 'px');
       // Клавиатура не только урезает видимое, но и прокручивает документ:
       // без этого сдвига страница уезжает вверх, а прокрутки у комнаты нет.

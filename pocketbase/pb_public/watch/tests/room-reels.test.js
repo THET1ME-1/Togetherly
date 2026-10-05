@@ -263,6 +263,19 @@ const check = (n, c, x = '') => { console.log((c ? '  ✓ ' : '  ✗ ') + n, x);
   const gap = await pa.evaluate(() => document.querySelector('.rl-rail').getBoundingClientRect().top - document.querySelector('.rl-voice').getBoundingClientRect().bottom);
   check('в разговоре звонок и действия не налезают', gap >= 8, gap + ' px между ними');
 
+  // Клавиатура: на Android она урезает окно целиком. Плеер при этом не имеет
+  // права сужаться — его края с кнопками площадки (лайки и счётчик TikTok)
+  // стоят за краем экрана, а сжатие возвращало их в кадр (жалоба 05.10.2026).
+  const ширина = () => pa.evaluate(() => document.querySelector('.rl-card.is-cur .rl-frame, .rl-frame').getBoundingClientRect().width);
+  const доКлавиатуры = await ширина();
+  await pa.setViewportSize({ width: 393, height: 420 });
+  await pa.waitForTimeout(800);
+  const сКлавиатурой = await ширина();
+  check('клавиатура не сужает плеер', Math.abs(сКлавиатурой - доКлавиатуры) < 1 && доКлавиатуры > 393,
+    Math.round(доКлавиатуры) + ' → ' + Math.round(сКлавиатурой));
+  await pa.setViewportSize({ width: 393, height: 852 });
+  await pa.waitForTimeout(400);
+
   // Узкий экран: ничего не налезает.
   await pa.setViewportSize({ width: 320, height: 640 });
   await pa.waitForTimeout(400);
