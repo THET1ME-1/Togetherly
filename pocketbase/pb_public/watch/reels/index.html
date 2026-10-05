@@ -9,7 +9,7 @@
 <!-- Своя страница ленты (с 05.10.2026). Канал пары, вход и звонок — общие с
      комнатой совместного просмотра, они в ../pair.js; ролики, очередь, чат и
      реакции — в reels.js. Разметку ленты строит сам reels.js. -->
-<link rel="stylesheet" href="reels.css?v=20261005d">
+<link rel="stylesheet" href="reels.css?v=20261005e">
 <script>
 /* Приложение сообщает состояние звонка вызовом window.watchVoiceState. Оно
    может прийти раньше, чем выполнится pair.js, поэтому первое значение просто
@@ -18,9 +18,31 @@ window.watchVoiceState = (s) => { window.__voicePending = s; };
 </script>
 </head>
 <body class="reels">
+<!-- Ожидание с первой отрисовки: скриптов страницы около 170 КБ, и на
+     мобильной сети без этого экран секунды стоял чёрным и пустым. reels.js
+     убирает его, когда встала лента, — её экран ожидания стоит там же. -->
+<div class="rl-boot" id="rlBoot" role="status">
+  <span class="rl-spin"></span>
+  <b id="rlBootTitle">Собираем ленту…</b>
+  <span class="rl-wait-sub" id="rlBootSub">Первые ролики приходят за несколько секунд</span>
+</div>
+<script>
+/* Язык — тем же правилом, что i18n.js: выбор человека, иначе язык браузера. */
+(function () {
+  var ru = true;
+  try {
+    var saved = localStorage.getItem('togetherly.watch.lang');
+    ru = saved ? saved === 'ru' : (navigator.languages || [navigator.language || 'en'])
+      .some(function (l) { return String(l).toLowerCase().indexOf('ru') === 0; });
+  } catch (e) {}
+  if (ru) return;
+  document.getElementById('rlBootTitle').textContent = 'Gathering your feed…';
+  document.getElementById('rlBootSub').textContent = 'The first clips arrive in a few seconds';
+})();
+</script>
 <script src="../i18n.js?v=20260929"></script>
 <script src="../vendor/centrifuge.js"></script>
 <script src="../pair.js?v=20261005a"></script>
-<script src="reels.js?v=20261005b"></script>
+<script src="reels.js?v=20261005c"></script>
 </body>
 </html>

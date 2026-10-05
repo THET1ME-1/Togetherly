@@ -230,6 +230,9 @@
     wireGestures();
     loadArt();
     showWait(T.loading, T.loadingSub, true);
+    // Ожидание из разметки страницы больше не нужно: своё стоит на том же месте.
+    const boot = document.getElementById('rlBoot');
+    if (boot) boot.remove();
     paintTurn();
     // Вход: панели выезжают на места, а не появляются разом.
     requestAnimationFrame(() => requestAnimationFrame(() => root.classList.add('is-in')));

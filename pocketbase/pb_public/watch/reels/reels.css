@@ -219,6 +219,10 @@ body.reels.typing .rl-send, .rl.chat-open .rl-send { right: 12px; bottom: var(--
 .rl-wait[hidden] { display: none; }
 .rl-wait b { font: 800 18px/1.2 'Unbounded', sans-serif; }
 .rl-wait-sub { font-size: 14px; opacity: .85; max-width: 32ch; }
+/* Ожидание из разметки страницы — до скриптов. Стоит там же и так же, как
+   .rl-wait, поэтому подмена на него не сдвигает ни крутилку, ни текст. */
+.rl-boot { position: fixed; left: 24px; right: 24px; top: 50%; transform: translateY(-50%); display: grid; justify-items: center; gap: 12px; text-align: center; color: #fff; font: 500 14px/1.35 'Onest', system-ui, sans-serif; }
+.rl-boot b { font: 800 18px/1.2 'Unbounded', sans-serif; }
 /* Куда идти, если в ленту не пустили: вход на странице комнаты или главная. */
 .rl-go { margin-top: 4px; height: 48px; padding: 0 24px; border-radius: 999px; display: inline-flex; align-items: center; background: var(--rl-accent); color: var(--rl-on-accent); font: 700 15px/1 'Onest', sans-serif; text-decoration: none; }
 .rl-spin { width: 40px; height: 40px; border-radius: 50%; border: 4px solid rgba(255, 255, 255, .2); border-top-color: var(--rl-accent); animation: rl-spin .9s linear infinite; }
