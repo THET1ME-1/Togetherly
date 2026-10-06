@@ -226,7 +226,10 @@ function judge(size, state, m) {
   const errors = [];
 
   for (const [name, W, H, kind] of SIZES) {
-    const ctx = await browser.newContext({ viewport: { width: W, height: H }, locale: 'ru-RU', hasTouch: true, isMobile: W < 700 });
+    // IOS=1 — страница видит iPhone: в шапке появляется своя кнопка «назад»
+    // (системного «назад» там нет), и шапка становится шире.
+    const ua = process.env.IOS ? { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148' } : {};
+    const ctx = await browser.newContext(Object.assign({ viewport: { width: W, height: H }, locale: 'ru-RU', hasTouch: true, isMobile: W < 700 }, ua));
     await ctx.addInitScript(({ token, feed }) => {
       window.__togetherlyAuth = { token, name: 'Боря' };
       window.flutter_inappwebview = {
