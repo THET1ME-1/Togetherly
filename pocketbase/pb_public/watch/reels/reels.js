@@ -1474,6 +1474,17 @@
   function start() {
     build();
     P.viewport(['.rl-input']);
+    // Клавиатура Android урезает окно целиком, и `typing` из pair.js её не
+    // видит: столбик оставался на месте и налезал на звонок и шапку. Своя
+    // примета — поле в фокусе, а окно заметно ниже полной высоты.
+    const kb = () => {
+      const full = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--vph-full')) || 0;
+      const on = document.activeElement === el.input && full > 0 && window.innerHeight < full * 0.8;
+      document.body.classList.toggle('rl-kb', on);
+    };
+    window.addEventListener('resize', kb);
+    el.input.addEventListener('focus', kb);
+    el.input.addEventListener('blur', () => document.body.classList.remove('rl-kb'));
     // Имя приходит от приложения (?name=): им подписаны реплики и ход ленты.
     const params = new URLSearchParams(location.search);
     S.name = (params.get('name') || '').trim().slice(0, 32);

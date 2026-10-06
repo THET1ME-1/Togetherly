@@ -80,7 +80,13 @@ body.reels {
 /* Карточки роликов: текущая на месте, следующая ждёт под экраном. */
 .rl-cards { position: absolute; inset: 0; }
 .rl-card { position: absolute; inset: 0; overflow: hidden; background: #000; transform: translate3d(0, 100%, 0); will-change: transform; }
-.rl-frame { position: absolute; left: 50%; top: 50%; width: max(100%, calc(var(--vph-full, var(--vph, 100dvh)) * 9 / 16)); height: calc(max(100%, 100vw * 16 / 9) + 140px); transform: translate(-50%, -50%); }
+/* Ширина — колонка 9:16 по полной высоте экрана, и на телефоне, и на
+   широком экране. Пока она была max(100%, …), экран шире ролика (телефон
+   лёжа, планшет, компьютер) растягивал ролик на всю ширину, и от него
+   оставалась средняя полоса; теперь там колонка по центру во всю высоту.
+   Высота не больше полной высоты экрана плюс срезаемые полосы. */
+.rl-frame { position: absolute; left: 50%; top: 50%; width: calc(var(--vph-full, var(--vph, 100dvh)) * 9 / 16);
+  height: calc(min(max(100%, 100vw * 16 / 9), var(--vph-full, var(--vph, 100dvh))) + 140px); transform: translate(-50%, -50%); }
 .rl-frame iframe { width: 100%; height: 100%; border: 0; display: block; pointer-events: none; }
 /* Обёртка плеера: YouTube заменяет её своим iframe, остальные площадки кладут
    iframe внутрь — без высоты у обёртки он сжимался в полоску сверху. */
@@ -107,7 +113,8 @@ body.reels {
 .rl-ib.end { background: var(--rl-end); color: #fff; }
 .rl-ib.mute { background: rgba(255, 255, 255, .16); color: #fff; }
 
-.rl-top { position: absolute; top: var(--rl-top); left: 12px; right: 12px; display: flex; align-items: center; gap: 8px; }
+/* Справа шапка оставляет место кнопке звонка: на 280 точках имя уходило под неё. */
+.rl-top { position: absolute; top: var(--rl-top); left: 12px; right: 68px; display: flex; align-items: center; gap: 8px; }
 .rl-pill { height: 40px; min-width: 0; border-radius: 999px; background: var(--rl-scrim); display: inline-flex; align-items: center; gap: 8px; padding: 0 12px 0 8px; font-weight: 600; font-size: 13px; }
 .rl-pill b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rl-src { flex: none; background: rgba(255, 255, 255, .2); border-radius: 999px; padding: 4px 8px; font: 700 10px/1 'Onest', sans-serif; letter-spacing: .04em; }
@@ -177,7 +184,11 @@ body.reels {
 @keyframes rl-match { 0% { transform: translateY(16px); opacity: 0; } 8% { transform: none; opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; } }
 
 /* свежие реплики над полем */
-.rl-feed { position: absolute; left: 12px; right: 72px; bottom: calc(var(--rl-bottom) + 58px); display: grid; gap: 6px; justify-items: start; pointer-events: none; transition: opacity .6s; }
+/* Реплики растут вверх, но не выше плашки «Листает…»: при клавиатуре в
+   низком окне они залезали на шапку. Лишнее сверху гаснет. */
+.rl-feed { position: absolute; left: 12px; right: 72px; bottom: calc(var(--rl-bottom) + 58px); display: grid; gap: 6px; justify-items: start; align-content: end; pointer-events: none; transition: opacity .6s;
+  max-height: calc(var(--vph, 100dvh) - var(--rl-bottom) - 58px - var(--rl-top) - 90px); overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 24px); mask-image: linear-gradient(to bottom, transparent, #000 24px); }
 .rl-feed .rl-msg:not(.me):not(.sys) { background: var(--rl-frost); }
 .rl-msg { max-width: 100%; border-radius: 20px 20px 20px 6px; padding: 8px 12px; font: 500 13.5px/1.35 'Onest', sans-serif; background: var(--rl-sc-high); color: var(--rl-ink); overflow-wrap: anywhere; }
 .rl-msg b { font-weight: 700; }
@@ -209,7 +220,7 @@ body.reels {
 .rl-send:active { transform: scale(.92); }
 .rl.is-typing .rl-send:active { transform: rotate(40deg) scale(.92); }
 /* Столбик спрятан (клавиатура) — кнопка встаёт рядом с полем, ростом с него. */
-body.reels.typing .rl-send, .rl.chat-open .rl-send { right: 12px; bottom: var(--rl-bottom); width: 48px; height: 48px; }
+body.reels.typing .rl-send, body.reels.rl-kb .rl-send, .rl.chat-open .rl-send { right: 12px; bottom: var(--rl-bottom); width: 48px; height: 48px; }
 /* Над роликом все реплики слева, как живые комментарии: своя отличается
    цветом, а не стороной — справа её закрывал столбик действий. */
 .rl-feed .rl-msg.me { justify-self: start; border-radius: 20px 20px 20px 6px; }
@@ -233,7 +244,7 @@ body.reels.typing .rl-send, .rl.chat-open .rl-send { right: 12px; bottom: var(--
 .rl-sound .ms { font-size: 20px; }
 
 /* чат целиком */
-.rl-sheet { position: absolute; left: 0; right: 0; bottom: 0; top: 43%; z-index: 7; background: var(--rl-sc-low); color: var(--rl-ink); border-radius: 28px 28px 0 0;
+.rl-sheet { position: absolute; left: 0; right: 0; bottom: 0; top: var(--rl-sheet, 43%); z-index: 7; background: var(--rl-sc-low); color: var(--rl-ink); border-radius: 28px 28px 0 0;
   padding: 10px 14px calc(var(--rl-bottom) + 58px); display: flex; flex-direction: column; gap: 8px; transform: translateY(102%); transition: transform .32s cubic-bezier(.2, 0, 0, 1); }
 /* Шапка листа: за неё лист тянут вниз, крестик закрывает. */
 .rl-grab { flex: none; display: grid; gap: 6px; touch-action: none; cursor: grab; }
@@ -261,7 +272,7 @@ body.reels.typing .rl-send, .rl.chat-open .rl-send { right: 12px; bottom: var(--
 .rl.chat-open .rl-feed, .rl.chat-open .rl-match, .rl.chat-open .rl-pop, .rl.chat-open .rl-pick, .rl.chat-open .rl-sound { display: none; }
 /* С открытым чатом колонка распадается: звонок остаётся справа вверху,
    действия встают строкой над листом. */
-.rl.chat-open .rl-rail { top: calc(43% - 52px); bottom: auto; right: auto; left: 12px; grid-auto-flow: column; align-items: center; }
+.rl.chat-open .rl-rail { top: calc(var(--rl-sheet, 43%) - 52px); bottom: auto; right: auto; left: 12px; grid-auto-flow: column; align-items: center; }
 .rl.chat-open .rl-rx { width: 40px; height: 40px; }
 .rl.chat-open .rl-rx .rl-art { width: 28px; height: 28px; }
 .rl.chat-open .rl-compose { background: var(--rl-sc-highest); }
@@ -271,12 +282,14 @@ body.reels.typing .rl-send, .rl.chat-open .rl-send { right: 12px; bottom: var(--
 .rl.chat-open .rl-send:not(:disabled) { z-index: 1; }
 .rl.chat-open .rl-send:disabled { background: var(--rl-sc-high); color: var(--rl-ink-soft); }
 
-body.reels.typing .rl-rail { display: none; }
+body.reels.typing .rl-rail, body.reels.rl-kb .rl-rail { display: none; }
 
 /* Обложка, пока плеер площадки поднимается, и переливающаяся заглушка под ней.
    Уходят, когда ролик пошёл (`is-live`). Заглушка движется сдвигом, а не
    фоном: сдвиг не перерисовывает экран. */
-.rl-poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; pointer-events: none; transition: opacity .28s ease; }
+/* Обложка лежит ровно там, где встанет ролик: колонкой 9:16 по полной высоте. */
+.rl-poster { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: calc(var(--vph-full, var(--vph, 100dvh)) * 9 / 16); height: var(--vph-full, var(--vph, 100dvh));
+  object-fit: cover; z-index: 1; pointer-events: none; transition: opacity .28s ease; }
 .rl-shimmer { position: absolute; inset: 0; z-index: 2; overflow: hidden; pointer-events: none; transition: opacity .28s ease; }
 .rl-shimmer::before { content: ''; position: absolute; top: 0; bottom: 0; left: -60%; width: 60%;
   background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .09), transparent); animation: rl-shine 1.3s cubic-bezier(.4, 0, .2, 1) infinite; }
@@ -312,3 +325,25 @@ body.reels.typing .rl-rail { display: none; }
   .rl-pop, .rl-match, .rl-toast, .rl-burst, .rl-pick { animation: none; }
 }
 .rl.chat-open .rl-toast { bottom: auto; top: calc(var(--rl-top) + 56px); }
+
+/* Низкий экран (телефон лёжа, клавиатура, разделённый экран): столбик из пяти
+   кнопок в 292 точки налезал на звонок и шапку. Он встаёт в две колонки над
+   кнопкой отправки, а реплики и всплывашки отступают от него. */
+@media (max-height: 560px) {
+  .rl-rail { grid-template-columns: repeat(2, 44px); padding: 4px; bottom: calc(var(--rl-bottom) + 52px); }
+  .rl.chat-open .rl-rail { grid-template-columns: none; }
+  .rl-feed, .rl-match, .rl-toast { right: 120px; }
+  .rl-pick, .rl-pop { right: 118px; }
+  /* Лист чата выше: при 43% от 320 точек на переписку оставалось 40. */
+  .rl { --rl-sheet: calc(var(--rl-top) + 100px); }
+}
+/* Совсем низкое и узкое окно (разделённый экран): в капсуле разговора
+   остаются микрофон и отбой, иначе она упирается в столбик. */
+@media (max-height: 420px) and (max-width: 559px) {
+  .rl-voice .rl-vwho, .rl-voice .rl-vtime { display: none !important; }
+}
+/* Низкий и широкий: капсула разговора встаёт строкой, а не растёт вниз. */
+@media (max-height: 560px) and (min-width: 560px) {
+  .rl-voice { grid-auto-flow: column; align-items: center; }
+  .rl-vtime { padding: 0 6px 0 0; }
+}
