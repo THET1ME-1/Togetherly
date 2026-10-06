@@ -343,6 +343,19 @@
     el.list.appendChild(e);
   }
 
+  /** Над полем остаются только реплики, влезшие целиком: в низком окне
+   *  место до плашки «Листает…» кончается, и старшая прячется вся, а не
+   *  режется посередине. Зовётся на каждую реплику и на смену размера. */
+  function fitFeed() {
+    // Блок прижат к низу, и вылезшее вверх браузер переполнением не считает
+    // (scrollHeight его не видит), поэтому меряем каждую реплику. От нижнего
+    // края место младших не зависит от того, спрятана ли старшая.
+    const kids = Array.from(el.feed.children);
+    kids.forEach((c) => c.classList.remove('cut'));
+    const top = el.feed.getBoundingClientRect().top;
+    kids.filter((c) => c.getBoundingClientRect().top < top - 0.5).forEach((c) => c.classList.add('cut'));
+  }
+
   /** Реплика в лист чата и над полем: `{who, text, mine, sys}`. */
   function addMsg(m) {
     const e = $('.rl-empty', el.list);
@@ -353,6 +366,7 @@
     el.feed.appendChild(bubble(m, false));
     while (el.feed.children.length > 2) el.feed.firstChild.remove();
     Array.from(el.feed.children).forEach((c, i, all) => c.classList.toggle('old', i < all.length - 1));
+    fitFeed();
     el.feed.style.opacity = '1';
     clearTimeout(fadeTimer);
     fadeTimer = setTimeout(() => { el.feed.style.opacity = '0'; }, 7000);
@@ -1485,6 +1499,14 @@
     window.addEventListener('resize', kb);
     el.input.addEventListener('focus', kb);
     el.input.addEventListener('blur', () => document.body.classList.remove('rl-kb'));
+    // Клавиатура и поворот меняют место под реплики — пересчитываем.
+    // Лента целиком — чтобы спрятанная реплика вернулась, когда место
+    // прибавилось: сам блок реплик от этого не растёт.
+    if (window.ResizeObserver) {
+      const ro = new ResizeObserver(fitFeed);
+      ro.observe(el.feed);
+      ro.observe(el.root);
+    }
     // Имя приходит от приложения (?name=): им подписаны реплики и ход ленты.
     const params = new URLSearchParams(location.search);
     S.name = (params.get('name') || '').trim().slice(0, 32);

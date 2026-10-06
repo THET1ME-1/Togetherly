@@ -21,7 +21,9 @@
  * Запуск: node pocketbase/pb_public/watch/tests/reels-sizes.test.js
  * Снимки: SHOTS=<папка> перед командой.
  */
-const { chromium } = require('/home/alelx/.hermes/hermes-agent/node_modules/playwright');
+// BROWSER=webkit — тот же прогон на движке Safari (WKWebView на iPhone).
+const { chromium, webkit } = require('/home/alelx/.hermes/hermes-agent/node_modules/playwright');
+const ENGINE = process.env.BROWSER === 'webkit' ? webkit : chromium;
 const http = require('http');
 const https = require('https');
 const fs = require('fs');
@@ -158,6 +160,17 @@ function measure() {
     taps: [...all('.rl-top button'), ...all('.rl-voice button'), ...all('.rl-rail button'), ...all('.rl-lead button'),
       ...all('.rl-send'), ...(chat ? all('.rl-x') : []), ...all('.rl-input')],
     inputW: input ? input.getBoundingClientRect().width : 0,
+    // Реплика над полем, срезанная краем блока: видна, но не целиком.
+    cutMsgs: (() => {
+      const f = document.querySelector('.rl-feed');
+      if (!shown(f)) return 0;
+      const fr = f.getBoundingClientRect();
+      return [...f.children].filter((c) => {
+        const r = shown(c);
+        return r && (r.t < fr.top - 0.5 || r.b > fr.bottom + 0.5);
+      }).length;
+    })(),
+    feedShown: [...document.querySelectorAll('.rl-feed .rl-msg')].filter((c) => shown(c)).length,
     chat,
     typing: document.body.classList.contains('typing'),
   };
@@ -186,6 +199,9 @@ function judge(size, state, m) {
   for (const [a, b] of pairs) {
     if (overlap(B[a], B[b], 1)) bad(size, state, `${a} наезжает на ${b}`);
   }
+  if (m.cutMsgs) bad(size, state, `реплик срезано краем: ${m.cutMsgs}`);
+  // Где места хватает, обе реплики на виду — прятать их там нечего.
+  if (/покой|после клавиатуры/.test(state) && m.H >= 560 && m.feedShown < 2) bad(size, state, `над полем видно реплик: ${m.feedShown} из 2`);
   if (B.compose && m.inputW < 110) bad(size, state, `в поле ввода ${Math.round(m.inputW)} точек`);
   if (m.chat && B.list && B.list.h < 60) bad(size, state, `список чата схлопнулся: ${Math.round(B.list.h)}`);
   if (m.chat && !B.list) bad(size, state, 'список чата не виден');
@@ -198,8 +214,13 @@ function judge(size, state, m) {
   if (!room) throw new Error('нет кода комнаты');
 
   const srv = await serve();
-  const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
-  const ids = await harvest(browser);
+  // Номера роликов собирает Chromium: m.youtube.com в нём отдаёт ленту Shorts.
+  const harvester = await chromium.launch();
+  const ids = await harvest(harvester);
+  await harvester.close();
+  const browser = ENGINE === chromium
+    ? await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] })
+    : await ENGINE.launch();
   console.log(`роликов Shorts: ${ids.length}`);
   if (SHOTS) fs.mkdirSync(SHOTS, { recursive: true });
   const errors = [];
@@ -267,6 +288,7 @@ function judge(size, state, m) {
     await shot('kb-ios');
     await page.evaluate(() => { window.__kbH = 0; document.activeElement.blur(); });
     await page.waitForTimeout(900);
+    judge(name, 'после клавиатуры', await page.evaluate(measure));
 
     // Клавиатура Android: окно целиком становится ниже.
     if (kind === 'phone') {

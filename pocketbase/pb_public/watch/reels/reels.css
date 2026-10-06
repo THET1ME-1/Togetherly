@@ -185,10 +185,11 @@ body.reels {
 
 /* свежие реплики над полем */
 /* Реплики растут вверх, но не выше плашки «Листает…»: при клавиатуре в
-   низком окне они залезали на шапку. Лишнее сверху гаснет. */
+   низком окне они залезали на шапку. Не влезшую целиком реплику прячет
+   `fitFeed` в reels.js — пузырь не режется посередине. */
 .rl-feed { position: absolute; left: 12px; right: 72px; bottom: calc(var(--rl-bottom) + 58px); display: grid; gap: 6px; justify-items: start; align-content: end; pointer-events: none; transition: opacity .6s;
-  max-height: calc(var(--vph, 100dvh) - var(--rl-bottom) - 58px - var(--rl-top) - 90px); overflow: hidden;
-  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 24px); mask-image: linear-gradient(to bottom, transparent, #000 24px); }
+  max-height: calc(var(--vph, 100dvh) - var(--rl-bottom) - 58px - var(--rl-top) - 90px); overflow: hidden; }
+.rl-feed .rl-msg.cut { display: none; }
 .rl-feed .rl-msg:not(.me):not(.sys) { background: var(--rl-frost); }
 .rl-msg { max-width: 100%; border-radius: 20px 20px 20px 6px; padding: 8px 12px; font: 500 13.5px/1.35 'Onest', sans-serif; background: var(--rl-sc-high); color: var(--rl-ink); overflow-wrap: anywhere; }
 .rl-msg b { font-weight: 700; }
