@@ -109,6 +109,7 @@
       'room.guest': 'Гость',
       'room.send': 'Отправить',
       'room.chatToggle': 'Скрыть или показать чат',
+      'room.chatOpen': 'Открыть чат',
       'room.partnerJoined': 'Партнёр в комнате',
 
       'gate.closedTitle': 'Комната пары',
@@ -232,6 +233,7 @@
       'room.guest': 'Guest',
       'room.send': 'Send',
       'room.chatToggle': 'Hide or show chat',
+      'room.chatOpen': 'Open chat',
       'room.partnerJoined': 'Your partner is here',
 
       'gate.closedTitle': 'A couple\u2019s room',

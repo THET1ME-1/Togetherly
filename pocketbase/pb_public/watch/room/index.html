@@ -28,7 +28,7 @@ if (/[?&]reels=1\b/.test(location.search)) {
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#150D0F">
 <link rel="stylesheet" href="../landing.css?v=20260812">
-<link rel="stylesheet" href="room.css?v=20260928">
+<link rel="stylesheet" href="room.css?v=20261006a">
 <script>
 /* В комнате смотрят кино, поэтому тёмная тема здесь по умолчанию: светлую
    получает только тот, кто выбрал её сам. */
@@ -147,6 +147,14 @@ window.watchVoiceState = (s) => { window.__voicePending = s; };
     <button class="btn btn--filled btn--compact" id="apply" data-i18n="room.play">Включить</button>
   </div>
 
+  <!-- Полноэкранный режим: чат свёрнут в кнопку, пришедшее сообщение
+       всплывает над ней и уходит само (room.js, cinemaChat). -->
+  <button class="cin-fab" id="cinChat" type="button" data-i18n-aria="room.chatOpen">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.4A8 8 0 1 1 21 12z"/></svg>
+    <span class="cin-fab__n" hidden></span>
+  </button>
+  <button class="cin-toast" id="cinToast" type="button" hidden><b></b><span></span></button>
+
   <div class="composer">
     <input id="message" class="input input--flat" autocomplete="off" data-i18n-ph="room.message">
     <button class="btn btn--filled btn--icon" id="send" data-i18n-aria="room.send">
@@ -203,7 +211,7 @@ window.watchVoiceState = (s) => { window.__voicePending = s; };
   </div>
 </section>
 
-<script src="../i18n.js?v=20260929"></script>
+<script src="../i18n.js?v=20261006a"></script>
 <script src="../theme.js?v=20260812"></script>
 <script src="../vendor/centrifuge.js"></script>
 <!-- Скрипт ютуба (iframe_api) НЕ подключаем тегом: обычный <script src> держит
@@ -212,6 +220,6 @@ window.watchVoiceState = (s) => { window.__voicePending = s; };
      мёртвой (жалоба с айфона 18.08.2026). Его грузит whenYT() в room.js, и
      только когда включают ролик с ютуба. Стережёт tests/room-youtube-hang.test.js. -->
 <script src="../pair.js?v=20261005a"></script>
-<script src="room.js?v=20261005c"></script>
+<script src="room.js?v=20261006a"></script>
 </body>
 </html>

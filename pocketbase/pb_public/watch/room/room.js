@@ -732,6 +732,7 @@
       case 'chat':
         remember(data.from, data.name, data.text);
         addMessage(data.name || I18N.t('room.guest'), data.text, false);
+        cinChat.incoming(data.name || I18N.t('room.guest'), data.text);
         break;
       case 'hello':
         // Кто-то вошёл в уже живую комнату. Сервер ничего не хранит, поэтому
@@ -1041,7 +1042,89 @@
     document.body.classList.toggle('cinema', on);
     const btn = $('#cinema');
     if (btn) btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    // В режим входят с чистым кадром, из режима выходят с обычным чатом.
+    cinChat.set(false);
   }
+
+  /// Чат в полноэкранном режиме: свёрнут в кнопку, пока им не пользуются.
+  ///
+  /// «Строка для ввода и отправки сообщения залезает на само видео и не
+  /// убирается» (06.10.2026, уже не первый раз): переписка и поле лежали на
+  /// нижней половине кадра насовсем. Теперь кнопка справа внизу разворачивает
+  /// чат, пришедшая реплика всплывает на пять секунд и прибавляется к счётчику,
+  /// а развёрнутый чат сворачивается сам, когда в нём ничего не делают и поле
+  /// пустое.
+  const CIN_IDLE_MS = 6000;
+  const CIN_TOAST_MS = 5000;
+  const cinChat = (() => {
+    let unread = 0;
+    let idle = 0;
+    let toastTimer = 0;
+    const open = () => document.body.classList.contains('cin-chat');
+    const paint = () => {
+      const n = $('#cinChat .cin-fab__n');
+      if (!n) return;
+      n.textContent = unread > 9 ? '9+' : String(unread);
+      n.hidden = unread === 0;
+    };
+    const hideToast = () => {
+      clearTimeout(toastTimer);
+      const t = $('#cinToast');
+      if (t) t.hidden = true;
+    };
+    // Сворачиваем, только когда человек не пишет: поле в фокусе или в нём
+    // недописанный текст — ждём дальше.
+    const arm = () => {
+      clearTimeout(idle);
+      if (!open()) return;
+      idle = setTimeout(() => {
+        const input = $('#message');
+        if (input && (document.activeElement === input || input.value.trim())) { arm(); return; }
+        set(false);
+      }, CIN_IDLE_MS);
+    };
+    const set = (on) => {
+      document.body.classList.toggle('cin-chat', on);
+      clearTimeout(idle);
+      if (!on) return;
+      unread = 0;
+      paint();
+      hideToast();
+      const box = $('#chat');
+      if (box) box.scrollTop = box.scrollHeight;
+      arm();
+    };
+    const mount = () => {
+      const fab = $('#cinChat');
+      const toast = $('#cinToast');
+      if (!fab || !toast) return;
+      fab.addEventListener('click', () => set(true));
+      toast.addEventListener('click', () => set(true));
+      // Любое касание чата откладывает сворачивание.
+      for (const el of [$('.side'), $('.composer')]) {
+        if (!el) continue;
+        for (const ev of ['pointerdown', 'input', 'focusin', 'scroll', 'keydown']) {
+          el.addEventListener(ev, arm, true);
+        }
+      }
+    };
+    /// Реплика партнёра пришла: в свёрнутом чате всплывает и считается.
+    const incoming = (who, text) => {
+      if (!document.body.classList.contains('cinema') || open()) return;
+      unread += 1;
+      paint();
+      // Убравший чат кнопкой «скрыть» не хочет и всплывающих реплик.
+      if (document.body.classList.contains('chat-off')) return;
+      const t = $('#cinToast');
+      if (!t) return;
+      t.querySelector('b').textContent = who;
+      t.querySelector('span').textContent = text;
+      t.hidden = false;
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(hideToast, CIN_TOAST_MS);
+    };
+    return { set, mount, incoming };
+  })();
 
   /// Кнопка «во весь экран» у самого плеера ведёт в наш режим, а не в системный.
   ///
@@ -1287,6 +1370,7 @@
     TgPair.viewport(['#link', '#message']);
     cinemaToggle();
     chatToggle();
+    cinChat.mount();
     voiceBridge();
     $('#chat').dataset.empty = I18N.t('room.chatEmpty');
 
