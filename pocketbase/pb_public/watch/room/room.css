@@ -297,6 +297,17 @@
   .room-body.calling .top--room .theme-btn { min-height: 40px; height: 40px; }
   .room-body.calling .top--room .btn--icon,
   .room-body.calling .top--room .theme-btn { width: 40px; }
+  /* В приложении у шапки ещё «назад» и «поделиться», и ряд просил 429 точек
+     на любом телефоне: «свернуть» уезжала за правый край (07.10.2026).
+     «Скопировать» тут лишняя — «поделиться» открывает системный лист, в нём
+     есть копирование. Круглые кнопки — 40 точек, как в разговоре. Во время
+     звонка уходит и код: пара уже в комнате, а строку занимают счётчик,
+     микрофон и отбой. Стережёт tests/room-app-header.test.js. */
+  .app-chrome #copy { display: none; }
+  .app-chrome .top--room { gap: 6px; padding-inline: 10px; }
+  .app-chrome .top--room .btn--icon,
+  .app-chrome .top--room .theme-btn { width: 40px; min-height: 40px; height: 40px; }
+  .app-chrome.calling .room-code { display: none; }
 
   .stage-wrap {
     grid-template-columns: minmax(0, 1fr);
@@ -351,6 +362,12 @@
    самого приложения. */
 @media (max-width: 360px) {
   .room-body.calling .room-code { display: none; }
+}
+/* 320 точек (iPhone SE) в приложении: шесть элементов в ряд сходятся только
+   с зазором в 4 точки и кодом помельче. */
+@media (max-width: 340px) {
+  .app-chrome .top--room { gap: 4px; padding-inline: 8px; }
+  .app-chrome .room-code b { font-size: 12.5px; }
 }
 
 /* Высокий портретный экран (монитор боком, планшет книжно): чат растёт до
