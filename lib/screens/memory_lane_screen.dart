@@ -105,6 +105,7 @@ import '../widgets/common/pin_entry_sheet.dart';
 import '../services/offline/media_file_fetch.dart';
 import '../widgets/memory/media_strip.dart';
 import '../widgets/memory/reactions_row.dart';
+import '../widgets/memory/video_pin.dart';
 import '../models/memory_reaction.dart';
 import '../services/live_location_service.dart';
 import '../widgets/common/keyboard_aware.dart';
@@ -2985,217 +2986,14 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   // ═══════════════════════════════════════════════════
   Widget _videoLinkTile(Memory memory) {
     final platform = _detectVideoPlatform(memory.videoUrl ?? '');
-    final platformColor = platform['color'] as Color;
     final platformName = platform['name'] as String;
-    final hasThumb = memory.imageUrl?.isNotEmpty == true;
+    final url = memory.videoUrl ?? '';
+    void openOutside() {
+      if (url.isNotEmpty) {
+        safeLaunchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      }
+    }
 
-    Widget buildSubCard() => Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: widget.theme.surfaceMuted,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: widget.theme.divider, width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Thumbnail with play overlay
-              GestureDetector(
-                onTap: () {
-                  final url = memory.videoUrl;
-                  if (url != null && url.isNotEmpty) {
-                    safeLaunchUrl(
-                      Uri.parse(url),
-                      mode: LaunchMode.externalApplication,
-                    );
-                  }
-                },
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: SizedBox(
-                    width: 80,
-                    height: 56,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        // Thumbnail or platform-colored fallback
-                        if (hasThumb)
-                          StorageImage(
-                            imageUrl: memory.imageUrl!,
-                            fit: BoxFit.cover,
-                            memCacheWidth: 160,
-                            memCacheHeight: 112,
-                            errorWidget: (_, __, ___) =>
-                                _videoLinkThumbFallback(platformColor),
-                          )
-                        else
-                          _videoLinkThumbFallback(platformColor),
-                        // Dark overlay
-                        Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.transparent,
-                                Colors.black.withOpacity(0.35),
-                              ],
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                            ),
-                          ),
-                        ),
-                        // Play button
-                        Center(
-                          child: Container(
-                            width: 28,
-                            height: 28,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.92),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.play_arrow_rounded,
-                              size: 18,
-                              color: platformColor,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              // Title, author, platform badge
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      memory.title?.isNotEmpty == true
-                          ? memory.title!
-                          : LocaleService.current.video,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: widget.theme.textPrimary,
-                        height: 1.3,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 5),
-                    // Platform badge — music-style chip (no border)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: platformColor.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            _videoPlatformIcon(platformName),
-                            size: 11,
-                            color: platformColor,
-                          ),
-                          const SizedBox(width: 4),
-                          Flexible(
-                            child: Text(
-                              platformName,
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: platformColor,
-                                letterSpacing: 0.2,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Author/channel if in musicArtist field
-                    if (memory.musicArtist?.isNotEmpty == true)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 3),
-                        child: Text(
-                          memory.musicArtist!,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: widget.theme.textMuted,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          // Caption
-          if (memory.caption?.isNotEmpty == true) ...[
-            const SizedBox(height: 8),
-            Text(
-              memory.caption!,
-              style: TextStyle(
-                fontSize: 12,
-                color: widget.theme.textSecondary,
-                height: 1.4,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-          const SizedBox(height: 8),
-          // Open button — solid platform color, no border, white text
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () {
-                final url = memory.videoUrl;
-                if (url != null && url.isNotEmpty) {
-                  safeLaunchUrl(
-                    Uri.parse(url),
-                    mode: LaunchMode.externalApplication,
-                  );
-                }
-              },
-              icon: const Icon(
-                Icons.open_in_new_rounded,
-                size: 14,
-                color: Colors.white,
-              ),
-              label: Text(
-                LocaleService.current.openIn(platformName),
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: platformColor,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                elevation: 0,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
     return _baseTile(
       memory: memory,
       child: Column(
@@ -3207,40 +3005,33 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           // ── Превью видео + кнопки «Открыть в …» и «Смотреть вместе» ──
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14),
+            // YouTube играет прямо в карточке, остальные открываются снаружи.
             child: platformName == 'YouTube'
                 ? _YouTubeInlineCard(
                     memory: memory,
-                    platformColor: platformColor,
-                    platformName: platformName,
                     pairId: pair.pairId,
                     partnerUid: pair.partnerUid,
                   )
-                : buildSubCard(),
+                : VideoPin(
+                    scheme: ProfileTheme.schemeFor(widget.theme),
+                    fill: widget.theme.fillColor,
+                    url: url,
+                    platformName: platformName,
+                    platformIcon: _videoPlatformIcon(platformName),
+                    thumbUrl: memory.imageUrl?.isNotEmpty == true
+                        ? memory.imageUrl
+                        : videoLinkThumb(url),
+                    title: memory.title,
+                    author: memory.musicArtist,
+                    caption: memory.caption,
+                    onPlay: openOutside,
+                    onOpen: openOutside,
+                  ),
           ),
           const SizedBox(height: 12),
           _cardFooter(memory),
           const SizedBox(height: 12),
         ],
-      ),
-    );
-  }
-
-  Widget _videoLinkThumbFallback(Color platformColor) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            platformColor.withOpacity(0.85),
-            platformColor.withOpacity(0.55),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: const Icon(
-        Icons.play_circle_outline_rounded,
-        color: Colors.white,
-        size: 28,
       ),
     );
   }

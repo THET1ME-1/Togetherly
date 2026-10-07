@@ -328,17 +328,14 @@ class _M3WaveBarsState extends State<_M3WaveBars>
 
 /// Inline YouTube player card — shows thumbnail initially,
 /// then plays the video inline when the user taps the play button.
+/// Пин YouTube: вид — общий [VideoPin], а ролик играет прямо в карточке.
 class _YouTubeInlineCard extends StatefulWidget {
   final Memory memory;
-  final Color platformColor;
-  final String platformName;
   final String pairId;
   final String partnerUid;
 
   const _YouTubeInlineCard({
     required this.memory,
-    required this.platformColor,
-    required this.platformName,
     required this.pairId,
     required this.partnerUid,
   });
@@ -438,264 +435,60 @@ class _YouTubeInlineCardState extends State<_YouTubeInlineCard> {
   @override
   Widget build(BuildContext context) {
     final memory = widget.memory;
-    final platformColor = widget.platformColor;
-    final platformName = widget.platformName;
+    final url = memory.videoUrl ?? '';
+    final theme = context.appTheme;
     // Превью: сохранённая обложка, иначе — кадр площадки по ссылке
     // (videoLinkThumb, то же правило, что у «Наших видео» в «Смотрим»).
     // oEmbed на шеринге почти никогда не отдаёт обложку, и раньше
     // показывался только градиент. BoxFit.cover обрезает 4:3 до 16:9.
-    final derived = videoLinkThumb(memory.videoUrl ?? '');
+    final derived = videoLinkThumb(url);
     final thumbUrl = memory.imageUrl?.isNotEmpty == true
         ? memory.imageUrl!
         : (derived.isNotEmpty ? derived : null);
-    final hasThumb = thumbUrl != null;
+    final playing = _isPlaying && _controller != null;
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: context.appTheme.surfaceMuted,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: context.appTheme.divider, width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Inline player or thumbnail preview ──
-          if (_isPlaying && _controller != null)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              // Цвет полосы у 10.x приходит темой, а не полем виджета:
-              // ProgressBarColors больше нет. Подкрашиваем расширением темы,
-              // чтобы полоса осталась в цвете площадки.
-              child: Theme(
-                data: Theme.of(context).copyWith(
-                  extensions: <ThemeExtension<dynamic>>[
-                    YoutubePlayerTheme(
-                      progressBarActiveColor: platformColor,
-                      progressBarBufferedColor:
-                          platformColor.withValues(alpha: 0.4),
-                    ),
-                  ],
-                ),
-                child: YoutubePlayer(controller: _controller!),
+    return VideoPin(
+      scheme: ProfileTheme.schemeFor(theme),
+      fill: theme.fillColor,
+      url: url,
+      platformName: 'YouTube',
+      platformIcon: Icons.smart_display_rounded,
+      thumbUrl: thumbUrl,
+      title: memory.title,
+      author: memory.musicArtist,
+      caption: memory.caption,
+      // Цвет полосы у 10.x приходит темой, а не полем виджета:
+      // ProgressBarColors больше нет. Подкрашиваем расширением темы —
+      // полоса в цвете темы, как и весь пин.
+      player: playing
+          ? Theme(
+              data: Theme.of(context).copyWith(
+                extensions: <ThemeExtension<dynamic>>[
+                  YoutubePlayerTheme(
+                    progressBarActiveColor: theme.fillColor,
+                    progressBarBufferedColor:
+                        theme.fillColor.withValues(alpha: 0.4),
+                  ),
+                ],
               ),
+              child: YoutubePlayer(controller: _controller!),
             )
-          else
-            GestureDetector(
-              onTap: _startInlinePlay,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: AspectRatio(
-                  aspectRatio: 16 / 9,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      if (hasThumb)
-                        StorageImage(
-                          imageUrl: thumbUrl,
-                          fit: BoxFit.cover,
-                          errorWidget: (_, __, ___) => Container(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  platformColor.withValues(alpha: 0.85),
-                                  platformColor.withValues(alpha: 0.55),
-                                ],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                            ),
-                          ),
-                        )
-                      else
-                        Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                platformColor.withValues(alpha: 0.85),
-                                platformColor.withValues(alpha: 0.55),
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                          ),
-                        ),
-                      Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.transparent,
-                              Colors.black.withValues(alpha: 0.4),
-                            ],
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                          ),
-                        ),
-                      ),
-                      Center(
-                        child: Container(
-                          width: 56,
-                          height: 56,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.95),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.play_arrow_rounded,
-                            size: 34,
-                            color: platformColor,
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        bottom: 8,
-                        right: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: platformColor,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.smart_display_rounded,
-                                size: 10,
-                                color: Colors.white,
-                              ),
-                              SizedBox(width: 3),
-                              Text(
-                                'YouTube',
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          const SizedBox(height: 10),
-          // ── Title ──
-          Text(
-            memory.title?.isNotEmpty == true
-                ? memory.title!
-                : LocaleService.current.video,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: context.appTheme.textPrimary,
-              height: 1.3,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          if (memory.musicArtist?.isNotEmpty == true)
-            Padding(
-              padding: const EdgeInsets.only(top: 3),
-              child: Text(
-                memory.musicArtist!,
-                style: TextStyle(fontSize: 11, color: context.appTheme.textMuted),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          if (memory.caption?.isNotEmpty == true) ...[
-            const SizedBox(height: 6),
-            Text(
-              memory.caption!,
-              style: TextStyle(
-                fontSize: 12,
-                color: context.appTheme.textSecondary,
-                height: 1.4,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () {
-                final url = memory.videoUrl;
-                if (url != null && url.isNotEmpty) {
-                  safeLaunchUrl(
-                    Uri.parse(url),
-                    mode: LaunchMode.externalApplication,
-                  );
-                }
-              },
-              icon: const Icon(
-                Icons.open_in_new_rounded,
-                size: 14,
-                color: Colors.white,
-              ),
-              label: Text(
-                LocaleService.current.openIn(platformName),
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: platformColor,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                elevation: 0,
-              ),
-            ),
-          ),
-          // ── Смотреть вместе (совместный просмотр через RTDB, 0 чтений) ──
-          if (widget.pairId.isNotEmpty &&
-              (memory.videoUrl?.isNotEmpty == true))
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () => TogetherLauncher.hostVideo(
-                    context,
-                    pairId: widget.pairId,
-                    partnerUid: widget.partnerUid,
-                    videoUrl: memory.videoUrl!,
-                  ),
-                  icon: Icon(Icons.people_alt_rounded,
-                      size: 16, color: platformColor),
-                  label: Text(
-                    LocaleService.current.watchTogether,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: platformColor,
-                    ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: platformColor),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
+          : null,
+      onPlay: _startInlinePlay,
+      onOpen: () {
+        if (url.isNotEmpty) {
+          safeLaunchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+        }
+      },
+      // Совместный просмотр: комната пары, ролик включается у обоих.
+      onWatchTogether: widget.pairId.isNotEmpty && url.isNotEmpty
+          ? () => TogetherLauncher.hostVideo(
+                context,
+                pairId: widget.pairId,
+                partnerUid: widget.partnerUid,
+                videoUrl: url,
+              )
+          : null,
     );
   }
 }
