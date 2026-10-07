@@ -24,8 +24,11 @@
 Перед правкой каждой записи её id и прежнее значение пишутся в журнал
 отката (`--undo-log`): откат — вернуть `imageUrl` пустым по этим id.
 
+  * TikTok: адрес обложки из oEmbed через посредника, кадр ложится записью
+    `media` так же, как у своего видео (ниже, раздел TikTok).
+
 Запуск на сервере (cron, раз в 10 минут, своими видео по 12 штук за проход):
-  memory_thumbs.py --links --videos 12
+  memory_thumbs.py --links --videos 12 --tiktok 20
 Разово всё прошлое: --all. Посмотреть без записи: --dry-run.
 """
 import argparse
@@ -80,6 +83,32 @@ def link_thumb(url: str) -> str:
         if m:
             return "https://rutube.ru/api/video/%s/thumbnail/?redirect=1" % m.group(1)
     return ""
+
+
+# ── TikTok: обложка через oEmbed ─────────────────────────────────────────────
+
+def is_tiktok(url: str) -> bool:
+    try:
+        u = urllib.parse.urlparse((url or "").strip())
+    except ValueError:
+        return False
+    host = (u.hostname or "").lower()
+    return u.scheme in ("http", "https") and (host == "tiktok.com" or host.endswith(".tiktok.com"))
+
+
+def tiktok_thumb_of(oembed) -> str:
+    """Адрес обложки из ответа oEmbed — только https и только сеть TikTok:
+    по нему сервер пойдёт качать картинку, внутренний адрес туда не пустим."""
+    url = oembed.get("thumbnail_url") if isinstance(oembed, dict) else None
+    if not isinstance(url, str):
+        return ""
+    try:
+        u = urllib.parse.urlparse(url)
+    except ValueError:
+        return ""
+    host = (u.hostname or "").lower()
+    ok = re.search(r"(^|\.)tiktokcdn(-[a-z]+)?\.com$", host) or re.search(r"(^|\.)tiktok\.com$", host)
+    return url if u.scheme == "https" and ok else ""
 
 
 def pb_ref(url: str):
@@ -269,10 +298,85 @@ def own_videos(limit: int, since_days, dry: bool) -> int:
     return len(done)
 
 
+# ── TikTok: кадр через oEmbed ───────────────────────────────────────────────
+#
+# Открытой обложки по номеру ролика у TikTok нет (07.10.2026, «нет превью на
+# ТТ видео» — в базе ни у одной записи TikTok обложки не было). Адрес даёт
+# oEmbed, но страницы и данные TikTok закрыты для российских адресов, поэтому
+# oEmbed идёт через посредника на Contabo (там пускают только tiktok.com).
+# Саму картинку CDN TikTok отдаёт в Россию напрямую. Адрес из oEmbed живёт
+# двое суток (x-expires), поэтому кадр ложится к нам записью `media`, как
+# кадр своего видео.
+
+TT_PROXY = "http://169.58.6.158:8899"
+TT_STATE = "/opt/pocketbase/pb_data/.memory_thumbs_tiktok.json"
+TT_TRIES = 3
+_UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/124 Mobile Safari/537.36"
+
+
+def _tt_oembed(url: str) -> dict:
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({"https": TT_PROXY, "http": TT_PROXY}))
+    req = urllib.request.Request(
+        "https://www.tiktok.com/oembed?url=" + urllib.parse.quote(url, safe=""),
+        headers={"User-Agent": _UA})
+    with opener.open(req, timeout=20) as r:
+        return json.loads(r.read(200_000).decode("utf-8", "replace"))
+
+
+def _tt_image(url: str, dst: str) -> bool:
+    req = urllib.request.Request(url, headers={"User-Agent": _UA})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        data = r.read(5_000_001)
+    if len(data) > 5_000_000 or len(data) < 1000:
+        return False
+    with open(dst, "wb") as f:
+        f.write(data)
+    return True
+
+
+def tiktok_videos(limit: int, since_days, dry: bool) -> int:
+    try:
+        tries = json.load(open(TT_STATE))
+    except (OSError, ValueError):
+        tries = {}
+    rows = [r for r in candidates(False, 100000, since_days)
+            if is_tiktok(r[3]) and tries.get(r[0], 0) < TT_TRIES][:limit]
+    if not rows:
+        return 0
+    if dry:
+        for r in rows[:10]:
+            print("  было бы: обложка TikTok для %s из %s" % (r[0], r[3]))
+        return len(rows)
+    done = []
+    with Superuser() as su, tempfile.TemporaryDirectory(prefix="mthumb_tt_") as tmp:
+        for i, (rec_id, group_id, uid, video) in enumerate(rows):
+            if i:
+                time.sleep(1.5)  # oEmbed TikTok режет частые запросы
+            ok = False
+            try:
+                thumb = tiktok_thumb_of(_tt_oembed(video))
+                raw = os.path.join(tmp, rec_id + ".raw")
+                jpg = os.path.join(tmp, rec_id + ".jpg")
+                if thumb and _tt_image(thumb, raw) and frame(raw, jpg):
+                    done.append((rec_id, upload(su.token, jpg, uid, group_id)))
+                    ok = True
+            except Exception as e:  # noqa: BLE001 — запись остаётся без обложки
+                print("  tiktok %s: %s" % (rec_id, e), file=sys.stderr)
+            if ok:
+                tries.pop(rec_id, None)
+            else:
+                tries[rec_id] = tries.get(rec_id, 0) + 1
+    write(done, False)
+    with open(TT_STATE, "w") as f:
+        json.dump(tries, f)
+    return len(done)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--links", action="store_true", help="ссылки на ролики")
     ap.add_argument("--videos", type=int, default=0, help="сколько своих видео за проход")
+    ap.add_argument("--tiktok", type=int, default=0, help="сколько роликов TikTok за проход")
     ap.add_argument("--all", action="store_true", help="вся история, а не последние сутки")
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args()
@@ -287,8 +391,10 @@ def main():
                 rows.append((rec_id, img))
         links = write(rows, a.dry_run)
     vids = own_videos(a.videos, since, a.dry_run) if a.videos else 0
-    if links or vids or a.dry_run:
-        print("%s ссылки: %d, свои видео: %d, %.1f с" % (now_pb(), links, vids, time.time() - t0))
+    tt = tiktok_videos(a.tiktok, since, a.dry_run) if a.tiktok else 0
+    if links or vids or tt or a.dry_run:
+        print("%s ссылки: %d, свои видео: %d, TikTok: %d, %.1f с"
+              % (now_pb(), links, vids, tt, time.time() - t0))
 
 
 if __name__ == "__main__":

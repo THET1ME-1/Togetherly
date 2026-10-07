@@ -79,5 +79,37 @@ class Sql(unittest.TestCase):
             mt.set_image_sql("a'; drop table memories; --", 'u', 'now')
 
 
+class TikTok(unittest.TestCase):
+    """Обложка TikTok (07.10.2026): открытой обложки по номеру у него нет,
+    адрес даёт oEmbed, а живёт он двое суток — кадр сохраняется к нам."""
+
+    def test_links(self):
+        for url in ('https://vm.tiktok.com/ZGdQKq65S/',
+                    'https://vt.tiktok.com/ZSbj74KPo/',
+                    'https://www.tiktok.com/@thunf3tna0r/video/7657495716188753172',
+                    'https://www.tiktok.com/@selqira0/photo/7689170120257686805',
+                    'https://m.tiktok.com/v/7657495716188753172.html'):
+            self.assertTrue(mt.is_tiktok(url), url)
+
+    def test_not_links(self):
+        for url in ('https://youtu.be/ro0KqgvlS4Y', 'https://tiktok.com.evil.ru/x',
+                    'https://nottiktok.com/x', 'pb://media/a/b.mp4', '', 'javascript:alert(1)'):
+            self.assertFalse(mt.is_tiktok(url), url)
+
+    def test_oembed_thumb(self):
+        good = ('https://p16-common-sign.tiktokcdn-eu.com/tos-alisg-p-0037/oYT~tplv-tiktokx-origin.image'
+                '?x-expires=1791550800&x-signature=v6DS')
+        self.assertEqual(mt.tiktok_thumb_of({'thumbnail_url': good}), good)
+
+    def test_oembed_thumb_refused(self):
+        # Только https и только сеть TikTok: адрес из ответа уйдёт в загрузку
+        # с сервера, и подложенный внутренний адрес туда попасть не должен.
+        for bad in ({}, {'thumbnail_url': ''}, {'thumbnail_url': 'http://p16.tiktokcdn.com/a.jpg'},
+                    {'thumbnail_url': 'https://127.0.0.1/a.jpg'},
+                    {'thumbnail_url': 'https://tiktokcdn.com.evil.ru/a.jpg'},
+                    {'thumbnail_url': 42}):
+            self.assertEqual(mt.tiktok_thumb_of(bad), '', bad)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
