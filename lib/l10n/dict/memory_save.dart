@@ -6,6 +6,34 @@
 // склонения ни в одном из семи языков («Фото: 93», «37/94»).
 
 const Map<String, Map<String, String>> memorySaveStrings = {
+  // Открытое музыкальное воспоминание: кнопка-печенье на обложке.
+  'momentPlay': {
+    'ru': 'Слушать',
+    'en': 'Play',
+    'de': 'Abspielen',
+    'fr': 'Écouter',
+    'es': 'Escuchar',
+    'it': 'Ascolta',
+    'pt': 'Ouvir',
+  },
+  'momentPause': {
+    'ru': 'Пауза',
+    'en': 'Pause',
+    'de': 'Pause',
+    'fr': 'Pause',
+    'es': 'Pausa',
+    'it': 'Pausa',
+    'pt': 'Pausar',
+  },
+  'momentPlayFailed': {
+    'ru': 'Не получилось включить трек. Проверьте сеть и нажмите ещё раз.',
+    'en': 'Couldn’t play the track. Check your connection and tap again.',
+    'de': 'Der Titel ließ sich nicht abspielen. Prüfe die Verbindung und tippe erneut.',
+    'fr': 'Impossible de lire le morceau. Vérifie ta connexion et touche à nouveau.',
+    'es': 'No se pudo reproducir la canción. Revisa la conexión y toca otra vez.',
+    'it': 'Impossibile riprodurre il brano. Controlla la connessione e tocca di nuovo.',
+    'pt': 'Não foi possível tocar a faixa. Verifique a conexão e toque de novo.',
+  },
   // Лист сохранения из просмотра кадра: кнопка качает один кадр, стрелка
   // предлагает всю запись или всю ленту.
   'saveOptFrame': {

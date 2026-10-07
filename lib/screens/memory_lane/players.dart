@@ -29,6 +29,218 @@ Future<void> _setAudioSource(AudioPlayer player, String url) async {
   await player.setUrl(url);
 }
 
+/// Обложка музыкального воспоминания в открытом экране (вариант A): квадрат
+/// во всю ширину, «играть» печеньем на его краю, ниже название и полоса
+/// времени. Печенье и полоса — только у своего файла: ссылку на сервис
+/// приложение играть не умеет, её открывает кнопка под подписью.
+class _MusicMomentCover extends StatefulWidget {
+  const _MusicMomentCover({
+    required this.memory,
+    required this.scheme,
+    required this.fill,
+  });
+
+  final Memory memory;
+  final ColorScheme scheme;
+  final Color fill;
+
+  @override
+  State<_MusicMomentCover> createState() => _MusicMomentCoverState();
+}
+
+class _MusicMomentCoverState extends State<_MusicMomentCover> {
+  AudioPlayer? _player;
+  bool _playing = false;
+  bool _loading = false;
+  bool _failed = false;
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
+  final List<StreamSubscription> _subs = [];
+
+  @override
+  void dispose() {
+    for (final s in _subs) {
+      s.cancel();
+    }
+    _player?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _toggle() async {
+    final p = _player;
+    if (p != null) {
+      _playing ? await p.pause() : await p.play();
+      return;
+    }
+    final url = widget.memory.musicUrl ?? '';
+    if (url.isEmpty) return;
+    setState(() {
+      _loading = true;
+      _failed = false;
+    });
+    try {
+      final player = _player = AudioPlayer();
+      _subs.add(player.positionStream.listen((d) {
+        if (mounted) setState(() => _position = d);
+      }));
+      _subs.add(player.durationStream.listen((d) {
+        if (d != null && mounted) setState(() => _duration = d);
+      }));
+      _subs.add(player.playerStateStream.listen((s) {
+        if (!mounted) return;
+        setState(() => _playing = s.playing);
+        if (s.processingState == ProcessingState.completed) {
+          player.seek(Duration.zero);
+          player.pause();
+        }
+      }));
+      await _setAudioSource(player, url);
+      if (mounted) setState(() => _loading = false);
+      await player.play();
+    } catch (e) {
+      debugPrint('MusicMoment: $e');
+      // Плеер с битым источником убираем: следующее нажатие начнёт заново.
+      for (final s in _subs) {
+        s.cancel();
+      }
+      _subs.clear();
+      await _player?.dispose();
+      _player = null;
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _playing = false;
+          _failed = true;
+        });
+      }
+    }
+  }
+
+  String _fmt(Duration d) =>
+      '${d.inMinutes}:${(d.inSeconds % 60).toString().padLeft(2, '0')}';
+
+  @override
+  Widget build(BuildContext context) {
+    final m = widget.memory;
+    final cs = widget.scheme;
+    final source = musicSourceOf(m.musicUrl);
+    final local = source.playable && !source.external;
+    final cover = m.musicCoverUrl?.isNotEmpty == true
+        ? StorageImage(
+            imageUrl: m.musicCoverUrl!,
+            fit: BoxFit.cover,
+            memCacheWidth: 900,
+            errorWidget: (_, _, _) =>
+                MomentArtPlaceholder(scheme: cs, icon: Icons.music_note_rounded),
+          )
+        : MomentArtPlaceholder(scheme: cs, icon: Icons.music_note_rounded);
+    final onFill = AppThemes.onColor(widget.fill, mode: cs.brightness);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: AspectRatio(aspectRatio: 1, child: cover),
+            ),
+            if (local)
+              Positioned(
+                right: 14,
+                bottom: -26,
+                child: Semantics(
+                  button: true,
+                  label: trKey(_playing ? 'momentPause' : 'momentPlay'),
+                  child: GestureDetector(
+                    onTap: _loading ? null : _toggle,
+                    child: ClipPath(
+                      clipper: M3ShapeClipper(MaterialShapes.cookie9Sided),
+                      child: Container(
+                        width: 68,
+                        height: 68,
+                        color: widget.fill,
+                        alignment: Alignment.center,
+                        child: _loading
+                            ? SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2.5, color: onFill),
+                              )
+                            : Icon(
+                                _playing
+                                    ? Icons.pause_rounded
+                                    : Icons.play_arrow_rounded,
+                                size: 36,
+                                color: onFill,
+                              ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        SizedBox(height: local ? 18 : 14),
+        Padding(
+          // Справа место под печенье: оно заходит на строку названия.
+          padding: EdgeInsets.only(right: local ? 70 : 0),
+          child: MomentHead(
+            scheme: cs,
+            title: m.musicTitle?.trim().isNotEmpty == true
+                ? m.musicTitle!.trim()
+                : LocaleService.current.audioFile,
+            sub: m.musicArtist,
+          ),
+        ),
+        if (source.external && source.name != null) ...[
+          const SizedBox(height: 10),
+          MomentPills(children: [
+            MomentPill(
+              scheme: cs,
+              fill: widget.fill,
+              icon: Icons.headphones_rounded,
+              label: source.name!,
+            ),
+          ]),
+        ],
+        if (local && _duration > Duration.zero) ...[
+          const SizedBox(height: 12),
+          WaveProgressBar(
+            value: (_position.inMilliseconds / _duration.inMilliseconds)
+                .clamp(0.0, 1.0),
+            color: widget.fill,
+            isPlaying: _playing,
+            onChanged: (v) => _player?.seek(Duration(
+                milliseconds: (v * _duration.inMilliseconds).toInt())),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(_fmt(_position),
+                    style: AppFonts.onest(
+                        size: 12, weight: 600, color: cs.onSurfaceVariant)),
+                Text(_fmt(_duration),
+                    style: AppFonts.onest(
+                        size: 12, weight: 600, color: cs.onSurfaceVariant)),
+              ],
+            ),
+          ),
+        ],
+        if (_failed)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(6, 8, 6, 0),
+            child: Text(trKey('momentPlayFailed'),
+                style: AppFonts.onest(size: 13, weight: 500, color: cs.error)),
+          ),
+      ],
+    );
+  }
+}
+
 // ── Standalone music player widget for detail sheet ──
 class _MusicPlayerWidget extends StatefulWidget {
   final Memory memory;

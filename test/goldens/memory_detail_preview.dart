@@ -17,6 +17,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// кадра в каркасе «как фото», светлая и тёмная тема, 360 точек.
 ///
 ///   flutter test test/goldens/memory_detail_preview.dart → build/memory-detail/*.png
+///
+/// «place» отчитывается провалом уже ПОСЛЕ снимка: vector_map_tiles при
+/// закрытии отменяет свою фоновую нарезку плиток, и тест ловит эту отмену.
+/// Кадр при этом записан; на экране приложения это не ошибка.
 
 Future<void> _loadFont(String family, String path) async {
   final file = File(path);
@@ -79,6 +83,41 @@ void main() {
         title: 'Сплав по озеру',
         imageUrl: 'pb://media/abc/a.jpg',
         videoUrl: 'pb://media/abc/video.mp4'),
+    'music': Memory(
+      id: 'm1', groupId: '', authorUid: 'u1', authorName: 'Аня',
+      type: MemoryType.music, createdAt: DateTime(2026, 10, 7, 21, 40),
+      musicTitle: 'Звезда по имени Солнце', musicArtist: 'Кино',
+      musicUrl: 'https://music.yandex.ru/track/1',
+      caption: 'Играла, когда мы ехали к морю',
+    ),
+    // Свой файл: печенье «играть» на краю обложки.
+    'music-file': Memory(
+      id: 'm2', groupId: '', authorUid: 'u1', authorName: 'Аня',
+      type: MemoryType.music, createdAt: DateTime(2026, 10, 7, 21, 40),
+      musicTitle: 'Наша песня', musicArtist: 'Голосовое с кухни',
+      musicUrl: 'pb://media/abc/track.m4a',
+    ),
+    'book': Memory(
+      id: 'b1', groupId: '', authorUid: 'u1', authorName: 'Аня',
+      type: MemoryType.book, createdAt: DateTime(2026, 10, 7, 21, 40),
+      title: 'Мастер и Маргарита', bookAuthor: 'Михаил Булгаков',
+      bookYear: '1967', bookPublisher: 'АСТ', rating: 5,
+      caption: 'Читали по главе перед сном',
+    ),
+    'movie': Memory(
+      id: 'f1', groupId: '', authorUid: 'u1', authorName: 'Аня',
+      type: MemoryType.movie, createdAt: DateTime(2026, 10, 7, 21, 40),
+      title: 'Интерстеллар', movieOriginalTitle: 'Interstellar',
+      movieYear: '2014', movieKind: 'movie', movieGenres: 'фантастика, драма',
+      movieCountry: 'США', movieRatingKp: '8.6', rating: 4,
+      caption: 'Плакали оба',
+    ),
+    'place': Memory(
+      id: 'pl1', groupId: '', authorUid: 'u1', authorName: 'Аня',
+      type: MemoryType.location, createdAt: DateTime(2026, 10, 7, 21, 40),
+      locationName: 'Парк Валя Морилор', latitude: 47.0105, longitude: 28.8186,
+      caption: 'Здесь мы впервые поцеловались',
+    ),
   };
 
   for (final b in Brightness.values) {
@@ -94,7 +133,9 @@ void main() {
             theme: buildAppTheme(kPalettes[0], b),
             child: MaterialApp(
               debugShowCheckedModeBanner: false,
-              home: memoryDetailForPreview(e.value),
+              // Лист в приложении живёт внутри showAppSheet, у него есть
+              // Material сверху; экрану-моменту Scaffold не мешает.
+              home: Scaffold(body: memoryDetailForPreview(e.value)),
             ),
           ),
         ));
@@ -109,6 +150,10 @@ void main() {
               .writeAsBytesSync(bytes!.buffer.asUint8List());
         });
         expect(tester.takeException(), isNull, reason: 'переполнение или падение');
+        // Векторная карта режет плитки в фоне; закрытие посреди работы
+        // роняет прогон отменой, поэтому даём ей доделать.
+        await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 800)));
         await tester.pumpWidget(const SizedBox());
         // Повторы сетевых запросов и анимации доживают свои таймеры.
         await tester.pump(const Duration(minutes: 2));

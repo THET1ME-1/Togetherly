@@ -23,14 +23,14 @@ void main() {
     expect(opensAsMoment(MemoryType.text, hasPhotos: false), isTrue);
   });
 
-  test('книга, кино, музыка, место — по-прежнему листом', () {
+  test('книга, кино, музыка, место — тоже экраном (вариант A, 07.10.2026)', () {
     for (final t in [
       MemoryType.book,
       MemoryType.movie,
       MemoryType.music,
       MemoryType.location,
     ]) {
-      expect(opensAsMoment(t, hasPhotos: false), isFalse, reason: t.name);
+      expect(opensAsMoment(t, hasPhotos: false), isTrue, reason: t.name);
     }
   });
 

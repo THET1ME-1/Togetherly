@@ -286,6 +286,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                         const SizedBox(height: 12),
                         _placeBlock(memory, cs),
                       ],
+                      ..._momentActions(memory, cs),
                       const SizedBox(height: 12),
                       _momentReactions(memory, cs),
                       const SizedBox(height: 14),
@@ -430,6 +431,15 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
         return _videoLinkCover(memory, cs);
       case MemoryType.video when _momentPhotos.isEmpty:
         return _bareVideoCover(memory, cs);
+      case MemoryType.music:
+        return _MusicMomentCover(
+            memory: memory, scheme: cs, fill: context.appTheme.fillColor);
+      case MemoryType.book:
+        return _bookCover(memory, cs);
+      case MemoryType.movie:
+        return _movieCover(memory, cs);
+      case MemoryType.location:
+        return _placeCover(memory, cs);
       default:
         break;
     }
@@ -578,14 +588,235 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
     );
   }
 
+  /// Обложка книги или постер фильма: портрет по центру тонального поля.
+  Widget _posterArt(String? url, IconData icon, ColorScheme cs) =>
+      MomentPosterFrame(
+        scheme: cs,
+        child: url?.isNotEmpty == true
+            ? StorageImage(
+                imageUrl: url!,
+                fit: BoxFit.cover,
+                memCacheWidth: 540,
+                errorWidget: (_, _, _) =>
+                    MomentArtPlaceholder(scheme: cs, icon: icon),
+              )
+            : MomentArtPlaceholder(scheme: cs, icon: icon),
+      );
+
+  /// Оценка автора записи, если он её ставил.
+  List<Widget> _momentRating(Memory memory, ColorScheme cs) => [
+        if (memory.rating != null) ...[
+          const SizedBox(height: 10),
+          MomentStars(
+            scheme: cs,
+            fill: context.appTheme.fillColor,
+            rating: memory.rating!,
+            who: memory.authorName,
+          ),
+        ],
+      ];
+
+  Widget _bookCover(Memory memory, ColorScheme cs) {
+    final fill = context.appTheme.fillColor;
+    final pills = <Widget>[
+      if (memory.bookYear?.trim().isNotEmpty == true)
+        MomentPill(
+            scheme: cs,
+            fill: fill,
+            icon: Icons.calendar_month_rounded,
+            label: memory.bookYear!.trim()),
+      if (memory.bookPublisher?.trim().isNotEmpty == true)
+        MomentPill(scheme: cs, fill: fill, label: memory.bookPublisher!.trim()),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _posterArt(memory.bookCoverUrl, Icons.menu_book_rounded, cs),
+        const SizedBox(height: 14),
+        MomentHead(
+          scheme: cs,
+          title: memory.title?.trim().isNotEmpty == true
+              ? memory.title!.trim()
+              : LocaleService.current.books,
+          sub: memory.bookAuthor,
+        ),
+        if (pills.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          MomentPills(children: pills),
+        ],
+        ..._momentRating(memory, cs),
+      ],
+    );
+  }
+
+  Widget _movieCover(Memory memory, ColorScheme cs) {
+    final s = LocaleService.current;
+    final fill = context.appTheme.fillColor;
+    final title =
+        memory.title?.trim().isNotEmpty == true ? memory.title!.trim() : s.movies;
+    final original = memory.movieOriginalTitle?.trim() ?? '';
+    final genres = (memory.movieGenres ?? '')
+        .split(',')
+        .map((g) => g.trim())
+        .where((g) => g.isNotEmpty);
+    final pills = <Widget>[
+      if (memory.movieRatingKp?.trim().isNotEmpty == true)
+        MomentPill(
+            scheme: cs,
+            fill: fill,
+            strong: true,
+            icon: Icons.star_rounded,
+            label: s.kpRating(memory.movieRatingKp!.trim())),
+      if (memory.movieKind?.isNotEmpty == true)
+        MomentPill(
+            scheme: cs,
+            fill: fill,
+            label: movieKindLabel(memory.movieKind,
+                isRu: LocaleService.instance.isRussian)),
+      if (memory.movieYear?.trim().isNotEmpty == true)
+        MomentPill(scheme: cs, fill: fill, label: memory.movieYear!.trim()),
+      if (memory.movieCountry?.trim().isNotEmpty == true)
+        MomentPill(scheme: cs, fill: fill, label: memory.movieCountry!.trim()),
+      for (final g in genres) MomentPill(scheme: cs, fill: fill, label: g),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _posterArt(memory.moviePosterUrl, Icons.movie_rounded, cs),
+        const SizedBox(height: 14),
+        MomentHead(
+          scheme: cs,
+          title: title,
+          sub: original.isNotEmpty && original != title ? original : null,
+        ),
+        if (pills.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          MomentPills(children: pills),
+        ],
+        ..._momentRating(memory, cs),
+      ],
+    );
+  }
+
+  /// Карта в цветах темы с аватаркой автора на ножке. Без координат обложки
+  /// нет: место назовёт блок ниже.
+  Widget _placeCover(Memory memory, ColorScheme cs) {
+    if (memory.latitude == null || memory.longitude == null) {
+      return const SizedBox.shrink();
+    }
+    final theme = context.appTheme;
+    final at = LatLng(memory.latitude!, memory.longitude!);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(22),
+      child: AspectRatio(
+        aspectRatio: 4 / 3,
+        child: FlutterMap(
+          options: MapOptions(
+            backgroundColor: mapBackground(theme),
+            initialCenter: at,
+            initialZoom: 15,
+            interactionOptions:
+                const InteractionOptions(flags: InteractiveFlag.none),
+          ),
+          children: [
+            ThemedMapLayer(theme: theme),
+            MarkerLayer(markers: [
+              Marker(
+                point: at,
+                width: 52,
+                height: 66,
+                alignment: Alignment.topCenter,
+                child: Column(
+                  children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                          color: theme.fillColor, shape: BoxShape.circle),
+                      child: AvatarWidget(
+                        uid: memory.authorUid,
+                        liveUrl: widget.liveAuthorAvatar,
+                        fallbackUrl: memory.authorAvatar,
+                        name: memory.authorName,
+                        size: 46,
+                        primary: cs.primary,
+                      ),
+                    ),
+                    Container(width: 3, height: 14, color: theme.fillColor),
+                  ],
+                ),
+              ),
+            ]),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Связанная группа кнопок под подписью: открыть трек, книгу, фильм или
+  /// проложить маршрут. Нечего открывать — кнопок нет.
+  List<Widget> _momentActions(Memory memory, ColorScheme cs) {
+    final s = LocaleService.current;
+    MomentAction? primary;
+    void open(String url) => safeLaunchUrl(Uri.parse(url),
+        mode: LaunchMode.externalApplication);
+    switch (memory.type) {
+      case MemoryType.music:
+        final src = musicSourceOf(memory.musicUrl);
+        if (src.external) {
+          primary = MomentAction(Icons.play_arrow_rounded,
+              s.openIn(src.name ?? s.audioFile), () => open(memory.musicUrl!));
+        }
+      case MemoryType.book:
+        if (memory.bookInfoUrl?.isNotEmpty == true) {
+          primary = MomentAction(Icons.open_in_new_rounded, s.bookReadMore,
+              () => open(memory.bookInfoUrl!));
+        }
+      case MemoryType.movie:
+        if (memory.movieInfoUrl?.isNotEmpty == true) {
+          primary = MomentAction(Icons.open_in_new_rounded, s.movieReadMore,
+              () => open(memory.movieInfoUrl!));
+        }
+      case MemoryType.location:
+        if (memory.latitude != null && memory.longitude != null) {
+          primary = MomentAction(
+            Icons.directions_rounded,
+            trKey('liveMapRoute'),
+            () => openDirections(
+              context,
+              LatLng(memory.latitude!, memory.longitude!),
+              memory.locationName ?? '',
+            ),
+          );
+        }
+      default:
+        break;
+    }
+    if (primary == null) return const [];
+    return [
+      const SizedBox(height: 12),
+      MomentButtons(
+          scheme: cs, fill: context.appTheme.fillColor, primary: primary),
+    ];
+  }
+
   /// Название крупно, подпись под ним обычным шрифтом. У заметки обоих уже
-  /// показал лист, у видео по ссылке название стоит на кадре.
+  /// показал лист, у видео по ссылке название стоит на кадре, у музыки,
+  /// книги и кино его ставит обложка. У места название — в блоке места, а
+  /// подписью идёт текст записи или, если его нет, заголовок.
   Widget _momentTitle(Memory memory, ColorScheme cs) {
     if (memory.type == MemoryType.text) return const SizedBox.shrink();
-    final title = memory.type == MemoryType.videoLink
-        ? ''
-        : memory.title?.trim() ?? '';
-    final caption = normalizeMemoryCaption(memory.caption)?.trim() ?? '';
+    final titleInCover = memory.type == MemoryType.videoLink ||
+        memory.type == MemoryType.music ||
+        memory.type == MemoryType.book ||
+        memory.type == MemoryType.movie;
+    var title = titleInCover ? '' : memory.title?.trim() ?? '';
+    var caption = normalizeMemoryCaption(memory.caption)?.trim() ?? '';
+    if (memory.type == MemoryType.location) {
+      if (caption.isEmpty) caption = title;
+      title = '';
+    }
     if (title.isEmpty && caption.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -624,6 +855,18 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
         ? memory.locationName!.trim()
         : '${memory.latitude?.toStringAsFixed(2)}, '
             '${memory.longitude?.toStringAsFixed(2)}';
+    // У записи-места маршрут — большая кнопка ниже, круглая тут была бы
+    // второй такой же. Под названием — сколько до места, если это известно.
+    final isPlace = memory.type == MemoryType.location;
+    var under = _fmtDate(memory.createdAt);
+    if (isPlace &&
+        memory.latitude != null &&
+        memory.longitude != null &&
+        widget.userLat != null &&
+        widget.userLng != null) {
+      under = LocaleService.current.distanceLabel(Geolocator.distanceBetween(
+          widget.userLat!, widget.userLng!, memory.latitude!, memory.longitude!));
+    }
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
       decoration: BoxDecoration(
@@ -643,7 +886,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                     overflow: TextOverflow.ellipsis,
                     style: AppFonts.onest(
                         size: 15, weight: 700, color: cs.onInverseSurface)),
-                Text(_fmtDate(memory.createdAt),
+                Text(under,
                     style: AppFonts.onest(
                         size: 12.5,
                         weight: 500,
@@ -651,7 +894,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
               ],
             ),
           ),
-          if (memory.latitude != null && memory.longitude != null)
+          if (!isPlace && memory.latitude != null && memory.longitude != null)
             Material(
               color: cs.onInverseSurface.withValues(alpha: 0.14),
               shape: const CircleBorder(),
