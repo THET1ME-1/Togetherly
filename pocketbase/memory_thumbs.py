@@ -24,8 +24,9 @@
 Перед правкой каждой записи её id и прежнее значение пишутся в журнал
 отката (`--undo-log`): откат — вернуть `imageUrl` пустым по этим id.
 
-  * TikTok: адрес обложки из oEmbed через посредника, кадр ложится записью
-    `media` так же, как у своего видео (ниже, раздел TikTok).
+  * TikTok, ВК и известные площадки (07.10.2026): адрес обложки берётся
+    снаружи — oEmbed TikTok через посредника, данные плеера ВК, og:image
+    страницы, — а кадр ложится записью `media`, как у своего видео.
 
 Запуск на сервере (cron, раз в 10 минут, своими видео по 12 штук за проход):
   memory_thumbs.py --links --videos 12 --tiktok 20
@@ -41,6 +42,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -96,6 +98,33 @@ def is_tiktok(url: str) -> bool:
     return u.scheme in ("http", "https") and (host == "tiktok.com" or host.endswith(".tiktok.com"))
 
 
+def tiktok_is_short(url: str) -> bool:
+    host = (urllib.parse.urlparse(url or "").hostname or "").lower()
+    return host in ("vm.tiktok.com", "vt.tiktok.com")
+
+
+def tiktok_canonical(location: str) -> str:
+    """Куда ведёт короткая ссылка → адрес ролика без хвоста; удалённый ролик
+    ведёт на главную TikTok — тогда ''."""
+    try:
+        u = urllib.parse.urlparse(location or "")
+    except ValueError:
+        return ""
+    m = re.match(r"^/(@[^/]*)/(video|photo)/(\d{6,25})", u.path)
+    if not m or not is_tiktok(location):
+        return ""
+    return "https://www.tiktok.com/%s/%s/%s" % m.groups()
+
+
+def unblur(url: str) -> str:
+    """Яндекс Видео отдаёт обложку с размытием (`blur`, `shower`) — снимаем."""
+    u = urllib.parse.urlparse(url)
+    if not (u.hostname or "").endswith("avatars.mds.yandex.net"):
+        return url
+    q = [(k, v) for k, v in urllib.parse.parse_qsl(u.query, keep_blank_values=True) if k not in ("blur", "shower")]
+    return urllib.parse.urlunparse(u._replace(query=urllib.parse.urlencode(q, safe="-")))
+
+
 def tiktok_thumb_of(oembed) -> str:
     """Адрес обложки из ответа oEmbed — только https и только сеть TikTok:
     по нему сервер пойдёт качать картинку, внутренний адрес туда не пустим."""
@@ -109,6 +138,94 @@ def tiktok_thumb_of(oembed) -> str:
     host = (u.hostname or "").lower()
     ok = re.search(r"(^|\.)tiktokcdn(-[a-z]+)?\.com$", host) or re.search(r"(^|\.)tiktok\.com$", host)
     return url if u.scheme == "https" and ok else ""
+
+
+# ── ВК Видео: обложка из встраиваемого плеера ───────────────────────────────
+
+_VK_HOST = re.compile(r"(^|\.)(vk\.com|vk\.ru|vkvideo\.ru)$")
+_VK_PATH = re.compile(r"/(?:video|clip)(-?\d+)_(\d+)")
+_VK_Z = re.compile(r"(?:video|clip)(-?\d+)_(\d+)")
+
+
+def vk_video_ids(url: str):
+    """Ссылка на ролик ВК → (владелец, номер, ключ доступа); иначе None."""
+    try:
+        u = urllib.parse.urlparse((url or "").strip())
+    except ValueError:
+        return None
+    if u.scheme not in ("http", "https") or not _VK_HOST.search((u.hostname or "").lower()):
+        return None
+    q = urllib.parse.parse_qs(u.query)
+    if u.path.rstrip("/").endswith("video_ext.php"):
+        oid, vid = (q.get("oid") or [""])[0], (q.get("id") or [""])[0]
+        if re.fullmatch(r"-?\d+", oid) and vid.isdigit():
+            return oid, vid, re.sub(r"[^A-Za-z0-9]", "", (q.get("hash") or [""])[0])
+        return None
+    m = _VK_PATH.search(u.path) or _VK_Z.search((q.get("z") or [""])[0])
+    return (m.group(1), m.group(2), "") if m else None
+
+
+def vk_poster_of(html: str) -> str:
+    """Обложка из данных плеера: поле `image` — список размеров. Берём без
+    полей по краям и самый маленький не уже 720 (4096 точек — лишние
+    мегабайты). `first_frame` не годится: у ролика с затемнения он чёрный."""
+    dec = json.JSONDecoder()
+    best = None
+    for m in re.finditer(r'"image":\[', html or ""):
+        try:
+            arr, _ = dec.raw_decode(html[m.end() - 1:])
+        except ValueError:
+            continue
+        for x in arr if isinstance(arr, list) else []:
+            if not isinstance(x, dict) or x.get("with_padding"):
+                continue
+            url, w = x.get("url"), x.get("width") or 0
+            host = (urllib.parse.urlparse(url).hostname or "") if isinstance(url, str) else ""
+            if not re.search(r"(^|\.)(vkuserphoto\.ru|userapi\.com|vkuser\.net|vk\.me)$", host):
+                continue
+            key = (0, w) if w >= 720 else (1, -w)
+            if best is None or key < best[0]:
+                best = (key, url)
+    return best[1] if best else ""
+
+
+# ── прочие площадки: og:image страницы ──────────────────────────────────────
+#
+# Только известные площадки: у пиратских кинотеатров og:image — реклама или
+# логотип, а страницы тянутся медленно и с чужими скриптами.
+
+_PAGE_HOSTS = re.compile(
+    r"(^|\.)(kinopoisk\.ru|music\.yandex\.ru|pin\.it|pinterest\.[a-z.]+|twitch\.tv|ok\.ru|dzen\.ru|"
+    r"vimeo\.com|dailymotion\.com|rutube\.ru)$")
+
+
+def page_thumb_host(url: str) -> bool:
+    try:
+        u = urllib.parse.urlparse((url or "").strip())
+    except ValueError:
+        return False
+    host = (u.hostname or "").lower()
+    if u.scheme not in ("http", "https"):
+        return False
+    if re.search(r"(^|\.)yandex\.ru$", host) and host != "music.yandex.ru":
+        return u.path.startswith("/video")
+    return bool(_PAGE_HOSTS.search(host))
+
+
+def og_image_of(html: str) -> str:
+    import html as _html
+    for pat in (r'<meta[^>]+(?:property|name)=["\'](?:og:image|twitter:image)(?::url)?["\'][^>]*?content=["\']([^"\']+)',
+                r'<meta[^>]+content=["\']([^"\']+)["\'][^>]*?(?:property|name)=["\'](?:og:image|twitter:image)'):
+        m = re.search(pat, html or "", re.I)
+        if m:
+            url = _html.unescape(m.group(1)).strip()
+            if not url.startswith(("http://", "https://")):
+                return ""
+            # Логотип площадки вместо кадра (Rutube на плейлисте) — не обложка.
+            if re.search(r"/static/.*logo|ogimglogo", url, re.I):
+                return ""
+            return url
+    return ""
 
 
 def pb_ref(url: str):
@@ -323,9 +440,36 @@ def _tt_oembed(url: str) -> dict:
         return json.loads(r.read(200_000).decode("utf-8", "replace"))
 
 
-def _tt_image(url: str, dst: str) -> bool:
+def _public_url(url: str) -> bool:
+    """http(s) и только публичные адреса: обложку качает сервер, и адрес
+    из чужой страницы не должен увести его во внутреннюю сеть."""
+    import ipaddress
+    import socket
+    try:
+        u = urllib.parse.urlparse(url)
+        if u.scheme not in ("http", "https") or not u.hostname or u.port not in (None, 80, 443):
+            return False
+        for info in socket.getaddrinfo(u.hostname, None):
+            if not ipaddress.ip_address(info[4][0]).is_global:
+                return False
+        return True
+    except (ValueError, OSError):
+        return False
+
+
+class _CheckedRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not _public_url(newurl):
+            raise urllib.error.URLError("redirect to non-public address")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def _download(url: str, dst: str) -> bool:
+    if not _public_url(url):
+        return False
+    opener = urllib.request.build_opener(_CheckedRedirect())
     req = urllib.request.Request(url, headers={"User-Agent": _UA})
-    with urllib.request.urlopen(req, timeout=20) as r:
+    with opener.open(req, timeout=20) as r:
         data = r.read(5_000_001)
     if len(data) > 5_000_000 or len(data) < 1000:
         return False
@@ -334,34 +478,109 @@ def _tt_image(url: str, dst: str) -> bool:
     return True
 
 
-def tiktok_videos(limit: int, since_days, dry: bool) -> int:
+def _vk_embed(oid: str, vid: str, key: str) -> str:
+    """Встраиваемый плеер ВК. Без кук он гоняет по перенаправлениям по кругу,
+    поэтому куки держатся на время запроса."""
+    import http.cookiejar
+    q = "oid=%s&id=%s" % (oid, vid) + ("&hash=" + key if key else "")
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()),
+                                         _CheckedRedirect())
+    req = urllib.request.Request("https://vkvideo.ru/video_ext.php?" + q, headers={"User-Agent": _UA})
+    with opener.open(req, timeout=20) as r:
+        return r.read(3_000_000).decode("utf-8", "replace")
+
+
+LINK_FETCHER = "http://127.0.0.1:8110/preview?url="
+
+
+def _page(url: str) -> str:
+    """Страница через link_fetcher: он сам разбирает перенаправления и не
+    пускает во внутреннюю сеть (тот же сервис тянет карточки товаров)."""
+    with urllib.request.urlopen(LINK_FETCHER + urllib.parse.quote(url, safe=""), timeout=30) as r:
+        d = json.load(r)
+    return d.get("html") or "" if d.get("ok") else ""
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *a, **k):
+        return None
+
+
+def _tt_resolve(short: str) -> str:
+    """Куда ведёт короткая ссылка TikTok. Перенаправление отдаётся в Россию
+    напрямую, посредник не нужен."""
+    opener = urllib.request.build_opener(_NoRedirect())
+    try:
+        opener.open(urllib.request.Request(short, headers={"User-Agent": _UA}), timeout=15)
+    except urllib.error.HTTPError as e:
+        if e.code in (301, 302, 303, 307, 308):
+            return tiktok_canonical(e.headers.get("Location", ""))
+    return ""
+
+
+def _tiktok_thumb(url: str) -> str:
+    try:
+        thumb = tiktok_thumb_of(_tt_oembed(url))
+    except urllib.error.HTTPError as e:
+        # Короткую ссылку oEmbed не понимает (400) — раскрываем и спрашиваем снова.
+        if e.code != 400 or not tiktok_is_short(url):
+            raise
+        thumb = ""
+    if not thumb and tiktok_is_short(url):
+        full = _tt_resolve(url)
+        if full:
+            time.sleep(1)
+            thumb = tiktok_thumb_of(_tt_oembed(full))
+    return thumb
+
+
+def remote_thumb(url: str) -> str:
+    """Адрес обложки ролика с чужой площадки; '' — взять неоткуда."""
+    if is_tiktok(url):
+        return _tiktok_thumb(url)
+    ids = vk_video_ids(url)
+    if ids:
+        return vk_poster_of(_vk_embed(*ids))
+    if page_thumb_host(url):
+        return unblur(og_image_of(_page(url)))
+    return ""
+
+
+def wants_remote(url: str) -> bool:
+    return is_tiktok(url) or vk_video_ids(url) is not None or page_thumb_host(url)
+
+
+def remote_videos(limit: int, since_days, dry: bool) -> int:
+    """TikTok, ВК и известные площадки: адрес обложки берётся снаружи, а кадр
+    ложится к нам записью `media` — чужие адреса картинок подписаны и живут
+    от двух суток (TikTok) до неизвестно скольких."""
     try:
         tries = json.load(open(TT_STATE))
     except (OSError, ValueError):
         tries = {}
     rows = [r for r in candidates(False, 100000, since_days)
-            if is_tiktok(r[3]) and tries.get(r[0], 0) < TT_TRIES][:limit]
+            if wants_remote(r[3]) and tries.get(r[0], 0) < TT_TRIES][:limit]
     if not rows:
         return 0
     if dry:
         for r in rows[:10]:
-            print("  было бы: обложка TikTok для %s из %s" % (r[0], r[3]))
+            print("  было бы: обложка для %s из %s" % (r[0], r[3]))
         return len(rows)
     done = []
-    with Superuser() as su, tempfile.TemporaryDirectory(prefix="mthumb_tt_") as tmp:
+    with Superuser() as su, tempfile.TemporaryDirectory(prefix="mthumb_ext_") as tmp:
         for i, (rec_id, group_id, uid, video) in enumerate(rows):
             if i:
-                time.sleep(1.5)  # oEmbed TikTok режет частые запросы
+                time.sleep(1.5)  # площадки режут частые запросы
             ok = False
             try:
-                thumb = tiktok_thumb_of(_tt_oembed(video))
+                thumb = remote_thumb(video)
                 raw = os.path.join(tmp, rec_id + ".raw")
                 jpg = os.path.join(tmp, rec_id + ".jpg")
-                if thumb and _tt_image(thumb, raw) and frame(raw, jpg):
+                if thumb and _download(thumb, raw) and frame(raw, jpg):
                     done.append((rec_id, upload(su.token, jpg, uid, group_id)))
                     ok = True
             except Exception as e:  # noqa: BLE001 — запись остаётся без обложки
-                print("  tiktok %s: %s" % (rec_id, e), file=sys.stderr)
+                print("  обложка %s: %s" % (rec_id, e), file=sys.stderr)
             if ok:
                 tries.pop(rec_id, None)
             else:
@@ -376,7 +595,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--links", action="store_true", help="ссылки на ролики")
     ap.add_argument("--videos", type=int, default=0, help="сколько своих видео за проход")
-    ap.add_argument("--tiktok", type=int, default=0, help="сколько роликов TikTok за проход")
+    # --tiktok — прежнее имя, им записан крон 07.10.2026.
+    ap.add_argument("--remote", "--tiktok", dest="remote", type=int, default=0,
+                    help="сколько роликов TikTok, ВК и других площадок за проход")
     ap.add_argument("--all", action="store_true", help="вся история, а не последние сутки")
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args()
@@ -391,10 +612,10 @@ def main():
                 rows.append((rec_id, img))
         links = write(rows, a.dry_run)
     vids = own_videos(a.videos, since, a.dry_run) if a.videos else 0
-    tt = tiktok_videos(a.tiktok, since, a.dry_run) if a.tiktok else 0
-    if links or vids or tt or a.dry_run:
-        print("%s ссылки: %d, свои видео: %d, TikTok: %d, %.1f с"
-              % (now_pb(), links, vids, tt, time.time() - t0))
+    ext = remote_videos(a.remote, since, a.dry_run) if a.remote else 0
+    if links or vids or ext or a.dry_run:
+        print("%s ссылки: %d, свои видео: %d, площадки: %d, %.1f с"
+              % (now_pb(), links, vids, ext, time.time() - t0))
 
 
 if __name__ == "__main__":

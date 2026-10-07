@@ -111,5 +111,95 @@ class TikTok(unittest.TestCase):
             self.assertEqual(mt.tiktok_thumb_of(bad), '', bad)
 
 
+class TikTokShort(unittest.TestCase):
+    """Короткую ссылку oEmbed не понимает (400) — её раскрывают напрямую."""
+
+    def test_canonical(self):
+        loc = ('https://www.tiktok.com/@/video/7635947641318165768?_r=1&_d=secCg&u_code=eej8'
+               '&share_item_id=7635947641318165768')
+        self.assertEqual(mt.tiktok_canonical(loc), 'https://www.tiktok.com/@/video/7635947641318165768')
+        self.assertEqual(mt.tiktok_canonical('https://www.tiktok.com/@mila.k/photo/7689170120257686805?x=1'),
+                         'https://www.tiktok.com/@mila.k/photo/7689170120257686805')
+
+    def test_deleted(self):
+        # Удалённый ролик: короткая ссылка ведёт на главную TikTok.
+        self.assertEqual(mt.tiktok_canonical('https://www.tiktok.com/?_r=1'), '')
+        self.assertEqual(mt.tiktok_canonical(''), '')
+
+    def test_short(self):
+        self.assertTrue(mt.tiktok_is_short('https://vt.tiktok.com/ZSxTjxu37/'))
+        self.assertTrue(mt.tiktok_is_short('https://vm.tiktok.com/ZNR78DvFd/'))
+        self.assertFalse(mt.tiktok_is_short('https://www.tiktok.com/@a/video/1'))
+
+
+class YandexBlur(unittest.TestCase):
+    def test_blur_removed(self):
+        url = ('http://avatars.mds.yandex.net/i?id=76f0-406746-vthumb&shower=30&blur=30&n=13')
+        self.assertEqual(mt.unblur(url), 'http://avatars.mds.yandex.net/i?id=76f0-406746-vthumb&n=13')
+
+    def test_other_untouched(self):
+        url = 'https://i.pinimg.com/736x/a.jpg?blur=30'
+        self.assertEqual(mt.unblur(url), url)
+
+
+class VkVideo(unittest.TestCase):
+    """ВК Видео: страница — пустая оболочка, обложку отдаёт встраиваемый плеер."""
+
+    def test_ids(self):
+        cases = {
+            'https://vkvideo.ru/video-71299670_456242822': ('-71299670', '456242822', ''),
+            'https://m.vk.com/video-56028029_456249855': ('-56028029', '456249855', ''),
+            'https://vksport.vkvideo.ru/video-203488550_456240447?t=54m30s': ('-203488550', '456240447', ''),
+            'https://vk.com/video123_456?list=abc': ('123', '456', ''),
+            'https://vk.com/feed?z=video-1_2%2Fabc': ('-1', '2', ''),
+            'https://vkvideo.ru/clip-30022666_456245733': ('-30022666', '456245733', ''),
+            'https://vk.com/video_ext.php?oid=-5&id=7&hash=ab12': ('-5', '7', 'ab12'),
+        }
+        for url, want in cases.items():
+            self.assertEqual(mt.vk_video_ids(url), want, url)
+
+    def test_not_video(self):
+        for url in ('https://vk.ru/audio819062209_456240268_274a579c002c273cd7', 'https://vk.com/id1',
+                    'https://vkvideo.ru.evil.com/video-1_2', 'https://youtu.be/ro0KqgvlS4Y', ''):
+            self.assertIsNone(mt.vk_video_ids(url), url)
+
+    def test_poster_from_embed(self):
+        html = ('..."image":[{"url":"https:\\/\\/sun9-1.vkuserphoto.ru\\/a.jpg","width":320,"height":240,'
+                '"with_padding":1},{"url":"https:\\/\\/sun9-2.vkuserphoto.ru\\/b.jpg","width":1280,"height":720},'
+                '{"url":"https:\\/\\/sun9-3.vkuserphoto.ru\\/c.jpg","width":720,"height":405},'
+                '{"url":"https:\\/\\/sun9-4.vkuserphoto.ru\\/d.jpg","width":4096,"height":2304}],'
+                '"first_frame":[{"url":"https:\\/\\/iv.okcdn.ru\\/x","width":1280}]...')
+        # Без полей по краям и самый маленький не уже 720: 4096 — лишние мегабайты.
+        self.assertEqual(mt.vk_poster_of(html), 'https://sun9-3.vkuserphoto.ru/c.jpg')
+
+    def test_poster_missing(self):
+        self.assertEqual(mt.vk_poster_of('<html>нет данных</html>'), '')
+
+
+class PageImage(unittest.TestCase):
+    def test_og_image(self):
+        html = '<meta property="og:image" content="https://i.pinimg.com/736x/a.jpg"/>'
+        self.assertEqual(mt.og_image_of(html), 'https://i.pinimg.com/736x/a.jpg')
+        html = '<meta content="https://avatars.mds.yandex.net/a?x=1&amp;y=2" property="og:image">'
+        self.assertEqual(mt.og_image_of(html), 'https://avatars.mds.yandex.net/a?x=1&y=2')
+        self.assertEqual(mt.og_image_of('<meta name="twitter:image" content="https://a.b/c.png">'),
+                         'https://a.b/c.png')
+
+    def test_generic_logo_refused(self):
+        # Rutube на плейлисте отдаёт свой логотип — это не обложка ролика.
+        self.assertEqual(mt.og_image_of(
+            '<meta property="og:image" content="https://static.rtbcdn.ru/static/img/png/ogimglogo.png">'), '')
+
+    def test_hosts(self):
+        for url in ('https://www.kinopoisk.ru/series/256124/', 'https://music.yandex.ru/album/626064',
+                    'https://pin.it/5ML4wEyiT', 'https://www.twitch.tv/t2x2', 'https://ok.ru/video/1',
+                    'https://dzen.ru/video/watch/abc', 'https://yandex.ru/video/touch/preview/1',
+                    'https://vimeo.com/1', 'https://rutube.ru/plst/519449/'):
+            self.assertTrue(mt.page_thumb_host(url), url)
+        for url in ('https://lord.kim/x', 'https://rt.pornhub.com/view_video.php', 'https://yandex.ru/search',
+                    'https://vkvideo.ru/video-1_2', 'https://youtu.be/ro0KqgvlS4Y', 'http://127.0.0.1/'):
+            self.assertFalse(mt.page_thumb_host(url), url)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
