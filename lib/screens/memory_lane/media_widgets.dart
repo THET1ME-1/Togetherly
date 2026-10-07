@@ -337,10 +337,15 @@ class _YouTubeInlineCard extends StatefulWidget {
   final String pairId;
   final String partnerUid;
 
+  /// Подпись под пином. Открытое воспоминание показывает её само целиком —
+  /// в пине она обрезана до двух строк.
+  final bool showCaption;
+
   const _YouTubeInlineCard({
     required this.memory,
     required this.pairId,
     required this.partnerUid,
+    this.showCaption = true,
   });
 
   @override
@@ -459,7 +464,7 @@ class _YouTubeInlineCardState extends State<_YouTubeInlineCard> {
       thumbUrl: thumbUrl,
       title: memory.title,
       author: memory.musicArtist,
-      caption: memory.caption,
+      caption: widget.showCaption ? memory.caption : null,
       // Цвет полосы у 10.x приходит темой, а не полем виджета:
       // ProgressBarColors больше нет. Подкрашиваем расширением темы —
       // полоса в цвете темы, как и весь пин.

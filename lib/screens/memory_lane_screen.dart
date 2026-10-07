@@ -104,6 +104,12 @@ import '../services/movie_search_service.dart';
 import '../widgets/common/pin_entry_sheet.dart';
 import '../services/offline/media_file_fetch.dart';
 import '../widgets/memory/media_strip.dart';
+import 'package:material_new_shapes/material_new_shapes.dart';
+import 'package:share_plus/share_plus.dart';
+
+import '../models/memory_detail_layout.dart';
+import '../utils/share_origin.dart';
+import '../widgets/connect_expressive.dart' show M3ShapeClipper;
 import '../widgets/memory/note_pin.dart';
 import '../widgets/memory/reactions_row.dart';
 import '../widgets/memory/video_pin.dart';
@@ -143,6 +149,20 @@ String _svgAssetForType(MemoryType type) {
 
 /// Filter mode for Memory Lane pinned memories.
 enum MemoryFilterMode { none, day, month }
+
+/// Открытое воспоминание без ленты — только для снимков в тестах
+/// (`test/goldens/memory_detail_preview.dart`): сам экран закрыт в ленте.
+@visibleForTesting
+Widget memoryDetailForPreview(Memory memory, {String groupId = ''}) =>
+    _MemoryDetailSheet(
+      memory: memory,
+      groupId: groupId,
+      primary: AppThemes.pink.primary,
+      isOwner: true,
+      typeColor: AppThemes.pink.primary,
+      onEdit: () {},
+      onDelete: () {},
+    );
 
 /// Memory Lane — Google Calendar Schedule-style view
 /// Grouped by date, pinned at top, full CRUD
@@ -3232,13 +3252,18 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       userLat: _userLat,
       userLng: _userLng,
       liveAuthorAvatar: _liveAvatar(memory),
+      partnerUid: pair.partnerUid,
       onEdit: () => _editMemory(memory),
       onDelete: () => _confirmDelete(memory),
       onSetLocation: () => _setLocationOnMemory(memory),
     );
-    // Фото и видео открываются ЭКРАНОМ, а не листом: у записи своя шапка с
-    // автором, и лист оставлял сверху просвет ленты — две шапки подряд.
-    if (memory.type == MemoryType.photo || memory.type == MemoryType.video) {
+    // Фото, видео и заметка открываются ЭКРАНОМ, а не листом: у записи своя
+    // шапка с автором, и лист оставлял сверху просвет ленты — две шапки
+    // подряд. Решает то же правило, что и вёрстку экрана.
+    final hasPhotos = memory.imageUrls?.isNotEmpty == true ||
+        memory.imageUrl?.isNotEmpty == true;
+    if (opensAsMoment(memory.type, hasPhotos: hasPhotos) ||
+        memory.type == MemoryType.photo) {
       // Простое проявление вместо выезда снизу: системный переход читался
       // как всплывающий лист, хотя это полноценный экран.
       Navigator.push(

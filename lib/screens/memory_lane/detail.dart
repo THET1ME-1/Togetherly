@@ -15,6 +15,9 @@ class _MemoryDetailSheet extends StatefulWidget {
   /// AvatarWidget falls back to memory.authorAvatar.
   final String liveAuthorAvatar;
 
+  /// Партнёр — для «Смотреть вместе» у видео по ссылке.
+  final String partnerUid;
+
   const _MemoryDetailSheet({
     required this.memory,
     required this.groupId,
@@ -27,6 +30,7 @@ class _MemoryDetailSheet extends StatefulWidget {
     required this.onDelete,
     this.onSetLocation,
     this.liveAuthorAvatar = '',
+    this.partnerUid = '',
   });
 
   @override
@@ -240,14 +244,11 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
   // ── Кадр ──────────────────────────────────────────────────────────────────
 
 
-  /// Фото-видео пин: у него свой каркас по макету — шапка с автором,
-  /// обложка целиком и плёнка остальных кадров. Книге, музыке и фильму он
-  /// не подходит: там кадра нет вовсе.
-  bool get _isMoment {
-    final t = _memory.type;
-    if (t != MemoryType.photo && t != MemoryType.video) return false;
-    return _momentPhotos.isNotEmpty;
-  }
+  /// Каркас «как фото»: шапка с автором, крупная обложка, реакции,
+  /// комментарии и тулбар. Кроме фото так открываются видео, видео по
+  /// ссылке и заметка (07.10.2026); книге, музыке и фильму он не подходит.
+  bool get _isMoment => opensAsMoment(_memory.type,
+      hasPhotos: _momentPhotos.isNotEmpty);
 
   /// Кадры записи в порядке показа.
   List<String> get _momentPhotos {
@@ -316,10 +317,13 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
   /// карандаш автору и «⋯». Слова «Воспоминание» тут нет: и так понятно,
   /// что открыто, а место лучше занять тем, кто и когда это снял.
   Widget _momentBar(Memory memory, ColorScheme cs) {
-    final total = _momentPhotos.length +
-        (memory.videoUrl?.isNotEmpty == true && _momentPhotos.isEmpty ? 1 : 0);
-    final sub = '${_fmtDate(memory.createdAt)} · '
-        '${total} ${LocaleService.current.photosUnit(total)}';
+    final total = _momentPhotos.length;
+    // У заметки и ролика тип и так видно по обложке, а на 360 точках
+    // приписка «· Заметка» обрезалась многоточием.
+    final sub = momentCountsPhotos(memory.type)
+        ? '${_fmtDate(memory.createdAt)} · '
+            '$total ${LocaleService.current.photosUnit(total)}'
+        : _fmtDate(memory.createdAt);
     Widget btn(IconData icon, VoidCallback onTap,
         {BorderRadius? radius, String? tooltip}) {
       final b = Material(
@@ -415,8 +419,20 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
     );
   }
 
-  /// Обложка целиком и плёнка остальных кадров под ней.
+  /// Обложка целиком и плёнка остальных кадров под ней. У заметки обложка —
+  /// её лист с кавычкой, у видео по ссылке — пин с плеером, у своего видео
+  /// без кадра — тональный кадр с кнопкой «играть».
   Widget _momentCover(Memory memory, ColorScheme cs) {
+    switch (memory.type) {
+      case MemoryType.text:
+        return _noteCover(memory, cs);
+      case MemoryType.videoLink:
+        return _videoLinkCover(memory, cs);
+      case MemoryType.video when _momentPhotos.isEmpty:
+        return _bareVideoCover(memory, cs);
+      default:
+        break;
+    }
     final photos = _momentPhotos;
     final idx = _coverIndex.clamp(0, photos.length - 1);
     final hasVideo = memory.videoUrl?.isNotEmpty == true;
@@ -468,9 +484,107 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
     );
   }
 
-  /// Название крупно, подпись под ним обычным шрифтом.
+  /// Лист заметки тот же, что в ленте, только текст целиком.
+  Widget _noteCover(Memory memory, ColorScheme cs) {
+    final hasTitle = memory.title?.trim().isNotEmpty == true;
+    final hasCaption = memory.caption?.trim().isNotEmpty == true;
+    final body = (hasCaption ? memory.caption : memory.title)?.trim() ?? '';
+    return NotePin(
+      scheme: cs,
+      fill: context.appTheme.fillColor,
+      title: hasTitle && hasCaption ? memory.title : null,
+      body: body,
+      bodyBuilder: (text, style) => _SpoilerRichText(text: text, style: style),
+    );
+  }
+
+  /// Видео по ссылке — тот же пин, что в ленте; YouTube играет прямо в нём.
+  /// Подпись пин не показывает: под ним она идёт целиком, а не в две строки.
+  Widget _videoLinkCover(Memory memory, ColorScheme cs) {
+    final url = memory.videoUrl ?? '';
+    final platformName = _MemoryLaneScreenState._detectVideoPlatform(url)['name']
+        as String;
+    if (platformName == 'YouTube') {
+      return _YouTubeInlineCard(
+        memory: memory,
+        pairId: widget.groupId,
+        partnerUid: widget.partnerUid,
+        showCaption: false,
+      );
+    }
+    void openOutside() {
+      if (url.isNotEmpty) {
+        safeLaunchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      }
+    }
+
+    return VideoPin(
+      scheme: cs,
+      fill: context.appTheme.fillColor,
+      url: url,
+      platformName: platformName,
+      platformIcon: _MemoryLaneScreenState._videoPlatformIcon(platformName),
+      thumbUrl: memory.imageUrl?.isNotEmpty == true
+          ? memory.imageUrl
+          : videoLinkThumb(url),
+      title: memory.title,
+      author: memory.musicArtist,
+      onPlay: openOutside,
+      onOpen: openOutside,
+    );
+  }
+
+  /// Своё видео, у которого сервер ещё не снял кадр: тональная заливка и
+  /// «играть» формой печенья, как у видео-пина.
+  Widget _bareVideoCover(Memory memory, ColorScheme cs) {
+    final fill = context.appTheme.fillColor;
+    final url = memory.videoUrl ?? '';
+    return GestureDetector(
+      onTap: url.isEmpty
+          ? null
+          : () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      InAppVideoPlayerPage(url: url, title: memory.title),
+                  settings: const RouteSettings(name: '/video_player'),
+                ),
+              ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: AspectRatio(
+          aspectRatio: 16 / 9,
+          child: ColoredBox(
+            color: cs.surfaceContainerHighest,
+            child: Center(
+              child: ClipPath(
+                clipper: M3ShapeClipper(MaterialShapes.cookie9Sided),
+                child: Container(
+                  width: 72,
+                  height: 72,
+                  color: fill,
+                  child: Icon(
+                    Icons.play_arrow_rounded,
+                    size: 36,
+                    color: AppThemes.onColor(fill,
+                        mode: context.appTheme.brightness),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Название крупно, подпись под ним обычным шрифтом. У заметки обоих уже
+  /// показал лист, у видео по ссылке название стоит на кадре.
   Widget _momentTitle(Memory memory, ColorScheme cs) {
-    final title = memory.title?.trim() ?? '';
+    if (memory.type == MemoryType.text) return const SizedBox.shrink();
+    final title = memory.type == MemoryType.videoLink
+        ? ''
+        : memory.title?.trim() ?? '';
     final caption = normalizeMemoryCaption(memory.caption)?.trim() ?? '';
     if (title.isEmpty && caption.isEmpty) return const SizedBox.shrink();
     return Padding(
@@ -616,8 +730,10 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
   Widget _momentDock(Memory memory, ColorScheme cs) {
     final bottom = MediaQuery.paddingOf(context).bottom;
     final saved = memory.isSavedBy(_myUidHere);
+    // Flexible: рядом с кнопкой сохранения четырём кнопкам по 52 точки на
+    // 360 dp не хватало места, и тулбар вылезал полосой переполнения.
     Widget ib(IconData icon, VoidCallback onTap, {bool active = false}) =>
-        Material(
+        Flexible(child: Material(
           color: active ? cs.secondaryContainer : Colors.transparent,
           borderRadius: BorderRadius.circular(28),
           clipBehavior: Clip.antiAlias,
@@ -631,7 +747,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                   color: active ? cs.onSecondaryContainer : cs.onSurface),
             ),
           ),
-        );
+        ));
     final myReaction = _reactions[_myUidHere] ?? '';
     return Padding(
       padding: EdgeInsets.fromLTRB(12, 0, 12, 16 + bottom),
@@ -1206,6 +1322,20 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
   /// «Отправить»: до десяти файлов уходят сразу, больше — через выбор кадров,
   /// иначе в мессенджер поехали бы все 94 и 35 мегабайт разом.
   Future<void> _shareFiles(Memory memory) async {
+    if (_files.isEmpty) {
+      // Заметка уходит текстом, видео по ссылке — ссылкой: файлов у них нет.
+      final text = memory.type == MemoryType.videoLink
+          ? (memory.videoUrl ?? '')
+          : [memory.title, memory.caption]
+              .where((s) => s?.trim().isNotEmpty == true)
+              .map((s) => s!.trim())
+              .toSet()
+              .join('\n\n');
+      if (text.isEmpty) return;
+      await Share.share(text,
+          sharePositionOrigin: shareOriginFromContext(context));
+      return;
+    }
     if (_files.length > 10) {
       await _pickFrames(memory);
       return;
