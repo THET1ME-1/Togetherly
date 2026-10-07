@@ -104,6 +104,7 @@ import '../services/movie_search_service.dart';
 import '../widgets/common/pin_entry_sheet.dart';
 import '../services/offline/media_file_fetch.dart';
 import '../widgets/memory/media_strip.dart';
+import '../widgets/memory/note_pin.dart';
 import '../widgets/memory/reactions_row.dart';
 import '../widgets/memory/video_pin.dart';
 import '../models/memory_reaction.dart';
@@ -2539,100 +2540,27 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     final body = hasCaption
         ? memory.caption!
         : (hasTitle ? memory.title! : '');
-    // Шапки у стикера нет, а подпись «Задание дня» живёт в шапке — поэтому
-    // текстовые ответы на задания стояли в ленте без неё, хотя у музыки и
-    // места она была (обращение 236, 05.10.2026). Ставим её над стикером.
-    final task = _dailyTaskNote(memory);
-
     return _baseTile(
       memory: memory,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (task != null) task,
-          // ── Жёлтый стикер-листик (post-it). Без хедера сверху — автор
-          // подписан внизу в стиле стикера. Плоский (без тени/бордера). ──
+          // Шапка как у всех пинов: кто, когда, значок «Заметка» и подпись
+          // задания дня (обращение 236). Прежний жёлтый стикер шапки не имел.
+          _cardHeader(memory, trailing: _typeBadge(memory)),
+          const SizedBox(height: 4),
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 4),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(18, 18, 16, 14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFCE08A),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (hasTitle && hasCaption) ...[
-                    Text(
-                      memory.title!,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF5A4A1E),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                  ],
-                  if (body.isNotEmpty)
-                    _SpoilerRichText(
-                      text: body,
-                      style: const TextStyle(
-                        fontSize: 15.5,
-                        color: Color(0xFF5A4A1E),
-                        height: 1.42,
-                      ),
-                      maxLines: 14,
-                      overflow: TextOverflow.ellipsis,
-                    )
-                  else
-                    Text(
-                      LocaleService.current.memBadgeNote,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontStyle: FontStyle.italic,
-                        color: Color(0xFF8A7733),
-                      ),
-                    ),
-                  const SizedBox(height: 14),
-                  // Подпись автора в стиле стикера (внизу справа).
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          '— ${_liveName(memory)}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            fontStyle: FontStyle.italic,
-                            color: Color(0xFF7A6526),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      ClipOval(
-                        child: SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: _liveAvatar(memory).isNotEmpty
-                              ? StorageImage(
-                                  imageUrl: _liveAvatar(memory),
-                                  fit: BoxFit.cover,
-                                  memCacheWidth: 72,
-                                  memCacheHeight: 72,
-                                  errorWidget: (_, __, ___) =>
-                                      _avatarFallback(_liveName(memory)),
-                                )
-                              : _avatarFallback(_liveName(memory)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: NotePin(
+              scheme: ProfileTheme.schemeFor(widget.theme),
+              fill: widget.theme.fillColor,
+              title: hasTitle && hasCaption ? memory.title : null,
+              body: body,
+              bodyBuilder: (text, style) => _SpoilerRichText(
+                text: text,
+                style: style,
+                maxLines: 14,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ),

@@ -49,6 +49,9 @@ class _SpoilerRichTextState extends State<_SpoilerRichText> {
             return TextSpan(text: seg.text, style: widget.style);
           final idx = spoilerIndex++;
           final isRevealed = _revealed.contains(idx);
+          // Скрытое закрашено цветом самого текста: на листе темы серая
+          // плашка смотрелась чужой.
+          final veil = widget.style.color ?? Colors.grey.shade800;
           return WidgetSpan(
             alignment: ui.PlaceholderAlignment.middle,
             child: GestureDetector(
@@ -60,7 +63,7 @@ class _SpoilerRichTextState extends State<_SpoilerRichText> {
                 curve: Curves.easeOut,
                 padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
                 decoration: BoxDecoration(
-                  color: isRevealed ? Colors.transparent : Colors.grey.shade800,
+                  color: isRevealed ? Colors.transparent : veil,
                   borderRadius: BorderRadius.circular(3),
                 ),
                 child: Text(
@@ -68,7 +71,7 @@ class _SpoilerRichTextState extends State<_SpoilerRichText> {
                   style: widget.style.copyWith(
                     color: isRevealed
                         ? widget.style.color
-                        : Colors.grey.shade800,
+                        : veil,
                   ),
                 ),
               ),
