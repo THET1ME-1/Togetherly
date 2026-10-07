@@ -116,6 +116,13 @@ def tiktok_canonical(location: str) -> str:
     return "https://www.tiktok.com/%s/%s/%s" % m.groups()
 
 
+def tiktok_oembed_url(url: str) -> str:
+    """Адрес для oEmbed: фото-пост по /photo/ он не отдаёт (400), а по
+    /video/ с тем же номером — отдаёт. Короткая ссылка идёт как есть."""
+    full = tiktok_canonical(url)
+    return full.replace("/photo/", "/video/") if full else url
+
+
 def unblur(url: str) -> str:
     """Яндекс Видео отдаёт обложку с размытием (`blur`, `shower`) — снимаем."""
     u = urllib.parse.urlparse(url)
@@ -177,13 +184,15 @@ def vk_poster_of(html: str) -> str:
         except ValueError:
             continue
         for x in arr if isinstance(arr, list) else []:
-            if not isinstance(x, dict) or x.get("with_padding"):
+            if not isinstance(x, dict):
                 continue
             url, w = x.get("url"), x.get("width") or 0
             host = (urllib.parse.urlparse(url).hostname or "") if isinstance(url, str) else ""
             if not re.search(r"(^|\.)(vkuserphoto\.ru|userapi\.com|vkuser\.net|vk\.me)$", host):
                 continue
-            key = (0, w) if w >= 720 else (1, -w)
+            # У старых роликов обложка только с полями по краям — берём и её,
+            # но после любой обложки без полей.
+            key = (1 if x.get("with_padding") else 0,) + ((0, w) if w >= 720 else (1, -w))
             if best is None or key < best[0]:
                 best = (key, url)
     return best[1] if best else ""
@@ -520,7 +529,7 @@ def _tt_resolve(short: str) -> str:
 
 def _tiktok_thumb(url: str) -> str:
     try:
-        thumb = tiktok_thumb_of(_tt_oembed(url))
+        thumb = tiktok_thumb_of(_tt_oembed(tiktok_oembed_url(url)))
     except urllib.error.HTTPError as e:
         # Короткую ссылку oEmbed не понимает (400) — раскрываем и спрашиваем снова.
         if e.code != 400 or not tiktok_is_short(url):
@@ -530,7 +539,7 @@ def _tiktok_thumb(url: str) -> str:
         full = _tt_resolve(url)
         if full:
             time.sleep(1)
-            thumb = tiktok_thumb_of(_tt_oembed(full))
+            thumb = tiktok_thumb_of(_tt_oembed(tiktok_oembed_url(full)))
     return thumb
 
 

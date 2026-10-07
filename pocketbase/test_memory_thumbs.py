@@ -121,6 +121,14 @@ class TikTokShort(unittest.TestCase):
         self.assertEqual(mt.tiktok_canonical('https://www.tiktok.com/@mila.k/photo/7689170120257686805?x=1'),
                          'https://www.tiktok.com/@mila.k/photo/7689170120257686805')
 
+    def test_photo_as_video(self):
+        # Фото-пост oEmbed по /photo/ не отдаёт (400), а по /video/ с тем же
+        # номером — отдаёт.
+        self.assertEqual(mt.tiktok_oembed_url('https://www.tiktok.com/@mar.a.m.r/photo/7689924212001082642?x=1'),
+                         'https://www.tiktok.com/@mar.a.m.r/video/7689924212001082642')
+        self.assertEqual(mt.tiktok_oembed_url('https://vt.tiktok.com/ZSxTjxu37/'),
+                         'https://vt.tiktok.com/ZSxTjxu37/')
+
     def test_deleted(self):
         # Удалённый ролик: короткая ссылка ведёт на главную TikTok.
         self.assertEqual(mt.tiktok_canonical('https://www.tiktok.com/?_r=1'), '')
@@ -171,6 +179,12 @@ class VkVideo(unittest.TestCase):
                 '"first_frame":[{"url":"https:\\/\\/iv.okcdn.ru\\/x","width":1280}]...')
         # Без полей по краям и самый маленький не уже 720: 4096 — лишние мегабайты.
         self.assertEqual(mt.vk_poster_of(html), 'https://sun9-3.vkuserphoto.ru/c.jpg')
+
+    def test_padded_only(self):
+        # У старых роликов обложка только с полями — всё равно кадр ролика.
+        html = ('"image":[{"url":"https:\\/\\/sun9-1.vkuserphoto.ru\\/a.jpg","width":320,"with_padding":1},'
+                '{"url":"https:\\/\\/sun9-2.vkuserphoto.ru\\/b.jpg","width":800,"with_padding":1}]')
+        self.assertEqual(mt.vk_poster_of(html), 'https://sun9-2.vkuserphoto.ru/b.jpg')
 
     def test_poster_missing(self):
         self.assertEqual(mt.vk_poster_of('<html>нет данных</html>'), '')
