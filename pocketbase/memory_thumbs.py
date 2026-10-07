@@ -172,6 +172,10 @@ def vk_video_ids(url: str):
     return (m.group(1), m.group(2), "") if m else None
 
 
+def vk_page_url(ids) -> str:
+    return "https://vkvideo.ru/video%s_%s" % (ids[0], ids[1])
+
+
 def vk_poster_of(html: str) -> str:
     """Обложка из данных плеера: поле `image` — список размеров. Берём без
     полей по краям и самый маленький не уже 720 (4096 точек — лишние
@@ -499,6 +503,23 @@ def _vk_embed(oid: str, vid: str, key: str) -> str:
         return r.read(3_000_000).decode("utf-8", "replace")
 
 
+def _vk_bot_page(url: str) -> str:
+    """Страница ролика ВК глазами бота превью ссылок. Браузеру ВК отдаёт
+    пустую оболочку, а боту — разметку с og:image, и это работает и для
+    роликов, чей плеер встраивать без ключа нельзя. Удалённый ролик — 404."""
+    import http.cookiejar
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()),
+                                         _CheckedRedirect())
+    req = urllib.request.Request(url, headers={"User-Agent": "TelegramBot (like TwitterBot)"})
+    try:
+        with opener.open(req, timeout=20) as r:
+            return r.read(2_000_000).decode("utf-8", "replace")
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return ""
+        raise
+
+
 LINK_FETCHER = "http://127.0.0.1:8110/preview?url="
 
 
@@ -549,7 +570,7 @@ def remote_thumb(url: str) -> str:
         return _tiktok_thumb(url)
     ids = vk_video_ids(url)
     if ids:
-        return vk_poster_of(_vk_embed(*ids))
+        return og_image_of(_vk_bot_page(vk_page_url(ids))) or vk_poster_of(_vk_embed(*ids))
     if page_thumb_host(url):
         return unblur(og_image_of(_page(url)))
     return ""

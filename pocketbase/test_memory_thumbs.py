@@ -180,6 +180,11 @@ class VkVideo(unittest.TestCase):
         # Без полей по краям и самый маленький не уже 720: 4096 — лишние мегабайты.
         self.assertEqual(mt.vk_poster_of(html), 'https://sun9-3.vkuserphoto.ru/c.jpg')
 
+    def test_page_url(self):
+        # Страница ролика для бота превью: живому отдаёт og:image, удалённому — 404.
+        self.assertEqual(mt.vk_page_url(('-56028029', '456249855', '')),
+                         'https://vkvideo.ru/video-56028029_456249855')
+
     def test_padded_only(self):
         # У старых роликов обложка только с полями — всё равно кадр ролика.
         html = ('"image":[{"url":"https:\\/\\/sun9-1.vkuserphoto.ru\\/a.jpg","width":320,"with_padding":1},'
