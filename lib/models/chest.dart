@@ -288,3 +288,19 @@ const List<List<double>?> kChestPrizeTrack = [
   [0.26724, 0.05218, 0.46552],
   [0.26724, 0.05241, 0.46552],
 ];
+
+/// Последнее положение приза над открытым сундуком — так он лежит на
+/// карточке «Поделиться».
+final List<double> kChestPrizeRest = kChestPrizeTrack.lastWhere((s) => s != null)!;
+
+/// Ярус приза на карточке «Поделиться»: ключ строки и выделять ли его
+/// заливкой. Плюс — «Главный приз», как в списке шансов; легендарное тоже
+/// выделено — им и хвастаются.
+(String, bool) chestShareTier(ChestPrize p) {
+  if (p.kind == ChestPrizeKind.plus || p.kind == ChestPrizeKind.plusTrial) return ('chestTierTop', true);
+  return switch (p.tier) {
+    ChestTier.legendary => ('chestShareLegendary', true),
+    ChestTier.rare => ('chestShareRare', false),
+    ChestTier.common => ('chestShareCommon', false),
+  };
+}

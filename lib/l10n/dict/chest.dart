@@ -2,6 +2,52 @@
 // {name} заменяет код экрана.
 
 const Map<String, Map<String, String>> chestStrings = {
+  // Карточка «Поделиться» с выпавшим призом (07.10.2026).
+  'chestShareScreen': {
+    'ru': 'Приз из сундука',
+    'en': 'Chest prize',
+    'pt': 'Prémio do baú',
+    'it': 'Premio dal forziere',
+    'es': 'Premio del cofre',
+    'fr': 'Prix du coffre',
+    'de': 'Preis aus der Truhe',
+  },
+  'chestShareLabel': {
+    'ru': 'Выпало из сундука',
+    'en': 'Out of the chest',
+    'pt': 'Saiu do baú',
+    'it': 'Uscito dal forziere',
+    'es': 'Salió del cofre',
+    'fr': 'Sorti du coffre',
+    'de': 'Aus der Truhe',
+  },
+  'chestShareCommon': {
+    'ru': 'Обычный приз',
+    'en': 'Common prize',
+    'pt': 'Prémio comum',
+    'it': 'Premio comune',
+    'es': 'Premio común',
+    'fr': 'Prix commun',
+    'de': 'Gewöhnlicher Preis',
+  },
+  'chestShareRare': {
+    'ru': 'Редкий приз',
+    'en': 'Rare prize',
+    'pt': 'Prémio raro',
+    'it': 'Premio raro',
+    'es': 'Premio raro',
+    'fr': 'Prix rare',
+    'de': 'Seltener Preis',
+  },
+  'chestShareLegendary': {
+    'ru': 'Легендарный приз',
+    'en': 'Legendary prize',
+    'pt': 'Prémio lendário',
+    'it': 'Premio leggendario',
+    'es': 'Premio legendario',
+    'fr': 'Prix légendaire',
+    'de': 'Legendärer Preis',
+  },
   'chestTierTop': {
     'ru': 'Главный приз',
     'en': 'Top prize',

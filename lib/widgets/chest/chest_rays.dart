@@ -14,9 +14,20 @@ import 'package:flutter/material.dart';
 ///
 /// С отключёнными в системе анимациями лучи стоят.
 class ChestRays extends StatefulWidget {
-  const ChestRays({super.key, required this.scheme});
+  const ChestRays({
+    super.key,
+    required this.scheme,
+    this.animate = true,
+    this.focus = Alignment.center,
+  });
 
   final ColorScheme scheme;
+
+  /// false — лучи стоят: карточка для «Поделиться» снимается одним кадром.
+  final bool animate;
+
+  /// Откуда расходятся лучи. На карточке сундук стоит выше середины.
+  final Alignment focus;
 
   @override
   State<ChestRays> createState() => _ChestRaysState();
@@ -28,7 +39,7 @@ class _ChestRaysState extends State<ChestRays> with SingleTickerProviderStateMix
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (MediaQuery.of(context).disableAnimations) {
+    if (!widget.animate || MediaQuery.of(context).disableAnimations) {
       _spin.stop();
     } else if (!_spin.isAnimating) {
       _spin.repeat();
@@ -50,7 +61,7 @@ class _ChestRaysState extends State<ChestRays> with SingleTickerProviderStateMix
         : Color.lerp(bg, cs.surface, 0.55)!;
     return RepaintBoundary(
       child: CustomPaint(
-        painter: _RaysPainter(turn: _spin, background: bg, ray: ray),
+        painter: _RaysPainter(turn: _spin, background: bg, ray: ray, focus: widget.focus),
         size: Size.infinite,
       ),
     );
@@ -58,20 +69,23 @@ class _ChestRaysState extends State<ChestRays> with SingleTickerProviderStateMix
 }
 
 class _RaysPainter extends CustomPainter {
-  _RaysPainter({required this.turn, required this.background, required this.ray}) : super(repaint: turn);
+  _RaysPainter({required this.turn, required this.background, required this.ray, required this.focus})
+      : super(repaint: turn);
 
   final Animation<double> turn;
   final Color background;
   final Color ray;
+  final Alignment focus;
 
   static const int _count = 16;
 
   @override
   void paint(Canvas canvas, Size size) {
     canvas.drawRect(Offset.zero & size, Paint()..color = background);
-    final c = size.center(Offset.zero);
-    // Луч длиннее диагонали: при любом повороте доходит до углов блока.
-    final r = size.longestSide;
+    final c = focus.alongSize(size);
+    // Луч длиннее диагонали: при любом повороте и смещённом центре доходит
+    // до углов блока.
+    final r = size.longestSide * 2;
     final start = turn.value * 2 * math.pi;
     final path = Path();
     for (var i = 0; i < _count; i++) {
@@ -87,5 +101,6 @@ class _RaysPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_RaysPainter old) => old.background != background || old.ray != ray || old.turn != turn;
+  bool shouldRepaint(_RaysPainter old) =>
+      old.background != background || old.ray != ray || old.turn != turn || old.focus != focus;
 }

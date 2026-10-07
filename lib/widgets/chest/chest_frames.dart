@@ -32,6 +32,7 @@ class ChestFrames extends StatefulWidget {
     required this.still,
     required this.side,
     this.loop = true,
+    this.showLast = false,
     this.onFrame,
     this.onDone,
   });
@@ -40,6 +41,10 @@ class ChestFrames extends StatefulWidget {
   final String still;
   final double side;
   final bool loop;
+
+  /// Сразу последний кадр, без проигрывания: открытый сундук для карточки
+  /// «Поделиться».
+  final bool showLast;
   final ValueChanged<int>? onFrame;
   final VoidCallback? onDone;
 
@@ -122,7 +127,31 @@ class _ChestFramesState extends State<ChestFrames> with SingleTickerProviderStat
       widget.onDone?.call();
       return;
     }
+    if (widget.showLast) {
+      await _skipToLast(_codec!);
+      return;
+    }
     _ticker.start();
+  }
+
+  Future<void> _skipToLast(ui.Codec codec) async {
+    ui.Image? last;
+    try {
+      for (var i = 0; i < codec.frameCount; i++) {
+        final frame = await codec.getNextFrame();
+        last?.dispose();
+        last = frame.image;
+        if (_disposed) break;
+      }
+    } catch (_) {}
+    if (_disposed) {
+      last?.dispose();
+      return;
+    }
+    final old = _image;
+    setState(() => _image = last);
+    old?.dispose();
+    widget.onDone?.call();
   }
 
   void _onTick(Duration elapsed) {

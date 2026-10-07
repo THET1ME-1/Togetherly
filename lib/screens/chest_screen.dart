@@ -28,6 +28,7 @@ import '../widgets/chest/jar_drops.dart';
 import '../widgets/common/ad_result.dart';
 import '../widgets/chest/chest_rays.dart';
 import 'chest_prize_screen.dart';
+import 'chest_share_screen.dart';
 
 /// Экран сундука недели по макету «Сундук недели» (26.09.2026): сверху сундук
 /// крупно, под ним кнопка открытия, ниже все призы с шансами по ярусам.
@@ -463,6 +464,10 @@ class _ChestScreenState extends State<ChestScreen> {
                 ),
               ),
             ),
+            if (_opening != null && !_animating && _won != null) ...[
+              const SizedBox(height: 4),
+              Center(child: _shareButton(cs)),
+            ],
             const SizedBox(height: 12),
             if (_choice != null)
               _pick(cs)
@@ -557,6 +562,36 @@ class _ChestScreenState extends State<ChestScreen> {
           ),
         );
       },
+    );
+  }
+
+  /// «Поделиться» выпавшим призом: карточка с подписью Togetherly вместо
+  /// скриншота экрана (просьба владельца, 07.10.2026).
+  Widget _shareButton(ColorScheme cs) {
+    final prize = _opening!;
+    return FilledButton.tonalIcon(
+      onPressed: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          settings: const RouteSettings(name: '/chest/share'),
+          builder: (_) => ChestShareScreen(
+            prize: prize,
+            title: _won ?? _wonText(prize),
+            chance: trKey('chestChance').replaceAll('{p}', chestPercent(prize, _odds, decimal: _decimal)),
+            scheme: cs,
+            fill: widget.theme.fillColor,
+            openUrl: _openUrl,
+          ),
+        ),
+      ),
+      style: FilledButton.styleFrom(
+        backgroundColor: cs.secondaryContainer,
+        foregroundColor: cs.onSecondaryContainer,
+        minimumSize: const Size(0, 44),
+        padding: const EdgeInsets.symmetric(horizontal: 18),
+        shape: const StadiumBorder(),
+      ),
+      icon: const Icon(Icons.ios_share_rounded, size: 18),
+      label: Text(LocaleService.current.share),
     );
   }
 
