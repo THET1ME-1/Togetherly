@@ -81,10 +81,16 @@ class ChestState {
     this.jar,
     this.today = const [],
     this.seasons = const [],
+    this.noAd = false,
   });
 
   /// Сезонные сундуки, что идут сейчас (только в ответе обычного сундука).
   final List<SeasonChest> seasons;
+
+  /// Сервер видит человека там, где реклама недоступна (Украина): сундук
+  /// открывается без ролика, а Плюс в таком открытии не разыгрывается.
+  /// Страну решает сервер по адресу запроса, не приложение.
+  final bool noAd;
 
   final int left;
   final int perDay;
@@ -105,6 +111,7 @@ class ChestState {
     jar: jar,
     today: [...today, ?prize],
     seasons: seasons,
+    noAd: noAd,
   );
 
   /// Через сколько открытий редкий приз гарантирован (1 — следующее). null —
@@ -136,6 +143,7 @@ class ChestState {
             if (r is Map) ?ChestPrize.fromJson(Map<String, dynamic>.from(r)),
       ],
       seasons: SeasonChest.listFromJson(j['seasons']),
+      noAd: j['noAd'] == true,
     );
   }
 }

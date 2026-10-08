@@ -3164,6 +3164,33 @@ async def internal_online(uid: str):
     return {"online": uid in online}
 
 
+_GEO_PATH = os.environ.get("HOTPATH_GEOIP", "/opt/hotpath/geo/GeoLite2-City.mmdb")
+_geo_reader = None
+
+
+def _страна(ip: str) -> str:
+    """Код страны по адресу (`UA`), пусто — не знаем. База GeoLite2 — та же,
+    что у Umami (копия в /opt/hotpath/geo, освежается вместе с её образом)."""
+    global _geo_reader
+    if not ip:
+        return ""
+    try:
+        if _geo_reader is None:
+            import maxminddb
+            _geo_reader = maxminddb.open_database(_GEO_PATH)
+        rec = _geo_reader.get(ip) or {}
+        return str(((rec.get("country") or {}).get("iso_code")) or "").upper()
+    except Exception:
+        return ""
+
+
+@app.get("/internal/geo")
+async def internal_geo(ip: str = ""):
+    """Страна по адресу запроса. Спрашивает chest.pb.js: там, где реклама
+    Яндекса недоступна (Украина), сундук открывается без ролика и без Плюса."""
+    return {"country": _страна(ip.strip())}
+
+
 @app.get("/internal/profiles")
 async def internal_profiles(group_ids: str = "", limit: int = 60, offset: int = 0):
     """Лента профилей для админки (`/modapi/pb-profiles` в moderation.pb.js).

@@ -116,6 +116,18 @@ routerAdd("GET", "/api/chest/state", (e) => {
   // Прежде iOS исключался, и за неделю 5243 открытия с iPhone не дали ни
   // одного Плюса (04.10.2026).
   const noPlus = user.getBool("plus");
+  // Страны, где реклама Яндекса недоступна (Украина: ноль показов РСЯ за
+  // 30 дней, 08.10.2026). Там сундук открывается без ролика, но Плюс в таком
+  // открытии не разыгрывается — решение владельца. Страну решает сервер по
+  // адресу запроса, а не приложение: иначе блокировщик рекламы в России
+  // открывал бы сундук даром. Список — CHEST_NO_AD_COUNTRIES, по умолчанию UA.
+  let noAdZone = false;
+  try {
+    const zones = String($os.getenv("CHEST_NO_AD_COUNTRIES") || "UA").toUpperCase().split(",");
+    const g = $http.send({ url: "http://127.0.0.1:8120/internal/geo?ip=" + encodeURIComponent(e.realIP()), method: "GET", timeout: 3 });
+    const cc = g.statusCode === 200 && g.json ? String(g.json.country || "") : "";
+    noAdZone = !!cc && zones.indexOf(cc) !== -1;
+  } catch (_) { noAdZone = false; }
 
   // Всё, что разыгрывается по редкости: подарки сундука плюс рамки и
   // значки из каталога (`catalog_items`: вид `frame` и `badge` с `data.chest`).
@@ -211,7 +223,9 @@ routerAdd("GET", "/api/chest/state", (e) => {
   // Неделя Плюса не выпадает тем, у кого Плюс или неделя уже идёт, и
   // сборкам без флага `frames`: показать её им нечем. Её доля — в «5 монет».
   const trialOn = (user.getInt("plus_trial_until") || 0) > Date.now();
-  const skipRow = (r) => (r[1] === "plus" && noPlus) || (r[1] === "plus_trial" && (noPlus || trialOn || !withFrames));
+  // Без ролика (noAdZone) Плюс не разыгрывается: ни навсегда, ни неделя.
+  const skipRow = (r) => ((r[1] === "plus" || r[1] === "plus_trial") && noAdZone) ||
+    (r[1] === "plus" && noPlus) || (r[1] === "plus_trial" && (noPlus || trialOn || !withFrames));
   let skippedW = 0;
   for (let i = 0; i < ODDS.length; i++) if (skipRow(ODDS[i])) skippedW += ODDS[i][3];
   // Гарантия общая: подряд считаются открытия обоих сундуков.
@@ -242,6 +256,8 @@ routerAdd("GET", "/api/chest/state", (e) => {
     // Через сколько открытий редкий приз гарантирован (1 — следующее).
     untilRare: PITY - dry,
     chest: hw ? chestKey : "main",
+    // Рекламы здесь нет: приложение открывает без ролика и шлёт `noAd`.
+    noAd: noAdZone,
     // Активные сезонные сундуки целиком (даты, цвета, файлы, названия):
     // приложение строит по ним галерею без своего кода под сезон.
     seasons: hw ? [] : seasons,
@@ -278,8 +294,24 @@ routerAdd("POST", "/api/chest/open", (e) => {
   // каждого сундука — вдвое больше дневного.
   let PER_24H = 6;
 
-  const body = new DynamicModel({ openId: "", groupId: "", tz: 0, platform: "", frames: false, bonus: false, chest: "" });
+  const body = new DynamicModel({ openId: "", groupId: "", tz: 0, platform: "", frames: false, bonus: false, chest: "", noAd: false });
   e.bindBody(body);
+  // Открытие без ролика — только там, где рекламы нет (страну решает сервер,
+  // см. /api/chest/state), и без Плюса в розыгрыше.
+  const noAd = body.noAd === true;
+  let noAdZone = false;
+  if (noAd) {
+    try {
+      const zones = String($os.getenv("CHEST_NO_AD_COUNTRIES") || "UA").toUpperCase().split(",");
+      const g = $http.send({ url: "http://127.0.0.1:8120/internal/geo?ip=" + encodeURIComponent(e.realIP()), method: "GET", timeout: 3 });
+      const cc = g.statusCode === 200 && g.json ? String(g.json.country || "") : "";
+      noAdZone = !!cc && zones.indexOf(cc) !== -1;
+    } catch (_) { noAdZone = false; }
+    if (!noAdZone) {
+      $app.logger().warn("chest open: без ролика не из зоны без рекламы", "uid", e.auth.id, "ip", e.realIP());
+      return e.json(403, { ok: false, error: "ad_required" });
+    }
+  }
   const withFrames = body.frames === true;
   // Открытие из копилки пары: без ролика и сверх трёх в день. День такой
   // записи пишется с приставкой «b», поэтому в дневной счёт она не входит.
@@ -479,7 +511,9 @@ routerAdd("POST", "/api/chest/open", (e) => {
       const pool = [];
       let total = 0;
       const trialOn = (user.getInt("plus_trial_until") || 0) > now;
-      const skipRow = (r) => (r[1] === "plus" && noPlus) || (r[1] === "plus_trial" && (noPlus || trialOn || !withFrames));
+      // Без ролика Плюс не разыгрывается: ни навсегда, ни неделя.
+      const skipRow = (r) => ((r[1] === "plus" || r[1] === "plus_trial") && noAd) ||
+        (r[1] === "plus" && noPlus) || (r[1] === "plus_trial" && (noPlus || trialOn || !withFrames));
       let skippedW = 0;
       for (let i = 0; i < ODDS.length; i++) if (skipRow(ODDS[i])) skippedW += ODDS[i][3];
       for (let i = 0; i < ODDS.length; i++) {

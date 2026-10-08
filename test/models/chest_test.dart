@@ -278,4 +278,32 @@ void main() {
     expect(open.contains('findCollectionByNameOrId("gifts")'), isFalse, reason: 'open не должен создавать подарок');
     expect(open.contains('"stash"'), isTrue);
   });
+
+  test('там, где рекламы нет, сервер так и говорит, и флаг живёт после открытия', () {
+    final st = ChestState.fromJson({
+      'ok': true,
+      'perDay': 3,
+      'left': 3,
+      'noAd': true,
+      'odds': [
+        {'key': 'coins5', 'kind': 'coins', 'amount': 5, 'weight': 1000, 'tier': 'common'},
+      ],
+    })!;
+    expect(st.noAd, isTrue);
+    expect(st.afterOpen(left: 2).noAd, isTrue);
+    final old = ChestState.fromJson({
+      'ok': true,
+      'odds': [
+        {'key': 'coins5', 'kind': 'coins', 'amount': 5, 'weight': 1000, 'tier': 'common'},
+      ],
+    })!;
+    expect(old.noAd, isFalse, reason: 'сервер постарше флага не знает — ролик обязателен');
+  });
+
+  test('открытие без ролика не разыгрывает Плюс, а без зоны сервер его не пускает', () {
+    final src = File('pocketbase/pb_hooks/chest.pb.js').readAsStringSync();
+    final open = src.substring(src.indexOf('"/api/chest/open"'), src.indexOf('"/api/chest/keep"'));
+    expect(open.contains('error: "ad_required"'), isTrue);
+    expect(RegExp(r'\(r\[1\] === "plus" \|\| r\[1\] === "plus_trial"\) && noAd\)').hasMatch(open), isTrue);
+  });
 }

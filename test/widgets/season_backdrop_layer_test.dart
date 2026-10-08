@@ -69,6 +69,41 @@ void main() {
     expect(a, greaterThan(0));
   });
 
+  testWidgets('призрак по «Скучаю»: сам не появляется, приходит на нажатие и уходит', (t) async {
+    final key = GlobalKey<SeasonBackdropLayerState>();
+    await t.pumpWidget(_host(SeasonBackdropLayer(
+      key: key,
+      backdrop: const SeasonBackdrop(
+        key: 'hw',
+        maskUrl: 'mask',
+        blurUrl: 'blur',
+        until: '2099-01-01',
+        trigger: 'miss',
+        inMs: 1600,
+        holdMs: 3500,
+        outMs: 2600,
+      ),
+      brightness: Brightness.light,
+      accent: const Color(0xFFFE7E8B),
+      imageFor: (_) => MemoryImage(_png),
+    )));
+    await t.pump(const Duration(seconds: 20));
+    expect(find.byKey(const ValueKey('backdrop-sharp')), findsNothing, reason: 'без нажатия призрака нет');
+
+    key.currentState!.summon();
+    await t.pump(); // первый кадр тикера
+    await t.pump(const Duration(milliseconds: 3000));
+    expect(_alphaOf(t, 'backdrop-sharp'), greaterThan(0.7));
+
+    // Второе нажатие, пока стоит, продлевает его, а не начинает заново из пустоты.
+    key.currentState!.summon();
+    await t.pump(const Duration(milliseconds: 3000));
+    expect(_alphaOf(t, 'backdrop-sharp'), greaterThan(0.7));
+
+    await t.pump(const Duration(seconds: 8));
+    expect(find.byKey(const ValueKey('backdrop-sharp')), findsNothing);
+  });
+
   testWidgets('ладонь прижимается в точке касания и уходит', (t) async {
     final key = GlobalKey<SeasonBackdropLayerState>();
     await t.pumpWidget(_host(_layer(key: key)));

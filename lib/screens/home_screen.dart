@@ -1486,6 +1486,8 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 HomeHeader(
                   missKey: _missKey,
+                  // Сезонный призрак за стеклом приходит по «Скучаю».
+                  onMissYou: () => _backdropKey.currentState?.summon(),
                   theme: _t,
                   isPaired: _pairData.isPaired,
                   myAvatarUrl: widget.userData.avatarUrl,

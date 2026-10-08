@@ -62,8 +62,16 @@ class SeasonBackdropLayerState extends State<SeasonBackdropLayer> with SingleTic
     _syncTicker();
   }
 
+  /// Когда пришёл призрак по «Скучаю» (время тикера); null — его нет.
+  Duration? _summonAt;
+
+  bool get _looping => !_reduce && !widget.backdrop.onMissYou;
+
+  bool get _summoned =>
+      _summonAt != null && (_now - _summonAt!).inMilliseconds < widget.backdrop.onceDurationMs;
+
   void _syncTicker() {
-    final need = !_reduce || _prints.isNotEmpty;
+    final need = _looping || _prints.isNotEmpty || _summonAt != null;
     if (need && !_ticker.isActive) {
       _ticker.start();
     } else if (!need && _ticker.isActive) {
@@ -74,8 +82,31 @@ class SeasonBackdropLayerState extends State<SeasonBackdropLayer> with SingleTic
   void _tick(Duration elapsed) {
     _now = elapsed;
     _prints.removeWhere((p) => (elapsed - p.born).inMilliseconds > _printMs);
+    if (_summonAt != null && !_summoned) _summonAt = null;
     setState(() {});
-    if (_prints.isEmpty && _reduce) _ticker.stop();
+    if (!_looping && _prints.isEmpty && _summonAt == null) _ticker.stop();
+  }
+
+  /// Призрак приходит по «Скучаю». Пока он стоит у стекла, новое нажатие
+  /// продлевает его; уходящий возвращается к стеклу с той же плотности, без
+  /// рывка из пустоты.
+  void summon() {
+    final b = widget.backdrop;
+    if (!b.onMissYou) return;
+    final at = _summonAt;
+    if (at == null) {
+      // Тикер мог стоять: время начинает идти с нуля при старте.
+      if (!_ticker.isActive) _now = Duration.zero;
+      _summonAt = _now;
+    } else {
+      final t = (_now - at).inMilliseconds;
+      if (t >= b.inMs) {
+        final p = b.onceAt(t).opacity;
+        _summonAt = _now - Duration(milliseconds: (b.inMs * p).round());
+      }
+    }
+    _syncTicker();
+    setState(() {});
   }
 
   /// Ладонь изнутри в точке [local] (координаты слоя).
@@ -112,7 +143,19 @@ class SeasonBackdropLayerState extends State<SeasonBackdropLayer> with SingleTic
     final base = b.opacity(widget.brightness);
 
     // «Уменьшить движение»: призрак стоит у стекла неподвижно и тише.
-    final ph = _reduce ? const BackdropPhase(opacity: 1, blur: 0, scale: 1) : b.phaseAt(_now.inMilliseconds);
+    // По «Скучаю» — только пока идёт приход, иначе его нет вовсе.
+    const still = BackdropPhase(opacity: 1, blur: 0, scale: 1);
+    final BackdropPhase ph;
+    if (b.onMissYou) {
+      final at = _summonAt;
+      ph = at == null
+          ? const BackdropPhase(opacity: 0, blur: 0, scale: 1)
+          : _reduce
+          ? still
+          : b.onceAt((_now - at).inMilliseconds);
+    } else {
+      ph = _reduce ? still : b.phaseAt(_now.inMilliseconds);
+    }
     final calm = _reduce ? 0.6 : 1.0;
     final layers = <Widget>[];
     if (ph.opacity > 0.004) {

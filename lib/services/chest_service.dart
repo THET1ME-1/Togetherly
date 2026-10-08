@@ -101,12 +101,20 @@ class ChestService {
   /// второй раз не разыгрывает. Человек видит отказ, только если не прошли
   /// обе попытки.
   /// [chest] — ключ сезонного сундука; null — обычный.
-  Future<ChestOpenResult> open({required String openId, required String groupId, bool fromJar = false, String? chest}) async {
-    var res = await _openOnce(openId: openId, groupId: groupId, fromJar: fromJar, chest: chest);
+  /// [noAd] — открытие без ролика там, где рекламы нет ([ChestState.noAd]);
+  /// сервер сверит страну сам и Плюс в таком открытии не разыграет.
+  Future<ChestOpenResult> open({
+    required String openId,
+    required String groupId,
+    bool fromJar = false,
+    String? chest,
+    bool noAd = false,
+  }) async {
+    var res = await _openOnce(openId: openId, groupId: groupId, fromJar: fromJar, chest: chest, noAd: noAd);
     for (var attempt = 2; attempt <= openAttempts && _retryable(res.error); attempt++) {
       ChestTelemetry.step(openId, 'open:retry', data: {'attempt': attempt, 'after': res.error});
       await Future<void>.delayed(const Duration(milliseconds: 1500));
-      res = await _openOnce(openId: openId, groupId: groupId, fromJar: fromJar, chest: chest);
+      res = await _openOnce(openId: openId, groupId: groupId, fromJar: fromJar, chest: chest, noAd: noAd);
     }
     return res;
   }
@@ -116,7 +124,13 @@ class ChestService {
 
   static bool _retryable(String? error) => error == 'network' || error == 'timeout';
 
-  Future<ChestOpenResult> _openOnce({required String openId, required String groupId, required bool fromJar, String? chest}) async {
+  Future<ChestOpenResult> _openOnce({
+    required String openId,
+    required String groupId,
+    required bool fromJar,
+    String? chest,
+    bool noAd = false,
+  }) async {
     Map<String, dynamic>? body;
     final watch = Stopwatch()..start();
     ChestTelemetry.step(openId, 'open:send', data: {'jar': fromJar, 'chest': ?chest});
@@ -133,6 +147,7 @@ class ChestService {
           'platform': _platform,
           'frames': true,
           if (fromJar) 'bonus': true,
+          if (noAd) 'noAd': true,
           'chest': ?chest,
         },
         // Без предела ответ, потерянный по дороге, держал кнопку на

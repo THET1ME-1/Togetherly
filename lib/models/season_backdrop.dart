@@ -27,9 +27,19 @@ class SeasonBackdrop {
     this.blur = 14,
     this.light = const BackdropTone(tone: 15, chroma: 40, opacity: 0.78),
     this.dark = const BackdropTone(tone: 88, chroma: 22, opacity: 0.42),
+    this.trigger = '',
   });
 
   final String key;
+
+  /// Когда призрак приходит: `miss` — один раз на каждое «Скучаю» с главной
+  /// (решение владельца 08.10.2026: петля мельтешила); пусто — по кругу.
+  final String trigger;
+
+  bool get onMissYou => trigger == 'miss';
+
+  /// Сколько длится один приход по «Скучаю».
+  int get onceDurationMs => inMs + holdMs + outMs;
 
   /// Маска во весь экран (белая, тень — прозрачностью).
   final String maskUrl;
@@ -100,6 +110,7 @@ class SeasonBackdrop {
       blur: blur is num ? blur.toDouble().clamp(0, 40) : 14,
       light: BackdropTone.fromJson(d['light'], const BackdropTone(tone: 15, chroma: 40, opacity: 0.78)),
       dark: BackdropTone.fromJson(d['dark'], const BackdropTone(tone: 88, chroma: 22, opacity: 0.42)),
+      trigger: '${d['trigger'] ?? ''}'.trim(),
     );
   }
 
@@ -137,6 +148,13 @@ class SeasonBackdrop {
       p = 0;
     }
     return BackdropPhase(opacity: p, blur: blur * (1 - p), scale: 1 + 0.04 * (1 - p));
+  }
+
+  /// Кадр одного прихода через [ms] после нажатия; после ухода — пусто,
+  /// сам призрак не возвращается.
+  BackdropPhase onceAt(int ms) {
+    if (ms < 0 || ms >= onceDurationMs) return BackdropPhase(opacity: 0, blur: blur, scale: 1.04);
+    return phaseAt(ms);
   }
 
   static double _ease(double x) => x <= 0 ? 0 : x >= 1 ? 1 : 0.5 - 0.5 * math.cos(math.pi * x);

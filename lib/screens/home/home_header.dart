@@ -46,6 +46,9 @@ class HomeHeader extends StatelessWidget {
   /// Ключ счётчика «Скучаю» — за него держится подсказка про новый экран.
   final GlobalKey? missKey;
 
+  /// Нажали «Скучаю» в шапке.
+  final VoidCallback? onMissYou;
+
   const HomeHeader({
     super.key,
     required this.theme,
@@ -60,6 +63,7 @@ class HomeHeader extends StatelessWidget {
     this.onRelationshipTap,
     required this.pairId,
     this.missKey,
+    this.onMissYou,
   });
 
   @override
@@ -91,6 +95,7 @@ class HomeHeader extends StatelessWidget {
                     ? null
                     : partners.first.avatar,
                 height: kHeaderControlHeight,
+                onSent: onMissYou,
               ),
             ],
           ],

@@ -46,6 +46,9 @@ class MissYouButton extends StatefulWidget {
   /// Рост обоих блоков. Задаёт шапка, чтобы вся строка стояла на одной линии.
   final double height;
 
+  /// Нажали «Скучаю» — главная зовёт сезонного призрака за стеклом.
+  final VoidCallback? onSent;
+
   const MissYouButton({
     super.key,
     required this.theme,
@@ -57,6 +60,7 @@ class MissYouButton extends StatefulWidget {
     this.partnerName = '',
     this.partnerAvatarUrl,
     this.height = 34,
+    this.onSent,
   });
 
   @override
@@ -242,6 +246,7 @@ class _MissYouButtonState extends State<MissYouButton>
     HapticFeedback.mediumImpact();
     _scaleController.forward(from: 0);
     _spawnHearts();
+    widget.onSent?.call();
 
     setState(() => _mine = _mine.tap(DateTime.now()));
     _scheduleStaleSweep();

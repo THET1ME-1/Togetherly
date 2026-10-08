@@ -110,6 +110,41 @@ void main() {
     });
   });
 
+  group('призрак по «Скучаю»', () {
+    test('trigger miss с сервера; без поля — прежняя петля', () {
+      final miss = SeasonBackdrop.fromCatalog(_row(data: {
+        'key': 'hw',
+        'until': '2026-11-01',
+        'trigger': 'miss',
+        'inMs': 1600,
+        'holdMs': 3500,
+        'outMs': 2600,
+        'files': {'mask': 'm'},
+      }))!;
+      expect(miss.onMissYou, isTrue);
+      expect(SeasonBackdrop.fromCatalog(_row())!.onMissYou, isFalse);
+    });
+
+    test('один проход: проявился, постоял, растворился и больше не возвращается', () {
+      final b = SeasonBackdrop.fromCatalog(_row(data: {
+        'key': 'hw',
+        'until': '2026-11-01',
+        'trigger': 'miss',
+        'inMs': 1600,
+        'holdMs': 3500,
+        'outMs': 2600,
+        'files': {'mask': 'm'},
+      }))!;
+      expect(b.onceAt(0).opacity, 0);
+      expect(b.onceAt(800).opacity, inExclusiveRange(0, 1));
+      expect(b.onceAt(3000).opacity, 1);
+      expect(b.onceAt(6500).opacity, inExclusiveRange(0, 1));
+      expect(b.onceAt(7700).opacity, 0);
+      expect(b.onceAt(16000 + 3000).opacity, 0, reason: 'петли нет — призрак не возвращается сам');
+      expect(b.onceDurationMs, 7700);
+    });
+  });
+
   group('цвет от темы', () {
     final b = SeasonBackdrop.fromCatalog(_row())!;
     const pink = Color(0xFFFE7E8B);

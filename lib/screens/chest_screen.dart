@@ -176,6 +176,10 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
 
   bool get _free => PlusService.instance.active;
 
+  /// Сервер видит человека там, где рекламы нет (Украина): открываем без
+  /// ролика, Плюс в таком открытии сервер не разыгрывает.
+  bool get _noAd => !_free && (_s.state?.noAd ?? false);
+
   @override
   void initState() {
     super.initState();
@@ -409,7 +413,8 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     // Плеер звука готовится, пока идут реклама и розыгрыш.
     if (slot.isMain) ChestSound.instance.prepare();
     var adShown = false;
-    if (slot.pendingOpenId == null && !_free && !fromJar) {
+    final noAd = _noAd && !fromJar;
+    if (slot.pendingOpenId == null && !_free && !fromJar && !noAd) {
       if (!_ad.isReady) {
         _ad.load();
         _snack(LocaleService.current.streakRestoreNoAd);
@@ -460,6 +465,7 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
       groupId: widget.groupId,
       fromJar: fromJar,
       chest: slot.chest,
+      noAd: noAd,
     );
     if (adShown) await untilAppVisible();
     await ChestFrames.prefetch(slot.openUrl);
@@ -1178,7 +1184,7 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
       Text(
         slot.choice != null
             ? trKey('chestChoiceNote').replaceAll('{name}', _partnerName)
-            : trKey(_free ? 'chestNoteFree' : 'chestNote'),
+            : trKey(_free || _noAd ? 'chestNoteFree' : 'chestNote'),
         textAlign: TextAlign.center,
         style: TextStyle(fontSize: 12, height: 1.4, color: cs.onSurfaceVariant),
       ),
@@ -1317,7 +1323,7 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     final out = slot.left <= 0 && slot.pendingOpenId == null;
     final busy = _busy || slot.animating;
     // Счётчик в самой кнопке: «Открыть за рекламу 2/3».
-    final prefix = trKey(_free || slot.pendingOpenId != null ? 'chestOpenFree' : 'chestOpenAd');
+    final prefix = trKey(_free || _noAd || slot.pendingOpenId != null ? 'chestOpenFree' : 'chestOpenAd');
     final count = '${slot.left}/${slot.perDay}';
     if (busy) {
       label = trKey('chestOpening');
