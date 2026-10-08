@@ -15,6 +15,14 @@ void main() {
     }
   });
 
+  // Просьба из поддержки (обращение 244, 08.10.2026): подпись была только у
+  // части подарков, а хочется приложить пару слов к любому.
+  test('подпись можно приложить к любому подарку витрины', () {
+    for (final g in GiftCatalog.all) {
+      expect(g.carriesNote, isTrue, reason: g.key);
+    }
+  });
+
   test('медаль принимают простым тапом, но она носит подпись', () {
     final medal = GiftCatalog.byKey('medal')!;
     expect(medal.action, GiftAction.tap);

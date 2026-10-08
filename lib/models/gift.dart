@@ -116,7 +116,7 @@ class Gift {
     required this.titleRu,
     required this.titleEn,
     this.action = GiftAction.tap,
-    this.carriesNote = false,
+    this.carriesNote = true,
     this.carriesPhoto = false,
     this.wantsReply = false,
     this.keepsForever = false,
@@ -152,6 +152,8 @@ class Gift {
   final GiftAction action;
 
   /// Даритель может вложить текст: записку, предсказание, письмо, посвящение.
+  /// С 08.10.2026 подпись есть у любого подарка (обращение 244), поэтому по
+  /// умолчанию true; сервер хранит `note` у всех ключей одинаково.
   final bool carriesNote;
 
   /// Даритель может приложить свой снимок. Просьба из поддержки (обращение
