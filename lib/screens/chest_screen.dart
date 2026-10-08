@@ -66,7 +66,12 @@ class ChestScreen extends StatefulWidget {
     this.debugChoice,
     this.debugSeasons,
     this.debugPage = 0,
+    this.initialChest,
   });
+
+  /// Ключ сезонного сундука, на котором открыться: главная показывает его
+  /// вместо обычного (`home` у сезона). Обычный остаётся в ленте слева.
+  final String? initialChest;
 
   final AppTheme theme;
   final String groupId;
@@ -185,7 +190,10 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     final debugSeasons = widget.debugSeasons;
-    if (debugSeasons != null) _applySeasons(debugSeasons);
+    if (debugSeasons != null) {
+      _applySeasons(debugSeasons);
+      _openInitial();
+    }
     if (widget.debugPage < _slots.length) _page = _shown = widget.debugPage;
     _syncGlitch();
     final main = _slots.first;
@@ -291,9 +299,25 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
       _slots.first.state = st;
       if (widget.debugSeasons == null) _applySeasons(st.seasons);
     });
+    _openInitial();
     for (final slot in _slots.skip(1)) {
       unawaited(_loadSeason(slot));
     }
+  }
+
+  bool _initialDone = false;
+
+  /// Вход с главной, где стоит сезонный сундук: один раз переходим на его
+  /// страницу тем же путём, что кнопка «Хэллоуин →» (занавес, музыка, сбой).
+  void _openInitial() {
+    final key = widget.initialChest;
+    if (_initialDone || key == null) return;
+    final i = _slots.indexWhere((s) => s.chest == key);
+    if (i <= 0) return;
+    _initialDone = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _swap(i, jump: true);
+    });
   }
 
   Future<void> _loadSeason(_Slot slot) async {

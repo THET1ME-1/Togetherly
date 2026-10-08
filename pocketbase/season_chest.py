@@ -11,6 +11,8 @@
     python3 season_chest.py hw --from 2027-10-10 --until 2027-11-01
     python3 season_chest.py hw --off                 спрятать сейчас
     python3 season_chest.py hw --on                  вернуть
+    python3 season_chest.py hw --home on             на главной вместо обычного
+    python3 season_chest.py hw --home off            на главной снова обычный
 
 Сезонный фон главной (призрак за стеклом, запись `backdrop_<ключ>`) — тем же
 путём с `--kind backdrop`:
@@ -51,6 +53,7 @@ def main() -> None:
     ap.add_argument("--on", action="store_true", help="включить")
     ap.add_argument("--off", action="store_true", help="выключить")
     ap.add_argument("--kind", choices=("chest", "backdrop"), default="chest", help="сундук или фон главной")
+    ap.add_argument("--home", choices=("on", "off"), help="сундук на главной вместо обычного (только --kind chest)")
     args = ap.parse_args()
     for d in (args.start, args.until):
         if d and not DAY.match(d):
@@ -64,7 +67,7 @@ def main() -> None:
             res = get(f"/api/collections/catalog_items/records?perPage=50&filter=kind%3D'{args.kind}'", token)
             for r in res.get("items", []):
                 d = r.get("data") or {}
-                extra = f"  набор {d.get('set')}" if args.kind == "chest" else ""
+                extra = f"  набор {d.get('set')}{'  на главной' if d.get('home') else ''}" if args.kind == "chest" else ""
                 print(f"{d.get('key'):8} {'вкл ' if r.get('enabled') else 'выкл'}  {d.get('from')} — {d.get('until')}{extra}")
             return
         item = f"/api/collections/catalog_items/records/{args.kind}_{args.key}"
@@ -74,6 +77,8 @@ def main() -> None:
             data["from"] = args.start
         if args.until:
             data["until"] = args.until
+        if args.home and args.kind == "chest":
+            data["home"] = args.home == "on"
         fields = {"data": json.dumps(data, ensure_ascii=False)}
         if args.on or args.off:
             fields["enabled"] = "true" if args.on else "false"

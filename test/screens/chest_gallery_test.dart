@@ -97,6 +97,23 @@ void main() {
     await tester.pump(const Duration(seconds: 30));
   });
 
+  testWidgets('с главной экран открывается сразу на сезонном сундуке', (tester) async {
+    if (!ok) return;
+    phone(tester);
+    await tester.runAsync(() => ChestSound.instance.load());
+    CatalogService.instance.debugSetGiftArt(const [GiftArt(key: 'chest_idle', lgUrl: 'main://idle')]);
+    final t = buildAppTheme(kPalettes.firstWhere((p) => p.name == 'Розовая'), Brightness.light);
+    await tester.pumpWidget(MaterialApp(
+      theme: ProfileTheme.data(t.scheme!),
+      home: ChestScreen(theme: t, groupId: 'g', debugSeasons: [season], initialChest: 'hw'),
+    ));
+    await run(tester, 60);
+    expect(tester.widget<PageView>(find.byType(PageView)).controller!.page!.round(), 1);
+    expect(find.text('← Обычный'), findsOneWidget, reason: 'к обычному можно вернуться');
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 30));
+  });
+
   testWidgets('«Хэллоуин →» переводит ленту на сезонный сундук', (tester) async {
     if (!ok) return;
     phone(tester);

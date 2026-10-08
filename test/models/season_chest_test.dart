@@ -138,4 +138,24 @@ void main() {
     expect(st!.seasons.single.key, 'hw');
     expect(st.afterOpen(left: 1).seasons.single.key, 'hw');
   });
+
+  test('сундук на главной выбирает сервер: флаг home у сезона', () {
+    final main = ChestState.fromJson({
+      'ok': true,
+      'odds': [
+        {'key': 'coins5', 'kind': 'coins', 'amount': 5, 'tier': 'common', 'weight': 1000},
+      ],
+      'seasons': [_hw(), {..._hw(), 'key': 'ny', 'home': true}],
+    })!;
+    expect(main.homeSeason?.key, 'ny');
+    final none = ChestState.fromJson({
+      'ok': true,
+      'odds': [
+        {'key': 'coins5', 'kind': 'coins', 'amount': 5, 'tier': 'common', 'weight': 1000},
+      ],
+      'seasons': [_hw()],
+    })!;
+    expect(none.homeSeason, isNull, reason: 'без флага на главной обычный сундук');
+    expect(SeasonChest.fromJson({..._hw(), 'home': true})!.home, isTrue);
+  });
 }

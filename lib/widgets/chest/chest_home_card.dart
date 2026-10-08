@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../dict_strings.dart' show trKey;
 import '../../models/chest.dart';
+import '../../services/locale_service.dart';
 import '../../models/user_data.dart';
 import '../../screens/chest_screen.dart';
 import '../../services/catalog_service.dart';
@@ -54,6 +55,11 @@ class _ChestHomeCardState extends State<ChestHomeCard> {
   ChestState? _state;
   bool _enabled = true;
 
+  /// Сезонный сундук, который сервер поставил на главную (`home`), и его
+  /// остаток открытий. null — на главной обычный.
+  SeasonChest? _season;
+  ChestState? _seasonState;
+
   @override
   void initState() {
     super.initState();
@@ -93,6 +99,20 @@ class _ChestHomeCardState extends State<ChestHomeCard> {
       _state = (results[0] as ChestState?) ?? _state;
       _enabled = results[1] as bool;
     });
+    // Сезонный сундук на главной вместо обычного — решает сервер флагом
+    // `home`. Кончился сезон или флаг снят — на главной снова обычный.
+    final home = _state?.homeSeason;
+    if (home == null) {
+      if (_season != null) setState(() => _season = _seasonState = null);
+      return;
+    }
+    ChestFrames.prefetch(home.file('idle'));
+    final st = await ChestService.instance.state(groupId: widget.groupId, chest: home.key);
+    if (!mounted) return;
+    setState(() {
+      _season = home;
+      _seasonState = st ?? _seasonState;
+    });
   }
 
   Future<void> _openScreen() async {
@@ -104,6 +124,7 @@ class _ChestHomeCardState extends State<ChestHomeCard> {
           partnerName: widget.partnerName,
           onCoins: widget.onCoins,
           userData: widget.userData,
+          initialChest: _season?.key,
         ),
         settings: const RouteSettings(name: '/chest'),
       ),
@@ -115,16 +136,21 @@ class _ChestHomeCardState extends State<ChestHomeCard> {
   Widget build(BuildContext context) {
     if (!_enabled) return const SizedBox.shrink();
     final cs = ProfileTheme.schemeFor(widget.theme);
-    final left = _state?.left ?? 3, perDay = _state?.perDay ?? 3;
+    final season = _season;
+    final counted = season != null ? _seasonState : _state;
+    final left = counted?.left ?? season?.perDay ?? 3, perDay = counted?.perDay ?? season?.perDay ?? 3;
     // В тёмной теме контейнер темы тёмный и сливается с фоном главной, поэтому
     // там фон — сам основной цвет темы, а чип — наоборот.
     // Цвет текста считается по контрасту к фону: в части палитр пара
     // контейнер/«на контейнере» даёт белый по светлому — около 2,5:1.
+    // Сезонный сундук — в ночных цветах сезона с сервера: блок сразу видно.
     final dark = cs.brightness == Brightness.dark;
-    final bg = dark ? cs.primary : cs.primaryContainer;
-    final fg = readableTextOn(bg);
-    final chipBg = dark ? cs.onPrimary : cs.primary;
-    final chipFg = readableTextOn(chipBg);
+    final night = season?.palette;
+    final bg = night?.surface ?? (dark ? cs.primary : cs.primaryContainer);
+    final fg = night?.ink ?? readableTextOn(bg);
+    final chipBg = night?.fill ?? (dark ? cs.onPrimary : cs.primary);
+    final chipFg = night?.onFill ?? readableTextOn(chipBg);
+    final lang = LocaleService.instance.language.code;
     final jar = PairJarService.instance.groupId == widget.groupId ? PairJarService.instance.jar : null;
     return Padding(
       padding: const EdgeInsets.only(top: 8),
@@ -138,22 +164,31 @@ class _ChestHomeCardState extends State<ChestHomeCard> {
             padding: const EdgeInsets.fromLTRB(6, 10, 16, 10),
             child: Row(
               children: [
-                ListenableBuilder(
-                  listenable: CatalogService.instance,
-                  builder: (context, _) => ChestFrames(
-                    key: ValueKey(CatalogService.instance.giftArt('chest_idle')?.smUrl),
-                    url: CatalogService.instance.giftArt('chest_idle')?.smUrl,
-                    still: kChestStill,
+                if (season != null)
+                  ChestFrames(
+                    key: ValueKey(season.file('idle')),
+                    url: season.file('idle'),
+                    still: null,
+                    stillUrl: season.file('still'),
                     side: 112,
+                  )
+                else
+                  ListenableBuilder(
+                    listenable: CatalogService.instance,
+                    builder: (context, _) => ChestFrames(
+                      key: ValueKey(CatalogService.instance.giftArt('chest_idle')?.smUrl),
+                      url: CatalogService.instance.giftArt('chest_idle')?.smUrl,
+                      still: kChestStill,
+                      side: 112,
+                    ),
                   ),
-                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        trKey('chestWeekTitle'),
+                        season?.nameIn(lang) ?? trKey('chestWeekTitle'),
                         style: TextStyle(
                           fontFamily: ProfileTheme.displayFont,
                           fontSize: 17,
@@ -162,7 +197,9 @@ class _ChestHomeCardState extends State<ChestHomeCard> {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      if (jar == null)
+                      if (jar == null && season != null)
+                        Text(season.hintIn(lang), style: TextStyle(fontSize: 13, height: 1.35, color: fg))
+                      else if (jar == null)
                         Text(
                           // Togetherly+ — главный приз, с него описание и начинается.
                           // На iPhone Плюса нет как понятия, а купившему его не

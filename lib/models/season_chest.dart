@@ -31,7 +31,12 @@ class SeasonChest {
     this.glitch,
     this.musicPlaylist = const [],
     this.musicFadeMs = 3500,
+    this.home = false,
   });
+
+  /// Этот сундук стоит на главной вместо обычного, пока идёт сезон
+  /// (`data.home`). Решает сервер: снял флаг — на главной снова обычный.
+  final bool home;
 
   /// Мелодии страницы по очереди (имена файлов); пусто — один файл `music`
   /// по кругу. Первая играет первой.
@@ -163,6 +168,7 @@ class SeasonChest {
           for (final n in (j['music'] as Map)['playlist'] as List) '$n',
       ],
       musicFadeMs: ms(j['music'], 'fadeMs', 3500).clamp(0, 15000),
+      home: j['home'] == true,
     );
   }
 
