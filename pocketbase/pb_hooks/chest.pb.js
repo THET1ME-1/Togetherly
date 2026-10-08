@@ -311,6 +311,9 @@ routerAdd("POST", "/api/chest/open", (e) => {
       $app.logger().warn("chest open: без ролика не из зоны без рекламы", "uid", e.auth.id, "ip", e.realIP());
       return e.json(403, { ok: false, error: "ad_required" });
     }
+    // Каждое открытие без ролика — в журнал: по нему видно, не утекают ли
+    // ролики через украинские VPN (`message like 'chest open: без ролика%'`).
+    $app.logger().warn("chest open: без ролика", "uid", e.auth.id, "ip", e.realIP(), "openId", String(body.openId || ""));
   }
   const withFrames = body.frames === true;
   // Открытие из копилки пары: без ролика и сверх трёх в день. День такой
