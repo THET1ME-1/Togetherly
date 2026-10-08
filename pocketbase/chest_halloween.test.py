@@ -157,6 +157,17 @@ def main():
     st, s = api(f"/api/chest/state?{q}&chest={CHEST}", token=me)
     check("хэллоуинский остался на нуле", s.get("left") == 0, str(s.get("left")))
 
+    # Без ролика — только из страны без рекламы (Украина). Запрос с самого
+    # сервера (127.0.0.1) страны не имеет: флага нет, просьба — отказ, и
+    # обычное открытие этим не задето.
+    st, s = api(f"/api/chest/state?{q}", token=me)
+    check("не из Украины — флага «без рекламы» нет", st == 200 and s.get("noAd") is False, f"{st} {s.get('noAd')}")
+    st, r = api("/api/chest/open", {"openId": oid(), "groupId": group, "tz": 180, "platform": "android",
+                                     "frames": True, "noAd": True}, me)
+    check("без ролика не из Украины — ad_required", st == 403 and r.get("error") == "ad_required", f"{st} {r}")
+    st, r = api("/api/chest/open", {"openId": oid(), "groupId": group, "tz": 180, "platform": "android", "frames": True}, me)
+    check("после отказа обычное открытие проходит", st == 200 and r.get("left") == 1, f"{st} {r.get('error')} {r.get('left')}")
+
     # уборка
     sql(f"DELETE FROM chest_opens WHERE user_uid='{me_uid}'")
     sql(f"DELETE FROM gifts WHERE recipient_uid='{me_uid}' AND sender_uid='chest'")

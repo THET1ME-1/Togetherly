@@ -124,7 +124,9 @@ routerAdd("GET", "/api/chest/state", (e) => {
   let noAdZone = false;
   try {
     const zones = String($os.getenv("CHEST_NO_AD_COUNTRIES") || "UA").toUpperCase().split(",");
-    const g = $http.send({ url: "http://127.0.0.1:8120/internal/geo?ip=" + encodeURIComponent(e.realIP()), method: "GET", timeout: 3 });
+    // Секунда, не больше: состояние сундука спрашивают на каждом заходе, а
+    // молчание сервиса стран значит «не Украина» — обычный сундук с роликом.
+    const g = $http.send({ url: "http://127.0.0.1:8120/internal/geo?ip=" + encodeURIComponent(e.realIP()), method: "GET", timeout: 1 });
     const cc = g.statusCode === 200 && g.json ? String(g.json.country || "") : "";
     noAdZone = !!cc && zones.indexOf(cc) !== -1;
   } catch (_) { noAdZone = false; }
@@ -303,7 +305,7 @@ routerAdd("POST", "/api/chest/open", (e) => {
   if (noAd) {
     try {
       const zones = String($os.getenv("CHEST_NO_AD_COUNTRIES") || "UA").toUpperCase().split(",");
-      const g = $http.send({ url: "http://127.0.0.1:8120/internal/geo?ip=" + encodeURIComponent(e.realIP()), method: "GET", timeout: 3 });
+      const g = $http.send({ url: "http://127.0.0.1:8120/internal/geo?ip=" + encodeURIComponent(e.realIP()), method: "GET", timeout: 2 });
       const cc = g.statusCode === 200 && g.json ? String(g.json.country || "") : "";
       noAdZone = !!cc && zones.indexOf(cc) !== -1;
     } catch (_) { noAdZone = false; }
