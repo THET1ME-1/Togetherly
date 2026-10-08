@@ -698,7 +698,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
                     // его не видно (Flutter ловит это ассертом).
                     Material(
                       color: cs.surfaceContainerHigh,
-                      borderRadius: BorderRadius.circular(22),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
                       clipBehavior: Clip.antiAlias,
                       child: Column(
                         children: [

@@ -191,6 +191,8 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     }
     if (!_free) _ad.load();
     PairJarService.instance.addListener(_onJar);
+    // Анимации сундука приходят каталогом и могут доехать после открытия экрана.
+    CatalogService.instance.addListener(_onJar);
     ChestSound.instance.addListener(_onJar);
     unawaited(ChestSound.instance.load());
     ChestFrames.prefetch(main.openUrl);
@@ -208,6 +210,7 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     PairJarService.instance.removeListener(_onJar);
+    CatalogService.instance.removeListener(_onJar);
     ChestSound.instance.removeListener(_onJar);
     unawaited(ChestSound.instance.stop());
     unawaited(SeasonMusic.instance.release());
@@ -218,6 +221,7 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     _ad.dispose();
     _pager.dispose();
     _flash.dispose();
+    _calm.dispose();
     super.dispose();
   }
 
@@ -838,15 +842,21 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
         final aspect = _slots.length > 1 ? (_slots[1].season?.cardAspect ?? 600 / 516) : 600 / 516;
         final h = w / aspect;
         final locked = _busy || _anyAnimating || _curtain != null;
+        // Новые касания глушим, а правила прокрутки не трогаем: смена physics
+        // посреди перелистывания обрывала его, и лента возвращалась на первый
+        // сундук уже в ночных цветах (жалоба 08.10.2026). Начатый свайп и
+        // «Хэллоуин →» доезжают до конца.
         return SizedBox(
           height: h,
-          child: PageView.builder(
-            controller: _pager,
-            itemCount: _slots.length,
-            onPageChanged: _onPage,
-            physics: locked ? const NeverScrollableScrollPhysics() : const PageScrollPhysics(),
-            itemBuilder: (context, i) =>
-                Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: _card(i, w, h, base)),
+          child: AbsorbPointer(
+            absorbing: locked,
+            child: PageView.builder(
+              controller: _pager,
+              itemCount: _slots.length,
+              onPageChanged: _onPage,
+              itemBuilder: (context, i) =>
+                  Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: _card(i, w, h, base)),
+            ),
           ),
         );
       },
@@ -947,36 +957,40 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
 
   /// На пике сбоя кнопки карточка темнеет и краснеет: луна становится
   /// кровавой, сундук — бурым.
+  ///
+  /// Обёртки сбоя стоят ВСЕГДА, у любого сундука, и в покое просто ничего не
+  /// делают. Появись или исчезни виджет над лентой — Flutter пересоздал бы её
+  /// вместе с прокруткой, и лента прыгала бы на первый сундук: так и было на
+  /// первой тестовой сборке (08.10.2026), когда тьма закрывала экран.
   Widget _bloodTint(_Slot slot, Widget child) {
     final g = slot.glitch;
-    if (g == null) return child;
     return AnimatedBuilder(
-      animation: g,
+      animation: g ?? _calm,
       child: child,
-      builder: (context, c) => g.phase == GlitchPhase.peak
-          ? ColorFiltered(
-              colorFilter: const ColorFilter.matrix([
-                0.55, 0.35, 0.1, 0, 10, //
-                0.08, 0.14, 0.04, 0, 0,
-                0.08, 0.08, 0.16, 0, 0,
-                0, 0, 0, 1, 0,
-              ]),
-              child: c,
-            )
-          : c!,
+      builder: (context, c) =>
+          ColorFiltered(colorFilter: ColorFilter.matrix(g?.phase == GlitchPhase.peak ? _blood : _identity), child: c),
     );
   }
+
+  static const List<double> _identity = [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0];
+  static const List<double> _blood = [
+    0.55, 0.35, 0.1, 0, 10, //
+    0.08, 0.14, 0.04, 0, 0,
+    0.08, 0.08, 0.16, 0, 0,
+    0, 0, 0, 1, 0,
+  ];
+
+  /// Пустой слушатель для сундуков без сбоя: обёртки не меняют форму дерева.
+  final ChangeNotifier _calm = ChangeNotifier();
 
   /// Пока кнопка рвётся, страница мелко дрожит, на пиксель туда-сюда.
   Widget _shake(_Slot slot, Widget child) {
     final g = slot.glitch;
-    if (g == null) return child;
     return AnimatedBuilder(
-      animation: g,
+      animation: g ?? _calm,
       child: child,
       builder: (context, c) {
-        if (!g.shaking || g.reduced) return c!;
-        final s = g.frame.isEven ? 1.0 : -1.0;
+        final s = g != null && g.shaking && !g.reduced ? (g.frame.isEven ? 1.0 : -1.0) : 0.0;
         return Transform.translate(offset: Offset(s, -s), child: c);
       },
     );

@@ -136,27 +136,57 @@ class _ChestFramesState extends State<ChestFrames> with SingleTickerProviderStat
     _start();
   }
 
+  /// Номер запуска: смена файла начинает новый, а опоздавший ответ старого
+  /// запуска ничего не трогает.
+  int _gen = 0;
+
+  @override
+  void didUpdateWidget(ChestFrames old) {
+    super.didUpdateWidget(old);
+    // Файл из каталога часто приезжает уже после того, как экран открылся.
+    // Без перезапуска на месте анимации навсегда оставался неподвижный кадр
+    // (жалоба 08.10.2026: «у сундука нет анимации»).
+    if (old.url != widget.url) {
+      if (_ticker.isActive) _ticker.stop();
+      _codec?.dispose();
+      _codec = null;
+      _index = 0;
+      _due = Duration.zero;
+      _pos = Duration.zero;
+      _fetching = false;
+      _stopped = false;
+      _finishing = false;
+      _start();
+    }
+  }
+
   Future<void> _start() async {
+    final gen = ++_gen;
     final url = widget.url;
     Uint8List? bytes;
     if (url != null) {
       await ChestFrames.prefetch(url);
       bytes = ChestFrames._bytes[url];
     }
-    if (_disposed) return;
+    if (_disposed || gen != _gen) return;
     if (bytes == null) {
       widget.onDone?.call();
       return;
     }
+    ui.Codec? codec;
     try {
       final dpr = ui.PlatformDispatcher.instance.views.first.devicePixelRatio;
       // Предел ставится по ширине: у вытянутого кадра (занавес) пропорции
       // сохраняются, а у квадратного выходит прежний размер.
-      _codec = await ui.instantiateImageCodec(bytes, targetWidth: (widget.side * dpr).round());
+      codec = await ui.instantiateImageCodec(bytes, targetWidth: (widget.side * dpr).round());
     } catch (_) {
-      _codec = null;
+      codec = null;
     }
-    if (_disposed) return;
+    if (_disposed || gen != _gen) {
+      codec?.dispose();
+      return;
+    }
+    _codec = codec;
     if (_codec == null) {
       widget.onDone?.call();
       return;
@@ -200,17 +230,19 @@ class _ChestFramesState extends State<ChestFrames> with SingleTickerProviderStat
   }
 
   Future<void> _advance(Duration elapsed) async {
-    final codec = _codec;
+    final codec = _codec, gen = _gen;
     if (codec == null) return;
     final ui.FrameInfo frame;
     try {
       frame = await codec.getNextFrame();
     } catch (_) {
+      // Декодер закрыли сменой файла — новый запуск уже идёт сам.
+      if (gen != _gen) return;
       _stop();
       widget.onDone?.call();
       return;
     }
-    if (_disposed) {
+    if (_disposed || gen != _gen) {
       frame.image.dispose();
       return;
     }

@@ -86,6 +86,13 @@ class CatalogService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Подставить живые картинки подарков и сундука без сети — только для тестов.
+  @visibleForTesting
+  void debugSetGiftArt(List<GiftArt> art) {
+    _giftArt = Map.unmodifiable({for (final a in art) a.key: a});
+    notifyListeners();
+  }
+
   /// Встроенные и каталожные паки одним рядом, в порядке поля `sort`.
   ///
   /// Раньше каталожные просто дописывались в хвост, и пак с сервера не мог
