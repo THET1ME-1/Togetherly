@@ -82,7 +82,14 @@ class ChestFrames extends StatefulWidget {
   /// анимации, [onDone] приходит сразу. Экран и виджет ждут одну загрузку.
   static Future<void> prefetch(String? url) {
     if (url == null || _bytes.containsKey(url)) return Future.value();
-    return _loading[url] ??= _fetch(url).whenComplete(() => _loading.remove(url));
+    // Тело в фигурных скобках обязательно: стрелка вернула бы из колбэка
+    // `_loading.remove(url)` — ту же самую загрузку, и whenComplete ждал бы
+    // её, то есть сам себя, вечно. Так с 29.09 до 08.10.2026 обычный сундук
+    // на главной и на экране стоял картинкой: файл скачивался, а ожидание
+    // не кончалось никогда.
+    return _loading[url] ??= _fetch(url).whenComplete(() {
+      _loading.remove(url);
+    });
   }
 
   static Future<void> _fetch(String url) async {
