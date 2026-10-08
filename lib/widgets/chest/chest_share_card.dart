@@ -30,7 +30,12 @@ class ChestShareCard extends StatelessWidget {
     required this.scheme,
     required this.fill,
     required this.openUrl,
+    this.track,
   });
+
+  /// Дорожка приза сезонного сундука; null — обычного. На карточке приз стоит
+  /// там, где лёг в конце своей дорожки.
+  final List<List<double>?>? track;
 
   /// Заливка темы (`AppTheme.fillColor`) для выделенного яруса. Контейнер
   /// схемы не годится: у рисованных тем в светлом режиме он почти белый.
@@ -95,8 +100,19 @@ class ChestShareCard extends StatelessWidget {
                           child: Stack(
                             clipBehavior: Clip.none,
                             children: [
-                              ChestFrames(url: openUrl, still: kChestStill, side: _chest, loop: false, showLast: true),
-                              ChestPrizeFlight(prize: prize, spot: kChestPrizeRest, stage: _chest),
+                              ChestFrames(
+                                url: openUrl,
+                                still: track == null ? kChestStill : null,
+                                side: _chest,
+                                loop: false,
+                                showLast: true,
+                              ),
+                              ChestPrizeFlight(
+                                prize: prize,
+                                spot: track == null ? kChestPrizeRest : track!.lastWhere((s) => s != null)!,
+                                stage: _chest,
+                                peak: track == null ? null : ChestPrizeFlight.trackPeak(track!),
+                              ),
                             ],
                           ),
                         ),

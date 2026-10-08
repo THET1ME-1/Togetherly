@@ -73,18 +73,25 @@ class ChestPrizeImage extends StatelessWidget {
 /// загрузками — пусто, приз мигал «есть — нет» всё время подъёма (жалоба
 /// 28.09.2026).
 class ChestPrizeFlight extends StatelessWidget {
-  const ChestPrizeFlight({super.key, required this.prize, required this.spot, required this.stage});
+  const ChestPrizeFlight({super.key, required this.prize, required this.spot, required this.stage, this.peak});
 
   final ChestPrize prize;
   final List<double> spot;
   final double stage;
 
+  /// Самая крупная доля приза на своей дорожке; null — дорожка обычного
+  /// сундука. У сезонного дорожка приходит с сервера, и её пик свой.
+  final double? peak;
+
   /// Самый крупный размер приза на дорожке — в нём картинка и декодируется.
-  static final double maxShare = kChestPrizeTrack.fold<double>(0, (m, s) => s == null ? m : (s[2] > m ? s[2] : m));
+  static final double maxShare = trackPeak(kChestPrizeTrack);
+
+  static double trackPeak(List<List<double>?> track) =>
+      track.fold<double>(0, (m, s) => s == null ? m : (s[2] > m ? s[2] : m));
 
   @override
   Widget build(BuildContext context) {
-    final full = maxShare * stage;
+    final full = (peak ?? maxShare) * stage;
     return Positioned(
       left: spot[0] * stage,
       top: spot[1] * stage,

@@ -26,9 +26,13 @@ class ProfileIcon {
     this.smUrl,
     this.lgUrl,
     this.stillUrl,
+    this.set = '',
   });
 
   final String id;
+
+  /// Набор сезонного сундука (`data.set`, «13» — Хэллоуин); пусто — обычный.
+  final String set;
 
   /// Цена в монетах. 0 — не продаётся (наградной).
   final int price;
@@ -118,6 +122,7 @@ class ProfileIcon {
       smUrl: sm,
       lgUrl: lg,
       stillUrl: still,
+      set: '${data['set'] ?? ''}',
     );
   }
 

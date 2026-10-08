@@ -32,6 +32,18 @@
 /// ИДЕМПОТЕНТНОСТЬ: `openId` генерит клиент, он же `id` записи `chest_opens`.
 /// Повтор после обрыва связи возвращает тот же приз и ничего не начисляет.
 ///
+/// СЕЗОННЫЕ СУНДУКИ (08.10.2026) живут только на сервере: запись
+/// `catalog_items` вида `chest` (id `chest_<ключ>`), в `data` — ключ, набор
+/// вещей `set`, даты `from`/`until` (по часам человека, `until` не включая),
+/// `perDay`, вес вещи по редкости `each` и всё, что рисует приложение.
+/// `chest=<ключ>` в запросе — открыть сезонный: свои открытия в день (день
+/// записи «<ключ>|ГГГГ-ММ-ДД», из копилки «+<ключ>|…»), свой потолок за сутки,
+/// розыгрыш только вещей своего набора (`catalog_items.data.set`) плюс монеты
+/// и Плюс как в обычном. Обычный сундук вещей с набором не выдаёт никогда —
+/// иначе старые сборки получили бы то, чего не умеют показать. Гарантия
+/// редкого общая на все сундуки. `state` обычного отдаёт `seasons` —
+/// активные сезонные сундуки, по ним приложение строит галерею.
+///
 /// !!! ГРАБЛИ PB JSVM: обработчик исполняется в изолированном пуле и НЕ видит
 /// функций уровня файла, поэтому таблица и хелперы продублированы в обоих.
 
@@ -61,7 +73,7 @@ routerAdd("GET", "/api/chest/state", (e) => {
   // Пул редкости в десятых долях процента: делится поровну между ВСЕМИ её
   // предметами — подарком, рамкой и значком одной редкости выпадают одинаково.
   const TIER_POOL = { common: 252, rare: 144, legendary: 36 };
-  const PER_DAY = 3;
+  let PER_DAY = 3;
 
   const me = e.auth.id;
   const q = e.request.url.query();
@@ -73,6 +85,29 @@ routerAdd("GET", "/api/chest/state", (e) => {
   const withFrames = (q.get("frames") || "") === "1";
   const shifted = new Date(Date.now() + tz * 60 * 1000);
   const day = shifted.toISOString().slice(0, 10);
+  // Сезонные сундуки из каталога; активные уходят приложению списком.
+  const chestKey = String(q.get("chest") || "").replace(/[^a-z0-9_]/g, "");
+  const seasons = [];
+  let season = null;
+  try {
+    const cs = $app.findRecordsByFilter("catalog_items", "enabled = true && kind = 'chest'", "sort", 20, 0);
+    for (let i = 0; i < cs.length; i++) {
+      let d = {};
+      try { d = JSON.parse(cs[i].getString("data") || "{}") || {}; } catch (_) { d = {}; }
+      if (!d.key || !d.set) continue;
+      const on = (!d.from || day >= String(d.from)) && (!d.until || day < String(d.until));
+      if (on) seasons.push(d);
+      if (String(d.key) === chestKey && on) season = d;
+    }
+  } catch (_) {}
+  const hw = !!chestKey;
+  if (hw && !season) return e.json(403, { ok: false, error: "season_over" });
+  const SET = hw ? String(season.set) : "";
+  const EACH = (hw && season.each) || { common: 20, rare: 8, legendary: 3 };
+  if (hw && season.perDay > 0) PER_DAY = season.perDay;
+  // День записи: у сезонного своя приставка, счёт открытий раздельный.
+  const dk = hw ? chestKey + "|" + day : day;
+  const bk = hw ? "+" + chestKey + "|" + day : "b" + day;
 
   let user = null;
   try { user = $app.findRecordById("users", me); } catch (_) { user = null; }
@@ -96,33 +131,54 @@ routerAdd("GET", "/api/chest/state", (e) => {
   try { grantedI = JSON.parse(user.getString("granted_badges") || "[]") || []; } catch (_) { grantedI = []; }
   // [id приза, вид, ярус, можно ли выдать, ключ во владении]
   const items = [];
-  for (let i = 0; i < GIFTS.length; i++) items.push([GIFTS[i][0], "gift", GIFTS[i][1], true, GIFTS[i][0]]);
+  // Редкие призы обоих сундуков — для общей гарантии редкого.
+  const rareAll = { plus: 1, plus7: 1 };
+  for (let i = 0; i < GIFTS.length; i++) {
+    if (GIFTS[i][1] !== "common") rareAll[GIFTS[i][0]] = 1;
+    if (!hw) items.push([GIFTS[i][0], "gift", GIFTS[i][1], true, GIFTS[i][0]]);
+  }
   try {
-    const recs = $app.findRecordsByFilter("catalog_items", "enabled = true && (kind = 'frame' || kind = 'badge')", "sort", 500, 0);
+    const recs = $app.findRecordsByFilter("catalog_items", "enabled = true && (kind = 'frame' || kind = 'badge' || kind = 'gift')", "sort", 500, 0);
     for (let i = 0; i < recs.length; i++) {
       let d = {};
       try { d = JSON.parse(recs[i].getString("data") || "{}") || {}; } catch (_) { d = {}; }
       if (!d.key) continue;
       const kind = recs[i].getString("kind");
+      const set = String(d.set || "");
+      // Подарки из каталога разыгрываются только сезонные: обычные подарки
+      // сундука перечислены в GIFTS выше.
+      if (kind === "gift" && !set) continue;
       if (kind === "badge" && d.chest !== true) continue;
       const t = TIER_POOL[d.rarity] ? d.rarity : "common";
+      const id = kind === "gift" ? String(d.key) : recs[i].id;
+      if (t !== "common") rareAll[id] = 1;
+      if (set !== SET) continue;
       const owned = kind === "frame"
         ? ownedF.indexOf("frame:" + recs[i].id) !== -1
-        : (ownedI.indexOf(d.key) !== -1 || grantedI.indexOf(d.key) !== -1);
-      items.push([recs[i].id, kind, t, withFrames && !owned, String(d.key)]);
+        : kind === "badge" ? (ownedI.indexOf(d.key) !== -1 || grantedI.indexOf(d.key) !== -1) : false;
+      items.push([id, kind, t, withFrames && !owned, String(d.key)]);
     }
   } catch (_) {}
   const tierCount = { common: 0, rare: 0, legendary: 0 };
   for (let i = 0; i < items.length; i++) tierCount[items[i][2]]++;
   const frameOdds = [];
   let frameSpare = 0;
-  for (const t in TIER_POOL) {
-    const each = tierCount[t] ? Math.floor(TIER_POOL[t] / tierCount[t]) : 0;
-    frameSpare += TIER_POOL[t] - each * tierCount[t];
+  // Вес вещи: в обычном — доля пула редкости, в сезонном — своя на вещь.
+  const wOf = (t) => hw ? (EACH[t] || 0) : (tierCount[t] ? Math.floor(TIER_POOL[t] / tierCount[t]) : 0);
+  if (hw) {
+    let sumOdds = 0, sumItems = 0;
+    for (let i = 0; i < ODDS.length; i++) sumOdds += ODDS[i][3];
+    for (let i = 0; i < items.length; i++) sumItems += EACH[items[i][2]] || 0;
+    frameSpare = Math.max(0, 1000 - sumOdds - sumItems);
+  } else {
+    for (const t in TIER_POOL) {
+      const each = tierCount[t] ? Math.floor(TIER_POOL[t] / tierCount[t]) : 0;
+      frameSpare += TIER_POOL[t] - each * tierCount[t];
+    }
   }
   for (let i = 0; i < items.length; i++) {
     const it = items[i];
-    const w = Math.floor(TIER_POOL[it[2]] / tierCount[it[2]]);
+    const w = wOf(it[2]);
     if (!it[3] || w <= 0) { frameSpare += w; continue; }
     frameOdds.push([it[0], it[1], 0, w, it[2], it[4]]);
   }
@@ -130,7 +186,7 @@ routerAdd("GET", "/api/chest/state", (e) => {
   let used = 0;
   try {
     used = $app.findRecordsByFilter("chest_opens", "user_uid = {:me} && day = {:day}", "", PER_DAY, 0,
-      { me: me, day: day }).length;
+      { me: me, day: dk }).length;
   } catch (_) { used = 0; }
 
   // Призы за сегодня по порядку, вместе с открытиями из копилки (их день
@@ -141,7 +197,7 @@ routerAdd("GET", "/api/chest/state", (e) => {
   const today = [];
   try {
     const won = $app.findRecordsByFilter("chest_opens", "user_uid = {:me} && (day = {:day} || day = {:bday})", "created", 20, 0,
-      { me: me, day: day, bday: "b" + day });
+      { me: me, day: dk, bday: bk });
     for (let i = 0; i < won.length; i++) {
       const key = won[i].getString("prize");
       let kind = "gift";
@@ -158,8 +214,8 @@ routerAdd("GET", "/api/chest/state", (e) => {
   const skipRow = (r) => (r[1] === "plus" && noPlus) || (r[1] === "plus_trial" && (noPlus || trialOn || !withFrames));
   let skippedW = 0;
   for (let i = 0; i < ODDS.length; i++) if (skipRow(ODDS[i])) skippedW += ODDS[i][3];
-  const rarePlus = { plus: 1, plus7: 1 };
-  for (let i = 0; i < items.length; i++) if (items[i][2] !== "common") rarePlus[items[i][0]] = 1;
+  // Гарантия общая: подряд считаются открытия обоих сундуков.
+  const rarePlus = rareAll;
   let dry = 0;
   try {
     const last = $app.findRecordsByFilter("chest_opens", "user_uid = {:me}", "-created", PITY - 1, 0, { me: me });
@@ -185,6 +241,10 @@ routerAdd("GET", "/api/chest/state", (e) => {
     ok: true, perDay: PER_DAY, left: Math.max(0, PER_DAY - used), day: day, odds: odds, jar: jar, today: today,
     // Через сколько открытий редкий приз гарантирован (1 — следующее).
     untilRare: PITY - dry,
+    chest: hw ? chestKey : "main",
+    // Активные сезонные сундуки целиком (даты, цвета, файлы, названия):
+    // приложение строит по ним галерею без своего кода под сезон.
+    seasons: hw ? [] : seasons,
   });
 }, $apis.requireAuth());
 
@@ -213,11 +273,12 @@ routerAdd("POST", "/api/chest/open", (e) => {
   // Пул редкости в десятых долях процента: делится поровну между ВСЕМИ её
   // предметами — подарком, рамкой и значком одной редкости выпадают одинаково.
   const TIER_POOL = { common: 252, rare: 144, legendary: 36 };
-  const PER_DAY = 3;
-  // Потолок за скользящие сутки: против перевода часов туда-обратно.
-  const PER_24H = 6;
+  let PER_DAY = 3;
+  // Потолок за скользящие сутки: против перевода часов туда-обратно. Свой у
+  // каждого сундука — вдвое больше дневного.
+  let PER_24H = 6;
 
-  const body = new DynamicModel({ openId: "", groupId: "", tz: 0, platform: "", frames: false, bonus: false });
+  const body = new DynamicModel({ openId: "", groupId: "", tz: 0, platform: "", frames: false, bonus: false, chest: "" });
   e.bindBody(body);
   const withFrames = body.frames === true;
   // Открытие из копилки пары: без ролика и сверх трёх в день. День такой
@@ -247,6 +308,26 @@ routerAdd("POST", "/api/chest/open", (e) => {
   const me = e.auth.id;
   const now = Date.now();
   const day = new Date(now + tz * 60 * 1000).toISOString().slice(0, 10);
+  const chestKey = String(body.chest || "").replace(/[^a-z0-9_]/g, "");
+  let season = null;
+  if (chestKey) {
+    try {
+      const cs = $app.findRecordsByFilter("catalog_items", "enabled = true && kind = 'chest'", "sort", 20, 0);
+      for (let i = 0; i < cs.length; i++) {
+        let d = {};
+        try { d = JSON.parse(cs[i].getString("data") || "{}") || {}; } catch (_) { d = {}; }
+        if (String(d.key) !== chestKey || !d.set) continue;
+        if ((!d.from || day >= String(d.from)) && (!d.until || day < String(d.until))) season = d;
+      }
+    } catch (_) {}
+  }
+  const hw = !!chestKey;
+  if (hw && !season) return e.json(403, { ok: false, error: "season_over" });
+  const SET = hw ? String(season.set) : "";
+  const EACH = (hw && season.each) || { common: 20, rare: 8, legendary: 3 };
+  if (hw && season.perDay > 0) { PER_DAY = season.perDay; PER_24H = season.perDay * 2; }
+  const dk = hw ? chestKey + "|" + day : day;
+  const bk = hw ? "+" + chestKey + "|" + day : "b" + day;
 
   // Состав пары — из Postgres, как в gifts.pb.js: зеркало в SQLite отстаёт.
   let members = [];
@@ -311,10 +392,13 @@ routerAdd("POST", "/api/chest/open", (e) => {
       let today = 0, lastDay = 0;
       try {
         today = txApp.findRecordsByFilter("chest_opens", "user_uid = {:me} && day = {:day}", "", PER_DAY, 0,
-          { me: me, day: day }).length;
+          { me: me, day: dk }).length;
         const since = new Date(now - 24 * 60 * 60 * 1000).toISOString().replace("T", " ");
-        lastDay = txApp.findRecordsByFilter("chest_opens", "user_uid = {:me} && created >= {:since} && day !~ 'b'", "", PER_24H, 0,
-          { me: me, since: since }).length;
+        lastDay = txApp.findRecordsByFilter("chest_opens",
+          // Обычный: без копилки («b…») и без сезонных («…|…»). Сезонный: свой
+          // ключ, без копилки («+…»).
+          "user_uid = {:me} && created >= {:since} && " + (hw ? "day ~ {:pfx} && day !~ '+'" : "day !~ 'b' && day !~ '|'"), "", PER_24H, 0,
+          { me: me, since: since, pfx: chestKey + "|" }).length;
       } catch (_) { today = 0; lastDay = 0; }
       if (fromJar) {
         if (!jarLib.takeBonus(txApp, groupId, me)) {
@@ -343,33 +427,51 @@ routerAdd("POST", "/api/chest/open", (e) => {
       try { grantedI = JSON.parse(user.getString("granted_badges") || "[]") || []; } catch (_) { grantedI = []; }
       // [id приза, вид, ярус, можно ли выдать, ключ во владении]
       const items = [];
-      for (let i = 0; i < GIFTS.length; i++) items.push([GIFTS[i][0], "gift", GIFTS[i][1], true, GIFTS[i][0]]);
+      // Редкие призы обоих сундуков — для общей гарантии редкого.
+      const rareAll = { plus: 1, plus7: 1 };
+      for (let i = 0; i < GIFTS.length; i++) {
+        if (GIFTS[i][1] !== "common") rareAll[GIFTS[i][0]] = 1;
+        if (!hw) items.push([GIFTS[i][0], "gift", GIFTS[i][1], true, GIFTS[i][0]]);
+      }
       try {
-        const recs = txApp.findRecordsByFilter("catalog_items", "enabled = true && (kind = 'frame' || kind = 'badge')", "sort", 500, 0);
+        const recs = txApp.findRecordsByFilter("catalog_items", "enabled = true && (kind = 'frame' || kind = 'badge' || kind = 'gift')", "sort", 500, 0);
         for (let i = 0; i < recs.length; i++) {
           let d = {};
           try { d = JSON.parse(recs[i].getString("data") || "{}") || {}; } catch (_) { d = {}; }
           if (!d.key) continue;
           const kind = recs[i].getString("kind");
+          const set = String(d.set || "");
+          if (kind === "gift" && !set) continue;
           if (kind === "badge" && d.chest !== true) continue;
           const t = TIER_POOL[d.rarity] ? d.rarity : "common";
+          const id = kind === "gift" ? String(d.key) : recs[i].id;
+          if (t !== "common") rareAll[id] = 1;
+          if (set !== SET) continue;
           const owned = kind === "frame"
             ? ownedF.indexOf("frame:" + recs[i].id) !== -1
-            : (ownedI.indexOf(d.key) !== -1 || grantedI.indexOf(d.key) !== -1);
-          items.push([recs[i].id, kind, t, withFrames && !owned, String(d.key)]);
+            : kind === "badge" ? (ownedI.indexOf(d.key) !== -1 || grantedI.indexOf(d.key) !== -1) : false;
+          items.push([id, kind, t, withFrames && !owned, String(d.key)]);
         }
       } catch (_) {}
       const tierCount = { common: 0, rare: 0, legendary: 0 };
       for (let i = 0; i < items.length; i++) tierCount[items[i][2]]++;
       const frameOdds = [];
       let frameSpare = 0;
-      for (const t in TIER_POOL) {
-        const each = tierCount[t] ? Math.floor(TIER_POOL[t] / tierCount[t]) : 0;
-        frameSpare += TIER_POOL[t] - each * tierCount[t];
+      const wOf = (t) => hw ? (EACH[t] || 0) : (tierCount[t] ? Math.floor(TIER_POOL[t] / tierCount[t]) : 0);
+      if (hw) {
+        let sumOdds = 0, sumItems = 0;
+        for (let i = 0; i < ODDS.length; i++) sumOdds += ODDS[i][3];
+        for (let i = 0; i < items.length; i++) sumItems += EACH[items[i][2]] || 0;
+        frameSpare = Math.max(0, 1000 - sumOdds - sumItems);
+      } else {
+        for (const t in TIER_POOL) {
+          const each = tierCount[t] ? Math.floor(TIER_POOL[t] / tierCount[t]) : 0;
+          frameSpare += TIER_POOL[t] - each * tierCount[t];
+        }
       }
       for (let i = 0; i < items.length; i++) {
         const it = items[i];
-        const w = Math.floor(TIER_POOL[it[2]] / tierCount[it[2]]);
+        const w = wOf(it[2]);
         if (!it[3] || w <= 0) { frameSpare += w; continue; }
         frameOdds.push([it[0], it[1], 0, w, it[2], it[4]]);
       }
@@ -392,9 +494,9 @@ routerAdd("POST", "/api/chest/open", (e) => {
         pool.push([frameOdds[i][0], frameOdds[i][1], 0, frameOdds[i][3], frameOdds[i][5]]);
         total += frameOdds[i][3];
       }
-      // Гарантия редкого: считаем открытия подряд без редкого приза.
-      const rarePlus = { plus: 1, plus7: 1 };
-      for (let i = 0; i < items.length; i++) if (items[i][2] !== "common") rarePlus[items[i][0]] = 1;
+      // Гарантия редкого: считаем открытия подряд без редкого приза — в
+      // обоих сундуках вместе.
+      const rarePlus = rareAll;
       let dry = 0;
       try {
         const last = txApp.findRecordsByFilter("chest_opens", "user_uid = {:me}", "-created", PITY - 1, 0, { me: me });
@@ -422,7 +524,7 @@ routerAdd("POST", "/api/chest/open", (e) => {
       rec.set("id", openId);
       rec.set("user_uid", me);
       rec.set("group_id", groupId);
-      rec.set("day", fromJar ? "b" + day : day);
+      rec.set("day", fromJar ? bk : dk);
       rec.set("prize", prize[0]);
       rec.set("amount", prize[2]);
       rec.set("state", prize[1] === "gift" ? "stash" : "");

@@ -73,12 +73,19 @@ class ChestService {
   int get _tz => DateTime.now().timeZoneOffset.inMinutes;
   String get _platform => Platform.isIOS ? 'ios' : 'android';
 
-  Future<ChestState?> state({String? groupId}) async {
+  /// [chest] — ключ сезонного сундука; null — обычный.
+  Future<ChestState?> state({String? groupId, String? chest}) async {
     final group = groupId ?? PairJarService.instance.groupId;
     try {
       final res = await PocketBaseService().pb.send(
         '/api/chest/state',
-        query: {'tz': '$_tz', 'platform': _platform, 'frames': '1', if (group != null && group.isNotEmpty) 'group': group},
+        query: {
+          'tz': '$_tz',
+          'platform': _platform,
+          'frames': '1',
+          if (group != null && group.isNotEmpty) 'group': group,
+          'chest': ?chest,
+        },
       );
       final st = ChestState.fromJson(res is Map ? Map<String, dynamic>.from(res) : null);
       PairJarService.instance.apply(st?.jar);
@@ -93,12 +100,13 @@ class ChestService {
   /// Обрыв и молчание сети повторяются один раз сами: номер тот же, и сервер
   /// второй раз не разыгрывает. Человек видит отказ, только если не прошли
   /// обе попытки.
-  Future<ChestOpenResult> open({required String openId, required String groupId, bool fromJar = false}) async {
-    var res = await _openOnce(openId: openId, groupId: groupId, fromJar: fromJar);
+  /// [chest] — ключ сезонного сундука; null — обычный.
+  Future<ChestOpenResult> open({required String openId, required String groupId, bool fromJar = false, String? chest}) async {
+    var res = await _openOnce(openId: openId, groupId: groupId, fromJar: fromJar, chest: chest);
     for (var attempt = 2; attempt <= openAttempts && _retryable(res.error); attempt++) {
       ChestTelemetry.step(openId, 'open:retry', data: {'attempt': attempt, 'after': res.error});
       await Future<void>.delayed(const Duration(milliseconds: 1500));
-      res = await _openOnce(openId: openId, groupId: groupId, fromJar: fromJar);
+      res = await _openOnce(openId: openId, groupId: groupId, fromJar: fromJar, chest: chest);
     }
     return res;
   }
@@ -108,10 +116,10 @@ class ChestService {
 
   static bool _retryable(String? error) => error == 'network' || error == 'timeout';
 
-  Future<ChestOpenResult> _openOnce({required String openId, required String groupId, required bool fromJar}) async {
+  Future<ChestOpenResult> _openOnce({required String openId, required String groupId, required bool fromJar, String? chest}) async {
     Map<String, dynamic>? body;
     final watch = Stopwatch()..start();
-    ChestTelemetry.step(openId, 'open:send', data: {'jar': fromJar});
+    ChestTelemetry.step(openId, 'open:send', data: {'jar': fromJar, 'chest': ?chest});
     try {
       final res = await PocketBaseService().pb.send(
         '/api/chest/open',
@@ -125,6 +133,7 @@ class ChestService {
           'platform': _platform,
           'frames': true,
           if (fromJar) 'bonus': true,
+          'chest': ?chest,
         },
         // Без предела ответ, потерянный по дороге, держал кнопку на
         // «Открываем…» навсегда. Повтор идёт тем же openId, а сервер

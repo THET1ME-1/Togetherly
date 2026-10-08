@@ -128,7 +128,11 @@ def upload_gift(folder: Path, token: str) -> None:
     missing = [f for f in FILES if not (folder / f).exists()]
     if missing:
         sys.exit(f"{key}: нет файлов {', '.join(missing)}")
-    fields = {"kind": kind, "name_ru": key, "name_en": key, "is_free": "false", "price": str(int(spec.get("price", 0))),
+    # Подарок сезонного набора назван в gift.json: в коде приложения его нет,
+    # название оно берёт из каталога.
+    title = spec.get("name") or {}
+    fields = {"kind": kind, "name_ru": title.get("ru", key), "name_en": title.get("en", key), "is_free": "false",
+              "price": str(int(spec.get("price", 0))),
               "min_app": "", "sort": str(int(spec.get("sort", 500))), "enabled": "true", "data": "{}"}
     # xl.webp — крупная анимация, есть не у всех (монета TY для листа).
     names = list(FILES) + (["xl.webp"] if (folder / "xl.webp").exists() else [])
@@ -150,9 +154,12 @@ def upload_gift(folder: Path, token: str) -> None:
         sys.exit(f"{key}: залилось {len(stored)} файлов из {len(names)}")
     urls = {name.split(".")[0]: f"{PUBLIC}/api/files/catalog_items/{rec['id']}/{stored_name}"
             for name, stored_name in zip(names, stored)}
-    body, ctype = multipart({"data": json.dumps({"key": key, **urls}, ensure_ascii=False)}, [])
+    # Подарок сезонного сундука несёт набор и редкость: по ним его разыгрывает
+    # chest.pb.js (обычный сундук вещи набора не выдаёт).
+    extra = {k: spec[k] for k in ("set", "rarity") if spec.get(k)}
+    body, ctype = multipart({"data": json.dumps({"key": key, **extra, **urls}, ensure_ascii=False)}, [])
     send("PATCH", url, token, body, ctype)
-    print(f"{'подарок' if kind == 'gift' else 'картинка'} {key}: {action} ({item_id})")
+    print(f"{'подарок' if kind == 'gift' else 'картинка'} {key}: {action} ({item_id}{', набор ' + spec['set'] if spec.get('set') else ''})")
 
 
 def upload_frame(folder: Path, token: str) -> None:
@@ -201,6 +208,8 @@ def upload_frame(folder: Path, token: str) -> None:
         "desc": spec.get("desc") or {},
         # Радиус фото под рамкой, единицы холста 0..100 (31 — фото целиком).
         "hole": float(spec.get("hole", 31)),
+        # Набор сезонного сундука («13» — Хэллоуин): из обычного не выпадает.
+        **({"set": spec["set"]} if spec.get("set") else {}),
         **urls,
     }
     body, ctype = multipart({"data": json.dumps(manifest, ensure_ascii=False)}, [])
@@ -208,7 +217,43 @@ def upload_frame(folder: Path, token: str) -> None:
     print(f"рамка {key}: {action} ({item_id}, {spec['rarity']}, в сундуке)")
 
 
+def upload_chest(folder: Path, token: str) -> None:
+    """Сезонный сундук: запись вида `chest`, id `chest_<ключ>`. Файлы — всё,
+    что лежит в папке рядом с chest.json (анимации, занавесы, музыка); в
+    `data` к описанию добавляются их адреса по имени без расширения."""
+    spec = json.loads((folder / "chest.json").read_text(encoding="utf-8"))
+    key = spec["key"]
+    item_id = "chest_" + slug(key)
+    names = sorted(p.name for p in folder.iterdir() if p.is_file() and p.name != "chest.json")
+    title = spec.get("name") or {}
+    fields = {"kind": "chest", "name_ru": title.get("ru", key), "name_en": title.get("en", key), "is_free": "false",
+              "price": "0", "min_app": "", "sort": str(int(spec.get("sort", 500))), "enabled": "true", "data": "{}"}
+    files = [("files", folder / n) for n in names]
+    url = f"{PB}/api/collections/catalog_items/records/{item_id}"
+    if exists(item_id, token):
+        body, ctype = multipart({"files": ""}, [])
+        send("PATCH", url, token, body, ctype)
+        body, ctype = multipart(fields, files)
+        rec = send("PATCH", url, token, body, ctype)
+        action = "обновлён"
+    else:
+        fields["id"] = item_id
+        body, ctype = multipart(fields, files)
+        rec = send("POST", f"{PB}/api/collections/catalog_items/records", token, body, ctype)
+        action = "заведён"
+    stored = rec.get("files") or []
+    if len(stored) != len(names):
+        sys.exit(f"{key}: залилось {len(stored)} файлов из {len(names)}")
+    urls = {n.rsplit(".", 1)[0]: f"{PUBLIC}/api/files/catalog_items/{rec['id']}/{s}" for n, s in zip(names, stored)}
+    body, ctype = multipart({"data": json.dumps({**spec, "files": urls}, ensure_ascii=False)}, [])
+    send("PATCH", url, token, body, ctype)
+    print(f"сундук {key}: {action} ({item_id}, {spec.get('from')} — {spec.get('until')}, {len(names)} файлов)")
+
+
 def upload(folder: Path, token: str) -> None:
+    if (folder / "chest.json").exists():
+        upload_chest(folder, token)
+        return
     if (folder / "frame.json").exists():
         upload_frame(folder, token)
         return
@@ -260,6 +305,7 @@ def upload(folder: Path, token: str) -> None:
         "grantOnly": bool(spec.get("grantOnly")),
         # Значок из сундука: не продаётся, его разыгрывает chest.pb.js.
         "chest": bool(spec.get("chest")),
+        **({"set": spec["set"]} if spec.get("set") else {}),
         "name": names,
         "desc": spec.get("desc") or {},
         **urls,
@@ -272,7 +318,7 @@ def upload(folder: Path, token: str) -> None:
 
 
 def disable(key_or_slug: str, token: str) -> None:
-    item_id = key_or_slug if key_or_slug.startswith(("badge_", "gift_", "art_", "frame_")) else "badge_" + slug(key_or_slug)
+    item_id = key_or_slug if key_or_slug.startswith(("badge_", "gift_", "art_", "frame_", "chest_")) else "badge_" + slug(key_or_slug)
     body, ctype = multipart({"enabled": "false"}, [])
     send("PATCH", f"{PB}/api/collections/catalog_items/records/{item_id}", token, body, ctype)
     print(f"{item_id}: снят с витрины (у купивших остаётся)")
@@ -292,7 +338,7 @@ def main() -> None:
         if args.dir:
             root = Path(args.dir)
             folders = sorted(p for p in root.iterdir()
-                             if any((p / f).exists() for f in ("badge.json", "gift.json", "frame.json")))
+                             if any((p / f).exists() for f in ("badge.json", "gift.json", "frame.json", "chest.json")))
             if args.only:
                 folders = [p for p in folders if p.name in args.only]
             if not folders:

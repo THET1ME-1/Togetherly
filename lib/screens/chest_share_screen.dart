@@ -28,6 +28,7 @@ class ChestShareScreen extends StatefulWidget {
     required this.scheme,
     required this.fill,
     required this.openUrl,
+    this.track,
   });
 
   final ChestPrize prize;
@@ -36,6 +37,9 @@ class ChestShareScreen extends StatefulWidget {
   final ColorScheme scheme;
   final Color fill;
   final String? openUrl;
+
+  /// Дорожка приза сезонного сундука; null — обычного.
+  final List<List<double>?>? track;
 
   @override
   State<ChestShareScreen> createState() => _ChestShareScreenState();
@@ -120,6 +124,7 @@ class _ChestShareScreenState extends State<ChestShareScreen> {
                           scheme: cs,
                           fill: widget.fill,
                           openUrl: widget.openUrl,
+                          track: widget.track,
                         ),
                       ),
                     ),

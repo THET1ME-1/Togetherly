@@ -300,6 +300,14 @@ class GiftCatalog {
     Gift(key: 'rings', price: 0, engine: GiftEngine.response, titleRu: 'Парные кольца', titleEn: 'Matching rings'),
   ];
 
+  /// Подарки сезонных сундуков: в коде их нет, их заводит сервер записью
+  /// каталога с набором (`data.set`) — название берётся оттуда же. Как и
+  /// подарки обычного сундука, они только выпадают и ложатся на полку.
+  /// Список ставит [CatalogService] при разборе каталога.
+  static Map<String, Gift> _seasonal = const {};
+
+  static void registerSeasonal(Map<String, Gift> gifts) => _seasonal = Map.unmodifiable(gifts);
+
   static Gift? byKey(String key) {
     for (final g in all) {
       if (g.key == key) return g;
@@ -307,6 +315,6 @@ class GiftCatalog {
     for (final g in chest) {
       if (g.key == key) return g;
     }
-    return null;
+    return _seasonal[key];
   }
 }

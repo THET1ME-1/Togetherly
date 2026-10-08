@@ -8,9 +8,27 @@
 /// подарок доезжает до людей без обновления приложения, а без сети остаётся
 /// неподвижный кадр из сборки.
 class GiftArt {
-  const GiftArt({required this.key, this.price, this.smUrl, this.lgUrl, this.xlUrl, this.stillUrl});
+  const GiftArt({
+    required this.key,
+    this.price,
+    this.smUrl,
+    this.lgUrl,
+    this.xlUrl,
+    this.stillUrl,
+    this.set = '',
+    this.rarity = 'common',
+    this.titleRu = '',
+    this.titleEn = '',
+  });
 
   final String key;
+
+  /// Набор сезонного сундука (`data.set`); пусто — обычный подарок. Подарок
+  /// набора в коде приложения не описан: название и редкость берутся отсюда.
+  final String set;
+  final String rarity;
+  final String titleRu;
+  final String titleEn;
 
   /// Цена в монетах из каталога; null — берётся зашитая в сборку.
   final int? price;
@@ -44,7 +62,18 @@ class GiftArt {
     }
 
     final p = row['price'];
-    final art = GiftArt(key: key, price: p is num && p > 0 ? p.toInt() : null, smUrl: url('sm'), lgUrl: url('lg'), xlUrl: url('xl'), stillUrl: url('still'));
+    final art = GiftArt(
+      key: key,
+      price: p is num && p > 0 ? p.toInt() : null,
+      smUrl: url('sm'),
+      lgUrl: url('lg'),
+      xlUrl: url('xl'),
+      stillUrl: url('still'),
+      set: '${data['set'] ?? ''}',
+      rarity: '${data['rarity'] ?? 'common'}',
+      titleRu: '${row['name_ru'] ?? ''}',
+      titleEn: '${row['name_en'] ?? ''}',
+    );
     if (art.smUrl == null && art.lgUrl == null && art.stillUrl == null) return null;
     return art;
   }

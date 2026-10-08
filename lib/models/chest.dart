@@ -2,6 +2,9 @@ import 'avatar_frame.dart';
 import 'gift.dart';
 import 'pair_jar.dart';
 import 'profile_icon.dart';
+import 'season_chest.dart';
+
+export 'season_chest.dart';
 
 /// Что лежит в сундуке недели и с какими шансами.
 ///
@@ -77,7 +80,11 @@ class ChestState {
     this.untilRare,
     this.jar,
     this.today = const [],
+    this.seasons = const [],
   });
+
+  /// Сезонные сундуки, что идут сейчас (только в ответе обычного сундука).
+  final List<SeasonChest> seasons;
 
   final int left;
   final int perDay;
@@ -97,6 +104,7 @@ class ChestState {
     untilRare: untilRare ?? this.untilRare,
     jar: jar,
     today: [...today, ?prize],
+    seasons: seasons,
   );
 
   /// Через сколько открытий редкий приз гарантирован (1 — следующее). null —
@@ -127,6 +135,7 @@ class ChestState {
           for (final r in won)
             if (r is Map) ?ChestPrize.fromJson(Map<String, dynamic>.from(r)),
       ],
+      seasons: SeasonChest.listFromJson(j['seasons']),
     );
   }
 }

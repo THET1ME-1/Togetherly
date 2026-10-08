@@ -693,11 +693,13 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
                       ],
                     ),
                     const SizedBox(height: 18),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: cs.surfaceContainerHigh,
-                        borderRadius: BorderRadius.circular(22),
-                      ),
+                    // Material, а не Container с цветом: переключатели рисуют
+                    // отклик на ближайшем Material, и под заливкой контейнера
+                    // его не видно (Flutter ловит это ассертом).
+                    Material(
+                      color: cs.surfaceContainerHigh,
+                      borderRadius: BorderRadius.circular(22),
+                      clipBehavior: Clip.antiAlias,
                       child: Column(
                         children: [
                           SwitchListTile(

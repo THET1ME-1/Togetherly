@@ -7,6 +7,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/avatar_frame.dart';
+import '../models/gift.dart';
 import '../models/gift_art.dart';
 import '../models/level.dart';
 import '../models/mascot.dart';
@@ -58,6 +59,12 @@ class CatalogService extends ChangeNotifier {
   /// Живые картинки подарков по ключу подарка. Пусто, пока каталог не пришёл:
   /// тогда подарок рисуется неподвижным кадром из сборки.
   GiftArt? giftArt(String key) => _giftArt[key];
+
+  /// Подарки набора сезонного сундука (`data.set`) — лента «Что внутри».
+  List<GiftArt> giftArtsOfSet(String set) => [
+    for (final a in _giftArt.values)
+      if (a.set == set) a,
+  ];
 
   /// Анимированный значок самочувствия по id (`catalog_items`, вид `ailment`).
   GiftArt? ailmentArt(String id) => _ailmentArt[id];
@@ -294,6 +301,17 @@ class CatalogService extends ChangeNotifier {
     _badges = List.unmodifiable(ProfileIcon.parseCatalog(badgeRows));
     _frames = List.unmodifiable(AvatarFrame.parseCatalog(frameRows));
     _giftArt = Map.unmodifiable(giftArt);
+    GiftCatalog.registerSeasonal({
+      for (final a in giftArt.values)
+        if (a.set.isNotEmpty && GiftCatalog.all.every((g) => g.key != a.key) && GiftCatalog.chest.every((g) => g.key != a.key))
+          a.key: Gift(
+            key: a.key,
+            price: 0,
+            engine: GiftEngine.response,
+            titleRu: a.titleRu.isEmpty ? a.key : a.titleRu,
+            titleEn: a.titleEn.isEmpty ? a.key : a.titleEn,
+          ),
+    });
     _ailmentArt = Map.unmodifiable(ailmentArt);
     _reactionArt = Map.unmodifiable(reactionArt);
     MoodOption.registerRemoteMoods(remoteMoods);

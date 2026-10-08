@@ -32,9 +32,13 @@ class AvatarFrame {
     this.lgUrl,
     this.stillUrl,
     this.hole = avatarR,
+    this.set = '',
   });
 
   final String key;
+
+  /// Набор сезонного сундука (`data.set`, «13» — Хэллоуин); пусто — обычный.
+  final String set;
 
   /// `common`, `rare` или `legendary` — от неё зависит доля в сундуке.
   final String rarity;
@@ -150,6 +154,7 @@ class AvatarFrame {
       lgUrl: lg,
       stillUrl: still,
       hole: hole,
+      set: '${data['set'] ?? ''}',
     );
   }
 

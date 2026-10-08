@@ -30,7 +30,9 @@ void main() {
     final src = File('lib/screens/chest_screen.dart').readAsStringSync();
     expect(src.contains('ChestPendingStore.write'), isTrue, reason: 'ролик снова пропадёт при уходе с экрана');
     expect(src.contains('ChestPendingStore.clear'), isTrue, reason: 'открытый сундук предлагался бы снова');
-    expect(src.contains('_restorePending()'), isTrue, reason: 'сохранённое открытие не поднимается при заходе');
+    // У каждого сундука ленты своё недосмотренное открытие.
+    expect(src.contains('_restorePending(main)'), isTrue, reason: 'сохранённое открытие не поднимается при заходе');
+    expect(src.contains('_restorePending(slot)'), isTrue, reason: 'у сезонного сундука открытие не поднимается');
     // Итог фиксируется до проверки mounted: экран мог закрыться, пока шёл запрос.
     final clear = src.indexOf('ChestPendingStore.clear');
     final mounted = src.indexOf('if (!mounted) return;', src.indexOf('final res = await request;'));

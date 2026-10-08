@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
@@ -31,21 +32,46 @@ class ChestFrames extends StatefulWidget {
     required this.url,
     required this.still,
     required this.side,
+    this.height,
+    this.fit = BoxFit.contain,
+    this.stillUrl,
     this.loop = true,
+    this.holdLast = false,
     this.showLast = false,
     this.onFrame,
+    this.onPosition,
     this.onDone,
   });
 
   final String? url;
-  final String still;
+
+  /// Неподвижный кадр из сборки, пока файл едет; null — пусто (сезонные
+  /// сундуки в сборке не лежат, у них [stillUrl] с сервера).
+  final String? still;
+
+  /// Ширина; высота — [height] или та же, что ширина.
   final double side;
+  final double? height;
+  final BoxFit fit;
+
+  /// Неподвижный кадр с сервера — для сундука, которого нет в сборке.
+  final String? stillUrl;
   final bool loop;
+
+  /// При [loop] = false дождаться конца длительности последнего кадра и только
+  /// тогда сказать [onDone]. Сундук говорит сразу: последний кадр открытия
+  /// стоит на экране, пока не нажмут снова.
+  final bool holdLast;
 
   /// Сразу последний кадр, без проигрывания: открытый сундук для карточки
   /// «Поделиться».
   final bool showLast;
   final ValueChanged<int>? onFrame;
+
+  /// Время от начала файла, с которого стоит показанный кадр. Номер кадра
+  /// для этого не годится: одинаковые кадры при запекании склеиваются в один
+  /// длинный, и номер перестаёт быть мерой времени (занавес).
+  final ValueChanged<Duration>? onPosition;
   final VoidCallback? onDone;
 
   /// Скачать файл заранее: открытие должно начаться сразу после ролика.
@@ -93,6 +119,12 @@ class _ChestFramesState extends State<ChestFrames> with SingleTickerProviderStat
 
   /// Когда по часам тикера показывать следующий кадр.
   Duration _due = Duration.zero;
+
+  /// С какого времени файла стоит текущий кадр.
+  Duration _pos = Duration.zero;
+
+  /// Последний кадр показан и досиживает свою длительность ([holdLast]).
+  bool _finishing = false;
   bool _fetching = false;
   bool _stopped = false;
   bool _disposed = false;
@@ -118,6 +150,8 @@ class _ChestFramesState extends State<ChestFrames> with SingleTickerProviderStat
     }
     try {
       final dpr = ui.PlatformDispatcher.instance.views.first.devicePixelRatio;
+      // Предел ставится по ширине: у вытянутого кадра (занавес) пропорции
+      // сохраняются, а у квадратного выходит прежний размер.
       _codec = await ui.instantiateImageCodec(bytes, targetWidth: (widget.side * dpr).round());
     } catch (_) {
       _codec = null;
@@ -156,6 +190,11 @@ class _ChestFramesState extends State<ChestFrames> with SingleTickerProviderStat
 
   void _onTick(Duration elapsed) {
     if (_fetching || _stopped || elapsed < _due) return;
+    if (_finishing) {
+      _stop();
+      widget.onDone?.call();
+      return;
+    }
     _fetching = true;
     _advance(elapsed);
   }
@@ -180,14 +219,25 @@ class _ChestFramesState extends State<ChestFrames> with SingleTickerProviderStat
     old?.dispose();
     final i = _index;
     widget.onFrame?.call(i);
+    widget.onPosition?.call(_pos);
     final last = i == codec.frameCount - 1;
+    final step = frame.duration == Duration.zero ? const Duration(milliseconds: 60) : frame.duration;
     if (last && !widget.loop) {
-      _stop();
-      widget.onDone?.call();
+      if (!widget.holdLast) {
+        _stop();
+        widget.onDone?.call();
+        return;
+      }
+      // Последний кадр стоит свою длительность, и только потом «кончилось»:
+      // у занавеса это хвост, уходящий за край экрана.
+      _due = elapsed + step;
+      _finishing = true;
+      _fetching = false;
       return;
     }
     _index = last ? 0 : i + 1;
-    _due = elapsed + (frame.duration == Duration.zero ? const Duration(milliseconds: 60) : frame.duration);
+    _pos = last ? Duration.zero : _pos + step;
+    _due = elapsed + step;
     _fetching = false;
   }
 
@@ -208,9 +258,23 @@ class _ChestFramesState extends State<ChestFrames> with SingleTickerProviderStat
   @override
   Widget build(BuildContext context) {
     final image = _image;
+    final w = widget.side, h = widget.height ?? widget.side;
     if (image == null) {
-      return Image.asset(widget.still, width: widget.side, height: widget.side, gaplessPlayback: true);
+      final still = widget.still;
+      if (still != null) return Image.asset(still, width: w, height: h, fit: widget.fit, gaplessPlayback: true);
+      final stillUrl = widget.stillUrl;
+      if (stillUrl != null) {
+        return Image(
+          image: CachedNetworkImageProvider(stillUrl, cacheManager: OfflineImageCacheManager.instance),
+          width: w,
+          height: h,
+          fit: widget.fit,
+          gaplessPlayback: true,
+          errorBuilder: (_, _, _) => SizedBox(width: w, height: h),
+        );
+      }
+      return SizedBox(width: w, height: h);
     }
-    return RawImage(image: image, width: widget.side, height: widget.side, filterQuality: FilterQuality.medium);
+    return RawImage(image: image, width: w, height: h, fit: widget.fit, filterQuality: FilterQuality.medium);
   }
 }
