@@ -15,6 +15,7 @@ import '../models/mascot_anim.dart';
 import '../models/mood_entry.dart';
 import '../models/mood_pack.dart';
 import '../models/profile_icon.dart';
+import '../models/season_backdrop.dart';
 import 'pb_data_service.dart';
 import 'pocketbase_service.dart';
 
@@ -45,7 +46,14 @@ class CatalogService extends ChangeNotifier {
   Map<String, GiftArt> _giftArt = const {};
   Map<String, GiftArt> _ailmentArt = const {};
   Map<String, GiftArt> _reactionArt = const {};
+  List<SeasonBackdrop> _backdrops = const [];
   bool _initialized = false;
+
+  /// Сезонные фоны главной (kind='backdrop'): призрак за стеклом и будущие.
+  List<SeasonBackdrop> get backdrops => _backdrops;
+
+  /// Фон, который идёт сегодня по часам человека; null — обычная главная.
+  SeasonBackdrop? activeBackdrop([DateTime? now]) => SeasonBackdrop.activeOf(_backdrops, now ?? DateTime.now());
 
   /// Значки профиля из каталога (kind='badge'), по полю `sort`. Зашитых в
   /// сборку значков нет: пока каталог не загружен ни разу, список пуст.
@@ -226,11 +234,18 @@ class CatalogService extends ChangeNotifier {
     final giftArt = <String, GiftArt>{};
     final ailmentArt = <String, GiftArt>{};
     final reactionArt = <String, GiftArt>{};
+    final backdrops = <SeasonBackdrop>[];
 
     for (final raw in rows) {
       if (raw is! Map) continue;
       final row = raw.cast<String, dynamic>();
       if (!_appAtLeast(appVersion, row['min_app'] as String?)) continue;
+
+      if (row['kind'] == 'backdrop') {
+        final b = SeasonBackdrop.fromCatalog(row);
+        if (b != null) backdrops.add(b);
+        continue;
+      }
 
       if (row['kind'] == 'badge') {
         badgeRows.add(row);
@@ -325,6 +340,7 @@ class CatalogService extends ChangeNotifier {
     });
     _ailmentArt = Map.unmodifiable(ailmentArt);
     _reactionArt = Map.unmodifiable(reactionArt);
+    _backdrops = List.unmodifiable(backdrops);
     MoodOption.registerRemoteMoods(remoteMoods);
     notifyListeners();
   }

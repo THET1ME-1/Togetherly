@@ -217,16 +217,19 @@ def upload_frame(folder: Path, token: str) -> None:
     print(f"рамка {key}: {action} ({item_id}, {spec['rarity']}, в сундуке)")
 
 
-def upload_chest(folder: Path, token: str) -> None:
-    """Сезонный сундук: запись вида `chest`, id `chest_<ключ>`. Файлы — всё,
-    что лежит в папке рядом с chest.json (анимации, занавесы, музыка); в
-    `data` к описанию добавляются их адреса по имени без расширения."""
-    spec = json.loads((folder / "chest.json").read_text(encoding="utf-8"))
+def upload_chest(folder: Path, token: str, kind: str = "chest") -> None:
+    """Сезонная запись целиком с сервера: сундук (`chest`, id `chest_<ключ>`)
+    или фон главной (`backdrop`, id `backdrop_<ключ>`, призрак за стеклом).
+    Файлы — всё, что лежит в папке рядом с <вид>.json (анимации, занавесы,
+    музыка, маски фона); в `data` к описанию добавляются их адреса по имени
+    без расширения."""
+    spec_name = f"{kind}.json"
+    spec = json.loads((folder / spec_name).read_text(encoding="utf-8"))
     key = spec["key"]
-    item_id = "chest_" + slug(key)
-    names = sorted(p.name for p in folder.iterdir() if p.is_file() and p.name != "chest.json")
+    item_id = f"{kind}_" + slug(key)
+    names = sorted(p.name for p in folder.iterdir() if p.is_file() and p.name != spec_name)
     title = spec.get("name") or {}
-    fields = {"kind": "chest", "name_ru": title.get("ru", key), "name_en": title.get("en", key), "is_free": "false",
+    fields = {"kind": kind, "name_ru": title.get("ru", key), "name_en": title.get("en", key), "is_free": "false",
               "price": "0", "min_app": "", "sort": str(int(spec.get("sort", 500))), "enabled": "true", "data": "{}"}
     files = [("files", folder / n) for n in names]
     url = f"{PB}/api/collections/catalog_items/records/{item_id}"
@@ -247,12 +250,16 @@ def upload_chest(folder: Path, token: str) -> None:
     urls = {n.rsplit(".", 1)[0]: f"{PUBLIC}/api/files/catalog_items/{rec['id']}/{s}" for n, s in zip(names, stored)}
     body, ctype = multipart({"data": json.dumps({**spec, "files": urls}, ensure_ascii=False)}, [])
     send("PATCH", url, token, body, ctype)
-    print(f"сундук {key}: {action} ({item_id}, {spec.get('from')} — {spec.get('until')}, {len(names)} файлов)")
+    what = "сундук" if kind == "chest" else "фон"
+    print(f"{what} {key}: {action} ({item_id}, {spec.get('from')} — {spec.get('until')}, {len(names)} файлов)")
 
 
 def upload(folder: Path, token: str) -> None:
     if (folder / "chest.json").exists():
         upload_chest(folder, token)
+        return
+    if (folder / "backdrop.json").exists():
+        upload_chest(folder, token, kind="backdrop")
         return
     if (folder / "frame.json").exists():
         upload_frame(folder, token)
@@ -338,7 +345,7 @@ def main() -> None:
         if args.dir:
             root = Path(args.dir)
             folders = sorted(p for p in root.iterdir()
-                             if any((p / f).exists() for f in ("badge.json", "gift.json", "frame.json", "chest.json")))
+                             if any((p / f).exists() for f in ("badge.json", "gift.json", "frame.json", "chest.json", "backdrop.json")))
             if args.only:
                 folders = [p for p in folders if p.name in args.only]
             if not folders:

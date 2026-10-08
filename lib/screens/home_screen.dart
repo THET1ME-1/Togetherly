@@ -153,6 +153,7 @@ import '../services/media_save_queue.dart';
 import 'wallet_wait_screen.dart';
 import '../widgets/common/gift_image.dart';
 import '../widgets/common/coin_image.dart';
+import '../widgets/season/season_backdrop_layer.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -211,6 +212,15 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Цели подсказок: кнопка фото (удержание пишет ролик) и счётчик «Скучаю».
   final GlobalKey _postBtnKey = GlobalKey();
   final GlobalKey _missKey = GlobalKey();
+
+  /// Сезонный фон под главной (призрак за стеклом): ему нажатия в пустое место.
+  final _backdropKey = GlobalKey<SeasonBackdropLayerState>();
+
+  void _pressBackdrop(Offset global) {
+    final box = _backdropKey.currentContext?.findRenderObject();
+    if (box is! RenderBox) return;
+    _backdropKey.currentState?.press(box.globalToLocal(global));
+  }
   // Одноразовый флаг: открыть настройки парного виджета при входе на вкладку
   // «Виджеты» (тап по парному виджету рабочего стола). Гасится в _buildWidgetsTab.
   bool _openPairEditorOnWidgetsTab = false;
@@ -1442,10 +1452,37 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
             ),
           ),
+          // -- Сезонный фон под содержимым (только главная вкладка) --
+          // Слот стоит всегда: появлялся бы он только в сезон — Flutter
+          // пересобрал бы соседей. Сам фон, даты и картинки приходят каталогом.
+          Positioned.fill(
+            child: ListenableBuilder(
+              listenable: CatalogService.instance,
+              builder: (context, _) {
+                final b = _selectedNavIndex == 0 ? CatalogService.instance.activeBackdrop() : null;
+                if (b == null) return const SizedBox.shrink();
+                return SeasonBackdropLayer(
+                  key: _backdropKey,
+                  backdrop: b,
+                  brightness: _t.brightness,
+                  accent: _t.fillColor,
+                );
+              },
+            ),
+          ),
           // -- Main content --
           SafeArea(
             bottom: false,
-            child: Column(
+            child: ListenableBuilder(
+              listenable: CatalogService.instance,
+              builder: (context, child) => BackdropTapCatcher(
+                onEmptyTap: _selectedNavIndex == 0 &&
+                        CatalogService.instance.activeBackdrop()?.handUrl != null
+                    ? _pressBackdrop
+                    : null,
+                child: child!,
+              ),
+              child: Column(
               children: [
                 HomeHeader(
                   missKey: _missKey,
@@ -1468,6 +1505,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 _buildPartnerAilmentBanner(),
                 Expanded(child: _buildBody()),
               ],
+            ),
             ),
           ),
           // -- Active mascot floating overlay --

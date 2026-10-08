@@ -12,6 +12,13 @@
     python3 season_chest.py hw --off                 спрятать сейчас
     python3 season_chest.py hw --on                  вернуть
 
+Сезонный фон главной (призрак за стеклом, запись `backdrop_<ключ>`) — тем же
+путём с `--kind backdrop`:
+    python3 season_chest.py --kind backdrop
+    python3 season_chest.py hw --kind backdrop --until 2026-11-01
+    python3 season_chest.py hw --kind backdrop --off
+Фон приложение видит при следующем открытии (каталог приходит при запуске).
+
 Даты — по часам человека, `until` не включая: --until 2026-11-01 значит, что
 31 октября сундук ещё есть, 1 ноября его уже нет. Открытия, вещи и всё
 выпавшее у людей остаются при любом выключении.
@@ -43,6 +50,7 @@ def main() -> None:
     ap.add_argument("--until", help="день, с которого сундука уже нет, ГГГГ-ММ-ДД")
     ap.add_argument("--on", action="store_true", help="включить")
     ap.add_argument("--off", action="store_true", help="выключить")
+    ap.add_argument("--kind", choices=("chest", "backdrop"), default="chest", help="сундук или фон главной")
     args = ap.parse_args()
     for d in (args.start, args.until):
         if d and not DAY.match(d):
@@ -53,12 +61,13 @@ def main() -> None:
     email, token = superuser_token()
     try:
         if not args.key:
-            res = get("/api/collections/catalog_items/records?perPage=50&filter=kind%3D'chest'", token)
+            res = get(f"/api/collections/catalog_items/records?perPage=50&filter=kind%3D'{args.kind}'", token)
             for r in res.get("items", []):
                 d = r.get("data") or {}
-                print(f"{d.get('key'):8} {'вкл ' if r.get('enabled') else 'выкл'}  {d.get('from')} — {d.get('until')}  набор {d.get('set')}")
+                extra = f"  набор {d.get('set')}" if args.kind == "chest" else ""
+                print(f"{d.get('key'):8} {'вкл ' if r.get('enabled') else 'выкл'}  {d.get('from')} — {d.get('until')}{extra}")
             return
-        item = f"/api/collections/catalog_items/records/chest_{args.key}"
+        item = f"/api/collections/catalog_items/records/{args.kind}_{args.key}"
         rec = get(item, token)
         data = rec.get("data") or {}
         if args.start:
