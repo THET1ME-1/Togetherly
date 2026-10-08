@@ -28,7 +28,11 @@ class SeasonChest {
     this.curtainDayMs = 1380,
     this.curtainDayCoverMs = 620,
     this.files = const {},
+    this.glitch,
   });
+
+  /// Сбой кнопки «Открыть 3/3» (макет «Кнопка 666»); null — кнопка честная.
+  final SeasonGlitchSpec? glitch;
 
   /// Ключ в запросах (`chest=<ключ>`).
   final String key;
@@ -134,6 +138,7 @@ class SeasonChest {
       curtainDayMs: ms(c['day'], 'ms', 1380),
       curtainDayCoverMs: ms(c['day'], 'coverMs', 620),
       files: files,
+      glitch: SeasonGlitchSpec.fromJson(j['glitch']),
     );
   }
 
@@ -141,6 +146,29 @@ class SeasonChest {
     if (raw is List)
       for (final r in raw) ?SeasonChest.fromJson(r),
   ];
+}
+
+/// Чем срывается кнопка открытия: сперва [mid] рваными полосами, потом [peak]
+/// на заливке [peakColor]. Счётчик подменяется только в надписи.
+class SeasonGlitchSpec {
+  const SeasonGlitchSpec({required this.mid, required this.peak, this.peakColor, this.onPeak});
+
+  final String mid;
+  final String peak;
+  final Color? peakColor;
+  final Color? onPeak;
+
+  static SeasonGlitchSpec? fromJson(Object? raw) {
+    if (raw is! Map) return null;
+    final mid = '${raw['mid'] ?? ''}'.trim(), peak = '${raw['peak'] ?? ''}'.trim();
+    if (mid.isEmpty || peak.isEmpty) return null;
+    return SeasonGlitchSpec(
+      mid: mid,
+      peak: peak,
+      peakColor: SeasonChest._color(raw['peakColor']),
+      onPeak: SeasonChest._color(raw['onPeak']),
+    );
+  }
 }
 
 /// Цвета ночной страницы сезонного сундука.

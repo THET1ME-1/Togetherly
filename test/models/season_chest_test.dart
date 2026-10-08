@@ -32,6 +32,7 @@ Map<String, dynamic> _hw() => {
     'day': {'ms': 1380, 'coverMs': 620},
   },
   'files': {'idle': 'u/idle.webp', 'open': 'u/open.webp', 'music': 'u/music.wav'},
+  'glitch': {'mid': '13/13', 'peak': '666', 'peakColor': '#A3101C'},
 };
 
 void main() {
@@ -50,6 +51,13 @@ void main() {
     expect(s.curtainNightCoverMs, 620);
     expect(s.file('music'), 'u/music.wav');
     expect(s.lastDay, DateTime(2026, 10, 31));
+    expect(s.glitch!.peak, '666');
+    expect(s.glitch!.peakColor, const Color(0xFFA3101C));
+  });
+
+  test('без описания сбоя кнопка честная', () {
+    expect(SeasonChest.fromJson({..._hw()}..remove('glitch'))!.glitch, isNull);
+    expect(SeasonChest.fromJson({..._hw(), 'glitch': {'mid': '13/13'}})!.glitch, isNull);
   });
 
   test('язык: свой, иначе английский, иначе русский', () {

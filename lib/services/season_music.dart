@@ -116,6 +116,41 @@ class SeasonMusic {
     }
   }
 
+  AudioPlayer? _crackle;
+  String? _crackleUrl;
+
+  /// Треск помех на сбое кнопки. Музыка под ним не прерывается.
+  Future<void> crackle(String? url) async {
+    if (url == null || !ChestSound.instance.enabled) return;
+    // Не скачан — этот сбой молчит: треск, опоздавший на секунду, хуже тишины.
+    if (_crackleUrl != url || _crackle == null) {
+      unawaited(prepareCrackle(url));
+      return;
+    }
+    try {
+      if (!kIsWeb && Platform.isIOS && await AVAudioSession().isOtherAudioPlaying && _music?.playing != true) return;
+      final p = _crackle!;
+      await p.seek(Duration.zero);
+      unawaited(p.play());
+    } catch (e) {
+      debugPrint('SeasonMusic: $e');
+    }
+  }
+
+  Future<void> prepareCrackle(String? url) async {
+    if (url == null || (_crackleUrl == url && _crackle != null)) return;
+    try {
+      final file = await OfflineImageCacheManager.instance.getSingleFile(url).timeout(const Duration(seconds: 12));
+      final p = AudioPlayer(handleAudioSessionActivation: false);
+      await p.setFilePath(file.path);
+      await _crackle?.dispose();
+      _crackle = p;
+      _crackleUrl = url;
+    } catch (e) {
+      debugPrint('SeasonMusic: $e');
+    }
+  }
+
   void _onSwitch() {
     if (!ChestSound.instance.enabled) {
       final wanted = _wanted;
@@ -132,14 +167,17 @@ class SeasonMusic {
     _wanted = false;
     _wantedUrl = null;
     _run++;
-    final m = _music, t = _thunder;
+    final m = _music, t = _thunder, k = _crackle;
     _music = null;
     _thunder = null;
+    _crackle = null;
     _musicUrl = null;
     _thunderUrl = null;
+    _crackleUrl = null;
     try {
       await m?.dispose();
       await t?.dispose();
+      await k?.dispose();
     } catch (_) {}
   }
 }

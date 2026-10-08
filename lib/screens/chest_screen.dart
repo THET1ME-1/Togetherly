@@ -33,6 +33,7 @@ import '../widgets/common/ad_result.dart';
 import '../widgets/common/badge_image.dart';
 import '../widgets/common/gift_image.dart';
 import '../widgets/chest/chest_rays.dart';
+import '../widgets/chest/season_glitch.dart';
 import 'chest_prize_screen.dart';
 import 'chest_share_screen.dart';
 
@@ -122,6 +123,9 @@ class _Slot {
   ChestPrize? wearWon;
   bool soundStarted = false;
 
+  /// Сбой кнопки «Открыть 3/3», если сезон его просит.
+  SeasonGlitch? glitch;
+
   bool get isMain => season == null;
   String? get chest => season?.key;
 
@@ -179,6 +183,7 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     final debugSeasons = widget.debugSeasons;
     if (debugSeasons != null) _applySeasons(debugSeasons);
     if (widget.debugPage < _slots.length) _page = _shown = widget.debugPage;
+    _syncGlitch();
     final main = _slots.first;
     main.choice = widget.debugChoice;
     if (main.choice != null) {
@@ -206,6 +211,9 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     ChestSound.instance.removeListener(_onJar);
     unawaited(ChestSound.instance.stop());
     unawaited(SeasonMusic.instance.release());
+    for (final s in _slots) {
+      s.glitch?.dispose();
+    }
     _clock?.cancel();
     _ad.dispose();
     _pager.dispose();
@@ -217,10 +225,13 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Свёрнутое приложение не играет музыку сезона, а вернувшееся — снова.
     if (state == AppLifecycleState.resumed) {
+      _foreground = true;
       if (!_s.isMain) _startMusic(_s);
     } else if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      _foreground = false;
       unawaited(SeasonMusic.instance.stop());
     }
+    _syncGlitch();
   }
 
   /// Часы отсчёта на кнопке, когда открытия на сегодня кончились. Дневной
@@ -253,11 +264,11 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
   Future<void> _restorePending(_Slot slot) async {
     final item = await ChestPendingStore.read(slot.pendingKey(widget.groupId));
     if (item == null || !mounted || slot.pendingOpenId != null || _busy) return;
-    ChestTelemetry.step(item.openId, 'pending:restored', data: {
-      'jar': item.fromJar,
-      'age_s': DateTime.now().difference(item.at).inSeconds,
-      'chest': ?slot.chest,
-    });
+    ChestTelemetry.step(
+      item.openId,
+      'pending:restored',
+      data: {'jar': item.fromJar, 'age_s': DateTime.now().difference(item.at).inSeconds, 'chest': ?slot.chest},
+    );
     setState(() {
       slot.pendingOpenId = item.openId;
       slot.pendingFromJar = item.fromJar;
@@ -298,15 +309,54 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
           ChestFrames.prefetch(s.file(name));
         }
         unawaited(SeasonMusic.instance.prepareThunder(s.file('thunder')));
+        final spec = s.glitch;
+        if (spec != null) {
+          unawaited(SeasonMusic.instance.prepareCrackle(s.file('static')));
+          final glitch = SeasonGlitch(spec);
+          // Срывается только кнопка, которую сейчас можно нажать.
+          glitch.canRun = () =>
+              mounted &&
+              identical(_s, slot) &&
+              !_busy &&
+              !slot.animating &&
+              _curtain == null &&
+              slot.left > 0 &&
+              slot.choice == null &&
+              slot.wearWon == null;
+          glitch.onPeak = () {
+            HapticFeedback.heavyImpact();
+            unawaited(SeasonMusic.instance.crackle(s.file('static')));
+          };
+          slot.glitch = glitch;
+        }
       }
     }
     final current = _s;
     if (!current.isMain && !keep.contains(current)) keep.insert(math.min(_shown - 1, keep.length), current);
+    for (final gone in _slots.skip(1)) {
+      if (!keep.contains(gone)) gone.glitch?.dispose();
+    }
     _slots
       ..removeRange(1, _slots.length)
       ..addAll(keep);
     _shown = _slots.indexOf(current);
     _page = _page.clamp(0, _slots.length - 1);
+    _syncGlitch();
+  }
+
+  bool _foreground = true;
+
+  /// Сбой кнопки живёт только у сундука на экране и пока приложение видно.
+  void _syncGlitch() {
+    for (var i = 0; i < _slots.length; i++) {
+      final g = _slots[i].glitch;
+      if (g == null) continue;
+      if (i == _shown && _foreground) {
+        g.start();
+      } else if (g.scheduled || g.phase != GlitchPhase.calm) {
+        g.stop();
+      }
+    }
   }
 
   List<ChestPrize> get _odds {
@@ -335,12 +385,11 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     final openId = slot.pendingOpenId ?? newPbId();
     final storeKey = slot.pendingKey(widget.groupId);
     final total = Stopwatch()..start();
-    ChestTelemetry.step(openId, 'tap', data: {
-      'pending': slot.pendingOpenId != null,
-      'jar': fromJar,
-      'free': _free,
-      'chest': ?slot.chest,
-    });
+    ChestTelemetry.step(
+      openId,
+      'tap',
+      data: {'pending': slot.pendingOpenId != null, 'jar': fromJar, 'free': _free, 'chest': ?slot.chest},
+    );
     // Плеер звука готовится, пока идут реклама и розыгрыш.
     if (slot.isMain) ChestSound.instance.prepare();
     var adShown = false;
@@ -356,12 +405,16 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
       if (!slot.isMain) unawaited(SeasonMusic.instance.stop());
       final earned = await _ad.show(uid: PocketBaseService().userId ?? '', chestOpenId: openId);
       _ad.load();
-      ChestTelemetry.step(openId, 'ad:closed', data: {
-        'earned': earned,
-        'away_s': _ad.lastSecondsAway,
-        'granted': _ad.lastRewardGranted,
-        'grant_timed_out': _ad.lastGrantTimedOut,
-      });
+      ChestTelemetry.step(
+        openId,
+        'ad:closed',
+        data: {
+          'earned': earned,
+          'away_s': _ad.lastSecondsAway,
+          'granted': _ad.lastRewardGranted,
+          'grant_timed_out': _ad.lastGrantTimedOut,
+        },
+      );
       // Досмотренный ролик ложится на диск ДО всего остального: уйдёт человек
       // с экрана или приложение выгрузят — открытие дойдёт без новой рекламы.
       if (earned) {
@@ -398,21 +451,27 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     final res = await request;
     // Итог на диске фиксируется и тогда, когда экран уже закрыт: иначе
     // следующий заход предложил бы открыть то, что уже открылось.
-    final settled = res.ok ||
+    final settled =
+        res.ok ||
         res.error == 'no_bonus' ||
         res.error == 'chest_limit' ||
         res.error == 'conflict' ||
         res.error == 'season_over';
     if (settled) unawaited(ChestPendingStore.clear(storeKey));
     if (!res.ok && res.error != 'chest_limit' && res.error != 'no_bonus') {
-      ChestTelemetry.failure(openId, 'open', res.error ?? 'unknown', data: {
-        'ms': total.elapsedMilliseconds,
-        'ad': adShown,
-        'jar': fromJar,
-        'grant_timed_out': adShown && _ad.lastGrantTimedOut,
-        'away_s': adShown ? _ad.lastSecondsAway : 0,
-        'chest': ?slot.chest,
-      });
+      ChestTelemetry.failure(
+        openId,
+        'open',
+        res.error ?? 'unknown',
+        data: {
+          'ms': total.elapsedMilliseconds,
+          'ad': adShown,
+          'jar': fromJar,
+          'grant_timed_out': adShown && _ad.lastGrantTimedOut,
+          'away_s': adShown ? _ad.lastSecondsAway : 0,
+          'chest': ?slot.chest,
+        },
+      );
     } else if (res.ok && total.elapsed > const Duration(seconds: 20)) {
       // Открылось, но так долго, что человек мог решить «не работает».
       ChestTelemetry.failure(openId, 'open', 'slow', data: {'ms': total.elapsedMilliseconds, 'ad': adShown});
@@ -431,11 +490,13 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
         }
         if (res.error == 'season_over') slot.pendingOpenId = null;
       });
-      _snack(trKey(switch (res.error) {
-        'chest_limit' => 'chestLimit',
-        'season_over' => 'chestSeasonOver',
-        _ => 'chestFailed',
-      }));
+      _snack(
+        trKey(switch (res.error) {
+          'chest_limit' => 'chestLimit',
+          'season_over' => 'chestSeasonOver',
+          _ => 'chestFailed',
+        }),
+      );
       if (res.error == 'season_over') _load();
       return;
     }
@@ -561,6 +622,7 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     if (MediaQuery.of(context).disableAnimations || !ChestFrames.isReady(url)) {
       // Без анимаций или без файла — страница меняется сразу.
       setState(() => _shown = to);
+      _syncGlitch();
       if (toNight) _bolt(to);
       return;
     }
@@ -579,6 +641,7 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     if (c == null || c.covered || pos.inMilliseconds < c.coverMs) return;
     c.covered = true;
     setState(() => _shown = c.to);
+    _syncGlitch();
   }
 
   void _curtainDone() {
@@ -588,6 +651,7 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
       _curtain = null;
       _shown = c.to;
     });
+    _syncGlitch();
     if (c.night) _bolt(c.to);
     // Пока шёл занавес, человек мог долистать дальше.
     if (_page != _shown) _swap(_page);
@@ -701,7 +765,9 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
               surfaceTintColor: Colors.transparent,
               elevation: 0,
               iconTheme: IconThemeData(color: cs.onSurface),
-              systemOverlayStyle: cs.brightness == Brightness.dark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+              systemOverlayStyle: cs.brightness == Brightness.dark
+                  ? SystemUiOverlayStyle.light
+                  : SystemUiOverlayStyle.dark,
               actions: [
                 IconButton(
                   tooltip: trKey(ChestSound.instance.enabled ? 'chestSoundOff' : 'chestSoundOn'),
@@ -720,28 +786,23 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
                 ),
               ),
             ),
-            body: ListView(
-              padding: EdgeInsets.fromLTRB(0, 4, 0, MediaQuery.of(context).padding.bottom + 28),
-              children: [
-                _pagerView(base),
-                if (_slots.length > 1) _dots(cs),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: _content(cs, slot),
+            body: _shake(
+              slot,
+              ListView(
+                padding: EdgeInsets.fromLTRB(0, 4, 0, MediaQuery.of(context).padding.bottom + 28),
+                children: [
+                  _pagerView(base),
+                  if (_slots.length > 1) _dots(cs),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: _content(cs, slot)),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
-        if (curtain != null)
-          Positioned.fill(
-            child: IgnorePointer(
-              child: _curtainLayer(curtain, base, size),
-            ),
-          ),
+        if (curtain != null) Positioned.fill(child: IgnorePointer(child: _curtainLayer(curtain, base, size))),
       ],
     );
   }
@@ -782,10 +843,8 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
             itemCount: _slots.length,
             onPageChanged: _onPage,
             physics: locked ? const NeverScrollableScrollPhysics() : const PageScrollPhysics(),
-            itemBuilder: (context, i) => Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _card(i, w, h, base),
-            ),
+            itemBuilder: (context, i) =>
+                Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: _card(i, w, h, base)),
           ),
         );
       },
@@ -807,71 +866,117 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     final tagFg = season == null ? base.onSurfaceVariant : season.palette?.onFill ?? base.onPrimary;
     final nextBg = season == null ? base.inverseSurface : season.palette?.ink ?? base.inverseSurface;
     final nextFg = season == null ? base.onInverseSurface : season.palette?.page ?? base.onInverseSurface;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(28),
-      child: SizedBox(
-        width: w,
-        height: h,
-        child: Stack(
-          clipBehavior: Clip.hardEdge,
-          children: [
-            Positioned.fill(
-              child: season == null
-                  ? ChestRays(scheme: base, focus: const Alignment(0, 0.24))
-                  : ChestFrames(url: season.file('card_back'), still: null, side: w, height: h, fit: BoxFit.fill),
-            ),
-            // Сундук квадратом в высоту карточки, центр на 52% высоты, как на
-            // макете: рисунок целиком, с полем по бокам.
-            Positioned(left: (w - h) / 2, top: h * 0.02, width: h, height: h, child: _chestArt(slot, h)),
-            if (season != null)
+    return _bloodTint(
+      slot,
+      ClipRRect(
+        borderRadius: BorderRadius.circular(28),
+        child: SizedBox(
+          width: w,
+          height: h,
+          child: Stack(
+            clipBehavior: Clip.hardEdge,
+            children: [
               Positioned.fill(
-                child: IgnorePointer(
-                  child: ChestFrames(url: season.file('card_front'), still: null, side: w, height: h, fit: BoxFit.fill),
-                ),
+                child: season == null
+                    ? ChestRays(scheme: base, focus: const Alignment(0, 0.24))
+                    : ChestFrames(url: season.file('card_back'), still: null, side: w, height: h, fit: BoxFit.fill),
               ),
-            if (season?.flashColor != null)
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: AnimatedBuilder(
-                    animation: _flash,
-                    builder: (context, _) => ColoredBox(
-                      color: season!.flashColor!.withValues(alpha: _flashSlot == i ? _boltOpacity(_flash.value) : 0),
+              // Сундук квадратом в высоту карточки, центр на 52% высоты, как на
+              // макете: рисунок целиком, с полем по бокам.
+              Positioned(left: (w - h) / 2, top: h * 0.02, width: h, height: h, child: _chestArt(slot, h)),
+              if (season != null)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: ChestFrames(
+                      url: season.file('card_front'),
+                      still: null,
+                      side: w,
+                      height: h,
+                      fit: BoxFit.fill,
                     ),
                   ),
                 ),
-              ),
-            if (multi)
-              Positioned(
-                left: 14,
-                top: 14,
-                child: _pill(season == null ? trKey('chestTagMain') : _seasonTag(season), tagBg, tagFg),
-              ),
-            if (multi)
-              Positioned(
-                right: 12,
-                bottom: 12,
-                child: Material(
-                  color: nextBg,
-                  shape: const StadiumBorder(),
-                  clipBehavior: Clip.antiAlias,
-                  child: InkWell(
-                    onTap: () => _goTo(next),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(minHeight: 34),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 6, 10, 6),
-                        child: Text(
-                          nextLabel,
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: nextFg),
+              if (season?.flashColor != null)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: AnimatedBuilder(
+                      animation: _flash,
+                      builder: (context, _) => ColoredBox(
+                        color: season!.flashColor!.withValues(alpha: _flashSlot == i ? _boltOpacity(_flash.value) : 0),
+                      ),
+                    ),
+                  ),
+                ),
+              if (multi)
+                Positioned(
+                  left: 14,
+                  top: 14,
+                  child: _pill(season == null ? trKey('chestTagMain') : _seasonTag(season), tagBg, tagFg),
+                ),
+              if (multi)
+                Positioned(
+                  right: 12,
+                  bottom: 12,
+                  child: Material(
+                    color: nextBg,
+                    shape: const StadiumBorder(),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: () => _goTo(next),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(minHeight: 34),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 6, 10, 6),
+                          child: Text(
+                            nextLabel,
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: nextFg),
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  /// На пике сбоя кнопки карточка темнеет и краснеет: луна становится
+  /// кровавой, сундук — бурым.
+  Widget _bloodTint(_Slot slot, Widget child) {
+    final g = slot.glitch;
+    if (g == null) return child;
+    return AnimatedBuilder(
+      animation: g,
+      child: child,
+      builder: (context, c) => g.phase == GlitchPhase.peak
+          ? ColorFiltered(
+              colorFilter: const ColorFilter.matrix([
+                0.55, 0.35, 0.1, 0, 10, //
+                0.08, 0.14, 0.04, 0, 0,
+                0.08, 0.08, 0.16, 0, 0,
+                0, 0, 0, 1, 0,
+              ]),
+              child: c,
+            )
+          : c!,
+    );
+  }
+
+  /// Пока кнопка рвётся, страница мелко дрожит, на пиксель туда-сюда.
+  Widget _shake(_Slot slot, Widget child) {
+    final g = slot.glitch;
+    if (g == null) return child;
+    return AnimatedBuilder(
+      animation: g,
+      child: child,
+      builder: (context, c) {
+        if (!g.shaking || g.reduced) return c!;
+        final s = g.frame.isEven ? 1.0 : -1.0;
+        return Transform.translate(offset: Offset(s, -s), child: c);
+      },
     );
   }
 
@@ -894,7 +999,10 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
       constraints: const BoxConstraints(minHeight: 30),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(15)),
-      child: Text(text, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: fg)),
+      child: Text(
+        text,
+        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: fg),
+      ),
     );
   }
 
@@ -1039,8 +1147,14 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
 
   /// «Что внутри»: три ленты набора — рамки, значки-жильцы, подарки.
   List<Widget> _inside(ColorScheme cs, SeasonChest season) {
-    final frames = [for (final f in CatalogService.instance.frames) if (f.set == season.set) f];
-    final badges = [for (final b in CatalogService.instance.badges) if (b.set == season.set) b];
+    final frames = [
+      for (final f in CatalogService.instance.frames)
+        if (f.set == season.set) f,
+    ];
+    final badges = [
+      for (final b in CatalogService.instance.badges)
+        if (b.set == season.set) b,
+    ];
     final gifts = CatalogService.instance.giftArtsOfSet(season.set);
     if (frames.isEmpty && badges.isEmpty && gifts.isEmpty) return const [];
     Widget label(String key, int n) => Padding(
@@ -1132,18 +1246,36 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     );
   }
 
+  // Цифры одной ширины: иначе надпись с отсчётом дёргается каждую секунду.
+  static const TextStyle _buttonText = TextStyle(
+    fontFamily: ProfileTheme.displayFont,
+    fontSize: 16,
+    fontWeight: FontWeight.w700,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+
   Widget _button(ColorScheme cs, _Slot slot) {
     final String label;
     final out = slot.left <= 0 && slot.pendingOpenId == null;
     final busy = _busy || slot.animating;
+    // Счётчик в самой кнопке: «Открыть за рекламу 2/3».
+    final prefix = trKey(_free || slot.pendingOpenId != null ? 'chestOpenFree' : 'chestOpenAd');
+    final count = '${slot.left}/${slot.perDay}';
     if (busy) {
       label = trKey('chestOpening');
     } else if (out) {
       // Открытия кончились — вместо кнопки отсчёт до полуночи.
       label = trKey('chestCountdown').replaceAll('{t}', _countdown());
     } else {
-      // Счётчик в самой кнопке: «Открыть за рекламу 2/3».
-      label = '${trKey(_free || slot.pendingOpenId != null ? 'chestOpenFree' : 'chestOpenAd')} ${slot.left}/${slot.perDay}';
+      label = '$prefix $count';
+    }
+    final glitch = slot.glitch;
+    if (glitch != null && !busy && !out) {
+      glitch.reduced = MediaQuery.of(context).disableAnimations;
+      return AnimatedBuilder(
+        animation: glitch,
+        builder: (context, _) => _glitchButton(cs, glitch, prefix, count, label),
+      );
     }
     return SizedBox(
       width: double.infinity,
@@ -1156,16 +1288,61 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
           disabledForegroundColor: cs.onPrimary,
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           shape: const StadiumBorder(),
-          // Цифры одной ширины: иначе надпись с отсчётом дёргается каждую секунду.
-          textStyle: const TextStyle(
-            fontFamily: ProfileTheme.displayFont,
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            fontFeatures: [FontFeature.tabularFigures()],
-          ),
+          textStyle: _buttonText,
         ),
         // Одной строкой: на 320 точках «Открыть за рекламу 3/3» ломалась на две.
         child: FittedBox(fit: BoxFit.scaleDown, child: Text(label, maxLines: 1)),
+      ),
+    );
+  }
+
+  /// Кнопка сезонного сундука со сбоем (макет «Кнопка 666», вариант А).
+  /// Подменяется только надпись: нажатие открывает сундук, читалка экрана
+  /// слышит настоящее число.
+  Widget _glitchButton(ColorScheme cs, SeasonGlitch g, String prefix, String count, String label) {
+    final (Color bg, Color fg) = switch (g.phase) {
+      GlitchPhase.dim => (Color.lerp(cs.primary, Colors.black, 0.4)!, cs.onPrimary),
+      GlitchPhase.neg => (const Color(0xFFF6F0FF), Colors.black),
+      GlitchPhase.peak => (g.spec.peakColor ?? const Color(0xFFA3101C), g.spec.onPeak ?? const Color(0xFFFFE9E4)),
+      _ => (cs.primary, cs.onPrimary),
+    };
+    final torn = g.phase == GlitchPhase.split || g.phase == GlitchPhase.peak;
+    final style = _buttonText.copyWith(color: fg, letterSpacing: g.phase == GlitchPhase.peak ? 2.2 : null);
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      child: SizedBox(
+        width: double.infinity,
+        child: Stack(
+          children: [
+            FilledButton(
+              onPressed: _curtain != null ? null : _open,
+              style: FilledButton.styleFrom(
+                backgroundColor: bg,
+                foregroundColor: fg,
+                minimumSize: const Size(double.infinity, 0),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                shape: const StadiumBorder(),
+                animationDuration: Duration.zero,
+                textStyle: _buttonText,
+              ),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: GlitchLabel(glitch: g, prefix: prefix, real: count, style: style),
+              ),
+            ),
+            if (torn)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(100),
+                    child: const CustomPaint(painter: GlitchScanlines()),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -1232,7 +1409,10 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
               children: [
                 for (var i = 0; i < jar.size; i++)
                   Image(
-                    image: CachedNetworkImageProvider(i < jar.count ? on : off, cacheManager: OfflineImageCacheManager.instance),
+                    image: CachedNetworkImageProvider(
+                      i < jar.count ? on : off,
+                      cacheManager: OfflineImageCacheManager.instance,
+                    ),
                     width: 22,
                     height: 27,
                     fit: BoxFit.contain,
