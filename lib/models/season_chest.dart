@@ -29,7 +29,24 @@ class SeasonChest {
     this.curtainDayCoverMs = 620,
     this.files = const {},
     this.glitch,
+    this.musicPlaylist = const [],
+    this.musicFadeMs = 3500,
   });
+
+  /// Мелодии страницы по очереди (имена файлов); пусто — один файл `music`
+  /// по кругу. Первая играет первой.
+  final List<String> musicPlaylist;
+
+  /// Сколько длится плавный переход между мелодиями.
+  final int musicFadeMs;
+
+  /// Адреса мелодий в порядке игры.
+  List<String> get musicUrls {
+    final list = [for (final name in musicPlaylist) ?files[name]];
+    if (list.isNotEmpty) return list;
+    final one = files['music'];
+    return one == null ? const [] : [one];
+  }
 
   /// Сбой кнопки «Открыть 3/3» (макет «Кнопка 666»); null — кнопка честная.
   final SeasonGlitchSpec? glitch;
@@ -139,6 +156,11 @@ class SeasonChest {
       curtainDayCoverMs: ms(c['day'], 'coverMs', 620),
       files: files,
       glitch: SeasonGlitchSpec.fromJson(j['glitch']),
+      musicPlaylist: [
+        if (j['music'] is Map && (j['music'] as Map)['playlist'] is List)
+          for (final n in (j['music'] as Map)['playlist'] as List) '$n',
+      ],
+      musicFadeMs: ms(j['music'], 'fadeMs', 3500).clamp(0, 15000),
     );
   }
 

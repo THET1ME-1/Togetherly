@@ -55,6 +55,29 @@ void main() {
     expect(s.glitch!.peakColor, const Color(0xFFA3101C));
   });
 
+  test('мелодии идут списком, первая — по умолчанию', () {
+    final s = SeasonChest.fromJson({
+      ..._hw(),
+      'music': {
+        'playlist': ['music_theremin', 'music_musicbox', 'нет_файла', 'music_mountain'],
+        'fadeMs': 3500,
+      },
+      'files': {
+        'idle': 'u/idle.webp',
+        'open': 'u/open.webp',
+        'music_theremin': 'u/t.m4a',
+        'music_musicbox': 'u/b.m4a',
+        'music_mountain': 'u/m.m4a',
+      },
+    })!;
+    expect(s.musicUrls, ['u/t.m4a', 'u/b.m4a', 'u/m.m4a'], reason: 'файла нет — мелодия пропускается');
+    expect(s.musicFadeMs, 3500);
+  });
+
+  test('без списка играет один файл music', () {
+    expect(SeasonChest.fromJson(_hw())!.musicUrls, ['u/music.wav']);
+  });
+
   test('без описания сбоя кнопка честная', () {
     expect(SeasonChest.fromJson({..._hw()}..remove('glitch'))!.glitch, isNull);
     expect(SeasonChest.fromJson({..._hw(), 'glitch': {'mid': '13/13'}})!.glitch, isNull);

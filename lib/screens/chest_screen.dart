@@ -658,7 +658,9 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
   }
 
   void _startMusic(_Slot slot) {
-    unawaited(SeasonMusic.instance.play(slot.season?.file('music')));
+    // Мелодии сезона сменяют друг друга плавным переходом, первая — по умолчанию.
+    final s = slot.season;
+    unawaited(SeasonMusic.instance.play(s?.musicUrls ?? const [], fadeMs: s?.musicFadeMs ?? 3500));
   }
 
   /// Молния на карточке сезона: вспышка и гром.
