@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:love_app/screens/miss_you_screen.dart';
 import 'package:love_app/services/locale_service.dart';
+import 'package:love_app/services/pocketbase_service.dart';
 import 'package:love_app/theme/app_theme.dart';
 import 'package:love_app/utils/safe_text.dart';
 
@@ -69,5 +70,32 @@ void main() {
       findsNothing,
     );
     expect(tester.takeException(), isNull);
+  });
+
+  // Призрак за стеклом на главной приходит и тогда, когда скучали на этом
+  // экране: главная узнаёт об этом по onSent (решение владельца 08.10.2026).
+  testWidgets('сердце на экране сообщает главной «отправил»', (tester) async {
+    var sent = 0;
+    // Экран с парой подписывается на счётчики — без клиента PocketBase он падает.
+    await tester.runAsync(() => PocketBaseService().init());
+    await tester.pumpWidget(MediaQuery(
+      data: const MediaQueryData(size: Size(360, 780)),
+      child: MaterialApp(
+        home: MissYouScreen(
+          theme: AppThemes.byIndex(7),
+          groupId: 'g',
+          myUid: 'me',
+          partnerUid: '',
+          partnerName: '',
+          onSent: () => sent++,
+        ),
+      ),
+    ));
+    await tester.pump();
+    await tester.tap(find.byWidgetPredicate((w) => w.runtimeType.toString() == '_HeartButton'));
+    await tester.pump();
+    expect(sent, 1);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(minutes: 1));
   });
 }

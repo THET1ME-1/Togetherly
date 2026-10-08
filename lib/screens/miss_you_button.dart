@@ -196,6 +196,10 @@ class _MissYouButtonState extends State<MissYouButton>
     if (!widget.enabled || widget.groupId.isEmpty) return;
     // Экран нашли сами — подсказку про него не показываем.
     unawaited(HintQueue.instance.markSeen('miss_screen'));
+    // Скучали на экране «Скучаю» — на главной, куда человек вернётся, за
+    // стеклом приходит сезонный призрак (решение владельца 08.10.2026: на
+    // самой главной сердце жмут редко, и призрака бы никто не увидел).
+    var sentThere = false;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         // Имя маршрута — единственный способ попасть в статистику экранов:
@@ -211,9 +215,18 @@ class _MissYouButtonState extends State<MissYouButton>
           partnerUid: widget.partnerUid,
           partnerName: widget.partnerName,
           partnerAvatarUrl: widget.partnerAvatarUrl,
+          onSent: () => sentThere = true,
         ),
       ),
-    ).then((_) => _refreshCounts());
+    ).then((_) {
+      _refreshCounts();
+      // Даём экрану доехать обратно: призрак проступает уже на главной.
+      if (sentThere) {
+        Future<void>.delayed(const Duration(milliseconds: 350), () {
+          if (mounted) widget.onSent?.call();
+        });
+      }
+    });
   }
 
   /// Перечитать счётчики после возвращения с экрана «Скучаю».

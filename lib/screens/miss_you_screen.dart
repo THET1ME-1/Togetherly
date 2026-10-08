@@ -47,7 +47,12 @@ class MissYouScreen extends StatefulWidget {
     required this.partnerName,
     this.partnerAvatarUrl,
     this.debugEvents,
+    this.onSent,
   });
+
+  /// Отправлен импульс (сердце, вайб, ответ). Главная по нему зовёт
+  /// сезонного призрака за стеклом, когда человек вернётся.
+  final VoidCallback? onSent;
 
   /// История для тестов и превью: без сервера экран её не получит.
   @visibleForTesting
@@ -212,6 +217,7 @@ class _MissYouScreenState extends State<MissYouScreen>
 
   Future<void> _sendMissYou({String? replyTo}) async {
     if (widget.groupId.isEmpty) return;
+    widget.onSent?.call();
     HapticFeedback.mediumImpact();
     _pulse.forward(from: 0);
     _field.currentState?.pulse();
@@ -229,6 +235,7 @@ class _MissYouScreenState extends State<MissYouScreen>
 
   Future<void> _sendVibe(String type, {String? text, String? replyTo}) async {
     if (widget.groupId.isEmpty) return;
+    widget.onSent?.call();
     HapticFeedback.mediumImpact();
     _spawnHearts(icon: vibeIcon(type));
     try {
