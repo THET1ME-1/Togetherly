@@ -59,7 +59,13 @@ class ChestPrizeScreen extends StatelessWidget {
                       // Крупнее ширины экрана: у анимаций прозрачное поле под
                       // искры и полёт, сам рисунок занимает около 60% файла.
                       // Поле выходит за край, рисунок — нет.
-                      final side = math.min(math.min(c.maxWidth * 1.3, c.maxHeight * 1.1), 640.0);
+                      // У рамки поля нет: рисунок доходит до края файла, и
+                      // в 1,3 ширины экрана венок вылезал за края и казался
+                      // огромным и толстым (жалоба с 1.35.0+245). Рамка — с
+                      // фото в натуральную пропорцию, в ширину экрана.
+                      final side = prize.kind == ChestPrizeKind.frame
+                          ? math.min(math.min(c.maxWidth * 0.86, c.maxHeight * 0.8), 420.0)
+                          : math.min(math.min(c.maxWidth * 1.3, c.maxHeight * 1.1), 640.0);
                       return Center(
                         child: OverflowBox(
                           maxWidth: side,

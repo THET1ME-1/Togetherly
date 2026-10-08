@@ -86,6 +86,10 @@ class CatalogService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Разобрать строки каталога, как их отдаёт сервер, — только для тестов.
+  @visibleForTesting
+  void debugApply(List rows, {String appVersion = '9.9.9'}) => _apply(rows, appVersion);
+
   /// Подставить живые картинки подарков и сундука без сети — только для тестов.
   @visibleForTesting
   void debugSetGiftArt(List<GiftArt> art) {

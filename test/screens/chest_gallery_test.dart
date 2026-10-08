@@ -70,6 +70,15 @@ void main() {
     for (final r in tester.widgetList<RawImage>(find.byType(RawImage))) identityHashCode(r.image),
   };
 
+  test('лента сундуков не лежит в выгружающем списке', () {
+    // ListView выгружал ушедшую за край ленту, и после просмотра призов внизу
+    // экран возвращался к обычному сундуку (жалоба с 1.35.0+245).
+    final src = File('lib/screens/chest_screen.dart').readAsStringSync();
+    final body = src.substring(src.indexOf('body: _shake('), src.indexOf('_pagerView(base)'));
+    expect(body.contains('ListView('), isFalse);
+    expect(body.contains('SingleChildScrollView('), isTrue);
+  });
+
   testWidgets('сундук оживает, даже если каталог доехал после открытия экрана', (tester) async {
     if (!ok) return;
     phone(tester);
@@ -104,6 +113,9 @@ void main() {
     expect(seen.length, greaterThan(3), reason: 'кадры покоя обычного сундука должны сменяться');
     double page() => tester.widget<PageView>(find.byType(PageView)).controller!.page!;
     await tester.tap(find.text('Хэллоуин →'));
+    await run(tester, 3);
+    expect(page(), 0, reason: 'пока тьма не закрыла экран, лента стоит: новую страницу не видно раньше занавеса');
+    expect(find.byType(Image), findsWidgets);
     await run(tester, 60);
     expect(page().round(), 1, reason: 'после занавеса на экране сезонный сундук');
     // обратно кнопкой и снова вперёд пальцем

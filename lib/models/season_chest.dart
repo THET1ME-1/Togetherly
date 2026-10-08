@@ -1,5 +1,7 @@
 import 'dart:ui' show Color;
 
+import 'package:flutter/animation.dart' show Cubic;
+
 /// Сезонный сундук целиком с сервера (решение владельца 08.10.2026): запись
 /// каталога вида `chest`, которую `/api/chest/state` отдаёт списком `seasons`,
 /// пока идут её даты. Приложение своего кода под сезон не держит — имя,
@@ -23,10 +25,8 @@ class SeasonChest {
     this.trackFrameMs = 60,
     this.wonAtMs = 2000,
     this.lockAtMs = 900,
-    this.curtainNightMs = 1760,
-    this.curtainNightCoverMs = 620,
-    this.curtainDayMs = 1380,
-    this.curtainDayCoverMs = 620,
+    this.curtainNight,
+    this.curtainDay,
     this.files = const {},
     this.glitch,
     this.musicPlaylist = const [],
@@ -77,10 +77,14 @@ class SeasonChest {
   final int trackFrameMs;
   final int wonAtMs;
   final int lockAtMs;
-  final int curtainNightMs, curtainNightCoverMs, curtainDayMs, curtainDayCoverMs;
+
+  /// Занавес в ночь (на сезонный сундук) и обратно в день; null — страница
+  /// меняется без занавеса.
+  final SeasonCurtain? curtainNight, curtainDay;
 
   /// Адреса файлов по имени без расширения: idle, open, still, card_back,
-  /// card_front, curtain_night, curtain_day, drop_on, drop_off, music, thunder.
+  /// card_front, curtain_night_sheet, curtain_day_sheet, drop_on, drop_off,
+  /// music_*, thunder, static.
   final Map<String, String> files;
 
   String? file(String name) => files[name];
@@ -150,10 +154,8 @@ class SeasonChest {
       trackFrameMs: ms(t, 'frameMs', 60),
       wonAtMs: ms(t, 'wonAtMs', 2000),
       lockAtMs: ms(t, 'lockAtMs', 900),
-      curtainNightMs: ms(c['night'], 'ms', 1760),
-      curtainNightCoverMs: ms(c['night'], 'coverMs', 620),
-      curtainDayMs: ms(c['day'], 'ms', 1380),
-      curtainDayCoverMs: ms(c['day'], 'coverMs', 620),
+      curtainNight: SeasonCurtain.fromJson(c['night'], files),
+      curtainDay: SeasonCurtain.fromJson(c['day'], files),
       files: files,
       glitch: SeasonGlitchSpec.fromJson(j['glitch']),
       musicPlaylist: [
@@ -168,6 +170,65 @@ class SeasonChest {
     if (raw is List)
       for (final r in raw) ?SeasonChest.fromJson(r),
   ];
+}
+
+/// Занавес смены страницы: неподвижный лист 104% ширины и 135% высоты
+/// экрана, который приложение двигает по вертикали (как макет двигал SVG).
+/// Покадровое видео во весь экран телефон не успевал декодировать, и занавес
+/// зависал (1.35.0+245). Сдвиг — в долях высоты листа: за [inMs] от [from] к
+/// [mid] (экран закрыт, страница под ним меняется), [holdMs] стоит, за
+/// [outMs] уходит к [to].
+class SeasonCurtain {
+  const SeasonCurtain({
+    required this.sheetUrl,
+    this.inMs = 620,
+    this.holdMs = 0,
+    this.outMs = 760,
+    required this.from,
+    required this.mid,
+    required this.to,
+  });
+
+  final String sheetUrl;
+  final int inMs, holdMs, outMs;
+  final double from, mid, to;
+
+  int get totalMs => inMs + holdMs + outMs;
+
+  /// Экран закрыт — момент, когда страница меняется под занавесом.
+  int get coverMs => inMs;
+
+  /// Сдвиг листа (в долях его высоты) в момент [ms] от начала: въезд
+  /// разгоняется, выезд тормозит.
+  double offsetAt(double ms) {
+    if (ms <= 0) return from;
+    if (ms < inMs) return from + (mid - from) * _easeIn.transform(ms / inMs);
+    if (ms < inMs + holdMs) return mid;
+    if (ms >= totalMs) return to;
+    return mid + (to - mid) * _easeOut.transform((ms - inMs - holdMs) / outMs);
+  }
+
+  // те же кривые, что у макета: cubic-bezier(.55,0,.8,.3) и (.2,.6,.3,1)
+  static const _easeIn = Cubic(0.55, 0, 0.8, 0.3);
+  static const _easeOut = Cubic(0.2, 0.6, 0.3, 1);
+
+  static SeasonCurtain? fromJson(Object? raw, Map<String, String> files) {
+    if (raw is! Map) return null;
+    final url = files['${raw['sheet'] ?? ''}'];
+    double? d(String k) => raw[k] is num ? (raw[k] as num).toDouble() : null;
+    int i(String k, int def) => raw[k] is num ? (raw[k] as num).toInt().clamp(0, 5000) : def;
+    final from = d('from'), mid = d('mid'), to = d('to');
+    if (url == null || from == null || mid == null || to == null) return null;
+    return SeasonCurtain(
+      sheetUrl: url,
+      inMs: i('inMs', 620),
+      holdMs: i('holdMs', 0),
+      outMs: i('outMs', 760),
+      from: from,
+      mid: mid,
+      to: to,
+    );
+  }
 }
 
 /// Чем срывается кнопка открытия: сперва [mid] рваными полосами, потом [peak]

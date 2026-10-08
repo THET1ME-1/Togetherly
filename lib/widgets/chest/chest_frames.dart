@@ -94,10 +94,30 @@ class ChestFrames extends StatefulWidget {
 
   static const Duration prefetchLimit = Duration(seconds: 8);
 
+  /// Терпеливая загрузка для покоя сундука: ждать минуту, при неудаче
+  /// пробовать ещё. Покой — бесконечная анимация, его не нужно торопить, а
+  /// после восьми секунд он прежде оставался картинкой навсегда (жалоба с
+  /// 1.35.0+245: «обычный сундук без анимации — и на главной, и на экране»).
+  static Future<void> _fetchPatiently(String url) async {
+    for (final pause in const [Duration.zero, Duration(seconds: 3), Duration(seconds: 10), Duration(seconds: 30)]) {
+      if (_bytes.containsKey(url)) return;
+      await Future<void>.delayed(pause);
+      try {
+        final f = await OfflineImageCacheManager.instance.getSingleFile(url).timeout(const Duration(seconds: 60));
+        _bytes[url] = await f.readAsBytes();
+        return;
+      } catch (_) {}
+    }
+  }
+
   static final Map<String, Future<void>> _loading = {};
 
   /// Файл уже в памяти — открытие можно начинать без ожидания сети.
   static bool isReady(String? url) => url != null && _bytes.containsKey(url);
+
+  /// Байты скачанного файла — для неподвижных картинок того же сундука
+  /// (лист занавеса), чтобы не качать их второй раз.
+  static Uint8List? bytesOf(String? url) => url == null ? null : _bytes[url];
 
   /// Тесты: положить байты файла без сети.
   @visibleForTesting
@@ -167,6 +187,11 @@ class _ChestFramesState extends State<ChestFrames> with SingleTickerProviderStat
     if (url != null) {
       await ChestFrames.prefetch(url);
       bytes = ChestFrames._bytes[url];
+      // Покой ждёт файл сколько нужно: пока он едет, стоит неподвижный кадр.
+      if (bytes == null && widget.loop) {
+        await ChestFrames._fetchPatiently(url);
+        bytes = ChestFrames._bytes[url];
+      }
     }
     if (_disposed || gen != _gen) return;
     if (bytes == null) {

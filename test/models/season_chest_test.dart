@@ -28,10 +28,16 @@ Map<String, dynamic> _hw() => {
     'frames': [null, null, [0.4, 0.4, 0.15], [0.3, 0.2, 0.36]],
   },
   'curtain': {
-    'night': {'ms': 1760, 'coverMs': 620},
-    'day': {'ms': 1380, 'coverMs': 620},
+    'night': {'sheet': 'curtain_night_sheet', 'inMs': 620, 'holdMs': 380, 'outMs': 760, 'from': -1.4, 'mid': 0, 'to': 0.8},
+    'day': {'sheet': 'curtain_day_sheet', 'inMs': 620, 'holdMs': 0, 'outMs': 760, 'from': 0.8, 'mid': -0.26, 'to': -1.4},
   },
-  'files': {'idle': 'u/idle.webp', 'open': 'u/open.webp', 'music': 'u/music.wav'},
+  'files': {
+    'idle': 'u/idle.webp',
+    'open': 'u/open.webp',
+    'music': 'u/music.wav',
+    'curtain_night_sheet': 'u/night.png',
+    'curtain_day_sheet': 'u/day.png',
+  },
   'glitch': {'mid': '13/13', 'peak': '666', 'peakColor': '#A3101C'},
 };
 
@@ -48,7 +54,9 @@ void main() {
     expect(s.track, hasLength(4));
     expect(s.track[2], [0.4, 0.4, 0.15]);
     expect(s.wonAtMs, 2000);
-    expect(s.curtainNightCoverMs, 620);
+    expect(s.curtainNight!.sheetUrl, 'u/night.png');
+    expect(s.curtainNight!.coverMs, 620);
+    expect(s.curtainDay!.sheetUrl, 'u/day.png');
     expect(s.file('music'), 'u/music.wav');
     expect(s.lastDay, DateTime(2026, 10, 31));
     expect(s.glitch!.peak, '666');
@@ -76,6 +84,18 @@ void main() {
 
   test('без списка играет один файл music', () {
     expect(SeasonChest.fromJson(_hw())!.musicUrls, ['u/music.wav']);
+  });
+
+  test('занавес: въезжает, закрывает экран к coverMs, стоит и уезжает', () {
+    final n = SeasonChest.fromJson(_hw())!.curtainNight!;
+    expect(n.offsetAt(0), -1.4, reason: 'лист над экраном');
+    expect(n.offsetAt(300), lessThan(0));
+    expect(n.offsetAt(620), 0, reason: 'экран закрыт');
+    expect(n.offsetAt(900), 0, reason: 'держит экран, мигают глаза');
+    expect(n.offsetAt(1760), 0.8, reason: 'ушёл вниз');
+    expect(n.totalMs, 1760);
+    // лист без файла — занавеса нет, страница сменится сразу
+    expect(SeasonCurtain.fromJson({'sheet': 'нет', 'from': 0, 'mid': 0, 'to': 1}, const {}), isNull);
   });
 
   test('без описания сбоя кнопка честная', () {

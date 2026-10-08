@@ -221,6 +221,7 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     _ad.dispose();
     _pager.dispose();
     _flash.dispose();
+    _curtainRun.dispose();
     _calm.dispose();
     super.dispose();
   }
@@ -309,7 +310,18 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
         _restorePending(slot);
         // Занавес, карточка и открытие качаются заранее: переход и открытие
         // должны начаться сразу, без ожидания сети.
-        for (final name in const ['curtain_night', 'curtain_day', 'card_back', 'card_front', 'idle', 'open']) {
+        // Листы занавеса — первыми и с разжатием заранее: занавес должен
+        // поехать в тот же кадр, что и нажатие.
+        for (final c in [s.curtainNight, s.curtainDay]) {
+          if (c == null) continue;
+          unawaited(
+            ChestFrames.prefetch(c.sheetUrl).then((_) {
+              final bytes = ChestFrames.bytesOf(c.sheetUrl);
+              if (bytes != null && mounted) unawaited(precacheImage(MemoryImage(bytes), context));
+            }),
+          );
+        }
+        for (final name in const ['card_back', 'card_front', 'idle', 'open']) {
           ChestFrames.prefetch(s.file(name));
         }
         unawaited(SeasonMusic.instance.prepareThunder(s.file('thunder')));
@@ -611,40 +623,49 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
 
   /// Занавес закрывает экран, под ним страница мгновенно меняет цвета и
   /// данные, занавес уходит и открывает уже ночной (или дневной) экран.
-  void _swap(int to) {
+  ///
+  /// [jump] — переход кнопкой: лента не едет на глазах, а перескакивает на
+  /// нужный сундук, когда экран уже закрыт (на 1.35.0+245 новая страница
+  /// успевала показаться до занавеса).
+  void _swap(int to, {bool jump = false}) {
     if (_curtain != null || to == _shown || to >= _slots.length) return;
     final from = _slots[_shown], target = _slots[to];
     final toNight = !target.isMain;
     // Ночь идёт занавесом сезона, куда идём; день — того, откуда уходим.
     final source = toNight ? target.season! : from.season!;
-    final url = source.file(toNight ? 'curtain_night' : 'curtain_day');
+    final curtain = toNight ? source.curtainNight : source.curtainDay;
     if (toNight) {
       _startMusic(target);
     } else {
       unawaited(SeasonMusic.instance.stop());
     }
-    if (MediaQuery.of(context).disableAnimations || !ChestFrames.isReady(url)) {
-      // Без анимаций или без файла — страница меняется сразу.
+    if (MediaQuery.of(context).disableAnimations || curtain == null || !ChestFrames.isReady(curtain.sheetUrl)) {
+      // Без анимаций или без листа — страница меняется сразу.
       setState(() => _shown = to);
+      if (jump) _pager.jumpToPage(to);
       _syncGlitch();
       if (toNight) _bolt(to);
       return;
     }
-    setState(() {
-      _curtain = _Curtain(
-        to: to,
-        url: url!,
-        night: toNight,
-        coverMs: toNight ? source.curtainNightCoverMs : source.curtainDayCoverMs,
-      );
-    });
+    setState(() => _curtain = _Curtain(to: to, spec: curtain, night: toNight, jump: jump));
+    _curtainRun
+      ..duration = Duration(milliseconds: curtain.totalMs)
+      ..forward(from: 0);
   }
 
-  void _curtainAt(Duration pos) {
+  late final AnimationController _curtainRun = AnimationController(vsync: this)
+    ..addListener(_curtainTick)
+    ..addStatusListener((s) {
+      if (s == AnimationStatus.completed) _curtainDone();
+    });
+
+  void _curtainTick() {
     final c = _curtain;
-    if (c == null || c.covered || pos.inMilliseconds < c.coverMs) return;
+    if (c == null || c.covered) return;
+    if (_curtainRun.value * c.spec.totalMs < c.spec.coverMs) return;
     c.covered = true;
     setState(() => _shown = c.to);
+    if (c.jump && _pager.hasClients) _pager.jumpToPage(c.to);
     _syncGlitch();
   }
 
@@ -792,18 +813,25 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
                 ),
               ),
             ),
+            // SingleChildScrollView, а не ListView: ListView выгружает то, что
+            // ушло за край, и долистав до призов, человек терял ленту — она
+            // пересоздавалась с первого, обычного сундука (жалоба с 1.35.0+245:
+            // «меняется на обычный при просмотре наград»).
             body: _shake(
               slot,
-              ListView(
+              SingleChildScrollView(
                 padding: EdgeInsets.fromLTRB(0, 4, 0, MediaQuery.of(context).padding.bottom + 28),
-                children: [
-                  _pagerView(base),
-                  if (_slots.length > 1) _dots(cs),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: _content(cs, slot)),
-                  ),
-                ],
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _pagerView(base),
+                    if (_slots.length > 1) _dots(cs),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: _content(cs, slot)),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -813,24 +841,33 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     );
   }
 
+  /// Лист занавеса едет по экрану: одна картинка и сдвиг, никакого
+  /// декодирования кадров по ходу.
   Widget _curtainLayer(_Curtain c, ColorScheme base, Size size) {
-    Widget frames = ChestFrames(
-      key: ValueKey('curtain${c.to}${c.night}'),
-      url: c.url,
-      still: null,
-      side: size.width,
-      height: size.height,
-      fit: BoxFit.cover,
-      loop: false,
-      holdLast: true,
-      onPosition: _curtainAt,
-      onDone: _curtainDone,
-    );
+    final bytes = ChestFrames.bytesOf(c.spec.sheetUrl);
+    if (bytes == null) return const SizedBox.shrink();
+    final w = size.width * 1.04, h = size.height * 1.35;
+    Widget sheet = Image.memory(bytes, width: w, height: h, fit: BoxFit.fill, gaplessPlayback: true);
     // Дневной занавес нарисован белым: красим его в цвет страницы темы.
     if (!c.night) {
-      frames = ColorFiltered(colorFilter: ColorFilter.mode(base.surface, BlendMode.srcIn), child: frames);
+      sheet = ColorFiltered(colorFilter: ColorFilter.mode(base.surface, BlendMode.srcIn), child: sheet);
     }
-    return frames;
+    return AnimatedBuilder(
+      animation: _curtainRun,
+      child: sheet,
+      builder: (context, child) => Stack(
+        clipBehavior: Clip.hardEdge,
+        children: [
+          Positioned(
+            left: -size.width * 0.02,
+            top: c.spec.offsetAt(_curtainRun.value * c.spec.totalMs) * h,
+            width: w,
+            height: h,
+            child: child!,
+          ),
+        ],
+      ),
+    );
   }
 
   /// Лента сундуков: карточка во всю ширину, соседа не видно, между ними
@@ -863,9 +900,14 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     );
   }
 
+  /// Кнопка на карточке: сперва занавес, лента перескакивает под ним. Нет
+  /// занавеса — лента едет сама.
   void _goTo(int i) {
     if (_busy || _anyAnimating || _curtain != null) return;
-    _pager.animateToPage(i, duration: const Duration(milliseconds: 420), curve: Curves.easeInOutCubic);
+    _swap(i, jump: true);
+    if (_curtain == null && _pager.hasClients && (_pager.page ?? 0).round() != i) {
+      _pager.animateToPage(i, duration: const Duration(milliseconds: 420), curve: Curves.easeInOutCubic);
+    }
   }
 
   Widget _card(int i, double w, double h, ColorScheme base) {
@@ -1633,12 +1675,14 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
 
 /// Занавес смены страницы, пока он идёт.
 class _Curtain {
-  _Curtain({required this.to, required this.url, required this.night, required this.coverMs});
+  _Curtain({required this.to, required this.spec, required this.night, required this.jump});
 
   final int to;
-  final String url;
+  final SeasonCurtain spec;
   final bool night;
-  final int coverMs;
+
+  /// Ленту перескакивают на нужный сундук под закрытым экраном.
+  final bool jump;
 
   /// Экран уже закрыт: страница под занавесом сменилась.
   bool covered = false;
