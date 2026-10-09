@@ -11,20 +11,23 @@
 const String ruWhatsNew =
     'Что нового 💜\n'
     '\n'
-    '— На главной кнопка Togetherly Wallet: запишитесь в ожидание, и в день '
-    'выхода придёт уведомление.\n'
-    '— Счётчик дней больше не отстаёт на день ночью.\n'
-    '— Удаление аккаунта можно отменить в течение недели: достаточно снова '
-    'войти.\n'
-    '— Виджеты читаются на любой теме, а комната просмотра говорит, почему '
-    'ролик не включился.';
+    '— Хэллоуин: на главной сундук с набором «13» — рамки, живые значки и '
+    'подарки. До 1 ноября.\n'
+    '— Совместная лента: Shorts, TikTok, Rutube, ВК и Дзен вдвоём, с чатом и '
+    'звонком.\n'
+    '— Новый экран «Смотрим» и редизайн воспоминаний.\n'
+    '— Подпись к любому подарку, приз из сундука можно отправить карточкой.\n'
+    '— Добавили китайский.\n'
+    '— Реклама за сундук и серию теперь засчитывается.';
 
 const String enWhatsNew =
     'What is new 💜\n'
     '\n'
-    '— A Togetherly Wallet button on the home screen: join the waitlist and '
-    'get a notification on launch day.\n'
-    '— The days counter no longer falls a day behind at night.\n'
-    '— Deleting an account can be undone for a week: just sign in again.\n'
-    '— Widgets are readable on every theme, and the watch room tells you why '
-    'a video did not start.';
+    '— Halloween: a chest on the home screen with the “13” set — frames, '
+    'living badges and gifts. Until November 1.\n'
+    '— Shared feed: Shorts, TikTok, Rutube, VK and Dzen together, with chat '
+    'and a call.\n'
+    '— A new Watch screen and redesigned memories.\n'
+    '— A note for any gift, and chest prizes can be shared as a card.\n'
+    '— The app now speaks Chinese.\n'
+    '— Ads for the chest and the streak now always count.';
