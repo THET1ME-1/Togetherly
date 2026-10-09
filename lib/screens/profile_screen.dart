@@ -1144,7 +1144,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                       ),
                     ),
                     Text(
-                      '${palette.name} · $mode',
+                      // У готовой палитры имя в модели русское — берём
+                      // перевод; своя тема зовётся так, как её назвали.
+                      '${isCustomPaletteIndex(palette.index) ? palette.name : _themeDisplayName(palette.index)} · $mode',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
