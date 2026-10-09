@@ -73,6 +73,10 @@ dependencies:
   # Транзитивно тянется cached_network_image; объявляем явно — нужен прямой доступ
   # к CacheManager для долгоживущего (невытесняемого) кэша офлайн-просмотра медиа.
   flutter_cache_manager: ^3.3.0
+  # Своя папка для этого кэша (media_view_cache.dart): интерфейс FileSystem
+  # пакета отдаёт File из package:file.
+  file: ^7.0.1
+  path: ^1.9.1
   fl_chart: ^1.2.0
   archive: ^4.0.9
   flutter_image_compress: ^2.3.0
