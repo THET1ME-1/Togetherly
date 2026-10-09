@@ -12,6 +12,7 @@ part 'strings_fr.dart';
 part 'strings_es.dart';
 part 'strings_it.dart';
 part 'strings_pt.dart';
+part 'strings_zh.dart';
 
 /// Языки интерфейса. Набор тот же, что в Wickly и Kadr.
 ///
@@ -24,7 +25,8 @@ enum AppLanguage {
   fr('fr', 'Français'),
   es('es', 'Español'),
   it('it', 'Italiano'),
-  pt('pt', 'Português');
+  pt('pt', 'Português'),
+  zh('zh', '简体中文');
 
   const AppLanguage(this.code, this.label);
 
@@ -33,6 +35,19 @@ enum AppLanguage {
 
   /// Название на самом языке: список выбора читают те, кто нашего языка не знает.
   final String label;
+
+  /// Локаль для `MaterialApp`.
+  ///
+  /// У китайского письмо обязано быть названо явно: `Text` передаёт локаль
+  /// движку, и по ней тот выбирает шрифт для иероглифов. Голый `zh` на
+  /// телефоне с русской системой дал бы японские начертания тех же знаков.
+  ui.Locale get locale => this == zh
+      ? const ui.Locale.fromSubtags(
+          languageCode: 'zh',
+          scriptCode: 'Hans',
+          countryCode: 'CN',
+        )
+      : ui.Locale(code);
 
   static AppLanguage? byCode(String code) {
     for (final l in values) {
@@ -66,7 +81,7 @@ class LocaleService extends ChangeNotifier {
   /// Что показывать в `MaterialApp.supportedLocales`: без этого системные части
   /// (выбор даты, меню копирования) остаются английскими при любом переводе.
   static List<ui.Locale> get supportedLocales => [
-    for (final l in AppLanguage.values) ui.Locale(l.code),
+    for (final l in AppLanguage.values) l.locale,
   ];
 
   static const Map<AppLanguage, AppStrings> _byLanguage = {
@@ -77,6 +92,7 @@ class LocaleService extends ChangeNotifier {
     AppLanguage.es: _EsStrings(),
     AppLanguage.it: _ItStrings(),
     AppLanguage.pt: _PtStrings(),
+    AppLanguage.zh: _ZhStrings(),
   };
 
   AppStrings get strings => _byLanguage[_language] ?? const _EnStrings();
@@ -116,6 +132,14 @@ class LocaleService extends ChangeNotifier {
       'BR': AppLanguage.pt,
       'AO': AppLanguage.pt,
       'MZ': AppLanguage.pt,
+      // Китайский по стране — для тех, у кого система на английском. Тайвань,
+      // Гонконг и Макао пишут традиционным письмом, но упрощённое читают, а
+      // английский интерфейс им дальше.
+      'CN': AppLanguage.zh,
+      'TW': AppLanguage.zh,
+      'HK': AppLanguage.zh,
+      'MO': AppLanguage.zh,
+      'SG': AppLanguage.zh,
     };
     return byCountry[locale.countryCode?.toUpperCase()] ?? AppLanguage.en;
   }

@@ -931,7 +931,7 @@ class _LoveAppState extends State<LoveApp> with WidgetsBindingObserver {
         theme: _themeFor(_userData.theme),
         // Локаль задаём сами, а не отдаём системе: язык интерфейса — выбор
         // человека в настройках, и системные диалоги обязаны идти за ним.
-        locale: Locale(LocaleService.instance.language.code),
+        locale: LocaleService.instance.language.locale,
         supportedLocales: LocaleService.supportedLocales,
         localizationsDelegates: const [
           GlobalMaterialLocalizations.delegate,

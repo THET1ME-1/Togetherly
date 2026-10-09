@@ -57,12 +57,23 @@ import 'l10n/dict/timer_expandable_timer_card.dart';
 import 'l10n/dict/watch_voice.dart';
 import 'l10n/dict/welcome.dart';
 import 'l10n/dict/widget_screen.dart';
+import 'l10n/zh/zh.dart';
 
 /// Словарь интерфейса: ключ → язык → строка.
 ///
-/// Собран из разделов `l10n/dict/`, разбивка по экранам нужна, чтобы правка
-/// одного экрана не требовала лезть в файл на полторы тысячи строк.
-const Map<String, Map<String, String>> kStrings = {
+/// Это разделы `l10n/dict/` плюс китайская колонка из `l10n/zh/`, влитая в
+/// каждую запись (почему она лежит отдельно — см. `l10n/zh/zh.dart`).
+final Map<String, Map<String, String>> kStrings = {
+  for (final e in _kSectionStrings.entries)
+    e.key: {
+      ...e.value,
+      if (kZhStrings[e.key] case final zh?) 'zh': zh,
+    },
+};
+
+/// Разделы `l10n/dict/`, разбивка по экранам нужна, чтобы правка одного
+/// экрана не требовала лезть в файл на полторы тысячи строк.
+const Map<String, Map<String, String>> _kSectionStrings = {
   ...achievementsStrings,
   ...adsStrings,
   ...pushNotificationsStrings,
