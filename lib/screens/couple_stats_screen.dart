@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../models/mood_entry.dart';
 import '../services/couple_stats_service.dart';
+import '../dict_strings.dart';
 import '../services/locale_service.dart';
 import '../services/plus_access.dart';
 import '../services/plus_service.dart';
@@ -55,7 +56,7 @@ class _CoupleStatsScreenState extends State<CoupleStatsScreen> {
   ColorScheme get _cs => ProfileTheme.themeFor(_t).colorScheme;
   bool get _ru => LocaleService.instance.isRussian;
 
-  String _tr(String ru, String en) => _ru ? ru : en;
+  String _tr(String ru, String en) => ruEn(ru, en);
 
   @override
   void initState() {
@@ -793,7 +794,7 @@ class _CoupleStatsScreenState extends State<CoupleStatsScreen> {
     const order = [1, 2, 3, 4, 5, 6, 0];
     final names = _ru
         ? ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
-        : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        : LocaleService.current.shortWeekdays;
 
     final msg = [for (final d in order) s.weekdayMessages[d]];
     final mem = [for (final d in order) s.weekdayMemories[d]];
@@ -1363,6 +1364,7 @@ class _CoupleStatsScreenState extends State<CoupleStatsScreen> {
 
   /// «44 записи», а не «44 записей»: число рядом со словом склоняется.
   String _recordsWord(int n) {
+    if (LocaleService.instance.language == AppLanguage.zh) return '条记录';
     if (!_ru) return n == 1 ? 'Entry in total' : 'Entries in total';
     final a = n % 100, b = n % 10;
     if (a >= 11 && a <= 19) return 'Записей всего';

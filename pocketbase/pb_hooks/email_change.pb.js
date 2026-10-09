@@ -63,15 +63,22 @@ routerAdd("POST", "/api/account/email-change/request", (e) => {
 
   const code = $security.randomStringWithAlphabet(6, "0123456789");
   const ru = lang === "ru";
+  const zh = lang === "zh";
   const subject = ru
     ? "Код для смены почты в Togetherly"
-    : "Your Togetherly email change code";
+    : zh
+      ? "Togetherly 更换邮箱验证码"
+      : "Your Togetherly email change code";
   const intro = ru
     ? "Вы меняете почту аккаунта Togetherly на этот адрес. Введите код в приложении:"
-    : "You are changing your Togetherly account email to this address. Enter the code in the app:";
+    : zh
+      ? "你正在把 Togetherly 账号的邮箱改为这个地址。请在应用里输入验证码："
+      : "You are changing your Togetherly account email to this address. Enter the code in the app:";
   const outro = ru
     ? "Код действует 15 минут. Если вы ничего не меняли, просто удалите это письмо."
-    : "The code is valid for 15 minutes. If this wasn't you, just delete this email.";
+    : zh
+      ? "验证码 15 分钟内有效。如果不是你本人操作，删除这封邮件即可。"
+      : "The code is valid for 15 minutes. If this wasn't you, just delete this email.";
   const html =
     '<div style="font-family:Arial,sans-serif;font-size:16px;color:#22191a;line-height:1.5">' +
     "<p>" + intro + "</p>" +

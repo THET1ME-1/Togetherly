@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/symbol_catalog.dart';
 import '../../models/wish.dart';
 import '../../screens/wishes_screen.dart';
+import '../../dict_strings.dart' show ruEn;
 import '../../services/locale_service.dart';
 import '../../services/wish_repository.dart';
 import '../../theme/app_theme.dart';
@@ -66,13 +67,13 @@ class WishesCard extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        ru ? 'Хочу с тобой' : 'Want with you',
+                        ruEn('Хочу с тобой', 'Want with you'),
                         style: AppFonts.unbounded(
                             size: 17, weight: 600, color: cs.onSurface),
                       ),
                     ),
                     Text(
-                      ru ? 'Все →' : 'All →',
+                      ruEn('Все →', 'All →'),
                       style: AppFonts.onest(
                           size: 14, weight: 700, color: cs.primary),
                     ),
@@ -100,9 +101,8 @@ class WishesCard extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 6),
                     child: Text(
-                      ru
-                          ? '$doneCount уже сбылось — посмотреть'
-                          : '$doneCount already came true — see them',
+                      ruEn('$doneCount уже сбылось — посмотреть',
+                          '$doneCount already came true — see them'),
                       style:
                           AppFonts.onest(size: 12.5, color: cs.onSurfaceVariant),
                     ),
@@ -236,9 +236,9 @@ class _EmptyRow extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              ru
-                  ? 'Что посмотреть, куда съездить, где поесть — соберите список на двоих.'
-                  : 'What to watch, where to go, where to eat — start a list for two.',
+              ruEn(
+                  'Что посмотреть, куда съездить, где поесть — соберите список на двоих.',
+                  'What to watch, where to go, where to eat — start a list for two.'),
               style: AppFonts.onest(
                   size: 13, height: 1.4, color: scheme.onSurfaceVariant),
             ),

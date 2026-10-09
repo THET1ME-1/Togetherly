@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+import '../dict_strings.dart';
 import 'locale_service.dart';
 import 'pocketbase_service.dart';
 
@@ -339,7 +340,11 @@ class MovieResult {
 }
 
 /// Человекочитаемая метка типа («Фильм» / «Сериал» / «Мультфильм» / «Аниме»).
-String movieKindLabel(String? kind, {required bool isRu}) {
+String movieKindLabel(String? kind, {required bool isRu}) =>
+    isRu ? _movieKindLabel(kind, isRu: true) : zhForEnglishIfZh(
+        _movieKindLabel(kind, isRu: false));
+
+String _movieKindLabel(String? kind, {required bool isRu}) {
   switch (kind) {
     case 'tv-series':
       return isRu ? 'Сериал' : 'Series';

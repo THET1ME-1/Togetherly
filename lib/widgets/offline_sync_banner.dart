@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../services/locale_service.dart';
+import '../dict_strings.dart';
 import '../services/offline/connectivity_service.dart';
 import '../services/media_service.dart';
 import '../services/offline/outbox_service.dart';
@@ -91,7 +91,6 @@ class _SyncChipsState extends State<_SyncChips> {
     final poison = OutboxService.instance.poisonCount.value;
     final online = ConnectivityService.instance.isOnline;
     final compressing = MediaService.instance.compressProgress.value;
-    final ru = LocaleService.instance.isRussian;
     final scheme = Theme.of(context).colorScheme;
 
     final chips = <Widget>[];
@@ -102,7 +101,7 @@ class _SyncChipsState extends State<_SyncChips> {
         child: _chip(
           context,
           icon: Icons.cloud_off_rounded,
-          text: ru ? 'Нет сети' : 'Offline',
+          text: ruEn('Нет сети', 'Offline'),
           bg: scheme.surfaceContainerHighest,
           fg: scheme.onSurfaceVariant,
         ),
@@ -115,7 +114,7 @@ class _SyncChipsState extends State<_SyncChips> {
         child: _chip(
           context,
           spinner: true,
-          text: ru ? 'Сжатие видео…' : 'Compressing video…',
+          text: ruEn('Сжатие видео…', 'Compressing video…'),
           bg: scheme.surfaceContainerHighest,
           fg: scheme.onSurfaceVariant,
           progress: compressing,
@@ -130,7 +129,7 @@ class _SyncChipsState extends State<_SyncChips> {
         child: _chip(
           context,
           icon: Icons.refresh_rounded,
-          text: ru ? 'Не сохранилось — повторить' : "Didn't sync — retry",
+          text: ruEn('Не сохранилось — повторить', "Didn't sync — retry"),
           bg: scheme.errorContainer,
           fg: scheme.onErrorContainer,
         ),

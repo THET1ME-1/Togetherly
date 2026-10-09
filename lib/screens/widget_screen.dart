@@ -18,7 +18,7 @@ import '../services/pb_media_service.dart';
 import '../services/widget_anim_service.dart';
 import '../services/plus_service.dart';
 import '../services/ui_prefs.dart';
-import '../dict_strings.dart' show trKey;
+import '../dict_strings.dart' show ruEn, trKey, zhForEnglishIfZh;
 import '../models/countdown_widget.dart';
 import '../models/note_preview.dart';
 import '../models/together_milestones.dart';
@@ -2924,9 +2924,11 @@ class _WidgetScreenState extends State<WidgetScreen>
     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
   ];
 
-  String _formatDayMonth(DateTime d) => LocaleService.instance.isRussian
-      ? '${d.day} ${_monthsGenitive[d.month - 1]}'
-      : '${_monthsGenitiveEn[d.month - 1]} ${d.day}';
+  String _formatDayMonth(DateTime d) => switch (LocaleService.instance.language) {
+        AppLanguage.ru => '${d.day} ${_monthsGenitive[d.month - 1]}',
+        AppLanguage.zh => '${d.month}月${d.day}日',
+        _ => '${_monthsGenitiveEn[d.month - 1]} ${d.day}',
+      };
 
   /// Цвет виджета по роли активной темы.
   ///
@@ -7461,7 +7463,10 @@ class _WidgetScreenState extends State<WidgetScreen>
   /// сохранить её для нативной стороны.
   void _liveSnack(String text) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+    // Сообщения живого фото написаны парой «русский / английский»; китайский
+    // берёт перевод английской половины.
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(zhForEnglishIfZh(text))));
   }
 
   Future<void> _pickLiveVideo() async {
@@ -7554,9 +7559,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     if (choice == _kDropLiveVideo) {
       await WidgetAnimService.instance.clear();
       if (!mounted) return;
-      _liveSnack(LocaleService.instance.isRussian
-          ? 'Живое фото убрано'
-          : 'Live photo removed');
+      _liveSnack(ruEn('Живое фото убрано', 'Live photo removed'));
       return;
     }
     final source = choice as ImageSource;
@@ -8067,7 +8070,6 @@ class _PhotoSourceSheet extends StatelessWidget {
   /// «Живое фото» отдаёт не источник, а признак: дальше вызывающий сам берёт
   /// файл из галереи (`pickMedia`) и отправляет его на подготовку кадров.
   Widget _liveButton(BuildContext context) {
-    final ru = LocaleService.instance.isRussian;
     return GestureDetector(
       onTap: () => Navigator.pop(context, _kPickLiveVideo),
       child: Container(
@@ -8083,9 +8085,8 @@ class _PhotoSourceSheet extends StatelessWidget {
             Icon(Icons.motion_photos_on_rounded, size: 30, color: theme.primary),
             const SizedBox(height: 6),
             Text(
-              ru
-                  ? 'Живое фото — видео или гифка'
-                  : 'Live photo — a video or a GIF',
+              ruEn('Живое фото — видео или гифка',
+                  'Live photo — a video or a GIF'),
               style: AppFonts.onest(size: 13, weight: 600, color: theme.primary),
             ),
           ],
@@ -8098,7 +8099,6 @@ class _PhotoSourceSheet extends StatelessWidget {
   /// не вытесняет молча: раскадровка лежит своими ключами, и без явного сброса
   /// виджет оставался с видео навсегда.
   Widget _dropLiveButton(BuildContext context) {
-    final ru = LocaleService.instance.isRussian;
     return GestureDetector(
       onTap: () => Navigator.pop(context, _kDropLiveVideo),
       child: Container(
@@ -8115,7 +8115,7 @@ class _PhotoSourceSheet extends StatelessWidget {
                 size: 20, color: theme.textSecondary),
             const SizedBox(width: 8),
             Text(
-              ru ? 'Убрать живое фото' : 'Remove the live photo',
+              ruEn('Убрать живое фото', 'Remove the live photo'),
               style: AppFonts.onest(
                   size: 13, weight: 600, color: theme.textSecondary),
             ),

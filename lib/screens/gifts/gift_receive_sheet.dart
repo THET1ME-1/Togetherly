@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../l10n/zh/gifts.dart';
 import '../../models/gift.dart';
 import '../../services/gifts_service.dart';
 import '../../services/locale_service.dart';
@@ -159,9 +160,11 @@ class _GiftReceiveSheetState extends State<GiftReceiveSheet>
     final t = widget.theme;
     final s = LocaleService.current;
     final cs = ProfileTheme.themeFor(t).colorScheme;
-    final hint = LocaleService.instance.isRussian
-        ? actionHintRu(widget.gift.action)
-        : actionHintEn(widget.gift.action);
+    final hint = switch (LocaleService.instance.language) {
+      AppLanguage.ru => actionHintRu(widget.gift.action),
+      AppLanguage.zh => actionHintZh(widget.gift.action),
+      _ => actionHintEn(widget.gift.action),
+    };
     final hasPhoto = widget.photo?.trim().isNotEmpty == true;
 
     return Container(

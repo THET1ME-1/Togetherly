@@ -20,6 +20,7 @@ import '../widgets/common/app_dialog.dart';
 import '../services/pb_media_service.dart';
 import '../services/level_service.dart';
 import '../services/mascot_service.dart';
+import '../dict_strings.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_scope.dart';
@@ -103,7 +104,6 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
     await prefs.setStringList(_kCollapsedKey, _collapsed.toList());
   }
 
-  bool _ru() => LocaleService.instance.isRussian;
 
   /// Раскладка по папкам. Пиксельные идут первыми — они анимированные и живее
   /// остальных; свои рисунки следом, потому что их заводили руками.
@@ -125,14 +125,14 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
       }
     }
 
-    final ru = _ru();
     return [
-      _Folder('pixel', ru ? 'Пиксельные' : 'Pixel', Icons.grid_view_rounded, pixel),
-      _Folder('own', ru ? 'Наши рисунки' : 'Our drawings',
+      _Folder('pixel', ruEn('Пиксельные', 'Pixel'), Icons.grid_view_rounded,
+          pixel),
+      _Folder('own', ruEn('Наши рисунки', 'Our drawings'),
           Icons.brush_outlined, own),
-      _Folder('bundled', ru ? 'Встроенные' : 'Built-in',
+      _Folder('bundled', ruEn('Встроенные', 'Built-in'),
           Icons.auto_awesome_outlined, bundled),
-      _Folder('catalog', ru ? 'Каталог' : 'Catalog',
+      _Folder('catalog', ruEn('Каталог', 'Catalog'),
           Icons.collections_bookmark_outlined, catalog),
     ];
   }
@@ -426,7 +426,6 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
   /// Цену показываем из каталога, но списывает её сервер по своей же записи:
   /// клиентскому числу он не верит, подменить его в запросе нельзя.
   Future<void> _offerPurchase(Mascot mascot) async {
-    final ru = LocaleService.instance.isRussian;
     final price = mascot.unlock.price;
     final coins = widget.user.coins;
 
@@ -434,9 +433,8 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(ru
-              ? 'Не хватает монет: нужно $price, у вас $coins'
-              : 'Not enough coins: $price needed, you have $coins'),
+          content: Text(ruEn('Не хватает монет: нужно $price, у вас $coins',
+              'Not enough coins: $price needed, you have $coins')),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -446,10 +444,9 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
     final ok = await AppDialog.confirm(
       context,
       title: mascot.localizedName,
-      message: ru
-          ? 'Открыть этого персонажа навсегда за $price монет?'
-          : 'Unlock this character forever for $price coins?',
-      confirmLabel: ru ? 'Купить' : 'Buy',
+      message: ruEn('Открыть этого персонажа навсегда за $price монет?',
+          'Unlock this character forever for $price coins?'),
+      confirmLabel: ruEn('Купить', 'Buy'),
       icon: Icons.pets_rounded,
     );
     if (!ok || !mounted) return;
@@ -461,7 +458,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
     if (!bought) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(ru ? 'Покупка не прошла' : 'Purchase failed'),
+          content: Text(ruEn('Покупка не прошла', 'Purchase failed')),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -477,16 +474,14 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
     // платным. Платного тут же и предлагаем купить — за монеты, по цене из
     // каталога, поэтому новый персонаж продаётся без новой сборки.
     if (!_isUnlocked(mascot)) {
-      final ru = LocaleService.instance.isRussian;
       if (mascot.unlock.isForSale) {
         await _offerPurchase(mascot);
         return;
       }
       final msg = mascot.unlock.isPremium
-          ? (ru ? 'Пока не продаётся' : 'Not for sale yet')
-          : (ru
-              ? 'Откроется на уровне ${mascot.unlock.requiredLevel}'
-              : 'Unlocks at level ${mascot.unlock.requiredLevel}');
+          ? ruEn('Пока не продаётся', 'Not for sale yet')
+          : ruEn('Откроется на уровне ${mascot.unlock.requiredLevel}',
+              'Unlocks at level ${mascot.unlock.requiredLevel}');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -586,8 +581,6 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
     final canExport = mascot.imageUrl != null;
     final cs = ProfileTheme.themeFor(_t).colorScheme;
     final s = LocaleService.current;
-    final ru = _ru();
-
     showAppSheet<void>(
       context,
       background: cs.surfaceContainer,
@@ -633,8 +626,8 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
                           mascot.recordStreak > 0
                               ? s.recordStreakDays(mascot.recordStreak)
                               : isActive
-                                  ? (ru ? 'Сейчас на экране' : 'On screen now')
-                                  : (ru ? 'Ждёт своей очереди' : 'Waiting'),
+                                  ? ruEn('Сейчас на экране', 'On screen now')
+                                  : ruEn('Ждёт своей очереди', 'Waiting'),
                           style: TextStyle(
                               fontSize: 13.5, color: cs.onSurfaceVariant),
                         ),
@@ -780,9 +773,8 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),
           child: Text(
-            _ru()
-                ? 'Никого с таким именем. Попробуйте другое слово.'
-                : 'Nobody with that name. Try another word.',
+            ruEn('Никого с таким именем. Попробуйте другое слово.',
+                'Nobody with that name. Try another word.'),
             textAlign: TextAlign.center,
             style: TextStyle(color: cs.onSurfaceVariant, fontSize: 14),
           ),
@@ -797,9 +789,8 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
     // переходом в личный аккаунт приводила к ней незнакомых людей.
     folders.add(_ArtistCredit(
       scheme: cs,
-      text: _ru()
-          ? 'Художница маскотов «От нас» — Meller1'
-          : 'Mascots marked «От нас» drawn by Meller1',
+      text: ruEn('Художница маскотов «От нас» — Meller1',
+          'Mascots marked «От нас» drawn by Meller1'),
     ));
 
     return ListView(
@@ -876,7 +867,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
           ),
           _SearchField(
             controller: _search,
-            hint: _ru() ? 'Найти маскота' : 'Find a mascot',
+            hint: ruEn('Найти маскота', 'Find a mascot'),
             onClear: () => _search.clear(),
           ),
           Expanded(
@@ -1088,12 +1079,10 @@ class _MascotCard extends StatelessWidget {
                               mascot.unlock.isForSale
                                   ? '${mascot.unlock.price}'
                                   : mascot.unlock.isPremium
-                                      ? (LocaleService.instance.isRussian
-                                          ? 'платный'
-                                          : 'paid')
-                                      : (LocaleService.instance.isRussian
-                                          ? 'Ур. ${mascot.unlock.requiredLevel}'
-                                          : 'Lv ${mascot.unlock.requiredLevel}'),
+                                      ? ruEn('платный', 'paid')
+                                      : ruEn(
+                                          'Ур. ${mascot.unlock.requiredLevel}',
+                                          'Lv ${mascot.unlock.requiredLevel}'),
                               style: TextStyle(
                                 color: Theme.of(context)
                                     .colorScheme

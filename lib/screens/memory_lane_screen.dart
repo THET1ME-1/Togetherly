@@ -3011,7 +3011,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     } else if (lower.contains('vk.com') || lower.contains('vkvideo.ru')) {
       return {'name': 'VK Video', 'color': const Color(0xFF0077FF)};
     } else if (lower.contains('dzen.ru')) {
-      return {'name': 'Дзен', 'color': const Color(0xFF000000)};
+      return {
+        'name': LocaleService.instance.isRussian ? 'Дзен' : 'Dzen',
+        'color': const Color(0xFF000000),
+      };
     } else {
       return {
         'name': LocaleService.current.video,

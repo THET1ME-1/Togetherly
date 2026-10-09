@@ -43,9 +43,12 @@ class CatalogWidgetSync {
   ];
 
   /// Подпись даты на чипе «До встречи» — как в превью экрана «Виджеты».
-  static String _countdownDate(DateTime d) => LocaleService.instance.isRussian
-      ? _dayMonth(d)
-      : '${_monthsEn[d.month - 1]} ${d.day}';
+  static String _countdownDate(DateTime d) =>
+      switch (LocaleService.instance.language) {
+        AppLanguage.ru => _dayMonth(d),
+        AppLanguage.zh => '${d.month}月${d.day}日',
+        _ => '${_monthsEn[d.month - 1]} ${d.day}',
+      };
 
   static String _initial(String name) {
     final trimmed = name.trim();

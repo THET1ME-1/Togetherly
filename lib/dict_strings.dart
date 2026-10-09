@@ -57,6 +57,7 @@ import 'l10n/dict/timer_expandable_timer_card.dart';
 import 'l10n/dict/watch_voice.dart';
 import 'l10n/dict/welcome.dart';
 import 'l10n/dict/widget_screen.dart';
+import 'l10n/zh/inline.dart';
 import 'l10n/zh/zh.dart';
 
 /// Словарь интерфейса: ключ → язык → строка.
@@ -141,6 +142,41 @@ String trDict(String key, String code) {
   final entry = kStrings[key];
   if (entry == null) return key;
   return entry[code] ?? entry['en'] ?? entry['ru'] ?? key;
+}
+
+/// Строка, которая живёт прямо в экране парой «русский / английский».
+///
+/// Остальные языки видят английскую, китайский ищет перевод в
+/// `kZhByEnglish` по английскому образцу: числа в строке заменяются метками
+/// `{0}`, `{1}`… и подставляются обратно, поэтому «нужно 30, у вас 12»
+/// находит перевод так же, как строка без чисел.
+String ruEn(String ru, String en) => switch (LocaleService.instance.language) {
+      AppLanguage.ru => ru,
+      AppLanguage.zh => zhForEnglish(en),
+      _ => en,
+    };
+
+/// Английская строка из экрана на текущем языке: китайским переводится,
+/// остальным языкам отдаётся как есть.
+String zhForEnglishIfZh(String en) =>
+    LocaleService.instance.language == AppLanguage.zh ? zhForEnglish(en) : en;
+
+/// Китайский для английской строки из экрана, иначе сама строка.
+String zhForEnglish(String en) {
+  final exact = kZhByEnglish[en];
+  if (exact != null) return exact;
+  final numbers = <String>[];
+  final shape = en.replaceAllMapped(RegExp(r'\d+'), (m) {
+    numbers.add(m[0]!);
+    return '{${numbers.length - 1}}';
+  });
+  final zh = kZhByEnglish[shape];
+  if (zh == null) return en;
+  var out = zh;
+  for (var i = 0; i < numbers.length; i++) {
+    out = out.replaceAll('{$i}', numbers[i]);
+  }
+  return out;
 }
 
 /// Перевод по ключу на текущий язык интерфейса.

@@ -61,7 +61,7 @@ import 'welcome_screen.dart';
 import 'achievements_screen.dart';
 import 'memory_lane_screen.dart';
 import 'gifts/gift_profile_body.dart';
-import '../dict_strings.dart' show trKey;
+import '../dict_strings.dart' show ruEn, trKey;
 import 'gifts/gift_shop_screen.dart';
 import 'gifts/partner_profile_screen.dart';
 import 'gifts/gift_shelf_screen.dart';
@@ -617,7 +617,6 @@ class _ProfileScreenState extends State<ProfileScreen>
   /// M3-лист снизу: email аккаунта + подсказка вставить его в сообщение к донату.
   Future<void> _showDonationAlertsSheet(String email) async {
     final cs = _cs;
-    final ru = LocaleService.instance.isRussian;
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: cs.surfaceContainerLow,
@@ -635,7 +634,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                ru ? 'Донат → монеты' : 'Donation → coins',
+                ruEn('Донат → монеты', 'Donation → coins'),
                 style: TextStyle(
                   fontFamily: ProfileTheme.displayFont,
                   fontWeight: FontWeight.w800,
@@ -646,9 +645,9 @@ class _ProfileScreenState extends State<ProfileScreen>
               ),
               const SizedBox(height: 10),
               Text(
-                ru
-                    ? 'Чтобы монеты пришли автоматически, укажи в сообщении к донату свой email:'
-                    : 'To get coins automatically, put your email in the donation message:',
+                ruEn(
+                    'Чтобы монеты пришли автоматически, укажи в сообщении к донату свой email:',
+                    'To get coins automatically, put your email in the donation message:'),
                 style: TextStyle(
                   fontFamily: ProfileTheme.bodyFont,
                   fontSize: 14.5,
@@ -666,7 +665,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                     Clipboard.setData(ClipboardData(text: email));
                     ScaffoldMessenger.of(ctx).showSnackBar(
                       SnackBar(
-                        content: Text(ru ? 'Email скопирован' : 'Email copied'),
+                        content: Text(ruEn('Email скопирован', 'Email copied')),
                       ),
                     );
                   },
@@ -701,21 +700,19 @@ class _ProfileScreenState extends State<ProfileScreen>
               _daStep(
                 cs,
                 '1',
-                ru ? 'Скопируй email кнопкой выше' : 'Copy the email above',
+                ruEn('Скопируй email кнопкой выше', 'Copy the email above'),
               ),
               _daStep(
                 cs,
                 '2',
-                ru
-                    ? 'Вставь его в сообщение к донату'
-                    : 'Paste it into the donation message',
+                ruEn('Вставь его в сообщение к донату',
+                    'Paste it into the donation message'),
               ),
               _daStep(
                 cs,
                 '3',
-                ru
-                    ? 'От 50 ₽ — монеты придут сами за пару минут'
-                    : 'From 50 ₽ — coins arrive on their own in a couple of minutes',
+                ruEn('От 50 ₽ — монеты придут сами за пару минут',
+                    'From 50 ₽ — coins arrive on their own in a couple of minutes'),
               ),
               const SizedBox(height: 18),
               SizedBox(
@@ -727,7 +724,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   },
                   icon: const Icon(Icons.open_in_new_rounded, size: 19),
                   label: Text(
-                    ru ? 'Открыть DonationAlerts' : 'Open DonationAlerts',
+                    ruEn('Открыть DonationAlerts', 'Open DonationAlerts'),
                     style: const TextStyle(
                       fontFamily: ProfileTheme.displayFont,
                       fontWeight: FontWeight.w700,
@@ -1106,10 +1103,9 @@ class _ProfileScreenState extends State<ProfileScreen>
       widget.userData.themeId,
       widget.userData.customThemes,
     );
-    final ru = LocaleService.instance.isRussian;
     final mode = _t.brightness == Brightness.dark
-        ? (ru ? 'тёмная' : 'dark')
-        : (ru ? 'светлая' : 'light');
+        ? ruEn('тёмная', 'dark')
+        : ruEn('светлая', 'light');
     return Material(
       color: cs.surfaceContainerHigh,
       borderRadius: BorderRadius.circular(26),
@@ -1521,9 +1517,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      LocaleService.instance.isRussian
-                          ? 'Умение любить'
-                          : 'How you love',
+                      ruEn('Умение любить', 'How you love'),
                       style: TextStyle(
                         fontFamily: ProfileTheme.displayFont,
                         fontSize: 14.5,
@@ -1532,9 +1526,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                       ),
                     ),
                     Text(
-                      LocaleService.instance.isRussian
-                          ? 'Двадцать вопросов и одна фигура на двоих'
-                          : 'Twenty questions, one shape for two',
+                      ruEn('Двадцать вопросов и одна фигура на двоих',
+                          'Twenty questions, one shape for two'),
                       style: TextStyle(
                         fontFamily: ProfileTheme.bodyFont,
                         fontSize: 12,

@@ -1,5 +1,7 @@
 import 'package:pocketbase/pocketbase.dart';
 
+import '../dict_strings.dart' show zhForEnglishIfZh;
+
 /// Категория желания: пять встроенных и сколько угодно своих.
 ///
 /// Встроенные живут в коде и одинаковы у всех, свои заводит пара и хранит в
@@ -33,7 +35,7 @@ class WishKind {
 
   String title(bool ru) {
     if (custom) return titleRu;
-    return ru ? titleRu : titleEn;
+    return ru ? titleRu : zhForEnglishIfZh(titleEn);
   }
 
   factory WishKind.fromPb(RecordModel rec) => WishKind(

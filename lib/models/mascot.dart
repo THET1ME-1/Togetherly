@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:pocketbase/pocketbase.dart';
+import 'package:love_app/dict_strings.dart';
 import 'package:love_app/services/locale_service.dart';
 import 'level.dart';
 
@@ -79,7 +80,7 @@ class Mascot {
   /// Returns the locale-aware name for built-in mascots; falls back to [name] for user-created ones.
   String get localizedName {
     if (isCatalog) {
-      return LocaleService.instance.isRussian ? name : (nameEn ?? name);
+      return ruEn(name, nameEn ?? name);
     }
     if (!isDefault) return name;
     final s = LocaleService.current;

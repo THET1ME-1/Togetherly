@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/locale_service.dart';
+import '../dict_strings.dart';
 import 'level.dart';
 import 'mood_entry.dart';
 
@@ -54,7 +54,7 @@ class MoodPack {
   })  : _nameRu = nameRu,
         _nameEn = nameEn;
 
-  String get name => LocaleService.instance.isRussian ? _nameRu : _nameEn;
+  String get name => ruEn(_nameRu, _nameEn);
 
   /// Картинка для превью пака в селекторе (первое настроение).
   String get previewImage => moods.isNotEmpty ? moods.first.imagePath : '';

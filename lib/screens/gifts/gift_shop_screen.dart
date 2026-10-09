@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 
-import '../../dict_strings.dart' show trKey;
+import '../../dict_strings.dart' show ruEn, trKey;
 import '../../models/avatar_frame.dart';
 import '../../models/gift.dart';
 import '../../models/profile_icon.dart';
@@ -102,11 +102,10 @@ const int _chestShelf = 4;
 
 String _tierName(int tier) {
   if (tier == _chestShelf) return trKey('shopFromChest');
-  final ru = LocaleService.instance.isRussian;
   return switch (tier) {
-    1 => ru ? 'Каждый день' : 'Everyday',
-    2 => ru ? 'По поводу' : 'Occasions',
-    _ => ru ? 'Событие' : 'Milestones',
+    1 => ruEn('Каждый день', 'Everyday'),
+    2 => ruEn('По поводу', 'Occasions'),
+    _ => ruEn('Событие', 'Milestones'),
   };
 }
 

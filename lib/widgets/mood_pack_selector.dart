@@ -10,6 +10,7 @@ import '../models/user_data.dart';
 import '../services/catalog_service.dart';
 import '../services/coin_store.dart';
 import '../services/level_service.dart';
+import '../dict_strings.dart';
 import '../services/locale_service.dart';
 import '../services/mood_pack_service.dart';
 import '../theme/theme_scope.dart';
@@ -196,8 +197,13 @@ Future<void> buyMoodPack(
   final price = pack.unlock.price;
   final messenger = ScaffoldMessenger.of(context);
 
+  // Сообщения ниже написаны парой «русский / английский»; китайский берёт
+  // перевод английской половины.
   void say(String text) => messenger.showSnackBar(
-        SnackBar(content: Text(text), behavior: SnackBarBehavior.floating),
+        SnackBar(
+          content: Text(ru ? text : zhForEnglishIfZh(text)),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
 
   if (!pack.unlock.isForSale) {

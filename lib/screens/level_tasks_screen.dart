@@ -5,7 +5,7 @@ import '../models/level.dart';
 import '../models/mascot.dart';
 import '../services/catalog_service.dart';
 import '../services/level_service.dart';
-import '../services/locale_service.dart';
+import '../dict_strings.dart';
 import '../theme/theme_scope.dart';
 import '../theme/profile_theme.dart';
 import '../services/offline/media_view_cache.dart';
@@ -31,12 +31,11 @@ class _LevelTasksScreenState extends State<LevelTasksScreen> {
   /// Прогресс за сегодня по каждому действию (зачтено раз).
   final Map<XpAction, int> _progress = {};
 
-  bool _ru = true;
+  String _t(String ru, String en) => ruEn(ru, en);
 
   @override
   void initState() {
     super.initState();
-    _ru = LocaleService.instance.isRussian;
     _loadProgress();
     // Прогресс заданий кэшируется в [_progress]. При начислении награды
     // LevelService уведомляет слушателей — перечитываем прогресс, иначе плитки
@@ -65,27 +64,27 @@ class _LevelTasksScreenState extends State<LevelTasksScreen> {
       case XpAction.dailyStreak:
         return (
           icon: Icons.local_fire_department_rounded,
-          title: _ru ? 'Заходите в приложение каждый день' : 'Open the app every day',
+          title: _t('Заходите в приложение каждый день', 'Open the app every day'),
         );
       case XpAction.addMemory:
         return (
           icon: Icons.photo_library_rounded,
-          title: _ru ? 'Добавляйте воспоминания' : 'Add memories',
+          title: _t('Добавляйте воспоминания', 'Add memories'),
         );
       case XpAction.watchTogether:
         return (
           icon: Icons.smart_display_rounded,
-          title: _ru ? 'Смотрите видео вместе' : 'Watch videos together',
+          title: _t('Смотрите видео вместе', 'Watch videos together'),
         );
       case XpAction.setWidget:
         return (
           icon: Icons.widgets_rounded,
-          title: _ru ? 'Поставьте виджет на экран' : 'Add the home screen widget',
+          title: _t('Поставьте виджет на экран', 'Add the home screen widget'),
         );
       case XpAction.changeMood:
         return (
           icon: Icons.mood_rounded,
-          title: _ru ? 'Отмечайте настроение' : 'Track your mood',
+          title: _t('Отмечайте настроение', 'Track your mood'),
         );
     }
   }
@@ -93,9 +92,9 @@ class _LevelTasksScreenState extends State<LevelTasksScreen> {
   String _limitLabel(XpAction a) {
     final svc = LevelService.instance;
     final reward = '+${svc.rewardFor(a)} XP';
-    if (svc.isOnceEver(a)) return '$reward · ${_ru ? 'разово' : 'one-time'}';
+    if (svc.isOnceEver(a)) return '$reward · ${_t('разово', 'one-time')}';
     final cap = svc.dailyCapFor(a);
-    if (cap > 0) return '$reward · ${_ru ? '$cap/день' : '$cap/day'}';
+    if (cap > 0) return '$reward · ${_t('$cap/день', '$cap/day')}';
     return reward;
   }
 
@@ -109,7 +108,7 @@ class _LevelTasksScreenState extends State<LevelTasksScreen> {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         title: Text(
-          _ru ? 'Уровень и задания' : 'Level & tasks',
+          _t('Уровень и задания', 'Level & tasks'),
           style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
         ),
       ),
@@ -122,11 +121,11 @@ class _LevelTasksScreenState extends State<LevelTasksScreen> {
             children: [
               _buildHeader(p),
               const SizedBox(height: 24),
-              _sectionTitle(_ru ? 'Задания — как растить уровень' : 'Tasks — how to level up'),
+              _sectionTitle(_t('Задания — как растить уровень', 'Tasks — how to level up')),
               const SizedBox(height: 10),
               ...LevelService.instance.actions.map(_buildTaskTile),
               const SizedBox(height: 24),
-              _sectionTitle(_ru ? 'Награды — маскоты' : 'Rewards — mascots'),
+              _sectionTitle(_t('Награды — маскоты', 'Rewards — mascots')),
               const SizedBox(height: 10),
               _buildRewards(p.level),
             ],
@@ -178,7 +177,7 @@ class _LevelTasksScreenState extends State<LevelTasksScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _ru ? 'Уровень ${p.level}' : 'Level ${p.level}',
+                      _t('Уровень ${p.level}', 'Level ${p.level}'),
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
@@ -209,9 +208,10 @@ class _LevelTasksScreenState extends State<LevelTasksScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            _ru
-                ? 'До уровня ${p.level + 1}: ещё $toNext XP'
-                : '$toNext XP to level ${p.level + 1}',
+            _t(
+              'До уровня ${p.level + 1}: ещё $toNext XP',
+              '$toNext XP to level ${p.level + 1}',
+            ),
             style: TextStyle(fontSize: 12, color: t.textSecondary),
           ),
         ],
@@ -314,9 +314,7 @@ class _LevelTasksScreenState extends State<LevelTasksScreen> {
           border: Border.all(color: t.divider),
         ),
         child: Text(
-          _ru
-              ? 'Награды загружаются…'
-              : 'Rewards are loading…',
+          _t('Награды загружаются…', 'Rewards are loading…'),
           style: TextStyle(fontSize: 13, color: t.textMuted),
         ),
       );
@@ -382,7 +380,7 @@ class _LevelTasksScreenState extends State<LevelTasksScreen> {
                   Icon(Icons.lock_rounded, size: 13, color: t.textMuted),
                   const SizedBox(width: 4),
                   Text(
-                    _ru ? 'Ур. $req' : 'Lv $req',
+                    _t('Ур. $req', 'Lv $req'),
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,

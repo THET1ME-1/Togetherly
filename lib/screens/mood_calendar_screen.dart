@@ -17,6 +17,7 @@ import '../models/pair_data.dart';
 import 'vessel_story_screen.dart';
 import '../models/user_data.dart';
 import '../services/cycle_service.dart';
+import '../dict_strings.dart' show ruEn;
 import '../services/locale_service.dart';
 import '../services/chat_service.dart';
 import '../services/memory_repository.dart';
@@ -1416,7 +1417,6 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
 
   Widget _buildAnalytics(ColorScheme scheme, List<MoodEntry> entries) {
     if (entries.isEmpty) return const SizedBox.shrink();
-    final ru = LocaleService.instance.isRussian;
 
     final byDay = <DateTime, List<MoodEntry>>{};
     for (final e in entries) {
@@ -1524,15 +1524,15 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
             children: [
               Expanded(
                   child: _statTile(
-                      scheme, '${entries.length}', ru ? 'Записей' : 'Entries')),
+                      scheme, '${entries.length}', ruEn('Записей', 'Entries'))),
               const SizedBox(width: 8),
               Expanded(
                   child: _statTile(scheme, '${byDay.length}',
-                      ru ? 'Дней отмечено' : 'Days tracked')),
+                      ruEn('Дней отмечено', 'Days tracked'))),
               const SizedBox(width: 8),
               Expanded(
                   child: _moodStatTile(
-                      scheme, topMood, ru ? 'Чаще всего' : 'Most often')),
+                      scheme, topMood, ruEn('Чаще всего', 'Most often'))),
             ],
           ),
           const SizedBox(height: 16),

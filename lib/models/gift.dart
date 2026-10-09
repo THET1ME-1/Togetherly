@@ -1,3 +1,4 @@
+import '../l10n/zh/gifts.dart';
 import '../services/catalog_service.dart';
 import '../services/locale_service.dart';
 
@@ -210,7 +211,11 @@ class Gift {
   /// Цена, которую сейчас спишет сервер: из каталога, иначе зашитая [price].
   int get currentPrice => CatalogService.instance.giftArt(key)?.price ?? price;
 
-  String get title => LocaleService.instance.isRussian ? titleRu : titleEn;
+  String get title => switch (LocaleService.instance.language) {
+        AppLanguage.ru => titleRu,
+        AppLanguage.zh => kGiftTitlesZh[key] ?? titleEn,
+        _ => titleEn,
+      };
 }
 
 class GiftCatalog {

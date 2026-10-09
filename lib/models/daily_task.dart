@@ -1,3 +1,4 @@
+import '../l10n/zh/daily_tasks.dart';
 import '../services/locale_service.dart';
 import 'memory.dart';
 
@@ -28,7 +29,12 @@ class DailyTask {
     final p = partnerName.trim().isNotEmpty
         ? partnerName.trim()
         : LocaleService.current.partnerFallback;
-    final raw = LocaleService.instance.isRussian ? _ru : _en;
+    final lang = LocaleService.instance.language;
+    final raw = switch (lang) {
+      AppLanguage.ru => _ru,
+      AppLanguage.zh => kDailyTasksZh[id] ?? _en,
+      _ => _en,
+    };
     return raw.replaceAll('{p}', p);
   }
 

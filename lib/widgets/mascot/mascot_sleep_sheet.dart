@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../dict_strings.dart' show zhForEnglishIfZh;
 import '../../models/mascot_anim.dart';
 import '../../models/mascot_sleep.dart';
 import '../../models/user_data.dart';
@@ -187,7 +188,7 @@ class _MascotSleepCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      ru ? anim.nameRu : anim.nameEn,
+                      ru ? anim.nameRu : zhForEnglishIfZh(anim.nameEn),
                       style: TextStyle(
                         fontFamily: 'Onest',
                         fontSize: 16,

@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../utils/password_rules.dart';
 import '../utils/email_typo.dart';
-import '../dict_strings.dart' show trKey;
+import '../dict_strings.dart' show ruEn, trKey;
 import 'package:flutter/services.dart';
 import '../utils/safe_launch.dart';
 import 'package:image_picker/image_picker.dart';
@@ -630,8 +630,6 @@ class _SetupScreenState extends State<SetupScreen>
   /// Свой пол (со своим полем ввода).
   Widget _genderGrid() {
     final cs = ProfileTheme.themeFor(context.appTheme).colorScheme;
-    final ru = LocaleService.instance.isRussian;
-
     Widget tile({
       required IconData icon,
       required String label,
@@ -705,7 +703,7 @@ class _SetupScreenState extends State<SetupScreen>
         Row(children: [
           tile(
             icon: Icons.do_not_disturb_on_rounded,
-            label: ru ? 'Не хочу указывать' : 'Prefer not to say',
+            label: ruEn('Не хочу указывать', 'Prefer not to say'),
             selected:
                 _selectedGender == Gender.unspecified && !_customSelected,
             onTap: () => setState(() {
@@ -716,7 +714,7 @@ class _SetupScreenState extends State<SetupScreen>
           const SizedBox(width: 12),
           tile(
             icon: Icons.edit_rounded,
-            label: ru ? 'Свой пол' : 'Custom',
+            label: ruEn('Свой пол', 'Custom'),
             selected: _customSelected,
             onTap: () => setState(() {
               _selectedGender = Gender.unspecified;
@@ -728,8 +726,8 @@ class _SetupScreenState extends State<SetupScreen>
           const SizedBox(height: 12),
           AuthField(
             controller: _customGenderController,
-            label: ru ? 'Свой пол' : 'Custom gender',
-            hint: ru ? 'Укажите свой пол' : 'Enter your gender',
+            label: ruEn('Свой пол', 'Custom gender'),
+            hint: ruEn('Укажите свой пол', 'Enter your gender'),
             accent: _accent,
             onChanged: (_) => setState(() {}),
           ),

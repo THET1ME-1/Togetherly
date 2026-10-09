@@ -244,9 +244,7 @@ class SettingsScreen extends StatelessWidget {
                   SettingsRow(
                     icon: Icons.translate_rounded,
                     title: s.language,
-                    subtitle: LocaleService.instance.isRussian
-                        ? 'Русский'
-                        : 'English',
+                    subtitle: LocaleService.instance.language.label,
                     trailing: const SettingsChevron(),
                     onTap: onLanguage,
                   ),

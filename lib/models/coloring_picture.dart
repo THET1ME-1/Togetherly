@@ -1,4 +1,4 @@
-import '../services/locale_service.dart';
+import '../dict_strings.dart' show ruEn;
 
 /// Кто какую половину раскраски красит.
 enum ColoringSide {
@@ -98,7 +98,7 @@ class ColoringPicture {
   /// Превью для каталога — уже на белой бумаге.
   String get thumbAsset => 'assets/coloring/${id}_thumb.jpg';
 
-  String get title => LocaleService.instance.isRussian ? titleRu : titleEn;
+  String get title => ruEn(titleRu, titleEn);
 
   static const List<ColoringPicture> all = [
     ColoringPicture(id: 'cafe', titleRu: 'Кафе', titleEn: 'Cafe'),

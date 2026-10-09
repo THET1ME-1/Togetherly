@@ -1,4 +1,4 @@
-import '../services/locale_service.dart';
+import '../dict_strings.dart';
 
 /// Человеческое название типа воспоминания.
 ///
@@ -8,28 +8,27 @@ import '../services/locale_service.dart';
 /// одном месте и покрыт тестом: при добавлении нового типа тест падает раньше,
 /// чем это увидит пара.
 String memoryTypeLabel(String type) {
-  final ru = LocaleService.instance.isRussian;
   switch (type) {
     case 'photo':
-      return ru ? 'Фото' : 'Photo';
+      return ruEn('Фото', 'Photo');
     case 'video':
-      return ru ? 'Видео' : 'Video';
+      return ruEn('Видео', 'Video');
     case 'videoLink':
-      return ru ? 'Ссылка на видео' : 'Video link';
+      return ruEn('Ссылка на видео', 'Video link');
     case 'text':
-      return ru ? 'Текст' : 'Text';
+      return ruEn('Текст', 'Text');
     case 'music':
-      return ru ? 'Музыка' : 'Music';
+      return ruEn('Музыка', 'Music');
     case 'movie':
-      return ru ? 'Фильм' : 'Movie';
+      return ruEn('Фильм', 'Movie');
     case 'book':
-      return ru ? 'Книга' : 'Book';
+      return ruEn('Книга', 'Book');
     case 'location':
-      return ru ? 'Место' : 'Place';
+      return ruEn('Место', 'Place');
     case 'audio':
-      return ru ? 'Аудио' : 'Audio';
+      return ruEn('Аудио', 'Audio');
     case '':
-      return ru ? 'Без типа' : 'Untyped';
+      return ruEn('Без типа', 'Untyped');
     default:
       return type;
   }

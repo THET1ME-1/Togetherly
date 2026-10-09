@@ -4,6 +4,7 @@ import 'package:geolocator/geolocator.dart';
 import '../../models/memory.dart';
 import '../../models/pair_data.dart';
 import '../../models/user_data.dart';
+import '../../dict_strings.dart';
 import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/avatar_widget.dart';
@@ -298,7 +299,6 @@ class _PreviewCard extends StatelessWidget {
   });
 
   Color get primary => theme.primary;
-  bool get _ru => LocaleService.instance.isRussian;
 
   @override
   Widget build(BuildContext context) {
@@ -434,19 +434,19 @@ class _PreviewCard extends StatelessWidget {
     switch (t) {
       case MemoryType.photo:
       case MemoryType.video:
-        return (_ru ? 'Момент' : 'Moment', Icons.favorite_rounded);
+        return (ruEn('Момент', 'Moment'), Icons.favorite_rounded);
       case MemoryType.location:
-        return (_ru ? 'Локация' : 'Location', Icons.place_rounded);
+        return (ruEn('Локация', 'Location'), Icons.place_rounded);
       case MemoryType.music:
-        return (_ru ? 'Музыка' : 'Music', Icons.music_note_rounded);
+        return (ruEn('Музыка', 'Music'), Icons.music_note_rounded);
       case MemoryType.videoLink:
-        return (_ru ? 'Видео' : 'Video', Icons.play_circle_fill_rounded);
+        return (ruEn('Видео', 'Video'), Icons.play_circle_fill_rounded);
       case MemoryType.text:
-        return (_ru ? 'Заметка' : 'Note', Icons.sticky_note_2_rounded);
+        return (ruEn('Заметка', 'Note'), Icons.sticky_note_2_rounded);
       case MemoryType.book:
-        return (_ru ? 'Книга' : 'Book', Icons.menu_book_rounded);
+        return (ruEn('Книга', 'Book'), Icons.menu_book_rounded);
       case MemoryType.movie:
-        return (_ru ? 'Фильм' : 'Movie', Icons.movie_rounded);
+        return (ruEn('Фильм', 'Movie'), Icons.movie_rounded);
     }
   }
 
@@ -712,7 +712,7 @@ class _PreviewCard extends StatelessWidget {
     final title = memory.title?.isNotEmpty == true ? memory.title! : '';
     final body = memory.caption?.isNotEmpty == true
         ? memory.caption!
-        : (title.isEmpty ? (_ru ? 'Заметка' : 'Note') : '');
+        : (title.isEmpty ? ruEn('Заметка', 'Note') : '');
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(16, 14, 14, 12),
@@ -832,7 +832,7 @@ class _PreviewCard extends StatelessWidget {
         : memory.moviePosterUrl;
     final title = memory.title?.isNotEmpty == true
         ? memory.title!
-        : (_ru ? 'Без названия' : 'Untitled');
+        : ruEn('Без названия', 'Untitled');
     final subtitle = memory.type == MemoryType.book
         ? (memory.bookAuthor ?? '')
         : (memory.movieYear ?? '');

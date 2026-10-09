@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'locale_service.dart';
+import '../dict_strings.dart' show ruEn;
 import '../widgets/common/app_dialog.dart';
 
 /// Надёжность мгновенной фоновой доставки БЕЗ FCM.
@@ -79,24 +79,22 @@ class BackgroundReliabilityService {
   }
 
   Future<bool> _showDialog(BuildContext context) async {
-    final ru = LocaleService.instance.isRussian;
     return AppDialog.confirm(
       context,
-      title: ru
-          ? 'Мгновенные уведомления и виджеты'
-          : 'Instant notifications & widgets',
-      message: ru
-          ? 'Чтобы сообщения, «я скучаю» и виджеты обновлялись сразу — даже '
+      title: ruEn('Мгновенные уведомления и виджеты',
+          'Instant notifications & widgets'),
+      message: ruEn(
+          'Чтобы сообщения, «я скучаю» и виджеты обновлялись сразу — даже '
               'когда приложение закрыто — разрешите Togetherly работать в '
               'фоне без ограничений батареи.\n\nБез этого Android усыпляет '
-              'связь, и всё приходит только при открытии приложения.'
-          : 'To get messages, “miss you” and widget updates instantly — even '
+              'связь, и всё приходит только при открытии приложения.',
+          'To get messages, “miss you” and widget updates instantly — even '
               'when the app is closed — allow Togetherly to run in the '
               'background without battery limits.\n\nOtherwise Android '
               'suspends the connection and everything only arrives when you '
-              'open the app.',
-      confirmLabel: ru ? 'Разрешить' : 'Allow',
-      cancelLabel: ru ? 'Позже' : 'Later',
+              'open the app.'),
+      confirmLabel: ruEn('Разрешить', 'Allow'),
+      cancelLabel: ruEn('Позже', 'Later'),
       icon: Icons.bolt_rounded,
     );
   }

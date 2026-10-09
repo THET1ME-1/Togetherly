@@ -12,6 +12,7 @@ import '../services/plus_access.dart';
 import '../services/plus_service.dart';
 import '../utils/safe_pick.dart';
 import '../widgets/common/m3_loading.dart';
+import '../dict_strings.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/profile_theme.dart';
@@ -47,9 +48,8 @@ class _ColoringCatalogueScreenState extends State<ColoringCatalogueScreen> {
 
   AppStrings get _s => LocaleService.current;
 
-  bool get _ru => LocaleService.instance.isRussian;
 
-  String _tr(String ru, String en) => _ru ? ru : en;
+  String _tr(String ru, String en) => ruEn(ru, en);
 
   /// Свои рисунки открывает Togetherly+.
   ///

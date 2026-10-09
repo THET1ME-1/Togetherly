@@ -12,6 +12,7 @@ import '../../../models/mood_entry.dart';
 import '../../../models/user_data.dart';
 import '../../../models/mood_pack.dart';
 import '../../../models/pair_data.dart';
+import '../../../dict_strings.dart';
 import '../../../services/locale_service.dart';
 import '../../../services/custom_mood_service.dart';
 import '../../../services/mood_pack_service.dart';
@@ -733,7 +734,6 @@ class _MoodPickerSheetState extends State<MoodPickerSheet> {
     // действия на этом экране сейчас нет.
     final previewed = _preview;
     if (previewed != null && !onAilment) {
-      final ru = LocaleService.instance.isRussian;
       // Цена — от магазина: у Apple и Google свой налог и округление в каждой
       // стране, и число из манифеста рядом с ними читалось бы как вторая цена.
       final price = catalogPriceLabel(
@@ -763,18 +763,20 @@ class _MoodPickerSheetState extends State<MoodPickerSheet> {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  child: Text(ru ? 'Открыть за $price' : 'Unlock for $price'),
+                  child: Text(ruEn('Открыть за $price', 'Unlock for $price')),
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 author.isEmpty
-                    ? (ru
-                        ? 'Набор останется навсегда и появится у партнёра'
-                        : 'Yours forever, and your partner gets it too')
-                    : (ru
-                        ? 'Рисунки — $author · набор появится и у партнёра'
-                        : 'Art by $author · your partner gets it too'),
+                    ? ruEn('Набор останется навсегда и появится у партнёра',
+                        'Yours forever, and your partner gets it too')
+                    : switch (LocaleService.instance.language) {
+                        AppLanguage.ru =>
+                          'Рисунки — $author · набор появится и у партнёра',
+                        AppLanguage.zh => '画师：$author · 另一半也会一起获得',
+                        _ => 'Art by $author · your partner gets it too',
+                      },
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
               ),

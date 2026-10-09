@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../models/mood_summary.dart';
-import '../../services/locale_service.dart';
+import '../../dict_strings.dart' show ruEn;
 import '../../theme/fonts.dart';
 import '../mood_image.dart';
 
@@ -45,7 +45,6 @@ class _MoodRingStatsState extends State<MoodRingStats> {
     if (summary.isEmpty) return const SizedBox.shrink();
 
     final cs = widget.scheme;
-    final ru = LocaleService.instance.isRussian;
     final shown = _expanded ? summary.slices : summary.top;
 
     return Column(
@@ -74,7 +73,7 @@ class _MoodRingStatsState extends State<MoodRingStats> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        ru ? 'светлых' : 'bright',
+                        ruEn('светлых', 'bright'),
                         style: AppFonts.onest(
                             size: 11.5, color: cs.onSurfaceVariant),
                       ),
@@ -124,10 +123,9 @@ class _MoodRingStatsState extends State<MoodRingStats> {
               ),
               child: Text(
                 _expanded
-                    ? (ru ? 'Свернуть' : 'Collapse')
-                    : (ru
-                        ? 'Ещё ${summary.restCount}'
-                        : '${summary.restCount} more'),
+                    ? ruEn('Свернуть', 'Collapse')
+                    : ruEn('Ещё ${summary.restCount}',
+                        '${summary.restCount} more'),
                 style: AppFonts.onest(size: 13.5, weight: 600),
               ),
             ),

@@ -223,7 +223,30 @@ GENRE_NAMES = {
                 "pt": "faroeste"},
 }
 
-LANGS = ("ru", "en", "de", "fr", "es", "it", "pt")
+_GENRE_ZH = {
+    "action": "动作", "comedy": "喜剧", "drama": "剧情", "adventure": "冒险",
+    "fantasy": "奇幻", "scifi": "科幻", "thriller": "惊悚", "crime": "犯罪",
+    "horror": "恐怖", "romance": "爱情", "mystery": "悬疑", "family": "家庭",
+    "kids": "儿童", "musical": "歌舞", "war": "战争", "history": "历史",
+    "biography": "传记", "documentary": "纪录片", "western": "西部",
+}
+for _g, _zh in _GENRE_ZH.items():
+    GENRE_NAMES[_g]["zh"] = _zh
+
+LANGS = ("ru", "en", "de", "fr", "es", "it", "pt", "zh")
+
+# Китайский ярлык в Викиданных часто лежит не под `zh`, а под письмом или
+# страной: `zh-hans`, `zh-cn`. Запрашиваем их тоже и сводим к `zh`.
+_ZH_VARIANTS = ("zh-hans", "zh-cn", "zh-sg")
+
+
+def _fold_zh(labels: dict) -> dict:
+    if not labels.get("zh"):
+        for code in _ZH_VARIANTS:
+            if labels.get(code):
+                labels = dict(labels, zh=labels[code])
+                break
+    return labels
 _SERIES = {"tv-series", "animated-series", "anime"}
 
 
@@ -274,8 +297,8 @@ def compact_entity(ent) -> dict | None:
     claims = ent.get("claims") or {}
     classes = _ids(claims, "P31")
     kind = kind_of(classes)
-    labels = {lang: v.get("value") for lang, v in (ent.get("labels") or {}).items()
-              if isinstance(v, dict) and v.get("value")}
+    labels = _fold_zh({lang: v.get("value") for lang, v in (ent.get("labels") or {}).items()
+                       if isinstance(v, dict) and v.get("value")})
     if kind is None:
         return {"qid": ent.get("id"), "labels": labels}
 
@@ -470,15 +493,15 @@ class WikidataSearch:
             payload = await self.fetch({
                 "action": "wbgetentities", "format": "json",
                 "ids": "|".join(need), "props": props,
-                "languages": "|".join(("mul",) + LANGS),
+                "languages": "|".join(("mul",) + LANGS + _ZH_VARIANTS),
             })
             fresh = {}
             for qid, ent in ((payload or {}).get("entities") or {}).items():
                 ent = dict(ent, id=ent.get("id") or qid)
                 c = compact_entity(ent) if props != "labels" else {
                     "qid": qid,
-                    "labels": {l: v.get("value") for l, v in (ent.get("labels") or {}).items()
-                               if isinstance(v, dict) and v.get("value")},
+                    "labels": _fold_zh({l: v.get("value") for l, v in (ent.get("labels") or {}).items()
+                                        if isinstance(v, dict) and v.get("value")}),
                 }
                 if c is not None:
                     fresh[qid] = c

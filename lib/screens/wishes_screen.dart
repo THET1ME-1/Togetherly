@@ -8,6 +8,7 @@ import '../models/symbol_catalog.dart';
 import '../models/wish.dart';
 import '../models/wish_category.dart';
 import '../models/wish_reservation.dart';
+import '../dict_strings.dart';
 import '../services/locale_service.dart';
 import '../services/plus_service.dart';
 import '../services/wish_repository.dart';
@@ -83,7 +84,7 @@ class _WishesScreenState extends State<WishesScreen> {
   ColorScheme get _cs => Theme.of(context).colorScheme;
   bool get _ru => LocaleService.instance.isRussian;
 
-  String _tr(String ru, String en) => _ru ? ru : en;
+  String _tr(String ru, String en) => ruEn(ru, en);
 
   @override
   void initState() {
@@ -355,10 +356,12 @@ class _WishesScreenState extends State<WishesScreen> {
   Future<void> _remove(Wish wish) async {
     final ok = await AppDialog.confirm(
       context,
-      message: _tr(
-        'Удалить «${wish.title}»? Желание пропадёт у обоих.',
-        'Delete "${wish.title}"? It will disappear for both of you.',
-      ),
+      message: LocaleService.instance.language == AppLanguage.zh
+          ? '要删除“${wish.title}”吗？你们两边都会看不到它。'
+          : _tr(
+              'Удалить «${wish.title}»? Желание пропадёт у обоих.',
+              'Delete "${wish.title}"? It will disappear for both of you.',
+            ),
       confirmLabel: _tr('Удалить', 'Delete'),
       destructive: true,
     );

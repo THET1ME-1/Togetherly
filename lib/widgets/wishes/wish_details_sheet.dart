@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../models/wish.dart';
-import '../../services/locale_service.dart';
+import '../../dict_strings.dart' show ruEn;
 import '../../theme/app_theme.dart';
 import '../../theme/fonts.dart';
 import '../../theme/profile_theme.dart';
@@ -45,7 +45,6 @@ class WishDetailsSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final ru = LocaleService.instance.isRussian;
     final hasShopLine = wish.hasPrice || wish.shop.isNotEmpty;
 
     return SheetScaffold(
@@ -60,7 +59,7 @@ class WishDetailsSheet extends StatelessWidget {
                 await safeLaunchUrl(uri, mode: LaunchMode.externalApplication);
               },
               icon: const Icon(Icons.open_in_new_rounded, size: 20),
-              label: Text(ru ? 'Открыть ссылку' : 'Open link'),
+              label: Text(ruEn('Открыть ссылку', 'Open link')),
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(56),
               ),
