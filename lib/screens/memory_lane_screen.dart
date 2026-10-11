@@ -64,6 +64,7 @@ import '../models/user_data.dart';
 import '../widgets/common/coin_reward_toast.dart';
 import '../widgets/common/ad_banner.dart';
 import '../services/pb_media_service.dart';
+import '../services/screen_awake.dart';
 import '../services/offline/media_cache.dart';
 import '../services/media_service.dart';
 import '../services/memory_repository.dart';

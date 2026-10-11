@@ -384,6 +384,7 @@ class _YouTubeInlineCardState extends State<_YouTubeInlineCard> {
 
   @override
   void dispose() {
+    ScreenAwake.release(this);
     _fullscreenSettle?.cancel();
     unawaited(_playerSub?.cancel());
     _controller?.close();
@@ -392,6 +393,13 @@ class _YouTubeInlineCardState extends State<_YouTubeInlineCard> {
 
   /// Возвращает воспроизведение, если пауза пришла ровно на смене режима.
   void _onPlayerValue(YoutubePlayerValue value) {
+    // Ролик YouTube играет во встроенном браузере, а тот экран сам не держит:
+    // длинное видео гасло бы по системному таймеру.
+    ScreenAwake.sync(
+      this,
+      playing: value.playerState == ytp.PlayerState.playing ||
+          value.playerState == ytp.PlayerState.buffering,
+    );
     final fullscreen = value.fullScreenOption.enabled;
     if (fullscreen != _wasFullscreen) {
       _wasFullscreen = fullscreen;
@@ -628,6 +636,9 @@ class _InAppVideoPlayerPageState extends State<InAppVideoPlayerPage> {
   void _onUpdate() {
     final controller = _controller;
     if (!mounted || controller == null) return;
+    // Пока ролик играет, экран не гаснет: плагин плеера сам его не держит
+    // (жалоба 12.10.2026). На паузе и в конце отпускаем.
+    ScreenAwake.sync(this, playing: controller.value.isPlaying);
     setState(() {
       _position = controller.value.position;
     });
@@ -685,6 +696,7 @@ class _InAppVideoPlayerPageState extends State<InAppVideoPlayerPage> {
 
   @override
   void dispose() {
+    ScreenAwake.release(this);
     _hideTimer?.cancel();
     _controller?.removeListener(_onUpdate);
     _controller?.dispose();

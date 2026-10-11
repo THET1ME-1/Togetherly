@@ -63,6 +63,36 @@ import WidgetKit
     setupApnsChannel(engineBridge.pluginRegistry)
     setupLocationAlwaysChannel(engineBridge.pluginRegistry)
     setupReelsInviteChannel(engineBridge.pluginRegistry)
+    setupScreenAwakeChannel(engineBridge.pluginRegistry)
+  }
+
+  // MARK: - Экран не гаснет, пока идёт видео
+
+  /// Канал `love_app/screen_awake`. Смотреть фильм для системы — бездействие,
+  /// и экран гаснет по своему таймеру (жалоба 12.10.2026). Кто и когда держит
+  /// экран, решает Dart (`ScreenAwake`); здесь только выключатель.
+  private func setupScreenAwakeChannel(_ registry: FlutterPluginRegistry) {
+    guard let messenger = registry
+      .registrar(forPlugin: "TogetherlyScreenAwake")?
+      .messenger()
+    else { return }
+
+    let channel = FlutterMethodChannel(
+      name: "love_app/screen_awake",
+      binaryMessenger: messenger
+    )
+    channel.setMethodCallHandler { call, result in
+      switch call.method {
+      case "set":
+        let on = (call.arguments as? [String: Any])?["on"] as? Bool ?? false
+        DispatchQueue.main.async {
+          UIApplication.shared.isIdleTimerDisabled = on
+        }
+        result(nil)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
   }
 
   // MARK: - Зов в совместную ленту

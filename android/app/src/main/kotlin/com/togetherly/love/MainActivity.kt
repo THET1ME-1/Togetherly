@@ -9,6 +9,7 @@ import android.net.Uri
 import android.util.Log
 import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.core.view.WindowCompat
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
@@ -378,6 +379,31 @@ class MainActivity : FlutterActivity() {
                 "launchPackage" -> result.success(
                     launchPackage(call.argument<String>("package") ?: "com.togetherly.money")
                 )
+                else -> result.notImplemented()
+            }
+        }
+
+        // ── Экран не гаснет, пока идёт видео ──
+        // Смотреть фильм — для системы бездействие, и экран гас по своему
+        // таймеру (жалоба 12.10.2026, Xiaomi). Флаг окна действует, только
+        // пока приложение на экране, и разрешений не просит. Кто и когда его
+        // ставит, решает Dart (`ScreenAwake`).
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "love_app/screen_awake"
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "set" -> {
+                    val on = call.argument<Boolean>("on") ?: false
+                    runOnUiThread {
+                        if (on) {
+                            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                        } else {
+                            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                        }
+                    }
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }

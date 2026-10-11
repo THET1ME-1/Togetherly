@@ -24,6 +24,7 @@ import '../../services/reels/reels_proxy.dart';
 import '../../services/watch_channel_service.dart';
 import '../../services/watch_history_service.dart';
 import '../../services/watch_room_service.dart';
+import '../../services/screen_awake.dart';
 import '../../services/watch_voice_service.dart';
 import '../../utils/share_origin.dart';
 import '../../widgets/common/m3_loading.dart';
@@ -86,6 +87,11 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
   @override
   void initState() {
     super.initState();
+    // В комнате смотрят фильм и не трогают экран: без удержания он гаснет
+    // по системному таймеру (жалоба 12.10.2026). Встроенный браузер экран
+    // сам не держит, а играет ли ролик, знает только страница, поэтому
+    // держим всё время, пока комната открыта.
+    ScreenAwake.hold(this);
     unawaited(_openVoice());
     WidgetsBinding.instance.addObserver(this);
     if (widget.reels) unawaited(_startFeed());
@@ -259,6 +265,7 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
 
   @override
   void dispose() {
+    ScreenAwake.release(this);
     WidgetsBinding.instance.removeObserver(this);
     _voice?.removeListener(_onVoiceChanged);
     _voice?.dispose();

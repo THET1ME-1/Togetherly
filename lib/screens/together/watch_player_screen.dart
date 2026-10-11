@@ -8,6 +8,7 @@ import '../../services/locale_service.dart';
 import '../../services/pb_media_service.dart';
 import '../../services/pocketbase_service.dart';
 import '../../services/watch_sync.dart';
+import '../../services/screen_awake.dart';
 import '../../services/watch_voice_service.dart';
 import '../../services/watch_channel_service.dart';
 import '../../services/watch_history_service.dart';
@@ -204,6 +205,9 @@ class _WatchPlayerScreenState extends State<WatchPlayerScreen>
   }
 
   void _onPlayerTick() {
+    // Пока ролик играет, экран не гаснет: плагин плеера сам его не держит
+    // (жалоба 12.10.2026). На паузе отпускаем — пусть телефон засыпает.
+    ScreenAwake.sync(this, playing: _video?.value.isPlaying ?? false);
     if (mounted) setState(() {});
   }
 
@@ -251,6 +255,7 @@ class _WatchPlayerScreenState extends State<WatchPlayerScreen>
 
   @override
   void dispose() {
+    ScreenAwake.release(this);
     _heartbeat?.cancel();
     _hideControls?.cancel();
     _voice?.removeListener(_onVoiceChanged);
