@@ -7,6 +7,9 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 import 'unfold_math.dart';
+import 'unfold_touch.dart';
+
+part 'unfold_auto.dart';
 
 /// Переход «экран вырастает из нажатого».
 ///
@@ -360,55 +363,353 @@ class _Flier {
 
 enum _Phase { opening, open, dragging, settling, closing }
 
+/// Откуда растёт экран: плитка, обёрнутая в [UnfoldSource], либо место
+/// нажатия, найденное само (см. `unfold_auto.dart`).
+abstract class _UnfoldOrigin {
+  /// Элемент ещё на экране: есть куда складываться.
+  bool get alive;
+
+  /// Место элемента в координатах [overlay].
+  Rect? rect(RenderObject? overlay);
+
+  double get radius;
+
+  /// Этим цветом залито окно, пока экран не проявился.
+  Color get fill;
+
+  /// Снимок элемента: проступает сквозь заливку в начале и в конце пути.
+  ui.Image? ghost(double pixelRatio);
+
+  /// Снимок стоит переснять, когда экран открылся: в момент нажатия кнопка
+  /// подсвечена, и при возврате эта подсветка мигнула бы.
+  bool get reghosts;
+
+  List<UnfoldSharedState> shared();
+
+  void hide();
+
+  void show();
+}
+
+class _SourceOrigin implements _UnfoldOrigin {
+  _SourceOrigin(this.source);
+
+  final UnfoldSourceState source;
+
+  @override
+  bool get alive => source.mounted;
+
+  @override
+  Rect? rect(RenderObject? overlay) =>
+      source.mounted ? _rectOf(source._boundary.currentContext, overlay) : null;
+
+  @override
+  double get radius => source.widget.radius;
+
+  @override
+  Color get fill => source.widget.fill;
+
+  @override
+  ui.Image? ghost(double pixelRatio) =>
+      _snapshotOf(source._boundary.currentContext, pixelRatio);
+
+  @override
+  bool get reghosts => false;
+
+  @override
+  List<UnfoldSharedState> shared() => source._sharedInside();
+
+  @override
+  void hide() => source._setHidden(true);
+
+  @override
+  void show() => source._setHidden(false);
+}
+
+/// Состояние одного перехода. Живёт рядом с маршрутом: у [UnfoldRoute] своё,
+/// у обычного маршрута Material его держит [UnfoldPageTransitionsBuilder].
+class _UnfoldSession {
+  _UnfoldSession(this.route, {_UnfoldOrigin? origin}) : _origin = origin;
+
+  final PageRoute<dynamic> route;
+  _UnfoldOrigin? _origin;
+
+  /// Сколько длится ход маршрута туда и обратно: от них считается время.
+  double openMs = UnfoldTiming.openMs;
+  double closeMs = UnfoldTiming.closeMs;
+
+  /// Растём из элемента или просто проявляемся.
+  bool grows = false;
+
+  /// В системе включено «уменьшить движение»: ни роста, ни жеста.
+  bool calm = false;
+
+  /// Сессию завёл строитель темы: закрытие она узнаёт по ходу маршрута и
+  /// убирает за собой вместе с виджетом перехода.
+  bool auto = false;
+
+  Rect? sourceRect;
+  double sourceRadius = 0;
+  Color fill = const Color(0x00000000);
+  ui.Image? ghost;
+  final List<_Flier> fliers = <_Flier>[];
+
+  /// Новый экран уже разложен, и пары общих элементов найдены.
+  bool targetsKnown = false;
+
+  _Phase phase = _Phase.opening;
+
+  /// Откуда складываемся: полный экран либо место под пальцем.
+  Rect? closeFrom;
+  double closeFromRadius = 0;
+
+  /// Значение хода маршрута в момент закрытия: от него считается время.
+  double popValue = 1;
+
+  /// Докуда долетели общие элементы, если закрыли посреди открытия.
+  double flightCap = 1;
+
+  _UnfoldTransitionState? view;
+
+  RenderObject? get _overlayBox =>
+      route.navigator?.overlay?.context.findRenderObject();
+
+  double get _pixelRatio {
+    final context = route.navigator?.context;
+    return context == null
+        ? 1
+        : MediaQuery.maybeDevicePixelRatioOf(context) ?? 1;
+  }
+
+  /// Всё, что надо знать о карточке, снимается в момент нажатия: через кадр
+  /// она уже спрятана под окном.
+  void measure() {
+    final origin = _origin;
+    final context = route.navigator?.context;
+    if (context == null) return;
+    calm = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    if (calm || origin == null || !origin.alive) return;
+    final rect = origin.rect(_overlayBox);
+    if (rect == null || rect.isEmpty) return;
+
+    grows = true;
+    sourceRect = rect;
+    sourceRadius = origin.radius;
+    fill = origin.fill;
+    ghost = origin.ghost(_pixelRatio);
+    for (final shared in origin.shared()) {
+      final place = _rectOf(shared._boundary.currentContext, _overlayBox);
+      if (place == null || place.isEmpty) continue;
+      fliers.add(_Flier(
+        tag: shared.widget.tag,
+        fit: shared.widget.fit,
+        from: place,
+        fromRadius: shared.widget.radius,
+        image: _snapshotOf(shared._boundary.currentContext, _pixelRatio),
+      ));
+    }
+  }
+
+  /// Карточку прячем не в момент нажатия, а после первого кадра маршрута:
+  /// этот кадр Flutter не рисует вовсе (меряет героев), и спрятанная раньше
+  /// карточка оставила бы на его месте дыру.
+  void hideSource() {
+    if (grows) _origin?.hide();
+  }
+
+  void showSource() => _origin?.show();
+
+  /// Куда лететь общим элементам, известно только после первой раскладки
+  /// нового экрана.
+  void resolveTargets(_UnfoldTransitionState view) {
+    if (phase != _Phase.opening) return;
+    final page = view._pageKey.currentContext?.findRenderObject();
+    for (final flier in fliers) {
+      if (flier.to != null) continue;
+      for (final shared in view.shared) {
+        if (shared.widget.tag != flier.tag || !shared.mounted) continue;
+        final place = _rectOf(shared._boundary.currentContext, page);
+        if (place == null || place.isEmpty) continue;
+        flier.to = place;
+        flier.toRadius = shared.widget.radius;
+        if (flier.fit == UnfoldFit.scale) flier.farFrom = shared;
+        break;
+      }
+    }
+    targetsKnown = true;
+    // Элемент нового экрана без пары в карточке никто не привезёт: пусть
+    // стоит на месте с самого начала.
+    final arriving = {
+      for (final flier in fliers)
+        if (flier.to != null && flier.image != null) flier.tag,
+    };
+    for (final shared in view.shared) {
+      if (!arriving.contains(shared.widget.tag)) shared._setHidden(false);
+    }
+  }
+
+  void finishOpening(_UnfoldTransitionState view) {
+    if (phase != _Phase.opening) return;
+    phase = _Phase.open;
+    for (final flier in fliers) {
+      flier.dispose();
+    }
+    fliers.clear();
+    for (final shared in view.shared) {
+      shared._setHidden(false);
+    }
+    final origin = _origin;
+    if (grows && origin != null && origin.reghosts && origin.alive) {
+      final fresh = origin.ghost(_pixelRatio);
+      if (fresh != null) {
+        ghost?.dispose();
+        ghost = fresh;
+      }
+    }
+    view._refresh();
+  }
+
+  /// Держит маршрут чуть не дойдя до конца: пока ход равен единице, Flutter
+  /// считает экран непрозрачным и не рисует ленту под ним.
+  void holdOpen(bool hold) {
+    if (!route.isActive) return;
+    route.handleUpdateBackGestureProgress(progress: hold ? 0.999 : 1.0);
+  }
+
+  void beginClose() {
+    if (phase == _Phase.closing) return;
+    final view = this.view;
+    final was = phase;
+    popValue = route.animation?.value ?? 1;
+    if (popValue <= 0) popValue = 1;
+    if (!grows || view == null || !view.mounted) {
+      phase = _Phase.closing;
+      return;
+    }
+
+    final origin = _origin;
+    final fresh =
+        origin != null && origin.alive ? origin.rect(_overlayBox) : null;
+    if (fresh != null && !fresh.isEmpty) {
+      sourceRect = fresh;
+    } else if (origin == null || !origin.alive) {
+      // Карточки больше нет (запись удалили): складываться некуда.
+      sourceRect = null;
+    }
+
+    if (was == _Phase.opening) {
+      // Закрыли посреди открытия: возвращаем то же окно и те же снимки.
+      final now = view._frameNow();
+      closeFrom = now.rect;
+      closeFromRadius = now.radius;
+      flightCap = now.flight.clamp(0.0, 1.0);
+    } else {
+      closeFrom ??= view._fullRect;
+      _collectReturning(view);
+      view._chaseTries = 0;
+    }
+    phase = _Phase.closing;
+  }
+
+  /// Общие элементы летят обратно: снимок берём с открытого экрана, где они
+  /// сейчас стоят, а цель — их место в карточке.
+  void _collectReturning(_UnfoldTransitionState view) {
+    for (final flier in fliers) {
+      flier.dispose();
+    }
+    fliers.clear();
+    final origin = _origin;
+    if (sourceRect == null || origin == null || !origin.alive) return;
+    final homes = <String, UnfoldSharedState>{
+      for (final shared in origin.shared()) shared.widget.tag: shared,
+    };
+    for (final shared in view.shared) {
+      final home = homes[shared.widget.tag];
+      if (home == null || !shared.mounted) continue;
+      final here = _rectOf(shared._boundary.currentContext, _overlayBox);
+      final there = _rectOf(home._boundary.currentContext, _overlayBox);
+      if (here == null || there == null || here.isEmpty || there.isEmpty) {
+        continue;
+      }
+      final image = _snapshotOf(shared._boundary.currentContext, _pixelRatio);
+      if (image == null) continue;
+      fliers.add(_Flier(
+        tag: shared.widget.tag,
+        fit: shared.widget.fit,
+        from: there,
+        fromRadius: home.widget.radius,
+        image: image,
+      )
+        ..to = here
+        ..toRadius = shared.widget.radius
+        ..farFrom = shared.widget.fit == UnfoldFit.scale ? home : null);
+      shared._setHidden(true);
+    }
+    flightCap = 1;
+  }
+
+  /// Снимает дальний конец текста, как только тот нарисовался. Возвращает
+  /// true, пока ждать ещё есть кого.
+  bool captureFar() {
+    var waiting = false;
+    for (final flier in fliers) {
+      final from = flier.farFrom;
+      if (from == null || flier.far != null) continue;
+      if (!from.mounted) {
+        flier.farFrom = null;
+        continue;
+      }
+      flier.far = _snapshotOf(from._boundary.currentContext, _pixelRatio);
+      if (flier.far == null) waiting = true;
+    }
+    return waiting;
+  }
+
+  /// Отпускает снимки. Источник при этом возвращается на экран.
+  void dispose() {
+    final origin = _origin;
+    _origin = null;
+    if (origin != null && grows) {
+      _whenSafe(origin.show);
+    }
+    ghost?.dispose();
+    ghost = null;
+    for (final flier in fliers) {
+      flier.dispose();
+    }
+    fliers.clear();
+  }
+}
+
 /// Маршрут, который раскрывает экран из [source].
 class UnfoldRoute<T> extends PageRoute<T> {
   UnfoldRoute({
     required this.builder,
     UnfoldSourceState? source,
     super.settings,
-  }) : _source = source;
+  }) {
+    _session = _UnfoldSession(
+      this,
+      origin: source == null ? null : _SourceOrigin(source),
+    );
+  }
 
   final WidgetBuilder builder;
-  UnfoldSourceState? _source;
-
-  /// Растём из элемента или просто проявляемся.
-  bool _grows = false;
-
-  /// В системе включено «уменьшить движение»: ни роста, ни жеста.
-  bool _calm = false;
-
-  Rect? _sourceRect;
-  double _sourceRadius = 0;
-  Color _fill = const Color(0x00000000);
-  ui.Image? _ghost;
-  final List<_Flier> _fliers = <_Flier>[];
-
-  /// Новый экран уже разложен, и пары общих элементов найдены.
-  bool _targetsKnown = false;
-
-  _Phase _phase = _Phase.opening;
-
-  /// Откуда складываемся: полный экран либо место под пальцем.
-  Rect? _closeFrom;
-  double _closeFromRadius = 0;
-
-  /// Значение хода маршрута в момент закрытия: от него считается время.
-  double _popValue = 1;
-
-  /// Докуда долетели общие элементы, если закрыли посреди открытия.
-  double _flightCap = 1;
-
-  _UnfoldTransitionState? _view;
+  late final _UnfoldSession _session;
 
   @override
   Duration get transitionDuration => Duration(
-      milliseconds:
-          (_grows ? UnfoldTiming.openMs : UnfoldTiming.fadeInMs).round());
+      milliseconds: (_session.grows
+              ? UnfoldTiming.openMs
+              : UnfoldTiming.fadeInMs)
+          .round());
 
   @override
   Duration get reverseTransitionDuration => Duration(
-      milliseconds:
-          (_grows ? UnfoldTiming.closeMs : UnfoldTiming.fadeOutMs).round());
+      milliseconds: (_session.grows
+              ? UnfoldTiming.closeMs
+              : UnfoldTiming.fadeOutMs)
+          .round());
 
   @override
   bool get opaque => true;
@@ -422,202 +723,18 @@ class UnfoldRoute<T> extends PageRoute<T> {
   @override
   String? get barrierLabel => null;
 
-  RenderObject? get _overlayBox => navigator?.overlay?.context.findRenderObject();
-
-  double get _pixelRatio {
-    final context = navigator?.context;
-    return context == null
-        ? 1
-        : MediaQuery.maybeDevicePixelRatioOf(context) ?? 1;
-  }
-
   @override
   void install() {
-    _measureSource();
+    // Касание забирает эта плитка: общему переходу темы оно уже не нужно.
+    UnfoldTouch.forget();
+    _session.measure();
     super.install();
-  }
-
-  /// Всё, что надо знать о карточке, снимается в момент нажатия: через кадр
-  /// она уже спрятана под окном.
-  void _measureSource() {
-    final source = _source;
-    final context = navigator?.context;
-    if (context == null) return;
-    _calm = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
-    if (_calm || source == null || !source.mounted) return;
-    final rect = _rectOf(source._boundary.currentContext, _overlayBox);
-    if (rect == null || rect.isEmpty) return;
-
-    _grows = true;
-    _sourceRect = rect;
-    _sourceRadius = source.widget.radius;
-    _fill = source.widget.fill;
-    _ghost = _snapshotOf(source._boundary.currentContext, _pixelRatio);
-    for (final shared in source._sharedInside()) {
-      final place = _rectOf(shared._boundary.currentContext, _overlayBox);
-      if (place == null || place.isEmpty) continue;
-      _fliers.add(_Flier(
-        tag: shared.widget.tag,
-        fit: shared.widget.fit,
-        from: place,
-        fromRadius: shared.widget.radius,
-        image: _snapshotOf(shared._boundary.currentContext, _pixelRatio),
-      ));
-    }
-  }
-
-  /// Карточку прячем не в момент нажатия, а после первого кадра маршрута:
-  /// этот кадр Flutter не рисует вовсе (меряет героев), и спрятанная раньше
-  /// карточка оставила бы на его месте дыру.
-  void _hideSource() {
-    if (_grows) _source?._setHidden(true);
-  }
-
-  void _showSource() => _source?._setHidden(false);
-
-  /// Куда лететь общим элементам, известно только после первой раскладки
-  /// нового экрана.
-  void _resolveTargets(_UnfoldTransitionState view) {
-    if (_phase != _Phase.opening) return;
-    final page = view._pageKey.currentContext?.findRenderObject();
-    for (final flier in _fliers) {
-      if (flier.to != null) continue;
-      for (final shared in view.shared) {
-        if (shared.widget.tag != flier.tag || !shared.mounted) continue;
-        final place = _rectOf(shared._boundary.currentContext, page);
-        if (place == null || place.isEmpty) continue;
-        flier.to = place;
-        flier.toRadius = shared.widget.radius;
-        if (flier.fit == UnfoldFit.scale) flier.farFrom = shared;
-        break;
-      }
-    }
-    _targetsKnown = true;
-    // Элемент нового экрана без пары в карточке никто не привезёт: пусть
-    // стоит на месте с самого начала.
-    final arriving = {
-      for (final flier in _fliers)
-        if (flier.to != null && flier.image != null) flier.tag,
-    };
-    for (final shared in view.shared) {
-      if (!arriving.contains(shared.widget.tag)) shared._setHidden(false);
-    }
-  }
-
-  void _finishOpening(_UnfoldTransitionState view) {
-    if (_phase != _Phase.opening) return;
-    _phase = _Phase.open;
-    for (final flier in _fliers) {
-      flier.dispose();
-    }
-    _fliers.clear();
-    for (final shared in view.shared) {
-      shared._setHidden(false);
-    }
-    view._refresh();
-  }
-
-  /// Держит маршрут чуть не дойдя до конца: пока ход равен единице, Flutter
-  /// считает экран непрозрачным и не рисует ленту под ним.
-  void _holdOpen(bool hold) {
-    final ticker = controller;
-    if (ticker == null) return;
-    ticker.value = hold ? 0.999 : 1.0;
   }
 
   @override
   bool didPop(T? result) {
-    _beginClose();
+    _session.beginClose();
     return super.didPop(result);
-  }
-
-  void _beginClose() {
-    final view = _view;
-    final was = _phase;
-    _popValue = controller?.value ?? 1;
-    if (_popValue <= 0) _popValue = 1;
-    if (!_grows || view == null || !view.mounted) {
-      _phase = _Phase.closing;
-      return;
-    }
-
-    final source = _source;
-    final fresh = source != null && source.mounted
-        ? _rectOf(source._boundary.currentContext, _overlayBox)
-        : null;
-    if (fresh != null && !fresh.isEmpty) {
-      _sourceRect = fresh;
-    } else if (source == null || !source.mounted) {
-      // Карточки больше нет (запись удалили): складываться некуда.
-      _sourceRect = null;
-    }
-
-    if (was == _Phase.opening) {
-      // Закрыли посреди открытия: возвращаем то же окно и те же снимки.
-      final now = view._frameNow();
-      _closeFrom = now.rect;
-      _closeFromRadius = now.radius;
-      _flightCap = now.flight.clamp(0.0, 1.0);
-    } else {
-      _closeFrom ??= view._fullRect;
-      _collectReturning(view);
-      view._chaseTries = 0;
-    }
-    _phase = _Phase.closing;
-  }
-
-  /// Общие элементы летят обратно: снимок берём с открытого экрана, где они
-  /// сейчас стоят, а цель — их место в карточке.
-  void _collectReturning(_UnfoldTransitionState view) {
-    for (final flier in _fliers) {
-      flier.dispose();
-    }
-    _fliers.clear();
-    final source = _source;
-    if (_sourceRect == null || source == null || !source.mounted) return;
-    final homes = <String, UnfoldSharedState>{
-      for (final shared in source._sharedInside()) shared.widget.tag: shared,
-    };
-    for (final shared in view.shared) {
-      final home = homes[shared.widget.tag];
-      if (home == null || !shared.mounted) continue;
-      final here = _rectOf(shared._boundary.currentContext, _overlayBox);
-      final there = _rectOf(home._boundary.currentContext, _overlayBox);
-      if (here == null || there == null || here.isEmpty || there.isEmpty) {
-        continue;
-      }
-      final image = _snapshotOf(shared._boundary.currentContext, _pixelRatio);
-      if (image == null) continue;
-      _fliers.add(_Flier(
-        tag: shared.widget.tag,
-        fit: shared.widget.fit,
-        from: there,
-        fromRadius: home.widget.radius,
-        image: image,
-      )
-        ..to = here
-        ..toRadius = shared.widget.radius
-        ..farFrom = shared.widget.fit == UnfoldFit.scale ? home : null);
-      shared._setHidden(true);
-    }
-    _flightCap = 1;
-  }
-
-  /// Снимает дальний конец текста, как только тот нарисовался. Возвращает
-  /// true, пока ждать ещё есть кого.
-  bool _captureFar() {
-    var waiting = false;
-    for (final flier in _fliers) {
-      final from = flier.farFrom;
-      if (from == null || flier.far != null) continue;
-      if (!from.mounted) {
-        flier.farFrom = null;
-        continue;
-      }
-      flier.far = _snapshotOf(from._boundary.currentContext, _pixelRatio);
-      if (flier.far == null) waiting = true;
-    }
-    return waiting;
   }
 
   @override
@@ -628,22 +745,13 @@ class UnfoldRoute<T> extends PageRoute<T> {
   @override
   Widget buildTransitions(BuildContext context, Animation<double> animation,
       Animation<double> secondaryAnimation, Widget child) {
-    return _UnfoldTransition(route: this, animation: animation, child: child);
+    return _UnfoldTransition(
+        session: _session, animation: animation, child: child);
   }
 
   @override
   void dispose() {
-    final source = _source;
-    _source = null;
-    if (source != null && _grows) {
-      _whenSafe(() => source._setHidden(false));
-    }
-    _ghost?.dispose();
-    _ghost = null;
-    for (final flier in _fliers) {
-      flier.dispose();
-    }
-    _fliers.clear();
+    _session.dispose();
     super.dispose();
   }
 }
@@ -666,12 +774,12 @@ Route<T> unfoldFrom<T>(
 
 class _UnfoldTransition extends StatefulWidget {
   const _UnfoldTransition({
-    required this.route,
+    required this.session,
     required this.animation,
     required this.child,
   });
 
-  final UnfoldRoute<dynamic> route;
+  final _UnfoldSession session;
   final Animation<double> animation;
   final Widget child;
 
@@ -697,7 +805,7 @@ class _UnfoldTransitionState extends State<_UnfoldTransition>
   bool _dragFromRight = false;
   Offset? _backStart;
 
-  UnfoldRoute<dynamic> get _route => widget.route;
+  _UnfoldSession get _route => widget.session;
 
   Rect get _fullRect => Offset.zero & _screen;
 
@@ -706,7 +814,7 @@ class _UnfoldTransitionState extends State<_UnfoldTransition>
 
   @override
   bool get hidesNewShared =>
-      _route._grows && _route._phase == _Phase.opening;
+      _route.grows && _route.phase == _Phase.opening;
 
   @override
   void initState() {
@@ -717,18 +825,18 @@ class _UnfoldTransitionState extends State<_UnfoldTransition>
           Duration(milliseconds: UnfoldTiming.settleMs.round()),
     );
     _ticks = Listenable.merge(<Listenable>[widget.animation, _settle]);
-    _route._view = this;
+    _route.view = this;
     widget.animation.addStatusListener(_onStatus);
     WidgetsBinding.instance.addObserver(this);
-    if (_route._grows) {
+    if (_route.grows) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        _route._hideSource();
-        _route._resolveTargets(this);
+        _route.hideSource();
+        _route.resolveTargets(this);
         _refresh();
       });
     } else if (widget.animation.isCompleted) {
-      _route._phase = _Phase.open;
+      _route.phase = _Phase.open;
     }
   }
 
@@ -736,7 +844,8 @@ class _UnfoldTransitionState extends State<_UnfoldTransition>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     widget.animation.removeStatusListener(_onStatus);
-    if (identical(_route._view, this)) _route._view = null;
+    if (identical(_route.view, this)) _route.view = null;
+    if (_route.auto) _route.dispose();
     _settle.dispose();
     super.dispose();
   }
@@ -747,13 +856,16 @@ class _UnfoldTransitionState extends State<_UnfoldTransition>
 
   void _onStatus(AnimationStatus status) {
     if (status == AnimationStatus.completed &&
-        _route._phase == _Phase.opening) {
-      _route._finishOpening(this);
+        _route.phase == _Phase.opening) {
+      _route.finishOpening(this);
     }
+    // Обычный маршрут Material о закрытии не скажет: узнаём по развороту
+    // хода. У [UnfoldRoute] к этому мигу закрытие уже начато из didPop.
+    if (status == AnimationStatus.reverse) _route.beginClose();
     // Окно сложилось: карточка возвращается в том же кадре, где навигатор
     // уберёт маршрут. Ждать его dispose нельзя — он приходит кадром позже,
     // и на месте записи мигала бы пустота.
-    if (status == AnimationStatus.dismissed) _route._showSource();
+    if (status == AnimationStatus.dismissed) _route.showSource();
   }
 
   // ── время перехода ────────────────────────────────────────────────────────
@@ -764,15 +876,15 @@ class _UnfoldTransitionState extends State<_UnfoldTransition>
   double? _openLead;
 
   double get _openMs {
-    final passed = widget.animation.value * UnfoldTiming.openMs;
-    if (_route.offstage) return 0;
+    final passed = widget.animation.value * _route.openMs;
+    if (_route.route.offstage) return 0;
     final lead = _openLead ??= passed;
     return passed - lead;
   }
 
   double get _closeMs =>
-      (1 - widget.animation.value / _route._popValue).clamp(0.0, 1.0) *
-      UnfoldTiming.closeMs;
+      (1 - widget.animation.value / _route.popValue).clamp(0.0, 1.0) *
+      _route.closeMs;
 
   UnfoldFrame _frameNow() {
     final route = _route;
@@ -781,15 +893,15 @@ class _UnfoldTransitionState extends State<_UnfoldTransition>
     UnfoldFrame at(Rect rect, double radius) => UnfoldFrame(
         rect: rect, radius: radius, tint: 0, ghost: 0, flight: 1);
 
-    final source = route._sourceRect;
-    switch (route._phase) {
+    final source = route.sourceRect;
+    switch (route.phase) {
       case _Phase.opening:
-        if (!route._grows || source == null) return at(full, 0);
+        if (!route.grows || source == null) return at(full, 0);
         return unfoldOpenFrame(
           ms: _openMs,
           source: source,
           full: full,
-          sourceRadius: route._sourceRadius,
+          sourceRadius: route.sourceRadius,
         );
       case _Phase.open:
         return at(full, 0);
@@ -806,15 +918,15 @@ class _UnfoldTransitionState extends State<_UnfoldTransition>
         return at(Rect.lerp(full, drag.rect, left)!, drag.radius * left);
       case _Phase.closing:
         // Складываться некуда: окно гаснет там, где его отпустили.
-        if (!route._grows || source == null) {
-          return at(route._closeFrom ?? full, route._closeFromRadius);
+        if (!route.grows || source == null) {
+          return at(route.closeFrom ?? full, route.closeFromRadius);
         }
         return unfoldCloseFrame(
           ms: _closeMs,
           source: source,
-          from: route._closeFrom ?? full,
-          sourceRadius: route._sourceRadius,
-          fromRadius: route._closeFromRadius,
+          from: route.closeFrom ?? full,
+          sourceRadius: route.sourceRadius,
+          fromRadius: route.closeFromRadius,
         );
     }
   }
@@ -822,13 +934,13 @@ class _UnfoldTransitionState extends State<_UnfoldTransition>
   /// Прозрачность окна целиком: нужна только там, где оно не растёт.
   double get _windowOpacity {
     final route = _route;
-    final fades = !route._grows ||
-        (route._phase == _Phase.closing && route._sourceRect == null);
+    final fades = !route.grows ||
+        (route.phase == _Phase.closing && route.sourceRect == null);
     if (!fades) return 1;
-    return switch (route._phase) {
+    return switch (route.phase) {
       _Phase.opening => widget.animation.value,
       _Phase.closing =>
-        (widget.animation.value / route._popValue).clamp(0.0, 1.0),
+        (widget.animation.value / route.popValue).clamp(0.0, 1.0),
       _ => 1,
     };
   }
@@ -836,13 +948,13 @@ class _UnfoldTransitionState extends State<_UnfoldTransition>
   @override
   ({double opacity, double shift}) item(int index) {
     final route = _route;
-    if (!route._grows) return (opacity: 1, shift: 0);
+    if (!route.grows) return (opacity: 1, shift: 0);
     // Пока места общих элементов не сняты, блоки стоят без сдвига: иначе
     // аватар в шапке померился бы на 18 точек ниже своего места.
-    if (route._phase == _Phase.opening && !route._targetsKnown) {
+    if (route.phase == _Phase.opening && !route.targetsKnown) {
       return (opacity: 0, shift: 0);
     }
-    return switch (route._phase) {
+    return switch (route.phase) {
       _Phase.opening => unfoldItemIn(_openMs, index),
       _Phase.closing => (opacity: unfoldItemOutOpacity(_closeMs), shift: 0),
       _ => (opacity: 1, shift: 0),
@@ -852,47 +964,47 @@ class _UnfoldTransitionState extends State<_UnfoldTransition>
   // ── жест «назад» ──────────────────────────────────────────────────────────
 
   bool get _canDrag =>
-      !_route._calm &&
-      _route._phase == _Phase.open &&
-      _route.isCurrent &&
-      _route.popGestureEnabled;
+      !_route.calm &&
+      _route.phase == _Phase.open &&
+      _route.route.isCurrent &&
+      _route.route.popGestureEnabled;
 
   bool _beginDrag({required bool fromRight}) {
     if (!_canDrag) return false;
     _dragFromRight = fromRight;
     _dragDelta = Offset.zero;
-    _route._phase = _Phase.dragging;
-    _route.navigator?.didStartUserGesture();
-    _route._holdOpen(true);
+    _route.phase = _Phase.dragging;
+    _route.route.navigator?.didStartUserGesture();
+    _route.holdOpen(true);
     _refresh();
     return true;
   }
 
   void _dragTo(Offset delta) {
-    if (_route._phase != _Phase.dragging) return;
+    if (_route.phase != _Phase.dragging) return;
     setState(() => _dragDelta = delta);
   }
 
   void _endDrag({bool? commit}) {
     final route = _route;
-    if (route._phase != _Phase.dragging) return;
+    if (route.phase != _Phase.dragging) return;
     final drag = unfoldDragFrame(
         delta: _dragDelta, screen: _screen, fromRight: _dragFromRight);
     final closes = commit ?? unfoldDragCommits(drag.progress);
-    final navigator = route.navigator;
+    final navigator = route.route.navigator;
     if (closes && navigator != null) {
-      route._closeFrom = drag.rect;
-      route._closeFromRadius = drag.radius;
+      route.closeFrom = drag.rect;
+      route.closeFromRadius = drag.radius;
       navigator.pop();
       navigator.didStopUserGesture();
       return;
     }
-    route._phase = _Phase.settling;
+    route.phase = _Phase.settling;
     _settle.forward(from: 0).whenCompleteOrCancel(() {
-      if (!mounted || route._phase != _Phase.settling) return;
-      route._phase = _Phase.open;
-      route._holdOpen(false);
-      route.navigator?.didStopUserGesture();
+      if (!mounted || route.phase != _Phase.settling) return;
+      route.phase = _Phase.open;
+      route.holdOpen(false);
+      route.route.navigator?.didStopUserGesture();
       _refresh();
     });
   }
@@ -952,7 +1064,7 @@ class _UnfoldTransitionState extends State<_UnfoldTransition>
   /// снимать не с чего. Несколько попыток — и хватит, летим со старым.
   void _chaseFar() {
     if (_chasing || _chaseTries >= 8) return;
-    final pending = _route._fliers
+    final pending = _route.fliers
         .any((flier) => flier.farFrom != null && flier.far == null);
     if (!pending) return;
     _chasing = true;
@@ -960,7 +1072,7 @@ class _UnfoldTransitionState extends State<_UnfoldTransition>
       _chasing = false;
       _chaseTries++;
       if (!mounted) return;
-      _route._captureFar();
+      _route.captureFar();
       _refresh();
     });
   }
@@ -1005,26 +1117,26 @@ class _UnfoldTransitionState extends State<_UnfoldTransition>
     final frame = _frameNow();
     final full = _fullRect;
     final scale = full.width > 0 ? frame.rect.width / full.width : 1.0;
-    final resting = route._phase == _Phase.open;
-    final source = route._sourceRect;
-    final ghost = route._ghost;
+    final resting = route.phase == _Phase.open;
+    final source = route.sourceRect;
+    final ghost = route.ghost;
     // Летящие стартуют ровно со своих мест и не выходят за то, докуда успели
     // долететь, если экран закрыли посреди открытия.
-    final flight = route._phase == _Phase.closing
-        ? frame.flight * route._flightCap
+    final flight = route.phase == _Phase.closing
+        ? frame.flight * route.flightCap
         : frame.flight;
-    final flying = route._grows &&
-        (route._phase == _Phase.opening || route._phase == _Phase.closing);
+    final flying = route.grows &&
+        (route.phase == _Phase.opening || route.phase == _Phase.closing);
 
-    if (flying && !route.offstage) _chaseFar();
-    final moving = route._phase == _Phase.dragging ||
-        route._phase == _Phase.settling ||
-        route._phase == _Phase.closing;
+    if (flying && !route.route.offstage) _chaseFar();
+    final moving = route.phase == _Phase.dragging ||
+        route.phase == _Phase.settling ||
+        route.phase == _Phase.closing;
     // До первой раскладки пары ещё не известны: все летящие стоят на своих
     // местах. Дальше летят только те, кому есть куда.
     final fliers = [
-      for (final flier in route._fliers)
-        if (flier.image != null && (flier.to != null || !route._targetsKnown))
+      for (final flier in route.fliers)
+        if (flier.image != null && (flier.to != null || !route.targetsKnown))
           flier,
     ];
 
@@ -1055,8 +1167,8 @@ class _UnfoldTransitionState extends State<_UnfoldTransition>
                       if (frame.tint > 0)
                         IgnorePointer(
                           child: ColoredBox(
-                            color: route._fill.withValues(
-                                alpha: route._fill.a * frame.tint),
+                            color: route.fill.withValues(
+                                alpha: route.fill.a * frame.tint),
                           ),
                         ),
                       if (frame.ghost > 0 && ghost != null && source != null)
@@ -1093,7 +1205,7 @@ class _UnfoldTransitionState extends State<_UnfoldTransition>
           for (final flier in fliers)
             if (flier.fit == UnfoldFit.scale)
               _textFlier(flier, flight,
-                  opening: route._phase == _Phase.opening)
+                  opening: route.phase == _Phase.opening)
             else
             Positioned.fromRect(
               rect: flier.rectAt(flight),
@@ -1111,7 +1223,7 @@ class _UnfoldTransitionState extends State<_UnfoldTransition>
                 ),
               ),
             ),
-        if (_ownsEdgeSwipe && !route._calm)
+        if (_ownsEdgeSwipe && !route.calm)
           Positioned(
             left: 0,
             top: 0,
