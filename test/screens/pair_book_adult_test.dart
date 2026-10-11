@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:love_app/models/memory.dart';
+import 'package:love_app/models/pair_book.dart';
 import 'package:love_app/screens/pair_book_screen.dart';
 import 'package:love_app/services/locale_service.dart';
 import 'package:love_app/theme/app_theme.dart';
@@ -85,6 +88,34 @@ void main() {
     await tester.tap(find.byType(Switch));
     await tester.pump();
     expect(build().onPressed, isNotNull);
+  });
+
+  // Владелец 11.10.2026: «конечно пусть сохраняется». Выбор живёт на
+  // телефоне и переживает закрытие экрана и перезапуск приложения.
+  testWidgets('выбор запоминается: включил один раз, дальше включён',
+      (tester) async {
+    final memories = [_m('a', 1), _m('hot', 3, adult: true)];
+    await open(tester, memories);
+    await tester.tap(find.byType(Switch));
+    await tester.pump();
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool(kPairBookAdultKey), isTrue);
+
+    // Экран закрыли и открыли заново.
+    await tester.pumpWidget(const SizedBox());
+    await open(tester, memories);
+    await tester.pump();
+    expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+    expect(find.textContaining('2 воспоминани'), findsOneWidget);
+
+    await tester.tap(find.byType(Switch));
+    await tester.pump();
+    expect(prefs.getBool(kPairBookAdultKey), isFalse);
+  });
+
+  test('выход из аккаунта выбор стирает', () {
+    final src = File('lib/models/user_data.dart').readAsStringSync();
+    expect(src, contains('prefs.remove(kPairBookAdultKey)'));
   });
 
   testWidgets('строка переключателя влезает на 320 dp с крупным шрифтом',

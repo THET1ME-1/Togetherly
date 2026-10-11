@@ -23,6 +23,7 @@ import 'custom_theme.dart';
 import 'mascot_sleep.dart';
 import 'profile_icon.dart';
 import 'avatar_frame.dart';
+import 'pair_book.dart' show kPairBookAdultKey;
 import '../services/avatar_frames.dart';
 import '../services/home_layout_service.dart';
 
@@ -1363,6 +1364,8 @@ class UserData extends ChangeNotifier {
     _frame = null;
     unawaited(AvatarFrames.instance.clear());
     unawaited(HomeLayoutService.instance.clear());
+    // Следующий человек на телефоне не наследует «18+ в книге пары».
+    await prefs.remove(kPairBookAdultKey);
     _adRewardsToday = 0;
     _adRewardsDate = '';
     _mascotSleep = const {};

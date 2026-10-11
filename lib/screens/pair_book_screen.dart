@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/memory.dart';
 import '../models/pair_book.dart';
@@ -49,10 +51,33 @@ class _PairBookScreenState extends State<PairBookScreen> {
   File? _ready;
 
   /// Брать ли записи 18+. Книга уходит из приложения файлом, и размытия в
-  /// ней нет, поэтому решает человек и по умолчанию их там нет.
+  /// ней нет, поэтому решает человек и по умолчанию их там нет. Выбор
+  /// запоминается на телефоне ([kPairBookAdultKey]).
   bool _includeAdult = false;
 
   AppStrings get _s => LocaleService.current;
+
+  @override
+  void initState() {
+    super.initState();
+    _restoreAdultChoice();
+  }
+
+  Future<void> _restoreAdultChoice() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getBool(kPairBookAdultKey) ?? false;
+      if (!mounted || saved == _includeAdult) return;
+      setState(() => _includeAdult = saved);
+    } catch (_) {}
+  }
+
+  Future<void> _saveAdultChoice(bool value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(kPairBookAdultKey, value);
+    } catch (_) {}
+  }
 
   BookRange get _range {
     if (_period == BookPeriod.custom) {
@@ -318,10 +343,13 @@ class _PairBookScreenState extends State<PairBookScreen> {
   /// Строка с переключателем нажимается целиком. Смена выбора сбрасывает
   /// готовый файл: он собран по прежнему набору записей.
   Widget _adultSwitch(ColorScheme cs) {
-    void toggle(bool value) => setState(() {
-          _includeAdult = value;
-          _ready = null;
-        });
+    void toggle(bool value) {
+      setState(() {
+        _includeAdult = value;
+        _ready = null;
+      });
+      unawaited(_saveAdultChoice(value));
+    }
     return Material(
       color: cs.surfaceContainerHigh,
       borderRadius: BorderRadius.circular(20),

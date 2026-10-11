@@ -2,6 +2,10 @@ import 'package:flutter/foundation.dart';
 
 import 'memory.dart';
 
+/// Ключ настройки «Записи 18+ в книге» в SharedPreferences. Выбор живёт на
+/// телефоне: с сервером не синкается, при выходе из аккаунта стирается.
+const String kPairBookAdultKey = 'pair_book_include_adult';
+
 /// Пресеты периода для книги пары.
 enum BookPeriod { allTime, thisYear, thisMonth, custom }
 
