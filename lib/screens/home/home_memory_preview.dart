@@ -8,6 +8,7 @@ import '../../dict_strings.dart';
 import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/avatar_widget.dart';
+import '../../widgets/memory/adult_veil.dart';
 import '../../widgets/storage_image.dart';
 import '../memory_lane_screen.dart';
 
@@ -591,21 +592,23 @@ class _PreviewCard extends StatelessWidget {
     final n = photos.length;
 
     Widget tile(int i, {int extra = 0}) {
+      final Widget image = StorageImage(
+        imageUrl: photos[i],
+        fit: BoxFit.cover,
+        memCacheWidth: 500,
+        errorWidget: (_, _, _) => Container(
+          color: theme.surfaceMuted,
+          child: Icon(Icons.broken_image_rounded,
+              color: theme.textMuted, size: 22),
+        ),
+      );
       return ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: Stack(
           fit: StackFit.expand,
           children: [
-            StorageImage(
-              imageUrl: photos[i],
-              fit: BoxFit.cover,
-              memCacheWidth: 500,
-              errorWidget: (_, _, _) => Container(
-                color: theme.surfaceMuted,
-                child: Icon(Icons.broken_image_rounded,
-                    color: theme.textMuted, size: 22),
-              ),
-            ),
+            // Главную видно всем, кто рядом: 18+ раскрывается только в ленте.
+            if (memory.isAdult) AdultVeil(child: image) else image,
             if (hasVideo && i == 0)
               const Center(
                 child: Icon(Icons.play_circle_fill_rounded,

@@ -67,6 +67,16 @@ void main() {
     );
   });
 
+  // Обращение 256 (11.10.2026): виджет на рабочем столе видит любой, кто
+  // взял телефон.
+  test('снимок 18+ в карусель виджета не попадает', () {
+    final adult = _m('adult', day: 9)..isAdult = true;
+    expect(
+      partnerTaskPhotos([adult, _m('plain', day: 2)], partnerUid: 'p'),
+      ['pb://media/plain/a.jpg'],
+    );
+  });
+
   test('подмешивание стоит на обоих путях: Android и iPhone', () {
     final src = File('lib/services/home_widget_service.dart').readAsStringSync();
     expect(src, contains('_withPartnerTaskPhotos('));

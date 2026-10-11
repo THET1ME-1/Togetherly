@@ -885,6 +885,7 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
                   itemBuilder: (_, i) => FilmFrame(
                     url: widget.items[i].url,
                     height: 56,
+                    blurred: widget.items[i].adult,
                     selected: i == _currentIndex,
                     onTap: () => _pageController.animateToPage(
                       i,

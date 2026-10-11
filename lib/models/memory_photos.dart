@@ -12,6 +12,8 @@ List<MemoryPhoto> photosFromMemories(List<Memory> memories) {
   final out = <MemoryPhoto>[];
   for (final m in memories) {
     if (m.type != MemoryType.photo) continue;
+    // 18+ в виджет не предлагаем: он стоит на рабочем столе у всех на виду.
+    if (m.isAdult) continue;
     final caption = m.caption;
     final cover = m.imageUrl;
     if (cover != null && cover.isNotEmpty) {

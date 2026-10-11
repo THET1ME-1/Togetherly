@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart';
 import '../models/memory.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/memory/adult_veil.dart';
 import '../widgets/storage_image.dart';
 import '../services/map/map_tiles.dart';
 
@@ -394,21 +395,24 @@ class _MemoriesMapScreenState extends State<MemoriesMapScreen> {
                     final url =
                         photos[i].imageUrls?.firstOrNull ?? photos[i].imageUrl;
                     if (url == null) return const SizedBox.shrink();
-                    return ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: StorageImage(
-                        imageUrl: url,
+                    final Widget image = StorageImage(
+                      imageUrl: url,
+                      width: 72,
+                      height: 72,
+                      fit: BoxFit.cover,
+                      errorWidget: (context, _, __) => Container(
                         width: 72,
                         height: 72,
-                        fit: BoxFit.cover,
-                        errorWidget: (context, _, __) => Container(
-                          width: 72,
-                          height: 72,
-                          color: t.surfaceMuted,
-                          child: Icon(Icons.broken_image_rounded,
-                              color: t.textMuted),
-                        ),
+                        color: t.surfaceMuted,
+                        child: Icon(Icons.broken_image_rounded,
+                            color: t.textMuted),
                       ),
+                    );
+                    return ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: photos[i].isAdult
+                          ? AdultVeil(child: image)
+                          : image,
                     );
                   },
                 ),

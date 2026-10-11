@@ -43,6 +43,15 @@ void main() {
     expect(photosFromMemories([note]), isEmpty);
   });
 
+  // Обращение 256 (11.10.2026): снимок из листа выбора уезжает в виджет на
+  // рабочем столе, а плитки листа ничем не закрыты.
+  test('запись 18+ в выбор фото для виджета не попадает', () {
+    final adult = _photo('5', url: 'x.jpg', urls: ['x.jpg', 'y.jpg'])
+      ..isAdult = true;
+    final out = photosFromMemories([adult, _photo('6', url: 'a.jpg')]);
+    expect(out.map((p) => p.url), ['a.jpg']);
+  });
+
   test('запись без единой ссылки не даёт битой плитки', () {
     expect(photosFromMemories([_photo('3')]), isEmpty);
     expect(photosFromMemories([_photo('4', url: '')]), isEmpty);

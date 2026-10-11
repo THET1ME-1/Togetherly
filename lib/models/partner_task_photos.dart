@@ -18,8 +18,8 @@ const int kPartnerCarouselLimit = 20;
 
 /// Снимки из заданий дня, которые выложил [partnerUid], новые первыми.
 ///
-/// Секретные и ещё запечатанные капсулы не берём: на рабочем столе их увидит
-/// любой, кто взял телефон. Видео тоже: виджет показывает картинку.
+/// Секретные, 18+ и ещё запечатанные капсулы не берём: на рабочем столе их
+/// увидит любой, кто взял телефон. Видео тоже: виджет показывает картинку.
 List<String> partnerTaskPhotos(
   Iterable<Memory> memories, {
   required String partnerUid,
@@ -34,7 +34,7 @@ List<String> partnerTaskPhotos(
     if (m.authorUid != partnerUid) continue;
     if ((m.dailyTaskId ?? '').isEmpty) continue;
     if (m.type != MemoryType.photo) continue;
-    if (m.isSecret || m.sealedNow(now)) continue;
+    if (m.isSecret || m.isAdult || m.sealedNow(now)) continue;
     final urls = (m.imageUrls != null && m.imageUrls!.isNotEmpty)
         ? m.imageUrls!
         : [if ((m.imageUrl ?? '').isNotEmpty) m.imageUrl!];

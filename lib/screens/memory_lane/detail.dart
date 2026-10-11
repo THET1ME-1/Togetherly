@@ -485,6 +485,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
               itemBuilder: (_, i) => FilmFrame(
                 url: photos[others[i]],
                 height: 76,
+                blurred: memory.isAdult,
                 onTap: () => setState(() => _coverIndex = others[i]),
               ),
             ),
@@ -1048,6 +1049,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
           videoUrl: i == 0 ? memory.videoUrl : null,
           memoryId: memory.id,
           caption: memory.title ?? memory.caption ?? '',
+          adult: memory.isAdult,
         ),
     ];
     Navigator.push(
@@ -1125,7 +1127,8 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
         barrierColor: Colors.black,
         pageBuilder: (_, __, ___) => FullscreenGallery(
           items: photos
-              .map((url) => GalleryItem(url: url, memoryId: memory.id))
+              .map((url) => GalleryItem(
+                  url: url, memoryId: memory.id, adult: memory.isAdult))
               .toList(),
           initialIndex: 0,
           memoryOf: (_) => memory,
@@ -1947,7 +1950,8 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
     if (allPhotos.isEmpty) return _noImgBox(200);
     void openGallery(int i) {
       final galleryItems = allPhotos
-          .map((url) => GalleryItem(url: url, memoryId: memory.id))
+          .map((url) => GalleryItem(
+              url: url, memoryId: memory.id, adult: memory.isAdult))
           .toList();
       Navigator.of(context).push<String>(
         PageRouteBuilder(
@@ -3453,11 +3457,15 @@ class GalleryItem {
   final String memoryId;
   final String? caption;
 
+  /// Кадр записи 18+: в плёнке просмотра стоит под завесой.
+  final bool adult;
+
   const GalleryItem({
     required this.url,
     this.videoUrl,
     required this.memoryId,
     this.caption,
+    this.adult = false,
   });
 
   bool get isVideo => videoUrl != null;

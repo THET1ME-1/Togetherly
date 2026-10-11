@@ -2219,6 +2219,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 return FilmFrame(
                   url: photos[i + 1],
                   height: stripHeight,
+                  blurred: memory.isAdult,
                   onTap: () => _openFrameAt(memory, i + 1),
                 );
               },
@@ -7016,7 +7017,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             m.imageUrl!,
         ];
         for (final url in urls) {
-          items.add(GalleryItem(url: url, memoryId: m.id, caption: m.caption));
+          items.add(GalleryItem(
+              url: url, memoryId: m.id, caption: m.caption, adult: m.isAdult));
         }
         // Смешанный пин: фото + видео — показываем видео отдельным
         // воспроизводимым элементом (превью = thumbnail видео в imageUrl).
@@ -7026,6 +7028,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
             videoUrl: m.videoUrl,
             memoryId: m.id,
             caption: m.caption,
+            adult: m.isAdult,
           ));
         }
       } else if (m.type == MemoryType.video &&
@@ -7035,6 +7038,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           videoUrl: m.videoUrl,
           memoryId: m.id,
           caption: m.caption,
+          adult: m.isAdult,
         ));
       }
     }

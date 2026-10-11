@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../storage_image.dart';
+import 'adult_veil.dart';
 
 /// Пропорции кадров, узнанные при загрузке.
 ///
@@ -151,6 +152,7 @@ class FilmFrame extends StatefulWidget {
     this.onTap,
     this.onLongPress,
     this.selected = false,
+    this.blurred = false,
   });
 
   final String url;
@@ -163,6 +165,9 @@ class FilmFrame extends StatefulWidget {
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
   final bool selected;
+
+  /// Кадр записи 18+: снимок под завесой, касание работает как обычно.
+  final bool blurred;
 
   @override
   State<FilmFrame> createState() => _FilmFrameState();
@@ -212,6 +217,16 @@ class _FilmFrameState extends State<FilmFrame> {
     final cs = Theme.of(context).colorScheme;
     final aspect = MediaAspectCache.clampAspect(_aspect ?? 1);
     final width = widget.height * aspect;
+    final Widget image = widget.provider != null
+        ? Image(image: widget.provider!, fit: BoxFit.cover)
+        : StorageImage(
+            imageUrl: widget.url,
+            fit: BoxFit.cover,
+            memCacheWidth: 400,
+            onSize: _onSize,
+            errorWidget: (_, __, ___) =>
+                ColoredBox(color: cs.surfaceContainerHighest),
+          );
     Widget frame = ClipRRect(
       borderRadius: BorderRadius.circular(widget.radius),
       child: SizedBox(
@@ -220,17 +235,7 @@ class _FilmFrameState extends State<FilmFrame> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            if (widget.provider != null)
-              Image(image: widget.provider!, fit: BoxFit.cover)
-            else
-              StorageImage(
-                imageUrl: widget.url,
-                fit: BoxFit.cover,
-                memCacheWidth: 400,
-                onSize: _onSize,
-                errorWidget: (_, __, ___) =>
-                    ColoredBox(color: cs.surfaceContainerHighest),
-              ),
+            if (widget.blurred) AdultVeil(child: image) else image,
             if (widget.overlay != null) widget.overlay!,
           ],
         ),
