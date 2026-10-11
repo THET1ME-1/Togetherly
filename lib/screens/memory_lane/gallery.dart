@@ -349,9 +349,22 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
   /// Плёнка кадров под снимком — она же переключатель.
   late final ScrollController _stripCtrl;
 
+  /// Записи 18+, которые человек раскрыл касанием. Лента кадров сквозная,
+  /// и без завесы свайп из соседней записи приводил на такой снимок открытым
+  /// (обращение 256). Запись, с кадра которой просмотр открыли, раскрыта
+  /// сразу: туда пришли касанием по её закрытой миниатюре.
+  final Set<String> _revealedAdult = {};
+
+  bool _veiled(GalleryItem item) =>
+      item.adult && !_revealedAdult.contains(item.memoryId);
+
   @override
   void initState() {
     super.initState();
+    if (widget.initialIndex >= 0 && widget.initialIndex < widget.items.length) {
+      final first = widget.items[widget.initialIndex];
+      if (first.adult) _revealedAdult.add(first.memoryId);
+    }
     _currentIndex = widget.initialIndex;
     _pageController = PageController(initialPage: widget.initialIndex);
     _stripCtrl = ScrollController(
@@ -773,6 +786,25 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
             },
             itemBuilder: (_, i) {
               final item = widget.items[i];
+              if (_veiled(item)) {
+                return GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () =>
+                      setState(() => _revealedAdult.add(item.memoryId)),
+                  child: Center(
+                    child: AdultVeil(
+                      sigma: 44,
+                      iconSize: 36,
+                      child: StorageImage(
+                        imageUrl: item.url,
+                        fit: BoxFit.contain,
+                        errorWidget: (_, __, ___) =>
+                            Container(color: Colors.grey.shade900),
+                      ),
+                    ),
+                  ),
+                );
+              }
               if (item.isVideo) {
                 return GestureDetector(
                   // Свой плеер, а не система: ролик, снятый в приложении,
@@ -885,7 +917,7 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
                   itemBuilder: (_, i) => FilmFrame(
                     url: widget.items[i].url,
                     height: 56,
-                    blurred: widget.items[i].adult,
+                    blurred: widget.items[i].adult && _veiled(widget.items[i]),
                     selected: i == _currentIndex,
                     onTap: () => _pageController.animateToPage(
                       i,

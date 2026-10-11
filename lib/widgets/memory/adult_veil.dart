@@ -10,9 +10,19 @@ import 'package:flutter/material.dart';
 /// полноэкранного просмотра, превью ленты на главной, карта воспоминаний
 /// (обращение 256, 11.10.2026).
 class AdultVeil extends StatelessWidget {
-  const AdultVeil({super.key, required this.child});
+  const AdultVeil({
+    super.key,
+    required this.child,
+    this.sigma = 14,
+    this.iconSize = 18,
+  });
 
   final Widget child;
+
+  /// Сила размытия. Плитке хватает 14, кадру на весь экран нужно больше:
+  /// иначе силуэт читается.
+  final double sigma;
+  final double iconSize;
 
   @override
   Widget build(BuildContext context) {
@@ -24,20 +34,20 @@ class AdultVeil extends StatelessWidget {
           // прозрачность, и по кромке плитки проступает резкий снимок.
           ImageFiltered(
             imageFilter: ui.ImageFilter.blur(
-                sigmaX: 14, sigmaY: 14, tileMode: TileMode.clamp),
+                sigmaX: sigma, sigmaY: sigma, tileMode: TileMode.clamp),
             child: child,
           ),
           Positioned.fill(
             child: IgnorePointer(
               child: ColoredBox(
                 color: Colors.black.withValues(alpha: 0.18),
-                child: const Center(
+                child: Center(
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
                     child: Padding(
-                      padding: EdgeInsets.all(4),
+                      padding: const EdgeInsets.all(4),
                       child: Icon(Icons.lock_rounded,
-                          color: Colors.white, size: 18),
+                          color: Colors.white, size: iconSize),
                     ),
                   ),
                 ),

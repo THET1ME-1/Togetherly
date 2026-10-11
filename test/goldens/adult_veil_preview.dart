@@ -11,7 +11,8 @@ import 'package:love_app/widgets/memory/media_strip.dart';
 
 /// Завеса 18+ для глаз: `flutter test test/goldens/adult_veil_preview.dart`
 /// → build/adult-veil/veil.png. Слева кадр как есть, справа под завесой, в
-/// трёх размерах: плёнка ленты (56), плёнка записи (76), плитка главной.
+/// четырёх размерах: плёнка ленты (56), плёнка записи (76), плитка главной,
+/// кадр полноэкранного просмотра.
 /// Имя без `_test`: обычный прогон его не берёт.
 void main() {
   setUpAll(() async {
@@ -49,7 +50,7 @@ void main() {
       );
     }
 
-    await tester.binding.setSurfaceSize(const Size(560, 420));
+    await tester.binding.setSurfaceSize(const Size(560, 860));
     await tester.pumpWidget(RepaintBoundary(
       key: key,
       child: MaterialApp(
@@ -69,6 +70,26 @@ void main() {
                   tile(veiled: false),
                   const SizedBox(width: 12),
                   tile(veiled: true),
+                ]),
+                const SizedBox(height: 16),
+                // Кадр на весь экран: размытие сильнее, замок крупнее.
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  SizedBox(
+                      width: 240,
+                      height: 420,
+                      child: Image(image: provider, fit: BoxFit.contain)),
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    width: 240,
+                    height: 420,
+                    child: Center(
+                      child: AdultVeil(
+                        sigma: 44,
+                        iconSize: 36,
+                        child: Image(image: provider, fit: BoxFit.contain),
+                      ),
+                    ),
+                  ),
                 ]),
               ],
             ),

@@ -96,6 +96,7 @@ import '../widgets/common/app_dialog.dart';
 import '../widgets/common/stable_stream_builder.dart';
 import '../widgets/memory_date_field.dart';
 import '../widgets/memory/add_memory_sheet.dart';
+import '../widgets/memory/adult_veil.dart';
 import '../widgets/memory/on_this_day_shelf.dart';
 import '../models/on_this_day.dart';
 import '../dict_strings.dart' show trKey;
