@@ -117,6 +117,7 @@ import '../widgets/connect_expressive.dart' show M3ShapeClipper;
 import '../widgets/memory/note_pin.dart';
 import '../widgets/memory/reactions_row.dart';
 import '../widgets/memory/video_pin.dart';
+import '../widgets/unfold/unfold_route.dart';
 import '../models/memory_reaction.dart';
 import '../services/live_location_service.dart';
 import '../widgets/common/keyboard_aware.dart';
@@ -1731,27 +1732,33 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           Stack(
             clipBehavior: Clip.none,
             children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: primary.withOpacity(0.18),
-                    width: 1.5,
+              // Аватар, имя и обложка общие с открытой записью: при открытии
+              // они перелетают на своё место в её шапке (см. UnfoldRoute).
+              UnfoldShared(
+                tag: 'avatar',
+                radius: 20,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: primary.withOpacity(0.18),
+                      width: 1.5,
+                    ),
                   ),
-                ),
-                child: ClipOval(
-                  child: _liveAvatar(memory).isNotEmpty
-                      ? StorageImage(
-                          imageUrl: _liveAvatar(memory),
-                          fit: BoxFit.cover,
-                          memCacheWidth: 120,
-                          memCacheHeight: 120,
-                          errorWidget: (_, __, ___) =>
-                              _avatarFallback(_liveName(memory)),
-                        )
-                      : _avatarFallback(_liveName(memory)),
+                  child: ClipOval(
+                    child: _liveAvatar(memory).isNotEmpty
+                        ? StorageImage(
+                            imageUrl: _liveAvatar(memory),
+                            fit: BoxFit.cover,
+                            memCacheWidth: 120,
+                            memCacheHeight: 120,
+                            errorWidget: (_, __, ___) =>
+                                _avatarFallback(_liveName(memory)),
+                          )
+                        : _avatarFallback(_liveName(memory)),
+                  ),
                 ),
               ),
               if (badgeColor != null)
@@ -1789,14 +1796,18 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                 Row(
                   children: [
                     Flexible(
-                      child: Text(
-                        _liveName(memory),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: widget.theme.textPrimary,
+                      child: UnfoldShared(
+                        tag: 'name',
+                        fit: UnfoldFit.scale,
+                        child: Text(
+                          _liveName(memory),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: widget.theme.textPrimary,
+                          ),
                         ),
                       ),
                     ),
@@ -1953,24 +1964,30 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       color: t.bgGradient[0],
       borderRadius: BorderRadius.circular(20),
       clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => _showMemoryDetail(memory),
-        child: Container(
-          height: 40,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          alignment: Alignment.center,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.chat_bubble_outline_rounded,
-                  size: 18, color: t.textSecondary),
-              if (memory.commentsCount > 0) ...[
-                const SizedBox(width: 6),
-                Text('${memory.commentsCount}',
-                    style: AppFonts.onest(
-                        size: 14, weight: 700, color: t.textPrimary)),
+      // Чип стоит внутри карточки и открывает ту же запись: экран растёт из
+      // карточки, как и по касанию самой карточки. Builder нужен ради
+      // контекста под карточкой — от него ищется её источник.
+      child: Builder(
+        builder: (chipContext) => InkWell(
+          onTap: () => _showMemoryDetail(memory,
+              from: UnfoldSource.maybeOf(chipContext)),
+          child: Container(
+            height: 40,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            alignment: Alignment.center,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.chat_bubble_outline_rounded,
+                    size: 18, color: t.textSecondary),
+                if (memory.commentsCount > 0) ...[
+                  const SizedBox(width: 6),
+                  Text('${memory.commentsCount}',
+                      style: AppFonts.onest(
+                          size: 14, weight: 700, color: t.textPrimary)),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -2184,6 +2201,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           : null,
     );
     if (memory.isAdult) cover = _BlurAfterTap(child: cover);
+    cover = UnfoldShared(tag: 'cover', radius: 22, child: cover);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -3177,69 +3195,79 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     final selected = _selecting && _selectedIds.contains(memory.id);
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: GestureDetector(
-        onTap: _selecting
-            ? () => _toggleSelected(memory)
-            : (enableTap ? () => _showMemoryDetail(memory) : null),
-        onLongPress: _selecting
-            ? () => _toggleSelected(memory)
-            : () => _showMemoryActions(memory),
-        child: Stack(
-          children: [
-            Container(
-              // Плоский стиль пинов: без тени, свечения и бордера (требование).
-              decoration: BoxDecoration(
-                color: widget.theme.cardSurface,
-                borderRadius: BorderRadius.circular(28),
+      // Карточка — то, из чего вырастает открытая запись: экран растёт из её
+      // места и складывается обратно в неё же (макет переходов, 11.10.2026).
+      child: UnfoldSource(
+        fill: widget.theme.cardSurface,
+        radius: 28,
+        builder: (_, source) => GestureDetector(
+          onTap: _selecting
+              ? () => _toggleSelected(memory)
+              : (enableTap
+                  ? () => _showMemoryDetail(memory, from: source)
+                  : null),
+          onLongPress: _selecting
+              ? () => _toggleSelected(memory)
+              : () => _showMemoryActions(memory),
+          child: Stack(
+            children: [
+              Container(
+                // Плоский стиль пинов: без тени, свечения и бордера
+                // (требование).
+                decoration: BoxDecoration(
+                  color: widget.theme.cardSurface,
+                  borderRadius: BorderRadius.circular(28),
+                ),
+                clipBehavior: Clip.antiAlias,
+                // В режиме выбора кнопки внутри карточки (плеер, ссылки)
+                // молчат: касание целиком отмечает запись.
+                child: AbsorbPointer(absorbing: _selecting, child: child),
               ),
-              clipBehavior: Clip.antiAlias,
-              // В режиме выбора кнопки внутри карточки (плеер, ссылки) молчат:
-              // касание целиком отмечает запись.
-              child: AbsorbPointer(absorbing: _selecting, child: child),
-            ),
-            if (_selecting) ...[
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 160),
-                    decoration: BoxDecoration(
-                      color: selected
-                          ? primary.withValues(alpha: 0.10)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(20),
-                      border: selected
-                          ? Border.all(color: primary, width: 3)
+              if (_selecting) ...[
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 160),
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? primary.withValues(alpha: 0.10)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(20),
+                        border: selected
+                            ? Border.all(color: primary, width: 3)
+                            : null,
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 12,
+                  right: 12,
+                  child: IgnorePointer(
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 160),
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: selected ? primary : widget.theme.cardSurface,
+                        shape: BoxShape.circle,
+                        border: selected
+                            ? null
+                            : Border.all(
+                                color: widget.theme.textMuted, width: 2),
+                      ),
+                      child: selected
+                          ? Icon(Icons.check_rounded,
+                              size: 19,
+                              color: AppThemes.onColor(primary,
+                                  mode: widget.theme.brightness))
                           : null,
                     ),
                   ),
                 ),
-              ),
-              Positioned(
-                top: 12,
-                right: 12,
-                child: IgnorePointer(
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 160),
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      color: selected ? primary : widget.theme.cardSurface,
-                      shape: BoxShape.circle,
-                      border: selected
-                          ? null
-                          : Border.all(color: widget.theme.textMuted, width: 2),
-                    ),
-                    child: selected
-                        ? Icon(Icons.check_rounded,
-                            size: 19,
-                            color: AppThemes.onColor(primary,
-                                mode: widget.theme.brightness))
-                        : null,
-                  ),
-                ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -3250,7 +3278,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   // ═══════════════════════════════════════════════════
   //  MEMORY DETAIL — full screen
   // ═══════════════════════════════════════════════════
-  void _showMemoryDetail(Memory memory) {
+  /// [from] — карточка ленты, по которой нажали: экран записи вырастет из
+  /// неё. Без карточки (переход из галереи, по уведомлению, с полки
+  /// «В этот день») экран проявляется на месте.
+  void _showMemoryDetail(Memory memory, {UnfoldSourceState? from}) {
     final sheet = _MemoryDetailSheet(
       memory: memory,
       groupId: _groupId,
@@ -3272,17 +3303,15 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         memory.imageUrl?.isNotEmpty == true;
     if (opensAsMoment(memory.type, hasPhotos: hasPhotos) ||
         memory.type == MemoryType.photo) {
-      // Простое проявление вместо выезда снизу: системный переход читался
-      // как всплывающий лист, хотя это полноценный экран.
+      // Экран вырастает из карточки, обложка с аватаром перелетают в его
+      // шапку, назад он складывается в ту же карточку. Без карточки —
+      // прежнее проявление за 180 мс: системный выезд снизу читался как
+      // всплывающий лист, хотя это полноценный экран.
       Navigator.push(
         context,
-        PageRouteBuilder(
-          opaque: true,
-          transitionDuration: const Duration(milliseconds: 180),
-          reverseTransitionDuration: const Duration(milliseconds: 140),
-          pageBuilder: (_, _, _) => sheet,
-          transitionsBuilder: (_, anim, _, child) =>
-              FadeTransition(opacity: anim, child: child),
+        UnfoldRoute<void>(
+          source: from,
+          builder: (_) => sheet,
           settings: const RouteSettings(name: '/memory_detail'),
         ),
       );

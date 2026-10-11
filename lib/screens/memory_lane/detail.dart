@@ -271,6 +271,10 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
             children: [
               SizedBox(height: MediaQuery.paddingOf(context).top),
               _momentBar(memory, cs),
+              // Блоки проявляются сверху вниз по очереди, когда экран вырос
+              // из карточки ленты (UnfoldRoute); при любом другом открытии
+              // обёртки ничего не делают. Обложка в очереди не стоит: она
+              // прилетает из карточки.
               Expanded(
                 child: SingleChildScrollView(
                   controller: sc,
@@ -278,23 +282,34 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _momentCover(memory, cs),
+                      if (_coverFlies(memory))
+                        _momentCover(memory, cs)
+                      else
+                        UnfoldStagger(
+                            index: 0, child: _momentCover(memory, cs)),
                       const SizedBox(height: 14),
-                      _momentTitle(memory, cs),
+                      UnfoldStagger(
+                          index: 1, child: _momentTitle(memory, cs)),
                       if (memory.locationName?.isNotEmpty == true ||
                           memory.latitude != null) ...[
                         const SizedBox(height: 12),
-                        _placeBlock(memory, cs),
+                        UnfoldStagger(
+                            index: 2, child: _placeBlock(memory, cs)),
                       ],
-                      ..._momentActions(memory, cs),
+                      for (final action in _momentActions(memory, cs))
+                        UnfoldStagger(index: 2, child: action),
                       const SizedBox(height: 12),
-                      _momentReactions(memory, cs),
+                      UnfoldStagger(
+                          index: 3, child: _momentReactions(memory, cs)),
                       const SizedBox(height: 14),
-                      RepaintBoundary(
-                        child: _CommentsSection(
-                          groupId: widget.groupId,
-                          memoryId: _memory.id,
-                          primary: cs.primary,
+                      UnfoldStagger(
+                        index: 4,
+                        child: RepaintBoundary(
+                          child: _CommentsSection(
+                            groupId: widget.groupId,
+                            memoryId: _memory.id,
+                            primary: cs.primary,
+                          ),
                         ),
                       ),
                       const _KeyboardPaddingBox(),
@@ -308,7 +323,11 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
           // идёт набор, тулбар уходит, иначе он закрывает поле комментария.
           if (!keyboardOpen(context))
             Positioned(
-                left: 0, right: 0, bottom: 0, child: _momentDock(memory, cs)),
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: UnfoldStagger(
+                    index: 5, child: _momentDock(memory, cs))),
         ],
       ),
     );
@@ -341,7 +360,9 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
     }
 
     final canEdit = widget.isOwner;
-    return Padding(
+    return UnfoldStagger(
+      index: 0,
+      child: Padding(
       padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
       child: Row(
         children: [
@@ -357,13 +378,19 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
               ),
               child: Row(
                 children: [
-                  AvatarWidget(
-                    uid: memory.authorUid,
-                    liveUrl: widget.liveAuthorAvatar,
-                    fallbackUrl: memory.authorAvatar,
-                    name: memory.authorName,
-                    size: 40,
-                    primary: cs.primary,
+                  // Аватар и имя прилетают сюда из карточки ленты — метки те
+                  // же, что в её шапке (`_cardHeader`).
+                  UnfoldShared(
+                    tag: 'avatar',
+                    radius: 20,
+                    child: AvatarWidget(
+                      uid: memory.authorUid,
+                      liveUrl: widget.liveAuthorAvatar,
+                      fallbackUrl: memory.authorAvatar,
+                      name: memory.authorName,
+                      size: 40,
+                      primary: cs.primary,
+                    ),
                   ),
                   const SizedBox(width: 9),
                   Expanded(
@@ -371,12 +398,16 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          memory.authorName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppFonts.onest(
-                              size: 14, weight: 700, color: cs.onSurface),
+                        UnfoldShared(
+                          tag: 'name',
+                          fit: UnfoldFit.scale,
+                          child: Text(
+                            memory.authorName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppFonts.onest(
+                                size: 14, weight: 700, color: cs.onSurface),
+                          ),
                         ),
                         Text(
                           sub,
@@ -417,7 +448,15 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
             btn(Icons.more_vert_rounded, () => _showMoreMenu(memory, cs)),
         ],
       ),
+      ),
     );
+  }
+
+  /// Обложка-кадр прилетает из карточки ленты сама; заметка, плеер, книга и
+  /// прочие обложки без кадра проявляются вместе с остальными блоками.
+  bool _coverFlies(Memory memory) {
+    if (_momentPhotos.isEmpty) return false;
+    return memory.type == MemoryType.photo || memory.type == MemoryType.video;
   }
 
   /// Обложка целиком и плёнка остальных кадров под ней. У заметки обложка —
@@ -458,6 +497,12 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
           : null,
     );
     if (memory.isAdult) cover = _BlurAfterTap(child: cover);
+    // Первый кадр общий с карточкой ленты: он прилетает из неё и улетает
+    // обратно. Переключили обложку на другой кадр — лететь уже нечему, в
+    // карточке стоит первый.
+    if (idx == 0) {
+      cover = UnfoldShared(tag: 'cover', radius: 22, child: cover);
+    }
 
     final others = <int>[
       for (var i = 0; i < photos.length; i++)
