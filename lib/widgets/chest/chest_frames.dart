@@ -26,6 +26,12 @@ import '../../services/offline/media_view_cache.dart';
 /// Файл берётся из серверного каталога через общий кэш картинок; пока он
 /// едет или сети нет, стоит [still] из сборки. Не загрузилось вовсе — [onDone]
 /// всё равно приходит, чтобы открытие не зависло.
+/// Метка сундука для перелёта с главной на его экран (`UnfoldShared`).
+///
+/// У каждого сундука своя: обратно в карточку летит только тот сундук, что
+/// на ней стоит. Пролистали на экране к другому — окно сложится без полёта.
+String chestUnfoldTag(String? seasonKey) => 'chest-${seasonKey ?? 'main'}';
+
 class ChestFrames extends StatefulWidget {
   const ChestFrames({
     super.key,

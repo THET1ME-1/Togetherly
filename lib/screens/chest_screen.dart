@@ -34,6 +34,7 @@ import '../widgets/common/badge_image.dart';
 import '../widgets/common/gift_image.dart';
 import '../widgets/chest/chest_rays.dart';
 import '../widgets/chest/season_glitch.dart';
+import '../widgets/unfold/unfold_route.dart';
 import 'chest_prize_screen.dart';
 import 'chest_share_screen.dart';
 
@@ -66,12 +67,21 @@ class ChestScreen extends StatefulWidget {
     this.debugChoice,
     this.debugSeasons,
     this.debugPage = 0,
-    this.initialChest,
+    this.initialSeason,
+    this.initialSeasonState,
   });
 
-  /// Ключ сезонного сундука, на котором открыться: главная показывает его
-  /// вместо обычного (`home` у сезона). Обычный остаётся в ленте слева.
-  final String? initialChest;
+  /// Сезонный сундук, на котором открыться: главная показывает его вместо
+  /// обычного (`home` у сезона). Обычный остаётся в ленте слева.
+  ///
+  /// Сезон приходит целиком, а не ключом: экран встаёт на его страницу с
+  /// первого кадра, и сундук с главной перелетает прямо на своё место. Пока
+  /// сюда ходил один ключ, экран открывался на обычном сундуке, ждал ответа
+  /// сервера и уходил на сезонный занавесом — лететь было некуда.
+  final SeasonChest? initialSeason;
+
+  /// Что главная уже знает про этот сундук: остаток открытий виден сразу.
+  final ChestState? initialSeasonState;
 
   final AppTheme theme;
   final String groupId;
@@ -160,7 +170,7 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
   final RewardedAdService _ad = RewardedAdService(chest: true);
 
   late final List<_Slot> _slots = [_Slot(null)];
-  late final PageController _pager = PageController(initialPage: widget.debugPage);
+  late final PageController _pager;
 
   /// Страница ленты под пальцем и сундук, чьи цвета и данные сейчас на
   /// экране. Они расходятся, пока идёт занавес: страница меняется под ним.
@@ -190,11 +200,23 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     final debugSeasons = widget.debugSeasons;
+    final entry = widget.initialSeason;
     if (debugSeasons != null) {
       _applySeasons(debugSeasons);
-      _openInitial();
+    } else if (entry != null) {
+      // Сезон с главной встаёт в ленту сразу, не дожидаясь сервера.
+      _applySeasons([entry]);
     }
     if (widget.debugPage < _slots.length) _page = _shown = widget.debugPage;
+    if (entry != null) {
+      final i = _slots.indexWhere((s) => s.chest == entry.key);
+      if (i > 0) {
+        _page = _shown = i;
+        _slots[i].state ??= widget.initialSeasonState;
+        _greet(i);
+      }
+    }
+    _pager = PageController(initialPage: _page);
     _syncGlitch();
     final main = _slots.first;
     main.choice = widget.debugChoice;
@@ -299,24 +321,16 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
       _slots.first.state = st;
       if (widget.debugSeasons == null) _applySeasons(st.seasons);
     });
-    _openInitial();
     for (final slot in _slots.skip(1)) {
       unawaited(_loadSeason(slot));
     }
   }
 
-  bool _initialDone = false;
-
-  /// Вход с главной, где стоит сезонный сундук: один раз переходим на его
-  /// страницу тем же путём, что кнопка «Хэллоуин →» (занавес, музыка, сбой).
-  void _openInitial() {
-    final key = widget.initialChest;
-    if (_initialDone || key == null) return;
-    final i = _slots.indexWhere((s) => s.chest == key);
-    if (i <= 0) return;
-    _initialDone = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _swap(i, jump: true);
+  /// Вход с главной сразу на сезонный сундук. Занавеса тут нет — экран уже
+  /// вырос из карточки в ночных цветах; молния бьёт, когда сундук долетел.
+  void _greet(int slotIndex) {
+    Future<void>.delayed(const Duration(milliseconds: 700), () {
+      if (mounted && _shown == slotIndex && _curtain == null) _bolt(slotIndex);
     });
   }
 
@@ -856,9 +870,15 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
                   children: [
                     _pagerView(base),
                     if (_slots.length > 1) _dots(cs),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: _content(cs, slot)),
+                    // Кнопка и призы проявляются следом, пока экран растёт из
+                    // карточки главной. Ленту сундуков не оборачиваем: она
+                    // хрупкая, и на неё садится летящий сундук.
+                    UnfoldStagger(
+                      index: 1,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: _content(cs, slot)),
+                      ),
                     ),
                   ],
                 ),
@@ -1103,25 +1123,29 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        if (opening == null)
-          ChestFrames(
-            key: ValueKey('idle${slot.chest}'),
-            url: slot.idleUrl,
-            still: still,
-            stillUrl: stillUrl,
-            side: side,
-          )
-        else
-          ChestFrames(
-            key: ValueKey('open${slot.chest}${slot.openRun}'),
-            url: slot.openUrl,
-            still: still,
-            stillUrl: stillUrl,
-            side: side,
-            loop: false,
-            onFrame: (i) => _onOpenFrame(slot, i),
-            onDone: () => _onOpenDone(slot),
-          ),
+        // Сундук общий с карточкой главной: при входе он перелетает оттуда на
+        // это место, при выходе — обратно. Приз над ним в полёт не входит.
+        UnfoldShared(
+          tag: chestUnfoldTag(slot.chest),
+          child: opening == null
+              ? ChestFrames(
+                  key: ValueKey('idle${slot.chest}'),
+                  url: slot.idleUrl,
+                  still: still,
+                  stillUrl: stillUrl,
+                  side: side,
+                )
+              : ChestFrames(
+                  key: ValueKey('open${slot.chest}${slot.openRun}'),
+                  url: slot.openUrl,
+                  still: still,
+                  stillUrl: stillUrl,
+                  side: side,
+                  loop: false,
+                  onFrame: (i) => _onOpenFrame(slot, i),
+                  onDone: () => _onOpenDone(slot),
+                ),
+        ),
         if (opening != null && spot != null)
           ChestPrizeFlight(prize: opening, spot: spot, stage: side, peak: slot.trackPeak),
       ],

@@ -302,6 +302,23 @@ abstract final class UnfoldTouch {
   }
 }
 
+/// Есть ли под [root] уже нарисованная картинка.
+///
+/// Нужна полёту общего элемента: снимок нового экрана берут, только когда
+/// картинка там загрузилась. Снимок пустого места стёр бы летящий элемент
+/// посреди пути.
+bool unfoldHasPicture(RenderObject root) {
+  final queue = Queue<RenderObject>()..add(root);
+  var seen = 0;
+  while (queue.isNotEmpty && seen < 120) {
+    final node = queue.removeFirst();
+    seen++;
+    if (node is RenderImage && node.image != null) return true;
+    node.visitChildren(queue.add);
+  }
+  return false;
+}
+
 const Object _veilMark = Object();
 
 /// Метка «под завесой»: картинку внутри в полёт брать нельзя.

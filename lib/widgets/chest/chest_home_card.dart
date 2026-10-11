@@ -17,7 +17,6 @@ import 'chest_frames.dart';
 import 'chest_prize_image.dart';
 import 'jar_drops.dart';
 import '../unfold/unfold_route.dart';
-import '../unfold/unfold_touch.dart';
 
 /// Блок сундука на главной, между таймером и остальными разделами (макет
 /// «Сундук недели», экран 1). Живой сундук слева, справа название, строка про
@@ -121,23 +120,20 @@ class _ChestHomeCardState extends State<ChestHomeCard> {
   final GlobalKey<UnfoldSourceState> _source = GlobalKey<UnfoldSourceState>();
 
   Future<void> _openScreen() async {
-    // Общий переход темы растит экран из любой нажатой кнопки. Сезонному
-    // сундуку касание не отдаём, иначе он вырос бы из карточки поверх
-    // собственного занавеса.
-    if (_season != null) UnfoldTouch.forget();
     await Navigator.of(context).push(
       unfoldFrom<void>(
-        // Сезонный сундук открывается своим занавесом и сам перескакивает
-        // на сезонную страницу: два движения разом тут не нужны, ему
-        // остаётся прежний переход.
-        _season == null ? _source.currentState : null,
+        // Экран растёт из карточки, а сам сундук перелетает на своё место.
+        // Сезонный сундук для этого открывается сразу на своей странице:
+        // прежде он входил занавесом с обычного сундука, и лететь было некуда.
+        _source.currentState,
         (_) => ChestScreen(
           theme: widget.theme,
           groupId: widget.groupId,
           partnerName: widget.partnerName,
           onCoins: widget.onCoins,
           userData: widget.userData,
-          initialChest: _season?.key,
+          initialSeason: _season,
+          initialSeasonState: _seasonState,
         ),
         settings: const RouteSettings(name: '/chest'),
       ),
@@ -181,24 +177,28 @@ class _ChestHomeCardState extends State<ChestHomeCard> {
             padding: const EdgeInsets.fromLTRB(6, 10, 16, 10),
             child: Row(
               children: [
-                if (season != null)
-                  ChestFrames(
-                    key: ValueKey(season.file('idle')),
-                    url: season.file('idle'),
-                    still: null,
-                    stillUrl: season.file('still'),
-                    side: 112,
-                  )
-                else
-                  ListenableBuilder(
-                    listenable: CatalogService.instance,
-                    builder: (context, _) => ChestFrames(
-                      key: ValueKey(CatalogService.instance.giftArt('chest_idle')?.smUrl),
-                      url: CatalogService.instance.giftArt('chest_idle')?.smUrl,
-                      still: kChestStill,
-                      side: 112,
-                    ),
-                  ),
+                // Сундук общий с экраном сундука: при входе он перелетает на
+                // своё место там, при выходе возвращается сюда.
+                UnfoldShared(
+                  tag: chestUnfoldTag(season?.key),
+                  child: season != null
+                      ? ChestFrames(
+                          key: ValueKey(season.file('idle')),
+                          url: season.file('idle'),
+                          still: null,
+                          stillUrl: season.file('still'),
+                          side: 112,
+                        )
+                      : ListenableBuilder(
+                          listenable: CatalogService.instance,
+                          builder: (context, _) => ChestFrames(
+                            key: ValueKey(CatalogService.instance.giftArt('chest_idle')?.smUrl),
+                            url: CatalogService.instance.giftArt('chest_idle')?.smUrl,
+                            still: kChestStill,
+                            side: 112,
+                          ),
+                        ),
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(

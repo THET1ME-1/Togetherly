@@ -74,14 +74,21 @@ void main() {
     }
   });
 
-  test('сезонный сундук открывается прежним переходом', () {
-    // У него свой занавес и прыжок на сезонную страницу: второе движение
-    // поверх было бы лишним.
-    final chest = read('lib/widgets/chest/chest_home_card.dart');
-    final open = part(chest, 'Future<void> _openScreen()', '_load();');
-    expect(open, contains('_season == null ? _source.currentState : null'));
-    // Без этого его подхватил бы общий переход темы и вырастил из карточки.
-    expect(open, contains('if (_season != null) UnfoldTouch.forget();'));
+  test('сундук перелетает с главной на свой экран, сезонный тоже', () {
+    // Экран растёт из карточки, а картинка сундука летит на своё место.
+    // Сезонному сундуку для этого экран открывают сразу на его странице:
+    // пока он входил через занавес, лететь было некуда (жалоба 11.10.2026).
+    final card = read('lib/widgets/chest/chest_home_card.dart');
+    final open = part(card, 'Future<void> _openScreen()', '_load();');
+    expect(open, contains('_source.currentState,'));
+    expect(open, isNot(contains('UnfoldTouch.forget()')));
+    expect(open, contains('initialSeason: _season'));
+    expect(card, contains("tag: chestUnfoldTag(season?.key)"));
+
+    final screen = read('lib/screens/chest_screen.dart');
+    final art = part(screen, 'Widget _chestArt(', 'Widget _dots(');
+    expect(art, contains('tag: chestUnfoldTag(slot.chest)'),
+        reason: 'метки на главной и на экране считает одна функция');
   });
 
   test('общий переход подключён в теме приложения на обеих платформах', () {

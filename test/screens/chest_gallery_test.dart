@@ -105,8 +105,14 @@ void main() {
     final t = buildAppTheme(kPalettes.firstWhere((p) => p.name == 'Розовая'), Brightness.light);
     await tester.pumpWidget(MaterialApp(
       theme: ProfileTheme.data(t.scheme!),
-      home: ChestScreen(theme: t, groupId: 'g', debugSeasons: [season], initialChest: 'hw'),
+      home: ChestScreen(theme: t, groupId: 'g', debugSeasons: [season], initialSeason: season),
     ));
+    // Сундук с главной перелетает на своё место на экране, поэтому экран
+    // обязан стоять на сезонной странице с первого кадра: без занавеса и
+    // без обычного сундука, мелькнувшего перед ним.
+    expect(tester.widget<PageView>(find.byType(PageView)).controller!.initialPage, 1);
+    final first = tester.widget<Scaffold>(find.byType(Scaffold).first);
+    expect(first.backgroundColor, season.palette!.page, reason: 'экран сразу в ночных цветах сезона');
     await run(tester, 60);
     expect(tester.widget<PageView>(find.byType(PageView)).controller!.page!.round(), 1);
     expect(find.text('← Обычный'), findsOneWidget, reason: 'к обычному можно вернуться');

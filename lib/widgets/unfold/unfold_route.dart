@@ -60,13 +60,15 @@ Rect? _rectOf(BuildContext? context, RenderObject? ancestor) {
 
 ui.Image? _snapshotOf(BuildContext? context, double pixelRatio) {
   final boundary = context?.findRenderObject();
-  if (boundary is! RenderRepaintBoundary || !boundary.attached) return null;
-  try {
-    return boundary.toImageSync(pixelRatio: pixelRatio);
-  } catch (_) {
-    // Слой ещё не рисовался (элемент за краем списка): летим без снимка.
+  if (boundary is! RenderRepaintBoundary ||
+      !boundary.attached ||
+      !boundary.hasSize) {
     return null;
   }
+  // Слой ещё не рисовался (элемент за краем списка) — снимка нет, летим без
+  // него. Берём слой напрямую: штатный `toImageSync` в отладке отказывает,
+  // пока карточка подсвечена нажатием, и тесты с кадрами шли без призрака.
+  return unfoldSnapshot(boundary, Offset.zero & boundary.size, pixelRatio);
 }
 
 /// Правка состояния чужого виджета вне сборки кадра: маршрут уходит из
@@ -558,7 +560,9 @@ class _UnfoldSession {
         if (place == null || place.isEmpty) continue;
         flier.to = place;
         flier.toRadius = shared.widget.radius;
-        if (flier.fit == UnfoldFit.scale) flier.farFrom = shared;
+        // Дальний конец нужен и тексту (другое начертание), и картинке:
+        // снимок с мелкой карточки на большом месте мылит.
+        flier.farFrom = shared;
         break;
       }
     }
@@ -684,6 +688,15 @@ class _UnfoldSession {
       if (!from.mounted) {
         flier.farFrom = null;
         continue;
+      }
+      // Картинку снимаем, только когда она на новом экране уже нарисована:
+      // снимок пустого места стёр бы летящую картинку посреди пути.
+      if (flier.fit == UnfoldFit.cover) {
+        final box = from._boundary.currentContext?.findRenderObject();
+        if (box == null || !unfoldHasPicture(box)) {
+          waiting = true;
+          continue;
+        }
       }
       flier.far = _snapshotOf(from._boundary.currentContext, _pixelRatio);
       if (flier.far == null) waiting = true;
@@ -1093,10 +1106,11 @@ class _UnfoldTransitionState extends State<_UnfoldTransition>
   bool _chasing = false;
   int _chaseTries = 0;
 
-  /// После кадра пробует снять дальний конец текста: до первой отрисовки
-  /// снимать не с чего. Несколько попыток — и хватит, летим со старым.
+  /// После кадра пробует снять дальний конец: до первой отрисовки снимать не
+  /// с чего, а картинке нового экрана ещё надо разжаться. Шестнадцать кадров
+  /// (на экране 120 Гц это 130 мс) — и хватит, летим со старым снимком.
   void _chaseFar() {
-    if (_chasing || _chaseTries >= 8) return;
+    if (_chasing || _chaseTries >= 16) return;
     final pending = _route.fliers
         .any((flier) => flier.farFrom != null && flier.far == null);
     if (!pending) return;
@@ -1108,6 +1122,35 @@ class _UnfoldTransitionState extends State<_UnfoldTransition>
       _route.captureFar();
       _refresh();
     });
+  }
+
+  /// Картинка в полёте. Снимок с карточки летит весь путь, а поверх него в
+  /// начале пути проступает снимок с нового экрана — он в полном разрешении.
+  /// Мелкий снимок под ним не гаснет: провала прозрачности нет.
+  Widget _pictureFlier(_Flier flier, double flight, {required bool opening}) {
+    final near = RawImage(
+      image: flier.image,
+      fit: BoxFit.cover,
+      filterQuality: FilterQuality.medium,
+    );
+    final far = flier.far;
+    if (far == null || !opening) return near;
+    final blend = ((flight - 0.12) / 0.22).clamp(0.0, 1.0);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        near,
+        Opacity(
+          opacity: blend,
+          child: RawImage(
+            key: ValueKey<String>('unfold-flier-${flier.tag}-far'),
+            image: far,
+            fit: BoxFit.cover,
+            filterQuality: FilterQuality.medium,
+          ),
+        ),
+      ],
+    );
   }
 
   /// Текст в полёте: растёт равномерно, а начертание старого места
@@ -1246,13 +1289,8 @@ class _UnfoldTransitionState extends State<_UnfoldTransition>
                 child: ClipRRect(
                   key: ValueKey<String>('unfold-flier-${flier.tag}'),
                   borderRadius: BorderRadius.circular(flier.radiusAt(flight)),
-                  child: RawImage(
-                    image: flier.image,
-                    fit: flier.fit == UnfoldFit.cover
-                        ? BoxFit.cover
-                        : BoxFit.fill,
-                    filterQuality: FilterQuality.medium,
-                  ),
+                  child: _pictureFlier(flier, flight,
+                      opening: route.phase == _Phase.opening),
                 ),
               ),
             ),
