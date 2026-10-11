@@ -17,11 +17,47 @@ void main() {
       );
     });
 
-    test('таймер позже коннекта — считаем от коннекта', () {
-      final lateTimer = DateTime(2026, 6, 10);
+    test('таймер позже коннекта — считаем от таймера', () {
+      // Пара из приёмной (12.10.2026): сошлись в приложении 25 августа, а
+      // встречаться начали 14 сентября и выставили эту дату колесом. Виджет
+      // «Дней вместе» показывал 46 дней от коннекта рядом с 26 днями таймера:
+      // формула брала более раннюю из двух дат. Свою дату человек назвал сам,
+      // день коннекта значит лишь, когда поставили приложение.
+      final paired = DateTime(2026, 8, 25, 7, 26);
+      final dating = DateTime(2026, 9, 14, 23, 55);
+      final today = DateTime(2026, 10, 10, 12);
       expect(
-        coupleStartDate(timerStart: lateTimer, groupStart: connect),
+        coupleStartDate(timerStart: dating, groupStart: paired, now: today),
+        dating,
+      );
+      expect(
+        coupleDaysTogether(timerStart: dating, groupStart: paired, now: today),
+        26,
+      );
+    });
+
+    test('таймер в будущем началом не считается', () {
+      // Год набрали с ошибкой: отношения ещё «не начались», и счёт от такой
+      // даты стоял бы на нуле. Пока дата впереди, считаем от коннекта.
+      final today = DateTime(2026, 7, 25);
+      final future = DateTime(2027, 5, 12);
+      expect(
+        coupleStartDate(timerStart: future, groupStart: connect, now: today),
         connect,
+      );
+    });
+
+    test('годовщина не перебивает таймер, выставленный позже коннекта', () {
+      final paired = DateTime(2026, 8, 25);
+      final dating = DateTime(2026, 9, 14);
+      expect(
+        coupleStartDate(
+          timerStart: dating,
+          groupStart: paired,
+          anniversary: DateTime(2026, 6, 1),
+          now: DateTime(2026, 10, 10),
+        ),
+        dating,
       );
     });
 
