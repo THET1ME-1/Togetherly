@@ -73,6 +73,7 @@ bool _sameDay(DateTime a, DateTime b) =>
 
 /// Полка на [now]: «месяц назад», затем годы по возрастанию. Секретные
 /// записи и нераскрытые капсулы не берём: полку видно на экране без замка.
+/// Записи 18+ тоже: в ленте они размыты до касания, а обложка полки открыта.
 List<OnThisDayShelf> onThisDay(
   Iterable<Memory> memories, {
   required DateTime now,
@@ -80,7 +81,7 @@ List<OnThisDayShelf> onThisDay(
 }) {
   final today = DateTime(now.year, now.month, now.day);
   final visible = memories
-      .where((m) => !m.isSecret && !m.sealedNow(now))
+      .where((m) => !m.isSecret && !m.isAdult && !m.sealedNow(now))
       .toList()
     ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
   if (visible.isEmpty) return const [];

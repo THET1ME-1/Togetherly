@@ -44,6 +44,18 @@ void main() {
     expect(shelf, isEmpty);
   });
 
+  // Обращение 256 (11.10.2026): в ленте запись 18+ размыта до касания, а на
+  // полке её обложка стояла открытой над лентой.
+  test('запись 18+ на полку не попадает', () {
+    final adult = _m('x', DateTime(2025, 9, 28, 20), img: 'pb://media/x/a.jpg')
+      ..isAdult = true;
+    final plain = _m('p', DateTime(2025, 9, 28, 9), img: 'pb://media/p/b.jpg');
+    expect(onThisDay([adult], now: now), isEmpty);
+    final shelf = onThisDay([adult, plain], now: now).single;
+    expect(shelf.memories.map((m) => m.id), ['p']);
+    expect(shelf.cover, 'pb://media/p/b.jpg');
+  });
+
   test('несуществующее число берёт последний день месяца', () {
     expect(sameDayMonthsBack(DateTime(2026, 3, 31), 1), DateTime(2026, 2, 28));
     expect(sameDayMonthsBack(DateTime(2028, 2, 29), 12), DateTime(2027, 2, 28));
