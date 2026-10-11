@@ -535,6 +535,10 @@ abstract class DictStrings extends AppStrings {
   @override
   String get bookSecretHint => _t('bookSecretHint');
   @override
+  String get bookAdultTitle => _t('bookAdultTitle');
+  @override
+  String get bookAdultHint => _t('bookAdultHint');
+  @override
   String get customThemeTitle => _t('customThemeTitle');
   @override
   String get customThemeFromPhoto => _t('customThemeFromPhoto');

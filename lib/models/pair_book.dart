@@ -31,6 +31,8 @@ BookRange bookRangeOf(BookPeriod period, {DateTime? now}) {
 /// Книгу отправляют в мессенджер и печатают, поэтому нераскрытая капсула сюда
 /// не идёт никогда (её содержимое не видел даже автор), а секретные записи —
 /// только при снятом замке: иначе PDF выдал бы то, что закрыто пином.
+/// Записи 18+ — только с согласия человека ([includeAdult], переключатель на
+/// экране книги): в файле размытия нет, снимок лежит открытым.
 ///
 /// Порядок обратный ленте: там новое сверху, а книга читается с начала.
 List<Memory> memoriesForBook(
@@ -38,6 +40,7 @@ List<Memory> memoriesForBook(
   DateTime? from,
   DateTime? to,
   required bool secretUnlocked,
+  bool includeAdult = false,
   DateTime? now,
 }) {
   final moment = now ?? DateTime.now();
@@ -51,6 +54,7 @@ List<Memory> memoriesForBook(
   final out = all.where((m) {
     if (m.sealedNow(moment)) return false;
     if (m.isSecret && !secretUnlocked) return false;
+    if (m.isAdult && !includeAdult) return false;
     if (since != null && m.createdAt.isBefore(since)) return false;
     if (until != null && m.createdAt.isAfter(until)) return false;
     return true;

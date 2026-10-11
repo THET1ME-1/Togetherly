@@ -377,6 +377,8 @@ abstract class AppStrings {
   String get bookReady;
   String get bookFailed;
   String get bookSecretHint;
+  String get bookAdultTitle;
+  String get bookAdultHint;
 
   // Своя тема Togetherly+ — см. l10n/dict/custom_theme.dart
   String get customThemeTitle;

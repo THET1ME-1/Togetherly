@@ -53,6 +53,8 @@ const Map<String, String> smallCZh = {
   'bookReady': '书做好了',
   'bookFailed': '没能生成，请再试一次。',
   'bookSecretHint': '锁没打开时，私密记录不会放进书里。',
+  'bookAdultTitle': '把18+记录放进书里',
+  'bookAdultHint': '文件里这些照片不会模糊，直接可见。',
 
   // postcard_templates
   'pcNamesFallback': '我们在一起',

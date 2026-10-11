@@ -137,4 +137,22 @@ const Map<String, Map<String, String>> pairBookStrings = {
     'fr': 'Les entrées secrètes restent hors du livre tant que le cadenas est fermé.',
     'de': 'Geheime Einträge bleiben draußen, solange das Schloss zu ist.',
   },
+  'bookAdultTitle': {
+    'ru': 'Записи 18+ в книге',
+    'en': '18+ entries in the book',
+    'pt': 'Entradas 18+ no livro',
+    'it': 'Voci 18+ nel libro',
+    'es': 'Entradas 18+ en el libro',
+    'fr': 'Entrées 18+ dans le livre',
+    'de': '18+-Einträge im Buch',
+  },
+  'bookAdultHint': {
+    'ru': 'В файле такие снимки открыты, без размытия.',
+    'en': 'In the file these photos are shown as is, without blur.',
+    'pt': 'No arquivo essas fotos aparecem abertas, sem desfoque.',
+    'it': 'Nel file queste foto sono visibili, senza sfocatura.',
+    'es': 'En el archivo esas fotos se ven tal cual, sin desenfoque.',
+    'fr': 'Dans le fichier, ces photos sont visibles, sans flou.',
+    'de': 'In der Datei sind diese Fotos offen zu sehen, ohne Unschärfe.',
+  },
 };

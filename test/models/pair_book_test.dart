@@ -88,6 +88,22 @@ void main() {
       expect(memoriesForBook(all, secretUnlocked: true, now: now), hasLength(1));
     });
 
+    // Обращение 256 (11.10.2026), решение владельца: «пусть переключатель
+    // будет, человек сам решит». Без его согласия 18+ в файл не идёт.
+    test('записи 18+ попадают только с согласия человека', () {
+      final hot = _memory('18+', DateTime(2026, 5, 1))..isAdult = true;
+      final all = [hot, _memory('обычная', DateTime(2026, 5, 2))];
+      expect(
+          memoriesForBook(all, secretUnlocked: false, now: now)
+              .map((m) => m.id),
+          ['обычная']);
+      expect(
+          memoriesForBook(all,
+                  secretUnlocked: false, includeAdult: true, now: now)
+              .map((m) => m.id),
+          ['18+', 'обычная']);
+    });
+
     test('книга читается от старого к новому', () {
       final all = [
         _memory('третья', DateTime(2026, 5, 3)),

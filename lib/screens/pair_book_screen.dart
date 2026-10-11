@@ -48,6 +48,10 @@ class _PairBookScreenState extends State<PairBookScreen> {
   int _total = 0;
   File? _ready;
 
+  /// Брать ли записи 18+. Книга уходит из приложения файлом, и размытия в
+  /// ней нет, поэтому решает человек и по умолчанию их там нет.
+  bool _includeAdult = false;
+
   AppStrings get _s => LocaleService.current;
 
   BookRange get _range {
@@ -63,7 +67,17 @@ class _PairBookScreenState extends State<PairBookScreen> {
         from: _range.from,
         to: _range.to,
         secretUnlocked: widget.secretUnlocked,
+        includeAdult: _includeAdult,
       );
+
+  /// Есть ли в выбранном периоде записи 18+: без них переключатель не нужен.
+  bool get _hasAdult => memoriesForBook(
+        widget.memories,
+        from: _range.from,
+        to: _range.to,
+        secretUnlocked: widget.secretUnlocked,
+        includeAdult: true,
+      ).any((m) => m.isAdult);
 
   String get _periodLabel {
     final range = _range;
@@ -191,6 +205,10 @@ class _PairBookScreenState extends State<PairBookScreen> {
             ],
             const SizedBox(height: 22),
             _summary(cs, picked.length),
+            if (_hasAdult) ...[
+              const SizedBox(height: 10),
+              _adultSwitch(cs),
+            ],
             const SizedBox(height: 22),
             if (_busy) ...[
               Center(child: M3Loading(color: cs.primary)),
@@ -293,6 +311,61 @@ class _PairBookScreenState extends State<PairBookScreen> {
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  /// Строка с переключателем нажимается целиком. Смена выбора сбрасывает
+  /// готовый файл: он собран по прежнему набору записей.
+  Widget _adultSwitch(ColorScheme cs) {
+    void toggle(bool value) => setState(() {
+          _includeAdult = value;
+          _ready = null;
+        });
+    return Material(
+      color: cs.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: _busy ? null : () => toggle(!_includeAdult),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _s.bookAdultTitle,
+                      style: TextStyle(
+                        fontFamily: ProfileTheme.bodyFont,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _s.bookAdultHint,
+                      style: TextStyle(
+                        fontFamily: ProfileTheme.bodyFont,
+                        fontSize: 12.5,
+                        height: 1.3,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Switch(
+                value: _includeAdult,
+                onChanged: _busy ? null : toggle,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
