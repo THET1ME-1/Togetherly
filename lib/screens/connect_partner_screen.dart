@@ -38,6 +38,7 @@ import '../widgets/app_sheet.dart';
 import '../models/widget_data.dart';
 import '../widgets/common/plus_badge.dart';
 import '../widgets/common/stable_stream_builder.dart';
+import '../widgets/unfold/unfold_route.dart';
 import '../utils/invite_code.dart';
 import '../widgets/common/badge_image.dart';
 
@@ -1578,8 +1579,25 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
   /// имени партнёра стояла пустая пилюля. Теперь плитка приглушена и говорит,
   /// чего ждать, — как приглушённые кнопки одиночки на главной.
   Widget _chatTile(ColorScheme cs, {bool locked = false}) {
+    if (locked) {
+      return _chatTileBody(cs, locked: true, onTap: _explainChatNeedsPartner);
+    }
+    // Чат вырастает из своей плитки и складывается обратно в неё.
+    return UnfoldSource(
+      fill: cs.secondaryContainer,
+      radius: 28,
+      builder: (_, tile) => _chatTileBody(cs,
+          locked: false, onTap: () => _openChat(from: tile)),
+    );
+  }
+
+  Widget _chatTileBody(
+    ColorScheme cs, {
+    required bool locked,
+    required VoidCallback onTap,
+  }) {
     return PressableScale(
-      onTap: locked ? _explainChatNeedsPartner : _openChat,
+      onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
@@ -2433,21 +2451,23 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
     );
   }
 
-  void _openChat() {
+  void _openChat({UnfoldSourceState? from}) {
     // Пары ещё нет — чат пуст и сообщение из него не уходит: `ChatService.send`
     // выходит на пустом `groupId`, и человек получает «Не удалось отправить»
     // вместо объяснения.
     if (pair.pairId.isEmpty) return;
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => ChatScreen(
+      unfoldFrom<void>(
+        from,
+        (_) => ChatScreen(
           pairData: widget.pairData,
           theme: widget.theme,
           userData: widget.userData,
           myDisplayName: widget.userData?.displayName ??
               (PbAuthService().currentProfile()?['displayName'] as String?) ??
               'Me',
+          timerStart: widget.timerService?.systemTimer?.startDate,
         ),
       ),
     ).then((_) {

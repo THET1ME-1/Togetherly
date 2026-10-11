@@ -87,6 +87,7 @@ import '../widgets/common/badge_image.dart';
 import '../widgets/common/coin_image.dart';
 import '../models/help_items.dart';
 import '../widgets/common/email_change_sheet.dart';
+import '../widgets/unfold/unfold_route.dart';
 import 'help_screen.dart';
 
 /// Entry for a partner across all connections
@@ -925,7 +926,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                 value: '${widget.userData.coins}',
                 label: trKey('shopTitle'),
                 accent: true,
-                onTap: () => _openShop(context, ShopTab.gifts),
+                onTap: (tile) =>
+                    _openShop(context, ShopTab.gifts, from: tile),
               ),
             ),
             const SizedBox(width: 10),
@@ -941,7 +943,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 icon: Icons.card_giftcard_rounded,
                 value: _giftsCount == null ? '—' : '$_giftsCount',
                 label: _s.selfGiftsTitle,
-                onTap: () => _openSelfProfile(context),
+                onTap: (tile) => _openSelfProfile(context, from: tile),
               ),
             ),
             const SizedBox(width: 10),
@@ -950,7 +952,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 icon: Icons.photo_library_rounded,
                 value: _memoriesCount == null ? '—' : '$_memoriesCount',
                 label: _s.memoriesStat,
-                onTap: () => _openMemoryLane(context),
+                onTap: (tile) => _openMemoryLane(context, from: tile),
               ),
             ),
           ],
@@ -963,15 +965,42 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   /// Квадрат: значок сверху, число внизу, стрелка в углу. [extra] дорисовывает
   /// полосу прогресса под подписью (нужна только достижениям).
+  ///
+  /// Плитка — источник перехода: экран, который она открывает, вырастает из
+  /// неё (см. [UnfoldRoute]). Поэтому [onTap] получает саму плитку.
   Widget _quickTile({
     required IconData icon,
     required String value,
     required String label,
-    required VoidCallback onTap,
+    required void Function(UnfoldSourceState tile) onTap,
     bool accent = false,
     Widget? extra,
   }) {
     final cs = _cs;
+    return UnfoldSource(
+      fill: cs.surfaceContainerHigh,
+      radius: 26,
+      builder: (_, tile) => _quickTileBody(
+        cs: cs,
+        icon: icon,
+        value: value,
+        label: label,
+        onTap: () => onTap(tile),
+        accent: accent,
+        extra: extra,
+      ),
+    );
+  }
+
+  Widget _quickTileBody({
+    required ColorScheme cs,
+    required IconData icon,
+    required String value,
+    required String label,
+    required VoidCallback onTap,
+    required bool accent,
+    Widget? extra,
+  }) {
     return AspectRatio(
       aspectRatio: 1,
       child: Material(
@@ -1073,10 +1102,11 @@ class _ProfileScreenState extends State<ProfileScreen>
           icon: Icons.emoji_events_rounded,
           value: quiet ? '—' : '$unlocked / $total',
           label: _s.achievementsShort,
-          onTap: () => Navigator.push(
+          onTap: (tile) => Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (_) => AchievementsScreen(theme: _t),
+            unfoldFrom<void>(
+              tile,
+              (_) => AchievementsScreen(theme: _t),
               settings: const RouteSettings(name: '/achievements'),
             ),
           ),
@@ -1172,11 +1202,12 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   /// Лента воспоминаний из плитки. Навбар внутри ленты возвращает на главную,
   /// поэтому вкладку профиля закрываем сами.
-  void _openMemoryLane(BuildContext context) {
+  void _openMemoryLane(BuildContext context, {UnfoldSourceState? from}) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => MemoryLaneScreen(
+      unfoldFrom<void>(
+        from,
+        (_) => MemoryLaneScreen(
           pairData: widget.pairData,
           theme: _t,
           userData: widget.userData,
@@ -2280,12 +2311,14 @@ class _ProfileScreenState extends State<ProfileScreen>
     return entries;
   }
 
-  void _openPartnerProfile(BuildContext context, _PartnerEntry e) {
+  void _openPartnerProfile(BuildContext context, _PartnerEntry e,
+      {UnfoldSourceState? from}) {
     final days = _daysTogetherOf(e.connection);
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => PartnerProfileScreen(
+      unfoldFrom<void>(
+        from,
+        (_) => PartnerProfileScreen(
           theme: _t,
           groupId: e.connection.pairId,
           partnerUid: e.member.uid,
@@ -2301,11 +2334,12 @@ class _ProfileScreenState extends State<ProfileScreen>
   /// Полка полученных подарков — только она. Плитка «Что вам дарили» вела на
   /// свой профиль-«Открытку», и вместо подарков открывался второй профиль:
   /// шапка с аватаром, чипы и столбики «Я скучаю».
-  void _openSelfProfile(BuildContext context) {
+  void _openSelfProfile(BuildContext context, {UnfoldSourceState? from}) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => GiftShelfScreen(
+      unfoldFrom<void>(
+        from,
+        (_) => GiftShelfScreen(
           theme: _t,
           groupId: widget.pairData.pairId,
           // Фолбэк на id сессии PB: пустой uid в профиле (бывает после
@@ -2341,19 +2375,29 @@ class _ProfileScreenState extends State<ProfileScreen>
               separatorBuilder: (_, __) => const SizedBox(width: 14),
               itemBuilder: (c, i) {
                 final m = entries[i].member;
-                return GestureDetector(
-                  onTap: () => _openPartnerProfile(context, entries[i]),
+                // Профиль партнёра вырастает из его кружка, а сам аватар
+                // перелетает в шапку профиля (метка та же, что в ProfileHero).
+                return UnfoldSource(
+                  fill: _cs.surfaceContainerHigh,
+                  radius: 22,
+                  builder: (_, friend) => GestureDetector(
+                  onTap: () =>
+                      _openPartnerProfile(context, entries[i], from: friend),
                   child: SizedBox(
                     width: 62,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        AvatarWidget(
-                          uid: m.uid,
-                          liveUrl: m.avatar,
-                          name: m.name,
-                          size: 56,
-                          primary: _cs.primary,
+                        UnfoldShared(
+                          tag: 'avatar',
+                          radius: 28,
+                          child: AvatarWidget(
+                            uid: m.uid,
+                            liveUrl: m.avatar,
+                            name: m.name,
+                            size: 56,
+                            primary: _cs.primary,
+                          ),
                         ),
                         const SizedBox(height: 6),
                         Text(
@@ -2370,6 +2414,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                         ),
                       ],
                     ),
+                  ),
                   ),
                 );
               },
@@ -2420,12 +2465,14 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   /// Магазин на нужной вкладке: плитка «Магазин» и строка в «Отношениях»
   /// ведут к подаркам, значок у ника — к значкам, аватарка — к рамкам.
-  void _openShop(BuildContext context, ShopTab tab) {
+  void _openShop(BuildContext context, ShopTab tab,
+      {UnfoldSourceState? from}) {
     final paired = widget.pairData.isPaired;
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => GiftShopScreen(
+      unfoldFrom<void>(
+        from,
+        (_) => GiftShopScreen(
           theme: _t,
           groupId: paired ? widget.pairData.pairId : '',
           coins: widget.userData.coins,
@@ -2577,11 +2624,15 @@ class _ProfileScreenState extends State<ProfileScreen>
     final name = widget.pairData.partnerDisplayName;
     final avatar = widget.pairData.partnerAvatarUrl;
     final days = _daysTogetherActive();
-    return GestureDetector(
+    return UnfoldSource(
+      fill: t.cardSurface,
+      radius: 20,
+      builder: (_, tile) => GestureDetector(
       onTap: () => Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => PartnerProfileScreen(
+        unfoldFrom<void>(
+          tile,
+          (_) => PartnerProfileScreen(
             theme: t,
             groupId: widget.pairData.pairId,
             partnerUid: widget.pairData.partnerUid,
@@ -2601,12 +2652,16 @@ class _ProfileScreenState extends State<ProfileScreen>
         ),
         child: Row(
           children: [
-            AvatarWidget(
-              uid: widget.pairData.partnerUid,
-              liveUrl: avatar,
-              name: name,
-              size: 44,
-              primary: t.primary,
+            UnfoldShared(
+              tag: 'avatar',
+              radius: 22,
+              child: AvatarWidget(
+                uid: widget.pairData.partnerUid,
+                liveUrl: avatar,
+                name: name,
+                size: 44,
+                primary: t.primary,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -2632,6 +2687,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             Icon(Icons.chevron_right, color: t.textMuted, size: 20),
           ],
         ),
+      ),
       ),
     );
   }

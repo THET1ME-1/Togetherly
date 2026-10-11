@@ -17,6 +17,7 @@ import '../../live_map_screen.dart';
 import '../../../services/map/map_tiles.dart';
 import '../../../widgets/map/map_arc_layer.dart';
 import '../../../utils/safe_text.dart';
+import '../../../widgets/unfold/unfold_route.dart';
 
 const String _kCollapsedKey = 'live_map_card_collapsed';
 const Color _kPartnerColor = Color(0xFFFF5C8A);
@@ -180,11 +181,15 @@ class _LiveMapCardState extends State<LiveMapCard> {
     }
   }
 
+  /// Карточка как источник перехода к большой карте.
+  final GlobalKey<UnfoldSourceState> _source = GlobalKey<UnfoldSourceState>();
+
   void _openFull() {
     final both = _bothCenter();
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => LiveMapScreen(
+      unfoldFrom<void>(
+        _source.currentState,
+        (_) => LiveMapScreen(
           pairId: widget.pairId,
           partnerUid: widget.partnerUid,
           partnerName: widget.partnerName,
@@ -216,25 +221,34 @@ class _LiveMapCardState extends State<LiveMapCard> {
     if (!_prefsLoaded) return const SizedBox.shrink();
     final t = widget.theme;
     final cs = ProfileTheme.themeFor(t).colorScheme;
-    return Container(
-      margin: const EdgeInsets.only(top: 12),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(28),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _header(t),
-          AnimatedSize(
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeInOut,
-            alignment: Alignment.topCenter,
-            child: _collapsed
-                ? const SizedBox(width: double.infinity)
-                : _preview(t),
+    // Большая карта вырастает из этой карточки и складывается обратно в неё.
+    // Отступ сверху снаружи: расти надо из самой карточки.
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: UnfoldSource(
+        key: _source,
+        fill: cs.surfaceContainerHigh,
+        radius: 28,
+        builder: (_, _) => Container(
+          decoration: BoxDecoration(
+            color: cs.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(28),
           ),
-        ],
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _header(t),
+              AnimatedSize(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeInOut,
+                alignment: Alignment.topCenter,
+                child: _collapsed
+                    ? const SizedBox(width: double.infinity)
+                    : _preview(t),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -67,6 +67,9 @@ import '../models/widget_data.dart';
 import '../widgets/common/plus_badge.dart';
 import '../widgets/plus/plus_promo_sheet.dart';
 import '../widgets/common/stable_stream_builder.dart';
+import '../widgets/unfold/unfold_route.dart';
+import '../utils/couple_days.dart';
+import 'gifts/partner_profile_screen.dart';
 import '../widgets/common/scaled_asset.dart';
 import '../widgets/common/coin_image.dart';
 
@@ -138,12 +141,18 @@ class ChatScreen extends StatefulWidget {
   final String myDisplayName;
   final UserData? userData;
 
+  /// Дата системного таймера пары — для «дней вместе» в профиле партнёра,
+  /// который открывается из шапки. Таймеры живут у главного экрана, сюда их
+  /// дату передают те, кто открывает чат.
+  final DateTime? timerStart;
+
   const ChatScreen({
     super.key,
     required this.pairData,
     required this.theme,
     required this.myDisplayName,
     this.userData,
+    this.timerStart,
   });
 
   @override
@@ -2234,9 +2243,25 @@ class _ChatScreenState extends State<ChatScreen> {
               color: cs.onSurface,
               tooltip: MaterialLocalizations.of(context).backButtonTooltip,
             ),
-            _headerAvatarPill(cs),
-            const SizedBox(width: 10),
-            Expanded(child: _namePill(s, cs)),
+            // Аватар с именем — одно целое: из них вырастает профиль
+            // партнёра, а сами они перелетают в его шапку (метки те же, что
+            // в ProfileHero).
+            Expanded(
+              child: UnfoldSource(
+                fill: cs.primaryContainer,
+                radius: 24,
+                builder: (_, who) => Row(
+                  children: [
+                    _headerAvatarPill(cs),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _namePill(s, cs,
+                          onTap: () => _openPartnerProfile(who)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
             const SizedBox(width: 8),
             _headerMenu(s, cs),
           ],
@@ -2265,21 +2290,25 @@ class _ChatScreenState extends State<ChatScreen> {
         child: FramedAvatar(
           uid: widget.pairData.partnerUid,
           size: 44,
-          child: SizedBox(
-            width: 44,
-            height: 44,
-            child: ClipOval(
-              child: url.isNotEmpty
-                  ? StorageImage(
-                      imageUrl: url,
-                      width: 44,
-                      height: 44,
-                      fit: BoxFit.cover,
-                      memCacheWidth: 132,
-                      placeholder: (_, __) => _avatarLetter(cs, name),
-                      errorWidget: (_, __, ___) => _avatarLetter(cs, name),
-                    )
-                  : _avatarLetter(cs, name),
+          child: UnfoldShared(
+            tag: 'avatar',
+            radius: 22,
+            child: SizedBox(
+              width: 44,
+              height: 44,
+              child: ClipOval(
+                child: url.isNotEmpty
+                    ? StorageImage(
+                        imageUrl: url,
+                        width: 44,
+                        height: 44,
+                        fit: BoxFit.cover,
+                        memCacheWidth: 132,
+                        placeholder: (_, __) => _avatarLetter(cs, name),
+                        errorWidget: (_, __, ___) => _avatarLetter(cs, name),
+                      )
+                    : _avatarLetter(cs, name),
+              ),
             ),
           ),
         ),
@@ -2302,7 +2331,8 @@ class _ChatScreenState extends State<ChatScreen> {
   );
 
   /// Пилюля с именем: точка присутствия, имя и время последнего визита.
-  Widget _namePill(AppStrings s, ColorScheme cs) {
+  Widget _namePill(AppStrings s, ColorScheme cs,
+      {required VoidCallback onTap}) {
     final name = widget.pairData.partnerDisplayName;
     final uid = widget.pairData.partnerUid;
 
@@ -2311,7 +2341,7 @@ class _ChatScreenState extends State<ChatScreen> {
       shape: const StadiumBorder(),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: _showPartnerSheet,
+        onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
           child: StableStreamBuilder<bool>(
@@ -2333,16 +2363,20 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                   const SizedBox(width: 10),
                   Flexible(
-                    child: Text(
-                      name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontFamily: ProfileTheme.displayFont,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                        letterSpacing: -0.2,
-                        color: cs.onPrimaryContainer,
+                    child: UnfoldShared(
+                      tag: 'name',
+                      fit: UnfoldFit.scale,
+                      child: Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: ProfileTheme.displayFont,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                          letterSpacing: -0.2,
+                          color: cs.onPrimaryContainer,
+                        ),
                       ),
                     ),
                   ),
@@ -2536,9 +2570,33 @@ class _ChatScreenState extends State<ChatScreen> {
     await UiPrefs.setChatLook(picked);
   }
 
-  /// Тап по пилюле — тот же лист, что и раньше открывался по аватару.
-  void _showPartnerSheet() {
+  /// Тап по пилюле с именем — профиль партнёра. Он вырастает из шапки чата,
+  /// аватар и имя перелетают в его шапку. До 11.10.2026 пилюля только
+  /// отзывалась вибрацией и не открывала ничего.
+  void _openPartnerProfile(UnfoldSourceState who) {
     HapticFeedback.selectionClick();
+    final pair = widget.pairData;
+    if (pair.partnerUid.isEmpty) return;
+    Navigator.of(context).push(
+      unfoldFrom<void>(
+        who,
+        (_) => PartnerProfileScreen(
+          theme: _t,
+          groupId: pair.pairId,
+          partnerUid: pair.partnerUid,
+          partnerName: pair.partnerDisplayName,
+          partnerAvatarUrl: pair.partnerAvatarUrl,
+          // Тот же счёт, что в профиле и на «Связи»: без даты таймера число
+          // расходилось бы у тех, кто правил её колесом.
+          daysTogether: coupleDaysTogether(
+            timerStart: widget.timerStart,
+            groupStart: pair.startDate,
+            anniversary: pair.anniversaryDate,
+          ),
+        ),
+        settings: const RouteSettings(name: '/partner'),
+      ),
+    );
   }
 
   Widget build(BuildContext context) {
@@ -2549,9 +2607,12 @@ class _ChatScreenState extends State<ChatScreen> {
       backgroundColor: _t.bgGradient.last,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(70),
+        // Шапка, лента и поле ввода проявляются по очереди, когда чат вырос
+        // из своей плитки (UnfoldRoute). При обычном открытии обёртки
+        // ничего не делают.
         child: Material(
           color: ProfileTheme.themeFor(_t).colorScheme.surface,
-          child: _buildTopBar(s),
+          child: UnfoldStagger(index: 0, child: _buildTopBar(s)),
         ),
       ),
       body: Stack(
@@ -2602,7 +2663,9 @@ class _ChatScreenState extends State<ChatScreen> {
                 // ней, и уход виджета закрыл бы арену жеста.
                 child: Offstage(
                   offstage: _noteRecording,
-                  child: Stack(
+                  child: UnfoldStagger(
+                    index: 2,
+                    child: Stack(
                     children: [
                       StreamBuilder<List<ChatMsg>>(
                         stream: _messagesStream,
@@ -2686,11 +2749,12 @@ class _ChatScreenState extends State<ChatScreen> {
                       ),
                     ],
                   ),
+                  ),
                 ),
               ),
               if (mentionPanelVisible(_mentionQuery)) _buildMentionList(),
               // «Печатает…» теперь в хедере (см. _buildHeaderTitle).
-              _buildComposer(s),
+              UnfoldStagger(index: 4, child: _buildComposer(s)),
             ],
           ),
           // Экран съёмки: живёт поверх чата, потому что человек снимает ответ

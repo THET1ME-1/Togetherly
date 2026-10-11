@@ -316,6 +316,22 @@ class _Flier {
 
   ui.Image? image;
 
+  /// Снимок того же элемента на дальнем конце пути и тот, с кого его снять.
+  /// Нужен тексту: имя в карточке и в шапке экрана набрано по-разному, и
+  /// в полёте одно начертание перетекает в другое. Снимается не сразу —
+  /// дальний конец сперва должен хоть раз нарисоваться.
+  ui.Image? far;
+  UnfoldSharedState? farFrom;
+
+  /// Высота и левый верхний угол текста в полёте.
+  ({Offset corner, double height}) textAt(double flight) {
+    final target = to ?? from;
+    return (
+      corner: Offset.lerp(from.topLeft, target.topLeft, flight)!,
+      height: from.height + (target.height - from.height) * flight,
+    );
+  }
+
   Rect rectAt(double flight) {
     final target = to;
     if (target == null) return from;
@@ -336,6 +352,9 @@ class _Flier {
   void dispose() {
     image?.dispose();
     image = null;
+    far?.dispose();
+    far = null;
+    farFrom = null;
   }
 }
 
@@ -469,6 +488,7 @@ class UnfoldRoute<T> extends PageRoute<T> {
         if (place == null || place.isEmpty) continue;
         flier.to = place;
         flier.toRadius = shared.widget.radius;
+        if (flier.fit == UnfoldFit.scale) flier.farFrom = shared;
         break;
       }
     }
@@ -541,6 +561,7 @@ class UnfoldRoute<T> extends PageRoute<T> {
     } else {
       _closeFrom ??= view._fullRect;
       _collectReturning(view);
+      view._chaseTries = 0;
     }
     _phase = _Phase.closing;
   }
@@ -575,10 +596,28 @@ class UnfoldRoute<T> extends PageRoute<T> {
         image: image,
       )
         ..to = here
-        ..toRadius = shared.widget.radius);
+        ..toRadius = shared.widget.radius
+        ..farFrom = shared.widget.fit == UnfoldFit.scale ? home : null);
       shared._setHidden(true);
     }
     _flightCap = 1;
+  }
+
+  /// Снимает дальний конец текста, как только тот нарисовался. Возвращает
+  /// true, пока ждать ещё есть кого.
+  bool _captureFar() {
+    var waiting = false;
+    for (final flier in _fliers) {
+      final from = flier.farFrom;
+      if (from == null || flier.far != null) continue;
+      if (!from.mounted) {
+        flier.farFrom = null;
+        continue;
+      }
+      flier.far = _snapshotOf(from._boundary.currentContext, _pixelRatio);
+      if (flier.far == null) waiting = true;
+    }
+    return waiting;
   }
 
   @override
@@ -607,6 +646,22 @@ class UnfoldRoute<T> extends PageRoute<T> {
     _fliers.clear();
     super.dispose();
   }
+}
+
+/// Маршрут для экрана, у которого плитка есть не всегда.
+///
+/// Нажали плитку — экран вырастет из неё. Пришли иначе (уведомление, кнопка
+/// без своей плитки) — откроется штатным переходом Material, каким открывался
+/// раньше, со своим системным жестом «назад».
+Route<T> unfoldFrom<T>(
+  UnfoldSourceState? source,
+  WidgetBuilder builder, {
+  RouteSettings? settings,
+}) {
+  if (source != null && source.mounted) {
+    return UnfoldRoute<T>(source: source, builder: builder, settings: settings);
+  }
+  return MaterialPageRoute<T>(builder: builder, settings: settings);
 }
 
 class _UnfoldTransition extends StatefulWidget {
@@ -890,6 +945,61 @@ class _UnfoldTransitionState extends State<_UnfoldTransition>
     });
   }
 
+  bool _chasing = false;
+  int _chaseTries = 0;
+
+  /// После кадра пробует снять дальний конец текста: до первой отрисовки
+  /// снимать не с чего. Несколько попыток — и хватит, летим со старым.
+  void _chaseFar() {
+    if (_chasing || _chaseTries >= 8) return;
+    final pending = _route._fliers
+        .any((flier) => flier.farFrom != null && flier.far == null);
+    if (!pending) return;
+    _chasing = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _chasing = false;
+      _chaseTries++;
+      if (!mounted) return;
+      _route._captureFar();
+      _refresh();
+    });
+  }
+
+  /// Текст в полёте: растёт равномерно, а начертание старого места
+  /// перетекает в начертание нового в начале пути.
+  Widget _textFlier(_Flier flier, double flight, {required bool opening}) {
+    final at = flier.textAt(flight);
+    final toward = opening ? flight : 1 - flight;
+    final far = flier.far;
+    final blend =
+        far == null ? 0.0 : ((toward - 0.12) / 0.22).clamp(0.0, 1.0);
+    Widget glyphs(ui.Image image, double opacity, String side) => Opacity(
+          opacity: opacity,
+          child: RawImage(
+            key: ValueKey<String>('unfold-flier-${flier.tag}-$side'),
+            image: image,
+            height: at.height,
+            fit: BoxFit.fitHeight,
+            alignment: Alignment.topLeft,
+            filterQuality: FilterQuality.medium,
+          ),
+        );
+    return Positioned(
+      left: at.corner.dx,
+      top: at.corner.dy,
+      child: IgnorePointer(
+        child: Stack(
+          key: ValueKey<String>('unfold-flier-${flier.tag}'),
+          clipBehavior: Clip.none,
+          children: [
+            glyphs(flier.image!, 1 - blend, 'near'),
+            if (far != null) glyphs(far, blend, 'far'),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildFrame(BuildContext context, Widget page) {
     final route = _route;
     final frame = _frameNow();
@@ -906,6 +1016,7 @@ class _UnfoldTransitionState extends State<_UnfoldTransition>
     final flying = route._grows &&
         (route._phase == _Phase.opening || route._phase == _Phase.closing);
 
+    if (flying && !route.offstage) _chaseFar();
     final moving = route._phase == _Phase.dragging ||
         route._phase == _Phase.settling ||
         route._phase == _Phase.closing;
@@ -980,6 +1091,10 @@ class _UnfoldTransitionState extends State<_UnfoldTransition>
         ),
         if (flying)
           for (final flier in fliers)
+            if (flier.fit == UnfoldFit.scale)
+              _textFlier(flier, flight,
+                  opening: route._phase == _Phase.opening)
+            else
             Positioned.fromRect(
               rect: flier.rectAt(flight),
               child: IgnorePointer(

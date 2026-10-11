@@ -154,6 +154,7 @@ import 'wallet_wait_screen.dart';
 import '../widgets/common/gift_image.dart';
 import '../widgets/common/coin_image.dart';
 import '../widgets/season/season_backdrop_layer.dart';
+import '../widgets/unfold/unfold_route.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -208,6 +209,10 @@ class _HomeScreenState extends State<HomeScreen> {
   // одноразовой подсказки про удержание.
   bool _sideActionIsArrow = true;
   final GlobalKey _sideBtnKey = GlobalKey();
+
+  /// Кнопка чата в нижней панели — источник перехода в переписку.
+  final GlobalKey<UnfoldSourceState> _chatSourceKey =
+      GlobalKey<UnfoldSourceState>();
 
   /// Цели подсказок: кнопка фото (удержание пишет ролик) и счётчик «Скучаю».
   final GlobalKey _postBtnKey = GlobalKey();
@@ -1546,6 +1551,7 @@ class _HomeScreenState extends State<HomeScreen> {
               // Значок чата поверх круглой кнопки: до переписки было два шага —
               // вкладка «Связь», а уже оттуда кнопка чата.
               onChat: _pairData.isPaired ? _openChat : null,
+              chatSourceKey: _chatSourceKey,
             ),
           ),
         ],
@@ -1703,16 +1709,19 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Раньше до чата добирались через вкладку «Связь», а уже там жала кнопка —
   /// два шага ради самого частого действия пары.
   void _openChat() {
+    // Чат вырастает из своей круглой кнопки и складывается обратно в неё.
     Navigator.push(
       context,
-      MaterialPageRoute<void>(
-        settings: const RouteSettings(name: '/chat'),
-        builder: (_) => ChatScreen(
+      unfoldFrom<void>(
+        _chatSourceKey.currentState,
+        (_) => ChatScreen(
           pairData: _pairData,
           theme: _t,
           userData: widget.userData,
           myDisplayName: widget.userData.displayName,
+          timerStart: _timerService.systemTimer?.startDate,
         ),
+        settings: const RouteSettings(name: '/chat'),
       ),
     );
   }

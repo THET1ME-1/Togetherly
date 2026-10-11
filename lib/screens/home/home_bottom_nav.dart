@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common/animations.dart';
+import '../../widgets/unfold/unfold_route.dart';
 
 /// Нижняя навигационная панель главного экрана.
 class HomeBottomNav extends StatelessWidget {
@@ -30,6 +31,10 @@ class HomeBottomNav extends StatelessWidget {
   /// Ключ значка чата — по нему его находят тесты.
   static const Key chatBadgeKey = Key('nav_chat_badge');
 
+  /// Ключ кнопки чата как источника перехода: чат вырастает из неё
+  /// (см. `UnfoldRoute`). Задаёт главный экран, он же по нему находит кнопку.
+  final GlobalKey<UnfoldSourceState>? chatSourceKey;
+
   /// Вкладки «Виджеты» и «Смотрим»: с Togetherly+ их можно убрать из панели
   /// (раскладка главной, `HomeLayout`).
   final bool showWidgets;
@@ -54,6 +59,7 @@ class HomeBottomNav extends StatelessWidget {
     this.onSideLongPress,
     this.sideButtonKey,
     this.onChat,
+    this.chatSourceKey,
   });
 
   static const String _homeIcon =
@@ -157,10 +163,15 @@ class HomeBottomNav extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (onChat != null) ...[
-                  _ChatBadgeButton(
-                    theme: theme,
-                    onTap: onChat!,
-                    label: s.chatTitle,
+                  UnfoldSource(
+                    key: chatSourceKey,
+                    fill: theme.fillColor,
+                    radius: 22,
+                    builder: (_, _) => _ChatBadgeButton(
+                      theme: theme,
+                      onTap: onChat!,
+                      label: s.chatTitle,
+                    ),
                   ),
                   const SizedBox(height: 12),
                 ],

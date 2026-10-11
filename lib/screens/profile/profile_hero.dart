@@ -7,6 +7,7 @@ import '../../theme/profile_theme.dart';
 import '../../widgets/common/plus_badge.dart';
 import '../../models/profile_icon.dart';
 import '../../widgets/avatar_widget.dart';
+import '../../widgets/unfold/unfold_route.dart';
 import 'profile_banner.dart';
 import '../../widgets/common/badge_image.dart';
 
@@ -149,15 +150,21 @@ class ProfileHero extends StatelessWidget {
               shape: BoxShape.circle,
               color: cs.surface,
             ),
-            child: AvatarWidget(
-              uid: uid,
-              liveUrl: avatarUrl,
-              name: name,
-              size: 84,
-              primary: cs.primary,
-              // В своём профиле нажатие занято (рамки или смена фото), а в
-              // партнёрском не делало ничего — там и открываем фото.
-              tapToView: onTapAvatar == null && onTapFrame == null,
+            // Общий элемент: сюда прилетает аватар из кружка друга или из
+            // карточки партнёра, когда профиль вырастает из них (UnfoldRoute).
+            child: UnfoldShared(
+              tag: 'avatar',
+              radius: 42,
+              child: AvatarWidget(
+                uid: uid,
+                liveUrl: avatarUrl,
+                name: name,
+                size: 84,
+                primary: cs.primary,
+                // В своём профиле нажатие занято (рамки или смена фото), а в
+                // партнёрском не делало ничего — там и открываем фото.
+                tapToView: onTapAvatar == null && onTapFrame == null,
+              ),
             ),
           ),
           if (onTapAvatar != null)
@@ -233,15 +240,20 @@ class ProfileHero extends StatelessWidget {
               Row(
                 children: [
                   Flexible(
-                    child: Text(
-                      name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontFamily: ProfileTheme.displayFont,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 22,
-                        color: cs.onSurface,
+                    // Имя прилетает сюда из шапки чата (метка та же).
+                    child: UnfoldShared(
+                      tag: 'name',
+                      fit: UnfoldFit.scale,
+                      child: Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: ProfileTheme.displayFont,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 22,
+                          color: cs.onSurface,
+                        ),
                       ),
                     ),
                   ),

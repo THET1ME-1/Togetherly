@@ -16,8 +16,11 @@ void main() {
       File('lib/screens/connect_partner_screen.dart').readAsStringSync();
 
   test('чат без пары не открывается', () {
-    final open = RegExp(r'void _openChat\(\) \{(.*?)\n  \}', dotAll: true)
-        .firstMatch(source);
+    // У перехода появился параметр (плитка, из которой вырастает чат),
+    // поэтому скобки принимают любые аргументы.
+    final open =
+        RegExp(r'void _openChat\([^)]*\) \{(.*?)\n  \}', dotAll: true)
+            .firstMatch(source);
     expect(open, isNotNull, reason: 'переход в чат на месте');
     expect(open!.group(1), contains('pairId.isEmpty'),
         reason: 'пустая пара до чата не доходит');

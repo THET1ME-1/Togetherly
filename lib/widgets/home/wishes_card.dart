@@ -9,6 +9,7 @@ import '../../services/wish_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/fonts.dart';
 import '../common/stable_stream_builder.dart';
+import '../unfold/unfold_route.dart';
 
 /// Вход в «Хочу с тобой» с главной: два ближайших желания и строка архива.
 ///
@@ -51,8 +52,31 @@ class WishesCard extends StatelessWidget {
         final dreaming = Wish.dreaming(all);
         final doneCount = all.where((w) => w.done).length;
 
+        // Экран желаний вырастает из этой карточки и складывается обратно в
+        // неё. Отступ сверху вынесен наружу: расти надо из самой карточки, а
+        // не из карточки с полем над ней.
+        return Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: UnfoldSource(
+            fill: cs.surfaceContainerHigh,
+            radius: 28,
+            builder: (_, card) => _card(context, cs, ru,
+                dreaming: dreaming, doneCount: doneCount, card: card),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _card(
+    BuildContext context,
+    ColorScheme cs,
+    bool ru, {
+    required List<Wish> dreaming,
+    required int doneCount,
+    required UnfoldSourceState card,
+  }) {
         return Container(
-          margin: const EdgeInsets.only(top: 8),
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             color: cs.surfaceContainerHigh,
@@ -62,7 +86,7 @@ class WishesCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               InkWell(
-                onTap: () => _open(context),
+                onTap: () => _open(context, from: card),
                 child: Row(
                   children: [
                     Expanded(
@@ -82,7 +106,10 @@ class WishesCard extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               if (dreaming.isEmpty)
-                _EmptyRow(scheme: cs, ru: ru, onTap: () => _open(context))
+                _EmptyRow(
+                    scheme: cs,
+                    ru: ru,
+                    onTap: () => _open(context, from: card))
               else
                 for (final wish in dreaming.take(2))
                   Padding(
@@ -91,13 +118,13 @@ class WishesCard extends StatelessWidget {
                       wish: wish,
                       scheme: cs,
                       author: _nameOf(wish.authorUid),
-                      onTap: () => _open(context),
+                      onTap: () => _open(context, from: card),
                     ),
                   ),
               if (doneCount > 0) ...[
                 Divider(color: cs.outlineVariant, height: 13),
                 InkWell(
-                  onTap: () => _open(context, fulfilled: true),
+                  onTap: () => _open(context, fulfilled: true, from: card),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 6),
                     child: Text(
@@ -112,8 +139,6 @@ class WishesCard extends StatelessWidget {
             ],
           ),
         );
-      },
-    );
   }
 
   String _nameOf(String uid) {
@@ -122,10 +147,12 @@ class WishesCard extends StatelessWidget {
     return '';
   }
 
-  void _open(BuildContext context, {bool fulfilled = false}) {
+  void _open(BuildContext context,
+      {bool fulfilled = false, UnfoldSourceState? from}) {
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => WishesScreen(
+      unfoldFrom<void>(
+        from,
+        (_) => WishesScreen(
           theme: theme,
           groupId: groupId,
           myUid: myUid,

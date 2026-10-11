@@ -32,6 +32,14 @@ class _Page extends StatelessWidget {
               ),
             ),
           ),
+          // То же имя, но крупнее и жирнее: в полёте одно начертание обязано
+          // перетечь в другое, а не подмениться в момент посадки.
+          const UnfoldShared(
+            tag: 'name',
+            fit: UnfoldFit.scale,
+            child: Text('Аня',
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800)),
+          ),
           const UnfoldStagger(index: 0, child: Text('первый блок')),
           const UnfoldStagger(index: 5, child: Text('шестой блок')),
           TextButton(
@@ -67,15 +75,26 @@ class _Feed extends StatelessWidget {
             height: 180,
             color: Colors.pink,
             alignment: Alignment.topLeft,
-            child: const UnfoldShared(
-              tag: 'cover',
-              radius: 22,
-              child: SizedBox(
-                key: ValueKey('card-cover'),
-                width: 150,
-                height: 90,
-                child: ColoredBox(color: Colors.blue),
-              ),
+            child: const Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                UnfoldShared(
+                  tag: 'cover',
+                  radius: 22,
+                  child: SizedBox(
+                    key: ValueKey('card-cover'),
+                    width: 150,
+                    height: 90,
+                    child: ColoredBox(color: Colors.blue),
+                  ),
+                ),
+                UnfoldShared(
+                  tag: 'name',
+                  fit: UnfoldFit.scale,
+                  child: Text('Аня', style: TextStyle(fontSize: 14)),
+                ),
+              ],
             ),
           ),
         );
@@ -223,6 +242,35 @@ void main() {
     expect(landed.hidden, isFalse);
   });
 
+  testWidgets('текст в полёте перетекает из старого начертания в новое',
+      (tester) async {
+    await _pumpFeed(tester);
+    const near = ValueKey<String>('unfold-flier-name-near');
+    const far = ValueKey<String>('unfold-flier-name-far');
+    double shown(Key key) => tester
+        .widget<Opacity>(
+            find.ancestor(of: find.byKey(key), matching: find.byType(Opacity))
+                .first)
+        .opacity;
+
+    await _tapCard(tester);
+    expect(find.byKey(near), findsOneWidget);
+    expect(shown(near), 1, reason: 'со старта летит то, что было в карточке');
+
+    // Новое начертание снимается с уже нарисованного экрана — на это уходит
+    // пара кадров.
+    await tester.pump(const Duration(milliseconds: 16));
+    await tester.pump(const Duration(milliseconds: 16));
+    await tester.pump(const Duration(milliseconds: 120));
+    expect(find.byKey(far), findsOneWidget);
+    expect(shown(far), greaterThan(0.9),
+        reason: 'к середине пути буквы уже новые');
+    expect(shown(near), lessThan(0.1));
+
+    await tester.pumpAndSettle();
+    expect(find.byKey(far), findsNothing);
+  });
+
   testWidgets('в полёте настоящая обложка экрана спрятана', (tester) async {
     await _pumpFeed(tester);
     await _tapCard(tester);
@@ -338,6 +386,77 @@ void main() {
       expect(find.text('первый блок'), findsOneWidget);
       debugDefaultTargetPlatformOverride = null;
     });
+  });
+
+  testWidgets('штатный Hero летит на своё настоящее место, а не в окно',
+      (tester) async {
+    // Круглая кнопка нижней панели — Hero, общий для главной и ленты. Его
+    // цель Flutter меряет в первом, невидимом кадре маршрута: если окно в
+    // этот момент сжато до плитки, кнопка летит в сжатое место и в конце
+    // прыгает.
+    const target = Rect.fromLTWH(300, 700, 40, 40);
+    await tester.binding.setSurfaceSize(_screen);
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    Widget dot(Color color) => Hero(
+          tag: 'side',
+          child: ColoredBox(key: const ValueKey('dot'), color: color),
+        );
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Stack(
+          children: [
+            Positioned(left: 20, top: 20, width: 20, height: 20, child: dot(Colors.red)),
+            Positioned(
+              left: 60,
+              top: 300,
+              child: UnfoldSource(
+                fill: Colors.pink,
+                builder: (context, source) => GestureDetector(
+                  onTap: () => Navigator.of(context).push(UnfoldRoute<void>(
+                    source: source,
+                    builder: (_) => Scaffold(
+                      body: Stack(children: [
+                        Positioned.fromRect(rect: target, child: dot(Colors.red)),
+                      ]),
+                    ),
+                  )),
+                  child: Container(
+                      key: const ValueKey('card'),
+                      width: 200,
+                      height: 100,
+                      color: Colors.pink),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ));
+
+    await _tapCard(tester);
+    await tester.pump(const Duration(milliseconds: 600));
+    final flying = tester.getRect(find.byKey(const ValueKey('dot')).last);
+    expect(flying.left, closeTo(target.left, 4));
+    expect(flying.top, closeTo(target.top, 4));
+    expect(flying.width, closeTo(target.width, 3));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('без плитки экран открывается обычным маршрутом Material',
+      (tester) async {
+    await _pumpFeed(tester);
+    final source = tester.state<UnfoldSourceState>(find.byType(UnfoldSource));
+    Widget page(BuildContext _) => const _Page();
+
+    expect(unfoldFrom<void>(source, page), isA<UnfoldRoute<void>>());
+    // Уведомление, кнопка без своей плитки: расти не из чего, и прежний
+    // системный переход с жестом «назад» терять нельзя.
+    expect(unfoldFrom<void>(null, page), isA<MaterialPageRoute<void>>());
+    const settings = RouteSettings(name: '/chat');
+    expect(unfoldFrom<void>(null, page, settings: settings).settings.name,
+        '/chat');
+    expect(unfoldFrom<void>(source, page, settings: settings).settings.name,
+        '/chat');
   });
 
   testWidgets('системный жест «назад» Android ведёт тот же экран',

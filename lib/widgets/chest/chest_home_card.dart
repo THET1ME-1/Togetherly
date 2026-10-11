@@ -16,6 +16,7 @@ import '../../utils/readable_text.dart';
 import 'chest_frames.dart';
 import 'chest_prize_image.dart';
 import 'jar_drops.dart';
+import '../unfold/unfold_route.dart';
 
 /// Блок сундука на главной, между таймером и остальными разделами (макет
 /// «Сундук недели», экран 1). Живой сундук слева, справа название, строка про
@@ -115,10 +116,17 @@ class _ChestHomeCardState extends State<ChestHomeCard> {
     });
   }
 
+  /// Карточка как источник перехода: экран сундука вырастает из неё.
+  final GlobalKey<UnfoldSourceState> _source = GlobalKey<UnfoldSourceState>();
+
   Future<void> _openScreen() async {
     await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ChestScreen(
+      unfoldFrom<void>(
+        // Сезонный сундук открывается своим занавесом и сам перескакивает
+        // на сезонную страницу: два движения разом тут не нужны, ему
+        // остаётся прежний переход.
+        _season == null ? _source.currentState : null,
+        (_) => ChestScreen(
           theme: widget.theme,
           groupId: widget.groupId,
           partnerName: widget.partnerName,
@@ -154,7 +162,11 @@ class _ChestHomeCardState extends State<ChestHomeCard> {
     final jar = PairJarService.instance.groupId == widget.groupId ? PairJarService.instance.jar : null;
     return Padding(
       padding: const EdgeInsets.only(top: 8),
-      child: Material(
+      child: UnfoldSource(
+        key: _source,
+        fill: bg,
+        radius: 28,
+        builder: (_, _) => Material(
         color: bg,
         borderRadius: BorderRadius.circular(28),
         clipBehavior: Clip.antiAlias,
@@ -270,6 +282,7 @@ class _ChestHomeCardState extends State<ChestHomeCard> {
             ),
           ),
         ),
+      ),
       ),
     );
   }
