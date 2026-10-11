@@ -13,6 +13,7 @@ import 'watch_player_screen.dart';
 import 'watch_room_screen.dart';
 import '../../widgets/common/coin_image.dart';
 import '../../widgets/common/m3_loading.dart';
+import '../../widgets/unfold/unfold_touch.dart';
 
 /// Вход в совместный просмотр.
 ///
@@ -238,6 +239,10 @@ class TogetherLauncher {
       return;
     }
 
+    // Комната — встроенный браузер, и на iPhone он уже терял касания после
+    // чужих движений поверх себя. Растить его из кнопки под масштабом не
+    // рискуем: комната открывается прежним переходом платформы.
+    UnfoldTouch.forget();
     await navigator.push(
       MaterialPageRoute<void>(
         builder: (_) => WatchRoomScreen(

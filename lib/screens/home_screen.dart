@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import '../widgets/common/ad_result.dart';
 import '../widgets/common/ailment_icon.dart';
 import '../widgets/common/email_typo_prompt.dart';
+import '../widgets/common/tab_fade.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -1510,7 +1511,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   pairId: _pairData.pairId,
                 ),
                 _buildPartnerAilmentBanner(),
-                Expanded(child: _buildBody()),
+                // Вкладка меняется проявлением; шапка и нижняя панель стоят.
+                Expanded(
+                  child: TabFade(
+                    index: _selectedNavIndex,
+                    child: _buildBody(),
+                  ),
+                ),
               ],
             ),
             ),
@@ -2527,32 +2534,16 @@ class _HomeScreenState extends State<HomeScreen> {
     final mode = petalLabel == LocaleService.current.daysShortLabel
         ? MemoryFilterMode.day
         : MemoryFilterMode.month;
+    // Обычный маршрут: лента вырастает из нажатого лепестка, как и все
+    // экраны (своего сдвига снизу здесь больше нет).
     Navigator.of(context).push(
-      PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 500),
-        reverseTransitionDuration: const Duration(milliseconds: 350),
-        pageBuilder: (_, __, ___) => MemoryLaneScreen(
+      MaterialPageRoute<void>(
+        builder: (_) => MemoryLaneScreen(
           pairData: _pairData,
           theme: _t,
           filterMode: mode,
           userData: widget.userData,
         ),
-        transitionsBuilder: (_, anim, __, child) {
-          final curved = CurvedAnimation(
-            parent: anim,
-            curve: Curves.easeOutCubic,
-          );
-          return FadeTransition(
-            opacity: curved,
-            child: SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0, 0.12),
-                end: Offset.zero,
-              ).animate(curved),
-              child: child,
-            ),
-          );
-        },
       ),
     );
   }

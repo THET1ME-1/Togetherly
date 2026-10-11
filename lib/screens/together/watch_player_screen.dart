@@ -12,6 +12,7 @@ import '../../services/watch_voice_service.dart';
 import '../../services/watch_channel_service.dart';
 import '../../services/watch_history_service.dart';
 import '../../widgets/common/m3_loading.dart';
+import '../../widgets/unfold/unfold_route.dart';
 import '../../widgets/watch/watch_voice_bar.dart';
 
 /// Нативный просмотр своего видео вдвоём.
@@ -277,6 +278,8 @@ class _WatchPlayerScreenState extends State<WatchPlayerScreen>
     final cs = Theme.of(context).colorScheme;
     final v = _video;
 
+    // Плеер чёрный: окно перехода под ним тоже должно быть чёрным.
+    UnfoldTint.claim(context, Colors.black);
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(

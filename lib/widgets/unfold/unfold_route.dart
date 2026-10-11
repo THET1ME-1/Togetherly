@@ -272,6 +272,29 @@ class UnfoldStagger extends StatelessWidget {
   }
 }
 
+/// Экран сам называет цвет растущего окна.
+///
+/// Общий переход темы заливает окно поверхностью схемы — на ней стоит почти
+/// всё приложение. Чёрный экран (плеер, камера, сканер) под такой заливкой
+/// дал бы светлую вспышку, поэтому он оборачивает себя в [UnfoldTint]. У
+/// экрана, открытого из своей плитки, заливку по-прежнему задаёт плитка.
+class UnfoldTint extends StatelessWidget {
+  const UnfoldTint({super.key, required this.color, required this.child});
+
+  final Color color;
+  final Widget child;
+
+  /// То же одной строкой из `build` экрана, когда оборачивать неудобно.
+  static void claim(BuildContext context, Color color) =>
+      _UnfoldScope.maybeOf(context)?.claimFill(color);
+
+  @override
+  Widget build(BuildContext context) {
+    claim(context, color);
+    return child;
+  }
+}
+
 /// Что новый экран знает о своём переходе.
 abstract class _UnfoldHost {
   final Set<UnfoldSharedState> shared = <UnfoldSharedState>{};
@@ -279,6 +302,9 @@ abstract class _UnfoldHost {
   Listenable get ticks;
 
   bool get hidesNewShared;
+
+  /// Экран просит залить окно своим цветом.
+  void claimFill(Color color);
 
   ({double opacity, double shift}) item(int index);
 }
@@ -815,6 +841,13 @@ class _UnfoldTransitionState extends State<_UnfoldTransition>
   @override
   bool get hidesNewShared =>
       _route.grows && _route.phase == _Phase.opening;
+
+  @override
+  void claimFill(Color color) {
+    // Первый кадр маршрута стоит за сценой, так что цвет успевает встать до
+    // первого видимого.
+    if (_route.auto) _route.fill = color;
+  }
 
   @override
   void initState() {

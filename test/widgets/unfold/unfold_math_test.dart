@@ -175,4 +175,88 @@ void main() {
       expect(unfoldDragCommits(0.34), isTrue);
     });
   });
+
+  group('полёт кадра в просмотр', () {
+    test('фон темнеет за 220 мс, кадр летит той же пружиной, что окно', () {
+      expect(photoOpenFrame(0).flight, 0);
+      expect(photoOpenFrame(0).backdrop, 0);
+      expect(photoOpenFrame(110).backdrop, closeTo(0.5, 1e-9));
+      expect(photoOpenFrame(220).backdrop, 1);
+      expect(photoOpenFrame(180).flight,
+          closeTo(unfoldSpring(180, omega: 18, zeta: 0.82), 1e-12));
+      expect(photoOpenFrame(620).flight, closeTo(1, 0.002));
+    });
+
+    test('кнопки проявляются следом: с 140-й мс, шаг 60', () {
+      expect(photoChromeIn(140, 0), 0);
+      expect(photoChromeIn(225, 0), closeTo(0.5, 1e-9));
+      expect(photoChromeIn(310, 0), 1);
+      expect(photoChromeIn(200, 1), 0);
+      expect(photoChromeIn(370, 1), 1);
+    });
+
+    test('обратно: без перелёта, фон светлеет за 240 мс, кнопки за 90', () {
+      var last = 2.0;
+      for (var ms = 0.0; ms <= 430; ms += 10) {
+        final flight = photoCloseFrame(ms).flight;
+        expect(flight, lessThanOrEqualTo(last));
+        expect(flight, inInclusiveRange(0.0, 1.0));
+        last = flight;
+      }
+      expect(photoCloseFrame(430).flight, lessThan(0.002));
+      expect(photoCloseFrame(120).backdrop, closeTo(0.5, 1e-9));
+      expect(photoCloseFrame(240).backdrop, 0);
+      expect(photoChromeOut(45), closeTo(0.5, 1e-9));
+      expect(photoChromeOut(90), 0);
+    });
+
+    test('закрытие из-под пальца начинает с того фона, что был', () {
+      expect(photoCloseFrame(0, backdropFrom: 0.4).backdrop, 0.4);
+      expect(photoCloseFrame(120, backdropFrom: 0.4).backdrop,
+          closeTo(0.2, 1e-9));
+      expect(photoChromeOut(0, from: 0), 0);
+    });
+
+    test('под пальцем кадр едет вниз, сжимается, фон светлеет', () {
+      final rest = photoDragFrame(Offset.zero);
+      expect(rest.shift, Offset.zero);
+      expect(rest.scale, 1);
+      expect(rest.backdrop, 1);
+      expect(rest.chrome, 1);
+
+      final pulled = photoDragFrame(const Offset(40, 150));
+      expect(pulled.shift, const Offset(20, 150));
+      expect(pulled.scale, closeTo(1 - 150 / 700, 1e-9));
+      expect(pulled.backdrop, closeTo(1 - 0.5 * 0.85, 1e-9));
+      expect(pulled.chrome, 0);
+
+      final far = photoDragFrame(const Offset(0, 900));
+      expect(far.scale, closeTo(0.7, 1e-9));
+      expect(far.backdrop, closeTo(0.15, 1e-9));
+    });
+
+    test('вверх кадр не едет', () {
+      final up = photoDragFrame(const Offset(30, -200));
+      expect(up.shift.dy, 0);
+      expect(up.scale, 1);
+      expect(up.backdrop, 1);
+    });
+
+    test('порог жеста — 80 точек вниз', () {
+      expect(photoDragCommits(79), isFalse);
+      expect(photoDragCommits(81), isTrue);
+    });
+
+    test('цель полёта — картинка, вписанная в сцену целиком', () {
+      const stage = Rect.fromLTWH(0, 60, 360, 560);
+      // Горизонтальный кадр упирается в ширину.
+      expect(photoFit(const Size(1600, 900), stage),
+          Rect.fromCenter(center: stage.center, width: 360, height: 202.5));
+      // Вертикальный — в высоту.
+      expect(photoFit(const Size(900, 1600), stage),
+          Rect.fromCenter(center: stage.center, width: 315, height: 560));
+      // Пустую картинку вписать нельзя: сцена целиком.
+      expect(photoFit(Size.zero, stage), stage);
+    });
+  });
 }

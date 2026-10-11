@@ -6,7 +6,9 @@ import '../theme/fonts.dart';
 import '../theme/profile_theme.dart';
 import 'app_sheet.dart';
 import 'avatar_widget.dart';
+import 'common/zoomable_photo.dart';
 import 'storage_image.dart';
+import 'unfold/photo_flight.dart';
 
 /// Содержимое парного виджета целиком: письмо, песня, снимок.
 ///
@@ -182,24 +184,20 @@ Future<void> openWidgetPhotoView(
   String? authorName,
   DateTime? updatedAt,
 }) {
+  // Снимок вылетает из нажатой миниатюры (аватар, фото в чате, фото виджета),
+  // фон под ним темнеет; потянули вниз — летит обратно.
   return Navigator.of(context).push<void>(
-    PageRouteBuilder(
-      opaque: false,
-      barrierColor: Colors.black,
-      transitionDuration: const Duration(milliseconds: 200),
-      pageBuilder: (_, animation, __) => FadeTransition(
-        opacity: animation,
-        child: _PhotoView(
-          imageUrl: imageUrl,
-          authorName: authorName,
-          updatedAt: updatedAt,
-        ),
+    PhotoFlightRoute<void>(
+      builder: (_) => _PhotoView(
+        imageUrl: imageUrl,
+        authorName: authorName,
+        updatedAt: updatedAt,
       ),
     ),
   );
 }
 
-class _PhotoView extends StatelessWidget {
+class _PhotoView extends StatefulWidget {
   const _PhotoView({
     required this.imageUrl,
     this.authorName,
@@ -211,69 +209,98 @@ class _PhotoView extends StatelessWidget {
   final DateTime? updatedAt;
 
   @override
+  State<_PhotoView> createState() => _PhotoViewState();
+}
+
+class _PhotoViewState extends State<_PhotoView> {
+  /// Снимок увеличен щипком: жест «вниз» тогда двигает его, а не закрывает.
+  bool _zoomed = false;
+
+  @override
   Widget build(BuildContext context) {
-    final caption = _captionOf(authorName, updatedAt);
+    final caption = _captionOf(widget.authorName, widget.updatedAt);
+    // Миниатюра, из которой вылетел снимок: стоит на его месте, пока грузится
+    // полный, вместо крутилки.
+    final flown = PhotoFlight.thumbOf(context);
 
     return Scaffold(
-      backgroundColor: Colors.black,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      caption,
-                      style: AppFonts.onest(
-                        size: 13,
-                        weight: 600,
-                        color: Colors.white70,
-                      ),
+      // Чёрный фон лежит отдельным слоем: он темнеет при открытии и светлеет
+      // под пальцем.
+      backgroundColor: Colors.transparent,
+      body: Stack(
+        children: [
+          const Positioned.fill(
+            child: PhotoFlightBackdrop(
+              child: ColoredBox(color: Colors.black),
+            ),
+          ),
+          SafeArea(
+            child: Column(
+              children: [
+                PhotoFlightChrome(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            caption,
+                            style: AppFonts.onest(
+                              size: 13,
+                              weight: 600,
+                              color: Colors.white70,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: const Icon(Icons.close_rounded,
+                              color: Colors.white),
+                        ),
+                      ],
                     ),
                   ),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close_rounded, color: Colors.white),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: GestureDetector(
-                // Свайп вниз закрывает — привычка от любой галереи. Порог по
-                // скорости, чтобы не ловить его на щипке.
-                onVerticalDragEnd: (d) {
-                  if ((d.primaryVelocity ?? 0) > 300) {
-                    Navigator.of(context).pop();
-                  }
-                },
-                child: InteractiveViewer(
-                  minScale: 0.5,
-                  maxScale: 4.0,
-                  child: Center(
-                    child: StorageImage(
-                      imageUrl: imageUrl,
-                      fit: BoxFit.contain,
-                      placeholder: (_, __) => const Center(
-                        child: CircularProgressIndicator(
-                          strokeWidth: 3,
-                          color: Colors.white54,
+                ),
+                Expanded(
+                  // Потянуть вниз — закрыть, привычка от любой галереи.
+                  child: PhotoFlightStage(
+                    canDismiss: !_zoomed,
+                    child: ZoomablePhoto(
+                      onZoomChanged: (zoomed) {
+                        if (mounted) setState(() => _zoomed = zoomed);
+                      },
+                      child: Center(
+                        child: StorageImage(
+                          imageUrl: widget.imageUrl,
+                          fit: BoxFit.contain,
+                          placeholder: (_, __) => flown != null
+                              ? RawImage(
+                                  image: flown,
+                                  fit: BoxFit.contain,
+                                  width: double.infinity,
+                                  height: double.infinity,
+                                  filterQuality: FilterQuality.medium,
+                                )
+                              : const Center(
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 3,
+                                    color: Colors.white54,
+                                  ),
+                                ),
+                          errorWidget: (_, __, ___) => const Icon(
+                            Icons.broken_image_rounded,
+                            color: Colors.white38,
+                            size: 48,
+                          ),
                         ),
-                      ),
-                      errorWidget: (_, __, ___) => const Icon(
-                        Icons.broken_image_rounded,
-                        color: Colors.white38,
-                        size: 48,
                       ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

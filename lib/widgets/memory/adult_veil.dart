@@ -2,6 +2,8 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../unfold/unfold_touch.dart';
+
 /// Завеса над миниатюрой записи 18+: снимок размыт, поверх замок.
 ///
 /// Касанием не раскрывается и касаний не перехватывает: открыть снимок можно
@@ -26,7 +28,10 @@ class AdultVeil extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRect(
+    // Метка для полёта кадра в просмотр: под размытием картинка чистая, и
+    // без метки в полёт ушёл бы открытый снимок.
+    return UnfoldVeiled(
+      child: ClipRect(
       child: Stack(
         fit: StackFit.passthrough,
         children: [
@@ -55,6 +60,7 @@ class AdultVeil extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }

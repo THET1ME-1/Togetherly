@@ -159,3 +159,72 @@ const Cubic _easeOut = Cubic(0, 0, 0.2, 1);
 
 /// Отпустили дальше трети хода — экран закрывается, ближе — возвращается.
 bool unfoldDragCommits(double progress) => progress > 0.33;
+
+// ── кадр летит в просмотр ───────────────────────────────────────────────────
+//
+// Сцена «Фото → просмотр» того же макета: экран просмотра чёрный, растить
+// его из миниатюры тяжело, поэтому летит сам кадр, а фон под ним темнеет.
+
+abstract final class PhotoTiming {
+  static const double openMs = 620;
+  static const double closeMs = 430;
+
+  /// Возврат кадра на место, когда его отпустили до порога.
+  static const double settleMs = 240;
+
+  /// На сколько точек вниз надо увести кадр, чтобы просмотр закрылся.
+  static const double dismissAfter = 80;
+}
+
+/// Кадр полёта: [flight] — путь снимка от миниатюры (0) до места в просмотре
+/// (1, у пружины чуть дальше), [backdrop] — насколько потемнел фон.
+typedef PhotoFrame = ({double flight, double backdrop});
+
+PhotoFrame photoOpenFrame(double ms) => (
+      flight: unfoldSpring(ms, omega: 18, zeta: 0.82),
+      backdrop: _unit(ms / 220),
+    );
+
+/// Кнопки просмотра проявляются после кадра: шапка, за ней низ.
+double photoChromeIn(double ms, int index) =>
+    _unit((ms - 140 - index * 60) / 170);
+
+/// Обратный путь. [backdropFrom] — фон в момент закрытия: из-под пальца он
+/// уже наполовину светлый.
+PhotoFrame photoCloseFrame(double ms, {double backdropFrom = 1}) => (
+      flight: 1 - unfoldSpring(ms, omega: 21, zeta: 1),
+      backdrop: backdropFrom * (1 - _unit(ms / 240)),
+    );
+
+double photoChromeOut(double ms, {double from = 1}) =>
+    from * (1 - _unit(ms / 90));
+
+/// Кадр под пальцем: едет вниз, вбок вдвое медленнее, сжимается до 0,7, фон
+/// светлеет до 0,15, кнопки гаснут на первых 90 точках.
+({Offset shift, double scale, double backdrop, double chrome}) photoDragFrame(
+    Offset delta) {
+  final down = math.max(0.0, delta.dy);
+  if (down == 0) {
+    return (shift: Offset.zero, scale: 1, backdrop: 1, chrome: 1);
+  }
+  return (
+    shift: Offset(delta.dx * 0.5, down),
+    scale: 1 - math.min(0.3, down / 700),
+    backdrop: 1 - _unit(down / 300) * 0.85,
+    chrome: 1 - _unit(down / 90),
+  );
+}
+
+bool photoDragCommits(double down) => down > PhotoTiming.dismissAfter;
+
+/// Где в [stage] встанет картинка размером [image], вписанная целиком.
+Rect photoFit(Size image, Rect stage) {
+  if (image.isEmpty || stage.isEmpty) return stage;
+  final scale =
+      math.min(stage.width / image.width, stage.height / image.height);
+  return Rect.fromCenter(
+    center: stage.center,
+    width: image.width * scale,
+    height: image.height * scale,
+  );
+}

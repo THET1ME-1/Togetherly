@@ -1099,7 +1099,7 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
     ];
     Navigator.push(
       context,
-      MaterialPageRoute(
+      PhotoFlightRoute<String>(
         builder: (_) => FullscreenGallery(
           items: items,
           initialIndex: index,
@@ -1167,10 +1167,8 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
     ];
     if (photos.isEmpty) return;
     Navigator.of(context).push<String>(
-      PageRouteBuilder(
-        opaque: false,
-        barrierColor: Colors.black,
-        pageBuilder: (_, __, ___) => FullscreenGallery(
+      PhotoFlightRoute<String>(
+        builder: (_) => FullscreenGallery(
           items: photos
               .map((url) => GalleryItem(
                   url: url, memoryId: memory.id, adult: memory.isAdult))
@@ -1999,10 +1997,8 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
               url: url, memoryId: memory.id, adult: memory.isAdult))
           .toList();
       Navigator.of(context).push<String>(
-        PageRouteBuilder(
-          opaque: false,
-          barrierColor: Colors.black,
-          pageBuilder: (_, __, ___) => FullscreenGallery(
+        PhotoFlightRoute<String>(
+          builder: (_) => FullscreenGallery(
             items: galleryItems,
             initialIndex: i,
             memoryOf: (_) => memory,

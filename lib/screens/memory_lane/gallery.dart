@@ -91,10 +91,8 @@ class _PhotoGalleryScreenState extends State<_PhotoGalleryScreen> {
 
   Future<void> _open(int i) async {
     final memoryId = await Navigator.of(context).push<String>(
-      PageRouteBuilder(
-        opaque: false,
-        barrierColor: Colors.black,
-        pageBuilder: (_, __, ___) => FullscreenGallery(
+      PhotoFlightRoute<String>(
+        builder: (_) => FullscreenGallery(
           items: widget.items,
           initialIndex: i,
           memoryOf: widget.memoryOf,
@@ -357,6 +355,10 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
 
   bool _veiled(GalleryItem item) =>
       item.adult && !_revealedAdult.contains(item.memoryId);
+
+  /// Кадр на экране увеличен щипком: жест «вниз» тогда двигает снимок, а
+  /// просмотр не закрывает.
+  bool _zoomed = false;
 
   @override
   void initState() {
@@ -744,25 +746,35 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
     final topPad = MediaQuery.of(context).padding.top;
     final botPad = MediaQuery.of(context).padding.bottom;
     final count = widget.items.length;
+    // Миниатюра, из которой вылетел кадр: стоит на его месте, пока грузится
+    // полный снимок, вместо крутилки.
+    final flown = PhotoFlight.thumbOf(context);
     return Scaffold(
-      backgroundColor: Colors.black,
+      // Чёрный фон лежит отдельным слоем: при открытии он темнеет, а под
+      // пальцем светлеет, и сквозь него видна лента.
+      backgroundColor: Colors.transparent,
       body: Stack(
         children: [
           // Поля у широкого кадра занимает он сам — увеличенный и размытый.
           // Экран остаётся про кадр, и чёрных дыр сверху и снизу больше нет.
           Positioned.fill(
-            child: IgnorePointer(
-              child: ClipRect(
-                child: ImageFiltered(
-                  imageFilter: ui.ImageFilter.blur(sigmaX: 42, sigmaY: 42),
-                  child: Opacity(
-                    opacity: 0.5,
-                    child: StorageImage(
-                      imageUrl: _current.url,
-                      fit: BoxFit.cover,
-                      memCacheWidth: 200,
-                      errorWidget: (_, __, ___) =>
-                          const ColoredBox(color: Colors.black),
+            child: PhotoFlightBackdrop(
+              child: ColoredBox(
+                color: Colors.black,
+                child: IgnorePointer(
+                  child: ClipRect(
+                    child: ImageFiltered(
+                      imageFilter: ui.ImageFilter.blur(sigmaX: 42, sigmaY: 42),
+                      child: Opacity(
+                        opacity: 0.5,
+                        child: StorageImage(
+                          imageUrl: _current.url,
+                          fit: BoxFit.cover,
+                          memCacheWidth: 200,
+                          errorWidget: (_, __, ___) =>
+                              const ColoredBox(color: Colors.black),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -777,11 +789,21 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
               top: topPad + 60,
               bottom: botPad + (count > 1 ? 128 : 70),
             ),
+            // Сцена полёта: сюда прилетает снимок из миниатюры, отсюда кадр
+            // тянут вниз, чтобы закрыть. Обратно летит только тот кадр, с
+            // которого просмотр открыли: у остальных своей миниатюры на
+            // прежнем экране нет.
+            child: PhotoFlightStage(
+            canDismiss: !_zoomed,
+            returns: _currentIndex == widget.initialIndex,
             child: PageView.builder(
             controller: _pageController,
             itemCount: count,
             onPageChanged: (i) {
-              setState(() => _currentIndex = i);
+              setState(() {
+                _currentIndex = i;
+                _zoomed = false;
+              });
               _scrollStripTo(i);
             },
             itemBuilder: (_, i) {
@@ -844,19 +866,31 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
                   ),
                 );
               }
-              return InteractiveViewer(
-                minScale: 0.5,
-                maxScale: 4.0,
+              return ZoomablePhoto(
+                onZoomChanged: (zoomed) {
+                  if (i == _currentIndex && mounted) {
+                    setState(() => _zoomed = zoomed);
+                  }
+                },
                 child: Center(
                   child: StorageImage(
                     imageUrl: item.url,
                     fit: BoxFit.contain,
-                    placeholder: (_, __) => const Center(
-                      child: CircularProgressIndicator(
-                        strokeWidth: 3,
-                        color: Colors.white54,
-                      ),
-                    ),
+                    placeholder: (_, __) =>
+                        flown != null && i == widget.initialIndex
+                            ? RawImage(
+                                image: flown,
+                                fit: BoxFit.contain,
+                                width: double.infinity,
+                                height: double.infinity,
+                                filterQuality: FilterQuality.medium,
+                              )
+                            : const Center(
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 3,
+                                  color: Colors.white54,
+                                ),
+                              ),
                     errorWidget: (_, __, ___) => const Icon(
                       Icons.broken_image_rounded,
                       color: Colors.white38,
@@ -868,6 +902,7 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
             },
           ),
           ),
+          ),
           // Шапка: крестик, пилюля с номером кадра и названием записи —
           // она же переход к воспоминанию, и она же отвечает, из какой
           // записи кадр, когда листаешь дальше по ленте.
@@ -875,7 +910,8 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
             top: topPad + 8,
             left: 8,
             right: 8,
-            child: Row(
+            child: PhotoFlightChrome(
+              child: Row(
               children: [
                 _viewerRound(
                   icon: Icons.close_rounded,
@@ -892,13 +928,14 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
                 ),
               ],
             ),
+            ),
           ),
           if (_fileOf(_current) case final hit?)
             Positioned(
               left: 16,
               right: 16,
               bottom: botPad + 14,
-              child: _frameActions(hit),
+              child: PhotoFlightChrome(index: 1, child: _frameActions(hit)),
             ),
           // Плёнка снизу: кадры идут сквозь все записи, текущий обведён.
           if (count > 1)
@@ -906,6 +943,8 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
               left: 0,
               right: 0,
               bottom: botPad + 68,
+              child: PhotoFlightChrome(
+              index: 1,
               child: SizedBox(
                 height: 56,
                 child: ListView.separated(
@@ -926,6 +965,7 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
                     ),
                   ),
                 ),
+              ),
               ),
             ),
         ],
@@ -1040,7 +1080,9 @@ class _BlurAfterTapState extends State<_BlurAfterTap> {
         child: Stack(
           clipBehavior: Clip.hardEdge,
           children: [
-            widget.child,
+            // Пока обложка под размытием, в полёт к просмотру она не идёт:
+            // сама картинка под ним чистая.
+            UnfoldVeiled(veiled: !_revealed, child: widget.child),
             if (!_revealed)
               Positioned.fill(
                 child: ClipRRect(

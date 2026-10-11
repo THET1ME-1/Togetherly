@@ -10,6 +10,7 @@ import '../theme/app_theme.dart';
 import '../theme/fonts.dart';
 import '../theme/profile_theme.dart';
 import '../widgets/common/m3_loading.dart';
+import '../widgets/unfold/unfold_route.dart';
 
 /// Съёмка снапа: удержание кнопки пишет ролик на пару секунд.
 ///
@@ -161,6 +162,8 @@ class _SnapCaptureScreenState extends State<SnapCaptureScreen>
     final s = LocaleService.current;
     final cam = _cam;
 
+    // Съёмка чёрная: окно перехода под ней тоже должно быть чёрным.
+    UnfoldTint.claim(context, Colors.black);
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(

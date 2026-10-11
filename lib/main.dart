@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Platform;
+import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -56,6 +57,8 @@ import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/force_update_screen.dart';
 import 'widgets/common/m3_loading.dart';
+import 'widgets/unfold/unfold_route.dart';
+import 'widgets/unfold/unfold_touch.dart';
 import 'widgets/offline_sync_banner.dart';
 import 'services/pair_jar_service.dart';
 import 'widgets/chest/jar_toast.dart';
@@ -283,6 +286,8 @@ void main() async {
   // Потерянное системным жестом касание запирало все нажатия до перезапуска
   // (обращение 231, Realme): досылаем ему отмену.
   StalePointerSweeper.install();
+  // Запоминает, по какой кнопке нажали: из неё вырастет следующий экран.
+  UnfoldTouch.install();
 
   // Android отдаёт приложению 60 Гц, даже когда экран умеет 120: анимации и
   // перемотка видео на глаз становятся ступенчатыми. Просим максимум.
@@ -625,6 +630,11 @@ class _LoveAppState extends State<LoveApp> with WidgetsBindingObserver {
 
   /// Единый стиль для всех меню (диалоги, bottom-sheet, snackbar, popup-меню).
   /// Цвета — от акцента активной темы, форма/скругления — из общих токенов.
+  /// Цвет, которым залито растущее окно: поверхность схемы, на ней стоит
+  /// большинство экранов.
+  static Color _screenFill(BuildContext context) =>
+      Theme.of(context).colorScheme.surface;
+
   static ThemeData _buildTheme(AppTheme appTheme) {
     final brightness = appTheme.brightness;
     final isDark = brightness == Brightness.dark;
@@ -654,6 +664,21 @@ class _LoveAppState extends State<LoveApp> with WidgetsBindingObserver {
     // context.appTheme, а тут задаётся стиль Material-компонентов и шрифт.
     return ProfileTheme.data(scheme).copyWith(
       scaffoldBackgroundColor: scaffoldBg,
+      // Экран растёт из нажатой кнопки и складывается обратно в неё (макет
+      // «Переходы: все экраны», 11.10.2026). Открытый не касанием идёт
+      // прежним переходом платформы — он передан запасным.
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: <TargetPlatform, PageTransitionsBuilder>{
+          TargetPlatform.android: UnfoldPageTransitionsBuilder(
+            fallback: PredictiveBackPageTransitionsBuilder(),
+            fill: _screenFill,
+          ),
+          TargetPlatform.iOS: UnfoldPageTransitionsBuilder(
+            fallback: CupertinoPageTransitionsBuilder(),
+            fill: _screenFill,
+          ),
+        },
+      ),
       dialogTheme: DialogThemeData(
         backgroundColor: menuSurface,
         surfaceTintColor: Colors.transparent,

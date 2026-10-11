@@ -695,6 +695,8 @@ class _InAppVideoPlayerPageState extends State<InAppVideoPlayerPage> {
   Widget build(BuildContext context) {
     final controller = _controller;
     final isPlaying = controller?.value.isPlaying ?? false;
+    // Плеер чёрный: окно перехода под ним тоже должно быть чёрным.
+    UnfoldTint.claim(context, Colors.black);
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(

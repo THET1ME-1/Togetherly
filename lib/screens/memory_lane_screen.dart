@@ -118,6 +118,9 @@ import '../widgets/memory/note_pin.dart';
 import '../widgets/memory/reactions_row.dart';
 import '../widgets/memory/video_pin.dart';
 import '../widgets/unfold/unfold_route.dart';
+import '../widgets/unfold/photo_flight.dart';
+import '../widgets/unfold/unfold_touch.dart';
+import '../widgets/common/zoomable_photo.dart';
 import '../models/memory_reaction.dart';
 import '../services/live_location_service.dart';
 import '../widgets/common/keyboard_aware.dart';
@@ -7145,11 +7148,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     List<GalleryItem> items,
     int initialIndex,
   ) {
+    // Кадр вылетает из нажатой миниатюры, фон под ним темнеет.
     return Navigator.of(ctx).push<String>(
-      PageRouteBuilder(
-        opaque: false,
-        barrierColor: Colors.black,
-        pageBuilder: (_, __, ___) => FullscreenGallery(
+      PhotoFlightRoute<String>(
+        builder: (_) => FullscreenGallery(
           items: items,
           initialIndex: initialIndex,
           memoryOf: _memoryById,

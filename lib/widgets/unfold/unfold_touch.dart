@@ -135,7 +135,12 @@ abstract final class UnfoldTouch {
     final box = _imageIn(target, at);
     final image = box?.image;
     if (box == null || image == null || _veiled(box)) return null;
-    return UnfoldPhoto._(box, image.clone(), _clipRadius(box));
+    try {
+      return UnfoldPhoto._(box, image.clone(), _clipRadius(box));
+    } catch (_) {
+      // Картинку успели отпустить: полетит не снимок, а простое проявление.
+      return null;
+    }
   }
 
   static Size? _screenOf(RenderObject from) {
@@ -304,20 +309,30 @@ const Object _veilMark = Object();
 /// Миниатюра 18+ размыта поверх, а сама картинка под размытием чистая. Без
 /// метки в просмотр полетел бы открытый кадр.
 class UnfoldVeiled extends StatelessWidget {
-  const UnfoldVeiled({super.key, required this.child});
+  const UnfoldVeiled({super.key, this.veiled = true, required this.child});
+
+  /// Завеса сейчас опущена. Обёртка при этом стоит всегда: появись она
+  /// только под завесой, картинка внутри пересоздавалась бы при раскрытии.
+  final bool veiled;
 
   final Widget child;
 
   @override
   Widget build(BuildContext context) =>
-      MetaData(metaData: _veilMark, child: child);
+      MetaData(metaData: veiled ? _veilMark : null, child: child);
 }
 
 Rect? _placeOf(RenderBox box, RenderObject? ancestor) {
   if (!box.attached || !box.hasSize) return null;
   if (ancestor != null && !ancestor.attached) return null;
-  return MatrixUtils.transformRect(
-      box.getTransformTo(ancestor), Offset.zero & box.size);
+  try {
+    return MatrixUtils.transformRect(
+        box.getTransformTo(ancestor), Offset.zero & box.size);
+  } catch (_) {
+    // Нажатый элемент живёт вне навигатора (плашка поверх приложения):
+    // места в его координатах нет, экран откроется без роста.
+    return null;
+  }
 }
 
 /// Нажатый элемент: место, скругление и снимок.
@@ -345,19 +360,28 @@ class UnfoldSpot {
       node = node.parent;
     }
     if (node is! RenderRepaintBoundary || !node.attached) return null;
-    try {
-      // Слой открыт только наследникам; штатный `toImageSync` снимает его
-      // целиком и в отладке отказывает, пока кнопка подсвечена.
-      // ignore: invalid_use_of_protected_member
-      final layer = node.layer;
-      if (layer is! OffsetLayer) return null;
-      final crop = MatrixUtils.transformRect(
-          _box.getTransformTo(node), Offset.zero & _box.size);
-      if (crop.isEmpty) return null;
-      return layer.toImageSync(crop, pixelRatio: pixelRatio);
-    } catch (_) {
-      return null;
-    }
+    final crop = MatrixUtils.transformRect(
+        _box.getTransformTo(node), Offset.zero & _box.size);
+    return unfoldSnapshot(node, crop, pixelRatio);
+  }
+}
+
+/// Снимок куска [crop] слоя [boundary] (в его координатах).
+///
+/// Штатный `RenderRepaintBoundary.toImageSync` снимает слой целиком и в
+/// отладке отказывает, пока тот ждёт перерисовки (кнопка подсвечена). Здесь
+/// берётся последний нарисованный слой и только нужный кусок.
+ui.Image? unfoldSnapshot(
+    RenderRepaintBoundary boundary, Rect crop, double pixelRatio) {
+  if (!boundary.attached || crop.isEmpty) return null;
+  try {
+    // Слой открыт только наследникам отрисовки.
+    // ignore: invalid_use_of_protected_member
+    final layer = boundary.layer;
+    if (layer is! OffsetLayer) return null;
+    return layer.toImageSync(crop, pixelRatio: pixelRatio);
+  } catch (_) {
+    return null;
   }
 }
 

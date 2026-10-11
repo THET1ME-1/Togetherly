@@ -155,6 +155,46 @@ void main() {
     expect(tint.color, const Color(0xFFF7F3F0));
   });
 
+  testWidgets('чёрный экран называет свой цвет окна сам', (tester) async {
+    await tester.binding.setSurfaceSize(_screen);
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(MaterialApp(
+      theme: ThemeData(
+        scaffoldBackgroundColor: const Color(0xFFF7F3F0),
+        pageTransitionsTheme: const PageTransitionsTheme(builders: {
+          TargetPlatform.android:
+              UnfoldPageTransitionsBuilder(fallback: _fallback),
+        }),
+      ),
+      home: Builder(
+        builder: (context) => Scaffold(
+          body: Center(
+            child: GestureDetector(
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const UnfoldTint(
+                    color: Colors.black,
+                    child: Scaffold(backgroundColor: Colors.black),
+                  ),
+                ),
+              ),
+              child: Container(
+                  key: _button, width: 120, height: 48, color: Colors.teal),
+            ),
+          ),
+        ),
+      ),
+    ));
+    await _tapButton(tester);
+
+    final tint = tester.widget<ColoredBox>(find
+        .descendant(of: find.byKey(_window), matching: find.byType(ColoredBox))
+        .last);
+    expect(tint.color, Colors.black,
+        reason: 'светлая заливка под чёрным плеером дала бы вспышку');
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('блоки экрана проявляются по очереди', (tester) async {
     await _pumpApp(tester);
     await _tapButton(tester);

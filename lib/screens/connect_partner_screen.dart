@@ -3225,6 +3225,8 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Сканер чёрный: окно перехода под ним тоже должно быть чёрным.
+    UnfoldTint.claim(context, Colors.black);
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(

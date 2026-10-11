@@ -80,6 +80,27 @@ void main() {
     final chest = read('lib/widgets/chest/chest_home_card.dart');
     final open = part(chest, 'Future<void> _openScreen()', '_load();');
     expect(open, contains('_season == null ? _source.currentState : null'));
+    // Без этого его подхватил бы общий переход темы и вырастил из карточки.
+    expect(open, contains('if (_season != null) UnfoldTouch.forget();'));
+  });
+
+  test('общий переход подключён в теме приложения на обеих платформах', () {
+    // Сотня мест открывает экран обычным MaterialPageRoute и про переход не
+    // знает: кнопку находит слушатель касаний, а растит строитель темы.
+    // Пропадёт любая из трёх строк — все экраны молча вернутся к сдвигу.
+    final main = read('lib/main.dart');
+    expect(main, contains('UnfoldTouch.install();'));
+    final theme = part(main, 'pageTransitionsTheme:', '),\n      dialogTheme');
+    expect(
+        RegExp(r'TargetPlatform\.android: UnfoldPageTransitionsBuilder\(')
+            .hasMatch(theme),
+        isTrue);
+    expect(
+        RegExp(r'TargetPlatform\.iOS: UnfoldPageTransitionsBuilder\(')
+            .hasMatch(theme),
+        isTrue);
+    expect(theme, contains('fallback: PredictiveBackPageTransitionsBuilder()'));
+    expect(theme, contains('fallback: CupertinoPageTransitionsBuilder()'));
   });
 
   test('профиль партнёра из шапки чата: аватар и имя общие', () {

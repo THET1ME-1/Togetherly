@@ -17,6 +17,7 @@ import 'chest_frames.dart';
 import 'chest_prize_image.dart';
 import 'jar_drops.dart';
 import '../unfold/unfold_route.dart';
+import '../unfold/unfold_touch.dart';
 
 /// Блок сундука на главной, между таймером и остальными разделами (макет
 /// «Сундук недели», экран 1). Живой сундук слева, справа название, строка про
@@ -120,6 +121,10 @@ class _ChestHomeCardState extends State<ChestHomeCard> {
   final GlobalKey<UnfoldSourceState> _source = GlobalKey<UnfoldSourceState>();
 
   Future<void> _openScreen() async {
+    // Общий переход темы растит экран из любой нажатой кнопки. Сезонному
+    // сундуку касание не отдаём, иначе он вырос бы из карточки поверх
+    // собственного занавеса.
+    if (_season != null) UnfoldTouch.forget();
     await Navigator.of(context).push(
       unfoldFrom<void>(
         // Сезонный сундук открывается своим занавесом и сам перескакивает
