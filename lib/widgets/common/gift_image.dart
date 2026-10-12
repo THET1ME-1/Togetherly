@@ -12,13 +12,24 @@ import '../../services/offline/media_view_cache.dart';
 /// полёт. Чтобы сам рисунок занимал [side], картинка рисуется на 176/144
 /// крупнее и выходит за свои границы, раскладку это не трогает.
 class GiftImage extends StatelessWidget {
-  const GiftImage(this.giftKey, {super.key, required this.side, this.animated = true});
+  const GiftImage(
+    this.giftKey, {
+    super.key,
+    required this.side,
+    this.animated = true,
+    this.stillAsset,
+  });
 
   final String giftKey;
 
   /// Сторона рисунка на экране, в логических точках.
   final double side;
   final bool animated;
+
+  /// Свой неподвижный кадр из сборки вместо `assets/images/gifts/<ключ>.webp`.
+  /// Рисунок с таким кадром при [animated] = false в сеть не ходит вовсе:
+  /// кадр уже лежит в сборке, качать его второй раз незачем.
+  final String? stillAsset;
 
   static const double _canvas = 176 / 144;
 
@@ -28,7 +39,7 @@ class GiftImage extends StatelessWidget {
     final dpr = MediaQuery.maybeDevicePixelRatioOf(context) ?? 2.0;
     final decode = (full * dpr).round();
     final still = Image.asset(
-      'assets/images/gifts/$giftKey.webp',
+      stillAsset ?? 'assets/images/gifts/$giftKey.webp',
       width: full,
       height: full,
       cacheWidth: decode,
@@ -42,7 +53,9 @@ class GiftImage extends StatelessWidget {
       child: OverflowBox(
         maxWidth: full,
         maxHeight: full,
-        child: ListenableBuilder(
+        child: stillAsset != null && !animated
+            ? still
+            : ListenableBuilder(
           listenable: CatalogService.instance,
           builder: (context, _) {
             final url = CatalogService.instance.giftArt(giftKey)?.urlFor(side, animated: animated);

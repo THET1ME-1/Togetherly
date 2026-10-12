@@ -503,6 +503,8 @@ abstract class AppStrings {
   String get achFilterUnlocked;
   String get achFilterInProgress;
   String get achNothingHere;
+  String get achSeeAll;
+  String get achAllCollected;
   String achProgressOf(int value, int target);
   String get achievementDone;
   String achievementsUnlockedOf(int unlocked, int total);

@@ -744,6 +744,10 @@ abstract class DictStrings extends AppStrings {
   @override
   String get achNothingHere => _t('achNothingHere');
   @override
+  String get achSeeAll => _t('achSeeAll');
+  @override
+  String get achAllCollected => _t('achAllCollected');
+  @override
   String get achievementsTitle => _t('achievementsTitle');
   @override
   String get achievementsShort => _t('achievementsShort');

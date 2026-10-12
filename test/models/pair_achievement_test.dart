@@ -2,6 +2,8 @@
 // id, поставить порог ниже предыдущего или оставить метрику без ближней цели.
 // Эти проверки держат его связным.
 
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:love_app/models/pair_achievement.dart';
 
@@ -66,16 +68,83 @@ void main() {
       expect(PairAchievement.all.length, 38);
     });
 
-    test('каждому уровню отвечает своя фигура', () {
-      final shapes =
-          AchievementTier.values.map((t) => achievementShapeFor(t)).toSet();
-      expect(shapes.length, AchievementTier.values.length);
+    test('семья идёт по возрастанию порога и собирает всю метрику', () {
+      for (final metric in AchievementMetric.values) {
+        final family = PairAchievement.family(metric);
+        expect(family, isNotEmpty, reason: '$metric');
+        expect(family.every((a) => a.metric == metric), isTrue);
+        final steps = family.map((a) => a.threshold).toList();
+        expect(steps, [...steps]..sort(), reason: '$metric');
+      }
+      final total = AchievementMetric.values
+          .fold<int>(0, (n, m) => n + PairAchievement.family(m).length);
+      expect(total, PairAchievement.all.length);
     });
 
-    test('фигуры строго геометрические: у каждой считаемое число углов', () {
-      for (final tier in AchievementTier.values) {
-        expect(achievementShapeFor(tier).sides, greaterThanOrEqualTo(4));
+    test('ближайшая цель — первое неполученное в семье', () {
+      const stats = AchievementStats(streakDays: 7, messages: 130);
+      expect(
+        PairAchievement.nextGoal(AchievementMetric.streakDays, stats)?.id,
+        'streak_14',
+      );
+      expect(
+        PairAchievement.nextGoal(AchievementMetric.messages, stats)?.id,
+        'messages_500',
+      );
+      expect(
+        PairAchievement.nextGoal(AchievementMetric.drawings, stats)?.id,
+        'drawings_1',
+      );
+    });
+
+    test('у собранной семьи ближайшей цели нет', () {
+      const stats = AchievementStats(streakDays: 400);
+      expect(
+        PairAchievement.nextGoal(AchievementMetric.streakDays, stats),
+        isNull,
+      );
+    });
+
+    test('снимок счётчиков отдаёт значение по метрике', () {
+      const stats = AchievementStats(
+        daysTogether: 1,
+        memories: 2,
+        messages: 3,
+        drawings: 4,
+        streakDays: 5,
+      );
+      expect(
+        [for (final m in AchievementMetric.values) stats.valueOf(m)],
+        [1, 2, 3, 4, 5],
+      );
+    });
+  });
+
+  group('Рисунки достижений', () {
+    test('ключ каталога считается из id', () {
+      expect(PairAchievement.byId('streak_7')!.artKey, 'ach_streak_7');
+    });
+
+    test('у каждого достижения в сборке лежит неподвижный кадр', () {
+      // Без кадра достижение без сети показывает пустое место: каталог может
+      // не прийти, а рисунок обязан быть виден.
+      for (final a in PairAchievement.all) {
+        expect(File(a.stillAsset).existsSync(), isTrue, reason: a.stillAsset);
       }
+    });
+
+    test('папка кадров объявлена в pubspec', () {
+      expect(
+        File('pubspec.yaml').readAsStringSync(),
+        contains('- assets/images/achievements/'),
+      );
+    });
+
+    test('эмодзи и металлические цвета из модели убраны', () {
+      final src = File('lib/models/pair_achievement.dart').readAsStringSync();
+      expect(src.contains('emoji'), isFalse);
+      expect(src.contains('tierColor'), isFalse);
+      expect(src.contains('tierGradient'), isFalse);
     });
   });
 }

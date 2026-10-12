@@ -20,6 +20,8 @@ import 'package:love_app/services/achievement_service.dart';
 import 'package:love_app/services/locale_service.dart';
 import 'package:love_app/theme/app_theme.dart';
 
+import '../helpers/achievement_harness.dart';
+
 /// Размер кадра — телефон 1080×2400 при плотности 3.
 const Size _phone = Size(360, 800);
 
@@ -27,6 +29,7 @@ Future<void> _shoot(
   WidgetTester tester, {
   required Widget child,
   required String name,
+  bool images = false,
 }) async {
   tester.view.physicalSize = _phone * 3;
   tester.view.devicePixelRatio = 3;
@@ -37,6 +40,7 @@ Future<void> _shoot(
     home: child,
   ));
   await tester.pump(const Duration(milliseconds: 600));
+  if (images) await settleImages(tester);
   await expectLater(find.byType(MaterialApp), matchesGoldenFile('$name.png'));
 }
 
@@ -85,7 +89,12 @@ void main() {
       drawings: 7,
       streakDays: 12,
     );
-    await _shoot(tester, child: AchievementsScreen(theme: theme), name: 'achievements');
+    await _shoot(
+      tester,
+      child: AchievementsScreen(theme: theme),
+      name: 'achievements',
+      images: true,
+    );
   });
 
 }

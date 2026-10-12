@@ -168,6 +168,7 @@ flutter:
     - assets/images/gif/
     - assets/images/icons/
     - assets/images/gifts/
+    - assets/images/achievements/
     - assets/images/frames/
     - assets/images/ailments/
     - assets/images/reactions/

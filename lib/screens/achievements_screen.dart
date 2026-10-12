@@ -1,47 +1,32 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../models/pair_achievement.dart';
 import '../services/achievement_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/profile_theme.dart';
-import '../widgets/achievement_medal.dart';
-import '../widgets/common/m3_wave_progress.dart';
+import '../widgets/achievements/achievement_medal.dart';
+import '../widgets/achievements/achievement_sheet.dart';
 
-/// Что показываем в списке.
-enum _Filter { all, unlocked, inProgress }
-
-/// Высота таблетки фильтра — та же, что у чипов паков настроений.
-const double _kFilterHeight = 38;
-
-/// Экран «Достижения пары».
+/// Экран «Достижения пары» — «Полки».
 ///
-/// Список во всю ширину, а не сетка плиток: достижений тридцать восемь, и в
-/// две колонки названия обрезались бы на полуслове, а прогресс приходилось бы
-/// угадывать по длине полоски. Строкой помещается и название целиком, и
-/// «78 из 100» словами.
+/// Пять блоков по семьям вместо тридцати восьми строк: в каждом вся семья по
+/// порядку и ближайшая цель. Человек открывает экран за двумя ответами — что
+/// уже есть и сколько до следующего, — и оба видны без прокрутки списка и без
+/// фильтров (прежние «Все · Получено · В процессе» отвечали на то же самое).
 ///
-/// Оформление — тональные контейнеры M3 вместо теней и градиентов: глубина
-/// показывается цветом поверхности, полученное заливается `primaryContainer`.
-/// Медаль — правильный многоугольник, число граней растёт с уровнем.
-class AchievementsScreen extends StatefulWidget {
+/// Полученное — рисунок от руки на фигуре уровня, неполученное — число-цель.
+/// Касание по рисунку открывает его лист. Макет:
+/// https://claude.ai/artifact/BFi4jzBm3SMzskCgKmTFSW, вариант «Полки».
+class AchievementsScreen extends StatelessWidget {
   final AppTheme theme;
 
   const AchievementsScreen({super.key, required this.theme});
 
   @override
-  State<AchievementsScreen> createState() => _AchievementsScreenState();
-}
-
-class _AchievementsScreenState extends State<AchievementsScreen> {
-  _Filter _filter = _Filter.all;
-
-  AppStrings get _s => LocaleService.current;
-
-  @override
   Widget build(BuildContext context) {
-    final cs = ProfileTheme.schemeFor(widget.theme);
+    final s = LocaleService.current;
+    final cs = ProfileTheme.schemeFor(theme);
     return Theme(
       data: ProfileTheme.data(cs),
       child: Scaffold(
@@ -52,7 +37,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
           elevation: 0,
           iconTheme: IconThemeData(color: cs.onSurface),
           title: Text(
-            _s.achievementsTitle,
+            s.achievementsTitle,
             style: TextStyle(
               fontFamily: 'Unbounded',
               fontSize: 19,
@@ -66,8 +51,6 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
           builder: (context, stats, _) {
             final unlocked =
                 PairAchievement.all.where((a) => a.isUnlockedBy(stats)).length;
-            final sections = _sections(stats);
-
             return ListView(
               padding: EdgeInsets.fromLTRB(
                 16,
@@ -76,20 +59,18 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                 MediaQuery.of(context).padding.bottom + 28,
               ),
               children: [
-                _summary(cs, unlocked),
-                const SizedBox(height: 14),
-                _filters(cs),
-                for (final entry in sections) ...[
-                  const SizedBox(height: 18),
-                  _sectionTitle(cs, entry.key),
-                  const SizedBox(height: 8),
-                  for (final a in entry.value)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: _row(cs, a, stats),
+                _summary(s, unlocked),
+                for (final metric in AchievementMetric.values)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: AchievementShelf(
+                      metric: metric,
+                      title: _metricTitle(s, metric),
+                      stats: stats,
+                      onOpen: (a) =>
+                          showAchievementSheet(context, a, stats: stats),
                     ),
-                ],
-                if (sections.isEmpty) _empty(cs),
+                  ),
               ],
             );
           },
@@ -98,42 +79,24 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
     );
   }
 
-  /// Достижения по разделам, уже с учётом фильтра. Пустые разделы не
-  /// показываем — иначе при фильтре «получено» экран забит заголовками.
-  List<MapEntry<String, List<PairAchievement>>> _sections(
-      AchievementStats stats) {
-    bool visible(PairAchievement a) => switch (_filter) {
-          _Filter.all => true,
-          _Filter.unlocked => a.isUnlockedBy(stats),
-          _Filter.inProgress => !a.isUnlockedBy(stats),
-        };
-
-    final byMetric = <AchievementMetric, List<PairAchievement>>{};
-    for (final a in PairAchievement.all.where(visible)) {
-      byMetric.putIfAbsent(a.metric, () => []).add(a);
-    }
-    return [
-      for (final m in AchievementMetric.values)
-        if ((byMetric[m] ?? const []).isNotEmpty)
-          MapEntry(_metricTitle(m), byMetric[m]!),
-    ];
-  }
-
-  String _metricTitle(AchievementMetric m) => switch (m) {
-        AchievementMetric.daysTogether => _s.achMetricDays,
-        AchievementMetric.memories => _s.achMetricMemories,
-        AchievementMetric.messages => _s.achMetricMessages,
-        AchievementMetric.drawings => _s.achMetricDrawings,
-        AchievementMetric.streakDays => _s.achMetricStreak,
+  String _metricTitle(AppStrings s, AchievementMetric m) => switch (m) {
+        AchievementMetric.daysTogether => s.achMetricDays,
+        AchievementMetric.memories => s.achMetricMemories,
+        AchievementMetric.messages => s.achMetricMessages,
+        AchievementMetric.drawings => s.achMetricDrawings,
+        AchievementMetric.streakDays => s.achMetricStreak,
       };
 
-  Widget _summary(ColorScheme cs, int unlocked) {
+  /// Сводка — сплошной цвет темы. `primaryContainer` тут не годится: у палитр,
+  /// нарисованных руками, он почти равен фону страницы, и блок пропадает.
+  Widget _summary(AppStrings s, int unlocked) {
     final total = PairAchievement.all.length;
-    final ratio = total == 0 ? 0.0 : unlocked / total;
+    final fill = theme.fillColor;
+    final on = AppThemes.onColor(fill, mode: theme.brightness);
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
       decoration: BoxDecoration(
-        color: cs.primaryContainer,
+        color: fill,
         borderRadius: BorderRadius.circular(28),
       ),
       child: Column(
@@ -146,192 +109,153 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
               fontSize: 40,
               height: 1,
               fontWeight: FontWeight.w800,
+              fontVariations: const [FontVariation('wght', 800)],
               letterSpacing: -1,
-              color: cs.onPrimaryContainer,
+              color: on,
             ),
           ),
           const SizedBox(height: 4),
           Text(
-            _s.achievementsUnlockedOf(unlocked, total),
+            s.achievementsUnlockedOf(unlocked, total),
             style: TextStyle(
               fontFamily: 'Onest',
               fontSize: 13,
-              color: cs.onPrimaryContainer.withValues(alpha: 0.75),
+              color: on.withValues(alpha: 0.9),
             ),
           ),
           const SizedBox(height: 14),
           ClipRRect(
             borderRadius: BorderRadius.circular(99),
             child: LinearProgressIndicator(
-              value: ratio,
+              value: total == 0 ? 0.0 : unlocked / total,
               minHeight: 8,
-              backgroundColor:
-                  cs.onPrimaryContainer.withValues(alpha: 0.18),
-              valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
+              backgroundColor: on.withValues(alpha: 0.26),
+              valueColor: AlwaysStoppedAnimation<Color>(on),
             ),
           ),
         ],
       ),
     );
   }
+}
 
-  /// Фильтры — залитые таблетки в стиль лент паков настроений: одна высота,
-  /// полное скругление, никакой обводки.
-  ///
-  /// Обводка у невыбранных читалась как «поле ввода», а прокрутка вбок прятала
-  /// третий фильтр за краем экрана. Три штуки делят строку поровну и помещаются
-  /// на 360 dp: «В процессе» — самое длинное слово, и оно короче трети ширины.
-  Widget _filters(ColorScheme cs) {
-    Widget chip(String label, _Filter value) {
-      final on = _filter == value;
-      return Expanded(
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () {
-            HapticFeedback.selectionClick();
-            setState(() => _filter = value);
-          },
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOutCubic,
-            height: _kFilterHeight,
-            alignment: Alignment.center,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            decoration: BoxDecoration(
-              color: on ? cs.primaryContainer : cs.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(_kFilterHeight / 2),
-            ),
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontFamily: 'Onest',
-                fontSize: 13,
-                fontWeight: on ? FontWeight.w700 : FontWeight.w600,
-                color: on ? cs.onPrimaryContainer : cs.onSurfaceVariant,
-              ),
-            ),
-          ),
-        ),
-      );
-    }
+/// Полка одной семьи: заголовок, сколько получено, вся семья лентой и
+/// ближайшая цель.
+class AchievementShelf extends StatelessWidget {
+  const AchievementShelf({
+    super.key,
+    required this.metric,
+    required this.title,
+    required this.stats,
+    required this.onOpen,
+  });
 
-    return Row(
-      children: [
-        chip(_s.achFilterAll, _Filter.all),
-        const SizedBox(width: 8),
-        chip(_s.achFilterUnlocked, _Filter.unlocked),
-        const SizedBox(width: 8),
-        chip(_s.achFilterInProgress, _Filter.inProgress),
-      ],
-    );
-  }
+  final AchievementMetric metric;
+  final String title;
+  final AchievementStats stats;
 
-  Widget _sectionTitle(ColorScheme cs, String title) => Padding(
-        padding: const EdgeInsets.only(left: 4),
-        child: Text(
-          title.toUpperCase(),
-          style: ProfileTheme.sectionLabel(cs),
-        ),
-      );
+  /// Касание по полученному достижению.
+  final ValueChanged<PairAchievement> onOpen;
 
-  Widget _row(ColorScheme cs, PairAchievement a, AchievementStats stats) {
-    final unlocked = a.isUnlockedBy(stats);
-    final value = a.currentValue(stats);
-    final progress = (value / a.threshold).clamp(0.0, 1.0);
-    // Волна хороша, когда цель близко: на восьми процентах она читается как
-    // помеха, а не как движение. Дальним целям оставляем ровную полосу.
-    final nearGoal = progress >= 0.25;
+  /// Сторона фигуры в ленте и зазор между ними.
+  static const double _medal = 64;
+  static const double _gap = 8;
+  static const double _side = 18;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final family = PairAchievement.family(metric);
+    final have = family.where((a) => a.isUnlockedBy(stats)).length;
+    final next = PairAchievement.nextGoal(metric, stats);
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(vertical: 16),
       decoration: BoxDecoration(
-        color: unlocked ? cs.surfaceContainerHighest : cs.surfaceContainer,
-        borderRadius: BorderRadius.circular(20),
+        color: cs.surfaceContainer,
+        borderRadius: BorderRadius.circular(28),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          AchievementMedal(
-            tier: a.tier,
-            unlocked: unlocked,
-            // Всегда число-цель: статус читается цветом фигуры и галочкой
-            // справа, а эмодзи внутри медали дублировал бы их и мельчил.
-            label: '${a.threshold}',
-            size: 48,
-            fill: unlocked ? a.tierColor : cs.surfaceContainerHighest,
-            onFill: unlocked ? Colors.white : cs.onSurfaceVariant,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: _side),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Text(
-                  a.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'Onest',
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: cs.onSurface,
+                Expanded(
+                  child: Text(
+                    title.toUpperCase(),
+                    style: ProfileTheme.sectionLabel(cs),
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  unlocked
-                      ? a.description
-                      : _s.achProgressOf(value, a.threshold),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'Onest',
-                    fontSize: 12,
-                    color: cs.onSurfaceVariant,
-                  ),
-                ),
-                if (!unlocked) ...[
-                  const SizedBox(height: 7),
-                  if (nearGoal)
-                    M3WaveProgress(value: progress, color: cs.primary)
-                  else
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(99),
-                      child: LinearProgressIndicator(
-                        value: progress,
-                        minHeight: 6,
-                        backgroundColor: cs.outlineVariant,
-                        valueColor:
-                            AlwaysStoppedAnimation<Color>(cs.primary),
+                const SizedBox(width: 8),
+                Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: '$have',
+                        style: TextStyle(
+                          fontFamily: 'Unbounded',
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          fontVariations: const [FontVariation('wght', 800)],
+                          color: cs.onSurface,
+                        ),
                       ),
-                    ),
-                ],
+                      TextSpan(
+                        text: ' / ${family.length}',
+                        style: TextStyle(
+                          fontFamily: 'Onest',
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                  maxLines: 1,
+                ),
               ],
             ),
           ),
-          if (unlocked) ...[
-            const SizedBox(width: 8),
-            Icon(Icons.check_rounded, size: 20, color: cs.primary),
-          ],
+          const SizedBox(height: 12),
+          SizedBox(
+            height: _medal,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: _side),
+              itemCount: family.length,
+              separatorBuilder: (_, _) => const SizedBox(width: _gap),
+              itemBuilder: (_, i) {
+                final a = family[i];
+                return AchievementMedal(
+                  achievement: a,
+                  earned: a.isUnlockedBy(stats),
+                  size: _medal,
+                  onTap: () => onOpen(a),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: _side),
+            child: next == null
+                ? Text(
+                    LocaleService.current.achAllCollected,
+                    style: TextStyle(
+                      fontFamily: 'Onest',
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  )
+                : AchievementGoal(goal: next, stats: stats),
+          ),
         ],
       ),
     );
   }
-
-  Widget _empty(ColorScheme cs) => Padding(
-        padding: const EdgeInsets.only(top: 40),
-        child: Center(
-          child: Text(
-            _s.achNothingHere,
-            style: TextStyle(
-              fontFamily: 'Onest',
-              fontSize: 14,
-              color: cs.onSurfaceVariant,
-            ),
-          ),
-        ),
-      );
 }

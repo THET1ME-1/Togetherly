@@ -30,7 +30,8 @@ import '../services/pb_data_service.dart';
 import '../services/widget_diagnostics.dart';
 import 'gifts/gift_receive_sheet.dart';
 import '../services/achievement_service.dart';
-import '../widgets/achievement_unlock_overlay.dart';
+import '../widgets/achievements/achievement_unlock.dart';
+import 'achievements_screen.dart';
 import '../models/pair_data.dart';
 import '../models/user_data.dart';
 import '../models/mood_entry.dart';
@@ -1279,7 +1280,25 @@ class _HomeScreenState extends State<HomeScreen> {
           _pairData.startDate,
     );
     _achievementSub ??= AchievementService.instance.unlocks.listen((a) {
-      if (mounted) AchievementUnlockOverlay.show(context, a);
+      if (!mounted) return;
+      // На главной достижение приходит нижним листом. Поверх чата, холста или
+      // чужого листа он оборвал бы дело, поэтому там — островок.
+      AchievementUnlock.show(
+        context,
+        a,
+        homeOnTop: () => mounted && (ModalRoute.of(context)?.isCurrent ?? true),
+        stats: () => AchievementService.instance.stats.value,
+        onSeeAll: () {
+          if (!mounted) return;
+          Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (_) => AchievementsScreen(theme: _t),
+              settings: const RouteSettings(name: '/achievements'),
+            ),
+          );
+        },
+      );
     });
     // PocketBase live-лента (SSE). Берём 10 свежих для превью на главной —
     // watch отдаёт всё новым-сверху, ограничиваем take(10) как прежний limit.

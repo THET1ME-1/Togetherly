@@ -68,6 +68,8 @@ const Map<String, String> homeZh = {
   'achFilterUnlocked': '已解锁',
   'achFilterInProgress': '进行中',
   'achNothingHere': '这里还什么都没有',
+  'achSeeAll': '全部成就',
+  'achAllCollected': '这里已全部获得',
   'achievementsTitle': '情侣成就',
   'achievementsShort': '成就',
   'achievementDone': '已解锁',

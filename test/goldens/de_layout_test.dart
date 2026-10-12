@@ -28,6 +28,8 @@ import 'package:love_app/theme/app_palettes.dart';
 import 'package:love_app/theme/app_theme.dart';
 import 'package:love_app/theme/profile_theme.dart';
 
+import '../helpers/achievement_harness.dart';
+
 /// Самый узкий телефон, который мы поддерживаем: 360 dp.
 const Size _narrow = Size(360, 800);
 
@@ -55,6 +57,9 @@ Future<void> _shoot(
 
   await tester.pumpWidget(child);
   await tester.pump(const Duration(milliseconds: 600));
+  // Экран достижений рисует кадры из сборки: ждём их, иначе снимок выходит
+  // то с рисунками, то без.
+  if (name.startsWith('achievements')) await settleImages(tester);
   await expectLater(
     find.byType(MaterialApp),
     matchesGoldenFile('de/$name.png'),
