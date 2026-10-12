@@ -992,6 +992,14 @@
           "type": "json",
           "required": false,
           "maxSize": 4000
+        },
+        {
+          "name": "room_native_ios",
+          "type": "number",
+          "required": false,
+          "min": 0,
+          "max": 100,
+          "onlyInt": true
         }
       ],
       "indexes": [],

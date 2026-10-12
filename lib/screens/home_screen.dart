@@ -149,6 +149,7 @@ import '../services/widget_anim_service.dart';
 import 'snap_capture_screen.dart';
 import '../services/offline/media_view_cache.dart';
 import '../dict_strings.dart' show trKey;
+import '../services/room_window_flag.dart';
 import '../services/wallet_teaser.dart';
 import '../services/media_save_queue.dart';
 import 'wallet_wait_screen.dart';
@@ -348,6 +349,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadPromptState();
     _loadGiftsFlag();
     WalletTeaser.restore();
+    RoomWindowFlag.restore();
     _loadWishesFlag();
     _loadIncomingGifts();
     _listenGifts();

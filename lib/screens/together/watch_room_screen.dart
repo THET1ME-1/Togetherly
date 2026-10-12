@@ -55,6 +55,15 @@ class WatchRoomScreen extends StatefulWidget {
   /// Чья площадка подаёт ленту этого телефона (выбор в листе перед лентами).
   final ReelsSource reelsSource;
 
+  /// Открыть комнату нативным окном браузера поверх приложения, а не
+  /// встроенным в экран (iPhone, доля людей с сервера — `roomOpensNatively`).
+  /// Встроенный браузер на iPhone терял касания у каждого четвёртого: палец
+  /// сначала проходит через Flutter. У нативного окна Flutter на пути нет.
+  final bool nativeWindow;
+
+  /// Номер сборки — метка для замера касаний на странице.
+  final int build;
+
   const WatchRoomScreen({
     super.key,
     required this.room,
@@ -63,6 +72,8 @@ class WatchRoomScreen extends StatefulWidget {
     this.afterAd = false,
     this.reels = false,
     this.reelsSource = ReelsSource.shorts,
+    this.nativeWindow = false,
+    this.build = 0,
   });
 
   @override
@@ -84,9 +95,22 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
   /// Лента площадки этого телефона — только в режиме лент.
   ReelsFeed? _feed;
 
+  /// Комната идёт нативным окном. Сбрасывается, если окно не открылось:
+  /// тогда комната встаёт прежним встроенным браузером.
+  late bool _native = widget.nativeWindow && !widget.reels;
+
+  /// Нативное окно комнаты и признак, что закрываем его сами.
+  _RoomWindow? _window;
+  bool _leaving = false;
+
   @override
   void initState() {
     super.initState();
+    if (_native) {
+      // Окно показывает сама система поверх экрана — открываем после первого
+      // кадра, когда у маршрута уже есть место и отступы.
+      WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(_openWindow()));
+    }
     // В комнате смотрят фильм и не трогают экран: без удержания он гаснет
     // по системному таймеру (жалоба 12.10.2026). Встроенный браузер экран
     // сам не держит, а играет ли ролик, знает только страница, поэтому
@@ -258,13 +282,158 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
     } else {
       await voice.start();
       if (mounted && voice.state == VoiceCallState.failed) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(LocaleService.current.voiceNoPermission)));
+        _say(LocaleService.current.voiceNoPermission);
       }
     }
   }
 
+  // ── нативное окно (iPhone) ───────────────────────────────────────────────
+
+  /// Настройки браузера комнаты — одни на оба окна.
+  InAppWebViewSettings _webSettings() => InAppWebViewSettings(
+    // Видео должно запускаться командой партнёра, а не только пальцем.
+    mediaPlaybackRequiresUserGesture: false,
+    allowsInlineMediaPlayback: true,
+    javaScriptEnabled: true,
+    // Под нативным окном лежит экран приложения, просвечивать ему незачем.
+    transparentBackground: !_native,
+    supportZoom: false,
+  );
+
+  /// Скрипты, которые страница получает до своей загрузки.
+  UnmodifiableListView<UserScript> _scripts(EdgeInsets pad) => UnmodifiableListView([
+    // Сессия для пропуска: в комнату пары пускают только участников, и без
+    // неё страница попросила бы войти ещё раз.
+    UserScript(
+      source: WatchRoomService.authScript(
+        token: PocketBaseService.instance.pb.authStore.token,
+        name: PocketBaseService().userName,
+      ),
+      injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+    ),
+    // Лента идёт под строку состояния, нативное окно — во весь экран: обеим
+    // страницам отступы сообщаем сами.
+    if (widget.reels || _native)
+      UserScript(source: _insetScript(pad), injectionTime: UserScriptInjectionTime.AT_DOCUMENT_END),
+  ]);
+
+  /// Открывает комнату нативным окном. Не открылось — встраиваем как раньше:
+  /// комната важнее способа её показать.
+  Future<void> _openWindow() async {
+    if (!mounted || _window != null) return;
+    final window = _RoomWindow(
+      initialUserScripts: _scripts(MediaQuery.paddingOf(context)),
+      onCreated: _wire,
+      onLoaded: _onPageLoaded,
+      onClosed: _onWindowClosed,
+    );
+    _window = window;
+    try {
+      await window.openUrlRequest(
+        urlRequest: URLRequest(url: WebUri(_url)),
+        settings: InAppBrowserClassSettings(
+          browserSettings: InAppBrowserSettings(
+            // Шапку рисует сама страница: панель браузера ей не нужна.
+            hideToolbarTop: true,
+            hideUrlBar: true,
+            hideProgressBar: true,
+            hideCloseButton: true,
+            // «Поверх экрана», а не «вместо»: иначе приложение считает себя
+            // свёрнутым, гасит отрисовку и присутствие, и звонок рвётся.
+            presentationStyle: ModalPresentationStyle.OVER_FULL_SCREEN,
+            transitionStyle: ModalTransitionStyle.CROSS_DISSOLVE,
+          ),
+          webViewSettings: _webSettings(),
+        ),
+      );
+    } catch (e) {
+      debugPrint('WatchRoom: нативное окно не открылось — $e');
+      _window = null;
+      _web = null;
+      if (mounted) setState(() => _native = false);
+    }
+  }
+
+  /// Окно закрылось. Сами закрывали — маршрут снимет тот, кто закрывал;
+  /// закрыла система — уходим из комнаты следом, под окном пустой экран.
+  void _onWindowClosed() {
+    _window = null;
+    _web = null;
+    if (_leaving || !mounted) return;
+    _leaving = true;
+    _dropRoute();
+  }
+
+  /// Выйти из комнаты: в нативном режиме сперва убрать окно.
+  Future<void> _leave() async {
+    if (_leaving) return;
+    _leaving = true;
+    await _closeWindow();
+    if (mounted) _dropRoute();
+  }
+
+  Future<void> _closeWindow() async {
+    final window = _window;
+    _window = null;
+    if (window == null) return;
+    try {
+      if (window.isOpened()) await window.close();
+    } catch (e) {
+      debugPrint('WatchRoom: окно не закрылось — $e');
+    }
+    window.dispose();
+  }
+
+  /// Снимает свой маршрут, даже если он уже не верхний.
+  void _dropRoute() {
+    final route = ModalRoute.of(context);
+    if (route == null) return;
+    if (route.isCurrent) {
+      Navigator.of(context).pop();
+    } else if (route.isActive) {
+      Navigator.of(context).removeRoute(route);
+    }
+  }
+
+  /// Поверх комнаты открыли другой экран (пуш, ссылка). Под нативным окном
+  /// его не видно, поэтому комната уступает: окно закрывается.
+  Animation<double>? _covered;
+
+  void _onCovered(AnimationStatus status) {
+    if (!_native || _leaving || status != AnimationStatus.forward) return;
+    unawaited(_leave());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final next = ModalRoute.of(context)?.secondaryAnimation;
+    if (identical(next, _covered)) return;
+    _covered?.removeStatusListener(_onCovered);
+    _covered = next;
+    next?.addStatusListener(_onCovered);
+  }
+
+  /// Короткое сообщение человеку. Плашку Flutter под нативным окном не
+  /// видно, поэтому там её показывает сама страница (`window.roomNote`).
+  void _say(String text) {
+    if (!mounted) return;
+    if (_native) {
+      unawaited(
+        _web?.evaluateJavascript(source: 'window.roomNote && window.roomNote(${jsonEncode(text)})') ??
+            Future<void>.value(),
+      );
+      return;
+    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(text), behavior: SnackBarBehavior.floating));
+  }
+
   @override
   void dispose() {
+    _covered?.removeStatusListener(_onCovered);
+    unawaited(_closeWindow());
     ScreenAwake.release(this);
     WidgetsBinding.instance.removeObserver(this);
     _voice?.removeListener(_onVoiceChanged);
@@ -285,6 +454,8 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
     afterAd: widget.afterAd,
     reels: widget.reels,
     feed: widget.reels ? widget.reelsSource.key : null,
+    build: widget.build,
+    nativeWindow: _native,
   );
 
   /// Ссылка для партнёра — без ролика и без имени: он войдёт в ту же комнату,
@@ -299,10 +470,7 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
 
   Future<void> _copy() async {
     await Clipboard.setData(ClipboardData(text: _inviteUrl));
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(LocaleService.current.linkCopied), behavior: SnackBarBehavior.floating));
+    _say(LocaleService.current.linkCopied);
   }
 
   /// Когда последний раз нажимали «назад».
@@ -317,6 +485,10 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
     final now = DateTime.now();
     if (exitOnBack(lastPress: _backAt, now: now)) return true;
     _backAt = now;
+    if (_native) {
+      _say(LocaleService.current.watchRoomBackAgain);
+      return false;
+    }
     showFloatingNote(
       context,
       LocaleService.current.watchRoomBackAgain,
@@ -335,7 +507,7 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
-        if (_allowLeave() && mounted) Navigator.of(context).pop();
+        if (_allowLeave() && mounted) unawaited(_leave());
       },
       // В лентах строка состояния светлыми значками по чёрному.
       child: widget.reels
@@ -361,7 +533,9 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
         // берёт из `_insetScript`.
         top: !widget.reels,
         bottom: false,
-        child: Stack(
+        // Нативное окно комнаты система показывает поверх этого экрана: под
+        // ним остаётся только ожидание, пока окно открывается и закрывается.
+        child: _native ? Center(child: M3Loading(color: cs.primary)) : Stack(
           children: [
             InAppWebView(
               initialUrlRequest: URLRequest(url: WebUri(_url)),
@@ -371,155 +545,10 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
               gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
                 Factory<OneSequenceGestureRecognizer>(EagerGestureRecognizer.new),
               },
-              // Сессия для пропуска: в комнату пары пускают только участников,
-              // и без неё страница попросила бы войти ещё раз.
-              initialUserScripts: UnmodifiableListView([
-                UserScript(
-                  source: WatchRoomService.authScript(
-                    token: PocketBaseService.instance.pb.authStore.token,
-                    name: PocketBaseService().userName,
-                  ),
-                  injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
-                ),
-                if (widget.reels)
-                  UserScript(
-                    source: _insetScript(MediaQuery.paddingOf(context)),
-                    injectionTime: UserScriptInjectionTime.AT_DOCUMENT_END,
-                  ),
-              ]),
-              initialSettings: InAppWebViewSettings(
-                // Видео должно запускаться командой партнёра, а не только пальцем.
-                mediaPlaybackRequiresUserGesture: false,
-                allowsInlineMediaPlayback: true,
-                javaScriptEnabled: true,
-                transparentBackground: true,
-                supportZoom: false,
-              ),
-              onWebViewCreated: (c) {
-                _web = c;
-                // Кнопка звонка стоит в шапке комнаты, а связь поднимает
-                // приложение: у страницы нет ни микрофона пары, ни сигналинга.
-                // Кнопки шапки страницы: «назад», «скопировать», «поделиться».
-                c.addJavaScriptHandler(
-                  handlerName: 'watchBack',
-                  callback: (_) {
-                    if (mounted && _allowLeave()) Navigator.of(context).pop();
-                    return null;
-                  },
-                );
-                c.addJavaScriptHandler(
-                  handlerName: 'watchCopy',
-                  callback: (_) {
-                    _copy();
-                    return null;
-                  },
-                );
-                c.addJavaScriptHandler(
-                  handlerName: 'watchShare',
-                  callback: (_) {
-                    _share();
-                    return null;
-                  },
-                );
-                c.addJavaScriptHandler(
-                  handlerName: 'watchVoice',
-                  callback: (args) {
-                    final info = (args.isNotEmpty && args.first is Map)
-                        ? Map<String, dynamic>.from(args.first as Map)
-                        : const <String, dynamic>{};
-                    unawaited(_onVoiceAction((info['action'] ?? '').toString()));
-                    return null;
-                  },
-                );
-                // Ленты: страница просит номера роликов, сообщает, что играет
-                // из нашей ленты, и отправляет ссылку на ролик.
-                c.addJavaScriptHandler(
-                  handlerName: 'reelsFeed',
-                  callback: (args) async {
-                    final feed = _feed;
-                    if (feed == null) return const <String>[];
-                    final info = (args.isNotEmpty && args.first is Map)
-                        ? Map<String, dynamic>.from(args.first as Map)
-                        : const <String, dynamic>{};
-                    final need = int.tryParse('${info['need'] ?? 8}') ?? 8;
-                    return feed.take(need.clamp(1, 20));
-                  },
-                );
-                c.addJavaScriptHandler(
-                  handlerName: 'reelsWatching',
-                  callback: (args) {
-                    final info = (args.isNotEmpty && args.first is Map)
-                        ? Map<String, dynamic>.from(args.first as Map)
-                        : const <String, dynamic>{};
-                    unawaited(_feed?.watching((info['id'] ?? '').toString()) ?? Future<void>.value());
-                    return null;
-                  },
-                );
-                // «Обновить рекомендации»: скрытая лента начинается заново.
-                c.addJavaScriptHandler(
-                  handlerName: 'reelsRefresh',
-                  callback: (_) async {
-                    await _feed?.refresh();
-                    return null;
-                  },
-                );
-                // Закладка: ролик ложится в ленту воспоминаний пары.
-                c.addJavaScriptHandler(
-                  handlerName: 'reelsSave',
-                  callback: (args) async {
-                    final info = (args.isNotEmpty && args.first is Map)
-                        ? Map<String, dynamic>.from(args.first as Map)
-                        : const <String, dynamic>{};
-                    final ok = await ReelSave.save(
-                      groupId: widget.pairId,
-                      key: (info['key'] ?? '').toString(),
-                    );
-                    return {'ok': ok};
-                  },
-                );
-                c.addJavaScriptHandler(
-                  handlerName: 'reelsShare',
-                  callback: (args) async {
-                    final info = (args.isNotEmpty && args.first is Map)
-                        ? Map<String, dynamic>.from(args.first as Map)
-                        : const <String, dynamic>{};
-                    final url = (info['url'] ?? '').toString();
-                    if (url.isEmpty || !mounted) return null;
-                    await Share.share(url, sharePositionOrigin: shareOriginFromContext(context));
-                    return null;
-                  },
-                );
-                // Комната сама сообщает, что включили: иначе приложение не знает,
-                // что происходит внутри встроенного браузера.
-                c.addJavaScriptHandler(
-                  handlerName: 'watchSource',
-                  callback: (args) {
-                    final info = (args.isNotEmpty && args.first is Map)
-                        ? Map<String, dynamic>.from(args.first as Map)
-                        : const <String, dynamic>{};
-                    unawaited(
-                      WatchHistoryService.remember(
-                        groupId: widget.pairId,
-                        url: (info['url'] ?? '').toString(),
-                        kind: (info['kind'] ?? '').toString(),
-                        title: (info['title'] ?? '').toString(),
-                        thumb: (info['thumb'] ?? '').toString(),
-                      ),
-                    );
-                    return null;
-                  },
-                );
-              },
-              onLoadStop: (c, _) {
-                if (mounted) setState(() => _loading = false);
-                // Страница перезагрузилась (поворот, возврат назад) — она снова
-                // ничего не знает про звонок.
-                _pushVoice();
-                if (widget.reels) {
-                  unawaited(c.evaluateJavascript(source: _insetScript(MediaQuery.paddingOf(context))));
-                  if (_thumbs.isNotEmpty) _pushThumbs(Map.of(_thumbs));
-                }
-              },
+              initialUserScripts: _scripts(MediaQuery.paddingOf(context)),
+              initialSettings: _webSettings(),
+              onWebViewCreated: _wire,
+              onLoadStop: (c, _) => _onPageLoaded(c),
             ),
             if (_loading) Center(child: M3Loading(color: Theme.of(context).colorScheme.primary)),
           ],
@@ -527,4 +556,164 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
       ),
     );
   }
+
+  /// Мосты страницы к приложению — одни на встроенный браузер и на нативное
+  /// окно.
+  void _wire(InAppWebViewController c) {
+    _web = c;
+    // Кнопка звонка стоит в шапке комнаты, а связь поднимает
+    // приложение: у страницы нет ни микрофона пары, ни сигналинга.
+    // Кнопки шапки страницы: «назад», «скопировать», «поделиться».
+    c.addJavaScriptHandler(
+      handlerName: 'watchBack',
+      callback: (_) {
+        if (mounted && _allowLeave()) unawaited(_leave());
+        return null;
+      },
+    );
+    c.addJavaScriptHandler(
+      handlerName: 'watchCopy',
+      callback: (_) {
+        _copy();
+        return null;
+      },
+    );
+    c.addJavaScriptHandler(
+      handlerName: 'watchShare',
+      callback: (_) {
+        _share();
+        return null;
+      },
+    );
+    c.addJavaScriptHandler(
+      handlerName: 'watchVoice',
+      callback: (args) {
+        final info = (args.isNotEmpty && args.first is Map)
+            ? Map<String, dynamic>.from(args.first as Map)
+            : const <String, dynamic>{};
+        unawaited(_onVoiceAction((info['action'] ?? '').toString()));
+        return null;
+      },
+    );
+    // Ленты: страница просит номера роликов, сообщает, что играет
+    // из нашей ленты, и отправляет ссылку на ролик.
+    c.addJavaScriptHandler(
+      handlerName: 'reelsFeed',
+      callback: (args) async {
+        final feed = _feed;
+        if (feed == null) return const <String>[];
+        final info = (args.isNotEmpty && args.first is Map)
+            ? Map<String, dynamic>.from(args.first as Map)
+            : const <String, dynamic>{};
+        final need = int.tryParse('${info['need'] ?? 8}') ?? 8;
+        return feed.take(need.clamp(1, 20));
+      },
+    );
+    c.addJavaScriptHandler(
+      handlerName: 'reelsWatching',
+      callback: (args) {
+        final info = (args.isNotEmpty && args.first is Map)
+            ? Map<String, dynamic>.from(args.first as Map)
+            : const <String, dynamic>{};
+        unawaited(_feed?.watching((info['id'] ?? '').toString()) ?? Future<void>.value());
+        return null;
+      },
+    );
+    // «Обновить рекомендации»: скрытая лента начинается заново.
+    c.addJavaScriptHandler(
+      handlerName: 'reelsRefresh',
+      callback: (_) async {
+        await _feed?.refresh();
+        return null;
+      },
+    );
+    // Закладка: ролик ложится в ленту воспоминаний пары.
+    c.addJavaScriptHandler(
+      handlerName: 'reelsSave',
+      callback: (args) async {
+        final info = (args.isNotEmpty && args.first is Map)
+            ? Map<String, dynamic>.from(args.first as Map)
+            : const <String, dynamic>{};
+        final ok = await ReelSave.save(
+          groupId: widget.pairId,
+          key: (info['key'] ?? '').toString(),
+        );
+        return {'ok': ok};
+      },
+    );
+    c.addJavaScriptHandler(
+      handlerName: 'reelsShare',
+      callback: (args) async {
+        final info = (args.isNotEmpty && args.first is Map)
+            ? Map<String, dynamic>.from(args.first as Map)
+            : const <String, dynamic>{};
+        final url = (info['url'] ?? '').toString();
+        if (url.isEmpty || !mounted) return null;
+        await Share.share(url, sharePositionOrigin: shareOriginFromContext(context));
+        return null;
+      },
+    );
+    // Комната сама сообщает, что включили: иначе приложение не знает,
+    // что происходит внутри встроенного браузера.
+    c.addJavaScriptHandler(
+      handlerName: 'watchSource',
+      callback: (args) {
+        final info = (args.isNotEmpty && args.first is Map)
+            ? Map<String, dynamic>.from(args.first as Map)
+            : const <String, dynamic>{};
+        unawaited(
+          WatchHistoryService.remember(
+            groupId: widget.pairId,
+            url: (info['url'] ?? '').toString(),
+            kind: (info['kind'] ?? '').toString(),
+            title: (info['title'] ?? '').toString(),
+            thumb: (info['thumb'] ?? '').toString(),
+          ),
+        );
+        return null;
+      },
+    );
+  }
+
+  /// Страница загрузилась (или перезагрузилась — поворот, возврат назад):
+  /// она снова ничего не знает про звонок.
+  void _onPageLoaded(InAppWebViewController c) {
+    if (!mounted) return;
+    setState(() => _loading = false);
+    _pushVoice();
+    if (widget.reels || _native) {
+      unawaited(c.evaluateJavascript(source: _insetScript(MediaQuery.paddingOf(context))));
+    }
+    if (widget.reels && _thumbs.isNotEmpty) _pushThumbs(Map.of(_thumbs));
+  }
+}
+
+/// Нативное окно комнаты: тот же браузер, но своим экраном поверх
+/// приложения. Касания идут странице напрямую, мимо Flutter.
+class _RoomWindow extends InAppBrowser {
+  _RoomWindow({
+    required this.onCreated,
+    required this.onLoaded,
+    required this.onClosed,
+    super.initialUserScripts,
+  });
+
+  final void Function(InAppWebViewController controller) onCreated;
+  final void Function(InAppWebViewController controller) onLoaded;
+  final VoidCallback onClosed;
+
+  @override
+  void onBrowserCreated() {
+    final c = webViewController;
+    if (c != null) onCreated(c);
+  }
+
+  @override
+  void onLoadStop(WebUri? url) {
+    final c = webViewController;
+    if (c != null) onLoaded(c);
+  }
+
+  @override
+  void onExit() => onClosed();
 }

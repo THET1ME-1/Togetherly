@@ -14,6 +14,14 @@
 (() => {
   'use strict';
 
+  // Метки приложения в адресе: `nb=1` — комната открыта нативным окном во
+  // весь экран (iPhone, 12.10.2026: встроенный браузер терял там касания у
+  // каждого четвёртого), `b` — номер сборки. По ним делится замер касаний, а
+  // окну нужен отступ под вырез экрана — см. `.native-window` в room.css.
+  const NATIVE_WINDOW = /[?&]nb=1\b/.test(location.search);
+  const APP_BUILD = Number((location.search.match(/[?&]b=(\d{1,6})\b/) || [])[1] || 0);
+  if (NATIVE_WINDOW) document.documentElement.classList.add('native-window');
+
   const DRIFT = 1.5;          // допустимое расхождение, секунды
   const MISS = 10;            // дальше этого от цели перемотка считается промахом, секунды
   const HAND_MS = 1500;       // событие плеера считается ручным, если касание было не раньше
@@ -864,6 +872,11 @@
     noteTimer = setTimeout(() => { el.hidden = true; }, NOTE_MS);
   }
 
+  // Сообщение от приложения: «нажмите ещё раз, чтобы выйти», «нет доступа к
+  // микрофону». Свою плашку приложение рисует под нативным окном, и её не
+  // видно — показываем сами.
+  window.roomNote = (text) => note(String(text || ''));
+
   function setViewers(n) {
     const was = state.viewers;
     state.viewers = n;
@@ -1341,7 +1354,10 @@
     const send = (name, data) => {
       try { if (window.umami && window.umami.track) window.umami.track(name, data); } catch (_) { /* статистика не важнее комнаты */ }
     };
-    const facts = () => ({ platform, os, ad, sub: subscribed() ? 1 : 0, subMs,
+    // `b` и `nb` — сборка и вид окна (12.10.2026): без них замер не отвечал,
+    // помог ли выпуск, и не мог сравнить нативное окно со встроенным.
+    const facts = () => ({ platform, os, ad, b: APP_BUILD, nb: NATIVE_WINDOW ? 1 : 0,
+      sub: subscribed() ? 1 : 0, subMs,
       down: n.down, start: n.start, cancel: n.cancel, click: n.click, blur: n.blur });
     const onTouch = () => {
       if (done) return;

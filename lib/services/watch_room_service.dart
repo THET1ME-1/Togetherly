@@ -32,6 +32,10 @@ class WatchRoomService {
   /// [name] — как подписывать свои сообщения в чате комнаты. Без него страница
   /// подставляет «Гость» обоим, и человек не понимает, кто с ним смотрит
   /// (жалоба тестера: «партнёр отображается как гость»).
+  ///
+  /// [build] и [nativeWindow] — метки для замера касаний (`b`, `nb`): из какой
+  /// сборки открыли комнату и каким окном. До 12.10.2026 страница сборку не
+  /// знала, и проверить выпуск замером было нечем.
   static String siteUrl(
     String room, {
     String? src,
@@ -39,6 +43,8 @@ class WatchRoomService {
     bool afterAd = false,
     bool reels = false,
     String? feed,
+    int build = 0,
+    bool nativeWindow = false,
   }) {
     // Совместная лента — своя страница (/watch/reels/) в том же канале пары,
     // что и комната (05.10.2026). Сборки постарше открывают её прежним
@@ -55,6 +61,8 @@ class WatchRoomService {
           : trimmed;
     }
     if (afterAd) query['ad'] = '1';
+    if (build > 0) query['b'] = '$build';
+    if (nativeWindow) query['nb'] = '1';
     if (query.isEmpty) return '$base#$room';
     final encoded = query.entries
         .map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}')

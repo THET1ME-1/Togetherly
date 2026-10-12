@@ -1,12 +1,16 @@
 import 'dart:async';
 
 import '../../services/plus_service.dart';
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../../main.dart';
 import '../../models/reels_source.dart';
+import '../../models/room_window.dart';
 import '../../services/locale_service.dart';
 import '../../services/pocketbase_service.dart';
 import '../../services/rewarded_ad_service.dart';
+import '../../services/room_window_flag.dart';
 import '../../services/watch_room_service.dart';
 import '../../services/watch_videos_service.dart';
 import 'watch_player_screen.dart';
@@ -243,6 +247,15 @@ class TogetherLauncher {
     // чужих движений поверх себя. Растить его из кнопки под масштабом не
     // рискуем: комната открывается прежним переходом платформы.
     UnfoldTouch.forget();
+    final build = await _buildNumber();
+    // На iPhone доле людей (её задаёт сервер) комната открывается нативным
+    // окном: встроенный браузер терял там касания у каждого четвёртого.
+    final nativeWindow = roomOpensNatively(
+      ios: !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS,
+      reels: reels,
+      share: RoomWindowFlag.share,
+      uid: PocketBaseService().userId ?? '',
+    );
     await navigator.push(
       MaterialPageRoute<void>(
         builder: (_) => WatchRoomScreen(
@@ -252,9 +265,22 @@ class TogetherLauncher {
           afterAd: _adShown,
           reels: reels,
           reelsSource: reelsSource,
+          nativeWindow: nativeWindow,
+          build: build,
         ),
       ),
     );
+  }
+
+  /// Номер сборки для метки в адресе комнаты. Ноль, если узнать не вышло:
+  /// метки тогда просто нет.
+  static Future<int> _buildNumber() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      return int.tryParse(info.buildNumber.trim()) ?? 0;
+    } catch (_) {
+      return 0;
+    }
   }
 
   /// Старое имя точки входа: ленту воспоминаний переучивать не нужно.
