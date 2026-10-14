@@ -104,8 +104,12 @@ Widget _app({
 
 Widget _picker(Brightness b, int palette, {required FakeCustomMoodStore store, PlusGate gate = PlusGate.open, String current = ''}) {
   final t = buildAppTheme(kPalettes[palette], b);
+  // Под листом — притушенный экран, как под настоящей шторкой.
   return Scaffold(
-    backgroundColor: Colors.black.withValues(alpha: 0.32),
+    backgroundColor: Color.alphaBlend(
+      Colors.black.withValues(alpha: 0.32),
+      ProfileTheme.schemeFor(t).surface,
+    ),
     body: Align(
       alignment: Alignment.bottomCenter,
       child: FractionallySizedBox(
@@ -131,9 +135,15 @@ Widget _picker(Brightness b, int palette, {required FakeCustomMoodStore store, P
   );
 }
 
+/// Пустой экран с невидимой кнопкой, открывающей лист: на снимке её нет.
 Widget _opener(Future<Object?> Function(BuildContext) open) => Builder(
       builder: (ctx) => Scaffold(
-        body: Center(child: TextButton(onPressed: () => open(ctx), child: const Text('open'))),
+        body: Center(
+          child: Opacity(
+            opacity: 0,
+            child: TextButton(onPressed: () => open(ctx), child: const Text('open')),
+          ),
+        ),
       ),
     );
 
