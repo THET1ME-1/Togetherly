@@ -1204,6 +1204,41 @@ def применить_наклейку(наклейки: dict, тело: dict, 
     return новые, None
 
 
+# Свежая отметка настроения → виджет пары (обращение 265, 14.10.2026: «на
+# виджете у партнёра „Радость“, хотя у него стоит „Люблю“, так уже два дня»).
+# Виджет пары на рабочем столе читает `widget_data` автора, а не календарь.
+# Отметка доходит надёжно, через очередь приложения, а `widget_data` приложение
+# пишет отдельным прямым запросом без повтора: сорвался запрос — у партнёра
+# старое настроение до следующей смены. Отметка кнопкой с виджета настроений
+# `widget_data` не трогает вовсе. За 3 дня до правки так отстал виджет у 790
+# человек. Теперь свежую отметку в виджет переносит сервер (_настроение_в_виджет).
+НАСТРОЕНИЕ_В_ВИДЖЕТ_MS = 6 * 3_600_000
+НАСТРОЕНИЕ_ВПЕРЁД_MS = 10 * 60_000
+
+
+def момент_свежего_настроения(отметка: dict, сейчас_мс: int) -> int | None:
+    """Момент отметки в мс, если она годится в виджет пары, иначе None.
+
+    Годится отметка «сейчас»: не старше шести часов (запоздавшая из очереди
+    тоже) и не из будущего дальше десяти минут (часы телефона спешат).
+    Отметка задним числом из календаря — это вчерашний день, виджет она не
+    трогает. Правил ли кто виджет после отметки, решает запрос к базе.
+    """
+    if not isinstance(отметка, dict):
+        return None
+    if not (отметка.get("group_id") and отметка.get("user_uid")):
+        return None
+    if not (отметка.get("image_path") or отметка.get("label")):
+        return None
+    мкс = _мкс_даты(отметка.get("timestamp"))
+    if мкс is None:
+        return None
+    мс = мкс // 1000
+    if мс < сейчас_мс - НАСТРОЕНИЕ_В_ВИДЖЕТ_MS or мс > сейчас_мс + НАСТРОЕНИЕ_ВПЕРЁД_MS:
+        return None
+    return мс
+
+
 def _miss_you_push_text(вайб_текст: str | None) -> str:
     """Тело уведомления об импульсе «Скучаю».
 
@@ -1226,6 +1261,36 @@ def _chat_push_text(rec: dict) -> str:
     return "Голосовое сообщение" if rec.get("voice_url") else "Сообщение"
 
 
+async def _настроение_в_виджет(rec: dict) -> None:
+    """Перенести свежую отметку настроения в `widget_data` автора.
+
+    Свежесть решает момент_свежего_настроения. Виджет не трогаем, если его
+    правили после отметки: человек убрал настроение или приложение уже само
+    записало это же. Запись ушла — рассылаем её паре, как обычную правку.
+    """
+    from datetime import datetime, timezone
+    момент = момент_свежего_настроения(rec, int(time.time() * 1000))
+    if момент is None or pg is None:
+        return
+    когда = datetime.fromtimestamp(момент / 1000, tz=timezone.utc)
+    try:
+        async with pg.acquire() as c:
+            row = await c.fetchrow(
+                "UPDATE widget_data SET mood_emoji = $3, mood_label = $4, updated = $5 "
+                "WHERE group_id = $1 AND user_uid = $2 "
+                "AND (NULLIF(updated, '') IS NULL OR NULLIF(updated, '')::timestamptz < $6) "
+                "AND (mood_label IS DISTINCT FROM $4 OR mood_emoji IS DISTINCT FROM $3) "
+                "RETURNING *",
+                rec.get("group_id"), rec.get("user_uid"),
+                rec.get("image_path") or "", (rec.get("label") or "").strip(),
+                now_pb(), когда)
+    except Exception as e:
+        log.warning("настроение в виджет: %s", e)
+        return
+    if row is not None:
+        await _publish("widget_data", "update", _record_json("widget_data", row))
+
+
 async def _after_create(col: str, rec: dict) -> None:
     kind = COLLECTIONS[col]["after_create"]
     if kind == "chat":
@@ -1246,6 +1311,9 @@ async def _after_create(col: str, rec: dict) -> None:
     elif kind == "location":
         await _wake_channel(rec.get("channel") or "", rec.get("user_uid") or "")
     elif kind == "mood":
+        # Сперва виджет: тихий пуш ниже будит телефон партнёра, и тот должен
+        # прочитать уже новое настроение.
+        await _настроение_в_виджет(rec)
         label = (rec.get("label") or "").strip()
         await _notify_group(
             rec.get("group_id") or "", rec.get("user_uid") or "",
@@ -1287,6 +1355,9 @@ async def _after_update(col: str, rec: dict) -> None:
 
     if kind != "mood":
         return
+    # Виджет догоняет отметку до антидребезга уведомлений: баннер можно
+    # придержать, настроение на рабочем столе — нет.
+    await _настроение_в_виджет(rec)
     group_id = rec.get("group_id") or ""
     if not group_id:
         return
