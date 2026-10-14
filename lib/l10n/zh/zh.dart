@@ -28,6 +28,7 @@ import 'small_a.dart';
 import 'small_b.dart';
 import 'small_c.dart';
 import 'small_d.dart';
+import 'stickers.dart';
 import 'widget_screen.dart';
 
 const Map<String, String> kZhStrings = {
@@ -46,6 +47,7 @@ const Map<String, String> kZhStrings = {
   ...profileZh,
   ...memoryLaneZh,
   ...widgetScreenZh,
+  ...stickersZh,
   ...chatAZh,
   ...chatBZh,
 };

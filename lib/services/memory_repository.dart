@@ -4,6 +4,7 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../models/comment.dart';
 import '../models/memory.dart';
+import '../models/memory_sticker.dart';
 import '../utils/pair_time.dart';
 import 'analytics_service.dart';
 import 'daily_task_service.dart';
@@ -353,6 +354,50 @@ class MemoryRepository {
     await _cache.upsertRaw('memories', memoryId, row);
     await _outbox.enqueue('memorySetReaction',
         {'memoryId': memoryId, 'uid': uid, 'reaction': next[uid] ?? ''});
+  }
+
+  /// Ставит или переставляет наклейку: сразу на экране, потом на сервере.
+  ///
+  /// Наклейка уходит своей операцией, а не правкой всей записи: так двое
+  /// клеят одновременно и не затирают друг друга. Предел и права проверяет
+  /// и сервер, экран лишь не предлагает лишнего.
+  Future<void> putSticker({
+    required String memoryId,
+    required MemorySticker sticker,
+  }) async {
+    final cached = await _cache.getRecord('memories', memoryId);
+    if (cached == null) return;
+    final row = Map<String, dynamic>.from(cached.data);
+    final map = (row['data'] is Map)
+        ? Map<String, dynamic>.from(row['data'] as Map)
+        : <String, dynamic>{};
+    row['data'] = withSticker(map, sticker);
+    await _cache.upsertRaw('memories', memoryId, row);
+    await _outbox.enqueue('memorySticker', {
+      'memoryId': memoryId,
+      'sid': sticker.id,
+      'put': sticker.toJson(),
+    });
+  }
+
+  /// Убирает наклейку: свою — тот, кто наклеил, любую — автор записи.
+  Future<void> removeSticker({
+    required String memoryId,
+    required String stickerId,
+  }) async {
+    final cached = await _cache.getRecord('memories', memoryId);
+    if (cached == null) return;
+    final row = Map<String, dynamic>.from(cached.data);
+    final map = (row['data'] is Map)
+        ? Map<String, dynamic>.from(row['data'] as Map)
+        : <String, dynamic>{};
+    row['data'] = withoutSticker(map, stickerId);
+    await _cache.upsertRaw('memories', memoryId, row);
+    await _outbox.enqueue('memorySticker', {
+      'memoryId': memoryId,
+      'sid': stickerId,
+      'del': true,
+    });
   }
 
   /// Удаляет воспоминание: оптимистично из кэша + удаление (с чисткой PB-медиа)

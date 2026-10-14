@@ -81,20 +81,8 @@ class MoodPackSelector extends StatelessWidget {
   /// Без данных пользователя открытыми считаем только бесплатные наборы и то,
   /// что куплено парой. Прежнее «нет user — открыто всё» показывало платный
   /// пак доступным на экране виджетов, где его никто не покупал.
-  bool isOpen(MoodPack pack) {
-    final key = Unlock.featureKey(kMoodPackFeatureKind, pack.id);
-    final byPair = pairOwned.contains(key) ||
-        CatalogService.instance.pairOwned.contains(key);
-    final u = user;
-    if (u == null) return byPair || !pack.unlock.isForSale;
-    return u.unlocksCatalogItem(
-      pack.unlock,
-      kMoodPackFeatureKind,
-      pack.id,
-      LevelService.instance.level,
-      boughtByPair: byPair,
-    );
-  }
+  bool isOpen(MoodPack pack) =>
+      moodPackOpenFor(pack, user: user, pairOwned: pairOwned);
 
   /// До скольких паков строка делится поровну.
   static const int _stretchUpTo = 3;
@@ -149,7 +137,7 @@ class MoodPackSelector extends StatelessWidget {
               selected: ownSelected,
               stretched: stretched,
             );
-        Widget packChip(MoodPack p, {required bool stretched}) => _PackChip(
+        Widget packChip(MoodPack p, {required bool stretched}) => MoodPackChip(
               key: Key('mood-pack-${p.id}'),
               pack: p,
               selected: p.id == shownId,
@@ -194,6 +182,26 @@ class MoodPackSelector extends StatelessWidget {
       },
     );
   }
+}
+
+/// Открыт ли пак этому человеку — правило [MoodPackSelector.isOpen], оно же
+/// у листа наклеек: наклейки берутся из тех же наборов.
+bool moodPackOpenFor(
+  MoodPack pack, {
+  UserData? user,
+  Set<String> pairOwned = const {},
+}) {
+  final key = Unlock.featureKey(kMoodPackFeatureKind, pack.id);
+  final byPair = pairOwned.contains(key) ||
+      CatalogService.instance.pairOwned.contains(key);
+  if (user == null) return byPair || !pack.unlock.isForSale;
+  return user.unlocksCatalogItem(
+    pack.unlock,
+    kMoodPackFeatureKind,
+    pack.id,
+    LevelService.instance.level,
+    boughtByPair: byPair,
+  );
 }
 
 /// Купить пак: за деньги или за монеты, смотря что стоит в каталоге.
@@ -425,7 +433,9 @@ class _OwnChip extends StatelessWidget {
   }
 }
 
-class _PackChip extends StatelessWidget {
+/// Таблетка набора: превью, название, галочка у выбранного, замок с ценой у
+/// закрытого. Её же берёт лист наклеек.
+class MoodPackChip extends StatelessWidget {
   final MoodPack pack;
   final bool selected;
 
@@ -438,7 +448,7 @@ class _PackChip extends StatelessWidget {
   final bool stretched;
   final VoidCallback onTap;
 
-  const _PackChip({
+  const MoodPackChip({
     super.key,
     required this.pack,
     required this.selected,

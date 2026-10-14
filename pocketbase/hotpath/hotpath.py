@@ -1104,6 +1104,102 @@ def даты_воспоминания(тело: dict, серверное_мс: i
     return тело
 
 
+# Наклейки на пинах (14.10.2026). Наклейку ставит любой из пары поверх
+# главного блока записи; лежит она в `data.stickers` (карта id → наклейка), а
+# пишет её только эта операция: PATCH воспоминания с телом `sticker_put` или
+# `sticker_del`. Обычная правка записи наклейки не трогает (см. update_record),
+# поэтому двое, клеящие одновременно, друг друга не затирают. Те же правила у
+# клиента — `lib/models/memory_sticker.dart`.
+НАКЛЕЕК_НА_ЧЕЛОВЕКА = 3
+_НАКЛЕЙКА_РАЗМЕР = (0.12, 0.7)
+_НАКЛЕЙКА_ХОСТЫ = (
+    "https://togetherly.day/api/files/catalog_items/",
+    "https://togetherly.duckdns.org/api/files/catalog_items/",
+)
+
+
+def наклейка_из_тела(сырое, uid: str, сейчас_мс: int) -> dict | None:
+    """Присланная наклейка в том виде, в каком она ляжет в базу, или None.
+
+    Автором сервер ставит того, кто прислал, а не то, что написано в теле.
+    Картинка — только ассет сборки или файл своего каталога: чужой адрес
+    подгружался бы у партнёра с любого сайта.
+    """
+    import math
+
+    if not isinstance(сырое, dict):
+        return None
+    sid = str(сырое.get("id") or "")
+    картинка = str(сырое.get("img") or "")
+    if not sid or len(sid) > 40 or not картинка or len(картинка) > 300:
+        return None
+    if ".." in картинка:
+        return None
+    if not (картинка.startswith("assets/images/")
+            or картинка.startswith(_НАКЛЕЙКА_ХОСТЫ)):
+        return None
+
+    def число(ключ: str, запас: float) -> float:
+        v = сырое.get(ключ)
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            return запас
+        return float(v) if math.isfinite(v) else запас
+
+    угол = число("r", 0.0) % (2 * math.pi)
+    if угол > math.pi:
+        угол -= 2 * math.pi
+    мин, макс = _НАКЛЕЙКА_РАЗМЕР
+    t = сырое.get("t")
+    t = int(t) if isinstance(t, (int, float)) and not isinstance(t, bool) else 0
+    if t <= 0 or t > сейчас_мс:
+        t = сейчас_мс
+    return {
+        "id": sid,
+        "uid": uid,
+        "img": картинка,
+        "pack": str(сырое.get("pack") or "")[:40],
+        "mood": str(сырое.get("mood") or "")[:40],
+        "x": min(max(число("x", 0.5), 0.0), 1.0),
+        "y": min(max(число("y", 0.5), 0.0), 1.0),
+        "s": min(max(число("s", 0.28), мин), макс),
+        "r": угол,
+        "t": t,
+    }
+
+
+def применить_наклейку(наклейки: dict, тело: dict, uid: str, автор: str,
+                       сейчас_мс: int) -> tuple[dict, str | None]:
+    """Новая карта наклеек записи после операции из [тело] или код отказа.
+
+    Своих наклеек на запись не больше трёх; переставить можно только свою,
+    убрать — свою, а автор записи убирает любую со своего пина. Повтор
+    удаления из очереди отвечает успехом: наклейки уже нет.
+    """
+    новые = {k: v for k, v in (наклейки or {}).items() if isinstance(v, dict)}
+    if "sticker_del" in тело:
+        sid = str(тело.get("sticker_del") or "")
+        была = новые.get(sid)
+        if была is None:
+            return новые, None
+        if была.get("uid") != uid and автор != uid:
+            return новые, "not_yours"
+        del новые[sid]
+        return новые, None
+    s = наклейка_из_тела(тело.get("sticker_put"), uid, сейчас_мс)
+    if s is None:
+        return новые, "bad_sticker"
+    была = новые.get(s["id"])
+    if была is not None:
+        if была.get("uid") != uid:
+            return новые, "not_yours"
+        # Переставленная остаётся на своём слое, а не прыгает наверх.
+        s["t"] = была.get("t") or s["t"]
+    elif sum(1 for v in новые.values() if v.get("uid") == uid) >= НАКЛЕЕК_НА_ЧЕЛОВЕКА:
+        return новые, "limit"
+    новые[s["id"]] = s
+    return новые, None
+
+
 def _miss_you_push_text(вайб_текст: str | None) -> str:
     """Тело уведомления об импульсе «Скучаю».
 
@@ -3709,6 +3805,9 @@ async def update_record(col: str, rid: str, request: Request):
     except Exception:
         return _err(400, "Failed to update record.")
 
+    if col == "memories" and ("sticker_put" in body or "sticker_del" in body):
+        return await _наклейка_воспоминания(rid, body, uid, groups)
+
     # Страж пары (перенос groups_guard.pb.js). Правило коллекции пускает
     # участника писать в запись любое поле, поэтому обычным PATCH можно было
     # вписать в пару третий аккаунт — и он получал переписку, ленту и карту.
@@ -3766,6 +3865,18 @@ async def update_record(col: str, rid: str, request: Request):
         if field not in body:
             continue
         v = body[field]
+        if col == "memories" and field == "data" and isinstance(v, dict):
+            # Наклейки пишет только своя операция (_наклейка_воспоминания).
+            # Очередь шлёт запись целиком при правке, реакции и закладке, и
+            # её копия наклеек бывает старой — а у сборок до наклеек их нет
+            # вовсе. Поэтому в правке они всегда остаются серверными.
+            args.append(json.dumps(v))
+            n = len(args)
+            sets.append(
+                f"data = CASE WHEN data ? 'stickers' "
+                f"THEN jsonb_set(${n}::jsonb, '{{stickers}}', data->'stickers') "
+                f"ELSE ${n}::jsonb - 'stickers' END")
+            continue
         if kind in ("json", "jsontext"):
             if v is None:
                 args.append(None)
@@ -3816,6 +3927,48 @@ async def update_record(col: str, rid: str, request: Request):
         if not _held(meta, rec):
             asyncio.get_running_loop().create_task(_publish(col, "update", rec))
             asyncio.get_running_loop().create_task(_after_update(col, rec))
+    return rec
+
+
+async def _наклейка_воспоминания(rid: str, тело: dict, uid: str, groups):
+    """Поставить, переставить или убрать наклейку на записи пары.
+
+    Строка блокируется на время правки: двое клеят одновременно, и каждый
+    читает уже чужую новую наклейку, а не затирает её своей копией карты.
+    Отказ отвечает кодом и словом в `message`: `limit` (своих уже три),
+    `not_yours` (чужую не переставить и не убрать), `bad_sticker`.
+    """
+    сейчас = int(time.time() * 1000)
+    async with pg.acquire() as c:
+        async with c.transaction():
+            row = await c.fetchrow(
+                "SELECT data, author_uid FROM memories WHERE id = $1 "
+                "AND group_id = ANY($2) AND NOT coalesce(deleted, false) "
+                "FOR UPDATE", rid, list(groups))
+            if row is None:
+                return _err(404, "The requested resource wasn't found.")
+            данные = row["data"]
+            if isinstance(данные, str):
+                try:
+                    данные = json.loads(данные)
+                except ValueError:
+                    данные = {}
+            if not isinstance(данные, dict):
+                данные = {}
+            было = данные.get("stickers")
+            автор = row["author_uid"] or str(данные.get("authorUid") or "")
+            новые, отказ = применить_наклейку(
+                было if isinstance(было, dict) else {}, тело, uid, автор, сейчас)
+            if отказ:
+                код = {"limit": 409, "not_yours": 403}.get(отказ, 400)
+                return _err(код, отказ)
+            row = await c.fetchrow(
+                "UPDATE memories SET data = jsonb_set(coalesce(data, "
+                "'{}'::jsonb), '{stickers}', $2::jsonb), updated = $3 "
+                "WHERE id = $1 RETURNING *",
+                rid, json.dumps(новые), now_pb())
+    rec = _record_json("memories", row)
+    asyncio.get_running_loop().create_task(_publish("memories", "update", rec))
     return rec
 
 

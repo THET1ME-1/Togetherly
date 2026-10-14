@@ -18,6 +18,9 @@ class _MemoryDetailSheet extends StatefulWidget {
   /// Партнёр — для «Смотреть вместе» у видео по ссылке.
   final String partnerUid;
 
+  /// Имя человека из пары по uid — подпись «Наклейка от …».
+  final String Function(String uid)? nameOf;
+
   const _MemoryDetailSheet({
     required this.memory,
     required this.groupId,
@@ -31,6 +34,7 @@ class _MemoryDetailSheet extends StatefulWidget {
     this.onSetLocation,
     this.liveAuthorAvatar = '',
     this.partnerUid = '',
+    this.nameOf,
   });
 
   @override
@@ -465,20 +469,22 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
   Widget _momentCover(Memory memory, ColorScheme cs) {
     switch (memory.type) {
       case MemoryType.text:
-        return _noteCover(memory, cs);
+        return _stickers(memory, _noteCover(memory, cs));
       case MemoryType.videoLink:
-        return _videoLinkCover(memory, cs);
+        return _stickers(memory, _videoLinkCover(memory, cs));
       case MemoryType.video when _momentPhotos.isEmpty:
-        return _bareVideoCover(memory, cs);
+        return _stickers(memory, _bareVideoCover(memory, cs));
       case MemoryType.music:
-        return _MusicMomentCover(
-            memory: memory, scheme: cs, fill: context.appTheme.fillColor);
+        return _stickers(
+            memory,
+            _MusicMomentCover(
+                memory: memory, scheme: cs, fill: context.appTheme.fillColor));
       case MemoryType.book:
-        return _bookCover(memory, cs);
+        return _stickers(memory, _bookCover(memory, cs));
       case MemoryType.movie:
-        return _movieCover(memory, cs);
+        return _stickers(memory, _movieCover(memory, cs));
       case MemoryType.location:
-        return _placeCover(memory, cs);
+        return _stickers(memory, _placeCover(memory, cs));
       default:
         break;
     }
@@ -499,8 +505,9 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
     if (memory.isAdult) cover = _BlurAfterTap(child: cover);
     // Первый кадр общий с карточкой ленты: он прилетает из неё и улетает
     // обратно. Переключили обложку на другой кадр — лететь уже нечему, в
-    // карточке стоит первый.
+    // карточке стоит первый. Наклейки живут на первом кадре, как в ленте.
     if (idx == 0) {
+      cover = _stickers(memory, cover);
       cover = UnfoldShared(tag: 'cover', radius: 22, child: cover);
     }
 
@@ -538,6 +545,26 @@ class _MemoryDetailSheetState extends State<_MemoryDetailSheet>
         ],
       ],
     );
+  }
+
+  /// Наклейки на обложке. Клеят их в ленте, здесь касание только говорит,
+  /// чья наклейка.
+  Widget _stickers(Memory memory, Widget child) => StickerAnchor(
+        stickers: memory.stickers,
+        onTap: (s, _) => _stickerInfo(memory, s),
+        child: child,
+      );
+
+  void _stickerInfo(Memory memory, MemorySticker s) {
+    final String who;
+    if (s.uid == _myUidHere) {
+      who = trKey('stickerMine');
+    } else {
+      var name = widget.nameOf?.call(s.uid) ?? '';
+      if (name.isEmpty && s.uid == memory.authorUid) name = memory.authorName;
+      who = trKey('stickerFrom').replaceAll('{name}', name.isEmpty ? '…' : name);
+    }
+    showFloatingNote(context, who, icon: Icons.favorite_rounded);
   }
 
   /// Лист заметки тот же, что в ленте, только текст целиком.

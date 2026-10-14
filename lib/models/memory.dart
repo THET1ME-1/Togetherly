@@ -7,6 +7,7 @@ import '../utils/pair_time.dart';
 
 import '../services/locale_service.dart';
 import 'memory_reaction.dart';
+import 'memory_sticker.dart';
 
 /// Types of memory content
 enum MemoryType { photo, video, location, music, text, videoLink, book, movie }
@@ -144,6 +145,10 @@ class Memory {
   /// записью стоит аватарка того, кто отметил, и его значок.
   Map<String, String> reactions;
 
+  /// Наклейки поверх главного блока записи (см. [MemorySticker]). Ставит их
+  /// любой из двоих, пишет сервер отдельной операцией.
+  List<MemorySticker> stickers;
+
   /// Кэш числа комментариев (для бейджа в ленте — чтобы не подписываться на
   /// комментарии каждой карточки). Инкрементится при добавлении комментария.
   int commentsCount;
@@ -208,9 +213,11 @@ class Memory {
     this.dailyTaskId,
     List<String>? savedBy,
     Map<String, String>? reactions,
+    List<MemorySticker>? stickers,
     int? commentsCount,
   })  : savedBy = savedBy ?? <String>[],
         reactions = reactions ?? <String, String>{},
+        stickers = stickers ?? <MemorySticker>[],
         commentsCount = commentsCount ?? 0;
 
   /// Human-friendly type label
@@ -311,6 +318,7 @@ class Memory {
       'tz': zone.isEmpty ? PairTime.zoneNow() : zone,
       'savedBy': savedBy,
       'reactions': reactions,
+      'stickers': stickersToJson(stickers),
       'commentsCount': commentsCount,
       'dailyTaskId': dailyTaskId,
     };
@@ -372,6 +380,7 @@ class Memory {
           ? List<String>.from(json['savedBy'])
           : null,
       reactions: parseReactions(json['reactions']),
+      stickers: parseStickers(json['stickers']),
       commentsCount: (json['commentsCount'] as num?)?.toInt(),
     );
   }

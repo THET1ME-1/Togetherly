@@ -29,6 +29,7 @@ import 'l10n/dict/mascot_gallery.dart';
 import 'l10n/dict/memory_lane.dart';
 import 'l10n/dict/memory_lane_feed.dart';
 import 'l10n/dict/memory_save.dart';
+import 'l10n/dict/stickers.dart';
 import 'l10n/dict/mini_mood_calendar.dart';
 import 'l10n/dict/mood_calendar.dart';
 import 'l10n/dict/notification_settings.dart';
@@ -132,6 +133,7 @@ const Map<String, Map<String, String>> _kSectionStrings = {
   ...welcomeStrings,
   ...watchVoiceStrings,
   ...widgetScreenStrings,
+  ...stickersStrings,
 };
 
 /// Перевод по ключу с откатом: выбранный язык → английский → русский → ключ.

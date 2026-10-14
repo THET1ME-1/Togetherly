@@ -1416,6 +1416,33 @@ class PbDataService {
 
   /// Точечное чтение воспоминания по id (deep-link пина из чата). Уважает
   /// soft-delete: удалённое воспоминание возвращает null (как старый путь).
+  /// Наклейка на запись: тело `{sticker_put: …}` или `{sticker_del: id}`.
+  ///
+  /// Пишет её отдельная операция сервера, а не правка всей записи: двое
+  /// клеят одновременно и не затирают друг друга. [refused] — сервер ответил
+  /// отказом по сути (своих уже три, чужая наклейка, записи нет): повтор
+  /// ничего не даст. Иначе null-запись значит «сеть не ответила».
+  Future<({RecordModel? record, bool refused})> memoryStickerOp(
+      String memoryId, Map<String, dynamic> body) async {
+    if (memoryId.isEmpty) return (record: null, refused: true);
+    try {
+      final rec = await _pb.collection('memories').update(memoryId, body: body);
+      return (record: rec, refused: false);
+    } on ClientException catch (e) {
+      final code = e.statusCode;
+      final refused = code >= 400 &&
+          code < 500 &&
+          code != 401 &&
+          code != 408 &&
+          code != 429;
+      if (!refused) debugPrint('PbData.memoryStickerOp($memoryId) failed: $e');
+      return (record: null, refused: refused);
+    } catch (e) {
+      debugPrint('PbData.memoryStickerOp($memoryId) failed: $e');
+      return (record: null, refused: false);
+    }
+  }
+
   Future<RecordModel?> loadMemoryById(String id) async {
     if (id.isEmpty) return null;
     try {

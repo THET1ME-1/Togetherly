@@ -380,6 +380,7 @@ class OutboxService {
       case 'memorySetSaved':
       case 'memorySetReaction':
       case 'memoryBumpComments':
+      case 'memorySticker':
         return k('memories', p['memoryId']);
       case 'commentUpsert':
       case 'commentDelete':
@@ -604,6 +605,12 @@ class OutboxService {
             (a, b) => a['memoryId'] == b['memoryId'] && a['uid'] == b['uid']);
       case 'memoryUpsert':
         return _replaceOrMerge(db, type, p, (a, b) => a['id'] == b['id']);
+      // Наклейку двигают и убирают подряд: серверу нужно последнее
+      // состояние. Убрать ещё не улетевшую — удаление незнакомой наклейки
+      // сервер принимает молча.
+      case 'memorySticker':
+        return _replaceOrMerge(db, type, p,
+            (a, b) => a['memoryId'] == b['memoryId'] && a['sid'] == b['sid']);
       // Желание правят и отмечают подряд — в очередь нужна только последняя
       // версия записи, промежуточные состояния серверу не интересны.
       case 'wishUpsert':
@@ -738,6 +745,8 @@ class OutboxService {
           p['uid'] as String? ?? '',
           p['reaction'] as String? ?? '',
         );
+      case 'memorySticker':
+        return _applySticker(p);
       case 'counterInc':
         return data.incrementGroupCounter(
           p['groupId'] as String? ?? '',
@@ -1108,6 +1117,30 @@ class OutboxService {
     map['reactions'] = next;
     return data.upsertMemory(
         rec.data['group_id'] as String? ?? '', memoryId, map);
+  }
+
+  /// Наклейка уходит своей операцией сервера (см. `memoryStickerOp`).
+  ///
+  /// Ответ в кэш не кладём: там уже стоит то же самое, а за этой операцией в
+  /// очереди может ждать следующая наклейка той же записи — серверная копия
+  /// на миг стёрла бы её с экрана. Отказ по сути (своих уже три, чужая,
+  /// записи нет) с повтором не пройдёт: кэш возвращаем к серверной записи,
+  /// иначе на экране висела бы наклейка, которой нет.
+  Future<bool> _applySticker(Map<String, dynamic> p) async {
+    final memoryId = p['memoryId'] as String? ?? '';
+    if (memoryId.isEmpty) return true;
+    final body = p['del'] == true
+        ? <String, dynamic>{'sticker_del': p['sid']}
+        : <String, dynamic>{
+            'sticker_put': Map<String, dynamic>.from(p['put'] as Map? ?? const {}),
+          };
+    final data = PbDataService();
+    final res = await data.memoryStickerOp(memoryId, body);
+    if (res.record != null) return true;
+    if (!res.refused) return false;
+    final fresh = await data.loadMemoryById(memoryId);
+    if (fresh != null) await LocalStore.instance.upsert('memories', fresh);
+    return true;
   }
 }
 

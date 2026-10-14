@@ -99,6 +99,13 @@ import '../widgets/memory_date_field.dart';
 import '../widgets/memory/add_memory_sheet.dart';
 import '../widgets/memory/adult_veil.dart';
 import '../widgets/memory/on_this_day_shelf.dart';
+import '../widgets/memory/sticker_editor.dart';
+import '../widgets/memory/sticker_layer.dart';
+import '../widgets/memory/sticker_picker_sheet.dart';
+import '../models/memory_sticker.dart';
+import '../services/catalog_service.dart';
+import '../services/offline/pb_id.dart';
+import '../widgets/mood_image.dart';
 import '../models/on_this_day.dart';
 import '../dict_strings.dart' show trKey;
 import '../widgets/rating_widgets.dart';
@@ -2179,7 +2186,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               onTap: () => _openCollage(memory),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: _videoOnlyCell(memory),
+                child: _stickerAnchor(memory, _videoOnlyCell(memory)),
               ),
             ),
           _locationDistancePill(memory),
@@ -2215,6 +2222,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           : null,
     );
     if (memory.isAdult) cover = _BlurAfterTap(child: cover);
+    // Наклейки летят в открытую запись вместе с обложкой.
+    cover = _stickerAnchor(memory, cover);
     cover = UnfoldShared(tag: 'cover', radius: 22, child: cover);
 
     return Column(
@@ -2350,9 +2359,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           const SizedBox(height: 12),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: hasCoords
-                ? _locationMapPreview(memory)
-                : _placeInfoCard(memory, floating: false),
+            child: _stickerAnchor(
+              memory,
+              hasCoords
+                  ? _locationMapPreview(memory)
+                  : _placeInfoCard(memory, floating: false),
+            ),
           ),
           if (caption.isNotEmpty)
             Padding(
@@ -2558,11 +2570,14 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         children: [
           _cardHeader(memory, trailing: _typeBadge(memory)),
           const SizedBox(height: 12),
-          MemoryMusicPlayer(
-            key: ValueKey('player_${memory.id}'),
-            memory: memory,
-            theme: widget.theme,
-            bodyOnly: true,
+          _stickerAnchor(
+            memory,
+            MemoryMusicPlayer(
+              key: ValueKey('player_${memory.id}'),
+              memory: memory,
+              theme: widget.theme,
+              bodyOnly: true,
+            ),
           ),
           if (caption.isNotEmpty)
             Padding(
@@ -2608,16 +2623,19 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           const SizedBox(height: 4),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: NotePin(
-              scheme: ProfileTheme.schemeFor(widget.theme),
-              fill: widget.theme.fillColor,
-              title: hasTitle && hasCaption ? memory.title : null,
-              body: body,
-              bodyBuilder: (text, style) => _SpoilerRichText(
-                text: text,
-                style: style,
-                maxLines: 14,
-                overflow: TextOverflow.ellipsis,
+            child: _stickerAnchor(
+              memory,
+              NotePin(
+                scheme: ProfileTheme.schemeFor(widget.theme),
+                fill: widget.theme.fillColor,
+                title: hasTitle && hasCaption ? memory.title : null,
+                body: body,
+                bodyBuilder: (text, style) => _SpoilerRichText(
+                  text: text,
+                  style: style,
+                  maxLines: 14,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ),
           ),
@@ -2655,7 +2673,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           // ── Book sub-card (3D cover + meta) ──
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Container(
+            child: _stickerAnchor(memory, Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: widget.theme.surfaceMuted,
@@ -2738,7 +2756,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   ),
                 ],
               ),
-            ),
+            )),
           ),
           if (memory.caption?.isNotEmpty == true)
             Padding(
@@ -2815,7 +2833,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           const SizedBox(height: 10),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Container(
+            child: _stickerAnchor(memory, Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: widget.theme.surfaceMuted,
@@ -2897,7 +2915,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   ),
                 ],
               ),
-            ),
+            )),
           ),
           if (memory.caption?.isNotEmpty == true)
             Padding(
@@ -2991,27 +3009,30 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14),
             // YouTube играет прямо в карточке, остальные открываются снаружи.
-            child: platformName == 'YouTube'
-                ? _YouTubeInlineCard(
-                    memory: memory,
-                    pairId: pair.pairId,
-                    partnerUid: pair.partnerUid,
-                  )
-                : VideoPin(
-                    scheme: ProfileTheme.schemeFor(widget.theme),
-                    fill: widget.theme.fillColor,
-                    url: url,
-                    platformName: platformName,
-                    platformIcon: _videoPlatformIcon(platformName),
-                    thumbUrl: memory.imageUrl?.isNotEmpty == true
-                        ? memory.imageUrl
-                        : videoLinkThumb(url),
-                    title: memory.title,
-                    author: memory.musicArtist,
-                    caption: memory.caption,
-                    onPlay: openOutside,
-                    onOpen: openOutside,
-                  ),
+            child: _stickerAnchor(
+              memory,
+              platformName == 'YouTube'
+                  ? _YouTubeInlineCard(
+                      memory: memory,
+                      pairId: pair.pairId,
+                      partnerUid: pair.partnerUid,
+                    )
+                  : VideoPin(
+                      scheme: ProfileTheme.schemeFor(widget.theme),
+                      fill: widget.theme.fillColor,
+                      url: url,
+                      platformName: platformName,
+                      platformIcon: _videoPlatformIcon(platformName),
+                      thumbUrl: memory.imageUrl?.isNotEmpty == true
+                          ? memory.imageUrl
+                          : videoLinkThumb(url),
+                      title: memory.title,
+                      author: memory.musicArtist,
+                      caption: memory.caption,
+                      onPlay: openOutside,
+                      onOpen: openOutside,
+                    ),
+            ),
           ),
           const SizedBox(height: 12),
           _cardFooter(memory),
@@ -3214,7 +3235,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       child: UnfoldSource(
         fill: widget.theme.cardSurface,
         radius: 28,
-        builder: (_, source) => GestureDetector(
+        // Через карточку меню долгого нажатия находит блок с наклейками.
+        builder: (_, source) => StickerCardScope(
+          child: Builder(
+            builder: (cardContext) => GestureDetector(
           onTap: _selecting
               ? () => _toggleSelected(memory)
               : (enableTap
@@ -3222,8 +3246,13 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   : null),
           onLongPress: _selecting
               ? () => _toggleSelected(memory)
-              : () => _showMemoryActions(memory),
+              : () => _showMemoryActions(memory,
+                  card: StickerCardScope.maybeOf(cardContext)),
           child: Stack(
+            // Наклейка свисает за край карточки, как на макете: ни карточка,
+            // ни стопка её не обрезают. Всё содержимое карточки стоит с
+            // отступом и своими скруглениями, обрезка ему не нужна.
+            clipBehavior: Clip.none,
             children: [
               Container(
                 // Плоский стиль пинов: без тени, свечения и бордера
@@ -3232,7 +3261,6 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
                   color: widget.theme.cardSurface,
                   borderRadius: BorderRadius.circular(28),
                 ),
-                clipBehavior: Clip.antiAlias,
                 // В режиме выбора кнопки внутри карточки (плеер, ссылки)
                 // молчат: касание целиком отмечает запись.
                 child: AbsorbPointer(absorbing: _selecting, child: child),
@@ -3282,6 +3310,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               ],
             ],
           ),
+            ),
+          ),
         ),
       ),
     );
@@ -3306,6 +3336,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       userLng: _userLng,
       liveAuthorAvatar: _liveAvatar(memory),
       partnerUid: pair.partnerUid,
+      nameOf: _nameOf,
       onEdit: () => _editMemory(memory),
       onDelete: () => _confirmDelete(memory),
       onSetLocation: () => _setLocationOnMemory(memory),
@@ -3500,7 +3531,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     }
   }
 
-  void _showMemoryActions(Memory memory) {
+  /// [card] — карточка, на которой держат палец: через неё наклейка встаёт
+  /// прямо на место. Без неё (карточка без блока) пункта наклейки нет.
+  void _showMemoryActions(Memory memory, {StickerCardScopeState? card}) {
+    final stickerCard = card?.anchor != null ? card : null;
     // Общий лист приложения: без него последняя строка меню («Удалить»)
     // уходила под кнопки навигации у телефонов с кнопочной панелью.
     showAppSheet(
@@ -3520,6 +3554,22 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
               ),
             ),
             const SizedBox(height: 16),
+            // Новый пункт первым и у обоих в паре: наклейку ставят и на
+            // чужой пин.
+            if (stickerCard != null)
+              ListTile(
+                key: const Key('memory-action-sticker'),
+                leading: SizedBox(
+                  width: 26,
+                  height: 26,
+                  child: _stickerMenuPicture(),
+                ),
+                title: Text(trKey('stickerAdd')),
+                onTap: () {
+                  Navigator.pop(context);
+                  _addSticker(memory, stickerCard);
+                },
+              ),
             // На главной (встроенная лента) панелей выбора нет — там строки нет.
             if (!widget.embedded)
               ListTile(
@@ -3617,6 +3667,184 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         ),
       ),
     );
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  STICKERS — наклейки на пинах (макет «Наклейки на пинах», вариант А)
+  // ═══════════════════════════════════════════════════
+  /// Главный блок пина с наклейками: фото, лист заметки, обложка. Касание по
+  /// наклейке говорит, чья она; свою можно переставить или убрать.
+  Widget _stickerAnchor(Memory memory, Widget child) => StickerAnchor(
+        stickers: memory.stickers,
+        onTap: (s, anchor) => _onStickerTap(memory, s, anchor),
+        child: child,
+      );
+
+  /// Значок пункта меню — настоящая наклейка, как на макете: по нему пункт
+  /// узнаётся сразу.
+  Widget _stickerMenuPicture() {
+    final packs = CatalogService.instance.allPacks;
+    final pack =
+        packs.where((p) => p.id == 'bunny').firstOrNull ?? packs.firstOrNull;
+    final image = pack?.previewImage ?? '';
+    if (image.isEmpty) return Icon(Icons.add_reaction_rounded, color: primary);
+    return MoodImage(image, width: 26, height: 26);
+  }
+
+  /// Наклеить новую: лист наборов, потом место прямо на карточке.
+  Future<void> _addSticker(Memory memory, StickerCardScopeState card) async {
+    final uid = _myUid ?? '';
+    if (!canAddSticker(memory.stickers, uid)) {
+      showFloatingNote(context, trKey('stickerLimit'),
+          icon: Icons.info_outline_rounded);
+      return;
+    }
+    final choice = await showStickerPicker(context, user: widget.userData);
+    if (choice == null || !mounted || !card.mounted) return;
+    // Новая встаёт в середину блока с лёгким наклоном, как наклейку
+    // прикладывают рукой.
+    final fresh = MemorySticker(
+      id: newPbId(),
+      uid: uid,
+      image: choice.image,
+      pack: choice.pack,
+      mood: choice.mood,
+      x: .5,
+      y: .5,
+      angle: -0.1,
+      at: DateTime.now().millisecondsSinceEpoch,
+    );
+    final result = await _placeSticker(card, fresh, isNew: true);
+    final placed = result?.sticker;
+    if (placed == null || !mounted) return;
+    card.anchor?.expectPlaced(placed);
+    await _memRepo.putSticker(memoryId: memory.id, sticker: placed);
+  }
+
+  /// Наклеивание над карточкой. Карточку сперва подводим ближе к середине
+  /// экрана: ставить наклейку на полускрытое фото неудобно.
+  Future<StickerEditResult?> _placeSticker(
+    StickerCardScopeState card,
+    MemorySticker sticker, {
+    required bool isNew,
+  }) async {
+    final anchor = card.anchor;
+    if (anchor == null) return null;
+    await Scrollable.ensureVisible(
+      anchor.context,
+      alignment: 0.4,
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
+    );
+    if (!mounted || !anchor.mounted || !card.mounted) return null;
+    final block = anchor.globalRect;
+    final rect = card.globalRect;
+    if (block == null || rect == null) return null;
+    // Переставляемую рисует редактор, на карточке её на это время нет.
+    if (!isNew) anchor.hidden.value = sticker.id;
+    final result = await placeStickerOnCard(
+      context,
+      block: block,
+      card: rect,
+      sticker: sticker,
+      isNew: isNew,
+      others: [for (final s in anchor.shown) if (s.id != sticker.id) s],
+    );
+    if (result == null && anchor.mounted) anchor.hidden.value = null;
+    return result;
+  }
+
+  Future<void> _onStickerTap(
+    Memory memory,
+    MemorySticker s,
+    StickerAnchorState anchor,
+  ) async {
+    final uid = _myUid ?? '';
+    final who = s.uid == uid ? trKey('stickerMine') : _stickerFrom(s.uid);
+    final canMove = canMoveSticker(s, uid);
+    final canRemove =
+        canRemoveSticker(s, uid: uid, authorUid: memory.authorUid);
+    if (!canMove && !canRemove) {
+      showFloatingNote(context, who, icon: Icons.favorite_rounded);
+      return;
+    }
+    final t = widget.theme;
+    final action = await showAppSheet<String>(
+      context,
+      background: t.cardSurface,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: t.divider,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 6),
+              child: Row(
+                children: [
+                  StickerPicture(image: s.image, side: 56, angle: s.angle),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      who,
+                      style: AppFonts.onest(
+                          size: 16, weight: 700, color: t.textPrimary),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (canMove)
+              ListTile(
+                key: const Key('sticker-action-move'),
+                leading: Icon(Icons.open_with_rounded, color: primary),
+                title: Text(trKey('stickerMove')),
+                onTap: () => Navigator.pop(ctx, 'move'),
+              ),
+            if (canRemove)
+              ListTile(
+                key: const Key('sticker-action-remove'),
+                leading: Icon(Icons.delete_outline_rounded, color: _cs.error),
+                title: Text(trKey('stickerRemove'),
+                    style: TextStyle(color: _cs.error)),
+                onTap: () => Navigator.pop(ctx, 'remove'),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (action == null || !mounted || !anchor.mounted) return;
+    if (action == 'remove') {
+      anchor.expectRemoved(s.id);
+      await _memRepo.removeSticker(memoryId: memory.id, stickerId: s.id);
+      return;
+    }
+    final card = StickerCardScope.maybeOf(anchor.context);
+    if (card == null) return;
+    final result = await _placeSticker(card, s, isNew: false);
+    if (result == null || !mounted || !anchor.mounted) return;
+    final placed = result.sticker;
+    if (result.removed) {
+      anchor.expectRemoved(s.id);
+      await _memRepo.removeSticker(memoryId: memory.id, stickerId: s.id);
+    } else if (placed != null) {
+      anchor.expectPlaced(placed);
+      await _memRepo.putSticker(memoryId: memory.id, sticker: placed);
+    }
+  }
+
+  String _stickerFrom(String uid) {
+    final name = _nameOf(uid);
+    return trKey('stickerFrom').replaceAll('{name}', name.isEmpty ? '…' : name);
   }
 
   // ═══════════════════════════════════════════════════
