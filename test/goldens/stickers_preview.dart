@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:love_app/models/custom_mood.dart';
 import 'package:love_app/models/memory_sticker.dart';
 import 'package:love_app/services/locale_service.dart';
+import 'package:love_app/services/plus_access.dart';
 import 'package:love_app/theme/app_palettes.dart';
 import 'package:love_app/theme/profile_theme.dart';
 import 'package:love_app/theme/theme_scope.dart';
@@ -16,14 +18,38 @@ import 'package:love_app/widgets/memory/sticker_layer.dart';
 import 'package:love_app/widgets/memory/sticker_picker_sheet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Наклейки на пинах глазами: лента, наклеивание на карточке, лист наборов.
+import '../helpers/fake_custom_mood_store.dart';
+
+/// Наклейки на пинах глазами: лента, наклеивание на карточке, лист наборов
+/// и «Свои» настроения пары в нём.
 ///
 ///   STICKER_PHOTO=<снимок.jpg> flutter test test/goldens/stickers_preview.dart
 ///   → build/stickers/*.png
 ///
 /// Карточка повторяет `_photoTile` ленты (шапка, подпись, обложка, низ),
 /// наклейки рисуют настоящие StickerAnchor и редактор. Без снимка вместо
-/// фото тональная заливка.
+/// фото тональная заливка. Свои настроения — картинки из
+/// `test/fixtures/custom_mood/`.
+
+const _fx = 'test/fixtures/custom_mood';
+
+/// Картинки из test/fixtures отдаются как ассеты сборки.
+class _FixtureBundle extends CachingAssetBundle {
+  @override
+  Future<ByteData> load(String key) async {
+    if (key.startsWith('test/fixtures/')) return ByteData.sublistView(File(key).readAsBytesSync());
+    return rootBundle.load(key);
+  }
+}
+
+List<CustomMood> _own() => [
+      ownMood('pug', label: 'Под пледом', image: '$_fx/pug.webp'),
+      ownMood('boom', label: 'Взрыв мозга', score: 2, emoji: '🤯', image: '$_fx/boom.webp'),
+      ownMood('sleepy', label: 'Сонная булка', author: 'partner', image: '$_fx/sleepy.webp'),
+      ownMood('pizza', label: 'Хочу пиццу', score: 4, emoji: '🍕', image: '$_fx/pizza.webp'),
+      ownMood('bear', label: 'Злюка до кофе', score: 1, author: 'partner', image: '$_fx/bear.webp'),
+      ownMood('heart', label: 'Скучаю по тебе', score: 4, author: 'partner', image: '$_fx/heart.webp'),
+    ];
 
 Future<void> _loadFont(String family, String path) async {
   final loader = FontLoader(family)
@@ -149,7 +175,21 @@ void main() {
                       const SizedBox(height: 10),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: StickerAnchor(stickers: _stickers, onTap: (_, _) {}, child: cover()),
+                        child: StickerAnchor(
+                          stickers: _stickers,
+                          onTap: (_, _) {},
+                          // Своё настроение пары: в ленте его адрес — файл
+                          // сервера, здесь картинка из fixtures.
+                          child: Stack(clipBehavior: Clip.none, children: [
+                            cover(),
+                            const Positioned(
+                              left: 168,
+                              top: 84,
+                              child: StickerPicture(
+                                  image: '$_fx/pug.webp', side: 92, angle: .12, rounded: true),
+                            ),
+                          ]),
+                        ),
                       ),
                       const SizedBox(height: 62),
                     ],
@@ -191,18 +231,21 @@ void main() {
 
       await tester.pumpWidget(RepaintBoundary(
         key: key,
-        child: ThemeScope(
-          theme: theme,
-          child: MaterialApp(
-            debugShowCheckedModeBanner: false,
-            theme: ProfileTheme.data(cs),
-            home: Builder(builder: (context) {
-              appContext = context;
-              return Scaffold(
-                backgroundColor: b == Brightness.dark ? Colors.black : cs.surface,
-                body: feed(),
-              );
-            }),
+        child: DefaultAssetBundle(
+          bundle: _FixtureBundle(),
+          child: ThemeScope(
+            theme: theme,
+            child: MaterialApp(
+              debugShowCheckedModeBanner: false,
+              theme: ProfileTheme.data(cs),
+              home: Builder(builder: (context) {
+                appContext = context;
+                return Scaffold(
+                  backgroundColor: b == Brightness.dark ? Colors.black : cs.surface,
+                  body: feed(),
+                );
+              }),
+            ),
           ),
         ),
       ));
@@ -227,6 +270,25 @@ void main() {
       showStickerPicker(appContext);
       await tester.pump(const Duration(milliseconds: 600));
       await _shot(tester, key, 'sheet-${b.name}');
+      Navigator.of(appContext).pop();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // Лист выезжает дольше полсекунды: жмём, когда он встал.
+      showStickerPicker(appContext,
+          groupId: 'g1', store: FakeCustomMoodStore(_own()), plusGate: PlusGate.open);
+      await _settle(tester);
+      await tester.tap(find.byKey(const Key('sticker-pack-own')));
+      await tester.pump(const Duration(milliseconds: 400));
+      await _shot(tester, key, 'sheet-own-${b.name}');
+      Navigator.of(appContext).pop();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      showStickerPicker(appContext,
+          groupId: 'g1', store: FakeCustomMoodStore(), plusGate: PlusGate.locked);
+      await _settle(tester);
+      await tester.tap(find.byKey(const Key('sticker-pack-own')));
+      await tester.pump(const Duration(milliseconds: 400));
+      await _shot(tester, key, 'sheet-own-teaser-${b.name}');
     });
   }
 }

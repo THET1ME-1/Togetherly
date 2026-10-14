@@ -131,7 +131,7 @@ class MoodPackSelector extends StatelessWidget {
 
         final own = this.own;
         final ownSelected = shownId == kOwnMoodPackId;
-        Widget ownChip({required bool stretched}) => _OwnChip(
+        Widget ownChip({required bool stretched}) => OwnMoodPackChip(
               key: const Key('mood-pack-own'),
               chip: own!,
               selected: ownSelected,
@@ -355,12 +355,13 @@ class OwnPackChip {
     ? (t.fillColor, AppThemes.onColor(t.fillColor, mode: t.brightness))
     : (t.surfaceMuted, t.textSecondary);
 
-class _OwnChip extends StatelessWidget {
+/// Таблетка «Свои». Её же берёт лист наклеек.
+class OwnMoodPackChip extends StatelessWidget {
   final OwnPackChip chip;
   final bool selected;
   final bool stretched;
 
-  const _OwnChip({super.key, required this.chip, required this.selected, required this.stretched});
+  const OwnMoodPackChip({super.key, required this.chip, required this.selected, required this.stretched});
 
   @override
   Widget build(BuildContext context) {

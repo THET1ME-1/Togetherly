@@ -3699,7 +3699,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
           icon: Icons.info_outline_rounded);
       return;
     }
-    final choice = await showStickerPicker(context, user: widget.userData);
+    final choice = await showStickerPicker(context,
+        user: widget.userData, groupId: _groupId);
     if (choice == null || !mounted || !card.mounted) return;
     // Новая встаёт в середину блока с лёгким наклоном, как наклейку
     // прикладывают рукой.

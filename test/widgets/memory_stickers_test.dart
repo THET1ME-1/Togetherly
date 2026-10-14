@@ -8,7 +8,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:love_app/models/memory_sticker.dart';
 import 'package:love_app/services/locale_service.dart';
 import 'package:love_app/theme/app_palettes.dart';
-import 'package:love_app/theme/app_theme.dart';
 import 'package:love_app/theme/profile_theme.dart';
 import 'package:love_app/theme/theme_scope.dart';
 import 'package:love_app/widgets/memory/sticker_editor.dart';
@@ -130,6 +129,36 @@ void main() {
       expect(find.byKey(const ValueKey('sticker-a')), findsNothing);
       await tester.tap(find.byKey(const ValueKey('sticker-b')));
       expect(tapped?.id, 'b');
+    });
+
+    testWidgets('своё настроение пары клеится со скруглёнными углами',
+        (tester) async {
+      _screen(tester);
+      await tester.pumpWidget(_app(const Scaffold(
+        body: Center(
+          child: Column(children: [
+            StickerPicture(key: Key('own'), image: _img, side: 100, rounded: true),
+            StickerPicture(key: Key('pack'), image: _img, side: 100),
+          ]),
+        ),
+      )));
+      Finder clipIn(String key) => find.descendant(
+          of: find.byKey(Key(key)), matching: find.byType(ClipRSuperellipse));
+      expect(clipIn('own'), findsOneWidget);
+      expect(clipIn('pack'), findsNothing);
+    });
+
+    testWidgets('пропавшая картинка не оставляет заглушку поверх фото',
+        (tester) async {
+      _screen(tester);
+      await tester.pumpWidget(_app(const Scaffold(
+        body: Center(
+          child: StickerPicture(image: 'assets/images/нет-такой.webp', side: 100),
+        ),
+      )));
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
+      await tester.pump();
+      expect(find.byIcon(Icons.sentiment_satisfied_alt_rounded), findsNothing);
     });
 
     testWidgets('блок сообщает о себе карточке, поставленная видна сразу',

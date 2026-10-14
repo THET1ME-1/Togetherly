@@ -21,12 +21,18 @@ class MoodImage extends StatelessWidget {
   final double? width;
   final double? height;
 
+  /// Картинки нет нигде — пустое место вместо значка-заглушки. Так рисуется
+  /// наклейка: серый смайлик поверх фото выглядел бы поломкой, а пропадает
+  /// её картинка, когда своё настроение убрали из набора.
+  final bool quietError;
+
   const MoodImage(
     this.imagePath, {
     super.key,
     this.fit = BoxFit.contain,
     this.width,
     this.height,
+    this.quietError = false,
   });
 
   static bool _isRemote(String p) =>
@@ -102,9 +108,11 @@ class MoodImage extends StatelessWidget {
     return _icon(context);
   }
 
-  Widget _icon(BuildContext context) => Icon(
-        Icons.sentiment_satisfied_alt_rounded,
-        size: (width ?? height ?? 32) * 0.7,
-        color: context.appTheme.textMuted,
-      );
+  Widget _icon(BuildContext context) => quietError
+      ? SizedBox(width: width, height: height)
+      : Icon(
+          Icons.sentiment_satisfied_alt_rounded,
+          size: (width ?? height ?? 32) * 0.7,
+          color: context.appTheme.textMuted,
+        );
 }

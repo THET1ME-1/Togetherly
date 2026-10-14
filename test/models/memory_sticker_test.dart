@@ -107,6 +107,22 @@ void main() {
           isFalse);
       expect(stickerImageAllowed('assets/images/${'a' * 400}'), isFalse);
     });
+
+    test('берутся свои настроения пары', () {
+      const own =
+          'https://togetherly.day/api/files/custom_moods/k3m9x2p7q1w5e8r/custom_ab12cd34_x9y8z7w6v5.png';
+      expect(stickerImageAllowed(own), isTrue);
+      expect(
+          stickerImageAllowed(
+              'https://togetherly.duckdns.org/api/files/custom_moods/k3m9x2p7q1w5e8r/a.png'),
+          isTrue);
+      expect(isOwnMoodSticker(own), isTrue);
+      expect(isOwnMoodSticker('assets/images/mood_packs/bunny/love.webp'), isFalse);
+      expect(
+          isOwnMoodSticker(
+              'https://togetherly.day/api/files/catalog_items/dog/love_l1f07p337t.webp'),
+          isFalse);
+    });
   });
 
   group('права и предел', () {

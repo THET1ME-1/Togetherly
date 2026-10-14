@@ -33,7 +33,8 @@ class MemorySticker {
   /// записи.
   final String uid;
 
-  /// Картинка: ассет сборки или адрес каталога, как `imagePath` настроения.
+  /// Картинка: ассет сборки, адрес каталога или своего настроения пары, как
+  /// `imagePath` настроения.
   final String image;
 
   /// Набор и настроение в нём — по ним каталог находит свежий адрес, если
@@ -116,9 +117,9 @@ const double kStickerMaxSize = 0.7;
 
 const int _kMaxImageLength = 300;
 
-/// Картинка наклейки годится: ассет сборки или файл каталога на своём
-/// сервере. Чужой адрес не берём — иначе запись подгружала бы картинку с
-/// любого сайта у партнёра.
+/// Картинка наклейки годится: ассет сборки, файл каталога или своё
+/// настроение пары на своём сервере. Чужой адрес не берём — иначе запись
+/// подгружала бы картинку с любого сайта у партнёра.
 bool stickerImageAllowed(String path) {
   if (path.isEmpty || path.length > _kMaxImageLength) return false;
   if (path.contains('..')) return false;
@@ -126,9 +127,16 @@ bool stickerImageAllowed(String path) {
   const hosts = [
     'https://togetherly.day/api/files/catalog_items/',
     'https://togetherly.duckdns.org/api/files/catalog_items/',
+    'https://togetherly.day/api/files/custom_moods/',
+    'https://togetherly.duckdns.org/api/files/custom_moods/',
   ];
   return hosts.any(path.startsWith);
 }
+
+/// Наклейка из «Своих» настроений пары (Togetherly+). Фото и рисунок там —
+/// квадрат во весь кадр, а не вырезанная фигурка, поэтому на пине у такой
+/// наклейки скруглённые углы.
+bool isOwnMoodSticker(String path) => path.contains('/api/files/custom_moods/');
 
 /// Место, размер и поворот в допустимых пределах.
 MemorySticker clampSticker(MemorySticker s) {

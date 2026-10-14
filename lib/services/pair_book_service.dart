@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -8,8 +10,11 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 
 import '../models/memory.dart';
+import '../models/memory_sticker.dart';
+import '../models/mood_entry.dart';
 import '../models/pair_book.dart';
 import 'locale_service.dart';
+import 'offline/media_view_cache.dart';
 import 'pb_media_service.dart';
 import 'pair_book_pdf.dart';
 
@@ -26,6 +31,60 @@ const int kBookPhotoSide = 1400;
 
 /// Сколько записей книга собирает без предупреждения.
 const int kBookSoftLimit = 800;
+
+/// Сторона наклейки в книге, точки картинки. Самая крупная наклейка — 0,7
+/// ширины снимка, около 165 pt; при 150 точках на дюйм это 340 точек.
+const int kBookStickerSide = 340;
+
+/// Наклейка для книги: первый кадр картинки в PNG не больше [side] по
+/// стороне, или null, если картинка не читается.
+///
+/// Наборы лежат в WebP, а PDF понимает только JPEG и PNG; JPEG съел бы
+/// прозрачный фон. Кодек телефона заодно ужимает исходные 512 точек.
+Future<Uint8List?> bookStickerPng(Uint8List raw, {int side = kBookStickerSide}) async {
+  try {
+    final buffer = await ui.ImmutableBuffer.fromUint8List(raw);
+    final descriptor = await ui.ImageDescriptor.encoded(buffer);
+    final long = math.max(descriptor.width, descriptor.height);
+    final scale = long > side ? side / long : 1.0;
+    final codec = await descriptor.instantiateCodec(
+      targetWidth: math.max(1, (descriptor.width * scale).round()),
+      targetHeight: math.max(1, (descriptor.height * scale).round()),
+    );
+    final frame = await codec.getNextFrame();
+    final data = await frame.image.toByteData(format: ui.ImageByteFormat.png);
+    frame.image.dispose();
+    codec.dispose();
+    descriptor.dispose();
+    buffer.dispose();
+    return data?.buffer.asUint8List();
+  } catch (e) {
+    debugPrint('PairBook: наклейка не читается ($e)');
+    return null;
+  }
+}
+
+/// Наклейки записи для книги на тех же местах, что на пине. Картинку готовит
+/// [png]; не доехавшая наклейка пропускается.
+Future<List<BookPdfSticker>> bookStickers(
+  List<MemorySticker> stickers,
+  Future<Uint8List?> Function(String image) png,
+) async {
+  final out = <BookPdfSticker>[];
+  for (final s in stickers) {
+    final image = await png(s.image);
+    if (image == null) continue;
+    out.add(BookPdfSticker(
+      image: image,
+      x: s.x,
+      y: s.y,
+      size: s.size,
+      angle: s.angle,
+      rounded: isOwnMoodSticker(s.image),
+    ));
+  }
+  return out;
+}
 
 /// Сборка книги пары: скачивает снимки, ужимает их и складывает PDF.
 class PairBookService {
@@ -53,6 +112,8 @@ class PairBookService {
 
     var done = 0;
     final pdfDays = <BookPdfDay>[];
+    // Одна картинка наклейки готовится один раз на всю книгу.
+    final stickerPngs = <String, Future<Uint8List?>>{};
     for (final day in days) {
       final entries = <BookPdfEntry>[];
       for (final m in day.memories) {
@@ -61,6 +122,10 @@ class PairBookService {
           caption: _captionOf(m),
           author: m.authorName,
           photos: await _photosOf(m),
+          stickers: await bookStickers(
+            m.stickers,
+            (image) => stickerPngs[image] ??= _stickerPng(image),
+          ),
         ));
         onProgress?.call(++done, memories.length);
       }
@@ -146,6 +211,39 @@ class PairBookService {
       // Один недоехавший снимок не повод рушить книгу целиком.
       debugPrint('PairBook: снимок не доехал ($e)');
       return null;
+    }
+  }
+
+  /// Картинка наклейки в PNG: ассет сборки, файл каталога или своего
+  /// настроения. Файл обычно уже лежит в кэше ленты, сеть не нужна.
+  Future<Uint8List?> _stickerPng(String path) async {
+    try {
+      final Uint8List raw;
+      if (path.startsWith('assets/')) {
+        raw = await _stickerAsset(path);
+      } else {
+        final file = await OfflineImageCacheManager.instance
+            .getSingleFile(MoodOption.freshRemotePath(path) ?? path)
+            .timeout(const Duration(seconds: 20));
+        raw = await file.readAsBytes();
+      }
+      return await bookStickerPng(raw);
+    } catch (e) {
+      // Не доехала одна наклейка — запись идёт в книгу без неё.
+      debugPrint('PairBook: наклейка не доехала ($e)');
+      return null;
+    }
+  }
+
+  Future<Uint8List> _stickerAsset(String path) async {
+    try {
+      return (await rootBundle.load(path)).buffer.asUint8List();
+    } catch (_) {
+      // Набора нет в этой сборке — то же настроение из классических, как в
+      // ленте (MoodImage).
+      final classic = MoodOption.classicFallbackFor(path);
+      if (classic == null) rethrow;
+      return (await rootBundle.load(classic)).buffer.asUint8List();
     }
   }
 

@@ -48,6 +48,13 @@ void main() {
     expect(feed, contains("trKey('stickerAdd')"));
   });
 
+  test('лист наклеек знает пару: без неё нет «Своих»', () {
+    final feed = _read('lib/screens/memory_lane_screen.dart');
+    final call = RegExp(r'showStickerPicker\(([^;]*)\);').firstMatch(feed);
+    expect(call, isNotNull);
+    expect(call!.group(1), contains('groupId: _groupId'));
+  });
+
   test('открытая запись показывает наклейки на обложке', () {
     final detail = _read('lib/screens/memory_lane/detail.dart');
     // Заметка, ссылка, своё видео без кадра, музыка, книга, кино, место и

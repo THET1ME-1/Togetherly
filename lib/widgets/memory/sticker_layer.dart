@@ -24,18 +24,37 @@ Rect? globalRectOf(BuildContext context) {
 }
 
 /// Картинка наклейки, повёрнутая на свой угол.
+///
+/// Своё настроение пары — квадрат фото или рисунка во весь кадр, поэтому
+/// углы у него мягкие, как у плиток настроений. Картинка пропала — на её
+/// месте пусто, без заглушки.
 class StickerPicture extends StatelessWidget {
-  const StickerPicture({super.key, required this.image, required this.side, this.angle = 0});
+  const StickerPicture({
+    super.key,
+    required this.image,
+    required this.side,
+    this.angle = 0,
+    this.rounded,
+  });
 
   final String image;
   final double side;
   final double angle;
 
+  /// Скруглить углы. null — решает адрес: скругляются «Свои» настроения.
+  final bool? rounded;
+
   @override
-  Widget build(BuildContext context) => Transform.rotate(
-        angle: angle,
-        child: MoodImage(image, width: side, height: side),
+  Widget build(BuildContext context) {
+    Widget picture = MoodImage(image, width: side, height: side, quietError: true);
+    if (rounded ?? isOwnMoodSticker(image)) {
+      picture = ClipRSuperellipse(
+        borderRadius: BorderRadius.circular(side * 0.26),
+        child: picture,
       );
+    }
+    return Transform.rotate(angle: angle, child: picture);
+  }
 }
 
 /// Наклейки поверх блока. Наклейка может свисать за край блока наполовину:

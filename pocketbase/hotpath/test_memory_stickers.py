@@ -54,6 +54,14 @@ s = наклейка_из_тела(наклейка("a1", uid="чужой", x=3,
           наклейка_из_тела(наклейка(
               "a4", img="https://togetherly.day/api/files/catalog_items/dog/love_l1f07p337t.webp"),
               "я", СЕЙЧАС) is not None)
+проверить("своё настроение пары берётся",
+          наклейка_из_тела(наклейка(
+              "a6", img="https://togetherly.day/api/files/custom_moods/k3m9x2p7q1w5e8r/custom_ab12cd34_x9y8z7w6v5.png"),
+              "я", СЕЙЧАС) is not None)
+проверить("файл другой коллекции не берётся",
+          наклейка_из_тела(наклейка(
+              "a7", img="https://togetherly.day/api/files/memories/k3m9x2p7q1w5e8r/a.jpg"),
+              "я", СЕЙЧАС) is None)
 проверить("без id не берётся",
           наклейка_из_тела(наклейка(""), "я", СЕЙЧАС) is None)
 проверить("не карта — не берётся", наклейка_из_тела("x", "я", СЕЙЧАС) is None)
