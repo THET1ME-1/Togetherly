@@ -32,6 +32,27 @@ class OfflineImageCacheManager extends CacheManager with ImageCacheManager {
         ));
 }
 
+/// Кэш баннеров профиля, хозяин — `BannerCache`.
+///
+/// Отдельный от [OfflineImageCacheManager], чтобы лента воспоминаний не
+/// вытесняла шапку своими тысячами файлов. Папка та же постоянная.
+class BannerCacheManager extends CacheManager {
+  static const key = 'bannerCacheV1';
+
+  static final BannerCacheManager instance = BannerCacheManager._();
+
+  BannerCacheManager._()
+      : super(Config(
+          key,
+          // Файл под ссылкой баннера не меняется, уборка по давности не нужна.
+          stalePeriod: const Duration(days: 3650),
+          // Своя шапка, пара, друзья и прежние баннеры. Сверх потолка первыми
+          // уходят те, что дольше всех не открывали.
+          maxNrOfCacheObjects: 60,
+          fileSystem: _PersistentFileSystem(key),
+        ));
+}
+
 /// Папка кэша картинок. На Android — `files/offline/<key>`: её система не
 /// чистит, а автобэкап её не берёт (`offline` исключён в backup_rules.xml и
 /// data_extraction_rules.xml). На iPhone — прежняя Library/Caches: скачиваемое

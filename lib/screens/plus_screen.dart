@@ -238,6 +238,7 @@ class _PlusScreenState extends State<PlusScreen> {
       (Icons.swipe_up_rounded, _s.plusReelsTitle, _s.plusReelsBody),
       (Icons.palette_rounded, _s.plusThemesTitle, _s.plusThemesBody),
       (Icons.colorize_rounded, _s.plusCustomThemeTitle, _s.plusCustomThemeBody),
+      (Icons.gif_box_rounded, _s.plusBannerTitle, _s.plusBannerBody),
       (Icons.water_drop_rounded, _s.plusCycleTitle, _s.plusCycleBody),
       (Icons.widgets_rounded, _s.plusWidgetsTitle, _s.plusWidgetsBody),
       (Icons.lightbulb_rounded, _s.plusTipsTitle, _s.plusTipsBody),

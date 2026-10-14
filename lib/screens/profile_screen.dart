@@ -6,6 +6,7 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'couple_stats_screen.dart';
 import 'profile/profile_hero.dart';
+import 'profile/banner_source_sheet.dart';
 import 'profile/miss_you_week_chart.dart';
 import '../models/partner_profile.dart';
 import 'package:flutter/services.dart';
@@ -24,6 +25,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'dart:io' show Platform, File;
 import '../services/media_service.dart';
+import '../services/pb_media_service.dart';
+import '../services/banner_cache.dart';
+import '../models/banner_gif.dart';
+import '../models/upload_failure.dart';
 import 'package:pocketbase/pocketbase.dart' show ClientException;
 
 import '../services/pb_auth_service.dart';
@@ -1307,71 +1312,96 @@ class _ProfileScreenState extends State<ProfileScreen>
   /// Шапка: широкий баннер-градиент со скруглённым низом и круглым аватаром,
   /// свисающим в кольце цвета поверхности (приём Kadr). Тап по аватару и по
   /// иконке карандаша ведёт в редактирование профиля.
-  /// Сменить фото-баннер профиля: камера или галерея, кроп 16:9. Пока хранится
-  /// локально на устройстве (синк на сервер — отдельной задачей).
+  /// Сменить баннер профиля: камера или галерея с кропом 16:9, а с
+  /// Togetherly+ ещё и GIF без кропа ([BannerGif]). Баннер уходит на сервер
+  /// (`banner_url`), его видит и партнёр.
   Future<void> _pickBanner(BuildContext context) async {
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      backgroundColor: _cs.surfaceContainerHigh,
-      showDragHandle: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: Icon(
-                Icons.photo_camera_rounded,
-                color: _cs.onSurfaceVariant,
-              ),
-              title: Text(
-                _s.photoFromCamera,
-                style: TextStyle(
-                  fontFamily: ProfileTheme.bodyFont,
-                  fontWeight: FontWeight.w600,
-                  color: _cs.onSurface,
-                ),
-              ),
-              onTap: () => Navigator.pop(ctx, ImageSource.camera),
-            ),
-            ListTile(
-              leading: Icon(
-                Icons.photo_library_rounded,
-                color: _cs.onSurfaceVariant,
-              ),
-              title: Text(
-                _s.photoFromGallery,
-                style: TextStyle(
-                  fontFamily: ProfileTheme.bodyFont,
-                  fontWeight: FontWeight.w600,
-                  color: _cs.onSurface,
-                ),
-              ),
-              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
+    final source = await showBannerSourceSheet(
+      context,
+      cs: _cs,
+      gifGate: PlusService.instance.gate,
     );
     if (source == null || !mounted) return;
+    if (source == BannerSource.gif) {
+      // Гейт читаем заново: Плюс мог открыться, пока лист был на экране.
+      if (PlusService.instance.gate == PlusGate.locked) {
+        _openPlus(this.context);
+        return;
+      }
+      await _pickBannerGif();
+      return;
+    }
     final picker = ImagePicker();
     final image = await safePick(
       () => picker.pickImage(
-        source: source,
+        source: source == BannerSource.camera
+            ? ImageSource.camera
+            : ImageSource.gallery,
         imageQuality: 90,
         maxWidth: 1600,
         maxHeight: 1000,
       ),
     );
     if (image == null || !mounted) return;
+    await _cropBanner(image.path);
+  }
+
+  /// GIF с Togetherly+: без кропа и пересжатия, иначе от него остаётся
+  /// первый кадр. Выбрали обычный снимок — ставим его как всегда, через кроп.
+  Future<void> _pickBannerGif() async {
+    // Без maxWidth и imageQuality: с ними пикер на Android пересобирает
+    // картинку в JPEG, и от GIF остаётся один кадр.
+    final picked = await safePick(
+      () => ImagePicker().pickImage(source: ImageSource.gallery),
+    );
+    if (picked == null || !mounted) return;
+    final file = File(picked.path);
+    final int size;
+    final List<int> head;
+    try {
+      size = await file.length();
+      head = await file
+          .openRead(0, BannerGif.headerLength)
+          .fold<List<int>>(<int>[], (acc, chunk) => acc..addAll(chunk));
+    } catch (e) {
+      debugPrint('_pickBannerGif: read failed: $e');
+      if (mounted) _showError(_s.failedUploadImage);
+      return;
+    }
+    if (!mounted) return;
+    if (!BannerGif.isGif(head)) {
+      await _cropBanner(picked.path);
+      return;
+    }
+    if (!BannerGif.fits(size)) {
+      _showError(_s.bannerGifTooBig(BannerGif.maxMb));
+      return;
+    }
+    // Мимо MediaService: тот выбирает сжатие по расширению, и GIF с чужим
+    // расширением ушёл бы в WebP. Путь записи тот же, что у обычного баннера.
+    await _setBanner(
+      picked.path,
+      (uid) async => PbMediaService().uploadBytesWithReason(
+        await file.readAsBytes(),
+        'profile.gif',
+        uid: uid,
+        groupId: uid,
+        kind: 'banners',
+      ),
+    );
+  }
+
+  /// Кроп 16:9 и заливка обычного снимка.
+  Future<void> _cropBanner(String path) async {
     CroppedFile? cropped;
     try {
       cropped = await ImageCropper().cropImage(
-        sourcePath: image.path,
+        sourcePath: path,
         compressQuality: 90,
+        // Снимок из строки «GIF» приходит от пикера неуменьшенным, кроп
+        // доводит его до размера обычного баннера.
+        maxWidth: 1600,
+        maxHeight: 1000,
         aspectRatio: const CropAspectRatio(ratioX: 16, ratioY: 9),
         uiSettings: [
           AndroidUiSettings(
@@ -1392,21 +1422,56 @@ class _ProfileScreenState extends State<ProfileScreen>
       cropped = null;
     }
     if (cropped == null || !mounted) return;
-    // Грузим на сервер → banner_url (виден партнёру), как аватар.
-    final userId = PocketBaseService().userId ?? '';
-    if (userId.isEmpty) {
-      if (mounted) _showError(_s.userNotAuthorized);
-      return;
-    }
-    final ext = cropped.path.split('.').last;
-    final url = await MediaService().uploadFile(
-      cropped.path,
-      'banners/$userId/profile.$ext',
+    final file = cropped.path;
+    final ext = file.split('.').last;
+    await _setBanner(
+      file,
+      (uid) => MediaService().uploadFileWithReason(
+        file,
+        'banners/$uid/profile.$ext',
+      ),
     );
-    if (url == null) {
-      if (mounted) _showError(_s.failedUploadImage);
+  }
+
+  /// Заливает баннер из [localPath] и ставит его в профиль: `banner_url`
+  /// виден партнёру, как аватар. [upload] получает id человека, от него
+  /// зависит путь файла.
+  Future<void> _setBanner(
+    String localPath,
+    Future<UploadOutcome> Function(String uid) upload,
+  ) async {
+    final uid = PocketBaseService().userId ?? '';
+    if (uid.isEmpty) {
+      _showError(_s.userNotAuthorized);
       return;
     }
+    // GIF весит до десяти мегабайт, по мобильной сети это секунды. Без окна
+    // ожидания выбор выглядел так, будто ничего не произошло.
+    _showUploading();
+    UploadOutcome outcome;
+    try {
+      outcome = await upload(uid);
+    } catch (e) {
+      debugPrint('_setBanner: upload failed: $e');
+      outcome = const UploadOutcome.failed(UploadFailure.other);
+    }
+    if (mounted) Navigator.of(context).pop();
+    final url = outcome.ref;
+    if (url == null) {
+      if (mounted) {
+        _showError(uploadFailureText(
+          outcome.failure ?? UploadFailure.other,
+          _s,
+          video: false,
+        ));
+      }
+      return;
+    }
+    // Файл уже на сервере: ставим его в профиль, даже если экран успели
+    // закрыть, иначе заливка пропала бы впустую. Байты и так на телефоне,
+    // поэтому кладём их в кэш баннеров под новой ссылкой, и шапка не качает
+    // с сервера то, что сама туда залила.
+    await BannerCache.instance.put(url, File(localPath));
     await widget.userData.updateProfile(bannerUrl: url);
     if (mounted) setState(() => _bannerPath = null);
   }
@@ -1431,6 +1496,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       theme: _t,
       bannerUrl: widget.userData.bannerUrl,
       localBannerPath: _bannerPath,
+      bannerAnimated: PlusService.instance.active,
       subtitle: chipText,
       onEdit: () => _editProfile(context),
       onPickBanner: () => _pickBanner(context),
@@ -3069,39 +3135,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   /// Отдельным методом, потому что путь сюда два: обычный (после обрезки)
   /// и запасной, когда кроппер отказал — на iPhone он это делает молча.
   Future<void> _uploadAvatarFile(String path) async {
-    // Show loading
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => PopScope(
-        canPop: false,
-        child: Center(
-          child: Container(
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              color: _t.cardSurface,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                M3Loading(color: _accentLight),
-                const SizedBox(height: 16),
-                Text(
-                  _s.uploading,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: _t.textSecondary,
-                    decoration: TextDecoration.none,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+    _showUploading();
 
     try {
       final fb = MediaService();
@@ -3169,6 +3203,43 @@ class _ProfileScreenState extends State<ProfileScreen>
     } catch (e) {
       if (mounted) _showError(_s.uploadError(e.toString()));
     }
+  }
+
+  /// Окно «Загрузка…» поверх экрана, пока заливается аватар или баннер.
+  /// Закрывает его тот, кто открыл: `Navigator.of(context).pop()`.
+  void _showUploading() {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => PopScope(
+        canPop: false,
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: _t.cardSurface,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                M3Loading(color: _accentLight),
+                const SizedBox(height: 16),
+                Text(
+                  _s.uploading,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: _t.textSecondary,
+                    decoration: TextDecoration.none,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   void _showError(String msg) {

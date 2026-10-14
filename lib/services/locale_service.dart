@@ -399,6 +399,10 @@ abstract class AppStrings {
   String get plusCustomThemeBody;
   String get plusBookTitle;
   String get plusBookBody;
+  String get plusBannerTitle;
+  String get plusBannerBody;
+  String get bannerGif;
+  String bannerGifTooBig(int mb);
 
   String get customMoodBand;
   String get customMoodNewTile;

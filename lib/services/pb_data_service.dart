@@ -3139,6 +3139,8 @@ class PbDataService {
         'displayName': res['display_name'],
         'avatarUrl': res['avatar_url'],
         'bannerUrl': res['banner_url'],
+        // GIF в баннере шевелится, пока у владельца открыт Togetherly+.
+        'bannerLive': res['banner_live'] == true,
         'badge': res['badge'],
         'frame': res['frame'],
         'gender': res['gender'],

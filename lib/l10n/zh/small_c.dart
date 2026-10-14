@@ -186,6 +186,10 @@ const Map<String, String> smallCZh = {
   'plusCustomThemeBody': '应用的颜色来自你的照片，或者由你亲手挑选',
   'plusBookTitle': '我们的书',
   'plusBookBody': '把选定日期的回忆做成一份 PDF，照片和文字都在里面',
+  'plusBannerTitle': '动态横幅',
+  'plusBannerBody': '个人资料顶部放一张 GIF，另一半也能看到',
+  'bannerGif': 'GIF 动图',
+  'bannerGifTooBig': 'GIF 超过 {mb} MB，请换一个小一点的。',
 
   // home_layout
   'homeLayoutTitle': '主屏幕',

@@ -38,6 +38,10 @@ class _PartnerProfileScreenState extends State<PartnerProfileScreen> {
   final _bodyKey = GlobalKey<GiftProfileBodyState>();
   String _bannerUrl = '';
 
+  /// Шевелится ли GIF партнёра: у него открыт Togetherly+. Чужой флаг `plus`
+  /// клиенту не виден, его считает сервер в карточке (`banner_live`).
+  bool _bannerLive = false;
+
   @override
   void initState() {
     super.initState();
@@ -48,7 +52,13 @@ class _PartnerProfileScreenState extends State<PartnerProfileScreen> {
     final m = await PbDataService().loadPartnerCard(widget.partnerUid);
     if (!mounted || m == null) return;
     final b = (m['bannerUrl'] as String?) ?? '';
-    if (b != _bannerUrl) setState(() => _bannerUrl = b);
+    final live = m['bannerLive'] == true;
+    if (b != _bannerUrl || live != _bannerLive) {
+      setState(() {
+        _bannerUrl = b;
+        _bannerLive = live;
+      });
+    }
   }
 
   @override
@@ -80,6 +90,7 @@ class _PartnerProfileScreenState extends State<PartnerProfileScreen> {
               avatarUrl: widget.partnerAvatarUrl ?? '',
               name: widget.partnerName,
               bannerUrl: _bannerUrl,
+              bannerAnimated: _bannerLive,
               subtitle: subtitle,
             ),
             const SizedBox(height: 52),

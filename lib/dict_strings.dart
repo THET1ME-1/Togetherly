@@ -574,6 +574,15 @@ abstract class DictStrings extends AppStrings {
   String get plusBookTitle => _t('plusBookTitle');
   @override
   String get plusBookBody => _t('plusBookBody');
+  @override
+  String get plusBannerTitle => _t('plusBannerTitle');
+  @override
+  String get plusBannerBody => _t('plusBannerBody');
+  @override
+  String get bannerGif => _t('bannerGif');
+  @override
+  String bannerGifTooBig(int mb) =>
+      _t('bannerGifTooBig').replaceAll('{mb}', '$mb');
 
   @override
   String get customMoodBand => _t('customMoodBand');

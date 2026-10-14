@@ -54,6 +54,12 @@ routerAdd("GET", "/api/user/card", (e) => {
     display_name: rec.getString("display_name"),
     avatar_url: rec.getString("avatar_url"),
     banner_url: rec.getString("banner_url"),
+    // GIF в баннере — вещь Togetherly+: шевелится, пока Плюс открыт (куплен
+    // или идёт неделя из сундука), иначе приложение держит первый кадр.
+    // `plus` в карточке виджета неделю из сундука не видит, поэтому свой флаг.
+    banner_live:
+      rec.getBool("plus") === true ||
+      (rec.getInt("plus_trial_until") || 0) > Date.now(),
     badge: rec.getString("badge"),
     // Надетая рамка аватарки (ключ из каталога, вид `frame`). Её видят все,
     // у кого есть твоя аватарка.

@@ -56,7 +56,8 @@ void main() {
       'Store', 'iPhone', 'iOS', 'Android', 'System', 'WebView', 'Chrome',
       'YouTube', 'Shorts', 'TikTok', 'Rutube', 'VK', 'Dzen', 'Vimeo',
       'Dailymotion', 'Instagram', 'Telegram', 'Yandex', 'Disk', 'Kinopoisk',
-      'KP', 'Meller1', 'PNG', 'PDF', 'MP4', 'MOV', 'WebM', 'MB', 'PIN', 'UFO',
+      'KP', 'Meller1', 'PNG', 'PDF', 'GIF', 'MP4', 'MOV', 'WebM', 'MB', 'PIN',
+      'UFO',
       'AMOLED', 'Material', 'VPN', 'Wi', 'Fi', 'Photoshop', 'Canva', 'remove',
       'bg', 'lava', 'top', 'gmail', 'com', 'con', 'SnTAppsBot', 'TA',
       // Буквы, которых нет в коде купона: их и надо назвать латиницей.

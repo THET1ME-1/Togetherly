@@ -5,7 +5,6 @@ import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/profile_theme.dart';
 import '../../widgets/common/plus_badge.dart';
-import '../../models/profile_icon.dart';
 import '../../widgets/avatar_widget.dart';
 import '../../widgets/unfold/unfold_route.dart';
 import 'profile_banner.dart';
@@ -33,6 +32,10 @@ class ProfileHero extends StatelessWidget {
   final AppTheme? theme;
   final String bannerUrl;
   final String? localBannerPath;
+
+  /// Шевелится ли GIF в баннере: у владельца открыт Togetherly+
+  /// (`ProfileBanner.animate`).
+  final bool bannerAnimated;
   final String subtitle;
   final VoidCallback? onEdit;
   final VoidCallback? onPickBanner;
@@ -63,6 +66,7 @@ class ProfileHero extends StatelessWidget {
     this.theme,
     required this.bannerUrl,
     this.localBannerPath,
+    this.bannerAnimated = false,
     this.subtitle = '',
     this.onEdit,
     this.onPickBanner,
@@ -207,6 +211,7 @@ class ProfileHero extends StatelessWidget {
               background: cs.primaryContainer,
               onPick: onPickBanner,
               height: _bannerHeight,
+              animate: bannerAnimated,
             ),
             // Шестерёнка стоит слева от кнопки баннера, «?» — слева от неё.
             if (onSettings != null)
