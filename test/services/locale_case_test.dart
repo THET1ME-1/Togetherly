@@ -28,6 +28,8 @@ const _lowercaseOnPurpose = <String>{
   'daysShortElapsed', 'daysShortLeft', 'daysUntilAnniversary',
   'daysUntilBirthday', 'photoGridCountLabel', 'cycleDaysUnit',
   'vesselStoryDays',
+  // Капсула времени: «182 дня / до открытия» под крупным числом.
+  'capsuleUntilOpen',
   'tgCountdownDays', 'tgCountdownHours', 'tgCountdownMinutes',
   'fromGalleryLabel', 'fromMemories',
   // Подпись справа от числа: «+12 к общему числу».

@@ -17,6 +17,7 @@ import '../utils/safe_pick.dart';
 import '../theme/app_theme.dart';
 import '../theme/fonts.dart';
 import '../widgets/memory/media_strip.dart';
+import '../widgets/memory/form_top_bar.dart';
 import '../theme/profile_theme.dart';
 
 import 'map_picker_screen.dart';
@@ -492,47 +493,11 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
         ? LocaleService.current.newMemoryDraft
         : '${LocaleService.current.newMemoryDraft} · '
             '$total ${LocaleService.current.photosUnit(total)}';
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 0, 10, 6),
-      child: Row(
-        children: [
-          _formRound(cs,
-              icon: Icons.close_rounded,
-              size: 48,
-              onTap: () => Navigator.pop(context)),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Container(
-              height: 48,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: cs.surfaceContainerLow,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 7,
-                    height: 7,
-                    decoration: BoxDecoration(
-                        color: widget.theme.fillColor, shape: BoxShape.circle),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppFonts.onest(
-                          size: 13.5, weight: 700, color: cs.onSurface),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
+    return FormTopBar(
+      scheme: cs,
+      dot: widget.theme.fillColor,
+      label: label,
+      onClose: () => Navigator.pop(context),
     );
   }
 

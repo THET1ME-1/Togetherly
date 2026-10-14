@@ -805,6 +805,8 @@ abstract class DictStrings extends AppStrings {
   @override
   String get capsuleOpenDate => _t('capsuleOpenDate');
   @override
+  String get capsuleUntilOpen => _t('capsuleUntilOpen');
+  @override
   String get change => _t('change');
   @override
   String get capsulePreset1m => _t('capsulePreset1m');

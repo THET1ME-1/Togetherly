@@ -533,6 +533,7 @@ abstract class AppStrings {
   String get capsuleLetterHint;
   String get capsuleAttachPhoto;
   String get capsuleOpenDate;
+  String get capsuleUntilOpen;
   String get change;
   String capsuleOpensIn(int days);
   String get capsulePreset1m;

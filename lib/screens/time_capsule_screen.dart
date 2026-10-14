@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../models/capsule_schedule.dart';
 import '../models/memory.dart';
 import '../utils/safe_pick.dart';
 import '../services/capsule_notification_service.dart';
@@ -11,21 +13,39 @@ import '../services/locale_service.dart';
 import '../services/media_service.dart';
 import '../services/memory_repository.dart';
 import '../theme/app_theme.dart';
+import '../theme/fonts.dart';
+import '../theme/profile_theme.dart';
 import '../utils/photo_crop.dart';
+import '../widgets/common/keyboard_aware.dart';
+import '../widgets/memory/form_top_bar.dart';
+import '../widgets/memory_save/save_options_sheet.dart' show memoryDateLabel;
 import 'date_time_picker_screen.dart';
 
-/// Композер «Капсулы времени»: письмо и/или фото, запечатанные до выбранной даты.
-/// Создаёт обычное воспоминание с флагами `sealed`+`openAt` (лента прячет его до
-/// даты, затем раскрывает) и планирует локальное уведомление на день открытия.
 /// Потолок письма. Не защита от длинного текста, а защита от вставленной
 /// книги: запись едет в json-поле `data` и оседает в локальном кэше.
 const int kCapsuleLetterMax = 10000;
 
+/// Композер «Капсулы времени»: письмо и/или фото, запечатанные до выбранной даты.
+/// Создаёт обычное воспоминание с флагами `sealed`+`openAt` (лента прячет его до
+/// даты, затем раскрывает) и планирует локальное уведомление на день открытия.
+///
+/// Вариант А «Письмо на листе» из макета
+/// https://claude.ai/artifact/P1TYH5PFd6RLu7R3UJi3yz (14.10.2026): шапка и
+/// кнопка внизу как у экрана записи, письмо пишется на листе пина-заметки —
+/// так оно и откроется в ленте, срок показан крупным числом дней.
 class TimeCapsuleScreen extends StatefulWidget {
   final AppTheme theme;
   final String pairId;
   final String authorName;
   final String authorAvatar;
+
+  /// Часы экрана. Тесты и снимки задают свои, чтобы число дней не плыло.
+  @visibleForTesting
+  final DateTime Function()? now;
+
+  /// Фото, уже лежащее в капсуле: для снимков экрана, где галереи нет.
+  @visibleForTesting
+  final String? previewPhotoPath;
 
   const TimeCapsuleScreen({
     super.key,
@@ -33,6 +53,8 @@ class TimeCapsuleScreen extends StatefulWidget {
     required this.pairId,
     required this.authorName,
     required this.authorAvatar,
+    this.now,
+    this.previewPhotoPath,
   });
 
   @override
@@ -48,12 +70,23 @@ class _TimeCapsuleScreenState extends State<TimeCapsuleScreen> {
 
   AppTheme get _t => widget.theme;
 
+  /// Схема M3 экрана: цвета берём ролями, а не из старой темы.
+  ColorScheme get _cs => ProfileTheme.themeFor(_t).colorScheme;
+
+  /// Что писать поверх заливки темы: правило одно на всё приложение.
+  Color get _onFill => AppThemes.onColor(_t.fillColor, mode: _t.brightness);
+
+  DateTime _clock() => (widget.now ?? DateTime.now)();
+
+  /// Насколько кавычка поднимается над листом письма — как у пина-заметки.
+  static const double _quoteLift = 22;
+
   @override
   void initState() {
     super.initState();
     // По умолчанию — через полгода.
-    final now = DateTime.now();
-    _openAt = DateTime(now.year, now.month + 6, now.day, 9);
+    _openAt = capsulePresetDate(_clock(), CapsulePreset.halfYear);
+    _photoPath = widget.previewPhotoPath;
   }
 
   @override
@@ -65,99 +98,164 @@ class _TimeCapsuleScreenState extends State<TimeCapsuleScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = _cs;
     final s = LocaleService.current;
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        elevation: 0,
-        iconTheme: IconThemeData(color: _t.textPrimary),
-        title: Text(
-          s.timeCapsule,
-          style:
-              TextStyle(color: _t.textPrimary, fontWeight: FontWeight.w800),
-        ),
-      ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+    final media = MediaQuery.of(context);
+    // Клавиатуру видно только снаружи Scaffold: своему body он отдаёт нулевой
+    // отступ. На время набора кнопка внизу прячется, иначе письмо уезжает под
+    // неё.
+    final typing = keyboardOpen(context);
+
+    return Theme(
+      data: ProfileTheme.data(cs),
+      child: Scaffold(
+        backgroundColor: cs.surface,
+        body: Stack(
           children: [
-            _hero(s),
-            const SizedBox(height: 24),
-            _field(_titleCtrl, s.titleHint, maxLength: 120),
-            const SizedBox(height: 12),
-            // Письмо в будущее пишут не подписью к фото: 800 символов
-            // обрывали его на полуслове. Поле растёт вместе с текстом,
-            // а счётчик появляется на последней тысяче.
-            _field(_msgCtrl, s.capsuleLetterHint,
-                minLines: 6, grow: true, maxLength: kCapsuleLetterMax),
-            const SizedBox(height: 16),
-            _photoRow(s),
-            const SizedBox(height: 16),
-            _openDateCard(s),
-            const SizedBox(height: 24),
-            _sealButton(s),
+            Column(
+              children: [
+                SizedBox(height: media.padding.top + 8),
+                FormTopBar(
+                  scheme: cs,
+                  dot: _t.fillColor,
+                  label: s.timeCapsule,
+                  onClose: () => Navigator.pop(context),
+                ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.fromLTRB(
+                        12, 6, 12, 108 + media.padding.bottom),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _hint(cs, s),
+                        const SizedBox(height: 14),
+                        _letter(cs, s),
+                        const SizedBox(height: 12),
+                        _photo(cs, s),
+                        const SizedBox(height: 12),
+                        _when(cs, s),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (!typing)
+              Positioned(
+                left: 12,
+                right: 12,
+                bottom: media.padding.bottom + 12,
+                child: _sealButton(cs, s),
+              ),
           ],
         ),
       ),
     );
   }
 
-  Widget _hero(AppStrings s) {
-    return Column(
-      children: [
-        Container(
-          width: 96,
-          height: 96,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [_t.primary, _t.primaryLight],
+  /// Подсказка под шапкой, как под плёнкой экрана записи.
+  Widget _hint(ColorScheme cs, AppStrings s) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.lock_rounded, size: 18, color: cs.onSurfaceVariant),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              s.capsuleIntro,
+              style: AppFonts.onest(size: 13, weight: 500, color: cs.onSurfaceVariant),
             ),
           ),
-          alignment: Alignment.center,
-          child: Icon(Icons.mail_rounded,
-              size: 44,
-              color: AppThemes.onColor(_t.primary, mode: _t.brightness)),
-        ),
-        const SizedBox(height: 14),
-        Text(
-          s.capsuleIntro,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 14,
-            height: 1.35,
-            color: _t.textSecondary,
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  Widget _field(TextEditingController c, String hint,
-      {int maxLines = 1, int? minLines, bool grow = false, int? maxLength}) {
-    return TextField(
-      controller: c,
-      maxLines: grow ? null : maxLines,
-      minLines: minLines,
-      maxLength: maxLength,
-      buildCounter: grow ? _counter : null,
-      textCapitalization: TextCapitalization.sentences,
-      style: TextStyle(color: _t.textPrimary),
-      decoration: InputDecoration(
+  /// Поле без своей подложки: лист уже даёт и цвет, и форму.
+  InputDecoration _bare(String hint, TextStyle style) => InputDecoration(
         hintText: hint,
-        hintStyle: TextStyle(color: _t.textMuted),
-        filled: true,
-        fillColor: _t.surfaceMuted,
-        counterText: grow ? null : '',
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide.none,
+        hintStyle: style,
+        filled: false,
+        isDense: true,
+        contentPadding: EdgeInsets.zero,
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
+      );
+
+  /// Письмо на листе пина-заметки: тот же `secondaryContainer`, радиус 28 и
+  /// кавычка цвета темы над краем, что у `NotePin`. Что человек пишет, так оно
+  /// и откроется в ленте.
+  Widget _letter(ColorScheme cs, AppStrings s) {
+    final ink = cs.onSecondaryContainer;
+    final hint = ink.withValues(alpha: 0.6);
+    final titleStyle = AppFonts.onest(size: 18, weight: 700, color: ink);
+    final bodyStyle = AppFonts.onest(size: 17, height: 1.45, color: ink);
+    return Stack(
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: _quoteLift),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(20, 26, 20, 16),
+            decoration: BoxDecoration(
+              color: cs.secondaryContainer,
+              borderRadius: BorderRadius.circular(28),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextField(
+                  key: const ValueKey('capsule-title'),
+                  controller: _titleCtrl,
+                  maxLength: 120,
+                  maxLines: null,
+                  textCapitalization: TextCapitalization.sentences,
+                  style: titleStyle,
+                  cursorColor: ink,
+                  decoration: _bare(s.titleHint, titleStyle.copyWith(color: hint))
+                      .copyWith(counterText: ''),
+                ),
+                const SizedBox(height: 8),
+                // Письмо в будущее пишут не подписью к фото: 800 символов
+                // обрывали его на полуслове. Поле растёт вместе с текстом,
+                // а счётчик появляется на последней тысяче.
+                TextField(
+                  key: const ValueKey('capsule-letter'),
+                  controller: _msgCtrl,
+                  minLines: 6,
+                  maxLines: null,
+                  maxLength: kCapsuleLetterMax,
+                  buildCounter: _counter,
+                  textCapitalization: TextCapitalization.sentences,
+                  style: bodyStyle,
+                  cursorColor: ink,
+                  decoration: _bare(s.capsuleLetterHint, bodyStyle.copyWith(color: hint)),
+                ),
+              ],
+            ),
+          ),
         ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      ),
+        // Кавычка лежит поверх края листа и касаний не забирает.
+        Positioned(
+          left: 14,
+          top: 0,
+          child: IgnorePointer(
+            child: Text(
+              '“',
+              style: TextStyle(
+                fontFamily: ProfileTheme.displayFont,
+                fontSize: 88,
+                fontWeight: FontWeight.w800,
+                height: 1,
+                color: _t.fillColor,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -170,61 +268,78 @@ class _TimeCapsuleScreenState extends State<TimeCapsuleScreen> {
     if (limit - currentLength > 1000) return const SizedBox.shrink();
     return Text(
       '$currentLength / $limit',
-      style: TextStyle(fontSize: 12, color: _t.textMuted),
+      style: AppFonts.onest(
+          size: 12, weight: 600, color: _cs.onSecondaryContainer.withValues(alpha: 0.7)),
     );
   }
 
-  Widget _photoRow(AppStrings s) {
-    if (_photoPath != null) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Stack(
-          children: [
-            Image.file(
-              File(_photoPath!),
-              width: double.infinity,
-              height: 180,
-              fit: BoxFit.cover,
-            ),
-            Positioned(
-              top: 8,
-              right: 8,
-              child: GestureDetector(
-                onTap: () => setState(() => _photoPath = null),
-                child: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: const BoxDecoration(
-                    color: Colors.black54,
-                    shape: BoxShape.circle,
+  /// Пустая плитка, как у экрана записи; выбранный снимок — кадром со
+  /// снятием в углу.
+  Widget _photo(ColorScheme cs, AppStrings s) {
+    final path = _photoPath;
+    if (path == null) {
+      return Material(
+        color: cs.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(22),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: _pickPhoto,
+          child: SizedBox(
+            height: 96,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.add_photo_alternate_rounded, size: 28, color: cs.primary),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Text(
+                    s.capsuleAttachPhoto,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppFonts.onest(size: 15, weight: 600, color: cs.onSurface),
                   ),
-                  child: const Icon(Icons.close_rounded,
-                      color: Colors.white, size: 18),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       );
     }
-    return GestureDetector(
-      onTap: _pickPhoto,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 18),
-        decoration: BoxDecoration(
-          color: _t.surfaceMuted,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _t.divider),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+    final decode = (MediaQuery.sizeOf(context).width *
+            MediaQuery.devicePixelRatioOf(context))
+        .round();
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(22),
+      child: AspectRatio(
+        aspectRatio: 4 / 3,
+        child: Stack(
+          fit: StackFit.expand,
           children: [
-            Icon(Icons.add_photo_alternate_rounded, color: _t.primary),
-            const SizedBox(width: 8),
-            Text(
-              s.capsuleAttachPhoto,
-              style: TextStyle(
-                color: _t.textSecondary,
-                fontWeight: FontWeight.w600,
+            Image.file(
+              File(path),
+              fit: BoxFit.cover,
+              cacheWidth: decode,
+              errorBuilder: (_, _, _) => ColoredBox(color: cs.surfaceContainerHigh),
+            ),
+            Positioned(
+              top: 10,
+              right: 10,
+              child: Tooltip(
+                message: s.deletePhoto,
+                child: Material(
+                  color: cs.inverseSurface,
+                  shape: const CircleBorder(),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () => setState(() => _photoPath = null),
+                    child: SizedBox(
+                      width: 36,
+                      height: 36,
+                      child: Icon(Icons.close_rounded,
+                          size: 20, color: cs.onInverseSurface),
+                    ),
+                  ),
+                ),
               ),
             ),
           ],
@@ -233,56 +348,94 @@ class _TimeCapsuleScreenState extends State<TimeCapsuleScreen> {
     );
   }
 
-  Widget _openDateCard(AppStrings s) {
+  /// Срок: крупное число дней, дата открытия и быстрые кнопки связанной
+  /// группой M3 Expressive. Кнопка с календарём открывает барабаны.
+  Widget _when(ColorScheme cs, AppStrings s) {
+    final now = _clock();
+    final days = capsuleDaysLeft(_openAt, now);
+    final preset = capsulePresetOf(_openAt, now);
+    final time = MaterialLocalizations.of(context).formatTimeOfDay(
+      TimeOfDay.fromDateTime(_openAt),
+      alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
+    );
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
       decoration: BoxDecoration(
-        color: _t.cardSurface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _t.divider),
+        color: cs.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(28),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Icon(Icons.lock_clock_rounded, color: _t.primary, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                s.capsuleOpenDate,
-                style: TextStyle(
-                  color: _t.textSecondary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
+          // Подпись нарочно в две строки: «дня» и «до открытия». Не влезает
+          // рядом с числом (немецкий, крупный шрифт, капсула на годы) —
+          // уходит под него целиком, а не рвётся посреди слова.
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.end,
+              spacing: 12,
+              runSpacing: 6,
+              children: [
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    '$days',
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontFamily: ProfileTheme.displayFont,
+                      fontSize: 64,
+                      fontWeight: FontWeight.w800,
+                      height: 0.86,
+                      letterSpacing: -2.9,
+                      color: cs.primary,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
                 ),
-              ),
-              const Spacer(),
-              TextButton(
-                onPressed: _pickDate,
-                child: Text(s.change),
-              ),
-            ],
-          ),
-          const SizedBox(height: 2),
-          Text(
-            _fmtDate(_openAt),
-            style: TextStyle(
-              color: _t.textPrimary,
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 2),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        s.tgYearDaysUnit(days),
+                        style: AppFonts.onest(size: 17, weight: 700, color: cs.onSurface),
+                      ),
+                      Text(
+                        s.capsuleUntilOpen,
+                        style: AppFonts.onest(
+                            size: 14, weight: 500, color: cs.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
-          Text(
-            s.capsuleOpensIn(_daysUntil()),
-            style: TextStyle(color: _t.textMuted, fontSize: 12.5),
-          ),
           const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Row(
+              children: [
+                Icon(Icons.schedule_rounded, size: 18, color: cs.onSurfaceVariant),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '${memoryDateLabel(_openAt)}, $time',
+                    style: AppFonts.onest(size: 14, weight: 600, color: cs.onSurfaceVariant),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
             children: [
-              _preset(s.capsulePreset1m, _addMonths(1)),
-              _preset(s.capsulePreset6m, _addMonths(6)),
-              _preset(s.capsulePreset1y, _addMonths(12)),
+              Expanded(child: _presets(cs, s, preset)),
+              const SizedBox(width: 8),
+              _customDate(cs, s, selected: preset == null),
             ],
           ),
         ],
@@ -290,59 +443,170 @@ class _TimeCapsuleScreenState extends State<TimeCapsuleScreen> {
     );
   }
 
-  Widget _preset(String label, DateTime date) {
-    final selected = _sameDay(date, _openAt);
-    return GestureDetector(
-      onTap: () => setState(() => _openAt = date),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected
-              ? _t.primary.withValues(alpha: 0.12)
-              : _t.surfaceMuted,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? _t.primary : _t.divider,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected ? _t.primary : _t.textSecondary,
-            fontWeight: FontWeight.w600,
-            fontSize: 13,
+  /// Связанная группа «Месяц · Полгода · Год»: внутренние углы малые,
+  /// внешние круглые, выбранная кнопка скругляется целиком.
+  Widget _presets(ColorScheme cs, AppStrings s, CapsulePreset? selected) {
+    final items = [
+      (CapsulePreset.month, s.capsulePreset1m),
+      (CapsulePreset.halfYear, s.capsulePreset6m),
+      (CapsulePreset.year, s.capsulePreset1y),
+    ];
+    return LayoutBuilder(builder: (context, c) {
+      // Подписи уменьшаются вместе: одна мелкая «6 Monate» рядом с крупными
+      // «Monat» и «Jahr» выглядела опечаткой.
+      final size = _segmentFontSize(
+        context,
+        labels: [for (final i in items) i.$2],
+        width: (c.maxWidth - 2 * (items.length - 1)) / items.length - 12,
+      );
+      return Row(
+        children: [
+          for (var i = 0; i < items.length; i++) ...[
+            if (i > 0) const SizedBox(width: 2),
+            Expanded(
+              child: _segment(
+                cs,
+                label: items[i].$2,
+                fontSize: size,
+                on: selected == items[i].$1,
+                first: i == 0,
+                last: i == items.length - 1,
+                onTap: () => setState(
+                    () => _openAt = capsulePresetDate(_clock(), items[i].$1)),
+              ),
+            ),
+          ],
+        ],
+      );
+    });
+  }
+
+  /// Общий размер подписей кнопок срока: 14, а если самая длинная не влезает
+  /// в кнопку — меньше, одинаково для всех.
+  double _segmentFontSize(BuildContext context,
+      {required List<String> labels, required double width}) {
+    const base = 14.0;
+    var size = base;
+    for (final label in labels) {
+      final tp = TextPainter(
+        text: TextSpan(text: label, style: AppFonts.onest(size: base, weight: 600)),
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+        maxLines: 1,
+      )..layout();
+      if (tp.width > width && tp.width > 0) {
+        size = math.min(size, base * width / tp.width * 0.98);
+      }
+      tp.dispose();
+    }
+    return size;
+  }
+
+  Widget _segment(
+    ColorScheme cs, {
+    required String label,
+    required double fontSize,
+    required bool on,
+    required bool first,
+    required bool last,
+    required VoidCallback onTap,
+  }) {
+    const full = Radius.circular(24);
+    const inner = Radius.circular(8);
+    final radius = on
+        ? const BorderRadius.all(full)
+        : BorderRadius.horizontal(
+            left: first ? full : inner,
+            right: last ? full : inner,
+          );
+    return Semantics(
+      button: true,
+      selected: on,
+      inMutuallyExclusiveGroup: true,
+      child: Material(
+        color: on ? _t.fillColor : cs.surface,
+        shape: RoundedRectangleBorder(borderRadius: radius),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: SizedBox(
+            height: 48,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    style: AppFonts.onest(
+                        size: fontSize, weight: 600, color: on ? _onFill : cs.onSurface),
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _sealButton(AppStrings s) {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        onPressed: _saving ? null : _seal,
-        icon: _saving
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2, color: Colors.white),
-              )
-            : const Icon(Icons.lock_rounded, size: 18),
-        label: Text(
-          s.capsuleSeal,
-          style: const TextStyle(fontWeight: FontWeight.w700),
-        ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: _t.primary,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 15),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+  /// Своя дата барабанами; кнопка залита, когда срок не совпал ни с одним
+  /// быстрым.
+  Widget _customDate(ColorScheme cs, AppStrings s, {required bool selected}) {
+    return Tooltip(
+      message: s.capsuleOpenDate,
+      child: Material(
+        color: selected ? _t.fillColor : cs.surface,
+        shape: const CircleBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: _pickDate,
+          child: SizedBox(
+            width: 48,
+            height: 48,
+            child: Icon(Icons.edit_calendar_rounded,
+                size: 22, color: selected ? _onFill : cs.onSurface),
           ),
         ),
       ),
+    );
+  }
+
+  /// Кнопка внизу поверх прокрутки, как «Сохранить» у экрана записи. Пустую
+  /// капсулу запечатать нельзя: кнопка молчит, пока нет письма или фото.
+  Widget _sealButton(ColorScheme cs, AppStrings s) {
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: _msgCtrl,
+      builder: (context, value, _) {
+        final can = value.text.trim().isNotEmpty || _photoPath != null;
+        // Во время заливки кнопка не гаснет, а просто не принимает касаний:
+        // крутилка видна на заливке темы.
+        return IgnorePointer(
+          ignoring: _saving,
+          child: FilledButton.icon(
+            key: const ValueKey('capsule-seal'),
+            onPressed: can ? _seal : null,
+            icon: _saving
+                ? SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2.5, color: cs.onPrimary),
+                  )
+                : const Icon(Icons.lock_rounded, size: 22),
+            label: Text(s.capsuleSeal),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(64),
+              textStyle: const TextStyle(
+                fontFamily: ProfileTheme.bodyFont,
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -364,7 +628,7 @@ class _TimeCapsuleScreenState extends State<TimeCapsuleScreen> {
   }
 
   Future<void> _pickDate() async {
-    final now = DateTime.now();
+    final now = _clock();
     final picked = await Navigator.of(context).push<DateTime>(
       MaterialPageRoute<DateTime>(
         builder: (_) => DateTimePickerScreen(
@@ -380,23 +644,24 @@ class _TimeCapsuleScreenState extends State<TimeCapsuleScreen> {
       ),
     );
     if (picked == null || !mounted) return;
+    final at = DateTime(picked.year, picked.month, picked.day, kCapsuleOpenHour);
     // Дату из прошлого барабан отдать может (год начинается с нынешнего) —
     // проверку оставляем здесь: она же ловит и «сегодня».
-    if (!picked.isAfter(now)) {
-      _snack(LocaleService.current.capsuleNeedsFutureDate, error: true);
+    if (!at.isAfter(_clock()) || capsuleDaysLeft(at, _clock()) < 1) {
+      _snack(LocaleService.current.capsuleNeedsFutureDate);
       return;
     }
-    setState(() => _openAt = DateTime(picked.year, picked.month, picked.day, 9));
+    setState(() => _openAt = at);
   }
 
   Future<void> _seal() async {
     final msg = _msgCtrl.text.trim();
     if (msg.isEmpty && _photoPath == null) {
-      _snack(LocaleService.current.capsuleNeedsContent, error: true);
+      _snack(LocaleService.current.capsuleNeedsContent);
       return;
     }
-    if (!_openAt.isAfter(DateTime.now())) {
-      _snack(LocaleService.current.capsuleNeedsFutureDate, error: true);
+    if (!_openAt.isAfter(_clock())) {
+      _snack(LocaleService.current.capsuleNeedsFutureDate);
       return;
     }
     setState(() => _saving = true);
@@ -411,7 +676,7 @@ class _TimeCapsuleScreenState extends State<TimeCapsuleScreen> {
         if (imageUrl == null) {
           if (mounted) {
             setState(() => _saving = false);
-            _snack(LocaleService.current.failedUploadPhoto, error: true);
+            _snack(LocaleService.current.failedUploadPhoto);
           }
           return;
         }
@@ -440,32 +705,17 @@ class _TimeCapsuleScreenState extends State<TimeCapsuleScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
-        _snack('Error: $e', error: true);
+        _snack('Error: $e');
       }
     }
   }
 
-  void _snack(String msg, {bool error = false}) {
+  void _snack(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg),
       behavior: SnackBarBehavior.floating,
-      backgroundColor: error ? Colors.orange : _t.primary,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     ));
   }
-
-  // ── Helpers ──────────────────────────────────────────────────────────────
-  DateTime _addMonths(int m) {
-    final now = DateTime.now();
-    return DateTime(now.year, now.month + m, now.day, 9);
-  }
-
-  int _daysUntil() => _openAt.difference(DateTime.now()).inDays;
-
-  bool _sameDay(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
-
-  String _fmtDate(DateTime d) =>
-      '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
 }

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
+import '../models/capsule_schedule.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import 'storage_image.dart';
@@ -64,7 +65,8 @@ class _SealedCapsuleCardState extends State<SealedCapsuleCard>
   Widget build(BuildContext context) {
     final t = widget.theme;
     final s = LocaleService.current;
-    final days = widget.openAt.difference(DateTime.now()).inDays;
+    // Тот же счёт, что на экране создания: по календарю, а не сутками.
+    final days = capsuleDaysLeft(widget.openAt, DateTime.now());
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
@@ -210,7 +212,7 @@ class _SealedCapsuleCardState extends State<SealedCapsuleCard>
                     imageUrl: widget.authorAvatar,
                     fit: BoxFit.cover,
                     memCacheWidth: 64,
-                    errorWidget: (_, __, ___) => _avatarFallback(t, name),
+                    errorWidget: (_, _, _) => _avatarFallback(t, name),
                   )
                 : _avatarFallback(t, name),
           ),
