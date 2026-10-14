@@ -309,10 +309,7 @@ class _PtStrings extends _EnStrings {
   String capsuleOpensOn(String date) => 'Abre em $date';
 
   @override
-  String capsuleFrom(String name) => 'de $name';
-
-  @override
-  String capsuleNotReady(String date) => 'Ainda não 🙈 Abre em $date';
+  String capsuleNotReady(String date) => 'Ainda não. Abre em $date';
 
   @override
   String capsuleOpenedBodyNamed(String title) =>

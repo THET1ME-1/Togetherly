@@ -101,6 +101,7 @@ const Map<String, String> midAZh = {
   'memBadgeMoment': '瞬间',
   'memBadgeVideo': '视频',
   'memBadgeNote': '笔记',
+  'memBadgeCapsule': '胶囊',
   'memBadgeBook': '书',
   'memBadgeMovie': '电影',
 

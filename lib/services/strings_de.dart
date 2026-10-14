@@ -303,10 +303,7 @@ class _DeStrings extends _EnStrings {
   String capsuleOpensOn(String date) => 'Öffnet am $date';
 
   @override
-  String capsuleFrom(String name) => 'von $name';
-
-  @override
-  String capsuleNotReady(String date) => 'Noch nicht 🙈 Öffnet am $date';
+  String capsuleNotReady(String date) => 'Noch nicht. Öffnet am $date';
 
   @override
   String capsuleOpenedBodyNamed(String title) =>

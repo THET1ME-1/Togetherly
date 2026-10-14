@@ -305,10 +305,7 @@ class _EsStrings extends _EnStrings {
   String capsuleOpensOn(String date) => 'Se abre el $date';
 
   @override
-  String capsuleFrom(String name) => 'de $name';
-
-  @override
-  String capsuleNotReady(String date) => 'Aún no 🙈 Se abre el $date';
+  String capsuleNotReady(String date) => 'Aún no. Se abre el $date';
 
   @override
   String capsuleOpenedBodyNamed(String title) =>

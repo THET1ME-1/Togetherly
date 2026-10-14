@@ -1,21 +1,32 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
+import 'package:material_new_shapes/material_new_shapes.dart';
 
 import '../models/capsule_schedule.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
-import 'storage_image.dart';
-import '../utils/safe_text.dart';
+import '../theme/fonts.dart';
+import '../theme/profile_theme.dart';
+import 'connect_expressive.dart' show M3ShapeClipper;
+import 'memory_save/save_options_sheet.dart' show memoryDateLabel;
 
-/// Милая «запечатанная» карточка капсулы времени в ленте: подарок с замочком,
-/// дата открытия и обратный отсчёт. Контент капсулы не показывается до срока.
-/// При тапе — лёгкое покачивание + подсказка «ещё рано».
+/// Пин запечатанной капсулы времени в ленте: вариант 2 «Лист с печатью» из
+/// макета https://claude.ai/artifact/P1TYH5PFd6RLu7R3UJi3yz (14.10.2026).
+///
+/// Карточка как у всех пинов: общая шапка с автором, временем и значком
+/// «Капсула» ([header]), под ней лист пина-заметки, только вместо кавычки над
+/// краем стоит печать с замком. На листе — дни до открытия, полоса срока от
+/// запечатывания до открытия и дата. Содержимое до срока не показывается:
+/// касание качает карточку и говорит «ещё рано».
 class SealedCapsuleCard extends StatefulWidget {
   final AppTheme theme;
-  final String authorName;
-  final String authorAvatar;
+
+  /// Шапка карточки — та же, что у всех пинов ленты.
+  final Widget header;
+
+  /// Когда капсулу запечатали: начало полосы срока.
+  final DateTime sealedAt;
   final DateTime openAt;
   final VoidCallback onTapTooEarly;
 
@@ -23,14 +34,19 @@ class SealedCapsuleCard extends StatefulWidget {
   /// не передаётся — капсула не его.
   final VoidCallback? onLongPress;
 
+  /// Часы карточки. Тесты и снимки задают свои, чтобы число дней не плыло.
+  @visibleForTesting
+  final DateTime Function()? now;
+
   const SealedCapsuleCard({
     super.key,
     required this.theme,
-    required this.authorName,
-    required this.authorAvatar,
+    required this.header,
+    required this.sealedAt,
     required this.openAt,
     required this.onTapTooEarly,
     this.onLongPress,
+    this.now,
   });
 
   @override
@@ -40,6 +56,10 @@ class SealedCapsuleCard extends StatefulWidget {
 class _SealedCapsuleCardState extends State<SealedCapsuleCard>
     with SingleTickerProviderStateMixin {
   late final AnimationController _wiggle;
+
+  /// Насколько печать поднимается над листом, как кавычка у заметки.
+  static const double _sealLift = 24;
+  static const double _sealSize = 60;
 
   @override
   void initState() {
@@ -64,12 +84,9 @@ class _SealedCapsuleCardState extends State<SealedCapsuleCard>
   @override
   Widget build(BuildContext context) {
     final t = widget.theme;
-    final s = LocaleService.current;
-    // Тот же счёт, что на экране создания: по календарю, а не сутками.
-    final days = capsuleDaysLeft(widget.openAt, DateTime.now());
-
+    final cs = ProfileTheme.schemeFor(t);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+      padding: const EdgeInsets.only(bottom: 12),
       child: GestureDetector(
         onTap: _onTap,
         onLongPress: widget.onLongPress,
@@ -77,76 +94,28 @@ class _SealedCapsuleCardState extends State<SealedCapsuleCard>
           animation: _wiggle,
           builder: (context, child) {
             // Затухающее покачивание ±0.05 рад.
-            final angle =
-                math.sin(_wiggle.value * math.pi * 4) * 0.05 * (1 - _wiggle.value);
+            final angle = math.sin(_wiggle.value * math.pi * 4) *
+                0.05 *
+                (1 - _wiggle.value);
             return Transform.rotate(angle: angle, child: child);
           },
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
+            // Плоский стиль пинов: без тени, свечения и рамки.
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  t.primary.withValues(alpha: 0.14),
-                  t.primaryLight.withValues(alpha: 0.10),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(
-                color: t.primary.withValues(alpha: 0.22),
-                width: 1.2,
-              ),
+              color: t.cardSurface,
+              borderRadius: BorderRadius.circular(28),
             ),
+            clipBehavior: Clip.antiAlias,
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _gift(t),
+                widget.header,
+                const SizedBox(height: 4),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: _sheet(cs),
+                ),
                 const SizedBox(height: 14),
-                Text(
-                  s.timeCapsule,
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    color: t.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                // Дата открытия
-                Text(
-                  s.capsuleOpensOn(_fmt(widget.openAt)),
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    color: t.textSecondary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Обратный отсчёт-пилюля
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: t.primary.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('⏳', style: TextStyle(fontSize: 13)),
-                      const SizedBox(width: 6),
-                      Text(
-                        s.capsuleOpensIn(days),
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: t.primary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _fromLine(t, s),
               ],
             ),
           ),
@@ -155,97 +124,126 @@ class _SealedCapsuleCardState extends State<SealedCapsuleCard>
     );
   }
 
-  Widget _gift(AppTheme t) {
+  /// Лист пина-заметки с печатью над краем.
+  Widget _sheet(ColorScheme cs) {
+    final s = LocaleService.current;
+    final now = (widget.now ?? DateTime.now)();
+    final days = capsuleDaysLeft(widget.openAt, now);
+    final share = capsuleElapsedShare(widget.sealedAt, widget.openAt, now);
+    final ink = cs.onSecondaryContainer;
     return Stack(
-      clipBehavior: Clip.none,
       children: [
-        Container(
-          width: 78,
-          height: 78,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [t.primary, t.primaryLight],
-            ),
-          ),
-          alignment: Alignment.center,
-          child: Icon(Icons.card_giftcard_rounded,
-              size: 38,
-              color: AppThemes.onColor(t.primary, mode: t.brightness)),
-        )
-            .animate(onPlay: (c) => c.repeat(reverse: true))
-            .scaleXY(begin: 1, end: 1.06, duration: 1400.ms, curve: Curves.easeInOut)
-            .moveY(begin: 0, end: -3, duration: 1400.ms, curve: Curves.easeInOut),
-        // Замочек
-        Positioned(
-          right: -2,
-          bottom: -2,
+        Padding(
+          padding: const EdgeInsets.only(top: _sealLift),
           child: Container(
-            width: 30,
-            height: 30,
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(18, 44, 18, 16),
             decoration: BoxDecoration(
-              color: t.cardSurface,
-              shape: BoxShape.circle,
-              border: Border.all(color: t.primary.withValues(alpha: 0.25)),
+              color: cs.secondaryContainer,
+              borderRadius: BorderRadius.circular(28),
             ),
-            alignment: Alignment.center,
-            child: Icon(Icons.lock_rounded, size: 16, color: t.primary),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Подпись не влезла рядом с числом (немецкий, крупный шрифт) —
+                // уходит под него целиком, а не рвётся посреди слова.
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.end,
+                  spacing: 10,
+                  runSpacing: 4,
+                  children: [
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        '$days',
+                        maxLines: 1,
+                        style: TextStyle(
+                          fontFamily: ProfileTheme.displayFont,
+                          fontSize: 48,
+                          fontWeight: FontWeight.w800,
+                          height: 0.86,
+                          letterSpacing: -2.2,
+                          color: ink,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 3),
+                      child: Text(
+                        '${s.tgYearDaysUnit(days)} ${s.capsuleUntilOpen}',
+                        style: AppFonts.onest(size: 15, weight: 700, color: ink),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Сколько срока прошло: ровная полоса M3 с точкой на конце.
+                // Волна в проекте — только для идущих процессов (заливка,
+                // сжатие), а срок просто отмеряет время.
+                LinearProgressIndicator(
+                  value: share,
+                  minHeight: 4,
+                  color: ink,
+                  backgroundColor:
+                      Color.alphaBlend(ink.withValues(alpha: 0.22), cs.secondaryContainer),
+                  stopIndicatorColor: ink,
+                  trackGap: 4,
+                  borderRadius: BorderRadius.circular(2),
+                  // ignore: deprecated_member_use
+                  year2023: false,
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.fromLTRB(10, 7, 12, 7),
+                  decoration: BoxDecoration(
+                    color: cs.inverseSurface,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.schedule_rounded, size: 16, color: cs.onInverseSurface),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          s.capsuleOpensOn(memoryDateLabel(widget.openAt)),
+                          style: AppFonts.onest(
+                              size: 13, weight: 600, color: cs.onInverseSurface),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
+        ),
+        // Печать лежит поверх края листа и касаний не забирает: касание
+        // по карточке целиком говорит «ещё рано».
+        Positioned(
+          left: 14,
+          top: 0,
+          child: IgnorePointer(child: _seal()),
         ),
       ],
     );
   }
 
-  Widget _fromLine(AppTheme t, AppStrings s) {
-    final name = widget.authorName.trim();
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SizedBox(
-          width: 22,
-          height: 22,
-          child: ClipOval(
-            child: widget.authorAvatar.isNotEmpty
-                ? StorageImage(
-                    imageUrl: widget.authorAvatar,
-                    fit: BoxFit.cover,
-                    memCacheWidth: 64,
-                    errorWidget: (_, _, _) => _avatarFallback(t, name),
-                  )
-                : _avatarFallback(t, name),
-          ),
-        ),
-        const SizedBox(width: 7),
-        Text(
-          s.capsuleFrom(name.isNotEmpty ? name : s.partnerFallback),
-          style: TextStyle(
-            fontSize: 12.5,
-            color: t.textMuted,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _avatarFallback(AppTheme t, String name) {
-    final letter = name.firstGraphemeUpper('♥');
-    return Container(
-      color: t.primary.withValues(alpha: 0.12),
-      alignment: Alignment.center,
-      child: Text(
-        letter,
-        style: TextStyle(
-          color: t.primary,
-          fontWeight: FontWeight.w800,
-          fontSize: 11,
+  /// Печать — «печенье» M3 цвета темы с замком, как «играть» у видео-пина.
+  Widget _seal() {
+    final t = widget.theme;
+    final onFill = AppThemes.onColor(t.fillColor, mode: t.brightness);
+    return SizedBox(
+      width: _sealSize,
+      height: _sealSize,
+      child: ClipPath(
+        clipper: M3ShapeClipper(MaterialShapes.cookie9Sided),
+        child: ColoredBox(
+          color: t.fillColor,
+          child: Icon(Icons.lock_rounded, size: 26, color: onFill),
         ),
       ),
     );
   }
-
-  String _fmt(DateTime d) =>
-      '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
 }

@@ -53,7 +53,7 @@ void main() {
 
   test('подстановки не теряют значения', () {
     expect(de.partnerIsMood('Anna', 'froh'), 'Anna ist froh');
-    expect(de.capsuleFrom('Max'), 'von Max');
+    expect(de.capsuleNotReady('14. Feb 2027'), 'Noch nicht. Öffnet am 14. Feb 2027');
     expect(de.watchWithPartner('Max'), 'Mit Max schauen');
     expect(de.shareInviteText('4F2K9C', 'https://t.dy/x'), contains('4F2K9C'));
     expect(

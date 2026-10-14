@@ -543,7 +543,6 @@ abstract class AppStrings {
   String get capsuleNeedsContent;
   String get capsuleNeedsFutureDate;
   String capsuleOpensOn(String date);
-  String capsuleFrom(String name);
   String capsuleNotReady(String date);
   String get capsuleAddSub;
   String get capsuleCreated;
@@ -1183,6 +1182,7 @@ abstract class AppStrings {
   String get memBadgeMoment;
   String get memBadgeVideo;
   String get memBadgeNote;
+  String get memBadgeCapsule;
   String get memBadgeBook;
   String get memBadgeMovie;
   String newMemory(String type);
@@ -2617,9 +2617,7 @@ class _RuStrings extends DictStrings {
   @override
   String capsuleOpensOn(String date) => 'Откроется $date';
   @override
-  String capsuleFrom(String name) => 'от $name';
-  @override
-  String capsuleNotReady(String date) => 'Ещё рано 🙈 Откроется $date';
+  String capsuleNotReady(String date) => 'Ещё рано. Откроется $date';
   @override
   String capsuleOpenedBodyNamed(String title) => '«$title» ждёт тебя в ленте';
 
@@ -3515,9 +3513,7 @@ class _EnStrings extends DictStrings {
   @override
   String capsuleOpensOn(String date) => 'Opens $date';
   @override
-  String capsuleFrom(String name) => 'from $name';
-  @override
-  String capsuleNotReady(String date) => 'Not yet 🙈 Opens $date';
+  String capsuleNotReady(String date) => 'Not yet. Opens $date';
   @override
   String capsuleOpenedBodyNamed(String title) =>
       '"$title" is waiting in your feed';

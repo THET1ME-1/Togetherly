@@ -313,10 +313,7 @@ class _ItStrings extends _EnStrings {
   String capsuleOpensOn(String date) => 'Si apre il $date';
 
   @override
-  String capsuleFrom(String name) => 'da $name';
-
-  @override
-  String capsuleNotReady(String date) => 'Non ancora 🙈 Si apre il $date';
+  String capsuleNotReady(String date) => 'Non ancora. Si apre il $date';
 
   @override
   String capsuleOpenedBodyNamed(String title) =>

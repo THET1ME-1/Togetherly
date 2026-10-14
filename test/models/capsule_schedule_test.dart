@@ -37,6 +37,25 @@ void main() {
     });
   });
 
+  group('доля прошедшего срока', () {
+    final sealed = DateTime(2026, 7, 12, 20);
+    final opens = DateTime(2027, 2, 14, 9);
+
+    test('от запечатывания до открытия по времени', () {
+      expect(capsuleElapsedShare(sealed, opens, DateTime(2026, 10, 14, 12)),
+          closeTo(0.43, 0.01));
+    });
+
+    test('за краями срока — ровно 0 и 1', () {
+      expect(capsuleElapsedShare(sealed, opens, DateTime(2026, 7, 1)), 0);
+      expect(capsuleElapsedShare(sealed, opens, DateTime(2027, 3, 1)), 1);
+    });
+
+    test('открытие не позже запечатывания — срок вышел', () {
+      expect(capsuleElapsedShare(opens, sealed, now), 1);
+    });
+  });
+
   group('дней до открытия', () {
     test('считаются по календарю', () {
       expect(capsuleDaysLeft(DateTime(2027, 4, 14, 9), now), 182);

@@ -89,9 +89,7 @@ class _ZhStrings extends _EnStrings {
   @override
   String capsuleOpensOn(String date) => '$date 开启';
   @override
-  String capsuleFrom(String name) => '来自 $name';
-  @override
-  String capsuleNotReady(String date) => '还没到时候 🙈 $date 开启';
+  String capsuleNotReady(String date) => '还没到时候。$date 开启';
   @override
   String capsuleOpenedBodyNamed(String title) => '“$title”正在回忆长廊里等你';
 

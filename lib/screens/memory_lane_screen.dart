@@ -1631,11 +1631,12 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         key: ValueKey('capsule_${memory.id}'),
         child: SealedCapsuleCard(
           theme: widget.theme,
-          authorName: memory.authorName,
-          authorAvatar: memory.authorAvatar,
+          // Шапка как у всех пинов: кто, когда и значок «Капсула».
+          header: _cardHeader(memory, trailing: _capsuleBadge()),
+          sealedAt: memory.createdAt,
           openAt: memory.openAt!,
           onTapTooEarly: () => _secretSnack(
-            LocaleService.current.capsuleNotReady(_fmtCapsuleDate(memory.openAt!)),
+            LocaleService.current.capsuleNotReady(memoryDateLabel(memory.openAt!)),
           ),
           // Отправил по ошибке или пара распалась — до срока капсулу было
           // не убрать вовсе, писали в поддержку (письма 21 и 25.09.2026).
@@ -1858,6 +1859,15 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   /// без теней/бордера (требование), лёгкая подложка цветом темы.
   Widget _typeBadge(Memory memory) {
     final meta = _typeBadgeMeta(memory.type);
+    return _badgeChip(meta.$1, meta.$2);
+  }
+
+  /// Значок запечатанной капсулы: тип у неё записи (текст или фото), но
+  /// показывать его до срока незачем.
+  Widget _capsuleBadge() => _badgeChip(
+      LocaleService.current.memBadgeCapsule, Icons.hourglass_top_rounded);
+
+  Widget _badgeChip(String label, IconData icon) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
@@ -1867,10 +1877,10 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(meta.$2, size: 13, color: primary),
+          Icon(icon, size: 13, color: primary),
           const SizedBox(width: 5),
           Text(
-            meta.$1,
+            label,
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -3489,9 +3499,6 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
       _secretSnack(LocaleService.current.capsuleCreated);
     }
   }
-
-  String _fmtCapsuleDate(DateTime d) =>
-      '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
 
   void _showMemoryActions(Memory memory) {
     // Общий лист приложения: без него последняя строка меню («Удалить»)

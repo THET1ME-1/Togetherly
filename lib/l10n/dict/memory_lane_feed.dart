@@ -453,6 +453,16 @@ const Map<String, Map<String, String>> memoryLaneFeedStrings = {
     'fr': 'Note',
     'de': 'Notiz',
   },
+  // Значок запечатанной капсулы времени в шапке пина.
+  'memBadgeCapsule': {
+    'ru': 'Капсула',
+    'en': 'Capsule',
+    'pt': 'Cápsula',
+    'it': 'Capsula',
+    'es': 'Cápsula',
+    'fr': 'Capsule',
+    'de': 'Kapsel',
+  },
   'memBadgeBook': {
     'ru': 'Книга',
     'en': 'Book',

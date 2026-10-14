@@ -40,6 +40,16 @@ CapsulePreset? capsulePresetOf(DateTime openAt, DateTime now) {
   return null;
 }
 
+/// Какая доля срока прошла: от запечатывания [sealedAt] до открытия [openAt].
+/// Полоса прогресса пина в ленте. Открытие не позже запечатывания считается
+/// вышедшим сроком.
+double capsuleElapsedShare(DateTime sealedAt, DateTime openAt, DateTime now) {
+  final total = openAt.difference(sealedAt).inMilliseconds;
+  if (total <= 0) return 1;
+  final passed = now.difference(sealedAt).inMilliseconds;
+  return (passed / total).clamp(0.0, 1.0).toDouble();
+}
+
 /// Сколько дней до открытия по календарю. Завтра — один день, даже если до
 /// девяти утра меньше суток: `inDays` в этом случае давал ноль, и экран
 /// показывал «0 дней» у капсулы, которая ещё закрыта.

@@ -1818,6 +1818,8 @@ abstract class DictStrings extends AppStrings {
   String get memBadgeMoment => _t('memBadgeMoment');
   String get memBadgeVideo => _t('memBadgeVideo');
   String get memBadgeNote => _t('memBadgeNote');
+  @override
+  String get memBadgeCapsule => _t('memBadgeCapsule');
   String get memBadgeBook => _t('memBadgeBook');
   String get memBadgeMovie => _t('memBadgeMovie');
   @override
