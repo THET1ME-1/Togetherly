@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/level.dart';
 import '../models/mood_pack.dart';
+import '../models/own_mood_pack.dart';
 import '../models/user_data.dart';
 import '../services/catalog_service.dart';
 import '../services/coin_store.dart';
@@ -13,6 +14,7 @@ import '../services/level_service.dart';
 import '../dict_strings.dart';
 import '../services/locale_service.dart';
 import '../services/mood_pack_service.dart';
+import '../theme/app_theme.dart';
 import '../theme/theme_scope.dart';
 import 'mood_image.dart';
 import '../models/catalog_price.dart';
@@ -27,11 +29,20 @@ import '../models/catalog_price.dart';
 /// Платный пак виден всем, но с замком и ценой: закрытый выбрать нельзя, тап
 /// по нему предлагает покупку за монеты. Без [user] замков нет вовсе — так
 /// ведут себя старые точки вызова, куда данные о человеке не доходят.
+///
+/// Первой в ряду стоит таблетка «Свои» ([own]), если она есть: набор пары
+/// отдельный, а не раздел внутри выбранного набора.
 class MoodPackSelector extends StatelessWidget {
   final Color primary;
 
-  /// Вызывается после смены пака (родитель обновляет сетку настроений).
+  /// Вызывается после смены пака (родитель обновляет сетку настроений). Зовётся
+  /// и при нажатии на уже выбранный набор: так родитель снимает просмотр
+  /// закрытого или «Своих».
   final ValueChanged<MoodPack>? onChanged;
+
+  /// Таблетка «Свои» перед наборами. null — её нет: одиночка без пары или
+  /// iPhone, где Плюса нет вовсе.
+  final OwnPackChip? own;
 
   /// Тап по ЗАКРЫТОМУ паку. Родитель показывает его эмоции в своей же сетке —
   /// человек видит набор целиком, а кнопка покупки стоит внизу экрана. Отдельного
@@ -58,6 +69,7 @@ class MoodPackSelector extends StatelessWidget {
     this.user,
     this.pairOwned = const {},
     this.shownId,
+    this.own,
   });
 
   /// Открыт ли пак этому человеку.
@@ -122,29 +134,44 @@ class MoodPackSelector extends StatelessWidget {
             onPreview?.call(pack);
             return;
           }
-          if (pack.id == selectedId) return;
-          HapticFeedback.selectionClick();
-          MoodPackService.instance.setSelectedPack(pack.id);
+          if (pack.id != selectedId) {
+            HapticFeedback.selectionClick();
+            MoodPackService.instance.setSelectedPack(pack.id);
+          }
           onChanged?.call(pack);
         }
 
-        if (packs.length <= _stretchUpTo) {
+        final own = this.own;
+        final ownSelected = shownId == kOwnMoodPackId;
+        Widget ownChip({required bool stretched}) => _OwnChip(
+              key: const Key('mood-pack-own'),
+              chip: own!,
+              selected: ownSelected,
+              stretched: stretched,
+            );
+        Widget packChip(MoodPack p, {required bool stretched}) => _PackChip(
+              key: Key('mood-pack-${p.id}'),
+              pack: p,
+              selected: p.id == shownId,
+              locked: !isOpen(p),
+              primary: primary,
+              stretched: stretched,
+              onTap: () => select(p),
+            );
+        final count = packs.length + (own == null ? 0 : 1);
+
+        if (count <= _stretchUpTo) {
+          final chips = [
+            if (own != null) ownChip(stretched: true),
+            for (final p in packs) packChip(p, stretched: true),
+          ];
           return SizedBox(
             height: _height,
             child: Row(
               children: [
-                for (var i = 0; i < packs.length; i++) ...[
+                for (var i = 0; i < chips.length; i++) ...[
                   if (i > 0) const SizedBox(width: 8),
-                  Expanded(
-                    child: _PackChip(
-                      pack: packs[i],
-                      selected: packs[i].id == shownId,
-                      locked: !isOpen(packs[i]),
-                      primary: primary,
-                      stretched: true,
-                      onTap: () => select(packs[i]),
-                    ),
-                  ),
+                  Expanded(child: chips[i]),
                 ],
               ],
             ),
@@ -155,16 +182,13 @@ class MoodPackSelector extends StatelessWidget {
           height: _height,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            itemCount: packs.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 8),
-            itemBuilder: (context, i) => _PackChip(
-              pack: packs[i],
-              selected: packs[i].id == shownId,
-              locked: !isOpen(packs[i]),
-              primary: primary,
-              stretched: false,
-              onTap: () => select(packs[i]),
-            ),
+            itemCount: count,
+            // «Свои» отделены от наборов чуть шире: это набор пары, а не пак.
+            separatorBuilder: (_, i) => SizedBox(width: own != null && i == 0 ? 12 : 8),
+            itemBuilder: (context, i) {
+              if (own != null && i == 0) return ownChip(stretched: false);
+              return packChip(packs[i - (own == null ? 0 : 1)], stretched: false);
+            },
           ),
         );
       },
@@ -295,6 +319,112 @@ Future<void> buyMoodPack(
   onBought?.call();
 }
 
+/// Что показать таблеткой «Свои».
+class OwnPackChip {
+  /// Картинка первого своего настроения; пусто — набор пуст, в кружке «+».
+  final String preview;
+
+  /// Подложка под картинку-эмодзи: она прозрачная и без фона висела бы в
+  /// воздухе. null — картинка заполняет кружок сама.
+  final Color? previewTint;
+
+  /// Без Плюса таблетка носит замок.
+  final bool locked;
+  final VoidCallback onTap;
+
+  const OwnPackChip({
+    required this.preview,
+    required this.locked,
+    required this.onTap,
+    this.previewTint,
+  });
+}
+
+/// Цвета таблетки: выбранная заливается цветом темы. primaryContainer у
+/// рисованных тем совпадает с фоном листа (у тёмной «Кофе» #2A1F18 против
+/// #2A1E19), и выбранный набор от невыбранного не отличался.
+(Color, Color) _chipColors(AppTheme t, bool selected) => selected
+    ? (t.fillColor, AppThemes.onColor(t.fillColor, mode: t.brightness))
+    : (t.surfaceMuted, t.textSecondary);
+
+class _OwnChip extends StatelessWidget {
+  final OwnPackChip chip;
+  final bool selected;
+  final bool stretched;
+
+  const _OwnChip({super.key, required this.chip, required this.selected, required this.stretched});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.appTheme;
+    final (bg, fg) = _chipColors(t, selected);
+    final onFill = AppThemes.onColor(t.fillColor, mode: t.brightness);
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          chip.onTap();
+        },
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+          height: MoodPackSelector._height,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(MoodPackSelector._height / 2),
+          ),
+          child: Row(
+            mainAxisSize: stretched ? MainAxisSize.max : MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  // Пустой набор: «+» на заливке темы, а на выбранной таблетке,
+                  // которая сама цвета темы, — на её надписи.
+                  color: chip.preview.isEmpty
+                      ? (selected ? fg : t.fillColor)
+                      : (chip.previewTint ?? Colors.white),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: chip.preview.isEmpty
+                    ? Icon(Icons.add_rounded, size: 18, color: selected ? bg : onFill)
+                    : MoodImage(chip.preview, fit: BoxFit.cover, width: 24, height: 24),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  LocaleService.current.customMoodBand,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                    color: fg,
+                  ),
+                ),
+              ),
+              if (chip.locked) ...[
+                const SizedBox(width: 6),
+                Icon(Icons.lock_rounded, size: 13, color: fg),
+              ] else if (selected) ...[
+                const SizedBox(width: 6),
+                Icon(Icons.check_rounded, size: 15, color: fg),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _PackChip extends StatelessWidget {
   final MoodPack pack;
   final bool selected;
@@ -309,6 +439,7 @@ class _PackChip extends StatelessWidget {
   final VoidCallback onTap;
 
   const _PackChip({
+    super.key,
     required this.pack,
     required this.selected,
     required this.locked,
@@ -320,9 +451,8 @@ class _PackChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.appTheme;
-    final cs = Theme.of(context).colorScheme;
     final gradient = pack.tileGradient;
-    final fg = selected ? cs.onPrimaryContainer : t.textSecondary;
+    final (bg, fg) = _chipColors(t, selected);
 
     return GestureDetector(
       onTap: onTap,
@@ -333,7 +463,7 @@ class _PackChip extends StatelessWidget {
         height: MoodPackSelector._height,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
-          color: selected ? cs.primaryContainer : t.surfaceMuted,
+          color: bg,
           borderRadius: BorderRadius.circular(MoodPackSelector._height / 2),
         ),
         child: Row(

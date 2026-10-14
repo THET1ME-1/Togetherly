@@ -5,8 +5,33 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/custom_mood.dart';
+import '../models/own_mood_pack.dart';
 import 'pb_realtime_service.dart';
 import 'pocketbase_service.dart';
+
+/// То, что листам выбора и создания нужно от набора своих настроений.
+///
+/// Отдельным интерфейсом ради тестов: лист проверяется с набором в памяти,
+/// без PocketBase.
+abstract interface class CustomMoodStore {
+  Future<List<CustomMood>> load(String groupId);
+
+  Future<CustomMood?> create({
+    required String groupId,
+    required String label,
+    required int score,
+    required Uint8List png,
+    String emoji,
+  });
+
+  Future<bool> rename({
+    required String recordId,
+    required String label,
+    required int score,
+  });
+
+  Future<bool> remove(String recordId);
+}
 
 /// Свои настроения пары (Togetherly+).
 ///
@@ -17,16 +42,15 @@ import 'pocketbase_service.dart';
 /// Картинка лежит в самой записи открытым файлом — так же, как у каталожных
 /// паков. Прятать её за сессией нельзя: адрес читают виджеты рабочего стола, а
 /// там PocketBase-сессии нет вовсе.
-class CustomMoodService {
+class CustomMoodService implements CustomMoodStore {
   CustomMoodService._();
   static final CustomMoodService instance = CustomMoodService._();
   factory CustomMoodService() => instance;
 
   static const String collection = 'custom_moods';
 
-  /// Сколько своих настроений держит пара. Предел не про место на диске, а про
-  /// сетку выбора: дальше третьего десятка её перестаёт быть видно целиком.
-  static const int limit = 24;
+  /// Сколько своих настроений держит пара (см. [kOwnMoodLimit]).
+  static const int limit = kOwnMoodLimit;
 
   final PbRealtimeService _rt = PbRealtimeService();
 
@@ -52,6 +76,7 @@ class CustomMoodService {
   }
 
   /// Разовая загрузка — для экранов без подписки.
+  @override
   Future<List<CustomMood>> load(String groupId) async {
     if (groupId.isEmpty) return const [];
     try {
@@ -76,6 +101,7 @@ class CustomMoodService {
 
   /// Заводит своё настроение. [png] — готовая картинка 512×512: эмодзи,
   /// обрезанная фотография или рисунок, разницы для хранения нет.
+  @override
   Future<CustomMood?> create({
     required String groupId,
     required String label,
@@ -110,6 +136,7 @@ class CustomMoodService {
 
   /// Правит подпись и балл. Картинку не трогаем: чтобы её сменить, проще
   /// завести новое настроение — прежние отметки ссылаются на старый файл.
+  @override
   Future<bool> rename({
     required String recordId,
     required String label,
@@ -131,6 +158,7 @@ class CustomMoodService {
   ///
   /// Прошлые отметки этим не портятся: в самой отметке лежат и подпись, и
   /// адрес картинки, поэтому календарь и статистика остаются как были.
+  @override
   Future<bool> remove(String recordId) async {
     try {
       await PocketBaseService().pb.collection(collection).delete(recordId);

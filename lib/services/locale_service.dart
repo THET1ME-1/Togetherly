@@ -411,7 +411,6 @@ abstract class AppStrings {
   String get customMoodSourceEmoji;
   String get customMoodSourcePhoto;
   String get customMoodSourceDraw;
-  String get customMoodEmojiHint;
   String get customMoodLabelHint;
   String get customMoodScoreTitle;
   String get customMoodScore1;
@@ -422,15 +421,10 @@ abstract class AppStrings {
   String get customMoodSave;
   String get customMoodDelete;
   String get customMoodDeleteHint;
-  String get customMoodDrawTitle;
-  String get customMoodDrawDone;
   String get customMoodEraser;
   String get customMoodUndo;
-  String get customMoodNeedPicture;
-  String get customMoodNeedLabel;
   String get customMoodFailed;
   String get customMoodLimitReached;
-  String get customMoodPlusLock;
 
   // Плашка Togetherly+ на главной
   String get plusPromoTitle;

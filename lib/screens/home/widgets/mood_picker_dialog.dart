@@ -9,20 +9,27 @@ import '../../../models/ailment.dart';
 import '../../../models/custom_mood.dart';
 import '../../../models/mood_band.dart';
 import '../../../models/mood_entry.dart';
+import '../../../models/own_mood_pack.dart';
 import '../../../models/user_data.dart';
 import '../../../models/mood_pack.dart';
 import '../../../models/pair_data.dart';
 import '../../../dict_strings.dart';
+import '../../../services/catalog_service.dart';
 import '../../../services/locale_service.dart';
 import '../../../services/custom_mood_service.dart';
 import '../../../services/mood_pack_service.dart';
 import '../../../services/mood_service.dart';
 import '../../../services/plus_access.dart';
 import '../../../services/plus_service.dart';
+import '../../../services/pocketbase_service.dart';
 import '../../../services/widget_service.dart';
 import '../../../screens/plus_screen.dart';
-import '../../../widgets/common/app_dialog.dart';
+import '../../../widgets/common/m3_loading.dart';
+import '../../../widgets/memory_save/floating_note.dart';
 import '../../../widgets/mood/custom_mood_sheet.dart';
+import '../../../widgets/mood/mood_form_parts.dart';
+import '../../../widgets/mood/own_mood_actions_sheet.dart';
+import '../../../widgets/mood/own_mood_pack_view.dart';
 import '../../../widgets/mood_pack_selector.dart';
 import '../../../widgets/mood_tile_shapes.dart';
 import '../../../models/catalog_price.dart';
@@ -63,6 +70,7 @@ void showMoodPicker({
         user: user,
         pairOwned: pairOwned,
         groupId: moodService.groupId,
+        partnerName: pairData.partnerName,
         title: LocaleService.current.howAreYouFeeling,
         subtitle: LocaleService.current.partnerWillSeeMood,
         onSelect: (mood) {
@@ -149,6 +157,7 @@ void showMoodPickerForDate({
         user: user,
         pairOwned: pairOwned,
         groupId: moodService.groupId,
+        partnerName: pairData.partnerName,
         title: s.moodDateLabel(dateLabel),
         subtitle: isToday ? s.partnerWillSeeMood : s.indicateMoodForDay,
         onSelect: (mood) {
@@ -255,14 +264,29 @@ class MoodPickerSheet extends StatefulWidget {
   /// Ключи `owned_features` группы: пак общий на пару, платит кто-то один.
   final Set<String> pairOwned;
 
-  /// Пара, чьи свои настроения показываем. Пусто — раздела «Свои» нет вовсе
+  /// Пара, чьи свои настроения показываем. Пусто — таблетки «Свои» нет вовсе
   /// (одиночка: настроения без группы никуда не сохраняются).
   final String groupId;
+
+  /// Имя партнёра: удержание чужого своего настроения говорит, кто может его
+  /// изменить. Пусто — фраза обходится без имени.
+  final String partnerName;
   final String currentAilmentId;
   final void Function(Ailment)? onSelectAilment;
   final Future<void> Function()? onClearAilment;
 
+  /// Набор своих настроений. По умолчанию [CustomMoodService]; тесты кладут
+  /// набор в памяти.
+  final CustomMoodStore? store;
+
+  /// Гейт Плюса вместо [PlusService.gate] — для тестов.
+  final PlusGate? plusGate;
+
+  /// Свой uid вместо сессии PocketBase — для тестов.
+  final String? myUid;
+
   const MoodPickerSheet({
+    super.key,
     required this.scrollController,
     required this.currentEmoji,
     required this.primary,
@@ -273,11 +297,15 @@ class MoodPickerSheet extends StatefulWidget {
     this.user,
     this.pairOwned = const {},
     this.groupId = '',
+    this.partnerName = '',
     this.showAilmentTab = false,
     this.ailmentOnly = false,
     this.currentAilmentId = '',
     this.onSelectAilment,
     this.onClearAilment,
+    this.store,
+    this.plusGate,
+    this.myUid,
   });
 
   @override
@@ -292,9 +320,26 @@ class _MoodPickerSheetState extends State<MoodPickerSheet> {
   /// превращается из «Убрать настроение» в покупку. Пусто — показан свой.
   MoodPack? _preview;
 
-  /// Свои настроения пары. Пустой список означает и «ещё не загрузили», и
-  /// «не заводили» — разницы для сетки нет.
+  /// Свои настроения пары.
   List<CustomMood> _custom = const [];
+
+  /// Набор загрузился: до этого «Своих» нет ни пустыми, ни примером.
+  bool _customLoaded = false;
+
+  /// «Свои» показаны примером без Плюса. Это просмотр, как у закрытого
+  /// платного набора: выбор не запоминается.
+  bool _previewOwn = false;
+
+  CustomMoodStore get _store => widget.store ?? CustomMoodService.instance;
+
+  PlusGate get _gate => widget.plusGate ?? PlusService.instance.gate;
+
+  OwnPackState get _ownState => ownPackState(
+        hasGroup: widget.groupId.isNotEmpty,
+        gate: _gate,
+        loaded: _customLoaded,
+        count: _custom.length,
+      );
 
   @override
   void initState() {
@@ -306,48 +351,75 @@ class _MoodPickerSheetState extends State<MoodPickerSheet> {
   }
 
   Future<void> _loadCustom() async {
-    if (widget.groupId.isEmpty) return;
-    final list = await CustomMoodService.instance.load(widget.groupId);
-    if (mounted) setState(() => _custom = list);
+    final list = widget.groupId.isEmpty ? const <CustomMood>[] : await _store.load(widget.groupId);
+    if (!mounted) return;
+    setState(() {
+      _custom = list;
+      _customLoaded = true;
+    });
   }
 
-  /// Плитка «Своё»: заводит настроение или ведёт на экран Плюса.
+  void _openPlus() {
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => PlusScreen(scheme: ProfileTheme.schemeFor(context.appTheme)),
+    ));
+  }
+
+  /// «Новое»: заводит своё настроение или ведёт на экран Плюса.
   Future<void> _addCustom() async {
     final s = LocaleService.current;
-    switch (PlusService.instance.gate) {
+    switch (_gate) {
       case PlusGate.hidden:
-        return; // на iPhone Плюса нет — плитки тоже
+        return; // на iPhone без Плюса набора «Свои» нет вовсе
       case PlusGate.locked:
-        Navigator.of(context).push(MaterialPageRoute<void>(
-          builder: (_) => PlusScreen(scheme: ProfileTheme.schemeFor(context.appTheme)),
-        ));
+        _openPlus();
         return;
       case PlusGate.open:
         break;
     }
-    if (_custom.length >= CustomMoodService.limit) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(s.customMoodLimitReached)),
-      );
+    if (ownPackFull(_custom.length)) {
+      // Снекбар уехал бы под лист: плашка ложится поверх него.
+      showFloatingNote(context, s.customMoodLimitReached, icon: Icons.info_outline_rounded, duration: const Duration(milliseconds: 2600));
       return;
     }
-    final made = await showCustomMoodSheet(context, widget.groupId);
+    final made = await showCustomMoodSheet(context, widget.groupId, store: widget.store);
     if (made == true) await _loadCustom();
   }
 
-  /// Долгое нажатие по своему настроению — убрать его из набора.
-  Future<void> _removeCustom(CustomMood mood) async {
-    final s = LocaleService.current;
-    final yes = await AppDialog.confirm(
+  /// Удержание своего настроения: своё изменить или убрать, про чужое —
+  /// объяснить, кто может.
+  Future<void> _holdCustom(CustomMood mood) async {
+    HapticFeedback.mediumImpact();
+    final uid = widget.myUid ?? PocketBaseService().userId ?? '';
+    final action = await showOwnMoodActions(
       context,
-      title: mood.label,
-      message: s.customMoodDeleteHint,
-      confirmLabel: s.customMoodDelete,
-      destructive: true,
+      mood: mood,
+      mine: mood.editableBy(uid),
+      partnerName: widget.partnerName,
     );
-    if (yes != true) return;
-    await CustomMoodService.instance.remove(mood.id);
-    await _loadCustom();
+    if (!mounted || action == null) return;
+    switch (action) {
+      case OwnMoodAction.edit:
+        final saved = await showEditCustomMoodSheet(context, mood, store: widget.store);
+        if (saved == true) await _loadCustom();
+      case OwnMoodAction.remove:
+        final ok = await _store.remove(mood.id);
+        if (!mounted) return;
+        if (!ok) {
+          showFloatingNote(context, trKey('customMoodRemoveFailed'), icon: Icons.error_outline_rounded);
+        }
+        await _loadCustom();
+    }
+  }
+
+  /// Нажатие на таблетку «Свои».
+  void _tapOwn() {
+    final selectable = ownPackSelectable(_ownState);
+    setState(() {
+      _preview = null;
+      _previewOwn = !selectable;
+    });
+    if (selectable) MoodPackService.instance.setSelectedPack(kOwnMoodPackId);
   }
 
   @override
@@ -443,7 +515,9 @@ class _MoodPickerSheetState extends State<MoodPickerSheet> {
           curve: Curves.easeOutCubic,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: active ? widget.primary : cs.surfaceContainerHigh,
+            // Невыбранная вкладка на тон темнее листа: у рисованных тем
+            // surfaceContainerHigh совпадает с фоном листа, и её не было видно.
+            color: active ? widget.primary : cs.surfaceContainerHighest,
             borderRadius: BorderRadius.only(
               topLeft: first ? outer : inner,
               bottomLeft: first ? outer : inner,
@@ -466,145 +540,189 @@ class _MoodPickerSheetState extends State<MoodPickerSheet> {
   }
 
   Widget _moodBody(ColorScheme cs) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
-          child: MoodPackSelector(
-            primary: widget.primary,
-            user: widget.user,
-            pairOwned: widget.pairOwned,
-            shownId: _preview?.id,
-            onChanged: (_) => setState(() => _preview = null),
-            onPreview: (p) {
-              setState(() => _preview = p);
-              // Цену на кнопке называет магазин, а описание товара приезжает
-              // по требованию: спрашиваем его сразу, как человек открыл набор,
-              // иначе кнопка секунду показывала бы цену из манифеста.
-              if (p.unlock.isMoney && kCatalogBuysInStore) {
-                final id = catalogProductId(
-                    Unlock.featureKey(kMoodPackFeatureKind, p.id));
-                unawaited(sharedCoinStore.ensureProduct(id).then((known) {
-                  if (known && mounted) setState(() {});
-                }));
-              }
-            },
-          ),
-        ),
-        Expanded(
-          child: AnimatedBuilder(
-            animation: MoodPackService.instance,
-            builder: (context, _) {
-              final pack = _preview ?? MoodPackService.instance.selectedPack;
-              final sections = groupMoodsByBand(pack.moods);
-              // Подпись художника идёт последней строкой списка, а не отдельным
-              // блоком под ним: иначе она висела бы на экране всё время, пока
-              // человек листает эмоции, и спорила бы с кнопкой снизу.
-              final signed = pack.author.isNotEmpty;
-              // Свои настроения показываем только у своего набора: пока человек
-              // разглядывает чужой пак, сетка целиком про этот пак.
-              final own = _preview == null &&
-                  widget.groupId.isNotEmpty &&
-                  PlusService.instance.visible;
-              final head = own ? 1 : 0;
-              return ListView.builder(
-                controller: widget.scrollController,
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-                itemCount: head + sections.length + (signed ? 1 : 0),
-                itemBuilder: (_, i) {
-                  if (own && i == 0) return _customSection(cs);
-                  final k = i - head;
-                  return k < sections.length
-                      ? _bandSection(sections[k], pack, cs)
-                      : _authorLine(pack.author, cs);
+    return AnimatedBuilder(
+      animation: Listenable.merge([MoodPackService.instance, CatalogService.instance]),
+      builder: (context, _) {
+        final own = _ownState;
+        final shown = shownMoodPackId(
+          selectedId: MoodPackService.instance.selectedPackId,
+          resolvedId: MoodPackService.instance.selectedPack.id,
+          own: own,
+          previewId: _preview?.id,
+          previewOwn: _previewOwn,
+        );
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
+              child: MoodPackSelector(
+                primary: widget.primary,
+                user: widget.user,
+                pairOwned: widget.pairOwned,
+                shownId: shown,
+                own: own == OwnPackState.hidden ? null : _ownChip(cs),
+                onChanged: (_) => setState(() {
+                  _preview = null;
+                  _previewOwn = false;
+                }),
+                onPreview: (p) {
+                  setState(() {
+                    _preview = p;
+                    _previewOwn = false;
+                  });
+                  // Цену на кнопке называет магазин, а описание товара приезжает
+                  // по требованию: спрашиваем его сразу, как человек открыл набор,
+                  // иначе кнопка секунду показывала бы цену из манифеста.
+                  if (p.unlock.isMoney && kCatalogBuysInStore) {
+                    final id = catalogProductId(
+                        Unlock.featureKey(kMoodPackFeatureKind, p.id));
+                    unawaited(sharedCoinStore.ensureProduct(id).then((known) {
+                      if (known && mounted) setState(() {});
+                    }));
+                  }
                 },
-              );
-            },
-          ),
-        ),
-      ],
+              ),
+            ),
+            Expanded(
+              child: shown == kOwnMoodPackId ? _ownList(cs, own) : _packList(cs),
+            ),
+          ],
+        );
+      },
     );
   }
 
-  /// Раздел своих настроений: то, что пара завела сама, плюс плитка «Своё».
-  ///
-  /// Стоит первым — это короткий свой список, за которым не надо листать чужие
-  /// два десятка мордочек.
-  Widget _customSection(ColorScheme cs) {
-    final s = LocaleService.current;
-    final locked = PlusService.instance.gate == PlusGate.locked;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(2, 14, 2, 10),
-          child: Row(
-            children: [
-              Text(
-                s.customMoodBand,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.3,
-                  color: cs.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(child: Divider(height: 1, color: cs.outlineVariant)),
-            ],
-          ),
-        ),
-        LayoutBuilder(builder: (context, box) {
-          return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          padding: EdgeInsets.zero,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 5,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 8,
-            childAspectRatio: moodTileRatio(context, box.maxWidth),
-          ),
-          itemCount: _custom.length + 1,
+  /// Таблетка «Свои»: картинка первого своего настроения или «+».
+  OwnPackChip _ownChip(ColorScheme cs) {
+    final first = _custom.isEmpty ? null : _custom.first;
+    return OwnPackChip(
+      preview: first?.imageUrl ?? '',
+      previewTint: first != null && first.onTintedTile ? moodScoreTint(first.score, cs, alpha: 0.30) : null,
+      locked: _gate == PlusGate.locked,
+      onTap: _tapOwn,
+    );
+  }
+
+  /// Сетка обычного набора: разделы по шкале и подпись художника.
+  Widget _packList(ColorScheme cs) {
+    final pack = _preview ?? MoodPackService.instance.selectedPack;
+    final sections = groupMoodsByBand(pack.moods);
+    // Подпись художника идёт последней строкой списка, а не отдельным
+    // блоком под ним: иначе она висела бы на экране всё время, пока
+    // человек листает эмоции, и спорила бы с кнопкой снизу.
+    final signed = pack.author.isNotEmpty;
+    return ListView.builder(
+      controller: widget.scrollController,
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+      itemCount: sections.length + (signed ? 1 : 0),
+      itemBuilder: (_, i) => i < sections.length
+          ? _bandSection(sections[i], pack, cs)
+          : _authorLine(pack.author, cs),
+    );
+  }
+
+  /// Набор «Свои»: строка с местом и «Новое», дальше разделы по шкале, как у
+  /// остальных наборов (макет 14.10.2026, вариант А «Как все наборы»).
+  Widget _ownList(ColorScheme cs, OwnPackState own) {
+    const padding = EdgeInsets.fromLTRB(20, 0, 20, 16);
+    switch (own) {
+      case OwnPackState.hidden:
+      case OwnPackState.loading:
+        return ListView(
+          controller: widget.scrollController,
+          padding: padding,
+          children: [
+            const SizedBox(height: 48),
+            Center(child: M3Loading(color: cs.primary)),
+          ],
+        );
+      case OwnPackState.teaser:
+        return ListView(
+          controller: widget.scrollController,
+          padding: padding,
+          children: [
+            OwnMoodsEmpty(title: trKey('customMoodTeaserTitle'), text: trKey('customMoodTeaserText')),
+          ],
+        );
+      case OwnPackState.empty:
+        return ListView(
+          controller: widget.scrollController,
+          padding: padding,
+          children: [
+            OwnMoodsEmpty(
+              title: trKey('customMoodEmptyTitle'),
+              text: trKey('customMoodEmptyText'),
+              onCreate: _addCustom,
+            ),
+          ],
+        );
+      case OwnPackState.list:
+        final s = LocaleService.current;
+        final locked = _gate == PlusGate.locked;
+        final sections = groupOwnByBand(_custom);
+        final meta = locked
+            ? trKey('customMoodLockedMeta')
+            : trKey('customMoodSetCount')
+                .replaceAll('{n}', '${_custom.length}')
+                .replaceAll('{max}', '$kOwnMoodLimit');
+        return ListView.builder(
+          controller: widget.scrollController,
+          padding: padding,
+          itemCount: 1 + sections.length,
           itemBuilder: (_, i) {
-            if (i == _custom.length) {
-              return _AddMoodTile(
-                label: s.customMoodNewTile,
+            if (i == 0) {
+              return OwnMoodsBar(
+                meta: meta,
                 locked: locked,
-                scheme: cs,
-                onTap: _addCustom,
+                full: ownPackFull(_custom.length),
+                newLabel: s.customMoodNewTile,
+                onNew: _addCustom,
               );
             }
-            final mood = _custom[i];
-            final option = mood.toMoodOption();
-            return _MoodTile(
-              mood: option,
-              isSelected: widget.currentEmoji == option.imagePath,
-              primary: widget.primary,
-              scheme: cs,
-              tileGradient: null,
-              onTap: () {
-                HapticFeedback.lightImpact();
-                widget.onSelect(option);
+            final section = sections[i - 1];
+            return _bandBlock(
+              section.band,
+              cs,
+              itemCount: section.moods.length,
+              itemBuilder: (i) {
+                final mood = section.moods[i];
+                final option = mood.toMoodOption();
+                return _MoodTile(
+                  mood: option,
+                  isSelected: widget.currentEmoji == option.imagePath,
+                  primary: widget.primary,
+                  scheme: cs,
+                  sticker: mood.onTintedTile,
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    widget.onSelect(option);
+                  },
+                  onLongPress: () => _holdCustom(mood),
+                );
               },
-              onLongPress: () => _removeCustom(mood),
             );
           },
         );
-        }),
-      ],
-    );
+    }
   }
 
-  /// Раздел сетки: подпись с линией и свои пять колонок.
-  Widget _bandSection(MoodBandSection section, MoodPack pack, ColorScheme cs) {
+  String _bandTitle(MoodBand band) {
     final s = LocaleService.current;
-    final title = switch (section.band) {
+    return switch (band) {
       MoodBand.bright => s.moodBandBright,
       MoodBand.even => s.moodBandEven,
       MoodBand.sad => s.moodBandSad,
       MoodBand.heavy => s.moodBandHeavy,
     };
+  }
+
+  /// Раздел сетки: подпись с линией и пять колонок плиток.
+  Widget _bandBlock(
+    MoodBand band,
+    ColorScheme cs, {
+    required int itemCount,
+    required Widget Function(int) itemBuilder,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -612,13 +730,19 @@ class _MoodPickerSheetState extends State<MoodPickerSheet> {
           padding: const EdgeInsets.fromLTRB(2, 14, 2, 10),
           child: Row(
             children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.3,
-                  color: cs.onSurfaceVariant,
+              // Длинный раздел («Traurig und unruhig») при крупном шрифте на
+              // узком экране не должен выталкивать строку за край.
+              Flexible(
+                child: Text(
+                  _bandTitle(band),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.3,
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
               ),
               const SizedBox(width: 10),
@@ -628,43 +752,53 @@ class _MoodPickerSheetState extends State<MoodPickerSheet> {
         ),
         LayoutBuilder(builder: (context, box) {
           return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          padding: EdgeInsets.zero,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 5,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 8,
-            // Плитка + две строки подписи в 11 пунктов. Высота считается, а не
-            // берётся числом: при крупном системном шрифте подпись выше.
-            childAspectRatio: moodTileRatio(context, box.maxWidth),
-          ),
-          itemCount: section.moods.length,
-          itemBuilder: (_, i) {
-            final mood = section.moods[i];
-            final isSelected = widget.currentEmoji == mood.imagePath;
-            return _MoodTile(
-              mood: mood,
-              // У чужого набора выбранного быть не может: человек его смотрит.
-              isSelected: _preview == null && isSelected,
-              primary: widget.primary,
-              scheme: cs,
-              tileGradient: pack.tileGradient,
-              onTap: () {
-                HapticFeedback.lightImpact();
-                // Тап по эмоции закрытого набора ведёт туда же, куда кнопка
-                // внизу: отметить ею день пока нельзя.
-                if (_preview != null) {
-                  _buyPreviewed();
-                  return;
-                }
-                widget.onSelect(mood);
-              },
-            );
-          },
-        );
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: EdgeInsets.zero,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 5,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 8,
+              // Плитка + две строки подписи в 11 пунктов. Высота считается, а не
+              // берётся числом: при крупном системном шрифте подпись выше.
+              childAspectRatio: moodTileRatio(context, box.maxWidth),
+            ),
+            itemCount: itemCount,
+            itemBuilder: (_, i) => itemBuilder(i),
+          );
         }),
       ],
+    );
+  }
+
+  /// Раздел сетки обычного набора.
+  Widget _bandSection(MoodBandSection section, MoodPack pack, ColorScheme cs) {
+    return _bandBlock(
+      section.band,
+      cs,
+      itemCount: section.moods.length,
+      itemBuilder: (i) {
+        final mood = section.moods[i];
+        final isSelected = widget.currentEmoji == mood.imagePath;
+        return _MoodTile(
+          mood: mood,
+          // У чужого набора выбранного быть не может: человек его смотрит.
+          isSelected: _preview == null && isSelected,
+          primary: widget.primary,
+          scheme: cs,
+          sticker: pack.tileGradient != null,
+          onTap: () {
+            HapticFeedback.lightImpact();
+            // Тап по эмоции закрытого набора ведёт туда же, куда кнопка
+            // внизу: отметить ею день пока нельзя.
+            if (_preview != null) {
+              _buyPreviewed();
+              return;
+            }
+            widget.onSelect(mood);
+          },
+        );
+      },
     );
   }
 
@@ -730,6 +864,33 @@ class _MoodPickerSheetState extends State<MoodPickerSheet> {
   }
 
   Widget _clearButton(AppStrings s, ColorScheme cs, bool onAilment) {
+    // «Свои» без Плюса показаны примером — внизу вход в Плюс, как у закрытого
+    // платного набора.
+    if (_previewOwn && !onAilment) {
+      return SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 6, 20, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              MoodSheetButton(
+                key: const Key('own-moods-unlock'),
+                label: trKey('customMoodUnlock'),
+                icon: Icons.workspace_premium_rounded,
+                onPressed: _openPlus,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                trKey('customMoodUnlockNote'),
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     // Смотрим чужой набор — вместо «убрать настроение» тут покупка: другого
     // действия на этом экране сейчас нет.
     final previewed = _preview;
@@ -759,6 +920,7 @@ class _MoodPickerSheetState extends State<MoodPickerSheet> {
                   style: FilledButton.styleFrom(
                     shape: const StadiumBorder(),
                     textStyle: const TextStyle(
+                      fontFamily: 'Onest',
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
                     ),
@@ -802,7 +964,10 @@ class _MoodPickerSheetState extends State<MoodPickerSheet> {
               backgroundColor: cs.secondaryContainer,
               foregroundColor: cs.onSecondaryContainer,
               shape: const StadiumBorder(),
+              // Стиль кнопки не сливается с темой: без семейства надпись
+              // уходила в системный шрифт, а не в Onest.
               textStyle: const TextStyle(
+                fontFamily: 'Onest',
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
               ),
@@ -839,6 +1004,40 @@ double moodTileRatio(
   return fit < 0.62 ? fit : 0.62;
 }
 
+/// Нижний предел кегля подписи плитки: мельче её уже не прочесть.
+const double kMoodLabelMinSize = 8.5;
+
+/// Кегль подписи плитки шириной [width]: самое длинное слово должно влезть в
+/// строку целиком.
+///
+/// Слово шире плитки Flutter рвёт посреди: «Подмигив/аю», «Скуча/ю». Своим
+/// настроениям пара сама даёт названия, и они длиннее встроенных, поэтому
+/// такое слово набирается мельче, но не ниже [kMoodLabelMinSize].
+double moodLabelSize(BuildContext context, String label, double width, {double base = 11}) {
+  if (width <= 0) return base;
+  final style = DefaultTextStyle.of(context).style.merge(
+        TextStyle(fontSize: base, fontWeight: FontWeight.w700, height: 1.2),
+      );
+  final scaler = MediaQuery.textScalerOf(context);
+  var widest = 0.0;
+  for (final word in label.split(RegExp(r'\s+'))) {
+    if (word.isEmpty) continue;
+    final painter = TextPainter(
+      text: TextSpan(text: word, style: style),
+      textDirection: TextDirection.ltr,
+      textScaler: scaler,
+      maxLines: 1,
+    )..layout();
+    if (painter.width > widest) widest = painter.width;
+    painter.dispose();
+  }
+  if (widest <= width) return base;
+  // Ширина глифов при уменьшении кегля меняется не строго пропорционально
+  // (округление на мелком размере), поэтому целимся с запасом в пять процентов.
+  final fit = (base * width * 0.95 / widest * 10).floorToDouble() / 10;
+  return fit < kMoodLabelMinSize ? kMoodLabelMinSize : fit;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  Single emoji tile
 // ─────────────────────────────────────────────────────────────────────────────
@@ -849,12 +1048,12 @@ class _MoodTile extends StatelessWidget {
   final Color primary;
   final ColorScheme scheme;
 
-  /// Подложка для паков с прозрачными стикерами (напр. розовый). null —
-  /// картинка непрозрачная и заполняет плитку сама (классический пак).
-  final List<Color>? tileGradient;
+  /// Картинка прозрачная (стикеры «Розовых», эмодзи своего набора) и стоит на
+  /// подложке цвета настроения. false — картинка заполняет плитку сама.
+  final bool sticker;
   final VoidCallback onTap;
 
-  /// Есть только у своих настроений: удержание убирает настроение из набора.
+  /// Есть только у своих настроений: удержание открывает их действия.
   final VoidCallback? onLongPress;
 
   const _MoodTile({
@@ -863,13 +1062,12 @@ class _MoodTile extends StatelessWidget {
     required this.primary,
     required this.scheme,
     required this.onTap,
-    this.tileGradient,
+    this.sticker = false,
     this.onLongPress,
   });
 
   @override
   Widget build(BuildContext context) {
-    final sticker = tileGradient != null;
     return GestureDetector(
       onTap: onTap,
       onLongPress: onLongPress,
@@ -947,17 +1145,19 @@ class _MoodTile extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
-          Text(
-            mood.myLabel,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-              color: isSelected ? primary : scheme.onSurfaceVariant,
-              height: 1.2,
+          LayoutBuilder(
+            builder: (context, box) => Text(
+              mood.myLabel,
+              style: TextStyle(
+                fontSize: moodLabelSize(context, mood.myLabel, box.maxWidth),
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected ? primary : scheme.onSurfaceVariant,
+                height: 1.2,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -1022,63 +1222,6 @@ class _AilmentChip extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-
-/// Плитка «Своё» в конце раздела своих настроений.
-///
-/// Под замком она никуда не пропадает: человек должен узнать, что такое вообще
-/// бывает, — иначе возможность видна только тем, кто уже купил.
-class _AddMoodTile extends StatelessWidget {
-  final String label;
-  final bool locked;
-  final ColorScheme scheme;
-  final VoidCallback onTap;
-
-  const _AddMoodTile({
-    required this.label,
-    required this.locked,
-    required this.scheme,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AspectRatio(
-            aspectRatio: 1.0,
-            child: Container(
-              decoration: BoxDecoration(
-                color: scheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Icon(
-                locked ? Icons.lock_outline : Icons.add,
-                color: scheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            label,
-            maxLines: 2,
-            textAlign: TextAlign.center,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 11,
-              height: 1.15,
-              color: scheme.onSurfaceVariant,
-            ),
-          ),
-        ],
       ),
     );
   }

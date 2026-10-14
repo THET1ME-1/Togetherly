@@ -599,8 +599,6 @@ abstract class DictStrings extends AppStrings {
   @override
   String get customMoodSourceDraw => _t('customMoodSourceDraw');
   @override
-  String get customMoodEmojiHint => _t('customMoodEmojiHint');
-  @override
   String get customMoodLabelHint => _t('customMoodLabelHint');
   @override
   String get customMoodScoreTitle => _t('customMoodScoreTitle');
@@ -621,23 +619,13 @@ abstract class DictStrings extends AppStrings {
   @override
   String get customMoodDeleteHint => _t('customMoodDeleteHint');
   @override
-  String get customMoodDrawTitle => _t('customMoodDrawTitle');
-  @override
-  String get customMoodDrawDone => _t('customMoodDrawDone');
-  @override
   String get customMoodEraser => _t('customMoodEraser');
   @override
   String get customMoodUndo => _t('customMoodUndo');
   @override
-  String get customMoodNeedPicture => _t('customMoodNeedPicture');
-  @override
-  String get customMoodNeedLabel => _t('customMoodNeedLabel');
-  @override
   String get customMoodFailed => _t('customMoodFailed');
   @override
   String get customMoodLimitReached => _t('customMoodLimitReached');
-  @override
-  String get customMoodPlusLock => _t('customMoodPlusLock');
   @override
   String get plusPromoTitle => _t('plusPromoTitle');
   @override
