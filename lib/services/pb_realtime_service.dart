@@ -10,6 +10,7 @@ import 'offline/connectivity_service.dart';
 import 'offline/local_store.dart';
 import 'offline/outbox_service.dart';
 import 'offline/record_scope.dart';
+import 'offline/scope_reconciler.dart';
 import 'pocketbase_service.dart';
 
 /// Realtime-слой (миграция Firebase→PB, Этап 6; транспорт перенесён с SSE PB на
@@ -448,31 +449,32 @@ class PbRealtimeService {
       final now = DateTime.now().millisecondsSinceEpoch;
       final last = await store.lastReconcileAt(scope.token);
       if (!mayReconcileScope(nowMs: now, lastAtMs: last)) return;
-      final serverRecords = <RecordModel>[];
-      var page = 1;
-      while (!cancelled) {
-        final res = await _pb
-            .collection(collection)
-            .getList(
-              page: page,
-              perPage: 200,
-              filter: networkFilter ?? '',
-              sort: 'id',
-            )
-            .timeout(const Duration(seconds: 12));
-        serverRecords.addAll(res.items);
-        if (res.items.isEmpty || page >= res.totalPages) break;
-        page++;
-      }
-      if (cancelled) return;
-      // Своё, ещё не уехавшее на сервер, сверка сносить не имеет права.
-      final pending = <String>{
-        for (final r in await store.getScope(collection, scope))
-          if (OutboxService.instance.isPending(collection, r.id)) r.id,
-      };
-      await store.reconcileScope(collection, scope, serverRecords,
-          protectIds: pending);
-      await store.setReconcileAt(scope.token, now);
+      final done = await reconcileWithServer(
+        store: store,
+        outbox: OutboxService.instance,
+        collection: collection,
+        scope: scope,
+        fetchServer: () async {
+          final serverRecords = <RecordModel>[];
+          var page = 1;
+          while (!cancelled) {
+            final res = await _pb
+                .collection(collection)
+                .getList(
+                  page: page,
+                  perPage: 200,
+                  filter: networkFilter ?? '',
+                  sort: 'id',
+                )
+                .timeout(const Duration(seconds: 12));
+            serverRecords.addAll(res.items);
+            if (res.items.isEmpty || page >= res.totalPages) break;
+            page++;
+          }
+          return cancelled ? null : serverRecords;
+        },
+      );
+      if (done) await store.setReconcileAt(scope.token, now);
     }
 
     Future<void> startNetwork() async {

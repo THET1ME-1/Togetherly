@@ -39,10 +39,12 @@ class MemoryDateField extends StatelessWidget {
           title: LocaleService.current.memoryDateLabel,
           theme: context.appTheme,
           initial: value ?? now,
-          // Воспоминание — про прошлое: год из будущего выбрать нельзя, как и
-          // раньше (lastDate: now у стокового пикера).
+          // Воспоминание — про прошлое: дату позже сегодняшней выбрать нельзя,
+          // как и раньше (lastDate: now у стокового пикера). Сервер будущее
+          // тоже не примет (даты_воспоминания в hotpath).
           firstYear: 2000,
           lastYear: now.year,
+          latest: now,
           startOnTime: onTime,
         ),
         settings: const RouteSettings(name: '/date_picker'),

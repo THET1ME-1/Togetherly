@@ -1380,9 +1380,10 @@ class _MemoryPhotoFormScreenState extends State<MemoryPhotoFormScreen> {
           title: LocaleService.current.memoryDateLabelForm,
           theme: widget.theme,
           initial: _customDate ?? now,
-          // Воспоминание — про прошлое: год из будущего выбрать нельзя.
+          // Воспоминание — про прошлое: дату позже сегодняшней выбрать нельзя.
           firstYear: 2000,
           lastYear: now.year,
+          latest: now,
         ),
         settings: const RouteSettings(name: '/date_picker'),
       ),

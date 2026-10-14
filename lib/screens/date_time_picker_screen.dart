@@ -23,6 +23,7 @@ class DateTimePickerScreen extends StatefulWidget {
     required this.firstYear,
     required this.lastYear,
     this.initial,
+    this.latest,
     this.withTime = true,
     this.startOnTime = false,
   });
@@ -32,6 +33,11 @@ class DateTimePickerScreen extends StatefulWidget {
   final int firstYear;
   final int lastYear;
   final DateTime? initial;
+
+  /// Позже этого момента выбрать нельзя: «Готово» прижимает дату к нему.
+  /// У воспоминания будущего нет, а [lastYear] держит только год, и будущий
+  /// день текущего года проходил.
+  final DateTime? latest;
 
   /// Показывать ли вкладку времени. Для дня рождения время лишнее.
   final bool withTime;
@@ -110,15 +116,19 @@ class _DateTimePickerScreenState extends State<DateTimePickerScreen> {
     );
   }
 
-  void _submit() => Navigator.of(context).pop(
-        DateWheel.build(
-          year: _year,
-          month: _month,
-          day: _day,
-          hour: widget.withTime ? _hour : 0,
-          minute: widget.withTime ? _minute : 0,
-        ),
-      );
+  void _submit() {
+    final picked = DateWheel.build(
+      year: _year,
+      month: _month,
+      day: _day,
+      hour: widget.withTime ? _hour : 0,
+      minute: widget.withTime ? _minute : 0,
+    );
+    final latest = widget.latest;
+    Navigator.of(context).pop(
+      latest != null && picked.isAfter(latest) ? latest : picked,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -97,6 +97,20 @@ class OutboxService {
   bool isPending(String collection, String id) =>
       id.isNotEmpty && _pendingKeys.contains('$collection:$id');
 
+  /// Открытые окна [watchPending]: каждое копит ключи всех записей, что
+  /// побывали в очереди, пока окно открыто.
+  final List<PendingWatch> _watches = [];
+
+  /// Открыть окно наблюдения за очередью. [isPending] отвечает только про
+  /// «сейчас»: запись может встать в очередь и уехать на сервер целиком между
+  /// двумя такими вопросами, и сверка ленты удаляла её как лишнюю (14.10.2026).
+  /// Окно помнит её до [PendingWatch.close].
+  PendingWatch watchPending() {
+    final w = PendingWatch._(this, _pendingKeys);
+    _watches.add(w);
+    return w;
+  }
+
   /// Ключи записей, чья отправка сдалась после [_maxAttempts] попыток. Без них
   /// такая запись выглядела отправленной: из очереди она пропадает, а на
   /// сервер так и не доехала.
@@ -485,6 +499,9 @@ class OutboxService {
     _pendingKeys
       ..clear()
       ..addAll(keys);
+    for (final w in _watches) {
+      w._seen.addAll(keys);
+    }
   }
 
   /// Полная очистка очереди (logout/смена пользователя).
@@ -1101,4 +1118,18 @@ class _ParsedOp {
   final int attempts;
   final String? rkey;
   const _ParsedOp(this.type, this.payload, this.attempts, this.rkey);
+}
+
+/// Окно наблюдения за очередью (см. [OutboxService.watchPending]).
+class PendingWatch {
+  PendingWatch._(this._owner, Set<String> now) : _seen = {...now};
+
+  final OutboxService _owner;
+  final Set<String> _seen;
+
+  /// Была ли запись в очереди хоть раз с открытия окна.
+  bool saw(String collection, String id) =>
+      id.isNotEmpty && _seen.contains('$collection:$id');
+
+  void close() => _owner._watches.remove(this);
 }
