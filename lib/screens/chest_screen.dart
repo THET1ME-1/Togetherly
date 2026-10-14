@@ -32,6 +32,7 @@ import '../widgets/chest/jar_drops.dart';
 import '../widgets/common/ad_result.dart';
 import '../widgets/common/badge_image.dart';
 import '../widgets/common/gift_image.dart';
+import '../widgets/gifts/gift_note_sheet.dart';
 import '../widgets/chest/chest_rays.dart';
 import '../widgets/chest/season_glitch.dart';
 import '../widgets/unfold/unfold_route.dart';
@@ -638,9 +639,20 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     final slot = _s;
     final choice = slot.choice;
     if (choice == null || _choosing) return;
+    var note = '';
+    if (give) {
+      final asked = await showGiftNoteSheet(
+        context,
+        cs: Theme.of(context).colorScheme,
+        giftKey: choice.giftKey,
+        title: GiftCatalog.byKey(choice.giftKey)?.title ?? choice.giftKey,
+      );
+      if (asked == null || !mounted) return;
+      note = asked;
+    }
     setState(() => _choosing = true);
     final ok = give
-        ? await ChestService.instance.give(choice.openId, widget.groupId)
+        ? await ChestService.instance.give(choice.openId, widget.groupId, note: note)
         : await ChestService.instance.keep(choice.openId);
     if (!mounted) return;
     setState(() {

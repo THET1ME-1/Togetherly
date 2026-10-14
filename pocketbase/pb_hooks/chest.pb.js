@@ -714,10 +714,13 @@ routerAdd("POST", "/api/chest/keep", (e) => {
 // возвращают — монеты из воздуха не появляются (как у подарка за ролик).
 routerAdd("POST", "/api/chest/give", (e) => {
   const LIFE_MS = 24 * 60 * 60 * 1000;
-  const body = new DynamicModel({ openId: "", groupId: "" });
+  const body = new DynamicModel({ openId: "", groupId: "", note: "" });
   e.bindBody(body);
   const openId = String(body.openId || "").trim();
   const groupId = String(body.groupId || "").trim();
+  // Записка, как у купленного подарка (обращение 244, 13.10.2026); предел —
+  // тот же, что в gifts.pb.js, против мусора, а не против письма.
+  const note = String(body.note || "").trim().slice(0, 20000);
   if (!/^[a-z0-9]{15}$/.test(openId) || !groupId) return e.json(400, { ok: false, error: "bad_request" });
   const me = e.auth.id;
 
@@ -768,7 +771,7 @@ routerAdd("POST", "/api/chest/give", (e) => {
       g.set("sender_uid", me);
       g.set("recipient_uid", partner);
       g.set("gift_key", rec.getString("prize"));
-      g.set("note", "");
+      g.set("note", note);
       g.set("price", 0);
       g.set("state", "sent");
       g.set("deliver_at", now);

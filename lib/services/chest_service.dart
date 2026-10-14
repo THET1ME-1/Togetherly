@@ -186,9 +186,14 @@ class ChestService {
   /// Подарок из запаса — себе на полку.
   Future<bool> keep(String openId) => _choice('/api/chest/keep', {'openId': openId});
 
-  /// Подарок из запаса — партнёру, бесплатно.
-  Future<bool> give(String openId, String groupId) =>
-      _choice('/api/chest/give', {'openId': openId, 'groupId': groupId});
+  /// Подарок из запаса — партнёру, бесплатно. Записку сервер кладёт в подарок
+  /// так же, как у купленного; пустую не шлём, старый сервер её не ждёт.
+  Future<bool> give(String openId, String groupId, {String note = ''}) =>
+      _choice('/api/chest/give', {
+        'openId': openId,
+        'groupId': groupId,
+        if (note.trim().isNotEmpty) 'note': note.trim(),
+      });
 
   Future<bool> _choice(String path, Map<String, dynamic> body) async {
     try {

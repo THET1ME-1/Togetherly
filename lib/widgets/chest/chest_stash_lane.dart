@@ -5,6 +5,7 @@ import '../../models/gift.dart';
 import '../../services/chest_service.dart';
 import '../../theme/profile_theme.dart';
 import '../common/gift_image.dart';
+import '../gifts/gift_note_sheet.dart';
 
 /// Лента «Из сундука» над полками магазина подарков (макет «Подарок из
 /// сундука», вариант 5Б): выпавшие подарки, которые человек ещё не подарил и
@@ -45,8 +46,15 @@ class _ChestStashLaneState extends State<ChestStashLane> {
 
   Future<void> _give(String key, String openId) async {
     if (_giving != null) return;
+    final note = await showGiftNoteSheet(
+      context,
+      cs: Theme.of(context).colorScheme,
+      giftKey: key,
+      title: GiftCatalog.byKey(key)?.title ?? key,
+    );
+    if (note == null || !mounted) return;
     setState(() => _giving = key);
-    final ok = await ChestService.instance.give(openId, widget.groupId);
+    final ok = await ChestService.instance.give(openId, widget.groupId, note: note);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(trKey(ok ? 'chestGiven' : 'chestChoiceFailed'))));
     setState(() => _giving = null);
