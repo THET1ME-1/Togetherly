@@ -1,0 +1,108 @@
+#!/usr/bin/env python3
+"""Тесты разбора писем lava для вкладки «Доход».
+
+Что случилось. 11 и 13 октября 2026 lava.top лежала после сбоя и слала письмо
+«успешная продажа» по восемь раз на одну оплату: пять штук за полторы минуты и
+ещё три ровно через час каждая, текст совпадал до байта. Вкладка считала
+каждое письмо продажей и показала 6624 ₽ за день вместо 828.
+
+Запуск: python3 tools/test_lava_income.py
+"""
+from __future__ import annotations
+
+import os
+import sys
+import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import lava_income as L  # noqa: E402
+
+# Секунды от первого письма серии — сняты с настоящих писем 13.10.2026.
+СЕРИЯ = (0, 1, 7, 22, 82, 3683, 7283, 10884)
+НАЧАЛО = 1_792_050_734
+
+
+def письмо(ts: int, buyer: str = "e3805361@gmail.com", amount: float = 900.0,
+           product: str = "Togetherly+ — полный доступ") -> dict:
+    return {"d": "2026-10-13", "ts": ts, "buyer": buyer, "currency": "RUB",
+            "amount": amount, "product": product, "kind": "продажа"}
+
+
+class ПовторыПисем(unittest.TestCase):
+    def test_восемь_писем_одной_оплаты_это_одна_продажа(self):
+        rows = [письмо(НАЧАЛО + s) for s in СЕРИЯ]
+        self.assertEqual(len(L.без_повторов(rows)), 1)
+
+    def test_остаётся_первое_письмо_серии(self):
+        rows = [письмо(НАЧАЛО + s) for s in reversed(СЕРИЯ)]
+        self.assertEqual(L.без_повторов(rows)[0]["ts"], НАЧАЛО)
+
+    def test_разные_покупатели_в_одну_минуту_не_склеиваются(self):
+        rows = [письмо(НАЧАЛО), письмо(НАЧАЛО + 5, buyer="other@mail.ru")]
+        self.assertEqual(len(L.без_повторов(rows)), 2)
+
+    def test_разные_товары_одного_покупателя_не_склеиваются(self):
+        rows = [письмо(НАЧАЛО), письмо(НАЧАЛО + 60, product="Моти", amount=396.32)]
+        self.assertEqual(len(L.без_повторов(rows)), 2)
+
+    def test_серия_11_октября_с_хвостом_за_четыре_часа_тоже_одна_продажа(self):
+        # У этой серии последнее письмо пришло через 4 часа 3 минуты.
+        rows = [письмо(НАЧАЛО + s, buyer="pahomovaska@icloud.com", amount=978.26)
+                for s in (0, 1, 6, 41, 3777, 7378, 10979, 14580)]
+        self.assertEqual(len(L.без_повторов(rows)), 1)
+
+    def test_часовой_хвост_длиной_в_сутки_всё_ещё_одна_продажа(self):
+        # 13.10 рассылка не остановилась на восьмом письме: пока lava лежала,
+        # письмо приходило каждый час, к вечеру их было тринадцать.
+        rows = [письмо(НАЧАЛО + s) for s in СЕРИЯ]
+        rows += [письмо(НАЧАЛО + 10884 + 3600 * n) for n in range(1, 30)]
+        self.assertEqual(len(L.без_повторов(rows)), 1)
+
+    def test_потерянное_письмо_хвоста_серию_не_рвёт(self):
+        # Пересылка из Gmail иногда теряет письмо: между соседними два часа.
+        rows = [письмо(НАЧАЛО + s) for s in СЕРИЯ]
+        rows += [письмо(НАЧАЛО + 10884 + 3600 * n) for n in (2, 3, 5, 6, 8)]
+        self.assertEqual(len(L.без_повторов(rows)), 1)
+
+    def test_две_оплаты_через_три_минуты_остаются_двумя(self):
+        # Человек не дождался доступа и заплатил ещё раз: деньги настоящие.
+        # Так было 21.08.2026, письма шли с разницей 193 секунды.
+        rows = [письмо(НАЧАЛО), письмо(НАЧАЛО + 193)]
+        self.assertEqual(len(L.без_повторов(rows)), 2)
+
+    def test_покупка_на_следующий_день_считается_отдельно(self):
+        rows = [письмо(НАЧАЛО + s) for s in СЕРИЯ] + [письмо(НАЧАЛО + 86400)]
+        self.assertEqual(len(L.без_повторов(rows)), 2)
+
+    def test_без_покупателя_не_склеиваем(self):
+        # В письме о донате плательщика нет: два доната по 50 ₽ могут быть
+        # от разных людей.
+        rows = [письмо(НАЧАЛО, buyer=""), письмо(НАЧАЛО + 3, buyer="")]
+        self.assertEqual(len(L.без_повторов(rows)), 2)
+
+    def test_запись_без_времени_не_склеиваем(self):
+        rows = [письмо(НАЧАЛО), письмо(НАЧАЛО + 1)]
+        for r in rows:
+            del r["ts"]
+        self.assertEqual(len(L.без_повторов(rows)), 2)
+
+
+class ПокупательИзПисьма(unittest.TestCase):
+    ТЕЛО = ("🌠 успешная продажа SnT Company Store e3805361@gmail.com купил ваш "
+            "продукт Togetherly+ — полный доступ На ваш баланс поступила сумма "
+            "RUB 900 Если возникли вопросы, обратитесь в службу поддержки "
+            "lava.top: Почта: support@lava.top")
+
+    def test_берётся_адрес_перед_словом_купил(self):
+        self.assertEqual(L.buyer_of(self.ТЕЛО), "e3805361@gmail.com")
+
+    def test_адрес_поддержки_покупателем_не_считается(self):
+        self.assertEqual(L.buyer_of("Вам пришёл донат RUB 50 Почта: support@lava.top"), "")
+
+    def test_регистр_адреса_не_плодит_покупателей(self):
+        self.assertEqual(L.buyer_of("Store Anna@Mail.RU купил ваш продукт X"), "anna@mail.ru")
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=1)

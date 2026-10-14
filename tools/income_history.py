@@ -20,14 +20,19 @@ import io
 import json
 import os
 import subprocess
+import sys
 import time
 import urllib.parse
 import urllib.request
 import zipfile
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
+
+from lava_income import без_повторов
 
 OUT = "/opt/pocketbase/pb_data/.income_history.json"
 RSYA_TOKEN = "/opt/pocketbase/pb_data/.rsya_token"
+RSYA_CACHE = "/opt/income/.rsya_months_cache.json"
+RSYA_STEP = 7  # РСЯ отдаёт не больше восьми дней за запрос, день в запасе
 ADMOB_CFG = "/opt/pocketbase/pb_data/.admob_oauth.json"
 PLAY_SA = "/opt/income/play-access.json"
 PLAY_BUCKET = "/opt/pocketbase/pb_data/.play_bucket"
@@ -48,26 +53,73 @@ def rates() -> dict:
         return {"USD": 1.0, "RUB": 82.0, "EUR": 0.92}
 
 
-def rsya_months() -> dict:
-    try:
-        token = open(RSYA_TOKEN, encoding="utf-8").read().strip()
-    except OSError:
-        return {}
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    url = ("https://partner.yandex.ru/api/statistics2/get.json?lang=ru&currency=USD"
-           f"&period={SINCE},{today}&dimension_field=date|month"
-           "&field=partner_wo_nds&field=shows")
-    req = urllib.request.Request(url, headers={"Authorization": "OAuth " + token, "User-Agent": "curl/8.0"})
-    try:
+def _rsya_ask(token: str):
+    def ask(a: str, b: str) -> tuple:
+        url = ("https://partner.yandex.ru/api/statistics2/get.json?lang=ru&currency=USD"
+               f"&period={a}&period={b}&field=partner_wo_nds&field=shows")
+        req = urllib.request.Request(url, headers={"Authorization": "OAuth " + token,
+                                                   "User-Agent": "curl/8.0"})
         with urllib.request.urlopen(req, timeout=60) as r:
             data = json.load(r)["data"]
-    except Exception:  # noqa: BLE001
-        return {}
-    out = {}
-    for p in data.get("points", []):
-        month = p["dimensions"]["date"][0][:7]
-        out[month] = {"usd": round(float(p["measures"][0].get("partner_wo_nds") or 0), 2),
-                      "shows": int(p["measures"][0].get("shows") or 0)}
+        time.sleep(0.15)
+        usd, shows = 0.0, 0
+        for p in data.get("points", []):
+            m = (p.get("measures") or [{}])[0]
+            usd += float(m.get("partner_wo_nds") or 0)
+            shows += int(m.get("shows") or 0)
+        return usd, shows
+    return ask
+
+
+def rsya_months(ask=None, today=None, cache_path: str = RSYA_CACHE) -> dict:
+    """Доход Яндекса по месяцам, окнами по семь дней.
+
+    С октября 2026 РСЯ отвечает 400 «Очень большой период» на всё длиннее
+    восьми дней, а прежний запрос всей истории разом при отказе молча писал
+    ноль за каждый месяц. Теперь месяц складывается из недельных окон, закрытые
+    месяцы (старше прошлого) лежат в кэше, а отказ оставляет прежнее значение.
+    """
+    if ask is None:
+        try:
+            ask = _rsya_ask(open(RSYA_TOKEN, encoding="utf-8").read().strip())
+        except OSError:
+            return {}
+    today = today or datetime.now(timezone.utc).date()
+    try:
+        cache = json.load(open(cache_path, encoding="utf-8"))
+    except (OSError, ValueError):
+        cache = {}
+
+    prev_month = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
+    out: dict = {}
+    start = date.fromisoformat(SINCE).replace(day=1)
+    while start <= today:
+        following = (start + timedelta(days=32)).replace(day=1)
+        key = start.strftime("%Y-%m")
+        if not (start < prev_month and key in cache):
+            end = min(following - timedelta(days=1), today)
+            try:
+                usd, shows, a = 0.0, 0, start
+                while a <= end:
+                    b = min(a + timedelta(days=RSYA_STEP - 1), end)
+                    part = ask(a.isoformat(), b.isoformat())
+                    usd, shows, a = usd + part[0], shows + part[1], b + timedelta(days=1)
+                cache[key] = {"usd": round(usd, 2), "shows": shows}
+            except Exception as err:  # noqa: BLE001
+                print(f"РСЯ: {key} не посчитан ({err}), оставлено прежнее значение", file=sys.stderr)
+        hit = cache.get(key)
+        # Месяцы до начала рекламы в архив не идут, но в кэше остаются нулём,
+        # чтобы не спрашивать их каждую ночь.
+        if hit and (hit.get("usd") or hit.get("shows")):
+            out[key] = dict(hit)
+        start = following
+
+    try:
+        with open(cache_path + ".tmp", "w", encoding="utf-8") as f:
+            json.dump(cache, f)
+        os.replace(cache_path + ".tmp", cache_path)
+    except OSError as err:
+        print(f"РСЯ: кэш месяцев не записан ({err})", file=sys.stderr)
     return out
 
 
@@ -206,9 +258,9 @@ def lava_months(cur: dict) -> dict:
     except OSError:
         return {}
     out: dict = {}
-    for sale in cache.values():
-        if not sale:
-            continue
+    # Повторные письма об одной оплате отсеивает то же правило, что и в
+    # основной сводке: иначе месяц в истории разошёлся бы с ней.
+    for sale in без_повторов([s for s in cache.values() if s]):
         month = sale["d"][:7]
         row = out.setdefault(month, {"usd": 0.0, "native": {}, "count": 0})
         net = sale["amount"] * (1 - LAVA_FEE)

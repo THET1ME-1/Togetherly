@@ -61,24 +61,67 @@ module.exports = function collectIncome() {
       };
     });
 
+    // С октября 2026 РСЯ отвечает 400 «Очень большой период» на всё, что
+    // длиннее восьми дней: и на готовые периоды (30days, thismonth, lastmonth),
+    // и на явные даты. Поэтому любой диапазон режется на окна по семь дней
+    // (день в запасе) и складывается здесь.
+    const DAY = 24 * 3600 * 1000, STEP = 7;
+    const midnight = (d) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+    const windows = (from, to) => {
+      const out = [];
+      for (let a = from.getTime(); a <= to.getTime(); a += STEP * DAY) {
+        const b = Math.min(a + (STEP - 1) * DAY, to.getTime());
+        out.push("period=" + iso(new Date(a)) + "&period=" + iso(new Date(b)));
+      }
+      return out;
+    };
+    const askRange = (from, to, params) => {
+      let all = [];
+      const w = windows(from, to);
+      for (let i = 0; i < w.length; i++) all = all.concat(rows(ask(w[i] + "&" + params)));
+      return all;
+    };
+
     try {
-      // Ряд по дням за 30 дней закрывает сразу «сегодня», «вчера» и текущий месяц.
-      const dayData = ask("period=30days&dimension_field=date|day&field=partner_wo_nds&field=shows&field=hits");
-      const days = rows(dayData).map((r) => ({ d: r.name, v: r.v, s: r.s }));
+      // Ряд по дням закрывает сразу «сегодня», «вчера», 30 дней и текущий
+      // месяц: на 31-е число месяц длиннее тридцати дней, поэтому начало ряда —
+      // более ранняя из двух дат.
+      const end = midnight(now);
+      const from30 = new Date(end.getTime() - 29 * DAY);
+      const monthStart = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1));
+      const allDays = askRange(monthStart < from30 ? monthStart : from30, end,
+        "dimension_field=date|day&field=partner_wo_nds&field=shows&field=hits")
+        .map((r) => ({ d: r.name, v: r.v, s: r.s }))
+        .sort((a, b) => a.d < b.d ? -1 : (a.d > b.d ? 1 : 0));
+      const days = allDays.filter((x) => x.d >= iso(from30));
       const today = iso(now), month = today.slice(0, 7);
-      const yest = iso(new Date(now.getTime() - 24 * 3600 * 1000));
+      const yest = iso(new Date(now.getTime() - DAY));
       const pick = (d) => { const f = days.filter((x) => x.d === d)[0]; return f ? f : { v: 0, s: 0 }; };
-      const sumMonth = days.filter((x) => x.d.slice(0, 7) === month)
+      const sumMonth = allDays.filter((x) => x.d.slice(0, 7) === month)
         .reduce((a, x) => ({ v: a.v + x.v, s: a.s + x.s }), { v: 0, s: 0 });
       const tot30 = days.reduce((a, x) => ({ v: a.v + x.v, s: a.s + x.s }), { v: 0, s: 0 });
 
       let prevMonth = 0;
       try {
-        const pm = ask("period=lastmonth&field=partner_wo_nds");
-        prevMonth = Number(((pm.points || [{}])[0].measures || [{}])[0].partner_wo_nds) || 0;
-      } catch (_) {}
+        const prevStart = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() - 1, 1));
+        prevMonth = askRange(prevStart, new Date(monthStart.getTime() - DAY), "field=partner_wo_nds")
+          .reduce((a, x) => a + x.v, 0);
+      } catch (_) { prevMonth = 0; }
 
-      const slice = (params) => { try { return rows(ask(params)).sort((a, b) => b.v - a.v).slice(0, 8); } catch (_) { return []; } };
+      // Разбивка складывается по названию со всех окон. Не ответило хоть одно —
+      // разбивки нет вовсе: сумма за часть месяца выглядела бы настоящей.
+      const slice = (params) => {
+        try {
+          const byName = {}, order = [];
+          const part = askRange(from30, end, params);
+          for (let i = 0; i < part.length; i++) {
+            const p = part[i];
+            if (!byName[p.name]) { byName[p.name] = { name: p.name, v: 0, s: 0 }; order.push(p.name); }
+            byName[p.name].v += p.v; byName[p.name].s += p.s;
+          }
+          return order.map((n) => byName[n]).sort((a, b) => b.v - a.v).slice(0, 8);
+        } catch (_) { return []; }
+      };
 
       result.sources.rsya = {
         ok: true, currency: "USD", title: "Яндекс, реклама",
@@ -88,12 +131,12 @@ module.exports = function collectIncome() {
         prev_month: prevMonth,
         d30: tot30.v, d30_shows: tot30.s,
         days: days,
-        formats: slice("period=30days&entity_field=block_type&field=partner_wo_nds&field=shows"),
-        geo: slice("period=30days&dimension_field=geo|country&field=partner_wo_nds&field=shows"),
-        os: slice("period=30days&entity_field=os&field=partner_wo_nds&field=shows"),
+        formats: slice("entity_field=block_type&field=partner_wo_nds&field=shows"),
+        geo: slice("dimension_field=geo|country&field=partner_wo_nds&field=shows"),
+        os: slice("entity_field=os&field=partner_wo_nds&field=shows"),
         // По блокам: у сундука свой блок «Сундук» (28.09.2026), его доход и
         // показы видны отдельной строкой. Название блока — из кабинета РСЯ.
-        blocks: slice("period=30days&entity_field=block_caption&field=partner_wo_nds&field=shows"),
+        blocks: slice("entity_field=block_caption&field=partner_wo_nds&field=shows"),
       };
     } catch (err) {
       result.sources.rsya = { ok: false, reason: String(err).slice(0, 200) };

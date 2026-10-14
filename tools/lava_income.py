@@ -31,6 +31,8 @@ OUT = "/opt/pocketbase/pb_data/.lava_income.json"
 REFUNDS = "/opt/pocketbase/pb_data/.lava_refunds"
 FEE = 0.08  # удержание lava.top
 QUERY = "from:lava.top newer_than:400d"
+REPEAT_BURST = 15       # письма с такой разницей шлёт машина, а не покупатель
+REPEAT_GAP = 4 * 3600   # пауза между письмами, после которой рассылка считается оконченной
 
 
 def gmail_token() -> str:
@@ -84,6 +86,54 @@ def refunds() -> list[dict]:
     return out
 
 
+def buyer_of(body: str) -> str:
+    """Почта покупателя: адрес перед словом «купил». В подвале письма стоит
+    адрес поддержки lava, и поиск первой попавшейся почты цеплял бы его."""
+    hit = re.search(r"([\w.+-]+@[\w-]+\.[\w.-]+)\s+купил", body)
+    return hit.group(1).lower() if hit else ""
+
+
+def без_повторов(rows: list[dict]) -> list[dict]:
+    """Одна оплата — одна продажа, сколько бы писем о ней ни пришло.
+
+    11 и 13 октября 2026 lava во время сбоя слала «успешную продажу» пачкой:
+    несколько писем за первую минуту и дальше по одному в час, пока сбой не
+    кончится (11.10 — восемь писем, 13.10 — больше тринадцати). Номера заказа
+    в письме нет, поэтому серию узнаём по покупателю, товару и сумме, а её
+    начало — по письмам, пришедшим с разницей в секунды: человек два раза за
+    это время не заплатит. Дальше серия тянется, пока письма идут чаще, чем
+    раз в REPEAT_GAP: потолка по длине нет, часовой хвост бывает и на сутки.
+
+    Две оплаты с разницей в минуты НЕ склеиваем. Так платят по-настоящему,
+    когда доступ не открылся сразу (21.08.2026 — 193 секунды между письмами),
+    и вторые деньги тоже пришли.
+
+    Без покупателя (донат) и без времени (запись старого кеша) не трогаем:
+    узнать повтор не по чему.
+    """
+    out: list[dict] = []
+    groups: dict[tuple, list[dict]] = {}
+    for row in rows:
+        if not row.get("ts") or not row.get("buyer"):
+            out.append(row)
+            continue
+        key = (row["buyer"], row["product"], row["amount"], row["currency"], row["kind"])
+        groups.setdefault(key, []).append(row)
+
+    for letters in groups.values():
+        letters.sort(key=lambda r: r["ts"])
+        last = None  # время последнего письма идущей рассылки
+        for i, row in enumerate(letters):
+            if last is not None and row["ts"] - last <= REPEAT_GAP:
+                last = row["ts"]
+                continue
+            out.append(row)
+            follower = letters[i + 1] if i + 1 < len(letters) else None
+            burst = follower is not None and follower["ts"] - row["ts"] <= REPEAT_BURST
+            last = row["ts"] if burst else None
+    return sorted(out, key=lambda r: r.get("ts") or 0)
+
+
 def collect() -> dict:
     token = gmail_token()
     cache = load_cache()
@@ -122,6 +172,8 @@ def collect() -> dict:
         product = re.search(r"купил ваш продукт (.+?) На ваш баланс", body)
         seen[mid] = {
             "d": datetime.fromtimestamp(int(msg["internalDate"]) / 1000, timezone.utc).strftime("%Y-%m-%d"),
+            "ts": int(msg["internalDate"]) // 1000,
+            "buyer": buyer_of(body),
             "currency": money.group(1),
             "amount": float(money.group(2).replace(",", ".")),
             "product": (product.group(1).strip() if product else "донат"),
@@ -134,7 +186,7 @@ def collect() -> dict:
     with open(CACHE, "w", encoding="utf-8") as f:
         json.dump(cache, f, ensure_ascii=False)
 
-    sales = [s for s in seen.values() if s]
+    sales = без_повторов([s for s in seen.values() if s])
     lost = refunds()
 
     def net(rows: list[dict]) -> dict:
