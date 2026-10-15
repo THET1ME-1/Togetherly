@@ -912,11 +912,13 @@ class UserData extends ChangeNotifier {
         ..clear()
         ..addAll(prefs.getStringList('grantedBadges') ?? const <String>[]);
 
-      // Если авторизован → подтягиваем из облака
+      // Если авторизован → подтягиваем из облака. В фоне: всё нужное для
+      // показа уже прочитано с телефона, и заставка сети не ждёт. Пока здесь
+      // стоял `await`, на рвущейся связи розовая заставка висела до десяти
+      // секунд при полном кэше (жалоба 15.10.2026).
       if (PocketBaseService().isLoggedIn && _isRegistered) {
         _uid = PocketBaseService().userId ?? _uid;
-        await _syncFromFirestore();
-        await _maybeGrantDevCoins();
+        unawaited(syncFromServer());
       }
     } catch (e) {
       debugPrint('SharedPreferences load failed: $e');
@@ -932,8 +934,14 @@ class UserData extends ChangeNotifier {
   /// неактуального состояния.
   Future<void> syncFromServer() async {
     if (!PocketBaseService().isLoggedIn) return;
-    await _syncFromFirestore();
-    await _maybeGrantDevCoins();
+    try {
+      await _syncFromFirestore();
+      await _maybeGrantDevCoins();
+    } catch (e) {
+      debugPrint('UserData.syncFromServer failed: $e');
+    }
+    // Экран уже показан с данными телефона — свежие с сервера дорисовываем.
+    notifyListeners();
   }
 
   Future<void> _syncFromFirestore() async {

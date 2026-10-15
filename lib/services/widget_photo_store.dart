@@ -38,15 +38,16 @@ class WidgetPhotoStore {
   /// Предел одному обращению к диску (база кэша, чтение и запись файла).
   static const Duration _diskStep = Duration(seconds: 8);
 
-  /// Байты картинки [url]. [httpUrl] — тот же файл в виде адреса, по которому
-  /// его можно скачать (с file-токеном). В сеть идём, только если на диске
-  /// пусто.
+  /// Байты картинки [url]. [httpUrl] отдаёт тот же файл в виде адреса, по
+  /// которому его можно скачать (с file-токеном). Зовём его, только если на
+  /// диске пусто: за токеном ходят в сеть, а скачанному снимку он не нужен.
   /// Сколько всего ждём одну картинку. Дальше — отказ, а не вечное ожидание:
   /// пока склад молчит, стоит подготовка ВСЕХ картинок виджета, и на рабочий
   /// стол уезжают одни тексты. Ни один шаг внутри не имеет права висеть дольше.
   static const Duration _loadBudget = Duration(seconds: 30);
 
-  Future<Uint8List?> bytesFor(String url, String httpUrl) {
+  Future<Uint8List?> bytesFor(
+      String url, Future<String?> Function() httpUrl) {
     final key = cacheKeyFor(url);
     final running = _inFlight[key];
     if (running != null) return running;
@@ -72,7 +73,8 @@ class WidgetPhotoStore {
     return job;
   }
 
-  Future<Uint8List?> _load(String key, String httpUrl) async {
+  Future<Uint8List?> _load(
+      String key, Future<String?> Function() httpUrl) async {
     // 1. Уже лежит на диске — сеть не нужна.
     //
     // База кэша живёт в sqflite и делится с экраном; когда её держит другой
@@ -106,9 +108,13 @@ class WidgetPhotoStore {
 
     // 2. Качаем один раз.
     final Uint8List bytes;
+    final String address;
     try {
+      final got = await httpUrl();
+      if (got == null || got.isEmpty) return null;
+      address = got;
       final response = await http
-          .get(Uri.parse(httpUrl))
+          .get(Uri.parse(address))
           .timeout(const Duration(seconds: 15));
       if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
         debugPrint('WidgetPhotoStore: ${response.statusCode} на $key');
@@ -127,7 +133,7 @@ class WidgetPhotoStore {
     try {
       await OfflineImageCacheManager.instance
           .putFile(
-            httpUrl,
+            address,
             bytes,
             key: key,
             maxAge: const Duration(days: 3650),

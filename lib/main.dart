@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io' show Platform;
 import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/foundation.dart' show kDebugMode;
@@ -31,7 +30,6 @@ import 'services/pb_push_service.dart';
 import 'services/apns_service.dart';
 import 'services/fcm_service.dart';
 import 'services/push_background_service.dart';
-import 'services/canvas_repository.dart';
 import 'services/catalog_service.dart';
 import 'services/live_location_service.dart';
 import 'models/symbol_catalog.dart';
@@ -818,6 +816,23 @@ class _LoveAppState extends State<LoveApp> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _checkMinBuild() async {
+    try {
+      // fail-open: нет ответа или ошибка — не блокируем.
+      final minBuild = await PbDataService()
+          .fetchMinSupportedBuild()
+          .timeout(const Duration(seconds: 15), onTimeout: () => 0);
+      if (minBuild <= 0) return;
+      final info = await PackageInfo.fromPlatform();
+      final current = int.tryParse(info.buildNumber) ?? 0;
+      if (current < minBuild && mounted) {
+        setState(() => _forceUpdate = true);
+      }
+    } catch (_) {
+      // Любая ошибка чтения конфига — не блокируем пользователя.
+    }
+  }
+
   Future<void> _init() async {
     // Последняя страховка от «бесконечной загрузки»: что бы ни повисло внутри —
     // сеть, чтение профиля, серверный конфиг, — заставка уходит через десять
@@ -832,25 +847,10 @@ class _LoveAppState extends State<LoveApp> with WidgetsBindingObserver {
     });
     try {
       // Force-update kill-switch: если сборка ниже min_build из PocketBase
-      // (`app_config`) — дальше покажем блокирующий ForceUpdateScreen. Только
-      // Android (на iOS обновления гонит App Store). fail-open: minBuild=0 ⇒ не
-      // блокируем.
-      if (Platform.isAndroid) {
-        try {
-          // Таймаут: медленный/перегруженный PB НЕ должен морозить сплэш (иначе
-          // пользователи перезапускают приложение и добивают сервер). fail-open ⇒ 0.
-          final minBuild = await PbDataService()
-              .fetchMinSupportedBuild()
-              .timeout(const Duration(seconds: 3), onTimeout: () => 0);
-          if (minBuild > 0) {
-            final info = await PackageInfo.fromPlatform();
-            final current = int.tryParse(info.buildNumber) ?? 0;
-            _forceUpdate = current < minBuild;
-          }
-        } catch (_) {
-          // Любая ошибка чтения конфига — не блокируем пользователя.
-        }
-      }
+      // (`app_config`) — покажем блокирующий ForceUpdateScreen. Только Android
+      // (на iOS обновления гонит App Store). Проверка идёт в фоне: заставка
+      // сеть не ждёт, а запрет, если он есть, встанет, как только придёт ответ.
+      if (Platform.isAndroid) unawaited(_checkMinBuild());
 
       // Запоминаем, была ли сессия активна ДО loadFromPrefs: внутри него
       // серверная синхронизация коинов/тем выполняется только при уже
@@ -873,15 +873,9 @@ class _LoveAppState extends State<LoveApp> with WidgetsBindingObserver {
       if (!wasLoggedIn &&
           _userData.isRegistered &&
           PocketBaseService().isLoggedIn) {
-        // С таймаутом: этот запрос держит заставку, и на медленной связи люди
-        // видели «бесконечную загрузку» вместо приложения. Локальные данные уже
-        // прочитаны, поэтому не дождаться сервера не страшно — свежие значения
-        // подтянутся на главной.
-        await _userData
-            .syncFromServer()
-            .timeout(const Duration(seconds: 6), onTimeout: () {
-          debugPrint('Старт: сервер не ответил за 6 с, идём с локальными данными');
-        });
+        // В фоне: локальные данные уже прочитаны, а на медленной связи этот
+        // запрос держал заставку. Свежие значения дорисуются, когда придут.
+        unawaited(_userData.syncFromServer());
       }
 
       // Онлайн-презенс ведёт PresenceService (стартует на home-экране).

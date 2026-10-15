@@ -121,6 +121,20 @@ class CanvasImageCache extends ChangeNotifier {
       if (!file.existsSync()) return null;
       return _sized(FileImage(file));
     }
+    // Скачанный однажды файл берём с диска: токен для него не нужен, а на
+    // рвущейся связи он идёт секундами.
+    if (PbMediaService().isPbRef(key)) {
+      try {
+        final hit =
+            await OfflineImageCacheManager.instance.getFileFromCache('v2|$key');
+        final file = hit?.file;
+        if (file != null && await file.exists() && await file.length() > 0) {
+          return _sized(FileImage(File(file.path)));
+        }
+      } catch (_) {
+        // Кэш не открылся — идём в сеть.
+      }
+    }
     // pb:// — защищённый файл PocketBase: адрес живёт с file-токеном, и
     // добывается он асинхронно.
     final resolved =

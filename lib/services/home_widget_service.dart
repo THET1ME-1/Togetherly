@@ -718,19 +718,10 @@ class HomeWidgetService {
       return '';
     }
     try {
-      String httpUrl = url;
-
-      // pb:// (PocketBase protected media) → HTTPS с file-токеном. Токена нет —
-      // качать нечего: без него сервер отвечает 404, а прежний снимок на
-      // рабочем столе лучше пустоты.
-      if (PbMediaService().isPbRef(url)) {
-        final resolved = await PbMediaService().resolveUrlAuthed(url);
-        if (resolved == null || resolved.isEmpty) return null;
-        httpUrl = resolved;
-      }
+      final isPb = PbMediaService().isPbRef(url);
       // Легаси gs:// (Firebase) / sb:// (Supabase) больше не резолвим — Firebase
       // убран. Такие старые ссылки в виджет не подгрузятся.
-      else if (url.startsWith('gs://') || url.startsWith('sb://')) {
+      if (!isPb && (url.startsWith('gs://') || url.startsWith('sb://'))) {
         return '';
       }
 
@@ -767,9 +758,20 @@ class HomeWidgetService {
 
       // Один склад на всё приложение: экран и второй виджет-сервис берут ту же
       // картинку отсюда же, поэтому в сеть идёт только первый (widget_photo_store).
-      final bytes = await WidgetPhotoStore.instance.bytesFor(url, httpUrl);
+      // pb:// (PocketBase protected media) → HTTPS с file-токеном. Токен
+      // просим, только если снимка нет на складе. Токена нет — качать нечего:
+      // без него сервер отвечает 404, а прежний снимок на рабочем столе лучше
+      // пустоты.
+      var noToken = false;
+      final bytes = await WidgetPhotoStore.instance.bytesFor(url, () async {
+        if (!isPb) return url;
+        final resolved = await PbMediaService().resolveUrlAuthed(url);
+        if (resolved == null || resolved.isEmpty) noToken = true;
+        return resolved;
+      });
 
       if (bytes == null || bytes.length < kMinWidgetPhotoBytes) {
+        if (noToken) return null;
         debugPrint('pairImagePath($key): на складе пусто для $url');
         // Прежнее живое фото лучше пустоты: один неудачный запрос не должен
         // стирать снимок с рабочего стола.
@@ -890,7 +892,8 @@ class HomeWidgetService {
         return await _toWidgetReadablePath(cachedPath, key);
       }
       // Картинку настроения просят оба виджет-сервиса — берём со склада.
-      final resp = await WidgetPhotoStore.instance.bytesFor(url, url);
+      final resp =
+          await WidgetPhotoStore.instance.bytesFor(url, () async => url);
       if (resp != null && resp.isNotEmpty) {
         final dir = await getApplicationSupportDirectory();
         final file = File('${dir.path}/$key.webp');
@@ -3866,25 +3869,11 @@ class HomeWidgetService {
     }
 
     try {
-      String httpUrl = url;
-
-      // pb:// (PocketBase protected media) → HTTPS с file-токеном (скачиваем
-      // в приложении и кладём локальный файл для нативного виджета). Токена
-      // нет — качать нечего: без него сервер отвечает 404. Оставляем на экране
-      // прежний снимок.
-      if (PbMediaService().needsFileToken(url)) {
-        final resolved = await PbMediaService().resolveUrlAuthed(url);
-        if (resolved == null || resolved.isEmpty) {
-          return file.existsSync()
-              ? await _toWidgetReadablePath(file.path, 'cache_$key')
-              : '';
-        }
-        httpUrl = resolved;
-      }
+      final needsToken = PbMediaService().needsFileToken(url);
       // Legacy gs:// (Firebase) / sb:// (Supabase) БОЛЬШЕ НЕ резолвим — проект
       // полностью на PocketBase. Старые такие фото в виджете не подгрузятся
-      // (отдаём кэш, если он есть). Новое медиа приходит как pb:// (см. выше).
-      else if (url.startsWith('gs://') || url.startsWith('sb://')) {
+      // (отдаём кэш, если он есть). Новое медиа приходит как pb://.
+      if (!needsToken && (url.startsWith('gs://') || url.startsWith('sb://'))) {
         return file.existsSync()
             ? await _toWidgetReadablePath(file.path, 'cache_$key')
             : '';
@@ -3892,7 +3881,13 @@ class HomeWidgetService {
 
       // Сеть трогает общий склад, и только если на телефоне пусто. Показал
       // экран эту аватарку — здесь она возьмётся с диска (widget_photo_store).
-      final bytes = await WidgetPhotoStore.instance.bytesFor(url, httpUrl);
+      // pb:// (PocketBase protected media) → HTTPS с file-токеном; токен
+      // просим только для закачки. Токена нет — склад отдаст пусто, и ниже
+      // останется прежний снимок.
+      final bytes = await WidgetPhotoStore.instance.bytesFor(url, () async {
+        if (!needsToken) return url;
+        return PbMediaService().resolveUrlAuthed(url);
+      });
 
       // Пустые байты — не картинка: записать их значило бы закрыть дорогу
       // повторной загрузке до самой смены фото.
@@ -4377,7 +4372,8 @@ class HomeWidgetService {
         return await _toWidgetReadablePath(file.path, moodName);
       }
       // Та же картинка настроения, что у widget_service: один склад на двоих.
-      final resp = await WidgetPhotoStore.instance.bytesFor(url, url);
+      final resp =
+          await WidgetPhotoStore.instance.bytesFor(url, () async => url);
       if (resp != null && resp.isNotEmpty) {
         await file.writeAsBytes(resp);
         debugPrint('HomeWidgetService: mood url downloaded → ${file.path}');
