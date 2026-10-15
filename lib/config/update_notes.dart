@@ -11,23 +11,23 @@
 const String ruWhatsNew =
     'Что нового 💜\n'
     '\n'
-    '— Хэллоуин: на главной сундук с набором «13» — рамки, живые значки и '
-    'подарки. До 1 ноября.\n'
-    '— Совместная лента: Shorts, TikTok, Rutube, ВК и Дзен вдвоём, с чатом и '
-    'звонком.\n'
-    '— Новый экран «Смотрим» и редизайн воспоминаний.\n'
-    '— Подпись к любому подарку, приз из сундука можно отправить карточкой.\n'
-    '— Добавили китайский.\n'
-    '— Реклама за сундук и серию теперь засчитывается.';
+    '— Наклейки на воспоминаниях: клеите вы оба, они попадают и в книгу '
+    'пары.\n'
+    '— Свои настроения стали отдельным набором, новое можно нарисовать '
+    'пальцем.\n'
+    '— Достижения нарисованы заново и двигаются.\n'
+    '— Экраны раскрываются из нажатой кнопки, фото перелетает в просмотр.\n'
+    '— Новая капсула времени, подарок из сундука уходит с запиской.\n'
+    '— Фото и аватарки сразу видны из памяти телефона, даже без интернета.';
 
 const String enWhatsNew =
     'What is new 💜\n'
     '\n'
-    '— Halloween: a chest on the home screen with the “13” set — frames, '
-    'living badges and gifts. Until November 1.\n'
-    '— Shared feed: Shorts, TikTok, Rutube, VK and Dzen together, with chat '
-    'and a call.\n'
-    '— A new Watch screen and redesigned memories.\n'
-    '— A note for any gift, and chest prizes can be shared as a card.\n'
-    '— The app now speaks Chinese.\n'
-    '— Ads for the chest and the streak now always count.';
+    '— Stickers on memories: you both can add them, and they show up in Your '
+    'book too.\n'
+    '— Your own moods are a separate set now, and you can draw a new one with '
+    'your finger.\n'
+    '— Achievements are drawn anew and animated.\n'
+    '— Screens unfold from the button you tapped, photos fly into the viewer.\n'
+    '— A new time capsule, and a chest gift goes with a note.\n'
+    '— Photos and avatars appear right away from your phone, even offline.';
