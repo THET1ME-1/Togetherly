@@ -112,6 +112,9 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
 
     _deepLinkSub = DeepLinkService().inviteCodeStream.listen((code) {
       if (mounted) {
+        // Код пришёл живым событием, буфер ему больше не нужен: иначе следующее
+        // открытие вкладки приняло бы тот же код второй раз.
+        DeepLinkService().consumePendingInviteCode();
         // acceptCode handles creating/joining group automatically
         _codeController.text = code;
         _showCodeInput = true;

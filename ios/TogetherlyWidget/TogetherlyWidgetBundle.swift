@@ -126,6 +126,9 @@ struct RefreshProvider: TimelineProvider {
                 "mem": String(WidgetRenderLog.availableMemoryMB()),
             ]
         )
+        if !context.isPreview {
+            WidgetPresence.mark()
+        }
         let now = Date()
         var entries: [SimpleEntry] = []
         // Обновляемся каждые 15 минут в течение часа, затем система запросит ещё.

@@ -41,6 +41,10 @@ import 'locale_service.dart';
 import 'widget_theme_sync.dart';
 import 'map/pair_map_widget_service.dart';
 
+/// Отметка расширения iPhone «виджет стоит на экране». Совпадает с
+/// `WidgetPresence.key` в ios/TogetherlyWidget/SharedStore.swift.
+const String kWidgetOnScreenKey = 'widget_on_screen_at';
+
 /// Сервис для синхронизации данных всех виджетов рабочего стола
 /// (кроме основного парного виджета [LoveWidgetProvider],
 ///  который обновляется в [WidgetService]).
@@ -57,6 +61,30 @@ import 'map/pair_map_widget_service.dart';
 class HomeWidgetService {
   HomeWidgetService._();
   static final HomeWidgetService instance = HomeWidgetService._();
+
+  /// Стоит ли наш виджет на рабочем столе или экране блокировки.
+  ///
+  /// Шаг «поставить виджет» в первых действиях закрывался только кнопкой
+  /// «Добавить на рабочий стол» в каталоге. На iPhone её нет, виджет ставят с
+  /// рабочего стола, и шаг висел открытым у людей с виджетами на экране
+  /// (обращение 268, 16.10.2026); на Android так же выпадал виджет из меню
+  /// лончера. Спрашиваем систему, а на iPhone ещё и отметку расширения: она
+  /// ставится, когда система строит таймлайн поставленного виджета.
+  Future<bool> anyWidgetOnScreen() async {
+    if (!Platform.isAndroid && !Platform.isIOS) return false;
+    try {
+      if ((await HomeWidget.getInstalledWidgets()).isNotEmpty) return true;
+    } catch (e) {
+      debugPrint('HomeWidgetService.anyWidgetOnScreen: $e');
+    }
+    if (!Platform.isIOS) return false;
+    try {
+      final seen = await HomeWidget.getWidgetData<String>(kWidgetOnScreenKey);
+      return seen != null && seen.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
 
   /// Виджеты Android-only; refreshPhotoOfDay/_readWidgetData идут в ОСНОВНОМ
   /// изоляте (нативный фоновый рефреш — отдельный путь в main.dart). PB-чтения

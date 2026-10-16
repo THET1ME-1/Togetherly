@@ -24,6 +24,11 @@ class DeepLinkService {
   // подписчикам → код терялся, приглашение по ссылке не принималось. Экран
   // при монтировании забирает буфер через consumePendingInviteCode().
   String? _pendingInviteCode;
+
+  /// Ждёт ли код своего экрана — не забирая его. Главная по этому признаку
+  /// открывает вкладку «Связь», а забирает код уже сам экран.
+  bool get hasPendingInviteCode => _pendingInviteCode != null;
+
   String? consumePendingInviteCode() {
     final c = _pendingInviteCode;
     _pendingInviteCode = null;

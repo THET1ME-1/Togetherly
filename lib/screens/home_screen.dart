@@ -114,6 +114,7 @@ import '../models/streak_restore.dart';
 import '../services/plus_service.dart';
 import '../services/rewarded_ad_service.dart';
 import '../services/home_widget_service.dart';
+import '../services/level_service.dart';
 import '../services/catalog_widget_sync.dart';
 import '../services/mood_service.dart';
 import '../services/timer_service.dart';
@@ -411,12 +412,13 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     _deepLinkSub = DeepLinkService().inviteCodeStream.listen((code) {
-      if (mounted && !_pairData.isPaired) {
-        // Открываем вкладку подключения (индекс 2 — ConnectPartnerScreen в
-        // _buildBody). Раньше стоял 1 = вкладка виджетов, экран пейринга не
-        // монтировался и код инвайта в никуда. Сам экран заберёт код из буфера
-        // DeepLinkService и/или из стрима.
-        setState(() => _selectedNavIndex = 2);
+      if (mounted) _openConnectTabForInvite();
+    });
+    // На холодном старте ссылка приходит раньше, чем смонтируется главная:
+    // поток своё событие уже отдал, а код лежит в буфере DeepLinkService.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && DeepLinkService().hasPendingInviteCode) {
+        _openConnectTabForInvite();
       }
     });
 
@@ -499,8 +501,20 @@ class _HomeScreenState extends State<HomeScreen> {
         unawaited(_refreshLockScreenMoodNotification());
         // Попытка ежедневного бонуса при возврате в приложение
         _tryClaimDailyBonus();
+        // Человек мог только что поставить виджет с рабочего стола.
+        unawaited(_checkWidgetOnScreen());
       },
     );
+  }
+
+  /// Код из ссылки или QR принимает вкладка «Связь» (индекс 2 в `_buildBody`):
+  /// экран сам заберёт код из буфера DeepLinkService и заведёт под него новую
+  /// связь, если пара уже есть. Раньше вкладка открывалась только без пары, и
+  /// человек с парой, открыв ссылку подруги, оставался на главной с таймером
+  /// своей пары, а код молча ждал в буфере (обращение 272, 15.10.2026).
+  void _openConnectTabForInvite() {
+    if (_selectedNavIndex == 2) return;
+    setState(() => _selectedNavIndex = 2);
   }
 
   /// Ссылка из «Поделиться»: открываем «Хочу с тобой» и сразу форму вещи.
@@ -1626,6 +1640,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _widgetPinned = pinned;
       _quietNudgeAt = nudgeAt;
     });
+    unawaited(_checkWidgetOnScreen());
     await _maybeShowInviteScreen();
     // Флаг `users.plus` серверный, и до ответа сервера человек считается
     // некупившим. Обе витрины ниже спрашивают его, поэтому сперва поднимаем
@@ -3859,6 +3874,20 @@ class _HomeScreenState extends State<HomeScreen> {
         moodToday: _moodService.myMoodToday != null,
         widgetPinned: _widgetPinned,
       );
+
+  /// Виджет мог встать на экран мимо каталога: на iPhone его ставят только с
+  /// рабочего стола, на Android ещё и из меню лончера. Спрашиваем систему,
+  /// пока карточка первых действий вообще может быть на экране.
+  Future<void> _checkWidgetOnScreen() async {
+    if (_widgetPinned || _onboardingDismissed) return;
+    if (_daysSinceSignup() >= OnboardingProgress.lifetimeDays) return;
+    if (!await HomeWidgetService.instance.anyWidgetOnScreen()) return;
+    await UiPrefs.markWidgetPinned();
+    // Опыт за виджет разовый, как у кнопки в каталоге: повтор ничего не даст.
+    unawaited(LevelService.instance.award(XpAction.setWidget));
+    if (!mounted) return;
+    setState(() => _widgetPinned = true);
+  }
 
   /// Сколько дней человек с нами. Дата регистрации — системное поле `created`
   /// профиля; если его нет (офлайн-старт), считаем новичком.

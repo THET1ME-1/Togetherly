@@ -133,9 +133,10 @@ class UiPrefs {
     await p.setBool(kOnboardingDismissed, true);
   }
 
-  /// Виджет добавлен на рабочий стол. Считаем по факту успешного добавления:
-  /// записи `widget_data` заводятся при любой синхронизации и о рабочем столе
-  /// ничего не говорят.
+  /// Виджет добавлен на рабочий стол. Считаем по факту: успешное добавление из
+  /// каталога или ответ системы, что наш виджет стоит на экране
+  /// (`HomeWidgetService.anyWidgetOnScreen`). Записи `widget_data` заводятся
+  /// при любой синхронизации и о рабочем столе ничего не говорят.
   static const String kWidgetPinned = 'widget_pinned_once';
 
   static Future<bool> widgetPinned() async {
