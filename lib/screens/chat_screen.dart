@@ -38,6 +38,7 @@ import '../models/note_autoplay.dart';
 import '../services/note_recorder_service.dart';
 import '../services/voice_recorder_service.dart';
 import '../widgets/avatar_widget.dart';
+import '../widgets/chat/bottom_stick.dart';
 import '../widgets/chat/send_mic_button.dart';
 import '../dict_strings.dart' show trKey;
 import '../widgets/chat/voice_bubble.dart';
@@ -333,6 +334,9 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Кнопка «вниз» показывается, когда заметно отлистали вверх от низа.
   bool _showScrollDown = false;
 
+  /// Держит ленту у низа, пока догружаются картинки и достраиваются ряды.
+  late final BottomStick _stick = BottomStick(_scrollController);
+
   /// Сохранённая позиция прокрутки (восстанавливаем при открытии чата).
   double? _savedScrollOffset;
 
@@ -574,15 +578,19 @@ class _ChatScreenState extends State<ChatScreen> {
       );
       switch (where) {
         case ChatOpenPosition.savedOffset:
+          _stick.active = false;
           _scrollController.jumpTo(
             _savedScrollOffset!.clamp(0.0, pos.maxScrollExtent),
           );
         case ChatOpenPosition.unreadMarker:
+          // Низ держим, пока маркер не построен: прокрутка к нему флаг снимет.
+          _stick.active = true;
           _scrollController.jumpTo(pos.maxScrollExtent);
           WidgetsBinding.instance.addPostFrameCallback(
             (_) => _scrollToUnread(),
           );
         case ChatOpenPosition.bottom:
+          _stick.active = true;
           _scrollController.jumpTo(pos.maxScrollExtent);
       }
       // Изначально видимые баблы уже проиграли «влёт» — дальше (при скролле)
@@ -604,6 +612,7 @@ class _ChatScreenState extends State<ChatScreen> {
     // или это его собственное сообщение (как в мессенджерах).
     final nearBottom = pos.maxScrollExtent - pos.pixels < 160;
     if (nearBottom || _lastIsMine) {
+      _stick.active = true;
       _scrollController.jumpTo(pos.maxScrollExtent);
     }
   }
@@ -2705,15 +2714,17 @@ class _ChatScreenState extends State<ChatScreen> {
                           }
 
                           final items = _itemsFor(messages);
-                          return ListView.builder(
-                            // Запас прогрева: без него ряд за краем экрана начинал готовиться
-                            // ровно тогда, когда его уже листают.
-                            cacheExtent: 600,
-                            controller: _scrollController,
-                            padding: const EdgeInsets.fromLTRB(10, 12, 10, 8),
-                            itemCount: items.length,
-                            itemBuilder: (context, i) =>
-                                _buildItem(items[i], i, items.length),
+                          return _stick.wrap(
+                            ListView.builder(
+                              // Запас прогрева: без него ряд за краем экрана начинал готовиться
+                              // ровно тогда, когда его уже листают.
+                              cacheExtent: 600,
+                              controller: _scrollController,
+                              padding: const EdgeInsets.fromLTRB(10, 12, 10, 8),
+                              itemCount: items.length,
+                              itemBuilder: (context, i) =>
+                                  _buildItem(items[i], i, items.length),
+                            ),
                           );
                         },
                       ),
