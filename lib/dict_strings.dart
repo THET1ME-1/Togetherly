@@ -14,6 +14,7 @@ import 'l10n/dict/common.dart';
 import 'l10n/dict/connect_partner.dart';
 import 'l10n/dict/daily_tasks.dart';
 import 'l10n/dict/gift_photo.dart';
+import 'l10n/dict/photo_save.dart';
 import 'l10n/dict/date_helpers.dart';
 import 'l10n/dict/draw_gallery_canvas.dart';
 import 'l10n/dict/draw_screen.dart';
@@ -99,6 +100,7 @@ const Map<String, Map<String, String>> _kSectionStrings = {
   ...connectPartnerStrings,
   ...dailyTasksStrings,
   ...giftPhotoStrings,
+  ...photoSaveStrings,
   ...dateHelpersStrings,
   ...drawGalleryCanvasStrings,
   ...drawScreenStrings,

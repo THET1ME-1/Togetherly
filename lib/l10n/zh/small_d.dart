@@ -210,4 +210,11 @@ const Map<String, String> smallDZh = {
   'picon_Helper_desc': '项目帮手，谢谢你的付出！🤝',
   'picon_Fish_name': '小鱼',
   'picon_Fish_desc': '送给爱钓鱼的你 🎣',
+
+  // photo_save.dart
+  'photoSaveButton': '保存到相册',
+  'photoSaveHint': '存入“Togetherly”相册，保留拍摄日期',
+  'photoSaving': '正在保存…',
+  'photoSaved': '已在相册',
+  'photoSaveFailed': '没有保存，请再点一次',
 };

@@ -34,8 +34,13 @@ class SavedMediaLedger extends ChangeNotifier {
   // конец, вытесняется начало.
   final LinkedHashSet<String> _keys = LinkedHashSet<String>();
   Future<void>? _loading;
+  bool _loaded = false;
 
-  Future<void> load() => _loading ??= _load();
+  /// Загруженный журнал отвечает свежим future, а не тем, что грузил: тот
+  /// живёт в зоне первого вызова, и в чужой зоне (тесты) его ожидание не
+  /// кончалось никогда.
+  Future<void> load() =>
+      _loaded ? Future<void>.value() : (_loading ??= _load());
 
   Future<void> _load() async {
     try {
@@ -46,6 +51,7 @@ class SavedMediaLedger extends ChangeNotifier {
     } catch (e) {
       debugPrint('SavedMediaLedger.load: $e');
     }
+    _loaded = true;
   }
 
   bool contains(String key) => _keys.contains(mediaKey(key));

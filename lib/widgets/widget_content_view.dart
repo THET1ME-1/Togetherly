@@ -6,6 +6,7 @@ import '../theme/fonts.dart';
 import '../theme/profile_theme.dart';
 import 'app_sheet.dart';
 import 'avatar_widget.dart';
+import 'common/gallery_save_bar.dart';
 import 'common/zoomable_photo.dart';
 import 'storage_image.dart';
 import 'unfold/photo_flight.dart';
@@ -177,12 +178,14 @@ Future<void> showWidgetMusicSheet(
   );
 }
 
-/// Снимок на весь экран: щипок увеличивает, свайп вниз закрывает.
+/// Снимок на весь экран: щипок увеличивает, свайп вниз закрывает. Внизу
+/// «Сохранить в галерею», если файл лежит в хранилище пары и [saveable].
 Future<void> openWidgetPhotoView(
   BuildContext context, {
   required String imageUrl,
   String? authorName,
   DateTime? updatedAt,
+  bool saveable = true,
 }) {
   // Снимок вылетает из нажатой миниатюры (аватар, фото в чате, фото виджета),
   // фон под ним темнеет; потянули вниз — летит обратно.
@@ -192,6 +195,7 @@ Future<void> openWidgetPhotoView(
         imageUrl: imageUrl,
         authorName: authorName,
         updatedAt: updatedAt,
+        saveable: saveable,
       ),
     ),
   );
@@ -202,11 +206,13 @@ class _PhotoView extends StatefulWidget {
     required this.imageUrl,
     this.authorName,
     this.updatedAt,
+    this.saveable = true,
   });
 
   final String imageUrl;
   final String? authorName;
   final DateTime? updatedAt;
+  final bool saveable;
 
   @override
   State<_PhotoView> createState() => _PhotoViewState();
@@ -297,6 +303,19 @@ class _PhotoViewState extends State<_PhotoView> {
                     ),
                   ),
                 ),
+                if (widget.saveable)
+                  PhotoFlightChrome(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      child: GallerySaveBar(
+                        imageUrl: widget.imageUrl,
+                        title: (widget.authorName ?? '').trim().isEmpty
+                            ? 'Togetherly'
+                            : widget.authorName!.trim(),
+                        takenAt: widget.updatedAt,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
