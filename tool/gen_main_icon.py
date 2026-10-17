@@ -16,9 +16,13 @@
 Запуск из корня проекта:
     python3 tool/gen_main_icon.py
     dart run flutter_launcher_icons     # раскладывает square-версии и iOS
+
+Сезонная иконка (Хэллоуин до 1 ноября 2026) — тот же путь с другим исходником:
+    python3 tool/gen_main_icon.py docs/branding/raw/app-icon-halloween.png
 """
 from PIL import Image, ImageDraw
 import os
+import sys
 
 SRC = "docs/branding/raw/app-icon-source.png"
 ASSET = "assets/images/logo/app_icon.webp"
@@ -65,7 +69,7 @@ def round_crop(img):
 
 
 def main():
-    master = square(Image.open(SRC).convert("RGB"))
+    master = square(Image.open(sys.argv[1] if len(sys.argv) > 1 else SRC).convert("RGB"))
     icon512 = master.resize((512, 512), Image.LANCZOS)
     icon512.save(STORE)
     icon512.save(ASSET, "WEBP", quality=92, method=6)
