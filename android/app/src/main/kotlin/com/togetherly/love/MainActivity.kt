@@ -161,6 +161,12 @@ class MainActivity : FlutterActivity() {
             GallerySaver.CHANNEL
         ).setMethodCallHandler(GallerySaver(applicationContext))
 
+        // Кусок песни к воспоминанию и подарку «Песня» (SoundClipper.kt)
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            SoundClipChannel.CHANNEL
+        ).setMethodCallHandler(SoundClipChannel())
+
         // Запись номеров фото-виджетов для фонового Dart: виджеты, стоявшие
         // до обновления, ещё не успели записать себя сами.
         WidgetIdRegistry.refresh(applicationContext)

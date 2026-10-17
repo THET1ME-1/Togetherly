@@ -67,6 +67,8 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // Тесты натива на эмуляторе CI (android-sound-clip.yml)
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -114,6 +116,10 @@ dependencies {
     // (WidgetRefreshWake.kt). Плагин тянет work-runtime как implementation, и
     // приложению он без этой строки не виден. Версия — как у плагина.
     implementation("androidx.work:work-runtime:2.10.2")
+
+    // Проверка вырезки звука на эмуляторе CI: в приложение не попадает.
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
 
     // Google Play Billing тянет плагин in_app_purchase_android (0.5.x = billing 8.x).
     // Свою версию сюда не прописывать: Play отклоняет обновления на библиотеке ниже 8.
