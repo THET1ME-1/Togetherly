@@ -1,0 +1,34 @@
+name: iOS → вырезка звука на macOS
+
+# Зачем: кусок песни к воспоминанию и подарку на iPhone режет AVFoundation
+# (SoundClipCore в AppDelegate.swift). Mac для проверки нет, поэтому ядро
+# вырезается между метками и собирается консольной проверкой на macOS: те же
+# образцы, что у теста Android.
+on:
+  push:
+    paths:
+      - 'ios/Runner/AppDelegate.swift'
+      - 'ios/sound_clip_test/**'
+      - 'android/app/src/androidTest/assets/**'
+      - '.github/workflows/ios-sound-clip.yml'
+  workflow_dispatch:
+
+jobs:
+  core:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ядро вырезки из AppDelegate.swift
+        run: |
+          awk '/MARK: SoundClipCore begin/{take=1; next} /MARK: SoundClipCore end/{take=0} take' \
+            ios/Runner/AppDelegate.swift > "$RUNNER_TEMP/core.swift"
+          test -s "$RUNNER_TEMP/core.swift"
+          printf 'import AVFoundation\nimport Foundation\n' | cat - "$RUNNER_TEMP/core.swift" > "$RUNNER_TEMP/SoundClipCore.swift"
+
+      - name: Сборка проверки
+        run: swiftc -O -o "$RUNNER_TEMP/sound_clip_test" "$RUNNER_TEMP/SoundClipCore.swift" ios/sound_clip_test/main.swift
+
+      - name: Проверка на образцах
+        run: '"$RUNNER_TEMP/sound_clip_test" android/app/src/androidTest/assets'

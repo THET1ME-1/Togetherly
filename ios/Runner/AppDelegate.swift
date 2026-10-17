@@ -1,3 +1,4 @@
+import AVFoundation
 import CoreLocation
 import Flutter
 import Photos
@@ -60,6 +61,7 @@ import WidgetKit
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     setupWidgetMediaChannel(engineBridge.pluginRegistry)
     setupGalleryChannel(engineBridge.pluginRegistry)
+    setupSoundClipChannel(engineBridge.pluginRegistry)
     setupApnsChannel(engineBridge.pluginRegistry)
     setupLocationAlwaysChannel(engineBridge.pluginRegistry)
     setupReelsInviteChannel(engineBridge.pluginRegistry)
@@ -1047,3 +1049,201 @@ final class BackgroundSaveEngine: NSObject, URLSessionDownloadDelegate {
     try? data.write(to: stateURL, options: .atomic)
   }
 }
+
+// MARK: - Кусок песни к воспоминанию и подарку «Песня»
+
+/// Разбор идёт на своей последовательной очереди: песню на десять минут
+/// AVFoundation разбирает секунду, главный поток ждать не должен.
+private let soundClipQueue = DispatchQueue(label: "com.togetherly.love.sound-clip")
+
+/// Канал `love_app/sound_clip`: проба песни, волна для рамки выбора и вырезка
+/// куска в m4a. Сама работа — в `SoundClipCore` ниже, его же гоняет CI.
+extension AppDelegate {
+  func setupSoundClipChannel(_ registry: FlutterPluginRegistry) {
+    guard let messenger = registry
+      .registrar(forPlugin: "TogetherlySoundClip")?
+      .messenger()
+    else { return }
+
+    let channel = FlutterMethodChannel(name: "love_app/sound_clip", binaryMessenger: messenger)
+    channel.setMethodCallHandler { call, result in
+      let args = call.arguments as? [String: Any] ?? [:]
+      guard let path = args["path"] as? String, !path.isEmpty else {
+        result(FlutterError(code: "failed", message: "нет пути к файлу", details: nil))
+        return
+      }
+      let number: (String) -> Int = { key in (args[key] as? NSNumber)?.intValue ?? 0 }
+      soundClipQueue.async {
+        do {
+          let value: Any
+          switch call.method {
+          case "probe":
+            value = try SoundClipCore.probe(path)
+          case "waveform":
+            value = try SoundClipCore.waveform(path, buckets: number("buckets") > 0 ? number("buckets") : 72)
+          case "clip":
+            value = try SoundClipCore.clip(
+              path,
+              startMs: number("startMs"),
+              endMs: number("endMs"),
+              fadeMs: number("fadeMs"),
+              outPath: args["outPath"] as? String ?? ""
+            )
+          default:
+            DispatchQueue.main.async { result(FlutterMethodNotImplemented) }
+            return
+          }
+          DispatchQueue.main.async { result(value) }
+        } catch SoundClipFailure.unsupported(let text) {
+          DispatchQueue.main.async { result(FlutterError(code: "unsupported", message: text, details: nil)) }
+        } catch {
+          DispatchQueue.main.async { result(FlutterError(code: "failed", message: "\(error)", details: nil)) }
+        }
+      }
+    }
+  }
+}
+
+// MARK: SoundClipCore begin
+// Ядро без Flutter: прогон ios-sound-clip.yml вырезает его между метками и
+// собирает консольной проверкой на macOS. Импорты стоят в начале файла.
+
+enum SoundClipFailure: Error {
+  case unsupported(String)
+  case failed(String)
+}
+
+enum SoundClipCore {
+  static func probe(_ path: String) throws -> [String: Any] {
+    let asset = AVURLAsset(url: URL(fileURLWithPath: path))
+    guard !asset.tracks(withMediaType: .audio).isEmpty else {
+      throw SoundClipFailure.unsupported("в файле нет звука")
+    }
+    let seconds = CMTimeGetSeconds(asset.duration)
+    var title = ""
+    var artist = ""
+    for item in asset.commonMetadata {
+      if item.commonKey == .commonKeyTitle, let value = item.stringValue { title = value }
+      if item.commonKey == .commonKeyArtist, let value = item.stringValue { artist = value }
+    }
+    return [
+      "durationMs": Int((seconds.isFinite ? seconds : 0) * 1000),
+      "title": title.trimmingCharacters(in: .whitespacesAndNewlines),
+      "artist": artist.trimmingCharacters(in: .whitespacesAndNewlines),
+    ]
+  }
+
+  /// Волна всей песни, нормированная по самому громкому месту.
+  static func waveform(_ path: String, buckets: Int) throws -> [Double] {
+    let values = try envelope(URL(fileURLWithPath: path), buckets: max(8, min(400, buckets)))
+    let peak = values.max() ?? 0
+    return values.map { peak > 0 ? $0 / peak : 0 }
+  }
+
+  /// Кусок в m4a: экспорт AVFoundation с затуханием краёв через громкость.
+  static func clip(_ path: String, startMs: Int, endMs: Int, fadeMs: Int, outPath: String) throws -> [String: Any] {
+    guard endMs > startMs, !outPath.isEmpty else { throw SoundClipFailure.failed("пустой кусок") }
+    let asset = AVURLAsset(url: URL(fileURLWithPath: path))
+    guard let track = asset.tracks(withMediaType: .audio).first else {
+      throw SoundClipFailure.unsupported("в файле нет звука")
+    }
+    guard let session = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetAppleM4A) else {
+      throw SoundClipFailure.unsupported("файл не перекодировать")
+    }
+    let out = URL(fileURLWithPath: outPath)
+    try? FileManager.default.createDirectory(at: out.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try? FileManager.default.removeItem(at: out)
+
+    let start = CMTime(value: CMTimeValue(startMs), timescale: 1000)
+    var end = CMTime(value: CMTimeValue(endMs), timescale: 1000)
+    if CMTimeCompare(end, asset.duration) > 0 { end = asset.duration }
+    guard CMTimeCompare(end, start) > 0 else { throw SoundClipFailure.failed("кусок за концом песни") }
+    let lengthMs = Int(CMTimeGetSeconds(CMTimeSubtract(end, start)) * 1000)
+    let fade = CMTime(value: CMTimeValue(min(fadeMs, lengthMs / 2)), timescale: 1000)
+
+    // Края затухают громкостью, без этого кусок обрывается на полуслове
+    let volume = AVMutableAudioMixInputParameters(track: track)
+    volume.setVolumeRamp(fromStartVolume: 0, toEndVolume: 1, timeRange: CMTimeRange(start: start, duration: fade))
+    volume.setVolumeRamp(fromStartVolume: 1, toEndVolume: 0, timeRange: CMTimeRange(start: CMTimeSubtract(end, fade), duration: fade))
+    let mix = AVMutableAudioMix()
+    mix.inputParameters = [volume]
+
+    session.outputURL = out
+    session.outputFileType = .m4a
+    session.timeRange = CMTimeRange(start: start, end: end)
+    session.audioMix = mix
+    let done = DispatchSemaphore(value: 0)
+    session.exportAsynchronously { done.signal() }
+    done.wait()
+    guard session.status == .completed else {
+      try? FileManager.default.removeItem(at: out)
+      throw SoundClipFailure.failed(session.error?.localizedDescription ?? "экспорт не удался")
+    }
+
+    let saved = AVURLAsset(url: out)
+    let seconds = CMTimeGetSeconds(saved.duration)
+    return [
+      "path": outPath,
+      "durationMs": Int((seconds.isFinite ? seconds : 0) * 1000),
+      "peaks": try envelope(out, buckets: 40),
+    ]
+  }
+
+  /// RMS по корзинам. PCM моно 8 кГц: волне хватает, а разбор легче.
+  private static func envelope(_ url: URL, buckets: Int) throws -> [Double] {
+    let asset = AVURLAsset(url: url)
+    guard let track = asset.tracks(withMediaType: .audio).first else {
+      throw SoundClipFailure.unsupported("в файле нет звука")
+    }
+    let reader: AVAssetReader
+    do {
+      reader = try AVAssetReader(asset: asset)
+    } catch {
+      throw SoundClipFailure.unsupported("файл не открывается: \(error.localizedDescription)")
+    }
+    let settings: [String: Any] = [
+      AVFormatIDKey: kAudioFormatLinearPCM,
+      AVLinearPCMBitDepthKey: 16,
+      AVLinearPCMIsFloatKey: false,
+      AVLinearPCMIsBigEndianKey: false,
+      AVLinearPCMIsNonInterleaved: false,
+      AVNumberOfChannelsKey: 1,
+      AVSampleRateKey: 8000,
+    ]
+    let output = AVAssetReaderTrackOutput(track: track, outputSettings: settings)
+    output.alwaysCopiesSampleData = false
+    guard reader.canAdd(output) else { throw SoundClipFailure.unsupported("звук не разобрать") }
+    reader.add(output)
+    guard reader.startReading() else {
+      throw SoundClipFailure.unsupported(reader.error?.localizedDescription ?? "звук не разобрать")
+    }
+
+    let seconds = CMTimeGetSeconds(asset.duration)
+    let total = max(1, Int((seconds.isFinite ? seconds : 0) * 8000))
+    var sums = [Double](repeating: 0, count: buckets)
+    var counts = [Int](repeating: 0, count: buckets)
+    var index = 0
+    while let sample = output.copyNextSampleBuffer() {
+      if let block = CMSampleBufferGetDataBuffer(sample) {
+        let length = CMBlockBufferGetDataLength(block)
+        var data = [Int16](repeating: 0, count: length / 2)
+        data.withUnsafeMutableBytes { raw in
+          _ = CMBlockBufferCopyDataBytes(block, atOffset: 0, dataLength: length, destination: raw.baseAddress!)
+        }
+        for value in data {
+          let bucket = min(buckets - 1, index * buckets / total)
+          let level = Double(value) / 32768
+          sums[bucket] += level * level
+          counts[bucket] += 1
+          index += 1
+        }
+      }
+      CMSampleBufferInvalidate(sample)
+    }
+    if reader.status == .failed {
+      throw SoundClipFailure.failed(reader.error?.localizedDescription ?? "разбор оборвался")
+    }
+    return (0..<buckets).map { counts[$0] > 0 ? (sums[$0] / Double(counts[$0])).squareRoot() : 0 }
+  }
+}
+// MARK: SoundClipCore end
