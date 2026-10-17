@@ -42,7 +42,7 @@ routerAdd("POST", "/api/gifts/send", (e) => {
 
   const body = new DynamicModel({
     giftId: "", groupId: "", giftKey: "", note: "", date: "", place: "",
-    photo: "", ad: false,
+    photo: "", sound: "", soundMeta: "", ad: false,
   });
   e.bindBody(body);
 
@@ -89,6 +89,36 @@ routerAdd("POST", "/api/gifts/send", (e) => {
       $app.logger().warn("gifts: снимок к подарку отклонён", "gift", giftKey, "photo", photo.slice(0, 120));
       return e.json(400, { ok: false, error: "bad_photo" });
     }
+  }
+
+  // Звук к «Песне» (17.10.2026, обращение 244): кусок песни или голос
+  // дарителя. Как и снимок, только файл хранилища ЭТОЙ пары. Meta — json с
+  // длительностью и волной: проверяем и пишем начисто, лишнее не храним.
+  const SOUND_GIFTS = { song: true };
+  const sound = String(body.sound || "").trim();
+  let soundMeta = "";
+  if (sound) {
+    const m = /^pb:\/\/media\/([a-z0-9]{15})\/[A-Za-z0-9_.\-]{1,200}$/.exec(sound);
+    let okSound = false;
+    if (m && SOUND_GIFTS[giftKey]) {
+      try {
+        okSound = $app.findRecordById("media", m[1]).getString("group_id") === groupId;
+      } catch (_) {
+        okSound = false;
+      }
+    }
+    let meta = null;
+    try { meta = JSON.parse(String(body.soundMeta || "")); } catch (_) { meta = null; }
+    const ms = meta && typeof meta.ms === "number" ? Math.round(meta.ms) : -1;
+    const peaks = meta && typeof meta.peaks === "string" ? meta.peaks : "";
+    const kind = meta && (meta.kind === "song" || meta.kind === "voice") ? meta.kind : "";
+    if (!(ms > 0 && ms <= 61000) || !/^[0-9]{40}$/.test(peaks) || !kind) okSound = false;
+    if (!okSound) {
+      $app.logger().warn("gifts: звук к подарку отклонён", "gift", giftKey, "sound", sound.slice(0, 120));
+      return e.json(400, { ok: false, error: "bad_sound" });
+    }
+    const tag = (v) => String(v || "").replace(/\s+/g, " ").trim().slice(0, 120);
+    soundMeta = JSON.stringify({ ms: ms, peaks: peaks, kind: kind, title: tag(meta.title), artist: tag(meta.artist) });
   }
 
   let out = { s: 500, b: { ok: false, error: "internal" } };
@@ -189,6 +219,10 @@ routerAdd("POST", "/api/gifts/send", (e) => {
       if (body.date) rec.set("date", String(body.date).slice(0, 40));
       if (body.place) rec.set("place", String(body.place).slice(0, 80));
       if (photo) rec.set("photo", photo);
+      if (sound) {
+        rec.set("sound", sound);
+        rec.set("sound_meta", soundMeta);
+      }
       // Отложенная доставка: письмо ждёт сутки, завтрак — ближайшее утро.
       let deliverAt = now;
       if (DELAY_H[giftKey]) {
