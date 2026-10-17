@@ -567,7 +567,9 @@ extension AppDelegate {
         BackgroundSaveEngine.shared.submit(call.arguments as? [String: Any] ?? [:])
         result(nil)
       case "engineStatus":
-        result(BackgroundSaveEngine.shared.status())
+        BackgroundSaveEngine.shared.status { value in
+          DispatchQueue.main.async { result(value) }
+        }
       case "engineAck":
         let keys = (call.arguments as? [String: Any])?["keys"] as? [String] ?? []
         BackgroundSaveEngine.shared.ack(keys)
@@ -857,10 +859,14 @@ final class BackgroundSaveEngine: NSObject, URLSessionDownloadDelegate {
     }
   }
 
-  func status() -> [String: Any] {
-    return queue.sync { () -> [String: Any] in
+  /// Статус без ожидания на главном потоке. Прежний `queue.sync` держал главный
+  /// поток, пока очередь пишет кадр в «Фото», а Dart спрашивает статус каждые
+  /// 800 мс; с баннером рекламы (platform view) вместе с главным потоком
+  /// вставал весь экран.
+  func status(_ done: @escaping ([String: Any]) -> Void) {
+    queue.async {
       self.load()
-      return ["results": self.results, "pending": self.items.count]
+      done(["results": self.results, "pending": self.items.count])
     }
   }
 
