@@ -709,6 +709,82 @@ routerAdd("POST", "/api/chest/keep", (e) => {
   return e.json(out.s, out.b);
 }, $apis.requireAuth());
 
+// Подарок из запаса — продать за монеты (17.10.2026, обращение 244, задача 7
+// плана сундука). Ненужный подарок не пропадает впустую: цена по редкости,
+// столько же, сколько монетные призы того же яруса. Ярус обычных подарков — из
+// SELL_TIER (зеркало GIFTS выше), сезонных — из каталога (`data.rarity`).
+routerAdd("POST", "/api/chest/sell", (e) => {
+  const SELL = { common: 5, rare: 10, legendary: 25 };
+  const SELL_TIER = {
+    cookieheart: "common", teddy: "common", potion: "common",
+    throne: "rare", champagne: "rare", snowglobe: "rare",
+    rose: "rare", perfume: "rare", record: "rare",
+    locket: "legendary", rings: "legendary",
+  };
+  const body = new DynamicModel({ openId: "" });
+  e.bindBody(body);
+  const openId = String(body.openId || "").trim();
+  if (!/^[a-z0-9]{15}$/.test(openId)) return e.json(400, { ok: false, error: "bad_request" });
+  const me = e.auth.id;
+  let out = { s: 500, b: { ok: false, error: "internal" } };
+  try {
+    $app.runInTransaction((txApp) => {
+      let rec = null;
+      try { rec = txApp.findRecordById("chest_opens", openId); } catch (_) { rec = null; }
+      if (!rec || rec.getString("user_uid") !== me) {
+        out = { s: 404, b: { ok: false, error: "not_found" } };
+        return;
+      }
+      const user = txApp.findRecordById("users", me);
+      const state = rec.getString("state");
+      if (state === "sold") {
+        out = { s: 200, b: { ok: true, repeated: true, coins: user.getInt("coins") || 0 } };
+        return;
+      }
+      if (state !== "stash") {
+        out = { s: 409, b: { ok: false, error: "already_used" } };
+        return;
+      }
+      const key = rec.getString("prize");
+      let tier = SELL_TIER[key] || "";
+      if (!tier) {
+        // Сезонный подарок: запись каталога gift_<ключ>, иначе ищем по data.key
+        let item = null;
+        try { item = txApp.findRecordById("catalog_items", "gift_" + key); } catch (_) { item = null; }
+        if (!item) {
+          try {
+            const all = txApp.findRecordsByFilter("catalog_items", "kind = 'gift'", "", 500, 0);
+            for (let i = 0; i < all.length && !item; i++) {
+              let d = {};
+              try { d = JSON.parse(all[i].getString("data") || "{}") || {}; } catch (_) { d = {}; }
+              if (String(d.key || "") === key) item = all[i];
+            }
+          } catch (_) { item = null; }
+        }
+        if (item) {
+          let d = {};
+          try { d = JSON.parse(item.getString("data") || "{}") || {}; } catch (_) { d = {}; }
+          tier = SELL[d.rarity] ? d.rarity : "";
+        }
+      }
+      const price = SELL[tier] || SELL.common;
+      user.set("coins", (user.getInt("coins") || 0) + price);
+      txApp.save(user);
+      rec.set("state", "sold");
+      txApp.save(rec);
+      out = { s: 200, b: { ok: true, repeated: false, price: price, coins: user.getInt("coins") || 0 } };
+    });
+  } catch (err) {
+    try { $app.logger().error("chest/sell: " + String(err)); } catch (_) {}
+    out = { s: 500, b: { ok: false, error: "internal" } };
+  }
+  try {
+    $app.logger().info("chest sell", "open", openId, "uid", me,
+      "result", out.b.ok ? (out.b.repeated ? "repeated" : String(out.b.price)) : String(out.b.error));
+  } catch (_) {}
+  return e.json(out.s, out.b);
+}, $apis.requireAuth());
+
 // Подарок из запаса — партнёру, бесплатно. Партнёр получает обычный подарок:
 // анимация, отклик, полка. Нулевая цена значит, что отклик и отказ ничего не
 // возвращают — монеты из воздуха не появляются (как у подарка за ролик).

@@ -195,6 +195,18 @@ class ChestService {
         if (note.trim().isNotEmpty) 'note': note.trim(),
       });
 
+  /// Подарок из запаса — продать за монеты. null — сеть или отказ сервера.
+  Future<ChestSale?> sell(String openId) async {
+    try {
+      final res = await PocketBaseService()
+          .pb
+          .send('/api/chest/sell', method: 'POST', body: {'openId': openId});
+      return parseChestSale(res);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<bool> _choice(String path, Map<String, dynamic> body) async {
     try {
       final res = await PocketBaseService().pb.send(path, method: 'POST', body: body);
@@ -229,6 +241,26 @@ class ChestStashItem {
 
   final String openId;
   final String giftKey;
+}
+
+/// Продажа подарка из запаса: сколько дали и сколько стало на счету.
+class ChestSale {
+  const ChestSale({required this.price, required this.coins, this.repeated = false});
+
+  final int price;
+  final int coins;
+
+  /// Повтор уже прошедшей продажи: монеты второй раз не начислены.
+  final bool repeated;
+}
+
+ChestSale? parseChestSale(Object? json) {
+  if (json is! Map || json['ok'] != true) return null;
+  return ChestSale(
+    price: (json['price'] as num?)?.toInt() ?? 0,
+    coins: (json['coins'] as num?)?.toInt() ?? 0,
+    repeated: json['repeated'] == true,
+  );
 }
 
 /// Запас по видам для ленты: ключ подарка и его открытия, старые первыми.

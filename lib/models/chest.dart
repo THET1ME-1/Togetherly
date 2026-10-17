@@ -157,6 +157,32 @@ class ChestState {
 /// значок одной редкости выпадают одинаково.
 const Map<String, int> kChestTierPools = {'common': 252, 'rare': 144, 'legendary': 36};
 
+/// Цена продажи подарка из запаса по редкости — зеркало `SELL` в
+/// `chest.pb.js`. Столько же, сколько монетные призы того же яруса.
+const Map<String, int> kChestSellPrice = {'common': 5, 'rare': 10, 'legendary': 25};
+
+/// Редкость подарков обычного сундука — зеркало `SELL_TIER` и `GIFTS`.
+const Map<String, String> _chestGiftTier = {
+  'cookieheart': 'common',
+  'teddy': 'common',
+  'potion': 'common',
+  'throne': 'rare',
+  'champagne': 'rare',
+  'snowglobe': 'rare',
+  'rose': 'rare',
+  'perfume': 'rare',
+  'record': 'rare',
+  'locket': 'legendary',
+  'rings': 'legendary',
+};
+
+/// Сколько монет дадут за подарок из запаса. У сезонного подарка редкость
+/// приходит из каталога ([rarity]); неизвестная — как обычный.
+int chestSellPrice(String giftKey, {String? rarity}) {
+  final tier = _chestGiftTier[giftKey] ?? rarity ?? 'common';
+  return kChestSellPrice[tier] ?? kChestSellPrice['common']!;
+}
+
 /// Сколько открытий подряд без редкого приза до гарантии — зеркало `PITY`.
 const int kChestPity = 10;
 
