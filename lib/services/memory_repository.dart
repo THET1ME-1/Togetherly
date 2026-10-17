@@ -4,6 +4,7 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../models/comment.dart';
 import '../models/memory.dart';
+import '../models/sound_clip.dart';
 import '../models/memory_sticker.dart';
 import '../utils/pair_time.dart';
 import 'analytics_service.dart';
@@ -119,6 +120,8 @@ class MemoryRepository {
     String? movieRatingKp,
     String? movieInfoUrl,
     int? rating,
+    /// Звук к фото или видео, уже залитый (`pb://`) или ждущий сети (`localfile://`).
+    SoundClip? sound,
     bool isAdult = false,
     bool isSecret = false,
     bool sealed = false,
@@ -185,6 +188,7 @@ class MemoryRepository {
       movieRatingKp: movieRatingKp,
       movieInfoUrl: movieInfoUrl,
       rating: rating == 0 ? null : rating,
+      sound: sound,
       isAdult: isAdult,
       isSecret: isSecret,
       sealed: sealed,

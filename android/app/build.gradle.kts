@@ -118,8 +118,10 @@ dependencies {
     implementation("androidx.work:work-runtime:2.10.2")
 
     // Проверка вырезки звука на эмуляторе CI: в приложение не попадает.
-    androidTestImplementation("androidx.test:runner:1.6.2")
-    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    // Версии те же, что уже тянет integration_test: тестовый APK обязан
+    // совпадать с приложением, и 1.6.2 падала на строгом 1.3.0.
+    androidTestImplementation("androidx.test:runner:1.3.0")
+    androidTestImplementation("androidx.test.ext:junit:1.1.2")
 
     // Google Play Billing тянет плагин in_app_purchase_android (0.5.x = billing 8.x).
     // Свою версию сюда не прописывать: Play отклоняет обновления на библиотеке ниже 8.

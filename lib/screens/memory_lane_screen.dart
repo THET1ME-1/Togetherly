@@ -41,6 +41,7 @@ import '../models/daily_task.dart';
 import '../dict_strings.dart';
 import '../models/feed_category.dart';
 import '../models/memory.dart';
+import '../models/sound_clip.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import '../models/memory_media.dart';
 import '../models/memory_menu.dart';
@@ -6838,6 +6839,8 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
     List<String>? mediaPaths, // multiple photos
     String? mediaPath, // single video
     String? musicPath,
+    // Звук к фото или видео из листа «Звук»: файл на диске до заливки
+    SoundClip? sound,
     // videoLink
     String? videoLinkUrl,
     String? videoLinkThumb,
@@ -7019,6 +7022,33 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         uploadedMusicUrl = await MediaService().uploadFile(musicPath, destination);
       }
 
+      // Звук к фото или видео заливается, как кадры: без сети получит
+      // localfile:// и уедет очередью, ссылку в записи подменит MediaCache.
+      SoundClip? finalSound = sound;
+      if (sound != null && sound.isLocalFile) {
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final soundOutcome = await MediaService().uploadFileWithReason(
+            sound.url, 'memories/$_groupId/sound_$timestamp.m4a');
+        if (soundOutcome.ref == null) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(uploadFailureText(
+                  soundOutcome.failure ?? UploadFailure.other,
+                  LocaleService.current,
+                  video: false,
+                )),
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 5),
+              ),
+            );
+          }
+          return;
+        }
+        finalSound = sound.withUrl(soundOutcome.ref!);
+      }
+
       // Use provided musicUrl if no file uploaded
       final finalMusicUrl =
           uploadedMusicUrl ?? (musicUrl.isNotEmpty ? musicUrl : null);
@@ -7051,6 +7081,7 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
         imageUrl: finalImageUrl,
         imageUrls: uploadedImageUrls.isNotEmpty ? uploadedImageUrls : null,
         videoUrl: finalVideoUrl,
+        sound: finalSound,
         bookAuthor: bookAuthor,
         bookCoverUrl: bookCoverUrl,
         bookYear: bookYear,

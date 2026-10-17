@@ -155,6 +155,19 @@ List<MediaFile> memoryMediaFiles(
     case MemoryType.movie:
       break;
   }
+
+  // Звук к фото и видео: отдельным файлом, он ложится в «Загрузки/Togetherly»
+  final sound = m.sound?.url.trim() ?? '';
+  final withSound = m.type == MemoryType.photo || m.type == MemoryType.video;
+  if (withSound && sound.isNotEmpty && isOwnMediaUrl(sound)) {
+    final cover = m.imageUrls?.isNotEmpty == true ? m.imageUrls!.first : m.imageUrl;
+    out.add(MediaFile(
+      ref: sound,
+      kind: SaveKind.audio,
+      index: out.length,
+      thumb: (cover != null && cover.trim().isNotEmpty) ? cover.trim() : null,
+    ));
+  }
   return out;
 }
 

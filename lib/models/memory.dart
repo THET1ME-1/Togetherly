@@ -8,6 +8,7 @@ import '../utils/pair_time.dart';
 import '../services/locale_service.dart';
 import 'memory_reaction.dart';
 import 'memory_sticker.dart';
+import 'sound_clip.dart';
 
 /// Types of memory content
 enum MemoryType { photo, video, location, music, text, videoLink, book, movie }
@@ -112,6 +113,10 @@ class Memory {
   /// movies (the "оценка"). The accompanying review text reuses [caption].
   int? rating;
 
+  /// Звук к фото или видео: голос или кусок песни (обращение 244). Пусто —
+  /// звука нет; старые сборки поле не знают и показывают запись без него.
+  SoundClip? sound;
+
   bool isPinned;
   bool isAdult;
 
@@ -203,6 +208,7 @@ class Memory {
     this.movieRatingKp,
     this.movieInfoUrl,
     this.rating,
+    this.sound,
     this.isPinned = false,
     this.isAdult = false,
     this.isSecret = false,
@@ -307,6 +313,7 @@ class Memory {
       'movieRatingKp': movieRatingKp,
       'movieInfoUrl': movieInfoUrl,
       'rating': rating,
+      'sound': sound?.toJson(),
       'isPinned': isPinned,
       'isAdult': isAdult,
       'isSecret': isSecret,
@@ -367,6 +374,7 @@ class Memory {
       movieRatingKp: json['movieRatingKp'],
       movieInfoUrl: json['movieInfoUrl'],
       rating: (json['rating'] as num?)?.toInt(),
+      sound: SoundClip.fromJson(json['sound']),
       isPinned: json['isPinned'] ?? false,
       isAdult: json['isAdult'] ?? false,
       isSecret: json['isSecret'] ?? false,
