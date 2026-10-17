@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:pocketbase/pocketbase.dart';
 
 import '../models/gift.dart';
+import '../models/sound_clip.dart';
 import 'gift_result.dart';
 import 'gift_telemetry.dart';
 import 'offline/pb_id.dart';
@@ -30,6 +32,7 @@ class GiftsService {
     String? date,
     String? place,
     String? photo,
+    SoundClip? sound,
     bool byAd = false,
   }) async {
     final gift = GiftCatalog.byKey(giftKey);
@@ -50,6 +53,8 @@ class GiftsService {
         if (place != null && place.isNotEmpty) 'place': place,
         // Снимок уже лежит в хранилище пары: едет только ссылка `pb://media/…`.
         if (photo != null && photo.isNotEmpty) 'photo': photo,
+        // Звук к «Песне» тоже уже в хранилище пары: ссылка и волна
+        ...soundFields(sound),
         // Подарок за ролик: сервер отдаёт его без монет, три раза в сутки.
         if (byAd) 'ad': true,
       },
@@ -57,6 +62,14 @@ class GiftsService {
       giftKey: giftKey,
       step: 'send',
     );
+  }
+
+  /// Звук подарка для запроса: ссылка отдельно, длительность, волна, вид и
+  /// теги — json-строкой, сервер его проверит и перепишет начисто.
+  static Map<String, Object> soundFields(SoundClip? sound) {
+    if (sound == null || sound.url.isEmpty) return const {};
+    final meta = sound.toJson()..remove('url');
+    return {'sound': sound.url, 'soundMeta': jsonEncode(meta)};
   }
 
   /// [reply] — ответ получателя дарителю: желание, загаданное на звезду.

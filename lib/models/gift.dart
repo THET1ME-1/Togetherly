@@ -119,6 +119,7 @@ class Gift {
     this.action = GiftAction.tap,
     this.carriesNote = true,
     this.carriesPhoto = false,
+    this.carriesSound = false,
     this.wantsReply = false,
     this.keepsForever = false,
     this.transfersCoins = false,
@@ -161,6 +162,11 @@ class Gift {
   /// 20, 07.09.2026): «Кадр» просил фото у партнёра, а приложить своё было
   /// нельзя, хотя к «Песне» текст прикладывается.
   final bool carriesPhoto;
+
+  /// Даритель прикладывает кусок песни или голос (обращение 244, 17.10.2026):
+  /// «к песне реально кусочек mp3 прикрепить». Зеркало `SOUND_GIFTS` в
+  /// `gifts.pb.js`.
+  final bool carriesSound;
 
   /// Получатель пишет ответ, и он возвращается дарителю (желание на звезду).
   final bool wantsReply;
@@ -252,7 +258,8 @@ class GiftCatalog {
     Gift(key: 'cocktail', price: 20, engine: GiftEngine.response, titleRu: 'Коктейль', titleEn: 'Cocktail',
         action: GiftAction.invite, opens: GiftOpens.chat, refundsOnDecline: true,
         carriesNote: true),
-    Gift(key: 'song', price: 20, engine: GiftEngine.response, titleRu: 'Песня', titleEn: 'Song', carriesNote: true),
+    Gift(key: 'song', price: 20, engine: GiftEngine.response, titleRu: 'Песня', titleEn: 'Song', carriesNote: true,
+        carriesSound: true),
     Gift(key: 'photo', price: 20, engine: GiftEngine.response, titleRu: 'Кадр', titleEn: 'Photo',
         action: GiftAction.invite, opens: GiftOpens.addPhoto, refundsOnDecline: true,
         carriesPhoto: true),

@@ -95,6 +95,22 @@ class SoundClip {
     );
   }
 
+  /// Звук подарка: ссылка в поле `sound`, остальное json-строкой в
+  /// `sound_meta`. Битый meta не прячет звук, он играет без волны.
+  static SoundClip? fromGiftRecord(Map<String, dynamic> record) {
+    final url = (record['sound'] ?? '').toString().trim();
+    if (url.isEmpty) return null;
+    Object? meta = record['sound_meta'];
+    if (meta is String) {
+      try {
+        meta = jsonDecode(meta);
+      } catch (_) {
+        meta = null;
+      }
+    }
+    return fromJson({if (meta is Map) ...meta, 'url': url});
+  }
+
   static String _cut(String text) =>
       text.length > 120 ? text.substring(0, 120) : text;
 }

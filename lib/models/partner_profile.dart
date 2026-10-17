@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'gift.dart';
+import 'sound_clip.dart';
 
 /// Сколько раз партнёру дарили один и тот же подарок.
 class GiftTally {
@@ -51,6 +52,7 @@ class GiftMemo {
     this.senderUid = '',
     this.note = '',
     this.photo = '',
+    this.sound,
     this.reply = '',
     this.place = '',
     this.date,
@@ -71,6 +73,9 @@ class GiftMemo {
   /// Снимок дарителя, ссылка `pb://media/…`. Пусто, если не прикладывал.
   final String photo;
 
+  /// Кусок песни или голос дарителя к «Песне». null — без звука.
+  final SoundClip? sound;
+
   /// Что ответил получатель (желание на звезду, согласие на свидание).
   final String reply;
 
@@ -87,6 +92,7 @@ class GiftMemo {
   bool get hasText =>
       note.isNotEmpty ||
       photo.isNotEmpty ||
+      sound != null ||
       reply.isNotEmpty ||
       place.isNotEmpty ||
       date != null;
@@ -116,6 +122,7 @@ GiftMemo _memoOf(Map<String, dynamic> r) => GiftMemo(
       senderUid: _memoText(r['sender_uid']),
       note: _memoText(r['note']),
       photo: _memoText(r['photo']),
+      sound: SoundClip.fromGiftRecord(r),
       reply: _memoText(r['reply']),
       place: _memoText(r['place']),
       date: _memoDate(r['date']),

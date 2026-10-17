@@ -26,6 +26,7 @@ import '../models/love_prompt.dart';
 import '../models/memory.dart';
 import '../models/gift.dart';
 import '../models/gift_effect.dart';
+import '../models/sound_clip.dart';
 import '../services/pb_data_service.dart';
 import '../services/widget_diagnostics.dart';
 import 'gifts/gift_receive_sheet.dart';
@@ -2796,6 +2797,7 @@ class _HomeScreenState extends State<HomeScreen> {
       senderName: _pairData.partnerDisplayName,
       note: (raw['note'] ?? '').toString(),
       photo: (raw['photo'] ?? '').toString(),
+      sound: SoundClip.fromGiftRecord(raw),
     );
     if (accepted == true) {
       await _loadIncomingGifts();

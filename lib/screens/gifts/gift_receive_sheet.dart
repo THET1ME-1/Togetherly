@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../../l10n/zh/gifts.dart';
 import '../../models/gift.dart';
+import '../../models/sound_clip.dart';
 import '../../services/gifts_service.dart';
 import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
@@ -26,6 +27,7 @@ class GiftReceiveSheet extends StatefulWidget {
     required this.senderName,
     this.note,
     this.photo,
+    this.sound,
   });
 
   final AppTheme theme;
@@ -37,6 +39,9 @@ class GiftReceiveSheet extends StatefulWidget {
   /// Снимок дарителя (`pb://media/…`), приложенный к «Кадру».
   final String? photo;
 
+  /// Кусок песни или голос дарителя, приложенный к «Песне».
+  final SoundClip? sound;
+
   /// Возвращает true, если подарок приняли.
   static Future<bool?> show(
     BuildContext context, {
@@ -46,6 +51,7 @@ class GiftReceiveSheet extends StatefulWidget {
     required String senderName,
     String? note,
     String? photo,
+    SoundClip? sound,
   }) {
     return showModalBottomSheet<bool>(
       context: context,
@@ -58,6 +64,7 @@ class GiftReceiveSheet extends StatefulWidget {
         senderName: senderName,
         note: note,
         photo: photo,
+        sound: sound,
       ),
     );
   }
