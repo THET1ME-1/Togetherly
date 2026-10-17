@@ -27,6 +27,9 @@ class VoiceCapture {
 /// ведём в настройки, при занятом микрофоне просим повторить.
 enum VoiceRecordError { noPermission, busy, failed }
 
+/// Для чего пишем: голосовое в чат или голос к воспоминанию и подарку.
+enum VoiceQuality { chat, memory }
+
 class VoiceRecordException implements Exception {
   final VoiceRecordError reason;
   const VoiceRecordException(this.reason);
@@ -80,10 +83,35 @@ class VoiceRecorderService {
       ? Duration.zero
       : DateTime.now().difference(_startedAt!);
 
+  /// Настройки записи. К воспоминанию пишем чище и без шумодава: шум вокруг —
+  /// часть атмосферы, а шумодав превращает напетое в бульканье.
+  static RecordConfig configFor(VoiceQuality quality) => switch (quality) {
+        VoiceQuality.chat => const RecordConfig(
+            encoder: AudioEncoder.aacLc,
+            bitRate: 32000,
+            sampleRate: 22050,
+            numChannels: 1,
+            noiseSuppress: true,
+            echoCancel: true,
+          ),
+        VoiceQuality.memory => const RecordConfig(
+            encoder: AudioEncoder.aacLc,
+            bitRate: 64000,
+            sampleRate: 44100,
+            numChannels: 1,
+            noiseSuppress: false,
+            echoCancel: false,
+          ),
+      };
+
   /// Начинает запись. Бросает [VoiceRecordException], если микрофон не дали
   /// или он занят — тишина в ответ здесь хуже всего: человек держит палец и не
-  /// понимает, пишется ли.
-  Future<void> start() async {
+  /// понимает, пишется ли. [limit] — свой предел (у подарка минута), без него
+  /// три минуты, как в чате.
+  Future<void> start({
+    Duration? limit,
+    VoiceQuality quality = VoiceQuality.chat,
+  }) async {
     if (isRecording) throw const VoiceRecordException(VoiceRecordError.busy);
     bool allowed;
     try {
@@ -98,17 +126,7 @@ class VoiceRecorderService {
     final path =
         '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
     try {
-      await _rec.start(
-        const RecordConfig(
-          encoder: AudioEncoder.aacLc,
-          bitRate: 32000,
-          sampleRate: 22050,
-          numChannels: 1,
-          noiseSuppress: true,
-          echoCancel: true,
-        ),
-        path: path,
-      );
+      await _rec.start(configFor(quality), path: path);
     } catch (e) {
       debugPrint('VoiceRecorder.start failed: $e');
       throw const VoiceRecordException(VoiceRecordError.failed);
@@ -128,7 +146,7 @@ class VoiceRecorderService {
           : _amps.sublist(_amps.length - 32));
     }, onError: (e) => debugPrint('VoiceRecorder amplitude: $e'));
 
-    _limitTimer = Timer(maxDuration, () {
+    _limitTimer = Timer(limit ?? maxDuration, () {
       if (isRecording) _autoStop.add(null);
     });
   }
