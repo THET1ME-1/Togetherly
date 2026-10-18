@@ -87,24 +87,30 @@ List<HelpItem> helpItems({required bool plusInStore}) => [
     ];
 
 /// Два вопроса крупными плитками наверху: о них спрашивают чаще всего.
+/// С октября 2026 в приёмную чаще всего пишут «у нас 0 дней вместе», поэтому
+/// дата начала стоит сразу за Плюсом, а удаление пары ушло в список.
 List<HelpItem> helpPopular(List<HelpItem> items) => [
-      for (final id in ['plusStore', 'plusSite', 'unpair', 'startDate'])
+      for (final id in ['plusStore', 'plusSite', 'startDate', 'unpair'])
         ...items.where((i) => i.id == id),
     ].take(2).toList();
 
 /// Поиск по вопросу, пути и шагам, без учёта регистра и «ё».
-///
-/// У длинного слова окончание отбрасывается: «пароля» находит «пароль»,
-/// «виджета» — «виджет». Для справки из дюжины ответов этого хватает.
 bool helpMatches(HelpItem item, String query) {
   final q = _norm(query);
   if (q.isEmpty) return true;
   final hay = _norm([item.question, item.path, ...item.steps].join(' '));
-  return q
-      .split(' ')
-      .where((w) => w.isNotEmpty)
-      .map((w) => w.length > 5 ? w.substring(0, w.length - 2) : w)
-      .every(hay.contains);
+  return q.split(' ').where((w) => w.isNotEmpty).map(_stem).every(hay.contains);
+}
+
+/// Окончание отбрасывается: у длинного слова два знака («пароля» находит
+/// «пароль», «виджета» — «виджет»), у слова в четыре-пять букв последняя
+/// гласная («дата» находит «дату»). Для справки из дюжины ответов хватает.
+String _stem(String word) {
+  if (word.length > 5) return word.substring(0, word.length - 2);
+  if (word.length >= 4 && 'аеиоуыэюяй'.contains(word[word.length - 1])) {
+    return word.substring(0, word.length - 1);
+  }
+  return word;
 }
 
 String _norm(String s) =>

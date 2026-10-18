@@ -104,7 +104,7 @@ const Map<String, String> midDZh = {
   'help.startDate.path': '{home} → 铅笔按钮',
   'help.startDate.s1': '打开“{home}”标签。',
   'help.startDate.s2': '在显示年、月、天的圆圈上方，点圆形的铅笔按钮。',
-  'help.startDate.s3': '选择你们开始恋爱的日期。两个人的计数都会更新。',
+  'help.startDate.s3': '选择你们开始恋爱的日期。两个人计数器上在一起的天数都会更新。',
   'help.draw.q': '怎么一起画画',
   'help.draw.path': '{home} → {newCanvas}',
   'help.draw.s1': '在首页点那排按钮里的第一个，圆形的铅笔按钮。',

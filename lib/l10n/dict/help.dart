@@ -211,13 +211,13 @@ const Map<String, Map<String, String>> helpStrings = {
     'de': 'Tippe über dem Kreis mit Jahren, Monaten und Tagen auf den runden Stift-Button.',
   },
   'help.startDate.s3': {
-    'ru': 'Выберите дату, когда вы начали встречаться. Счётчик пересчитается у вас обоих.',
-    'en': 'Pick the date you started dating. The counter updates for both of you.',
-    'pt': 'Escolha a data em que começaram a namorar. O contador muda para os dois.',
-    'it': 'Scegli la data in cui vi siete messi insieme. Il contatore si aggiorna per entrambi.',
-    'es': 'Elige la fecha en que empezasteis a salir. El contador cambia para los dos.',
-    'fr': 'Choisissez la date de début de votre relation. Le compteur change pour vous deux.',
-    'de': 'Wähle das Datum, an dem ihr zusammengekommen seid. Der Zähler ändert sich für euch beide.',
+    'ru': 'Выберите дату, когда вы начали встречаться. Дни вместе на счётчике пересчитаются у вас обоих.',
+    'en': 'Pick the date you started dating. Your days together on the counter update for both of you.',
+    'pt': 'Escolha a data em que começaram a namorar. Os dias juntos no contador mudam para os dois.',
+    'it': 'Scegli la data in cui vi siete messi insieme. I giorni insieme sul contatore si aggiornano per entrambi.',
+    'es': 'Elige la fecha en que empezasteis a salir. Los días juntos del contador cambian para los dos.',
+    'fr': 'Choisissez la date de début de votre relation. Les jours ensemble du compteur changent pour vous deux.',
+    'de': 'Wähle das Datum, an dem ihr zusammengekommen seid. Die Tage zusammen im Zähler ändern sich für euch beide.',
   },
 
   // ── Рисовать вместе ──────────────────────────────────────────────────────

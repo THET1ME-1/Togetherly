@@ -78,8 +78,17 @@ void main() {
     expect(find('  '), hasLength(store.length));
   });
 
+  test('дату начала находят теми словами, которыми о ней пишут', () async {
+    await LocaleService.instance.setLanguage(AppLanguage.ru);
+    List<String> find(String q) =>
+        store.where((i) => helpMatches(i, q)).map((i) => i.id).toList();
+    expect(find('дата'), contains('startDate'));
+    expect(find('дни вместе'), contains('startDate'));
+    expect(find('поменять дни вместе'), contains('startDate'));
+  });
+
   test('наверху два самых частых вопроса', () {
-    expect(helpPopular(store).map((i) => i.id), ['plusStore', 'unpair']);
-    expect(helpPopular(site).map((i) => i.id), ['plusSite', 'unpair']);
+    expect(helpPopular(store).map((i) => i.id), ['plusStore', 'startDate']);
+    expect(helpPopular(site).map((i) => i.id), ['plusSite', 'startDate']);
   });
 }
