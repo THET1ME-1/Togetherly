@@ -17,6 +17,7 @@ import '../models/live_stroke_wire.dart';
 import '../models/coloring_picture.dart';
 import '../services/coloring_upload_queue.dart';
 import '../services/pb_media_service.dart';
+import '../utils/canvas_clear.dart';
 import '../utils/canvas_image_cache.dart';
 import '../utils/stroke_layer_cache.dart';
 import '../utils/stroke_save_scheduler.dart';
@@ -520,6 +521,9 @@ class _DrawScreenState extends State<DrawScreen>
   Timer? _hintTimer;
   int? _lastClearVersion;
 
+  /// Мета холста уже приходила: первая лишь запоминает метку очистки.
+  bool _canvasMetaSeen = false;
+
   String get _myUid => widget.userData.uid;
   String get _groupId => widget.pairData.pairId;
   String get _canvasId => widget.canvasId;
@@ -973,9 +977,17 @@ class _DrawScreenState extends State<DrawScreen>
   void _onCanvasMeta(CanvasMetaUpdate meta) {
     if (!mounted) return;
 
+    // Стираем картинку, только если холст очистили при открытом экране. Первая
+    // мета после входа метку лишь запоминает, см. [clearWipesCanvas].
     final version = meta.clearVersion;
-    if (version != null && _lastClearVersion != version) {
-      _lastClearVersion = version;
+    final wipe = clearWipesCanvas(
+      metaSeen: _canvasMetaSeen,
+      seen: _lastClearVersion,
+      incoming: version,
+    );
+    _canvasMetaSeen = true;
+    if (version != null) _lastClearVersion = version;
+    if (wipe) {
       _myStrokeIds.clear();
       _redoStack.clear();
       _pendingLocalStrokes.clear();
