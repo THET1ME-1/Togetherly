@@ -9,6 +9,36 @@ PocketBase. Записи остаются за PocketBase. Ответ собир
 import json
 
 
+class ReadyCache:
+    """Готовые ответы общедоступного списка по строке запроса.
+
+    Ответ один на всех, поэтому собирается раз в `ttl` секунд. Колонки
+    времени правки у каталога нет, сверять версию не с чем: срок и есть
+    граница свежести. Ключей не больше `limit`, иначе кэш раздули бы
+    случайные запросы.
+    """
+
+    def __init__(self, ttl: float = 30.0, limit: int = 64):
+        self.ttl, self.limit = ttl, limit
+        self._items: dict[str, tuple[float, bytes]] = {}
+
+    def __len__(self):
+        return len(self._items)
+
+    def get(self, key: str, now: float):
+        hit = self._items.get(key)
+        if hit is None or hit[0] <= now:
+            return None
+        return hit[1]
+
+    def put(self, key: str, body: bytes, now: float):
+        if key not in self._items and len(self._items) >= self.limit:
+            self._items = {k: v for k, v in self._items.items() if v[0] > now}
+            if len(self._items) >= self.limit:
+                self._items.clear()
+        self._items[key] = (now + self.ttl, body)
+
+
 def load_fields(db, name: str) -> tuple[str, dict]:
     """id коллекции и её поля: имя -> (тип, «много значений»).
 

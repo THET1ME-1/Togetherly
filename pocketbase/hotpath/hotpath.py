@@ -61,7 +61,7 @@ from fastapi import FastAPI, Request
 import movies
 from fastapi.responses import (ORJSONResponse, JSONResponse, Response,
                                FileResponse)
-from sqlite_read import build_list, load_fields, serialize
+from sqlite_read import ReadyCache, build_list, load_fields, serialize
 
 log = logging.getLogger("hotpath")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -3937,6 +3937,10 @@ SQLITE_READ = {
     "users": "self",
 }
 _sqlite_meta: dict[str, tuple[str, dict]] = {}   # имя -> (id коллекции, поля)
+# Каталог приложение тянет целиком на каждом запуске, и сборка ответа в
+# Python стоила 28 мс процессора против 16 у PocketBase. Ответ один на всех,
+# поэтому готовый живёт 30 секунд (замер 19.10.2026).
+_ready_lists = ReadyCache()
 lite_read: sqlite3.Connection | None = None
 _lite_read_lock = threading.Lock()
 
@@ -4022,14 +4026,25 @@ async def _sqlite_list(col: str, request: Request):
             # свой ответ на это (400 или своя сортировка), пусть даёт его сам.
             return await _pb_passthrough(request)
     skip_total = q.get("skipTotal", "") in ("1", "true", "True")
+    public = SQLITE_READ[col] == "public"
+    key = f"{col}?{request.url.query}"
+    if public:
+        ready = _ready_lists.get(key, time.monotonic())
+        if ready is not None:
+            return Response(content=ready, media_type="application/json")
     items, total = await asyncio.to_thread(
         _sqlite_list_sync, col, conds, uid, groups, q.get("sort", ""), page, per_page,
         skip_total)
-    return {
+    body = {
         "page": page, "perPage": per_page, "totalItems": total,
         "totalPages": -1 if skip_total else (total + per_page - 1) // per_page,
         "items": items,
     }
+    if not public:
+        return body
+    data = orjson.dumps(body)
+    _ready_lists.put(key, data, time.monotonic())
+    return Response(content=data, media_type="application/json")
 
 
 async def _sqlite_get(col: str, rid: str, request: Request):

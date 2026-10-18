@@ -23,6 +23,7 @@
 """
 
 import argparse
+import hashlib
 import os
 import re
 import sqlite3
@@ -52,6 +53,10 @@ FFMPEG_TIMEOUT = 180
 MIN_GAIN = 0.15
 
 REF = re.compile(r"^pb://media/([a-zA-Z0-9_]+)/(.+)$")
+
+# Кэш раздачи (`/etc/nginx/conf.d/files_cache.conf`): файлы `media` лежат в
+# зоне files с ключом `$uri|$arg_thumb|$arg_download` и `levels=1:2`.
+CACHE_ROOTS = ["/var/cache/nginx/files"]
 
 
 def dsn():
@@ -129,7 +134,25 @@ def shrink(src_path, dst_path):
     return os.path.exists(dst_path) and os.path.getsize(dst_path) > 0
 
 
-def drop_cache(name):
+def cache_paths(rec_id, name, roots=None):
+    """Где nginx держит этот файл.
+
+    Имя файла в кэше — md5 ключа, папки — его последний знак и два перед ним
+    (`levels=1:2`), поэтому путь считается сразу. Раньше файл искали `grep -rl`
+    по всему кэшу: 42 ГБ на каждую фигурку, ночью 19.10.2026 поиск шёл больше
+    минуты и ел полядра. Миниатюр у видео нет, `download` приложение ставит
+    единицей.
+    """
+    uri = "/api/files/media/%s/%s" % (rec_id, name)
+    out = []
+    for root in roots or CACHE_ROOTS:
+        for download in ("", "1", "true"):
+            h = hashlib.md5(("%s||%s" % (uri, download)).encode()).hexdigest()
+            out.append(os.path.join(root, h[-1], h[-3:-1], h))
+    return out
+
+
+def drop_cache(rec_id, name, roots=None):
     """Выбрасывает файл из кэша раздачи.
 
     Раздача идёт через nginx, и он хранит уже отданные куски. Файл в бакете
@@ -137,16 +160,9 @@ def drop_cache(name):
     тяжёлая версия — а плеер тянет видео по частям (Range) и на смеси старых и
     новых кусков просто не откроет ролик.
     """
-    try:
-        res = subprocess.run(
-            ["grep", "-rl", name, "/var/cache/nginx"],
-            capture_output=True, timeout=60,
-        )
-    except Exception:
-        return
-    for line in res.stdout.decode(errors="replace").splitlines():
+    for path in cache_paths(rec_id, name, roots):
         try:
-            os.remove(line.strip())
+            os.remove(path)
         except OSError:
             pass
 
@@ -170,7 +186,7 @@ def upload(path, rec_id, name):
             subprocess.run(["cp", path, local], check=True, timeout=60)
         except Exception as e:
             print("локальная копия не заменилась: %s" % e, file=sys.stderr)
-    drop_cache(name)
+    drop_cache(rec_id, name)
     return True
 
 
