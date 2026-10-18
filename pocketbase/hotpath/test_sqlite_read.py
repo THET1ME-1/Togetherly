@@ -94,6 +94,27 @@ got, total = run([], frozenset(), scope="public")
           f"{got} {total}")
 
 
+def run_self(uid, conds=()):
+    sql, args, count_sql, count_args = build_list(
+        "gifts", fields, list(conds), frozenset({"pairA", "pairB"}), "", 1, 30,
+        sortable={"created", "id"}, scope="self", uid=uid)
+    return [r[0] for r in db.execute(sql, args).fetchall()]
+
+
+проверить("своя запись: видна только своя", run_self("g2") == ["g2"], str(run_self("g2")))
+проверить("своя запись: без входа не видно ничего", run_self("") == [], str(run_self("")))
+
+# Кривые значения, записанные в базу руками мимо PocketBase.
+db.execute("INSERT INTO gifts (id, group_id, seen, meta, price) VALUES "
+           "('g4', 'pairA', 'false', 'не json', '12')")
+rec = serialize(db.execute("SELECT * FROM gifts WHERE id='g4'").fetchone(),
+                [d[0] for d in db.execute("SELECT * FROM gifts LIMIT 0").description],
+                fields, collection_id, "gifts")
+проверить("строка 'false' в bool — ложь", rec["seen"] is False, json.dumps(rec))
+проверить("битый json не роняет ответ", rec["meta"] == "не json", json.dumps(rec))
+проверить("число строкой — число", rec["price"] == 12, json.dumps(rec))
+
+
 got, total = run([("recipient_uid", "=", "u1")], frozenset({"pairA"}))
 проверить("чужая пара не попадает в выдачу", got == ["g2", "g1"] and total == 2,
           f"{got} {total}")

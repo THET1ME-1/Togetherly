@@ -31,6 +31,7 @@ READ_ONLY_ROUTES = [
     ("watch_videos", "Свои ролики: чтение из SQLite в hotpath. 19.10.2026."),
     ("custom_moods", "Свои настроения: чтение из SQLite в hotpath. 19.10.2026."),
     ("catalog_items", "Каталог: чтение из SQLite в hotpath. 19.10.2026."),
+    ("users", "Свой профиль: чтение из SQLite в hotpath, вход и правки у PocketBase. 19.10.2026."),
 ]
 ANCHOR = "\thandle /api/collections/groups/records* {"
 

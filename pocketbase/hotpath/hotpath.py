@@ -3761,6 +3761,9 @@ SQLITE_READ = {
     "watch_history": "group", "canvas_catalogue": "group",
     "memory_comments": "group", "watch_videos": "group", "custom_moods": "group",
     "catalog_items": "public",
+    # Профиль: правило PB `id = @request.auth.id` — только своя запись.
+    # Пароль и tokenKey в схеме скрытые, в ответ не попадают.
+    "users": "self",
 }
 _sqlite_meta: dict[str, tuple[str, dict]] = {}   # имя -> (id коллекции, поля)
 lite_read: sqlite3.Connection | None = None
@@ -3777,11 +3780,11 @@ async def _pb_passthrough(request: Request) -> Response:
                     media_type=r.headers.get("content-type", "application/json"))
 
 
-def _sqlite_list_sync(col, conds, groups, sort, page, per_page, skip_total):
+def _sqlite_list_sync(col, conds, uid, groups, sort, page, per_page, skip_total):
     collection_id, fields = _sqlite_meta[col]
     sql, args, count_sql, count_args = build_list(
         col, fields, conds, groups, sort, page, per_page, sortable=set(fields),
-        scope=SQLITE_READ[col])
+        scope=SQLITE_READ[col], uid=uid)
     with _lite_read_lock:
         cur = lite_read.execute(sql, args)
         names = [d[0] for d in cur.description]
@@ -3790,9 +3793,13 @@ def _sqlite_list_sync(col, conds, groups, sort, page, per_page, skip_total):
     return [serialize(r, names, fields, collection_id, col) for r in rows], total
 
 
-def _sqlite_get_sync(col, rid, groups):
+def _sqlite_get_sync(col, rid, uid, groups):
     collection_id, fields = _sqlite_meta[col]
     if SQLITE_READ[col] == "public":
+        sql, args = f"SELECT * FROM {col} WHERE id = ?", [rid]
+    elif SQLITE_READ[col] == "self":
+        if not uid or rid != uid:
+            return None  # чужой профиль PocketBase прячет тем же 404
         sql, args = f"SELECT * FROM {col} WHERE id = ?", [rid]
     elif not groups:
         return None
@@ -3808,24 +3815,24 @@ def _sqlite_get_sync(col, rid, groups):
 
 
 async def _sqlite_auth(col: str, request: Request):
-    """Пары человека для чтения; у общедоступной коллекции вход не нужен.
-    Возвращает (группы, ошибка)."""
+    """Кто читает: (uid, пары, ошибка). У общедоступной коллекции вход не
+    нужен."""
     if SQLITE_READ[col] == "public":
-        return frozenset(), None
+        return "", frozenset(), None
     try:
         auth = await _auth(request)
     except Exception:
-        return None, _err(429, "Try again later.")
+        return "", None, _err(429, "Try again later.")
     if auth is None:
-        return None, _err(401, "The request requires valid record authorization token.")
-    return auth[1], None
+        return "", None, _err(401, "The request requires valid record authorization token.")
+    return auth[0], auth[1], None
 
 
 async def _sqlite_list(col: str, request: Request):
     q = request.query_params
     if q.get("expand") or q.get("fields"):
         return await _pb_passthrough(request)
-    groups, denied = await _sqlite_auth(col, request)
+    uid, groups, denied = await _sqlite_auth(col, request)
     if denied:
         return denied
     _, fields = _sqlite_meta[col]
@@ -3845,7 +3852,8 @@ async def _sqlite_list(col: str, request: Request):
             return await _pb_passthrough(request)
     skip_total = q.get("skipTotal", "") in ("1", "true", "True")
     items, total = await asyncio.to_thread(
-        _sqlite_list_sync, col, conds, groups, q.get("sort", ""), page, per_page, skip_total)
+        _sqlite_list_sync, col, conds, uid, groups, q.get("sort", ""), page, per_page,
+        skip_total)
     return {
         "page": page, "perPage": per_page, "totalItems": total,
         "totalPages": -1 if skip_total else (total + per_page - 1) // per_page,
@@ -3856,10 +3864,10 @@ async def _sqlite_list(col: str, request: Request):
 async def _sqlite_get(col: str, rid: str, request: Request):
     if request.query_params.get("expand") or request.query_params.get("fields"):
         return await _pb_passthrough(request)
-    groups, denied = await _sqlite_auth(col, request)
+    uid, groups, denied = await _sqlite_auth(col, request)
     if denied:
         return denied
-    rec = await asyncio.to_thread(_sqlite_get_sync, col, rid, groups)
+    rec = await asyncio.to_thread(_sqlite_get_sync, col, rid, uid, groups)
     if rec is None:
         return _err(404, "The requested resource wasn't found.")
     return rec

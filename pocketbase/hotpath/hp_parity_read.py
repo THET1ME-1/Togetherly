@@ -96,8 +96,9 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("collections", nargs="*")
     ap.add_argument("--groups", type=int, default=8)
+    ap.add_argument("--people", type=int, default=100, help="профилей для users")
     args = ap.parse_args()
-    wanted = args.collections or GROUP_COLLECTIONS + PUBLIC_COLLECTIONS
+    wanted = args.collections or GROUP_COLLECTIONS + PUBLIC_COLLECTIONS + ["users"]
 
     lite = sqlite3.connect(f"file:{DB}?mode=ro", uri=True, timeout=30)
     secret = json.loads(lite.execute(
@@ -116,6 +117,18 @@ def main() -> None:
 
     for col in wanted:
         url = f"/api/collections/{col}/records"
+        if col == "users":
+            # Профиль: своя запись по id и списком, чужая по id — 404 у обоих.
+            people = lite.execute(
+                "SELECT id, tokenKey FROM users ORDER BY updated DESC LIMIT ?",
+                (args.people,)).fetchall()
+            for i, (uid, token_key) in enumerate(people):
+                h = {"Authorization": token(uid, token_key, secret)}
+                compare(f"профиль {uid[:6]}… свой", f"{url}/{uid}", h)
+                compare(f"профиль {uid[:6]}… списком", url, h, {"perPage": 30})
+                other = people[(i + 1) % len(people)][0]
+                compare(f"профиль {uid[:6]}… чужой", f"{url}/{other}", h)
+            continue
         if col in PUBLIC_COLLECTIONS:
             compare(f"{col} без входа", url, {}, {"perPage": 500})
             first = lite.execute(f"SELECT id FROM {col} LIMIT 1").fetchone()

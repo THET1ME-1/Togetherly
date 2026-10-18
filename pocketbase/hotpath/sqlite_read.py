@@ -36,13 +36,24 @@ def _number(v):
 
 def _value(kind: str, multi: bool, v):
     if kind == "number":
-        return _number(v)
+        try:
+            return _number(v)
+        except (TypeError, ValueError):
+            return 0
     if kind == "bool":
-        return bool(v) if v not in (None, "") else False
+        # Значение, вписанное руками мимо PocketBase, бывает строкой 'false'.
+        if isinstance(v, str):
+            return v.strip().lower() in ("1", "true")
+        return bool(v)
     if kind == "json":
         if v is None or (isinstance(v, str) and not v.strip()):
             return None
-        return json.loads(v) if isinstance(v, str) else v
+        if not isinstance(v, str):
+            return v
+        try:
+            return json.loads(v)
+        except ValueError:
+            return v  # битое значение отдаём как есть, а не роняем ответ
     if multi:
         if v is None or v == "":
             return []
@@ -64,15 +75,17 @@ def serialize(row, names: list, fields: dict, collection_id: str, name: str) -> 
 
 
 def build_list(table: str, fields: dict, conds: list, groups: frozenset, sort: str,
-               page: int, per_page: int, sortable: set, scope: str = "group"):
+               page: int, per_page: int, sortable: set, scope: str = "group",
+               uid: str = ""):
     """SELECT и COUNT для списка.
 
     `conds` — разобранный фильтр: (поле, оператор SQL, значение). При
     `scope="group"` пары человека ставятся всегда, даже когда клиент прислал
     свой `group_id`: забытое условие отдало бы чужие записи. `scope="public"`
-    — пустое правило PocketBase (каталог): видно всем.
+    — пустое правило PocketBase (каталог): видно всем. `scope="self"` —
+    правило `id = @request.auth.id` (профиль): только своя запись.
     """
-    if scope == "group" and not groups:
+    if (scope == "group" and not groups) or (scope == "self" and not uid):
         return ("SELECT * FROM " + table + " WHERE 0", [],
                 "SELECT COUNT(*) FROM " + table + " WHERE 0", [])
     where, args = [], []
@@ -95,6 +108,9 @@ def build_list(table: str, fields: dict, conds: list, groups: frozenset, sort: s
         marks = ", ".join("?" for _ in groups)
         where.append(f"group_id IN ({marks})")
         args.extend(sorted(groups))
+    elif scope == "self":
+        where.append("id = ?")
+        args.append(uid)
 
     keys = []
     for k in (sort or "").split(","):
