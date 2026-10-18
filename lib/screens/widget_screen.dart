@@ -5129,17 +5129,21 @@ class _WidgetScreenState extends State<WidgetScreen>
             ],
           ),
         ),
-        const SizedBox(height: 16),
-        Text(
-          s.widgetInstances,
-          style: AppFonts.onest(size: 13, weight: 700, color: _t.primary.withOpacity(0.8)),
-        ),
-        const SizedBox(height: 10),
-        _buildPhotoDayWidgetSelector(
-          ids: _personalWidgetIds,
-          selectedId: _selectedPersonalWidgetId,
-          isPartner: false,
-        ),
+        // Раздел строится по номерам виджетов Android; на iPhone их нет, и
+        // он врал «Виджет ещё не добавлен» (обращение 284)
+        if (!Platform.isIOS) ...[
+          const SizedBox(height: 16),
+          Text(
+            s.widgetInstances,
+            style: AppFonts.onest(size: 13, weight: 700, color: _t.primary.withOpacity(0.8)),
+          ),
+          const SizedBox(height: 10),
+          _buildPhotoDayWidgetSelector(
+            ids: _personalWidgetIds,
+            selectedId: _selectedPersonalWidgetId,
+            isPartner: false,
+          ),
+        ],
         if (hasWidgets) ...[
           const SizedBox(height: 12),
           _buildGlassCard(
@@ -5305,17 +5309,20 @@ class _WidgetScreenState extends State<WidgetScreen>
             ],
           ),
         ),
-        const SizedBox(height: 16),
-        Text(
-          LocaleService.current.widgetInstances,
-          style: AppFonts.onest(size: 13, weight: 700, color: _t.primary.withOpacity(0.8)),
-        ),
-        const SizedBox(height: 10),
-        _buildPhotoDayWidgetSelector(
-          ids: _partnerWidgetIds,
-          selectedId: _selectedPartnerWidgetId,
-          isPartner: true,
-        ),
+        // На iPhone номеров виджетов нет, раздел только путал (обращение 284)
+        if (!Platform.isIOS) ...[
+          const SizedBox(height: 16),
+          Text(
+            LocaleService.current.widgetInstances,
+            style: AppFonts.onest(size: 13, weight: 700, color: _t.primary.withOpacity(0.8)),
+          ),
+          const SizedBox(height: 10),
+          _buildPhotoDayWidgetSelector(
+            ids: _partnerWidgetIds,
+            selectedId: _selectedPartnerWidgetId,
+            isPartner: true,
+          ),
+        ],
       ],
     );
   }
