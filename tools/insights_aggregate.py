@@ -226,7 +226,7 @@ def build(db: sqlite3.Connection) -> dict:
         ("Рисование", "HOTPATH:canvas_strokes"),  # штрихи в Postgres с 14.08.2026
         ("Подарки", "SELECT COUNT(DISTINCT group_id) FROM gifts"),
         ("Совместный просмотр", "SELECT COUNT(DISTINCT group_id) FROM watch_history"),
-        ("Цикл", "SELECT COUNT(DISTINCT group_id) FROM cycle_entries"),
+        ("Цикл", "HOTPATH:cycle_entries"),  # цикл в Postgres с 19.10.2026
     ]
     out["features"] = [{"k": label, "c": (c := one(sql)),
                         "share": round(c / groups_all * 1000) / 10} for label, sql in features]

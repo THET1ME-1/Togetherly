@@ -48,6 +48,9 @@ META = {
     "live_location": (None, ["channel", "user_uid"]),
     "love_tests": ("updated", ["id"]),
     "mascots": ("updated", ["id"]),
+    "cycle_entries": ("updated", ["id"]),
+    "wishes": ("updated", ["id"]),
+    "wish_categories": ("updated", ["id"]),
     # groups здесь НЕТ намеренно. С 15.08.2026 источник правды по паре —
     # Postgres, и долив SQLite → PG откатил бы там свежие правки. Для пар:
     # verify_groups.py (сверка по значениям, --only-missing для долива) и

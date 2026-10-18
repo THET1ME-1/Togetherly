@@ -23,7 +23,8 @@ PG_DSN = os.environ["HOTPATH_PG_DSN"]
 
 async def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("table", choices=["love_tests", "mascots"])
+    ap.add_argument("table", choices=["love_tests", "mascots", "cycle_entries",
+                                      "wishes", "wish_categories"])
     ap.add_argument("--before", required=True,
                     help="момент переключения, UTC, как в колонке updated")
     ap.add_argument("--commit", action="store_true", help="без флага — только счёт")

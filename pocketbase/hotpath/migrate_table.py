@@ -83,6 +83,25 @@ TABLES = {
         "created_at": "text", "is_default": "bool", "record_streak": "num",
         "updated": "auto",
     },
+    # Переезд 19.10.2026, вторая волна. `created` переносится строкой как
+    # есть: у hotpath это autodate, который ставится только при создании.
+    "cycle_entries": {
+        "group_id": "text", "user_uid": "text", "day": "text",
+        "kind": "text", "flow": "text", "shared": "bool",
+        "created": "text", "updated": "auto",
+    },
+    "wishes": {
+        "group_id": "text", "author_uid": "text", "title": "text",
+        "note": "text", "category": "text", "symbol": "text",
+        "done": "bool", "done_at": "text", "done_by": "text",
+        "done_note": "text", "kind": "text", "price": "num",
+        "currency": "text", "url": "text", "image": "text", "shop": "text",
+        "created": "text", "updated": "auto",
+    },
+    "wish_categories": {
+        "group_id": "text", "author_uid": "text", "title": "text",
+        "symbol": "text", "note": "text", "created": "text", "updated": "auto",
+    },
     # Запись пары. В отличие от прочих, строка на пару ОДНА и живёт правками,
     # поэтому одного прохода по rowid тут мало — обязателен reconcile_table по
     # колонке updated, иначе счётчики и карты участников приедут вчерашними.

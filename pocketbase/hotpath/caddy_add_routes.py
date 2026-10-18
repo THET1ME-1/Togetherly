@@ -16,6 +16,10 @@ import time
 COLLECTIONS = [
     ("love_tests", "Тест «Умение любить» — в hotpath (Postgres). 19.10.2026."),
     ("mascots", "Маскоты пары — в hotpath (Postgres). 19.10.2026."),
+    ("cycle_entries", "Отметки цикла — в hotpath (Postgres). 19.10.2026."),
+    ("wishes", "Желания пары — в hotpath (Postgres). 19.10.2026."),
+    ("wish_categories", "Категории желаний — в hotpath (Postgres). 19.10.2026."),
+    ("app_config", "Настройки приложения — копия в hotpath. 19.10.2026."),
 ]
 ANCHOR = "\thandle /api/collections/groups/records* {"
 

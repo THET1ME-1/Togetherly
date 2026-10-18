@@ -42,7 +42,8 @@ def to_lite(kind: str, value):
 
 async def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("table", choices=["love_tests", "mascots"])
+    ap.add_argument("table", choices=["love_tests", "mascots", "cycle_entries",
+                                      "wishes", "wish_categories"])
     ap.add_argument("--since", required=True, help="UTC, как в колонке updated")
     ap.add_argument("--deletions", action="store_true", help="удалить в SQLite пропавшие из Postgres")
     ap.add_argument("--commit", action="store_true", help="без флага — только счёт")
@@ -60,7 +61,10 @@ async def main() -> None:
     lite = sqlite3.connect(SQLITE, timeout=60, isolation_level=None)
     lite.execute("PRAGMA busy_timeout=60000")
     lite_ids = {r[0] for r in lite.execute(f"SELECT id FROM {table}")}
-    has_created = any(r[1] == "created" for r in lite.execute(f"PRAGMA table_info({table})"))
+    # Коллекциям, где `created` уже в карте колонок, он едет своим значением;
+    # остальным, у кого он есть в SQLite, подставляется `updated`.
+    has_created = "created" not in cols and any(
+        r[1] == "created" for r in lite.execute(f"PRAGMA table_info({table})"))
     gone = sorted(lite_ids - pg_ids) if args.deletions else []
     print(f"{table}: изменено в Postgres с {args.since}: {len(changed)}, "
           f"удалить в SQLite: {len(gone)} (флаг удалений {'есть' if args.deletions else 'нет'})")

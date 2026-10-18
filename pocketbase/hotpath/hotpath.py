@@ -380,6 +380,83 @@ COLLECTIONS = {
         "after_create": None, "after_delete": None,
         "default_sort": "id ASC",
     },
+    # Отметки цикла (переезд 19.10.2026). Правило PB: свои видны всегда,
+    # партнёрские только с `shared`; заводит человек свои и только в своей
+    # паре, правит и удаляет только свои. Канал пары тот же, что раздавала
+    # сборка PocketBase (`rtCollections`).
+    "cycle_entries": {
+        "collection_id": os.environ.get("CID_CYCLE_ENTRIES", "pbc_3289459707"),
+        "columns": {
+            "group_id": "text", "user_uid": "text", "day": "date",
+            "kind": "text", "flow": "text", "shared": "bool",
+            "created": "created", "updated": "auto",
+        },
+        "scope": "own_or_shared",
+        "sortable": {"day", "updated", "created", "id"},
+        "filterable": {"id", "group_id", "user_uid", "day", "kind", "shared", "updated"},
+        "create_owner_field": "user_uid",
+        "update_owner_field": "user_uid",
+        "guard": None, "delete_guard": None,
+        "after_create": None, "after_delete": None,
+        "default_sort": "id ASC",
+    },
+    # Желания пары (переезд 19.10.2026, страж — перенос wishes_guard.pb.js).
+    # Заводит автор от своего имени, «сбылось» отмечает любой из пары, но
+    # не-автор правит только поля отметки; удаляет только автор.
+    "wishes": {
+        "collection_id": os.environ.get("CID_WISHES", "pbc_3927760422"),
+        "columns": {
+            "group_id": "text", "author_uid": "text", "title": "text",
+            "note": "text", "category": "text", "symbol": "text",
+            "done": "bool", "done_at": "date", "done_by": "text",
+            "done_note": "text", "kind": "text", "price": "num",
+            "currency": "text", "url": "text", "image": "text", "shop": "text",
+            "created": "created", "updated": "auto",
+        },
+        "sortable": {"created", "updated", "id"},
+        "filterable": {"id", "group_id", "author_uid", "done", "updated", "created"},
+        "create_owner_field": "author_uid",
+        "author_field": "author_uid",
+        "guard": "wishes", "delete_guard": "author",
+        "after_create": None, "after_delete": None,
+        "default_sort": "id ASC",
+    },
+    # Свои категории желаний (переезд 19.10.2026): заводит автор, правит и
+    # удаляет любой из пары.
+    "wish_categories": {
+        "collection_id": os.environ.get("CID_WISH_CATEGORIES", "pbc_487999210"),
+        "columns": {
+            "group_id": "text", "author_uid": "text", "title": "text",
+            "symbol": "text", "note": "text",
+            "created": "created", "updated": "auto",
+        },
+        "sortable": {"created", "updated", "id"},
+        "filterable": {"id", "group_id", "author_uid", "updated", "created"},
+        "create_owner_field": "author_uid",
+        "guard": None, "delete_guard": None,
+        "after_create": None, "after_delete": None,
+        "default_sort": "id ASC",
+    },
+    # Настройки приложения (19.10.2026): только чтение и без входа, как
+    # пустое правило PB. Источник правды остаётся в SQLite: его правят руками
+    # и читают хуки, а сюда копию кладёт `_app_config_worker`.
+    "app_config": {
+        "collection_id": os.environ.get("CID_APP_CONFIG", "pbc_3476648556"),
+        "columns": {
+            "min_build": "num", "updated_at": "date", "gifts_enabled": "bool",
+            "wishes_enabled": "bool", "widget_diag_enabled": "bool",
+            "wallet": "json", "chest_enabled": "bool", "room_native_ios": "num",
+        },
+        "scope": "public",
+        "read_only": True,
+        "channel": "none",
+        "sortable": {"id"},
+        "filterable": {"id"},
+        "create_owner_field": None,
+        "guard": None, "delete_guard": None,
+        "after_create": None, "after_delete": None,
+        "default_sort": "id ASC",
+    },
 }
 
 app = FastAPI(openapi_url=None, docs_url=None, redoc_url=None,
@@ -2851,7 +2928,7 @@ async def internal_record(request: Request):
     for field, kind in meta["columns"].items():
         v = body.get(field)
         cols.append(field)
-        if kind == "auto":
+        if kind in ("auto", "created"):
             vals.append(now_pb())
         elif kind == "json":
             vals.append(json.dumps(v) if not isinstance(v, (str, type(None))) else v)
@@ -3671,14 +3748,20 @@ async def list_records(col: str, request: Request):
     meta = COLLECTIONS.get(col)
     if meta is None:
         return _err(404, "The requested resource wasn't found.")
-    try:
-        auth = await _auth(request)
-    except Exception:
-        # Икота слоя аутентификации (SQLite занят) — пусть клиент повторит.
-        return _err(429, "Try again later.")
-    if auth is None:
-        return _err(401, "The request requires valid record authorization token.")
-    uid, groups = auth
+    scope = meta.get("scope", "group")
+    if scope == "public":
+        # Пустое правило PB: читать можно и без входа (настройки приложения
+        # спрашиваются ещё до того, как поднимется сессия).
+        uid, groups = "", frozenset()
+    else:
+        try:
+            auth = await _auth(request)
+        except Exception:
+            # Икота слоя аутентификации (SQLite занят) — пусть клиент повторит.
+            return _err(429, "Try again later.")
+        if auth is None:
+            return _err(401, "The request requires valid record authorization token.")
+        uid, groups = auth
 
     q = request.query_params
     try:
@@ -3712,14 +3795,13 @@ async def list_records(col: str, request: Request):
             filtered_group = val
     # listRule PB. По умолчанию — «только свои группы»; у presence правило
     # мягче (любой залогиненный), у геопозиции ключ не группа, а канал.
-    scope = meta.get("scope", "group")
     empty = {
         "page": page, "perPage": per_page,
         "totalItems": -1 if skip_total else 0,
         "totalPages": -1 if skip_total else 0,
         "items": [],
     }
-    if scope == "authed":
+    if scope in ("authed", "public"):
         pass  # ограничений нет
     elif scope == "members":
         # Правило записи пары: members ?~ @request.auth.id. Условие ставим
@@ -3743,6 +3825,10 @@ async def list_records(col: str, request: Request):
     else:
         args.append(list(groups))
         where.append(f"group_id = ANY(${len(args)})")
+    if scope == "own_or_shared":
+        # Отметки цикла: свои целиком, партнёрские — только открытые им.
+        args.append(uid)
+        where.append(f"(user_uid = ${len(args)} OR shared)")
 
     hold = _hold_cond(meta, uid, args)
     if hold:
@@ -3793,17 +3879,23 @@ async def get_record(col: str, rid: str, request: Request):
     meta = COLLECTIONS.get(col)
     if meta is None:
         return _err(404, "The requested resource wasn't found.")
-    try:
-        auth = await _auth(request)
-    except Exception:
-        return _err(429, "Try again later.")
-    if auth is None:
-        return _err(401, "The request requires valid record authorization token.")
-    uid, groups = auth
-
     scope = meta.get("scope", "group")
-    if scope == "authed":
+    if scope == "public":
+        uid, groups = "", frozenset()
+    else:
+        try:
+            auth = await _auth(request)
+        except Exception:
+            return _err(429, "Try again later.")
+        if auth is None:
+            return _err(401, "The request requires valid record authorization token.")
+        uid, groups = auth
+
+    if scope in ("authed", "public"):
         cond, args = "TRUE", [rid]
+    elif scope == "own_or_shared":
+        cond, args = "group_id = ANY($2) AND (user_uid = $3 OR shared)", [
+            rid, list(groups), uid]
     elif scope == "members":
         cond, args = "members @> $2::jsonb", [rid, json.dumps([uid])]
     elif scope == "channel":
@@ -3822,11 +3914,22 @@ async def get_record(col: str, rid: str, request: Request):
     return _record_json(col, row)
 
 
+def _read_only(meta: dict):
+    """Коллекции, которые людям только читать: правило записи у PB пустое
+    (null), и он отвечает так."""
+    if meta.get("read_only"):
+        return _err(403, "Only superusers can perform this action.")
+    return None
+
+
 @app.post("/api/collections/{col}/records")
 async def create_record(col: str, request: Request):
     meta = COLLECTIONS.get(col)
     if meta is None:
         return _err(404, "The requested resource wasn't found.")
+    denied = _read_only(meta)
+    if denied:
+        return denied
     try:
         auth = await _auth(request)
     except Exception:
@@ -3842,7 +3945,7 @@ async def create_record(col: str, request: Request):
         return _err(400, "Failed to create record.")
 
     scope = meta.get("scope", "group")
-    if scope == "group":
+    if scope in ("group", "own_or_shared"):
         if str(body.get("group_id") or "") not in groups:
             # createRule не прошёл — PB в этом случае тоже отвечает 400.
             return _err(400, "Failed to create record.")
@@ -3875,7 +3978,8 @@ async def create_record(col: str, request: Request):
         даты_воспоминания(body, int(time.time() * 1000))
     cols, vals = ["id"], [rid]
     for field, kind in meta["columns"].items():
-        if kind == "auto":
+        if kind in ("auto", "created"):
+            # autodate PB: время ставит сервер, присланное клиентом не берём.
             cols.append(field)
             vals.append(now_pb())
             continue
@@ -3924,6 +4028,9 @@ async def update_record(col: str, rid: str, request: Request):
     meta = COLLECTIONS.get(col)
     if meta is None:
         return _err(404, "The requested resource wasn't found.")
+    denied = _read_only(meta)
+    if denied:
+        return denied
     try:
         auth = await _auth(request)
     except Exception:
@@ -3982,6 +4089,18 @@ async def update_record(col: str, rid: str, request: Request):
                              "note_hearts", "id"):
                     return _err(403, "only the author can edit this message")
 
+    # Страж желаний (перенос wishes_guard.pb.js): не-автор только ставит
+    # отметку «сбылось», остальное в чужом желании правит автор.
+    if meta["guard"] == "wishes":
+        async with pg.acquire() as c:
+            author = await c.fetchval(
+                f"SELECT author_uid FROM {col} WHERE id = $1", rid
+            )
+        if author and author != uid:
+            for f in body:
+                if f not in ("done", "done_at", "done_by", "done_note", "id"):
+                    return _err(403, "only the author can edit this wish")
+
     if col == "widget_data" and "plus" in body:
         body["plus"] = await asyncio.to_thread(_user_has_plus, uid)
     if col == "memories":
@@ -3994,7 +4113,8 @@ async def update_record(col: str, rid: str, request: Request):
             args.append(now_pb())
             sets.append(f"{field} = ${len(args)}")
             continue
-        if field not in body:
+        if kind == "created" or field not in body:
+            # Время создания правкой не меняется, как autodate у PB.
             continue
         v = body[field]
         if col == "memories" and field == "data" and isinstance(v, dict):
@@ -4109,6 +4229,9 @@ async def delete_record(col: str, rid: str, request: Request):
     meta = COLLECTIONS.get(col)
     if meta is None:
         return _err(404, "The requested resource wasn't found.")
+    denied = _read_only(meta)
+    if denied:
+        return denied
     try:
         auth = await _auth(request)
     except Exception:
@@ -4117,10 +4240,13 @@ async def delete_record(col: str, rid: str, request: Request):
         return _err(401, "The request requires valid record authorization token.")
     uid, groups = auth
     if meta["delete_guard"] == "author":
+        # Автор у чата в user_uid, у желаний в author_uid.
+        author_field = meta.get("author_field", "user_uid")
         async with pg.acquire() as c:
-            author = await c.fetchval(f"SELECT user_uid FROM {col} WHERE id = $1", rid)
+            author = await c.fetchval(f"SELECT {author_field} FROM {col} WHERE id = $1", rid)
         if author and author != uid:
-            return _err(403, "only the author can delete this message")
+            what = "wish" if col == "wishes" else "message"
+            return _err(403, f"only the author can delete this {what}")
     owner_del = meta.get("update_owner_field")
     async with pg.acquire() as c:
         if owner_del:
@@ -4170,6 +4296,53 @@ async def _deliver_worker() -> None:
                 log.info("к утру: выпущено %d", len(rows))
         except Exception as e:  # noqa: BLE001 — воркер не должен умирать
             log.warning("к утру: сбой выпуска: %s", e)
+
+
+def _app_config_rows_sync() -> list:
+    fields = ", ".join(["id"] + list(COLLECTIONS["app_config"]["columns"]))
+    return lite.execute(f"SELECT {fields} FROM app_config").fetchall()
+
+
+def _app_config_value(kind: str, v):
+    if kind == "json":
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return None
+        return v if isinstance(v, str) else json.dumps(v)
+    if kind == "num":
+        return float(v or 0)
+    if kind == "bool":
+        return bool(v)
+    return str(v) if v is not None else ""
+
+
+async def _app_config_worker() -> None:
+    """Копия настроек приложения из SQLite в Postgres, раз в 15 секунд.
+
+    Правят их руками (`UPDATE app_config SET chest_enabled = 0`), и читают их
+    хуки PocketBase, поэтому правда остаётся в SQLite, а приложение читает
+    копию из hotpath. Выключателю хватает задержки в 15 секунд.
+    """
+    kinds = COLLECTIONS["app_config"]["columns"]
+    fields = list(kinds)
+    marks = ", ".join(f"${i + 1}" for i in range(len(fields) + 1))
+    sets = ", ".join(f"{f} = EXCLUDED.{f}" for f in fields)
+    sql = (f"INSERT INTO app_config (id, {', '.join(fields)}) VALUES ({marks}) "
+           f"ON CONFLICT (id) DO UPDATE SET {sets}")
+    while True:
+        try:
+            rows = await asyncio.to_thread(_app_config_rows_sync)
+            async with pg.acquire() as c:
+                async with c.transaction():
+                    for row in rows:
+                        vals = [row[0]] + [
+                            _app_config_value(kinds[f], v) for f, v in zip(fields, row[1:])]
+                        await c.execute(sql, *vals)
+                    await c.execute(
+                        "DELETE FROM app_config WHERE NOT (id = ANY($1::text[]))",
+                        [r[0] for r in rows])
+        except Exception as e:
+            log.warning("копия настроек отложена: %s", e)
+        await asyncio.sleep(15)
 
 
 def _claim_background_role() -> bool:
@@ -4224,6 +4397,7 @@ async def _startup():
         asyncio.get_running_loop().create_task(_presence_mirror_worker())
         asyncio.get_running_loop().create_task(_зеркало_воркер())
         asyncio.get_running_loop().create_task(_deliver_worker())
+        asyncio.get_running_loop().create_task(_app_config_worker())
 
 
 @app.on_event("shutdown")
