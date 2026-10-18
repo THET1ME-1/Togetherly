@@ -17,34 +17,47 @@
 //
 // ВАЖНО (PB JSVM): обработчик исполняется изолированно и НЕ видит функций
 // своего файла — вся логика инлайном в каждом обработчике.
+//
+// КОД ИЩЕТСЯ ЧТЕНИЕМ, БЕЗ ТРАНЗАКЦИИ (18.10.2026). Транзакция у пула записи
+// начинается с `BEGIN IMMEDIATE` и сразу берёт единственного писателя базы,
+// даже если внутри одно чтение. Вход и обновление сессии бывают тысячи раз в
+// час, а непогашенный код находится у одного из тысячи. В день наплыва (12
+// тысяч регистраций вместо 500) эта проверка поставила к писателю сотни
+// запросов, и встала вся запись: регистрация, сундук, выдача Плюса.
+// Транзакция открывается, только когда код нашёлся, и код внутри
+// перечитывается: его мог погасить параллельный вход.
 
 // ── при регистрации ──────────────────────────────────────────────────────────
 onRecordAfterCreateSuccess((e) => {
   try {
     const почта = String(e.record.email() || "").trim().toLowerCase();
+    let коды = [];
     if (почта) {
+      try {
+        коды = $app.findRecordsByFilter(
+          "redeem_codes", "used_by = ''", "-created", 200, 0) || [];
+      } catch (_) { коды = []; }
+    }
+    // Домен в платеже путают постоянно: 15.08.2026 оплата ушла с
+    // «…@mail.com», человек писал с «…@mail.ru», а в приложение заходил
+    // с «…@gmail.com». Поэтому сверяем сперва адрес целиком (включая
+    // запасной в `given_to`), а если не совпал — часть до собачки, и
+    // только когда она длинная: у «ksyu.afanaseva03» случайных двойников
+    // не бывает, а у «anna» или «love» — сколько угодно.
+    const часть = (a) => String(a || "").trim().toLowerCase().split("@")[0];
+    const моя_часть = часть(почта);
+    const найден = коды.find((к) => {
+      const куплено = String(к.getString("buyer_email") || "").trim().toLowerCase();
+      const запасной = String(к.getString("given_to") || "").trim().toLowerCase();
+      if (куплено === почта || запасной === почта) return true;
+      if (моя_часть.length < 12) return false;
+      return часть(куплено) === моя_часть || часть(запасной) === моя_часть;
+    });
+    if (найден) {
       $app.runInTransaction((txApp) => {
-        let коды = [];
-        try {
-          коды = txApp.findRecordsByFilter(
-            "redeem_codes", "used_by = ''", "-created", 200, 0) || [];
-        } catch (_) { коды = []; }
-        // Домен в платеже путают постоянно: 15.08.2026 оплата ушла с
-        // «…@mail.com», человек писал с «…@mail.ru», а в приложение заходил
-        // с «…@gmail.com». Поэтому сверяем сперва адрес целиком (включая
-        // запасной в `given_to`), а если не совпал — часть до собачки, и
-        // только когда она длинная: у «ksyu.afanaseva03» случайных двойников
-        // не бывает, а у «anna» или «love» — сколько угодно.
-        const часть = (a) => String(a || "").trim().toLowerCase().split("@")[0];
-        const моя_часть = часть(почта);
-        const мой = коды.find((к) => {
-          const куплено = String(к.getString("buyer_email") || "").trim().toLowerCase();
-          const запасной = String(к.getString("given_to") || "").trim().toLowerCase();
-          if (куплено === почта || запасной === почта) return true;
-          if (моя_часть.length < 12) return false;
-          return часть(куплено) === моя_часть || часть(запасной) === моя_часть;
-        });
-        if (!мой) return;
+        let мой = null;
+        try { мой = txApp.findRecordById("redeem_codes", найден.id); } catch (_) { мой = null; }
+        if (!мой || мой.getString("used_by")) return;
 
         const user = txApp.findRecordById("users", e.record.id);
         мой.set("used_by", e.record.id);
@@ -91,29 +104,33 @@ onRecordAuthRequest((e) => {
   try {
     const запись = e.record;
     const почта = String(запись.email() || "").trim().toLowerCase();
+    let коды = [];
     if (почта) {
+      try {
+        коды = $app.findRecordsByFilter(
+          "redeem_codes", "used_by = ''", "-created", 200, 0) || [];
+      } catch (_) { коды = []; }
+    }
+    // Домен в платеже путают постоянно: 15.08.2026 оплата ушла с
+    // «…@mail.com», человек писал с «…@mail.ru», а в приложение заходил
+    // с «…@gmail.com». Поэтому сверяем сперва адрес целиком (включая
+    // запасной в `given_to`), а если не совпал — часть до собачки, и
+    // только когда она длинная: у «ksyu.afanaseva03» случайных двойников
+    // не бывает, а у «anna» или «love» — сколько угодно.
+    const часть = (a) => String(a || "").trim().toLowerCase().split("@")[0];
+    const моя_часть = часть(почта);
+    const найден = коды.find((к) => {
+      const куплено = String(к.getString("buyer_email") || "").trim().toLowerCase();
+      const запасной = String(к.getString("given_to") || "").trim().toLowerCase();
+      if (куплено === почта || запасной === почта) return true;
+      if (моя_часть.length < 12) return false;
+      return часть(куплено) === моя_часть || часть(запасной) === моя_часть;
+    });
+    if (найден) {
       $app.runInTransaction((txApp) => {
-        let коды = [];
-        try {
-          коды = txApp.findRecordsByFilter(
-            "redeem_codes", "used_by = ''", "-created", 200, 0) || [];
-        } catch (_) { коды = []; }
-        // Домен в платеже путают постоянно: 15.08.2026 оплата ушла с
-        // «…@mail.com», человек писал с «…@mail.ru», а в приложение заходил
-        // с «…@gmail.com». Поэтому сверяем сперва адрес целиком (включая
-        // запасной в `given_to`), а если не совпал — часть до собачки, и
-        // только когда она длинная: у «ksyu.afanaseva03» случайных двойников
-        // не бывает, а у «anna» или «love» — сколько угодно.
-        const часть = (a) => String(a || "").trim().toLowerCase().split("@")[0];
-        const моя_часть = часть(почта);
-        const мой = коды.find((к) => {
-          const куплено = String(к.getString("buyer_email") || "").trim().toLowerCase();
-          const запасной = String(к.getString("given_to") || "").trim().toLowerCase();
-          if (куплено === почта || запасной === почта) return true;
-          if (моя_часть.length < 12) return false;
-          return часть(куплено) === моя_часть || часть(запасной) === моя_часть;
-        });
-        if (!мой) return;
+        let мой = null;
+        try { мой = txApp.findRecordById("redeem_codes", найден.id); } catch (_) { мой = null; }
+        if (!мой || мой.getString("used_by")) return;
 
         const user = txApp.findRecordById("users", запись.id);
         мой.set("used_by", запись.id);
