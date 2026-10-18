@@ -330,6 +330,28 @@ func main() {
 		return e.Next()
 	})
 
+	// Правка записи пользователя пишет только изменённые колонки. Под
+	// перегрузкой запрос читает запись, минутами ждёт свободного писателя и
+	// раньше клал её целиком: выданное за время ожидания пропадало — Плюс,
+	// рамки и значки из сундука (вечер 18.10.2026, сто призов за вечер).
+	// Флаг штатный, PocketBase держит его ровно для одновременных правок.
+	// Проверка: python3 stale_write_test.py <бинарь>.
+	app.OnRecordUpdate("users").BindFunc(func(e *core.RecordEvent) error {
+		e.Record.IgnoreUnchangedFields(true)
+		return e.Next()
+	})
+	// Снимок, с которым сравниваются поля, после записи PocketBase сам не
+	// освежает. Без этого второе сохранение того же объекта, вернувшее поле
+	// к прежнему значению, сочло бы поле неизменным и не записало его.
+	// Освежаем последним, чтобы прочие обработчики видели настоящий снимок.
+	app.OnRecordAfterUpdateSuccess("users").BindFunc(func(e *core.RecordEvent) error {
+		err := e.Next()
+		if postErr := e.Record.PostScan(); postErr != nil {
+			log.Println("users: снимок записи не освежён:", postErr)
+		}
+		return err
+	})
+
 	go authCacheSweeper()
 
 	app.OnServe().BindFunc(func(e *core.ServeEvent) error {
