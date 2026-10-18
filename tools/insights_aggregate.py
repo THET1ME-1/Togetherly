@@ -221,7 +221,7 @@ def build(db: sqlite3.Connection) -> dict:
         ("Чат", "HOTPATH:chat_messages"),  # чат в Postgres с 14.08.2026
         ("Настроения", "HOTPATH:mood_entries"),
         ("Виджеты", "HP:widget_groups"),
-        ("Маскоты", "SELECT COUNT(DISTINCT group_id) FROM mascots"),
+        ("Маскоты", "HOTPATH:mascots"),  # маскоты в Postgres с 19.10.2026
         ("«Скучаю»", "SELECT COUNT(DISTINCT group_id) FROM miss_you"),
         ("Рисование", "HOTPATH:canvas_strokes"),  # штрихи в Postgres с 14.08.2026
         ("Подарки", "SELECT COUNT(DISTINCT group_id) FROM gifts"),
@@ -319,7 +319,7 @@ def build_stats(db: sqlite3.Connection) -> dict:
             "videos": one(f"SELECT COUNT(*) FROM media WHERE {video}"),
             "moods": one("HOTPATH:mood_entries?mode=rows"),
             "missYou": one("SELECT COALESCE(SUM(count),0) FROM miss_you"),
-            "mascots": one("SELECT COUNT(*) FROM mascots"),
+            "mascots": one("HOTPATH:mascots?mode=rows"),
             "comments": one("SELECT COUNT(*) FROM memory_comments"),
         },
         "daily": [{"d": r[0], "c": r[1]} for r in many(

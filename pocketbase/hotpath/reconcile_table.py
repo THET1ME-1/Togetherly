@@ -46,6 +46,8 @@ META = {
     "chat_typing": ("typing_at", ["group_id", "user_uid"]),
     "chat_reads": ("updated", ["group_id", "user_uid"]),
     "live_location": (None, ["channel", "user_uid"]),
+    "love_tests": ("updated", ["id"]),
+    "mascots": ("updated", ["id"]),
     # groups здесь НЕТ намеренно. С 15.08.2026 источник правды по паре —
     # Postgres, и долив SQLite → PG откатил бы там свежие правки. Для пар:
     # verify_groups.py (сверка по значениям, --only-missing для долива) и
@@ -99,7 +101,7 @@ async def main() -> None:
     types = TABLES[table]
     upd = ", ".join(f"{c} = EXCLUDED.{c}" for c in cols if c not in key)
     ph = ", ".join(f"${i + 1}" for i in range(len(cols) + 1))
-    done = 0
+    done, conflicts = 0, []
     for d in todo:
         vals = [d["id"]]
         for c in cols:
@@ -108,11 +110,23 @@ async def main() -> None:
                 vals.append(v if isinstance(v, str) or v is None else json.dumps(v))
             else:
                 vals.append(conv(types[c], v))
-        await pg.execute(
-            f"INSERT INTO {table} (id, {', '.join(cols)}) VALUES ({ph}) "
-            f"ON CONFLICT ({', '.join(key)}) DO UPDATE SET {upd}", *vals)
+        # Другой уникальный ключ уже занят записью с другим id: её завели в
+        # Postgres после переключения маршрута, пока эта лежала только в
+        # SQLite (маскот default_girl, 19.10.2026). Живая запись главнее,
+        # копию пропускаем и называем, а не роняем всю сверку.
+        try:
+            await pg.execute(
+                f"INSERT INTO {table} (id, {', '.join(cols)}) VALUES ({ph}) "
+                f"ON CONFLICT ({', '.join(key)}) DO UPDATE SET {upd}", *vals)
+        except asyncpg.UniqueViolationError as e:
+            conflicts.append(f"{d['id']}: {e.detail or e}")
+            continue
         done += 1
     print(f"долито {done}")
+    if conflicts:
+        print(f"пропущено, ключ занят другой записью: {len(conflicts)}")
+        for line in conflicts[:10]:
+            print("  " + line)
     await pg.close()
     lite.close()
 

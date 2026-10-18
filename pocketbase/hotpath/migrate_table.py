@@ -72,6 +72,17 @@ TABLES = {
         "updated_at": "text", "last_vibe": "text", "last_vibe_text": "text",
         "by_weekday": "json", "by_vibe": "json", "updated": "auto",
     },
+    # Переезд 19.10.2026. Даты в карте — text: перенос кладёт строку как есть.
+    "love_tests": {
+        "group_id": "text", "user_uid": "text", "data": "json",
+        "total": "num", "updated": "auto",
+    },
+    "mascots": {
+        "group_id": "text", "mascot_id": "text", "name": "text",
+        "image_url": "text", "default_asset": "text", "created_by": "text",
+        "created_at": "text", "is_default": "bool", "record_streak": "num",
+        "updated": "auto",
+    },
     # Запись пары. В отличие от прочих, строка на пару ОДНА и живёт правками,
     # поэтому одного прохода по rowid тут мало — обязателен reconcile_table по
     # колонке updated, иначе счётчики и карты участников приедут вчерашними.

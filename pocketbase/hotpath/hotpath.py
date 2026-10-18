@@ -342,6 +342,44 @@ COLLECTIONS = {
         "after_delete": None,
         "default_sort": "id ASC",
     },
+    # Тест «Умение любить» (переезд 19.10.2026: 9 чтений в секунду под наплывом
+    # шли в пул чтения SQLite). Запись одна на человека в паре, id считает
+    # приложение (`loveTestRecordId`). Правила PB: читают оба из пары, заводит
+    # только автор и только в своей паре, правит и удаляет только автор.
+    # В канал пары PocketBase этот тест не рассылал, приложение его не слушает.
+    "love_tests": {
+        "collection_id": os.environ.get("CID_LOVE_TESTS", "pbc_3473979481"),
+        "columns": {
+            "group_id": "text", "user_uid": "text", "data": "json",
+            "total": "num", "updated": "auto",
+        },
+        "sortable": {"updated", "id"},
+        "filterable": {"id", "group_id", "user_uid", "updated"},
+        "create_owner_field": "user_uid",
+        "update_owner_field": "user_uid",
+        "channel": "none",
+        "guard": None, "delete_guard": None,
+        "after_create": None, "after_delete": None,
+        "default_sort": "id ASC",
+    },
+    # Маскоты пары (переезд 19.10.2026: 6 чтений в секунду и правки позиций).
+    # Правило PB у всех пяти действий одно — член пары. Ищутся по паре и
+    # mascot_id, уникальный индекс тот же, что в SQLite.
+    "mascots": {
+        "collection_id": os.environ.get("CID_MASCOTS", "pbc_1942193109"),
+        "columns": {
+            "group_id": "text", "mascot_id": "text", "name": "text",
+            "image_url": "text", "default_asset": "text", "created_by": "text",
+            "created_at": "date", "is_default": "bool", "record_streak": "num",
+            "updated": "auto",
+        },
+        "sortable": {"updated", "created_at", "id"},
+        "filterable": {"id", "group_id", "mascot_id", "is_default", "updated"},
+        "create_owner_field": None,
+        "guard": None, "delete_guard": None,
+        "after_create": None, "after_delete": None,
+        "default_sort": "id ASC",
+    },
 }
 
 app = FastAPI(openapi_url=None, docs_url=None, redoc_url=None,
@@ -635,6 +673,8 @@ async def _publish(col: str, event: str, record: dict) -> None:
     # присутствие в user:<uid>, геопозиция в loc:<channel>, запись пары — в
     # pair:<id> И в личные каналы обоих участников, остальное в pair:<group_id>.
     kind = COLLECTIONS[col].get("channel", "pair")
+    if kind == "none":
+        return
     if kind == "user":
         chans = ["user:" + (record.get("user_uid") or "")]
     elif kind == "loc":
@@ -1973,8 +2013,8 @@ def _день_подряд(сегодня: str, прошлый: str) -> bool:
 
 
 def _record_streak_sqlite(group_id: str, mascot_id: str, streak: int) -> None:
-    """Рекорд серии живёт в коллекции mascots, а она осталась в PocketBase.
-    Событие редкое — общий день засчитывается паре раз в сутки."""
+    """Копия рекорда в старой таблице SQLite. С 19.10.2026 маскоты живут в
+    Postgres, а SQLite держим свежей на случай отката маршрута."""
     try:
       with _lite_rw_lock:
         lite_rw.execute(
@@ -1984,6 +2024,25 @@ def _record_streak_sqlite(group_id: str, mascot_id: str, streak: int) -> None:
         lite_rw.commit()
     except sqlite3.Error:
         pass  # рекорд не критичен, серия уже записана
+
+
+async def _record_streak(group_id: str, mascot_id: str, streak: int) -> None:
+    """Рекорд серии живёт в записи маскота. Событие редкое: общий день
+    засчитывается паре раз в сутки. Правка двигает updated и уходит в канал
+    пары, иначе рекорд доезжал бы до телефонов только полной перезагрузкой."""
+    await asyncio.to_thread(_record_streak_sqlite, group_id, mascot_id, streak)
+    try:
+        async with pg.acquire() as c:
+            row = await c.fetchrow(
+                "UPDATE mascots SET record_streak = $1, updated = $2 "
+                "WHERE group_id = $3 AND mascot_id = $4 AND record_streak < $1 "
+                "RETURNING *",
+                float(streak), now_pb(), group_id, mascot_id)
+    except (asyncpg.PostgresError, asyncpg.InterfaceError, OSError):
+        return  # рекорд не критичен, серия уже записана
+    if row is not None:
+        asyncio.get_running_loop().create_task(
+            _publish("mascots", "update", _record_json("mascots", row)))
 
 
 async def _record_activity_pg(group_id: str, auth_uid: str, uid: str,
@@ -2085,8 +2144,7 @@ async def _record_activity_pg(group_id: str, auth_uid: str, uid: str,
                 float(серия), начало, json.dumps(карта), now_pb(), group_id)
 
     if маскот and серия_маскота:
-        await asyncio.to_thread(_record_streak_sqlite, group_id, маскот,
-                                серия_маскота)
+        await _record_streak(group_id, маскот, серия_маскота)
     return ORJSONResponse({"ok": True, "streak": серия,
                            "mascotStreak": серия_маскота})
 
@@ -2193,8 +2251,7 @@ async def _restore_streak_pg(group_id: str, auth_uid: str, today: str):
                 "streak_last_opened_date = $3, updated = $4 WHERE id = $5",
                 json.dumps(карта), float(серия), прошлый, now_pb(), group_id)
 
-    await asyncio.to_thread(_record_streak_sqlite, group_id, маскот,
-                            int(новая["s"]))
+    await _record_streak(group_id, маскот, int(новая["s"]))
     # Поля записи пары целиком: приложение кладёт их в свой кэш сразу, не
     # дожидаясь события канала.
     return ORJSONResponse({"ok": True, "streak": int(новая["s"]),

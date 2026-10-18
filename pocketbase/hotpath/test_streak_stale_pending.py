@@ -79,13 +79,18 @@ class Пул:
         return _Ctx()
 
 
+async def _без_рекорда(*a):
+    """Рекорд маскота живёт в другой таблице, этот тест его не проверяет."""
+    return None
+
+
 def собрать(строка):
     пространство = {
         "time": time, "json": json, "asyncio": asyncio,
         "ORJSONResponse": Ответ, "now_pb": lambda: "2026-09-23 00:00:00.000Z",
     }
     exec(compile(источник[начало:конец], "hotpath.py", "exec"), пространство)
-    пространство["_record_streak_sqlite"] = lambda *a: None
+    пространство["_record_streak"] = _без_рекорда
     conn = Соединение(строка)
     пространство["pg"] = Пул(conn)
     return пространство["_record_activity_pg"], conn
