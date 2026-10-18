@@ -86,6 +86,9 @@ def main():
                 {"name": "plus", "type": "bool"},
                 {"name": "note", "type": "text"},
                 {"name": "owned", "type": "json"},
+                {"name": "updated_at", "type": "text"},
+                {"name": "notif_synced_at", "type": "number"},
+                {"name": "theme_id", "type": "number"},
             ]
             status, body = api.call("PATCH", "/api/collections/users", {"fields": fields})
             assert status == 200, body
@@ -150,6 +153,49 @@ def main():
             _, after = api.call("GET", f"/api/collections/users/records/{uid}")
             check("время изменения сдвигается", after.get("updated") != before.get("updated"),
                   f"{before.get('updated')} -> {after.get('updated')}")
+
+            # Пустая правка (те же значения плюс отметка updated_at) не ждёт
+            # писателя и не пишет: база занята, а ответ приходит сразу.
+            _, before = api.call("GET", f"/api/collections/users/records/{uid}")
+            locked = threading.Event()
+            release = threading.Event()
+
+            def hold_lock():
+                con = sqlite3.connect(db_path, timeout=30, isolation_level=None)
+                con.execute("BEGIN IMMEDIATE")
+                locked.set()
+                release.wait(5)
+                con.execute("ROLLBACK")
+                con.close()
+
+            holder = threading.Thread(target=hold_lock)
+            holder.start()
+            locked.wait(5)
+            started = time.time()
+            status, body = api.call("PATCH", f"/api/collections/users/records/{uid}",
+                                    {"note": "d", "updated_at": "2026-10-19T00:00:00Z"})
+            elapsed = time.time() - started
+            release.set()
+            holder.join()
+            _, after = api.call("GET", f"/api/collections/users/records/{uid}")
+            check("пустая правка отвечает 200 и записью", status == 200 and body.get("id") == uid, str(status))
+            check("пустая правка не ждёт занятую базу", elapsed < 1.0, f"{elapsed:.2f} с")
+            check("пустая правка не сдвигает время изменения", after.get("updated") == before.get("updated"),
+                  f"{before.get('updated')} -> {after.get('updated')}")
+
+            api.call("PATCH", f"/api/collections/users/records/{uid}", {"notif_synced_at": 111})
+            _, record = api.call("GET", f"/api/collections/users/records/{uid}")
+            check("первая отметка синхронизации уведомлений пишется", record.get("notif_synced_at") == 111,
+                  str(record.get("notif_synced_at")))
+            api.call("PATCH", f"/api/collections/users/records/{uid}", {"notif_synced_at": 222})
+            _, record = api.call("GET", f"/api/collections/users/records/{uid}")
+            check("повторная отметка без других правок не пишется", record.get("notif_synced_at") == 111,
+                  str(record.get("notif_synced_at")))
+            api.call("PATCH", f"/api/collections/users/records/{uid}", {"theme_id": 2, "notif_synced_at": 333})
+            _, record = api.call("GET", f"/api/collections/users/records/{uid}")
+            check("настоящая правка вместе с отметкой пишется",
+                  record.get("theme_id") == 2 and record.get("notif_synced_at") == 333,
+                  f"{record.get('theme_id')} {record.get('notif_synced_at')}")
         finally:
             server.terminate()
             server.wait(10)

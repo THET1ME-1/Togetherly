@@ -16,11 +16,13 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	_ "net/http/pprof" // профилировщик на локальном порту, см. ниже
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"sync"
 	"time"
@@ -34,6 +36,7 @@ import (
 	"github.com/pocketbase/pocketbase/plugins/jsvm"
 	"github.com/pocketbase/pocketbase/plugins/migratecmd"
 	"github.com/pocketbase/pocketbase/tools/hook"
+	"github.com/pocketbase/pocketbase/tools/types"
 
 	"github.com/mattn/go-sqlite3"
 )
@@ -166,7 +169,11 @@ func centPublish(event string, rec *core.Record) {
 //
 // Свой обработчик встаёт ПЕРЕД штатным и заполняет `e.Auth`; штатный видит
 // заполненное поле и молча пропускает запрос дальше — отвязывать его не нужно.
-const authCacheTTL = 20 * time.Second
+//
+// Срок — пять минут: при двадцати секундах под наплывом 18.10.2026 почти
+// пятьсот запросов разом стояли в очереди к базе только ради проверки токена.
+// Сменить пароль или почту можно лишь правкой записи, а она сбрасывает кэш.
+const authCacheTTL = 5 * time.Minute
 
 type authCacheItem struct {
 	rec *core.Record
@@ -229,6 +236,77 @@ func authCacheSweeper() {
 			return true
 		})
 	}
+}
+
+// ── Пустые правки профиля ────────────────────────────────────────────────────
+//
+// Приложение при каждом запуске шлёт настройки уведомлений, токены пушей,
+// тему и платформу — под наплывом 18.10.2026 это 22 правки users в секунду,
+// почти все с теми же значениями. Каждая шла в очередь на запись и тянула
+// служебные чтения PocketBase. Правку, которая ничего не меняет, отвечаем как
+// обычно, но в базу не пишем.
+
+// Поля, смена которых сама по себе правкой не считается: отметки времени.
+// notif_synced_at — только если отметка уже стоит: её первое появление
+// сервер уведомлений читает как «настройки получены».
+func usersNoopIgnored(name string, original *core.Record) bool {
+	switch name {
+	case core.FieldNameId, "created", "updated", "updated_at":
+		return true
+	case "notif_synced_at":
+		return !isBlankValue(original.Get(name))
+	}
+	return false
+}
+
+func isBlankValue(v any) bool {
+	switch x := v.(type) {
+	case nil:
+		return true
+	case string:
+		return x == ""
+	case float64:
+		return x == 0
+	case int:
+		return x == 0
+	case int64:
+		return x == 0
+	case bool:
+		return !x
+	case types.DateTime:
+		return x.IsZero()
+	}
+	return fmt.Sprint(v) == ""
+}
+
+// usersUpdateIsNoop: данные запроса уже лежат в записи (form.Load выполнен до
+// хука), исходный снимок — в Original(). Пароль, почта и файлы применяются
+// позже формой, поэтому такие запросы всегда идут обычным путём.
+func usersUpdateIsNoop(e *core.RecordRequestEvent) bool {
+	if strings.HasPrefix(e.Request.Header.Get("Content-Type"), "multipart/") {
+		return false
+	}
+	info, err := e.RequestInfo()
+	if err != nil {
+		return false
+	}
+	for key := range info.Body {
+		switch key {
+		case "password", "passwordConfirm", "oldPassword", "email", "emailVisibility", "verified":
+			return false
+		}
+	}
+	original := e.Record.Original()
+	for _, field := range e.Record.Collection().Fields {
+		name := field.GetName()
+		if usersNoopIgnored(name, original) {
+			continue
+		}
+		if !reflect.DeepEqual(e.Record.Get(name), original.Get(name)) {
+			return false
+		}
+	}
+	return true
 }
 
 func authTokenFromRequest(e *core.RequestEvent) string {
@@ -350,6 +428,18 @@ func main() {
 			log.Println("users: снимок записи не освежён:", postErr)
 		}
 		return err
+	})
+	// Пустая правка профиля отвечает записью как есть и базу не трогает.
+	// Встаёт раньше JS-хуков (они грузятся позже): охранник защищённых полей
+	// ей не нужен — ни одно поле не меняется.
+	app.OnRecordUpdateRequest("users").BindFunc(func(e *core.RecordRequestEvent) error {
+		if !usersUpdateIsNoop(e) {
+			return e.Next()
+		}
+		if err := apis.EnrichRecord(e.RequestEvent, e.Record); err != nil {
+			return e.Next()
+		}
+		return e.JSON(http.StatusOK, e.Record)
 	})
 
 	go authCacheSweeper()
