@@ -58,6 +58,27 @@ for name, note in COLLECTIONS:
         "\t\t}\n"
         "\t}\n\n"
     )
+PATH_ROUTES = [
+    ("/api/user/card", "Карточка партнёра — в hotpath. 19.10.2026."),
+    ("/api/centrifugo/connection-token", "Токен подключения Centrifugo — в hotpath. 19.10.2026."),
+    ("/api/centrifugo/subscription-token", "Пропуск в канал Centrifugo — в hotpath. 19.10.2026."),
+]
+for path_, note in PATH_ROUTES:
+    if f"handle {path_} {{" in text:
+        print(f"{path_}: маршрут уже есть")
+        continue
+    blocks += (
+        f"\thandle {path_} {{\n"
+        f"\t\t# {note}\n"
+        f"\t\treverse_proxy {upstream} {{\n"
+        "\t\t\ttransport http {\n"
+        "\t\t\t\tkeepalive 30s\n"
+        "\t\t\t\tkeepalive_idle_conns 256\n"
+        "\t\t\t\tkeepalive_idle_conns_per_host 256\n"
+        "\t\t\t}\n"
+        "\t\t}\n"
+        "\t}\n\n"
+    )
 for name, note in READ_ONLY_ROUTES:
     if f"@{name}_read" in text:
         print(f"{name}: маршрут чтения уже есть")

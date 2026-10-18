@@ -2806,6 +2806,177 @@ async def _poiskkino(q: str) -> tuple[str, list]:
     return "ok", movies.trim_payload(body)["docs"]
 
 
+# ── карточка партнёра и токены Centrifugo (перенос из PocketBase, 19.10.2026) ──
+# Обе вещи шли в PocketBase через JS-хуки: ночью 3 и 6 запросов в секунду, в
+# пик вдвое больше. Логика повторяет user_card.pb.js и centrifugo_tokens.pb.js
+# один в один; сверка с PocketBase — hp_parity_card_tokens.py. Членство в паре
+# смотрим по Postgres (там пары живут), как PocketBase смотрел по `members`.
+
+CENT_TOKEN_HMAC = os.environ.get("CENTRIFUGO_TOKEN_HMAC", "")
+_ROOM_ABC = "abcdefghjkmnpqrstuvwxyz23456789"
+
+
+def _b64url(raw: bytes) -> str:
+    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
+
+
+def _jwt_hs256(claims: dict, secret: str, ttl: int) -> str:
+    """Как `$security.createJWT` у PocketBase: HS256 и `exp` через ttl секунд."""
+    payload = dict(claims, exp=int(time.time()) + ttl)
+    head = _b64url(b'{"alg":"HS256","typ":"JWT"}')
+    body = _b64url(json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode())
+    sig = _b64url(hmac.new(secret.encode(), f"{head}.{body}".encode(), hashlib.sha256).digest())
+    return f"{head}.{body}.{sig}"
+
+
+def _room_code(group_id: str) -> str:
+    """Код комнаты просмотра: как codeOf в watch.pb.js — восемь знаков по
+    алфавиту из hex-строки HMAC (`$security.hs256` отдаёт hex)."""
+    digest = hmac.new(CENT_TOKEN_HMAC.encode(), group_id.encode(), hashlib.sha256).hexdigest()
+    return "".join(_ROOM_ABC[ord(ch) % len(_ROOM_ABC)] for ch in digest[:8])
+
+
+def _json_list(v) -> list:
+    """`getStringSlice` у PocketBase: список строк из json-поля."""
+    if v is None or (isinstance(v, str) and not v.strip()):
+        return []
+    try:
+        parsed = json.loads(v) if isinstance(v, str) else v
+    except ValueError:
+        return [v]
+    if isinstance(parsed, list):
+        return [str(x) for x in parsed]
+    return [str(parsed)] if parsed not in (None, "") else []
+
+
+def _user_card_row(uid: str):
+    with _lite_read_lock:
+        return lite_read.execute(
+            "SELECT id, display_name, avatar_url, banner_url, plus, plus_trial_until, badge, "
+            "frame, gender, birth_date, mascot_sleep, granted_badges, group_ids "
+            "FROM users WHERE id = ?", (uid,)).fetchone()
+
+
+@app.get("/api/user/card")
+async def user_card(request: Request):
+    """Публичная карточка человека из своей пары (перенос user_card.pb.js)."""
+    uid = (request.query_params.get("uid") or "").strip()
+    try:
+        auth = await _auth(request)
+    except Exception:
+        return _err(429, "Try again later.")
+    if auth is None:
+        return _err(401, "The request requires valid record authorization token.")
+    if not uid:
+        return ORJSONResponse({"ok": False, "error": "no uid"}, status_code=400)
+    me, my_groups = auth
+    row = await asyncio.to_thread(_user_card_row, uid)
+    if row is None:
+        return ORJSONResponse({"ok": False, "error": "not found"}, status_code=404)
+    (rid, display_name, avatar_url, banner_url, plus, trial_until, badge, frame, gender,
+     birth_date, mascot_sleep, granted_badges, group_ids) = row
+    if uid != me and not (set(my_groups) & set(_json_list(group_ids))):
+        return ORJSONResponse({"ok": False, "error": "not in your pair"}, status_code=403)
+    if isinstance(plus, str):
+        plus = plus.strip().lower() in ("1", "true")
+    try:
+        trial = int(float(trial_until or 0))
+    except (TypeError, ValueError):
+        trial = 0
+    sleep = None
+    if mascot_sleep not in (None, "") and str(mascot_sleep).strip():
+        try:
+            sleep = json.loads(mascot_sleep) if isinstance(mascot_sleep, str) else mascot_sleep
+        except ValueError:
+            sleep = mascot_sleep
+    return {
+        "ok": True,
+        "id": rid,
+        "display_name": display_name or "",
+        "avatar_url": avatar_url or "",
+        "banner_url": banner_url or "",
+        "banner_live": bool(plus) or trial > _now_ms(),
+        "badge": badge or "",
+        "frame": frame or "",
+        "gender": gender or "",
+        "birth_date": birth_date or "",
+        "mascot_sleep": sleep,
+        "granted_badges": _json_list(granted_badges),
+    }
+
+
+@app.post("/api/centrifugo/connection-token")
+async def cent_connection_token(request: Request):
+    try:
+        auth = await _auth(request)
+    except Exception:
+        return _err(429, "Try again later.")
+    if auth is None:
+        return _err(401, "The request requires valid record authorization token.")
+    if not CENT_TOKEN_HMAC:
+        return ORJSONResponse({"error": "not configured"}, status_code=500)
+    return {"token": _jwt_hs256({"sub": auth[0]}, CENT_TOKEN_HMAC, 86400)}
+
+
+async def _in_group(uid: str, group_id: str) -> bool:
+    async with pg.acquire() as c:
+        return bool(await c.fetchval(
+            "SELECT 1 FROM groups WHERE id = $1 AND members @> $2::jsonb",
+            group_id, json.dumps([uid])))
+
+
+@app.post("/api/centrifugo/subscription-token")
+async def cent_subscription_token(request: Request):
+    """Пропуск в приватный канал (перенос centrifugo_tokens.pb.js)."""
+    try:
+        auth = await _auth(request)
+    except Exception:
+        return _err(429, "Try again later.")
+    if auth is None:
+        return _err(401, "The request requires valid record authorization token.")
+    uid = auth[0]
+    try:
+        body = await request.json()
+        assert isinstance(body, dict)
+    except Exception:
+        body = {}
+    channel = str(body.get("channel") or "")
+    if not channel:
+        return ORJSONResponse({"error": "channel required"}, status_code=400)
+
+    allowed = False
+    if channel.startswith("pair:") or channel.startswith("draw:"):
+        allowed = await _in_group(uid, channel[5:])
+    elif channel.startswith("user:"):
+        target = channel[5:]
+        if target == uid:
+            allowed = True
+        else:
+            async with pg.acquire() as c:
+                allowed = bool(await c.fetchval(
+                    "SELECT 1 FROM groups WHERE members @> $1::jsonb "
+                    "AND members @> $2::jsonb LIMIT 1",
+                    json.dumps([uid]), json.dumps([target])))
+    elif channel.startswith("loc:"):
+        allowed = uid in channel
+    elif channel.startswith("watch:") and CENT_TOKEN_HMAC:
+        room = channel[6:]
+        async with pg.acquire() as c:
+            mine = await c.fetch(
+                "SELECT id FROM groups WHERE members @> $1::jsonb", json.dumps([uid]))
+        allowed = any(_room_code(r["id"]) == room for r in mine)
+    if not allowed:
+        return ORJSONResponse({"error": "forbidden"}, status_code=403)
+    if not CENT_TOKEN_HMAC:
+        return ORJSONResponse({"error": "not configured"}, status_code=500)
+    claims = {"sub": uid, "channel": channel}
+    if channel.startswith("watch:"):
+        # Служебная подписка приложения в комнате: страница не считает её
+        # вторым зрителем (см. countViewers в room.js).
+        claims["info"] = {"app": 1}
+    return {"token": _jwt_hs256(claims, CENT_TOKEN_HMAC, 86400)}
+
+
 @app.get("/api/movies/search")
 async def movies_search(request: Request):
     """Фильмы и сериалы по названию, в форме ответа poiskkino.
