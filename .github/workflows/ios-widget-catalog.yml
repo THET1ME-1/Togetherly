@@ -1,0 +1,33 @@
+name: iOS → смена фото партнёра в виджете
+
+# Зачем: виджет «Фото партнёра» на iPhone листает снимки раз в 15 минут
+# (обращение 284). Выбор снимка — PhotoCatalog в PhotoWidgets.swift, только
+# Foundation. Mac для проверки нет, поэтому кусок вырезается между метками и
+# собирается консольной проверкой на macOS.
+on:
+  push:
+    paths:
+      - 'ios/TogetherlyWidget/PhotoWidgets.swift'
+      - 'ios/widget_catalog_test/**'
+      - '.github/workflows/ios-widget-catalog.yml'
+  workflow_dispatch:
+
+jobs:
+  catalog:
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Каталог снимков из PhotoWidgets.swift
+        run: |
+          awk '/MARK: PhotoCatalog begin/{take=1; next} /MARK: PhotoCatalog end/{take=0} take' \
+            ios/TogetherlyWidget/PhotoWidgets.swift > "$RUNNER_TEMP/core.swift"
+          test -s "$RUNNER_TEMP/core.swift"
+          printf 'import Foundation\n' | cat - "$RUNNER_TEMP/core.swift" > "$RUNNER_TEMP/PhotoCatalog.swift"
+
+      - name: Сборка проверки
+        run: swiftc -O -o "$RUNNER_TEMP/catalog_test" "$RUNNER_TEMP/PhotoCatalog.swift" ios/widget_catalog_test/main.swift
+
+      - name: Проверка
+        run: '"$RUNNER_TEMP/catalog_test"'

@@ -253,9 +253,14 @@ struct PhotoGridWidget: Widget {
 // фотография показывается. Каталоги `ios_photo_catalog_*` приложение писать
 // продолжает — они понадобятся, когда выбор вернём.
 
-/// Пути снимков из каталога, который пишет приложение: json-список
-/// `[{"id", "label", "path"}]`. Остаются только файлы, что лежат на месте.
+// MARK: PhotoCatalog begin
+// Только Foundation: прогон ios-widget-catalog.yml вырезает этот кусок между
+// метками и проверяет его на macOS.
+
+/// Каталог снимков, который пишет приложение: json-список
+/// `[{"id", "label", "path"}]`.
 enum PhotoCatalog {
+    /// Пути из каталога. Остаются только файлы, что лежат на месте.
     static func paths(_ json: String) -> [String] {
         guard let data = json.data(using: .utf8),
               let items = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
@@ -264,7 +269,17 @@ enum PhotoCatalog {
             .compactMap { $0["path"] as? String }
             .filter { !$0.isEmpty && FileManager.default.fileExists(atPath: $0) }
     }
+
+    /// Снимок для записи таймлайна: смена раз в 15 минут по кругу. Записи идут
+    /// через 15 минут, поэтому соседние берут соседние снимки. Меньше двух
+    /// снимков — листать нечего, nil.
+    static func pick(_ paths: [String], at date: Date) -> String? {
+        guard paths.count > 1 else { return nil }
+        let slot = Int(floor(date.timeIntervalSince1970 / 900))
+        return paths[((slot % paths.count) + paths.count) % paths.count]
+    }
 }
+// MARK: PhotoCatalog end
 
 /// Фото по ключу контейнера — без выбора конкретного снимка.
 ///
@@ -288,12 +303,9 @@ private struct KeyPhotoView: View {
     /// Записи таймлайна идут через 15 минут, поэтому соседние берут соседние
     /// снимки. Пропавший с диска файл пропускается.
     private var path: String {
-        if let key = catalogKey {
-            let paths = PhotoCatalog.paths(Store().string(key))
-            if paths.count > 1 {
-                let slot = Int(date.timeIntervalSince1970 / 900)
-                return paths[((slot % paths.count) + paths.count) % paths.count]
-            }
+        if let key = catalogKey,
+           let pick = PhotoCatalog.pick(PhotoCatalog.paths(Store().string(key)), at: date) {
+            return pick
         }
         return Store().string(storeKey)
     }

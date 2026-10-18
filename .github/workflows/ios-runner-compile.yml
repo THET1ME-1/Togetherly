@@ -8,6 +8,9 @@ on:
   push:
     paths:
       - 'ios/Runner/**'
+      # Расширение виджетов собирается вместе с приложением: без этой строки
+      # правка виджета не проверялась ничем до самого релиза
+      - 'ios/TogetherlyWidget/**'
       - 'ios/Podfile'
       - '.github/workflows/ios-runner-compile.yml'
   workflow_dispatch:
