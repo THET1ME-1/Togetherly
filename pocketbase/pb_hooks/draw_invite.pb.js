@@ -54,8 +54,12 @@ routerAdd("POST", "/api/draw/invite", (e) => {
   //
   // Здесь остаётся только защита от лавины. Без неё десять входов в раскраску
   // за вечер дают партнёру десять пушей — на «Скучаю» этот урок уже пройден.
+  // Отметку прошлого зова берём из базы, а не из `e.auth`: запись входа — снимок
+  // на момент запроса, а пишется отметка прямым запросом (см. ниже) и в снимок
+  // не попадает.
   const now = Date.now();
-  const last = Number(e.auth.get("draw_invite_ms") || 0);
+  let last = 0;
+  try { last = Number($app.findRecordById("users", me).get("draw_invite_ms") || 0); } catch (_) { last = 0; }
   if (!rule.mayInvite(last, now, rule.GAP_MS)) {
     return e.json(200, { ok: true, sent: false, why: "too soon" });
   }
@@ -64,9 +68,16 @@ routerAdd("POST", "/api/draw/invite", (e) => {
   push.notifyGroup(groupId, me, name + " зовёт порисовать",
     "Открыл раскраску — заходите рисовать вместе", "draw");
 
+  // Пишем ОДНУ колонку прямым запросом, а не всю запись `e.auth`. Запись входа —
+  // снимок аккаунта на момент запроса, и `$app.save(e.auth)` возвращал в базу
+  // все его поля. 18.10.2026 под перегрузкой запрос, пришедший до покупки и
+  // выполненный после неё, затирал выданный Плюс: трое новичков потеряли его
+  // через 2–30 минут после оплаты.
   try {
-    e.auth.set("draw_invite_ms", now);
-    $app.save(e.auth);
+    $app.db()
+      .newQuery("UPDATE users SET draw_invite_ms = {:t} WHERE id = {:id}")
+      .bind({ t: now, id: me })
+      .execute();
   } catch (err) {
     // Отметка не записалась — зов уже ушёл, поэтому только пишем в журнал:
     // ронять ответ незачем, худшее следствие — лишний зов через минуту.
