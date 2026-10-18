@@ -61,6 +61,7 @@ from fastapi import FastAPI, Request
 import movies
 from fastapi.responses import (ORJSONResponse, JSONResponse, Response,
                                FileResponse)
+from sqlite_read import build_list, load_fields, serialize
 
 log = logging.getLogger("hotpath")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -3743,8 +3744,131 @@ async def couple_agg(group_id: str):
     return out
 
 
+# ── коллекции, которые читаются прямо из SQLite PocketBase ──────────────────
+# Подарки пишут хуки PocketBase, а люди только читают (правила записи у
+# коллекции пустые). Под наплывом 18.10.2026 эти чтения шли 9 раз в секунду и
+# стояли в очереди пула PocketBase. Копия в Postgres не годится: приложение
+# перечитывает подарки сразу после события в канале пары, и копия с
+# задержкой не показала бы только что пришедший подарок. Поэтому hotpath
+# читает ту же базу своим соединением (sqlite_read.py), записи остаются за
+# PocketBase, а запрос, который наш разбор не знает, уходит ему же.
+# Значение — правило чтения PocketBase: `group` — «только своя пара»,
+# `public` — пустое правило (каталог). Кроме подарков, маршрут Caddy ведёт сюда
+# только GET: запись этих коллекций (с файлами, хуками, рассылкой) остаётся
+# за PocketBase, а hotpath на неё отвечает 403.
+SQLITE_READ = {
+    "gifts": "group",
+    "watch_history": "group", "canvas_catalogue": "group",
+    "memory_comments": "group", "watch_videos": "group", "custom_moods": "group",
+    "catalog_items": "public",
+}
+_sqlite_meta: dict[str, tuple[str, dict]] = {}   # имя -> (id коллекции, поля)
+lite_read: sqlite3.Connection | None = None
+_lite_read_lock = threading.Lock()
+
+
+async def _pb_passthrough(request: Request) -> Response:
+    """Отдать чтение самому PocketBase: адрес клиента едет в
+    X-Forwarded-For, как через Caddy, — иначе лимиты PB сочли бы всех одним."""
+    keep = ("authorization", "x-forwarded-for", "accept-language", "user-agent")
+    headers = {k: v for k, v in request.headers.items() if k.lower() in keep}
+    r = await pb_client.get(request.url.path, params=request.query_params, headers=headers)
+    return Response(content=r.content, status_code=r.status_code,
+                    media_type=r.headers.get("content-type", "application/json"))
+
+
+def _sqlite_list_sync(col, conds, groups, sort, page, per_page, skip_total):
+    collection_id, fields = _sqlite_meta[col]
+    sql, args, count_sql, count_args = build_list(
+        col, fields, conds, groups, sort, page, per_page, sortable=set(fields),
+        scope=SQLITE_READ[col])
+    with _lite_read_lock:
+        cur = lite_read.execute(sql, args)
+        names = [d[0] for d in cur.description]
+        rows = cur.fetchall()
+        total = -1 if skip_total else lite_read.execute(count_sql, count_args).fetchone()[0]
+    return [serialize(r, names, fields, collection_id, col) for r in rows], total
+
+
+def _sqlite_get_sync(col, rid, groups):
+    collection_id, fields = _sqlite_meta[col]
+    if SQLITE_READ[col] == "public":
+        sql, args = f"SELECT * FROM {col} WHERE id = ?", [rid]
+    elif not groups:
+        return None
+    else:
+        marks = ", ".join("?" for _ in groups)
+        sql = f"SELECT * FROM {col} WHERE id = ? AND group_id IN ({marks})"
+        args = [rid, *sorted(groups)]
+    with _lite_read_lock:
+        cur = lite_read.execute(sql, args)
+        names = [d[0] for d in cur.description]
+        row = cur.fetchone()
+    return serialize(row, names, fields, collection_id, col) if row else None
+
+
+async def _sqlite_auth(col: str, request: Request):
+    """Пары человека для чтения; у общедоступной коллекции вход не нужен.
+    Возвращает (группы, ошибка)."""
+    if SQLITE_READ[col] == "public":
+        return frozenset(), None
+    try:
+        auth = await _auth(request)
+    except Exception:
+        return None, _err(429, "Try again later.")
+    if auth is None:
+        return None, _err(401, "The request requires valid record authorization token.")
+    return auth[1], None
+
+
+async def _sqlite_list(col: str, request: Request):
+    q = request.query_params
+    if q.get("expand") or q.get("fields"):
+        return await _pb_passthrough(request)
+    groups, denied = await _sqlite_auth(col, request)
+    if denied:
+        return denied
+    _, fields = _sqlite_meta[col]
+    try:
+        page = max(1, int(q.get("page", "1")))
+        per_page = min(1000, max(1, int(q.get("perPage", "30"))))
+        conds = _parse_filter(q.get("filter", ""), set(fields))
+    except ValueError:
+        # Запрос, который разбор не знает (ИЛИ, вложенные скобки у старых
+        # сборок): пусть ответит сам PocketBase, как раньше.
+        return await _pb_passthrough(request)
+    for key in q.get("sort", "").split(","):
+        name = key.strip().lstrip("+-")
+        if name and name not in fields:
+            # Несуществующее поле или особый ключ (`@random`): у PocketBase
+            # свой ответ на это (400 или своя сортировка), пусть даёт его сам.
+            return await _pb_passthrough(request)
+    skip_total = q.get("skipTotal", "") in ("1", "true", "True")
+    items, total = await asyncio.to_thread(
+        _sqlite_list_sync, col, conds, groups, q.get("sort", ""), page, per_page, skip_total)
+    return {
+        "page": page, "perPage": per_page, "totalItems": total,
+        "totalPages": -1 if skip_total else (total + per_page - 1) // per_page,
+        "items": items,
+    }
+
+
+async def _sqlite_get(col: str, rid: str, request: Request):
+    if request.query_params.get("expand") or request.query_params.get("fields"):
+        return await _pb_passthrough(request)
+    groups, denied = await _sqlite_auth(col, request)
+    if denied:
+        return denied
+    rec = await asyncio.to_thread(_sqlite_get_sync, col, rid, groups)
+    if rec is None:
+        return _err(404, "The requested resource wasn't found.")
+    return rec
+
+
 @app.get("/api/collections/{col}/records")
 async def list_records(col: str, request: Request):
+    if col in SQLITE_READ:
+        return await _sqlite_list(col, request)
     meta = COLLECTIONS.get(col)
     if meta is None:
         return _err(404, "The requested resource wasn't found.")
@@ -3876,6 +4000,8 @@ async def get_record(col: str, rid: str, request: Request):
     (`collection('groups').getOne(pairId)`), и без этого маршрута ответом на
     вступление в пару приходил бы 404.
     """
+    if col in SQLITE_READ:
+        return await _sqlite_get(col, rid, request)
     meta = COLLECTIONS.get(col)
     if meta is None:
         return _err(404, "The requested resource wasn't found.")
@@ -3922,9 +4048,12 @@ def _read_only(meta: dict):
     return None
 
 
+_READ_ONLY_META = {"read_only": True}
+
+
 @app.post("/api/collections/{col}/records")
 async def create_record(col: str, request: Request):
-    meta = COLLECTIONS.get(col)
+    meta = _READ_ONLY_META if col in SQLITE_READ else COLLECTIONS.get(col)
     if meta is None:
         return _err(404, "The requested resource wasn't found.")
     denied = _read_only(meta)
@@ -4025,7 +4154,7 @@ async def create_record(col: str, request: Request):
 
 @app.patch("/api/collections/{col}/records/{rid}")
 async def update_record(col: str, rid: str, request: Request):
-    meta = COLLECTIONS.get(col)
+    meta = _READ_ONLY_META if col in SQLITE_READ else COLLECTIONS.get(col)
     if meta is None:
         return _err(404, "The requested resource wasn't found.")
     denied = _read_only(meta)
@@ -4226,7 +4355,7 @@ async def _наклейка_воспоминания(rid: str, тело: dict, u
 
 @app.delete("/api/collections/{col}/records/{rid}")
 async def delete_record(col: str, rid: str, request: Request):
-    meta = COLLECTIONS.get(col)
+    meta = _READ_ONLY_META if col in SQLITE_READ else COLLECTIONS.get(col)
     if meta is None:
         return _err(404, "The requested resource wasn't found.")
     denied = _read_only(meta)
@@ -4371,6 +4500,7 @@ async def _startup():
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     global pg, cent_client, push_client, pb_client, wd_client, lite, lite_rw, auth_secret
+    global lite_read
     pg = await asyncpg.create_pool(PG_DSN, min_size=2, max_size=10)
     cent_client = httpx.AsyncClient(base_url=CENT_API, timeout=3.0)
     # Редкие записи уходят в PocketBase как есть. Таймаут щедрый: под
@@ -4383,6 +4513,12 @@ async def _startup():
     # read-only к базе PocketBase: tokenKey, group_ids, members, presence, токены.
     lite = sqlite3.connect(f"file:{PB_DB}?mode=ro", uri=True, check_same_thread=False)
     lite.execute("PRAGMA busy_timeout=5000")
+    # Своё соединение для чтения подарков и прочего из SQLITE_READ: auth на
+    # `lite` не должна ждать списка подарков.
+    lite_read = sqlite3.connect(f"file:{PB_DB}?mode=ro", uri=True, check_same_thread=False)
+    lite_read.execute("PRAGMA busy_timeout=5000")
+    for name in SQLITE_READ:
+        _sqlite_meta[name] = load_fields(lite_read, name)
     # запись — только точечные вещи: messages_count и чистка мёртвых пуш-токенов.
     lite_rw = sqlite3.connect(PB_DB, timeout=10, check_same_thread=False)
     lite_rw.execute("PRAGMA busy_timeout=10000")

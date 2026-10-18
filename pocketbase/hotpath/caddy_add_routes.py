@@ -20,6 +20,17 @@ COLLECTIONS = [
     ("wishes", "Желания пары — в hotpath (Postgres). 19.10.2026."),
     ("wish_categories", "Категории желаний — в hotpath (Postgres). 19.10.2026."),
     ("app_config", "Настройки приложения — копия в hotpath. 19.10.2026."),
+    ("gifts", "Подарки: чтение из SQLite в hotpath, запись у PocketBase. 19.10.2026."),
+]
+# Сюда идёт только чтение (GET): записи с файлами, хуками и рассылкой
+# остаются за PocketBase, hotpath читает те же строки из SQLite.
+READ_ONLY_ROUTES = [
+    ("watch_history", "История просмотров: чтение из SQLite в hotpath. 19.10.2026."),
+    ("canvas_catalogue", "Каталог холстов: чтение из SQLite в hotpath. 19.10.2026."),
+    ("memory_comments", "Комментарии: чтение из SQLite в hotpath. 19.10.2026."),
+    ("watch_videos", "Свои ролики: чтение из SQLite в hotpath. 19.10.2026."),
+    ("custom_moods", "Свои настроения: чтение из SQLite в hotpath. 19.10.2026."),
+    ("catalog_items", "Каталог: чтение из SQLite в hotpath. 19.10.2026."),
 ]
 ANCHOR = "\thandle /api/collections/groups/records* {"
 
@@ -36,6 +47,26 @@ for name, note in COLLECTIONS:
         continue
     blocks += (
         f"\thandle /api/collections/{name}/records* {{\n"
+        f"\t\t# {note}\n"
+        f"\t\treverse_proxy {upstream} {{\n"
+        "\t\t\ttransport http {\n"
+        "\t\t\t\tkeepalive 30s\n"
+        "\t\t\t\tkeepalive_idle_conns 256\n"
+        "\t\t\t\tkeepalive_idle_conns_per_host 256\n"
+        "\t\t\t}\n"
+        "\t\t}\n"
+        "\t}\n\n"
+    )
+for name, note in READ_ONLY_ROUTES:
+    if f"@{name}_read" in text:
+        print(f"{name}: маршрут чтения уже есть")
+        continue
+    blocks += (
+        f"\t@{name}_read {{\n"
+        "\t\tmethod GET\n"
+        f"\t\tpath /api/collections/{name}/records*\n"
+        "\t}\n"
+        f"\thandle @{name}_read {{\n"
         f"\t\t# {note}\n"
         f"\t\treverse_proxy {upstream} {{\n"
         "\t\t\ttransport http {\n"
