@@ -253,6 +253,19 @@ struct PhotoGridWidget: Widget {
 // фотография показывается. Каталоги `ios_photo_catalog_*` приложение писать
 // продолжает — они понадобятся, когда выбор вернём.
 
+/// Пути снимков из каталога, который пишет приложение: json-список
+/// `[{"id", "label", "path"}]`. Остаются только файлы, что лежат на месте.
+enum PhotoCatalog {
+    static func paths(_ json: String) -> [String] {
+        guard let data = json.data(using: .utf8),
+              let items = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+        else { return [] }
+        return items
+            .compactMap { $0["path"] as? String }
+            .filter { !$0.isEmpty && FileManager.default.fileExists(atPath: $0) }
+    }
+}
+
 /// Фото по ключу контейнера — без выбора конкретного снимка.
 ///
 /// 18.08.2026: конфигурируемые версии (AppIntent, iOS 17+) на iPhone тестера
@@ -263,11 +276,32 @@ struct PhotoGridWidget: Widget {
 private struct KeyPhotoView: View {
     let storeKey: String
     let kind: PhotoWidgetKind
+    /// Каталог снимков для смены по кругу (`ios_photo_catalog_*`); без него
+    /// виджет держит одно фото из [storeKey].
+    var catalogKey: String? = nil
+    /// Время записи таймлайна: по нему выбирается снимок.
+    var date: Date = Date()
     @Environment(\.widgetFamily) private var family
+
+    /// Фото партнёра сменяются раз в 15 минут, как карусель на Android: на
+    /// iPhone виджет до 18.10.2026 показывал только первое (обращение 284).
+    /// Записи таймлайна идут через 15 минут, поэтому соседние берут соседние
+    /// снимки. Пропавший с диска файл пропускается.
+    private var path: String {
+        if let key = catalogKey {
+            let paths = PhotoCatalog.paths(Store().string(key))
+            if paths.count > 1 {
+                let slot = Int(date.timeIntervalSince1970 / 900)
+                return paths[((slot % paths.count) + paths.count) % paths.count]
+            }
+        }
+        return Store().string(storeKey)
+    }
+
     var body: some View {
         PhotoWidgetContainer {
             PhotoFill(
-                path: Store().string(storeKey),
+                path: path,
                 image: nil,
                 kind: kind,
                 logAs: "photo-\(kind)",
@@ -294,8 +328,13 @@ struct SelfPhotoWidgetConfigurable: Widget {
 
 struct PartnerPhotoWidgetConfigurable: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "PartnerPhotoWidgetProvider", provider: RefreshProvider()) { _ in
-            KeyPhotoView(storeKey: "ios_partner_photo_path", kind: .partner).unredacted()
+        StaticConfiguration(kind: "PartnerPhotoWidgetProvider", provider: RefreshProvider()) { entry in
+            KeyPhotoView(
+                storeKey: "ios_partner_photo_path",
+                kind: .partner,
+                catalogKey: "ios_photo_catalog_partner",
+                date: entry.date
+            ).unredacted()
         }
         .configurationDisplayName("Фото партнёра")
         .description("Фото, которым с вами поделился партнёр.")

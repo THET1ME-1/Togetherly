@@ -4253,16 +4253,17 @@ class HomeWidgetService {
       if (dayAuthor.isEmpty) dayAuthor = day.author;
     }
     try {
-      // Каталог: скачиваем до пяти снимков каждого вида. Больше в списке
-      // «Изменить виджет» человек всё равно не разглядывает, а каждый файл
-      // лежит в общем контейнере и занимает место.
+      // Каталог: до пяти снимков каждого вида, у фото партнёра до десяти —
+      // виджет на iPhone листает их раз в 15 минут, как карусель на Android
+      // (обращение 284). Каждый файл лежит в общем контейнере и занимает место.
       Future<List<Map<String, String>>> catalog(
         List<String> urls,
         String prefix,
-        String label,
-      ) async {
+        String label, {
+        int limit = 5,
+      }) async {
         final out = <Map<String, String>>[];
-        for (var i = 0; i < urls.length && i < 5; i++) {
+        for (var i = 0; i < urls.length && i < limit; i++) {
           final url = urls[i];
           if (url.isEmpty) continue;
           final path = await _cachePhotoFromUrl(url, '${prefix}_$i');
@@ -4285,6 +4286,7 @@ class HomeWidgetService {
               partnerPhotos,
               'ios_partner',
               partnerName.isEmpty ? 'Фото партнёра' : 'Фото · $partnerName',
+              limit: 10,
             );
       final day = dayPhotoUrl.isEmpty
           ? <Map<String, String>>[]
