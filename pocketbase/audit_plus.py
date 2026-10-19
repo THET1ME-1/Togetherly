@@ -61,6 +61,10 @@ for с in счета:
     оплачен = (с["status"] or "").upper() == "COMPLETED"
     if not (оплачен or с["выдано"]):
         continue
+    # Деньги вернули, доступ сняли руками. `granted` остаётся 1, иначе крон
+    # `lavaInvoicePoll` взял бы счёт на проверку и мог выдать Плюс заново.
+    if (с["status"] or "").upper() == "REFUNDED":
+        continue
     if с["ключ"]:
         continue                      # счёт на элемент каталога, не на Плюс
     ч = люди.get(с["user_uid"]) or почты.get(с["email"] or "")
