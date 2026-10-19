@@ -127,9 +127,19 @@ bool isRoutineRouteRefusal(Object error) {
   return routine.contains(reason);
 }
 
+/// Отменённая отрисовка плиток карты.
+///
+/// Векторная карта отменяет задания для плиток, ушедших с экрана, а пакет
+/// executor_lib бросает отмену наружу, без стека: 110 событий за полдня
+/// 19.10.2026 на 1.37, приложение при этом живо. Пакет транзитивный, поэтому
+/// узнаём его отмену по имени типа и тексту.
+bool isCancelledMapJob(Object error) =>
+    error.runtimeType.toString() == 'CancellationException' && error.toString() == 'Cancelled';
+
 /// Событие вообще не стоит слать в Bugsink.
 bool isCrashNoise(Object error) =>
     isNetworkNoise(error) ||
     isForegroundServiceRestriction(error) ||
     isDeadFirebaseMedia(error) ||
-    isRoutineRouteRefusal(error);
+    isRoutineRouteRefusal(error) ||
+    isCancelledMapJob(error);

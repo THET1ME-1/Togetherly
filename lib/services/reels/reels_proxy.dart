@@ -19,6 +19,16 @@ class ReelsProxy {
   static const List<String> _hosts = ['tiktok.com', 'www.tiktok.com', 'm.tiktok.com'];
   static bool _on = false;
 
+  /// Включён ли посредник сейчас. Уходит в отчёт о застрявшей ленте.
+  static bool get on => _on;
+
+  /// Закрыт ли TikTok с этого адреса; null — ещё не проверяли.
+  static bool? get blocked => _blocked;
+
+  /// Почему посредник не включился, хотя TikTok закрыт: телефон не умеет
+  /// (Android без нужной версии браузера, iOS ниже 17) или вызов упал.
+  static String? lastError;
+
   /// Закрыт ли TikTok с этого адреса. Из России страница ролика приходит с
   /// `"statusMsg":"ru_cross_border_block"` (код 10204), из других стран — с
   /// кодом 0. Ответ помним на весь запуск: адрес за сеанс не меняется.
@@ -50,7 +60,10 @@ class ReelsProxy {
         // «Только эти хосты через посредника» — обратный список обхода.
         final ok = await WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE) &&
             await WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE_REVERSE_BYPASS);
-        if (!ok) return;
+        if (!ok) {
+          lastError = 'android: proxy override unsupported';
+          return;
+        }
         await ProxyController.instance().setProxyOverride(
           settings: ProxySettings(proxyRules: [ProxyRule(url: _url)], bypassRules: _hosts, reverseBypassEnabled: true),
         );
@@ -63,7 +76,11 @@ class ReelsProxy {
         return;
       }
       _on = true;
+      lastError = null;
     } catch (e) {
+      // На iOS ниже 17 у плагина нет обработчика вовсе — сюда приходит
+      // MissingPluginException.
+      lastError = '$e'.split('\n').first;
       debugPrint('ReelsProxy: не включился: $e');
     }
   }

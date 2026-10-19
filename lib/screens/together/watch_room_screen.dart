@@ -21,6 +21,7 @@ import '../../services/plus_service.dart';
 import '../../services/reels/reel_save.dart';
 import '../../services/reels/reels_invite.dart';
 import '../../services/reels/reels_proxy.dart';
+import '../../services/reels/reels_telemetry.dart';
 import '../../services/watch_channel_service.dart';
 import '../../services/watch_history_service.dart';
 import '../../services/watch_room_service.dart';
@@ -133,11 +134,34 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
   /// пока грузится комната. Посредник для TikTok нужен обоим: ролик из ленты
   /// партнёра играет и у того, кто сам выбрал другую площадку.
   Future<void> _startFeed() async {
+    final watch = ReelsWatch(source: widget.reelsSource.key, started: DateTime.now());
+    _reelsWatch = watch;
+    _reelsStall = Timer(ReelsWatch.limit + const Duration(seconds: 1), _checkReelsStall);
     await ReelsProxy.enable();
     if (!mounted) return;
-    final feed = ReelsFeed(widget.reelsSource, onIds: _pushFeed, onThumbs: _pushThumbs);
+    final feed = ReelsFeed(widget.reelsSource, onIds: _pushFeed, onThumbs: _pushThumbs, watch: watch);
     _feed = feed;
     await feed.start();
+  }
+
+  /// Как собирается своя лента — для отчёта, если ролики так и не придут.
+  ReelsWatch? _reelsWatch;
+  Timer? _reelsStall;
+
+  /// Свёрнутое приложение лента не грузит, и отчёт о такой «застрявшей»
+  /// ленте врал бы: после сворачивания его не шлём.
+  bool _reelsLeftApp = false;
+
+  void _checkReelsStall() {
+    final watch = _reelsWatch;
+    if (!mounted || watch == null || _reelsLeftApp) return;
+    final report = watch.check(
+      DateTime.now(),
+      proxyOn: ReelsProxy.on,
+      blocked: ReelsProxy.blocked,
+      proxyError: ReelsProxy.lastError,
+    );
+    if (report != null) ReelsTelemetry.stalled(report);
   }
 
   /// Свёрнутое приложение: ленты засыпают. Плееры страницы и скрытая лента
@@ -148,6 +172,7 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
     if (!widget.reels) return;
     final away = state == AppLifecycleState.paused || state == AppLifecycleState.hidden;
     if (state != AppLifecycleState.resumed && !away) return;
+    if (away) _reelsLeftApp = true;
     unawaited(_web?.evaluateJavascript(source: 'window.reelsSleep && window.reelsSleep(${away ? 'true' : 'false'})'));
     unawaited(away ? (_feed?.sleep() ?? Future<void>.value()) : (_feed?.wake() ?? Future<void>.value()));
   }
@@ -457,6 +482,7 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
     _voice?.removeListener(_onVoiceChanged);
     _voice?.dispose();
     unawaited(_room?.dispose() ?? Future<void>.value());
+    _reelsStall?.cancel();
     unawaited(_feed?.dispose() ?? Future<void>.value());
     if (widget.reels) unawaited(ReelsProxy.disable());
     if (_invited) unawaited(ReelsInvite.stop(widget.pairId));

@@ -166,4 +166,22 @@ void main() {
       );
     });
   });
+
+  // Карта отменяет отрисовку плиток, ушедших с экрана, а пакет executor_lib
+  // бросает отмену наружу без стека: 110 событий за полдня 19.10.2026 на
+  // 1.37, приложение при этом живо.
+  group('отмена плиток карты', () {
+    test('это шум', () => expect(isCrashNoise(CancellationException()), isTrue));
+
+    test('чужая ошибка с тем же словом — не шум', () {
+      expect(isCrashNoise(StateError('Cancelled')), isFalse);
+      expect(isCrashNoise(Exception('Cancelled')), isFalse);
+    });
+  });
+}
+
+/// Двойник отмены из executor_lib: пакет транзитивный, напрямую его не берём.
+class CancellationException implements Exception {
+  @override
+  String toString() => 'Cancelled';
 }

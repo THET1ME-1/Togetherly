@@ -7,6 +7,7 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 import '../../models/reel_queue.dart';
 import '../../models/reels_source.dart';
+import 'reels_telemetry.dart';
 
 /// Лента площадки этого телефона — в скрытом браузере.
 ///
@@ -20,9 +21,13 @@ import '../../models/reels_source.dart';
 /// ([script]). ВК и Дзен кладут первые ролики прямо в разметку — их скрипт
 /// берёт и оттуда.
 class ReelsFeed {
-  ReelsFeed(this.source, {this.onIds, this.onThumbs});
+  ReelsFeed(this.source, {this.onIds, this.onThumbs, this.watch});
 
   final ReelsSource source;
+
+  /// Куда записывать, как грузится скрытая страница: если ролики так и не
+  /// придут, комната отправит это отчётом.
+  final ReelsWatch? watch;
 
   /// Пришли новые номера — комната получает их сразу, не дожидаясь вопроса.
   final void Function(List<String> ids)? onIds;
@@ -157,6 +162,25 @@ class ReelsFeed {
         useOnRenderProcessGone: true,
       ),
       onRenderProcessGone: (_, _) => unawaited(_revive()),
+      onLoadStop: (c, url) async {
+        final w = watch;
+        if (w == null) return;
+        w.pages++;
+        w.lastHost = url?.host;
+        try {
+          w.lastTitle = _short(await c.getTitle());
+        } catch (_) {}
+      },
+      // Отказ самой страницы, а не её картинок: посредник не ответил,
+      // площадка вернула 403 или капчу.
+      onReceivedError: (c, request, error) {
+        if (request.isForMainFrame == false) return;
+        watch?.lastError = _short('${error.type}: ${error.description}');
+      },
+      onReceivedHttpError: (c, request, response) {
+        if (request.isForMainFrame == false) return;
+        watch?.lastError = 'http ${response.statusCode}';
+      },
       onWebViewCreated: (c) {
         c.addJavaScriptHandler(
           handlerName: 'reelIds',
@@ -207,9 +231,15 @@ class ReelsFeed {
     await start();
   }
 
+  /// Строка для отчёта: заголовки и ошибки бывают длинными.
+  static String? _short(String? text) =>
+      text == null || text.length <= 120 ? text : text.substring(0, 120);
+
   void _accept(List<Object?> ids) {
     final before = _queue.length;
     final added = _queue.add(ids);
+    watch?.heard += ids.length;
+    watch?.ids += added;
     if (added == 0) return;
     debugPrint('ReelsFeed(${source.key}): +$added (в запасе ${_queue.length})');
     _arrived?.complete();
