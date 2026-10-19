@@ -13,6 +13,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import '../models/coloring_clamp.dart';
+import '../models/coloring_meta.dart';
 import '../models/live_stroke_wire.dart';
 import '../models/coloring_picture.dart';
 import '../services/coloring_upload_queue.dart';
@@ -1037,6 +1038,14 @@ class _DrawScreenState extends State<DrawScreen>
       } else {
         unawaited(_loadColoringOutline());
       }
+    }
+    // Мета есть, а картинки в ней нет: запись при заведении листа не дошла.
+    // Дописываем, иначе у партнёра лист откроется обычным холстом.
+    if (_hasSharedCanvas &&
+        !_coloringPictureSent &&
+        coloringMetaNeedsPicture(remoteExists: meta.exists, remote: remoteColoring, local: _coloringId)) {
+      _coloringPictureSent = true;
+      unawaited(_resendColoringPicture());
     }
     final remoteMode = meta.coloringMode;
     if (remoteMode != null && remoteMode.isNotEmpty) {
@@ -3298,6 +3307,23 @@ class _DrawScreenState extends State<DrawScreen>
     }
   }
 
+  /// Картинку уже дописывали в этом заходе: повтор только после отказа.
+  bool _coloringPictureSent = false;
+
+  /// Дописывает в мету картинку и режим, не трогая «Готово».
+  Future<void> _resendColoringPicture() async {
+    final id = _coloringId;
+    if (id == null) return;
+    final ok = await CanvasRepository().restoreColoring(
+      _groupId,
+      _canvasId,
+      pictureId: id,
+      mode: _coloringMode.storage,
+      outlineRef: await _shareOwnOutline(id),
+    );
+    if (!ok) _coloringPictureSent = false;
+  }
+
   /// Кладёт контур своей раскраски в медиа и возвращает ссылку на него.
   ///
   /// Встроенные картинки лежат в ассетах и есть у обоих; свою человек загрузил
@@ -3374,7 +3400,7 @@ class _DrawScreenState extends State<DrawScreen>
     setState(() => _coloringDone = next);
     HapticFeedback.mediumImpact();
     if (_hasSharedCanvas) {
-      await CanvasRepository().setColoringDone(_groupId, _canvasId, next);
+      await CanvasRepository().setColoringDone(_groupId, _canvasId, next, pictureId: _coloringId);
     }
   }
 
@@ -3729,7 +3755,7 @@ class _DrawScreenState extends State<DrawScreen>
     setState(() => _coloringSwap = next);
     if (_groupId.isEmpty) return;
     try {
-      await _canvas.setColoringSwap(_groupId, _canvasId, swapped: next);
+      await _canvas.setColoringSwap(_groupId, _canvasId, swapped: next, pictureId: _coloringId);
     } catch (e) {
       debugPrint('Раскраска: обмен половин не сохранился — $e');
     }

@@ -44,6 +44,10 @@ class CanvasMetaUpdate {
   /// телефона, и без этой ссылки партнёру доставался пустой лист.
   final String? coloringOutline;
 
+  /// Запись меты на сервере уже есть. Без неё все поля пусты, и пустая
+  /// картинка тогда ещё ничего не значит.
+  final bool exists;
+
   const CanvasMetaUpdate({
     this.bgColor,
     this.clearVersion,
@@ -52,6 +56,7 @@ class CanvasMetaUpdate {
     this.coloringSwap,
     this.coloringDone,
     this.coloringOutline,
+    this.exists = false,
   });
 }
 
@@ -225,6 +230,7 @@ class CanvasRepository {
           coloringSwap: d['coloring_swap'] == true,
           coloringDone: done is Map ? Map<String, dynamic>.from(done) : null,
           coloringOutline: (d['coloring_outline'] as String?)?.trim(),
+          exists: true,
         );
       });
 
@@ -248,22 +254,39 @@ class CanvasRepository {
           coloringDone: const {},
           coloringOutline: outlineRef);
 
+  /// Дописывает картинку раскраски в мету, не трогая «Готово»: запись при
+  /// заведении листа могла не дойти (см. [coloringMetaNeedsPicture]).
+  Future<bool> restoreColoring(
+    String groupId,
+    String canvasId, {
+    required String pictureId,
+    required String mode,
+    String? outlineRef,
+  }) =>
+      _data.upsertCanvasMeta(groupId, canvasId,
+          coloringId: pictureId, coloringMode: mode, coloringOutline: outlineRef);
+
   /// Отмечает готовность одного из двоих. Карта целиком, а не поле: правку
   /// одного ключа PocketBase в json-поле не умеет.
   /// Поменять половины местами — у обоих сразу.
+  ///
+  /// [pictureId] едет рядом: если меты на сервере ещё нет, эта запись её
+  /// заведёт, и без картинки партнёр увидел бы обычный холст.
   Future<void> setColoringSwap(
     String groupId,
     String canvasId, {
     required bool swapped,
+    String? pictureId,
   }) =>
-      _data.upsertCanvasMeta(groupId, canvasId, coloringSwap: swapped);
+      _data.upsertCanvasMeta(groupId, canvasId, coloringSwap: swapped, coloringId: pictureId);
 
   Future<void> setColoringDone(
     String groupId,
     String canvasId,
-    Map<String, dynamic> done,
-  ) =>
-      _data.upsertCanvasMeta(groupId, canvasId, coloringDone: done);
+    Map<String, dynamic> done, {
+    String? pictureId,
+  }) =>
+      _data.upsertCanvasMeta(groupId, canvasId, coloringDone: done, coloringId: pictureId);
 
   // ── Рисование: live-штрихи (in-progress) — ЭФЕМЕРНО через Centrifugo ───────
   // НЕ пишем в БД: раньше каждый in-progress штрих = запись в коллекцию
