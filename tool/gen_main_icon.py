@@ -19,8 +19,8 @@
 
 Сезонная иконка (Хэллоуин до 1 ноября 2026) — тот же путь с другим исходником.
 Рисунок вертикальный, а сверху у него шляпа и луна, поэтому квадрат берётся
-по центру:
-    python3 tool/gen_main_icon.py docs/branding/raw/app-icon-halloween.png --center
+по центру. Этот рисунок владелец хочет видеть целиком, поэтому `--fit`:
+    python3 tool/gen_main_icon.py docs/branding/raw/app-icon-halloween.png --center --fit
 """
 from PIL import Image, ImageDraw
 import os
@@ -64,6 +64,18 @@ def square(img, center=False):
     return img.crop((0, top, w, top + side))
 
 
+# Слой с рисунком целиком (--fit): лончер показывает из 108dp только
+# центральные 72dp, и хэллоуинский рисунок на весь слой выходил на телефоне
+# увеличенным, без луны и метлы. Владелец, 19.10.2026: «нафига ты масштабируешь
+# его? Верни его нормальные размеры». Поля под маской залиты цветом неба.
+def fitted_layer(picture, px, fill):
+    layer = Image.new("RGBA", (px, px), fill)
+    side = round(px * 72 / 108)
+    offset = (px - side) // 2
+    layer.paste(picture.resize((side, side), Image.LANCZOS).convert("RGBA"), (offset, offset))
+    return layer
+
+
 def round_crop(img):
     mask = Image.new("L", img.size, 0)
     ImageDraw.Draw(mask).ellipse([0, 0, img.size[0] - 1, img.size[1] - 1], fill=255)
@@ -87,11 +99,16 @@ def main():
         rmaster.resize((px, px), Image.LANCZOS).save(
             os.path.join(d, "launcher_icon_round.png"))
 
+    # Цвет неба для полей — средний цвет левого верхнего угла рисунка
+    sky = master.crop((0, 0, master.width // 20, master.height // 20)).resize((1, 1)).getpixel((0, 0))
     for folder, px in FG_DENSITIES.items():
         d = os.path.join(RES, folder)
         os.makedirs(d, exist_ok=True)
-        master.resize((px, px), Image.LANCZOS).convert("RGBA").save(
-            os.path.join(d, "launcher_icon_fg.png"))
+        if "--fit" in sys.argv:
+            layer = fitted_layer(master, px, sky + (255,))
+        else:
+            layer = master.resize((px, px), Image.LANCZOS).convert("RGBA")
+        layer.save(os.path.join(d, "launcher_icon_fg.png"))
 
     print(f"готово: {ASSET}, {STORE} (512x512), круглые mipmap x{len(DENSITIES)}, "
           f"передний слой адаптивной иконки x{len(FG_DENSITIES)}")
