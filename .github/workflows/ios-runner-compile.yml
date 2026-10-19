@@ -12,6 +12,8 @@ on:
       # правка виджета не проверялась ничем до самого релиза
       - 'ios/TogetherlyWidget/**'
       - 'ios/Podfile'
+      # Своя копия плагина браузера: её Swift тоже собирается только здесь
+      - 'third_party/flutter_inappwebview_ios/**'
       - '.github/workflows/ios-runner-compile.yml'
   workflow_dispatch:
 

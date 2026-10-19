@@ -100,12 +100,14 @@ public class InAppBrowserWebViewController: UIViewController, InAppBrowserDelega
             id: id, webView: webView, settings: nil)
         webView.findInteractionController = findInteractionController
         findInteractionController.prepare()
-        
+
+        // Togetherly: полоса создаётся до prepareWebView — та прячет её при
+        // hideProgressBar, и пустое поле роняло приложение (1.37, 19.10.2026).
+        progressBar = UIProgressView(progressViewStyle: .bar)
+
         prepareWebView()
         webView.windowCreated = true
-        
-        progressBar = UIProgressView(progressViewStyle: .bar)
-        
+
         view = UIView()
         view.addSubview(webView)
         view.insertSubview(progressBar, aboveSubview: webView)
@@ -307,9 +309,9 @@ public class InAppBrowserWebViewController: UIViewController, InAppBrowserDelega
             }
             
             if browserSettings.hideProgressBar {
-                progressBar.isHidden = true
+                progressBar?.isHidden = true
             }
-            
+
             navigationItem.rightBarButtonItems = []
             
             if !browserSettings.hideCloseButton {
