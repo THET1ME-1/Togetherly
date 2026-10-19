@@ -135,35 +135,6 @@ routerAdd("POST", "/api/lava/webhook", (e) => {
     }
   }
 
-  // --- Wallet: своё приложение и свой сервис (moneypath, 127.0.0.1:8140) ---
-  // Вебхук у lava один на кабинет. Уведомление с оффером Wallet+ уходит
-  // целиком в moneypath, и подписку он выдаёт сам. До 19.10.2026 пересылки не
-  // было, и оплата Wallet+ доходила только добивкой, раз в десять минут.
-  // Оффер — MONEY_LAVA_OFFER из /opt/moneypath/env, ключ вебхука у них общий.
-  const WALLET_OFFER = "5a5372ea-4129-4c4c-86b5-0f9738b68602";
-  let wallet = false;
-  for (const key in flat) {
-    if (String(flat[key]).trim().toLowerCase() === WALLET_OFFER) {
-      wallet = true;
-      break;
-    }
-  }
-  if (wallet) {
-    try {
-      const r = $http.send({
-        url: "http://127.0.0.1:8140/api/money/lava",
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Api-Key": secret },
-        body: JSON.stringify(payload),
-        timeout: 20,
-      });
-      return e.json(200, { ok: true, forwarded: "wallet", code: r.statusCode });
-    } catch (err) {
-      console.log("[lava] переслать в Wallet не вышло: " + err);
-      return e.json(500, { ok: false, error: "wallet_unreachable" });
-    }
-  }
-
   const status = (pick(["status", "eventtype", "event", "state", "type"]) || "")
     .toLowerCase();
   const paid = status.indexOf("success") !== -1 ||
