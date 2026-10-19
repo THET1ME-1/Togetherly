@@ -13,6 +13,11 @@ void main() {
     expect(launcher, isNot(contains('showModalBottomSheet')));
   });
 
+  test('карточка «Смотрим» не обещает рекламу перед комнатой', () {
+    final home = File('lib/screens/together/watch_home_screen.dart').readAsStringSync();
+    expect(home, isNot(contains('watchAfterShortAd')));
+  });
+
   test('ролик ждёт выход и из комнаты, и из плеера ролика', () {
     expect('await navigator.push('.allMatches(launcher).length, 2);
     expect('await _afterRoom('.allMatches(launcher).length, 2);

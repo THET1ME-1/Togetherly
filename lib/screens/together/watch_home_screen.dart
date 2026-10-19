@@ -448,11 +448,6 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
             partnerUid: widget.pairData.partnerUid,
             partnerAvatar: widget.pairData.partnerAvatarUrl,
             partnerName: partner,
-            // У купившего Togetherly+ рекламы перед комнатой нет вовсе
-            // (`TogetherLauncher` пропускает её по `PlusService.active`), и
-            // обещать её в подписи — врать человеку, который как раз заплатил,
-            // чтобы её не видеть.
-            note: PlusService.instance.active ? null : s.watchAfterShortAd,
             enabled: !_loading && _room.isNotEmpty,
             onTap: _openInApp,
             seed: _seed,

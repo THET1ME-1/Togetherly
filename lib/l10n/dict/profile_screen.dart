@@ -177,15 +177,6 @@ const Map<String, Map<String, String>> profileScreenStrings = {
     'fr': 'La salle s’ouvre chez vous deux',
     'de': 'Der Raum öffnet sich bei euch beiden',
   },
-  'watchAfterShortAd': {
-    'ru': 'После короткой рекламы',
-    'en': 'After a short ad',
-    'pt': 'Depois de um anúncio curto',
-    'it': 'Dopo una breve pubblicità',
-    'es': 'Tras un anuncio corto',
-    'fr': 'Après une courte publicité',
-    'de': 'Nach einer kurzen Werbung',
-  },
   'watchOpenOnSite': {
     'ru': 'Открыть на сайте',
     'en': 'Open on the website',

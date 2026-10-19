@@ -113,40 +113,6 @@ class WatchLead extends StatelessWidget {
   }
 }
 
-/// Пилюля поверх цветной плитки: метка рекламы.
-class _Chip extends StatelessWidget {
-  const _Chip({required this.icon, required this.label, required this.fg, required this.bg});
-
-  final IconData icon;
-  final String label;
-  final Color fg;
-  final Color bg;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(minHeight: 28),
-      padding: const EdgeInsets.fromLTRB(9, 4, 11, 4),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 15, color: fg),
-          const SizedBox(width: 5),
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontFamily: 'Onest', letterSpacing: 0, fontSize: 12, fontWeight: FontWeight.w700, color: fg),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// Кегль, при котором самое длинное слово [text] встаёт в [maxWidth] целиком.
 /// Unbounded широкий, и на 320 точках с крупным шрифтом «Совместная» и
 /// «Смотреть» рвались посреди слова.
@@ -221,7 +187,6 @@ class WatchKinoCard extends StatelessWidget {
     required this.partnerUid,
     required this.partnerAvatar,
     required this.partnerName,
-    this.note,
     required this.enabled,
     required this.onTap,
     this.seed = 1,
@@ -238,9 +203,6 @@ class WatchKinoCard extends StatelessWidget {
   final String partnerUid;
   final String partnerAvatar;
   final String partnerName;
-
-  /// «После короткой рекламы» — у купившего Плюс её нет.
-  final String? note;
   final bool enabled;
   final VoidCallback onTap;
 
@@ -290,15 +252,6 @@ class WatchKinoCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(hint, style: _body(13, on.withValues(alpha: 0.9))),
-              if (note != null) ...[
-                const SizedBox(height: 8),
-                _Chip(
-                  icon: const IconData(0xea0b, fontFamily: SymbolCatalog.fontFamily),
-                  label: note!,
-                  fg: on,
-                  bg: on.withValues(alpha: 0.24),
-                ),
-              ],
             ],
           );
         },

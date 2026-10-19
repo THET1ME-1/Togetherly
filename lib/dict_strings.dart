@@ -3452,8 +3452,6 @@ abstract class DictStrings extends AppStrings {
   @override
   String get watchRoomOpensForBoth => _t('watchRoomOpensForBoth');
   @override
-  String get watchAfterShortAd => _t('watchAfterShortAd');
-  @override
   String get watchOpenOnSite => _t('watchOpenOnSite');
   @override
   String get watchOnSiteHint => _t('watchOnSiteHint');

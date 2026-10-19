@@ -66,7 +66,6 @@ void main() {
                   partnerUid: 'p1',
                   partnerAvatar: '',
                   partnerName: 'JB SHARAN',
-                  note: s.watchAfterShortAd,
                   enabled: true,
                   onTap: () {},
                 ),

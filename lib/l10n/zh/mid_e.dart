@@ -25,7 +25,6 @@ const Map<String, String> midEZh = {
   'appNotInstalled': '没有安装这个应用',
   'watchTogether': '一起看',
   'watchRoomOpensForBoth': '放映室会同时在你们两边打开',
-  'watchAfterShortAd': '看完一段短广告后',
   'watchOpenOnSite': '在网页上打开',
   'watchOnSiteHint': '如果用电脑看更方便',
   'gamesForTwo': '一起玩',

@@ -2297,7 +2297,6 @@ abstract class AppStrings {
   String get watchTogether;
   String watchWithPartner(String name);
   String get watchRoomOpensForBoth;
-  String get watchAfterShortAd;
   String get watchOpenOnSite;
   String get watchOnSiteHint;
   String get gamesForTwo;
