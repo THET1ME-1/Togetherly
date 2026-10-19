@@ -67,6 +67,13 @@ class PocketBaseService {
     debugPrint('PocketBaseService: init, авторизован=$isLoggedIn');
   }
 
+  /// Подставить клиент в тесте: сервер отвечает заглушкой.
+  @visibleForTesting
+  void debugUse(PocketBase client) {
+    _pb = client;
+    _initialized = true;
+  }
+
   /// Есть ли валидная сессия.
   bool get isLoggedIn => _pb?.authStore.isValid ?? false;
 

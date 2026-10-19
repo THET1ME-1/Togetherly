@@ -316,6 +316,9 @@ class OutboxService {
           'failedAt': DateTime.now().toIso8601String(),
         });
         await _store.record(key).delete(db);
+        // Следующие правки этой записи идут тем же проходом и спрашивают
+        // [isPoisoned]: без отметки сейчас они сочли бы запись пропавшей.
+        if (parsed.rkey case final rkey?) _poisonKeys.add(rkey);
         debugPrint('Outbox: операция «${parsed.type}» отравлена после $next попыток');
         continue; // запись разблокирована — даём ход следующим её правкам
       }
@@ -836,16 +839,22 @@ class OutboxService {
         return _applyChatVoice(p);
       case 'chatNote':
         return _applyChatNote(p);
+      // Сообщения нет на сервере: править нечего, операция выполнена. Если же
+      // его создание лежит в «отравленных», правка ждёт повтора вместе с ним.
       case 'chatUpdate':
+        final id = p['id'] as String? ?? '';
         return data.chatUpdate(
-          p['id'] as String? ?? '',
+          id,
           Map<String, dynamic>.from(p['fields'] as Map? ?? const {}),
+          missingIsDone: !isPoisoned('chat_messages', id),
         );
       case 'chatSetReaction':
+        final id = p['id'] as String? ?? '';
         return data.setChatReaction(
-          p['id'] as String? ?? '',
+          id,
           p['uid'] as String? ?? '',
           p['emoji'] as String?, // null/'' → снять (setChatReaction идемпотентен)
+          missingIsDone: !isPoisoned('chat_messages', id),
         );
       // ── маскоты ──
       case 'mascotUpsert':

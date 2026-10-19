@@ -134,12 +134,16 @@ class PbDataService {
   /// стоил лишнего запроса на каждую такую запись: сервер отвечал 404 на
   /// обновление несуществующего, и только потом шло создание. За двенадцать
   /// минут это давало 850 холостых запросов только по чату и настроениям.
+  ///
+  /// [ifMissing] — что ответить, если записи на сервере нет. null — создать
+  /// её из [body]; годится, только когда в нём вся запись.
   Future<bool> _upsertById(
     String col,
     String id,
     Map<String, dynamic> body, {
     String op = 'upsert',
     bool expectNew = false,
+    bool? ifMissing,
   }) async {
     body.remove('id');
     if (expectNew) {
@@ -171,6 +175,10 @@ class PbDataService {
           .timeout(const Duration(seconds: 15));
       return true;
     } on ClientException catch (e) {
+      if (e.statusCode == 404 && ifMissing != null) {
+        debugPrint('PbData.$op($col/$id): записи нет на сервере');
+        return ifMissing;
+      }
       if (e.statusCode == 404) {
         try {
           await _pb
@@ -3015,9 +3023,18 @@ class PbDataService {
     }
   }
 
-  Future<bool> chatUpdate(String id, Map<String, dynamic> fields) async {
+  /// Правка отправленного сообщения. В правке только изменённые поля, и
+  /// создать по ним сообщение нельзя: сервер отвечает 400, а очередь крутила
+  /// такую правку без конца (обращение 336). Сообщения на сервере нет —
+  /// отвечаем [missingIsDone].
+  Future<bool> chatUpdate(
+    String id,
+    Map<String, dynamic> fields, {
+    bool missingIsDone = true,
+  }) async {
     if (id.isEmpty) return false;
-    return _upsertById('chat_messages', id, Map.of(fields), op: 'chatUpdate');
+    return _upsertById('chat_messages', id, Map.of(fields),
+        op: 'chatUpdate', ifMissing: missingIsDone);
   }
 
   Future<bool> chatRead(String groupId, String uid, int ts) async {
@@ -3045,7 +3062,13 @@ class PbDataService {
   }
 
   /// Ставит/снимает реакцию uid на сообщение (RMW по json-полю reactions).
-  Future<bool> setChatReaction(String id, String uid, String? emoji) async {
+  /// Сообщения на сервере нет — отвечаем [missingIsDone], как [chatUpdate].
+  Future<bool> setChatReaction(
+    String id,
+    String uid,
+    String? emoji, {
+    bool missingIsDone = true,
+  }) async {
     if (id.isEmpty || uid.isEmpty) return false;
     try {
       final rec = await _pb
@@ -3060,6 +3083,13 @@ class PbDataService {
       }
       await _pb.collection('chat_messages').update(rec.id, body: {'reactions': r});
       return true;
+    } on ClientException catch (e) {
+      if (e.statusCode == 404) {
+        debugPrint('PbData.setChatReaction($id): сообщения нет на сервере');
+        return missingIsDone;
+      }
+      debugPrint('PbData.setChatReaction failed: $e');
+      return false;
     } catch (e) {
       debugPrint('PbData.setChatReaction failed: $e');
       return false;
