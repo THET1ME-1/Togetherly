@@ -298,7 +298,25 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
     // Под нативным окном лежит экран приложения, просвечивать ему незачем.
     transparentBackground: !_native,
     supportZoom: false,
+    // Движок браузеров на Android один на все окна приложения: лента держит
+    // в нём три плеера и скрытую страницу площадки. Без флага его гибель от
+    // нехватки памяти уносила приложение целиком (обращение 297).
+    useOnRenderProcessGone: true,
   );
+
+  /// Номер жизни страницы: новый номер ставит её заново.
+  int _webLife = 0;
+
+  /// Движок браузеров упал или его убила система: страница мертва. Ставим
+  /// новую, комната подключится к каналу сама.
+  void _onRendererGone() {
+    if (!mounted) return;
+    setState(() {
+      _web = null;
+      _webLife++;
+      _loading = true;
+    });
+  }
 
   /// Скрипты, которые страница получает до своей загрузки.
   UnmodifiableListView<UserScript> _scripts(EdgeInsets pad) => UnmodifiableListView([
@@ -538,6 +556,7 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
         child: _native ? Center(child: M3Loading(color: cs.primary)) : Stack(
           children: [
             InAppWebView(
+              key: ValueKey<int>(_webLife),
               initialUrlRequest: URLRequest(url: WebUri(_url)),
               // Касание в зоне комнаты сразу уходит браузеру, не дожидаясь арены
               // жестов Flutter: на iPhone после рекламы оно иначе терялось, и
@@ -549,6 +568,7 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
               initialSettings: _webSettings(),
               onWebViewCreated: _wire,
               onLoadStop: (c, _) => _onPageLoaded(c),
+              onRenderProcessGone: (_, _) => _onRendererGone(),
             ),
             if (_loading) Center(child: M3Loading(color: Theme.of(context).colorScheme.primary)),
           ],

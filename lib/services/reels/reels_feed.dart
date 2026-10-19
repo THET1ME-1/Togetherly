@@ -152,7 +152,11 @@ class ReelsFeed {
         allowsInlineMediaPlayback: true,
         userAgent: source.desktop ? _desktopUa : null,
         preferredContentMode: source.desktop ? UserPreferredContentMode.DESKTOP : UserPreferredContentMode.RECOMMENDED,
+        // Движок браузеров на Android один на все окна приложения. Без флага
+        // его гибель уносит приложение целиком (обращение 297).
+        useOnRenderProcessGone: true,
       ),
+      onRenderProcessGone: (_, _) => unawaited(_revive()),
       onWebViewCreated: (c) {
         c.addJavaScriptHandler(
           handlerName: 'reelIds',
@@ -188,6 +192,19 @@ class ReelsFeed {
     } catch (e) {
       debugPrint('ReelsFeed: скрытая страница не поднялась: $e');
     }
+  }
+
+  /// Движок браузеров упал или его убила система: скрытая страница мертва.
+  /// Поднимаем её заново, запас номеров остаётся.
+  Future<void> _revive() async {
+    final dead = _view;
+    _view = null;
+    try {
+      await dead?.dispose();
+    } catch (_) {}
+    if (_disposed) return;
+    await Future<void>.delayed(const Duration(seconds: 2));
+    await start();
   }
 
   void _accept(List<Object?> ids) {
