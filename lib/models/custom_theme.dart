@@ -165,17 +165,28 @@ class StripEntry {
 ///
 /// Среди готовых первыми идут палитры с рисунком («Хэллоуин»): они
 /// продаются рисунком, а в конце ленты их никто не увидит. Прочие — по номеру.
+///
+/// Сезонной палитры, которую человек не застал, в ленте нет вовсе
+/// ([paletteOpen]): она появится к следующему сезону.
 List<StripEntry> paletteStripEntries({
   required int customCount,
   required bool plusVisible,
-}) =>
-    [
-      if (plusVisible) ...[
-        const StripEntry.add(),
-        for (var i = 0; i < customCount; i++) StripEntry.custom(i),
-      ],
-      for (final p in kPalettes)
-        if (p.badge != null) StripEntry.palette(p.index),
-      for (final p in kPalettes)
-        if (p.badge == null) StripEntry.palette(p.index),
-    ];
+  DateTime? registeredAt,
+  DateTime? now,
+}) {
+  final at = now ?? DateTime.now();
+  final open = [
+    for (final p in kPalettes)
+      if (paletteOpen(p, registeredAt: registeredAt, now: at)) p,
+  ];
+  return [
+    if (plusVisible) ...[
+      const StripEntry.add(),
+      for (var i = 0; i < customCount; i++) StripEntry.custom(i),
+    ],
+    for (final p in open)
+      if (p.badge != null) StripEntry.palette(p.index),
+    for (final p in open)
+      if (p.badge == null) StripEntry.palette(p.index),
+  ];
+}

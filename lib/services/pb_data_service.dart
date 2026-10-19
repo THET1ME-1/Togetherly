@@ -3221,6 +3221,9 @@ class PbDataService {
       // Свои темы Togetherly+ (до пяти цветов), см. models/custom_theme.dart
       'customThemes': d['custom_themes'],
       'missYouWishes': d['miss_you_wishes'],
+      // Когда заведён аккаунт: от неё зависят сезонные темы («Хэллоуин»
+      // остаётся у тех, кто пришёл до конца сезона).
+      'created': d['created'],
     };
   }
 

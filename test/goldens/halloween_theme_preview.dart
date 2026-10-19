@@ -1,5 +1,5 @@
-// Тема «Хэллоуин» глазами: лента палитр с тыквой первой и образец темы из
-// листа покупки — ночь с узором.
+// Тема «Хэллоуин» глазами: лента палитр с тыквой первой и подпись под
+// переключателем режима. Под карточкой виден фон с узором.
 //
 //     flutter test test/goldens/halloween_theme_preview.dart → build/halloween-theme/
 //
@@ -57,7 +57,9 @@ void main() {
         theme: ProfileTheme.data(cs),
         home: Scaffold(
           backgroundColor: t.bgGradient.first,
-          body: Padding(
+          body: Stack(children: [
+            Positioned.fill(child: ThemePatternLayer(theme: t)),
+            Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -112,30 +114,10 @@ void main() {
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                // Образец из листа покупки.
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(24),
-                  child: SizedBox(
-                    height: 132,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        ColoredBox(color: t.bgGradient.first),
-                        ThemePatternLayer(theme: t),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                FilledButton(
-                    onPressed: () {}, child: const Text('Купить за 30')),
-                const SizedBox(height: 8),
-                FilledButton.tonal(
-                    onPressed: () {}, child: const Text('Посмотреть')),
               ],
             ),
           ),
+          ]),
         ),
       ),
     ));

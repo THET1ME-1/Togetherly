@@ -125,6 +125,26 @@ void main() {
           [for (final p in kPalettes) if (p.badge == null) p.index]);
     });
 
+    test('сезонную тему не застал — её нет в ленте', () {
+      final afterSeason = DateTime.utc(2026, 11, 5);
+      final late = paletteStripEntries(
+        customCount: 0,
+        plusVisible: false,
+        registeredAt: DateTime.utc(2026, 11, 3),
+        now: afterSeason,
+      );
+      expect(late.map((e) => e.index), isNot(contains(25)));
+      expect(late.length, kPalettes.length - 1);
+
+      final early = paletteStripEntries(
+        customCount: 0,
+        plusVisible: false,
+        registeredAt: DateTime.utc(2026, 10, 30),
+        now: afterSeason,
+      );
+      expect(early.first, const StripEntry.palette(25));
+    });
+
     test('готовые палитры не теряются и не задваиваются', () {
       final strip = paletteStripEntries(customCount: 3, plusVisible: true);
       final palettes = strip

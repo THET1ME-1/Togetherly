@@ -207,8 +207,35 @@ class UserData extends ChangeNotifier {
 
   List<CustomTheme> get customThemes => List.unmodifiable(_customThemes);
 
+  /// Часы для правил сезонных тем; тесты подменяют их своими.
+  @visibleForTesting
+  static DateTime Function() clock = DateTime.now;
+
+  /// Когда заведён аккаунт (`users.created`). От неё зависят сезонные темы:
+  /// «Хэллоуин» остаётся у тех, кто пришёл до конца сезона. Пока профиль не
+  /// приехал, берём дату из записи сессии; не нашлось и там — пусто, и
+  /// правило сезона тему не отнимает.
+  DateTime? _registeredAt;
+
+  DateTime? get registeredAt => _registeredAt ?? _sessionCreated();
+
+  static DateTime? _sessionCreated() =>
+      parseRegisteredAt(PocketBaseService().currentUser?.data['created']);
+
+  /// Разбор `created` PocketBase: строка вида `2026-08-14 12:34:56.789Z`.
+  @visibleForTesting
+  static DateTime? parseRegisteredAt(Object? raw) {
+    if (raw is! String || raw.isEmpty) return null;
+    return DateTime.tryParse(raw)?.toUtc();
+  }
+
   int get themeId {
-    if (_themeId >= 0 && _themeId < kPalettes.length) return _themeId;
+    if (_themeId >= 0 &&
+        _themeId < kPalettes.length &&
+        paletteOpen(kPalettes[_themeId],
+            registeredAt: registeredAt, now: clock())) {
+      return _themeId;
+    }
     if (isCustomPaletteIndex(_themeId) &&
         customPaletteSlot(_themeId) < _customThemes.length) {
       return _themeId;
@@ -355,8 +382,14 @@ class UserData extends ChangeNotifier {
   AdGrants get adGrants => _adGrants;
 
   /// Доступна ли тема: бесплатная, купленная за монеты или открытая
-  /// покупкой Togetherly+ — она открывает все платные темы разом.
+  /// покупкой Togetherly+ — она открывает все платные темы разом. Сезонную
+  /// тему, которую человек не застал, не открывает ничего.
   bool hasTheme(int id) {
+    if (id >= 0 &&
+        id < kPalettes.length &&
+        !paletteOpen(kPalettes[id], registeredAt: registeredAt, now: clock())) {
+      return false;
+    }
     final t = AppThemes.byIndex(id);
     if (!t.isPremium) return true;
     if (PlusService.instance.active) return true;
@@ -895,6 +928,10 @@ class UserData extends ChangeNotifier {
       _birthDate = bdMs != null
           ? DateTime.fromMillisecondsSinceEpoch(bdMs)
           : null;
+      final regMs = prefs.getInt('registeredAt');
+      _registeredAt = regMs != null
+          ? DateTime.fromMillisecondsSinceEpoch(regMs, isUtc: true)
+          : null;
       _ownedThemes
         ..clear()
         ..addAll(
@@ -998,6 +1035,9 @@ class UserData extends ChangeNotifier {
         _seedClaimFlagsFromServer(
             data['lastDailyBonusMs'], data['lastMemoryRewardMs']);
 
+        final created = parseRegisteredAt(data['created']);
+        if (created != null) _registeredAt = created;
+
         final bdRaw = data['birthDate'];
         // Календарным днём: у старых записей внутри лежит минута сохранения, и
         // на другом устройстве дата уезжала на сутки.
@@ -1057,6 +1097,10 @@ class UserData extends ChangeNotifier {
         await prefs.setInt('birthDate', _birthDate!.millisecondsSinceEpoch);
       } else {
         await prefs.remove('birthDate');
+      }
+      if (_registeredAt != null) {
+        await prefs.setInt(
+            'registeredAt', _registeredAt!.millisecondsSinceEpoch);
       }
       if (_badge != null) {
         await prefs.setString('badge', _badge!);
@@ -1347,6 +1391,10 @@ class UserData extends ChangeNotifier {
     _bannerUrl = '';
     _gender = null;
     _uid = '';
+    // Дата регистрации прежнего аккаунта не должна открыть следующему
+    // человеку сезонную тему, которую тот не застал.
+    _registeredAt = null;
+    await prefs.remove('registeredAt');
     await prefs.setBool('isRegistered', false);
     await prefs.remove('displayName');
     await prefs.remove('email');

@@ -13,13 +13,15 @@ void main() {
   final hw = kPalettes.firstWhere((p) => p.name == 'Хэллоуин');
   const page = Color(0xFF1E1729);
 
-  test('тема стоит своим номером и продаётся как прочие', () {
+  test('тема стоит своим номером и не продаётся', () {
     // Номер — ключ владения на сервере (`owned_themes`), его не двигают.
     expect(hw.index, 25);
     expect(kPalettes[25], same(hw));
-    expect(hw.isPremium, isTrue);
-    // Цену называет сервер: `purchase-theme` берёт 30 со всех, кроме 16-й.
-    expect(hw.price, 30);
+    // Бесплатна всем, кто застал Хэллоуин (решение владельца 19.10.2026):
+    // ценника и листа покупки у неё нет, доступ решает сезон.
+    expect(hw.isPremium, isFalse);
+    expect(hw.price, 0);
+    expect(AppThemes.byIndex(25).isPremium, isFalse);
   });
 
   test('светлой версии нет: в любом режиме и с AMOLED — ночь сундука', () {

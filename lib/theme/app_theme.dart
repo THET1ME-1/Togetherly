@@ -935,8 +935,7 @@ abstract final class AppThemes {
     navActiveIcon: Color(0xFFFFB878),
     promptButtonColor: Color(0xFFF0924A),
     timerDialBackground: Color(0xFF3A2C4A),
-    isPremium: true,
-    price: 30,
+    // Не продаётся: бесплатна всем, кто застал Хэллоуин (`PaletteSeason`).
     brightness: Brightness.dark,
     scheme: _halloweenScheme,
     textPrimary: Color(0xFFF3E9F7),

@@ -78,7 +78,6 @@ import '../widgets/avatar_widget.dart';
 import '../models/custom_theme.dart';
 import '../widgets/seed_swatch.dart';
 import '../widgets/theme/custom_theme_sheet.dart';
-import '../widgets/theme/theme_pattern_layer.dart';
 import '../utils/share_origin.dart';
 import '../services/export_service.dart';
 import '../services/timer_service.dart';
@@ -1877,6 +1876,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   final strip = paletteStripEntries(
                     customCount: ud.customThemes.length,
                     plusVisible: PlusService.instance.visible,
+                    registeredAt: ud.registeredAt,
                   );
                   return ListView.separated(
                     scrollDirection: Axis.horizontal,
@@ -5254,33 +5254,17 @@ class _ProfileScreenState extends State<ProfileScreen>
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Образец темы: её собственные цвета полосой — понятнее описания.
-              // Тема с узором показывает фон с узором: продаётся она им.
-              if (t.bgPattern != null)
-                ClipRRect(
+              Container(
+                height: 84,
+                decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(24),
-                  child: SizedBox(
-                    height: 132,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        ColoredBox(color: t.bgGradient.first),
-                        ThemePatternLayer(theme: t),
-                      ],
-                    ),
-                  ),
-                )
-              else
-                Container(
-                  height: 84,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(24),
-                    gradient: LinearGradient(
-                      colors: t.heroGradient,
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
+                  gradient: LinearGradient(
+                    colors: t.heroGradient,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
                 ),
+              ),
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.symmetric(

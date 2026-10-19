@@ -73,6 +73,56 @@ class PaletteBadge {
   const PaletteBadge(this.asset, this.background);
 }
 
+/// Сезон палитры: каждый год с [fromMonth]/[fromDay] до [untilMonth]/[untilDay]
+/// (UTC, конец не входит) тема открыта всем. После сезона она остаётся у
+/// тех, кто пришёл в приложение до его конца, а пришедшие позже ждут
+/// следующего сезона. Сезон лежит внутри одного календарного года.
+///
+/// Решение владельца 19.10.2026 про «Хэллоуин»: бесплатен всем, кто
+/// зарегистрирован до 1 ноября; кто пришёл позже, увидит его к следующему
+/// Хэллоуину.
+class PaletteSeason {
+  final int fromMonth;
+  final int fromDay;
+  final int untilMonth;
+  final int untilDay;
+
+  /// Год первого сезона: раньше палитры не было вовсе.
+  final int firstYear;
+
+  const PaletteSeason({
+    required this.fromMonth,
+    required this.fromDay,
+    required this.untilMonth,
+    required this.untilDay,
+    required this.firstYear,
+  });
+
+  /// Открыта ли палитра человеку, пришедшему [registeredAt], в момент [now].
+  ///
+  /// Неизвестная дата регистрации тему не отнимает: запись профиля иногда не
+  /// поднимается с диска при живой сессии, и лучше показать тему лишний раз,
+  /// чем отнять её у того, кто её застал.
+  bool openFor(DateTime? registeredAt, DateTime now) {
+    final t = now.toUtc();
+    final start = DateTime.utc(t.year, fromMonth, fromDay);
+    final end = DateTime.utc(t.year, untilMonth, untilDay);
+    if (!t.isBefore(start) && t.isBefore(end)) return t.year >= firstYear;
+    // Последний закрывшийся сезон: этого года, если он уже прошёл, иначе
+    // прошлого.
+    final lastEnd =
+        t.isBefore(end) ? DateTime.utc(t.year - 1, untilMonth, untilDay) : end;
+    if (lastEnd.year < firstYear) return false;
+    if (registeredAt == null) return true;
+    return registeredAt.toUtc().isBefore(lastEnd);
+  }
+}
+
+/// Открыта ли палитра человеку: у обычных палитр сезона нет, они открыты
+/// всегда (платность решает владение, а не этот вопрос).
+bool paletteOpen(Palette p, {DateTime? registeredAt, required DateTime now}) =>
+    p.season?.openFor(registeredAt, now) ?? true;
+
 /// Одна палитра: имя, акцент, платность. Индекс сохраняем прежним — на нём
 /// висит владение (`owned_themes` на сервере), ломать нельзя.
 class Palette {
@@ -103,12 +153,16 @@ class Palette {
   /// ленте первыми среди готовых.
   final PaletteBadge? badge;
 
+  /// Сезон, см. [PaletteSeason]. Пусто — палитра открыта всегда.
+  final PaletteSeason? season;
+
   const Palette(this.index, this.name, this.accent,
       {this.isPremium = false,
       this.price = 0,
       this.variant = DynamicSchemeVariant.tonalSpot,
       this.darkOnly = false,
       this.badge,
+      this.season,
       required this.target});
 }
 
@@ -185,11 +239,12 @@ const List<Palette> kPalettes = [
   Palette(23, 'Гранат', Color(0xFFE05A62), isPremium: true, price: 30, target: PaletteTarget('зерно граната', 15, 48, 0.92)),
   Palette(24, 'Тёмный мёд', Color(0xFFC8912E), isPremium: true, price: 30, target: PaletteTarget('тёмный мёд', 68, 60, 0.92)),
   // Макет «Б. Узор» (выбор владельца 19.10.2026): ночь хэллоуинского сундука,
-  // тыквенная заливка и контуры предметов праздника по фону.
+  // тыквенная заливка и контуры предметов праздника по фону. Бесплатна всем,
+  // кто застал Хэллоуин; сезон каждый год с 1 октября по 31 октября.
   Palette(25, 'Хэллоуин', Color(0xFFF0924A),
-      isPremium: true,
-      price: 30,
       darkOnly: true,
+      season: PaletteSeason(
+          fromMonth: 10, fromDay: 1, untilMonth: 11, untilDay: 1, firstYear: 2026),
       badge: PaletteBadge(
           'assets/images/themes/halloween_pumpkin.webp', Color(0xFF1E1729)),
       target: PaletteTarget('тыква', 54, 69, 0.77)),
