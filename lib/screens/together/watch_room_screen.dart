@@ -42,9 +42,6 @@ class WatchRoomScreen extends StatefulWidget {
   /// Ссылка на видео, если просмотр начали с карточки воспоминания.
   final String? videoUrl;
 
-  /// Комнату открыли сразу после рекламы — метка для замера касаний.
-  final bool afterAd;
-
   /// Пара, чью историю просмотров пополняем.
   final String pairId;
 
@@ -70,7 +67,6 @@ class WatchRoomScreen extends StatefulWidget {
     required this.room,
     required this.pairId,
     this.videoUrl,
-    this.afterAd = false,
     this.reels = false,
     this.reelsSource = ReelsSource.shorts,
     this.nativeWindow = false,
@@ -495,7 +491,6 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
     widget.room,
     src: widget.videoUrl,
     name: PocketBaseService().userName,
-    afterAd: widget.afterAd,
     reels: widget.reels,
     feed: widget.reels ? widget.reelsSource.key : null,
     build: widget.build,

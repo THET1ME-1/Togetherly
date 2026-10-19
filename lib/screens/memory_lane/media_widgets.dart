@@ -374,15 +374,6 @@ class _YouTubeInlineCardState extends State<_YouTubeInlineCard> {
   bool _settling = false;
 
   @override
-  void initState() {
-    super.initState();
-    // Предзагрузка rewarded к моменту тапа «Смотреть вместе» (если есть пара).
-    if (widget.pairId.isNotEmpty) {
-      TogetherLauncher.preloadStartAd();
-    }
-  }
-
-  @override
   void dispose() {
     ScreenAwake.release(this);
     _fullscreenSettle?.cancel();

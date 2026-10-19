@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:love_app/widgets/common/coin_image.dart';
@@ -34,11 +32,5 @@ void main() {
   test('монета ростом со строку', () {
     final coin = coinSpans('🪙', const TextStyle(fontSize: 20)).whereType<WidgetSpan>().single.child as CoinImage;
     expect(coin.side, closeTo(20 * 1.3, 0.01));
-  });
-
-  test('лист перед совместным просмотром рисует монету картинкой', () {
-    final src = File('lib/screens/together/together_launcher.dart').readAsStringSync();
-    expect(src.contains('coinSpans(s.watchTogetherAdPrompt'), isTrue,
-        reason: 'текст листа обязан идти через coinSpans, иначе на экране эмодзи');
   });
 }

@@ -493,22 +493,6 @@ const Map<String, Map<String, String>> profileScreenStrings = {
     'fr': 'Copier le lien',
     'de': 'Link kopieren',
   },
-  'watchTogetherAdPrompt': {
-    'ru':
-        'Чтобы открыть совместный просмотр, посмотри короткую рекламу — поддержишь приложение и получишь монеты 🪙',
-    'en':
-        'To open watch together, watch a short ad — support the app and earn coins 🪙',
-    'pt':
-        'Veja um anúncio curto para abrir «Assistir junto» — você apoia o app e ganha moedas 🪙',
-    'it':
-        'Guarda una breve pubblicità per aprire «Guardare insieme» — sostieni l’app e guadagni monete 🪙',
-    'es':
-        'Mira un anuncio corto para abrir «Ver juntos» — apoyas la app y ganas monedas 🪙',
-    'fr':
-        'Regarde une courte publicité pour ouvrir « Regarder ensemble » — tu soutiens l’app et gagnes des pièces 🪙',
-    'de':
-        'Sieh eine kurze Werbung, um „Zusammen schauen“ zu öffnen — du unterstützt die App und bekommst Münzen 🪙',
-  },
   'watchAction': {
     'ru': 'Смотреть',
     'en': 'Watch',

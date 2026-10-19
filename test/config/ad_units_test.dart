@@ -31,6 +31,16 @@ void main() {
       expect(AdUnits.yandexRewardedChest(ios: false), 'R-M-19386995-4');
     });
 
+    test('у комнаты просмотра свой межстраничный блок', () {
+      // «Совместный просмотр» в кабинете (19.10.2026): доход комнаты РСЯ
+      // считает своей строкой.
+      for (final ios in [true, false]) {
+        expect(AdUnits.yandexInterstitialRoom(ios: ios), isNot(AdUnits.yandexInterstitial(ios: ios)));
+      }
+      expect(AdUnits.yandexInterstitialRoom(ios: true), 'R-M-19461868-5');
+      expect(AdUnits.yandexInterstitialRoom(ios: false), 'R-M-19386995-5');
+    });
+
     test('iOS-блоки из приложения 19461868, Android — из 19386995', () {
       expect(AdUnits.yandexBanner(ios: true), startsWith('R-M-19461868-'));
       expect(AdUnits.yandexRewarded(ios: true), startsWith('R-M-19461868-'));

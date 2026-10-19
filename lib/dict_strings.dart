@@ -3514,8 +3514,6 @@ abstract class DictStrings extends AppStrings {
   @override
   String get copyLink => _t('copyLink');
   @override
-  String get watchTogetherAdPrompt => _t('watchTogetherAdPrompt');
-  @override
   String get watchAction => _t('watchAction');
   @override
   String get youtubeLinkHint => _t('youtubeLinkHint');

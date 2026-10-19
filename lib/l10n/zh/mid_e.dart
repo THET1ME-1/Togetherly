@@ -60,7 +60,6 @@ const Map<String, String> midEZh = {
   'watchHeroText': '一个人暂停，两边一起暂停。旁边还能聊天。',
   'linkCopied': '链接已复制',
   'copyLink': '复制链接',
-  'watchTogetherAdPrompt': '看一段短广告就能打开一起看，既支持了应用，还能拿金币 🪙',
   'watchAction': '观看',
   'youtubeLinkHint': 'YouTube 链接',
   'startAction': '开始',

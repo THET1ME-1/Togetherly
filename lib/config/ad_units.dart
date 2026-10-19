@@ -27,4 +27,10 @@ class AdUnits {
 
   static String yandexInterstitial({required bool ios}) =>
       ios ? 'R-M-19461868-3' : 'R-M-19386995-3';
+
+  /// Межстраничная после выхода из комнаты совместного просмотра
+  /// («Совместный просмотр» в кабинете, 19.10.2026): доход комнаты РСЯ
+  /// считает своей строкой.
+  static String yandexInterstitialRoom({required bool ios}) =>
+      ios ? 'R-M-19461868-5' : 'R-M-19386995-5';
 }

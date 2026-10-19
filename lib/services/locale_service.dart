@@ -2349,7 +2349,6 @@ abstract class AppStrings {
   String get copyLink;
 
   // ── Watch Together ──
-  String get watchTogetherAdPrompt;
   String get watchAction;
   String get youtubeLinkHint;
   String get startAction;

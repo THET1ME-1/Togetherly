@@ -17,6 +17,12 @@ import '../config/ad_units.dart';
 ///
 /// Сеть одна — Яндекс: AdMob убран 28.09.2026. Нет объявления — нет и показа.
 class InterstitialAdService {
+  InterstitialAdService({this.room = false});
+
+  /// Ролик после комнаты совместного просмотра: свой блок Яндекса, чтобы
+  /// доход комнаты лежал в РСЯ отдельной строкой.
+  final bool room;
+
   // Яндекс. В отладке — демо-блок из документации.
   static const String _demoYandexUnit = 'demo-interstitial-yandex';
 
@@ -28,7 +34,9 @@ class InterstitialAdService {
 
   String get _yandexUnit => kDebugMode
       ? _demoYandexUnit
-      : AdUnits.yandexInterstitial(ios: Platform.isIOS);
+      : room
+          ? AdUnits.yandexInterstitialRoom(ios: Platform.isIOS)
+          : AdUnits.yandexInterstitial(ios: Platform.isIOS);
 
   /// Ролик загружен.
   bool get isReady => _yandexAd != null;

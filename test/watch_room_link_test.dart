@@ -54,14 +54,6 @@ void main() {
       expect(q['name'], 'Саша');
     });
 
-    test('метка рекламы уходит странице только после показа', () {
-      // По ней замер касаний делит заходы на «после рекламы» и «без неё».
-      final after = WatchRoomService.siteUrl('abcd2345', afterAd: true);
-      expect(Uri.parse(after).queryParameters['ad'], '1');
-      final plain = WatchRoomService.siteUrl('abcd2345');
-      expect(Uri.parse(plain).queryParameters.containsKey('ad'), isFalse);
-    });
-
     test('совместная лента открывается своей страницей, а не поверх комнаты', () {
       final url = WatchRoomService.siteUrl('abcd2345', reels: true, feed: 'tiktok', name: 'Аня');
       final u = Uri.parse(url);

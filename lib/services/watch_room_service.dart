@@ -40,7 +40,6 @@ class WatchRoomService {
     String room, {
     String? src,
     String? name,
-    bool afterAd = false,
     bool reels = false,
     String? feed,
     int build = 0,
@@ -60,7 +59,6 @@ class WatchRoomService {
           ? trimmed.substring(0, maxNameLength)
           : trimmed;
     }
-    if (afterAd) query['ad'] = '1';
     if (build > 0) query['b'] = '$build';
     if (nativeWindow) query['nb'] = '1';
     if (query.isEmpty) return '$base#$room';
