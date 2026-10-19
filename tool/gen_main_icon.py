@@ -17,8 +17,10 @@
     python3 tool/gen_main_icon.py
     dart run flutter_launcher_icons     # раскладывает square-версии и iOS
 
-Сезонная иконка (Хэллоуин до 1 ноября 2026) — тот же путь с другим исходником:
-    python3 tool/gen_main_icon.py docs/branding/raw/app-icon-halloween.png
+Сезонная иконка (Хэллоуин до 1 ноября 2026) — тот же путь с другим исходником.
+Рисунок вертикальный, а сверху у него шляпа и луна, поэтому квадрат берётся
+по центру:
+    python3 tool/gen_main_icon.py docs/branding/raw/app-icon-halloween.png --center
 """
 from PIL import Image, ImageDraw
 import os
@@ -53,11 +55,13 @@ FG_DENSITIES = {
 }
 
 
-def square(img):
-    """Квадрат по нижнему краю: фигура стоит на дне кадра, верх — фон."""
+def square(img, center=False):
+    """Квадрат по нижнему краю: фигура стоит на дне кадра, верх — фон.
+    [center] берёт середину — для рисунка, где сверху есть что терять."""
     w, h = img.size
     side = min(w, h)
-    return img.crop((0, h - side, w, h))
+    top = (h - side) // 2 if center else h - side
+    return img.crop((0, top, w, top + side))
 
 
 def round_crop(img):
@@ -69,7 +73,9 @@ def round_crop(img):
 
 
 def main():
-    master = square(Image.open(sys.argv[1] if len(sys.argv) > 1 else SRC).convert("RGB"))
+    paths = [a for a in sys.argv[1:] if not a.startswith("--")]
+    master = square(Image.open(paths[0] if paths else SRC).convert("RGB"),
+                    center="--center" in sys.argv)
     icon512 = master.resize((512, 512), Image.LANCZOS)
     icon512.save(STORE)
     icon512.save(ASSET, "WEBP", quality=92, method=6)
