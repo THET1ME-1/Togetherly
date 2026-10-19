@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 
+import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
 
 import '../models/chest.dart';
 import '../models/gift.dart';
 import '../models/pair_jar.dart';
+import 'catalog_service.dart';
 import 'chest_telemetry.dart';
 import 'pair_jar_service.dart';
 import 'pocketbase_service.dart';
@@ -69,6 +71,11 @@ class ChestService {
   /// Сколько ждать ответа на открытие. Дольше — «сундук не открылся,
   /// нажмите ещё раз», ролик заново смотреть не придётся.
   static const Duration openLimit = Duration(seconds: 12);
+
+  /// Как дотянуть каталог, когда выпал подарок, которого приложение ещё не
+  /// знает. Тест подменяет, чтобы не ходить в сеть.
+  @visibleForTesting
+  static Future<void> Function() catalogRefresh = () => CatalogService.instance.refresh();
 
   int get _tz => DateTime.now().timeZoneOffset.inMinutes;
   String get _platform => Platform.isIOS ? 'ios' : 'android';
@@ -173,7 +180,16 @@ class ChestService {
       ChestTelemetry.step(openId, 'open:network', data: {'ms': watch.elapsedMilliseconds, 'cause': '$e'.split('\n').first});
       return const ChestOpenResult(ok: false, error: 'network');
     }
-    final res = parseChestOpen(body);
+    var res = parseChestOpen(body);
+    // Подарки сезона приложение узнаёт из каталога. Сундук открыли раньше,
+    // чем каталог доехал: дотягиваем его и разбираем ответ ещё раз. Сервер
+    // приз уже выдал, и «не открылся» здесь врал (19.10.2026, пять раз за сутки).
+    if (res.error == 'unknown_prize') {
+      try {
+        await catalogRefresh().timeout(const Duration(seconds: 8));
+      } catch (_) {}
+      res = parseChestOpen(body);
+    }
     ChestTelemetry.step(openId, res.ok ? 'open:ok' : 'open:refused', data: {
       'ms': watch.elapsedMilliseconds,
       if (!res.ok) 'error': res.error,
