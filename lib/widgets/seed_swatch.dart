@@ -38,6 +38,18 @@ class SeedSwatch extends StatelessWidget {
       s.tertiaryContainer,
       s.tertiary,
     ];
+    // Палитра с рисунком показывает его на своём фоне: квадранты из сида
+    // говорили бы об акценте, а тема узнаётся ночью и тыквой.
+    final badge = palette.badge;
+    final face = badge == null
+        ? CustomPaint(painter: _QuadrantPainter(quads))
+        : ColoredBox(
+            color: badge.background,
+            child: Padding(
+              padding: EdgeInsets.all(size * 0.12),
+              child: Image.asset(badge.asset, fit: BoxFit.contain),
+            ),
+          );
     return GestureDetector(
       onTap: onTap,
       // Горизонтальный список раздаёт детям ЖЁСТКУЮ высоту (лента «Палитра»
@@ -53,30 +65,33 @@ class SeedSwatch extends StatelessWidget {
           height: size,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
+            color: badge?.background,
             border: Border.all(
               color: selected ? scheme.onSurface : scheme.outlineVariant,
               width: selected ? 3 : 1,
             ),
           ),
           child: ClipOval(
-            child: CustomPaint(
-              painter: _QuadrantPainter(quads),
-              child: selected
-                  ? Center(
-                      child: Container(
-                        padding: const EdgeInsets.all(3),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.38),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.check_rounded,
-                          color: Colors.white,
-                          size: size * 0.34,
-                        ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                face,
+                if (selected)
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.38),
+                        shape: BoxShape.circle,
                       ),
-                    )
-                  : null,
+                      child: Icon(
+                        Icons.check_rounded,
+                        color: Colors.white,
+                        size: size * 0.34,
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         ),

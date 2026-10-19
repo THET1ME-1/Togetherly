@@ -30,6 +30,9 @@ import 'package:love_app/theme/app_palettes.dart';
 import 'package:love_app/theme/app_theme.dart';
 import 'package:love_app/theme/profile_theme.dart';
 import 'package:love_app/widgets/home/daily_tasks_card.dart';
+import 'package:love_app/widgets/theme/theme_pattern_layer.dart';
+
+import '../helpers/achievement_harness.dart';
 
 const Size _frame = Size(360, 780);
 
@@ -65,7 +68,8 @@ class _Home extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: theme.bgGradient.first,
-      body: SafeArea(
+      // Узор темы («Хэллоуин») лежит под содержимым так же, как на главной.
+      body: _Patterned(theme: theme, child: SafeArea(
         child: Column(
           children: [
             // Шапка: пара, статус и счётчик «Я скучаю» — тот же расклад.
@@ -189,9 +193,24 @@ class _Home extends StatelessWidget {
             ),
           ],
         ),
-      ),
+      )),
     );
   }
+}
+
+/// Фон с узором темы под содержимым, как на главной. У темы без узора слой
+/// пустой.
+class _Patterned extends StatelessWidget {
+  const _Patterned({required this.theme, required this.child});
+
+  final AppTheme theme;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Stack(children: [
+        Positioned.fill(child: ThemePatternLayer(theme: theme)),
+        child,
+      ]);
 }
 
 void main() {
@@ -249,6 +268,9 @@ void main() {
         for (var i = 0; i < 12; i++) {
           await tester.pump(const Duration(milliseconds: 600));
         }
+        // Плитка узора грузится настоящим чтением файла, а его часы теста
+        // не двигают: без этого снимок выходил то с узором, то без.
+        await settleImages(tester);
 
         final index = palette.index.toString().padLeft(2, '0');
         await expectLater(find.byType(MaterialApp),

@@ -30,14 +30,18 @@ void main() {
     test('на заполненной части следует правилу чернил', () {
       for (final p in kPalettes) {
         final light = buildAppTheme(p, Brightness.light);
-        final veryLight = light.fillColor.computeLuminance() >= 0.407;
-        expect(
-          petalTextColor(light, 1),
-          veryLight
-              ? isNot(const Color(0xFFFFFFFF))
-              : const Color(0xFFFFFFFF),
-          reason: '${p.name} (light)',
-        );
+        // У ночной темы («Хэллоуин») светлой версии нет: на запрос светлой
+        // она отдаёт себя же, и подпись считается правилом тёмных тем ниже.
+        if (light.brightness == Brightness.light) {
+          final veryLight = light.fillColor.computeLuminance() >= 0.407;
+          expect(
+            petalTextColor(light, 1),
+            veryLight
+                ? isNot(const Color(0xFFFFFFFF))
+                : const Color(0xFFFFFFFF),
+            reason: '${p.name} (light)',
+          );
+        }
 
         final dark = buildAppTheme(p, Brightness.dark);
         expect(

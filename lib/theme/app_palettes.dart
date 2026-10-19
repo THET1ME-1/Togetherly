@@ -60,6 +60,19 @@ class PaletteTarget {
   const PaletteTarget(this.thing, this.hue, this.tone, this.k);
 }
 
+/// Рисунок в кружке ленты палитр вместо четырёх квадрантов схемы.
+///
+/// У темы со своим фоном цвет акцента о ней ничего не говорит: тыквенный
+/// «Хэллоуин» квадрантами читался бы ещё одной «Персиковой».
+class PaletteBadge {
+  final String asset;
+
+  /// Цвет кружка под рисунком — фон самой темы.
+  final Color background;
+
+  const PaletteBadge(this.asset, this.background);
+}
+
 /// Одна палитра: имя, акцент, платность. Индекс сохраняем прежним — на нём
 /// висит владение (`owned_themes` на сервере), ломать нельзя.
 class Palette {
@@ -81,10 +94,21 @@ class Palette {
   /// из холодно-серого сида получал голубую схему, серым его делает `neutral`.
   final DynamicSchemeVariant variant;
 
+  /// Светлой версии у темы нет: режим «светлый» и AMOLED её не трогают.
+  /// «Хэллоуин» нарисован ночью со страницы сундука, и светлый вариант,
+  /// посчитанный из тыквенного сида, был бы другой темой.
+  final bool darkOnly;
+
+  /// Рисунок в кружке ленты, см. [PaletteBadge]. Палитры с рисунком стоят в
+  /// ленте первыми среди готовых.
+  final PaletteBadge? badge;
+
   const Palette(this.index, this.name, this.accent,
       {this.isPremium = false,
       this.price = 0,
       this.variant = DynamicSchemeVariant.tonalSpot,
+      this.darkOnly = false,
+      this.badge,
       required this.target});
 }
 
@@ -131,7 +155,7 @@ Color paletteInk(Palette p, Brightness brightness) {
   return Color(Hct.from(t.hue, chroma, tone).toInt());
 }
 
-/// 25 палитр. Акценты разведены по оттенку и светлоте (мин. ΔE ≈ 17.7), чтобы
+/// 26 палитр. Акценты разведены по оттенку и светлоте (мин. ΔE ≈ 17.7), чтобы
 /// каждая была различима и совпадала с названием. Бесплатны первые пять.
 const List<Palette> kPalettes = [
   Palette(0, 'Розовая', Color(0xFFFF7E9B), target: PaletteTarget('лепесток шиповника', 5, 64, 0.86)),
@@ -160,6 +184,15 @@ const List<Palette> kPalettes = [
   Palette(22, 'Тёмный лес', Color(0xFF2FA355), isPremium: true, price: 30, target: PaletteTarget('чаща', 155, 40, 0.92)),
   Palette(23, 'Гранат', Color(0xFFE05A62), isPremium: true, price: 30, target: PaletteTarget('зерно граната', 15, 48, 0.92)),
   Palette(24, 'Тёмный мёд', Color(0xFFC8912E), isPremium: true, price: 30, target: PaletteTarget('тёмный мёд', 68, 60, 0.92)),
+  // Макет «Б. Узор» (выбор владельца 19.10.2026): ночь хэллоуинского сундука,
+  // тыквенная заливка и контуры предметов праздника по фону.
+  Palette(25, 'Хэллоуин', Color(0xFFF0924A),
+      isPremium: true,
+      price: 30,
+      darkOnly: true,
+      badge: PaletteBadge(
+          'assets/images/themes/halloween_pumpkin.webp', Color(0xFF1E1729)),
+      target: PaletteTarget('тыква', 54, 69, 0.77)),
 ];
 
 /// Вариант схемы для палитры при выбранной насыщенности.
@@ -226,11 +259,16 @@ AppTheme _juiced(AppTheme t, SchemeFlavor f, Palette p) {
   // `AppTheme.primary`, а `fromSeed` отдаёт по сиду ПРОИЗВОДНЫЙ тон — из-за
   // этого лист «Хочу с тобой» красился бледнее главной. Кладём схему рядом с
   // темой и подменяем в ней акцентные роли своими цветами.
-  final scheme = ColorScheme.fromSeed(
-    seedColor: accent,
-    brightness: t.brightness,
-    dynamicSchemeVariant: p.variant,
-  ).copyWith(
+  //
+  // Тема со своей схемой отдаёт её целиком: у «Хэллоуина» поверхности
+  // ночные, а из тыквенного сида они вышли бы тёплыми коричневыми.
+  final scheme = (t.scheme ??
+          ColorScheme.fromSeed(
+            seedColor: accent,
+            brightness: t.brightness,
+            dynamicSchemeVariant: p.variant,
+          ))
+      .copyWith(
     primary: accent,
     onPrimary: AppThemes.onColor(accent, mode: t.brightness),
     // Контейнер — светлая тональная подложка, а НЕ тот же акцент. Пока они
@@ -248,6 +286,7 @@ AppTheme _juiced(AppTheme t, SchemeFlavor f, Palette p) {
     primaryLight: j(t.primaryLight),
     bgGradient: t.bgGradient,
     bgImageUrl: t.bgImageUrl,
+    bgPattern: t.bgPattern,
     heroGradient: t.heroGradient.map(j).toList(),
     heroGlassOpacity: t.heroGlassOpacity,
     heroToggleBorder: t.heroToggleBorder,
@@ -280,6 +319,13 @@ AppTheme buildAppTheme(
   SchemeFlavor flavor = SchemeFlavor.soft,
   bool amoled = false,
 }) {
+  // У ночной темы светлой версии нет, и AMOLED её чёрным не красит: фон
+  // «Хэллоуина» — ночь со страницы сундука, а не чернота. Режим человека при
+  // этом не трогаем: выберет другую тему — вернётся его светлый.
+  if (p.darkOnly && (brightness != Brightness.dark || amoled)) {
+    return buildAppTheme(p, Brightness.dark, flavor: flavor);
+  }
+
   // Тема, нарисованная руками, выигрывает у вычисленной.
   //
   // Двадцать светлых и пять тёмных тем подобраны попарно: винная вишня на

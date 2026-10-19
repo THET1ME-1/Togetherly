@@ -700,6 +700,8 @@ abstract class AppStrings {
   String get themeNameForestDark;
   String get themeNameGarnet;
   String get themeNameDarkHoney;
+  String get themeNameHalloween;
+  String get themeDarkOnly;
   String premiumThemeLocked(int price);
   String get coinBalance;
   String get coinShopTitle;

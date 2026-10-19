@@ -2,6 +2,27 @@ import 'package:flutter/material.dart';
 
 import '../utils/readable_text.dart';
 
+/// Узор поверх фона страницы: контуры предметов одним цветом, как обои в чате.
+///
+/// Плитка — белая маска, в ней важна только прозрачность. Цвет и силу даёт
+/// [tint] вместе со своей прозрачностью: оттенок правится числом, без
+/// перерисовки файла.
+@immutable
+class ThemePattern {
+  final String asset;
+  final Color tint;
+
+  /// Во сколько раз плитка крупнее точки экрана. Файл в 1080 точек при
+  /// плотности 3 ложится на экран квадратом в 360.
+  final double density;
+
+  const ThemePattern({
+    required this.asset,
+    required this.tint,
+    this.density = 3,
+  });
+}
+
 /// Описание одной темы приложения.
 ///
 /// Чтобы добавить новую тему — создай [AppTheme] и добавь в [AppThemes.all].
@@ -36,6 +57,10 @@ class AppTheme {
   /// Картинка фона вместо градиента. Сейчас не задана ни у одной темы: обои
   /// жили в Firebase Storage и умерли вместе с ним (402), рисуется градиент.
   final String? bgImageUrl;
+
+  /// Узор поверх фона главной, под всеми вкладками. Есть только у тем с
+  /// рисунком («Хэллоуин»), у прочих пусто.
+  final ThemePattern? bgPattern;
 
   // ── Hero-карточка (ExpandableTimerCard) ──────────────────────────────────
 
@@ -126,6 +151,7 @@ class AppTheme {
     required this.primaryLight,
     required this.bgGradient,
     this.bgImageUrl,
+    this.bgPattern,
     required this.heroGradient,
     required this.heroGlassOpacity,
     required this.heroToggleBorder,
@@ -876,6 +902,90 @@ abstract final class AppThemes {
     divider: Color(0xFF3A3018),
   );
 
+  // ── 25: Хэллоуин (ночь сундука + тыква + сиреневые контуры) ──────────────
+  // Цвета сняты со страницы хэллоуинского сундука (`chest_hw`): ночь
+  // #1E1729, плашки #2C2238, тыква #F0924A, текст #F3E9F7. Второй цвет —
+  // сирень #C3A3EE, он живёт во вторичных ролях схемы. По фону лежат контуры
+  // девяти предметов набора одним цветом (макет «Б. Узор», 19.10.2026).
+  // Светлой версии нет: палитра помечена `darkOnly`. Активная вкладка — как
+  // у прочих тёмных тем: тонированная пилюля и светлый значок, иначе
+  // «сочно» и «точь-в-точь» топили бы тёмный значок в заливке.
+  static const halloween = AppTheme(
+    index: 25,
+    name: 'Хэллоуин',
+    primary: Color(0xFFF0924A),
+    primaryLight: Color(0xFF3C2B39),
+    bgGradient: [Color(0xFF1E1729), Color(0xFF1E1729)],
+    bgPattern: ThemePattern(
+      asset: 'assets/images/themes/halloween_pattern.png',
+      // Сирень #8E77AA при 36%: контур виден, а подписи на нём читаются.
+      tint: Color(0x5C8E77AA),
+    ),
+    heroGradient: [Color(0xFF382B47), Color(0xFF2C2238)],
+    heroGlassOpacity: 0.10,
+    heroToggleBorder: true,
+    heroToggleSelectedColor: Color(0xFFF0924A),
+    cardSurface: Color(0xFF2C2238),
+    cardBorder: Color(0xFF433554),
+    iconDraw: Color(0xFFF0924A),
+    iconMood: Color(0xFFF0924A),
+    iconCalendar: Color(0xFFF0924A),
+    iconPost: Color(0xFFF0924A),
+    navActiveBg: Color(0xFF3A2C4A),
+    navActiveIcon: Color(0xFFFFB878),
+    promptButtonColor: Color(0xFFF0924A),
+    timerDialBackground: Color(0xFF3A2C4A),
+    isPremium: true,
+    price: 30,
+    brightness: Brightness.dark,
+    scheme: _halloweenScheme,
+    textPrimary: Color(0xFFF3E9F7),
+    textSecondary: Color(0xFFBFAFCC),
+    textMuted: Color(0xFFA08DB3), // AA (≈5 на карточке)
+    surfaceMuted: Color(0xFF18121F),
+    divider: Color(0xFF433554),
+  );
+
+  /// Схема «Хэллоуина» руками: поверхности — ночь сундука, вторичные роли —
+  /// сирень, третичные — свеча. Акцентные роли `_juiced` подменит своими.
+  static const _halloweenScheme = ColorScheme(
+    brightness: Brightness.dark,
+    primary: Color(0xFFF0924A),
+    onPrimary: Color(0xFF2A1A0E),
+    primaryContainer: Color(0xFF3C2B39),
+    onPrimaryContainer: Color(0xFFF0924A),
+    secondary: Color(0xFFC3A3EE),
+    onSecondary: Color(0xFF2A1840),
+    secondaryContainer: Color(0xFF4B3A63),
+    onSecondaryContainer: Color(0xFFEBDDFF),
+    tertiary: Color(0xFFEFC56A),
+    onTertiary: Color(0xFF2B2108),
+    tertiaryContainer: Color(0xFF4A3A1C),
+    onTertiaryContainer: Color(0xFFFCE6B8),
+    error: Color(0xFFFFB4AB),
+    onError: Color(0xFF690005),
+    errorContainer: Color(0xFF93000A),
+    onErrorContainer: Color(0xFFFFDAD6),
+    surface: Color(0xFF1E1729),
+    onSurface: Color(0xFFF3E9F7),
+    onSurfaceVariant: Color(0xFFBFAFCC),
+    surfaceDim: Color(0xFF1E1729),
+    surfaceBright: Color(0xFF443756),
+    surfaceContainerLowest: Color(0xFF18121F),
+    surfaceContainerLow: Color(0xFF251D30),
+    surfaceContainer: Color(0xFF2C2238),
+    surfaceContainerHigh: Color(0xFF382B47),
+    surfaceContainerHighest: Color(0xFF433554),
+    outline: Color(0xFF8E77AA),
+    outlineVariant: Color(0xFF4D4060),
+    shadow: Color(0xFF000000),
+    scrim: Color(0xFF000000),
+    inverseSurface: Color(0xFFF3E9F7),
+    onInverseSurface: Color(0xFF2C2238),
+    inversePrimary: Color(0xFF9A4F12),
+    surfaceTint: Color(0xFFC3A3EE),
+  );
+
   // ── Список всех тем (порядок = индекс) ───────────────────────────────────
   static const List<AppTheme> all = [
     pink,
@@ -903,6 +1013,7 @@ abstract final class AppThemes {
     forestDark, // 22 — тёмная тема (хвойный уголь + мшистый шалфей)
     garnetDark, // 23 — тёмная тема (винный уголь + мягкий красный)
     honeyDark, // 24 — тёмная тема (янтарный уголь + глубокое золото)
+    halloween, // 25 — ночь хэллоуинского сундука с узором, только тёмная
   ];
 
   /// Найти тему по индексу; при выходе за границы — возвращает [pink]

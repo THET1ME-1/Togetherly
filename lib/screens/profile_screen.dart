@@ -43,6 +43,7 @@ import '../models/pair_data.dart';
 import '../models/connection.dart';
 import '../services/locale_service.dart';
 import '../services/ui_prefs.dart';
+import '../l10n/palette_names.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_palettes.dart';
 import '../theme/theme_scope.dart';
@@ -77,6 +78,7 @@ import '../widgets/avatar_widget.dart';
 import '../models/custom_theme.dart';
 import '../widgets/seed_swatch.dart';
 import '../widgets/theme/custom_theme_sheet.dart';
+import '../widgets/theme/theme_pattern_layer.dart';
 import '../utils/share_origin.dart';
 import '../services/export_service.dart';
 import '../services/timer_service.dart';
@@ -1181,7 +1183,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                     Text(
                       // У готовой палитры имя в модели русское — берём
                       // перевод; своя тема зовётся так, как её назвали.
-                      '${isCustomPaletteIndex(palette.index) ? palette.name : _themeDisplayName(palette.index)} · $mode',
+                      '${isCustomPaletteIndex(palette.index) ? palette.name : paletteDisplayName(palette.index)} · $mode',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -1922,6 +1924,21 @@ class _ProfileScreenState extends State<ProfileScreen>
                 onSelectionChanged: (s) => ud.setThemeMode(s.first),
               ),
             ),
+            // Ночная тема режим не слушает: без подписи нажатие «светлая»
+            // выглядело бы поломкой. Сам выбор режима сохраняется — он
+            // вернётся вместе с другой темой.
+            if (paletteFor(ud.themeId, ud.customThemes).darkOnly)
+              Padding(
+                padding: const EdgeInsets.only(top: 8, left: 2),
+                child: Text(
+                  _s.themeDarkOnly,
+                  style: TextStyle(
+                    fontFamily: ProfileTheme.bodyFont,
+                    fontSize: 12.5,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+              ),
             const SizedBox(height: 18),
             caption(_s.themeStyleLabel),
             SizedBox(
@@ -5201,38 +5218,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     if (mounted) setState(() {});
   }
 
-  String _themeDisplayName(int index) {
-    final names = <String>[
-      _s.themeNamePink,
-      _s.themeNamePurple,
-      _s.themeNameBlue,
-      _s.themeNamePeach,
-      _s.themeNameSage,
-      _s.themeNameMidnight,
-      _s.themeNameLavender,
-      _s.themeNameCherry,
-      _s.themeNameMint,
-      _s.themeNameSunset,
-      _s.themeNameMonochrome,
-      _s.themeNameForest,
-      _s.themeNameOcean,
-      _s.themeNameHoney,
-      _s.themeNameLemon,
-      _s.themeNameSand,
-      _s.themeNameAurora,
-      _s.themeNameBordeaux,
-      _s.themeNameTeal,
-      _s.themeNameNord,
-      _s.themeNameCharcoalTeal,
-      _s.themeNameCoffee,
-      _s.themeNameForestDark,
-      _s.themeNameGarnet,
-      _s.themeNameDarkHoney,
-    ];
-    if (index < 0 || index >= names.length) return names[0];
-    return names[index];
-  }
-
   // null = предпросмотр запрошен, false = отмена, true = куплено
   /// Лист покупки темы.
   ///
@@ -5252,7 +5237,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     // заменить покупку. Список витринных живёт в kAdTrialThemes.
     final trialOffered = kAdTrialThemes.contains(t.index) &&
         widget.userData.adGrants.canTake(AdGrantKind.theme, DateTime.now());
-    final themeName = _themeDisplayName(t.index);
+    final themeName = paletteDisplayName(t.index);
     final cs = ProfileTheme.themeFor(_t).colorScheme;
     final strings = _s;
     final coins = widget.userData.coins;
@@ -5269,17 +5254,33 @@ class _ProfileScreenState extends State<ProfileScreen>
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Образец темы: её собственные цвета полосой — понятнее описания.
-              Container(
-                height: 84,
-                decoration: BoxDecoration(
+              // Тема с узором показывает фон с узором: продаётся она им.
+              if (t.bgPattern != null)
+                ClipRRect(
                   borderRadius: BorderRadius.circular(24),
-                  gradient: LinearGradient(
-                    colors: t.heroGradient,
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+                  child: SizedBox(
+                    height: 132,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        ColoredBox(color: t.bgGradient.first),
+                        ThemePatternLayer(theme: t),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                Container(
+                  height: 84,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(24),
+                    gradient: LinearGradient(
+                      colors: t.heroGradient,
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
                   ),
                 ),
-              ),
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.symmetric(

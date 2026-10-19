@@ -74,6 +74,7 @@ import '../services/rate_limiter_service.dart';
 import '../services/hint_queue.dart';
 import '../services/ui_prefs.dart';
 import '../services/update_service.dart';
+import '../l10n/palette_names.dart';
 import '../theme/app_theme.dart';
 import '../theme/motion.dart';
 import '../theme/theme_scope.dart';
@@ -159,6 +160,7 @@ import 'wallet_wait_screen.dart';
 import '../widgets/common/gift_image.dart';
 import '../widgets/common/coin_image.dart';
 import '../widgets/season/season_backdrop_layer.dart';
+import '../widgets/theme/theme_pattern_layer.dart';
 import '../widgets/unfold/unfold_route.dart';
 
 
@@ -1494,6 +1496,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
             ),
           ),
+          // -- Узор темы («Хэллоуин»): контуры предметов по всему фону, под
+          // всеми вкладками, как обои в чате. У темы без узора слот пустой.
+          Positioned.fill(child: ThemePatternLayer(theme: _t)),
           // -- Сезонный фон под содержимым (только главная вкладка) --
           // Слот стоит всегда: появлялся бы он только в сезон — Flutter
           // пересобрал бы соседей. Сам фон, даты и картинки приходят каталогом.
@@ -2391,7 +2396,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     Text(
-                      t.name,
+                      paletteDisplayName(previewId),
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,

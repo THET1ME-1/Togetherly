@@ -106,18 +106,32 @@ void main() {
       expect(strip[0], const StripEntry.add());
       expect(strip[1], const StripEntry.custom(0));
       expect(strip[2], const StripEntry.custom(1));
-      expect(strip[3], const StripEntry.palette(0));
+      expect(strip.skip(3).every((e) => e.isPalette), isTrue);
     });
 
     test('на iPhone у некупившего своих кружков нет вовсе', () {
       final strip = paletteStripEntries(customCount: 0, plusVisible: false);
-      expect(strip.first, const StripEntry.palette(0));
       expect(strip.every((e) => e.isPalette), isTrue);
+    });
+
+    test('тема с рисунком стоит первой среди готовых, прочие по номеру', () {
+      // «Хэллоуин» продаётся рисунком: в конце ленты, за двадцатью пятью
+      // кружками, его бы не нашли.
+      final strip = paletteStripEntries(customCount: 0, plusVisible: false);
+      final art = [for (final p in kPalettes) if (p.badge != null) p.index];
+      expect(art, isNotEmpty);
+      expect(strip.take(art.length).map((e) => e.index), art);
+      expect(strip.skip(art.length).map((e) => e.index),
+          [for (final p in kPalettes) if (p.badge == null) p.index]);
     });
 
     test('готовые палитры не теряются и не задваиваются', () {
       final strip = paletteStripEntries(customCount: 3, plusVisible: true);
-      final palettes = strip.where((e) => e.isPalette).map((e) => e.index);
+      final palettes = strip
+          .where((e) => e.isPalette)
+          .map((e) => e.index)
+          .toList()
+        ..sort();
       expect(palettes, List.generate(kPalettes.length, (i) => i));
     });
   });

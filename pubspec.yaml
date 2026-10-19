@@ -170,6 +170,7 @@ flutter:
     - assets/images/gifts/
     - assets/images/achievements/
     - assets/images/frames/
+    - assets/images/themes/
     - assets/images/ailments/
     - assets/images/reactions/
     - assets/images/reels/

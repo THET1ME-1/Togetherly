@@ -162,6 +162,9 @@ class StripEntry {
 /// Сделанное человеком стоит первым намеренно: за двадцатью пятью готовыми
 /// кружками своё пришлось бы искать прокруткой. У некупившего своих кружков
 /// нет вовсе, когда Togetherly+ на этой платформе не существует (iPhone).
+///
+/// Среди готовых первыми идут палитры с рисунком («Хэллоуин»): они
+/// продаются рисунком, а в конце ленты их никто не увидит. Прочие — по номеру.
 List<StripEntry> paletteStripEntries({
   required int customCount,
   required bool plusVisible,
@@ -171,5 +174,8 @@ List<StripEntry> paletteStripEntries({
         const StripEntry.add(),
         for (var i = 0; i < customCount; i++) StripEntry.custom(i),
       ],
-      for (var i = 0; i < kPalettes.length; i++) StripEntry.palette(i),
+      for (final p in kPalettes)
+        if (p.badge != null) StripEntry.palette(p.index),
+      for (final p in kPalettes)
+        if (p.badge == null) StripEntry.palette(p.index),
     ];
