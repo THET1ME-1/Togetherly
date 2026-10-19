@@ -888,6 +888,15 @@ class _UnfoldTransitionState extends State<_UnfoldTransition>
 
   @override
   void dispose() {
+    // Маршрут убрали посреди жеста: навигатор ждёт «жест кончился». Говорим
+    // это после кадра — сейчас дерево заперто на разборку.
+    final held = _gestureOn;
+    _gestureOn = null;
+    if (held != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (held.mounted) held.didStopUserGesture();
+      });
+    }
     WidgetsBinding.instance.removeObserver(this);
     widget.animation.removeStatusListener(_onStatus);
     if (identical(_route.view, this)) _route.view = null;
@@ -1015,12 +1024,31 @@ class _UnfoldTransitionState extends State<_UnfoldTransition>
       _route.route.isCurrent &&
       _route.route.popGestureEnabled;
 
+  /// Навигатор, которому сказали «жест начался». Пока он этого ждёт, касания
+  /// не доходят ни до одного экрана (IgnorePointer в ModalRoute), поэтому
+  /// «жест кончился» обязан прийти на любом пути: отпустили, вернули на
+  /// место, экран закрыли иначе, маршрут убрали. Обращение 338.
+  NavigatorState? _gestureOn;
+
+  void _holdGesture() {
+    final navigator = _route.route.navigator;
+    if (_gestureOn != null || navigator == null) return;
+    navigator.didStartUserGesture();
+    _gestureOn = navigator;
+  }
+
+  void _releaseGesture() {
+    final navigator = _gestureOn;
+    _gestureOn = null;
+    if (navigator != null && navigator.mounted) navigator.didStopUserGesture();
+  }
+
   bool _beginDrag({required bool fromRight}) {
     if (!_canDrag) return false;
     _dragFromRight = fromRight;
     _dragDelta = Offset.zero;
     _route.phase = _Phase.dragging;
-    _route.route.navigator?.didStartUserGesture();
+    _holdGesture();
     _route.holdOpen(true);
     _refresh();
     return true;
@@ -1042,15 +1070,16 @@ class _UnfoldTransitionState extends State<_UnfoldTransition>
       route.closeFrom = drag.rect;
       route.closeFromRadius = drag.radius;
       navigator.pop();
-      navigator.didStopUserGesture();
+      _releaseGesture();
       return;
     }
     route.phase = _Phase.settling;
     _settle.forward(from: 0).whenCompleteOrCancel(() {
+      // Отпускаем и тогда, когда экран закрыли, пока он ехал на место.
+      _releaseGesture();
       if (!mounted || route.phase != _Phase.settling) return;
       route.phase = _Phase.open;
       route.holdOpen(false);
-      route.route.navigator?.didStopUserGesture();
       _refresh();
     });
   }

@@ -487,6 +487,94 @@ void main() {
     expect(source.hidden, isFalse);
   });
 
+  // Обращение 338 (19.10.2026, 1.37): «после рисунков, воспоминаний, чата и
+  // „Скучаю“ экран не работает, ничего не могу сделать, приходится
+  // перезаходить». Жест «назад» говорит навигатору «жест идёт», и пока счётчик
+  // не вернули, Flutter глушит касания на ВСЕХ экранах (IgnorePointer в
+  // ModalRoute). Вернуть его обязаны на любом пути, а не только на обычном.
+  group('жест «назад» всегда отпускает касания', () {
+    Future<NavigatorState> openPage(WidgetTester tester) async {
+      await _pumpFeed(tester);
+      await tester.tap(find.byKey(const ValueKey('card')));
+      await tester.pumpAndSettle();
+      return tester.state<NavigatorState>(find.byType(Navigator));
+    }
+
+    Future<void> expectFeedAlive(
+        WidgetTester tester, NavigatorState navigator) async {
+      expect(navigator.userGestureInProgress, isFalse,
+          reason: 'Иначе ни один экран больше не нажимается');
+      await tester.tap(find.byKey(const ValueKey('card')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(_window), findsOneWidget,
+          reason: 'Лента снова открывает экран');
+    }
+
+    testWidgets('второй «назад», пока экран возвращается на место',
+        (tester) async {
+      final navigator = await openPage(tester);
+      await _backGesture('startBackGesture', {
+        'touchOffset': <double>[5, 400],
+        'progress': 0.0,
+        'swipeEdge': 0,
+      });
+      await _backGesture('updateBackGestureProgress', {
+        'touchOffset': <double>[60, 400],
+        'progress': 0.3,
+        'swipeEdge': 0,
+      });
+      await tester.pump();
+      await _backGesture('cancelBackGesture');
+      await tester.pump(const Duration(milliseconds: 20));
+      // Жест не дотянули и сразу смахнули ещё раз: второй приходит обычным
+      // «назад», пока окно едет на место.
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(_window), findsNothing);
+      await expectFeedAlive(tester, navigator);
+    });
+
+    testWidgets('экран закрылся посреди жеста', (tester) async {
+      final navigator = await openPage(tester);
+      await _backGesture('startBackGesture', {
+        'touchOffset': <double>[5, 400],
+        'progress': 0.0,
+        'swipeEdge': 0,
+      });
+      await _backGesture('updateBackGestureProgress', {
+        'touchOffset': <double>[90, 400],
+        'progress': 0.4,
+        'swipeEdge': 0,
+      });
+      await tester.pump();
+      // Экран закрыл не жест, а сам себя (или его закрыло что-то ещё).
+      navigator.pop();
+      await tester.pumpAndSettle();
+      // Система договаривает уже ушедшему экрану.
+      await _backGesture('cancelBackGesture');
+      await tester.pumpAndSettle();
+
+      await expectFeedAlive(tester, navigator);
+    });
+
+    testWidgets('на iPhone экран закрылся, пока палец у края', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      final navigator = await openPage(tester);
+      final finger = await tester.startGesture(const Offset(4, 400));
+      await finger.moveBy(const Offset(25, 0));
+      await finger.moveBy(const Offset(20, 0));
+      await tester.pump();
+      navigator.pop();
+      await tester.pumpAndSettle();
+      await finger.up();
+      await tester.pumpAndSettle();
+
+      await expectFeedAlive(tester, navigator);
+      debugDefaultTargetPlatformOverride = null;
+    });
+  });
+
   testWidgets('отменённый системный жест оставляет экран открытым',
       (tester) async {
     await _pumpFeed(tester);
