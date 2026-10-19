@@ -117,5 +117,50 @@ class АрхивЯндекса(unittest.TestCase):
         self.assertEqual(json.load(open(self.кэш, encoding="utf-8"))["2026-08"], {"usd": 31.0, "shows": 3100})
 
 
+class АрхивAppStore(unittest.TestCase):
+    """До 19.10.2026 App Store в архив не входил: месяцы и год были меньше на его долю."""
+
+    def записать(self, данные: dict) -> str:
+        путь = os.path.join(tempfile.mkdtemp(), "appstore.json")
+        with open(путь, "w", encoding="ascii") as f:
+            json.dump(данные, f)
+        return путь
+
+    def test_месяцы_берутся_из_сводки_App_Store(self):
+        путь = self.записать({"ok": True, "months": {"2026-09": {"usd": 120.5, "count": 14}}})
+        self.assertEqual(H.appstore_months(путь), {"2026-09": {"usd": 120.5, "count": 14}})
+
+    def test_не_настроенный_App_Store_месяцев_не_даёт(self):
+        путь = self.записать({"ok": False, "title": "App Store", "reason": "не настроен"})
+        self.assertEqual(H.appstore_months(путь), {})
+
+    def test_нет_файла_нет_месяцев(self):
+        self.assertEqual(H.appstore_months("/нет/такого/файла.json"), {})
+
+    def test_App_Store_входит_в_итог_месяца_и_года(self):
+        имена = ("rates", "rsya_months", "lava_months", "admob_months", "play_months",
+                 "appstore_months", "OUT")
+        прежнее = {имя: getattr(H, имя) for имя in имена}
+        try:
+            H.rates = lambda: {"USD": 1.0}
+            H.rsya_months = lambda: {"2026-09": {"usd": 300.0, "shows": 1}}
+            H.lava_months = lambda cur: {}
+            H.admob_months = lambda: {}
+            H.play_months = lambda cur: {"2026-09": {"usd": 40.0}}
+            H.appstore_months = lambda: {"2026-09": {"usd": 120.5, "count": 14}}
+            H.OUT = os.path.join(tempfile.mkdtemp(), "history.json")
+            H.main()
+            with open(H.OUT, encoding="ascii") as f:
+                архив = json.load(f)
+        finally:
+            for имя, значение in прежнее.items():
+                setattr(H, имя, значение)
+        сентябрь = архив["months"][0]
+        self.assertEqual(сентябрь["appstore"], 120.5)
+        self.assertEqual(сентябрь["total"], 460.5)
+        self.assertEqual(архив["years"][0]["appstore"], 120.5)
+        self.assertEqual(архив["years"][0]["total"], 460.5)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

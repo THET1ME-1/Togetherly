@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """История дохода по месяцам и годам для вкладки «Доход».
 
-Копить с сегодняшнего дня не пришлось: прошлое лежит у всех четырёх источников.
+Копить с сегодняшнего дня не пришлось: прошлое лежит у всех пяти источников.
 Яндекс и AdMob отдают помесячную разбивку за любой период, отчёты Play лежат
 в бакете за все месяцы, продажи lava разобраны из писем и хранятся в кеше
-`/opt/income/.lava_mail_cache.json`.
+`/opt/income/.lava_mail_cache.json`, месяцы App Store складывает из
+ежедневных отчётов Apple `apple_income.py`.
 
 Валюты. Рубли и евро приводим к доллару по СЕГОДНЯШНЕМУ курсу — исторических
 курсов бесплатные источники не дают, поэтому в файле рядом лежат и нативные
@@ -37,6 +38,7 @@ ADMOB_CFG = "/opt/pocketbase/pb_data/.admob_oauth.json"
 PLAY_SA = "/opt/income/play-access.json"
 PLAY_BUCKET = "/opt/pocketbase/pb_data/.play_bucket"
 LAVA_CACHE = "/opt/income/.lava_mail_cache.json"
+APPSTORE = "/opt/pocketbase/pb_data/.appstore_income.json"
 LAVA_FEE = 0.08
 PLAY_FEE = 0.15
 SINCE = "2025-01-01"
@@ -271,6 +273,18 @@ def lava_months(cur: dict) -> dict:
     return out
 
 
+def appstore_months(path: str = APPSTORE) -> dict:
+    """Месяцы App Store лежат готовыми в его сводке: их складывает apple_income.py."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    if not data.get("ok"):
+        return {}
+    return data.get("months") or {}
+
+
 def main() -> int:
     cur = rates()
     sources = {
@@ -278,6 +292,7 @@ def main() -> int:
         "lava": lava_months(cur),
         "admob": admob_months(),
         "play": play_months(cur),
+        "appstore": appstore_months(),
     }
 
     months = sorted({m for src in sources.values() for m in src})
@@ -302,8 +317,8 @@ def main() -> int:
     for row in rows:
         y = years.setdefault(row["m"][:4], {"y": row["m"][:4], "total": 0.0,
                                             "rsya": 0.0, "lava": 0.0, "admob": 0.0, "play": 0.0,
-                                            "months": 0})
-        for key in ("total", "rsya", "lava", "admob", "play"):
+                                            "appstore": 0.0, "months": 0})
+        for key in ("total", "rsya", "lava", "admob", "play", "appstore"):
             y[key] = round(y[key] + row.get(key, 0), 2)
         y["months"] += 1
 
