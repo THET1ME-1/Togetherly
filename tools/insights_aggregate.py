@@ -148,7 +148,8 @@ def build(db: sqlite3.Connection) -> dict:
         "iconOwners": owners_of("owned_icons"),
         "featureOwners": owners_of("owned_features"),
         "plus": one("SELECT COUNT(*) FROM users WHERE plus = 1"),
-        "purchases": one("SELECT COUNT(*) FROM iap_purchases"),
+        # Чек App Store приходит по нескольку раз с разной подписью: считаем сделки
+        "purchases": one("SELECT COUNT(DISTINCT CASE WHEN transaction_id <> '' THEN transaction_id ELSE id END) FROM iap_purchases"),
         "donations": one("SELECT COUNT(*) FROM donation_grants"),
         "topThemes": [{"k": PALETTES.get(str(r[0]), f"Палитра {r[0]}"), "c": r[1]} for r in many(
             "SELECT je.value, COUNT(*) FROM users u, json_each(u.owned_themes) je"
