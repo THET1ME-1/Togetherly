@@ -15,7 +15,9 @@ import '../models/mascot_anim.dart';
 import '../models/mood_entry.dart';
 import '../models/mood_pack.dart';
 import '../models/profile_icon.dart';
+import '../models/launch_splash.dart';
 import '../models/season_backdrop.dart';
+import 'launch_splash_service.dart';
 import 'pb_data_service.dart';
 import 'pocketbase_service.dart';
 
@@ -47,10 +49,17 @@ class CatalogService extends ChangeNotifier {
   Map<String, GiftArt> _ailmentArt = const {};
   Map<String, GiftArt> _reactionArt = const {};
   List<SeasonBackdrop> _backdrops = const [];
+  List<LaunchSplash> _splashes = const [];
   bool _initialized = false;
 
   /// Сезонные фоны главной (kind='backdrop'): призрак за стеклом и будущие.
   List<SeasonBackdrop> get backdrops => _backdrops;
+
+  /// Заставки при запуске (kind='splash'), что идут сегодня, по `sort`.
+  List<LaunchSplash> splashesOn([DateTime? now]) {
+    final day = now ?? DateTime.now();
+    return [for (final s in _splashes) if (s.isOn(day)) s];
+  }
 
   /// Фон, который идёт сегодня по часам человека; null — обычная главная.
   SeasonBackdrop? activeBackdrop([DateTime? now]) => SeasonBackdrop.activeOf(_backdrops, now ?? DateTime.now());
@@ -235,6 +244,7 @@ class CatalogService extends ChangeNotifier {
     final ailmentArt = <String, GiftArt>{};
     final reactionArt = <String, GiftArt>{};
     final backdrops = <SeasonBackdrop>[];
+    final splashes = <LaunchSplash>[];
 
     for (final raw in rows) {
       if (raw is! Map) continue;
@@ -244,6 +254,11 @@ class CatalogService extends ChangeNotifier {
       if (row['kind'] == 'backdrop') {
         final b = SeasonBackdrop.fromCatalog(row);
         if (b != null) backdrops.add(b);
+        continue;
+      }
+      if (row['kind'] == 'splash') {
+        final s = LaunchSplash.fromCatalog(row);
+        if (s != null) splashes.add(s);
         continue;
       }
 
@@ -341,6 +356,11 @@ class CatalogService extends ChangeNotifier {
     _ailmentArt = Map.unmodifiable(ailmentArt);
     _reactionArt = Map.unmodifiable(reactionArt);
     _backdrops = List.unmodifiable(backdrops);
+    splashes.sort((a, b) => a.sort.compareTo(b.sort));
+    _splashes = List.unmodifiable(splashes);
+    // Выбранная заставка: снятая с сервера перестаёт играть, новая выкладка
+    // докачивается в фоне.
+    unawaited(LaunchSplashService.instance.syncWithCatalog(_splashes));
     MoodOption.registerRemoteMoods(remoteMoods);
     notifyListeners();
   }

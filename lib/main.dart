@@ -31,6 +31,7 @@ import 'services/apns_service.dart';
 import 'services/fcm_service.dart';
 import 'services/push_background_service.dart';
 import 'services/catalog_service.dart';
+import 'services/launch_splash_service.dart';
 import 'services/live_location_service.dart';
 import 'models/symbol_catalog.dart';
 import 'services/locale_service.dart';
@@ -57,6 +58,7 @@ import 'screens/force_update_screen.dart';
 import 'widgets/common/m3_loading.dart';
 import 'widgets/unfold/unfold_route.dart';
 import 'widgets/unfold/unfold_touch.dart';
+import 'widgets/launch_splash/launch_splash_overlay.dart';
 import 'widgets/offline_sync_banner.dart';
 import 'services/pair_jar_service.dart';
 import 'widgets/chest/jar_toast.dart';
@@ -579,6 +581,9 @@ void main() async {
   );
   // Строка «+1 в копилку пары» после любого ролика.
   PairJarService.instance.onDrop = showJarToast;
+  // Заставка при запуске: только выбранная, по датам и уже лежащая на диске.
+  // Сети здесь нет, картинки разжимает сам оверлей.
+  LaunchSplashOverlay.pending = await LaunchSplashService.instance.readyForLaunch(DateTime.now());
   runApp(const LoveApp());
 }
 
@@ -959,9 +964,11 @@ class _LoveAppState extends State<LoveApp> with WidgetsBindingObserver {
         ],
         navigatorObservers: [AnalyticsService.instance.observer],
         // Глобальная плашка «офлайн / ожидает синхронизации» поверх любого экрана.
-        builder: (context, child) => ThemeScope(
-          theme: _userData.theme,
-          child: OfflineSyncBanner(child: child ?? const SizedBox.shrink()),
+        builder: (context, child) => LaunchSplashOverlay(
+          child: ThemeScope(
+            theme: _userData.theme,
+            child: OfflineSyncBanner(child: child ?? const SizedBox.shrink()),
+          ),
         ),
         home: _loading
             ? const Scaffold(body: M3PageLoading(color: Color(0xFFFF7E8B)))

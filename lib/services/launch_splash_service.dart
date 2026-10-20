@@ -39,9 +39,14 @@ class LaunchSplashService extends ChangeNotifier {
 
   Future<void> load() async {
     if (_loaded) return;
-    final prefs = await SharedPreferences.getInstance();
-    _selected = prefs.getString(prefsKey) ?? '';
-    _loaded = true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _selected = prefs.getString(prefsKey) ?? '';
+      _loaded = true;
+    } catch (e) {
+      // Настройки не открылись: считаем, что заставки нет.
+      debugPrint('LaunchSplash: не прочитать выбор: $e');
+    }
   }
 
   /// Выбрать заставку (null — без заставки) и скачать её. Чужие папки
