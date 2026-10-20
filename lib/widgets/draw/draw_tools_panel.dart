@@ -4,7 +4,9 @@ import 'package:flutter/services.dart';
 import '../../theme/profile_theme.dart';
 import '../../utils/readable_text.dart';
 import '../../models/draw_quick_tools.dart';
+import '../../models/stroke_brush.dart';
 import '../color_picker_sheet.dart';
+import 'brush_row.dart';
 
 /// Нижняя панель холста: пузырь в углу и лист со всем остальным.
 ///
@@ -103,9 +105,37 @@ class DrawToolsSheet extends StatelessWidget {
     required this.closeLabel,
     this.side = false,
     required this.onClose,
+    this.labelEraserThickness,
+    this.brush = StrokeBrush.pen,
+    this.brushes,
+    this.brushNames = const {},
+    this.brushNotes = const {},
+    this.onBrush,
+    this.eraserMode = EraserMode.hard,
+    this.eraserModes = const [],
+    this.eraserNames = const {},
+    this.onEraserMode,
   });
 
   final DrawQuickTool tool;
+
+  /// Подпись толщины у ластика: у него своя толщина, и человек должен видеть,
+  /// что двигает не кисть.
+  final String? labelEraserThickness;
+
+  /// Кисти ряда под инструментами. `null` — ряда нет (пиксельный холст: там
+  /// клетка, кисти не действуют).
+  final StrokeBrush brush;
+  final List<StrokeBrush>? brushes;
+  final Map<StrokeBrush, String> brushNames;
+  final Map<StrokeBrush, String> brushNotes;
+  final ValueChanged<StrokeBrush>? onBrush;
+
+  /// Режимы ластика. Пустой список — ряда нет.
+  final EraserMode eraserMode;
+  final List<EraserMode> eraserModes;
+  final Map<EraserMode, String> eraserNames;
+  final ValueChanged<EraserMode>? onEraserMode;
 
   /// Состав панели и порядок кнопок — их собирает человек в настройках.
   final List<DrawQuickTool> tools;
@@ -225,14 +255,46 @@ class DrawToolsSheet extends StatelessWidget {
   }
 
   List<Widget> _children(ColorScheme cs, HSVColor hsv) {
+    final erasing = tool == DrawQuickTool.eraser;
+    final brushRow = brushes;
     return [
       _handle(cs),
       const SizedBox(height: 6),
       _tools(cs),
+      if (tool == DrawQuickTool.brush &&
+          brushRow != null &&
+          onBrush != null) ...[
+        const SizedBox(height: 12),
+        BrushRow(
+          brushes: brushRow,
+          selected: brush,
+          names: brushNames,
+          notes: brushNotes,
+          fill: fill,
+          onFill: onFill,
+          onSelect: onBrush!,
+          side: side,
+        ),
+      ],
+      if (erasing && eraserModes.isNotEmpty && onEraserMode != null) ...[
+        const SizedBox(height: 12),
+        EraserModeRow(
+          modes: eraserModes,
+          selected: eraserMode,
+          names: eraserNames,
+          fill: fill,
+          onFill: onFill,
+          onSelect: onEraserMode!,
+          side: side,
+        ),
+      ],
       SizedBox(height: side ? 12 : 16),
       Row(
         children: [
-          _label(cs, labelThickness),
+          _label(
+            cs,
+            erasing ? (labelEraserThickness ?? labelThickness) : labelThickness,
+          ),
           const Spacer(),
           _roundButton(
             cs,
@@ -245,39 +307,42 @@ class DrawToolsSheet extends StatelessWidget {
       ),
       const SizedBox(height: 8),
       _thickness(cs),
-      SizedBox(height: side ? 12 : 16),
-      Row(
-        children: [
-          _label(cs, labelColor),
-          const Spacer(),
-          _roundButton(
-            cs,
-            icon: Icons.colorize_rounded,
-            label: eyedropperLabel,
-            onTap: onEyedropper,
+      // Ластик цвета не берёт: раздел только удлинял бы лист над холстом.
+      if (!erasing) ...[
+        SizedBox(height: side ? 12 : 16),
+        Row(
+          children: [
+            _label(cs, labelColor),
+            const Spacer(),
+            _roundButton(
+              cs,
+              icon: Icons.colorize_rounded,
+              label: eyedropperLabel,
+              onTap: onEyedropper,
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _swatches(cs),
+        // Сбоку подбор цвета не помещается и уезжает под нижний край: колонка
+        // высотой с лежащий телефон и так занята инструментами. Полный подбор
+        // остаётся в один тап — за радужным кружком в ряду красок.
+        if (!side) ...[
+          const SizedBox(height: 12),
+          // Поле ниже, чем в листе палитры: под ним ещё полоса оттенка, а холст
+          // сверху не должен схлопываться в щель.
+          SaturationValueField(
+            hsv: hsv,
+            height: 132,
+            onChanged: (sat, val) =>
+                onColor(hsv.withSaturation(sat).withValue(val).toColor()),
+          ),
+          const SizedBox(height: 12),
+          HueBar(
+            hue: hsv.hue,
+            onChanged: (hue) => onColor(hsv.withHue(hue).toColor()),
           ),
         ],
-      ),
-      const SizedBox(height: 8),
-      _swatches(cs),
-      // Сбоку подбор цвета не помещается и уезжает под нижний край: колонка
-      // высотой с лежащий телефон и так занята инструментами. Полный подбор
-      // остаётся в один тап — за радужным кружком в ряду красок.
-      if (!side) ...[
-        const SizedBox(height: 12),
-        // Поле ниже, чем в листе палитры: под ним ещё полоса оттенка, а холст
-        // сверху не должен схлопываться в щель.
-        SaturationValueField(
-          hsv: hsv,
-          height: 132,
-          onChanged: (sat, val) =>
-              onColor(hsv.withSaturation(sat).withValue(val).toColor()),
-        ),
-        const SizedBox(height: 12),
-        HueBar(
-          hue: hsv.hue,
-          onChanged: (hue) => onColor(hsv.withHue(hue).toColor()),
-        ),
       ],
     ];
   }
@@ -321,9 +386,9 @@ class DrawToolsSheet extends StatelessWidget {
   /// Подпись раздела общим стилем приложения, но приглушённая: акцентная
   /// спорила бы с выбранным инструментом и полосой рядом.
   Widget _label(ColorScheme cs, String text) => Text(
-        text.toUpperCase(),
-        style: ProfileTheme.sectionLabel(cs, color: cs.onSurfaceVariant),
-      );
+    text.toUpperCase(),
+    style: ProfileTheme.sectionLabel(cs, color: cs.onSurfaceVariant),
+  );
 
   /// Шесть инструментов в ряд: делят ширину поровну и помещаются на 320
   /// точках, поэтому прокрутки тут нет и быть не должно. В боковой колонке
@@ -384,8 +449,8 @@ class DrawToolsSheet extends StatelessWidget {
                             // Очистка стирает всё разом: пусть выделяется
                             // среди соседей, к которым тянутся не глядя.
                             : t == DrawQuickTool.clear
-                                ? cs.error
-                                : cs.onSurfaceVariant,
+                            ? cs.error
+                            : cs.onSurfaceVariant,
                       ),
                     ),
                   ),
@@ -406,7 +471,10 @@ class DrawToolsSheet extends StatelessWidget {
   /// Толщина: полоса заполняется вместе со значением, число стоит справа
   /// внутри неё — так видно и на глаз, и точно.
   Widget _thickness(ColorScheme cs) {
-    final fraction = ((width - minWidth) / (maxWidth - minWidth)).clamp(0.0, 1.0);
+    final fraction = ((width - minWidth) / (maxWidth - minWidth)).clamp(
+      0.0,
+      1.0,
+    );
     // Заливка полосы мягче выбранного инструмента: рядом с ним полный цвет
     // читался бы второй кнопкой, а не значением.
     final track = cs.surfaceContainerHigh;
