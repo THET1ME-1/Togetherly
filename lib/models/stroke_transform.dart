@@ -91,6 +91,10 @@ DrawStroke? strokeAtPoint(
   return best;
 }
 
+/// Задевает ли палец в [point] штрих — с запасом [tolerance] точек.
+bool strokeHitAt(DrawStroke stroke, Offset point, Size canvas, {double tolerance = 18.0}) =>
+    stroke.points.isNotEmpty && _hits(stroke, point, canvas, tolerance);
+
 bool _hits(DrawStroke stroke, Offset point, Size canvas, double tolerance) {
   final bounds = strokeBounds(stroke, canvas).inflate(tolerance);
   if (!bounds.contains(point)) return false;

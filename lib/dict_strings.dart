@@ -1328,6 +1328,20 @@ abstract class DictStrings extends AppStrings {
   String get failedToShareDrawing => _t('failedToShareDrawing');
   @override
   String get strokeThickness => _t('strokeThickness');
+  String get brushPen => _t('brushPen');
+  String get brushMarker => _t('brushMarker');
+  String get brushPencil => _t('brushPencil');
+  String get brushAirbrush => _t('brushAirbrush');
+  String get brushCalligraphy => _t('brushCalligraphy');
+  String get brushPenNote => _t('brushPenNote');
+  String get brushMarkerNote => _t('brushMarkerNote');
+  String get brushPencilNote => _t('brushPencilNote');
+  String get brushAirbrushNote => _t('brushAirbrushNote');
+  String get brushCalligraphyNote => _t('brushCalligraphyNote');
+  String get eraserHard => _t('eraserHard');
+  String get eraserSoft => _t('eraserSoft');
+  String get eraserWhole => _t('eraserWhole');
+  String get eraserThickness => _t('eraserThickness');
   String get moodVesselTitle => _t('moodVesselTitle');
   @override
   String get vesselLegendMood => _t('vesselLegendMood');
