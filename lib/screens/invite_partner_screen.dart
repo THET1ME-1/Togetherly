@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -44,13 +45,9 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
 
   bool _joining = false;
 
-  /// Карточка ждёт сервер. Ожидание кончилось, а кода нет — карточка
-  /// объясняет, что сервер не ответил, и даёт повторить.
-  bool _checking = false;
-
-  /// Запрос к серверу идёт прямо сейчас. Второе касание «Ещё раз» до
-  /// перерисовки не запускает вторую сверку.
-  bool _running = false;
+  /// Следующая сверка, пока сервер не выдал рабочий код.
+  Timer? _retry;
+  int _attempt = 0;
 
   @override
   void initState() {
@@ -62,21 +59,24 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
     // 376). Пустой код выпускаем: он мог не сгенериться при регистрации без
     // сети. Подтверждённый код не трогаем: сверка — это запрос к серверу и
     // полный проход главной по оповещению модели пары.
-    if (!_pair.isPaired &&
-        _pair.inviteCodeState == InviteCodeState.pending) {
-      _checking = true;
+    if (!_pair.isPaired && _pair.inviteCodeState != InviteCodeState.ready) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _checkCode());
     }
   }
 
-  /// Дольше ждать нечего. У клиента сервера сроков нет, и на повисшем
-  /// соединении (VPN, плохая сеть) выпуск кода не кончается вовсе.
+  /// Дольше одной попытки не ждём. У клиента сервера сроков нет, и на
+  /// повисшем соединении (VPN, плохая сеть) выпуск кода не кончается вовсе.
   static const _checkLimit = Duration(seconds: 20);
 
+  /// Пауза перед следующей попыткой: 5, 10, 20, дальше каждые 30 секунд.
+  static Duration _retryAfter(int attempt) =>
+      Duration(seconds: math.min(30, 5 << math.min(attempt, 3)));
+
+  /// Код крутится, пока его не выдаст сервер (решение владельца 20.10.2026):
+  /// своего кода без подтверждения экран не показывает, таблички вместо
+  /// ожидания тоже нет. Сервер промолчал — спрашиваем ещё раз сами.
   Future<void> _checkCode() async {
-    if (!mounted || _running) return;
-    _running = true;
-    if (!_checking) setState(() => _checking = true);
+    if (!mounted || _pair.isPaired) return;
     try {
       await (_pair.inviteCode.isEmpty
               ? _pair.regenerateCode()
@@ -84,14 +84,16 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
           .timeout(_checkLimit);
     } on TimeoutException {
       // Поздний ответ не пропадёт: модель пары сама перерисует экран.
-    } finally {
-      _running = false;
-      if (mounted) setState(() => _checking = false);
     }
+    if (!mounted || _pair.isPaired || _pair.shareableInviteCode.isNotEmpty) {
+      return;
+    }
+    _retry = Timer(_retryAfter(_attempt++), _checkCode);
   }
 
   @override
   void dispose() {
+    _retry?.cancel();
     _pair.removeListener(_onPairChanged);
     super.dispose();
   }
@@ -447,12 +449,6 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
   /// Код приглашения крупно: его диктуют вслух и переписывают в мессенджер.
   Widget _codeCard(ColorScheme cs, String code) {
     final ready = code.isNotEmpty;
-    // Без сессии сервер нас не узнаёт, код не выдать и не сверить.
-    final lost =
-        !ready && _pair.inviteCodeState == InviteCodeState.sessionLost;
-    // Сверка кончилась, а кода нет: сервер не ответил.
-    final failed = !ready && !lost && !_checking;
-    final fill = widget.theme.fillColor;
     final ink = _ink(cs);
     return Material(
       // Не `primaryContainer`: у тем, нарисованных руками, он почти равен фону
@@ -496,18 +492,6 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
                     ),
                   ),
                 )
-              else if (lost || failed)
-                Text(
-                  lost ? _s.inviteSessionLost : _s.serverNotResponding,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: ProfileTheme.bodyFont,
-                    fontSize: 15,
-                    height: 1.35,
-                    fontWeight: FontWeight.w600,
-                    color: cs.onSurface,
-                  ),
-                )
               else
                 SizedBox(
                   height: 44,
@@ -523,27 +507,14 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
                   ),
                 ),
               const SizedBox(height: 8),
-              if (failed)
-                FilledButton(
-                  onPressed: _checkCode,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: fill,
-                    foregroundColor: AppThemes.onColor(
-                      fill,
-                      mode: widget.theme.brightness,
-                    ),
-                  ),
-                  child: Text(_s.retry),
-                )
-              else if (!lost)
-                Text(
-                  ready ? _s.tapToCopy : _s.inviteCodeLoading,
-                  style: TextStyle(
-                    fontFamily: ProfileTheme.bodyFont,
-                    fontSize: 12,
-                    color: cs.onSurfaceVariant,
-                  ),
+              Text(
+                ready ? _s.tapToCopy : _s.inviteCodeLoading,
+                style: TextStyle(
+                  fontFamily: ProfileTheme.bodyFont,
+                  fontSize: 12,
+                  color: cs.onSurfaceVariant,
                 ),
+              ),
             ],
           ),
         ),

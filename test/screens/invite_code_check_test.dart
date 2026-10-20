@@ -126,50 +126,69 @@ void main() {
     expect(find.text(s().inviteCodeLoading), findsNothing);
   });
 
-  testWidgets('сервер молчит: вместо вечной крутилки объяснение и «Ещё раз»',
+  // Правило владельца (20.10.2026): «код должен крутиться, пока его не даст
+  // сервер». Ни кода без подтверждения, ни таблички вместо крутилки: экран
+  // сам переспрашивает сервер.
+
+  testWidgets('сервер молчит: крутилка стоит, а сверка повторяется сама',
       (tester) async {
     final pair = _FakePair(code: 'AB12CD', answers: [null, 'AB12CD']);
     await open(tester, pair);
 
-    expect(find.text(s().inviteCodeLoading), findsNothing);
-    expect(find.text(s().serverNotResponding), findsOneWidget);
+    expect(find.text(s().inviteCodeLoading), findsOneWidget);
+    expect(find.text('AB12CD'), findsNothing,
+        reason: 'код из памяти телефона сервер ещё не подтвердил');
+    expect(find.text(s().retry), findsNothing);
 
-    await tester.tap(find.text(s().retry));
-    await tester.pump();
+    await tester.pump(const Duration(seconds: 6));
     await tester.pump();
 
     expect(pair.ensureCalls, 2);
     expect(find.text('AB12CD'), findsOneWidget);
-    expect(find.text(s().serverNotResponding), findsNothing);
+    expect(find.text(s().inviteCodeLoading), findsNothing);
   });
 
-  testWidgets('кода нет, сервер молчит: «Ещё раз» выпускает код заново',
+  testWidgets('кода нет, сервер молчит: выпуск повторяется сам',
       (tester) async {
     final pair = _FakePair(answers: [null, 'XY99ZZ']);
     await open(tester, pair);
 
     expect(pair.regenerateCalls, 1);
-    expect(find.text(s().serverNotResponding), findsOneWidget);
+    expect(find.text(s().inviteCodeLoading), findsOneWidget);
 
-    await tester.tap(find.text(s().retry));
-    await tester.pump();
+    await tester.pump(const Duration(seconds: 6));
     await tester.pump();
 
     expect(pair.regenerateCalls, 2);
     expect(find.text('XY99ZZ'), findsOneWidget);
   });
 
-  testWidgets('запрос повис: через 20 секунд «Ещё раз», поздний код встаёт сам',
+  testWidgets('пока сервер молчит, неподтверждённый код не появляется',
+      (tester) async {
+    final pair = _FakePair(code: 'AB12CD');
+    await open(tester, pair);
+
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(seconds: 31));
+    }
+    expect(pair.ensureCalls, greaterThan(3),
+        reason: 'экран переспрашивает сервер, пока тот не ответит');
+    expect(find.text('AB12CD'), findsNothing);
+    expect(find.text(s().inviteCodeLoading), findsOneWidget);
+  });
+
+  testWidgets('запрос повис: через 20 секунд пробуем снова, поздний код встаёт',
       (tester) async {
     // У клиента сервера сроков нет: на повисшем соединении (VPN, плохая
-    // сеть) выпуск кода не кончается вовсе, и крутилка стояла бы вечно.
+    // сеть) выпуск кода не кончается вовсе, и новой попытки не было бы.
     final pair = _FakePair()..hang = true;
     await open(tester, pair);
 
     expect(find.text(s().inviteCodeLoading), findsOneWidget);
     await tester.pump(const Duration(seconds: 21));
-    expect(find.text(s().serverNotResponding), findsOneWidget);
-    expect(find.text(s().retry), findsOneWidget);
+    await tester.pump(const Duration(seconds: 6));
+    expect(pair.regenerateCalls, 2);
+    expect(find.text(s().inviteCodeLoading), findsOneWidget);
 
     pair.arrive('LATE01');
     await tester.pump();
@@ -188,24 +207,17 @@ void main() {
     expect(find.text('AB12CD'), findsOneWidget);
   });
 
-  testWidgets('два касания «Ещё раз» подряд запускают одну сверку',
-      (tester) async {
-    final pair = _FakePair(answers: [null]);
+  testWidgets('ушли с экрана — сверка больше не повторяется', (tester) async {
+    final pair = _FakePair(code: 'AB12CD');
     await open(tester, pair);
-    expect(pair.regenerateCalls, 1);
+    expect(pair.ensureCalls, 1);
 
-    pair.hang = true;
-    // Между касаниями кадра нет: кнопка ещё на месте.
-    await tester.tap(find.text(s().retry));
-    await tester.tap(find.text(s().retry));
-    expect(pair.regenerateCalls, 2,
-        reason: 'второе касание пришло, пока первая сверка идёт');
-
-    pair.arrive('AB12CD');
-    await tester.pump();
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+    await tester.pump(const Duration(minutes: 2));
+    expect(pair.ensureCalls, 1);
   });
 
-  testWidgets('надписи карточки читаются во всех палитрах', (tester) async {
+  testWidgets('код читается во всех палитрах', (tester) async {
     double contrast(Color a, Color b) {
       final la = a.computeLuminance();
       final lb = b.computeLuminance();
@@ -219,28 +231,18 @@ void main() {
         final theme = buildAppTheme(kPalettes[i], mode);
         final name = '${kPalettes[i].name}, $mode';
 
-        final failed = _FakePair(answers: [null]);
-        await tester.pumpWidget(MaterialApp(
-          home: InvitePartnerScreen(pairData: failed, theme: theme),
-        ));
-        await tester.pump();
-        await tester.pump();
-        final message = find.text(s().serverNotResponding);
-        final card = tester
-            .widget<Material>(find
-                .ancestor(of: message, matching: find.byType(Material))
-                .first)
-            .color!;
-        final text = tester.widget<Text>(message).style!.color!;
-        expect(contrast(on(text, card), card), greaterThanOrEqualTo(4.5),
-            reason: '$name: объяснение, почему кода нет');
-
         final ready = _FakePair(code: 'AB12CD', confirmed: true);
         await tester.pumpWidget(MaterialApp(
           home: InvitePartnerScreen(pairData: ready, theme: theme),
         ));
         await tester.pump();
-        final code = tester.widget<Text>(find.text('AB12CD')).style!.color!;
+        final shown = find.text('AB12CD');
+        final card = tester
+            .widget<Material>(find
+                .ancestor(of: shown, matching: find.byType(Material))
+                .first)
+            .color!;
+        final code = tester.widget<Text>(shown).style!.color!;
         expect(contrast(on(code, card), card), greaterThanOrEqualTo(4.5),
             reason: '$name: сам код, его диктуют и переписывают');
       }
@@ -276,14 +278,11 @@ void main() {
         reason: 'код рвался на «AB12C» и «D», а его диктуют и переписывают');
   });
 
-  testWidgets('без сессии экран говорит войти заново, а не крутится',
-      (tester) async {
+  testWidgets('без сессии код тоже не показывается', (tester) async {
     final pair = _FakePair(code: 'AB12CD', sessionLost: true);
     await open(tester, pair);
 
-    expect(find.text(s().inviteSessionLost), findsOneWidget);
-    expect(find.text(s().inviteCodeLoading), findsNothing);
-    expect(pair.ensureCalls + pair.regenerateCalls, 0,
-        reason: 'без сессии сервер нас не узнаёт, спрашивать его нечем');
+    expect(find.text('AB12CD'), findsNothing);
+    expect(find.text(s().inviteCodeLoading), findsOneWidget);
   });
 }

@@ -14,15 +14,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Карточка кода на экране «Позовите свою половинку» для глаз:
 /// `flutter test test/goldens/invite_code_preview.dart` →
-/// build/invite-code/states.png. Четыре состояния (сверка идёт, сервер не
-/// ответил, нет сессии, код готов) в четырёх рядах: Розовая светлая на 320
-/// точках при шрифте 1,3, Розовая тёмная, Фиолетовая светлая и Медовая
-/// тёмная на 393. Имя без `_test`: обычный прогон его не берёт.
+/// build/invite-code/states.png. Два вида карточки (ждём код от сервера,
+/// код готов) в четырёх рядах: Розовая светлая на 320 точках при шрифте 1,3,
+/// Розовая тёмная, Фиолетовая светлая и Медовая тёмная на 393. Имя без
+/// `_test`: обычный прогон его не берёт.
 class _Pair extends PairData {
-  _Pair({this.hang = false, this.lost = false, this.ready = false});
+  _Pair({this.hang = false, this.ready = false});
 
   final bool hang;
-  final bool lost;
   final bool ready;
 
   @override
@@ -32,11 +31,8 @@ class _Pair extends PairData {
   String get inviteCode => 'AB12CD';
 
   @override
-  InviteCodeState get inviteCodeState => lost
-      ? InviteCodeState.sessionLost
-      : ready
-          ? InviteCodeState.ready
-          : InviteCodeState.pending;
+  InviteCodeState get inviteCodeState =>
+      ready ? InviteCodeState.ready : InviteCodeState.pending;
 
   @override
   String get shareableInviteCode => ready ? 'AB12CD' : '';
@@ -67,7 +63,7 @@ void main() {
     await LocaleService.instance.setLanguage(AppLanguage.ru);
   });
 
-  testWidgets('карточка кода: сверка, сервер молчит, нет сессии, код',
+  testWidgets('карточка кода: ждём сервер и код готов',
       (tester) async {
     final key = GlobalKey();
 
@@ -91,16 +87,12 @@ void main() {
         children: [
           phone(_Pair(hang: true), theme, w, scale),
           const SizedBox(width: 16),
-          phone(_Pair(), theme, w, scale),
-          const SizedBox(width: 16),
-          phone(_Pair(lost: true), theme, w, scale),
-          const SizedBox(width: 16),
           phone(_Pair(ready: true), theme, w, scale),
         ],
       );
     }
 
-    await tester.binding.setSurfaceSize(const Size(1660, 2680));
+    await tester.binding.setSurfaceSize(const Size(860, 2680));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(RepaintBoundary(
       key: key,
