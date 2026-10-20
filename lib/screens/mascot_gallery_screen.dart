@@ -831,7 +831,11 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
       body: Column(
         children: [
           // Streak banner
-          _StreakBanner(streak: streak, theme: _t),
+          _StreakBanner(
+            streak: streak,
+            fresh: !_svc.state.streakEverStarted(_svc.state.activeMascotId),
+            theme: _t,
+          ),
           // Gallery count info
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -906,9 +910,12 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
 
 class _StreakBanner extends StatelessWidget {
   final int streak;
+
+  /// У маскота своей серии ещё не было: обрыва нет, есть начало.
+  final bool fresh;
   final AppTheme theme;
 
-  const _StreakBanner({required this.streak, required this.theme});
+  const _StreakBanner({required this.streak, required this.theme, this.fresh = false});
 
   @override
   Widget build(BuildContext context) {
@@ -954,7 +961,9 @@ class _StreakBanner extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    alive ? s.streakLabel(streak) : s.streakBroken,
+                    alive
+                        ? s.streakLabel(streak)
+                        : (fresh ? s.streakNew : s.streakBroken),
                     style: TextStyle(
                       fontFamily: 'Unbounded',
                       fontSize: 15,
@@ -964,7 +973,9 @@ class _StreakBanner extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    alive ? s.streakKeepHint : s.streakStartHint,
+                    alive
+                        ? s.streakKeepHint
+                        : (fresh ? s.streakNewHint : s.streakStartHint),
                     style: TextStyle(
                       fontSize: 12.5,
                       height: 1.3,

@@ -2186,6 +2186,8 @@ abstract class AppStrings {
   String get streakBroken;
   String get streakKeepHint;
   String get streakStartHint;
+  String get streakNew;
+  String get streakNewHint;
   String get fromUs;
   String recordStreakBadge(int days);
 

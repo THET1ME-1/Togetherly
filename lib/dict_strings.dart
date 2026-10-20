@@ -3274,6 +3274,8 @@ abstract class DictStrings extends AppStrings {
   String get streakKeepHint => _t('streakKeepHint');
   @override
   String get streakStartHint => _t('streakStartHint');
+  String get streakNew => _t('streakNew');
+  String get streakNewHint => _t('streakNewHint');
   @override
   String get fromUs => _t('fromUs');
   @override

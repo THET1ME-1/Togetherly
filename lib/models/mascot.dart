@@ -208,6 +208,15 @@ class GroupMascotState {
   /// Серия активного маскота (то, что показываем на главной/виджете).
   int get activeStreak => streakFor(activeMascotId);
 
+  /// Была ли у маскота своя серия хоть раз. У только что выбранного её нет:
+  /// у каждого маскота свой счёт, и «Серия прервана» у него читалась как
+  /// потерянные дни пары (обращение 370, 20.10.2026).
+  bool streakEverStarted(String? mascotId) {
+    if (mascotId == null || mascotId.isEmpty) return false;
+    final e = mascotStreaks[mascotId];
+    return e is Map && ((e['s'] as num?)?.toInt() ?? 0) > 0;
+  }
+
   /// Computes the current mood based on when anyone last opened the app.
   MascotMoodState get moodState {
     if (streakLastOpenedDate == null) return MascotMoodState.sad;
