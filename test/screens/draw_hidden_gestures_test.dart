@@ -18,6 +18,14 @@ void main() {
     expect(source, contains('p.getBool(UiPrefs.kBrushQuickShapes) ?? false'));
   });
 
+  test('«назад» при открытой панели закрывает панель, а не холст', () {
+    // Эмулятор 20.10.2026: панель встроена в экран, и «назад» выходил с
+    // холста в галерею, хотя человек хотел только убрать панель.
+    final pop = source.indexOf('onPopInvokedWithResult: (didPop, _) {');
+    final exit = source.indexOf('_captureThumbnailAndExit();', pop);
+    expect(source.substring(pop, exit), contains('_toolsOpen'));
+  });
+
   test('удержание пальца не берёт цвет с холста', () {
     // Пипетка остаётся кнопкой в панели инструментов.
     expect(source, isNot(contains('holdIsEyedropper(')));

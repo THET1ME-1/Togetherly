@@ -357,3 +357,59 @@ void paintStrokeRange(
     }
   }
 }
+
+/// Номера слоёв по порядку: из штрихов и из [extra] (слой, где сейчас ведут
+/// линию, может быть ещё пустым).
+List<int> layersOf(List<DrawStroke> strokes, [Iterable<int> extra = const []]) {
+  final layers = <int>{for (final s in strokes) s.layer, ...extra}.toList();
+  layers.sort();
+  return layers;
+}
+
+/// Слои рисунка, каждый отдельно.
+///
+/// Пока рисунок складывался в одно полотно, ластик на верхнем слое стирал и
+/// нижние, а линия нижнего слоя, пока её ведут, лежала поверх всего («криво
+/// работают слои», 20.10.2026). [live] рисует в слой то, чего в списке ещё
+/// нет: текущую линию и живые мазки партнёра, [liveLayers] — их слои,
+/// [eraserLayers] — слои, где среди них есть ластик.
+/// [pictureOf] отдаёт готовую картинку слоя, если она есть: так холст не
+/// перерисовывает тысячи штрихов на каждый кадр.
+///
+/// Отдельный буфер (`saveLayer`) заводится только у слоя с ластиком: он стоит
+/// кадра, а слой без ластика ложится прямо на холст с тем же результатом.
+void paintLayers(
+  Canvas canvas,
+  List<DrawStroke> strokes,
+  Size size, {
+  int? pixelCols,
+  int? pixelRows,
+  Image? Function(DrawStroke stroke)? imageOf,
+  Picture? Function(int layer, List<DrawStroke> layerStrokes)? pictureOf,
+  Iterable<int> liveLayers = const [],
+  Iterable<int> eraserLayers = const [],
+  void Function(Canvas canvas, int layer)? live,
+}) {
+  final bounds = Offset.zero & size;
+  final liveErasers = eraserLayers.toSet();
+  for (final layer in layersOf(strokes, liveLayers)) {
+    final own = [for (final s in strokes) if (s.layer == layer) s];
+    final erases = liveErasers.contains(layer) || own.any((s) => s.isEraser);
+    if (erases) canvas.saveLayer(bounds, Paint());
+    final picture = pictureOf?.call(layer, own);
+    if (picture != null) {
+      canvas.drawPicture(picture);
+    } else {
+      paintStrokeRange(
+        canvas,
+        own,
+        size,
+        pixelCols: pixelCols,
+        pixelRows: pixelRows,
+        imageOf: imageOf,
+      );
+    }
+    live?.call(canvas, layer);
+    if (erases) canvas.restore();
+  }
+}

@@ -67,10 +67,20 @@ class CanvasPreviewPainter extends CustomPainter {
     final cols = meta.isPixel ? meta.pixelW : null;
     final rows = meta.isPixel ? meta.pixelH : null;
 
-    // Ластик снимает краску, поэтому штрихи живут в своём слое — иначе он
-    // выел бы и подложку плитки. Тот же приём, что на холсте и в повторе.
-    final needsLayer = visible.any((s) => s.isEraser);
-    if (needsLayer) canvas.saveLayer(Offset.zero & size, Paint());
+    // Каждый слой рисунка — в своём saveLayer: ластик снимает краску только
+    // своего слоя и не выедает ни нижние слои, ни подложку плитки. Тот же
+    // приём, что на холсте и в повторе (20.10.2026).
+    for (final layer in layersOf(visible)) {
+      final own = [for (final s in visible) if (s.layer == layer) s];
+      // Буфер нужен только слою с ластиком: остальной ложится прямо на плитку.
+      final erases = own.any((s) => s.isEraser);
+      if (erases) canvas.saveLayer(Offset.zero & size, Paint());
+      _paintLayer(canvas, size, own, cols, rows);
+      if (erases) canvas.restore();
+    }
+  }
+
+  void _paintLayer(Canvas canvas, Size size, List<DrawStroke> visible, int? cols, int? rows) {
     for (final s in visible) {
       if (s.shapeType != null && s.points.length >= 2) {
         paintShape(
@@ -99,7 +109,6 @@ class CanvasPreviewPainter extends CustomPainter {
         );
       }
     }
-    if (needsLayer) canvas.restore();
   }
 
   /// Во сколько раз плитка меньше листа, на котором рисовали.

@@ -19,7 +19,7 @@ List<DrawStroke> strokesUpTo(List<DrawStroke> all, int points) {
   final out = <DrawStroke>[];
   var left = points;
   for (final s in all) {
-    final count = s.points.length;
+    final count = _weight(s);
     if (left >= count) {
       out.add(s);
       left -= count;
@@ -58,9 +58,40 @@ List<DrawStroke> strokesUpTo(List<DrawStroke> all, int points) {
 int totalReplayPoints(List<DrawStroke> all) {
   var sum = 0;
   for (final s in all) {
-    sum += s.points.length;
+    sum += _weight(s);
   }
   return sum;
+}
+
+/// Сколько места штрих занимает во времени повтора. У заливки точек нет, и
+/// без веса она появлялась бы в самом начале, а не тогда, когда её сделали.
+int _weight(DrawStroke s) => s.imageUrl != null ? 1 : s.points.length;
+
+/// Порядок рисования: так штрихи и проигрываются.
+///
+/// Холст отдаёт их по слоям — весь нижний, потом весь верхний, — и повтор
+/// показывал сперва один слой целиком, потом другой (20.10.2026).
+List<DrawStroke> replayOrder(List<DrawStroke> strokes) {
+  final out = List.of(strokes);
+  out.sort((a, b) {
+    final o = a.orderIndex.compareTo(b.orderIndex);
+    if (o != 0) return o;
+    final u = a.userId.compareTo(b.userId);
+    return u != 0 ? u : a.id.compareTo(b.id);
+  });
+  return out;
+}
+
+/// Показанное складывается по слоям, как на холсте: верхний слой поверх.
+List<DrawStroke> byLayer(List<DrawStroke> shown) {
+  final out = <DrawStroke>[];
+  final layers = <int>{for (final s in shown) s.layer}.toList()..sort();
+  for (final layer in layers) {
+    for (final s in shown) {
+      if (s.layer == layer) out.add(s);
+    }
+  }
+  return out;
 }
 
 /// Сколько длится показ. Короткий рисунок не мельтешит, длинный не тянется

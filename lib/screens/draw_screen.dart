@@ -1106,7 +1106,7 @@ class _DrawScreenState extends State<DrawScreen>
         (data['ts'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch;
 
     if (assembler.done) {
-      final finished = assembler.buildStroke(uid);
+      final finished = assembler.buildStroke(uid, fallbackLayer: _topLayer);
       _liveAssemblers.remove(uid);
       _partnerLiveMap.remove(uid);
       _partnerTimestamps.remove(uid);
@@ -1122,7 +1122,7 @@ class _DrawScreenState extends State<DrawScreen>
       return;
     }
 
-    final live = assembler.buildLive(uid);
+    final live = assembler.buildLive(uid, fallbackLayer: _topLayer);
     if (live == null) return;
     _partnerLiveMap[uid] = live;
     _publishPartnerLive();
@@ -1577,7 +1577,12 @@ class _DrawScreenState extends State<DrawScreen>
         isEraser: _currentIsEraser,
         isFilledShape: _currentIsFilledShape,
         shapeType: _currentShapeType,
+        layer: _activeLayer,
       );
+
+  /// Верхний слой: туда ложится живая линия партнёра на старой сборке,
+  /// которая слой не присылает, — поверх всего, как было до слоёв в пакете.
+  int get _topLayer => _layerCount > 0 ? _layerCount - 1 : 0;
 
   /// Идентификатор мазка: время, номер в порядке рисования и хвост своего uid.
   /// Хвост нужен, чтобы у двоих, рисующих в одну миллисекунду, не совпали
@@ -1609,6 +1614,7 @@ class _DrawScreenState extends State<DrawScreen>
             isEraser: stroke.isEraser,
             isFilledShape: stroke.isFilledShape,
             shapeType: stroke.shapeType,
+            layer: stroke.layer,
           ),
           orderIndex: stroke.orderIndex,
         ),
@@ -3603,6 +3609,11 @@ class _DrawScreenState extends State<DrawScreen>
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
+        // Панель встроена в экран: «назад» сперва убирает её, а не холст.
+        if (_toolsOpen) {
+          setState(() => _toolsOpen = false);
+          return;
+        }
         _captureThumbnailAndExit();
       },
       child: Scaffold(
@@ -4201,6 +4212,7 @@ class _DrawScreenState extends State<DrawScreen>
                         currentIsEraser: _currentIsEraser,
                         currentIsFilledShape: _currentIsFilledShape,
                         currentShapeType: _currentShapeType,
+                        currentLayer: _activeLayer,
                         partnerNotifier: _partnerNotifier,
                         canvasSize: _canvasSize,
                         repaintNotifier: _repaintNotifier,
@@ -5598,6 +5610,10 @@ class _CanvasScene extends StatefulWidget {
   final bool currentIsEraser;
   final bool currentIsFilledShape;
   final DrawShapeType? currentShapeType;
+
+  /// Слой, на котором ведут текущую линию: она рисуется в нём, а не поверх
+  /// всего рисунка.
+  final int currentLayer;
   final ValueNotifier<List<DrawStroke>> partnerNotifier;
   final Size canvasSize;
 
@@ -5630,6 +5646,7 @@ class _CanvasScene extends StatefulWidget {
     required this.currentIsEraser,
     required this.currentIsFilledShape,
     required this.currentShapeType,
+    this.currentLayer = 0,
     required this.partnerNotifier,
     required this.canvasSize,
     this.selection,
@@ -5657,6 +5674,9 @@ class _CanvasSceneState extends State<_CanvasScene> {
   /// холсте и при увеличении.
   final StrokeLayerCache _layer = StrokeLayerCache();
 
+  /// Готовые картинки слоёв, когда слоёв в рисунке больше одного.
+  final LayerPictures _layerPictures = LayerPictures();
+
   @override
   void initState() {
     super.initState();
@@ -5679,12 +5699,16 @@ class _CanvasSceneState extends State<_CanvasScene> {
     _images.removeListener(_onImageReady);
     _images.dispose();
     _layer.dispose();
+    _layerPictures.dispose();
     super.dispose();
   }
 
   /// Приехавшая картинка ломает готовый слой: он собирался, когда её ещё не
   /// было, и без сброса дыра осталась бы в кэше до следующей пересборки.
-  void _onImageReady() => _layer.invalidate();
+  void _onImageReady() {
+    _layer.invalidate();
+    _layerPictures.invalidate();
+  }
 
   /// Ревизия основы, на которой в последний раз подчищали растры.
   int _sweptRevision = -1;
@@ -5740,6 +5764,7 @@ class _CanvasSceneState extends State<_CanvasScene> {
         old.pixelCols != widget.pixelCols ||
         old.pixelRows != widget.pixelRows) {
       _layer.invalidate();
+      _layerPictures.invalidate();
     }
   }
 
@@ -5790,6 +5815,8 @@ class _CanvasSceneState extends State<_CanvasScene> {
               painter: _DrawingPainter(
                 strokes: widget.strokes,
                 layer: _layer,
+                layerPictures: _layerPictures,
+                currentLayer: widget.currentLayer,
                 pixelCols: widget.pixelCols,
                 pixelRows: widget.pixelRows,
                 currentPoints: widget.currentPoints,
@@ -5854,6 +5881,12 @@ class _DrawingPainter extends CustomPainter {
   /// Готовый слой закоммиченных штрихов (живёт в состоянии сцены).
   final StrokeLayerCache layer;
 
+  /// Готовые картинки слоёв, когда слоёв больше одного.
+  final LayerPictures layerPictures;
+
+  /// Слой, на котором ведут текущую линию.
+  final int currentLayer;
+
   /// Растры картинок-штрихов: заливок и вставленных фото (живут там же).
   final CanvasImageCache images;
 
@@ -5872,6 +5905,8 @@ class _DrawingPainter extends CustomPainter {
   _DrawingPainter({
     required this.strokes,
     required this.layer,
+    required this.layerPictures,
+    this.currentLayer = 0,
     required this.images,
     this.localImagePaths = const {},
     this.selectedImageId,
@@ -5944,6 +5979,52 @@ class _DrawingPainter extends CustomPainter {
     // поверх холста, пятно закрывало всё, что нарисовано позже, на любом слое.
     final strokeList = snapshot.list;
 
+    // Слоёв больше одного — каждый рисуется отдельно: ластик стирает только
+    // свой слой, а текущая линия лежит в своём слое, а не поверх всего
+    // рисунка («криво работают слои», 20.10.2026).
+    final liveLayers = <int>[
+      if (currentPoints.isNotEmpty) currentLayer,
+      for (final s in partnerNotifier.value) s.layer,
+    ];
+    final layers = layersOf(strokeList, liveLayers);
+    if (layers.length > 1) {
+      // Картинки удалённых слоёв держали бы память до выхода с холста.
+      layerPictures.keepOnly(layers);
+      paintLayers(
+        canvas,
+        strokeList,
+        size,
+        pixelCols: pixelCols,
+        pixelRows: pixelRows,
+        imageOf: _imageOf,
+        pictureOf: (index, own) => layerPictures.pictureFor(index, own, size, () {
+          // Пока растр картинки едет, слой не записываем: дыра осталась бы
+          // в картинке до пересборки.
+          if (_readyPrefix(own) < own.length) return null;
+          final recorder = ui.PictureRecorder();
+          paintStrokeRange(
+            Canvas(recorder),
+            own,
+            size,
+            pixelCols: pixelCols,
+            pixelRows: pixelRows,
+            imageOf: _imageOf,
+          );
+          return recorder.endRecording();
+        }),
+        liveLayers: liveLayers,
+        eraserLayers: [
+          if (currentPoints.isNotEmpty && currentIsEraser) currentLayer,
+          for (final s in partnerNotifier.value)
+            if (s.isEraser) s.layer,
+        ],
+        live: (canvas, index) => _paintLive(canvas, size, layer: index),
+      );
+      _paintSelection(canvas, size);
+      _paintImageSelection(canvas, size, strokeList);
+      return;
+    }
+
     // Ластик снимает краску (`BlendMode.dstOut`), а значит рисовать штрихи
     // надо в своём слое: иначе стирание выест и фон холста — сетку, узор,
     // сам лист. Слой заводим только когда ластик в рисунке есть: saveLayer
@@ -5959,8 +6040,8 @@ class _DrawingPainter extends CustomPainter {
     // каждая новая клетка пиксельной раскраски пересобирала весь рисунок — на
     // холсте в тысячу штрихов это и есть «дёргается».
     //
-    // Разделять слои по-настоящему нельзя: ластик работает по общему полотну.
-    // Поэтому картинка одна, меняется только цена кадра.
+    // Сюда доходит рисунок в один слой: при нескольких слоях каждый рисуется
+    // отдельно выше (`paintLayers`), иначе ластик стирал бы и нижние.
     var picture = layer.prefixFor(
       revision: strokesRevision,
       available: strokeList.length,
@@ -6012,7 +6093,20 @@ class _DrawingPainter extends CustomPainter {
       imageOf: _imageOf,
     );
 
-    if (currentPoints.isNotEmpty) {
+    _paintLive(canvas, size);
+
+    if (needsLayer) canvas.restore();
+
+    // Рамка рисуется ПОСЛЕ восстановления слоя: внутри него ластик съел бы и
+    // её вместе с краской.
+    _paintSelection(canvas, size);
+    _paintImageSelection(canvas, size, strokeList);
+  }
+
+  /// Текущая линия и живые мазки партнёра. [layer] — только то, что лежит в
+  /// этом слое; null — всё сразу.
+  void _paintLive(Canvas canvas, Size size, {int? layer}) {
+    if (currentPoints.isNotEmpty && (layer == null || layer == currentLayer)) {
       final drafts = <List<DrawPoint>>[
         currentPoints,
         ...mirrorStroke(
@@ -6047,6 +6141,7 @@ class _DrawingPainter extends CustomPainter {
     }
 
     for (final s in partnerNotifier.value) {
+      if (layer != null && s.layer != layer) continue;
       if (s.shapeType != null && s.points.length >= 2) {
         _drawShape(
           canvas,
@@ -6070,13 +6165,6 @@ class _DrawingPainter extends CustomPainter {
         );
       }
     }
-
-    if (needsLayer) canvas.restore();
-
-    // Рамка рисуется ПОСЛЕ восстановления слоя: внутри него ластик съел бы и
-    // её вместе с краской.
-    _paintSelection(canvas, size);
-    _paintImageSelection(canvas, size, strokeList);
   }
 
   /// Растр картинки-штриха, если он уже приехал.

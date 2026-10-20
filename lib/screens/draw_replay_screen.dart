@@ -7,6 +7,7 @@ import '../models/draw_stroke.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/profile_theme.dart';
+import '../utils/canvas_image_cache.dart';
 import '../widgets/draw/stroke_painting.dart';
 
 /// «Как рисовали» — повтор появления рисунка.
@@ -54,12 +55,15 @@ class _DrawReplayScreenState extends State<DrawReplayScreen>
   Duration _elapsed = Duration.zero;
   Duration _lastTick = Duration.zero;
 
+  /// Растры заливок и вставленных фото: повтор показывает и их (до 20.10.2026
+  /// заливки в повторе не было вовсе).
+  final CanvasImageCache _images = CanvasImageCache();
+
   @override
   void initState() {
     super.initState();
-    // Картинки повтору не нужны: они появляются целиком и живут отдельной
-    // жизнью, а прокрутка идёт по точкам линий.
-    _strokes = widget.strokes.where((s) => s.imageUrl == null).toList();
+    // Проигрываем в порядке рисования: холст отдаёт штрихи по слоям.
+    _strokes = replayOrder(widget.strokes);
     _total = totalReplayPoints(_strokes);
     _base = replayDuration(_total);
     _ticker = createTicker(_onTick)..start();
@@ -69,6 +73,7 @@ class _DrawReplayScreenState extends State<DrawReplayScreen>
   void dispose() {
     _ticker.dispose();
     _shown.dispose();
+    _images.dispose();
     super.dispose();
   }
 
@@ -159,6 +164,7 @@ class _DrawReplayScreenState extends State<DrawReplayScreen>
                                       painter: _ReplayPainter(
                                         strokes: _strokes,
                                         shown: _shown,
+                                        images: _images,
                                         pixelCols: widget.pixelCols,
                                         pixelRows: widget.pixelRows,
                                       ),
@@ -242,51 +248,30 @@ class _ReplayPainter extends CustomPainter {
   _ReplayPainter({
     required this.strokes,
     required this.shown,
+    required this.images,
     this.pixelCols,
     this.pixelRows,
-  }) : super(repaint: shown);
+  }) : super(repaint: Listenable.merge([shown, images]));
 
   final List<DrawStroke> strokes;
   final ValueNotifier<int> shown;
+  final CanvasImageCache images;
   final int? pixelCols;
   final int? pixelRows;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final visible = strokesUpTo(strokes, shown.value);
-    // Ластик стирает, поэтому штрихи живут в своём слое — иначе он выел бы и
-    // фон листа. Тот же приём, что на самом холсте.
-    final needsLayer = visible.any((s) => s.isEraser);
-    if (needsLayer) canvas.saveLayer(Offset.zero & size, Paint());
-    for (final s in visible) {
-      if (s.shapeType != null && s.points.length >= 2) {
-        paintShape(
-          canvas,
-          s.points,
-          s.colorValue,
-          s.strokeWidth,
-          s.shapeType!,
-          size,
-          isFilledShape: s.isFilledShape,
-          // Повтор обязан показывать ту же фигуру, что и холст: на пиксельном
-          // это клетки, а не гладкая кривая.
-          pixelCols: pixelCols,
-          pixelRows: pixelRows,
-        );
-      } else if (s.shapeType == null) {
-        paintStroke(
-          canvas,
-          s.points,
-          s.colorValue,
-          s.strokeWidth,
-          s.isEraser,
-          size,
-          pixelCols: pixelCols,
-          pixelRows: pixelRows,
-        );
-      }
-    }
-    if (needsLayer) canvas.restore();
+    // Показанное складывается по слоям тем же кодом, что и холст: каждый слой
+    // отдельно, ластик стирает только свой, заливки лежат на своих местах.
+    final visible = byLayer(strokesUpTo(strokes, shown.value));
+    paintLayers(
+      canvas,
+      visible,
+      size,
+      pixelCols: pixelCols,
+      pixelRows: pixelRows,
+      imageOf: images.imageFor,
+    );
   }
 
   @override

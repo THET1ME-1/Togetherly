@@ -25,6 +25,7 @@ class LiveStrokeMeta {
     required this.isEraser,
     required this.isFilledShape,
     required this.shapeType,
+    this.layer,
   });
 
   final int colorValue;
@@ -33,12 +34,17 @@ class LiveStrokeMeta {
   final bool isFilledShape;
   final DrawShapeType? shapeType;
 
+  /// Слой, на котором ведут мазок. Сборки до 20.10.2026 его не шлют: тогда
+  /// null, и получатель кладёт линию в запасной слой.
+  final int? layer;
+
   Map<String, dynamic> toMap() => {
         'colorValue': colorValue,
         'strokeWidth': strokeWidth,
         'isEraser': isEraser,
         'isFilledShape': isFilledShape,
         if (shapeType != null) 'shapeType': shapeType!.name,
+        if (layer != null) 'layer': layer,
       };
 
   static LiveStrokeMeta fromMap(Map<String, dynamic> m) => LiveStrokeMeta(
@@ -47,6 +53,7 @@ class LiveStrokeMeta {
         isEraser: m['isEraser'] == true,
         isFilledShape: m['isFilledShape'] == true,
         shapeType: parseShapeType(m['shapeType'] as String?),
+        layer: (m['layer'] as num?)?.toInt(),
       );
 }
 
@@ -175,9 +182,10 @@ class LiveStrokeAssembler {
         .toList();
   }
 
-  /// Мазок, который партнёр ведёт прямо сейчас: рисуется поверх холста и в
-  /// состав рисунка ещё не входит, поэтому номера в порядке у него нет.
-  DrawStroke? buildLive(String userId) {
+  /// Мазок, который партнёр ведёт прямо сейчас: в состав рисунка ещё не
+  /// входит, поэтому номера в порядке у него нет. Рисуется в своём слое;
+  /// [fallbackLayer] — куда класть линию старой сборки, не приславшей слой.
+  DrawStroke? buildLive(String userId, {int fallbackLayer = 0}) {
     final meta = _meta;
     if (meta == null || _points.isEmpty) return null;
     return DrawStroke(
@@ -191,6 +199,7 @@ class LiveStrokeAssembler {
       isFilledShape: meta.isFilledShape,
       shapeType: meta.shapeType,
       orderIndex: -1,
+      layer: meta.layer ?? fallbackLayer,
     );
   }
 
@@ -198,7 +207,9 @@ class LiveStrokeAssembler {
   ///
   /// Идентификатор строится из `sid`, поэтому пришедшая позже запись из базы
   /// узнаёт этот мазок по `clientId` и заменяет его без мигания и без дубля.
-  DrawStroke? buildStroke(String userId) {
+  /// Слой берётся из пакета: без него мазок до прихода записи лежал в нижнем
+  /// слое и потом прыгал в свой.
+  DrawStroke? buildStroke(String userId, {int fallbackLayer = 0}) {
     final sid = _sid;
     final meta = _meta;
     if (!_done || sid == null || meta == null || _points.isEmpty) return null;
@@ -213,6 +224,7 @@ class LiveStrokeAssembler {
       isFilledShape: meta.isFilledShape,
       shapeType: meta.shapeType,
       orderIndex: _orderIndex,
+      layer: meta.layer ?? fallbackLayer,
     );
   }
 

@@ -4,8 +4,8 @@ import 'dart:ui' as ui;
 ///
 /// `_DrawingPainter` перерисовывал ВСЕ накопленные штрихи на каждое движение
 /// пальца: на большом рисунке и при увеличении это тот самый лаг, на который
-/// жалуются («совместные раскраски лагают»). Разделить слои нельзя — ластик
-/// работает поверх общего, — поэтому закоммиченные штрихи пишутся в
+/// жалуются («совместные раскраски лагают»). Для рисунка в один слой
+/// закоммиченные штрихи пишутся в
 /// [ui.Picture] и на каждом кадре просто выкладываются одной командой, а
 /// заново рисуется только текущий мазок.
 ///
@@ -68,6 +68,67 @@ class StrokeLayerCache {
     _revision = -1;
     _prefixCount = 0;
     _size = ui.Size.zero;
+  }
+
+  void dispose() => invalidate();
+}
+
+/// Готовые картинки слоёв рисунка, когда слоёв больше одного.
+///
+/// Каждый слой рисуется отдельно (`paintLayers`), чтобы ластик стирал только
+/// свой слой. Картинка слоя пересобирается, только когда его штрихи
+/// изменились: сравниваются ссылки, как в [appendOnly].
+class LayerPictures {
+  final Map<int, ui.Picture> _pictures = {};
+  final Map<int, List<Object?>> _strokes = {};
+  final Map<int, ui.Size> _sizes = {};
+
+  /// Картинка слоя для этих штрихов: прежняя, если штрихи те же, иначе новая
+  /// из [record]. null — записать нельзя (растр картинки ещё едет).
+  ui.Picture? pictureFor(
+    int layer,
+    List<Object?> strokes,
+    ui.Size size,
+    ui.Picture? Function() record,
+  ) {
+    final old = _strokes[layer];
+    final ready = _pictures[layer];
+    if (ready != null &&
+        old != null &&
+        _sizes[layer] == size &&
+        old.length == strokes.length &&
+        appendOnly(old, strokes)) {
+      return ready;
+    }
+    _pictures.remove(layer)?.dispose();
+    _strokes.remove(layer);
+    final picture = record();
+    if (picture == null) return null;
+    _pictures[layer] = picture;
+    _strokes[layer] = List.of(strokes);
+    _sizes[layer] = size;
+    return picture;
+  }
+
+  /// Оставить только картинки слоёв, что есть в рисунке.
+  void keepOnly(Iterable<int> layers) {
+    final keep = layers.toSet();
+    final gone = _pictures.keys.where((l) => !keep.contains(l)).toList();
+    for (final layer in gone) {
+      _pictures.remove(layer)?.dispose();
+      _strokes.remove(layer);
+      _sizes.remove(layer);
+    }
+  }
+
+  /// Забыть все картинки: фон, размер листа или растр картинки поменялись.
+  void invalidate() {
+    for (final picture in _pictures.values) {
+      picture.dispose();
+    }
+    _pictures.clear();
+    _strokes.clear();
+    _sizes.clear();
   }
 
   void dispose() => invalidate();

@@ -159,4 +159,43 @@ void main() {
       expect(a.buildStroke('partner-uid'), isNull);
     });
   });
+
+  group('слой мазка партнёра (20.10.2026)', () {
+    // Слоя в пакете не было: живая линия партнёра лежала поверх всего, а
+    // законченная до прихода записи из базы падала в нижний слой и потом
+    // прыгала в свой — «криво работают слои».
+    const onSecond = LiveStrokeMeta(
+      colorValue: 0xFF112233,
+      strokeWidth: 6.5,
+      isEraser: true,
+      isFilledShape: false,
+      shapeType: null,
+      layer: 2,
+    );
+
+    test('слой едет в пакете и доходит до живой линии', () {
+      final a = LiveStrokeAssembler();
+      a.accept(LiveStrokeWire.keyframe(sid: 's1', seq: 0, points: pts(3), meta: onSecond));
+      expect(a.buildLive('partner-uid', fallbackLayer: 5)!.layer, 2);
+    });
+
+    test('законченный мазок сразу ложится в свой слой', () {
+      final a = LiveStrokeAssembler();
+      a.accept(LiveStrokeWire.done(sid: 's1', seq: 1, points: pts(3), meta: onSecond, orderIndex: 7));
+      final stroke = a.buildStroke('partner-uid', fallbackLayer: 5)!;
+      expect(stroke.layer, 2);
+      expect(stroke.isEraser, isTrue);
+    });
+
+    test('старая сборка слоя не шлёт — линия встаёт в запасной слой', () {
+      final a = LiveStrokeAssembler();
+      a.accept(LiveStrokeWire.keyframe(sid: 's1', seq: 0, points: pts(3), meta: meta));
+      expect(a.buildLive('partner-uid', fallbackLayer: 5)!.layer, 5);
+    });
+
+    test('без слоя в мете пакет не меняется для старых сборок', () {
+      expect(meta.toMap().containsKey('layer'), isFalse);
+      expect(onSecond.toMap()['layer'], 2);
+    });
+  });
 }

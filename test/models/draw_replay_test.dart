@@ -70,4 +70,44 @@ void main() {
       expect(short.inMilliseconds, greaterThanOrEqualTo(1500));
     });
   });
+
+  group('повтор со слоями и заливкой (20.10.2026)', () {
+    DrawStroke layered(String id, int order, int layer) => DrawStroke(
+          id: id,
+          userId: 'u',
+          colorValue: 0xFF000000,
+          strokeWidth: 4,
+          points: const [DrawPoint(0, 0), DrawPoint(1, 1)],
+          orderIndex: order,
+          layer: layer,
+        );
+    DrawStroke fill(String id, int order) => DrawStroke(
+          id: id,
+          userId: 'u',
+          colorValue: 0xFF000000,
+          strokeWidth: 0,
+          points: const [],
+          orderIndex: order,
+          imageUrl: 'pb://media/x/fill.png',
+        );
+
+    test('проигрывается в порядке рисования, а не по слоям', () {
+      // Холст отдаёт штрихи по слоям: весь нижний, потом весь верхний.
+      final canvasOrder = [layered('b', 1, 0), layered('a', 0, 1)];
+      expect(replayOrder(canvasOrder).map((s) => s.id), ['a', 'b']);
+    });
+
+    test('показанное складывается по слоям, как на холсте', () {
+      final shown = [layered('a', 0, 1), layered('b', 1, 0)];
+      expect(byLayer(shown).map((s) => s.id), ['b', 'a']);
+    });
+
+    test('заливка появляется в своё время, а не в начале', () {
+      final all = [layered('a', 0, 0), fill('f', 1)];
+      expect(strokesUpTo(all, 1).map((s) => s.id), isEmpty);
+      expect(strokesUpTo(all, 2).map((s) => s.id), ['a']);
+      expect(strokesUpTo(all, 3).map((s) => s.id), ['a', 'f']);
+      expect(totalReplayPoints(all), 3);
+    });
+  });
 }
