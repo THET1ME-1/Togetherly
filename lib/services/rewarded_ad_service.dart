@@ -211,7 +211,11 @@ class RewardedAdService {
   /// ждали только его, человек стоял перед пустым экраном две минуты: медиана
   /// ожидания была ровно 120 секунд. Возврат приложения — такой же честный
   /// признак того, что реклама закрылась.
-  Future<AdShowWatch> _awaitAdClosed(Completer<void> dismissed, String who) async {
+  Future<AdShowWatch> _awaitAdClosed(
+    Completer<void> dismissed,
+    String who, {
+    required bool Function() shown,
+  }) async {
     final watch = AdShowWatch();
     late final AppLifecycleListener listener;
     final returned = Completer<void>();
@@ -221,17 +225,23 @@ class RewardedAdService {
         if (watch.finished && !returned.isCompleted) returned.complete();
       },
     );
+    final closed = Future.any([
+      dismissed.future,
+      returned.future.then((_) async {
+        // Событие закрытия часто приходит следом за возвратом — даём ему
+        // долететь, чтобы награда засчиталась штатным путём.
+        await Future<void>.delayed(kAdReturnGrace);
+      }),
+    ]);
     try {
-      await Future.any([
-        dismissed.future,
-        returned.future.then((_) async {
-          // Событие закрытия часто приходит следом за возвратом — даём ему
-          // долететь, чтобы награда засчиталась штатным путём.
-          await Future<void>.delayed(kAdReturnGrace);
-        }),
-      ]).timeout(kAdShowGuard, onTimeout: () {
-        debugPrint('$who: событий закрытия нет, выходим по предохранителю');
-      });
+      var done = await closed.then((_) => true).timeout(kAdShowGuard, onTimeout: () => false);
+      // Показанная реклама ждёт своего закрытия дольше: пачка роликов идёт
+      // больше предохранителя.
+      final rest = adCloseWaitLimit(shown: shown()) - kAdShowGuard;
+      if (!done && rest > Duration.zero) {
+        done = await closed.then((_) => true).timeout(rest, onTimeout: () => false);
+      }
+      if (!done) debugPrint('$who: событий закрытия нет, выходим по предохранителю');
     } finally {
       listener.dispose();
     }
@@ -290,7 +300,7 @@ class RewardedAdService {
       debugPrint('Yandex rewarded show() бросил — $e');
       finish();
     }
-    final watch = await _awaitAdClosed(dismissed, 'Yandex rewarded');
+    final watch = await _awaitAdClosed(dismissed, 'Yandex rewarded', shown: () => shown);
     _lastSecondsAway = watch.away.inSeconds;
     // onRewarded может прийти вплотную к закрытию (или сразу после) — даём ему
     // долететь, прежде чем решить, что награды не было. Окно щедрое: грант всё

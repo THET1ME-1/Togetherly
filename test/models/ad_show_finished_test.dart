@@ -32,11 +32,32 @@ void main() {
     });
 
     test('мигание inactive без ухода в фон не считается', () {
-      // Шторка уведомлений и звонок дают inactive → resumed без paused.
+      // Шторка уведомлений и звонок дают короткое inactive → resumed.
+      final start = DateTime(2026, 10, 20, 11);
       final watch = AdShowWatch();
-      watch.onState(AppLifecycleState.inactive);
-      watch.onState(AppLifecycleState.resumed);
+      watch.onState(AppLifecycleState.inactive, at: start);
+      watch.onState(AppLifecycleState.resumed, at: start.add(const Duration(milliseconds: 800)));
       expect(watch.finished, isFalse);
+    });
+
+    test('полупрозрачная реклама: долгое inactive и возврат — показ окончен', () {
+      // Яндекс на Android открывает рекламу полупрозрачным окном: приложение
+      // под ним не уходит в фон, а только теряет фокус (20.10.2026, эмулятор).
+      final start = DateTime(2026, 10, 20, 11);
+      final watch = AdShowWatch();
+      watch.onState(AppLifecycleState.inactive, at: start);
+      expect(watch.finished, isFalse, reason: 'реклама ещё на экране');
+      watch.onState(AppLifecycleState.resumed, at: start.add(const Duration(seconds: 95)));
+      expect(watch.finished, isTrue);
+      expect(watch.away, const Duration(seconds: 95));
+    });
+
+    test('за полупрозрачной рекламой ролик засчитывается по времени', () {
+      final start = DateTime(2026, 10, 20, 11);
+      final watch = AdShowWatch();
+      watch.onState(AppLifecycleState.inactive, at: start);
+      watch.onState(AppLifecycleState.resumed, at: start.add(const Duration(seconds: 40)));
+      expect(adRewardDeserved(shown: true, away: watch.away, onScreen: Duration.zero), isTrue);
     });
 
     test('скрытое окно тоже считается уходом', () {
@@ -45,6 +66,15 @@ void main() {
       watch.onState(AppLifecycleState.hidden);
       watch.onState(AppLifecycleState.resumed);
       expect(watch.finished, isTrue);
+    });
+
+    test('показанная реклама ждёт своего закрытия дольше предохранителя', () {
+      // Яндекс крутит пачки из трёх роликов, это больше 70 секунд. Пока
+      // реклама на экране, решать «закрылась» по часам нельзя: сундук
+      // открывался под рекламой, а «не засчитан» выходил поверх неё.
+      expect(adCloseWaitLimit(shown: false), kAdShowGuard);
+      expect(adCloseWaitLimit(shown: true), greaterThanOrEqualTo(const Duration(minutes: 4)));
+      expect(adCloseWaitLimit(shown: true), lessThanOrEqualTo(kAdOnScreenSane));
     });
 
     test('предохранитель — минута с небольшим, а не две', () {

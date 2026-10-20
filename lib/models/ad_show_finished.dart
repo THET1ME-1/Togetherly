@@ -112,18 +112,35 @@ class AdShowWatch {
         _leftAt ??= now;
         _left = true;
       case AppLifecycleState.resumed:
+        final since = _leftAt;
+        // Долгая потеря фокуса — это полупрозрачная реклама поверх нас.
+        if (!_left && since != null && now.difference(since) >= kAdInactiveIsAd) {
+          _left = true;
+        }
         if (_left) {
           _finished = true;
-          final since = _leftAt;
-          if (since != null) {
-            _away += now.difference(since);
-            _leftAt = null;
-          }
+          if (since != null) _away += now.difference(since);
         }
-      // Мигание inactive даёт шторка уведомлений и входящий звонок — уходом
-      // это не считается.
+        _leftAt = null;
+      // Яндекс на Android показывает рекламу полупрозрачным окном: приложение
+      // под ним не уходит в фон, а только теряет фокус. Короткое мигание
+      // (шторка, звонок) уходом не считается — решает длительность.
       case AppLifecycleState.inactive:
-        break;
+        _leftAt ??= now;
     }
   }
 }
+
+/// Сколько приложение должно простоять без фокуса, чтобы это была реклама,
+/// а не шторка уведомлений.
+const Duration kAdInactiveIsAd = Duration(seconds: 3);
+
+/// Сколько ждать закрытия рекламы.
+///
+/// Пока SDK не сказал «показано», хватает [kAdShowGuard]: показ мог не
+/// начаться вовсе. Показанная реклама ждёт своего закрытия до
+/// [kAdOnScreenSane]: Яндекс крутит пачки из трёх роликов дольше 70 секунд,
+/// и прежний предохранитель решал «закрылась» посреди пачки (20.10.2026,
+/// эмулятор): сундук открывался под рекламой, а «Ролик не засчитан» выходил
+/// поверх неё.
+Duration adCloseWaitLimit({required bool shown}) => shown ? kAdOnScreenSane : kAdShowGuard;

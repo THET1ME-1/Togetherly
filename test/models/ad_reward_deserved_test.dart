@@ -22,7 +22,9 @@ void main() {
     test('мигание inactive длительность не набивает', () {
       final watch = AdShowWatch();
       watch.onState(AppLifecycleState.inactive, at: DateTime(2026, 8, 26, 12, 0, 0));
-      watch.onState(AppLifecycleState.resumed, at: DateTime(2026, 8, 26, 12, 0, 40));
+      // Секунда — шторка уведомлений. Долгое inactive с 20.10.2026 считается
+      // полупрозрачной рекламой (ad_show_finished_test).
+      watch.onState(AppLifecycleState.resumed, at: DateTime(2026, 8, 26, 12, 0, 1));
 
       expect(watch.finished, isFalse);
       expect(watch.away, Duration.zero);
