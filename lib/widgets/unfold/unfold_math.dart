@@ -51,6 +51,34 @@ double unfoldSpring(double ms, {required double omega, required double zeta}) {
           (math.cos(damped * t) + (zeta * omega / damped) * math.sin(damped * t));
 }
 
+/// Окно между прямоугольниками [a] и [b] на доле пути [t].
+///
+/// Размер меняется в разах, а не в точках: за равное время окно растёт в
+/// одно и то же число раз. Каждая сторона при этом стоит на месте ровно так,
+/// как при обычном смешивании краёв, и окно не отрывается от кнопки. Обычное
+/// смешивание у маленькой кнопки у верха экрана складывало окно вытянутой
+/// полоской: верхний край доезжал сразу, нижний ехал в семь раз дальше, и
+/// под шестерёнкой висел тёмный хвост (обращение 367).
+Rect unfoldRectLerp(Rect a, Rect b, double t) {
+  final x = _unfoldAxis(a.left, a.right, b.left, b.right, t);
+  final y = _unfoldAxis(a.top, a.bottom, b.top, b.bottom, t);
+  return Rect.fromLTRB(x.start, y.start, x.end, y.end);
+}
+
+({double start, double end}) _unfoldAxis(
+    double fromStart, double fromEnd, double toStart, double toEnd, double t) {
+  final from = fromEnd - fromStart;
+  final to = toEnd - toStart;
+  // Размер не меняется: остаётся простой сдвиг.
+  if (from <= 0 || to <= 0 || (to - from).abs() < 0.5) {
+    return (start: _mix(fromStart, toStart, t), end: _mix(fromEnd, toEnd, t));
+  }
+  final size = from * math.pow(to / from, t);
+  final share = (size - from) / (to - from);
+  final start = _mix(fromStart, toStart, share);
+  return (start: start, end: start + size);
+}
+
 /// Один кадр перехода: где окно, как оно скруглено и что в нём видно.
 class UnfoldFrame {
   const UnfoldFrame({
@@ -85,7 +113,7 @@ UnfoldFrame unfoldOpenFrame({
 }) {
   final travel = unfoldSpring(ms, omega: 18, zeta: 0.82);
   return UnfoldFrame(
-    rect: Rect.lerp(source, full, travel)!,
+    rect: unfoldRectLerp(source, full, travel),
     radius: _mix(sourceRadius, 0, _unit(travel)),
     tint: 1 - _unit(ms / 240),
     ghost: 1 - _unit(ms / 110),
@@ -105,7 +133,7 @@ UnfoldFrame unfoldCloseFrame({
 }) {
   final left = 1 - unfoldSpring(ms, omega: 21, zeta: 1);
   return UnfoldFrame(
-    rect: Rect.lerp(source, from, left)!,
+    rect: unfoldRectLerp(source, from, left),
     radius: _mix(sourceRadius, fromRadius, left),
     tint: _unit((ms - 40) / 170),
     ghost: _unit((ms - 150) / 120),

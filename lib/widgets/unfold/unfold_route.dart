@@ -509,6 +509,12 @@ class _UnfoldSession {
         : MediaQuery.maybeDevicePixelRatioOf(context) ?? 1;
   }
 
+  bool get _keyboardOpen {
+    final context = route.navigator?.context;
+    if (context == null) return false;
+    return (MediaQuery.maybeViewInsetsOf(context)?.bottom ?? 0) > 0;
+  }
+
   /// Всё, что надо знать о карточке, снимается в момент нажатия: через кадр
   /// она уже спрятана под окном.
   void measure() {
@@ -617,9 +623,14 @@ class _UnfoldSession {
       return;
     }
 
+    // Под открытой клавиатурой экран внизу ужат, и кнопка стоит выше своего
+    // места. Окно складывалось туда, в середину экрана, а клавиатура тем
+    // временем уходила, и кнопка возвращалась вниз (обращение 367). Пока
+    // клавиатура на экране, место берём то, что сняли при нажатии.
     final origin = _origin;
-    final fresh =
-        origin != null && origin.alive ? origin.rect(_overlayBox) : null;
+    final fresh = origin != null && origin.alive && !_keyboardOpen
+        ? origin.rect(_overlayBox)
+        : null;
     if (fresh != null && !fresh.isEmpty) {
       sourceRect = fresh;
     } else if (origin == null || !origin.alive) {

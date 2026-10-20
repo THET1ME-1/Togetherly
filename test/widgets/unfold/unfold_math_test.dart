@@ -122,6 +122,37 @@ void main() {
       expect(frame.rect, dropped);
       expect(frame.radius, 40);
     });
+
+    // Обращение 367: шестерёнка у верха экрана. Верхний край окна доезжал до
+    // неё сразу, нижний ехал в семь раз дальше, и под кнопкой висел тёмный
+    // хвост.
+    test('в маленькую кнопку складывается без хвоста', () {
+      const gear = Rect.fromLTWH(296, 112, 34, 34);
+      for (var ms = 0.0; ms <= UnfoldTiming.closeMs; ms += 5) {
+        final rect = unfoldCloseFrame(
+                ms: ms, source: gear, from: full, sourceRadius: 17, fromRadius: 0)
+            .rect;
+        expect(rect.contains(gear.center), isTrue, reason: 'на $ms мс окно ушло от кнопки');
+        if (rect.width * rect.height > gear.width * gear.height * 6) continue;
+        expect(rect.height / rect.width, inInclusiveRange(0.75, 1.35),
+            reason: 'на $ms мс окно ${rect.size} вытянуто, а кнопка круглая');
+      }
+    });
+  });
+
+  group('открытие из маленькой кнопки', () {
+    test('растёт без полоски и не отрывается от кнопки', () {
+      const chat = Rect.fromLTWH(306, 640, 40, 40);
+      for (var ms = 0.0; ms <= UnfoldTiming.openMs; ms += 5) {
+        final rect = unfoldOpenFrame(
+                ms: ms, source: chat, full: full, sourceRadius: 20)
+            .rect;
+        expect(rect.contains(chat.center), isTrue, reason: 'на $ms мс окно ушло от кнопки');
+        if (rect.width * rect.height > chat.width * chat.height * 6) continue;
+        expect(rect.height / rect.width, inInclusiveRange(0.75, 1.35),
+            reason: 'на $ms мс окно ${rect.size} вытянуто, а кнопка круглая');
+      }
+    });
   });
 
   group('экран под пальцем', () {
