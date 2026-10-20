@@ -54,14 +54,16 @@ void main() {
       );
     });
 
-    test('закрыл на второй секунде — не засчитывается', () {
+    test('пролистал пачку раньше — награда всё равно положена', () {
+      // Решение владельца 20.10.2026: показали рекламу и она закрылась —
+      // награда, сколько бы ни шла. Сутки держит серверный предел.
       expect(
         adRewardDeserved(
           shown: true,
           away: const Duration(seconds: 2),
           onScreen: const Duration(seconds: 3),
         ),
-        isFalse,
+        isTrue,
       );
     });
 
@@ -112,25 +114,14 @@ void main() {
       }
     });
 
-    test('внутри окна дольше разумного — это отложенный телефон', () {
-      expect(
-        adRewardDeserved(
-          shown: true,
-          away: Duration.zero,
-          onScreen: kAdOnScreenSane + const Duration(seconds: 1),
-        ),
-        isFalse,
-      );
-    });
-
-    test('телефон отложили на час — это не просмотр', () {
+    test('забыл закрыть рекламу на сорок минут — награда положена', () {
       expect(
         adRewardDeserved(
           shown: true,
           away: const Duration(minutes: 40),
           onScreen: const Duration(minutes: 40),
         ),
-        isFalse,
+        isTrue,
       );
     });
 
@@ -147,23 +138,5 @@ void main() {
       );
     });
 
-    test('порог совпадает с обещанием — короче него награды не бывает', () {
-      expect(
-        adRewardDeserved(
-          shown: true,
-          away: kAdWatchedEnough - const Duration(seconds: 1),
-          onScreen: kAdWatchedEnough - const Duration(seconds: 1),
-        ),
-        isFalse,
-      );
-      expect(
-        adRewardDeserved(
-          shown: true,
-          away: kAdWatchedEnough,
-          onScreen: kAdWatchedEnough,
-        ),
-        isTrue,
-      );
-    });
   });
 }

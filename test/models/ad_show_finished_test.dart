@@ -73,8 +73,8 @@ void main() {
       // реклама на экране, решать «закрылась» по часам нельзя: сундук
       // открывался под рекламой, а «не засчитан» выходил поверх неё.
       expect(adCloseWaitLimit(shown: false), kAdShowGuard);
-      expect(adCloseWaitLimit(shown: true), greaterThanOrEqualTo(const Duration(minutes: 4)));
-      expect(adCloseWaitLimit(shown: true), lessThanOrEqualTo(kAdOnScreenSane));
+      // Человек может забыть закрыть рекламу: ждём, пока закроет.
+      expect(adCloseWaitLimit(shown: true), greaterThanOrEqualTo(const Duration(minutes: 30)));
     });
 
     test('предохранитель — минута с небольшим, а не две', () {
