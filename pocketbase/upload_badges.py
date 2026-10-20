@@ -218,8 +218,9 @@ def upload_frame(folder: Path, token: str) -> None:
 
 
 def upload_chest(folder: Path, token: str, kind: str = "chest") -> None:
-    """Сезонная запись целиком с сервера: сундук (`chest`, id `chest_<ключ>`)
-    или фон главной (`backdrop`, id `backdrop_<ключ>`, призрак за стеклом).
+    """Сезонная запись целиком с сервера: сундук (`chest`, id `chest_<ключ>`),
+    фон главной (`backdrop`, id `backdrop_<ключ>`, призрак за стеклом) или
+    заставка при запуске (`splash`, id `splash_<ключ>`, bake_splash.py).
     Файлы — всё, что лежит в папке рядом с <вид>.json (анимации, занавесы,
     музыка, маски фона); в `data` к описанию добавляются их адреса по имени
     без расширения."""
@@ -250,7 +251,7 @@ def upload_chest(folder: Path, token: str, kind: str = "chest") -> None:
     urls = {n.rsplit(".", 1)[0]: f"{PUBLIC}/api/files/catalog_items/{rec['id']}/{s}" for n, s in zip(names, stored)}
     body, ctype = multipart({"data": json.dumps({**spec, "files": urls}, ensure_ascii=False)}, [])
     send("PATCH", url, token, body, ctype)
-    what = "сундук" if kind == "chest" else "фон"
+    what = {"chest": "сундук", "backdrop": "фон", "splash": "заставка"}[kind]
     print(f"{what} {key}: {action} ({item_id}, {spec.get('from')} — {spec.get('until')}, {len(names)} файлов)")
 
 
@@ -260,6 +261,9 @@ def upload(folder: Path, token: str) -> None:
         return
     if (folder / "backdrop.json").exists():
         upload_chest(folder, token, kind="backdrop")
+        return
+    if (folder / "splash.json").exists():
+        upload_chest(folder, token, kind="splash")
         return
     if (folder / "frame.json").exists():
         upload_frame(folder, token)
@@ -345,7 +349,7 @@ def main() -> None:
         if args.dir:
             root = Path(args.dir)
             folders = sorted(p for p in root.iterdir()
-                             if any((p / f).exists() for f in ("badge.json", "gift.json", "frame.json", "chest.json", "backdrop.json")))
+                             if any((p / f).exists() for f in ("badge.json", "gift.json", "frame.json", "chest.json", "backdrop.json", "splash.json")))
             if args.only:
                 folders = [p for p in folders if p.name in args.only]
             if not folders:

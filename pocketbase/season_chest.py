@@ -21,6 +21,10 @@
     python3 season_chest.py hw --kind backdrop --off
 Фон приложение видит при следующем открытии (каталог приходит при запуске).
 
+Заставка при запуске (запись `splash_<ключ>`, bake_splash.py) — `--kind splash`:
+    python3 season_chest.py hw_key --kind splash --until 2026-11-01
+Вне дат заставка не играет и пропадает из выбора в «Оформлении».
+
 Даты — по часам человека, `until` не включая: --until 2026-11-01 значит, что
 31 октября сундук ещё есть, 1 ноября его уже нет. Открытия, вещи и всё
 выпавшее у людей остаются при любом выключении.
@@ -52,7 +56,8 @@ def main() -> None:
     ap.add_argument("--until", help="день, с которого сундука уже нет, ГГГГ-ММ-ДД")
     ap.add_argument("--on", action="store_true", help="включить")
     ap.add_argument("--off", action="store_true", help="выключить")
-    ap.add_argument("--kind", choices=("chest", "backdrop"), default="chest", help="сундук или фон главной")
+    ap.add_argument("--kind", choices=("chest", "backdrop", "splash"), default="chest",
+                    help="сундук, фон главной или заставка при запуске")
     ap.add_argument("--home", choices=("on", "off"), help="сундук на главной вместо обычного (только --kind chest)")
     args = ap.parse_args()
     for d in (args.start, args.until):
