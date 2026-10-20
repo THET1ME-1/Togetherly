@@ -491,6 +491,8 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
         return;
       }
       adShown = true;
+      // «Долго» считаем от закрытия рекламы: ролик сам идёт 30–90 секунд.
+      total.reset();
     }
     if (slot.pendingOpenId == null && fromJar) {
       unawaited(ChestPendingStore.write(storeKey, ChestPending(openId: openId, fromJar: true, at: DateTime.now())));
