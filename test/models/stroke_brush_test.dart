@@ -73,6 +73,7 @@ void main() {
           .listSync()
           .whereType<File>()
           .where((f) => f.path.endsWith('.dart')),
+      File('lib/screens/draw_screen.dart'),
     ];
     final missing = <String>[];
     for (final file in files) {

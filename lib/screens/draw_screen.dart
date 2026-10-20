@@ -67,7 +67,9 @@ import '../models/draw_quick_tools.dart';
 import 'draw_replay_screen.dart';
 import '../widgets/draw/stroke_painting.dart';
 import '../models/canvas_undo.dart';
+import '../models/stroke_brush.dart';
 import '../models/stroke_transform.dart';
+import '../models/whole_erase.dart';
 import '../utils/quick_shape.dart';
 import '../utils/stroke_stabilizer.dart';
 import '../widgets/common/app_dialog.dart';
@@ -302,6 +304,26 @@ class _DrawScreenState extends State<DrawScreen>
   double _strokeWidth = 5.0;
   Color _bgColor = Colors.white;
 
+  /// Кисть, режим ластика и его толщина (20.10.2026). У ластика толщина своя:
+  /// переключились на перо — вернулась толщина пера.
+  StrokeBrush _brush = StrokeBrush.pen;
+  EraserMode _eraserMode = EraserMode.hard;
+  double _eraserWidth = _kDefaultEraserWidth;
+  static const double _kDefaultEraserWidth = 24;
+  static const double _kMaxEraserWidth = 60;
+
+  /// Пиксельный холст — клетки: там нет мягкого края, а толщина ластика
+  /// общая с кистью, как и было.
+  EraserMode get _eraserModeNow =>
+      _isPixel && _eraserMode == EraserMode.soft ? EraserMode.hard : _eraserMode;
+  double get _eraserWidthNow => _isPixel ? _strokeWidth : _eraserWidth;
+
+  /// Ластик «Линия целиком»: что задето за одно касание, то и уходит одной
+  /// отменой.
+  WholeErase? _wholeErase;
+  final List<WholeErase> _wholeErases = [];
+  final List<WholeErase> _wholeEraseRedos = [];
+
   // ── Раскраска вдвоём ────────────────────────────────────────────────────
   //
   // Контур лежит поверх мазков, поэтому его нельзя закрасить; лист поделён
@@ -403,6 +425,7 @@ class _DrawScreenState extends State<DrawScreen>
   int _currentColorValue = 0xFF000000;
   double _currentStrokeWidth = 5.0;
   bool _currentIsEraser = false;
+  StrokeBrush _currentBrush = StrokeBrush.pen;
   bool _currentIsFilledShape = false;
   DrawShapeType? _currentShapeType;
   bool _isDrawing = false;
@@ -551,8 +574,10 @@ class _DrawScreenState extends State<DrawScreen>
     }
   }
 
-  bool get _canUndo => _myStrokeIds.isNotEmpty || _shapeEdits.isNotEmpty;
-  bool get _canRedo => _redoStack.isNotEmpty || _shapeRedos.isNotEmpty;
+  bool get _canUndo =>
+      _myStrokeIds.isNotEmpty || _shapeEdits.isNotEmpty || _wholeErases.isNotEmpty;
+  bool get _canRedo =>
+      _redoStack.isNotEmpty || _shapeRedos.isNotEmpty || _wholeEraseRedos.isNotEmpty;
 
   /// Штрих нарисовал я — значит его можно отменить. Номер по общей шкале.
   void _noteMyStroke(String id) {
@@ -993,6 +1018,8 @@ class _DrawScreenState extends State<DrawScreen>
     if (wipe) {
       _myStrokeIds.clear();
       _redoStack.clear();
+      _wholeErases.clear();
+      _wholeEraseRedos.clear();
       _pendingLocalStrokes.clear();
       _cancelledPendingStrokeIds.clear();
       _remoteStrokes = [];
@@ -1257,6 +1284,9 @@ class _DrawScreenState extends State<DrawScreen>
   }
 
   void _cancelCurrentGesture() {
+    // Стёртое линией целиком уже ушло с холста и из базы: отмену касания
+    // считаем концом движения, иначе вернуть стёртое было бы нечем.
+    _endWholeErase();
     final had = _isDrawing || _currentPoints.isNotEmpty;
     // Сглаживание живёт ровно один мазок: чужая память о том, где был палец,
     // дала бы следующему мазку рывок от прежней точки.
@@ -1304,16 +1334,26 @@ class _DrawScreenState extends State<DrawScreen>
     _strokeStartedAt = DateTime.now();
     _strokeTravel = 0;
 
-    // Кисть и ластик ведут линию рукой, им сглаживание помогает. У фигуры
-    // точек всего две, у пиксельной клетки отставание превращается в
-    // промахи мимо клетки — там стабилизатор выключен.
+    // «Линия целиком» не рисует мазок: палец убирает задетые линии.
+    if (_activeTool == DrawTool.eraser && _eraserModeNow == EraserMode.whole) {
+      _wholeErase = WholeErase(0);
+      _wholeEraseAt(localPoint);
+      return;
+    }
+
+    // Кисть ведёт линию рукой, ей сглаживание помогает. У фигуры точек всего
+    // две, у пиксельной клетки отставание превращается в промахи мимо клетки,
+    // а ластик обязан стирать точно под пальцем — там стабилизатор выключен.
     _shapeLocked = false;
     _stabilizer = StrokeStabilizer(
-      strength: (_isShapeTool || _isPixel) ? 0 : _smoothing,
+      strength: (_isShapeTool || _isPixel || _activeTool == DrawTool.eraser)
+          ? 0
+          : _smoothing,
     )..begin(localPoint);
     _armHoldWatch();
 
     _redoStack.clear();
+    _wholeEraseRedos.clear();
     _lastLivePush = DateTime.fromMillisecondsSinceEpoch(0);
     _lastLiveKeyframe = DateTime.fromMillisecondsSinceEpoch(0);
     _liveSid = _newStrokeId();
@@ -1338,6 +1378,8 @@ class _DrawScreenState extends State<DrawScreen>
         _currentColorValue = _activeColor.toARGB32();
         _currentStrokeWidth = _strokeWidth;
         _currentIsEraser = false;
+        // Фигуры рисуются пером при любой кисти.
+        _currentBrush = StrokeBrush.pen;
         _currentIsFilledShape = _fillShapes;
         _isDrawing = true;
       });
@@ -1353,11 +1395,14 @@ class _DrawScreenState extends State<DrawScreen>
           _canvasSize,
         ));
       _currentShapeType = null;
-      _currentColorValue = _activeTool == DrawTool.eraser
-          ? _bgColor.toARGB32()
-          : _activeColor.toARGB32();
-      _currentStrokeWidth = _strokeWidth;
-      _currentIsEraser = _activeTool == DrawTool.eraser;
+      final erasing = _activeTool == DrawTool.eraser;
+      _currentColorValue =
+          erasing ? _bgColor.toARGB32() : _activeColor.toARGB32();
+      _currentStrokeWidth = erasing ? _eraserWidthNow : _strokeWidth;
+      _currentIsEraser = erasing;
+      _currentBrush = erasing
+          ? brushForEraser(_eraserModeNow)
+          : (_isPixel ? StrokeBrush.pen : _brush);
       _currentIsFilledShape = false;
       _isDrawing = true;
     });
@@ -1365,6 +1410,10 @@ class _DrawScreenState extends State<DrawScreen>
   }
 
   void _updateStroke(Offset localPoint) {
+    if (_wholeErase != null) {
+      _wholeEraseAt(localPoint);
+      return;
+    }
     if (!_isDrawing || _canvasSize.isEmpty) return;
     // Сглаживаем в экранных точках и ДО прижатия к своей половине: иначе у
     // границы раскраски линия ползла бы вдоль неё с отставанием.
@@ -1480,6 +1529,11 @@ class _DrawScreenState extends State<DrawScreen>
   }
 
   void _finishStroke() {
+    if (_wholeErase != null) {
+      _endWholeErase();
+      _drawingPointerId = null;
+      return;
+    }
     if (!_isDrawing) return;
     _disarmQuickShape();
     _flushStabilizerTail();
@@ -1578,6 +1632,8 @@ class _DrawScreenState extends State<DrawScreen>
         isFilledShape: _currentIsFilledShape,
         shapeType: _currentShapeType,
         layer: _activeLayer,
+        // Ровная фигура из линии рисуется пером — так же, как ляжет в базу.
+        brush: _currentShapeType != null ? StrokeBrush.pen : _currentBrush,
       );
 
   /// Верхний слой: туда ложится живая линия партнёра на старой сборке,
@@ -1615,6 +1671,7 @@ class _DrawScreenState extends State<DrawScreen>
             isFilledShape: stroke.isFilledShape,
             shapeType: stroke.shapeType,
             layer: stroke.layer,
+            brush: stroke.brush,
           ),
           orderIndex: stroke.orderIndex,
         ),
@@ -2453,6 +2510,7 @@ class _DrawScreenState extends State<DrawScreen>
       shapeType: shapeType,
       orderIndex: _orderCounter,
       layer: _activeLayer,
+      brush: shapeType != null ? StrokeBrush.pen : _currentBrush,
     );
 
     _currentPoints.clear();
@@ -2498,16 +2556,19 @@ class _DrawScreenState extends State<DrawScreen>
           shapeType: stroke.shapeType,
           orderIndex: _orderCounter,
           layer: stroke.layer,
+          brush: stroke.brush,
         ),
       );
       _orderCounter++;
     }
   }
 
-  void _submitStroke(DrawStroke stroke) {
+  /// [undoable] — штрих встаёт в стек отмены. Возврат стёртой линии туда сам
+  /// не встаёт: он ставит штрих на прежнее место в истории.
+  void _submitStroke(DrawStroke stroke, {bool undoable = true}) {
     if (!_hasSharedCanvas) {
       _visibleStrokes = [..._visibleStrokes, stroke]..sort(_compareStrokes);
-      _noteMyStroke(stroke.id);
+      if (undoable) _noteMyStroke(stroke.id);
       _syncCanvasChrome();
       _saveSoloStrokes();
       return;
@@ -2515,7 +2576,7 @@ class _DrawScreenState extends State<DrawScreen>
 
     _pendingLocalStrokes[stroke.id] = stroke;
     _visibleStrokes = _composeVisibleStrokes();
-    _noteMyStroke(stroke.id);
+    if (undoable) _noteMyStroke(stroke.id);
     _syncCanvasChrome();
 
     _canvas
@@ -2549,16 +2610,24 @@ class _DrawScreenState extends State<DrawScreen>
   /// Отмена. Зеркальная пачка снимается целиком: для руки шесть лучей — один
   /// мазок, и шесть нажатий подряд читались бы как поломка кнопки.
   Future<void> _undo() async {
-    if (undoTakesEdit(
-      lastEditSeq: _shapeEdits.isEmpty ? null : _shapeEdits.last.seq,
-      lastStrokeSeq:
-          _myStrokeIds.isEmpty ? null : _strokeSeq[_myStrokeIds.last],
+    switch (undoTarget(
+      strokeSeq: _myStrokeIds.isEmpty ? null : _strokeSeq[_myStrokeIds.last],
+      editSeq: _shapeEdits.isEmpty ? null : _shapeEdits.last.seq,
+      eraseSeq: _wholeErases.isEmpty ? null : _wholeErases.last.seq,
     )) {
-      final edit = _shapeEdits.removeLast();
-      await _applyShapePoints(edit.id, edit.before);
-      _shapeRedos.add(edit);
-      _syncCanvasChrome();
-      return;
+      case UndoTarget.edit:
+        final edit = _shapeEdits.removeLast();
+        await _applyShapePoints(edit.id, edit.before);
+        _shapeRedos.add(edit);
+        _syncCanvasChrome();
+        return;
+      case UndoTarget.erase:
+        _restoreWholeErase();
+        return;
+      case UndoTarget.stroke:
+        break;
+      case null:
+        return;
     }
     if (_myStrokeIds.isEmpty) return;
     final undoKey = _myStrokeIds.removeLast();
@@ -2637,16 +2706,24 @@ class _DrawScreenState extends State<DrawScreen>
 
   /// Возврат. Зеркальная пачка возвращается так же целиком, как снималась.
   Future<void> _redo() async {
-    if (undoTakesEdit(
-      lastEditSeq: _shapeRedos.isEmpty ? null : _shapeRedos.last.seq,
-      lastStrokeSeq:
-          _redoStack.isEmpty ? null : _strokeSeq[_redoStack.last.id],
+    switch (undoTarget(
+      strokeSeq: _redoStack.isEmpty ? null : _strokeSeq[_redoStack.last.id],
+      editSeq: _shapeRedos.isEmpty ? null : _shapeRedos.last.seq,
+      eraseSeq: _wholeEraseRedos.isEmpty ? null : _wholeEraseRedos.last.seq,
     )) {
-      final edit = _shapeRedos.removeLast();
-      await _applyShapePoints(edit.id, edit.after);
-      _shapeEdits.add(edit);
-      _syncCanvasChrome();
-      return;
+      case UndoTarget.edit:
+        final edit = _shapeRedos.removeLast();
+        await _applyShapePoints(edit.id, edit.after);
+        _shapeEdits.add(edit);
+        _syncCanvasChrome();
+        return;
+      case UndoTarget.erase:
+        _repeatWholeErase();
+        return;
+      case UndoTarget.stroke:
+        break;
+      case null:
+        return;
     }
     if (_redoStack.isEmpty) return;
     final group = _mirrorGroupOf[_redoStack.last.id];
@@ -2672,6 +2749,7 @@ class _DrawScreenState extends State<DrawScreen>
       shapeType: base.shapeType,
       orderIndex: _orderCounter,
       layer: _activeLayer,
+      brush: base.brush,
       imageUrl: base.imageUrl,
       imageX: base.imageX,
       imageY: base.imageY,
@@ -2687,6 +2765,151 @@ class _DrawScreenState extends State<DrawScreen>
     _submitStroke(stroke);
   }
 
+
+  //  Ластик «Линия целиком»
+
+  /// Палец прошёл здесь: задетые линии своего слоя уходят сразу, как под
+  /// настоящим ластиком. Досягаемость — половина толщины ластика.
+  void _wholeEraseAt(Offset localPoint) {
+    final entry = _wholeErase;
+    if (entry == null || _canvasSize.isEmpty) return;
+    final hits = strokesUnderFinger(
+      _visibleStrokes,
+      _screenToCanvas(localPoint),
+      _canvasSize,
+      layer: _activeLayer,
+      reach: math.max(8, _eraserWidthNow / 2),
+      skip: {for (final e in entry.strokes) e.stroke.id},
+    );
+    if (hits.isEmpty) return;
+    for (final s in hits) {
+      // Места в истории снимаем по одному, как если бы мазки уходили
+      // поочерёдно: отмена вернёт их в обратном порядке ровно туда же.
+      final own = _myStrokeIds.indexOf(s.id);
+      if (own >= 0) _myStrokeIds.removeAt(own);
+      entry.strokes.add(ErasedStroke(
+        stroke: s,
+        ownIndex: own >= 0 ? own : null,
+        ownSeq: own >= 0 ? _strokeSeq[s.id] : null,
+        mirrorGroup: _mirrorGroupOf[s.id],
+      ));
+    }
+    HapticFeedback.selectionClick();
+    _dropStrokes({for (final s in hits) s.id});
+  }
+
+  /// Конец движения: стёртое встаёт в историю одной отменой.
+  void _endWholeErase() {
+    final entry = _wholeErase;
+    _wholeErase = null;
+    if (entry == null || entry.strokes.isEmpty) return;
+    entry.seq = ++_actionSeq;
+    _wholeErases.add(entry);
+    _wholeEraseRedos.clear();
+    _redoStack.clear();
+    _syncCanvasChrome();
+  }
+
+  /// Отмена стирания: линии возвращаются на прежнее место в порядке и слое,
+  /// свои — на прежнее место в истории отмены.
+  void _restoreWholeErase() {
+    final entry = _wholeErases.removeLast();
+    entry.restoredIds.clear();
+    final restored = <ErasedStroke>[];
+    // С конца: свои мазки стирались по одному, и каждый сдвигал места
+    // следующих в истории. Обратный порядок ставит их ровно туда, где были.
+    for (final e in entry.strokes.reversed) {
+      final s = e.stroke;
+      final id = '${_newStrokeId()}_r${restored.length}';
+      final copy = DrawStroke(
+        id: id,
+        clientId: id,
+        userId: s.userId,
+        colorValue: s.colorValue,
+        strokeWidth: s.strokeWidth,
+        points: s.points,
+        isEraser: s.isEraser,
+        isFilledShape: s.isFilledShape,
+        shapeType: s.shapeType,
+        orderIndex: s.orderIndex,
+        layer: s.layer,
+        brush: s.brush,
+      );
+      entry.restoredIds.add(id);
+      if (e.mirrorGroup != null) _mirrorGroupOf[id] = e.mirrorGroup!;
+      _submitStroke(copy, undoable: false);
+      if (e.ownIndex != null) {
+        final ids = insertAt(_myStrokeIds, e.ownIndex!, id);
+        _myStrokeIds
+          ..clear()
+          ..addAll(ids);
+        _strokeSeq[id] = e.ownSeq ?? ++_actionSeq;
+      }
+      restored.insert(
+        0,
+        ErasedStroke(stroke: copy, ownIndex: e.ownIndex, ownSeq: e.ownSeq, mirrorGroup: e.mirrorGroup),
+      );
+    }
+    // Повторное стирание уберёт уже вернувшиеся копии.
+    entry.strokes
+      ..clear()
+      ..addAll(restored);
+    entry.seq = ++_actionSeq;
+    _wholeEraseRedos.add(entry);
+    setState(() {});
+    _syncCanvasChrome();
+    _repaintNotifier.value++;
+  }
+
+  /// Возврат стирания: те же линии уходят снова.
+  void _repeatWholeErase() {
+    final entry = _wholeEraseRedos.removeLast();
+    // Место в истории могло сдвинуться — снимаем нынешнее, по одному, как
+    // при первом стирании.
+    for (var i = 0; i < entry.strokes.length; i++) {
+      final e = entry.strokes[i];
+      final own = _myStrokeIds.indexOf(e.stroke.id);
+      if (own >= 0) _myStrokeIds.removeAt(own);
+      entry.strokes[i] = ErasedStroke(
+        stroke: e.stroke,
+        ownIndex: own >= 0 ? own : null,
+        ownSeq: own >= 0 ? _strokeSeq[e.stroke.id] : null,
+        mirrorGroup: e.mirrorGroup,
+      );
+    }
+    _dropStrokes({for (final e in entry.strokes) e.stroke.id});
+    entry.seq = ++_actionSeq;
+    _wholeErases.add(entry);
+    _syncCanvasChrome();
+  }
+
+  /// Убрать штрихи с холста и из базы. У общего холста — через
+  /// [_removeStrokeById] (очередь, сервер), у своего — из локального списка.
+  void _dropStrokes(Set<String> ids) {
+    if (ids.isEmpty) return;
+    for (final id in ids) {
+      _shapeEdits.removeWhere((e) => e.id == id);
+      _shapeRedos.removeWhere((e) => e.id == id);
+      if (_selectedStrokeId == id) {
+        _selectedStrokeId = null;
+        _selectBase = null;
+        _selectionNotifier.value = null;
+      }
+      if (_hasSharedCanvas) {
+        _removeStrokeById(id);
+      } else {
+        _myStrokeIds.remove(id);
+      }
+    }
+    setState(() {
+      _visibleStrokes = _hasSharedCanvas
+          ? _composeVisibleStrokes()
+          : _visibleStrokes.where((s) => !ids.contains(s.id)).toList();
+    });
+    if (!_hasSharedCanvas) _saveSoloStrokes();
+    _syncCanvasChrome();
+    _repaintNotifier.value++;
+  }
 
   /// Удаляет штрих по id — из очереди, из локального списка и с сервера.
   ///
@@ -2934,6 +3157,8 @@ class _DrawScreenState extends State<DrawScreen>
 
     _myStrokeIds.clear();
     _redoStack.clear();
+    _wholeErases.clear();
+    _wholeEraseRedos.clear();
     _pendingLocalStrokes.clear();
     _remoteStrokes = [];
     setState(() {
@@ -4210,6 +4435,10 @@ class _DrawScreenState extends State<DrawScreen>
                         currentColorValue: _currentColorValue,
                         currentStrokeWidth: _currentStrokeWidth,
                         currentIsEraser: _currentIsEraser,
+                        currentBrush: _currentBrush,
+                        // Зерно — от id, под которым мазок ляжет в базу:
+                        // при подтверждении записи карандаш не мигнёт.
+                        currentSeed: brushSeedFor(_liveSid ?? ''),
                         currentIsFilledShape: _currentIsFilledShape,
                         currentShapeType: _currentShapeType,
                         currentLayer: _activeLayer,
@@ -4663,17 +4892,54 @@ class _DrawScreenState extends State<DrawScreen>
   }
 
   Widget _toolsSheet(AppStrings s, AppTheme t) {
+    // У ластика своя толщина; на пиксельном холсте она общая с кистью.
+    final ownEraserWidth = _panelTool == DrawQuickTool.eraser && !_isPixel;
     return DrawToolsSheet(
       tool: _panelTool,
       color: _activeColor,
-      width: _strokeWidth,
-      minWidth: 1,
-      maxWidth: 40,
+      width: ownEraserWidth ? _eraserWidth : _strokeWidth,
+      minWidth: ownEraserWidth ? 4 : 1,
+      maxWidth: ownEraserWidth ? _kMaxEraserWidth : 40,
       palette: _kPanelPalette,
       fill: t.fillColor,
       onFill: AppThemes.onColor(t.fillColor, mode: t.brightness),
       labelThickness: s.strokeThickness,
+      labelEraserThickness: ownEraserWidth ? s.eraserThickness : s.strokeThickness,
       labelColor: s.colorLabel,
+      brush: _brush,
+      // Пиксельный холст — клетки: кисти там не действуют.
+      brushes: _isPixel ? null : StrokeBrush.values,
+      brushNames: {
+        StrokeBrush.pen: s.brushPen,
+        StrokeBrush.marker: s.brushMarker,
+        StrokeBrush.pencil: s.brushPencil,
+        StrokeBrush.airbrush: s.brushAirbrush,
+        StrokeBrush.calligraphy: s.brushCalligraphy,
+      },
+      brushNotes: {
+        StrokeBrush.pen: s.brushPenNote,
+        StrokeBrush.marker: s.brushMarkerNote,
+        StrokeBrush.pencil: s.brushPencilNote,
+        StrokeBrush.airbrush: s.brushAirbrushNote,
+        StrokeBrush.calligraphy: s.brushCalligraphyNote,
+      },
+      onBrush: (b) {
+        setState(() => _brush = b);
+        unawaited(_saveBrushPrefs());
+      },
+      eraserMode: _eraserModeNow,
+      eraserModes: _isPixel
+          ? const [EraserMode.hard, EraserMode.whole]
+          : EraserMode.values,
+      eraserNames: {
+        EraserMode.hard: s.eraserHard,
+        EraserMode.soft: s.eraserSoft,
+        EraserMode.whole: s.eraserWhole,
+      },
+      onEraserMode: (m) {
+        setState(() => _eraserMode = m);
+        unawaited(_saveBrushPrefs());
+      },
       // На пиксельном холсте выделения в панели нет: оно двигает нарисованное
       // как свободную фигуру, а клетка обязана лежать в сетке.
       tools: quickToolsFor(_quickTools, pixel: _isPixel),
@@ -4691,7 +4957,16 @@ class _DrawScreenState extends State<DrawScreen>
         DrawQuickTool.replay: s.drawReplay,
       },
       onTool: _onPanelTool,
-      onWidth: (v) => setState(() => _strokeWidth = v),
+      onWidth: (v) {
+        setState(() {
+          if (ownEraserWidth) {
+            _eraserWidth = v;
+          } else {
+            _strokeWidth = v;
+          }
+        });
+        if (ownEraserWidth) unawaited(_saveBrushPrefs());
+      },
       onColor: _applyPickedColor,
       onMoreColors: _showColorPicker,
       onEyedropper: () {
@@ -4916,7 +5191,12 @@ class _DrawScreenState extends State<DrawScreen>
     final name = p.getString(UiPrefs.kBrushSymmetry);
     setState(() {
       _quickTools = parseQuickTools(p.getString(UiPrefs.kDrawQuickTools));
-      _smoothing = p.getDouble(UiPrefs.kBrushSmoothing) ?? kDefaultSmoothing;
+      _smoothing = smoothingFromPrefs(p.getDouble(UiPrefs.kBrushSmoothing));
+      _brush = parseStrokeBrush(p.getString(UiPrefs.kDrawBrush));
+      _eraserMode = parseEraserMode(p.getString(UiPrefs.kEraserMode));
+      _eraserWidth = (p.getDouble(UiPrefs.kEraserWidth) ?? _kDefaultEraserWidth)
+          .clamp(4, _kMaxEraserWidth)
+          .toDouble();
       _quickShapes = p.getBool(UiPrefs.kBrushQuickShapes) ?? false;
       _symmetrySectors = p.getInt(UiPrefs.kBrushSymmetrySectors) ?? 6;
       _symmetry = SymmetryMode.values.firstWhere(
@@ -4932,6 +5212,9 @@ class _DrawScreenState extends State<DrawScreen>
     await p.setBool(UiPrefs.kBrushQuickShapes, _quickShapes);
     await p.setString(UiPrefs.kBrushSymmetry, _symmetry.name);
     await p.setInt(UiPrefs.kBrushSymmetrySectors, _symmetrySectors);
+    await p.setString(UiPrefs.kDrawBrush, _brush.name);
+    await p.setString(UiPrefs.kEraserMode, _eraserMode.name);
+    await p.setDouble(UiPrefs.kEraserWidth, _eraserWidth);
   }
 
   /// Какой фигурой рисовать. В панели у фигур одна кнопка, вид выбирают тут.
@@ -5608,6 +5891,8 @@ class _CanvasScene extends StatefulWidget {
   final int currentColorValue;
   final double currentStrokeWidth;
   final bool currentIsEraser;
+  final StrokeBrush currentBrush;
+  final int currentSeed;
   final bool currentIsFilledShape;
   final DrawShapeType? currentShapeType;
 
@@ -5644,6 +5929,8 @@ class _CanvasScene extends StatefulWidget {
     required this.currentColorValue,
     required this.currentStrokeWidth,
     required this.currentIsEraser,
+    required this.currentBrush,
+    required this.currentSeed,
     required this.currentIsFilledShape,
     required this.currentShapeType,
     this.currentLayer = 0,
@@ -5825,6 +6112,8 @@ class _CanvasSceneState extends State<_CanvasScene> {
                 currentColorValue: widget.currentColorValue,
                 currentStrokeWidth: widget.currentStrokeWidth,
                 currentIsEraser: widget.currentIsEraser,
+                currentBrush: widget.currentBrush,
+                currentSeed: widget.currentSeed,
                 currentIsFilledShape: widget.currentIsFilledShape,
                 currentShapeType: widget.currentShapeType,
                 partnerNotifier: widget.partnerNotifier,
@@ -5870,6 +6159,8 @@ class _DrawingPainter extends CustomPainter {
   final int currentColorValue;
   final double currentStrokeWidth;
   final bool currentIsEraser;
+  final StrokeBrush currentBrush;
+  final int currentSeed;
   final bool currentIsFilledShape;
   final DrawShapeType? currentShapeType;
   final ValueNotifier<List<DrawStroke>> partnerNotifier;
@@ -5919,6 +6210,8 @@ class _DrawingPainter extends CustomPainter {
     required this.currentColorValue,
     required this.currentStrokeWidth,
     required this.currentIsEraser,
+    required this.currentBrush,
+    required this.currentSeed,
     required this.currentIsFilledShape,
     required this.currentShapeType,
     required this.partnerNotifier,
@@ -6135,6 +6428,8 @@ class _DrawingPainter extends CustomPainter {
             currentStrokeWidth,
             currentIsEraser,
             size,
+            brush: currentBrush,
+            seed: currentSeed,
           );
         }
       }
@@ -6162,6 +6457,8 @@ class _DrawingPainter extends CustomPainter {
           s.isEraser,
           size,
           alpha: 0.85,
+          brush: s.brush,
+          seed: s.brushSeed,
         );
       }
     }
@@ -6241,9 +6538,15 @@ class _DrawingPainter extends CustomPainter {
     bool isEraser,
     Size size, {
     double alpha = 1.0,
+    StrokeBrush brush = StrokeBrush.pen,
+    int seed = 0,
   }) =>
       paintStroke(canvas, points, colorValue, strokeWidth, isEraser, size,
-          alpha: alpha, pixelCols: pixelCols, pixelRows: pixelRows);
+          alpha: alpha,
+          pixelCols: pixelCols,
+          pixelRows: pixelRows,
+          brush: brush,
+          seed: seed);
 
   @override
   bool shouldRepaint(covariant _DrawingPainter old) =>
@@ -6252,6 +6555,8 @@ class _DrawingPainter extends CustomPainter {
       old.currentColorValue != currentColorValue ||
       old.currentStrokeWidth != currentStrokeWidth ||
       old.currentIsEraser != currentIsEraser ||
+      old.currentBrush != currentBrush ||
+      old.currentSeed != currentSeed ||
       old.currentShapeType != currentShapeType ||
       old.symmetry != symmetry ||
       old.symmetrySectors != symmetrySectors ||

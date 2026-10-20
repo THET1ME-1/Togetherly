@@ -30,6 +30,11 @@ class UiPrefs {
   static const String kBrushSymmetry = 'draw_brush_symmetry';
   static const String kBrushSymmetrySectors = 'draw_brush_symmetry_sectors';
 
+  /// Кисть холста, режим и толщина ластика (20.10.2026). Тоже привычка руки.
+  static const String kDrawBrush = 'draw_brush_kind';
+  static const String kEraserMode = 'draw_eraser_mode';
+  static const String kEraserWidth = 'draw_eraser_width';
+
   /// Кнопка справа от поля чата: снимает фигурку вместо записи голоса.
   /// Живёт на устройстве — это привычка, а не решение пары.
   static const String kChatNoteMode = 'chat_note_mode';
