@@ -137,6 +137,30 @@ class _AspectCoverState extends State<AspectCover> {
   }
 }
 
+/// Ширина кадра плёнки: высота на пропорцию снимка. Пока пропорция не
+/// известна, кадр квадратный.
+double filmFrameWidth(String url, double height) =>
+    height * MediaAspectCache.clampAspect(MediaAspectCache.of(url) ?? 1);
+
+/// Сдвиг плёнки, при котором кадр [index] стоит посередине. Ширины те же,
+/// что рисует [FilmFrame]; у выбранного кадра рамка добавляет [selectedExtra].
+/// Обращение 256: прокрутка считала каждый кадр шириной 64 точки, и на
+/// вертикальных снимках плёнка уезжала, пока текущий кадр не скрывался.
+double filmStripCenter({
+  required List<double> widths,
+  required int index,
+  required double viewport,
+  double gap = 2,
+  double padding = 12,
+  double selectedExtra = 6,
+}) {
+  var left = padding;
+  for (var i = 0; i < index; i++) {
+    left += widths[i] + gap;
+  }
+  return left + (widths[index] + selectedExtra) / 2 - viewport / 2;
+}
+
 /// Один кадр плёнки: высота задана, ширина считается по пропорции кадра.
 ///
 /// Широкий снимок занимает в ряду больше места, вертикальный — меньше, и

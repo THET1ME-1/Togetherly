@@ -369,8 +369,11 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
     }
     _currentIndex = widget.initialIndex;
     _pageController = PageController(initialPage: widget.initialIndex);
-    _stripCtrl = ScrollController(
-        initialScrollOffset: (widget.initialIndex * 64.0 - 140).clamp(0, 1e6));
+    _stripCtrl = ScrollController();
+    // Ширину плёнки узнаём только после первого кадра
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _scrollStripTo(_currentIndex, animate: false);
+    });
   }
 
   @override
@@ -577,14 +580,17 @@ class _FullscreenGalleryState extends State<FullscreenGallery> {
 
   /// Круглая кнопка поверх кадра: стекло, чтобы читалась и на светлом.
   /// Плёнка едет за кадром: текущий всегда виден, а не остаётся за краем.
-  void _scrollStripTo(int index) {
-    if (!_stripCtrl.hasClients) return;
-    final target = (index * 64.0) - 140;
-    _stripCtrl.animateTo(
-      target.clamp(0, _stripCtrl.position.maxScrollExtent),
-      duration: const Duration(milliseconds: 260),
-      curve: Curves.easeOutCubic,
-    );
+  void _scrollStripTo(int index, {bool animate = true}) {
+    if (!_stripCtrl.hasClients || index < 0 || index >= widget.items.length) return;
+    final position = _stripCtrl.position;
+    final widths = [for (var i = 0; i <= index; i++) filmFrameWidth(widget.items[i].url, 56)];
+    final target = filmStripCenter(widths: widths, index: index, viewport: position.viewportDimension)
+        .clamp(0.0, position.maxScrollExtent);
+    if (animate) {
+      _stripCtrl.animateTo(target, duration: const Duration(milliseconds: 260), curve: Curves.easeOutCubic);
+    } else {
+      _stripCtrl.jumpTo(target);
+    }
   }
 
   Widget _viewerRound({required IconData icon, required VoidCallback onTap}) {
