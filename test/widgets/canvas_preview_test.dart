@@ -147,6 +147,116 @@ void main() {
     );
   });
 
+  test('толщина линии на плитке — в той же доле листа, что на холсте', () async {
+    // Эмулятор 20.10.2026: плитка считала холст шириной в 1000 точек, а на
+    // телефоне он около 400. Линия выходила в 2,5 раза тоньше дырки, которую
+    // оставляет в заливке, и вокруг неё белел ободок.
+    const tile = Size(200, 250);
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    canvas.drawRect(Offset.zero & tile, Paint()..color = const Color(0xFFFFFFFF));
+    CanvasPreviewPainter(
+      strokes: [
+        DrawStroke(
+          id: 'line',
+          userId: 'u1',
+          points: const [DrawPoint(0.1, 0.5), DrawPoint(0.9, 0.5)],
+          colorValue: 0xFF0000FF,
+          strokeWidth: 10,
+          orderIndex: 0,
+        ),
+      ],
+      meta: meta,
+    ).paint(canvas, tile);
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(200, 250);
+    picture.dispose();
+    final data = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+    image.dispose();
+    var thick = 0;
+    for (var y = 0; y < 250; y++) {
+      final i = (y * 200 + 100) * 4;
+      if (data!.getUint8(i + 2) > 200 && data.getUint8(i) < 120) thick++;
+    }
+    // Холст на телефоне около 400 точек в ширину: 10 из 400 на плитке в 200 —
+    // это пять пикселей.
+    expect(thick, inInclusiveRange(4, 6));
+  });
+
+  test('плитка другой формы не сдвигает заливку относительно линий', () async {
+    // Эмулятор 20.10.2026: лист 4:5, плитка почти квадратная. Линии плитка
+    // растягивала под себя, а заливку обрезала по краям — дырки в заливке
+    // съезжали с линий, и рядом белело пустое место.
+    final sheet = CanvasMeta(
+      id: 'c2',
+      name: 'Лист',
+      createdAt: _epoch,
+      updatedAt: _epoch,
+      sheetRatio: 0.8,
+    );
+    // Заливка 40×50 (тоже 4:5) с синей полосой ровно на четверти высоты.
+    final recorder = ui.PictureRecorder();
+    final c = Canvas(recorder);
+    c.drawRect(const Rect.fromLTWH(0, 0, 40, 50), Paint()..color = const Color(0xFFFFC107));
+    c.drawRect(const Rect.fromLTWH(0, 12, 40, 1), Paint()..color = const Color(0xFF0000FF));
+    final pic = recorder.endRecording();
+    final fill = await pic.toImage(40, 50);
+    pic.dispose();
+
+    const tile = Size(60, 50);
+    final out = ui.PictureRecorder();
+    final canvas = Canvas(out);
+    canvas.drawRect(Offset.zero & tile, Paint()..color = const Color(0xFFFFFFFF));
+    CanvasPreviewPainter(
+      strokes: const [
+        DrawStroke(
+          id: 'fill',
+          userId: 'u1',
+          points: [],
+          colorValue: 0xFF000000,
+          strokeWidth: 0,
+          orderIndex: 0,
+          imageUrl: 'pb://media/x/fill.png',
+          imageX: 0.5,
+          imageY: 0.5,
+          imageWidth: 1,
+          imageHeight: 1,
+        ),
+        DrawStroke(
+          id: 'line',
+          userId: 'u1',
+          points: [DrawPoint(0.6, 0.25), DrawPoint(0.9, 0.25)],
+          colorValue: 0xFFFF0000,
+          strokeWidth: 20,
+          orderIndex: 1,
+        ),
+      ],
+      meta: sheet,
+      imageOf: (s) => s.id == 'fill' ? fill : null,
+    ).paint(canvas, tile);
+    final picture = out.endRecording();
+    final image = await picture.toImage(60, 50);
+    picture.dispose();
+    fill.dispose();
+    final data = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+    image.dispose();
+
+    double rowsOf(int x, bool Function(int r, int g, int b) match) {
+      final rows = <int>[];
+      for (var y = 0; y < 50; y++) {
+        final i = (y * 60 + x) * 4;
+        if (match(data!.getUint8(i), data.getUint8(i + 1), data.getUint8(i + 2))) rows.add(y);
+      }
+      expect(rows, isNotEmpty);
+      return rows.reduce((a, b) => a + b) / rows.length;
+    }
+
+    final blue = rowsOf(15, (r, g, b) => b > 200 && r < 80 && g < 80);
+    final red = rowsOf(45, (r, g, b) => r > 200 && g < 80 && b < 80);
+    expect((blue - red).abs(), lessThanOrEqualTo(1.5),
+        reason: 'полоса заливки на ${blue.toStringAsFixed(1)}, линия на ${red.toStringAsFixed(1)}');
+  });
+
   test('тяжёлый холст не рисуется целиком: плитка размером в ноготь', () async {
     final many = List.generate(
       5000,

@@ -74,12 +74,21 @@ class CanvasPreviewPainter extends CustomPainter {
   }
 
   @override
-  void paint(Canvas canvas, Size size) {
+  void paint(Canvas canvas, Size tile) {
     final visible = visibleStrokes;
     if (visible.isEmpty) return;
 
     final cols = meta.isPixel ? meta.pixelW : null;
     final rows = meta.isPixel ? meta.pixelH : null;
+
+    // Лист рисуется в своих пропорциях и обрезается по краям плитки, как
+    // снимок. Растянутый под плитку, он сдвигал заливку относительно линий:
+    // линии тянулись вслед за плиткой, а картинка заливки сохраняла форму, и
+    // рядом с линией белела дырка (20.10.2026).
+    final size = _sheetSize(tile);
+    canvas.save();
+    canvas.clipRect(Offset.zero & tile);
+    canvas.translate((tile.width - size.width) / 2, (tile.height - size.height) / 2);
 
     // Каждый слой рисунка — в своём saveLayer: ластик снимает краску только
     // своего слоя и не выедает ни нижние слои, ни подложку плитки. Тот же
@@ -92,6 +101,18 @@ class CanvasPreviewPainter extends CustomPainter {
       _paintLayer(canvas, size, own, cols, rows);
       if (erases) canvas.restore();
     }
+    canvas.restore();
+  }
+
+  /// Размер листа, накрывающего плитку целиком в пропорциях холста. У холста
+  /// без листа пропорций нет — тогда лист и есть плитка.
+  Size _sheetSize(Size tile) {
+    final ratio = meta.effectiveRatio;
+    if (ratio == null || ratio <= 0 || tile.isEmpty) return tile;
+    if (tile.width / tile.height > ratio) {
+      return Size(tile.width, tile.width / ratio);
+    }
+    return Size(tile.height * ratio, tile.height);
   }
 
   void _paintLayer(Canvas canvas, Size size, List<DrawStroke> visible, int? cols, int? rows) {
@@ -131,10 +152,15 @@ class CanvasPreviewPainter extends CustomPainter {
   }
 
   /// Во сколько раз плитка меньше листа, на котором рисовали.
+  ///
+  /// Толщина линии записана в точках холста, а холст на телефоне около 400
+  /// точек в ширину. До 20.10.2026 здесь стояла тысяча по длинной стороне:
+  /// линия выходила в 2,5 раза тоньше дырки, которую она оставляет в заливке,
+  /// и вокруг неё белел ободок.
   double _widthScale(Size size) {
-    const drawnOn = 1000.0; // порядок величины холста в точках
-    final scale = size.longestSide / drawnOn;
-    return scale.clamp(0.12, 1.0);
+    const drawnOn = 400.0; // ширина холста на телефоне в точках
+    final scale = size.width / drawnOn;
+    return scale.clamp(0.12, 2.0);
   }
 
   @override
