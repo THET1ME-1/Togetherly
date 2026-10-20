@@ -66,8 +66,8 @@ class LaunchSplashPainter extends CustomPainter {
   Path _windowPath(SplashPose pose, double k, double top) {
     final s = k * pose.scale;
     final matrix = Matrix4.identity()
-      ..translate(k * pose.x, top + k * pose.y)
-      ..scale(s, s);
+      ..translateByDouble(k * pose.x, top + k * pose.y, 0, 1)
+      ..scaleByDouble(s, s, 1, 1);
     return splash.window.path.transform(matrix.storage);
   }
 
