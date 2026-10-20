@@ -1,9 +1,12 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 
 import '../../models/canvas_meta.dart';
 import '../../models/draw_stroke.dart';
 import '../../services/canvas_repository.dart';
 import '../../services/canvas_storage_service.dart';
+import '../../utils/canvas_image_cache.dart';
 import 'stroke_painting.dart';
 
 /// Плитка холста в галерее, нарисованная прямо из штрихов.
@@ -14,8 +17,9 @@ import 'stroke_painting.dart';
 /// холсты, которые рисовал партнёр, и все старые. Здесь плитка рисуется тем же
 /// кодом, что и сам холст, поэтому заходить внутрь больше не нужно.
 ///
-/// Снятый снимок остаётся главнее: он уже учитывает фон листа и картинки, а
-/// это превью рисует только штрихи.
+/// Снятый снимок остаётся главнее: он уже учитывает фон листа. Это превью
+/// рисует штрихи и картинки (заливки ведром и вставленные фото); картинки
+/// до 20.10.2026 пропускались, и плитка раскраски стояла пустой.
 
 /// Сколько штрихов рисуем в плитке размером с ноготь.
 ///
@@ -34,10 +38,20 @@ const int kPreviewStrokeLimit = 1500;
 const int kPreviewEraserLimit = 12000;
 
 class CanvasPreviewPainter extends CustomPainter {
-  CanvasPreviewPainter({required this.strokes, required this.meta});
+  CanvasPreviewPainter({
+    required this.strokes,
+    required this.meta,
+    this.imageOf,
+    Listenable? repaint,
+  }) : super(repaint: repaint);
 
   final List<DrawStroke> strokes;
   final CanvasMeta meta;
+
+  /// Растр заливки или вставленного фото, если он уже приехал. Без него
+  /// плитка без снимка стояла пустой: в раскраске почти всё — заливки
+  /// (20.10.2026).
+  final ui.Image? Function(DrawStroke stroke)? imageOf;
 
   /// Штрихи, которые реально попадут в плитку.
   ///
@@ -82,7 +96,12 @@ class CanvasPreviewPainter extends CustomPainter {
 
   void _paintLayer(Canvas canvas, Size size, List<DrawStroke> visible, int? cols, int? rows) {
     for (final s in visible) {
-      if (s.shapeType != null && s.points.length >= 2) {
+      if (s.isImageStroke) {
+        // Заливка и фото лежат в том же порядке, что и линии: так же, как на
+        // холсте. Пока растр едет, картинки на плитке просто нет.
+        final image = imageOf?.call(s);
+        if (image != null) paintImageStroke(canvas, image, s, size);
+      } else if (s.shapeType != null && s.points.length >= 2) {
         paintShape(
           canvas,
           s.points,
@@ -157,12 +176,22 @@ class _CanvasPreviewState extends State<CanvasPreview> {
 
   List<DrawStroke>? _strokes;
 
+  /// Растры заливок, сжатые под плитку: в раскраске почти всё — заливки, и
+  /// без них плитка стояла пустой (20.10.2026).
+  final CanvasImageCache _images = CanvasImageCache(decodeSide: 480);
+
   String get _key => '${widget.uid}|${widget.groupId}|${widget.meta.id}';
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _images.dispose();
+    super.dispose();
   }
 
   @override
@@ -203,7 +232,12 @@ class _CanvasPreviewState extends State<CanvasPreview> {
     return ColoredBox(
       color: widget.background ?? const Color(0xFFFFFFFF),
       child: CustomPaint(
-        painter: CanvasPreviewPainter(strokes: strokes, meta: widget.meta),
+        painter: CanvasPreviewPainter(
+          strokes: strokes,
+          meta: widget.meta,
+          imageOf: _images.imageFor,
+          repaint: _images,
+        ),
         size: Size.infinite,
       ),
     );

@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/canvas_meta.dart';
 import '../home_widget_service.dart';
 import '../../models/draw_stroke.dart';
+import '../../utils/canvas_image_cache.dart';
 import '../../widgets/draw/canvas_preview.dart';
 import 'canvas_widget_keys.dart';
 
@@ -112,9 +113,12 @@ class CanvasWidgetService {
       dir.createSync(recursive: true);
       final rev = DateTime.now().millisecondsSinceEpoch;
 
+      // Заливки ждём на все холсты вместе не дольше десяти секунд: экран
+      // выбора ждёт этот вызов, и восемь холстов по восемь секунд — минута.
+      final deadline = DateTime.now().add(const Duration(seconds: 10));
       final items = <CanvasWidgetItem>[];
       for (final meta in picked) {
-        final png = await _render(meta, await strokesOf(meta));
+        final png = await _render(meta, await strokesOf(meta), deadline: deadline);
         if (png == null) continue;
         final file = File('${dir.path}/canvas_${_safe(meta.id)}_$rev.png');
         await file.writeAsBytes(png, flush: true);
@@ -193,20 +197,37 @@ class CanvasWidgetService {
   }
 
   /// Холст в PNG: тот же художник, что рисует плитку в галерее.
-  Future<Uint8List?> _render(CanvasMeta meta, List<DrawStroke> strokes) async {
+  Future<Uint8List?> _render(
+    CanvasMeta meta,
+    List<DrawStroke> strokes, {
+    required DateTime deadline,
+  }) async {
     if (strokes.isEmpty) return null;
     final ratio = meta.effectiveRatio ?? 0.8;
     final height = ratio >= 1 ? (longSide / ratio).round() : longSide;
     final width = ratio >= 1 ? longSide : (longSide * ratio).round();
     final size = Size(width.toDouble(), height.toDouble());
 
+    // Заливки ведром хранятся картинками. Виджет рисуется один раз, поэтому их
+    // ждём заранее: без них раскраска на столе стояла пустой (20.10.2026).
+    final images = CanvasImageCache(decodeSide: longSide);
     try {
+      final painter = CanvasPreviewPainter(
+        strokes: strokes,
+        meta: meta,
+        imageOf: images.imageFor,
+      );
+      final left = deadline.difference(DateTime.now());
+      if (left > Duration.zero) {
+        await images.preload(painter.visibleStrokes, timeout: left);
+      }
+
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
       // Лист белый, как в галерее: цвет фона холста живёт на сервере, а
       // виджету важнее показать рисунок, чем угадать подложку.
       canvas.drawRect(Offset.zero & size, Paint()..color = Colors.white);
-      CanvasPreviewPainter(strokes: strokes, meta: meta).paint(canvas, size);
+      painter.paint(canvas, size);
 
       final image = await recorder.endRecording().toImage(width, height);
       try {
@@ -218,6 +239,8 @@ class CanvasWidgetService {
     } catch (e) {
       debugPrint('CanvasWidgetService: холст ${meta.id} не нарисовался — $e');
       return null;
+    } finally {
+      images.dispose();
     }
   }
 

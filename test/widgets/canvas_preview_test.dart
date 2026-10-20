@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -96,6 +97,54 @@ void main() {
     expect(at(11, 11), at(18, 18), reason: 'клетка закрашена неровно');
     expect(at(11, 11).r, greaterThan(0.9), reason: 'клетка не закрашена');
     expect(at(35, 35), const Color(0xFFFFFFFF), reason: 'закрасилось лишнее');
+  });
+
+  test('плитка без снимка грузит заливки, сжатые под свой размер', () {
+    final source = File('lib/widgets/draw/canvas_preview.dart').readAsStringSync();
+    expect(source, contains('imageOf: _images.imageFor'));
+    // В 1600 точек двадцать плиток с заливками заняли бы сотни мегабайт.
+    expect(source, contains('CanvasImageCache(decodeSide: '));
+  });
+
+  test('заливка ведром видна на плитке', () async {
+    // Жалоба владельца 20.10.2026: плитка без снимка стояла пустой, потому
+    // что заливка хранится картинкой, а плитка рисовала только линии. В
+    // раскраске почти всё — заливки.
+    final recorder = ui.PictureRecorder();
+    Canvas(recorder).drawRect(
+      const Rect.fromLTWH(0, 0, 10, 10),
+      Paint()..color = const Color(0xFFFFC107),
+    );
+    final picture = recorder.endRecording();
+    final fill = await picture.toImage(10, 10);
+    picture.dispose();
+
+    const stroke = DrawStroke(
+      id: 'fill',
+      userId: 'u1',
+      points: [],
+      colorValue: 0xFF000000,
+      strokeWidth: 0,
+      orderIndex: 0,
+      imageUrl: 'pb://media/x/fill.png',
+      imageX: 0.5,
+      imageY: 0.5,
+      imageWidth: 1,
+      imageHeight: 1,
+    );
+    final image = await _render(CanvasPreviewPainter(
+      strokes: const [stroke],
+      meta: meta,
+      imageOf: (s) => s.id == 'fill' ? fill : null,
+    ));
+    final data = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+    image.dispose();
+    fill.dispose();
+    final i = (30 * 60 + 30) * 4;
+    expect(
+      Color.fromARGB(255, data!.getUint8(i), data.getUint8(i + 1), data.getUint8(i + 2)),
+      const Color(0xFFFFC107),
+    );
   });
 
   test('тяжёлый холст не рисуется целиком: плитка размером в ноготь', () async {

@@ -21,7 +21,12 @@ import '../services/pb_media_service.dart';
 /// Кэш живёт в состоянии сцены. Пока растра нет, картинка просто не рисуется;
 /// как загрузится — [notifyListeners], и холст перерисовывается.
 class CanvasImageCache extends ChangeNotifier {
-  CanvasImageCache();
+  /// [decodeSide] — до скольких пикселей по длинной стороне сжимать растр.
+  /// Холсту нужен лист целиком, плитке галереи хватает сотен точек: в 1600
+  /// двадцать плиток с заливками заняли бы сотни мегабайт.
+  CanvasImageCache({this.decodeSide = 1600});
+
+  final int decodeSide;
 
   final Map<String, ui.Image> _ready = {};
   final Set<String> _loading = {};
@@ -32,12 +37,6 @@ class CanvasImageCache extends ChangeNotifier {
   /// отдаёт 403 на первый заход и открывает файл со второго — с одной попытки
   /// заливка партнёра осталась бы дырой до перезахода на холст.
   static const int _maxAttempts = 4;
-
-  /// Во сколько пикселей разворачивать растр по длинной стороне.
-  ///
-  /// Заливка и так режется до 1600 при создании, а вставленное фото приходит с
-  /// камеры в 4000 — это 48 МБ в памяти на одну картинку.
-  static const int _decodeSide = 1600;
 
   /// Готовый растр штриха или null, если он ещё едет.
   ///
@@ -50,6 +49,35 @@ class CanvasImageCache extends ChangeNotifier {
     if (ready != null) return ready;
     _start(key);
     return null;
+  }
+
+  /// Дождаться растров всех картинок [strokes] или [timeout] — что раньше.
+  ///
+  /// Для отрисовки, которую никто не повторит: виджет «Холст» на рабочем
+  /// столе рисуется один раз, и заливка, приехавшая позже, туда уже не
+  /// попадёт. Неоткрывшаяся картинка ждёт не дольше предела.
+  Future<void> preload(
+    Iterable<DrawStroke> strokes, {
+    Duration timeout = const Duration(seconds: 8),
+  }) async {
+    final keys = <String>{};
+    for (final s in strokes) {
+      if (!s.isImageStroke) continue;
+      final key = sourceOf(s);
+      if (key != null) keys.add(key);
+    }
+    final until = DateTime.now().add(timeout);
+    while (DateTime.now().isBefore(until)) {
+      final waiting = [
+        for (final key in keys)
+          if (!_ready.containsKey(key) && (_failures[key] ?? 0) < _maxAttempts) key,
+      ];
+      if (waiting.isEmpty) return;
+      for (final key in waiting) {
+        _start(key);
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
   }
 
   /// Забыть всё, чего в рисунке больше нет: растр держит память до гигабайта
@@ -150,10 +178,12 @@ class CanvasImageCache extends ChangeNotifier {
     ));
   }
 
+  /// Заливка и так режется до 1600 при создании, а вставленное фото приходит с
+  /// камеры в 4000 — это 48 МБ в памяти на одну картинку.
   ImageProvider _sized(ImageProvider provider) => ResizeImage(
         provider,
-        width: _decodeSide,
-        height: _decodeSide,
+        width: decodeSide,
+        height: decodeSide,
         policy: ResizeImagePolicy.fit,
         allowUpscaling: false,
       );
