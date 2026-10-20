@@ -582,8 +582,12 @@ void main() async {
   // Строка «+1 в копилку пары» после любого ролика.
   PairJarService.instance.onDrop = showJarToast;
   // Заставка при запуске: только выбранная, по датам и уже лежащая на диске.
-  // Сети здесь нет, картинки разжимает сам оверлей.
-  LaunchSplashOverlay.pending = await LaunchSplashService.instance.readyForLaunch(DateTime.now());
+  // Сети здесь нет. Картинки разжимаются здесь, пока видна системная
+  // заставка; при «уменьшить движение» заставки нет вовсе.
+  LaunchSplashOverlay.pending = await LaunchSplashService.instance.prepareLaunch(
+    DateTime.now(),
+    calm: WidgetsBinding.instance.platformDispatcher.accessibilityFeatures.disableAnimations,
+  );
   runApp(const LoveApp());
 }
 

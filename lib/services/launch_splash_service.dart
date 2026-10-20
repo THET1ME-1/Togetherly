@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -8,6 +9,14 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/launch_splash.dart';
+
+/// Заставка с уже разжатыми картинками: её и играет оверлей при запуске.
+class LaunchSplashReady {
+  const LaunchSplashReady(this.splash, this.images);
+
+  final LaunchSplash splash;
+  final Map<String, ui.Image> images;
+}
 
 /// Выбранная заставка при запуске и её файлы на диске.
 ///
@@ -142,16 +151,46 @@ class LaunchSplashService extends ChangeNotifier {
     await ensureDownloaded(current);
   }
 
-  /// Картинки заставки, разжатые для проигрывателя.
+  /// Картинки заставки, разжатые для проигрывателя. Все разом, а не по
+  /// очереди: по очереди на эмуляторе они не успевали за полторы секунды.
   static Future<Map<String, ui.Image>> decode(LaunchSplash splash) async {
-    final images = <String, ui.Image>{};
-    for (final name in splash.fileNames) {
-      if (name == 'still') continue;
+    final names = [for (final name in splash.fileNames) if (name != 'still') name];
+    final images = await Future.wait(names.map((name) async {
       final codec = await ui.instantiateImageCodec(await File(splash.files[name]!).readAsBytes());
-      images[name] = (await codec.getNextFrame()).image;
+      final frame = await codec.getNextFrame();
       codec.dispose();
+      return frame.image;
+    }));
+    return {for (var i = 0; i < names.length; i++) names[i]: images[i]};
+  }
+
+  /// Заставка этого запуска с разжатыми картинками, или null. Зовётся до
+  /// `runApp`: пока картинки разжимаются, на экране системная заставка с
+  /// иконкой, а не пустая ночь. Не успели за [limit] — запуск без заставки.
+  Future<LaunchSplashReady?> prepareLaunch(
+    DateTime now, {
+    bool calm = false,
+    Duration limit = const Duration(milliseconds: 1500),
+  }) async {
+    if (calm) return null;
+    final splash = await readyForLaunch(now);
+    if (splash == null) return null;
+    final watch = Stopwatch()..start();
+    final job = decode(splash);
+    try {
+      final images = await job.timeout(limit);
+      debugPrint('LaunchSplash: ${splash.key} разжата за ${watch.elapsedMilliseconds} мс');
+      return LaunchSplashReady(splash, images);
+    } catch (e) {
+      debugPrint('LaunchSplash: ${splash.key} не успела разжаться за ${limit.inMilliseconds} мс: $e');
+      // Опоздавшие картинки никому не нужны.
+      unawaited(job.then((images) {
+        for (final image in images.values) {
+          image.dispose();
+        }
+      }, onError: (_) {}));
+      return null;
     }
-    return images;
   }
 
   Future<void> _dropAllBut(String keep) async {

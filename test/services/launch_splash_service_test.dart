@@ -134,6 +134,19 @@ void main() {
     expect(await LaunchSplashService.instance.readyForLaunch(october), isNotNull);
   });
 
+  test('при «уменьшить движение» к запуску ничего не готовится', () async {
+    final service = LaunchSplashService.instance;
+    await service.select(_splash());
+    expect(await service.prepareLaunch(october, calm: true), isNull);
+  });
+
+  test('картинки не разжались — запуск без заставки, без падения', () async {
+    final service = LaunchSplashService.instance;
+    await service.select(_splash());
+    // Скачанные «картинки» здесь — три байта, кодек их не разожмёт.
+    expect(await service.prepareLaunch(october), isNull);
+  });
+
   test('заставку сняли с сервера — не играет', () async {
     final service = LaunchSplashService.instance;
     await service.select(_splash());
