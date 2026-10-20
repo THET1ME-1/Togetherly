@@ -28,6 +28,7 @@ import 'small_a.dart';
 import 'small_b.dart';
 import 'small_c.dart';
 import 'small_d.dart';
+import 'launch_splash.dart';
 import 'stickers.dart';
 import 'widget_screen.dart';
 
@@ -48,6 +49,7 @@ const Map<String, String> kZhStrings = {
   ...memoryLaneZh,
   ...widgetScreenZh,
   ...stickersZh,
+  ...launchSplashZh,
   ...chatAZh,
   ...chatBZh,
 };

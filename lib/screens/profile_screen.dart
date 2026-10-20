@@ -2,6 +2,9 @@ import 'dart:async';
 import '../utils/safe_launch.dart';
 import 'package:flutter/material.dart';
 import '../widgets/common/ad_result.dart';
+import '../services/catalog_service.dart';
+import '../services/launch_splash_service.dart';
+import '../widgets/launch_splash/launch_splash_picker.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'couple_stats_screen.dart';
@@ -1968,6 +1971,13 @@ class _ProfileScreenState extends State<ProfileScreen>
                 onSelectionChanged: (s) => ud.setThemeFlavor(s.first),
               ),
             ),
+            // Заставка при запуске (20.10.2026): кадры рядом, как палитры.
+            // Заставок на сервере нет и ничего не выбрано — ряда нет вовсе.
+            if (CatalogService.instance.splashesOn().isNotEmpty || LaunchSplashService.instance.selected.isNotEmpty) ...[
+              const SizedBox(height: 18),
+              caption(trKey('splashTitle')),
+              LaunchSplashPicker(splashes: CatalogService.instance.splashesOn()),
+            ],
           ],
         ),
       ),

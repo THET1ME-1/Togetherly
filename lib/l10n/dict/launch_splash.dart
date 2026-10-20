@@ -1,0 +1,58 @@
+// Заставка при запуске: выбор в «Оформлении» (20.10.2026).
+
+const Map<String, Map<String, String>> launchSplashStrings = {
+  'splashTitle': {
+    'ru': 'Заставка при запуске',
+    'en': 'Launch animation',
+    'de': 'Startanimation',
+    'fr': 'Animation au démarrage',
+    'es': 'Animación de inicio',
+    'it': 'Animazione all’avvio',
+    'pt': 'Animação de abertura',
+  },
+  'splashNone': {
+    'ru': 'Без заставки',
+    'en': 'None',
+    'de': 'Keine',
+    'fr': 'Aucune',
+    'es': 'Ninguna',
+    'it': 'Nessuna',
+    'pt': 'Nenhuma',
+  },
+  'splashSeconds': {
+    'ru': '{s} с',
+    'en': '{s} s',
+    'de': '{s} s',
+    'fr': '{s} s',
+    'es': '{s} s',
+    'it': '{s} s',
+    'pt': '{s} s',
+  },
+  'splashDownloading': {
+    'ru': 'Скачивается…',
+    'en': 'Downloading…',
+    'de': 'Wird geladen…',
+    'fr': 'Téléchargement…',
+    'es': 'Descargando…',
+    'it': 'Download…',
+    'pt': 'Baixando…',
+  },
+  'splashFailed': {
+    'ru': 'Не скачалась, нажмите ещё раз',
+    'en': 'Download failed, tap again',
+    'de': 'Nicht geladen, noch mal tippen',
+    'fr': 'Échec, touchez à nouveau',
+    'es': 'No se descargó, toca otra vez',
+    'it': 'Non scaricata, tocca di nuovo',
+    'pt': 'Falhou, toque de novo',
+  },
+  'splashNextLaunch': {
+    'ru': 'Сыграет при следующем запуске',
+    'en': 'Plays on the next launch',
+    'de': 'Läuft beim nächsten Start',
+    'fr': 'Au prochain démarrage',
+    'es': 'Sonará en el próximo inicio',
+    'it': 'Al prossimo avvio',
+    'pt': 'Toca na próxima abertura',
+  },
+};
