@@ -1,7 +1,9 @@
 import 'dart:ui';
 
 import '../../models/draw_stroke.dart';
+import '../../models/stroke_brush.dart';
 import '../../utils/pixel_shapes.dart';
+import 'brush_painting.dart';
 
 /// Отрисовка штрихов холста. Вынесена из экрана рисования, чтобы повтор
 /// («Как рисовали») показывал ровно ту же линию, что и живой холст: две копии
@@ -197,13 +199,24 @@ void paintStroke(
   double alpha = 1.0,
   int? pixelCols,
   int? pixelRows,
+  StrokeBrush brush = StrokeBrush.pen,
+  int seed = 0,
 }) {
   if (points.isEmpty) return;
-  // Пиксельный холст: клетки вместо сглаженной кривой.
+  // Пиксельный холст: клетки вместо сглаженной кривой. Кисть там не
+  // действует — клетка есть клетка.
   if (pixelCols != null && pixelRows != null) {
     paintPixelStroke(canvas, points, colorValue, isEraser, size,
         pixelCols, pixelRows,
         alpha: alpha, brush: pixelBrushCells(strokeWidth));
+    return;
+  }
+  // Ластик бывает только твёрдым (перо) и мягким (аэрограф).
+  final drawsAsPen =
+      brush == StrokeBrush.pen || (isEraser && brush != StrokeBrush.airbrush);
+  if (!drawsAsPen) {
+    paintBrushStroke(canvas, points, colorValue, strokeWidth, isEraser, size,
+        brush: brush, alpha: alpha, seed: seed);
     return;
   }
   final paint = Paint()
@@ -236,20 +249,7 @@ void paintStroke(
     return;
   }
 
-  final path = Path();
-  final first = points.first.toOffset(size);
-  path.moveTo(first.dx, first.dy);
-
-  for (int i = 1; i < points.length - 1; i++) {
-    final p0 = points[i].toOffset(size);
-    final p1 = points[i + 1].toOffset(size);
-    final mid = Offset((p0.dx + p1.dx) / 2, (p0.dy + p1.dy) / 2);
-    path.quadraticBezierTo(p0.dx, p0.dy, mid.dx, mid.dy);
-  }
-
-  final last = points.last.toOffset(size);
-  path.lineTo(last.dx, last.dy);
-  canvas.drawPath(path, paint..style = PaintingStyle.stroke);
+  canvas.drawPath(strokeCurve(points, size), paint..style = PaintingStyle.stroke);
 }
 
 
@@ -353,6 +353,8 @@ void paintStrokeRange(
         alpha: alpha,
         pixelCols: pixelCols,
         pixelRows: pixelRows,
+        brush: s.brush,
+        seed: s.brushSeed,
       );
     }
   }

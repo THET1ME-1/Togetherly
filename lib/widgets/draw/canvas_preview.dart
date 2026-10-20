@@ -146,6 +146,8 @@ class CanvasPreviewPainter extends CustomPainter {
           size,
           pixelCols: cols,
           pixelRows: rows,
+          brush: s.brush,
+          seed: s.brushSeed,
         );
       }
     }
