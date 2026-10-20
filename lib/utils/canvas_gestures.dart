@@ -68,17 +68,3 @@ MultiTapAction multiTapAction({
     _ => MultiTapAction.none,
   };
 }
-
-/// Долгое нажатие одним пальцем берёт цвет с холста — приём Procreate.
-///
-/// От намеренного мазка отличается тем, что палец никуда не поехал: рисующая
-/// рука сдвигается сразу, а за цветом человек прижимает палец и ждёт.
-/// Порог пути мельче, чем у остальных правил файла: тут нельзя перепутать
-/// с началом линии, иначе первый штрих будет пропадать.
-bool holdIsEyedropper({
-  required Duration held,
-  required double travel,
-  double slop = 8,
-  Duration minHeld = const Duration(milliseconds: 550),
-}) =>
-    travel <= slop && held >= minHeld;

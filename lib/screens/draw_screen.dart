@@ -568,8 +568,10 @@ class _DrawScreenState extends State<DrawScreen>
   /// клетке отставание вредит, а фигура живёт двумя точками.
   double _smoothing = kDefaultSmoothing;
 
-  /// Превращать ли задержанный мазок в ровную фигуру.
-  bool _quickShapes = true;
+  /// Превращать ли задержанный мазок в ровную фигуру. По умолчанию выключено:
+  /// человек, который просто остановился подумать, видел, как его линия
+  /// сама меняется («холст живёт своей жизнью», отзыв 20.10.2026).
+  bool _quickShapes = false;
 
   /// Форма холста без листа, снятая при свёрнутой панели.
   double? _freeRatio;
@@ -1401,13 +1403,12 @@ class _DrawScreenState extends State<DrawScreen>
     _pushLiveStrokeIfNeeded();
   }
 
-  /// Часовой удержания: следит, что палец замер. Одно и то же ожидание
-  /// кормит два приёма — короткий путь означает пипетку, длинный ровную
-  /// фигуру. Проверяем по таймеру, а не по движению: когда палец стоит,
-  /// событий движения нет вовсе, а именно это и нужно поймать.
+  /// Часовой удержания: следит, что палец замер, и ждёт ровную фигуру.
+  /// Проверяем по таймеру, а не по движению: когда палец стоит, событий
+  /// движения нет вовсе, а именно это и нужно поймать.
   void _armHoldWatch() {
     _quickShapeTimer?.cancel();
-    if (_isPixel && !_holdPicksColor) return;
+    if (_isPixel || !_quickShapes) return;
     if (_activeTool == DrawTool.palm ||
         _activeTool == DrawTool.image ||
         _activeTool == DrawTool.fill) {
@@ -1426,28 +1427,11 @@ class _DrawScreenState extends State<DrawScreen>
     _quickShapeTimer = null;
   }
 
-  /// Разрешено ли брать цвет удержанием. Отдельным полем, чтобы в пиксельном
-  /// режиме часовой всё равно заводился: там фигур нет, а пипетка нужна.
-  final bool _holdPicksColor = true;
-
+  // Пипетки удержанием больше нет (20.10.2026): палец, постоявший перед
+  // мазком, не рисовал линию и молча перекрашивал кисть в белый цвет листа,
+  // дальше всё рисовалось белым по белому. Пипетка — кнопка в панели.
   void _onHoldTick() {
     if (!_isDrawing || _canvasSize.isEmpty) return;
-    final startedAt = _strokeStartedAt;
-    if (_holdPicksColor &&
-        startedAt != null &&
-        _currentShapeType == null &&
-        holdIsEyedropper(
-          held: DateTime.now().difference(startedAt),
-          travel: _strokeTravel,
-        )) {
-      // Палец стоит на месте с самого начала: человек не рисует, а
-      // присматривается к цвету. Начатую точку убираем — она бы осталась
-      // кляксой под пальцем.
-      _disarmQuickShape();
-      _cancelCurrentGesture();
-      unawaited(_armEyedropper());
-      return;
-    }
     _tryQuickShape();
   }
 
@@ -4921,7 +4905,7 @@ class _DrawScreenState extends State<DrawScreen>
     setState(() {
       _quickTools = parseQuickTools(p.getString(UiPrefs.kDrawQuickTools));
       _smoothing = p.getDouble(UiPrefs.kBrushSmoothing) ?? kDefaultSmoothing;
-      _quickShapes = p.getBool(UiPrefs.kBrushQuickShapes) ?? true;
+      _quickShapes = p.getBool(UiPrefs.kBrushQuickShapes) ?? false;
       _symmetrySectors = p.getInt(UiPrefs.kBrushSymmetrySectors) ?? 6;
       _symmetry = SymmetryMode.values.firstWhere(
         (m) => m.name == name,
