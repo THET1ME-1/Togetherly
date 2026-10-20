@@ -64,6 +64,11 @@ class _DrawReplayScreenState extends State<DrawReplayScreen>
     super.initState();
     // Проигрываем в порядке рисования: холст отдаёт штрихи по слоям.
     _strokes = replayOrder(widget.strokes);
+    // Картинки заливок начинают грузиться сразу: короткий повтор успевал
+    // закончиться раньше, чем приезжала заливка.
+    for (final s in _strokes) {
+      if (s.isImageStroke) _images.imageFor(s);
+    }
     _total = totalReplayPoints(_strokes);
     _base = replayDuration(_total);
     _ticker = createTicker(_onTick)..start();
