@@ -113,7 +113,10 @@ class _LaunchSplashPickerState extends State<LaunchSplashPicker> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final selected = _service.selected;
+    // Выбранной заставки в ряду нет (сезон кончился, запись сняли): играть
+    // она не будет, и честно отмечено «Без заставки».
+    final chosen = _service.selected;
+    final selected = widget.splashes.any((s) => s.key == chosen) ? chosen : '';
     final lang = LocaleService.instance.language.code;
     String? note;
     Color? noteColor;

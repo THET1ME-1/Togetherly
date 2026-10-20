@@ -86,6 +86,14 @@ void main() {
     expect(tester.getRect(find.text('Без заставки')).left, lessThan(check.dx), reason: 'галочка на первом кадре');
   });
 
+  testWidgets('сезон кончился — галочка на «Без заставки», а не нигде', (tester) async {
+    await tester.runAsync(() => LaunchSplashService.instance.select(splash));
+    LocaleService.instance.setLanguage(AppLanguage.ru);
+    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: LaunchSplashPicker(splashes: []))));
+    await tester.pump();
+    expect(find.byIcon(Icons.check_rounded), findsOneWidget, reason: 'выбранной заставки в ряду нет, а «Без заставки» не отмечена');
+  });
+
   testWidgets('нажатие выбирает заставку и скачивает её', (tester) async {
     await pump(tester, AppLanguage.ru);
     await tester.tap(find.byKey(const ValueKey('splash-tile-hw_key')));
