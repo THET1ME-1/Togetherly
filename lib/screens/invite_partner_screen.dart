@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:material_color_utilities/material_color_utilities.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -41,15 +44,49 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
 
   bool _joining = false;
 
+  /// Карточка ждёт сервер. Ожидание кончилось, а кода нет — карточка
+  /// объясняет, что сервер не ответил, и даёт повторить.
+  bool _checking = false;
+
+  /// Запрос к серверу идёт прямо сейчас. Второе касание «Ещё раз» до
+  /// перерисовки не запускает вторую сверку.
+  bool _running = false;
+
   @override
   void initState() {
     super.initState();
     _pair.addListener(_onPairChanged);
-    // Код мог не сгенериться при регистрации без сети — пробуем ещё раз.
-    if (_pair.inviteCode.isEmpty && !_pair.isPaired) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _pair.regenerateCode();
-      });
+    // Экран раздаёт только код, который сервер подтвердил в этом запуске. Код
+    // из памяти телефона после перезапуска надо сверить заново: без этого
+    // карточка «Позвать» на главной открывала вечное «Готовим код» (обращение
+    // 376). Пустой код выпускаем: он мог не сгенериться при регистрации без
+    // сети. Подтверждённый код не трогаем: сверка — это запрос к серверу и
+    // полный проход главной по оповещению модели пары.
+    if (!_pair.isPaired &&
+        _pair.inviteCodeState == InviteCodeState.pending) {
+      _checking = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _checkCode());
+    }
+  }
+
+  /// Дольше ждать нечего. У клиента сервера сроков нет, и на повисшем
+  /// соединении (VPN, плохая сеть) выпуск кода не кончается вовсе.
+  static const _checkLimit = Duration(seconds: 20);
+
+  Future<void> _checkCode() async {
+    if (!mounted || _running) return;
+    _running = true;
+    if (!_checking) setState(() => _checking = true);
+    try {
+      await (_pair.inviteCode.isEmpty
+              ? _pair.regenerateCode()
+              : _pair.ensureInviteCodeIsReal())
+          .timeout(_checkLimit);
+    } on TimeoutException {
+      // Поздний ответ не пропадёт: модель пары сама перерисует экран.
+    } finally {
+      _running = false;
+      if (mounted) setState(() => _checking = false);
     }
   }
 
@@ -398,11 +435,30 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
     );
   }
 
+  /// Цвет кода: оттенок акцента темы, но тоном для надписи. У тем,
+  /// нарисованных руками, `primary` светлый, и розовый код на светлой
+  /// карточке читался с контрастом 1,9:1.
+  static Color _ink(ColorScheme cs) {
+    final accent = Hct.fromInt(cs.primary.toARGB32());
+    final tone = cs.brightness == Brightness.light ? 38.0 : 84.0;
+    return Color(Hct.from(accent.hue, accent.chroma, tone).toInt());
+  }
+
   /// Код приглашения крупно: его диктуют вслух и переписывают в мессенджер.
   Widget _codeCard(ColorScheme cs, String code) {
     final ready = code.isNotEmpty;
+    // Без сессии сервер нас не узнаёт, код не выдать и не сверить.
+    final lost =
+        !ready && _pair.inviteCodeState == InviteCodeState.sessionLost;
+    // Сверка кончилась, а кода нет: сервер не ответил.
+    final failed = !ready && !lost && !_checking;
+    final fill = widget.theme.fillColor;
+    final ink = _ink(cs);
     return Material(
-      color: cs.primaryContainer,
+      // Не `primaryContainer`: у тем, нарисованных руками, он почти равен фону
+      // страницы, а надпись на нём читалась с контрастом 2:1. Так же сделана
+      // карточка кода на «Связи».
+      color: cs.surfaceContainerHighest,
       borderRadius: BorderRadius.circular(28),
       child: InkWell(
         borderRadius: BorderRadius.circular(28),
@@ -417,20 +473,39 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
                   fontFamily: ProfileTheme.bodyFont,
                   fontSize: 12.5,
                   fontWeight: FontWeight.w600,
-                  color: cs.onPrimaryContainer.withValues(alpha: 0.8),
+                  color: cs.onSurfaceVariant,
                 ),
               ),
               const SizedBox(height: 10),
               if (ready)
+                // Одной строкой всегда: на 320 точках при шрифте 1,3 код
+                // рвался на «AB12C» и «D».
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    code,
+                    maxLines: 1,
+                    softWrap: false,
+                    style: TextStyle(
+                      fontFamily: ProfileTheme.displayFont,
+                      fontSize: 34,
+                      fontWeight: FontWeight.w700,
+                      fontVariations: const [FontVariation('wght', 700)],
+                      letterSpacing: 5,
+                      color: ink,
+                    ),
+                  ),
+                )
+              else if (lost || failed)
                 Text(
-                  code,
+                  lost ? _s.inviteSessionLost : _s.serverNotResponding,
+                  textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontFamily: ProfileTheme.displayFont,
-                    fontSize: 34,
-                    fontWeight: FontWeight.w700,
-                    fontVariations: const [FontVariation('wght', 700)],
-                    letterSpacing: 5,
-                    color: cs.onPrimaryContainer,
+                    fontFamily: ProfileTheme.bodyFont,
+                    fontSize: 15,
+                    height: 1.35,
+                    fontWeight: FontWeight.w600,
+                    color: cs.onSurface,
                   ),
                 )
               else
@@ -442,20 +517,33 @@ class _InvitePartnerScreenState extends State<InvitePartnerScreen> {
                       height: 26,
                       child: CircularProgressIndicator(
                         strokeWidth: 3,
-                        color: cs.onPrimaryContainer,
+                        color: ink,
                       ),
                     ),
                   ),
                 ),
               const SizedBox(height: 8),
-              Text(
-                ready ? _s.tapToCopy : _s.inviteCodeLoading,
-                style: TextStyle(
-                  fontFamily: ProfileTheme.bodyFont,
-                  fontSize: 12,
-                  color: cs.onPrimaryContainer.withValues(alpha: 0.8),
+              if (failed)
+                FilledButton(
+                  onPressed: _checkCode,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: fill,
+                    foregroundColor: AppThemes.onColor(
+                      fill,
+                      mode: widget.theme.brightness,
+                    ),
+                  ),
+                  child: Text(_s.retry),
+                )
+              else if (!lost)
+                Text(
+                  ready ? _s.tapToCopy : _s.inviteCodeLoading,
+                  style: TextStyle(
+                    fontFamily: ProfileTheme.bodyFont,
+                    fontSize: 12,
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
-              ),
             ],
           ),
         ),
