@@ -7,6 +7,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:love_app/models/draw_stroke.dart';
 import 'package:love_app/models/live_stroke_wire.dart';
+import 'package:love_app/models/stroke_brush.dart';
 
 void main() {
   const meta = LiveStrokeMeta(
@@ -196,6 +197,38 @@ void main() {
     test('без слоя в мете пакет не меняется для старых сборок', () {
       expect(meta.toMap().containsKey('layer'), isFalse);
       expect(onSecond.toMap()['layer'], 2);
+    });
+  });
+
+  group('кисть мазка партнёра (20.10.2026)', () {
+    const marker = LiveStrokeMeta(
+      colorValue: 0xFF112233,
+      strokeWidth: 6.5,
+      isEraser: false,
+      isFilledShape: false,
+      shapeType: null,
+      brush: StrokeBrush.marker,
+    );
+
+    test('кисть едет в каждом пакете и доходит до живой линии', () {
+      final a = LiveStrokeAssembler();
+      a.accept(LiveStrokeWire.keyframe(sid: 's1', seq: 0, points: pts(3), meta: marker));
+      expect(a.buildLive('partner-uid')!.brush, StrokeBrush.marker);
+      a.accept(LiveStrokeWire.increment(sid: 's1', seq: 1, from: 3, points: pts(2, base: 0.5), meta: marker));
+      expect(a.buildLive('partner-uid')!.brush, StrokeBrush.marker);
+    });
+
+    test('законченный мазок остаётся маркером', () {
+      final a = LiveStrokeAssembler();
+      a.accept(LiveStrokeWire.done(sid: 's1', seq: 2, points: pts(3), meta: marker, orderIndex: 4));
+      expect(a.buildStroke('partner-uid')!.brush, StrokeBrush.marker);
+    });
+
+    test('старая сборка кисть не шлёт — партнёр рисует пером', () {
+      expect(meta.toMap().containsKey('brush'), isFalse);
+      final a = LiveStrokeAssembler();
+      a.accept(LiveStrokeWire.keyframe(sid: 's1', seq: 0, points: pts(3), meta: meta));
+      expect(a.buildLive('partner-uid')!.brush, StrokeBrush.pen);
     });
   });
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:pocketbase/pocketbase.dart';
 
+import 'stroke_brush.dart';
+
 /// Tools available in the drawing canvas.
 /// `select` — векторная правка: выделить нарисованное и двигать, крутить,
 /// растягивать. Стоит последним, чтобы не сдвинуть порядок прежних значений:
@@ -105,6 +107,10 @@ class DrawStroke {
   /// выглядит ровно так же, как раньше, просто теперь это «нижний слой».
   final int layer;
 
+  /// Чем положен мазок. У ластика это мягкость края: аэрограф стирает с
+  /// размытым краем, перо — ровным кругом. Фигуры и картинки кисть не берут.
+  final StrokeBrush brush;
+
   const DrawStroke({
     required this.id,
     this.clientId,
@@ -123,10 +129,14 @@ class DrawStroke {
     this.imageHeight,
     this.imageRotation,
     this.layer = 0,
+    this.brush = StrokeBrush.pen,
   });
 
   bool get isImageStroke => imageUrl != null;
   bool get isShapeStroke => shapeType != null;
+
+  /// Зерно кисти: от того же идентификатора, под которым мазок ехал живьём.
+  int get brushSeed => brushSeedFor(clientId ?? id);
 
   Color get color => Color(colorValue);
 
@@ -152,6 +162,8 @@ class DrawStroke {
     // Нулевой слой не пишем: так старые и новые рисунки остаются одинаковыми
     // на вид, а карта не пухнет ради значения по умолчанию.
     if (layer != 0) 'layer': layer,
+    // Перо не пишем, как и нулевой слой: сборки без кистей видят то же.
+    if (brush != StrokeBrush.pen) 'brush': brush.name,
   };
 
   factory DrawStroke.fromFirestore(Map<String, dynamic> data, String id) {
@@ -176,6 +188,7 @@ class DrawStroke {
       imageHeight: (data['imageHeight'] as num?)?.toDouble(),
       imageRotation: (data['imageRotation'] as num?)?.toDouble(),
       layer: (data['layer'] as num?)?.toInt() ?? 0,
+      brush: parseStrokeBrush(data['brush'] as String?),
     );
   }
 
@@ -199,6 +212,7 @@ class DrawStroke {
     'isFilledShape': isFilledShape,
     'points': points.map((p) => p.toMap()).toList(),
     if (shapeType != null) 'shapeType': shapeType!.name,
+    if (brush != StrokeBrush.pen) 'brush': brush.name,
     'ts': DateTime.now().millisecondsSinceEpoch,
   };
 
@@ -216,6 +230,7 @@ class DrawStroke {
       isFilledShape: (data['isFilledShape'] as bool?) ?? false,
       shapeType: parseShapeType(data['shapeType'] as String?),
       orderIndex: -1,
+      brush: parseStrokeBrush(data['brush'] as String?),
     );
   }
 }

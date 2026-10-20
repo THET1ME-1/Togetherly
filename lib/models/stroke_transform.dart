@@ -263,6 +263,7 @@ DrawStroke strokeWithPoints(DrawStroke stroke, List<DrawPoint> points) {
     imageHeight: stroke.imageHeight,
     imageRotation: stroke.imageRotation,
     layer: stroke.layer,
+    brush: stroke.brush,
   );
 }
 
@@ -293,6 +294,7 @@ DrawStroke copyImageStroke(
       shapeType: s.shapeType,
       orderIndex: s.orderIndex,
       layer: s.layer,
+      brush: s.brush,
       imageUrl: url ?? s.imageUrl,
       imageX: x ?? s.imageX,
       imageY: y ?? s.imageY,

@@ -46,6 +46,7 @@ List<DrawStroke> strokesUpTo(List<DrawStroke> all, int points) {
           shapeType: s.shapeType,
           orderIndex: s.orderIndex,
           layer: s.layer,
+          brush: s.brush,
         ),
       );
     }

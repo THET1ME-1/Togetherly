@@ -16,6 +16,7 @@
 library;
 
 import 'draw_stroke.dart';
+import 'stroke_brush.dart';
 
 /// Постоянные свойства мазка: их незачем слать в каждом приросте.
 class LiveStrokeMeta {
@@ -26,6 +27,7 @@ class LiveStrokeMeta {
     required this.isFilledShape,
     required this.shapeType,
     this.layer,
+    this.brush = StrokeBrush.pen,
   });
 
   final int colorValue;
@@ -38,6 +40,10 @@ class LiveStrokeMeta {
   /// null, и получатель кладёт линию в запасной слой.
   final int? layer;
 
+  /// Кисть мазка. Сборки до 20.10.2026 её не шлют и не читают: у них
+  /// партнёр рисует пером.
+  final StrokeBrush brush;
+
   Map<String, dynamic> toMap() => {
         'colorValue': colorValue,
         'strokeWidth': strokeWidth,
@@ -45,6 +51,7 @@ class LiveStrokeMeta {
         'isFilledShape': isFilledShape,
         if (shapeType != null) 'shapeType': shapeType!.name,
         if (layer != null) 'layer': layer,
+        if (brush != StrokeBrush.pen) 'brush': brush.name,
       };
 
   static LiveStrokeMeta fromMap(Map<String, dynamic> m) => LiveStrokeMeta(
@@ -54,6 +61,7 @@ class LiveStrokeMeta {
         isFilledShape: m['isFilledShape'] == true,
         shapeType: parseShapeType(m['shapeType'] as String?),
         layer: (m['layer'] as num?)?.toInt(),
+        brush: parseStrokeBrush(m['brush'] as String?),
       );
 }
 
@@ -200,6 +208,7 @@ class LiveStrokeAssembler {
       shapeType: meta.shapeType,
       orderIndex: -1,
       layer: meta.layer ?? fallbackLayer,
+      brush: meta.brush,
     );
   }
 
@@ -225,6 +234,7 @@ class LiveStrokeAssembler {
       shapeType: meta.shapeType,
       orderIndex: _orderIndex,
       layer: meta.layer ?? fallbackLayer,
+      brush: meta.brush,
     );
   }
 
