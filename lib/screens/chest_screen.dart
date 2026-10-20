@@ -179,6 +179,11 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
   int _shown = 0;
 
   bool _busy = false;
+
+  /// Открытие идёт из копилки. Занятость у кнопки за рекламу и у кнопки
+  /// копилки общая, и «Открываем…» писали обе: на экране стояли две
+  /// одинаковые кнопки (снимок владельца 20.10.2026). Пишет только нажатая.
+  bool _jarRun = false;
   bool _choosing = false;
 
   /// Занавес смены страницы: к какой странице идём и закрыт ли уже экран.
@@ -443,6 +448,7 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     }
     final openId = slot.pendingOpenId ?? newPbId();
     final storeKey = slot.pendingKey(widget.groupId);
+    _jarRun = fromJar;
     final total = Stopwatch()..start();
     ChestTelemetry.step(
       openId,
@@ -1387,7 +1393,7 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     // Счётчик в самой кнопке: «Открыть за рекламу 2/3».
     final prefix = trKey(_free || _noAd || slot.pendingOpenId != null ? 'chestOpenFree' : 'chestOpenAd');
     final count = '${slot.left}/${slot.perDay}';
-    if (busy) {
+    if (busy && !_jarRun) {
       label = trKey('chestOpening');
     } else if (out) {
       // Открытия кончились — вместо кнопки отсчёт до полуночи.
@@ -1494,7 +1500,9 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
         child: FittedBox(
           fit: BoxFit.scaleDown,
           child: Text(
-            busy ? trKey('chestOpening') : trKey('jarOpen').replaceAll('{n}', '${_jarBonus > 0 ? _jarBonus : 1}'),
+            busy && _jarRun
+                ? trKey('chestOpening')
+                : trKey('jarOpen').replaceAll('{n}', '${_jarBonus > 0 ? _jarBonus : 1}'),
             maxLines: 1,
           ),
         ),
