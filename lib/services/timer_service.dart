@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/timer_item.dart';
+import '../models/timer_sync.dart';
 import 'media_service.dart';
 import 'home_widget_service.dart';
 import 'pocketbase_service.dart';
@@ -32,6 +33,11 @@ class TimerService extends ChangeNotifier {
   // Параметры ожидающего создания системного таймера
   Map<String, dynamic>? _pendingSystemTimer;
 
+  // Правки таймеров пары, которые сервер ещё не подтвердил (обращение 358).
+  // Лежат на диске: правка переживает и обрыв сети, и перезапуск приложения.
+  Map<String, TimerItem> _pending = {};
+  bool _sendingPending = false;
+
   List<TimerItem> get timers {
     // System timer always at position 0, others follow in creation order.
     // Do NOT sort by isDefault — it changes on every swipe and would
@@ -51,6 +57,8 @@ class TimerService extends ChangeNotifier {
         ? 'user_timers_${uid}_$_groupId'
         : '${_localStorageKey}_$uid';
   }
+
+  String get _pendingKey => 'timer_pending_${PocketBaseService().userId ?? 'guest'}_$_groupId';
 
   /// Таймер, отображаемый по умолчанию в свёрнутом виде.
   TimerItem? get defaultTimer {
@@ -132,6 +140,7 @@ class TimerService extends ChangeNotifier {
     _pendingSystemTimer = null;
     _timers = [];
     await _loadLocal();
+    _pending = groupId.isEmpty ? {} : await _loadPending();
     notifyListeners();
     if (groupId.isEmpty) return;
 
@@ -149,6 +158,7 @@ class TimerService extends ChangeNotifier {
     _groupId = '';
     _hasReceivedRemoteSync = false;
     _pendingSystemTimer = null;
+    _pending = {};
     await _loadLocal();
     // Sync widget for solo mode after unbind
     await _syncWidgetTimer();
@@ -159,6 +169,18 @@ class TimerService extends ChangeNotifier {
   /// Remote таймеры имеют приоритет, но локальные изменения isCountdown
   /// сохраняются если они не успели синхронизироваться до закрытия приложения.
   void _mergeRemoteTimers(List<TimerItem> remote) {
+    // Неотправленные правки стоят поверх серверных: иначе обновление пары
+    // возвращало старую дату (обращение 358). Дошедшие правки больше не ждут.
+    if (_pending.isNotEmpty) {
+      final left = stillPending(remote, _pending);
+      if (left.length != _pending.length) {
+        _pending = left;
+        unawaited(_savePending());
+      }
+      remote = mergeWithPending(remote, _pending);
+      if (_pending.isNotEmpty) unawaited(_sendPending());
+    }
+
     // Снимок локального состояния до перезаписи (загружен из SharedPreferences)
     final localById = Map.fromEntries(_timers.map((t) => MapEntry(t.id, t)));
 
@@ -291,6 +313,56 @@ class TimerService extends ChangeNotifier {
     }
   }
 
+  Future<Map<String, TimerItem>> _loadPending() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_pendingKey);
+    if (raw == null || raw.isEmpty) return {};
+    try {
+      return {for (final timer in TimerItem.decodeList(raw)) timer.id: timer};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<void> _savePending() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (_pending.isEmpty) {
+      await prefs.remove(_pendingKey);
+    } else {
+      await prefs.setString(_pendingKey, TimerItem.encodeList(_pending.values.toList()));
+    }
+  }
+
+  /// Отправить таймер на сервер. Пока сервер не ответил, правка лежит в
+  /// неотправленных и обновление пары её не откатывает.
+  Future<bool> _sendTimer(TimerItem timer) async {
+    final edit = timer.copyWith();
+    _pending[edit.id] = edit;
+    await _savePending();
+    final ok = await _repo.upsertGroupTimer(_groupId, edit);
+    if (ok && identical(_pending[edit.id], edit)) {
+      _pending.remove(edit.id);
+      await _savePending();
+    }
+    return ok;
+  }
+
+  /// Дослать правки, которые не дошли раньше: сеть падала или приложение
+  /// закрыли раньше ответа сервера.
+  Future<void> _sendPending() async {
+    if (_sendingPending || _groupId.isEmpty || _pending.isEmpty) return;
+    _sendingPending = true;
+    try {
+      for (final edit in _pending.values.toList()) {
+        final ok = await _repo.upsertGroupTimer(_groupId, edit);
+        if (ok && identical(_pending[edit.id], edit)) _pending.remove(edit.id);
+      }
+      await _savePending();
+    } finally {
+      _sendingPending = false;
+    }
+  }
+
   Future<bool> _saveToFirestore() async {
     if (_groupId.isEmpty) {
       debugPrint('TimerService: не могу сохранить в облако - groupId пуст');
@@ -340,15 +412,13 @@ class TimerService extends ChangeNotifier {
     await _saveLocal();
     if (_groupId.isNotEmpty) {
       final added = _timers.last;
-      if (added.isDefault && !added.isSystem) {
-        // Новый таймер сразу делают основным: пишем весь согласованный массив,
-        // чтобы на сервере остался ровно один дефолтный (иначе системный
-        // остался бы дефолтным и realtime-merge откатил бы выбор — см.
-        // updateTimer). Для СИСТЕМНОГО таймера так делать нельзя: upsert по
-        // детерминированному id схлопывает дубли при одновременном создании пары.
-        await _saveToFirestore();
-      } else {
+      if (added.isSystem) {
+        // Системный пишется сразу по детерминированному id: upsert схлопывает
+        // дубли при одновременном создании пары.
         await _repo.upsertGroupTimer(_groupId, added);
+      } else {
+        // Новый основной снимает флаг с остальных прямо в серверном списке.
+        await _sendTimer(added);
       }
     }
     // Sync widget immediately after creating timer (single user mode)
@@ -384,17 +454,10 @@ class TimerService extends ChangeNotifier {
     await _saveLocal();
     var saved = true;
     if (_groupId.isNotEmpty) {
-      if (updated.isDefault) {
-        // Таймер сделали основным: пишем ВЕСЬ согласованный массив одним RMW,
-        // чтобы на сервере остался ровно один дефолтный. Иначе upsert только
-        // этого таймера оставил бы системный с isDefault=true → realtime-merge
-        // увидел бы два дефолтных и откатил выбор к системному (firstWhere
-        // isSystem в _mergeRemoteTimers) — кнопка «Сделать основным» «не
-        // срабатывала».
-        saved = await _saveToFirestore();
-      } else {
-        saved = await _repo.upsertGroupTimer(_groupId, updated);
-      }
+      // Правка ждёт подтверждения сервера. Флаг основного сводится в серверном
+      // списке: свой список целиком больше не пишем, старая копия затирала
+      // свежую дату (обращение 358).
+      saved = await _sendTimer(_timers[idx]);
     }
     await _syncWidgetTimer();
     notifyListeners();
@@ -420,6 +483,8 @@ class TimerService extends ChangeNotifier {
     debugPrint('TimerService.deleteTimer: сохранено в local, таймеров: ${_timers.length}');
     
     if (_groupId.isNotEmpty) {
+      // Удалённый таймер больше не досылаем, иначе он вернулся бы с сервера
+      if (_pending.remove(id) != null) await _savePending();
       await _repo.deleteGroupTimer(_groupId, id);
       debugPrint('TimerService.deleteTimer: удалено из облака');
     }

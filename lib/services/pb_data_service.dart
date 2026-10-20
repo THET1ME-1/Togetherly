@@ -7,6 +7,7 @@ import 'package:pocketbase/pocketbase.dart';
 
 import '../models/miss_you_event.dart';
 import '../models/invite_code_state.dart';
+import '../models/timer_sync.dart';
 import '../utils/date_only.dart';
 import '../utils/pair_time.dart';
 import 'avatar_frames.dart';
@@ -1892,18 +1893,10 @@ class PbDataService {
 
   /// Вставить/обновить один таймер по id (детерминированный id системного
   /// схлопывает дубли при одновременном создании пары — паритет с Firebase).
-  Future<bool> upsertGroupTimer(String groupId, Map<String, dynamic> timer) {
-    final id = timer['id'];
-    return _patchGroupTimers(groupId, (list) {
-      final idx = list.indexWhere((e) => e is Map && e['id'] == id);
-      if (idx >= 0) {
-        list[idx] = timer;
-      } else {
-        list.add(timer);
-      }
-      return list;
-    }, op: 'upsertGroupTimer');
-  }
+  /// Флаг основного сводится по серверному списку: свой список целиком телефон
+  /// больше не пишет, его старая копия затирала свежую дату (обращение 358).
+  Future<bool> upsertGroupTimer(String groupId, Map<String, dynamic> timer) =>
+      _patchGroupTimers(groupId, (list) => upsertTimerJson(list, timer), op: 'upsertGroupTimer');
 
   Future<bool> deleteGroupTimer(String groupId, String timerId) =>
       _patchGroupTimers(groupId,
