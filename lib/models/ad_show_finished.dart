@@ -75,6 +75,12 @@ class AdShowWatch {
   /// показа: последние включают и то время, что человек провёл вне ролика.
   Duration get away => _away;
 
+  /// Приложение отдало экран рекламе: сейчас под ней или уже вернулось.
+  ///
+  /// Это доказательство показа, когда Яндекс не прислал `onAdShown`
+  /// (эмулятор 20.10.2026: реклама шла две минуты, события не было).
+  bool get sawAd => _left || _leftAt != null;
+
   void onState(AppLifecycleState state, {DateTime? at}) {
     final now = at ?? DateTime.now();
     switch (state) {

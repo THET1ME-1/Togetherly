@@ -68,6 +68,27 @@ void main() {
       expect(watch.finished, isTrue);
     });
 
+    test('ушли под рекламу — она показана, даже если Яндекс промолчал', () {
+      // Эмулятор 20.10.2026, сборка 253: окно рекламы открылось и шло две
+      // минуты, а onAdShown так и не пришёл. Отчёт: ad_shown false, и через
+      // 70 секунд вышло «не засчитан».
+      final start = DateTime(2026, 10, 20, 12, 16, 41);
+      final watch = AdShowWatch();
+      expect(watch.sawAd, isFalse);
+      watch.onState(AppLifecycleState.inactive, at: start);
+      expect(watch.sawAd, isTrue, reason: 'реклама на экране прямо сейчас');
+      watch.onState(AppLifecycleState.resumed, at: start.add(const Duration(minutes: 2)));
+      expect(watch.sawAd, isTrue, reason: 'реклама была и закрылась');
+    });
+
+    test('короткое мигание без рекламы показом не считается', () {
+      final start = DateTime(2026, 10, 20, 12);
+      final watch = AdShowWatch();
+      watch.onState(AppLifecycleState.inactive, at: start);
+      watch.onState(AppLifecycleState.resumed, at: start.add(const Duration(milliseconds: 500)));
+      expect(watch.sawAd, isFalse);
+    });
+
     test('показанная реклама ждёт своего закрытия дольше предохранителя', () {
       // Яндекс крутит пачки из трёх роликов, это больше 70 секунд. Пока
       // реклама на экране, решать «закрылась» по часам нельзя: сундук

@@ -237,7 +237,8 @@ class RewardedAdService {
       var done = await closed.then((_) => true).timeout(kAdShowGuard, onTimeout: () => false);
       // Показанная реклама ждёт своего закрытия дольше: пачка роликов идёт
       // больше предохранителя.
-      final rest = adCloseWaitLimit(shown: shown()) - kAdShowGuard;
+      // Показ видно и без Яндекса: приложение отдало экран рекламе.
+      final rest = adCloseWaitLimit(shown: shown() || watch.sawAd) - kAdShowGuard;
       if (!done && rest > Duration.zero) {
         done = await closed.then((_) => true).timeout(rest, onTimeout: () => false);
       }
@@ -327,7 +328,7 @@ class RewardedAdService {
     var grantedByWatch = false;
     if (!earned &&
         adRewardDeserved(
-          shown: shown,
+          shown: shown || watch.sawAd,
           away: watch.away,
           onScreen: onScreen,
         )) {
@@ -349,6 +350,8 @@ class RewardedAdService {
         withScope: (s) {
           s.setExtra('reason', 'rewarded ad shown without reward callback');
           s.setExtra('ad_shown', shown);
+          // Приложение уходило под рекламу — показ был, даже без onAdShown.
+          s.setExtra('saw_ad', watch.sawAd);
           s.setExtra('seconds_on_screen', seconds);
           // Время ЗА рекламой: стенные часы включают и то, что человек делал
           // вне ролика, поэтому судить по ним нельзя было.
