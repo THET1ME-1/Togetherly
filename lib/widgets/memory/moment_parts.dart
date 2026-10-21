@@ -149,12 +149,23 @@ class MomentStars extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
+          // Оценка от 1 до 10, звёзд пять: каждая — два балла, нечётная
+          // оценка даёт половинку (обращение 401: «7/10» горело пятью).
           for (var i = 1; i <= 5; i++)
             Icon(
-              Icons.star_rounded,
+              rating >= i * 2
+                  ? Icons.star_rounded
+                  : rating == i * 2 - 1
+                      ? Icons.star_half_rounded
+                      : Icons.star_rounded,
               size: 20,
-              color: i <= rating ? fill : fill.withValues(alpha: 0.28),
+              color: rating >= i * 2 - 1 ? fill : fill.withValues(alpha: 0.28),
             ),
+          const SizedBox(width: 6),
+          Text(
+            '$rating/10',
+            style: AppFonts.onest(size: 13.5, weight: 700, color: scheme.onSurfaceVariant),
+          ),
         ],
       ),
     );

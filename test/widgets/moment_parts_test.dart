@@ -54,7 +54,7 @@ Widget _all(ColorScheme cs, Color fill) => Column(
           MomentPill(scheme: cs, fill: fill, label: 'научная фантастика'),
           MomentPill(scheme: cs, fill: fill, label: 'драма'),
         ]),
-        MomentStars(scheme: cs, fill: fill, rating: 4, who: 'Аня'),
+        MomentStars(scheme: cs, fill: fill, rating: 10, who: 'Анастасия Викторовна'),
         MomentButtons(
           scheme: cs,
           fill: fill,
@@ -91,17 +91,29 @@ void main() {
     expect(colors.any((c) => c == Colors.amber || c == Colors.orange), isFalse);
   });
 
-  testWidgets('звёзд пять, залито столько, какая оценка', (tester) async {
-    await _pump(tester, _all);
-    final fill = buildAppTheme(kPalettes[0], Brightness.light).fillColor;
-    final stars = tester
-        .widgetList<Icon>(find.descendant(
-            of: find.byType(MomentStars), matching: find.byType(Icon)))
-        .toList();
-    expect(stars, hasLength(5));
-    expect(stars.where((i) => i.color == fill), hasLength(4));
-    expect(find.text('Аня'), findsOneWidget);
-  });
+  // Обращение 401: оценка у фильма и книги — от 1 до 10, карточка в ленте
+  // пишет «7/10», а открытая запись красила пять звёзд по «звезда ≤ оценка»,
+  // и любая оценка от 5 давала полные пять.
+  for (final (rating, full, half) in [(4, 2, 0), (7, 3, 1), (10, 5, 0), (1, 0, 1)]) {
+    testWidgets('оценка $rating из 10: $full полных звёзд и ${half == 1 ? 'половинка' : 'без половинки'}',
+        (tester) async {
+      await _pump(
+          tester,
+          (cs, fill) => MomentStars(scheme: cs, fill: fill, rating: rating, who: 'Аня'));
+      final fill = buildAppTheme(kPalettes[0], Brightness.light).fillColor;
+      final stars = tester
+          .widgetList<Icon>(find.descendant(
+              of: find.byType(MomentStars), matching: find.byType(Icon)))
+          .toList();
+      expect(stars, hasLength(5));
+      expect(stars.where((i) => i.icon == Icons.star_rounded && i.color == fill),
+          hasLength(full));
+      expect(stars.where((i) => i.icon == Icons.star_half_rounded), hasLength(half));
+      expect(find.text('$rating/10'), findsOneWidget,
+          reason: 'число то же, что на карточке в ленте');
+      expect(find.text('Аня'), findsOneWidget);
+    });
+  }
 
   testWidgets('главная кнопка залита цветом темы, вторая — значок с подсказкой', (tester) async {
     await _pump(tester, _all);
