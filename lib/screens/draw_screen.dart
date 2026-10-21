@@ -252,6 +252,9 @@ class _DrawScreenState extends State<DrawScreen>
       ValueNotifier<List<DrawStroke>>([]);
 
   final List<String> _myStrokeIds = [];
+
+  /// Свои линии прошлых заходов уже подняты в историю отмены.
+  bool _undoHistorySeeded = false;
   final List<DrawStroke> _redoStack = [];
 
   /// Сквозная шкала действий холста. Нарисованные штрихи и правки формы лежат
@@ -977,6 +980,9 @@ class _DrawScreenState extends State<DrawScreen>
         for (int i = 0; i < updatedMyIds.length; i++) {
           if (updatedMyIds[i] == matchKey) updatedMyIds[i] = remote.id;
         }
+        // Номер действия ведётся по id: без переезда отмена не найдёт штрих
+        // и выйдет молча при живой кнопке (обращение 403).
+        adoptStrokeId(_strokeSeq, _mirrorGroupOf, from: matchKey, to: remote.id);
         // Картинку-штрих (заливка, вставленное фото) продолжаем рисовать с
         // диска — см. [adoptLocalImagePath].
         adoptLocalImagePath(_localImagePaths, matchKey, remote.id);
@@ -986,6 +992,15 @@ class _DrawScreenState extends State<DrawScreen>
     _pendingLocalStrokes
       ..clear()
       ..addAll(remainingPending);
+    // Первая выдача общего холста: свои линии прошлых заходов встают в начало
+    // истории отмены, как у одиночного холста (владелец, 21.10.2026).
+    if (!_undoHistorySeeded && parsed.isNotEmpty) {
+      _undoHistorySeeded = true;
+      final earlier = ownStrokeHistory(parsed, _myUid)
+          .where((id) => !updatedMyIds.contains(id))
+          .toList();
+      updatedMyIds.insertAll(0, earlier);
+    }
     _myStrokeIds
       ..clear()
       ..addAll(updatedMyIds);
@@ -2611,7 +2626,9 @@ class _DrawScreenState extends State<DrawScreen>
   /// мазок, и шесть нажатий подряд читались бы как поломка кнопки.
   Future<void> _undo() async {
     switch (undoTarget(
-      strokeSeq: _myStrokeIds.isEmpty ? null : _strokeSeq[_myStrokeIds.last],
+      strokeSeq: _myStrokeIds.isEmpty
+          ? null
+          : ownStrokeSeq(_strokeSeq, _myStrokeIds.last),
       editSeq: _shapeEdits.isEmpty ? null : _shapeEdits.last.seq,
       eraseSeq: _wholeErases.isEmpty ? null : _wholeErases.last.seq,
     )) {
