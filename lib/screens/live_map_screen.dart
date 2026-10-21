@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart' show LatLng;
 import 'package:material_new_shapes/material_new_shapes.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,6 +17,7 @@ import '../services/locale_service.dart';
 import '../services/map/directions.dart';
 import '../services/map/map_palette.dart';
 import '../services/map/map_tiles.dart';
+import '../services/map/my_position_feed.dart';
 import '../services/miss_you_repository.dart';
 import '../services/pocketbase_service.dart';
 import '../theme/app_theme.dart';
@@ -76,7 +76,7 @@ class _LiveMapScreenState extends State<LiveMapScreen> with TickerProviderStateM
   final MapController _map = MapController();
 
   StreamSubscription<LivePoint?>? _partnerSub;
-  StreamSubscription<Position>? _meSub;
+  MyPositionFeed? _meFeed;
   LatLng? _me;
   LivePoint? _partner;
   bool _mapReady = false;
@@ -145,7 +145,7 @@ class _LiveMapScreenState extends State<LiveMapScreen> with TickerProviderStateM
   @override
   void dispose() {
     _partnerSub?.cancel();
-    _meSub?.cancel();
+    _meFeed?.dispose();
     _decideTimer?.cancel();
     _toastTimer?.cancel();
     _mode.dispose();
@@ -169,19 +169,16 @@ class _LiveMapScreenState extends State<LiveMapScreen> with TickerProviderStateM
     });
   }
 
-  Future<void> _startMyStream() async {
-    try {
-      final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 15),
-        ),
-      );
-      _onMe(LatLng(pos.latitude, pos.longitude));
-    } catch (_) {}
-    _meSub = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 5),
-    ).listen((pos) => _onMe(LatLng(pos.latitude, pos.longitude)), onError: (_) {});
+  /// Своя точка. Пока показ включён, она приходит от службы показа, а своей
+  /// подписки на общий поток геопозиции у экрана нет (обращение 383).
+  void _startMyStream() {
+    final live = LiveLocationService.instance;
+    final feed = MyPositionFeed(
+      onPosition: (pos) => _onMe(LatLng(pos.latitude, pos.longitude)),
+      sharedFix: live.isSharing ? live.myFix : null,
+    );
+    _meFeed = feed;
+    unawaited(feed.start());
   }
 
   void _onMe(LatLng p) {

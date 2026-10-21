@@ -88,6 +88,11 @@ class LiveLocationService with WidgetsBindingObserver {
   /// true, пока крутится стрим позиции.
   bool get isSharing => _posSub != null;
 
+  /// Последняя своя точка из потока показа. Её берёт экран большой карты:
+  /// своя подписка на общий нативный поток держала бы его после «Выключить»
+  /// (см. `MyPositionFeed`, обращение 383).
+  final ValueNotifier<Position?> myFix = ValueNotifier<Position?>(null);
+
   /// Загружает сохранённое состояние флага. Вызывать на старте приложения.
   Future<void> init() async {
     try {
@@ -336,6 +341,7 @@ class LiveLocationService with WidgetsBindingObserver {
   int? _storedAtMs;
 
   Future<void> _push(String channel, Position pos) async {
+    myFix.value = pos;
     if (_uid.isEmpty) return;
     // Пишем только конечные числа (heading/accuracy бывают NaN/Infinity, когда
     // значение недоступно).
@@ -376,6 +382,7 @@ class LiveLocationService with WidgetsBindingObserver {
   /// партнёр видел последнее местоположение).
   Future<void> stopSharing({bool removePoint = false}) async {
     await _cancelStream();
+    myFix.value = null;
     final pairId = _activePairId;
     _activePairId = null;
     if (removePoint && pairId != null && _uid.isNotEmpty) {
