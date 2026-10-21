@@ -774,10 +774,28 @@
       liveTracked = true;
       track('reels-live', Object.assign(probeFacts(card), { ms: 0 }));
     }
-    setTimeout(() => {
+    setTimeout(async () => {
       if (card.dead || card.live || !card.active || document.hidden || S.paused) return;
-      track('reels-stuck', probeFacts(card));
+      // На iPhone 21.10.2026 плееры не загрузились вовсе: ни `load`, ни одного
+      // сообщения. Отметка различает сеть и браузер: есть ли на странице сам
+      // плеер, доехал ли скрипт YouTube, отвечают ли площадки этой странице.
+      const facts = Object.assign(probeFacts(card), {
+        frame: card.el.querySelector('iframe') ? 1 : 0,
+        ytApi: window.YT && window.YT.Player ? 1 : 0,
+      });
+      const [tt, yt] = await Promise.all([reach('https://www.tiktok.com/favicon.ico'), reach('https://www.youtube.com/favicon.ico')]);
+      track('reels-stuck', Object.assign(facts, { tt, yt }));
     }, STUCK_MS);
+  }
+
+  /** Отвечает ли площадка этой странице: `ok`, `fail` (отказ сети) или
+   *  `slow` (молчит дольше 5 секунд). Ответ не читается, нужен сам факт. */
+  function reach(url) {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 5000);
+    return fetch(url + '?r=' + Date.now(), { mode: 'no-cors', cache: 'no-store', signal: ctl.signal })
+      .then(() => 'ok', (e) => (e && e.name === 'AbortError' ? 'slow' : 'fail'))
+      .finally(() => clearTimeout(timer));
   }
 
   function makeCard(key, lazy) {

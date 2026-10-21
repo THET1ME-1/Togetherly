@@ -98,6 +98,9 @@ const check = (n, c, x = '') => { console.log((c ? '  ✓ ' : '  ✗ ') + n, x);
     const id = new URL(r.request().url()).pathname.split('/').pop();
     r.fulfill({ status: 200, contentType: 'text/html', body: FAKE_PLAYER(id) });
   });
+  // Проверка связи из замера: TikTok отвечает, YouTube молчит.
+  await ctx.route('https://www.tiktok.com/favicon.ico**', (r) => r.fulfill({ status: 200, body: '' }));
+  await ctx.route('https://www.youtube.com/favicon.ico**', (r) => r.abort('connectionrefused'));
   await ctx.route('https://analytics.togetherly.day/**', (r) => r.fulfill({
     status: 200, contentType: 'text/javascript',
     body: 'window.umami = { track: (n, d) => { (window.__tracked = window.__tracked || []).push([n, d]); } };',
@@ -114,6 +117,13 @@ const check = (n, c, x = '') => { console.log((c ? '  ✓ ' : '  ✗ ') + n, x);
   const s = (stuck[0] || [])[1] || {};
   check('в отметке площадка, система и сборка', s.src === 'tiktok' && s.platform === 'ios' && s.os === 17 && s.b === 255, JSON.stringify(s));
   check('в отметке ошибка плеера', String(s.last || '').includes('3001'), s.last);
+  // На iPhone 21.10.2026 плееры не загрузились вовсе (ready 0, ни одного
+  // сообщения). Отметка различает сеть и браузер: есть ли на странице сам
+  // плеер, доехал ли скрипт YouTube, отвечают ли площадки.
+  check('в отметке есть ли плеер на странице', s.frame === 1, String(s.frame));
+  check('в отметке связь с TikTok', s.tt === 'ok', String(s.tt));
+  check('в отметке связь с YouTube', s.yt === 'fail', String(s.yt));
+  check('в отметке доехал ли скрипт YouTube', s.ytApi === 0, String(s.ytApi));
 
   const before = await page.evaluate(() => window.__reelsState().cur && window.__reelsState().cur.id);
   await page.mouse.move(196, 600); await page.mouse.down();
