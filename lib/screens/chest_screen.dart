@@ -56,7 +56,16 @@ import 'chest_share_screen.dart';
 /// выигрыша. Сундук остаётся открытым с призом до следующего открытия.
 ///
 /// Выпал подарок — на месте кнопки открытия встают «Подарить» и «Оставить
-/// себе». Ушёл с экрана, не выбрав, — подарок ждёт в ленте «Из сундука».
+/// себе». Ушёл с экрана, не выбрав, — подарок ждёт выбора под своим сундуком
+/// при следующем заходе и в ленте «Из сундука» магазина подарков.
+///
+/// Под какой сундук ленты встаёт такой подарок: под свой сезонный, а если
+/// сезон кончился и его страницы нет — под обычный.
+int stashSlotFor(List<String?> slotChests, String? chest) {
+  final i = slotChests.indexOf(chest);
+  return i < 0 ? 0 : i;
+}
+
 class ChestScreen extends StatefulWidget {
   const ChestScreen({
     super.key,
@@ -322,14 +331,37 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
 
   Future<void> _load() async {
     final st = await ChestService.instance.state(groupId: widget.groupId);
-    if (!mounted || st == null) return;
-    setState(() {
-      _slots.first.state = st;
-      if (widget.debugSeasons == null) _applySeasons(st.seasons);
-    });
-    for (final slot in _slots.skip(1)) {
-      unawaited(_loadSeason(slot));
+    // Запас спрашиваем и тогда, когда состояния нет: подарок уже выпал, и
+    // показать его можно без шансов и остатка.
+    if (mounted && st != null) {
+      setState(() {
+        _slots.first.state = st;
+        if (widget.debugSeasons == null) _applySeasons(st.seasons);
+      });
+      for (final slot in _slots.skip(1)) {
+        unawaited(_loadSeason(slot));
+      }
     }
+    if (mounted) unawaited(_restoreStash());
+  }
+
+  /// Подарок, выпавший раньше и не разобранный, ждёт выбора под своим
+  /// сундуком. Выбор жил только на экране: ушёл с него, не выбрав, — и
+  /// подарка на экране сундука больше не было (TOG-10, 21.10.2026).
+  /// Сундук, где сейчас идёт открытие или лежит свежий приз, не трогаем.
+  Future<void> _restoreStash() async {
+    if (widget.debugChoice != null) return;
+    final items = await ChestService.instance.stash();
+    if (!mounted || items.isEmpty || _busy) return;
+    setState(() {
+      final chests = [for (final s in _slots) s.chest];
+      for (final item in items) {
+        final slot = _slots[stashSlotFor(chests, item.chest)];
+        if (slot.choice != null || slot.animating || slot.opening != null || slot.wearWon != null) continue;
+        slot.choice = item;
+        slot.won = trKey('chestGiftTitle').replaceAll('{name}', GiftCatalog.byKey(item.giftKey)?.title ?? item.giftKey);
+      }
+    });
   }
 
   /// Вход с главной сразу на сезонный сундук. Занавеса тут нет — экран уже
@@ -665,8 +697,15 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     if (!mounted) return;
     setState(() {
       _choosing = false;
-      if (ok) slot.choice = null;
+      if (ok) {
+        slot.choice = null;
+        // Подарок из запаса сундук не открывал — его название уходит вместе
+        // с выбором, а у свежего приза остаётся над открытым сундуком.
+        if (slot.opening == null) slot.won = null;
+      }
     });
+    // Следующий неразобранный подарок встаёт на место решённого.
+    if (ok) unawaited(_restoreStash());
     _snack(
       trKey(
         !ok

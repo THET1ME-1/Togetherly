@@ -26,6 +26,7 @@ import '../models/love_prompt.dart';
 import '../models/memory.dart';
 import '../models/gift.dart';
 import '../models/gift_effect.dart';
+import '../models/incoming_gifts.dart';
 import '../models/sound_clip.dart';
 import '../services/pb_data_service.dart';
 import '../services/widget_diagnostics.dart';
@@ -358,6 +359,9 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadWishesFlag();
     _loadIncomingGifts();
     _listenGifts();
+    // Подарок сезона сборка узнаёт из каталога: доехал он позже списка
+    // подарков — карточка встаёт сразу, а не с первой случайной перерисовкой.
+    CatalogService.instance.addListener(_onCatalogForGifts);
     // Зов в совместную ленту: касание по пушу открывает ленту сразу, а пуш,
     // пришедший, пока человек в приложении, предлагает войти листом.
     _reelsInviteSub = ReelsInviteBus.instance.invites.listen(_onReelsInvite);
@@ -551,6 +555,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final giftsOff = _giftsUnsub;
     _giftsUnsub = null;
     if (giftsOff != null) unawaited(giftsOff());
+    CatalogService.instance.removeListener(_onCatalogForGifts);
     if (_restoreListening) _mascotService.removeListener(_onMascotForRestore);
     _restoreAd.dispose();
     _syncWidgetsDebounce?.cancel();
@@ -2040,8 +2045,9 @@ class _HomeScreenState extends State<HomeScreen> {
     // о затихшем партнёре. Пусто у тех, кто всё прошёл. Стоит под сундуком,
     // а если сундук спрятан — первым.
     final prompt = _homePrompt();
-    final hasEvents =
-        _sunriseOn || (paired && _giftsEnabled && _incomingGifts.isNotEmpty);
+    final giftWaits = paired &&
+        _giftsEnabled &&
+        shownIncomingGifts(_incomingGifts).isNotEmpty;
     Widget promptBlock() => Padding(
           padding: side.copyWith(top: 8),
           child: AnimatedSlideIn(
@@ -2161,8 +2167,7 @@ class _HomeScreenState extends State<HomeScreen> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Над лентой уже стоит событие со своим отступом — второй не нужен.
-              if (!hasEvents) const SizedBox(height: 40),
+              const SizedBox(height: 40),
               AnimatedSlideIn(
                 delay: const Duration(milliseconds: 240),
                 // В паре — встроенная НАСТОЯЩАЯ Лента (те же карточки
@@ -2191,29 +2196,30 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     // Рассвет от «Солнца» и пришедший подарок — события сегодняшнего дня, а
-    // не разделы: не прячутся и стоят над лентой, а без ленты — в конце.
+    // не разделы: не прячутся и стоят под сундуком, а без сундука — первыми.
+    // Над лентой, в самом низу главной, пришедший подарок не замечали (TOG-10).
     // Достижения и магазин подарков уехали в профиль, в блок «Наша пара».
     List<Widget> events() => [
           if (_sunriseOn)
             Padding(
-              padding: const EdgeInsets.only(top: 40),
+              padding: const EdgeInsets.only(top: 12),
               child: AnimatedSlideIn(
                 delay: const Duration(milliseconds: 40),
                 child: _sunriseBanner(),
               ),
             ),
-          if (paired && _giftsEnabled && _incomingGifts.isNotEmpty)
+          if (giftWaits)
             Padding(
-              padding: EdgeInsets.only(top: _sunriseOn ? 0 : 40),
+              padding: EdgeInsets.only(top: _sunriseOn ? 0 : 12),
               child: AnimatedSlideIn(
-                delay: const Duration(milliseconds: 240),
+                delay: const Duration(milliseconds: 160),
                 child: _incomingGiftEntry(),
               ),
             ),
         ];
-    // Блоки, которые сейчас на экране, и их виджеты. Подсказка едет вместе с
-    // сундуком, события дня — вместе с лентой: перетаскивают блок, а не то,
-    // что к нему прицеплено.
+    // Блоки, которые сейчас на экране, и их виджеты. События дня и подсказка
+    // едут вместе с сундуком: перетаскивают блок, а не то, что к нему
+    // прицеплено.
     final shown = <HomeBlock>[];
     final items = <Widget>[];
     for (final b in layout.visibleBlocks) {
@@ -2223,8 +2229,8 @@ class _HomeScreenState extends State<HomeScreen> {
       items.add(Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (b == HomeBlock.lane) ...events(),
           w,
+          if (b == HomeBlock.chest) ...events(),
           if (b == HomeBlock.chest && prompt != null) promptBlock(),
         ],
       ));
@@ -2233,8 +2239,13 @@ class _HomeScreenState extends State<HomeScreen> {
     final svc = HomeLayoutService.instance;
 
     return [
-      if (prompt != null && !shown.contains(HomeBlock.chest))
-        SliverToBoxAdapter(child: promptBlock()),
+      if (!shown.contains(HomeBlock.chest))
+        SliverToBoxAdapter(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [...events(), if (prompt != null) promptBlock()],
+          ),
+        ),
       // Долгое нажатие на блок поднимает его, дальше он едет за пальцем, а
       // главная прокручивается сама у края. Только с Плюсом; без него долгое
       // нажатие рассказывает, что так можно. Вложенные жесты (долгое нажатие
@@ -2272,13 +2283,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
         },
       ),
-      if (!shown.contains(HomeBlock.lane))
-        SliverToBoxAdapter(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: events(),
-          ),
-        ),
     ];
   }
 
@@ -2766,13 +2770,18 @@ class _HomeScreenState extends State<HomeScreen> {
     _giftsUnsub = unsub;
   }
 
+  void _onCatalogForGifts() {
+    if (mounted && _incomingGifts.isNotEmpty) setState(() {});
+  }
+
   /// Пришёл новый подарок — сразу показываем его, с анимацией открытия.
   Future<void> _onGiftEvent() async {
-    final before = _incomingGifts.length;
+    final before = shownIncomingGifts(_incomingGifts).length;
     await _loadIncomingGifts();
-    if (!mounted || _incomingGifts.length <= before) return;
+    final shown = shownIncomingGifts(_incomingGifts);
+    if (!mounted || shown.length <= before) return;
     // Подарок показываем на любой вкладке — это событие, его ждут.
-    await _openIncomingGift(_incomingGifts.first);
+    await _openIncomingGift(shown.first);
   }
 
   Future<void> _loadIncomingGifts() async {
@@ -2976,11 +2985,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Подарок ждёт действия — карточка заметная, с самим значком.
   Widget _incomingGiftEntry() {
-    final raw = _incomingGifts.first;
+    final shown = shownIncomingGifts(_incomingGifts);
+    if (shown.isEmpty) return const SizedBox.shrink();
+    final raw = shown.first;
     final giftKey = (raw['gift_key'] ?? '').toString();
     final frameKey = FrameGiftService.frameKeyOf(giftKey);
     final gift = GiftCatalog.byKey(giftKey);
-    if (gift == null && frameKey == null) return const SizedBox.shrink();
     final s = LocaleService.current;
     final cs = ProfileTheme.themeFor(_t).colorScheme;
     final ud = widget.userData;
@@ -3029,7 +3039,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             fontWeight: FontWeight.w800,
                             color: cs.onPrimaryContainer)),
                     const SizedBox(height: 2),
-                    Text(s.giftIncomingCount(_incomingGifts.length),
+                    Text(s.giftIncomingCount(shown.length),
                         style: TextStyle(
                             fontSize: 12.5,
                             color:

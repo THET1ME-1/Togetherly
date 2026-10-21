@@ -233,6 +233,10 @@ class ChestService {
   }
 
   /// Выпавшие подарки, которые ещё ждут выбора, старые первыми.
+  ///
+  /// Подарок сезона сборка узнаёт из каталога. Запас спросили раньше, чем
+  /// каталог доехал, — дотягиваем его, иначе подарок молча пропадал из виду
+  /// (TOG-10, 21.10.2026: «первый подарок из сундука не отобразился»).
   Future<List<ChestStashItem>> stash() async {
     try {
       final res = await PocketBaseService().pb.collection('chest_opens').getList(
@@ -240,10 +244,19 @@ class ChestService {
             filter: 'state = "stash"',
             sort: 'created',
           );
-      return [
+      final rows = [
         for (final r in res.items)
-          if (GiftCatalog.byKey(r.getStringValue('prize')) != null)
-            ChestStashItem(openId: r.id, giftKey: r.getStringValue('prize')),
+          (id: r.id, prize: r.getStringValue('prize'), day: r.getStringValue('day')),
+      ];
+      if (rows.any((r) => GiftCatalog.byKey(r.prize) == null)) {
+        try {
+          await catalogRefresh().timeout(const Duration(seconds: 8));
+        } catch (_) {}
+      }
+      return [
+        for (final r in rows)
+          if (GiftCatalog.byKey(r.prize) != null)
+            ChestStashItem(openId: r.id, giftKey: r.prize, chest: chestKeyOfDay(r.day)),
       ];
     } catch (_) {
       return const [];
@@ -251,12 +264,25 @@ class ChestService {
   }
 }
 
+/// Из какого сундука открытие. Сервер пишет день сезонного открытия как
+/// `hw|2026-10-21` (из копилки — `+hw|…`), обычного — просто датой (из
+/// копилки — `b2026-10-21`). null — обычный сундук.
+String? chestKeyOfDay(String day) {
+  final bar = day.indexOf('|');
+  if (bar <= 0) return null;
+  final key = day.substring(day.startsWith('+') ? 1 : 0, bar);
+  return key.isEmpty ? null : key;
+}
+
 /// Подарок из сундука, который ждёт решения: подарить или оставить.
 class ChestStashItem {
-  const ChestStashItem({required this.openId, required this.giftKey});
+  const ChestStashItem({required this.openId, required this.giftKey, this.chest});
 
   final String openId;
   final String giftKey;
+
+  /// Ключ сезонного сундука, из которого подарок выпал; null — обычный.
+  final String? chest;
 }
 
 /// Продажа подарка из запаса: сколько дали и сколько стало на счету.

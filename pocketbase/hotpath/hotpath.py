@@ -1717,6 +1717,17 @@ def _mirror_presence_sync(rows: list) -> None:
             raise
 
 
+def _метка_зеркала(отметки: list[float], сейчас_мс: float) -> float:
+    """Докуда зеркало присутствия уже дошло: самая поздняя перенесённая
+    отметка, но не дальше «сейчас».
+
+    Телефон со спешащими часами присылает отметку из будущего. Метка уезжала
+    за ней: 21.10.2026 она стояла на 28 октября, и в SQLite за час попадали
+    две отметки вместо пяти тысяч. Отметки из будущего переносятся каждый
+    раз заново, их единицы."""
+    return min(max(отметки), сейчас_мс)
+
+
 async def _presence_mirror_worker() -> None:
     last = 0.0
     while True:
@@ -1728,7 +1739,7 @@ async def _presence_mirror_worker() -> None:
                     last)
             if not rows:
                 continue
-            last = max(float(r["seen_at"]) for r in rows)
+            last = _метка_зеркала([float(r["seen_at"]) for r in rows], time.time() * 1000)
             await asyncio.to_thread(
                 _mirror_presence_sync,
                 [(r["id"], r["user_uid"], int(r["seen_at"])) for r in rows])
