@@ -70,7 +70,7 @@
     <div class="logo-icon">W</div>
     <div class="logo-name">Togetherly Wallet</div>
   </div>
-  <div class="updated">Last updated / Дата обновления: 16 September 2026</div>
+  <div class="updated">Last updated / Дата обновления: 21 October 2026</div>
 
   <div class="lang-switch">
     <button class="lang-btn active" onclick="switchLang('ru')">🇷🇺 Русский</button>
@@ -137,7 +137,16 @@
     <p>Токен уведомлений (Firebase Cloud Messaging) нужен, чтобы приложение могло
       сказать вам о записи партнёра. Чек покупки от Google Play, App Store или
       lava открывает подписку Wallet+. Платёжные данные обрабатывает магазин,
-      к нам они не попадают.</p>
+      к нам они не попадают. На iPhone вместо Firebase токен выдаёт Apple
+      (APNs).</p>
+
+    <h3>Статистика и сбои</h3>
+    <p>Приложение сообщает на наш сервер, какие экраны и действия вы открываете
+      (например, «записана операция»), чтобы мы видели, чем пользуются, а что
+      ломается. В этих событиях нет сумм, счетов, категорий и заметок, а
+      идентификатор пользователя сервер хеширует. При сбое приложение
+      отправляет отчёт об ошибке с версией, моделью устройства и вашим
+      идентификатором пользователя на наш собственный сервер отчётов.</p>
 
     <h2>3. Зачем это нужно</h2>
     <ul>
@@ -177,14 +186,15 @@
     <p>Данные не продаются и брокерам данных не передаются.</p>
 
     <h3>Реклама</h3>
-    <p>В бесплатной версии на Android показывается реклама Рекламной сети
-      Яндекса. Её SDK получает рекламный идентификатор устройства, сведения о
+    <p>В бесплатной версии на Android и iPhone показывается реклама Рекламной
+      сети Яндекса. Её SDK получает рекламный идентификатор устройства, сведения о
       самом устройстве и сети и использует их для подбора объявлений; условия
       обработки описаны в документах Яндекса. Записи о ваших деньгах рекламной
       сети НЕ передаются: она не знает ни сумм, ни счетов, ни категорий.</p>
     <p>Рекламный идентификатор сбрасывается и отключается в настройках Android,
-      в разделе «Конфиденциальность». Подписка Wallet+ убирает рекламу
-      целиком.</p>
+      в разделе «Конфиденциальность». На iPhone приложение не просит разрешения
+      на отслеживание, поэтому рекламный идентификатор Apple (IDFA) Яндексу не
+      передаётся. Подписка Wallet+ убирает рекламу целиком.</p>
 
     <h2>6. Ваши права</h2>
     <ul>
@@ -269,7 +279,15 @@
     <p>A notification token (Firebase Cloud Messaging) so the app can tell you about
       your partner's record. A purchase receipt from Google Play, the App Store or
       lava to unlock the Wallet+ subscription. Payment details are handled by the
-      store and never reach us.</p>
+      store and never reach us. On iPhone the token comes from Apple (APNs)
+      instead of Firebase.</p>
+
+    <h3>Usage statistics and crashes</h3>
+    <p>The app tells our server which screens and actions you open (for example,
+      "transaction recorded") so we can see what is used and what breaks. These
+      events contain no amounts, accounts, categories or notes, and the server
+      hashes your user ID. When the app crashes it sends an error report with
+      the version, device model and your user ID to our own report server.</p>
 
     <h2>3. Why we need it</h2>
     <ul>
@@ -306,7 +324,18 @@
         only when you use the chat;</li>
       <li>Hostkey, as the owner of the hardware the server runs on.</li>
     </ul>
-    <p>The app carries no ad networks. Your data is not sold.</p>
+    <p>Your data is not sold or passed to data brokers.</p>
+
+    <h3>Advertising</h3>
+    <p>The free version shows ads from the Yandex Advertising Network on Android
+      and iPhone. Its SDK receives the device's advertising ID, information about
+      the device and network, and uses them to choose ads; Yandex's own documents
+      describe how it processes them. Your money records are NOT passed to the ad
+      network: it knows no amounts, accounts or categories.</p>
+    <p>On Android the advertising ID is reset or turned off in Settings, under
+      Privacy. On iPhone the app does not ask for tracking permission, so Apple's
+      advertising ID (IDFA) is not shared with Yandex. A Wallet+ subscription
+      removes ads entirely.</p>
 
     <h2>6. Your rights</h2>
     <ul>
