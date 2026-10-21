@@ -134,6 +134,22 @@ def без_повторов(rows: list[dict]) -> list[dict]:
     return sorted(out, key=lambda r: r.get("ts") or 0)
 
 
+def чистыми(rows: list[dict], lost: list[dict], в_период=None) -> dict:
+    """Сумма за вычетом возвратов и доли площадки, по валютам.
+
+    Возврат вычитается только из того периода, в который попал его день:
+    21.10.2026 итог дня показал 8280 ₽ вместо 9936, потому что из него
+    вычелся возврат 19.10. Без `в_период` считаются все дни и все возвраты.
+    """
+    acc: dict[str, float] = {}
+    for r in rows:
+        acc[r["currency"]] = acc.get(r["currency"], 0.0) + r["amount"]
+    for r in lost:
+        if r["currency"] in acc and (в_период is None or в_период(r["d"])):
+            acc[r["currency"]] -= r["amount"]
+    return {k: round(v * (1 - FEE), 2) for k, v in acc.items()}
+
+
 def collect() -> dict:
     token = gmail_token()
     cache = load_cache()
@@ -189,15 +205,6 @@ def collect() -> dict:
     sales = без_повторов([s for s in seen.values() if s])
     lost = refunds()
 
-    def net(rows: list[dict]) -> dict:
-        acc: dict[str, float] = {}
-        for r in rows:
-            acc[r["currency"]] = acc.get(r["currency"], 0.0) + r["amount"]
-        for r in lost:
-            if r["currency"] in acc:
-                acc[r["currency"]] -= r["amount"]
-        return {k: round(v * (1 - FEE), 2) for k, v in acc.items()}
-
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     month = today[:7]
     by_day: dict[str, dict[str, float]] = {}
@@ -224,9 +231,9 @@ def collect() -> dict:
     return {
         "ok": True, "title": "lava, все каналы", "source": "письма продавца",
         "fee": FEE, "new_mails": fresh, "count": len(sales),
-        "total_net": net(sales),
-        "month_net": net([s for s in sales if s["d"][:7] == month]),
-        "today_net": net([s for s in sales if s["d"] == today]),
+        "total_net": чистыми(sales, lost),
+        "month_net": чистыми([s for s in sales if s["d"][:7] == month], lost, lambda d: d[:7] == month),
+        "today_net": чистыми([s for s in sales if s["d"] == today], lost, lambda d: d == today),
         "by_day": {k: {c: round(v, 2) for c, v in cur.items()} for k, cur in sorted(by_day.items())},
         "products": by_product,
         "month_products": month_products,
