@@ -2918,8 +2918,16 @@ class PbDataService {
     // Повтор из очереди или сбой сети: дальше прежним, идемпотентным путём
     // (update → 404 → create). Записи оттуда не достать, и это не беда —
     // время в кэше поправит следующая загрузка списка.
-    return _upsertById('chat_messages', id, chatBody(groupId, msg), op: 'chatSend');
+    return _upsertById('chat_messages', id, _withSentAt(chatBody(groupId, msg)), op: 'chatSend');
   }
+
+  /// Тело сообщения с часами телефона в момент отправки (`sent_at`). Сервер
+  /// вычитает их из своих и узнаёт сдвиг часов телефона, а по нему — время
+  /// написания. Без этого сообщение из офлайна вставало на время доставки:
+  /// «окей», написанное в 11:27 и довезённое в 13:12, встало ответом на другое
+  /// (обращение 409, 21.10.2026). Колонки под `sent_at` нет, сервер её не хранит.
+  Map<String, dynamic> _withSentAt(Map<String, dynamic> body) =>
+      {...body, 'sent_at': DateTime.now().millisecondsSinceEpoch};
 
   /// Создаёт сообщение и возвращает его таким, каким сохранил сервер. null —
   /// создать не вышло (запись уже есть, сеть молчит).
@@ -2937,7 +2945,7 @@ class PbDataService {
     try {
       final rec = await _pb
           .collection('chat_messages')
-          .create(body: {'id': id, ...chatBody(groupId, msg)})
+          .create(body: _withSentAt({'id': id, ...chatBody(groupId, msg)}))
           .timeout(const Duration(seconds: 15));
       await LocalStore.instance.upsert('chat_messages', rec);
       return rec;
