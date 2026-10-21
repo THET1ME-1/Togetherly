@@ -719,6 +719,65 @@
     if (card.live || card.dead) return;
     card.live = true;
     card.el.classList.add('is-live');
+    if (card.shownAt && !liveTracked) {
+      liveTracked = true;
+      track('reels-live', Object.assign(probeFacts(card), { ms: Date.now() - card.shownAt }));
+    }
+  }
+
+  /** Замер (21.10.2026, обращение 407): на iPhone ролики TikTok стояли
+   *  обложкой и не запускались, а проверить это на устройстве нечем — WebKit
+   *  на Linux не играет H.264. Ролик, который на экране за 8 секунд так и не
+   *  пошёл, страница отмечает в статистике: площадка, система, сборка и
+   *  последнее, что сказал плеер. Первый пошедший за заход — с задержкой
+   *  старта, чтобы было с чем сравнить. */
+  const STUCK_MS = 8000;
+  let liveTracked = false;
+
+  function track(name, data) {
+    try { if (window.umami && window.umami.track) window.umami.track(name, data); } catch (_) { /* статистика не важнее ленты */ }
+  }
+
+  function probeFacts(card) {
+    const ua = navigator.userAgent;
+    const osm = ua.match(/OS (\d+)_/) || ua.match(/Android (\d+)/);
+    return {
+      src: keySrc(card.id),
+      platform: /iPhone|iPad|iPod/.test(ua) ? 'ios' : 'android',
+      os: osm ? Number(osm[1]) : 0,
+      b: Number(new URLSearchParams(location.search).get('b')) || 0,
+      ready: card.ready ? 1 : 0,
+      last: card.last || '',
+      muted: S.wantMuted ? 1 : 0,
+    };
+  }
+
+  /** Сообщение плеера площадки одной строкой: `onStateChange:3`,
+   *  `onPlayerError:3001`, `player:changeState:playing`, `started`. */
+  function playerSaid(m) {
+    if (!m || typeof m !== 'object') return '';
+    if (m.type === 'onPlayerError') return 'onPlayerError:' + ((m.value && m.value.errorCode) || '');
+    if (m.type === 'onStateChange' || m.type === 'onError') return m.type + ':' + m.value;
+    if (m.type === 'player:changeState' && m.data) return 'player:changeState:' + m.data.state;
+    if (m.type === 'player:error') return 'player:error';
+    if (m.event) return String(m.event);
+    return '';
+  }
+
+  /** Карточка встала на экран: через 8 секунд проверяем, пошла ли. Ролик,
+   *  загруженный заранее под экраном, мог пойти ещё до показа — у него
+   *  задержка старта нулевая. */
+  function watchStart(card) {
+    if (card.shownAt) return;
+    card.shownAt = Date.now();
+    if (card.live && !liveTracked) {
+      liveTracked = true;
+      track('reels-live', Object.assign(probeFacts(card), { ms: 0 }));
+    }
+    setTimeout(() => {
+      if (card.dead || card.live || !card.active || document.hidden || S.paused) return;
+      track('reels-stuck', probeFacts(card));
+    }, STUCK_MS);
   }
 
   function makeCard(key, lazy) {
@@ -793,8 +852,11 @@
             // Останавливать его нельзя — пауза снова вызывает кнопки.
             else card.api.shelve();
           },
-          onError: () => failed(card),
-          onStateChange: (ev) => { if (ev && ev.data === 1) live(card); },
+          onError: (ev) => { card.last = 'error:' + (ev && ev.data); failed(card); },
+          onStateChange: (ev) => {
+            if (ev) card.last = 'state:' + ev.data;
+            if (ev && ev.data === 1) live(card);
+          },
         },
       });
       card.api = {
@@ -876,6 +938,7 @@
     if (!card || !card.spec) return;
     let m = e.data;
     if (typeof m === 'string') { try { m = JSON.parse(m); } catch (_) { return; } }
+    card.last = playerSaid(m) || card.last;
     if (card.spec.playing && card.spec.playing(m)) { card.playing = true; live(card); }
     if (card.active && card.spec.ended && card.spec.ended(m)) card.api.play();
   });
@@ -952,6 +1015,7 @@
     const ms = slideMs;
     cards.cur = card;
     card.active = true;
+    watchStart(card);
     card.el.classList.add('is-cur');
     if (!old) card.el.classList.add('is-first');
     requestAnimationFrame(() => place(card, '0', old ? ms : 0));
