@@ -2198,85 +2198,95 @@ class _ProfileScreenState extends State<ProfileScreen>
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => StatefulBuilder(
-          builder: (ctx, setSheetState) => SettingsScreen(
-            accountEmail: widget.userData.email,
-            scheme: _cs,
-            appVersion: 'Togetherly $version',
-            onAppearance: () => _openAppearance(ctx),
-            onNotifications: () => _showNotificationSettings(ctx),
-            onLanguage: () => _showLanguagePicker(ctx),
-            onCoinShop: () => _showCoinShop(ctx),
-            onPrivacyPolicy: _openPrivacyPolicy,
-            onExport: () => _handleExportConfig(ctx),
-            onResetMissYou: () => _handleResetMissYouCount(ctx),
-            onTerms: _openTerms,
-            onSupport: _openSupportMail,
-            onOfficial: _openOfficialMail,
-            onDrawTools: _openDrawTools,
-            onTelegramChannel: _openTelegramChannel,
-            onBugBot: _openBugBot,
-            onHelp: () => _openHelp(ctx),
-            onChangeEmail: () async {
-              final email = await showEmailChangeSheet(ctx,
-                  scheme: _cs,
-                  initialEmail: emailTypoFix(widget.userData.email) ?? '');
-              if (email == null) return;
-              await widget.userData.setEmail(email);
-              setSheetState(() {});
-              if (!ctx.mounted) return;
-              ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                content: Text(trKey('emailChangeDone')),
-                behavior: SnackBarBehavior.floating,
-              ));
-            },
-            onAbout: _openAboutApp,
-            onChangePassword: () => _openChangePassword(ctx),
-            onLogout: () => _showLogoutDialog(ctx),
-            onDeleteAccount: () => _showDeleteAccountDialog(ctx),
-            lockScreenMood: _lockScreenMood,
-            onLockScreenMoodChanged: (v) async {
-              final prefs = await SharedPreferences.getInstance();
-              await prefs.setBool(_kLockScreenMood, v);
-              if (!mounted) return;
-              setState(() => _lockScreenMood = v);
-              setSheetState(() {});
-            },
-            sideActionIsArrow: _sideActionIsArrow,
-            onToggleSideAction: () async {
-              await _toggleSideAction();
-              setSheetState(() {});
-            },
-            plusActive: PlusService.instance.active,
-            plusVisible: PlusService.instance.visible,
-            onPlus: () => _openPlus(ctx),
-            cycleAvailable: CycleService.availableFor(widget.userData),
-            cycleShared: CycleService.instance.shareWithPartner,
-            onCycleSharedChanged: (v) async {
-              await CycleService.instance.setShareWithPartner(v);
-              setSheetState(() {});
-            },
-            onCycleWipe: () => _confirmCycleWipe(ctx, setSheetState),
-            onCycleConsentWithdraw: () =>
-                _confirmCycleConsentWithdraw(ctx, setSheetState),
-            onExportMyData: () => _exportMyData(ctx),
-            mascotSleepAvailable: nightCapableMascots().isNotEmpty,
-            onMascotSleep: () => showMascotSleepSheet(
-              ctx,
-              theme: widget.userData.theme,
-              user: widget.userData,
-            ),
-            appIconId: AppIconService.instance.isSupported ? _appIconId : null,
-            onAppIcon: () async {
-              final picked = await showAppIconSheet(
+          builder: (ctx, setSheetState) {
+            // Переключатели сохраняются с ожиданием, а человек тем временем
+            // может закрыть настройки. Обновлять снятый экран нельзя: в 1.38.0
+            // это давало «Null check operator used on a null value».
+            void safeSetSheetState(VoidCallback fn) {
+              if (ctx.mounted) setSheetState(fn);
+            }
+
+            return SettingsScreen(
+              accountEmail: widget.userData.email,
+              scheme: _cs,
+              appVersion: 'Togetherly $version',
+              onAppearance: () => _openAppearance(ctx),
+              onNotifications: () => _showNotificationSettings(ctx),
+              onLanguage: () => _showLanguagePicker(ctx),
+              onCoinShop: () => _showCoinShop(ctx),
+              onPrivacyPolicy: _openPrivacyPolicy,
+              onExport: () => _handleExportConfig(ctx),
+              onResetMissYou: () => _handleResetMissYouCount(ctx),
+              onTerms: _openTerms,
+              onSupport: _openSupportMail,
+              onOfficial: _openOfficialMail,
+              onDrawTools: _openDrawTools,
+              onTelegramChannel: _openTelegramChannel,
+              onBugBot: _openBugBot,
+              onHelp: () => _openHelp(ctx),
+              onChangeEmail: () async {
+                final email = await showEmailChangeSheet(ctx,
+                    scheme: _cs,
+                    initialEmail: emailTypoFix(widget.userData.email) ?? '');
+                if (email == null) return;
+                await widget.userData.setEmail(email);
+                safeSetSheetState(() {});
+                if (!ctx.mounted) return;
+                ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                  content: Text(trKey('emailChangeDone')),
+                  behavior: SnackBarBehavior.floating,
+                ));
+              },
+              onAbout: _openAboutApp,
+              onChangePassword: () => _openChangePassword(ctx),
+              onLogout: () => _showLogoutDialog(ctx),
+              onDeleteAccount: () => _showDeleteAccountDialog(ctx),
+              lockScreenMood: _lockScreenMood,
+              onLockScreenMoodChanged: (v) async {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setBool(_kLockScreenMood, v);
+                if (!mounted) return;
+                setState(() => _lockScreenMood = v);
+                safeSetSheetState(() {});
+              },
+              sideActionIsArrow: _sideActionIsArrow,
+              onToggleSideAction: () async {
+                await _toggleSideAction();
+                safeSetSheetState(() {});
+              },
+              plusActive: PlusService.instance.active,
+              plusVisible: PlusService.instance.visible,
+              onPlus: () => _openPlus(ctx),
+              cycleAvailable: CycleService.availableFor(widget.userData),
+              cycleShared: CycleService.instance.shareWithPartner,
+              onCycleSharedChanged: (v) async {
+                await CycleService.instance.setShareWithPartner(v);
+                safeSetSheetState(() {});
+              },
+              onCycleWipe: () => _confirmCycleWipe(ctx, safeSetSheetState),
+              onCycleConsentWithdraw: () =>
+                  _confirmCycleConsentWithdraw(ctx, safeSetSheetState),
+              onExportMyData: () => _exportMyData(ctx),
+              mascotSleepAvailable: nightCapableMascots().isNotEmpty,
+              onMascotSleep: () => showMascotSleepSheet(
                 ctx,
                 theme: widget.userData.theme,
-                currentId: _appIconId,
-              );
-              if (picked == null || !mounted) return;
-              setState(() => _appIconId = picked);
-              setSheetState(() {});
-            },
-          ),
+                user: widget.userData,
+              ),
+              appIconId:
+                  AppIconService.instance.isSupported ? _appIconId : null,
+              onAppIcon: () async {
+                final picked = await showAppIconSheet(
+                  ctx,
+                  theme: widget.userData.theme,
+                  currentId: _appIconId,
+                );
+                if (picked == null || !mounted) return;
+                setState(() => _appIconId = picked);
+                safeSetSheetState(() {});
+              },
+            );
+          },
         ),
       ),
     );

@@ -106,6 +106,10 @@ const Map<String, String> smallDZh = {
   'serverNotResponding': '服务器没有响应，请检查网络。',
   'retry': '重试',
   'connectionBlocked': '连接在中途被切断了，通常是网络运营商的问题。试试移动数据、换个网络或使用 VPN。',
+  'serverBlockedVpn': '你的网络不让应用连接我们的服务器。乌克兰和美国的部分运营商会这样做。请打开 VPN 或换一个网络。',
+  'serverBlockedChip': '网络屏蔽了服务器 · 请打开 VPN',
+  'noInternet': '没有网络，请检查连接。',
+  'serverSlowRetry': '服务器没有及时响应，请再试一次。',
   'googleNotResponding': 'Google 没有响应，请检查网络。',
 
   // moods

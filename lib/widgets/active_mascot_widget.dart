@@ -7,6 +7,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/mascot.dart';
+import '../screens/home/home_bottom_nav.dart' show kHomeBottomNavHeight;
 import '../utils/mascot_bounds.dart';
 import '../services/locale_service.dart';
 import '../models/mascot_anim.dart';
@@ -336,10 +337,13 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
 
   void _clampPosition() {
     if (!mounted) return;
+    final media = MediaQuery.of(context);
     _position = clampMascotPosition(
       _position,
-      MediaQuery.of(context).size,
+      media.size,
       40.0 * _scale,
+      top: media.viewPadding.top,
+      bottom: media.viewPadding.bottom + kHomeBottomNavHeight,
     );
   }
 

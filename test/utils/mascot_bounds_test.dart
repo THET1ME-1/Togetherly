@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:ui' show Offset, Size;
 
 import 'package:flutter_test/flutter_test.dart';
@@ -41,6 +42,39 @@ void main() {
       const p = Offset(10, 20);
       expect(clampMascotPosition(p, screen, 0), p);
     });
+
+    // TOG-15, обращение 411: маскот уехал под нижнюю панель, и оттуда его не
+    // взять — касание забирает панель.
+    test('не уходит под нижнюю панель', () {
+      expect(
+        clampMascotPosition(const Offset(200, 790), screen, half,
+                top: 24, bottom: 110)
+            .dy,
+        screen.height - 110 - half,
+      );
+    });
+
+    test('не уходит под строку состояния', () {
+      expect(
+        clampMascotPosition(const Offset(200, 10), screen, half,
+                top: 24, bottom: 110)
+            .dy,
+        24 + half,
+      );
+    });
+
+    test('между полями не помещается — позиция остаётся прежней', () {
+      const p = Offset(200, 300);
+      expect(clampMascotPosition(p, screen, half, top: 400, bottom: 300), p);
+    });
+  });
+
+  test('маскот на главной считает нижнюю панель и строку состояния', () {
+    final src = File('lib/widgets/active_mascot_widget.dart').readAsStringSync();
+    final start = src.indexOf('void _clampPosition()');
+    final body = src.substring(start, src.indexOf('\n  }\n', start));
+    expect(body, contains('kHomeBottomNavHeight'));
+    expect(body, contains('viewPadding'));
   });
 
   group('mascotGestureIsTap', () {

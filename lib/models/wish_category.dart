@@ -1,6 +1,6 @@
 import 'package:pocketbase/pocketbase.dart';
 
-import '../dict_strings.dart' show zhForEnglishIfZh;
+import '../dict_strings.dart' show trEnglish;
 
 /// Категория желания: пять встроенных и сколько угодно своих.
 ///
@@ -35,7 +35,7 @@ class WishKind {
 
   String title(bool ru) {
     if (custom) return titleRu;
-    return ru ? titleRu : zhForEnglishIfZh(titleEn);
+    return ru ? titleRu : trEnglish(titleEn);
   }
 
   factory WishKind.fromPb(RecordModel rec) => WishKind(

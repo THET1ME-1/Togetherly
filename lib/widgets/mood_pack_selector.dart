@@ -229,11 +229,11 @@ Future<void> buyMoodPack(
   final price = pack.unlock.price;
   final messenger = ScaffoldMessenger.of(context);
 
-  // Сообщения ниже написаны парой «русский / английский»; китайский берёт
-  // перевод английской половины.
+  // Сообщения ниже написаны парой «русский / английский»; китайский и
+  // украинский берут перевод английской половины.
   void say(String text) => messenger.showSnackBar(
         SnackBar(
-          content: Text(ru ? text : zhForEnglishIfZh(text)),
+          content: Text(ru ? text : trEnglish(text)),
           behavior: SnackBarBehavior.floating,
         ),
       );

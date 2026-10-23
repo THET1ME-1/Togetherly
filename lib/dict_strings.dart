@@ -60,18 +60,23 @@ import 'l10n/dict/timer_expandable_timer_card.dart';
 import 'l10n/dict/watch_voice.dart';
 import 'l10n/dict/welcome.dart';
 import 'l10n/dict/widget_screen.dart';
+import 'l10n/uk/inline.dart';
+import 'l10n/uk/uk.dart';
 import 'l10n/zh/inline.dart';
 import 'l10n/zh/zh.dart';
 
 /// Словарь интерфейса: ключ → язык → строка.
 ///
-/// Это разделы `l10n/dict/` плюс китайская колонка из `l10n/zh/`, влитая в
-/// каждую запись (почему она лежит отдельно — см. `l10n/zh/zh.dart`).
+/// Это разделы `l10n/dict/` плюс китайская и украинская колонки из `l10n/zh/`
+/// и `l10n/uk/`, влитые в каждую запись (почему они лежат отдельно — см.
+/// `l10n/zh/zh.dart`).
 final Map<String, Map<String, String>> kStrings = {
   for (final e in _kSectionStrings.entries)
     e.key: {
       ...e.value,
       if (kZhStrings[e.key] case final zh?) 'zh': zh,
+      if (kUkStrings[e.key] case final uk?) 'uk': uk,
+      if (kUkMaleStrings[e.key] case final ukMale?) 'uk_m': ukMale,
     },
 };
 
@@ -152,33 +157,36 @@ String trDict(String key, String code) {
 
 /// Строка, которая живёт прямо в экране парой «русский / английский».
 ///
-/// Остальные языки видят английскую, китайский ищет перевод в
-/// `kZhByEnglish` по английскому образцу: числа в строке заменяются метками
-/// `{0}`, `{1}`… и подставляются обратно, поэтому «нужно 30, у вас 12»
-/// находит перевод так же, как строка без чисел.
+/// Остальные языки видят английскую, китайский и украинский ищут перевод в
+/// `kZhByEnglish` и `kUkByEnglish` по английскому образцу: числа в строке
+/// заменяются метками `{0}`, `{1}`… и подставляются обратно, поэтому «нужно
+/// 30, у вас 12» находит перевод так же, как строка без чисел. Украинцу без
+/// перевода достаётся английская строка, а не русская.
 String ruEn(String ru, String en) => switch (LocaleService.instance.language) {
       AppLanguage.ru => ru,
-      AppLanguage.zh => zhForEnglish(en),
+      _ => trEnglish(en),
+    };
+
+/// Английская строка из экрана на текущем языке: китайский и украинский
+/// переводятся по образцу, остальные языки получают её как есть.
+String trEnglish(String en) => switch (LocaleService.instance.language) {
+      AppLanguage.zh => _byEnglish(kZhByEnglish, en),
+      AppLanguage.uk => _byEnglish(kUkByEnglish, en),
       _ => en,
     };
 
-/// Английская строка из экрана на текущем языке: китайским переводится,
-/// остальным языкам отдаётся как есть.
-String zhForEnglishIfZh(String en) =>
-    LocaleService.instance.language == AppLanguage.zh ? zhForEnglish(en) : en;
-
-/// Китайский для английской строки из экрана, иначе сама строка.
-String zhForEnglish(String en) {
-  final exact = kZhByEnglish[en];
+/// Перевод английской строки из экрана по таблице, иначе сама строка.
+String _byEnglish(Map<String, String> table, String en) {
+  final exact = table[en];
   if (exact != null) return exact;
   final numbers = <String>[];
   final shape = en.replaceAllMapped(RegExp(r'\d+'), (m) {
     numbers.add(m[0]!);
     return '{${numbers.length - 1}}';
   });
-  final zh = kZhByEnglish[shape];
-  if (zh == null) return en;
-  var out = zh;
+  final found = table[shape];
+  if (found == null) return en;
+  var out = found;
   for (var i = 0; i < numbers.length; i++) {
     out = out.replaceAll('{$i}', numbers[i]);
   }

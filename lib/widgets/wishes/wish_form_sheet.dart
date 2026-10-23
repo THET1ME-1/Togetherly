@@ -4,7 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../models/symbol_catalog.dart';
 import '../../models/wish.dart';
 import '../../models/wish_category.dart';
-import '../../dict_strings.dart' show zhForEnglishIfZh;
+import '../../dict_strings.dart' show trEnglish;
 import '../../services/locale_service.dart';
 import '../../services/pb_data_service.dart';
 import '../../services/pb_media_service.dart';
@@ -128,7 +128,7 @@ class _WishFormState extends State<_WishForm> {
 
   ColorScheme get _cs => widget.scheme;
 
-  String _tr(String r, String e) => widget.ru ? r : zhForEnglishIfZh(e);
+  String _tr(String r, String e) => widget.ru ? r : trEnglish(e);
 
   @override
   void initState() {

@@ -13,6 +13,7 @@ part 'strings_es.dart';
 part 'strings_it.dart';
 part 'strings_pt.dart';
 part 'strings_zh.dart';
+part 'strings_uk.dart';
 
 /// Языки интерфейса. Набор тот же, что в Wickly и Kadr.
 ///
@@ -26,7 +27,8 @@ enum AppLanguage {
   es('es', 'Español'),
   it('it', 'Italiano'),
   pt('pt', 'Português'),
-  zh('zh', '简体中文');
+  zh('zh', '简体中文'),
+  uk('uk', 'Українська');
 
   const AppLanguage(this.code, this.label);
 
@@ -93,6 +95,7 @@ class LocaleService extends ChangeNotifier {
     AppLanguage.it: _ItStrings(),
     AppLanguage.pt: _PtStrings(),
     AppLanguage.zh: _ZhStrings(),
+    AppLanguage.uk: _UkStrings(),
   };
 
   AppStrings get strings => _byLanguage[_language] ?? const _EnStrings();
@@ -108,7 +111,9 @@ class LocaleService extends ChangeNotifier {
       'BY': AppLanguage.ru,
       'KZ': AppLanguage.ru,
       'KG': AppLanguage.ru,
-      'UA': AppLanguage.ru,
+      // Украина по стране — украинский (TOG-20). Русская или английская
+      // система в Украине остаётся своей: язык системы выбран человеком.
+      'UA': AppLanguage.uk,
       'DE': AppLanguage.de,
       'AT': AppLanguage.de,
       'CH': AppLanguage.de,

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:home_widget/home_widget.dart';
 
@@ -23,6 +25,18 @@ Future<void> showNoteEditorSheet(
 
   final controller = TextEditingController(text: current);
   final s = LocaleService.current;
+
+  // На телефоне может лежать прежний текст: заметку партнёра хранилище
+  // виджетов получало только с полной синхронизацией на входе (TOG-13). Лист
+  // открывается сразу, а свежий текст подставляется, пока человек ещё ничего
+  // не начал печатать.
+  var closed = false;
+  unawaited(() async {
+    await HomeWidgetService.instance.refreshNote(g);
+    final fresh = await HomeWidget.getWidgetData<String>('note_${g}_text');
+    if (closed || fresh == null || fresh == current) return;
+    if (controller.text == current) controller.text = fresh;
+  }().catchError((Object _) {}));
 
   await showAppSheet<void>(
     context,
@@ -70,5 +84,6 @@ Future<void> showNoteEditorSheet(
     },
   );
 
+  closed = true;
   controller.dispose();
 }

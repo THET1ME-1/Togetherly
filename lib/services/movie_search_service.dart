@@ -341,7 +341,7 @@ class MovieResult {
 
 /// Человекочитаемая метка типа («Фильм» / «Сериал» / «Мультфильм» / «Аниме»).
 String movieKindLabel(String? kind, {required bool isRu}) =>
-    isRu ? _movieKindLabel(kind, isRu: true) : zhForEnglishIfZh(
+    isRu ? _movieKindLabel(kind, isRu: true) : trEnglish(
         _movieKindLabel(kind, isRu: false));
 
 String _movieKindLabel(String? kind, {required bool isRu}) {

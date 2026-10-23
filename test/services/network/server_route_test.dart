@@ -47,18 +47,26 @@ void main() {
 
   ServerRoute route({
     required String direct,
+    String spare = '127.0.0.1',
     int spareSince = 0,
     Duration recheckEvery = const Duration(minutes: 10),
+    Duration slowAfter = const Duration(seconds: 15),
+    Duration connectDeadline = const Duration(seconds: 20),
     List<int>? saved,
+    List<String>? reach,
   }) {
     return ServerRoute(
       ourHosts: const {'togetherly.test'},
-      spareHost: '127.0.0.1',
+      spareHost: spare,
       directHostFor: (_) => direct,
       stagger: const Duration(milliseconds: 300),
       recheckEvery: recheckEvery,
+      slowAfter: slowAfter,
+      connectDeadline: connectDeadline,
       loadSpareSince: () async => spareSince,
       saveSpareSince: (value) async => saved?.add(value),
+      onReached: () => reach?.add('доступен'),
+      onMissed: () => reach?.add('обрыв'),
     );
   }
 
@@ -166,6 +174,67 @@ void main() {
     await r.load();
     expect(await fetch(r, 'localhost'), 'ok');
     expect(r.onSpare, isFalse);
+  });
+
+  // TOG-16: по этим сигналам ServerReach решает, показывать ли совет про VPN.
+  group('связь с сервером для подсказки про VPN', () {
+    test('открытое соединение сообщает, что сервер доступен', () async {
+      final reach = <String>[];
+      final r = route(direct: '127.0.0.1', reach: reach);
+      await r.load();
+      expect(await fetch(r, 'togetherly.test'), 'ok');
+      expect(reach, ['доступен']);
+    });
+
+    test('не открылся ни основной, ни запасной путь — сообщает обрыв', () async {
+      final reach = <String>[];
+      final r = route(
+        direct: 'no-such-host.invalid',
+        spare: 'no-such-spare.invalid',
+        reach: reach,
+      );
+      await r.load();
+      await expectLater(fetch(r, 'togetherly.test'), throwsA(anything));
+      expect(reach, ['обрыв']);
+    });
+
+    test('затянувшееся соединение сообщает обрыв, но не рвёт его', () async {
+      final reach = <String>[];
+      final r = route(
+        direct: '127.0.0.2',
+        slowAfter: const Duration(milliseconds: 100),
+        reach: reach,
+      );
+      await r.load();
+      expect(await fetch(r, 'togetherly.test'), 'ok');
+      expect(reach, ['обрыв', 'доступен']);
+    });
+
+    // На эмуляторе с закрытым адресом сервера запросы висели по 2 минуты 15
+    // секунд, пока не сдавалась система: та самая «бесконечная загрузка».
+    test('соединение, не открывшееся за отведённый срок, обрывается само',
+        () async {
+      final reach = <String>[];
+      final r = route(
+        direct: '127.0.0.2',
+        spare: 'no-such-spare.invalid',
+        connectDeadline: const Duration(milliseconds: 600),
+        reach: reach,
+      );
+      await r.load();
+      final watch = Stopwatch()..start();
+      await expectLater(fetch(r, 'togetherly.test'), throwsA(anything));
+      expect(watch.elapsed, lessThan(const Duration(seconds: 3)));
+      expect(reach, contains('обрыв'));
+    });
+
+    test('чужие адреса о нашем сервере ничего не говорят', () async {
+      final reach = <String>[];
+      final r = route(direct: '127.0.0.1', reach: reach);
+      await r.load();
+      expect(await fetch(r, 'localhost'), 'ok');
+      expect(reach, isEmpty);
+    });
   });
 
   group('ссылки для системного плеера и браузера', () {

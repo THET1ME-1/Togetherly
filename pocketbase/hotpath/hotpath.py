@@ -4473,8 +4473,17 @@ async def update_record(col: str, rid: str, request: Request):
                 if f not in ("done", "done_at", "done_by", "done_note", "id"):
                     return _err(403, "only the author can edit this wish")
 
-    if col == "widget_data" and "plus" in body:
-        body["plus"] = await asyncio.to_thread(_user_has_plus, uid)
+    if col == "widget_data":
+        # Значок Togetherly+ сервер ставит на каждой правке, как делал
+        # widget_plus.pb.js до переезда: приложение поле `plus` не шлёт, и
+        # купивший после того, как карточка завелась, оставался для партнёра
+        # без Плюса (23.10.2026: 673 из 773 купивших). Флаг берётся у хозяина
+        # карточки — править её может и партнёр.
+        async with pg.acquire() as c:
+            owner = await c.fetchval(
+                "SELECT user_uid FROM widget_data WHERE id = $1", rid
+            )
+        body["plus"] = await asyncio.to_thread(_user_has_plus, owner or uid)
     if col == "memories":
         # Очередь шлёт запись целиком и при правке: без этого телефон со
         # сбитыми часами вернул бы будущую дату, исправленную при создании.
@@ -4717,6 +4726,57 @@ async def _app_config_worker() -> None:
         await asyncio.sleep(15)
 
 
+def _plus_uids_sync() -> frozenset:
+    rows = lite.execute("SELECT id FROM users WHERE plus = 1").fetchall()
+    return frozenset(r[0] for r in rows)
+
+
+async def _plus_flag_worker() -> None:
+    """Значок Togetherly+ в карточках widget_data догоняет покупку и возврат.
+
+    Правка карточки сверяет флаг сама (update_record), но карточку купившего
+    приложение правит, только когда он сам меняет статус, настроение или фото.
+    Партнёр часами видел бы «без Плюса», а плитка совместной ленты вела бы его
+    на покупку. Раз в минуту список купивших сравнивается с прошлым; у тех, чей
+    Плюс появился или пропал, карточки выравниваются, `updated` двигается
+    (дельта-синхронизация подберёт), и правка уходит паре. Первый проход после
+    запуска выравнивает все карточки.
+    """
+    known: frozenset | None = None
+    while True:
+        try:
+            now_ids = await asyncio.to_thread(_plus_uids_sync)
+            stamp = now_pb()
+            async with pg.acquire() as c:
+                if known is None:
+                    gained = await c.fetch(
+                        "UPDATE widget_data SET plus = true, updated = $2 "
+                        "WHERE user_uid = ANY($1::text[]) AND plus IS NOT TRUE RETURNING *",
+                        list(now_ids), stamp)
+                    lost = await c.fetch(
+                        "UPDATE widget_data SET plus = false, updated = $2 "
+                        "WHERE plus IS TRUE AND NOT (user_uid = ANY($1::text[])) RETURNING *",
+                        list(now_ids), stamp)
+                else:
+                    gained = await c.fetch(
+                        "UPDATE widget_data SET plus = true, updated = $2 "
+                        "WHERE user_uid = ANY($1::text[]) AND plus IS NOT TRUE RETURNING *",
+                        list(now_ids - known), stamp) if now_ids - known else []
+                    lost = await c.fetch(
+                        "UPDATE widget_data SET plus = false, updated = $2 "
+                        "WHERE user_uid = ANY($1::text[]) AND plus IS TRUE RETURNING *",
+                        list(known - now_ids), stamp) if known - now_ids else []
+            known = now_ids
+            for row in list(gained) + list(lost):
+                await _publish("widget_data", "update", _record_json("widget_data", row))
+            if gained or lost:
+                log.info("значок Togetherly+: включён в %d карточках, снят в %d",
+                         len(gained), len(lost))
+        except Exception as e:  # noqa: BLE001 — воркер не должен умирать
+            log.warning("значок Togetherly+: сверка отложена: %s", e)
+        await asyncio.sleep(60)
+
+
 def _claim_background_role() -> bool:
     """Фоновые задачи (счётчики, зеркало присутствия) должен вести ОДИН процесс.
 
@@ -4777,6 +4837,7 @@ async def _startup():
         asyncio.get_running_loop().create_task(_зеркало_воркер())
         asyncio.get_running_loop().create_task(_deliver_worker())
         asyncio.get_running_loop().create_task(_app_config_worker())
+        asyncio.get_running_loop().create_task(_plus_flag_worker())
 
 
 @app.on_event("shutdown")

@@ -196,6 +196,26 @@ void main() {
     );
   });
 
+  testWidgets('украинский: достижения без обрезки', (tester) async {
+    await LocaleService.instance.setLanguage(AppLanguage.uk);
+    addTearDown(() => LocaleService.instance.setLanguage(AppLanguage.de));
+    AchievementService.instance.stats.value = const AchievementStats(
+      daysTogether: 214,
+      memories: 76,
+      messages: 1840,
+      drawings: 7,
+      streakDays: 12,
+    );
+    await _shoot(
+      tester,
+      name: 'achievements_uk',
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: AchievementsScreen(theme: theme),
+      ),
+    );
+  });
+
   testWidgets('достижения: фильтры-таблетки и подписи метрик', (tester) async {
     // Три фильтра делят строку поровну: «Alle», «Erhalten», «Läuft noch».
     AchievementService.instance.stats.value = const AchievementStats(

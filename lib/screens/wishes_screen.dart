@@ -358,6 +358,8 @@ class _WishesScreenState extends State<WishesScreen> {
       context,
       message: LocaleService.instance.language == AppLanguage.zh
           ? '要删除“${wish.title}”吗？你们两边都会看不到它。'
+          : LocaleService.instance.language == AppLanguage.uk
+          ? 'Видалити «${wish.title}»? Бажання зникне в обох.'
           : _tr(
               'Удалить «${wish.title}»? Желание пропадёт у обоих.',
               'Delete "${wish.title}"? It will disappear for both of you.',

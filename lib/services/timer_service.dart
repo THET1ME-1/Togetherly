@@ -111,6 +111,10 @@ class TimerService extends ChangeNotifier {
   Future<void> _loadFromCloud() async {
     try {
       final remote = await _repo.loadSoloTimers();
+      // Пока сервер отвечал, сервис привязали к паре: пара из кэша поднимается
+      // сразу (TOG-24). Соло-таймеры заняли бы её место на главной и легли бы
+      // на диск под ключом пары.
+      if (_groupId.isNotEmpty) return;
       if (remote != null && remote.isNotEmpty) {
         _timers = remote.map(TimerItem.fromJson).toList();
         await _saveLocal();

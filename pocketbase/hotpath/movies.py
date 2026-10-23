@@ -233,7 +233,19 @@ _GENRE_ZH = {
 for _g, _zh in _GENRE_ZH.items():
     GENRE_NAMES[_g]["zh"] = _zh
 
-LANGS = ("ru", "en", "de", "fr", "es", "it", "pt", "zh")
+_GENRE_UK = {
+    "action": "бойовик", "comedy": "комедія", "drama": "драма",
+    "adventure": "пригоди", "fantasy": "фентезі", "scifi": "фантастика",
+    "thriller": "трилер", "crime": "кримінал", "horror": "жахи",
+    "romance": "мелодрама", "mystery": "детектив", "family": "сімейний",
+    "kids": "дитячий", "musical": "мюзикл", "war": "воєнний",
+    "history": "історичний", "biography": "біографія",
+    "documentary": "документальний", "western": "вестерн",
+}
+for _g, _uk in _GENRE_UK.items():
+    GENRE_NAMES[_g]["uk"] = _uk
+
+LANGS = ("ru", "en", "de", "fr", "es", "it", "pt", "zh", "uk")
 
 # Китайский ярлык в Викиданных часто лежит не под `zh`, а под письмом или
 # страной: `zh-hans`, `zh-cn`. Запрашиваем их тоже и сводим к `zh`.

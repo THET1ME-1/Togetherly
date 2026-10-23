@@ -23,7 +23,9 @@ import 'home_screen.dart';
 import 'login_screen.dart';
 import 'welcome_screen.dart';
 import '../services/locale_service.dart';
+import '../services/network/server_reach.dart';
 import '../utils/auth_failure.dart';
+import '../utils/network_failure_text.dart';
 import '../theme/theme_scope.dart';
 import '../widgets/auth_widgets.dart';
 import '../widgets/common/app_dialog.dart';
@@ -208,21 +210,30 @@ class _SetupScreenState extends State<SetupScreen>
       }
     } catch (e) {
       _oauthInFlight = false;
+      final message = await _authErrorText(e);
       if (mounted) {
         setState(() => _isLoading = false);
-        final s = LocaleService.current;
-        _showError(switch (AuthFailure.of(e)) {
-          AuthFailure.blockedConnection => s.connectionBlocked,
-          AuthFailure.noConnection ||
-          AuthFailure.timeout ||
-          AuthFailure.serverDown =>
-            s.serverNotResponding,
-          AuthFailure.tooManyAttempts => s.tooManyAttempts,
-          AuthFailure.providerPageFailed => s.providerPageFailed,
-          _ => s.googleLoginError(e.toString()),
-        });
+        _showError(message);
       }
     }
+  }
+
+  /// Текст ошибки входа через Google или Apple. Если запрос не дошёл до
+  /// сервера, сперва проверяем сеть (TOG-16): человек из США читал ошибку
+  /// входа через Google, хотя наш сервер закрывал его провайдер.
+  Future<String> _authErrorText(Object e) async {
+    final failure = AuthFailure.of(e);
+    if (failure.isNetwork) {
+      return networkFailureText(await ServerReach.instance.check());
+    }
+    final s = LocaleService.current;
+    return switch (failure) {
+      AuthFailure.blockedConnection => s.connectionBlocked,
+      AuthFailure.serverDown => trKey('serverSlowRetry'),
+      AuthFailure.tooManyAttempts => s.tooManyAttempts,
+      AuthFailure.providerPageFailed => s.providerPageFailed,
+      _ => s.googleLoginError(e.toString()),
+    };
   }
 
   Future<void> _completeSetup() async {
@@ -336,21 +347,27 @@ class _SetupScreenState extends State<SetupScreen>
         ),
       );
     } catch (e) {
+      final failure = AuthFailure.of(e);
+      // Обрыв связи: нет интернета или наш сервер закрыт в этой сети (TOG-16).
+      // Раньше регистрация писала «Сервер не отвечает. Проверьте интернет.»,
+      // а после повтора и «Некорректный email».
+      final networkText = failure.isNetwork ? await _authErrorText(e) : null;
       if (mounted) {
         setState(() => _isLoading = false);
         final s = LocaleService.current;
         // Разбор один на вход и регистрацию (`AuthFailure`). Раньше причину
         // искали подстроками в тексте исключения, и незнакомое доезжало до
         // человека сырым — вплоть до `tls_record.cc:127` на экране.
-        switch (AuthFailure.of(e)) {
+        switch (failure) {
           case AuthFailure.emailTaken:
             _showEmailExistsDialog();
           case AuthFailure.blockedConnection:
             _showError(s.connectionBlocked);
           case AuthFailure.noConnection:
           case AuthFailure.timeout:
+            _showError(networkText ?? trKey('serverSlowRetry'));
           case AuthFailure.serverDown:
-            _showError(s.serverNotResponding);
+            _showError(trKey('serverSlowRetry'));
           case AuthFailure.tooManyAttempts:
             _showError(s.tooManyAttempts);
           case AuthFailure.badCredentials:

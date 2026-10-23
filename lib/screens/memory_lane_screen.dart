@@ -182,6 +182,24 @@ Widget memoryDetailForPreview(Memory memory, {String groupId = ''}) =>
       onDelete: () {},
     );
 
+/// Переход по вкладке внизу полной ленты: закрыть её своим маршрутом и отдать
+/// вкладку главной.
+///
+/// Полную ленту открывает встроенная лента главной, но закрывать её через
+/// `context` встроенной нельзя: пока полная открыта, главная может
+/// перестроиться без встроенной, и мёртвый `context` в 1.38.0 давал «Null check
+/// operator used on a null value» на каждом нажатии вкладки.
+void Function(int)? fullLaneNavTab(
+  BuildContext routeContext,
+  void Function(int)? onNavTab,
+) {
+  if (onNavTab == null) return null;
+  return (i) {
+    if (routeContext.mounted) Navigator.of(routeContext).pop();
+    onNavTab(i);
+  };
+}
+
 /// Memory Lane — Google Calendar Schedule-style view
 /// Grouped by date, pinned at top, full CRUD
 class MemoryLaneScreen extends StatefulWidget {
@@ -770,19 +788,15 @@ class _MemoryLaneScreenState extends State<MemoryLaneScreen> {
   }
 
   void _openFullLane() {
+    final onNavTab = widget.onNavTab;
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => MemoryLaneScreen(
+        builder: (routeContext) => MemoryLaneScreen(
           pairData: widget.pairData,
           theme: widget.theme,
           userData: widget.userData,
-          onNavTab: widget.onNavTab == null
-              ? null
-              : (i) {
-                  if (context.mounted) Navigator.of(context).pop();
-                  widget.onNavTab?.call(i);
-                },
+          onNavTab: fullLaneNavTab(routeContext, onNavTab),
         ),
         settings: const RouteSettings(name: '/memory_lane'),
       ),

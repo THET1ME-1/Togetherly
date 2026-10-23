@@ -3301,7 +3301,11 @@ class PbDataService {
     final row = userProfileRow(data);
     if (row.isEmpty) return true;
     row['updated_at'] = PairTime.write(DateTime.now());
-    return _upsertById('users', uid, row, op: 'updateUserProfile');
+    // Пользователя без пароля не создать: на 404 (аккаунт удалён, а сессия на
+    // телефоне осталась) правка просто не удаётся. Общий путь «нет записи —
+    // создать» слал сюда 150–180 заведомых отказов в сутки.
+    return _upsertById('users', uid, row,
+        op: 'updateUserProfile', ifMissing: false);
   }
 
   /// Тело запроса профиля: camelCase-ключ → колонка. Вынесено из

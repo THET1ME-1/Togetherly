@@ -337,6 +337,13 @@ class HomeWidgetService {
         debugPrint('HomeWidgetService.backgroundRefreshAll lock: $e');
       }
     }
+    // Заметка на двоих: без этого листик на рабочем столе у второго ждал входа
+    // в приложение (TOG-13).
+    try {
+      await _syncNoteFromCloud(groupId);
+    } catch (e) {
+      debugPrint('HomeWidgetService.backgroundRefreshAll note: $e');
+    }
     // «Где мы»: картинку карты перерисовываем раз в 15 минут (WorkManager) и
     // по тихому пушу на iPhone. Служба сама решает, нужно ли: виджета нет или
     // ничего не сдвинулось — не рисует.
@@ -2238,6 +2245,12 @@ class HomeWidgetService {
     }
   }
 
+  /// Свежая заметка пары с сервера — в хранилище виджетов и на листики.
+  ///
+  /// Зовут её событие карточки партнёра и лист правки: иначе текст партнёра
+  /// доезжал только с полной синхронизацией на входе в приложение (TOG-13).
+  Future<void> refreshNote(String groupId) => _syncNoteFromCloud(groupId);
+
   /// Тянет заметку из облака и раскладывает по листикам.
   Future<void> _syncNoteFromCloud(String groupId) async {
     if (groupId.isEmpty || groupId == 'solo') return;
@@ -2247,7 +2260,14 @@ class HomeWidgetService {
       final records = await PbDataService().loadWidgetsForGroup(groupId);
       final note = latestNote(records.map((r) => r.data));
       final me = PbAuthService().currentProfile();
-      final myName = (me?['displayName'] as String?) ?? '';
+      var myName = (me?['displayName'] as String?) ?? '';
+      if (myName.isEmpty) {
+        // В фоне профиля нет: берём имя, записанное прошлой синхронизацией,
+        // иначе листик перестал бы узнавать свою заметку.
+        myName =
+            await HomeWidget.getWidgetData<String>('note_${groupId}_my_name') ??
+                '';
+      }
       if (note == null) {
         await syncNote(
           groupId: groupId, text: '', author: '', time: '', myName: myName);

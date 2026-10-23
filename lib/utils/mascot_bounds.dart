@@ -10,12 +10,24 @@ import 'dart:ui' show Offset, Size;
 ///
 /// В таком случае позицию не трогаем: маскот встанет на место следующим
 /// пересчётом, когда размер станет настоящим.
-Offset clampMascotPosition(Offset position, Size screen, double half) {
+///
+/// [top] и [bottom] — полосы, куда маскоту нельзя: строка состояния сверху,
+/// нижняя панель с безопасным полем снизу. Под панелью маскота не взять,
+/// касание забирает она (TOG-15, обращение 411).
+Offset clampMascotPosition(
+  Offset position,
+  Size screen,
+  double half, {
+  double top = 0,
+  double bottom = 0,
+}) {
   if (half <= 0) return position;
-  if (screen.width <= half * 2 || screen.height <= half * 2) return position;
+  final minY = top + half;
+  final maxY = screen.height - bottom - half;
+  if (screen.width <= half * 2 || maxY <= minY) return position;
   return Offset(
     position.dx.clamp(half, screen.width - half),
-    position.dy.clamp(half, screen.height - half),
+    position.dy.clamp(minY, maxY),
   );
 }
 

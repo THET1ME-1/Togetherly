@@ -1365,8 +1365,14 @@ class _CoupleStatsScreenState extends State<CoupleStatsScreen> {
   /// «44 записи», а не «44 записей»: число рядом со словом склоняется.
   String _recordsWord(int n) {
     if (LocaleService.instance.language == AppLanguage.zh) return '条记录';
-    if (!_ru) return n == 1 ? 'Entry in total' : 'Entries in total';
     final a = n % 100, b = n % 10;
+    if (LocaleService.instance.language == AppLanguage.uk) {
+      if (a >= 11 && a <= 19) return 'Записів загалом';
+      if (b == 1) return 'Запис загалом';
+      if (b >= 2 && b <= 4) return 'Записи загалом';
+      return 'Записів загалом';
+    }
+    if (!_ru) return n == 1 ? 'Entry in total' : 'Entries in total';
     if (a >= 11 && a <= 19) return 'Записей всего';
     if (b == 1) return 'Запись всего';
     if (b >= 2 && b <= 4) return 'Записи всего';

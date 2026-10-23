@@ -70,14 +70,24 @@ class PbAuthService {
           'display_name': displayName,
           'emailVisibility': true,
         }).timeout(createTimeout);
-      } on TimeoutException {
+      } on TimeoutException catch (timeout, stack) {
         // Ответа не дождались, но запись могла лечь. Проверяем это входом: если
         // пускает — регистрация состоялась, и пугать человека нечем.
         debugPrint('PbAuth: создание не ответило вовремя, проверяем входом');
-        await _pb
-            .collection(_usersCol)
-            .authWithPassword(email, password)
-            .timeout(netTimeout);
+        try {
+          await _pb
+              .collection(_usersCol)
+              .authWithPassword(email, password)
+              .timeout(netTimeout);
+        } on ClientException catch (e) {
+          // Вход не пустил: создание до сервера так и не дошло, аккаунта нет.
+          // Это обрыв связи, а не неверная почта (TOG-16): отказ входа экран
+          // регистрации показывал как «Некорректный email».
+          if (AuthFailure.of(e) == AuthFailure.badCredentials) {
+            Error.throwWithStackTrace(timeout, stack);
+          }
+          rethrow;
+        }
         await _ensureProfile(displayName: displayName);
         return _svc.currentUser;
       } on ClientException catch (e) {

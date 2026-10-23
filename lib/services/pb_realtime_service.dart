@@ -2,9 +2,11 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:pocketbase/pocketbase.dart';
 
 import '../models/scope_reconcile.dart';
+import 'catch_up_driver.dart';
 import 'centrifugo_service.dart';
 import 'offline/connectivity_service.dart';
 import 'offline/local_store.dart';
@@ -96,6 +98,7 @@ class PbRealtimeService {
     String? windowSort,
     bool refetchOnReconnect = false,
     bool reconcile = false,
+    bool catchUp = false,
   }) {
     // Offline-first: при наличии [scope] поток обслуживается из локального кэша
     // (sembast), а сеть лишь досыпает изменения. Без [scope] — прежнее in-memory
@@ -116,6 +119,7 @@ class PbRealtimeService {
         windowLimit,
         windowSort,
         reconcile,
+        catchUp,
       );
     }
     final byId = <String, RecordModel>{};
@@ -354,12 +358,16 @@ class PbRealtimeService {
     int? windowLimit,
     String? windowSort,
     bool reconcile,
+    bool catchUp,
   ) {
     final store = LocalStore.instance;
     final conn = ConnectivityService.instance;
     UnsubscribeFunc? unsub;
     StreamSubscription<List<RecordModel>>? cacheSub;
     StreamSubscription<bool>? connSub;
+    CatchUpDriver? catchUpDriver;
+    AppLifecycleListener? lifecycle;
+    StreamController<bool>? foreground;
     var cancelled = false;
     var attempt = 0;
     late StreamController<List<RecordModel>> ctrl;
@@ -543,9 +551,37 @@ class PbRealtimeService {
         connSub = conn.onOnlineChanged.listen((online) {
           if (online && !cancelled) startNetwork();
         });
+        // Открытый список дотягивает то, что прошло мимо сокета (TOG-17):
+        // после переподключения, по возврату приложения и, пока сокета нет,
+        // раз в 15 секунд. Без этого сообщение партнёра появлялось только
+        // после выхода из чата и повторного входа.
+        final channel = rtChannel;
+        if (catchUp && channel != null) {
+          final visible = StreamController<bool>.broadcast();
+          foreground = visible;
+          lifecycle = AppLifecycleListener(
+            onShow: () => visible.add(true),
+            onHide: () => visible.add(false),
+          );
+          catchUpDriver = CatchUpDriver(
+            catchUp: () async {
+              if (cancelled || !conn.isOnline) return;
+              await syncOnce();
+            },
+            reconnected: CentrifugoService.instance.reconnected,
+            foreground: visible.stream,
+            subscribed: () => CentrifugoService.instance.isSubscribed(channel),
+          );
+        }
       },
       onCancel: () async {
         cancelled = true;
+        catchUpDriver?.dispose();
+        catchUpDriver = null;
+        lifecycle?.dispose();
+        lifecycle = null;
+        await foreground?.close();
+        foreground = null;
         await cacheSub?.cancel();
         cacheSub = null;
         await connSub?.cancel();
@@ -891,6 +927,7 @@ class PbRealtimeService {
         rtChannel: 'pair:$groupId',
         windowLimit: limit,
         windowSort: '-ts',
+        catchUp: true,
       );
 
   /// Маскоты группы — дефолтные первыми, затем по дате.

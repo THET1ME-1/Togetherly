@@ -53,6 +53,12 @@ enum AuthFailure {
   /// Причина не опознана — только в этом случае показываем подробности.
   unknown;
 
+  /// Запрос не дошёл до сервера или ответа не дождались. Что сказать
+  /// человеку, решает проверка сети: нет интернета или наш сервер закрыт в
+  /// этой сети (`networkFailureText`, TOG-16). У сорванного шифрования
+  /// ([blockedConnection]) свой текст, он и так советует VPN.
+  bool get isNetwork => this == noConnection || this == timeout;
+
   /// Разбирает исключение слоя данных.
   static AuthFailure of(Object error) {
     if (error is TimeoutException) return timeout;

@@ -937,6 +937,8 @@ class _MoodPickerSheetState extends State<MoodPickerSheet> {
                         AppLanguage.ru =>
                           'Рисунки — $author · набор появится и у партнёра',
                         AppLanguage.zh => '画师：$author · 另一半也会一起获得',
+                        AppLanguage.uk =>
+                          'Малюнки — $author · набір з’явиться і в партнера',
                         _ => 'Art by $author · your partner gets it too',
                       },
                 textAlign: TextAlign.center,

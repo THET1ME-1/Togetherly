@@ -379,6 +379,12 @@ void main() async {
       if (t != null && (isCrashNoise(t))) {
         return null; // выбросить событие
       }
+      final stack = [
+        for (final e in event.exceptions ?? const <SentryException>[])
+          for (final f in e.stackTrace?.frames ?? const <SentryStackFrame>[])
+            '${f.absPath ?? ''} ${f.fileName ?? ''}',
+      ].join(' ');
+      if (t != null && isAudioPlayerAfterClose(t, stack)) return null;
       return event;
     };
   });

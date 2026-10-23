@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../dict_strings.dart' show zhForEnglishIfZh;
+import '../../dict_strings.dart' show trEnglish;
 import '../../models/gift.dart';
 import '../../models/partner_profile.dart';
 import '../../services/locale_service.dart';
@@ -62,6 +62,11 @@ Future<void> showGiftMemoSheet(
 /// «2 раза», «5 раз» — лист говорит по-русски и по-английски.
 String giftTimesLabel(int n, {required bool ru}) {
   if (LocaleService.instance.language == AppLanguage.zh) return '$n 次';
+  if (LocaleService.instance.language == AppLanguage.uk) {
+    final m10 = n % 10, m100 = n % 100;
+    final few = m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14);
+    return '$n ${few ? 'рази' : 'разів'}';
+  }
   if (!ru) return n == 1 ? 'once' : '$n times';
   final m10 = n % 10, m100 = n % 100;
   final word = (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) ? 'раза' : 'раз';
@@ -94,9 +99,10 @@ class GiftMemoList extends StatelessWidget {
   final bool ru;
   final AppStrings strings;
 
-  String _tr(String r, String e) => ru ? r : zhForEnglishIfZh(e);
+  String _tr(String r, String e) => ru ? r : trEnglish(e);
 
   bool get _zh => LocaleService.instance.language == AppLanguage.zh;
+  bool get _uk => LocaleService.instance.language == AppLanguage.uk;
 
   /// «14 июля» для этого года и «14 июля 2025» для прошлых: без года две
   /// годовщины подряд читаются как одна.
@@ -117,7 +123,9 @@ class GiftMemoList extends StatelessWidget {
       case GiftSender.counterpart:
         final name = counterpartName?.trim();
         if (name != null && name.isNotEmpty) {
-          return _zh ? '来自 $name' : _tr('от $name', 'from $name');
+          if (_zh) return '来自 $name';
+          if (_uk) return 'від $name';
+          return _tr('от $name', 'from $name');
         }
         return _tr('от партнёра', 'from your partner');
       case GiftSender.unknown:
@@ -143,6 +151,8 @@ class GiftMemoList extends StatelessWidget {
       if (latest != null)
         _zh
             ? '最近一次 ${_dateLabel(latest)}'
+            : _uk
+            ? 'останній ${_dateLabel(latest)}'
             : _tr('последний ${_dateLabel(latest)}',
                 'last on ${_dateLabel(latest)}'),
     ].join(' · ');
@@ -259,7 +269,7 @@ class _MemoCard extends StatelessWidget {
   final GiftSender sender;
   final bool replyIsMine;
 
-  String _tr(String r, String e) => ru ? r : zhForEnglishIfZh(e);
+  String _tr(String r, String e) => ru ? r : trEnglish(e);
 
   @override
   Widget build(BuildContext context) {

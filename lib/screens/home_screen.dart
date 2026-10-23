@@ -24,6 +24,7 @@ import '../utils/safe_pick.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/love_prompt.dart';
 import '../models/memory.dart';
+import '../models/widget_tap_dedup.dart';
 import '../models/gift.dart';
 import '../models/gift_effect.dart';
 import '../models/incoming_gifts.dart';
@@ -241,6 +242,7 @@ class _HomeScreenState extends State<HomeScreen> {
   StreamSubscription? _deepLinkSub;
   StreamSubscription<String>? _sharedLinkSub;
   StreamSubscription<Uri>? _widgetActionSub;
+  final WidgetTapDedup _widgetTaps = WidgetTapDedup();
 
   // -- Pair data --
   final PairData _pairData = PairData();
@@ -397,8 +399,12 @@ class _HomeScreenState extends State<HomeScreen> {
     HomeWidget.widgetClicked.listen(_onWidgetClicked);
     // Тот же тап по виджету, пришедший ссылкой: на iPhone схему `loveapp://`
     // разбирает app_links, и до `widgetClicked` она не доходит.
-    _widgetActionSub =
-        DeepLinkService().widgetActionStream.listen(_handleWidgetUri);
+    _widgetActionSub = DeepLinkService().widgetActionStream.listen((uri) {
+      // Та же ссылка лежит и в буфере холодного старта: без очистки следующая
+      // главная открыла бы её ещё раз (TOG-13).
+      DeepLinkService().consumePendingWidgetAction();
+      _handleWidgetUri(uri);
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final pending = DeepLinkService().consumePendingWidgetAction();
       if (pending != null && mounted) _handleWidgetUri(pending);
@@ -620,6 +626,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _handleWidgetUri(Uri uri) {
+    // Одно нажатие доходит сюда несколькими путями: без фильтра лист заметки
+    // открывался по разу на каждый, и «назад» жали несколько раз (TOG-13).
+    if (!_widgetTaps.admit(uri, DateTime.now())) return;
     // loveapp://widgets → вкладка виджетов (index 1)
     // loveapp://widgets/pair → ещё и сразу раскрыть настройки парного виджета
     if (uri.host == 'widgets' || uri.toString().contains('widgets')) {
@@ -809,10 +818,9 @@ class _HomeScreenState extends State<HomeScreen> {
       // cascade: Firestore re-emits → MoodService notifies → _onMoodServiceChanged
       // → pairData.setMood → PairData notifies → _handlePairChanged again → loop.
       if (groupChanged || _wasPaired != isPaired) {
-        // Unbind from old group first
-        await _timerService.unbindFromGroup();
-        // Bail if a newer call has already finished and bound to the correct group.
-        if (generation != _pairChangedGeneration) return;
+        // Таймеры от прежней пары отвязывает сам bindToGroup ниже. Отвязка
+        // через соло писала в виджет таймера пустоту на каждом запуске
+        // (TOG-24).
         _moodService.unbindFromGroup();
         await _widgetService.unbindFromGroup();
         if (generation != _pairChangedGeneration) return;

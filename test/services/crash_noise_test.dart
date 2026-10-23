@@ -197,6 +197,47 @@ void main() {
       expect(isCrashNoise(StateError('Cancelled')), isFalse);
       expect(isCrashNoise(Exception('Cancelled')), isFalse);
     });
+
+    // Bugsink 23.10.2026: 197 событий за сутки от 54 человек, когда у
+    // человека не открывается адрес сервера плиток.
+    test('плитки не нашли адрес сервера — это сеть', () {
+      expect(
+        isCrashNoise(Exception(
+            "ProviderException: Failed host lookup: 'tiles.openfreemap.org'")),
+        isTrue,
+      );
+    });
+  });
+
+  // Bugsink 23.10.2026: 55 событий за сутки от 40 человек на iPhone. Плеер
+  // закрыли, а платформа прислала ещё событие в уже закрытый поток.
+  group('плеер после закрытия', () {
+    final afterClose =
+        StateError('Cannot add new events after calling close');
+
+    test('из just_audio — шум', () {
+      expect(
+        isAudioPlayerAfterClose(
+            afterClose, 'package:just_audio/just_audio.dart subscribeToEvents'),
+        isTrue,
+      );
+    });
+
+    test('та же ошибка в нашем коде — настоящий баг', () {
+      expect(
+        isAudioPlayerAfterClose(
+            afterClose, 'package:love_app/services/voice_player_service.dart'),
+        isFalse,
+      );
+    });
+
+    test('другая ошибка из just_audio — не шум', () {
+      expect(
+        isAudioPlayerAfterClose(
+            StateError('Player already disposed'), 'package:just_audio/x.dart'),
+        isFalse,
+      );
+    });
   });
 }
 

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../l10n/uk/gifts.dart';
 import '../../l10n/zh/gifts.dart';
 import '../../models/gift.dart';
 import '../../models/sound_clip.dart';
@@ -170,6 +171,7 @@ class _GiftReceiveSheetState extends State<GiftReceiveSheet>
     final hint = switch (LocaleService.instance.language) {
       AppLanguage.ru => actionHintRu(widget.gift.action),
       AppLanguage.zh => actionHintZh(widget.gift.action),
+      AppLanguage.uk => actionHintUk(widget.gift.action),
       _ => actionHintEn(widget.gift.action),
     };
     final hasPhoto = widget.photo?.trim().isNotEmpty == true;

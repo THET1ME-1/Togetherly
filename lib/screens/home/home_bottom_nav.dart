@@ -5,6 +5,11 @@ import '../../widgets/common/animations.dart';
 import '../../widgets/unfold/unfold_route.dart';
 
 /// Нижняя навигационная панель главного экрана.
+/// Сколько места снизу занимает панель без безопасного поля: круглая кнопка
+/// 56 и отступ 20. Над этой полосой держится маскот (TOG-15): под панелью его
+/// не взять, касание забирает она.
+const double kHomeBottomNavHeight = 76;
+
 class HomeBottomNav extends StatelessWidget {
   final int selectedIndex;
   final AppTheme theme;

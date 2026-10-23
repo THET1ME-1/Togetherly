@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:pocketbase/pocketbase.dart';
 
@@ -289,26 +290,33 @@ class PbPushService {
       debugPrint('PbPush: тихая ночь — уведомление не показываем');
       return;
     }
-    await _ln.show(
-      id: id,
-      title: title,
-      body: body,
-      notificationDetails: NotificationDetails(
-        android: AndroidNotificationDetails(
-          _channelId,
-          _channelName,
-          channelDescription: _channelDescription,
-          importance: Importance.high,
-          priority: Priority.high,
-          icon: '@drawable/ic_notification',
+    // Уведомления выключены в системе — это выбор человека, а не сбой. iPhone
+    // отвечает «Error 2003, Source is not authorized», и без перехвата это
+    // было 436 отчётов в сутки (Bugsink, 23.10.2026).
+    try {
+      await _ln.show(
+        id: id,
+        title: title,
+        body: body,
+        notificationDetails: NotificationDetails(
+          android: AndroidNotificationDetails(
+            _channelId,
+            _channelName,
+            channelDescription: _channelDescription,
+            importance: Importance.high,
+            priority: Priority.high,
+            icon: '@drawable/ic_notification',
+          ),
+          iOS: const DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
+          ),
         ),
-        iOS: const DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: true,
-          presentSound: true,
-        ),
-      ),
-    );
+      );
+    } on PlatformException catch (e) {
+      debugPrint('PbPush: уведомление не показано: ${e.code} ${e.message}');
+    }
   }
 
   Future<void> stop() => _synchronized(_stopLocked);

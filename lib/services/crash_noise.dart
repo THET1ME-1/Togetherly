@@ -38,7 +38,10 @@ bool isNetworkNoise(Object error) {
       s.contains('Network is unreachable') ||
       s.contains('Connection timed out') ||
       s.contains('Operation timed out') ||
-      s.contains('Bad file descriptor')) {
+      s.contains('Bad file descriptor') ||
+      // Не нашёлся адрес сервера: так плитки карты падают без сети, 197
+      // событий за сутки 23.10.2026, тип у них свой, не SocketException.
+      s.contains('Failed host lookup')) {
     return true;
   }
   // PocketBase ClientException транспортного уровня: запрос отменён / сервер не
@@ -145,6 +148,18 @@ bool isNotificationsDenied(Object error) {
   final s = error.toString();
   return s.contains('UNErrorDomain') && s.contains('2003');
 }
+
+/// Плеер just_audio прислал событие после закрытия.
+///
+/// Плеер закрыли, а платформа успела прислать ещё одно событие: пакет кладёт
+/// его в закрытый поток и бросает «Cannot add new events after calling close».
+/// Звук к этому моменту уже остановлен, человеку не видно ничего, а в Bugsink
+/// 23.10.2026 это 55 событий за сутки от 40 человек на iPhone. Узнаём по
+/// стеку: та же ошибка в нашем коде — настоящий баг, её пропускаем.
+bool isAudioPlayerAfterClose(Object error, String stack) =>
+    error is StateError &&
+    error.message.contains('Cannot add new events after calling close') &&
+    stack.contains('just_audio');
 
 /// Событие вообще не стоит слать в Bugsink.
 bool isCrashNoise(Object error) =>

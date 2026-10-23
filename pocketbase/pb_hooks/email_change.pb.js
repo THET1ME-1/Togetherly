@@ -62,23 +62,33 @@ routerAdd("POST", "/api/account/email-change/request", (e) => {
   if (sends.length >= 5) return fail(429, "limit");
 
   const code = $security.randomStringWithAlphabet(6, "0123456789");
-  const ru = lang === "ru";
-  const zh = lang === "zh";
-  const subject = ru
-    ? "Код для смены почты в Togetherly"
-    : zh
-      ? "Togetherly 更换邮箱验证码"
-      : "Your Togetherly email change code";
-  const intro = ru
-    ? "Вы меняете почту аккаунта Togetherly на этот адрес. Введите код в приложении:"
-    : zh
-      ? "你正在把 Togetherly 账号的邮箱改为这个地址。请在应用里输入验证码："
-      : "You are changing your Togetherly account email to this address. Enter the code in the app:";
-  const outro = ru
-    ? "Код действует 15 минут. Если вы ничего не меняли, просто удалите это письмо."
-    : zh
-      ? "验证码 15 分钟内有效。如果不是你本人操作，删除这封邮件即可。"
-      : "The code is valid for 15 minutes. If this wasn't you, just delete this email.";
+  // Письмо на языке приложения; незнакомый язык получает английское.
+  const letters = {
+    ru: [
+      "Код для смены почты в Togetherly",
+      "Вы меняете почту аккаунта Togetherly на этот адрес. Введите код в приложении:",
+      "Код действует 15 минут. Если вы ничего не меняли, просто удалите это письмо.",
+    ],
+    uk: [
+      "Код для зміни пошти в Togetherly",
+      "Ви змінюєте пошту акаунта Togetherly на цю адресу. Введіть код у застосунку:",
+      "Код діє 15 хвилин. Якщо ви нічого не змінювали, просто видаліть цей лист.",
+    ],
+    zh: [
+      "Togetherly 更换邮箱验证码",
+      "你正在把 Togetherly 账号的邮箱改为这个地址。请在应用里输入验证码：",
+      "验证码 15 分钟内有效。如果不是你本人操作，删除这封邮件即可。",
+    ],
+    en: [
+      "Your Togetherly email change code",
+      "You are changing your Togetherly account email to this address. Enter the code in the app:",
+      "The code is valid for 15 minutes. If this wasn't you, just delete this email.",
+    ],
+  };
+  const letter = letters[lang] || letters.en;
+  const subject = letter[0];
+  const intro = letter[1];
+  const outro = letter[2];
   const html =
     '<div style="font-family:Arial,sans-serif;font-size:16px;color:#22191a;line-height:1.5">' +
     "<p>" + intro + "</p>" +

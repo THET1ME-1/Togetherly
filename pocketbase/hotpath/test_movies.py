@@ -274,6 +274,15 @@ class WikidataDocTest(unittest.TestCase):
     def test_незнакомый_язык_падает_на_английский(self):
         self.assertEqual(self.doc("Q13417189", lang="xx")["name"], "Interstellar")
 
+    def test_украинское_название_и_жанры(self):
+        # TOG-20: украинец видел английское «Interstellar» и «sci-fi».
+        c = {"qid": "Q13417189", "kind": "movie", "genres": ["scifi", "adventure"],
+             "labels": {"uk": "Інтерстеллар", "ru": "Интерстеллар",
+                        "en": "Interstellar"}}
+        d = doc_from_compact(c, "uk")
+        self.assertEqual(d["name"], "Інтерстеллар")
+        self.assertEqual([g["name"] for g in d["genres"]], ["фантастика", "пригоди"])
+
 
 class WikidataSearchParamsTest(unittest.TestCase):
     def test_фильтр_по_типу_в_запросе(self):
@@ -355,6 +364,14 @@ class WikidataSearchTest(unittest.TestCase):
     def test_пустой_поиск_пустой_ответ(self):
         docs, _ = self.run_search("пусто совсем")
         self.assertEqual(docs, [])
+
+    def test_записи_приходят_с_украинскими_ярлыками(self):
+        _, calls = self.run_search("интерстеллар")
+        heavy = [c for c in calls if c.get("action") == "wbgetentities"
+                 and c.get("props") != "labels"]
+        self.assertTrue(heavy)
+        for c in heavy:
+            self.assertIn("uk", c["languages"].split("|"))
 
 
 if __name__ == "__main__":

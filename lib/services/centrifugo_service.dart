@@ -178,6 +178,10 @@ class CentrifugoService {
     };
   }
 
+  /// Подписка на [channel] сейчас живая: события канала доходят.
+  bool isSubscribed(String channel) =>
+      _channels[channel]?.isSubscribed ?? false;
+
   /// Опубликовать [data] прямо в [channel] (требует серверный namespace с
   /// allow_publish_for_subscriber). Клиент должен быть подписан на канал —
   /// поднимаем подписку при необходимости. Ошибки глотаем: эфемерная публикация
@@ -319,6 +323,9 @@ class _ChannelHub {
   }
 
   bool get isEmpty => _listeners.isEmpty && _rawListeners.isEmpty;
+
+  bool get isSubscribed =>
+      _sub.state == centrifuge.SubscriptionState.subscribed;
 
   /// Слушателей не осталось — освобождаем серверную подписку, но объект
   /// Subscription сохраняем (переиспользуем при повторном add → subscribe).

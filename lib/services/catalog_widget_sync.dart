@@ -47,6 +47,7 @@ class CatalogWidgetSync {
       switch (LocaleService.instance.language) {
         AppLanguage.ru => _dayMonth(d),
         AppLanguage.zh => '${d.month}月${d.day}日',
+        AppLanguage.uk => LocaleService.current.dayLogDate(d),
         _ => '${_monthsEn[d.month - 1]} ${d.day}',
       };
 

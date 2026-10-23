@@ -18,7 +18,7 @@ import '../services/pb_media_service.dart';
 import '../services/widget_anim_service.dart';
 import '../services/plus_service.dart';
 import '../services/ui_prefs.dart';
-import '../dict_strings.dart' show ruEn, trKey, zhForEnglishIfZh;
+import '../dict_strings.dart' show ruEn, trKey, trEnglish;
 import '../models/countdown_widget.dart';
 import '../models/note_preview.dart';
 import '../models/together_milestones.dart';
@@ -2927,6 +2927,7 @@ class _WidgetScreenState extends State<WidgetScreen>
   String _formatDayMonth(DateTime d) => switch (LocaleService.instance.language) {
         AppLanguage.ru => '${d.day} ${_monthsGenitive[d.month - 1]}',
         AppLanguage.zh => '${d.month}月${d.day}日',
+        AppLanguage.uk => LocaleService.current.dayLogDate(d),
         _ => '${_monthsGenitiveEn[d.month - 1]} ${d.day}',
       };
 
@@ -7470,10 +7471,10 @@ class _WidgetScreenState extends State<WidgetScreen>
   /// сохранить её для нативной стороны.
   void _liveSnack(String text) {
     if (!mounted) return;
-    // Сообщения живого фото написаны парой «русский / английский»; китайский
-    // берёт перевод английской половины.
+    // Сообщения живого фото написаны парой «русский / английский»; китайский и
+    // украинский берут перевод английской половины.
     ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(zhForEnglishIfZh(text))));
+        .showSnackBar(SnackBar(content: Text(trEnglish(text))));
   }
 
   Future<void> _pickLiveVideo() async {

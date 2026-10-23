@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'server_reach.dart';
 import 'staggered_race.dart';
 
 /// Запасной путь к нашему серверу (22.10.2026).
@@ -37,13 +38,19 @@ class ServerRoute {
     this.stagger = const Duration(seconds: 6),
     this.recheckEvery = const Duration(minutes: 10),
     this.recheckTimeout = const Duration(seconds: 8),
+    this.slowAfter = const Duration(seconds: 15),
+    this.connectDeadline = const Duration(seconds: 20),
     Future<int> Function()? loadSpareSince,
     Future<void> Function(int value)? saveSpareSince,
+    void Function()? onReached,
+    void Function()? onMissed,
     DateTime Function()? now,
   })  : _ourHosts = ourHosts,
         _directHostFor = directHostFor ?? _same,
         _loadSpareSince = loadSpareSince ?? _loadFromPrefs,
         _saveSpareSince = saveSpareSince ?? _saveToPrefs,
+        _onReached = onReached ?? _tellReached,
+        _onMissed = onMissed ?? _tellMissed,
         _now = now ?? DateTime.now;
 
   /// Один на процесс (и на каждый фоновый движок: у них свои глобалы).
@@ -63,8 +70,23 @@ class ServerRoute {
   final Duration stagger;
   final Duration recheckEvery;
   final Duration recheckTimeout;
+
+  /// Соединение, которое открывается дольше этого, — повод проверить сеть
+  /// (TOG-16): у части провайдеров соединение с нашим сервером не рвётся, а
+  /// молчит, и человек ждёт минутами.
+  final Duration slowAfter;
+
+  /// Не открылось за этот срок ни по одному пути — обрыв. Без него запрос к
+  /// закрытому провайдером серверу висел, пока не сдастся система: на
+  /// эмуляторе 2 минуты 15 секунд, у людей «бесконечная загрузка» (TOG-16).
+  final Duration connectDeadline;
   final Future<int> Function() _loadSpareSince;
   final Future<void> Function(int value) _saveSpareSince;
+
+  /// Куда сообщать об открытых и сорванных соединениях с нашим сервером: по
+  /// ним [ServerReach] решает, советовать ли VPN.
+  final void Function() _onReached;
+  final void Function() _onMissed;
   final DateTime Function() _now;
 
   int _spareSince = 0;
@@ -117,6 +139,13 @@ class ServerRoute {
     final direct = _directHostFor(host);
     final targets = onSpare ? [spareHost, direct] : [direct, spareHost];
     final abort = Completer<void>();
+    final slow = Timer(slowAfter, _onMissed);
+    var timedOut = false;
+    final deadline = Timer(connectDeadline, () {
+      if (abort.isCompleted) return;
+      timedOut = true;
+      abort.complete();
+    });
     final socket = staggeredRace<Socket>(
       [
         for (final target in targets)
@@ -126,12 +155,27 @@ class ServerRoute {
       discard: (late) => late.destroy(),
       abort: abort.future,
     ).then((win) {
+      slow.cancel();
+      deadline.cancel();
+      _onReached();
       // Путь меняем, только если победил не тот, с которого начинали: значит,
       // начальный не ответил. Победа начального ни о чём не говорит, и без
       // этого запрос по запасному пути возвращал бы на запасной сразу после
       // того, как фоновая проверка вернула на основной.
       if (win.index != 0) _remember(spare: targets[win.index] == spareHost);
       return win.value;
+    }, onError: (Object error, StackTrace stack) {
+      slow.cancel();
+      deadline.cancel();
+      if (timedOut) {
+        _onMissed();
+        throw SocketException(
+          'нет соединения с $host за ${connectDeadline.inSeconds} с',
+        );
+      }
+      // Соединение отменил сам клиент — о сервере это ничего не говорит.
+      if (!abort.isCompleted) _onMissed();
+      Error.throwWithStackTrace(error, stack);
     });
     return Future.value(ConnectionTask.fromSocket(socket, () {
       if (!abort.isCompleted) abort.complete();
@@ -213,6 +257,10 @@ class ServerRoute {
   }
 
   static String _same(String host) => host;
+
+  static void _tellReached() => ServerReach.instance.reached();
+
+  static void _tellMissed() => ServerReach.instance.missed();
 
   static Future<int> _loadFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();

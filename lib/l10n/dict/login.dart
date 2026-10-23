@@ -231,6 +231,52 @@ const Map<String, Map<String, String>> loginStrings = {
     'de':
         'Die Verbindung wird unterwegs abgebrochen. Meistens liegt es am Anbieter: probiere mobile Daten, ein anderes Netz oder ein VPN.',
   },
+  // TOG-16: интернет у человека есть, а наш сервер в его сети закрыт. Решает
+  // проверка сети (ServerReach), текст выбирает networkFailureText.
+  'serverBlockedVpn': {
+    'ru':
+        'Ваша сеть не пускает приложение к нашему серверу. Так делают некоторые провайдеры в Украине и США. Включите VPN или подключитесь к другой сети.',
+    'en':
+        "Your network won't let the app reach our server. Some providers in Ukraine and the US do this. Turn on a VPN or switch to another network.",
+    'pt':
+        'Sua rede não deixa o app chegar ao nosso servidor. Algumas operadoras na Ucrânia e nos EUA fazem isso. Ative uma VPN ou troque de rede.',
+    'it':
+        'La tua rete non lascia arrivare l’app al nostro server. Succede con alcuni operatori in Ucraina e negli Stati Uniti. Attiva una VPN o cambia rete.',
+    'es':
+        'Tu red no deja que la app llegue a nuestro servidor. Lo hacen algunos operadores de Ucrania y EE. UU. Activa una VPN o cambia de red.',
+    'fr':
+        'Ton réseau empêche l’app de joindre notre serveur. Certains opérateurs en Ukraine et aux États-Unis le font. Active un VPN ou passe sur un autre réseau.',
+    'de':
+        'Dein Netz lässt die App nicht zu unserem Server. Das machen manche Anbieter in der Ukraine und den USA. Schalte ein VPN ein oder wechsle das Netz.',
+  },
+  // Плашка поверх экранов: та же мысль одной строкой.
+  'serverBlockedChip': {
+    'ru': 'Сеть не пускает к серверу · включите VPN',
+    'en': 'Your network blocks our server · try a VPN',
+    'pt': 'Sua rede bloqueia nosso servidor · ative uma VPN',
+    'it': 'La tua rete blocca il server · attiva una VPN',
+    'es': 'Tu red bloquea el servidor · activa una VPN',
+    'fr': 'Ton réseau bloque le serveur · active un VPN',
+    'de': 'Dein Netz sperrt den Server · VPN einschalten',
+  },
+  'noInternet': {
+    'ru': 'Нет интернета. Проверьте подключение.',
+    'en': 'No internet. Check your connection.',
+    'pt': 'Sem internet. Confira sua conexão.',
+    'it': 'Niente internet. Controlla la connessione.',
+    'es': 'Sin internet. Revisa tu conexión.',
+    'fr': 'Pas d’internet. Vérifie ta connexion.',
+    'de': 'Kein Internet. Prüfe deine Verbindung.',
+  },
+  'serverSlowRetry': {
+    'ru': 'Сервер не успел ответить. Попробуйте ещё раз.',
+    'en': "The server didn't answer in time. Try again.",
+    'pt': 'O servidor não respondeu a tempo. Tente de novo.',
+    'it': 'Il server non ha risposto in tempo. Riprova.',
+    'es': 'El servidor no respondió a tiempo. Inténtalo otra vez.',
+    'fr': 'Le serveur n’a pas répondu à temps. Réessaie.',
+    'de': 'Der Server hat nicht rechtzeitig geantwortet. Versuche es noch einmal.',
+  },
   'googleNotResponding': {
     'ru': 'Google не отвечает. Проверьте интернет.',
     'en': 'Google not responding. Check your internet.',

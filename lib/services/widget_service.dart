@@ -5,6 +5,7 @@ import '../dict_strings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/widget_data.dart';
 import '../models/memory.dart';
+import '../models/partner_note.dart';
 import '../models/mood_entry.dart';
 import 'locale_service.dart';
 import 'pair_widget_payload.dart';
@@ -74,6 +75,10 @@ class WidgetService extends ChangeNotifier {
   // поменялись фото-поля.
   String? _myPhotoSig;
   final Map<String, String> _partnerPhotoSigs = {};
+
+  // Подписи заметки партнёра: текст и время. По смене тянем заметку пары
+  // заново, иначе она доезжала только с полной синхронизацией на входе (TOG-13).
+  final Map<String, String> _partnerNoteSigs = {};
 
   // Чья пара лежит в контейнере виджета прямо сейчас. Отвечает на вопрос,
   // который иначе не отличить: данных о половине нет — это холодный старт той
@@ -221,6 +226,14 @@ class WidgetService extends ChangeNotifier {
           HomeWidgetService.instance.invalidateWidgetDataCache();
           HomeWidgetService.instance.refreshPhotoOfDay(_groupId);
         }
+        final noteSig = rec == null ? '' : noteSignatureOf(rec.data);
+        final knownNoteSig = _partnerNoteSigs[partnerUid];
+        _partnerNoteSigs[partnerUid] = noteSig;
+        if (_groupId.isNotEmpty &&
+            knownNoteSig != null &&
+            knownNoteSig != noteSig) {
+          unawaited(HomeWidgetService.instance.refreshNote(_groupId));
+        }
         notifyListeners();
       },
       onError: (e) => debugPrint('WidgetService partner listener error: $e'),
@@ -240,6 +253,7 @@ class WidgetService extends ChangeNotifier {
     _partnerData.clear();
     _myPhotoSig = null;
     _partnerPhotoSigs.clear();
+    _partnerNoteSigs.clear();
 
     // Признак пары держим до тех пор, пока пара действительно не распалась.
     // Раньше он затирался на каждом техническом переподключении — а их случается
