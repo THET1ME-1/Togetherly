@@ -67,7 +67,9 @@ import '../models/draw_quick_tools.dart';
 import 'draw_replay_screen.dart';
 import '../widgets/draw/stroke_painting.dart';
 import '../models/canvas_undo.dart';
+import '../models/shared_strokes.dart';
 import '../models/stroke_brush.dart';
+import '../models/stroke_record_id.dart';
 import '../models/stroke_transform.dart';
 import '../models/whole_erase.dart';
 import '../utils/quick_shape.dart';
@@ -264,20 +266,28 @@ class _DrawScreenState extends State<DrawScreen>
   final Map<String, int> _strokeSeq = {};
   final List<_ShapeEdit> _shapeEdits = [];
   final List<_ShapeEdit> _shapeRedos = [];
-  final Map<String, DrawStroke> _pendingLocalStrokes = {};
-  final Set<String> _cancelledPendingStrokeIds = {};
+
+  /// Книга общего холста: свои неподтверждённые штрихи, снимок сервера, мазки
+  /// партнёра из живого канала, отменённое и убранное (TOG-12). Решает, что
+  /// удалить на сервере и что не пускать обратно из старого снимка.
+  final SharedStrokes _shared = SharedStrokes();
+
+  /// Свои штрихи, которых ещё нет в снимке сервера.
+  Map<String, DrawStroke> get _pendingLocalStrokes => _shared.pending;
+
+  /// Чужие мазки, уже законченные в канале, но ещё не приехавшие из базы.
+  /// Ключ — `clientId`: по нему пришедшая запись заменит эту копию.
+  Map<String, DrawStroke> get _partnerCommitted => _shared.partnerCommitted;
+
+  List<DrawStroke> get _remoteStrokes => _shared.remote;
+  set _remoteStrokes(List<DrawStroke> value) => _shared.remote = value;
+
   final Map<String, DrawStroke> _partnerLiveMap = {};
   final Map<String, int> _partnerTimestamps = {};
 
   /// Сборщики приростов: по одному на каждого рисующего партнёра.
   final Map<String, LiveStrokeAssembler> _liveAssemblers = {};
-
-  /// Чужие мазки, уже законченные в канале, но ещё не приехавшие из базы.
-  /// Ключ — `clientId`: по нему пришедшая запись заменит эту копию.
-  final Map<String, DrawStroke> _partnerCommitted = {};
   final Set<int> _activePointers = <int>{};
-
-  List<DrawStroke> _remoteStrokes = [];
 
   /// Видимые штрихи и ревизия их ОСНОВЫ.
   ///
@@ -954,49 +964,32 @@ class _DrawScreenState extends State<DrawScreen>
     // копируем перед сортировкой (список из стрима неизменяемый).
     final parsed = List<DrawStroke>.from(rawList);
     parsed.sort(_compareStrokes);
-    _remoteStrokes = parsed;
 
-    final remainingPending = Map<String, DrawStroke>.from(_pendingLocalStrokes);
+    // Книга сводит снимок со своим: убранное не возвращается, копии одного
+    // мазка встают одной линией, свои штрихи подтверждаются по id записи.
+    // Чужой мазок из живого канала заменяется настоящей записью по clientId.
+    final renames =
+        _shared.applySnapshot(parsed, looksSame: _looksLikeSameStroke);
     final updatedMyIds = List<String>.from(_myStrokeIds);
-
-    for (final remote in parsed) {
-      // Чужой мазок, который мы уже нарисовали из живого канала, заменяется
-      // настоящей записью: узнаём его по клиентскому идентификатору.
-      final clientId = remote.clientId;
-      if (clientId != null) _partnerCommitted.remove(clientId);
-
-      // Свой оптимистичный штрих сверяем сперва по идентификатору и только
-      // потом на глаз — эвристика осталась для записей прежних сборок.
-      final matchKey = remainingPending.entries
-              .where((e) => clientId != null && e.value.clientId == clientId)
-              .map((e) => e.key)
-              .firstOrNull ??
-          remainingPending.entries
-              .where((e) => _looksLikeSameStroke(remote, e.value))
-              .map((e) => e.key)
-              .firstOrNull;
-      if (matchKey != null) {
-        remainingPending.remove(matchKey);
-        for (int i = 0; i < updatedMyIds.length; i++) {
-          if (updatedMyIds[i] == matchKey) updatedMyIds[i] = remote.id;
-        }
-        // Номер действия ведётся по id: без переезда отмена не найдёт штрих
-        // и выйдет молча при живой кнопке (обращение 403).
-        adoptStrokeId(_strokeSeq, _mirrorGroupOf, from: matchKey, to: remote.id);
-        // Картинку-штрих (заливка, вставленное фото) продолжаем рисовать с
-        // диска — см. [adoptLocalImagePath].
-        adoptLocalImagePath(_localImagePaths, matchKey, remote.id);
+    renames.forEach((from, to) {
+      for (int i = 0; i < updatedMyIds.length; i++) {
+        if (updatedMyIds[i] == from) updatedMyIds[i] = to;
       }
-    }
+      // Номер действия ведётся по id: без переезда отмена не найдёт штрих
+      // и выйдет молча при живой кнопке (обращение 403).
+      adoptStrokeId(_strokeSeq, _mirrorGroupOf, from: from, to: to);
+      // Картинку-штрих (заливка, вставленное фото) продолжаем рисовать с
+      // диска — см. [adoptLocalImagePath].
+      adoptLocalImagePath(_localImagePaths, from, to);
+    });
 
-    _pendingLocalStrokes
-      ..clear()
-      ..addAll(remainingPending);
     // Первая выдача общего холста: свои линии прошлых заходов встают в начало
-    // истории отмены, как у одиночного холста (владелец, 21.10.2026).
-    if (!_undoHistorySeeded && parsed.isNotEmpty) {
+    // истории отмены, как у одиночного холста (владелец, 21.10.2026). Берём
+    // список книги: в нём одна линия на все копии мазка.
+    final shown = _shared.remote;
+    if (!_undoHistorySeeded && shown.isNotEmpty) {
       _undoHistorySeeded = true;
-      final earlier = ownStrokeHistory(parsed, _myUid)
+      final earlier = ownStrokeHistory(shown, _myUid)
           .where((id) => !updatedMyIds.contains(id))
           .toList();
       updatedMyIds.insertAll(0, earlier);
@@ -1005,13 +998,10 @@ class _DrawScreenState extends State<DrawScreen>
       ..clear()
       ..addAll(updatedMyIds);
 
-    if (parsed.isNotEmpty || remainingPending.isNotEmpty) {
-      final maxOrder = [
-        ...parsed.map((s) => s.orderIndex),
-        ...remainingPending.values.map((s) => s.orderIndex),
-      ].reduce(math.max);
-      _orderCounter = maxOrder + 1;
-    }
+    // Номер порядка только растёт: после отмены верхнего штриха он раньше
+    // откатывался, и следующий штрих получал номер отменённого.
+    final maxOrder = _shared.maxOrderIndex;
+    if (maxOrder != null) _orderCounter = math.max(_orderCounter, maxOrder + 1);
 
     _visibleStrokes = _composeVisibleStrokes();
     _syncCanvasChrome();
@@ -1035,10 +1025,7 @@ class _DrawScreenState extends State<DrawScreen>
       _redoStack.clear();
       _wholeErases.clear();
       _wholeEraseRedos.clear();
-      _pendingLocalStrokes.clear();
-      _cancelledPendingStrokeIds.clear();
-      _remoteStrokes = [];
-      _partnerCommitted.clear();
+      _shared.reset();
       _liveAssemblers.clear();
       _partnerLiveMap.clear();
       _partnerTimestamps.clear();
@@ -1155,8 +1142,13 @@ class _DrawScreenState extends State<DrawScreen>
       if (finished != null) {
         // Кладём мазок к себе НЕМЕДЛЕННО, не дожидаясь записи в базу: она
         // приедет позже и заменит его по clientId, а до 18.08.2026 в этой яме
-        // линия партнёра просто отсутствовала.
-        _partnerCommitted[finished.clientId ?? finished.id] = finished;
+        // линия партнёра просто отсутствовала. Не придёт за полминуты —
+        // партнёр отменил мазок до записи, и копия гаснет (TOG-12).
+        _shared.addPartnerCommitted(finished.clientId ?? finished.id, finished,
+            now: DateTime.now());
+        // Мой следующий штрих ляжет выше этого мазка: иначе ластик поверх
+        // него оказывался ниже, и стёртое проступало, когда приходила запись.
+        _orderCounter = math.max(_orderCounter, finished.orderIndex + 1);
         _visibleStrokes = _composeVisibleStrokes();
         _repaintNotifier.value++;
       }
@@ -1179,6 +1171,12 @@ class _DrawScreenState extends State<DrawScreen>
 
   void _removeStalePartners(Timer _) {
     if (!mounted) return;
+    // Законченный мазок партнёра без записи: партнёр отменил его до того, как
+    // он лёг в базу. Раньше копия висела у меня до конца захода.
+    if (_shared.expirePartner(DateTime.now())) {
+      _visibleStrokes = _composeVisibleStrokes();
+      _repaintNotifier.value++;
+    }
     final now = DateTime.now().millisecondsSinceEpoch;
     final stale = _partnerTimestamps.entries
         .where((e) => now - e.value > 4000)
@@ -2300,6 +2298,9 @@ class _DrawScreenState extends State<DrawScreen>
       return;
     }
     if (_pendingLocalStrokes.containsKey(stroke.id)) return; // ещё не на сервере
+    // Правка уходит в одну запись: копия фигуры осталась бы на прежнем месте.
+    final copies = _shared.dropCopies(stroke.id);
+    if (copies.isNotEmpty) unawaited(_deleteStrokeRecords(copies));
     try {
       await _canvas.patchStroke(stroke.id, {
         'points': [for (final p in stroke.points) p.toMap()],
@@ -2360,6 +2361,9 @@ class _DrawScreenState extends State<DrawScreen>
   Future<void> _syncImageToFirestore(DrawStroke stroke) async {
     if (!_hasSharedCanvas) return;
     if (!_remoteStrokes.any((s) => s.id == stroke.id)) return;
+    // Правка уходит в одну запись: копия картинки осталась бы на прежнем месте.
+    final copies = _shared.dropCopies(stroke.id);
+    if (copies.isNotEmpty) unawaited(_deleteStrokeRecords(copies));
     try {
       await _canvas.patchStroke(stroke.id, {
         'imageX': stroke.imageX,
@@ -2383,9 +2387,11 @@ class _DrawScreenState extends State<DrawScreen>
     );
     if (xFile == null || !mounted) return;
 
-    final id = 'img_${DateTime.now().millisecondsSinceEpoch}_$_orderCounter';
+    final cid = 'img_${DateTime.now().millisecondsSinceEpoch}_$_orderCounter';
+    final id = _recordId(cid);
     final stroke = DrawStroke(
       id: id,
+      clientId: cid,
       userId: _myUid,
       colorValue: 0xFF000000,
       strokeWidth: 0,
@@ -2416,7 +2422,7 @@ class _DrawScreenState extends State<DrawScreen>
     // Storage и только с готовым сетевым URL коммитим штрих, чтобы партнёр тоже
     // увидел картинку, а не «битый файл».
     setState(() {
-      _pendingLocalStrokes[id] = stroke;
+      _shared.addPending(stroke);
       _visibleStrokes = _composeVisibleStrokes();
     });
     _noteMyStroke(id);
@@ -2428,59 +2434,37 @@ class _DrawScreenState extends State<DrawScreen>
     final ext = localPath.split('.').last.toLowerCase();
     final dest = 'canvas/$_groupId/$_canvasId/$localStrokeId.$ext';
     final url = await _fb.uploadFile(localPath, dest);
-    if (!mounted) return;
 
     // Штрих могли отменить/удалить, пока шла загрузка — тогда ничего не коммитим.
     final pending = _pendingLocalStrokes[localStrokeId];
     if (pending == null) return;
 
     if (url == null) {
-      // Загрузка не удалась — убираем оптимистичный штрих и историю undo.
-      debugPrint('[Draw] image upload failed, dropping stroke $localStrokeId');
-      _cancelledPendingStrokeIds.remove(localStrokeId);
-      _myStrokeIds.remove(localStrokeId);
-      setState(() {
-        _pendingLocalStrokes.remove(localStrokeId);
-        if (_selectedImageId == localStrokeId) _selectedImageId = null;
-        _visibleStrokes = _composeVisibleStrokes();
-      });
+      // Загрузка не удалась. Раньше заливка тут же пропадала с холста, и в
+      // раскраске, где всё — заливки, нарисованное исчезало через секунду
+      // (TOG-12, повторено на эмуляторе без сети). Теперь она остаётся и
+      // уходит очередью: та загрузит файл и запишет штрих, когда будет сеть.
+      debugPrint('[Draw] image upload failed, queueing stroke $localStrokeId');
+      if (_shared.createFailed(localStrokeId)) {
+        unawaited(OutboxService.instance.enqueue('strokeImageAdd', {
+          'id': localStrokeId,
+          'groupId': _groupId,
+          'canvasId': _canvasId,
+          'path': localPath,
+          'stroke': pending.toFirestore(),
+        }));
+      }
       return;
     }
 
     // Подменяем file:// на сетевой URL (берём актуальный pending — вдруг штрих
-    // двигали во время загрузки) и коммитим штрих в Firestore уже с ним.
+    // двигали во время загрузки) и коммитим штрих уже с ним.
     final networked = _copyImageStroke(pending, url: url);
-    setState(() {
-      _pendingLocalStrokes[localStrokeId] = networked;
-      _visibleStrokes = _composeVisibleStrokes();
-    });
-    _commitImageStroke(localStrokeId, networked);
-  }
-
-  /// Записать картинку-штрих в Firestore (с уже сетевым URL). Повторяет логику
-  /// сверки optimistic-штриха из [_submitStroke]: при ошибке откатывает локально,
-  /// при отмене во время записи — удаляет уже созданный документ.
-  void _commitImageStroke(String localId, DrawStroke stroke) {
-    _canvas
-        .addStroke(_groupId, _canvasId, stroke.toFirestore())
-        .then((remoteId) async {
-          if (remoteId.isEmpty) throw Exception('Empty stroke id');
-          if (_cancelledPendingStrokeIds.remove(localId)) {
-            if (!await _canvas.deleteStroke(remoteId)) {
-              await OutboxService.instance
-                  .enqueue('strokeDelete', {'id': remoteId});
-            }
-          }
-        })
-        .catchError((e) {
-          debugPrint('[Draw] image commit error: $e');
-          if (!mounted) return;
-          _myStrokeIds.remove(localId);
-          setState(() {
-            _pendingLocalStrokes.remove(localId);
-            _visibleStrokes = _composeVisibleStrokes();
-          });
-        });
+    _pendingLocalStrokes[localStrokeId] = networked;
+    if (mounted) {
+      setState(() => _visibleStrokes = _composeVisibleStrokes());
+    }
+    _sendStroke(networked);
   }
 
   //  Commit stroke
@@ -2514,7 +2498,7 @@ class _DrawScreenState extends State<DrawScreen>
     // уже нарисовал его у себя и по нему узнает пришедшую из базы запись.
     final sid = _liveSid ?? _newStrokeId();
     final stroke = DrawStroke(
-      id: sid,
+      id: _recordId(sid),
       clientId: sid,
       userId: _myUid,
       colorValue: _currentColorValue,
@@ -2556,12 +2540,13 @@ class _DrawScreenState extends State<DrawScreen>
     if (copies.isEmpty) return;
     _mirrorGroupOf[stroke.id] = groupKey;
     for (final points in copies) {
-      final id = _newStrokeId();
+      final cid = _newStrokeId();
+      final id = _recordId(cid);
       _mirrorGroupOf[id] = groupKey;
       _submitStroke(
         DrawStroke(
           id: id,
-          clientId: id,
+          clientId: cid,
           userId: _myUid,
           colorValue: stroke.colorValue,
           strokeWidth: stroke.strokeWidth,
@@ -2589,20 +2574,25 @@ class _DrawScreenState extends State<DrawScreen>
       return;
     }
 
-    _pendingLocalStrokes[stroke.id] = stroke;
+    _shared.addPending(stroke);
     _visibleStrokes = _composeVisibleStrokes();
     if (undoable) _noteMyStroke(stroke.id);
     _syncCanvasChrome();
+    _sendStroke(stroke);
+  }
 
+  /// Записать свой штрих на сервер под его id записи.
+  ///
+  /// id посчитан телефоном (`strokeRecordId`), поэтому повтор не заводит копию,
+  /// а отмена знает, что удалять, ещё до ответа сервера (TOG-12).
+  void _sendStroke(DrawStroke stroke) {
     _canvas
-        .addStroke(_groupId, _canvasId, stroke.toFirestore())
+        .addStroke(_groupId, _canvasId, stroke.toFirestore(), id: stroke.id)
         .then((remoteId) async {
           if (remoteId.isEmpty) throw Exception('Empty stroke id');
-          if (_cancelledPendingStrokeIds.remove(stroke.id)) {
-            if (!await _canvas.deleteStroke(remoteId)) {
-              await OutboxService.instance
-                  .enqueue('strokeDelete', {'id': remoteId});
-            }
+          // Штрих успели убрать, пока он летел: запись удаляем.
+          if (_shared.createSucceeded(stroke.id)) {
+            await _deleteStrokeRecords([remoteId]);
           }
         })
         .catchError((e) {
@@ -2610,7 +2600,9 @@ class _DrawScreenState extends State<DrawScreen>
           // Штрих остаётся на холсте, а доставку берёт очередь. Раньше отказ
           // стирал нарисованное: в пиксельной раскраске клетки уходят
           // десятками в секунду, часть запросов не проходит, и рисунок
-          // осыпался прямо под рукой («всё стирает»).
+          // осыпался прямо под рукой («всё стирает»). Убранный штрих очереди
+          // не отдаём: она прислала бы его позже, и отменённое вернулось бы.
+          if (!_shared.createFailed(stroke.id)) return;
           unawaited(OutboxService.instance.enqueue('strokeAdd', {
             'id': stroke.id,
             'groupId': _groupId,
@@ -2618,6 +2610,41 @@ class _DrawScreenState extends State<DrawScreen>
             'stroke': stroke.toFirestore(),
           }));
         });
+  }
+
+  /// id записи штриха на сервере из номера мазка.
+  String _recordId(String clientId) =>
+      strokeRecordId(_groupId, _canvasId, clientId);
+
+  /// Удалить записи штриха и его копий. Не дошло — доведёт очередь, иначе
+  /// штрих останется в базе и всплывёт при следующей загрузке.
+  Future<void> _deleteStrokeRecords(List<String> ids,
+      {bool viaQueue = false}) async {
+    for (final id in ids) {
+      var done = false;
+      if (!viaQueue) {
+        try {
+          done = await _canvas.deleteStroke(id);
+        } catch (e) {
+          debugPrint('[Draw] не удалось удалить штрих $id: $e');
+        }
+      }
+      if (!done) {
+        await OutboxService.instance.enqueue('strokeDelete', {'id': id});
+      }
+    }
+  }
+
+  /// Штрих убран с общего холста (отмена, ластик «линия целиком», удаление
+  /// картинки или слоя): довести это до сервера так, как велит книга.
+  Future<void> _sendRemoval(String id, StrokeRemoval plan) async {
+    if (!_hasSharedCanvas) return;
+    // Добавление могло не уйти с первого раза и ждать в очереди: снимаем,
+    // иначе очередь пришлёт штрих позже и отменённое вернётся.
+    if (plan.cancelQueued) {
+      await OutboxService.instance.enqueue('strokeCancel', {'id': id});
+    }
+    await _deleteStrokeRecords(plan.records, viaQueue: plan.viaQueue);
   }
 
   //  Undo / Redo
@@ -2659,25 +2686,15 @@ class _DrawScreenState extends State<DrawScreen>
 
   Future<void> _undoOne(String undoKey) async {
 
-    DrawStroke? removed;
-    String? remoteIdForDelete;
-
-    if (_pendingLocalStrokes.containsKey(undoKey)) {
-      removed = _pendingLocalStrokes.remove(undoKey);
-      _cancelledPendingStrokeIds.add(undoKey);
-      // Штрих мог не долететь с первого раза и ждать в очереди. Снимаем задачу,
-      // иначе очередь пришлёт его позже и отменённое вернётся на холст.
-      unawaited(
-          OutboxService.instance.enqueue('strokeCancel', {'id': undoKey}));
-    } else {
-      removed = _visibleStrokes.where((s) => s.id == undoKey).firstOrNull;
-      if (removed != null && _hasSharedCanvas) {
-        _remoteStrokes = _remoteStrokes.where((s) => s.id != undoKey).toList();
-        remoteIdForDelete = undoKey;
-      }
-    }
-
+    final removed = _pendingLocalStrokes[undoKey] ??
+        _visibleStrokes.where((s) => s.id == undoKey).firstOrNull;
     if (removed == null) return;
+    // Отмена не отыгрывается назад: человек убрал штрих — значит его нет, а
+    // сервер догоняет. Книга знает, что удалять: запись могла уже лечь, хотя
+    // эхо не пришло, и у штриха бывают копии. Раньше отмена такого штриха
+    // только ставила отметку «отменён», запись оставалась, и эхо возвращало
+    // линию на холст (TOG-12, повторено на эмуляторе: «нарисовал — отменил»).
+    final plan = _hasSharedCanvas ? _shared.remove(undoKey) : null;
     _redoStack.add(removed);
     _strokeSeq[removed.id] = ++_actionSeq;
     // Правки удалённой фигуры отменять уже не на чем.
@@ -2701,24 +2718,9 @@ class _DrawScreenState extends State<DrawScreen>
       _saveSoloStrokes();
     }
 
-    if (!_hasSharedCanvas || remoteIdForDelete == null) return;
-
-    // Отмена не отыгрывается назад. Человек убрал штрих — значит его нет, а
-    // сервер догоняет очередью: она повторяет с паузами и переживает
-    // перезапуск приложения. Прежний код при отказе возвращал штрих на холст,
-    // и это читалось как «отменённые штрихи восстанавливаются»; хуже того,
-    // репозиторий отказ проглатывал, поэтому чаще всего штрих оставался в базе
-    // молча и всплывал при следующей загрузке.
-    var done = false;
-    try {
-      done = await _canvas.deleteStroke(remoteIdForDelete);
-    } catch (e) {
-      debugPrint('[Draw] undo: удаление не прошло ($e)');
-    }
-    if (!done) {
-      await OutboxService.instance
-          .enqueue('strokeDelete', {'id': remoteIdForDelete});
-    }
+    // Сервер догоняет: при отказе удаление доведёт очередь, она повторяет с
+    // паузами и переживает перезапуск приложения.
+    if (plan != null) await _sendRemoval(undoKey, plan);
   }
 
   /// Возврат. Зеркальная пачка возвращается так же целиком, как снималась.
@@ -2755,8 +2757,10 @@ class _DrawScreenState extends State<DrawScreen>
   Future<void> _redoOne() async {
     if (_redoStack.isEmpty) return;
     final base = _redoStack.removeLast();
+    final cid = _newStrokeId();
     final stroke = DrawStroke(
-      id: 'local_${DateTime.now().millisecondsSinceEpoch}_$_orderCounter',
+      id: _recordId(cid),
+      clientId: cid,
       userId: _myUid,
       colorValue: base.colorValue,
       strokeWidth: base.strokeWidth,
@@ -2779,6 +2783,18 @@ class _DrawScreenState extends State<DrawScreen>
     // пачкой: иначе следующая отмена снимет её по одному.
     final group = _mirrorGroupOf[base.id];
     if (group != null) _mirrorGroupOf[stroke.id] = group;
+    // Заливку, отменённую до загрузки файла, возвращаем загрузкой: в её
+    // ссылке путь на этом телефоне, и партнёр получил бы пустое место. На
+    // проде таких заливок с `file://` нашлось 24 из 15 тысяч (TOG-12).
+    final url = stroke.imageUrl;
+    if (_hasSharedCanvas && url != null && url.startsWith('file://')) {
+      _shared.addPending(stroke);
+      _noteMyStroke(stroke.id);
+      setState(() => _visibleStrokes = _composeVisibleStrokes());
+      _syncCanvasChrome();
+      unawaited(_uploadImageAsync(stroke.id, url.substring('file://'.length)));
+      return;
+    }
     _submitStroke(stroke);
   }
 
@@ -2837,10 +2853,11 @@ class _DrawScreenState extends State<DrawScreen>
     // следующих в истории. Обратный порядок ставит их ровно туда, где были.
     for (final e in entry.strokes.reversed) {
       final s = e.stroke;
-      final id = '${_newStrokeId()}_r${restored.length}';
+      final cid = '${_newStrokeId()}_r${restored.length}';
+      final id = _recordId(cid);
       final copy = DrawStroke(
         id: id,
-        clientId: id,
+        clientId: cid,
         userId: s.userId,
         colorValue: s.colorValue,
         strokeWidth: s.strokeWidth,
@@ -2933,33 +2950,14 @@ class _DrawScreenState extends State<DrawScreen>
   /// Отдельно от [_deleteSelectedImage]: тот работает только с выбранной
   /// картинкой, а слой уносит с собой всё, что на нём лежит.
   void _removeStrokeById(String id) {
-    if (_pendingLocalStrokes.containsKey(id)) {
-      _pendingLocalStrokes.remove(id);
-      _cancelledPendingStrokeIds.add(id);
-      _myStrokeIds.remove(id);
-      return;
-    }
-
     _myStrokeIds.remove(id);
-    _remoteStrokes = _remoteStrokes.where((s) => s.id != id).toList();
-
     if (!_hasSharedCanvas) {
       _saveSoloStrokes();
       return;
     }
-    unawaited(() async {
-      var done = false;
-      try {
-        done = await _canvas.deleteStroke(id);
-      } catch (e) {
-        debugPrint('[Draw] не удалось удалить штрих $id: $e');
-      }
-      // Не дошло до сервера — доведёт очередь. Иначе штрих остаётся в базе и
-      // всплывает при следующей загрузке холста.
-      if (!done) {
-        await OutboxService.instance.enqueue('strokeDelete', {'id': id});
-      }
-    }());
+    // Книга решает, что удалить на сервере: неподтверждённый штрих мог уже
+    // лечь в базу, и раньше его запись оставалась, а копии штриха — тоже.
+    unawaited(_sendRemoval(id, _shared.remove(id)));
   }
 
   /// Запоминает выбранный фон.
@@ -2998,19 +2996,8 @@ class _DrawScreenState extends State<DrawScreen>
     if (_selectedImageId == null) return;
     final id = _selectedImageId!;
 
-    // Pending stroke (Firebase not yet confirmed)
-    if (_pendingLocalStrokes.containsKey(id)) {
-      _pendingLocalStrokes.remove(id);
-      _cancelledPendingStrokeIds.add(id);
-      _myStrokeIds.remove(id);
-      setState(() {
-        _selectedImageId = null;
-        _visibleStrokes = _composeVisibleStrokes();
-      });
-      return;
-    }
-
-    final removed = _visibleStrokes.where((s) => s.id == id).firstOrNull;
+    final removed = _pendingLocalStrokes[id] ??
+        _visibleStrokes.where((s) => s.id == id).firstOrNull;
     if (removed == null) {
       setState(() => _selectedImageId = null);
       return;
@@ -3027,21 +3014,14 @@ class _DrawScreenState extends State<DrawScreen>
       return;
     }
 
-    _remoteStrokes = _remoteStrokes.where((s) => s.id != id).toList();
+    // Неподтверждённая картинка могла уже лечь в базу, а у заливки бывают
+    // копии: что удалить, говорит книга (TOG-12).
+    final plan = _shared.remove(id);
     setState(() {
       _selectedImageId = null;
       _visibleStrokes = _composeVisibleStrokes();
     });
-
-    var imageGone = false;
-    try {
-      imageGone = await _canvas.deleteStroke(id);
-    } catch (e) {
-      debugPrint('[Draw] deleteImage error: $e');
-    }
-    if (!imageGone) {
-      await OutboxService.instance.enqueue('strokeDelete', {'id': id});
-    }
+    await _sendRemoval(id, plan);
   }
 
   //  Fill / Clear
@@ -3109,15 +3089,17 @@ class _DrawScreenState extends State<DrawScreen>
       final fw = rect.width / full.width;
       final fh = rect.height / full.height;
 
-      final dir = await getTemporaryDirectory();
+      final dir = await _fillsDir();
       final file = File(
         '${dir.path}/fill_${DateTime.now().millisecondsSinceEpoch}.png',
       );
       await file.writeAsBytes(png.buffer.asUint8List());
 
-      final id = 'fill_${DateTime.now().millisecondsSinceEpoch}_$_orderCounter';
+      final cid = 'fill_${DateTime.now().millisecondsSinceEpoch}_$_orderCounter';
+      final id = _recordId(cid);
       final stroke = DrawStroke(
         id: id,
+        clientId: cid,
         userId: _myUid,
         colorValue: _activeColor.toARGB32(),
         strokeWidth: 0,
@@ -3142,13 +3124,46 @@ class _DrawScreenState extends State<DrawScreen>
       // файл — локальный путь партнёр не откроет. Дальше тем же путём, что и
       // вставленные из галереи картинки.
       setState(() {
-        _pendingLocalStrokes[id] = stroke;
+        _shared.addPending(stroke);
         _visibleStrokes = _composeVisibleStrokes();
       });
       _noteMyStroke(id);
       unawaited(_uploadImageAsync(id, file.path));
     } catch (e) {
       debugPrint('заливка не удалась: $e');
+    }
+  }
+
+  bool _fillsPruned = false;
+
+  /// Папка для картинок заливок. Временная не годится: система чистит её
+  /// когда хочет, а заливка, нарисованная без сети, ждёт в очереди с этим
+  /// файлом (TOG-12). У своего холста штрих ссылается на файл насовсем,
+  /// поэтому его заливки лежат отдельно и не чистятся.
+  Future<Directory> _fillsDir() async {
+    final base = await getApplicationSupportDirectory();
+    final dir = Directory(
+        '${base.path}/canvas_fills/${_hasSharedCanvas ? 'shared' : 'solo'}');
+    await dir.create(recursive: true);
+    if (_hasSharedCanvas && !_fillsPruned) {
+      _fillsPruned = true;
+      unawaited(_pruneOldFills(dir));
+    }
+    return dir;
+  }
+
+  /// Заливки общего холста старше недели уже на сервере или безнадёжны:
+  /// очередь сдаётся раньше.
+  Future<void> _pruneOldFills(Directory dir) async {
+    try {
+      final border = DateTime.now().subtract(const Duration(days: 7));
+      await for (final f in dir.list()) {
+        if (f is File && (await f.lastModified()).isBefore(border)) {
+          await f.delete();
+        }
+      }
+    } catch (e) {
+      debugPrint('[Draw] не удалось почистить заливки: $e');
     }
   }
 
@@ -5443,8 +5458,10 @@ class _DrawScreenState extends State<DrawScreen>
     );
     if (!ok || !mounted) return;
 
-    final doomed =
-        _visibleStrokes.where((st) => st.layer == index).map((st) => st.id);
+    final doomed = _visibleStrokes
+        .where((st) => st.layer == index)
+        .map((st) => st.id)
+        .toList();
     for (final id in doomed) {
       _removeStrokeById(id);
     }
@@ -5453,8 +5470,13 @@ class _DrawScreenState extends State<DrawScreen>
       _layerCount = (_layerCount - 1).clamp(1, 99);
       _activeLayer = _activeLayer.clamp(0, _layerCount - 1);
       _hiddenLayers.remove(index);
-      _visibleStrokes = _composeVisibleStrokes();
+      // У своего холста штрихи живут только в видимом списке: сборка из
+      // общего (пустого у него) стирала все слои разом, а не один.
+      _visibleStrokes = _hasSharedCanvas
+          ? _composeVisibleStrokes()
+          : _visibleStrokes.where((st) => st.layer != index).toList();
     });
+    if (!_hasSharedCanvas) _saveSoloStrokes();
     _repaintNotifier.value++;
     refreshSheet(() {});
   }

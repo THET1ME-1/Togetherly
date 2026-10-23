@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import '../dict_strings.dart';
 import '../models/canvas_meta.dart';
 import '../models/pair_data.dart';
 import '../models/user_data.dart';
@@ -194,9 +195,11 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
     });
   }
 
-  Future<void> _deleteSelected() async {
+  Future<void> _deleteSelected() => _deleteCanvases(_selected.toList());
+
+  /// Удалить холсты [ids] после подтверждения.
+  Future<void> _deleteCanvases(List<String> ids) async {
     final s = LocaleService.current;
-    final ids = _selected.toList();
     if (ids.isEmpty) return;
     final confirmed = await AppDialog.confirm(
       context,
@@ -438,7 +441,12 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
         childAspectRatio: 0.88,
       ),
       itemCount: _canvases.length,
-      itemBuilder: (ctx, i) => _buildCard(ctx, _canvases[i], t),
+      // Ключ холста: удалили холст — плитки соседей едут вместе со своими
+      // рисунками, а не перенимают чужой (TOG-12).
+      itemBuilder: (ctx, i) => KeyedSubtree(
+        key: ValueKey(_canvases[i].id),
+        child: _buildCard(ctx, _canvases[i], t),
+      ),
     );
   }
 
@@ -617,6 +625,7 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
   /// рисунку, и значок поверх него мешал бы смотреть.
   Future<void> _showCardMenu(CanvasMeta meta) async {
     final t = widget.theme;
+    final danger = t.scheme?.error ?? const Color(0xFFBA1A1A);
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: t.scheme?.surfaceContainerHigh ?? t.cardSurface,
@@ -655,6 +664,27 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
               onTap: () {
                 Navigator.pop(ctx);
                 _renameCanvas(meta);
+              },
+            ),
+            // С 21.09.2026 удалить холст было нечем: выбор включался только
+            // долгим нажатием, а его отдали под это меню (TOG-12).
+            ListTile(
+              leading: Icon(Icons.check_circle_outline_rounded, color: t.primary),
+              title: Text(trKey('canvasMenuSelect')),
+              onTap: () {
+                Navigator.pop(ctx);
+                _toggleSelected(meta);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.delete_outline_rounded, color: danger),
+              title: Text(
+                trKey('canvasMenuDelete'),
+                style: TextStyle(color: danger),
+              ),
+              onTap: () {
+                Navigator.pop(ctx);
+                _deleteCanvases([meta.id]);
               },
             ),
             const SizedBox(height: 8),

@@ -1557,6 +1557,19 @@ def _flush_counters_пишем(deltas: dict) -> None:
 
 ЗЕРКАЛО_ОТМЕТКА = "/opt/hotpath/.groups_mirror_at"
 ЗЕРКАЛО_ПАЧКА = 1000
+# Курсор по паре (updated, id): у тысяч пар бывает одна и та же метка правки
+# (ночной пересчёт счётчиков пишет её всем сразу), и выборка по одному updated
+# теряла всё, что не влезло в первую пачку. Условие расписано так, чтобы
+# работал индекс idx_groups_updated.
+ЗЕРКАЛО_ЗАПРОС = (
+    "SELECT * FROM groups WHERE updated >= $1 AND (updated > $1 OR id > $2) "
+    "ORDER BY updated, id LIMIT $3")
+
+
+def _разобрать_отметку(текст: str) -> tuple:
+    """Отметка зеркала: «updated<TAB>id». Старая запись без id — id пустой."""
+    время, _, ид = текст.partition("\t")
+    return время, ид
 
 
 def _прочитать_отметку() -> str:
@@ -1610,10 +1623,10 @@ async def _зеркало_воркер() -> None:
                 # нагрузил бы запись в SQLite.
                 _записать_отметку(now_pb())
                 continue
+            время, ид = _разобрать_отметку(отметка)
             async with pg.acquire() as c:
                 строки = await c.fetch(
-                    "SELECT * FROM groups WHERE updated > $1 "
-                    "ORDER BY updated LIMIT $2", отметка, ЗЕРКАЛО_ПАЧКА)
+                    ЗЕРКАЛО_ЗАПРОС, время, ид, ЗЕРКАЛО_ПАЧКА)
             if not строки:
                 continue
             свои = await asyncio.to_thread(
@@ -1633,7 +1646,9 @@ async def _зеркало_воркер() -> None:
                     "их в Postgres, зеркало их не затирает", len(чужие),
                     ", ".join(чужие[:5]))
                 await _поднять_из_sqlite(чужие)
-            _записать_отметку(строки[-1]["updated"] or отметка)
+            последняя = строки[-1]
+            _записать_отметку(
+                f"{последняя['updated'] or время}\t{последняя['id']}")
         except Exception as e:  # воркер не должен умирать
             log.warning("зеркало пар: %s", e)
 

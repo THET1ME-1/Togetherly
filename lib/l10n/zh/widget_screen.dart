@@ -187,6 +187,8 @@ const Map<String, String> widgetScreenZh = {
   'drawAddToWidget': '放到桌面上',
   'drawAddToWidgetHint': '这幅画会出现在你的应用图标旁边',
   'drawAddToWidgetUnsupported': '你的桌面不支持自动添加小组件。请长按桌面手动添加。',
+  'canvasMenuDelete': '删除画布',
+  'canvasMenuSelect': '多选',
   'canvasWidgetTitle': '桌面画作',
   'canvasWidgetSubtitle': '你们的共享画布，没有多余的文字',
   'canvasWidgetSizeTall': '整张画布',

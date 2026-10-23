@@ -605,7 +605,8 @@ class _InAppVideoPlayerPageState extends State<InAppVideoPlayerPage> {
     if (!mounted) return;
     final controller = local != null
         ? VideoPlayerController.file(File(local))
-        : VideoPlayerController.networkUrl(Uri.parse(playable));
+        : VideoPlayerController.networkUrl(
+            Uri.parse(ServerRoute.instance.forNative(playable)));
     _controller = controller;
     controller.addListener(_onUpdate);
     try {

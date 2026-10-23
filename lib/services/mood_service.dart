@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/mood_entry.dart';
 import '../models/pair_data.dart';
+import '../utils/calendar_day.dart';
 import 'mood_repository.dart';
 import 'pocketbase_service.dart';
 import 'widget_service.dart';
@@ -266,7 +267,9 @@ class MoodService extends ChangeNotifier {
       final key = _dayKey(day);
       if (!bothDays.contains(key)) break;
       streak++;
-      day = day.subtract(const Duration(days: 1));
+      // Клеткой календаря, а не 24 часами: ночью после перевода часов шаг
+      // назад перепрыгивал через день, и серия рвалась.
+      day = calendarDay(day, -1);
     }
     return streak;
   }

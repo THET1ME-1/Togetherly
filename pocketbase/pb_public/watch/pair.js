@@ -43,6 +43,14 @@
     { transport: 'websocket', endpoint: 'wss://togetherly.day/connection/websocket' },
     { transport: 'websocket', endpoint: 'wss://rt.togetherly.day:8443/connection/websocket' },
   ];
+  // Первым — адрес, с которого пришла сама страница. На запасном адресе
+  // edge.togetherly.day (IPv6, для тех, кому режут основной, 22.10.2026) два
+  // адреса выше у человека не открываются, рабочий путь один — этот.
+  const OWN = `wss://${location.host}/connection/websocket`;
+  if (/(^|\.)togetherly\.day$/.test(location.hostname)
+      && !WS.some((w) => w.endpoint === OWN)) {
+    WS.unshift({ transport: 'websocket', endpoint: OWN });
+  }
 
   /// Сколько ждём подключения, прежде чем свалиться на запасной адрес.
   const CONNECT_TIMEOUT = 7000;
@@ -228,7 +236,8 @@
           if (ch.isSubscribed || centrifuge.state === 'connected') return;
           fallbackTried = true;
           try { centrifuge.disconnect(); } catch (_) {}
-          WS.reverse();
+          // Адрес, на котором зависли, — в конец: адресов бывает и три.
+          WS.push(WS.shift());
           attach().catch(() => { if (h.status) h.status('lost'); });
         }, CONNECT_TIMEOUT);
       }

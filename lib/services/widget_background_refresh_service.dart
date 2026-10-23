@@ -7,6 +7,7 @@ import 'package:workmanager/workmanager.dart';
 import 'home_widget_service.dart';
 import 'locale_service.dart';
 import 'map/pair_map_widget_service.dart';
+import 'network/server_route.dart';
 import 'pocketbase_service.dart';
 
 /// Периодический фоновый ФОЛБЭК обновления виджетов через WorkManager (Android).
@@ -98,6 +99,7 @@ void widgetRefreshDispatcher() {
       // Фоновый изолят свежий — регистрируем плагины, иначе MethodChannel
       // (home_widget / shared_preferences / path_provider) недоступны.
       WidgetsFlutterBinding.ensureInitialized();
+      await ServerRoute.install();
       // На Android no-op, но home_widget требует до первого saveWidgetData.
       await HomeWidget.setAppGroupId('group.com.togetherly.love');
 

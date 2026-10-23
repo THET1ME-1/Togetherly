@@ -1709,6 +1709,26 @@ const Map<String, Map<String, String>> widgetScreenStrings = {
     'fr': 'Votre launcher ne peut pas épingler de widget. Ajoutez-le en maintenant l écran.',
     'de': 'Der Launcher kann Widgets nicht anheften. Lege es per langem Druck an.',
   },
+  // Меню холста в галерее. Удаления в нём не было с 21.09.2026: долгое
+  // нажатие отдали под это меню, а выбор холстов включался только им (TOG-12).
+  'canvasMenuDelete': {
+    'ru': 'Удалить холст',
+    'en': 'Delete canvas',
+    'pt': 'Apagar tela',
+    'it': 'Elimina tela',
+    'es': 'Eliminar lienzo',
+    'fr': 'Supprimer la toile',
+    'de': 'Leinwand löschen',
+  },
+  'canvasMenuSelect': {
+    'ru': 'Выбрать несколько',
+    'en': 'Select several',
+    'pt': 'Selecionar várias',
+    'it': 'Seleziona più tele',
+    'es': 'Seleccionar varios',
+    'fr': 'En sélectionner plusieurs',
+    'de': 'Mehrere auswählen',
+  },
   'canvasWidgetTitle': {
     'ru': 'Рисунок на столе',
     'en': 'Drawing on the home screen',

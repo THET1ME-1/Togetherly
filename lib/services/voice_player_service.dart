@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
+import 'network/server_route.dart';
 import 'pb_media_service.dart';
 import 'offline/media_file_fetch.dart';
 
@@ -129,7 +130,7 @@ class VoicePlayerService extends ChangeNotifier {
         if (local != null) {
           await _player.setFilePath(local);
         } else {
-          await _player.setUrl(src);
+          await _player.setUrl(ServerRoute.instance.forNative(src));
         }
       } else {
         await _player.setFilePath(src);

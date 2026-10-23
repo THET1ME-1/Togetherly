@@ -229,28 +229,34 @@ class _CanvasPreviewState extends State<CanvasPreview> {
   }
 
   Future<void> _load() async {
-    final cached = _cache[_key];
+    // Плитка без ключа переходит к другому холсту, когда список сдвигается
+    // (холст удалили). Ответ по прежнему холсту, пришедший позже, плитку не
+    // занимает: раньше «Canvas 2» показывал рисунок удалённого «Canvas 3», и
+    // удаление выглядело несработавшим (TOG-12).
+    final key = _key;
+    final canvasId = widget.meta.id;
+    final groupId = widget.groupId;
+    final cached = _cache[key];
     if (cached != null) {
       setState(() => _strokes = cached);
       return;
     }
     var loaded = await CanvasStorageService.instance.loadLocalStrokes(
       widget.uid,
-      widget.meta.id,
-      groupId: widget.groupId,
+      canvasId,
+      groupId: groupId,
     );
 
     // На диске пусто — значит холст рисовал партнёр, а этот телефон в него не
     // заходил ни разу. Тогда берём начало рисунка с сервера: плитка важнее
     // одного запроса, а иначе человек видит пустую карточку и думает, что
     // холст пустой.
-    if (loaded.isEmpty && widget.groupId.isNotEmpty) {
-      loaded = await CanvasRepository.instance
-          .previewStrokes(widget.groupId, widget.meta.id);
+    if (loaded.isEmpty && groupId.isNotEmpty) {
+      loaded = await CanvasRepository.instance.previewStrokes(groupId, canvasId);
     }
 
-    _cache[_key] = loaded;
-    if (mounted) setState(() => _strokes = loaded);
+    _cache[key] = loaded;
+    if (mounted && _key == key) setState(() => _strokes = loaded);
   }
 
   @override

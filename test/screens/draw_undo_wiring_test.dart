@@ -11,7 +11,9 @@ void main() {
   final src = File('lib/screens/draw_screen.dart').readAsStringSync();
 
   test('при смене id своего штриха номер действия переезжает следом', () {
-    final swap = src.indexOf('updatedMyIds[i] = remote.id');
+    // Переименования отдаёт книга общего холста (`SharedStrokes`): у штрихов
+    // старого вида id записи узнаётся только из снимка сервера.
+    final swap = src.indexOf('updatedMyIds[i] = to');
     expect(swap, greaterThan(0));
     final after = src.substring(swap, swap + 600);
     expect(after, contains('adoptStrokeId(_strokeSeq, _mirrorGroupOf'),
@@ -22,7 +24,9 @@ void main() {
     final remote = src.indexOf('void _onRemoteStrokes(');
     expect(remote, greaterThan(0));
     final body = src.substring(remote, remote + 4000);
-    expect(body, contains('ownStrokeHistory(parsed, _myUid)'),
+    // Список книги, а не сырой снимок: в нём одна линия на все копии мазка,
+    // и отмена снимает их разом (TOG-12).
+    expect(body, contains('ownStrokeHistory(shown, _myUid)'),
         reason: 'без этого линию прошлого захода в общем холсте не отменить');
   });
 

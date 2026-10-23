@@ -18,6 +18,7 @@ import '../theme/app_theme.dart';
 import '../theme/fonts.dart';
 import '../theme/profile_theme.dart';
 import '../widgets/common/stable_stream_builder.dart';
+import '../utils/calendar_day.dart';
 import '../widgets/avatar_widget.dart';
 import '../widgets/miss_you/custom_vibe_sheet.dart';
 import '../widgets/miss_you/heart_field.dart';
@@ -991,7 +992,7 @@ String lastSeenLabel(int? seenAtMs, String yesterdayWord) {
   final hhmm = '${seen.hour.toString().padLeft(2, '0')}:'
       '${seen.minute.toString().padLeft(2, '0')}';
   if (day == today) return hhmm;
-  if (day == today.subtract(const Duration(days: 1))) {
+  if (day == calendarDay(today, -1)) {
     return '${yesterdayWord.toLowerCase()} $hhmm';
   }
   return '${seen.day.toString().padLeft(2, '0')}.'

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:yandex_mobileads/mobile_ads.dart' as yandex;
 
 import '../config/ad_units.dart';
+import 'ad_platform.dart';
 
 /// Межстраничный ролик: показывается на переходе между экранами, награды за
 /// него нет.
@@ -45,7 +46,7 @@ class InterstitialAdService {
   /// загрузка занимает секунды, и ждать её человеку не за чем.
   Future<void> load() async {
     if (_disposed || _isLoading || isReady) return;
-    if (!Platform.isAndroid && !Platform.isIOS) return;
+    if (!AdPlatform.supported) return;
     _isLoading = true;
     await _loadYandex();
   }
@@ -55,25 +56,24 @@ class InterstitialAdService {
       _isLoading = false;
       return;
     }
+    // SDK 8 отдаёт объявление из `loadAd`, а отказ бросает AdRequestError.
     try {
-      _yandexLoader ??= await yandex.InterstitialAdLoader.create(
-        onAdLoaded: (ad) {
-          _yandexAd = ad;
-          _isLoading = false;
-        },
-        onAdFailedToLoad: (error) {
-          debugPrint('Yandex interstitial failed: ${error.code} '
-              '${error.description}');
-          _yandexAd = null;
-          _isLoading = false;
-        },
+      final loader = _yandexLoader ??= yandex.InterstitialAdLoader();
+      final ad = await loader.loadAd(
+        adRequest: yandex.AdRequest(adUnitId: _yandexUnit),
       );
-      await _yandexLoader!.loadAd(
-        adRequestConfiguration:
-            yandex.AdRequestConfiguration(adUnitId: _yandexUnit),
-      );
+      if (_disposed) {
+        unawaited(ad.destroy());
+      } else {
+        _yandexAd = ad;
+      }
+    } on yandex.AdRequestError catch (error) {
+      debugPrint('Yandex interstitial failed: ${error.code} '
+          '${error.description}');
+      _yandexAd = null;
     } catch (e) {
       debugPrint('Yandex interstitial load exception: $e');
+    } finally {
       _isLoading = false;
     }
   }
@@ -130,5 +130,7 @@ class InterstitialAdService {
     _disposed = true;
     unawaited(_yandexAd?.destroy() ?? Future<void>.value());
     _yandexAd = null;
+    _yandexLoader?.destroy();
+    _yandexLoader = null;
   }
 }

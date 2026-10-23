@@ -11,6 +11,7 @@
 library;
 
 import '../services/locale_service.dart';
+import '../utils/couple_days.dart';
 
 /// Одна отметка на дорожке.
 class Milestone {
@@ -83,11 +84,9 @@ DateTime _anniversaryOf(DateTime start, int n) =>
 /// вместе» (см. calendarDaysBetween в utils/couple_days.dart).
 DateTime _plusDays(DateTime d, int n) => DateTime(d.year, d.month, d.day + n);
 
-int _daysBetween(DateTime a, DateTime b) {
-  final from = DateTime(a.year, a.month, a.day);
-  final to = DateTime(b.year, b.month, b.day);
-  return to.difference(from).inDays;
-}
+/// Деление нацело давало на день меньше, если между датами переводили часы:
+/// две полуночи разделяли сутки без часа.
+int _daysBetween(DateTime a, DateTime b) => calendarDaysBetween(a, b);
 
 /// Дорожка на сегодня.
 ///

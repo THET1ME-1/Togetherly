@@ -7,6 +7,7 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'centrifugo_service.dart';
 import 'fcm_service.dart';
 import 'home_widget_service.dart';
+import 'network/server_route.dart';
 import 'pb_push_service.dart';
 import 'pocketbase_service.dart';
 
@@ -242,6 +243,8 @@ class _PushTaskHandler extends TaskHandler {
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
+    // Изолят сервиса свой, и глобалы у него свои: запасной путь ставим заново.
+    await ServerRoute.install();
     // Система могла поднять сервис сама — после перезагрузки или обновления
     // приложения. Спросить `FcmService` здесь некому (изолят свежий, канала
     // платформы у него нет), поэтому решение оставил прошлый запуск.

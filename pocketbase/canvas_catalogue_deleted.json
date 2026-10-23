@@ -1,0 +1,18 @@
+{
+  "name": "canvas_catalogue_deleted",
+  "type": "base",
+  "listRule": null,
+  "viewRule": null,
+  "createRule": null,
+  "updateRule": null,
+  "deleteRule": null,
+  "fields": [
+    {"name": "group_id", "type": "text", "required": true},
+    {"name": "canvas_id", "type": "text", "required": true},
+    {"name": "created", "type": "autodate", "onCreate": true, "onUpdate": false},
+    {"name": "updated", "type": "autodate", "onCreate": true, "onUpdate": true}
+  ],
+  "indexes": [
+    "CREATE UNIQUE INDEX `idx_canvas_catalogue_deleted_group_canvas` ON `canvas_catalogue_deleted` (`group_id`, `canvas_id`)"
+  ]
+}

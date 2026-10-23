@@ -7,6 +7,7 @@ import 'package:pocketbase/pocketbase.dart';
 
 import '../models/miss_you_event.dart';
 import '../models/invite_code_state.dart';
+import '../models/stroke_record_id.dart';
 import '../models/timer_sync.dart';
 import '../utils/date_only.dart';
 import '../utils/pair_time.dart';
@@ -2288,23 +2289,40 @@ class PbDataService {
     }, op: 'upsertStroke');
   }
 
-  /// Создаёт штрих (PB генерит id, как [createMemory]). [data] — camelCase-карта
-  /// (`DrawStroke.toFirestore()`); вся геометрия в json `data` + индексируемый
-  /// order_index. Возвращает запись или null.
+  /// Создаёт штрих. [data] — camelCase-карта (`DrawStroke.toFirestore()`);
+  /// вся геометрия в json `data` + индексируемый order_index. Возвращает запись
+  /// или null.
+  ///
+  /// [id] — id записи, посчитанный телефоном ([strokeRecordId]). С ним повтор
+  /// после таймаута или 502 упирается в «уже есть» и считается успехом, а не
+  /// заводит вторую копию мазка (TOG-12). Номер мазка старого вида (`local_…`
+  /// из очереди прежних версий) серверу не отдаём — id тогда выдаёт сервер.
   Future<RecordModel?> createStroke(
     String groupId,
     String canvasId,
-    Map<String, dynamic> data,
-  ) async {
+    Map<String, dynamic> data, {
+    String? id,
+  }) async {
     if (groupId.isEmpty) return null;
+    final recordId = (id != null && isStrokeRecordId(id)) ? id : null;
     try {
       return await _pb.collection('canvas_strokes').create(body: {
+        'id': ?recordId,
         'group_id': groupId,
         'canvas_id': canvasId,
         'order_index': (data['orderIndex'] as num?)?.toInt() ?? 0,
         'data': _jsonSafe(data),
       });
     } catch (e) {
+      // Мазок уже лёг с прошлой попытки: ответ потерялся, запись на месте.
+      if (recordId != null && alreadyExists(e)) {
+        return RecordModel({
+          'id': recordId,
+          'collectionName': 'canvas_strokes',
+          'group_id': groupId,
+          'canvas_id': canvasId,
+        });
+      }
       debugPrint('PbData.createStroke failed: $e');
       return null;
     }

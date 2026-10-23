@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'config/sentry_config.dart';
 import 'services/crash_noise.dart';
+import 'services/network/server_route.dart';
 import 'services/stale_pointer_sweeper.dart';
 import 'utils/safe_pick.dart';
 import 'package:home_widget/home_widget.dart';
@@ -109,7 +110,7 @@ Future<void> _initConsentAndAds() async {
 
   // Реклама одна — Яндекс.
   try {
-    await yandex.MobileAds.initialize();
+    await yandex.YandexAds.initialize();
   } catch (e) {
     debugPrint('Yandex Ads init failed: $e');
   }
@@ -131,6 +132,7 @@ Future<void> _initConsentAndAds() async {
 @pragma('vm:entry-point')
 Future<void> widgetPushRefresh() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await ServerRoute.install();
   const channel = MethodChannel('love_app/widget_bg_refresh');
   var changed = false;
   try {
@@ -174,6 +176,7 @@ Future<void> _homeWidgetBackgroundCallback(Uri? uri) async {
 
   final host = uri.host.trim().toLowerCase();
   if (host.isEmpty) return;
+  await ServerRoute.install();
 
   // Тап по виджету «Скучаю»: отправляем реакцию партнёру, не открывая
   // приложение. Виджет уже показал «Отправлено» — здесь только запись на
@@ -283,6 +286,10 @@ Future<void> _homeWidgetBackgroundCallback(Uri? uri) async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Запасной путь к серверу для тех, кому режут основной (Украина,
+  // 22.10.2026). Ставится до первого запроса: клиенты, созданные раньше,
+  // пошли бы мимо него.
+  await ServerRoute.install();
   // Потерянное системным жестом касание запирало все нажатия до перезапуска
   // (обращение 231, Realme): досылаем ему отмену.
   StalePointerSweeper.install();

@@ -112,7 +112,9 @@ dependencies:
   flutter_displaymode: ^0.6.0
   in_app_update: ^4.2.3
   google_mobile_ads: ^5.2.0
-  yandex_mobileads: ^7.6.0
+  # 8.6: письмо РСЯ 17.10.2026 «обновите SDK до 8.6.0». Нативный SDK плагин
+  # тянет той же версии (iOS YandexMobileAds ~> 8.6.0, Android mobileads 8.6.0).
+  yandex_mobileads: ^8.6.0
   # app_tracking_transparency убран: приложение не отслеживает пользователей,
   # реклама неперсональная (App Privacy → Tracking = None). См. main.dart.
   in_app_purchase: ^3.3.0

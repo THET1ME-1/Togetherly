@@ -35,21 +35,23 @@ class CanvasStorageService {
   // ── public API ─────────────────────────────────────────────────────────────
 
   /// Returns all canvases for [uid] in [groupId], newest first.
-  /// Seeds a default "main" canvas on first call.
+  ///
+  /// Пустой список остаётся пустым. Раньше сюда подсевался холст `main`
+  /// («Canvas 1»): удалишь последний — он появлялся снова, и у общего холста
+  /// со старыми штрихами, ведь штрихи удаление каталога не трогает (TOG-12).
+  /// Галерея с пустым списком показывает «Новый холст».
   Future<List<CanvasMeta>> getCanvases(String uid,
       {String groupId = ''}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString(_key(uid, groupId));
-      if (raw == null) return _seedDefault(uid, groupId);
+      if (raw == null) return [];
       final decoded = jsonDecode(raw) as List<dynamic>;
-      final list = decoded
+      return decoded
           .map((e) => CanvasMeta.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList();
-      if (list.isEmpty) return _seedDefault(uid, groupId);
-      return list;
     } catch (_) {
-      return _seedDefault(uid, groupId);
+      return [];
     }
   }
 
@@ -77,26 +79,74 @@ class CanvasStorageService {
       // нарисован 1:1, при другом формате половины разъедутся.
       sheetRatio: sheetRatio ??
           ((pixelW != null && pixelH != null) ? pixelW / pixelH : 4 / 5),
+      // Пока сервер не ответил, холст считается своим: пропажа из каталога
+      // для него ещё ничего не значит, и галерея дошлёт его сама.
+      onServer: groupId.isEmpty ? null : false,
     );
     await _save(uid, groupId, [meta, ...canvases]);
 
     // Push to PocketBase so partner sees the new canvas
     if (groupId.isNotEmpty) {
-      _canvas.upsertCatalogue(
-        groupId,
-        id,
-        name: meta.name,
-        createdAt: meta.createdAt.millisecondsSinceEpoch,
-        updatedAt: meta.updatedAt.millisecondsSinceEpoch,
-        createdBy: uid,
-        pixelW: meta.pixelW,
-        pixelH: meta.pixelH,
-        sheetRatio: meta.sheetRatio,
-      );
+      _track(_pushToCatalogue(uid, groupId, meta));
       _canvas.incrementDrawings(groupId, 1);
     }
 
     return meta;
+  }
+
+  /// Отправить холст в каталог; принят — отметить, что сервер его видел.
+  Future<void> _pushToCatalogue(
+      String uid, String groupId, CanvasMeta meta) async {
+    final ok = await _canvas.upsertCatalogue(
+      groupId,
+      meta.id,
+      name: meta.name,
+      createdAt: meta.createdAt.millisecondsSinceEpoch,
+      updatedAt: meta.updatedAt.millisecondsSinceEpoch,
+      createdBy: uid,
+      pixelW: meta.pixelW,
+      pixelH: meta.pixelH,
+      sheetRatio: meta.sheetRatio,
+    );
+    if (ok) await _markOnServer(uid, groupId, {meta.id});
+  }
+
+  /// Отметить холсты [ids] как дошедшие до сервера. Список перечитывается:
+  /// между отправкой и ответом его могли поправить.
+  Future<void> _markOnServer(String uid, String groupId, Set<String> ids) async {
+    final canvases = await getCanvases(uid, groupId: groupId);
+    if (!canvases.any((c) => ids.contains(c.id) && c.onServer != true)) return;
+    await _save(uid, groupId, [
+      for (final c in canvases)
+        ids.contains(c.id) ? c.copyWith(onServer: true) : c,
+    ]);
+  }
+
+  /// Фоновые отправки — чтобы тест мог дождаться их конца.
+  final List<Future<void>> _background = [];
+
+  void _track(Future<void> work) {
+    _background.add(work);
+    work.whenComplete(() {
+      _background.remove(work);
+    });
+  }
+
+  /// Дождаться фоновых отправок.
+  @visibleForTesting
+  Future<void> debugIdle() async {
+    while (_background.isNotEmpty) {
+      await Future.wait(List.of(_background));
+    }
+  }
+
+  /// Забыть всё, что сервис помнит за запуск.
+  @visibleForTesting
+  void debugReset() {
+    _sheetSent.clear();
+    _background.clear();
+    onRemoteChange = null;
+    stopListening();
   }
 
   /// Replaces the matching entry (by id) with [updated].
@@ -184,7 +234,7 @@ class CanvasStorageService {
 
     _catalogueSub = _canvas.watchCatalogue(groupId).listen(
       (remoteList) async {
-        await _mergeRemoteCanvases(uid, groupId, remoteList);
+        await mergeRemoteCanvases(uid, groupId, remoteList);
         onRemoteChange?.call();
       },
       onError: (e) => debugPrint('[Storage] catalogue error: $e'),
@@ -201,7 +251,8 @@ class CanvasStorageService {
   final Set<String> _sheetSent = <String>{};
 
   /// Merge remote canvas entries into local storage for [groupId].
-  Future<void> _mergeRemoteCanvases(
+  @visibleForTesting
+  Future<void> mergeRemoteCanvases(
     String uid,
     String groupId,
     List<Map<String, dynamic>> remoteList,
@@ -237,9 +288,16 @@ class CanvasStorageService {
           // растягивался на всю свободную область и плющился, потому что
           // точки штрихов лежат в долях 0..1 от холста.
           sheetRatio: sheetRatio,
+          onServer: true,
         );
         changed = true;
       } else {
+        // Холст есть в каталоге: сервер его видел, и пропажа из каталога
+        // дальше значит удаление.
+        if (localById[id]!.onServer != true) {
+          localById[id] = localById[id]!.copyWith(onServer: true);
+          changed = true;
+        }
         // Update name if remote is newer
         final existing = localById[id]!;
         if (updatedAt.isAfter(existing.updatedAt) && name != existing.name) {
@@ -280,24 +338,26 @@ class CanvasStorageService {
             pixelW: needsGrid ? pixelW : e.pixelW,
             pixelH: needsGrid ? pixelH : e.pixelH,
             sheetRatio: e.sheetRatio ?? sheetRatio,
+            onServer: true,
           );
           changed = true;
         }
       }
     }
 
-    // Remove local canvases that were deleted remotely
+    // Холсты, которые сервер видел, а в каталоге их больше нет, — удалены
+    // (партнёром или с другого телефона). Убираем и тогда, когда каталог стал
+    // пустым: раньше пустой каталог ничего не убирал, и последний удалённый
+    // холст жил у партнёра, а его галерея заводила холст снова (TOG-12).
+    // Не дошедшие до сервера остаются: их пропажа ничего не значит.
     final remoteIds = remoteList.map((r) => r['id'] as String).toSet();
-    // Keep canvases not yet in remote (freshly created locally, or 'main' default)
-    // Only remove if the remote set is non-empty (i.e. we have an established catalogue)
-    if (remoteList.isNotEmpty) {
-      final toRemove = localById.keys
-          .where((id) => !remoteIds.contains(id) && id != 'main')
-          .toList();
-      for (final id in toRemove) {
-        localById.remove(id);
-        changed = true;
-      }
+    final toRemove = [
+      for (final c in localById.values)
+        if (!remoteIds.contains(c.id) && c.knownOnServer) c.id,
+    ];
+    for (final id in toRemove) {
+      localById.remove(id);
+      changed = true;
     }
 
     if (changed) {
@@ -307,29 +367,18 @@ class CanvasStorageService {
     }
   }
 
-  /// Группы, для которых бутстрап каталога уже сделан в этом запуске.
-  final Set<String> _bootstrapped = <String>{};
-
-  /// Push all existing local canvases to the catalogue (one-time bootstrap).
+  /// Дослать в каталог холсты, которые до сервера ещё не дошли.
   ///
-  /// Раз за запуск на группу. Раньше это выполнялось при КАЖДОМ открытии
-  /// галереи: каждый холст переписывался в `canvas_catalogue`, сервер рассылал
-  /// дельту в `pair:<groupId>`, её же слушал открытый экран — и на каждое
-  /// событие перезагружал список. Семь холстов давали семь перерисовок подряд,
-  /// а миниатюры при этом моргали.
+  /// Только их. Раньше при первом открытии галереи за запуск сюда уходили ВСЕ
+  /// свои холсты, и холст, удалённый партнёром, заводился на сервере снова —
+  /// у обоих (TOG-12, повторено на эмуляторе: «Canvas 3» вернулся сразу после
+  /// открытия галереи). Что сервер холст видел, помнит [CanvasMeta.onServer].
   Future<void> pushAllToFirebase(String uid, String groupId) async {
     if (groupId.isEmpty) return;
-    if (!_bootstrapped.add(groupId)) return;
     final canvases = await getCanvases(uid, groupId: groupId);
     for (final meta in canvases) {
-      await _canvas.upsertCatalogue(
-        groupId,
-        meta.id,
-        name: meta.name,
-        createdAt: meta.createdAt.millisecondsSinceEpoch,
-        updatedAt: meta.updatedAt.millisecondsSinceEpoch,
-        createdBy: uid,
-      );
+      if (meta.knownOnServer) continue;
+      await _pushToCatalogue(uid, groupId, meta);
     }
   }
 
@@ -393,17 +442,6 @@ class CanvasStorageService {
   }
 
   // ── private ────────────────────────────────────────────────────────────────
-
-  Future<List<CanvasMeta>> _seedDefault(String uid, String groupId) async {
-    final meta = CanvasMeta(
-      id: 'main',
-      name: 'Canvas 1',
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    );
-    await _save(uid, groupId, [meta]);
-    return [meta];
-  }
 
   Future<void> _save(
       String uid, String groupId, List<CanvasMeta> canvases) async {

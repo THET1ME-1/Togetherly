@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:video_player/video_player.dart';
 
+import 'network/server_route.dart';
 import 'pb_media_service.dart';
 import 'offline/media_file_fetch.dart';
 
@@ -174,7 +175,8 @@ class NotePlayerService extends ChangeNotifier implements NotePlayer {
     final c = local != null
         ? VideoPlayerController.file(File(local))
         : (src.startsWith('http')
-            ? VideoPlayerController.networkUrl(Uri.parse(src))
+            ? VideoPlayerController.networkUrl(
+                Uri.parse(ServerRoute.instance.forNative(src)))
             : VideoPlayerController.file(_fileOf(src)));
     _controller = c;
     c.addListener(_onTick);

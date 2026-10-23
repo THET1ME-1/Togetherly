@@ -29,6 +29,23 @@ test('первым идёт путь через тот же порт, что у 
   assert.ok(first < second, 'через 443 — первым, 8443 — запасным');
 });
 
+test('страница на запасном адресе подключается первым делом к себе же', () => {
+  // Украинцам, у которых режут основной адрес, приложение открывает комнату
+  // на edge.togetherly.day (IPv6, 22.10.2026). togetherly.day и rt у них не
+  // открываются, рабочий путь один — тот, по которому пришла страница.
+  const list = room.slice(room.indexOf('const WS = ['));
+  assert.ok(list.includes('const OWN = `wss://${location.host}/connection/websocket`'),
+      'адрес самой страницы считается из location.host');
+  assert.ok(/WS\.unshift\(\{ transport: 'websocket', endpoint: OWN \}\)/.test(list),
+      'и встаёт первым');
+  assert.ok(/togetherly\\\.day\$/.test(list), 'только для наших доменов');
+});
+
+test('при таймауте адрес, на котором зависли, уходит в конец списка', () => {
+  assert.ok(room.includes('WS.push(WS.shift())'),
+      'список прокручивается, а не переворачивается: адресов теперь до трёх');
+});
+
 test('у подключения есть срок: висящий порт не должен держать комнату', () => {
   assert.ok(/CONNECT_TIMEOUT\s*=\s*\d+/.test(room),
       'задан срок ожидания подключения');

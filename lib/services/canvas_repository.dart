@@ -99,7 +99,8 @@ class CanvasRepository {
           .where((m) => (m['id'] as String).isNotEmpty)
           .toList());
 
-  Future<void> upsertCatalogue(
+  /// true — сервер принял холст в каталог.
+  Future<bool> upsertCatalogue(
     String groupId,
     String canvasId, {
     required String name,
@@ -186,11 +187,17 @@ class CanvasRepository {
     return recs.map(DrawStroke.fromPb).toList();
   }
 
-  /// Коммит штриха (server-id). Возвращает id записи (для оптимистичного
-  /// сопоставления в draw_screen) или ''.
+  /// Коммит штриха. Возвращает id записи или '' при отказе.
+  ///
+  /// [id] — id записи, посчитанный телефоном (`strokeRecordId`): с ним повтор
+  /// не заводит копию, а ответ «уже есть» означает, что мазок на сервере.
   Future<String> addStroke(
-      String groupId, String canvasId, Map<String, dynamic> data) async {
-    final rec = await _data.createStroke(groupId, canvasId, data);
+    String groupId,
+    String canvasId,
+    Map<String, dynamic> data, {
+    String? id,
+  }) async {
+    final rec = await _data.createStroke(groupId, canvasId, data, id: id);
     return rec?.id ?? '';
   }
 

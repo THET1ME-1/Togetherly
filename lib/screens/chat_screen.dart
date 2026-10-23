@@ -6,6 +6,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:image_picker/image_picker.dart';
+import '../utils/calendar_day.dart';
 import '../utils/safe_pick.dart';
 import '../utils/safe_text.dart';
 import '../utils/readable_text.dart';
@@ -1441,7 +1442,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final today = DateTime(now.year, now.month, now.day);
     final day = DateTime(d.year, d.month, d.day);
     if (day == today) return trKey('chatAtTime').replaceAll('{t}', _hm(d));
-    if (day == today.add(const Duration(days: 1))) {
+    if (day == calendarDay(today, 1)) {
       return trKey('chatTomorrowAt').replaceAll('{t}', _hm(d));
     }
     return trKey('chatDateAt')
@@ -2462,7 +2463,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final hhmm =
         '${seen.hour.toString().padLeft(2, '0')}:${seen.minute.toString().padLeft(2, '0')}';
     if (day == today) return hhmm;
-    if (day == today.subtract(const Duration(days: 1))) {
+    if (day == calendarDay(today, -1)) {
       return '${s.yesterday.toLowerCase()} $hhmm';
     }
     return '${seen.day.toString().padLeft(2, '0')}.${seen.month.toString().padLeft(2, '0')}';

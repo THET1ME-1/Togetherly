@@ -10,6 +10,7 @@ import 'package:yandex_mobileads/mobile_ads.dart' as yandex;
 
 import '../config/ad_units.dart';
 
+import 'ad_platform.dart';
 import 'pair_jar_service.dart';
 import 'pb_coins_service.dart';
 
@@ -98,7 +99,7 @@ class RewardedAdService {
   Future<void> load() async {
     if (_disposed) return;
     if (_isLoading || isReady) return;
-    if (!Platform.isAndroid && !Platform.isIOS) return;
+    if (!AdPlatform.supported) return;
     _retryTimer?.cancel();
     _isLoading = true;
     unawaited(_loadYandex());
@@ -119,27 +120,26 @@ class RewardedAdService {
     });
   }
 
+  /// SDK 8 отдаёт объявление из `loadAd`, а отказ бросает [yandex.AdRequestError].
   Future<void> _loadYandex() async {
     try {
-      _yandexLoader ??= await yandex.RewardedAdLoader.create(
-        onAdLoaded: (ad) {
-          _yandexAd = ad;
-          _isLoading = false;
-          _retryCount = 0; // успех — сбрасываем backoff
-        },
-        onAdFailedToLoad: (error) {
-          debugPrint(
-              'Yandex rewarded failed: ${error.code} ${error.description}'
-              ' → retry');
-          _yandexAd = null;
-          _reportLoadFailure('${error.code}', error.description);
-          _scheduleRetry();
-        },
+      final loader = _yandexLoader ??= yandex.RewardedAdLoader();
+      final ad = await loader.loadAd(
+        adRequest: yandex.AdRequest(adUnitId: _yandexAdUnitId),
       );
-      await _yandexLoader!.loadAd(
-        adRequestConfiguration:
-            yandex.AdRequestConfiguration(adUnitId: _yandexAdUnitId),
-      );
+      if (_disposed) {
+        unawaited(ad.destroy());
+        return;
+      }
+      _yandexAd = ad;
+      _isLoading = false;
+      _retryCount = 0; // успех — сбрасываем backoff
+    } on yandex.AdRequestError catch (error) {
+      debugPrint('Yandex rewarded failed: ${error.code} ${error.description}'
+          ' → retry');
+      _yandexAd = null;
+      _reportLoadFailure('${error.code}', error.description);
+      _scheduleRetry();
     } catch (e) {
       debugPrint('Yandex rewarded load exception: $e → retry');
       _reportLoadFailure('exception', '$e');
@@ -435,8 +435,10 @@ class RewardedAdService {
     _disposed = true;
     _retryTimer?.cancel();
     _retryTimer = null;
+    // Загруженный и не показанный ролик освобождаем у натива.
+    unawaited(_yandexAd?.destroy() ?? Future<void>.value());
     _yandexAd = null;
-    unawaited(_yandexLoader?.destroy() ?? Future.value());
+    _yandexLoader?.destroy();
     _yandexLoader = null;
   }
 }

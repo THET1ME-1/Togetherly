@@ -10,6 +10,12 @@ import '../services/mood_service.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/profile_theme.dart';
+import '../utils/calendar_day.dart';
+
+/// День полосы, отстоящий от [today] на [offset] клеток. Клетками календаря,
+/// а не сутками по 24 часа: 25.10.2026 полоса показала воскресенье дважды.
+@visibleForTesting
+DateTime miniCalendarDate(DateTime today, int offset) => calendarDay(today, offset);
 
 /// Горизонтальный мини-календарь с настроениями по дням.
 /// Листается бесконечно вперёд и назад. Сегодня — выделен.
@@ -139,9 +145,7 @@ class _MiniMoodCalendarState extends State<MiniMoodCalendar> {
   }
 
   /// Переводим виртуальный индекс → дата
-  DateTime _dateForIndex(int index) {
-    return _todayNorm.add(Duration(days: index - _kCenter));
-  }
+  DateTime _dateForIndex(int index) => miniCalendarDate(_todayNorm, index - _kCenter);
 
   @override
   Widget build(BuildContext context) {

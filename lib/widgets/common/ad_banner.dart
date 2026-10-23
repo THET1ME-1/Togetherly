@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../services/ad_platform.dart';
 import '../../services/analytics_service.dart';
 import '../../services/plus_service.dart';
 import 'package:visibility_detector/visibility_detector.dart';
@@ -73,7 +74,15 @@ class _AdBannerState extends State<AdBanner> {
   static const int _maxNetworkFails = 2;
 
   yandex.BannerAd? _yandexAd;
+  StreamSubscription<yandex.BannerAdLoadState>? _yandexState;
   bool _yandexFailed = false;
+
+  /// `load` SDK 8 собрал платформенный вид: его можно ставить на экран.
+  bool _yandexReady = false;
+
+  /// Натив ответил на загрузку, значит его каналы живы и `destroy` дойдёт.
+  /// До ответа каналов у него нет, и `destroy` падал бы ошибкой мимо всех try.
+  bool _yandexAnswered = false;
 
   /// Запрос уже отправляли: второй раз при возврате в зону видимости не шлём.
   bool _requested = false;
@@ -117,16 +126,21 @@ class _AdBannerState extends State<AdBanner> {
   @override
   void dispose() {
     _fallback?.cancel();
+    _yandexState?.cancel();
+    // Сам вид натив убирает вместе с экраном, `destroy` снимает его каналы.
+    if (_yandexAnswered) {
+      unawaited(_yandexAd?.destroy() ?? Future<void>.value());
+    }
     super.dispose();
   }
 
   void _loadAd() => _loadYandex();
 
-  /// Баннер Яндекса: платформенный вид грузится сам при создании, мы только
-  /// рисуем его и слушаем отказ.
+  /// Баннер Яндекса. В SDK 8 `load` собирает платформенный вид, а запрос
+  /// уходит, когда вид встал на экран; итог приходит потоком состояний.
   void _loadYandex() {
     if (!mounted || _yandexAd != null || _yandexFailed) return;
-    if (!Platform.isAndroid && !Platform.isIOS) return;
+    if (!AdPlatform.supported) return;
     if (_networkFails >= _maxNetworkFails) {
       setState(() => _yandexFailed = true);
       return;
@@ -141,18 +155,35 @@ class _AdBannerState extends State<AdBanner> {
         .truncate();
 
     final banner = yandex.BannerAd(
-      adUnitId: unit,
       adSize: yandex.BannerAdSize.inline(
         width: width,
         maxHeight: widget.height.truncate(),
       ),
-      onAdFailedToLoad: (error) {
-        debugPrint('Yandex banner failed: ${error.code} ${error.description}');
-        if (bannerFailIsNetwork(error.description)) _networkFails++;
-        if (mounted) setState(() => _yandexFailed = true);
-      },
     );
-    setState(() => _yandexAd = banner);
+    _yandexAd = banner;
+    _yandexState = banner.loadStateStream.listen((state) {
+      if (state is yandex.BannerAdLoadStateLoaded) _yandexAnswered = true;
+      if (state is! yandex.BannerAdLoadStateError) return;
+      _yandexAnswered = true;
+      final error = state.error;
+      debugPrint('Yandex banner failed: ${error.code} ${error.description}');
+      if (bannerFailIsNetwork(error.description)) _networkFails++;
+      if (mounted) setState(() => _yandexFailed = true);
+    });
+    unawaited(_startYandex(banner, unit));
+  }
+
+  /// Вид появляется к концу `load`; поставить [yandex.AdWidget] раньше —
+  /// значит поставить пустое место, которое никогда не загрузится.
+  Future<void> _startYandex(yandex.BannerAd banner, String unit) async {
+    try {
+      await banner.load(yandex.AdRequest(adUnitId: unit));
+    } catch (e) {
+      debugPrint('Yandex banner load exception: $e');
+      if (mounted) setState(() => _yandexFailed = true);
+      return;
+    }
+    if (mounted) setState(() => _yandexReady = true);
   }
 
   @override
@@ -169,7 +200,7 @@ class _AdBannerState extends State<AdBanner> {
     // Togetherly+ снимает рекламу целиком: не прячет уже загруженный баннер, а
     // не занимает под него место. Проверка здесь одна на все пять мест показа.
     if (PlusService.instance.active) return const SizedBox.shrink();
-    if (_yandexAd != null && !_yandexFailed) {
+    if (_yandexAd != null && _yandexReady && !_yandexFailed) {
       return _frame(
         Container(
           height: widget.height,

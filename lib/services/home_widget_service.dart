@@ -3278,10 +3278,7 @@ class HomeWidgetService {
       }
 
       // 4. Days together
-      int days = 0;
-      if (startDate != null) {
-        days = DateTime.now().difference(startDate).inDays;
-      }
+      final days = daysSinceStart(startDate, DateTime.now());
 
       await syncRelationshipStats(
         groupId: groupId,

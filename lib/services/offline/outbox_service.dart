@@ -8,6 +8,7 @@ import 'package:video_compress/video_compress.dart';
 
 import '../pb_data_service.dart';
 import '../pb_media_service.dart';
+import '../pocketbase_service.dart';
 import 'backoff.dart';
 import 'connectivity_service.dart';
 import 'local_store.dart';
@@ -37,6 +38,9 @@ import '../note_send_status.dart';
 Duration outboxOpTimeout(String type) => switch (type) {
       'chatNote' => const Duration(minutes: 8),
       'chatVoice' => const Duration(minutes: 3),
+      // Картинка заливки тянет мегабайт-другой: двадцати секунд по мобильной
+      // сети не хватает, а повтор заливает файл заново.
+      'strokeImageAdd' => const Duration(minutes: 3),
       _ => const Duration(seconds: 20),
     };
 
@@ -191,9 +195,16 @@ class OutboxService {
       return;
     }
     if (!ConnectivityService.instance.isOnline) return;
-    final db = await LocalStore.instance.database();
-    if (db == null) return;
+    // Флаг ставится ДО первого await. Раньше он вставал после ожидания базы,
+    // и два вызова подряд (enqueue зовёт flush сам) проходили проверку оба:
+    // одна операция уходила дважды, у мазка без id записи это две копии на
+    // сервере (TOG-12, на одном холсте мазки лежали по 12 раз).
     _flushing = true;
+    final db = await LocalStore.instance.database();
+    if (db == null) {
+      _flushing = false;
+      return;
+    }
     var anyFailed = false;
     try {
       final all = await _store.find(
@@ -393,6 +404,7 @@ class OutboxService {
       case 'moodDelete':
         return k('mood_entries', p['id']);
       case 'strokeAdd':
+      case 'strokeImageAdd':
       case 'strokeDelete':
         return k('canvas_strokes', p['id']);
       case 'cycleUpsert':
@@ -550,6 +562,7 @@ class OutboxService {
       // он вернётся на холст сам собой — та самая жалоба «отменённые штрихи
       // восстанавливаются», только с другого конца.
       case 'strokeCancel':
+        await _dropQueued(db, 'strokeImageAdd', p, (a, b) => a['id'] == b['id']);
         return _dropQueued(
             db, 'strokeAdd', p, (a, b) => a['id'] == b['id']);
       case 'counterInc':
@@ -728,14 +741,18 @@ class OutboxService {
         // Коммит штриха, который не дошёл с первого раза. В пиксельной
         // раскраске клетка — отдельный штрих, их десятки в секунду, и отказ
         // сети стирал нарисованное прямо из-под руки. Очередь досылает штрих
-        // сама; повторная доставка не страшна — экран сопоставляет свой штрих
-        // с серверным по автору и порядковому номеру.
+        // сама. id записи посчитан телефоном, поэтому повтор после таймаута
+        // упирается в «уже есть», а не заводит копию (TOG-12: копии мазка
+        // оставались после ластика, и стёртое возвращалось).
         final rec = await data.createStroke(
           p['groupId'] as String? ?? '',
           p['canvasId'] as String? ?? '',
           Map<String, dynamic>.from(p['stroke'] as Map? ?? const {}),
+          id: p['id'] as String?,
         );
         return rec != null;
+      case 'strokeImageAdd':
+        return _applyStrokeImageAdd(p);
       case 'memorySetSaved':
         return _applySetSaved(
           p['memoryId'] as String? ?? '',
@@ -908,6 +925,34 @@ class OutboxService {
   /// и удаляется только после того, как ссылка `pb://` записана в кэш. Пропал
   /// файл — операция снимается с очереди: возить нечего, а вечно повторять
   /// нельзя, иначе очередь встанет колом и утянет за собой весь чат.
+  /// Заливка или картинка на общем холсте, которая не дошла сразу: сперва файл
+  /// в `media`, потом штрих со ссылкой на него под id, который знает экран
+  /// (TOG-12). Раньше сбой загрузки убирал заливку с холста без повтора, и в
+  /// раскраске нарисованное пропадало через секунду.
+  Future<bool> _applyStrokeImageAdd(Map<String, dynamic> p) async {
+    final id = p['id'] as String? ?? '';
+    final groupId = p['groupId'] as String? ?? '';
+    final canvasId = p['canvasId'] as String? ?? '';
+    if (id.isEmpty || groupId.isEmpty) return true;
+    final stroke = Map<String, dynamic>.from(p['stroke'] as Map? ?? const {});
+    final path = p['path'] as String? ?? '';
+    final file = File(path);
+    if (path.isEmpty || !await file.exists()) {
+      debugPrint('outbox.strokeImageAdd: файла нет ($path), операция снимается');
+      return true;
+    }
+    final ref = await PbMediaService.instance.uploadFile(
+      path,
+      uid: PocketBaseService().userId,
+      groupId: groupId,
+      kind: 'canvas',
+    );
+    if (ref == null) return false; // сеть или сервер — повторим позже
+    stroke['imageUrl'] = ref;
+    final rec = await PbDataService().createStroke(groupId, canvasId, stroke, id: id);
+    return rec != null;
+  }
+
   Future<bool> _applyChatVoice(Map<String, dynamic> p) async {
     final id = p['id'] as String? ?? '';
     final groupId = p['groupId'] as String? ?? '';

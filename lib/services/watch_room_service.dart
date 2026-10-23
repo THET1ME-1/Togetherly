@@ -77,11 +77,13 @@ class WatchRoomService {
   /// пропуска (`storedAuth` в `room.js`).
   ///
   /// Скрипт срабатывает только на нашем домене: если WebView уведут на чужую
-  /// страницу, токен туда не попадёт.
+  /// страницу, токен туда не попадёт. Запасной адрес [spareSiteHost] тоже наш:
+  /// на нём комнату открывают те, кому режут основной (`ServerRoute`).
   static String authScript({required String token, String? name}) {
     final data = jsonEncode({'token': token, 'name': (name ?? '').trim()});
     return '(function(){'
-        "if(location.hostname!=='$siteHost')return;"
+        "if(location.hostname!=='$siteHost'"
+        "&&location.hostname!=='$spareSiteHost')return;"
         // Шапку рисует страница комнаты: «назад», код, «скопировать»,
         // «поделиться» и звонок — своей шапки у экрана приложения больше нет.
         'window.__togetherlyChrome=1;'
@@ -89,8 +91,11 @@ class WatchRoomService {
         '})();';
   }
 
-  /// Домен страницы комнаты — единственный, которому отдаём сессию.
+  /// Домен страницы комнаты; сессию отдаём только ему и [spareSiteHost].
   static const String siteHost = 'togetherly.day';
+
+  /// Запасной адрес того же сервера по IPv6 (22.10.2026).
+  static const String spareSiteHost = 'edge.togetherly.day';
 
   /// Код комнаты пары. Пустая строка означает отказ сервера — вызывающий
   /// показывает ошибку и не открывает просмотр.

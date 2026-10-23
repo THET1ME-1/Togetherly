@@ -11,7 +11,8 @@ void main() {
   final src = File('lib/services/rewarded_ad_service.dart').readAsStringSync();
 
   test('каждая неудача загрузки сообщает код ошибки', () {
-    final failed = src.substring(src.indexOf('onAdFailedToLoad: (error)'));
+    // SDK 8: отказ загрузки приходит исключением из `loadAd`.
+    final failed = src.substring(src.indexOf('on yandex.AdRequestError catch (error)'));
     expect(failed.substring(0, 400), contains("_reportLoadFailure('\${error.code}'"));
     expect(src, contains("_reportLoadFailure('exception', '\$e')"));
   });

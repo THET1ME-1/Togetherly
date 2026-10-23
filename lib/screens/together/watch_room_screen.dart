@@ -12,6 +12,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../models/call_record.dart';
 import '../../models/exit_guard.dart';
 import '../../services/chat_service.dart';
+import '../../services/network/server_route.dart';
 import '../../widgets/memory_save/floating_note.dart';
 import '../../services/locale_service.dart';
 import '../../services/pocketbase_service.dart';
@@ -486,8 +487,10 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
   }
 
   /// Адрес открытой комнаты: с роликом, если пришли из карточки или карусели,
-  /// и со своим именем — иначе страница подписывает обоих «Гость».
-  String get _url => WatchRoomService.siteUrl(
+  /// и со своим именем — иначе страница подписывает обоих «Гость». Браузер
+  /// ходит мимо сетевого клиента Dart, поэтому на запасном пути страницу
+  /// открываем прямо на edge (ссылка для партнёра остаётся прежней).
+  String get _url => ServerRoute.instance.forNative(WatchRoomService.siteUrl(
     widget.room,
     src: widget.videoUrl,
     name: PocketBaseService().userName,
@@ -495,7 +498,7 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
     feed: widget.reels ? widget.reelsSource.key : null,
     build: widget.build,
     nativeWindow: _native,
-  );
+  ));
 
   /// Ссылка для партнёра — без ролика и без имени: он войдёт в ту же комнату,
   /// получит источник от нас по каналу и подпишется своим именем.

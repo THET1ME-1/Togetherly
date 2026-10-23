@@ -82,6 +82,22 @@ var writePoolSize = func() int {
 	return 4
 }()
 
+// Сколько сервер ждёт один запрос целиком, от заголовков до конца ответа.
+// PocketBase ставит 5 минут на чтение и на запись, и загрузка фото на медленной
+// мобильной сети обрывалась ровно на 300-й секунде, причём на каждом повторе
+// (22.10.2026: файл 7,2 МБ на 24 КБ/с), хотя приложение ждёт заливку до
+// 10 минут (`kUploadTimeoutMax`). Срок записи считается с начала запроса, а не
+// с конца загрузки, поэтому поднимать надо оба: иначе файл дойдёт, а ответ нет.
+// Переопределяется переменной PB_HTTP_TIMEOUT (например "20m").
+var httpTimeout = func() time.Duration {
+	if v := os.Getenv("PB_HTTP_TIMEOUT"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			return d
+		}
+	}
+	return 15 * time.Minute
+}()
+
 func centChannels(rec *core.Record) []string {
 	col := rec.Collection().Name
 	switch col {
@@ -458,6 +474,12 @@ func main() {
 			log.Println("pocketbase-cgo: соединений записи —", writePoolSize)
 		} else {
 			log.Println("pocketbase-cgo: пул записи не удалось расширить")
+		}
+
+		if e.Server != nil {
+			e.Server.ReadTimeout = httpTimeout
+			e.Server.WriteTimeout = httpTimeout
+			log.Println("pocketbase-cgo: срок запроса —", httpTimeout)
 		}
 
 		// Кэш авторизации встаёт перед штатным `pbLoadAuthToken` и заполняет

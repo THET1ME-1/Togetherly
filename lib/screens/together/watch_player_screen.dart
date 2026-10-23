@@ -5,6 +5,7 @@ import 'package:flutter/services.dart' show SystemChrome, SystemUiMode;
 import 'package:video_player/video_player.dart';
 
 import '../../services/locale_service.dart';
+import '../../services/network/server_route.dart';
 import '../../services/pb_media_service.dart';
 import '../../services/pocketbase_service.dart';
 import '../../services/watch_sync.dart';
@@ -73,7 +74,9 @@ class _WatchPlayerScreenState extends State<WatchPlayerScreen>
 
   Future<void> _open() async {
     final playable = await PbMediaService.instance.resolvePlayable(widget.url);
-    final controller = VideoPlayerController.networkUrl(Uri.parse(playable));
+    final controller = VideoPlayerController.networkUrl(
+      Uri.parse(ServerRoute.instance.forNative(playable)),
+    );
     try {
       await controller.initialize();
     } catch (_) {

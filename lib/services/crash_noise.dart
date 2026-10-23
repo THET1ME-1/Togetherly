@@ -136,10 +136,21 @@ bool isRoutineRouteRefusal(Object error) {
 bool isCancelledMapJob(Object error) =>
     error.runtimeType.toString() == 'CancellationException' && error.toString() == 'Cancelled';
 
+/// iOS не дал показать локальное уведомление: человек их выключил.
+///
+/// `UNErrorDomain`, код 2003. 22.10.2026 так пришло 1475 событий за полдня от
+/// 39 человек: каждое уведомление чата и «Скучаю» давало отчёт, и этот шум
+/// вытеснял из Bugsink настоящие ошибки. Чинить тут нечего, это выбор человека.
+bool isNotificationsDenied(Object error) {
+  final s = error.toString();
+  return s.contains('UNErrorDomain') && s.contains('2003');
+}
+
 /// Событие вообще не стоит слать в Bugsink.
 bool isCrashNoise(Object error) =>
     isNetworkNoise(error) ||
     isForegroundServiceRestriction(error) ||
     isDeadFirebaseMedia(error) ||
     isRoutineRouteRefusal(error) ||
-    isCancelledMapJob(error);
+    isCancelledMapJob(error) ||
+    isNotificationsDenied(error);

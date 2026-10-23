@@ -23,10 +23,10 @@ Future<void> _setAudioSource(AudioPlayer player, String url) async {
         return;
       }
     }
-    await player.setUrl(resolved ?? url);
+    await player.setUrl(ServerRoute.instance.forNative(resolved ?? url));
     return;
   }
-  await player.setUrl(url);
+  await player.setUrl(ServerRoute.instance.forNative(url));
 }
 
 /// Обложка музыкального воспоминания в открытом экране (вариант A): квадрат

@@ -61,6 +61,26 @@ void main() {
     });
   });
 
+  group('запрет уведомлений на iPhone — не ошибка', () {
+    // 22.10.2026: 1475 событий за полдня от 39 человек, у которых уведомления
+    // выключены. iOS отказывает показать локальное уведомление, и отказ
+    // вытеснял из Bugsink настоящие ошибки.
+    test('отказ iOS показать уведомление', () {
+      expect(
+        isCrashNoise('PlatformException(Error 2003, Repository could not save notification. '
+            'Source is not authorized., UNErrorDomain, null)'),
+        isTrue,
+      );
+    });
+
+    test('другая ошибка платформы остаётся ошибкой', () {
+      expect(
+        isCrashNoise('PlatformException(camera_access_denied, Camera access denied, null, null)'),
+        isFalse,
+      );
+    });
+  });
+
   group('фоновые ошибки помечаются нефатальными', () {
     test('отказ прав и незагрузившийся шрифт', () {
       expect(isBenignBackgroundError('permission-denied'), isTrue);

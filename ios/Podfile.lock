@@ -13,93 +13,12 @@ PODS:
     - PromisesObjC (~> 2.4)
     - PromisesSwift (~> 2.4)
     - RecaptchaInterop (~> 101.0)
-  - AppMetricaAdSupport (5.14.0):
-    - AppMetricaCore (= 5.14.0)
-    - AppMetricaCoreExtension (= 5.14.0)
-  - AppMetricaCore (5.14.0):
-    - AppMetricaCoreUtils (= 5.14.0)
-    - AppMetricaEncodingUtils (= 5.14.0)
-    - AppMetricaFMDB (= 5.14.0)
-    - AppMetricaHostState (= 5.14.0)
-    - AppMetricaIdentifiers (= 5.14.0)
-    - AppMetricaKeychain (= 5.14.0)
-    - AppMetricaLog (= 5.14.0)
-    - AppMetricaNetwork (= 5.14.0)
-    - AppMetricaPlatform (= 5.14.0)
-    - AppMetricaProtobuf (= 5.14.0)
-    - AppMetricaProtobufUtils (= 5.14.0)
-    - AppMetricaStorageUtils (= 5.14.0)
-  - AppMetricaCoreExtension (5.14.0):
-    - AppMetricaCore (= 5.14.0)
-    - AppMetricaStorageUtils (= 5.14.0)
-  - AppMetricaCoreUtils (5.14.0):
-    - AppMetricaLog (= 5.14.0)
-  - AppMetricaEncodingUtils (5.14.0):
-    - AppMetricaCoreUtils (= 5.14.0)
-    - AppMetricaLog (= 5.14.0)
-    - AppMetricaPlatform (= 5.14.0)
-  - AppMetricaFMDB (5.14.0)
-  - AppMetricaHostState (5.14.0):
-    - AppMetricaCoreUtils (= 5.14.0)
-    - AppMetricaLog (= 5.14.0)
-  - AppMetricaIdentifiers (5.14.0):
-    - AppMetricaKeychain (= 5.14.0)
-    - AppMetricaLogSwift (= 5.14.0)
-    - AppMetricaPlatform (= 5.14.0)
-    - AppMetricaStorageUtils (= 5.14.0)
-    - AppMetricaSynchronization (= 5.14.0)
-  - AppMetricaIDSync (5.14.0):
-    - AppMetricaCore (= 5.14.0)
-    - AppMetricaCoreExtension (= 5.14.0)
-    - AppMetricaCoreUtils (= 5.14.0)
-    - AppMetricaLog (= 5.14.0)
-    - AppMetricaNetwork (= 5.14.0)
-    - AppMetricaPlatform (= 5.14.0)
-    - AppMetricaStorageUtils (= 5.14.0)
-  - AppMetricaKeychain (5.14.0):
-    - AppMetricaCoreUtils (= 5.14.0)
-    - AppMetricaLog (= 5.14.0)
-    - AppMetricaStorageUtils (= 5.14.0)
-  - AppMetricaLibraryAdapter (5.14.0):
-    - AppMetricaCore (= 5.14.0)
-    - AppMetricaCoreExtension (= 5.14.0)
-  - AppMetricaLog (5.14.0)
-  - AppMetricaLogSwift (5.14.0):
-    - AppMetricaLog (= 5.14.0)
-  - AppMetricaNetwork (5.14.0):
-    - AppMetricaCoreUtils (= 5.14.0)
-    - AppMetricaLog (= 5.14.0)
-    - AppMetricaPlatform (= 5.14.0)
-  - AppMetricaPlatform (5.14.0):
-    - AppMetricaCoreUtils (= 5.14.0)
-    - AppMetricaLog (= 5.14.0)
-  - AppMetricaProtobuf (5.14.0)
-  - AppMetricaProtobufUtils (5.14.0):
-    - AppMetricaProtobuf (= 5.14.0)
-  - AppMetricaStorageUtils (5.14.0):
-    - AppMetricaCoreUtils (= 5.14.0)
-    - AppMetricaLog (= 5.14.0)
-  - AppMetricaSynchronization (5.14.0):
-    - AppMetricaLogSwift (= 5.14.0)
   - audio_session (0.0.1):
     - Flutter
   - connectivity_plus (0.0.1):
     - Flutter
   - device_info_plus (0.0.1):
     - Flutter
-  - DivKit (32.54.0):
-    - DivKit_LayoutKit (= 32.54.0)
-    - DivKit_Serialization (= 32.54.0)
-    - VGSL (~> 7.21)
-  - DivKit_LayoutKit (32.54.0):
-    - DivKit_LayoutKitInterface (= 32.54.0)
-    - VGSL (~> 7.21)
-  - DivKit_LayoutKitInterface (32.54.0):
-    - VGSL (~> 7.21)
-  - DivKit_Serialization (32.54.0):
-    - VGSL (~> 7.21)
-  - DivKitBinaryCompatibilityFacade (5.2.2):
-    - DivKit (~> 32.14)
   - DKImagePickerController/Core (4.3.9):
     - DKImagePickerController/ImageDataManager
     - DKImagePickerController/Resource
@@ -255,16 +174,6 @@ PODS:
   - TOCropViewController (3.1.2)
   - url_launcher_ios (0.0.1):
     - Flutter
-  - VGSL (7.21.0):
-    - VGSLFundamentals (= 7.21.0)
-    - VGSLNetworking (= 7.21.0)
-    - VGSLUI (= 7.21.0)
-  - VGSLFundamentals (7.21.0)
-  - VGSLNetworking (7.21.0):
-    - VGSLFundamentals (= 7.21.0)
-    - VGSLUI (= 7.21.0)
-  - VGSLUI (7.21.0):
-    - VGSLFundamentals (= 7.21.0)
   - video_compress (0.3.0):
     - Flutter
   - video_player_avfoundation (0.0.1):
@@ -273,15 +182,6 @@ PODS:
   - webview_flutter_wkwebview (0.0.1):
     - Flutter
     - FlutterMacOS
-  - yandex_mobileads (7.18.0):
-    - Flutter
-    - YandexMobileAds (~> 7.18.0)
-  - YandexMobileAds (7.18.6):
-    - AppMetricaAdSupport (~> 5.14.0)
-    - AppMetricaCore (~> 5.14.0)
-    - AppMetricaIDSync (~> 5.14.0)
-    - AppMetricaLibraryAdapter (~> 5.14.0)
-    - DivKitBinaryCompatibilityFacade (~> 5.2.1)
 
 DEPENDENCIES:
   - app_links (from `.symlinks/plugins/app_links/ios`)
@@ -314,36 +214,11 @@ DEPENDENCIES:
   - video_compress (from `.symlinks/plugins/video_compress/ios`)
   - video_player_avfoundation (from `.symlinks/plugins/video_player_avfoundation/darwin`)
   - webview_flutter_wkwebview (from `.symlinks/plugins/webview_flutter_wkwebview/darwin`)
-  - yandex_mobileads (from `.symlinks/plugins/yandex_mobileads/ios`)
 
 SPEC REPOS:
   trunk:
     - AppAuth
     - AppCheckCore
-    - AppMetricaAdSupport
-    - AppMetricaCore
-    - AppMetricaCoreExtension
-    - AppMetricaCoreUtils
-    - AppMetricaEncodingUtils
-    - AppMetricaFMDB
-    - AppMetricaHostState
-    - AppMetricaIdentifiers
-    - AppMetricaIDSync
-    - AppMetricaKeychain
-    - AppMetricaLibraryAdapter
-    - AppMetricaLog
-    - AppMetricaLogSwift
-    - AppMetricaNetwork
-    - AppMetricaPlatform
-    - AppMetricaProtobuf
-    - AppMetricaProtobufUtils
-    - AppMetricaStorageUtils
-    - AppMetricaSynchronization
-    - DivKit
-    - DivKit_LayoutKit
-    - DivKit_LayoutKitInterface
-    - DivKit_Serialization
-    - DivKitBinaryCompatibilityFacade
     - DKImagePickerController
     - DKPhotoGallery
     - Google-Mobile-Ads-SDK
@@ -363,11 +238,6 @@ SPEC REPOS:
     - Sentry
     - SwiftyGif
     - TOCropViewController
-    - VGSL
-    - VGSLFundamentals
-    - VGSLNetworking
-    - VGSLUI
-    - YandexMobileAds
 
 EXTERNAL SOURCES:
   app_links:
@@ -430,40 +300,14 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/video_player_avfoundation/darwin"
   webview_flutter_wkwebview:
     :path: ".symlinks/plugins/webview_flutter_wkwebview/darwin"
-  yandex_mobileads:
-    :path: ".symlinks/plugins/yandex_mobileads/ios"
 
 SPEC CHECKSUMS:
   app_links: 3dbc685f76b1693c66a6d9dd1e9ab6f73d97dc0a
   AppAuth: d4f13a8fe0baf391b2108511793e4b479691fb73
   AppCheckCore: 214137f5c378d1dec88a68425c467fe65aaff637
-  AppMetricaAdSupport: 702bdcf46b81a7fed457de56f6b0554d0480b5a3
-  AppMetricaCore: d1c73033e83316264d5797d003f0c8f7957b7f31
-  AppMetricaCoreExtension: 02a8409b471de413ac5ccf9249b12223816737c1
-  AppMetricaCoreUtils: 8d6d710d016d15cf30caa46ed7b38219842b6e51
-  AppMetricaEncodingUtils: 37803d738b7751b80e8cd3911cf42d43af6e011b
-  AppMetricaFMDB: 109e4a5ff89ca8c5609c2f2b597831aac7712e65
-  AppMetricaHostState: 8a9a1d723974201acdf819bf3a5fadb3af3f2e82
-  AppMetricaIdentifiers: 57e3164c945075fce4831567ae3a65959efaff44
-  AppMetricaIDSync: f2dcb1b268dda44cd3f1edff5dad74abbb5cb9d4
-  AppMetricaKeychain: 99950a926fb90e54913d6737a9901c45af34d800
-  AppMetricaLibraryAdapter: 643eeb8958caad92a37658751c10a591b3f74e28
-  AppMetricaLog: d2bee5f12ec196308f4a13c46b4a65013900d2db
-  AppMetricaLogSwift: 0cff437339756bd78f0a4d1526e34c51486edf3f
-  AppMetricaNetwork: 82d32db120ac3fccf7c42006354b4e203debf555
-  AppMetricaPlatform: b7bbbe687890caac28cae837fc548e66e3542cfb
-  AppMetricaProtobuf: 7b8e4a072bf634b9354f5d13cf6cc0a14b519b85
-  AppMetricaProtobufUtils: 3696c3b28c3a6a5fd95b8e44953c662ad5648f7b
-  AppMetricaStorageUtils: bb31d877359a6d1ad8ae5a6d89951edddf01af75
-  AppMetricaSynchronization: 76f438564c57b4688d640b7befc5600e21bff875
   audio_session: 9bb7f6c970f21241b19f5a3658097ae459681ba0
   connectivity_plus: cb623214f4e1f6ef8fe7403d580fdad517d2f7dd
   device_info_plus: 21fcca2080fbcd348be798aa36c3e5ed849eefbe
-  DivKit: dcac05f67a96653a429db8bfa56958d6bb673b42
-  DivKit_LayoutKit: 4a2bbcba53122c98ca15ff4ad971cb04cb5721be
-  DivKit_LayoutKitInterface: a1d3b8d21dcbdf1d1a43d7d37535cbbfca11b739
-  DivKit_Serialization: bce644d2bcf1e0f3851c93868cc06f1d7a0593e0
-  DivKitBinaryCompatibilityFacade: 77c240b799c62d65c826aeb9c8f0081e1ffe7b56
   DKImagePickerController: 946cec48c7873164274ecc4624d19e3da4c1ef3c
   DKPhotoGallery: b3834fecb755ee09a593d7c9e389d8b5d6deed60
   file_picker: a0560bc09d61de87f12d246fc47d2119e6ef37be
@@ -506,15 +350,9 @@ SPEC CHECKSUMS:
   SwiftyGif: 706c60cf65fa2bc5ee0313beece843c8eb8194d4
   TOCropViewController: a916930c465b5d9445a74d95e0c0da931771b4df
   url_launcher_ios: 7a95fa5b60cc718a708b8f2966718e93db0cef1b
-  VGSL: 0573c2b82b05aadcba4836398ce3778d271bfd13
-  VGSLFundamentals: 3a081684c1a5df5800bf88aca8a9bdff2c10cfd9
-  VGSLNetworking: 0ea8a335bc4f4eba3f6123ffe441cf1c08f267f2
-  VGSLUI: 249a16cccdb75f1a5a1733894d013bca76e27c5e
   video_compress: f2133a07762889d67f0711ac831faa26f956980e
   video_player_avfoundation: 3453f792138786248960ca029747fcd9f318ef52
   webview_flutter_wkwebview: 8ebf4fded22593026f7dbff1fbff31ea98573c8d
-  yandex_mobileads: 46a4640d682a8ac44b36ce03b79259f384418b19
-  YandexMobileAds: 330c7d7c47b7a4397ab7d7d1e21f893243614d4d
 
 PODFILE CHECKSUM: cbab47b1d414b540fe70099c43ab32d1a7503e7d
 

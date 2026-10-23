@@ -2228,10 +2228,10 @@ packages:
     dependency: "direct main"
     description:
       name: yandex_mobileads
-      sha256: "126bfdd971f4b846faa1955f3ed024ea0f557e7effc06e5825d480ee21e9b55d"
+      sha256: c9b259c322bbd17bd46b4ac66fbaabe8dbbf881ccf75285e6fb7e2012cdc89ba
       url: "https://pub.dev"
     source: hosted
-    version: "7.18.0"
+    version: "8.6.0"
   youtube_player_flutter:
     dependency: "direct main"
     description:

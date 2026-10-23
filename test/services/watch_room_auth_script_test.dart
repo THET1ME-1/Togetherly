@@ -31,6 +31,18 @@ void main() {
       expect(js.indexOf('hostname'), lessThan(js.indexOf('__togetherlyAuth')));
     });
 
+    test('на запасном пути комната открыта на edge — сессию отдаём и ему', () {
+      // Украинцам, у которых режут основной адрес, страница комнаты
+      // открывается на edge.togetherly.day (22.10.2026). Без этого вход в
+      // комнату пары им отказывал бы.
+      final js = WatchRoomService.authScript(token: 't');
+      expect(
+        js,
+        contains("if(location.hostname!=='togetherly.day'"
+            "&&location.hostname!=='edge.togetherly.day')return;"),
+      );
+    });
+
     test('кавычки в имени не ломают скрипт', () {
       final js = WatchRoomService.authScript(token: 't', name: "O'Neil \"Z\" </script>");
       expect(_payload(js)['name'], "O'Neil \"Z\" </script>");
