@@ -17,6 +17,7 @@ void main() {
       expect(
         decideUpdatePath(
           sideloaded: false,
+          signedByUs: false,
           splitsMissing: false,
           playServices: true,
         ),
@@ -28,6 +29,7 @@ void main() {
       expect(
         decideUpdatePath(
           sideloaded: true,
+          signedByUs: true,
           splitsMissing: false,
           playServices: true,
         ),
@@ -35,10 +37,36 @@ void main() {
       );
     });
 
+    // Обращение 455: сборка с подписью Google Play, поставленная не самим Play
+    // (магазин телефона Huawei и Honor, перенос со старого телефона). Файл с
+    // GitHub подписан нашим ключом, и телефон отказывался ставить его поверх:
+    // «Подпись пакета и установленного приложения не совпадают».
+    test('сборке с подписью Google файл с GitHub не предлагаем', () {
+      expect(
+        decideUpdatePath(
+          sideloaded: true,
+          signedByUs: false,
+          splitsMissing: false,
+          playServices: true,
+        ),
+        UpdatePath.playStore,
+      );
+      expect(
+        decideUpdatePath(
+          sideloaded: true,
+          signedByUs: false,
+          splitsMissing: false,
+          playServices: false,
+        ),
+        UpdatePath.none,
+      );
+    });
+
     test('битая установка из Play не пускает нас в Play Core', () {
       expect(
         decideUpdatePath(
           sideloaded: false,
+          signedByUs: false,
           splitsMissing: true,
           playServices: true,
         ),
@@ -52,6 +80,7 @@ void main() {
       expect(
         decideUpdatePath(
           sideloaded: true,
+          signedByUs: true,
           splitsMissing: true,
           playServices: true,
         ),
@@ -67,6 +96,7 @@ void main() {
       expect(
         decideUpdatePath(
           sideloaded: false,
+          signedByUs: false,
           splitsMissing: false,
           playServices: false,
         ),
@@ -80,6 +110,7 @@ void main() {
       expect(
         decideUpdatePath(
           sideloaded: false,
+          signedByUs: false,
           splitsMissing: true,
           playServices: false,
         ),
@@ -92,11 +123,25 @@ void main() {
       expect(
         decideUpdatePath(
           sideloaded: true,
+          signedByUs: true,
           splitsMissing: false,
           playServices: false,
         ),
         UpdatePath.sideload,
       );
+    });
+  });
+
+  group('signedByOurKey', () {
+    test('наш отпечаток узнаётся в любом регистре', () {
+      expect(signedByOurKey(kOurSigningCertSha256), isTrue);
+      expect(signedByOurKey(kOurSigningCertSha256.toUpperCase()), isTrue);
+    });
+
+    test('чужая или неизвестная подпись — не наша', () {
+      expect(signedByOurKey(null), isFalse);
+      expect(signedByOurKey(''), isFalse);
+      expect(signedByOurKey('AB' * 32), isFalse);
     });
   });
 }

@@ -4073,6 +4073,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // живёт в UpdateService, чтобы её можно было проверить тестом.
     final path = decideUpdatePath(
       sideloaded: await UpdateService.isSideloaded(),
+      signedByUs: await UpdateService.signedByUs(),
       splitsMissing: await UpdateService.hasMissingSplits(),
       playServices: await UpdateService.hasPlayServices(),
     );

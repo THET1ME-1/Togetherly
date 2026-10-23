@@ -28,17 +28,38 @@ enum UpdatePath {
   none,
 }
 
+/// Отпечаток SHA-256 сертификата, которым CI подписывает APK для GitHub и
+/// RuStore. Снят с релиза 1.39.0: `apksigner verify --print-certs <apk>`.
+/// Сборки из Google Play подписаны ключом Google, и поверх них файл с GitHub
+/// не встаёт.
+const String kOurSigningCertSha256 =
+    '1e944f00fef117d50003560344fcbe4f9f69bffa4cf35ba89f26d032c33a4e13';
+
+/// Подписана ли установленная сборка нашим ключом. [buildSignature] —
+/// `PackageInfo.buildSignature`: SHA-256 сертификата, заглавными буквами.
+/// Не прочитали подпись — считаем чужой: предложение, которое кончается
+/// отказом установщика, хуже пропущенного обновления.
+bool signedByOurKey(String? buildSignature) =>
+    (buildSignature ?? '').toLowerCase() == kOurSigningCertSha256;
+
 /// Развилка запуска, вынесенная из экрана, чтобы её можно было проверить
 /// тестом, не поднимая Android.
 ///
 /// [splitsMissing] важно только для установок из Play: одиночный APK по
 /// определению не имеет докачиваемых частей, и предупреждать там не о чем.
+///
+/// [signedByUs]: поверх сборки с подписью Google файл с GitHub не встанет
+/// («Подпись пакета и установленного приложения не совпадают», обращение 455).
+/// Такую сборку ставят магазины телефонов Huawei и Honor и перенос со старого
+/// телефона, установщик у неё не Play, и раньше её вели на GitHub. Теперь она
+/// идёт путём сборки из Play.
 UpdatePath decideUpdatePath({
   required bool sideloaded,
+  required bool signedByUs,
   required bool splitsMissing,
   required bool playServices,
 }) {
-  if (sideloaded) return UpdatePath.sideload;
+  if (sideloaded && signedByUs) return UpdatePath.sideload;
   // Сервисы проверяем раньше частей: на телефоне без Google Play переустановка
   // ничего не чинит, и гнать человека переустанавливать исправное приложение
   // было бы враньём.
@@ -118,6 +139,18 @@ class UpdateService {
       final info = await PackageInfo.fromPlatform();
       // Play Store ставит с installerStore == 'com.android.vending'.
       return info.installerStore != 'com.android.vending';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Подписана ли установленная сборка нашим ключом, тем же, что файл на
+  /// GitHub. См. [signedByOurKey].
+  static Future<bool> signedByUs() async {
+    if (!Platform.isAndroid) return false;
+    try {
+      final info = await PackageInfo.fromPlatform();
+      return signedByOurKey(info.buildSignature);
     } catch (_) {
       return false;
     }
