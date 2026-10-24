@@ -15,8 +15,8 @@ import 'package:love_app/widgets/launch_splash/launch_splash_view.dart';
 
 void main() {
   final home = Platform.environment['HOME'];
-  final dir = Directory('$home/Projects/togetherly-badges-hand/out_splash/hw_key');
-  final under = File('$home/Projects/togetherly-splash-mockup/img/home_hw.webp');
+  final dir = Directory('$home/Projects/GitHub/togetherly-badges-hand/out_splash/hw_key');
+  final under = File('$home/Projects/GitHub/togetherly-splash-mockup/img/home_hw.webp');
 
   testWidgets('кадры заставки', (tester) async {
     if (!dir.existsSync() || !under.existsSync()) return;

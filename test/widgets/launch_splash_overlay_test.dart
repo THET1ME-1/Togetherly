@@ -13,7 +13,7 @@ import 'package:love_app/widgets/launch_splash/launch_splash_view.dart';
 /// runApp), закрывает приложение, не пропускает к нему касаний и уходит
 /// целиком. Без заставки приложение доступно сразу.
 void main() {
-  final dir = Directory('${Platform.environment['HOME']}/Projects/togetherly-badges-hand/out_splash/hw_key');
+  final dir = Directory('${Platform.environment['HOME']}/Projects/GitHub/togetherly-badges-hand/out_splash/hw_key');
   final ok = dir.existsSync();
 
   LaunchSplash splash() {

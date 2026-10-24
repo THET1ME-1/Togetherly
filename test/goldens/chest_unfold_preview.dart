@@ -3,7 +3,7 @@
 // Карточка тут — повтор блока сундука с главной (`ChestHomeCard`) с теми же
 // метками перехода; сам блок в тесте не поднять, он ходит на сервер. Экран
 // сундука настоящий, файлы сезона — из запекания мастерской
-// (`~/Projects/togetherly-badges-hand/out_season/hw`), как их отдаст сервер.
+// (`~/Projects/GitHub/togetherly-badges-hand/out_season/hw`), как их отдаст сервер.
 //
 // Имя файла БЕЗ `_test`: обычный `flutter test` его не подхватывает.
 //   flutter test test/goldens/chest_unfold_preview.dart → build/chest-unfold/
@@ -118,7 +118,7 @@ class _Home extends StatelessWidget {
 
 void main() {
   final dir =
-      '${Platform.environment['HOME']}/Projects/togetherly-badges-hand/out_season/hw';
+      '${Platform.environment['HOME']}/Projects/GitHub/togetherly-badges-hand/out_season/hw';
 
   setUpAll(() async {
     await _loadFont('Onest', 'assets/fonts/Onest.ttf');

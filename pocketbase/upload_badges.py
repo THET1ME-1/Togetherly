@@ -25,7 +25,7 @@
 нельзя: купленное перестанет узнаваться.
 
 Запуск с VPS (наружу API суперюзера закрыт), папки готовит `export.py` из
-~/Projects/togetherly-badges-hand:
+~/Projects/GitHub/togetherly-badges-hand:
 
     python3 upload_badges.py --dir /tmp/badges            все значки из папки
     python3 upload_badges.py --dir /tmp/badges --only fish

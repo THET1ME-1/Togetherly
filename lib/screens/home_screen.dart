@@ -163,6 +163,7 @@ import '../widgets/common/gift_image.dart';
 import '../widgets/common/coin_image.dart';
 import '../widgets/season/season_backdrop_layer.dart';
 import '../widgets/theme/theme_pattern_layer.dart';
+import '../widgets/theme/theme_preview_countdown.dart';
 import '../widgets/unfold/unfold_route.dart';
 
 
@@ -2365,9 +2366,13 @@ class _HomeScreenState extends State<HomeScreen> {
     final t = AppThemes.byIndex(previewId);
     final canAfford = widget.userData.coins >= t.price;
     final bottomInset = MediaQuery.of(context).padding.bottom;
+    // В паре над панелью стоит кнопка чата: плашка встаёт над ней.
+    final above = _pairData.isPaired
+        ? kHomeChatButtonTop + 8
+        : kHomeBottomNavHeight;
 
     return Positioned(
-      bottom: 76 + bottomInset,
+      bottom: above + bottomInset,
       left: 16,
       right: 16,
       child: Material(
@@ -2399,8 +2404,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      LocaleService.current.previewLabel,
+                    ThemePreviewCountdown(
+                      label: LocaleService.current.previewLabel,
+                      endsAt: widget.userData.previewEndsAt,
                       style: TextStyle(
                         fontSize: 11,
                         color: _t.textMuted,

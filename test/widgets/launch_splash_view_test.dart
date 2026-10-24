@@ -12,7 +12,7 @@ import 'package:love_app/widgets/launch_splash/launch_splash_view.dart';
 /// поворачивается, приложение закрыто ночью; к концу окно-сердце открывает
 /// его целиком на любом экране.
 void main() {
-  final dir = Directory('${Platform.environment['HOME']}/Projects/togetherly-badges-hand/out_splash/hw_key');
+  final dir = Directory('${Platform.environment['HOME']}/Projects/GitHub/togetherly-badges-hand/out_splash/hw_key');
   final ok = dir.existsSync();
   const app = Color(0xFF00C853);
   const shot = ValueKey('shot');

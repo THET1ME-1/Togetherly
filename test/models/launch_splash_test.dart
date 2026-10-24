@@ -179,7 +179,7 @@ void main() {
   });
 
   test('запечённый «Ключ» из мастерской разбирается целиком', () {
-    final dir = Directory('${Platform.environment['HOME']}/Projects/togetherly-badges-hand/out_splash/hw_key');
+    final dir = Directory('${Platform.environment['HOME']}/Projects/GitHub/togetherly-badges-hand/out_splash/hw_key');
     if (!dir.existsSync()) return;
     final spec = jsonDecode(File('${dir.path}/splash.json').readAsStringSync()) as Map<String, dynamic>;
     final files = {

@@ -7,7 +7,7 @@ import 'package:love_app/widgets/chest/chest_frames.dart';
 /// Покой сундука крутится по кругу: кадры идут, а не стоят на первом.
 void main() {
   final file = File(
-    Platform.environment['IDLE_WEBP'] ?? '${Platform.environment['HOME']}/Projects/togetherly-badges-hand/out_season/hw/idle.webp',
+    Platform.environment['IDLE_WEBP'] ?? '${Platform.environment['HOME']}/Projects/GitHub/togetherly-badges-hand/out_season/hw/idle.webp',
   );
 
   testWidgets('покой сундука играет кадры по кругу', (tester) async {

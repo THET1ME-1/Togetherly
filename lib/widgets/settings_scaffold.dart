@@ -109,10 +109,18 @@ class SettingsCollapsible extends StatefulWidget {
   State<SettingsCollapsible> createState() => _SettingsCollapsibleState();
 }
 
-class _SettingsCollapsibleState extends State<SettingsCollapsible> {
+class _SettingsCollapsibleState extends State<SettingsCollapsible>
+    with AutomaticKeepAliveClientMixin {
   /// Пока не подняли prefs, секция развёрнута: раскрытое — состояние по
   /// умолчанию, и мигать схлопыванием на старте экрана нечестно.
   bool _open = true;
+
+  /// Секция живёт в ленивом списке и не выгружается за краем экрана. Иначе
+  /// она рождалась заново раскрытой, через кадр схлопывалась по prefs, и
+  /// скачок высоты выгружал и рождал соседей: экран настроек сам дёргался
+  /// вверх и вниз (обращение 464, 24.10.2026).
+  @override
+  bool get wantKeepAlive => true;
 
   String get _key => 'settings:${widget.prefsKey}';
 
@@ -136,6 +144,7 @@ class _SettingsCollapsibleState extends State<SettingsCollapsible> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final scheme = Theme.of(context).colorScheme;
     final tint = widget.color ?? scheme.primary;
     return Column(

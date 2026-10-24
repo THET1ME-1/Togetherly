@@ -10,6 +10,12 @@ import '../../widgets/unfold/unfold_route.dart';
 /// не взять, касание забирает она.
 const double kHomeBottomNavHeight = 76;
 
+/// Верх кнопки чата над нижним краем экрана без системного отступа: поле под
+/// панелью, круглая кнопка, зазор и сама кнопка чата. Плашка над панелью
+/// встаёт выше: иначе кнопка чата закрывает её правый край. У просмотра темы
+/// под ней прятался крестик, и вернуть свою тему было нечем (обращение 464).
+const double kHomeChatButtonTop = 20 + 56 + 12 + 44;
+
 class HomeBottomNav extends StatelessWidget {
   final int selectedIndex;
   final AppTheme theme;

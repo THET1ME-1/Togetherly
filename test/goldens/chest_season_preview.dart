@@ -20,7 +20,7 @@ import 'package:love_app/widgets/chest/chest_frames.dart';
 /// Лента сундуков с сезонным «Хэллоуин» (макет «Сундук на Хэллоуин», вариант
 /// Б): обычный сундук и ночная страница, на 393 и 320 точках, плюс 320 при
 /// шрифте 1.3. Файлы сундука берутся из запекания мастерской
-/// (`~/Projects/togetherly-badges-hand/out_season/hw`), как их отдаст сервер.
+/// (`~/Projects/GitHub/togetherly-badges-hand/out_season/hw`), как их отдаст сервер.
 ///
 /// Имя без `_test`: файл для глаз. Запуск:
 /// `flutter test test/goldens/chest_season_preview.dart`, картинка в
@@ -38,7 +38,7 @@ Future<void> _loadFont(String family, List<String> paths) async {
 }
 
 void main() {
-  final dir = '${Platform.environment['HOME']}/Projects/togetherly-badges-hand/out_season/hw';
+  final dir = '${Platform.environment['HOME']}/Projects/GitHub/togetherly-badges-hand/out_season/hw';
 
   setUpAll(() async {
     await _loadFont('Onest', ['assets/fonts/Onest.ttf']);

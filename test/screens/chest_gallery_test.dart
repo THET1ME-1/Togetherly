@@ -19,7 +19,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// не было анимации, а «Хэллоуин →» проигрывал занавес и оставлял на месте
 /// обычный сундук — уже в ночных цветах.
 void main() {
-  final dir = '${Platform.environment['HOME']}/Projects/togetherly-badges-hand/out_season/hw';
+  final dir = '${Platform.environment['HOME']}/Projects/GitHub/togetherly-badges-hand/out_season/hw';
   final ok = File('$dir/chest.json').existsSync();
 
   late SeasonChest season;

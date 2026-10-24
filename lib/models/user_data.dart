@@ -323,10 +323,41 @@ class UserData extends ChangeNotifier {
   bool get isPreviewingTheme => _previewThemeId != null;
   int? get previewThemeId => _previewThemeId;
 
+  /// Сколько живёт просмотр платной темы. Без срока «Посмотреть» красило темой
+  /// всё приложение до перезапуска, и платная тема выходила бесплатной
+  /// (обращение 464, 24.10.2026).
+  static const themePreviewDuration = Duration(minutes: 1);
+
+  DateTime? _previewEndsAt;
+  Timer? _previewTimer;
+
+  /// Когда просмотр погаснет сам; null — просмотра нет.
+  DateTime? get previewEndsAt => _previewEndsAt;
+
+  /// Снимает просмотр без перерисовки: её делает тот, кто зовёт.
+  void _clearPreview() {
+    _previewTimer?.cancel();
+    _previewTimer = null;
+    _previewThemeId = null;
+    _previewEndsAt = null;
+  }
+
   /// Временно применить тему без сохранения. Передай null чтобы сбросить.
   void setPreviewTheme(int? id) {
+    // Прежний срок снимаем: иначе он погасил бы следующий просмотр раньше.
+    _clearPreview();
     _previewThemeId = id;
+    if (id != null) {
+      _previewEndsAt = DateTime.now().add(themePreviewDuration);
+      _previewTimer = Timer(themePreviewDuration, () => setPreviewTheme(null));
+    }
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _previewTimer?.cancel();
+    super.dispose();
   }
 
   // Алиасы для удобства (используются в экранах)
@@ -1288,6 +1319,9 @@ class UserData extends ChangeNotifier {
         isCustomPaletteIndex(id) && customPaletteSlot(id) < _customThemes.length;
     if (!ownCustom && (id < 0 || id >= AppThemes.all.length)) return;
     _themeId = id;
+    // Выбор рукой главнее просмотра: иначе выбранная тема сохранялась, а экран
+    // оставался в просматриваемой (обращение 464).
+    _clearPreview();
     await _saveLocal();
     notifyListeners();
     unawaited(_syncAppearance());
@@ -1302,6 +1336,7 @@ class UserData extends ChangeNotifier {
     final next = addCustomTheme(_customThemes, CustomTheme(seed: seed, name: name));
     _customThemes = next;
     _themeId = customPaletteIndex(next.length - 1);
+    _clearPreview();
     await _saveCustomThemes();
     return true;
   }

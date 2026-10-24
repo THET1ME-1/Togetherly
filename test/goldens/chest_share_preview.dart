@@ -18,7 +18,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 ///   flutter test test/goldens/chest_share_preview.dart → build/chest-share/*.png
 ///
 /// Анимацию открытия берёт из мастерской значков, если она есть рядом
-/// (`~/Projects/togetherly-badges-hand/out_chest/chest_open/lg.webp`); без неё
+/// (`~/Projects/GitHub/togetherly-badges-hand/out_chest/chest_open/lg.webp`); без неё
 /// на карточке неподвижный кадр из сборки.
 
 Future<void> _loadFont(String family, String path) async {
@@ -36,7 +36,7 @@ void main() {
     await LocaleService.instance.init();
     await _loadFont('Onest', 'assets/fonts/Onest.ttf');
     await _loadFont('Unbounded', 'assets/fonts/Unbounded.ttf');
-    final webp = File('${Platform.environment['HOME']}/Projects/togetherly-badges-hand/out_chest/chest_open/lg.webp');
+    final webp = File('${Platform.environment['HOME']}/Projects/GitHub/togetherly-badges-hand/out_chest/chest_open/lg.webp');
     if (webp.existsSync()) ChestFrames.debugPut(_open, webp.readAsBytesSync());
   });
 

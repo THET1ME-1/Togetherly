@@ -2,7 +2,7 @@
 """Картинки темы «Хэллоуин»: плитка узора и тыква для кружка ленты палитр.
 
 Рисунки не рисуются заново: это неподвижные кадры хэллоуинского набора из
-мастерской значков (`~/Projects/togetherly-badges-hand`, папки `out/` и
+мастерской значков (`~/Projects/GitHub/togetherly-badges-hand`, папки `out/` и
 `out_gifts/`). Из каждого берётся только контур тушью — тёмные непрозрачные
 пиксели — и ложится белой маской. Цвет и силу узору даёт тема
 (`ThemePattern.tint` в `lib/theme/app_theme.dart`), поэтому оттенок правится
@@ -26,7 +26,7 @@ import sys
 from PIL import Image, ImageChops
 
 SRC = sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser(
-    '~/Projects/togetherly-badges-hand')
+    '~/Projects/GitHub/togetherly-badges-hand')
 OUT = 'assets/images/themes'
 
 # Девять предметов набора, порядок как в макете: от него зависит раскладка.
