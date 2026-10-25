@@ -1,13 +1,16 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' show Locale, PlatformDispatcher;
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../models/server_route_country.dart';
 import 'device_time_zone.dart';
 import 'server_reach.dart';
 import 'staggered_race.dart';
+import 'watched_socket.dart';
 
 /// Запасной путь к нашему серверу (22.10.2026).
 ///
@@ -49,6 +52,7 @@ class ServerRoute {
     this.recheckTimeout = const Duration(seconds: 8),
     this.slowAfter = const Duration(seconds: 15),
     this.connectDeadline = const Duration(seconds: 20),
+    this.stallAfter = const Duration(seconds: 20),
     Future<int> Function()? loadSpareSince,
     Future<void> Function(int value)? saveSpareSince,
     void Function()? onReached,
@@ -89,6 +93,9 @@ class ServerRoute {
   /// закрытому провайдером серверу висел, пока не сдастся система: на
   /// эмуляторе 2 минуты 15 секунд, у людей «бесконечная загрузка» (TOG-16).
   final Duration connectDeadline;
+
+  /// Запрос ушёл, а за этот срок не сдвинулось ничего: ни отправка, ни ответ.
+  final Duration stallAfter;
   final Future<int> Function() _loadSpareSince;
   final Future<void> Function(int value) _saveSpareSince;
 
@@ -216,12 +223,23 @@ class ServerRoute {
       slow.cancel();
       deadline.cancel();
       _onReached();
+      final viaSpare = targets[win.index] == spareHost;
       // Путь меняем, только если победил не тот, с которого начинали: значит,
       // начальный не ответил. Победа начального ни о чём не говорит, и без
       // этого запрос по запасному пути возвращал бы на запасной сразу после
-      // того, как фоновая проверка вернула на основной.
-      if (win.index != 0) _remember(spare: targets[win.index] == spareHost);
-      return win.value;
+      // того, как фоновая проверка вернула на основной. И меняем только после
+      // настоящего ответа сервера через победителя (TOG-27): россиянина
+      // открытое соединение уводило на запасной, а там мелкие запросы
+      // проходят, а загрузки висят.
+      final switches = win.index != 0;
+      if (!switches && !viaSpare) return win.value;
+      return watchSocket(
+        win.value,
+        stallAfter: viaSpare ? stallAfter : null,
+        onAnswer: switches ? () => _remember(spare: viaSpare) : null,
+        onStall: viaSpare ? () => _spareStalled(host) : null,
+        now: _now,
+      );
     }, onError: (Object error, StackTrace stack) {
       slow.cancel();
       deadline.cancel();
@@ -291,11 +309,25 @@ class ServerRoute {
     if (spare == onSpare) return;
     _spareSince = spare ? _now().millisecondsSinceEpoch : 0;
     if (spare) _lastRecheck = _now();
+    debugPrint(spare
+        ? 'ServerRoute: сервер ответил по запасному пути, дальше начинаем с него'
+        : 'ServerRoute: возвращаемся на основной путь');
     unawaited(_saveSpareSince(_spareSince).catchError((_) {}));
   }
 
+  /// Запрос по запасному пути ушёл, а за [stallAfter] не сдвинулось ничего:
+  /// путь живой, но душат (TOG-27). Возвращаемся на основной, не дожидаясь
+  /// проверки раз в [recheckEvery]. Сам запрос не рвём: его срок решает
+  /// приложение, а сервер может просто долго думать.
+  void _spareStalled(String host) {
+    debugPrint('ServerRoute: запасной путь к $host завис');
+    _remember(spare: false);
+  }
+
   /// На запасном пути изредка проверяем основной: провайдер мог снять
-  /// блокировку, человек мог уехать или включить VPN.
+  /// блокировку, человек мог уехать или включить VPN. Возвращаемся, только
+  /// когда сервер по основному ответил на запрос (TOG-27): открытое соединение
+  /// ещё ничего не значит.
   void _maybeRecheck(String host, int port, bool secure, SecurityContext? context) {
     if (!onSpare || _rechecking) return;
     final last = _lastRecheck;
@@ -303,15 +335,49 @@ class ServerRoute {
     _rechecking = true;
     _lastRecheck = _now();
     final attempt = _dial(_directHostFor(host), port, host, secure, context);
-    unawaited(attempt.result.timeout(recheckTimeout, onTimeout: () {
+    Socket? opened;
+    final asked = attempt.result.then((socket) {
+      opened = socket;
+      return _askHealth(socket, host);
+    });
+    unawaited(asked.timeout(recheckTimeout, onTimeout: () {
       attempt.cancel();
+      opened?.destroy();
       // Соединение могло достроиться уже после срока — закрываем и его.
       unawaited(attempt.result.then((late) => late.destroy()).catchError((_) {}));
       throw TimeoutException('основной путь молчит');
-    }).then((socket) {
-      socket.destroy();
+    }).then((_) {
       _remember(spare: false);
     }).catchError((_) {}).whenComplete(() => _rechecking = false));
+  }
+
+  /// Спрашивает сервер по уже открытому соединению и ждёт первых байт ответа,
+  /// какой бы он ни был. Соединение после этого закрывается.
+  static Future<void> _askHealth(Socket socket, String host) async {
+    final answered = Completer<void>();
+    final subscription = socket.listen(
+      (_) {
+        if (!answered.isCompleted) answered.complete();
+      },
+      onError: (Object error) {
+        if (!answered.isCompleted) answered.completeError(error);
+      },
+      onDone: () {
+        if (!answered.isCompleted) {
+          answered.completeError(const SocketException('сервер закрыл соединение без ответа'));
+        }
+      },
+      cancelOnError: true,
+    );
+    try {
+      socket.add(ascii.encode(
+        'GET /api/health HTTP/1.1\r\nHost: $host\r\nConnection: close\r\n\r\n',
+      ));
+      await answered.future;
+    } finally {
+      unawaited(subscription.cancel());
+      socket.destroy();
+    }
   }
 
   static String _same(String host) => host;
