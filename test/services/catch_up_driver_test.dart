@@ -15,6 +15,7 @@ import 'package:love_app/services/catch_up_driver.dart';
 class _Harness {
   final reconnected = StreamController<void>.broadcast();
   final foreground = StreamController<bool>.broadcast();
+  final pushes = StreamController<void>.broadcast();
   bool subscribed = true;
   int runs = 0;
   Completer<void>? gate;
@@ -29,6 +30,7 @@ class _Harness {
       },
       reconnected: reconnected.stream,
       foreground: foreground.stream,
+      pushed: pushes.stream,
       subscribed: () => subscribed,
       jitter: () => const Duration(milliseconds: 500),
       // Часы fakeAsync: DateTime.now() идёт по настоящему времени.
@@ -38,6 +40,32 @@ class _Harness {
 }
 
 void main() {
+  // TOG-36, отзыв в Google Play 23.10.2026 (1.39.0): «сообщение в чате
+  // появляется не сразу, а в уведомлении уже видно». Сокет, умерший молча,
+  // приложение замечает через 35 секунд (пинг Centrifugo 25 с плюс 10 с), а
+  // пуш о сообщении к этому времени уже пришёл.
+  test('пуш о сообщении при открытом приложении догоняет сразу, без разброса', () {
+    fakeAsync((async) {
+      final h = _Harness(async);
+      h.pushes.add(null);
+      async.flushMicrotasks();
+      expect(h.runs, 1, reason: 'уведомление пришло, а переписка ждёт сокет');
+      h.driver.dispose();
+    });
+  });
+
+  test('пуш, пока приложение не на экране, сервер не дёргает: догонит возврат', () {
+    fakeAsync((async) {
+      final h = _Harness(async);
+      h.foreground.add(false);
+      async.flushMicrotasks();
+      h.pushes.add(null);
+      async.flushMicrotasks();
+      expect(h.runs, 0);
+      h.driver.dispose();
+    });
+  });
+
   test('переподключение сокета догоняет пропущенное', () {
     fakeAsync((async) {
       final h = _Harness(async);

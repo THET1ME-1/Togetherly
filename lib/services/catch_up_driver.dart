@@ -9,12 +9,15 @@ import 'dart:math';
 /// из чата и повторного входа («при входе в чат их некоторое время не видно»,
 /// отзыв в Google Play, 1.38.0).
 ///
-/// Поводов дотянуть три:
+/// Поводов дотянуть четыре:
 ///  * сокет переподключился — с разбросом [jitter], чтобы после перезапуска
 ///    сервера все открытые чаты не пришли за списком одной секундой;
 ///  * приложение вернулось на экран после паузы дольше [minAway];
 ///  * сокета нет, а список открыт и приложение на экране — раз в [pollEvery],
-///    пока сокет не оживёт.
+///    пока сокет не оживёт;
+///  * пришёл пуш о том, что список ждёт, пока приложение на экране (TOG-36):
+///    сокет, умерший молча, приложение замечает только через 35 секунд, а
+///    уведомление к этому времени уже видно.
 ///
 /// Догоны не идут вперехлёст: повод, случившийся во время догона, даёт ещё
 /// один догон после него — сообщение могло прийти, пока шёл запрос.
@@ -23,6 +26,7 @@ class CatchUpDriver {
     required Future<void> Function() catchUp,
     required Stream<void> reconnected,
     required Stream<bool> foreground,
+    Stream<void>? pushed,
     required bool Function() subscribed,
     Duration pollEvery = const Duration(seconds: 15),
     Duration minAway = const Duration(seconds: 3),
@@ -35,6 +39,13 @@ class CatchUpDriver {
         _now = now ?? DateTime.now {
     _subs.add(reconnected.listen((_) => _schedule(_jitter())));
     _subs.add(foreground.listen(_onForeground));
+    if (pushed != null) {
+      // Пуш шлют только тем, кого сервер не видит на связи: раз он пришёл
+      // при открытом приложении, сокет умер молча, и ждать его незачем.
+      _subs.add(pushed.listen((_) {
+        if (_inForeground) _request();
+      }));
+    }
     _poll = Timer.periodic(pollEvery, (_) {
       if (_inForeground && !_subscribed()) _request();
     });

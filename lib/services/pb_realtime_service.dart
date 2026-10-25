@@ -14,6 +14,7 @@ import 'offline/outbox_service.dart';
 import 'offline/record_scope.dart';
 import 'offline/scope_reconciler.dart';
 import 'pocketbase_service.dart';
+import 'push_arrivals.dart';
 
 /// Realtime-слой (миграция Firebase→PB, Этап 6; транспорт перенесён с SSE PB на
 /// Centrifugo, см. [CentrifugoService] и серверный хук centrifugo.pb.js).
@@ -99,6 +100,9 @@ class PbRealtimeService {
     bool refetchOnReconnect = false,
     bool reconcile = false,
     bool catchUp = false,
+    // Вид пуша, который при открытом приложении сразу догоняет список
+    // (TOG-36). Работает вместе с [catchUp].
+    String? catchUpPush,
   }) {
     // Offline-first: при наличии [scope] поток обслуживается из локального кэша
     // (sembast), а сеть лишь досыпает изменения. Без [scope] — прежнее in-memory
@@ -120,6 +124,7 @@ class PbRealtimeService {
         windowSort,
         reconcile,
         catchUp,
+        catchUpPush,
       );
     }
     final byId = <String, RecordModel>{};
@@ -359,6 +364,7 @@ class PbRealtimeService {
     String? windowSort,
     bool reconcile,
     bool catchUp,
+    String? catchUpPush,
   ) {
     final store = LocalStore.instance;
     final conn = ConnectivityService.instance;
@@ -570,6 +576,10 @@ class PbRealtimeService {
             },
             reconnected: CentrifugoService.instance.reconnected,
             foreground: visible.stream,
+            // Пуш при открытом приложении значит, что сокет умер молча (TOG-36).
+            pushed: catchUpPush == null
+                ? null
+                : PushArrivals.instance.of(catchUpPush),
             subscribed: () => CentrifugoService.instance.isSubscribed(channel),
           );
         }
@@ -928,6 +938,7 @@ class PbRealtimeService {
         windowLimit: limit,
         windowSort: '-ts',
         catchUp: true,
+        catchUpPush: 'chat',
       );
 
   /// Маскоты группы — дефолтные первыми, затем по дате.

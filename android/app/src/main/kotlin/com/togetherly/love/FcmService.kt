@@ -33,6 +33,10 @@ class FcmService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         if (message.notification != null) {
+            // Обычный пуш при открытом приложении: сервер шлёт его только тем,
+            // кого не видит на связи, значит, сокет умер молча. Открытый чат по
+            // нему сразу дотягивает переписку, не дожидаясь сокета (TOG-36).
+            PushArrivedBridge.arrived(message.data["kind"])
             // Зов в совместную ленту при открытом приложении: система баннер не
             // рисует, а человеку надо успеть ответить — спрашивает Dart листом.
             if (message.data["kind"] == "reels") ReelsInviteBridge.arrived(message.data)

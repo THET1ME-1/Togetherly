@@ -65,6 +65,7 @@ import WidgetKit
     setupApnsChannel(engineBridge.pluginRegistry)
     setupLocationAlwaysChannel(engineBridge.pluginRegistry)
     setupReelsInviteChannel(engineBridge.pluginRegistry)
+    setupPushArrivedChannel(engineBridge.pluginRegistry)
     setupScreenAwakeChannel(engineBridge.pluginRegistry)
     setupTimeZoneChannel(engineBridge.pluginRegistry)
     setupAdCoverChannel(engineBridge.pluginRegistry)
@@ -244,6 +245,30 @@ import WidgetKit
     ]
   }
 
+  // MARK: - Пуш при открытом приложении
+
+  /// Пуш, пришедший при открытом приложении, — во Flutter, канал
+  /// `love_app/push_arrived` (TOG-36). Сервер шлёт пуш только тем, кого не
+  /// видит на связи: раз он пришёл, пока приложение на экране, сокет
+  /// Centrifugo умер молча, и открытый чат ждёт его зря. Вид пуша (`chat`,
+  /// `memory`, `mood`…) уходит в Dart (`PushArrivals`), тот сам решает, что
+  /// догнать. Как показывать баннер, это не меняет.
+  private var pushArrivedChannel: FlutterMethodChannel?
+
+  private func setupPushArrivedChannel(_ registry: FlutterPluginRegistry) {
+    guard let messenger = registry
+      .registrar(forPlugin: "TogetherlyPushArrived")?
+      .messenger()
+    else { return }
+    pushArrivedChannel = FlutterMethodChannel(
+      name: "love_app/push_arrived", binaryMessenger: messenger)
+  }
+
+  private func pushArrived(_ info: [AnyHashable: Any]) {
+    guard let kind = info["kind"] as? String, !kind.isEmpty else { return }
+    pushArrivedChannel?.invokeMethod("arrived", arguments: kind)
+  }
+
   /// Зов пришёл, пока приложение на экране: баннер не рисуем, спрашивает
   /// Dart листом. Пока Dart не слушает — обычный баннер.
   override func userNotificationCenter(
@@ -251,6 +276,7 @@ import WidgetKit
     willPresent notification: UNNotification,
     withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
   ) {
+    pushArrived(notification.request.content.userInfo)
     if let invite = reelsInvite(from: notification.request.content.userInfo) {
       if reelsDartListens, let channel = reelsInviteChannel {
         channel.invokeMethod("arrived", arguments: invite)

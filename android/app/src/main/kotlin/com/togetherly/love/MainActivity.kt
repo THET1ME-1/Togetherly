@@ -127,6 +127,7 @@ class MainActivity : FlutterActivity() {
 
     override fun onDestroy() {
         ReelsInviteBridge.detach()
+        PushArrivedBridge.detach()
         userPresentReceiver?.let {
             try { unregisterReceiver(it) } catch (_: Exception) {}
         }
@@ -137,6 +138,7 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         ReelsInviteBridge.attach(flutterEngine.dartExecutor.binaryMessenger)
+        PushArrivedBridge.attach(flutterEngine.dartExecutor.binaryMessenger)
 
         sharedTextChannel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,

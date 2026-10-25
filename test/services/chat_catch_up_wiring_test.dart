@@ -26,4 +26,42 @@ void main() {
     expect(src, contains('catchUpDriver?.dispose()'),
         reason: 'закрытый чат не должен дальше ходить на сервер');
   });
+
+  // TOG-36: пуш о сообщении при открытом приложении сразу догоняет чат.
+  group('пуш о сообщении догоняет открытый чат', () {
+    final kotlinDir = 'android/app/src/main/kotlin/com/togetherly/love';
+
+    test('чат просит догон по пушу своего вида', () {
+      final start = src.indexOf('Stream<List<RecordModel>> watchMessages(');
+      final body = src.substring(start, src.indexOf(');', start));
+      expect(body, contains("catchUpPush: 'chat'"));
+      expect(src, contains('PushArrivals.instance.of('));
+    });
+
+    test('Android отдаёт в Dart пуш, пришедший при открытом приложении', () {
+      final fcm = File('$kotlinDir/FcmService.kt').readAsStringSync();
+      expect(fcm, contains('PushArrivedBridge.arrived('));
+      final activity = File('$kotlinDir/MainActivity.kt').readAsStringSync();
+      expect(activity, contains('PushArrivedBridge.attach('));
+      expect(activity, contains('PushArrivedBridge.detach()'));
+    });
+
+    test('iPhone отдаёт в Dart пуш из willPresent', () {
+      final swift = File('ios/Runner/AppDelegate.swift').readAsStringSync();
+      final start = swift.indexOf('willPresent notification: UNNotification');
+      expect(start, isNonNegative);
+      final body = swift.substring(start, swift.indexOf('\n  }\n', start));
+      expect(body, contains('pushArrived('));
+    });
+
+    test('имя канала одно в Dart, Kotlin и Swift', () {
+      final dart = File('lib/services/push_arrivals.dart').readAsStringSync();
+      final kotlin = File('$kotlinDir/PushArrivedBridge.kt').readAsStringSync();
+      final swift = File('ios/Runner/AppDelegate.swift').readAsStringSync();
+      const name = 'love_app/push_arrived';
+      expect(dart, contains("'$name'"));
+      expect(kotlin, contains('"$name"'));
+      expect(swift, contains('"$name"'));
+    });
+  });
 }
