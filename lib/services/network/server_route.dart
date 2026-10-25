@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' show Locale, PlatformDispatcher;
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../models/server_route_country.dart';
 import 'server_reach.dart';
 import 'staggered_race.dart';
 
@@ -22,6 +24,12 @@ import 'staggered_race.dart';
 /// запасной — запоминаем и дальше начинаем с него, а основной раз в
 /// [recheckEvery] проверяем в фоне и возвращаемся, когда он ожил. Россияне
 /// запасного не касаются: основной отвечает им сразу.
+///
+/// С 24.10.2026 обход ставится только телефонам из Украины и США
+/// ([serverRouteWanted], решает [install]). В 1.39 он стоял у всех, и на
+/// телефонах через него не поднималась мгновенная связь Centrifugo: пропуск
+/// телефон получал, а до подписки на канал пары не доходил ни один. С ноутбука
+/// тот же сокет через обход подключается, причину на телефоне не нашли.
 ///
 /// Видео, голосовые и комната просмотра ходят мимо сетевого клиента Dart
 /// (системный плеер, браузер) — им ссылку переписывает [forNative].
@@ -105,11 +113,53 @@ class ServerRoute {
     }
   }
 
-  /// Подключает запасной путь ко всем сетевым клиентам Dart этого движка.
-  /// Звать первой строкой каждой точки входа: глобалы у движков свои.
-  static Future<void> install() async {
+  /// Решение главного движка, нужен ли обход, — для фоновых движков.
+  static const wantedKey = 'server_route_wanted';
+
+  /// Подключает запасной путь ко всем сетевым клиентам Dart этого движка, если
+  /// он нужен телефону ([serverRouteWanted]). Звать первой строкой каждой
+  /// точки входа: глобалы у движков свои.
+  ///
+  /// [fromDevice] ставит только `main()`: главный движок решает по стране
+  /// телефона и запоминает решение. Фоновые берут запомненное: язык системы в
+  /// них ненадёжен, как и у [LocaleService]. [locales] и [utcOffset]
+  /// подставляют тесты.
+  static Future<bool> install({
+    bool fromDevice = false,
+    List<Locale>? locales,
+    Duration? utcOffset,
+  }) async {
+    final wanted = await _decide(
+      fromDevice: fromDevice,
+      locales: locales ?? PlatformDispatcher.instance.locales,
+      utcOffset: utcOffset ?? DateTime.now().timeZoneOffset,
+    );
+    if (!wanted) return false;
     await instance.load();
     HttpOverrides.global = ServerRouteOverrides();
+    return true;
+  }
+
+  static Future<bool> _decide({
+    required bool fromDevice,
+    required List<Locale> locales,
+    required Duration utcOffset,
+  }) async {
+    SharedPreferences? prefs;
+    try {
+      prefs = await SharedPreferences.getInstance();
+    } catch (_) {}
+    if (!fromDevice) {
+      final saved = prefs?.getBool(wantedKey);
+      if (saved != null) return saved;
+    }
+    final wanted = serverRouteWanted(locales, utcOffset);
+    if (fromDevice) {
+      try {
+        await prefs?.setBool(wantedKey, wanted);
+      } catch (_) {}
+    }
+    return wanted;
   }
 
   /// Фабрика соединений для [HttpClient.connectionFactory].

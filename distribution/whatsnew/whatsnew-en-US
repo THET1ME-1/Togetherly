@@ -1,3 +1,5 @@
+— Fixed in 1.39.1: messages, online status and your partner's live drawing arrive instantly again.
+
 — CONNECTION: if your provider blocks our server, the app tries a backup route. If that is blocked too, it suggests turning on a VPN.
 
 — UKRAINIAN: the whole app is translated. Pick it in settings, and phones set to Ukrainian get it automatically.
