@@ -167,6 +167,19 @@ class MainActivity : FlutterActivity() {
             SoundClipChannel.CHANNEL
         ).setMethodCallHandler(SoundClipChannel())
 
+        // Часовой пояс телефона по имени города (`Europe/Kyiv`): по нему Dart
+        // решает, нужен ли обход для Украины (`serverRouteWanted`), при любом
+        // языке телефона.
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "love_app/time_zone"
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "name" -> result.success(java.util.TimeZone.getDefault().id)
+                else -> result.notImplemented()
+            }
+        }
+
         // Запись номеров фото-виджетов для фонового Dart: виджеты, стоявшие
         // до обновления, ещё не успели записать себя сами.
         WidgetIdRegistry.refresh(applicationContext)

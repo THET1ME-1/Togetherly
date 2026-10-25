@@ -66,6 +66,32 @@ import WidgetKit
     setupLocationAlwaysChannel(engineBridge.pluginRegistry)
     setupReelsInviteChannel(engineBridge.pluginRegistry)
     setupScreenAwakeChannel(engineBridge.pluginRegistry)
+    setupTimeZoneChannel(engineBridge.pluginRegistry)
+  }
+
+  // MARK: - Часовой пояс телефона
+
+  /// Канал `love_app/time_zone`: имя пояса по городу (`Europe/Kyiv`). По нему
+  /// Dart решает, нужен ли обход для Украины (`serverRouteWanted`), при любом
+  /// языке телефона.
+  private func setupTimeZoneChannel(_ registry: FlutterPluginRegistry) {
+    guard let messenger = registry
+      .registrar(forPlugin: "TogetherlyTimeZone")?
+      .messenger()
+    else { return }
+
+    let channel = FlutterMethodChannel(
+      name: "love_app/time_zone",
+      binaryMessenger: messenger
+    )
+    channel.setMethodCallHandler { call, result in
+      switch call.method {
+      case "name":
+        result(TimeZone.current.identifier)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
   }
 
   // MARK: - Экран не гаснет, пока идёт видео

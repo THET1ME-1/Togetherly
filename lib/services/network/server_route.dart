@@ -5,6 +5,7 @@ import 'dart:ui' show Locale, PlatformDispatcher;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../models/server_route_country.dart';
+import 'device_time_zone.dart';
 import 'server_reach.dart';
 import 'staggered_race.dart';
 
@@ -120,19 +121,21 @@ class ServerRoute {
   /// он нужен телефону ([serverRouteWanted]). Звать первой строкой каждой
   /// точки входа: глобалы у движков свои.
   ///
-  /// [fromDevice] ставит только `main()`: главный движок решает по стране
-  /// телефона и запоминает решение. Фоновые берут запомненное: язык системы в
-  /// них ненадёжен, как и у [LocaleService]. [locales] и [utcOffset]
-  /// подставляют тесты.
+  /// [fromDevice] ставит только `main()`: главный движок решает по часовому
+  /// поясу и языку телефона и запоминает решение. Фоновые берут запомненное:
+  /// канал пояса им не виден, а язык системы в них ненадёжен, как и у
+  /// [LocaleService]. [locales], [utcOffset] и [timeZone] подставляют тесты.
   static Future<bool> install({
     bool fromDevice = false,
     List<Locale>? locales,
     Duration? utcOffset,
+    String? timeZone,
   }) async {
     final wanted = await _decide(
       fromDevice: fromDevice,
       locales: locales ?? PlatformDispatcher.instance.locales,
       utcOffset: utcOffset ?? DateTime.now().timeZoneOffset,
+      timeZone: timeZone,
     );
     if (!wanted) return false;
     await instance.load();
@@ -144,6 +147,7 @@ class ServerRoute {
     required bool fromDevice,
     required List<Locale> locales,
     required Duration utcOffset,
+    required String? timeZone,
   }) async {
     SharedPreferences? prefs;
     try {
@@ -153,7 +157,11 @@ class ServerRoute {
       final saved = prefs?.getBool(wantedKey);
       if (saved != null) return saved;
     }
-    final wanted = serverRouteWanted(locales, utcOffset);
+    final wanted = serverRouteWanted(
+      locales,
+      utcOffset,
+      timeZone: timeZone ?? await deviceTimeZone(),
+    );
     if (fromDevice) {
       try {
         await prefs?.setBool(wantedKey, wanted);
