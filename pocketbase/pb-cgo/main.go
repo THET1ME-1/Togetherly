@@ -358,6 +358,11 @@ func init() {
 }
 
 func main() {
+	// Клиент S3 в PocketBase ходит в хранилище через http.DefaultClient и сам не
+	// повторяет: изредка Hetzner не отвечает 120 секунд, и загрузка срывается
+	// (s3retry.go, TOG-41). Остальные запросы этот транспорт не трогает.
+	http.DefaultClient.Transport = newS3Retry(http.DefaultTransport)
+
 	// PocketBase зовёт DBConnect для каждой базы ДВАЖДЫ: сперва для пула чтения,
 	// затем для пула записи (core/base.go, initDataDB). Второму подключению
 	// добавляем `_txlock=immediate`: транзакция сразу берёт замок записи вместо
