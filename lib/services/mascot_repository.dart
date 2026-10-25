@@ -74,8 +74,11 @@ class MascotRepository {
       // единственное изменение записи — отсеивалась бы как «ничего нового»,
       // и купленный персонаж открылся бы у второго только со следующей правкой
       // группы.
+      // Ожидание партнёра решает, жива ли серия (TOG-26): без него в подписи
+      // отметка второго не доходила бы до маскота на экране.
       final sig = '${s.activeMascotId}|${s.positionX}|${s.positionY}|'
-          '${s.scale}|${s.streakDays}|${s.streakLastOpenedDate}|${s.xp}|'
+          '${s.scale}|${s.streakDays}|${s.streakLastOpenedDate}|'
+          '${s.streakPendingDate}|${s.xp}|'
           '${s.mascotStreaks}|${s.ownedFeatures.length}';
       if (sig == prevSig) return false;
       prevSig = sig;
@@ -110,10 +113,17 @@ class MascotRepository {
 
   /// Вернуть сгоревшую серию. Новые поля пары сразу ложатся в кэш: экран не
   /// ждёт события канала, чтобы показать огонёк. `false` — сервер отказал.
+  ///
+  /// Следом заход отмечается заново (TOG-26). Свой сегодняшний заход человек
+  /// мог уже отдать вчерашнему ожиданию: сервер считает соседний день общим и
+  /// тогда ничего не пишет. Возврат делает вчерашнее ожидание устаревшим, и
+  /// без повторной отметки сегодняшний день ждал бы нового открытия
+  /// приложения, а у кого его не было, серия рвалась назавтра.
   Future<bool> restoreStreak(String groupId) async {
     final fields = await _data.restoreGroupStreak(groupId);
     if (fields == null) return false;
     await LocalStore.instance.patchRecordFields('groups', groupId, fields);
+    await recordActivity(groupId);
     return true;
   }
 

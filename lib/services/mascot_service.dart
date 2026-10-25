@@ -298,7 +298,11 @@ class MascotService extends ChangeNotifier {
     if (id == null || id.isEmpty) return null;
     final entry = _state.mascotStreaks[id];
     if (entry is! Map) return null;
-    return streakRestoreOffer(Map<String, dynamic>.from(entry), DateTime.now());
+    return streakRestoreOffer(
+      Map<String, dynamic>.from(entry),
+      DateTime.now(),
+      pendingDay: _state.streakPendingDate,
+    );
   }
 
   /// Вернуть серию после досмотренного ролика. `false` — сервер отказал.

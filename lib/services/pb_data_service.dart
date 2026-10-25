@@ -7,8 +7,10 @@ import 'package:pocketbase/pocketbase.dart';
 
 import '../models/miss_you_event.dart';
 import '../models/invite_code_state.dart';
+import '../models/streak_alive.dart';
 import '../models/stroke_record_id.dart';
 import '../models/timer_sync.dart';
+import '../utils/calendar_day.dart';
 import '../utils/date_only.dart';
 import '../utils/pair_time.dart';
 import 'avatar_frames.dart';
@@ -1007,8 +1009,8 @@ class PbDataService {
       final members =
           (rec.data['members'] as List?)?.map((e) => e.toString()).toList() ??
               <String>[];
-      if (members.length <= 2) return disbandGroup(groupId);
-      return leaveGroup(groupId, uid);
+      if (members.length <= 2) return await disbandGroup(groupId);
+      return await leaveGroup(groupId, uid);
     } catch (e) {
       debugPrint('PbData.unpairGroup($groupId) failed: $e');
       return false;
@@ -2426,7 +2428,7 @@ class PbDataService {
         'updated_at': PairTime.write(DateTime.now()),
       };
       if (bgColor != null) body['bg_color'] = bgColor;
-      return _upsertByFilter('canvas_meta',
+      return await _upsertByFilter('canvas_meta',
           'group_id = {:g} && canvas_id = {:c}', {'g': groupId, 'c': canvasId},
           body, op: 'clearCanvas');
     } catch (e) {
@@ -2793,6 +2795,15 @@ class PbDataService {
 
         final pendingDate = nz(d['streak_pending_date']);
         final pendingUid = nz(d['streak_pending_uid']);
+        // Ожидание партнёра на соседний день не затираем (TOG-26): сервер
+        // засчитает день и тогда, когда второй пришёл назавтра по своим часам,
+        // а здесь такой зачёт без транзакции не делается. Затёртое ожидание
+        // стоило паре дня и серии.
+        final partnerWaits = pendingUid != null &&
+            pendingUid != uid &&
+            (pendingDate == dayKey(calendarDay(now, -1)) ||
+                pendingDate == dayKey(calendarDay(now, 1)));
+        if (partnerWaits) return;
         if (pendingDate != today || pendingUid == null) {
           await _pb.collection('groups').update(rec.id, body: {
             'streak_pending_date': today,

@@ -4,6 +4,7 @@ import 'package:pocketbase/pocketbase.dart';
 import 'package:love_app/dict_strings.dart';
 import 'package:love_app/services/locale_service.dart';
 import 'level.dart';
+import 'streak_alive.dart';
 
 enum MascotMoodState { happy, sad, verySad }
 
@@ -138,6 +139,10 @@ class GroupMascotState {
   final int streakDays;
   final String? streakLastOpenedDate; // "YYYY-MM-DD" local time
 
+  /// День, когда один из пары уже отметился и ждёт второго (`streak_pending_date`).
+  /// С ним серия жива и при последнем общем дне позавчера (см. [streakAlive]).
+  final String? streakPendingDate;
+
   /// Серия КАЖДОГО маскота: {mascot_id: {s: серия, d: "YYYY-MM-DD" посл. общего дня}}.
   /// Серия растёт когда оба партнёра зашли за день, привязана к активному маскоту;
   /// пропуск дня → маскот «умирает» (см. [streakFor]).
@@ -161,6 +166,7 @@ class GroupMascotState {
     this.scale = 1.0,
     this.streakDays = 0,
     this.streakLastOpenedDate,
+    this.streakPendingDate,
     this.mascotStreaks = const {},
     this.xp = 0,
     this.ownedFeatures = const {},
@@ -190,8 +196,9 @@ class GroupMascotState {
     }
   }
 
-  /// Текущая серия конкретного маскота. Если последний общий день — НЕ сегодня и
-  /// не вчера, маскот «умер» → 0 (серия начнётся заново при следующем общем дне).
+  /// Текущая серия конкретного маскота. Серия порвана — маскот «умер» → 0
+  /// (серия начнётся заново при следующем общем дне). Порвана она, когда
+  /// продолжить её сервер уже не сможет ([streakAlive]).
   int streakFor(String? mascotId) {
     if (mascotId == null || mascotId.isEmpty) return 0;
     final e = mascotStreaks[mascotId];
@@ -199,10 +206,7 @@ class GroupMascotState {
     final s = (e['s'] as num?)?.toInt() ?? 0;
     final d = e['d']?.toString();
     if (d == null || d.isEmpty || s <= 0) return 0;
-    final today = _localDateStr(DateTime.now());
-    final yesterday =
-        _localDateStr(DateTime.now().subtract(const Duration(days: 1)));
-    return (d == today || d == yesterday) ? s : 0;
+    return streakAlive(d, pendingDay: streakPendingDate, now: DateTime.now()) ? s : 0;
   }
 
   /// Серия активного маскота (то, что показываем на главной/виджете).
@@ -220,11 +224,8 @@ class GroupMascotState {
   /// Computes the current mood based on when anyone last opened the app.
   MascotMoodState get moodState {
     if (streakLastOpenedDate == null) return MascotMoodState.sad;
-    final today = _localDateStr(DateTime.now());
-    final yesterday = _localDateStr(
-      DateTime.now().subtract(const Duration(days: 1)),
-    );
-    if (streakLastOpenedDate == today || streakLastOpenedDate == yesterday) {
+    if (streakAlive(streakLastOpenedDate,
+        pendingDay: streakPendingDate, now: DateTime.now())) {
       return MascotMoodState.happy;
     }
     final lastDate = DateTime.tryParse(streakLastOpenedDate!);
@@ -232,9 +233,6 @@ class GroupMascotState {
     final diff = DateTime.now().difference(lastDate).inDays;
     return diff > 3 ? MascotMoodState.verySad : MascotMoodState.sad;
   }
-
-  static String _localDateStr(DateTime dt) =>
-      '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
 
   factory GroupMascotState.fromMap(Map<String, dynamic> data) {
     return GroupMascotState(
@@ -274,6 +272,7 @@ class GroupMascotState {
       scale: sc > 0 ? sc : 1.0,
       streakDays: (d['streak_days'] as num?)?.toInt() ?? 0,
       streakLastOpenedDate: nz(d['streak_last_opened_date']),
+      streakPendingDate: nz(d['streak_pending_date']),
       mascotStreaks: d['mascot_streaks'] is Map
           ? Map<String, dynamic>.from(d['mascot_streaks'] as Map)
           : const {},
@@ -299,6 +298,7 @@ class GroupMascotState {
     double? scale,
     int? streakDays,
     String? streakLastOpenedDate,
+    String? streakPendingDate,
     Map<String, dynamic>? mascotStreaks,
     int? xp,
     Set<String>? ownedFeatures,
@@ -313,6 +313,7 @@ class GroupMascotState {
       scale: scale ?? this.scale,
       streakDays: streakDays ?? this.streakDays,
       streakLastOpenedDate: streakLastOpenedDate ?? this.streakLastOpenedDate,
+      streakPendingDate: streakPendingDate ?? this.streakPendingDate,
       mascotStreaks: mascotStreaks ?? this.mascotStreaks,
       xp: xp ?? this.xp,
       ownedFeatures: ownedFeatures ?? this.ownedFeatures,
