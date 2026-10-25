@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:yandex_mobileads/mobile_ads.dart' as yandex;
 
 import '../config/ad_units.dart';
+import 'ad_cover_watch.dart';
 import 'ad_platform.dart';
 
 /// Межстраничный ролик: показывается на переходе между экранами, награды за
@@ -117,7 +118,20 @@ class InterstitialAdService {
         ),
       );
       unawaited(ad.show());
-      final shown = await done.future.timeout(timeout, onTimeout: () => true);
+      // На iPhone плагин кладёт ролик прозрачным контроллером поверх Flutter,
+      // и событие «закрыто» теряется: конец ролика видно по стопке
+      // контроллеров. Там же убирается пустой слой плагина, если он остался
+      // держать касания (TOG-37).
+      final cover = AdCoverWatch()..start();
+      unawaited(cover.closed.then((_) {
+        if (!done.isCompleted) done.complete(true);
+      }));
+      final bool shown;
+      try {
+        shown = await done.future.timeout(timeout, onTimeout: () => true);
+      } finally {
+        cover.stop();
+      }
       await ad.destroy();
       return shown;
     } catch (e) {

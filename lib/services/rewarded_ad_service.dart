@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 
 import '../models/ad_show_finished.dart';
@@ -10,6 +11,7 @@ import 'package:yandex_mobileads/mobile_ads.dart' as yandex;
 
 import '../config/ad_units.dart';
 
+import 'ad_cover_watch.dart';
 import 'ad_platform.dart';
 import 'pair_jar_service.dart';
 import 'pb_coins_service.dart';
@@ -90,6 +92,13 @@ class RewardedAdService {
   /// Сколько секунд приложение было за рекламой в прошлом показе.
   int _lastSecondsAway = 0;
   int get lastSecondsAway => _lastSecondsAway;
+
+  /// Чем кончилось ожидание прошлого показа: `event` (событие SDK), `return`
+  /// (приложение вернулось на экран), `cover` (ролик ушёл из стопки на
+  /// iPhone), `touch` (касание после показа), `guard` (предохранитель). По
+  /// нему в отчётах видно, ловится ли закрытие на iPhone (TOG-37).
+  String _lastCloseSignal = '';
+  String get lastCloseSignal => _lastCloseSignal;
 
   /// Номер открытия сундука, за который идёт этот ролик (уходит в начисление).
   String? _chestOpenId;
@@ -181,7 +190,12 @@ class RewardedAdService {
   /// Возвращает true, если человек досмотрел до награды; награду начисляет
   /// сервер внутри [_showYandex]. [uid] оставлен ради прежних вызовов.
   /// [chestOpenId] — ролик за сундук: номер открытия едет в начисление.
-  Future<bool> show({required String uid, String? chestOpenId}) async {
+  ///
+  /// [onEarned] зовётся, как только награда положена, не дожидаясь закрытия
+  /// ролика: сундук кладёт открытие на диск сразу. Закрытие на iPhone бывало
+  /// не видно по полчаса, и выгруженное за это время приложение теряло
+  /// оплаченное открытие (TOG-37).
+  Future<bool> show({required String uid, String? chestOpenId, VoidCallback? onEarned}) async {
     // Уже идёт показ — игнорируем повторный вызов (двойной тап/гонка), иначе
     // запустится второй ролик подряд.
     if (_isShowing) return false;
@@ -192,11 +206,12 @@ class RewardedAdService {
     _lastRateLimited = false;
     _lastGrantTimedOut = false;
     _lastSecondsAway = 0;
+    _lastCloseSignal = '';
     _chestOpenId = chestOpenId;
     try {
       if (_yandexAd != null) {
         _lastShowWasYandex = true;
-        return await _showYandex(_yandexAd!);
+        return await _showYandex(_yandexAd!, onEarned);
       }
       return false;
     } finally {
@@ -204,27 +219,48 @@ class RewardedAdService {
     }
   }
 
-  /// Ждёт закрытия показа: событие от SDK, возврат приложения на передний план
-  /// или предохранитель — что случится раньше.
+  /// Ждёт закрытия показа: событие от SDK, возврат приложения на передний
+  /// план, уход ролика из стопки контроллеров (iPhone), касание по
+  /// приложению после показа или предохранитель — что случится раньше.
   ///
   /// Событие закрытия приходит не всегда (по журналу — тысячи случаев), и пока
   /// ждали только его, человек стоял перед пустым экраном две минуты: медиана
   /// ожидания была ровно 120 секунд. Возврат приложения — такой же честный
   /// признак того, что реклама закрылась.
+  ///
+  /// На iPhone возврата нет: плагин кладёт ролик прозрачным контроллером
+  /// поверх Flutter, и приложение не уходит с экрана. Там конец ролика видит
+  /// [AdCoverWatch]. Касание — запасной признак для всех: пока ролик на
+  /// экране, касания уходят ему, а не приложению (TOG-37).
   Future<AdShowWatch> _awaitAdClosed(
     Completer<void> dismissed,
     String who, {
     required bool Function() shown,
   }) async {
     final watch = AdShowWatch();
-    late final AppLifecycleListener listener;
+    final cover = AdCoverWatch()..start();
     final returned = Completer<void>();
-    listener = AppLifecycleListener(
+    String? signal;
+    void back(String why) {
+      signal ??= why;
+      if (!returned.isCompleted) returned.complete();
+    }
+
+    unawaited(dismissed.future.then((_) => signal ??= 'event'));
+    final listener = AppLifecycleListener(
       onStateChange: (state) {
         watch.onState(state);
-        if (watch.finished && !returned.isCompleted) returned.complete();
+        if (watch.finished) back('return');
       },
     );
+    // До доказанного показа касание ничего не значит: ролик мог ещё не
+    // появиться, и ранний конец ожидания отнял бы у человека награду.
+    void touched(PointerEvent event) {
+      if (event is PointerDownEvent && (shown() || watch.sawAd || cover.sawAd)) back('touch');
+    }
+
+    GestureBinding.instance.pointerRouter.addGlobalRoute(touched);
+    unawaited(cover.closed.then((_) => back('cover')));
     final closed = Future.any([
       dismissed.future,
       returned.future.then((_) async {
@@ -238,18 +274,30 @@ class RewardedAdService {
       // Показанная реклама ждёт своего закрытия дольше: пачка роликов идёт
       // больше предохранителя.
       // Показ видно и без Яндекса: приложение отдало экран рекламе.
-      final rest = adCloseWaitLimit(shown: shown() || watch.sawAd) - kAdShowGuard;
+      final rest = adCloseWaitLimit(shown: shown() || watch.sawAd || cover.sawAd) - kAdShowGuard;
       if (!done && rest > Duration.zero) {
         done = await closed.then((_) => true).timeout(rest, onTimeout: () => false);
       }
       if (!done) debugPrint('$who: событий закрытия нет, выходим по предохранителю');
     } finally {
       listener.dispose();
+      cover.stop();
+      GestureBinding.instance.pointerRouter.removeGlobalRoute(touched);
     }
+    if (cover.sawAd) watch.sawCover();
+    _lastCloseSignal = signal ?? 'guard';
     return watch;
   }
 
-  Future<bool> _showYandex(yandex.RewardedAd ad) async {
+  Future<bool> _showYandex(yandex.RewardedAd ad, VoidCallback? onEarned) async {
+    void tellEarned() {
+      try {
+        onEarned?.call();
+      } catch (e) {
+        debugPrint('Yandex rewarded: onEarned бросил — $e');
+      }
+    }
+
     _yandexAd = null; // одноразовая
     // Награду начисляем ПРЯМО В onRewarded, а не после закрытия. Раньше код
     // ждал onAdDismissed и лишь потом смотрел флаг earned (с окном 400мс на
@@ -278,6 +326,7 @@ class RewardedAdService {
         onRewarded: (reward) {
           if (earned) return; // защита от повторного события
           earned = true;
+          tellEarned();
           grantFuture = _grantAdReward();
         },
         onAdDismissed: finish,
@@ -334,6 +383,7 @@ class RewardedAdService {
         )) {
       earned = true;
       grantedByWatch = true;
+      tellEarned();
       await _grantAdReward().timeout(kAdGrantWait, onTimeout: () => _lastGrantTimedOut = true);
       Sentry.addBreadcrumb(Breadcrumb(
         message: 'Yandex rewarded: награда засчитана без onRewarded '
@@ -360,6 +410,7 @@ class RewardedAdService {
           // Дольше — награда действительно потерялась по дороге.
           s.setExtra('likely_user_skip', shown && seconds < 5);
           s.setExtra('granted_by_watch', grantedByWatch);
+          s.setExtra('closed_by', _lastCloseSignal);
           s.level = SentryLevel.warning;
         },
       ));

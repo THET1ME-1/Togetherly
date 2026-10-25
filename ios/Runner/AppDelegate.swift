@@ -67,6 +67,88 @@ import WidgetKit
     setupReelsInviteChannel(engineBridge.pluginRegistry)
     setupScreenAwakeChannel(engineBridge.pluginRegistry)
     setupTimeZoneChannel(engineBridge.pluginRegistry)
+    setupAdCoverChannel(engineBridge.pluginRegistry)
+  }
+
+  // MARK: - Реклама поверх Flutter
+
+  /// Канал `love_app/ad_cover` (TOG-37). Плагин Яндекса показывает ролик
+  /// прозрачным контроллером `.overCurrentContext` поверх Flutter, а сам
+  /// ролик SDK кладёт поверх него. Экран Flutter при этом не исчезает, и
+  /// приложение не узнаёт, что его накрыли. Событие «закрыто» теряется, и
+  /// сундук ждал до получаса. Dart (`AdCoverWatch`) видит конец ролика по
+  /// стопке: `state` описывает её, `dismissLeftover` убирает пустой слой
+  /// плагина, оставшийся после ролика: он держит касания.
+  private func setupAdCoverChannel(_ registry: FlutterPluginRegistry) {
+    guard let messenger = registry
+      .registrar(forPlugin: "TogetherlyAdCover")?
+      .messenger()
+    else { return }
+
+    let channel = FlutterMethodChannel(
+      name: "love_app/ad_cover",
+      binaryMessenger: messenger
+    )
+    channel.setMethodCallHandler { [weak self] call, result in
+      switch call.method {
+      case "state":
+        result(self?.adCoverState() ?? ["depth": 0, "pluginTop": false, "topEmpty": true])
+      case "dismissLeftover":
+        result(self?.dismissAdLeftover() ?? false)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
+  }
+
+  /// Контроллеры, показанные поверх Flutter, снизу вверх.
+  private func presentedOverFlutter() -> [UIViewController] {
+    var chain: [UIViewController] = []
+    var current = activeSceneWindow?.rootViewController
+    while let next = current?.presentedViewController {
+      chain.append(next)
+      current = next
+    }
+    return chain
+  }
+
+  /// Прозрачный контроллер плагина рекламы. Он раздаёт события ролика в Dart
+  /// и потому сам служит `FlutterStreamHandler`.
+  private static func isAdPluginController(_ controller: UIViewController) -> Bool {
+    controller is FlutterStreamHandler
+      || NSStringFromClass(type(of: controller)).hasPrefix("yandex_mobileads.")
+  }
+
+  /// Ничего внутри: ни показанного поверх, ни дочерних, ни видов.
+  private static func isBare(_ controller: UIViewController) -> Bool {
+    controller.presentedViewController == nil
+      && controller.children.isEmpty
+      && (!controller.isViewLoaded || controller.view.subviews.isEmpty)
+  }
+
+  private func adCoverState() -> [String: Any] {
+    let chain = presentedOverFlutter()
+    guard let top = chain.last else {
+      return ["depth": 0, "pluginTop": false, "topEmpty": true]
+    }
+    return [
+      "depth": chain.count,
+      "pluginTop": Self.isAdPluginController(top),
+      "topEmpty": Self.isBare(top),
+    ]
+  }
+
+  /// Убирает только пустой контроллер плагина, который один висит над
+  /// Flutter. Плагин сам убрал бы его по событию SDK, которого не было.
+  private func dismissAdLeftover() -> Bool {
+    let chain = presentedOverFlutter()
+    guard chain.count == 1,
+          let top = chain.first,
+          Self.isAdPluginController(top),
+          Self.isBare(top)
+    else { return false }
+    top.presentingViewController?.dismiss(animated: false)
+    return true
   }
 
   // MARK: - Часовой пояс телефона

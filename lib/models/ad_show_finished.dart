@@ -63,8 +63,13 @@ bool adRewardDeserved({
 class AdShowWatch {
   bool _left = false;
   bool _finished = false;
+  bool _covered = false;
   DateTime? _leftAt;
   Duration _away = Duration.zero;
+
+  /// Ролик видели в стопке контроллеров над Flutter (iPhone, TOG-37): там
+  /// реклама не уводит приложение с экрана, и жизненный цикл показа не видит.
+  void sawCover() => _covered = true;
 
   /// Приложение уходило с переднего плана и вернулось.
   bool get finished => _finished;
@@ -79,7 +84,7 @@ class AdShowWatch {
   ///
   /// Это доказательство показа, когда Яндекс не прислал `onAdShown`
   /// (эмулятор 20.10.2026: реклама шла две минуты, события не было).
-  bool get sawAd => _left || _leftAt != null;
+  bool get sawAd => _left || _leftAt != null || _covered;
 
   void onState(AppLifecycleState state, {DateTime? at}) {
     final now = at ?? DateTime.now();

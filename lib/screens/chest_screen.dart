@@ -532,7 +532,18 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
       // Реклама глушит музыку сезона сама, но плеер оставался бы «играющим»
       // под ней — останавливаем честно и включаем после.
       if (!slot.isMain) unawaited(SeasonMusic.instance.stop());
-      final earned = await _ad.show(uid: PocketBaseService().userId ?? '', chestOpenId: openId);
+      final earned = await _ad.show(
+        uid: PocketBaseService().userId ?? '',
+        chestOpenId: openId,
+        // Открытие ложится на диск, как только награда положена, а не после
+        // закрытия ролика: на iPhone закрытие бывало не видно по полчаса, и
+        // выгруженное за это время приложение теряло оплаченное открытие
+        // (TOG-37, 592 ролика из 3230 за трое суток). Уйдёт человек с экрана
+        // или приложение выгрузят — открытие дойдёт без новой рекламы.
+        onEarned: () => unawaited(
+          ChestPendingStore.write(storeKey, ChestPending(openId: openId, fromJar: false, at: DateTime.now())),
+        ),
+      );
       _ad.load();
       ChestTelemetry.step(
         openId,
@@ -542,13 +553,12 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
           'away_s': _ad.lastSecondsAway,
           'granted': _ad.lastRewardGranted,
           'grant_timed_out': _ad.lastGrantTimedOut,
+          'closed_by': _ad.lastCloseSignal,
         },
       );
-      // Досмотренный ролик ложится на диск ДО всего остального: уйдёт человек
-      // с экрана или приложение выгрузят — открытие дойдёт без новой рекламы.
-      if (earned) {
-        unawaited(ChestPendingStore.write(storeKey, ChestPending(openId: openId, fromJar: false, at: DateTime.now())));
-      }
+      // Повторно на диск не пишем: экран, который ушёл и вернулся, мог уже
+      // открыть сундук этим номером, и запоздалая запись предложила бы
+      // открыть его ещё раз.
       if (!mounted) return;
       if (!slot.isMain && identical(_s, slot)) _startMusic(slot);
       // Ролик и сам начисляет монеты — доводим баланс до профиля.
