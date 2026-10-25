@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:love_app/models/upload_timeout.dart';
 
@@ -60,5 +62,61 @@ void main() {
     test('слишком частые запросы повторяем, но не мгновенно', () {
       expect(uploadWorthRetry(429), isTrue);
     });
+
+    // TOG-41: хранилище Hetzner изредка не отвечает, и PocketBase отдаёт 400
+    // «Failed to create record.» без ошибок полей. Повтор проходит.
+    test('хранилище не приняло файл — повторяем', () {
+      expect(
+        uploadWorthRetry(400, response: {
+          'status': 400,
+          'message': 'Failed to create record.',
+          'data': <String, dynamic>{},
+        }),
+        isTrue,
+      );
+    });
+
+    test('ошибка поля при 400 — не повторяем', () {
+      expect(
+        uploadWorthRetry(400, response: {
+          'status': 400,
+          'message': 'Failed to create record.',
+          'data': {
+            'file': {'code': 'validation_file_size_limit', 'message': 'Too large'},
+          },
+        }),
+        isFalse,
+      );
+    });
+
+    test('400 без тела ответа — не повторяем', () {
+      expect(uploadWorthRetry(400, response: const {}), isFalse);
+    });
+  });
+
+  test('загрузка отдаёт правилу повтора тело ответа сервера', () {
+    // без тела 400 от хранилища не отличить от ошибки поля, и повтора не будет
+    final media = File('lib/services/pb_media_service.dart').readAsStringSync();
+    expect(media, contains('uploadWorthRetry(code, response: answer)'));
+  });
+
+  test('повторы сервера укладываются в срок приложения для маленького файла', () {
+    // Сервер повторяет запись в хранилище сам (pocketbase/pb-cgo/s3retry.go).
+    // Если его худший случай длиннее нашего срока, приложение сдаётся первым,
+    // шлёт файл ещё раз, и запись от поздней удачной попытки сервера остаётся
+    // лишней.
+    final go = File('pocketbase/pb-cgo/s3retry.go').readAsStringSync();
+    final attempts = int.parse(RegExp(r'attempts:\s+(\d+),').firstMatch(go)!.group(1)!);
+    final wait = int.parse(RegExp(r'headerWait:\s+(\d+) \* time\.Second').firstMatch(go)!.group(1)!);
+    final pauses = RegExp(r'backoff:\s+\[\]time\.Duration\{([^}]*)\}').firstMatch(go)!.group(1)!;
+    var pauseMs = 0;
+    for (final item in pauses.split(',')) {
+      final part = item.trim();
+      if (part.isEmpty) continue;
+      final factor = int.tryParse(part.split(' ').first) ?? 1;
+      pauseMs += factor * (part.endsWith('Millisecond') ? 1 : 1000);
+    }
+    final worst = Duration(seconds: attempts * wait, milliseconds: pauseMs);
+    expect(worst, lessThan(kUploadTimeoutMin));
   });
 }

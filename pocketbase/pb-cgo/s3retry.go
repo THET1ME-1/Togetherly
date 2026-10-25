@@ -48,13 +48,19 @@ type s3Retry struct {
 	logf    func(format string, args ...any)
 }
 
+// Сроки сведены с приложением: маленький файл оно ждёт 60 секунд
+// (kUploadTimeoutMin в lib/models/upload_timeout.dart), и три зависшие
+// попытки с паузами (15 + 0,5 + 15 + 1 + 15 = 46,5 с) укладываются раньше.
+// Иначе приложение сдалось бы первым и прислало файл ещё раз, а запись от
+// поздней удачной попытки осталась бы лишней. Обычная запись в Hetzner идёт
+// доли секунды.
 func newS3Retry(base http.RoundTripper) *s3Retry {
 	return &s3Retry{
 		base:        base,
 		attempts:    3,
-		headerWait:  20 * time.Second,
+		headerWait:  15 * time.Second,
 		perMegabyte: 2 * time.Second,
-		backoff:     []time.Duration{500 * time.Millisecond, 2 * time.Second},
+		backoff:     []time.Duration{500 * time.Millisecond, time.Second},
 		logf:        log.Printf,
 	}
 }

@@ -39,8 +39,22 @@ Duration uploadTimeoutFor(int bytes) {
 /// сервер. Отказ по сути — протухшая сессия, запрет доступа, слишком большой
 /// файл — со второй попытки тем же и останется, а повтор стоит человеку ещё
 /// одной минуты ожидания и лишнего трафика.
-bool uploadWorthRetry(int? statusCode) {
+///
+/// [response] — тело ответа сервера: по нему 400 от хранилища отличается от
+/// ошибки поля (см. [_storageRefused]).
+bool uploadWorthRetry(int? statusCode, {Map<String, dynamic>? response}) {
   if (statusCode == null) return true; // таймаут, обрыв, нет ответа
   if (statusCode == 408 || statusCode == 429) return true;
+  if (statusCode == 400 && _storageRefused(response)) return true;
   return statusCode >= 500;
+}
+
+/// 400 без ошибок полей: хранилище не приняло файл (TOG-41). Hetzner изредка
+/// не отвечает, и PocketBase отдаёт «Failed to create record.» с пустым
+/// `data`, а повтор проходит. Ошибка проверки (файл слишком большой, не тот
+/// тип) приходит с полем в `data`, её не повторяем. Тем же пустым `data`
+/// отвечает и отказ правила создания; его повтор быстро отказывает снова.
+bool _storageRefused(Map<String, dynamic>? response) {
+  final data = response?['data'];
+  return data is Map && data.isEmpty;
 }

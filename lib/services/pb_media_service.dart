@@ -102,7 +102,8 @@ class PbMediaService {
       } catch (e) {
         lastError = e;
         final code = e is ClientException ? e.statusCode : null;
-        if (attempt == 2 || !uploadWorthRetry(code)) break;
+        final answer = e is ClientException ? e.response : null;
+        if (attempt == 2 || !uploadWorthRetry(code, response: answer)) break;
         debugPrint('PbMedia.uploadBytes: попытка $attempt не прошла ($e) — повтор');
         await Future<void>.delayed(const Duration(seconds: 2));
       }
