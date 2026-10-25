@@ -38,6 +38,16 @@ class MissYouRepository {
             (rows) => MissYouState.fromRows(rows, myUid: _uid ?? ''),
           );
 
+  /// Записи пары разово, без подписки. null — сервер не ответил.
+  ///
+  /// Экран «Скучаю» перечитывает их после своего импульса: подтверждение
+  /// нажатия шло только живым каналом, а у части людей его нет, и число
+  /// стояло, пока не выйдешь с экрана (TOG-40, обращение 377).
+  Future<MissYouState?> fetchState(String groupId) async {
+    final rows = await _data.getMissYouRows(groupId);
+    return rows == null ? null : MissYouState.fromRows(rows, myUid: _uid ?? '');
+  }
+
   /// Счётчики пары разово, без подписки.
   ///
   /// Нужны, когда экран возвращается на передний план: живое событие могло

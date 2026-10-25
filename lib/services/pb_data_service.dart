@@ -2913,6 +2913,21 @@ class PbDataService {
     }, op: 'setMissYouCount');
   }
 
+  /// Записи `miss_you` пары целиком, разово. null — сервер не ответил.
+  Future<List<Map<String, dynamic>>?> getMissYouRows(String groupId) async {
+    if (groupId.isEmpty) return null;
+    try {
+      final rows = await _pb
+          .collection('miss_you')
+          .getFullList(filter: _pb.filter('group_id = {:g}', {'g': groupId}))
+          .timeout(const Duration(seconds: 12));
+      return [for (final r in rows) r.data];
+    } catch (e) {
+      debugPrint('PbData.getMissYouRows failed: $e');
+      return null;
+    }
+  }
+
   Future<Map<String, int>> getMissYouCounts(String groupId) async {
     if (groupId.isEmpty) return const {};
     try {
