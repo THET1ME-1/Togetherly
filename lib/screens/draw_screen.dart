@@ -20,6 +20,7 @@ import '../services/coloring_upload_queue.dart';
 import '../services/pb_media_service.dart';
 import '../utils/canvas_clear.dart';
 import '../utils/canvas_image_cache.dart';
+import '../utils/single_exit.dart';
 import '../utils/stroke_layer_cache.dart';
 import '../utils/stroke_save_scheduler.dart';
 import 'coloring_result_screen.dart';
@@ -768,10 +769,13 @@ class _DrawScreenState extends State<DrawScreen>
 
   //  Thumbnail capture
 
-  /// Saves a PNG thumbnail to [CanvasStorageService] then pops the route.
+  /// Выход с холста идёт один раз (TOG-33): стрелка и системное «назад»
+  /// подряд закрывали ещё и экран под холстом.
+  final SingleExit _exit = SingleExit();
+
+  /// Сохраняет картинку холста ([CanvasStorageService]) и закрывает экран.
   Future<void> _captureThumbnailAndExit() async {
-    await _captureThumbnail();
-    if (mounted) Navigator.pop(context);
+    await _exit.run(context, _captureThumbnail);
   }
 
   Future<void> _captureThumbnail() async {
@@ -5642,12 +5646,15 @@ class _DrawScreenState extends State<DrawScreen>
             _offerCanvasBgTrial(bg, refreshSheet);
             return;
           }
-          Navigator.of(context).pop();
-          Navigator.of(context).push(
+          // Навигатор и тему берём до перехода: окно Togetherly+
+          // перестраивается и после того, как холст снят, а у снятого
+          // context пуст (Bugsink 20.10 и 24.10.2026, TOG-33).
+          final navigator = Navigator.of(context);
+          final scheme = Theme.of(context).colorScheme;
+          navigator.pop();
+          navigator.push(
             MaterialPageRoute<void>(
-              builder: (_) => PlusScreen(
-                scheme: Theme.of(context).colorScheme,
-              ),
+              builder: (_) => PlusScreen(scheme: scheme),
               settings: const RouteSettings(name: '/plus'),
             ),
           );

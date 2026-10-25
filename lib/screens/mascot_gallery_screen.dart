@@ -325,13 +325,15 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
     final result = await showModalBottomSheet<bool>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (_) => Container(
+      // Отступ снизу — из контекста самого листа: контекст галереи под ним
+      // может оказаться снят (TOG-33).
+      builder: (sheetContext) => Container(
         decoration: BoxDecoration(
           color: _t.cardSurface,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         padding: EdgeInsets.fromLTRB(
-          24, 20, 24, 20 + MediaQuery.of(context).padding.bottom,
+          24, 20, 24, 20 + MediaQuery.of(sheetContext).padding.bottom,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -360,7 +362,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () => Navigator.of(context).pop(true),
+                onPressed: () => Navigator.of(sheetContext).pop(true),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _t.primary,
                   foregroundColor: Colors.white,

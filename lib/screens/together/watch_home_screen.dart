@@ -528,8 +528,11 @@ class _WatchHomeScreenState extends State<WatchHomeScreen>
       case ReelsEntry.hidden:
         return;
       case ReelsEntry.buy:
+        // Тема до перехода: после покупки раскладка главной меняется, вкладку
+        // «Смотрим» могут пересобрать, и её context пуст (TOG-33).
+        final scheme = Theme.of(context).colorScheme;
         await Navigator.of(context).push(
-          MaterialPageRoute<void>(builder: (_) => PlusScreen(scheme: Theme.of(context).colorScheme)),
+          MaterialPageRoute<void>(builder: (_) => PlusScreen(scheme: scheme)),
         );
         // Вернулся с покупкой — плитка откроется сама.
         if (mounted) setState(() {});

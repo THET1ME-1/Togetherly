@@ -177,8 +177,11 @@ class _StickerPickerState extends State<StickerPicker> {
   }
 
   void _openPlus() {
+    // Тема до перехода: лист наклеек могут закрыть, пока окно Togetherly+
+    // открыто, а его перестройка читала бы пустой context (TOG-33).
+    final scheme = ProfileTheme.schemeFor(context.appTheme);
     Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => PlusScreen(scheme: ProfileTheme.schemeFor(context.appTheme)),
+      builder: (_) => PlusScreen(scheme: scheme),
     ));
   }
 

@@ -33,11 +33,14 @@ class MemoryDateField extends StatelessWidget {
   /// [onTime] — открыться сразу на вкладке времени (нажали вторую кнопку).
   Future<void> _pick(BuildContext context, {required bool onTime}) async {
     final now = DateTime.now();
+    // Тема до перехода: экран выбора перестраивается и тогда, когда поле под
+    // ним уже снято, а у снятого context пуст (TOG-33).
+    final theme = context.appTheme;
     final picked = await Navigator.of(context).push<DateTime>(
       MaterialPageRoute<DateTime>(
         builder: (_) => DateTimePickerScreen(
           title: LocaleService.current.memoryDateLabel,
-          theme: context.appTheme,
+          theme: theme,
           initial: value ?? now,
           // Воспоминание — про прошлое: дату позже сегодняшней выбрать нельзя,
           // как и раньше (lastDate: now у стокового пикера). Сервер будущее
