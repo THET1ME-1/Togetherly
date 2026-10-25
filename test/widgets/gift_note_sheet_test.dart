@@ -49,8 +49,12 @@ void main() {
     expect(got, isNull);
   });
 
-  test('оба места, где сундук отдаёт подарок, спрашивают записку и передают её', () {
-    for (final path in ['lib/screens/chest_screen.dart', 'lib/widgets/chest/chest_stash_lane.dart']) {
+  test('все места, где сундук отдаёт подарок, спрашивают записку и передают её', () {
+    for (final path in [
+      'lib/screens/chest_screen.dart',
+      'lib/widgets/chest/chest_stash_lane.dart',
+      'lib/widgets/chest/chest_stash_sheet.dart',
+    ]) {
       final src = File(path).readAsStringSync();
       expect(src.contains('showGiftNoteSheet('), isTrue, reason: path);
       expect(RegExp(r'ChestService\.instance\.give\([^)]*note:').hasMatch(src), isTrue, reason: path);

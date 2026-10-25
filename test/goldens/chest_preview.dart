@@ -18,6 +18,7 @@ import 'package:love_app/theme/profile_theme.dart';
 import 'package:love_app/widgets/chest/chest_home_card.dart';
 import 'package:love_app/widgets/chest/chest_prize_image.dart';
 import 'package:love_app/widgets/chest/chest_stash_lane.dart';
+import 'package:love_app/widgets/chest/chest_stash_sheet.dart';
 
 /// Сундук недели на живой теме «Кофе» (как на макете): блок на главной и экран
 /// сундука, на ширине 393 и 320 точек.
@@ -49,7 +50,7 @@ void main() {
 
   testWidgets('сундук недели', (tester) async {
     LocaleService.instance.setLanguage(AppLanguage.ru);
-    tester.view.physicalSize = const Size(3900, 4200);
+    tester.view.physicalSize = const Size(4800, 4200);
     tester.view.devicePixelRatio = 2;
     addTearDown(tester.view.reset);
 
@@ -143,7 +144,43 @@ void main() {
                     groupId: 'g',
                     partnerName: 'Аня',
                     debugChoice: const ChestStashItem(openId: 'x', giftKey: 'throne'),
+                    debugStash: const [
+                      ChestStashItem(openId: 'x', giftKey: 'throne'),
+                      ChestStashItem(openId: 'a', giftKey: 'teddy'),
+                      ChestStashItem(openId: 'b', giftKey: 'rose'),
+                      ChestStashItem(openId: 'c', giftKey: 'teddy'),
+                    ],
                   ),
+                ),
+                // Лист запаса (TOG-38): поверх экрана, низ листа у края телефона.
+                Column(
+                  children: [
+                    for (final w in [393.0, 320.0])
+                      phone(
+                        w,
+                        640,
+                        Align(
+                          alignment: Alignment.bottomCenter,
+                          child: Material(
+                            color: cs.surfaceContainerHigh,
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                            child: Theme(
+                              data: ProfileTheme.data(cs),
+                              child: const ChestStashSheet(
+                                groupId: 'g',
+                                items: [
+                                  ChestStashItem(openId: 'a', giftKey: 'teddy'),
+                                  ChestStashItem(openId: 'b', giftKey: 'rose'),
+                                  ChestStashItem(openId: 'c', giftKey: 'teddy'),
+                                  ChestStashItem(openId: 'd', giftKey: 'potion'),
+                                  ChestStashItem(openId: 'e', giftKey: 'rings'),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
                 Column(
                   children: [

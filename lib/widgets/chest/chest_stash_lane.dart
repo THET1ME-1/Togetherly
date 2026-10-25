@@ -6,11 +6,14 @@ import '../../services/chest_service.dart';
 import '../../theme/profile_theme.dart';
 import '../common/gift_image.dart';
 import '../gifts/gift_note_sheet.dart';
+import 'chest_stash_sheet.dart';
 
 /// Лента «Из сундука» над полками магазина подарков (макет «Подарок из
 /// сундука», вариант 5Б): выпавшие подарки, которые человек ещё не подарил и
 /// не оставил себе. У повторов счётчик, у каждой карточки своя «Подарить» —
-/// подарок уходит партнёру бесплатно. Пустой запас — ленты нет вовсе.
+/// подарок уходит партнёру бесплатно. Касание по карточке открывает лист
+/// запаса на этом подарке: там его можно и оставить себе. Пустой запас —
+/// ленты нет вовсе.
 class ChestStashLane extends StatefulWidget {
   const ChestStashLane({super.key, required this.groupId, this.debugItems});
 
@@ -25,15 +28,17 @@ class ChestStashLane extends StatefulWidget {
 }
 
 class _ChestStashLaneState extends State<ChestStashLane> {
-  List<(String, List<String>)> _groups = const [];
+  List<ChestStashItem> _items = const [];
   String? _giving;
+
+  List<(String, List<String>)> get _groups => groupChestStash(_items);
 
   @override
   void initState() {
     super.initState();
     final items = widget.debugItems;
     if (items != null) {
-      _groups = groupChestStash(items);
+      _items = items;
     } else {
       _load();
     }
@@ -41,7 +46,19 @@ class _ChestStashLaneState extends State<ChestStashLane> {
 
   Future<void> _load() async {
     final items = await ChestService.instance.stash();
-    if (mounted) setState(() => _groups = groupChestStash(items));
+    if (mounted) setState(() => _items = items);
+  }
+
+  Future<void> _open(String key) async {
+    if (_giving != null) return;
+    await showChestStashSheet(
+      context,
+      cs: Theme.of(context).colorScheme,
+      groupId: widget.groupId,
+      items: _items,
+      selected: key,
+    );
+    if (mounted && widget.debugItems == null) await _load();
   }
 
   Future<void> _give(String key, String openId) async {
@@ -63,7 +80,8 @@ class _ChestStashLaneState extends State<ChestStashLane> {
 
   @override
   Widget build(BuildContext context) {
-    if (_groups.isEmpty) return const SizedBox.shrink();
+    final groups = _groups;
+    if (groups.isEmpty) return const SizedBox.shrink();
     final cs = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -85,15 +103,16 @@ class _ChestStashLaneState extends State<ChestStashLane> {
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: _groups.length,
+            itemCount: groups.length,
             separatorBuilder: (_, _) => const SizedBox(width: 8),
             itemBuilder: (context, i) {
-              final (key, ids) = _groups[i];
+              final (key, ids) = groups[i];
               return _StashCard(
                 giftKey: key,
                 count: ids.length,
                 busy: _giving == key,
                 onGive: _giving == null ? () => _give(key, ids.first) : null,
+                onOpen: () => _open(key),
               );
             },
           ),
@@ -104,58 +123,75 @@ class _ChestStashLaneState extends State<ChestStashLane> {
 }
 
 class _StashCard extends StatelessWidget {
-  const _StashCard({required this.giftKey, required this.count, required this.busy, required this.onGive});
+  const _StashCard({
+    required this.giftKey,
+    required this.count,
+    required this.busy,
+    required this.onGive,
+    required this.onOpen,
+  });
 
   final String giftKey;
   final int count;
   final bool busy;
   final VoidCallback? onGive;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Container(
+    return SizedBox(
       width: 118,
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
-      decoration: BoxDecoration(color: cs.primaryContainer, borderRadius: BorderRadius.circular(22)),
       child: Stack(
+        fit: StackFit.expand,
         clipBehavior: Clip.none,
         children: [
-          Column(
-            children: [
-              GiftImage(giftKey, side: 64),
-              const SizedBox(height: 6),
-              Expanded(
-                child: Text(
-                  GiftCatalog.byKey(giftKey)?.title ?? giftKey,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: cs.onPrimaryContainer),
-                ),
-              ),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: busy ? null : onGive,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: cs.primary,
-                    foregroundColor: cs.onPrimary,
-                    disabledBackgroundColor: cs.primary.withValues(alpha: 0.6),
-                    disabledForegroundColor: cs.onPrimary,
-                    minimumSize: const Size(0, 36),
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    shape: const StadiumBorder(),
-                    textStyle: const TextStyle(
-                      fontFamily: ProfileTheme.displayFont,
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
+          Material(
+            color: cs.primaryContainer,
+            borderRadius: BorderRadius.circular(22),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: onOpen,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
+                child: Column(
+                  children: [
+                    GiftImage(giftKey, side: 64),
+                    const SizedBox(height: 6),
+                    Expanded(
+                      child: Text(
+                        GiftCatalog.byKey(giftKey)?.title ?? giftKey,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: cs.onPrimaryContainer),
+                      ),
                     ),
-                  ),
-                  child: Text(trKey('chestGive'), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: busy ? null : onGive,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: cs.primary,
+                          foregroundColor: cs.onPrimary,
+                          disabledBackgroundColor: cs.primary.withValues(alpha: 0.6),
+                          disabledForegroundColor: cs.onPrimary,
+                          minimumSize: const Size(0, 36),
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          shape: const StadiumBorder(),
+                          textStyle: const TextStyle(
+                            fontFamily: ProfileTheme.displayFont,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        child: Text(trKey('chestGive'), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
           if (count > 1)
             Positioned(

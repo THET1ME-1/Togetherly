@@ -34,6 +34,7 @@ import '../widgets/common/badge_image.dart';
 import '../widgets/common/gift_image.dart';
 import '../widgets/gifts/gift_note_sheet.dart';
 import '../widgets/chest/chest_rays.dart';
+import '../widgets/chest/chest_stash_sheet.dart';
 import '../widgets/chest/season_glitch.dart';
 import '../widgets/unfold/unfold_route.dart';
 import 'chest_prize_screen.dart';
@@ -56,16 +57,13 @@ import 'chest_share_screen.dart';
 /// выигрыша. Сундук остаётся открытым с призом до следующего открытия.
 ///
 /// Выпал подарок — на месте кнопки открытия встают «Подарить» и «Оставить
-/// себе». Ушёл с экрана, не выбрав, — подарок ждёт выбора под своим сундуком
-/// при следующем заходе и в ленте «Из сундука» магазина подарков.
+/// себе», под ними «Позже». Отложенный подарок, как и оставленный без выбора,
+/// ждёт в запасе: строка «В запасе: N» под кнопкой открытия открывает лист,
+/// где его разбирают, и он же лежит в ленте «Из сундука» магазина подарков.
 ///
-/// Под какой сундук ленты встаёт такой подарок: под свой сезонный, а если
-/// сезон кончился и его страницы нет — под обычный.
-int stashSlotFor(List<String?> slotChests, String? chest) {
-  final i = slotChests.indexOf(chest);
-  return i < 0 ? 0 : i;
-}
-
+/// Выбором вместо кнопки открытия запас не встаёт никогда. С 21.10.2026
+/// (TOG-10) он вставал так при каждом заходе, и открыть сундук было нельзя,
+/// пока не разберёшь его весь (TOG-38, обращение 480).
 class ChestScreen extends StatefulWidget {
   const ChestScreen({
     super.key,
@@ -75,6 +73,7 @@ class ChestScreen extends StatefulWidget {
     this.onCoins,
     this.userData,
     this.debugChoice,
+    this.debugStash,
     this.debugSeasons,
     this.debugPage = 0,
     this.initialSeason,
@@ -108,6 +107,10 @@ class ChestScreen extends StatefulWidget {
   /// Превью: экран сразу в состоянии «выпал подарок, ждёт выбора».
   @visibleForTesting
   final ChestStashItem? debugChoice;
+
+  /// Превью: запас без сервера.
+  @visibleForTesting
+  final List<ChestStashItem>? debugStash;
 
   /// Превью и тесты: сезонные сундуки без сервера.
   @visibleForTesting
@@ -194,6 +197,12 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
   /// одинаковые кнопки (снимок владельца 20.10.2026). Пишет только нажатая.
   bool _jarRun = false;
   bool _choosing = false;
+
+  /// Подарки из сундука, которые ждут решения, старые первыми.
+  List<ChestStashItem> _stash = const [];
+
+  /// Номер последнего запроса запаса: ответ постарше не затирает свежий.
+  int _stashRun = 0;
 
   /// Занавес смены страницы: к какой странице идём и закрыт ли уже экран.
   _Curtain? _curtain;
@@ -342,26 +351,48 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
         unawaited(_loadSeason(slot));
       }
     }
-    if (mounted) unawaited(_restoreStash());
+    if (mounted) unawaited(_loadStash());
   }
 
-  /// Подарок, выпавший раньше и не разобранный, ждёт выбора под своим
-  /// сундуком. Выбор жил только на экране: ушёл с него, не выбрав, — и
-  /// подарка на экране сундука больше не было (TOG-10, 21.10.2026).
-  /// Сундук, где сейчас идёт открытие или лежит свежий приз, не трогаем.
-  Future<void> _restoreStash() async {
-    if (widget.debugChoice != null) return;
-    final items = await ChestService.instance.stash();
-    if (!mounted || items.isEmpty || _busy) return;
+  /// Запас для строки «В запасе» под кнопкой открытия. Подарок, оставленный
+  /// без выбора, обязан быть виден на экране сундука (TOG-10, 21.10.2026), но
+  /// выбором вместо кнопки он не встаёт: так открыть сундук было нельзя, пока
+  /// не разберёшь весь запас, а решённый подарок ставил на своё место
+  /// следующий (TOG-38, обращение 480).
+  Future<void> _loadStash() async {
+    final run = ++_stashRun;
+    final items = widget.debugStash ?? await ChestService.instance.stash();
+    if (mounted && run == _stashRun) setState(() => _stash = items);
+  }
+
+  /// Запас без подарков, которые прямо сейчас стоят выбором под сундуком:
+  /// свежий подарок с самого открытия лежит в запасе на сервере, и без этого
+  /// он считался бы дважды.
+  List<ChestStashItem> get _waiting {
+    final shown = {for (final s in _slots) ?s.choice?.openId};
+    return [for (final i in _stash) if (!shown.contains(i.openId)) i];
+  }
+
+  /// «Позже»: свежий подарок уходит в запас, под сундуком снова кнопка
+  /// открытия. На сервере решать нечего: подарок лежит в запасе с открытия.
+  void _later() {
+    final slot = _s;
+    final choice = slot.choice;
+    if (choice == null || _choosing) return;
     setState(() {
-      final chests = [for (final s in _slots) s.chest];
-      for (final item in items) {
-        final slot = _slots[stashSlotFor(chests, item.chest)];
-        if (slot.choice != null || slot.animating || slot.opening != null || slot.wearWon != null) continue;
-        slot.choice = item;
-        slot.won = trKey('chestGiftTitle').replaceAll('{name}', GiftCatalog.byKey(item.giftKey)?.title ?? item.giftKey);
-      }
+      slot.choice = null;
+      if (slot.opening == null) slot.won = null;
+      if (!_stash.any((i) => i.openId == choice.openId)) _stash = [..._stash, choice];
     });
+    unawaited(_loadStash());
+  }
+
+  /// Лист запаса в цветах страницы: на сезонном сундуке он ночной.
+  Future<void> _openStash(ColorScheme cs) async {
+    final waiting = _waiting;
+    if (waiting.isEmpty || _busy || _anyAnimating || _curtain != null) return;
+    await showChestStashSheet(context, cs: cs, groupId: widget.groupId, items: waiting);
+    if (mounted) unawaited(_loadStash());
   }
 
   /// Вход с главной сразу на сезонный сундук. Занавеса тут нет — экран уже
@@ -704,8 +735,9 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
         if (slot.opening == null) slot.won = null;
       }
     });
-    // Следующий неразобранный подарок встаёт на место решённого.
-    if (ok) unawaited(_restoreStash());
+    // Следующий подарок из запаса на место решённого не встаёт: строка
+    // запаса под кнопкой просто покажет, сколько ещё ждёт.
+    if (ok) unawaited(_loadStash());
     _snack(
       trKey(
         !ok
@@ -1250,6 +1282,7 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
   }
 
   List<Widget> _content(ColorScheme cs, _Slot slot) {
+    final waiting = _waiting;
     return [
       const SizedBox(height: 12),
       ConstrainedBox(
@@ -1295,6 +1328,7 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
         textAlign: TextAlign.center,
         style: TextStyle(fontSize: 12, height: 1.4, color: cs.onSurfaceVariant),
       ),
+      if (waiting.isNotEmpty) ...[const SizedBox(height: 12), _stashBar(cs, waiting)],
       if (PairJarService.instance.jar != null) ...[const SizedBox(height: 10), _jarRow(cs, slot)],
       if (slot.season != null) ..._inside(cs, slot.season!),
       const SizedBox(height: 8),
@@ -1605,7 +1639,90 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     return n.isEmpty ? trKey('chestPartner') : n;
   }
 
-  /// «Подарить» и «Оставить себе» на месте кнопки открытия.
+  /// Строка запаса под кнопкой открытия: что ждёт решения и сколько. Касание
+  /// открывает лист, где подарки разбирают по одному и когда угодно.
+  Widget _stashBar(ColorScheme cs, List<ChestStashItem> waiting) {
+    final keys = <String>[];
+    for (final i in waiting) {
+      if (!keys.contains(i.giftKey)) keys.add(i.giftKey);
+      if (keys.length == 3) break;
+    }
+    return Material(
+      key: const ValueKey('chest-stash-bar'),
+      color: cs.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => _openStash(cs),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+          child: Row(
+            children: [
+              _stashFaces(cs, keys),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      trKey('chestStashBar').replaceAll('{n}', '${waiting.length}'),
+                      style: TextStyle(
+                        fontFamily: ProfileTheme.displayFont,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      trKey('chestStashBarHint'),
+                      style: TextStyle(fontSize: 12.5, height: 1.35, color: cs.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(Icons.chevron_right_rounded, color: cs.onSurfaceVariant),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Рисунки подарков из запаса стопкой, как лица в общем чате: видно, что
+  /// именно ждёт, без чтения.
+  Widget _stashFaces(ColorScheme cs, List<String> keys) {
+    const d = 44.0, step = 26.0;
+    return SizedBox(
+      width: d + step * (keys.length - 1),
+      height: d,
+      child: Stack(
+        children: [
+          for (var i = keys.length - 1; i >= 0; i--)
+            Positioned(
+              left: step * i,
+              child: Container(
+                width: d,
+                height: d,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: cs.surfaceContainerHighest,
+                  shape: BoxShape.circle,
+                  // Зазор цветом строки отделяет соседние кружки.
+                  border: Border.all(color: cs.surfaceContainerLow, width: 2),
+                ),
+                child: GiftImage(keys[i], side: 32, animated: false),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// «Подарить» и «Оставить себе» на месте кнопки открытия, под ними тихое
+  /// «Позже»: подарок уходит в запас, и кнопка открытия возвращается (макет
+  /// «Звук, запас и фото из виджета», вариант А).
   Widget _pick(ColorScheme cs) {
     ButtonStyle style(Color bg, Color fg) => FilledButton.styleFrom(
       backgroundColor: bg,
@@ -1616,22 +1733,51 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
       shape: const StadiumBorder(),
       textStyle: const TextStyle(fontFamily: ProfileTheme.displayFont, fontSize: 15, fontWeight: FontWeight.w700),
     );
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(
-          child: FilledButton(
-            onPressed: _choosing ? null : () => _decide(give: true),
-            style: style(cs.primary, cs.onPrimary),
-            // На узком экране надпись ужимается, а не режется многоточием.
-            child: FittedBox(fit: BoxFit.scaleDown, child: Text(trKey('chestGive'), maxLines: 1)),
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: FilledButton(
+                onPressed: _choosing ? null : () => _decide(give: true),
+                style: style(cs.primary, cs.onPrimary),
+                // На узком экране надпись ужимается, а не режется многоточием.
+                child: FittedBox(fit: BoxFit.scaleDown, child: Text(trKey('chestGive'), maxLines: 1)),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: FilledButton(
+                onPressed: _choosing ? null : () => _decide(give: false),
+                style: style(cs.primaryContainer, cs.onPrimaryContainer),
+                child: FittedBox(fit: BoxFit.scaleDown, child: Text(trKey('chestKeep'), maxLines: 1)),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: FilledButton(
-            onPressed: _choosing ? null : () => _decide(give: false),
-            style: style(cs.primaryContainer, cs.onPrimaryContainer),
-            child: FittedBox(fit: BoxFit.scaleDown, child: Text(trKey('chestKeep'), maxLines: 1)),
+        const SizedBox(height: 8),
+        FilledButton(
+          onPressed: _choosing ? null : _later,
+          style: FilledButton.styleFrom(
+            backgroundColor: cs.surfaceContainerHigh,
+            foregroundColor: cs.onSurface,
+            disabledBackgroundColor: cs.surfaceContainerHigh.withValues(alpha: 0.6),
+            disabledForegroundColor: cs.onSurface,
+            minimumSize: const Size(0, 48),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            shape: const StadiumBorder(),
+            // Шрифт явно: свой стиль кнопки заменяет стиль темы целиком, и без
+            // него надпись уходила в системный шрифт.
+            textStyle: const TextStyle(fontFamily: 'Onest', fontSize: 14.5, fontWeight: FontWeight.w700),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.schedule_rounded, size: 20, color: cs.primary),
+              const SizedBox(width: 8),
+              Flexible(child: Text(trKey('chestLater'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+            ],
           ),
         ),
       ],
