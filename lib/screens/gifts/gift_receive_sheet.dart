@@ -11,6 +11,7 @@ import '../../services/gifts_service.dart';
 import '../../services/locale_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/profile_theme.dart';
+import '../../widgets/app_sheet.dart';
 import '../../widgets/common/gift_image.dart';
 import '../../widgets/gifts/gift_photo_card.dart';
 
@@ -54,7 +55,7 @@ class GiftReceiveSheet extends StatefulWidget {
     String? photo,
     SoundClip? sound,
   }) {
-    return showModalBottomSheet<bool>(
+    return showModalSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -142,6 +143,22 @@ class _GiftReceiveSheetState extends State<GiftReceiveSheet>
     if (res.ok) Navigator.of(context).pop(false);
   }
 
+  /// Подарок принимают касанием по картинке. Подсказка под ней («Забери
+  /// ключ», «Обними в ответ») читалась кнопкой, а нажать её было нельзя
+  /// (обращение 471): теперь это и есть кнопка, картинка тоже работает.
+  /// Подсказки жеста («Коснись дважды», «Задуй свечу») остаются подписью.
+  bool get _buttonAccepts => switch (widget.gift.action) {
+    GiftAction.unlock ||
+    GiftAction.transfer ||
+    GiftAction.hugBack ||
+    GiftAction.blast ||
+    GiftAction.urgent ||
+    GiftAction.tap ||
+    GiftAction.clink ||
+    GiftAction.alarm => !widget.gift.wantsReply,
+    _ => false,
+  };
+
   /// Пицца: монетка решает, кто заказывает.
   void _flip() {
     setState(() => _flipResult = _rnd.nextBool());
@@ -177,6 +194,10 @@ class _GiftReceiveSheetState extends State<GiftReceiveSheet>
     final hasPhoto = widget.photo?.trim().isNotEmpty == true;
 
     return Container(
+      // Модальный лист даёт содержимому свободную ширину (до 640), и у
+      // подарков без кнопок колонка садилась по ширине картинки: лист
+      // «Ключик» на iPhone SE вышел в половину экрана (обращение 471).
+      width: double.infinity,
       padding: EdgeInsets.only(
         left: 20,
         right: 20,
@@ -261,14 +282,28 @@ class _GiftReceiveSheetState extends State<GiftReceiveSheet>
                 _NoteCard(theme: t, text: widget.note!.trim()),
               ],
             ] else ...[
-              Text(
-                _error ?? hint,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: _error != null ? t.textPrimary : t.textSecondary,
+              if (!_buttonAccepts || _error != null)
+                Text(
+                  _error ?? hint,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: _error != null ? t.textPrimary : t.textSecondary,
+                  ),
                 ),
-              ),
+              if (_buttonAccepts) ...[
+                if (_error != null) const SizedBox(height: 10),
+                FilledButton(
+                  onPressed: _busy ? null : _accept,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: cs.primary,
+                    foregroundColor: cs.onPrimary,
+                    minimumSize: const Size.fromHeight(50),
+                    shape: const StadiumBorder(),
+                  ),
+                  child: Text(hint),
+                ),
+              ],
               if (widget.gift.wantsReply) ...[
                 const SizedBox(height: 12),
                 TextField(

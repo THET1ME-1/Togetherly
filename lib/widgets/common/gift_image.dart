@@ -50,7 +50,12 @@ class GiftImage extends StatelessWidget {
     );
     return SizedBox.square(
       dimension: side,
+      // Нижние пределы обнулены: под жёсткой высотой родителя (сцена листа
+      // подарка в 220 точек) квадрат вытягивался, и рисунку доставалось «не
+      // меньше 220, не больше 208» — противоречивые пределы (TOG-39).
       child: OverflowBox(
+        minWidth: 0,
+        minHeight: 0,
         maxWidth: full,
         maxHeight: full,
         child: stillAsset != null && !animated

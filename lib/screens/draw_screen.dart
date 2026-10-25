@@ -4,7 +4,6 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../widgets/common/ad_result.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -773,9 +772,10 @@ class _DrawScreenState extends State<DrawScreen>
   /// подряд закрывали ещё и экран под холстом.
   final SingleExit _exit = SingleExit();
 
-  /// Сохраняет картинку холста ([CanvasStorageService]) и закрывает экран.
-  Future<void> _captureThumbnailAndExit() async {
-    await _exit.run(context, _captureThumbnail);
+  /// Закрывает экран сразу, а картинку для галереи дописывает после
+  /// (TOG-39): снимок берётся, пока холст ещё на экране.
+  void _captureThumbnailAndExit() {
+    _exit.run(context, _captureThumbnail);
   }
 
   Future<void> _captureThumbnail() async {
@@ -4794,7 +4794,7 @@ class _DrawScreenState extends State<DrawScreen>
   Widget _buildScaleIndicator() {
     return ValueListenableBuilder<int>(
       valueListenable: _viewTick,
-      builder: (context, _, __) => _scaleIndicatorBody(),
+      builder: (context, _, _) => _scaleIndicatorBody(),
     );
   }
 
@@ -5550,7 +5550,6 @@ class _DrawScreenState extends State<DrawScreen>
     StateSetter refreshSheet,
   ) async {
     final s = LocaleService.current;
-    final messenger = ScaffoldMessenger.of(context);
     final ok = await showAppSheet<bool>(
       context,
       builder: (ctx) => SheetScaffold(

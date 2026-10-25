@@ -23,6 +23,7 @@ import '../../../services/plus_access.dart';
 import '../../../services/plus_service.dart';
 import '../../../services/pocketbase_service.dart';
 import '../../../services/widget_service.dart';
+import '../../../widgets/app_sheet.dart';
 import '../../../screens/plus_screen.dart';
 import '../../../widgets/common/m3_loading.dart';
 import '../../../widgets/memory_save/floating_note.dart';
@@ -55,11 +56,17 @@ void showMoodPicker({
   final mood = moodService.myMoodToday;
   final currentEmoji = mood?.imagePath ?? '';
 
-  showModalBottomSheet(
+  showModalSheet(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
+    // Высоту лист держит сам перетаскиванием, полоса над ним не нужна.
+    topGap: 0,
     builder: (_) => DraggableScrollableSheet(
+      // Лист по высоте видимой части: растянутый на весь экран, он
+      // прозрачной половиной перекрывал затемнение, и касание над ним
+      // ничего не закрывало (TOG-39).
+      expand: false,
       initialChildSize: 0.72,
       minChildSize: 0.45,
       maxChildSize: 0.92,
@@ -142,11 +149,13 @@ void showMoodPickerForDate({
       ? s.todayDate
       : '${weekdays[date.weekday - 1]}, ${date.day} ${months[date.month - 1]}';
 
-  showModalBottomSheet(
+  showModalSheet(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
+    topGap: 0,
     builder: (_) => DraggableScrollableSheet(
+      expand: false,
       initialChildSize: 0.72,
       minChildSize: 0.45,
       maxChildSize: 0.92,
@@ -204,11 +213,13 @@ void showAilmentPicker({
   required PairData pairData,
   required Color primary,
 }) {
-  showModalBottomSheet(
+  showModalSheet(
     context: context,
     backgroundColor: Colors.transparent,
     isScrollControlled: true,
+    topGap: 0,
     builder: (_) => DraggableScrollableSheet(
+      expand: false,
       initialChildSize: 0.62,
       minChildSize: 0.4,
       maxChildSize: 0.9,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../services/locale_service.dart';
+import '../app_sheet.dart';
 import '../common/gift_image.dart';
 
 const Cubic _emphasizedDecelerate = Cubic(0.05, 0.7, 0.1, 1.0);
@@ -19,10 +20,9 @@ Future<String?> showGiftNoteSheet(
 }) {
   final s = LocaleService.current;
   final ctrl = TextEditingController();
-  return showModalBottomSheet<String>(
+  return showModalSheet<String>(
     context: context,
     isScrollControlled: true,
-    useSafeArea: true,
     backgroundColor: Colors.transparent,
     builder: (ctx) => TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),

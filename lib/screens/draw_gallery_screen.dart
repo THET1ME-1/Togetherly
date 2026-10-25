@@ -71,10 +71,12 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
   void initState() {
     super.initState();
     _load();
+    // Список перечитывается после любой записи: каталог партнёра приезжает
+    // когда угодно, а картинку холста дописывают уже после ухода с него.
+    _storage.revision.addListener(_onStoreChanged);
 
     // Start real-time sync for paired users
     if (_isPaired) {
-      _storage.onRemoteChange = _onRemoteChange;
       _storage.startListening(uid: _uid, groupId: _groupId);
       // Push existing local canvases to Firebase (idempotent)
       _storage.pushAllToFirebase(_uid, _groupId);
@@ -83,12 +85,12 @@ class _DrawGalleryScreenState extends State<DrawGalleryScreen> {
 
   @override
   void dispose() {
-    _storage.onRemoteChange = null;
+    _storage.revision.removeListener(_onStoreChanged);
     _storage.stopListening();
     super.dispose();
   }
 
-  void _onRemoteChange() {
+  void _onStoreChanged() {
     if (mounted) _load();
   }
 

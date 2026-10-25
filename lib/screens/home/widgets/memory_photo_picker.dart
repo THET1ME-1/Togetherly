@@ -8,6 +8,7 @@ import '../../../models/memory.dart';
 import '../../../models/memory_photos.dart';
 import '../../../services/memory_repository.dart';
 import '../../../theme/app_theme.dart';
+import '../../../widgets/app_sheet.dart';
 
 /// Пара (url, caption) — одна фотография из ленты воспоминаний.
 typedef _Photo = MemoryPhoto;
@@ -39,10 +40,12 @@ class MemoryPhotoPicker extends StatefulWidget {
     required int maxCount,
     List<String> alreadySelected = const [],
   }) async {
-    final result = await showModalBottomSheet<List<String>>(
+    final result = await showModalSheet<List<String>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      // Высоту выбор держит сам перетаскиванием.
+      topGap: 0,
       builder: (_) => MemoryPhotoPicker(
         groupId: groupId,
         theme: theme,

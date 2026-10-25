@@ -842,10 +842,12 @@ class _WidgetScreenState extends State<WidgetScreen>
     );
 
     if (!mounted) return;
-    showModalBottomSheet(
+    showModalSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      // Высоту редактор держит сам перетаскиванием.
+      topGap: 0,
       builder: (ctx) => PhotoDayCarouselEditor(
         theme: _t,
         initialPaths: initialPaths,
@@ -884,10 +886,11 @@ class _WidgetScreenState extends State<WidgetScreen>
         _ws.myData?.photoForPartnerUrls ?? const <String>[];
 
     if (!mounted) return;
-    showModalBottomSheet(
+    showModalSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      topGap: 0,
       builder: (ctx) => PhotoDayCarouselEditor(
         theme: _t,
         initialPaths: initialPaths,
@@ -2788,12 +2791,11 @@ class _WidgetScreenState extends State<WidgetScreen>
   }
 
   void _openTimerSelectorSheet() {
-    showModalBottomSheet<void>(
+    showModalSheet<void>(
       context: context,
       backgroundColor: _cs.surface,
       showDragHandle: true,
       isScrollControlled: true,
-      useSafeArea: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
@@ -5560,7 +5562,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     );
 
     if (!mounted) return;
-    await showModalBottomSheet<void>(
+    await showModalSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -7445,7 +7447,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     required int maxLength,
     required ValueChanged<String> onSave,
   }) {
-    showModalBottomSheet(
+    showModalSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -7601,7 +7603,7 @@ class _WidgetScreenState extends State<WidgetScreen>
     // Куда отправить фото — три независимых тумблера (запоминаются).
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
-    final dest = await showModalBottomSheet<_PhotoDestinations>(
+    final dest = await showModalSheet<_PhotoDestinations>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -7740,7 +7742,7 @@ class _WidgetScreenState extends State<WidgetScreen>
   }
 
   void _showMusicEditor(WidgetData data) {
-    showModalBottomSheet(
+    showModalSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -8552,7 +8554,9 @@ class _MusicEditorSheetState extends State<_MusicEditorSheet> {
   @override
   Widget build(BuildContext context) {
     final primary = widget.theme.primary;
-    return Padding(
+    // Ссылка, обложка и два поля выше маленького экрана, особенно с открытой
+    // клавиатурой: лист листается, а не обрезает «Сохранить».
+    return SingleChildScrollView(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),

@@ -8,6 +8,7 @@ import '../../../services/locale_service.dart';
 import '../../../theme/app_theme.dart';
 import '../../../theme/profile_theme.dart';
 import '../../../theme/theme_scope.dart';
+import '../../../widgets/app_sheet.dart';
 import '../../../widgets/connect_expressive.dart';
 import '../../symbol_picker_screen.dart';
 
@@ -192,7 +193,7 @@ void showRelationshipTypeSheet(
 }) {
   final cs = ProfileTheme.themeFor(theme).colorScheme;
   final s = LocaleService.current;
-  showModalBottomSheet(
+  showModalSheet(
     context: context,
     isScrollControlled: true,
     showDragHandle: false,
@@ -317,7 +318,7 @@ void showAddCustomRelTypeSheet(
   int selectedIcon = 0;
   String customSymbol = '';
   unawaited(SymbolCatalog.load());
-  showModalBottomSheet(
+  showModalSheet(
     context: context,
     isScrollControlled: true,
     showDragHandle: false,

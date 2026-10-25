@@ -22,8 +22,10 @@ class CanvasStorageService {
   /// Active Firebase listener — cancelled in [stopListening].
   StreamSubscription? _catalogueSub;
 
-  /// Callback notified whenever the remote catalogue changes.
-  VoidCallback? onRemoteChange;
+  /// Номер правки списка холстов, растёт после каждой записи. Галерея
+  /// перечитывает список по нему: картинку холста дописывают уже после
+  /// ухода с него (TOG-39), а каталог партнёра приезжает когда угодно.
+  final ValueNotifier<int> revision = ValueNotifier<int>(0);
 
   // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -145,7 +147,6 @@ class CanvasStorageService {
   void debugReset() {
     _sheetSent.clear();
     _background.clear();
-    onRemoteChange = null;
     stopListening();
   }
 
@@ -233,10 +234,7 @@ class CanvasStorageService {
     if (groupId.isEmpty) return;
 
     _catalogueSub = _canvas.watchCatalogue(groupId).listen(
-      (remoteList) async {
-        await mergeRemoteCanvases(uid, groupId, remoteList);
-        onRemoteChange?.call();
-      },
+      (remoteList) => mergeRemoteCanvases(uid, groupId, remoteList),
       onError: (e) => debugPrint('[Storage] catalogue error: $e'),
     );
   }
@@ -450,5 +448,6 @@ class CanvasStorageService {
       _key(uid, groupId),
       jsonEncode(canvases.map((c) => c.toJson()).toList()),
     );
+    revision.value++;
   }
 }

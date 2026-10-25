@@ -1605,7 +1605,7 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Оформление сообщения (цвет + мордочка + её позиция). Выбор липкий —
   /// держится для следующих сообщений, пока не сменишь.
   void _showStyleSheet() {
-    showModalBottomSheet<_MsgStyle>(
+    showModalSheet<_MsgStyle>(
       context: context,
       isScrollControlled: true,
       backgroundColor: _t.cardSurface,

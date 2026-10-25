@@ -1017,7 +1017,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!plus && !_restoreAd.isReady) unawaited(_restoreAd.load());
 
     _restoreSheetOpen = true;
-    final agreed = await showModalBottomSheet<bool>(
+    final agreed = await showModalSheet<bool>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
@@ -4138,7 +4138,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _showBrokenInstallSheet() {
     final s = LocaleService.current;
     final p = primary;
-    showModalBottomSheet(
+    showModalSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
@@ -4211,13 +4211,10 @@ class _HomeScreenState extends State<HomeScreen> {
     // Без isScrollControlled Flutter режет лист по 9/16 высоты экрана, и с
     // длинными заметками к версии кнопка «Обновить» уезжала под системную
     // панель — нажать её было нельзя (обращение 236, 05.10.2026).
-    showModalBottomSheet(
+    showModalSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      isDismissible: true,
-      enableDrag: true,
       isScrollControlled: true,
-      useSafeArea: true,
       builder: (ctx) => Container(
         decoration: BoxDecoration(
           color: _t.cardSurface,
@@ -4356,13 +4353,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showUpdateSheet(AppUpdateInfo info) {
-    showModalBottomSheet(
+    showModalSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      isDismissible: true,
-      enableDrag: true,
       isScrollControlled: true,
-      useSafeArea: true,
       builder: (_) => _UpdateBottomSheet(info: info, primaryColor: primary),
     );
   }
@@ -4934,39 +4928,42 @@ class _UpdateBottomSheetState extends State<_UpdateBottomSheet> {
 
           const SizedBox(height: 20),
 
-          // What's new block
-          Container(
-            width: double.infinity,
-            constraints: const BoxConstraints(maxHeight: 300),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: t.surfaceMuted,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: t.divider),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.star_rounded, color: p, size: 18),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: Text(
-                      // Заметки НОВОЙ версии: они приезжают с version.json.
-                      // Текст из установленной сборки остаётся запасным — на
-                      // релизах, выпущенных до 13 августа 2026, поля ещё нет.
-                      UpdateService.cachedNotes ??
-                          LocaleService.current.updateWhatsNew,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: t.textSecondary,
-                        fontWeight: FontWeight.w500,
-                        height: 1.6,
+          // What's new block. Гибкий: на маленьком экране заметки сжимаются и
+          // листаются, а кнопка обновления остаётся на виду (TOG-39).
+          Flexible(
+            child: Container(
+              width: double.infinity,
+              constraints: const BoxConstraints(maxHeight: 300),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: t.surfaceMuted,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: t.divider),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.star_rounded, color: p, size: 18),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Text(
+                        // Заметки НОВОЙ версии: они приезжают с version.json.
+                        // Текст из установленной сборки остаётся запасным — на
+                        // релизах, выпущенных до 13 августа 2026, поля ещё нет.
+                        UpdateService.cachedNotes ??
+                            LocaleService.current.updateWhatsNew,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: t.textSecondary,
+                          fontWeight: FontWeight.w500,
+                          height: 1.6,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
 

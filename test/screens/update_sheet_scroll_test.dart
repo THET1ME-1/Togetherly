@@ -12,7 +12,12 @@ void main() {
       final m = RegExp('void $name\\([^)]*\\) \\{([\\s\\S]*?)builder:').firstMatch(src);
       expect(m, isNotNull, reason: name);
       expect(m!.group(1), contains('isScrollControlled: true'), reason: name);
-      expect(m.group(1), contains('useSafeArea: true'), reason: name);
+      // showModalSheet держит лист ниже строки состояния сам (TOG-39).
+      expect(
+        m.group(1),
+        anyOf(contains('useSafeArea: true'), contains('showModalSheet(')),
+        reason: name,
+      );
     }
   });
 }
