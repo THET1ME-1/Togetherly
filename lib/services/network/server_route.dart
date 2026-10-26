@@ -177,6 +177,15 @@ class ServerRoute {
     return wanted;
   }
 
+  /// Порт, куда открывать соединение. Порт 0 значит «по умолчанию», как его
+  /// понимает сам HttpClient: веб-сокет dart:io присылает адрес именно с
+  /// нулём. В 1.39 обход брал его буквально, и сокет Centrifugo не открывался
+  /// ни у кого, кому обход включён.
+  static int portOf(Uri uri) {
+    if (uri.hasPort && uri.port != 0) return uri.port;
+    return uri.isScheme('https') || uri.isScheme('wss') ? 443 : 80;
+  }
+
   /// Фабрика соединений для [HttpClient.connectionFactory].
   ///
   /// Для https клиент сам шифрование не включает, раз фабрика задана, —
@@ -193,7 +202,7 @@ class ServerRoute {
       return Socket.startConnect(proxyHost, proxyPort ?? 80);
     }
     final host = uri.host;
-    final port = uri.hasPort ? uri.port : (secure ? 443 : 80);
+    final port = portOf(uri);
     if (!_ourHosts.contains(host.toLowerCase())) {
       return secure
           ? SecureSocket.startConnect(host, port, context: context)

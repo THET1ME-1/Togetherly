@@ -489,4 +489,50 @@ void main() {
       expect(r.forNative(local), local);
     });
   });
+
+  // В 1.39 сокет Centrifugo не открывался ни у кого с обходом: веб-сокет
+  // dart:io отдаёт фабрике адрес с портом 0 («по умолчанию»), а обход
+  // стучался буквально в порт 0. Замер по людям 26.10.2026: на канале 1,8%
+  // против 12–18% у старых версий.
+  group('порт соединения', () {
+    test('веб-сокет dart:io отдаёт фабрике порт 0', () async {
+      Uri? seen;
+      HttpOverrides.global = _RecordingOverrides((uri) => seen = uri);
+      addTearDown(() => HttpOverrides.global = null);
+      // Свой клиент сокет dart:io заводит один раз на процесс, и в общем
+      // прогоне его мог создать соседний тест без подмены. Клиент из той же
+      // подмены передаём явно: адрес он получает тот же.
+      await expectLater(
+        WebSocket.connect('wss://togetherly.day/connection/websocket',
+            customClient: HttpClient()),
+        throwsA(anything),
+      );
+      expect(seen, isNotNull);
+      expect(seen!.hasPort, isTrue);
+      expect(seen!.port, 0);
+    });
+
+    test('порт 0 значит порт по умолчанию, как у HttpClient', () {
+      expect(ServerRoute.portOf(Uri.parse('https://togetherly.day:0/x')), 443);
+      expect(ServerRoute.portOf(Uri.parse('http://togetherly.day:0/x')), 80);
+      expect(ServerRoute.portOf(Uri.parse('https://togetherly.day/x')), 443);
+      expect(ServerRoute.portOf(Uri.parse('https://rt.togetherly.day:8443/x')), 8443);
+    });
+  });
+}
+
+class _RecordingOverrides extends HttpOverrides {
+  _RecordingOverrides(this.onConnect);
+
+  final void Function(Uri uri) onConnect;
+
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    final client = super.createHttpClient(context);
+    client.connectionFactory = (uri, proxyHost, proxyPort) {
+      onConnect(uri);
+      return Future.error(const SocketException('проверка'));
+    };
+    return client;
+  }
 }
