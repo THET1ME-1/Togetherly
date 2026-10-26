@@ -50,6 +50,10 @@ NEWEST = 600  # прогрев кроном: свежие записи и ест
 SIZES = {512: 74, 1600: 82}  # ширина → качество webp
 SKIP_EXT = (".m4a", ".aac", ".mp3", ".wav", ".ogg", ".flac")  # звук: кадра нет
 VIDEO_EXT = (".mp4", ".mov", ".webm", ".mkv", ".avi")
+# Сырые снимки камеры: Pillow открывает DNG как TIFF, но разжать его не может
+# («decoder error -2»), и миниатюры у таких записей не было никогда.
+RAW_EXT = (".dng", ".cr2", ".nef", ".arw")
+EXIFTOOL = "/usr/local/bin/exiftool"
 FFMPEG = "/usr/bin/ffmpeg"
 FRAME_AT = "1"          # секунда, с которой берём кадр
 FFMPEG_TIMEOUT = 20
@@ -112,6 +116,26 @@ def video_frame(src, workdir):
     return ""
 
 
+def raw_preview(src, workdir):
+    """Встроенный JPEG сырого снимка. Пусто — превью в файле нет.
+
+    Камера кладёт в DNG полноразмерный JPEG вместе с поворотом, поэтому
+    дальше он идёт общим путём, как обычная фотография.
+    """
+    dst = os.path.join(workdir, "preview.jpg")
+    for tag in ("-PreviewImage", "-JpgFromRaw", "-OtherImage"):
+        try:
+            with open(dst, "wb") as out:
+                subprocess.run([EXIFTOOL, "-b", tag, src], stdout=out,
+                               stderr=subprocess.DEVNULL, timeout=FFMPEG_TIMEOUT, check=False)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            print("превью не досталось:", exc)
+            return ""
+        if os.path.getsize(dst) > 0:
+            return dst
+    return ""
+
+
 def build(rec_id, name):
     """Вернуть число сделанных файлов. Оба размера читают исходник один раз."""
     if name.lower().endswith(SKIP_EXT):
@@ -130,6 +154,11 @@ def build(rec_id, name):
         if name.lower().endswith(VIDEO_EXT):
             frames = tempfile.mkdtemp(prefix="thumbvid_")
             рисунок = video_frame(holder.path, frames)
+            if not рисунок:
+                return 0
+        elif name.lower().endswith(RAW_EXT):
+            frames = tempfile.mkdtemp(prefix="thumbraw_")
+            рисунок = raw_preview(holder.path, frames)
             if not рисунок:
                 return 0
         base = Image.open(рисунок)
