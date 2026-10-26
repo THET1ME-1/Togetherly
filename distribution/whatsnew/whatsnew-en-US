@@ -1,19 +1,19 @@
-— Fixed in 1.39.1: messages, online status and your partner's live drawing arrive instantly again.
+— Messages, online status and your partner's live drawing arrive instantly again.
 
-— CONNECTION: if your provider blocks our server, the app tries a backup route. If that is blocked too, it suggests turning on a VPN.
+— iPhone: the chest no longer hangs on “Opening…” after an ad, and jar drops and coins for the ad are credited.
 
-— UKRAINIAN: the whole app is translated. Pick it in settings, and phones set to Ukrainian get it automatically.
+— Chat pulls in a new message as soon as its notification arrives.
 
-— Without a connection to the server the home screen still shows your pair and timers, and widgets no longer go blank.
-
-— Chat catches up on messages that arrived while you were offline. A message written offline lands where you wrote it.
-
-— A gift from the chest reaches your partner. You can decide later: the gift goes to your stash and the chest keeps opening.
-
-— iPhone: the chest no longer hangs on “Opening…” after an ad, and pop-up sheets close with a tap above them.
+— Voice messages show their real length: a 10-second recording no longer shows as 0:40.
 
 — Photos and videos that failed to upload the first time are uploaded again.
 
-— Shared canvas: Undo works again, a canvas can be deleted, and erased lines stay erased.
+— Chest: put a gift aside with “Later”, and open your whole stash from the line under the chest.
 
-— Fixed: one Back closes a note opened from the widget, the mascot can no longer be dragged under the bottom bar, the mascot streak no longer drops to zero when your partner checks in after midnight, the map lets go of your location after “Turn off”, and the app no longer crashes after closing screens.
+— Watch together on Android: Cinema mode hides the system bars and turns the phone sideways, and chat runs as lines over the picture in landscape.
+
+— iPhone SE: “Take the key” responds, Back leaves drawing, and pop-ups close with a tap above them.
+
+— Miss you: buttons respond right away and the count updates without leaving the screen.
+
+— Fixed: the mascot streak no longer resets when your partner checks in after midnight, a paid theme preview ends after a minute, the settings screen no longer jumps, and the app no longer crashes on the canvas.
