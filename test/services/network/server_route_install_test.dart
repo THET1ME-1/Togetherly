@@ -1,94 +1,74 @@
 import 'dart:io';
-import 'dart:ui' show Locale;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:love_app/services/network/device_time_zone.dart';
 import 'package:love_app/services/network/server_route.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// Обход ставится только телефонам, которым он нужен (24.10.2026). В 1.39 он
-// стоял у всех, и мгновенная связь не поднималась ни у кого.
+// Обход ставится всем телефонам (26.10.2026). С 24 по 26.10.2026 его ставили
+// только Украине и США по поясу и языку: через обход не поднимался сокет
+// Centrifugo (порт 0). Страну по телефону не угадать, а запасной путь нужен и
+// украинцу на московском времени, и тем, кому режут Timeweb в Европе.
 void main() {
-  const russia = [Locale('ru', 'RU')];
-  const ukraine = [Locale('uk', 'UA')];
-  const kyiv = Duration(hours: 3);
-
   setUp(() {
     HttpOverrides.global = null;
     SharedPreferences.setMockInitialValues({});
   });
   tearDown(() => HttpOverrides.global = null);
 
-  test('Россия: обход не ставится, решение запомнено для фона', () async {
-    final installed = await ServerRoute.install(
-        fromDevice: true, locales: russia, utcOffset: kyiv);
-    expect(installed, isFalse);
-    expect(HttpOverrides.current, isNull);
-    final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getBool(ServerRoute.wantedKey), isFalse);
-  });
-
-  test('Украина: обход ставится, решение запомнено для фона', () async {
-    final installed = await ServerRoute.install(
-        fromDevice: true, locales: ukraine, utcOffset: kyiv);
-    expect(installed, isTrue);
-    expect(HttpOverrides.current, isA<ServerRouteOverrides>());
-    final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getBool(ServerRoute.wantedKey), isTrue);
-  });
-
-  test('украинец с русским телефоном: решает часовой пояс', () async {
-    final installed = await ServerRoute.install(
-        fromDevice: true,
-        locales: russia,
-        utcOffset: const Duration(hours: 2),
-        timeZone: 'Europe/Kyiv');
-    expect(installed, isTrue);
+  test('обход ставится при любом языке и поясе', () async {
+    await ServerRoute.install();
     expect(HttpOverrides.current, isA<ServerRouteOverrides>());
   });
 
-  test('пояс телефона один и тот же в Dart, Kotlin и Swift', () {
+  test('запомненное в 1.39.1 «обход не нужен» больше ничего не решает', () async {
+    SharedPreferences.setMockInitialValues({'server_route_wanted': false});
+    await ServerRoute.install();
+    expect(HttpOverrides.current, isA<ServerRouteOverrides>());
+  });
+
+  test('запомненный запасной путь поднимается при установке', () async {
+    ServerRoute.instance = ServerRoute(
+      loadSpareSince: () async => 1,
+      saveSpareSince: (_) async {},
+    );
+    addTearDown(() => ServerRoute.instance = ServerRoute());
+    await ServerRoute.install();
+    expect(ServerRoute.instance.onSpare, isTrue);
+  });
+
+  test('обход ставит каждая точка входа: у движков свои глобалы', () {
+    String body(String path, String start) {
+      final text = File(path).readAsStringSync();
+      final at = text.indexOf(start);
+      expect(at, isNot(-1), reason: '$start в $path');
+      return text.substring(at, text.indexOf('\n}', at));
+    }
+
+    const main = 'lib/main.dart';
+    for (final start in [
+      'void main() async {',
+      'Future<void> widgetPushRefresh() async {',
+      'Future<void> _homeWidgetBackgroundCallback(',
+    ]) {
+      expect(body(main, start), contains('await ServerRoute.install();'),
+          reason: start);
+    }
+    expect(
+      File('lib/services/widget_background_refresh_service.dart').readAsStringSync(),
+      contains('await ServerRoute.install();'),
+    );
+    expect(
+      File('lib/services/push_background_service.dart').readAsStringSync(),
+      contains('await ServerRoute.install();'),
+    );
+  });
+
+  test('канала часового пояса больше нет ни в Dart, ни в нативе', () {
     final kotlin = File('android/app/src/main/kotlin/com/togetherly/love/MainActivity.kt')
         .readAsStringSync();
     final swift = File('ios/Runner/AppDelegate.swift').readAsStringSync();
-    expect(timeZoneChannel.name, 'love_app/time_zone');
-    expect(kotlin, contains('"love_app/time_zone"'));
-    expect(kotlin, contains('TimeZone.getDefault().id'));
-    expect(swift, contains('name: "love_app/time_zone"'));
-    expect(swift, contains('TimeZone.current.identifier'));
-    expect(swift, contains('setupTimeZoneChannel(engineBridge.pluginRegistry)'));
-  });
-
-  test('фоновый движок берёт решение главного, а не свой язык', () async {
-    SharedPreferences.setMockInitialValues({ServerRoute.wantedKey: false});
-    final installed =
-        await ServerRoute.install(locales: ukraine, utcOffset: kyiv);
-    expect(installed, isFalse);
-    expect(HttpOverrides.current, isNull);
-  });
-
-  test('фоновый движок без решения главного решает сам и не запоминает', () async {
-    final installed =
-        await ServerRoute.install(locales: ukraine, utcOffset: kyiv);
-    expect(installed, isTrue);
-    final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getBool(ServerRoute.wantedKey), isNull);
-  });
-
-  test('решает по стране только главный движок, фоновые берут запомненное', () {
-    final main = File('lib/main.dart').readAsStringSync();
-    final mainBody = main.substring(main.indexOf('void main() async {'));
-    expect(
-      mainBody.substring(0, mainBody.indexOf('\n}')),
-      contains('ServerRoute.install(fromDevice: true)'),
-    );
-    final calls = [
-      for (final file in Directory('lib').listSync(recursive: true))
-        if (file is File && file.path.endsWith('.dart'))
-          ...RegExp(r'ServerRoute\.install\(fromDevice: true\)')
-              .allMatches(file.readAsStringSync())
-              .map((_) => file.path),
-    ];
-    expect(calls, ['lib/main.dart']);
+    expect(kotlin, isNot(contains('love_app/time_zone')));
+    expect(swift, isNot(contains('love_app/time_zone')));
+    expect(swift, isNot(contains('setupTimeZoneChannel')));
   });
 }

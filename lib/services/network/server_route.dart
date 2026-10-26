@@ -1,13 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:ui' show Locale, PlatformDispatcher;
 
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../models/server_route_country.dart';
-import 'device_time_zone.dart';
 import 'server_reach.dart';
 import 'staggered_race.dart';
 import 'watched_socket.dart';
@@ -121,60 +118,19 @@ class ServerRoute {
     }
   }
 
-  /// Решение главного движка, нужен ли обход, — для фоновых движков.
-  static const wantedKey = 'server_route_wanted';
-
-  /// Подключает запасной путь ко всем сетевым клиентам Dart этого движка, если
-  /// он нужен телефону ([serverRouteWanted]). Звать первой строкой каждой
-  /// точки входа: глобалы у движков свои.
+  /// Подключает запасной путь ко всем сетевым клиентам Dart этого движка.
+  /// Звать первой строкой каждой точки входа: глобалы у движков свои.
   ///
-  /// [fromDevice] ставит только `main()`: главный движок решает по часовому
-  /// поясу и языку телефона и запоминает решение. Фоновые берут запомненное:
-  /// канал пояса им не виден, а язык системы в них ненадёжен, как и у
-  /// [LocaleService]. [locales], [utcOffset] и [timeZone] подставляют тесты.
-  static Future<bool> install({
-    bool fromDevice = false,
-    List<Locale>? locales,
-    Duration? utcOffset,
-    String? timeZone,
-  }) async {
-    final wanted = await _decide(
-      fromDevice: fromDevice,
-      locales: locales ?? PlatformDispatcher.instance.locales,
-      utcOffset: utcOffset ?? DateTime.now().timeZoneOffset,
-      timeZone: timeZone,
-    );
-    if (!wanted) return false;
+  /// Ставится всем телефонам. Страну по телефону не угадать: украинец ходит
+  /// с телефоном на московском времени, сеть Timeweb режут и в Европе (на
+  /// 26.10.2026 через Contabo шли люди из Германии, Финляндии, Британии), а
+  /// тем, кому прямой путь открыт, обход ничего не стоит: запасной путь
+  /// пробуется, только когда основной молчит [stagger]. С 24 по 26.10.2026
+  /// обход ставился только Украине и США, потому что через него не поднимался
+  /// сокет Centrifugo (порт 0, см. [portOf]).
+  static Future<void> install() async {
     await instance.load();
     HttpOverrides.global = ServerRouteOverrides();
-    return true;
-  }
-
-  static Future<bool> _decide({
-    required bool fromDevice,
-    required List<Locale> locales,
-    required Duration utcOffset,
-    required String? timeZone,
-  }) async {
-    SharedPreferences? prefs;
-    try {
-      prefs = await SharedPreferences.getInstance();
-    } catch (_) {}
-    if (!fromDevice) {
-      final saved = prefs?.getBool(wantedKey);
-      if (saved != null) return saved;
-    }
-    final wanted = serverRouteWanted(
-      locales,
-      utcOffset,
-      timeZone: timeZone ?? await deviceTimeZone(),
-    );
-    if (fromDevice) {
-      try {
-        await prefs?.setBool(wantedKey, wanted);
-      } catch (_) {}
-    }
-    return wanted;
   }
 
   /// Порт, куда открывать соединение. Порт 0 значит «по умолчанию», как его
