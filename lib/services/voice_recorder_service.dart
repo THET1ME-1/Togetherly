@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
 import '../models/voice_note.dart';
+import '../utils/m4a_duration.dart';
 
 /// Готовая запись: файл на диске, длительность и огибающая громкости.
 class VoiceCapture {
@@ -155,7 +156,10 @@ class VoiceRecorderService {
   /// не появился (редкий сбой платформы).
   Future<VoiceCapture?> stop() async {
     if (!isRecording) return null;
-    final started = _startedAt!;
+    // Время до просьбы остановиться, а не до ответа: на Android кодировщик
+    // дописывает хвост, и ответ приходил через 29 секунд — голосовое на 11
+    // секунд показывалось как 0:40 (26.10.2026).
+    final held = DateTime.now().difference(_startedAt!);
     final path = _path;
     await _teardown();
     String? out;
@@ -166,12 +170,21 @@ class VoiceRecorderService {
     }
     final file = File(out ?? path ?? '');
     if (!await file.exists()) return null;
-    final ms = DateTime.now().difference(started).inMilliseconds;
     return VoiceCapture(
       path: file.path,
-      duration: Duration(milliseconds: ms),
+      duration: await _fileDuration(file) ?? held,
       peaks: VoicePeaks.encode(List<double>.of(_amps)),
     );
+  }
+
+  /// Сколько звука на самом деле легло в файл.
+  static Future<Duration?> _fileDuration(File file) async {
+    try {
+      return m4aDuration(await file.readAsBytes());
+    } catch (e) {
+      debugPrint('VoiceRecorder: длина файла не прочиталась: $e');
+      return null;
+    }
   }
 
   /// Отменяет запись и стирает файл: отменённое голосовое не должно оставаться
