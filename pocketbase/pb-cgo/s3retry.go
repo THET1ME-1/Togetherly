@@ -26,6 +26,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -36,7 +37,10 @@ import (
 )
 
 type s3Retry struct {
+	// транспорт для всего, что не хранилище: вход через Google, Apple и прочее
 	base http.RoundTripper
+	// транспорт для хранилища, см. newS3StoreTransport
+	store http.RoundTripper
 	// сколько всего попыток, включая первую
 	attempts int
 	// срок до заголовков ответа для запроса без тела
@@ -57,12 +61,41 @@ type s3Retry struct {
 func newS3Retry(base http.RoundTripper) *s3Retry {
 	return &s3Retry{
 		base:        base,
+		store:       newS3StoreTransport(nil),
 		attempts:    3,
 		headerWait:  15 * time.Second,
 		perMegabyte: 2 * time.Second,
 		backoff:     []time.Duration{500 * time.Millisecond, time.Second},
 		logf:        log.Printf,
 	}
+}
+
+// Транспорт к хранилищу: HTTP/1.1 и своё соединение на каждый запрос.
+//
+// Hetzner отвечает по HTTP/2, и транспорт по умолчанию держал к нему одно
+// соединение на всё: 26.10.2026 у PocketBase оно было ровно одно. Когда оно
+// подвисало по дороге, разом вставали все загрузки и чтения у всех людей на
+// минуту-две, а повторы уходили в то же соединение, и все три попытки
+// срывались (112 из 190 повторённых запросов за день). Новые соединения в те
+// же секунды работали: замер открывал их каждые 5 секунд и сбоев не видел. С
+// HTTP/1.1 зависшее соединение держит один запрос, отмена попытки его
+// закрывает, и повтор идёт по новому.
+//
+// Простаивающее соединение Hetzner закрывает сам через 5–20 секунд, поэтому
+// своё держим недолго. [trust] подставляют тесты, nil — системные сертификаты.
+func newS3StoreTransport(trust *tls.Config) *http.Transport {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.ForceAttemptHTTP2 = false
+	transport.TLSNextProto = map[string]func(string, *tls.Conn) http.RoundTripper{}
+	if trust != nil {
+		transport.TLSClientConfig = trust.Clone()
+	}
+	if transport.TLSClientConfig != nil {
+		transport.TLSClientConfig.NextProtos = []string{"http/1.1"}
+	}
+	transport.MaxIdleConnsPerHost = 16
+	transport.IdleConnTimeout = 4 * time.Second
+	return transport
 }
 
 var errS3Hung = errors.New("хранилище не ответило за срок попытки")
@@ -103,8 +136,11 @@ func (t *s3Retry) waitFor(req *http.Request) time.Duration {
 }
 
 func (t *s3Retry) RoundTrip(req *http.Request) (*http.Response, error) {
-	if !t.canRetry(req) {
+	if !isS3Request(req) {
 		return t.base.RoundTrip(req)
+	}
+	if !t.canRetry(req) {
+		return t.store.RoundTrip(req)
 	}
 	for attempt := 1; ; attempt++ {
 		resp, err := t.try(req, attempt)
@@ -151,7 +187,7 @@ func (t *s3Retry) try(req *http.Request, attempt int) (*http.Response, error) {
 	}
 	wait := t.waitFor(req)
 	timer := time.AfterFunc(wait, cancel)
-	resp, err := t.base.RoundTrip(attemptReq)
+	resp, err := t.store.RoundTrip(attemptReq)
 	if !timer.Stop() {
 		// срок вышел раньше заголовков: это зависание, а не ответ
 		if err == nil {
