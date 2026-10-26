@@ -12,6 +12,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../models/call_record.dart';
 import '../../models/exit_guard.dart';
 import '../../services/chat_service.dart';
+import '../../services/cinema_chrome.dart';
 import '../../services/network/server_route.dart';
 import '../../widgets/memory_save/floating_note.dart';
 import '../../services/locale_service.dart';
@@ -80,6 +81,10 @@ class WatchRoomScreen extends StatefulWidget {
 
 class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingObserver {
   bool _loading = true;
+
+  /// На странице включён режим «кино»: панели спрятаны, телефон набок,
+  /// страница во весь экран (TOG-43).
+  bool _cinema = false;
 
   /// Страница комнаты: ей уходит состояние звонка, от неё приходят нажатия.
   InAppWebViewController? _web;
@@ -470,8 +475,16 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
     ).showSnackBar(SnackBar(content: Text(text), behavior: SnackBarBehavior.floating));
   }
 
+  /// Страница сообщила, что включили или выключили «кино».
+  void _setCinema(bool on) {
+    if (on == _cinema || !mounted) return;
+    setState(() => _cinema = on);
+    unawaited(on ? CinemaChrome.enter() : CinemaChrome.leave());
+  }
+
   @override
   void dispose() {
+    if (_cinema) unawaited(CinemaChrome.leave());
     _covered?.removeStatusListener(_onCovered);
     unawaited(_closeWindow());
     ScreenAwake.release(this);
@@ -549,6 +562,15 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
+        // В «кино» «назад» сперва выключает режим, как в плеерах.
+        if (_cinema) {
+          unawaited(_web?.evaluateJavascript(
+                source: 'window.roomExitCinema && window.roomExitCinema()',
+              ) ??
+              Future<void>.value());
+          _setCinema(false);
+          return;
+        }
         if (_allowLeave() && mounted) unawaited(_leave());
       },
       // В лентах строка состояния светлыми значками по чёрному.
@@ -573,7 +595,11 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
         // В лентах ролик заходит под строку состояния, как в TikTok: чёрная
         // полоса над ним читалась пустой шапкой. Отступ кнопкам страница
         // берёт из `_insetScript`.
-        top: !widget.reels,
+        // В «кино» страница ложится во весь экран, иначе по краям оставались
+        // поля цвета фона (обращение 488).
+        top: !widget.reels && !_cinema,
+        left: !_cinema,
+        right: !_cinema,
         bottom: false,
         // Нативное окно комнаты система показывает поверх этого экрана: под
         // ним остаётся только ожидание, пока окно открывается и закрывается.
@@ -700,6 +726,14 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
     // Комната сама сообщает, что включили: иначе приложение не знает,
     // что происходит внутри встроенного браузера.
     c.addJavaScriptHandler(
+      handlerName: 'watchCinema',
+      callback: (args) {
+        final info = (args.isNotEmpty && args.first is Map) ? args.first as Map : const {};
+        _setCinema(info['on'] == true);
+        return null;
+      },
+    );
+    c.addJavaScriptHandler(
       handlerName: 'watchSource',
       callback: (args) {
         final info = (args.isNotEmpty && args.first is Map)
@@ -724,6 +758,9 @@ class _WatchRoomScreenState extends State<WatchRoomScreen> with WidgetsBindingOb
   void _onPageLoaded(InAppWebViewController c) {
     if (!mounted) return;
     setState(() => _loading = false);
+    // Заново загруженная страница (поворот, гибель движка браузера) открывается
+    // без «кино», и окну незачем оставаться без панелей.
+    _setCinema(false);
     _pushVoice();
     if (widget.reels || _native) {
       unawaited(c.evaluateJavascript(source: _insetScript(MediaQuery.paddingOf(context))));

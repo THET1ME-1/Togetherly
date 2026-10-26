@@ -1052,12 +1052,35 @@
 
   /// Включает или снимает свой полноэкранный режим.
   function setCinema(on) {
+    const was = document.body.classList.contains('cinema');
     document.body.classList.toggle('cinema', on);
     const btn = $('#cinema');
     if (btn) btn.setAttribute('aria-pressed', on ? 'true' : 'false');
     // В режим входят с чистым кадром, из режима выходят с обычным чатом.
     cinChat.set(false);
+    if (was !== on) reportCinema(on);
   }
+
+  /// Окном распоряжается приложение: страница растягивает кадр, а строку
+  /// состояния, кнопки навигации и поворот телефона знает только оно (TOG-43,
+  /// обращение 488: «кино» на Android шло с панелями и полями, стоя — узкой
+  /// полосой). Сборки постарше вызов не знают, и он просто ничего не делает.
+  function reportCinema(on) {
+    try {
+      const bridge = window.flutter_inappwebview;
+      if (bridge && typeof bridge.callHandler === 'function') {
+        bridge.callHandler('watchCinema', { on: on });
+      }
+    } catch (_) { /* приложения рядом нет */ }
+  }
+
+  /// «Назад» в приложении сперва выключает «кино», а не уводит из комнаты.
+  /// Ответ — выключила ли.
+  window.roomExitCinema = function () {
+    if (!document.body.classList.contains('cinema')) return false;
+    setCinema(false);
+    return true;
+  };
 
   /// Чат в полноэкранном режиме: свёрнут в кнопку, пока им не пользуются.
   ///
