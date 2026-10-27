@@ -218,7 +218,7 @@ List<ChestPrize> fallbackChestOdds({required bool withPlus}) {
     const ChestPrize(key: 'coins25', kind: ChestPrizeKind.coins, amount: 25, weight: 75, tier: ChestTier.rare),
     if (withPlus) const ChestPrize(key: 'plus', kind: ChestPrizeKind.plus, weight: 1, tier: ChestTier.legendary),
     if (withPlus)
-      const ChestPrize(key: 'plus7', kind: ChestPrizeKind.plusTrial, amount: 7, weight: 10, tier: ChestTier.legendary),
+      const ChestPrize(key: 'plus7', kind: ChestPrizeKind.plusTrial, amount: 7, weight: 3, tier: ChestTier.legendary),
   ];
   final used = [...gifts, ...rest].fold<int>(0, (t, p) => t + p.weight);
   return [
