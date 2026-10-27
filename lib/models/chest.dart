@@ -27,8 +27,9 @@ class ChestPrize {
   /// Монет в призе; у подарка и Плюса ноль.
   final int amount;
 
-  /// Вес в десятых долях процента: сумма по таблице — 1000.
-  final int weight;
+  /// Вес в десятых долях процента: сумма по таблице — 1000. Бывает дробным
+  /// (0,5 — это 0,05%): самый редкий приз может стать реже десятой процента.
+  final double weight;
   final ChestTier tier;
 
   Gift? get gift => kind == ChestPrizeKind.gift ? GiftCatalog.byKey(key) : null;
@@ -66,7 +67,7 @@ class ChestPrize {
       key: key,
       kind: kind,
       amount: (j['amount'] as num?)?.toInt() ?? 0,
-      weight: (j['weight'] as num?)?.toInt() ?? 0,
+      weight: (j['weight'] as num?)?.toDouble() ?? 0,
       tier: tier,
     );
   }
@@ -211,7 +212,7 @@ List<ChestPrize> fallbackChestOdds({required bool withPlus}) {
   };
   final gifts = [
     for (final e in tiers.entries)
-      ChestPrize(key: e.key, kind: ChestPrizeKind.gift, weight: _fallbackItemWeight[e.value]!, tier: e.value),
+      ChestPrize(key: e.key, kind: ChestPrizeKind.gift, weight: _fallbackItemWeight[e.value]!.toDouble(), tier: e.value),
   ];
   final rest = [
     const ChestPrize(key: 'coins10', kind: ChestPrizeKind.coins, amount: 10, weight: 180, tier: ChestTier.common),
@@ -220,7 +221,7 @@ List<ChestPrize> fallbackChestOdds({required bool withPlus}) {
     if (withPlus)
       const ChestPrize(key: 'plus7', kind: ChestPrizeKind.plusTrial, amount: 7, weight: 3, tier: ChestTier.legendary),
   ];
-  final used = [...gifts, ...rest].fold<int>(0, (t, p) => t + p.weight);
+  final used = [...gifts, ...rest].fold<double>(0, (t, p) => t + p.weight);
   return [
     ChestPrize(key: 'coins5', kind: ChestPrizeKind.coins, amount: 5, weight: 1000 - used, tier: ChestTier.common),
     rest[0],
@@ -232,14 +233,16 @@ List<ChestPrize> fallbackChestOdds({required bool withPlus}) {
   ];
 }
 
-/// Доля приза от всей таблицы строкой: «35%», «2,5%». Десятичный знак — по
-/// языку ([decimal]), ноль после запятой не пишется.
+/// Доля приза от всей таблицы строкой: «35%», «2,5%», «0,05%». Десятичный
+/// знак — по языку ([decimal]), нули в конце дробной части не пишутся.
 String chestPercent(ChestPrize p, List<ChestPrize> all, {String decimal = ','}) {
-  final total = all.fold<int>(0, (t, e) => t + e.weight);
+  final total = all.fold<double>(0, (t, e) => t + e.weight);
   if (total <= 0) return '0%';
-  final tenths = (p.weight * 1000 / total).round();
-  final whole = tenths ~/ 10, frac = tenths % 10;
-  return frac == 0 ? '$whole%' : '$whole$decimal$frac%';
+  final hundredths = (p.weight * 10000 / total).round();
+  final whole = hundredths ~/ 100, frac = hundredths % 100;
+  if (frac == 0) return '$whole%';
+  final digits = frac % 10 == 0 ? '${frac ~/ 10}' : frac.toString().padLeft(2, '0');
+  return '$whole$decimal$digits%';
 }
 
 /// Таблица по ярусам в порядке «обычные → редкие → легендарные», внутри яруса

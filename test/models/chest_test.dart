@@ -47,7 +47,8 @@ void main() {
       final p = client[r[0]];
       expect(p, isNotNull, reason: '${r[0]} нет в запасной таблице');
       final kind = p!.kind == ChestPrizeKind.plusTrial ? 'plus_trial' : p.kind.name;
-      expect([kind, '${p.amount}', '${p.weight}', p.tier.name], [r[1], r[2], r[3], r[4]]);
+      final w = p.weight == p.weight.roundToDouble() ? '${p.weight.toInt()}' : '${p.weight}';
+      expect([kind, '${p.amount}', w, p.tier.name], [r[1], r[2], r[3], r[4]]);
     }
   });
 
@@ -71,7 +72,7 @@ void main() {
 
   test('одинаковая редкость — одинаковый шанс, и редкое реже обычного', () {
     final odds = fallbackChestOdds(withPlus: true).where((p) => p.kind == ChestPrizeKind.gift);
-    final byTier = <ChestTier, Set<int>>{};
+    final byTier = <ChestTier, Set<double>>{};
     for (final p in odds) {
       (byTier[p.tier] ??= {}).add(p.weight);
     }
@@ -141,7 +142,7 @@ void main() {
 
   test('веса дают ровно сто процентов — с Плюсом и без', () {
     for (final withPlus in [true, false]) {
-      expect(fallbackChestOdds(withPlus: withPlus).fold<int>(0, (t, p) => t + p.weight), 1000);
+      expect(fallbackChestOdds(withPlus: withPlus).fold<double>(0, (t, p) => t + p.weight), 1000);
     }
   });
 
@@ -305,5 +306,29 @@ void main() {
     final open = src.substring(src.indexOf('"/api/chest/open"'), src.indexOf('"/api/chest/keep"'));
     expect(open.contains('error: "ad_required"'), isTrue);
     expect(RegExp(r'\(r\[1\] === "plus" \|\| r\[1\] === "plus_trial"\) && noAd\)').hasMatch(open), isTrue);
+  });
+
+  group('дробные шансы: сотые доли процента', () {
+    test('вес 0,5 десятой читается как есть, а не обрезается до нуля', () {
+      final p = ChestPrize.fromJson({'key': 'plus', 'kind': 'plus', 'weight': 0.5, 'tier': 'legendary'})!;
+      expect(p.weight, 0.5);
+    });
+
+    test('0,05% показывается сотыми, прежние доли — как раньше', () {
+      ChestPrize prize(String key, num w) =>
+          ChestPrize.fromJson({'key': key, 'kind': 'coins', 'amount': 5, 'weight': w})!;
+      final odds = [prize('a', 0.5), prize('b', 3), prize('c', 180), prize('d', 816.5)];
+      String pct(String key) => chestPercent(odds.firstWhere((p) => p.key == key), odds);
+      expect(pct('a'), '0,05%');
+      expect(pct('b'), '0,3%');
+      expect(pct('c'), '18%');
+      expect(chestPercent(odds.first, odds, decimal: '.'), '0.05%');
+    });
+
+    test('сумма запасной таблицы по-прежнему 1000', () {
+      for (final withPlus in [true, false]) {
+        expect(fallbackChestOdds(withPlus: withPlus).fold<double>(0, (t, p) => t + p.weight), 1000);
+      }
+    });
   });
 }
