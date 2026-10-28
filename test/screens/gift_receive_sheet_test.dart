@@ -109,6 +109,24 @@ void main() {
     await done(tester);
   });
 
+  // Обращение 471, 28.10.2026: «у письма кнопка наверх уехала». Над конвертом
+  // висела крышка коробки — плашка цвета кнопки, а подсказка звала «Открой
+  // коробку»: у «Письма» и «Коробки» одно действие, и сцена была одна на двоих.
+  testWidgets('у письма нет крышки коробки, и подсказка про письмо', (tester) async {
+    await open(tester, GiftCatalog.byKey('letter')!);
+    expect(find.byKey(const ValueKey('gift-box-lid')), findsNothing, reason: 'над конвертом висит крышка коробки');
+    expect(find.text('Открой коробку'), findsNothing);
+    expect(find.text('Открой письмо'), findsOneWidget);
+    await done(tester);
+  });
+
+  testWidgets('у коробки крышка на месте и подсказка про коробку', (tester) async {
+    await open(tester, GiftCatalog.byKey('giftbox')!);
+    expect(find.byKey(const ValueKey('gift-box-lid')), findsOneWidget);
+    expect(find.text('Открой коробку'), findsOneWidget);
+    await done(tester);
+  });
+
   testWidgets('подсказка жеста кнопкой не становится: сердце принимают двойным касанием', (tester) async {
     await open(tester, GiftCatalog.byKey('heart')!);
     expect(find.byType(FilledButton), findsNothing);

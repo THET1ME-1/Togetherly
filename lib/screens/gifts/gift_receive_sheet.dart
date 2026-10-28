@@ -185,11 +185,14 @@ class _GiftReceiveSheetState extends State<GiftReceiveSheet>
     final t = widget.theme;
     final s = LocaleService.current;
     final cs = ProfileTheme.themeFor(t).colorScheme;
+    // У «Письма» действие то же, что у «Коробки», но открывают письмо, а не
+    // коробку (обращение 471).
+    final letter = widget.gift.key == 'letter';
     final hint = switch (LocaleService.instance.language) {
-      AppLanguage.ru => actionHintRu(widget.gift.action),
-      AppLanguage.zh => actionHintZh(widget.gift.action),
-      AppLanguage.uk => actionHintUk(widget.gift.action),
-      _ => actionHintEn(widget.gift.action),
+      AppLanguage.ru => letter ? 'Открой письмо' : actionHintRu(widget.gift.action),
+      AppLanguage.zh => letter ? '打开信' : actionHintZh(widget.gift.action),
+      AppLanguage.uk => letter ? 'Відкрий лист' : actionHintUk(widget.gift.action),
+      _ => letter ? 'Open the letter' : actionHintEn(widget.gift.action),
     };
     final hasPhoto = widget.photo?.trim().isNotEmpty == true;
 
@@ -577,23 +580,27 @@ class _OpenStage extends StatelessWidget {
             duration: const Duration(milliseconds: 400),
             child: GiftImage(gift.key, side: 170),
           ),
-          AnimatedPositioned(
-            duration: const Duration(milliseconds: 520),
-            curve: Curves.easeOutBack,
-            top: opened ? -20 : 46,
-            child: AnimatedOpacity(
-              opacity: opened ? 0 : 1,
-              duration: const Duration(milliseconds: 500),
-              child: Container(
-                width: 96,
-                height: 26,
-                decoration: BoxDecoration(
-                  color: theme.primary.withValues(alpha: 0.85),
-                  borderRadius: BorderRadius.circular(10),
+          // Крышка слетает только с коробки: над конвертом та же плашка
+          // висела «уехавшей кнопкой» (обращение 471).
+          if (gift.key == 'giftbox')
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 520),
+              curve: Curves.easeOutBack,
+              top: opened ? -20 : 46,
+              child: AnimatedOpacity(
+                opacity: opened ? 0 : 1,
+                duration: const Duration(milliseconds: 500),
+                child: Container(
+                  key: const ValueKey('gift-box-lid'),
+                  width: 96,
+                  height: 26,
+                  decoration: BoxDecoration(
+                    color: theme.primary.withValues(alpha: 0.85),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );
