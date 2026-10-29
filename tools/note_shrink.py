@@ -36,7 +36,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pb_storage  # noqa: E402
 
 RCLONE = "/usr/local/bin/rclone"
-BUCKET = "hk:b86d5542-togetherly-storage"
+BUCKET = "hz:togetherly"  # до 24.10.2026: hk:b86d5542-togetherly-storage
 MEDIA = "pbc_2708086759"
 STATE_DB = "/opt/pocketbase/pb_data/note_shrink.db"
 ENV_FILE = "/opt/hotpath/env"

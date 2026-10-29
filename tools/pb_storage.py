@@ -18,7 +18,7 @@ import subprocess
 import tempfile
 
 STORE = "/opt/pocketbase/pb_data/storage"
-BUCKET = "hk:b86d5542-togetherly-storage"
+BUCKET = "hz:togetherly"  # до 24.10.2026: hk:b86d5542-togetherly-storage
 RCLONE = "/usr/local/bin/rclone"
 MEDIA = "pbc_2708086759"
 FETCH_TIMEOUT = 120

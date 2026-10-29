@@ -2684,7 +2684,7 @@ _EXPORT_DIR = "/opt/pocketbase/pb_data/note_export"
 _EXPORT_TOOL = "/opt/pocketbase/tools/note_export.py"
 _EXPORT_PY = "/opt/pocketbase/tools/heicenv/bin/python3"
 _RCLONE = "/usr/local/bin/rclone"
-_BUCKET = "hk:b86d5542-togetherly-storage"
+_BUCKET = "hz:togetherly"  # до 24.10.2026: hk:b86d5542-togetherly-storage
 _MEDIA_COLLECTION = "pbc_2708086759"
 
 
