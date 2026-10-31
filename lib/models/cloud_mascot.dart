@@ -1,4 +1,5 @@
 import 'mascot_anim.dart';
+import 'mood_pack.dart';
 
 /// Облачко — главный маскот Togetherly, коралловое, с глазами, как иконка.
 ///
@@ -41,6 +42,25 @@ const Map<String, String> _tintOfMood = {
 /// Цвет облачка по id настроения. Нет настроения или оно из пака, которого
 /// сборка не знает, — обычное коралловое.
 String cloudTintForMood(String? moodId) => _tintOfMood[moodId] ?? 'base';
+
+/// Id пака настроений «Облачко» в каталоге.
+const String kCloudMoodPackId = 'cloud';
+
+/// Анимация эмоции [moodId] из пака «Облачко», или null.
+///
+/// В покое маскот играет саму эмоцию, а не только цвет: «Дьявол» с рожками,
+/// «Крутая» в очках. Id настроений общие у всех паков, поэтому эмоция,
+/// выбранная из «Пёсика», на облачке тоже своя.
+String? cloudEmotionUrl(List<MoodPack> packs, String? moodId) {
+  if (moodId == null || moodId.isEmpty) return null;
+  for (final pack in packs) {
+    if (pack.id != kCloudMoodPackId) continue;
+    for (final mood in pack.moods) {
+      if (mood.id == moodId) return mood.imagePath;
+    }
+  }
+  return null;
+}
 
 /// То, что случилось на главной и перекрывает остальную жизнь облачка.
 enum CloudEvent { missSend, missGet, shake }

@@ -1593,11 +1593,15 @@ class _HomeScreenState extends State<HomeScreen> {
               theme: _t,
               onOpenGallery: _openMascotGallery,
               sleepOf: widget.userData.sleepOf,
+              // Облачко живёт настроением партнёра (или своим, если так
+              // выбрали в меню). Партнёр сегодня ещё не отметился — своим:
+              // иначе облачко не отзывалось на смену настроения вовсе.
               moodOf: (mine) {
-                if (mine) return _moodService.myMoodToday?.moodId;
+                final myMood = _moodService.myMoodToday?.moodId;
+                if (mine) return myMood;
                 final partnerUid = _pairData.partnerUid;
-                if (partnerUid.isEmpty) return null;
-                return _moodService.partnerMoodToday(partnerUid)?.moodId;
+                final partnerMood = partnerUid.isEmpty ? null : _moodService.partnerMoodToday(partnerUid)?.moodId;
+                return partnerMood ?? myMood;
               },
             ),
           // -- Theme preview banner (показывается только на главной вкладке) --

@@ -35,6 +35,8 @@ int artDecodeBucket(double px) => px <= 240 ? 240 : (px <= 480 ? 480 : 960);
 
 /// Файл каталога под нужный размер: малый (240) только там, где его не
 /// придётся растягивать.
+String? catalogArtUrl(String key, int decode, {String? fallbackKey}) => _artUrl(key, decode, fallbackKey: fallbackKey);
+
 String? _artUrl(String key, int decode, {String? fallbackKey}) {
   final catalog = CatalogService.instance;
   final art = catalog.giftArt(key) ?? (fallbackKey == null ? null : catalog.giftArt(fallbackKey));

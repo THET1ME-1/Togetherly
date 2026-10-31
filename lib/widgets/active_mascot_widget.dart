@@ -587,6 +587,7 @@ class _MascotImage extends StatelessWidget {
             tint: cloudTintForMood(cloudMood),
             night: sleep.contains(DateTime.now()),
             sick: cloudMood == 'sick',
+            mood: cloudMood,
             listenEvents: true,
             onOneShotDone: onAnimDone,
           );

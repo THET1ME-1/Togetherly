@@ -1,6 +1,10 @@
+import 'dart:ui';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:love_app/models/cloud_mascot.dart';
 import 'package:love_app/models/mascot_anim.dart';
+import 'package:love_app/models/mood_entry.dart';
+import 'package:love_app/models/mood_pack.dart';
 
 /// Облачко на главной живёт в цвете настроения партнёра, а что оно делает,
 /// решают руки человека, серия, время суток и годовщина. Анимации лежат в
@@ -68,6 +72,26 @@ void main() {
       expect(cloudArt(anim: MascotAnimState.live, tint: 'sad', event: CloudEvent.missSend), 'cloud_miss_send_sad');
       expect(cloudArt(anim: MascotAnimState.live, tint: 'sad', event: CloudEvent.missGet), 'cloud_miss_get_sad');
       expect(cloudArt(anim: MascotAnimState.drag, tint: 'sad', night: true, event: CloudEvent.shake), 'cloud_shake_base');
+    });
+  });
+
+  group('в покое облачко играет саму эмоцию из пака «Облачко»', () {
+    const happy = MoodOption(id: 'happy', imagePath: 'https://x/cloud/happy.webp', label: 'Радость', color: Color(0xFFF5C542));
+    const devil = MoodOption(id: 'devil', imagePath: 'https://x/cloud/devil.webp', label: 'Дьявол', color: Color(0xFF8B0000));
+    const packs = [
+      MoodPack(id: 'dog', isFree: true, nameRu: 'Пёсик', nameEn: 'Dog', moods: [MoodOption(id: 'devil', imagePath: 'https://x/dog/devil.webp', label: 'Дьявол', color: Color(0xFF8B0000))]),
+      MoodPack(id: 'cloud', isFree: true, nameRu: 'Облачко', nameEn: 'Cloud', moods: [happy, devil]),
+    ];
+
+    test('эмоция есть в паке — её анимация, из какого бы пака ни выбрали', () {
+      expect(cloudEmotionUrl(packs, 'devil'), 'https://x/cloud/devil.webp');
+      expect(cloudEmotionUrl(packs, 'happy'), 'https://x/cloud/happy.webp');
+    });
+
+    test('нет настроения, нет пака или такой эмоции — обычный покой по цвету', () {
+      expect(cloudEmotionUrl(packs, null), isNull);
+      expect(cloudEmotionUrl(packs, 'kiss'), isNull);
+      expect(cloudEmotionUrl(const [], 'happy'), isNull);
     });
   });
 

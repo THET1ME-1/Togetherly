@@ -5,6 +5,7 @@ import 'package:sensors_plus/sensors_plus.dart';
 
 import '../../models/cloud_mascot.dart';
 import '../../models/shake_detector.dart';
+import '../../services/catalog_service.dart';
 import '../../models/mascot_anim.dart';
 import '../common/guide_mascot.dart';
 
@@ -98,6 +99,7 @@ class CloudMascotView extends StatefulWidget {
     this.tint = 'base',
     this.night = false,
     this.sick = false,
+    this.mood,
     this.listenEvents = false,
     this.onOneShotDone,
   });
@@ -109,6 +111,10 @@ class CloudMascotView extends StatefulWidget {
   final String tint;
   final bool night;
   final bool sick;
+
+  /// Id настроения, которым живёт облачко: в покое играет эта эмоция из
+  /// пака «Облачко», если она там есть.
+  final String? mood;
 
   /// Слушать ли «Скучаю» и встряску. В галерее облачко их не играет.
   final bool listenEvents;
@@ -171,25 +177,54 @@ class _CloudMascotViewState extends State<CloudMascotView> {
 
   @override
   Widget build(BuildContext context) {
-    final art = cloudArt(
-      anim: widget.anim,
-      tint: widget.tint,
-      night: widget.night,
-      sick: widget.sick,
-      event: _event,
-    );
-    if (widget.listenEvents) {
-      warmCloud(widget.tint, size: widget.size, dpr: MediaQuery.devicePixelRatioOf(context));
-    }
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    if (widget.listenEvents) warmCloud(widget.tint, size: widget.size, dpr: dpr);
+    return ListenableBuilder(listenable: CatalogService.instance, builder: (context, _) => _art(dpr));
+  }
+
+  /// Сцена маскота или эмоция пака — одной и той же картинкой на одном месте
+  /// дерева: смена между ними идёт без мигания, прежний кадр стоит до
+  /// готовности нового.
+  Widget _art(double dpr) {
     final canvas = widget.size * _kCloudCanvas;
+    final calm = _event == null &&
+        (widget.anim == MascotAnimState.live || widget.anim == MascotAnimState.freeze) &&
+        !widget.night;
+    final emotion = calm ? cloudEmotionUrl(CatalogService.instance.allPacks, widget.mood) : null;
+    final String? url;
+    final double side;
+    Offset shift = Offset.zero;
+    if (emotion != null) {
+      // Эмоции пака обрезаны плотно (квадрат 24..458 × 38..472 кадра 480):
+      // ставим так, чтобы облачко совпало по размеру и месту со сценами.
+      url = emotion;
+      side = canvas * _kPackCrop;
+      shift = _kPackShift * canvas;
+    } else {
+      side = canvas;
+      url = catalogArtUrl(
+        cloudArt(anim: widget.anim, tint: widget.tint, night: widget.night, sick: widget.sick, event: _event),
+        artDecodeBucket(side * dpr),
+        fallbackKey: 'cloud_idle_base',
+      );
+    }
     return OverflowBox(
       maxWidth: canvas,
       maxHeight: canvas,
-      child: CatalogArtAnim(
-        art,
-        side: canvas,
-        fallbackKey: 'cloud_idle_base',
+      child: SizedBox.square(
+        dimension: canvas,
+        child: Transform.translate(
+          offset: shift,
+          child: Center(
+            child: url == null ? const SizedBox.shrink() : catalogArtImage(url, side: side, decode: artDecodeBucket(side * dpr)),
+          ),
+        ),
       ),
     );
   }
 }
+
+/// Доля холста сцены, которую занимает кадр эмоции пака (434 из 480), и
+/// сдвиг его середины от середины холста (на 1 и 15 пикселей из 480).
+const double _kPackCrop = 434 / 480;
+const Offset _kPackShift = Offset(1 / 480, 15 / 480);
