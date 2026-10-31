@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
@@ -24,6 +26,58 @@ class GuideMascot extends StatelessWidget {
   Widget build(BuildContext context) => CatalogArtAnim('guide_$name', side: side);
 }
 
+/// До какого размера разжимать анимацию: 240, 480 или 960 пикселей.
+///
+/// Ступеней три, а не «сколько точек на экране»: заготовка (`warmCatalogArt`)
+/// обязана попасть в тот же ключ кэша, что и показ, иначе она бесполезна.
+int artDecodeBucket(double px) => px <= 240 ? 240 : (px <= 480 ? 480 : 960);
+
+/// Файл каталога под нужный размер: малый (240) только там, где его не
+/// придётся растягивать.
+String? _artUrl(String key, int decode, {String? fallbackKey}) {
+  final catalog = CatalogService.instance;
+  final art = catalog.giftArt(key) ?? (fallbackKey == null ? null : catalog.giftArt(fallbackKey));
+  return decode > 240 ? (art?.lgUrl ?? art?.smUrl) : (art?.smUrl ?? art?.lgUrl);
+}
+
+ImageProvider _artProvider(String url, int decode) => ResizeImage(
+      CachedNetworkImageProvider(url, cacheManager: OfflineImageCacheManager.instance),
+      width: decode,
+      height: decode,
+    );
+
+/// Картинка анимации. Смена сцены идёт без затухания и без пустого места:
+/// до готовности новой стоит прежний кадр (`gaplessPlayback`). Прежде
+/// старая гасла секунду поверх новой, и облачко двоилось.
+Image catalogArtImage(String url, {required double side, required int decode}) => Image(
+      image: _artProvider(url, decode),
+      width: side,
+      height: side,
+      gaplessPlayback: true,
+      filterQuality: FilterQuality.medium,
+      errorBuilder: (_, _, _) => SizedBox.square(dimension: side),
+    );
+
+/// Заранее скачивает и разжимает первые кадры сцен, чтобы смена была
+/// мгновенной: касание, другое настроение, другой пол, следующий экран.
+/// Анимацию не крутит — после первого кадра отписывается, картинка остаётся
+/// в кэше изображений и подхватывается показом сразу.
+void warmCatalogArt(Iterable<String> keys, {required double side, double? dpr}) {
+  final ratio = dpr ?? ui.PlatformDispatcher.instance.views.first.devicePixelRatio;
+  final decode = artDecodeBucket(side * ratio);
+  for (final key in keys) {
+    final url = _artUrl(key, decode);
+    if (url == null) continue;
+    final stream = _artProvider(url, decode).resolve(ImageConfiguration.empty);
+    late final ImageStreamListener listener;
+    listener = ImageStreamListener(
+      (_, _) => stream.removeListener(listener),
+      onError: (_, _) => stream.removeListener(listener),
+    );
+    stream.addListener(listener);
+  }
+}
+
 /// Анимация из каталога (вид `art`) по полному ключу. Общая для гида и для
 /// облачка-маскота на главной.
 class CatalogArtAnim extends StatelessWidget {
@@ -41,28 +95,11 @@ class CatalogArtAnim extends StatelessWidget {
     return ListenableBuilder(
       listenable: CatalogService.instance,
       builder: (context, _) {
-        final catalog = CatalogService.instance;
-        final art = catalog.giftArt(artKey) ?? (fallbackKey == null ? null : catalog.giftArt(fallbackKey!));
         final dpr = MediaQuery.maybeDevicePixelRatioOf(context) ?? 2.0;
-        final decode = (side * dpr).round();
-        // Файл выбирается по пикселям экрана, а не по точкам: малый (240)
-        // годится только там, где его не придётся растягивать.
-        final url = decode > 260 ? (art?.lgUrl ?? art?.smUrl) : (art?.smUrl ?? art?.lgUrl);
+        final decode = artDecodeBucket(side * dpr);
+        final url = _artUrl(artKey, decode, fallbackKey: fallbackKey);
         if (url == null) return SizedBox.square(dimension: side);
-        return CachedNetworkImage(
-          cacheManager: OfflineImageCacheManager.instance,
-          // Смена сцены (покой → касание) не должна мигать пустотой, пока
-          // новый файл разжимается: до готовности стоит прежний кадр.
-          useOldImageOnUrlChange: true,
-          imageUrl: url,
-          width: side,
-          height: side,
-          memCacheWidth: decode,
-          memCacheHeight: decode,
-          fadeInDuration: Duration.zero,
-          placeholder: (_, _) => SizedBox.square(dimension: side),
-          errorWidget: (_, _, _) => SizedBox.square(dimension: side),
-        );
+        return catalogArtImage(url, side: side, decode: decode);
       },
     );
   }

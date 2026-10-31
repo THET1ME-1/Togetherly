@@ -557,20 +557,13 @@ class _SetupScreenState extends State<SetupScreen>
           ),
           const Spacer(flex: 2),
           // Облачко-гид переодевается под выбранный пол, без гида — значок
+          // Сцена меняется на месте, без переключателя: он выбрасывал прежнее
+          // облачко раньше, чем готово новое, и оно мигало пустотой.
           if (MascotGuideService.instance.on)
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 320),
-              switchInCurve: Curves.easeOutBack,
-              transitionBuilder: (child, animation) => ScaleTransition(
-                scale: Tween(begin: 0.7, end: 1.0).animate(animation),
-                child: child,
-              ),
-              child: GuideMascot(
-                _genderGuideArt(),
-                key: ValueKey(_genderGuideArt()),
-                // Экран без прокрутки: на низком телефоне облачко поменьше
-                side: (MediaQuery.sizeOf(context).height * 0.16).clamp(88.0, 130.0),
-              ),
+            GuideMascot(
+              _genderGuideArt(),
+              // Экран без прокрутки: на низком телефоне облачко поменьше
+              side: _genderGuideSide(context),
             )
           else
             Container(
@@ -638,6 +631,25 @@ class _SetupScreenState extends State<SetupScreen>
         ],
       ),
     );
+  }
+
+  static const double _kPasswordGuideSide = 120;
+
+  double _genderGuideSide(BuildContext context) =>
+      (MediaQuery.sizeOf(context).height * 0.16).clamp(88.0, 130.0);
+
+  /// Все сцены облачка этого экрана готовятся сразу при входе: пол и пароль
+  /// переключают их мгновенно, без загрузки в момент нажатия.
+  bool _guideWarmed = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_guideWarmed || !MascotGuideService.instance.on) return;
+    _guideWarmed = true;
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    warmCatalogArt(const ['guide_look_down', 'guide_girl', 'guide_boy'], side: _genderGuideSide(context), dpr: dpr);
+    warmCatalogArt(const ['guide_look_down', 'guide_nopeek'], side: _kPasswordGuideSide, dpr: dpr);
   }
 
   String _genderGuideArt() {
@@ -839,13 +851,9 @@ class _SetupScreenState extends State<SetupScreen>
                   // Пока вводят пароль, облачко отворачивается и не подглядывает
                   if (MascotGuideService.instance.on)
                     Center(
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 260),
-                        child: GuideMascot(
-                          _passwordFocused ? 'nopeek' : 'look_down',
-                          key: ValueKey(_passwordFocused),
-                          side: 120,
-                        ),
+                      child: GuideMascot(
+                        _passwordFocused ? 'nopeek' : 'look_down',
+                        side: _kPasswordGuideSide,
                       ),
                     ),
                   Center(

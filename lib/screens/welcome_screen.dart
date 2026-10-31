@@ -211,6 +211,10 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 // ─── Облачко-гид вместо сцены ─────────────────────────────────────────────────
 
 /// Слайд приветствия с облачком: знакомится, ловит фото, меняет настроения.
+/// Сторона облачка приветствия. Заставка готовит сцены этим же размером
+/// (`warmCatalogArt` в main), поэтому он один на оба места.
+const double kWelcomeGuideSide = 300;
+
 class _GuideScene extends StatelessWidget {
   const _GuideScene(this.name);
 
@@ -220,7 +224,7 @@ class _GuideScene extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, c) => Center(
-        child: GuideMascot(name, side: (c.biggest.shortestSide * 0.92).clamp(160.0, 320.0)),
+        child: GuideMascot(name, side: kWelcomeGuideSide.clamp(0.0, c.biggest.shortestSide)),
       ),
     );
   }

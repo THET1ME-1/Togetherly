@@ -55,6 +55,7 @@ import 'services/offline/media_cache.dart';
 import 'services/coin_store.dart';
 import 'services/pb_coins_service.dart';
 import 'screens/welcome_screen.dart';
+import 'widgets/common/guide_mascot.dart' show warmCatalogArt;
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/force_update_screen.dart';
@@ -877,7 +878,14 @@ class _LoveAppState extends State<LoveApp> with WidgetsBindingObserver {
       if (Platform.isAndroid) unawaited(_checkMinBuild());
       // Флаг облачка-гида нужен уже приветствию: поднимаем сохранённый и
       // перечитываем конфиг в фоне. На Android его читает проверка сборки.
-      unawaited(MascotGuideService.instance.restore());
+      // Ждём: это чтение настроек, а приветствие без флага выбрало бы старые
+      // сцены. Пока висит заставка, облачко приветствия уже разжимается.
+      await MascotGuideService.instance.restore();
+      if (MascotGuideService.instance.on) {
+        warmCatalogArt(const ['guide_welcome', 'guide_album', 'guide_moods'], side: kWelcomeGuideSide);
+        // Регистрация следом: облачко пола и пароля размером около 120 точек.
+        warmCatalogArt(const ['guide_look_down', 'guide_girl', 'guide_boy', 'guide_nopeek'], side: 120);
+      }
       if (!Platform.isAndroid) unawaited(PbDataService().fetchMinSupportedBuild());
 
       // Запоминаем, была ли сессия активна ДО loadFromPrefs: внутри него

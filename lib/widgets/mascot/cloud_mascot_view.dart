@@ -22,6 +22,29 @@ class CloudEvents extends ChangeNotifier {
   }
 }
 
+/// Готовит сцены облачка заранее, чтобы касание, полёт за пальцем и смена
+/// настроения шли сразу, а не после загрузки: покой во всех цветах и все
+/// реакции в цвете [tint]. Повторный вызов с тем же цветом и размером ничего
+/// не делает.
+void warmCloud(String tint, {required double size, required double dpr}) {
+  final canvas = size * _kCloudCanvas;
+  final mark = '$tint@${artDecodeBucket(canvas * dpr)}';
+  if (_warmed.contains(mark)) return;
+  _warmed.add(mark);
+  warmCatalogArt([
+    for (final t in kCloudTints) 'cloud_idle_$t',
+    for (final scene in const ['tap', 'drag', 'miss_send', 'miss_get', 'joy', 'flip']) 'cloud_${scene}_$tint',
+    'cloud_sleep_base',
+    'cloud_sick_base',
+  ], side: canvas, dpr: dpr);
+}
+
+final Set<String> _warmed = {};
+
+/// Рисунок облачка занимает около 70% холста: холст крупнее места, чтобы
+/// само облачко было размером с прежнего маскота.
+const double _kCloudCanvas = 1.4;
+
 /// Облачко на главной и в галерее. Сцену выбирает `cloudArt`, сама анимация
 /// приходит из каталога: рисунок не перерисовывается в приложении.
 class CloudMascotView extends StatefulWidget {
@@ -107,9 +130,10 @@ class _CloudMascotViewState extends State<CloudMascotView> {
       sick: widget.sick,
       event: _event,
     );
-    // Рисунок облачка занимает около 70% холста: холст крупнее места, чтобы
-    // само облачко было размером с прежнего маскота.
-    final canvas = widget.size * 1.4;
+    if (widget.listenEvents) {
+      warmCloud(widget.tint, size: widget.size, dpr: MediaQuery.devicePixelRatioOf(context));
+    }
+    final canvas = widget.size * _kCloudCanvas;
     return OverflowBox(
       maxWidth: canvas,
       maxHeight: canvas,
