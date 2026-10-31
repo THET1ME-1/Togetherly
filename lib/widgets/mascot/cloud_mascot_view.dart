@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 
 import '../../models/cloud_mascot.dart';
+import '../../models/shake_detector.dart';
 import '../../models/mascot_anim.dart';
 import '../common/guide_mascot.dart';
 
@@ -19,6 +21,47 @@ class CloudEvents extends ChangeNotifier {
   void fire(CloudEvent event) {
     _last = event;
     notifyListeners();
+  }
+}
+
+/// Слушает датчик движения, пока облачко на главной, и зовёт встряску.
+/// Приложение свернули — датчик отпускается: батарея дороже испуга.
+class CloudShakeWatch {
+  StreamSubscription<UserAccelerometerEvent>? _sub;
+  AppLifecycleListener? _life;
+  final ShakeDetector _detector = ShakeDetector();
+  final Stopwatch _clock = Stopwatch()..start();
+
+  void start() {
+    _life ??= AppLifecycleListener(onResume: _listen, onPause: _mute, onHide: _mute);
+    _listen();
+  }
+
+  void _listen() {
+    if (_sub != null) return;
+    try {
+      _sub = userAccelerometerEventStream(samplingPeriod: const Duration(milliseconds: 40)).listen(
+        (e) {
+          if (_detector.add(_clock.elapsed, e.x, e.y, e.z)) CloudEvents.instance.fire(CloudEvent.shake);
+        },
+        // Датчика нет (часть планшетов) — облачко просто не пугается.
+        onError: (_) => _mute(),
+        cancelOnError: true,
+      );
+    } catch (_) {
+      _sub = null;
+    }
+  }
+
+  void _mute() {
+    _sub?.cancel();
+    _sub = null;
+  }
+
+  void stop() {
+    _mute();
+    _life?.dispose();
+    _life = null;
   }
 }
 
@@ -79,11 +122,15 @@ class _CloudMascotViewState extends State<CloudMascotView> {
   CloudEvent? _event;
   Timer? _eventTimer;
   Timer? _oneShotTimer;
+  CloudShakeWatch? _shake;
 
   @override
   void initState() {
     super.initState();
-    if (widget.listenEvents) CloudEvents.instance.addListener(_onEvent);
+    if (widget.listenEvents) {
+      CloudEvents.instance.addListener(_onEvent);
+      _shake = CloudShakeWatch()..start();
+    }
     _armOneShot();
   }
 
@@ -96,6 +143,7 @@ class _CloudMascotViewState extends State<CloudMascotView> {
   @override
   void dispose() {
     CloudEvents.instance.removeListener(_onEvent);
+    _shake?.stop();
     _eventTimer?.cancel();
     _oneShotTimer?.cancel();
     super.dispose();

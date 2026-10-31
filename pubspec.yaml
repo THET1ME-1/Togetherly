@@ -138,6 +138,7 @@ dependencies:
   visibility_detector: ^0.4.0+2
   image: ^4.8.0
   camera: ^0.12.0+2
+  sensors_plus: ^7.1.1
 
 dev_dependencies:
   integration_test:
