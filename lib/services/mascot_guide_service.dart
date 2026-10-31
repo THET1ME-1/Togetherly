@@ -38,6 +38,7 @@ class MascotGuideService extends ChangeNotifier {
       final saved = prefs.getString(_configKey);
       // Сервер мог ответить раньше, чем прочитались настройки.
       if (saved != null && !_fresh) _config = MascotGuideConfig.parse(jsonDecode(saved));
+      _rememberIfOn();
       notifyListeners();
     } catch (_) {}
   }
@@ -49,21 +50,50 @@ class MascotGuideService extends ChangeNotifier {
     _fresh = true;
     _config = MascotGuideConfig.parse(raw);
     SharedPreferences.getInstance().then((p) => p.setString(_configKey, jsonEncode(raw))).catchError((_) => false);
+    _rememberIfOn();
     notifyListeners();
+  }
+
+  /// Человек вошёл (главная открылась): если гид ему включён, телефон это
+  /// запоминает сразу, а не когда до гида дойдёт дело.
+  void signedIn() => _rememberIfOn();
+
+  /// Кто сейчас вошёл. Тесты подменяют, иначе спрашивается PocketBase.
+  @visibleForTesting
+  ({String? uid, DateTime? created}) Function()? who;
+
+  ({String? uid, DateTime? created}) _who() {
+    final override = who;
+    if (override != null) return override();
+    final pb = PocketBaseService();
+    final rawCreated = pb.currentUser?.data['created'];
+    final created = rawCreated is String ? DateTime.tryParse(rawCreated.replaceFirst(' ', 'T')) : null;
+    return (uid: pb.userId, created: created);
+  }
+
+  /// Гид включён вошедшему по списку или по дате — телефон это запоминает,
+  /// чтобы после выхода из аккаунта приветствие осталось с облачком.
+  void _rememberIfOn() {
+    if (_remembered) return;
+    final me = _who();
+    if (me.uid == null || !mascotGuideOn(_config, uid: me.uid, createdAt: me.created)) return;
+    _remembered = true;
+    SharedPreferences.getInstance().then((p) => p.setBool(_deviceKey, true)).catchError((_) => false);
   }
 
   /// Показывать ли гида сейчас.
   bool get on {
-    final pb = PocketBaseService();
-    final uid = pb.userId;
-    final rawCreated = pb.currentUser?.data['created'];
-    final created = rawCreated is String ? DateTime.tryParse(rawCreated.replaceFirst(' ', 'T')) : null;
-    final result = mascotGuideOn(_config, uid: uid, createdAt: created, rememberedOnDevice: _remembered);
-    // Гид включён вошедшему по списку или по дате — телефон это запоминает.
-    if (result && uid != null && !_remembered) {
-      _remembered = true;
-      SharedPreferences.getInstance().then((p) => p.setBool(_deviceKey, true)).catchError((_) => false);
-    }
-    return result;
+    _rememberIfOn();
+    final me = _who();
+    return mascotGuideOn(_config, uid: me.uid, createdAt: me.created, rememberedOnDevice: _remembered);
+  }
+
+  @visibleForTesting
+  void resetForTest() {
+    _config = MascotGuideConfig.off;
+    _remembered = false;
+    _restored = false;
+    _fresh = false;
+    who = null;
   }
 }

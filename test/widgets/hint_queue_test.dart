@@ -17,6 +17,9 @@ void main() {
 
   setUp(() {
     HintQueue.instance.reset();
+    // Тишина на главной настала сразу; само правило тишины — в hint_calm_test.
+    HintQueue.instance.waitCalm = (ready) async => ready();
+    HintQueue.instance.guideOn = () => false;
     SharedPreferences.setMockInitialValues({});
     theme = buildAppTheme(kPalettes[3], Brightness.light);
     first = GlobalKey();
@@ -36,6 +39,14 @@ void main() {
       ),
     ),
   );
+
+  // У облачка кольцо вокруг кнопки пульсирует без конца, и pumpAndSettle с
+  // ним не дождался бы покоя: время крутим руками.
+  Future<void> settleGuide(WidgetTester tester) async {
+    for (var i = 0; i < 15; i++) {
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+  }
 
   void enqueueBoth(BuildContext context) {
     HintQueue.instance.enqueue(
@@ -126,6 +137,57 @@ void main() {
 
     await tester.tap(find.text('Понятно'));
     await tester.pumpAndSettle(const Duration(seconds: 2));
+  });
+
+  testWidgets('пока не спокойно, подсказка не вылезает', (tester) async {
+    // Лист покупки Плюса так и не закрыли — тишины не дождались.
+    HintQueue.instance.waitCalm = (ready) async => false;
+    await tester.pumpWidget(host());
+    enqueueBoth(tester.element(find.byKey(first)));
+    await tester.pumpAndSettle(const Duration(seconds: 2));
+    expect(find.text('Первая подсказка'), findsNothing);
+    expect(find.text('Вторая подсказка'), findsNothing);
+    // И не сгорела: покажется в следующий раз.
+    expect(await UiPrefs.hintSeen('first_hint'), isFalse);
+  });
+
+  testWidgets('с гидом виденная пузырём подсказка приходит облачком один раз', (
+    tester,
+  ) async {
+    // Владелец давно видел все пузыри, и проверить облачко ему было нечем:
+    // у гида свои отметки, пузырь их не гасит.
+    await UiPrefs.markHintSeen('first_hint');
+    await UiPrefs.markHintSeen('second_hint');
+    HintQueue.instance.guideOn = () => true;
+
+    await tester.pumpWidget(host());
+    enqueueBoth(tester.element(find.byKey(first)));
+    await settleGuide(tester);
+    expect(find.text('Первая подсказка'), findsOneWidget);
+    await tester.tap(find.text('Понятно'));
+    await settleGuide(tester);
+    expect(find.text('Вторая подсказка'), findsOneWidget);
+    await tester.tap(find.text('Понятно'));
+    await settleGuide(tester);
+
+    // Облачком показанная тоже одноразовая.
+    enqueueBoth(tester.element(find.byKey(first)));
+    await settleGuide(tester);
+    expect(find.text('Первая подсказка'), findsNothing);
+    expect(find.text('Вторая подсказка'), findsNothing);
+  });
+
+  testWidgets('найденный самим жест гасит и облачко', (tester) async {
+    HintQueue.instance.guideOn = () => true;
+    await tester.pumpWidget(host());
+    await HintQueue.instance.markSeen('first_hint');
+
+    enqueueBoth(tester.element(find.byKey(first)));
+    await settleGuide(tester);
+    expect(find.text('Первая подсказка'), findsNothing);
+    expect(find.text('Вторая подсказка'), findsOneWidget);
+    await tester.tap(find.text('Понятно'));
+    await settleGuide(tester);
   });
 
   testWidgets('подсказка про боковую кнопку помнит старый ключ', (

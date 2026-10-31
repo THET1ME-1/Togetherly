@@ -361,7 +361,8 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadGiftsFlag();
     WalletTeaser.restore();
     RoomWindowFlag.restore();
-    MascotGuideService.instance.restore();
+    // Главная открыта вошедшим: телефон запоминает гида, если он включён.
+    MascotGuideService.instance.restore().then((_) => MascotGuideService.instance.signedIn());
     _loadWishesFlag();
     _loadIncomingGifts();
     _listenGifts();

@@ -64,10 +64,27 @@ class HintQueue {
     unawaited(_pump());
   }
 
+  /// Включён ли облачко-гид. Тесты подменяют, иначе спрашивается служба.
+  @visibleForTesting
+  bool Function()? guideOn;
+
+  bool get _guide => (guideOn ?? () => MascotGuideService.instance.on)();
+
+  /// Ожидание тишины. Тесты подменяют: `HintCalm` меряет настоящие часы, а
+  /// в тесте время ненастоящее, и он ждал бы вечно.
+  @visibleForTesting
+  Future<bool> Function(bool Function() ready)? waitCalm;
+
+  /// У гида свои отметки: кто видел пузырь, ещё не видел облачко. Иначе
+  /// владельцу, давно закрывшему все пузыри, проверить гида было нечем.
+  static String _guideKey(String key) => 'guide_$key';
+
   /// Гасит подсказку навсегда — например, когда человек сам нашёл жест.
+  /// Гасит обе: и пузырь, и облачко.
   Future<void> markSeen(String key) async {
     _queue.removeWhere((h) => h.key == key);
     await UiPrefs.markHintSeen(key);
+    await UiPrefs.markHintSeen(_guideKey(key));
   }
 
   /// Забыть очередь целиком. Нужно тестам: очередь — синглтон, и остаток от
@@ -84,22 +101,25 @@ class HintQueue {
     try {
       while (_queue.isNotEmpty) {
         final hint = _queue.removeAt(0);
-        if (await UiPrefs.hintSeen(hint.key)) continue;
+        final seenKey = _guide ? _guideKey(hint.key) : hint.key;
+        if (await UiPrefs.hintSeen(seenKey)) continue;
         // Ждём спокойного момента: окна поверх главной (лист покупки Плюса и
         // прочие) закрыты, и после них прошло несколько тихих секунд.
         // Подсказка поверх листа — это не подсказка, а помеха.
-        final calm = await HintCalm.instance.waitCalm(() =>
+        bool ready() =>
             hint.context.mounted &&
             (hint.ready == null || hint.ready!()) &&
-            hint.targetKey.currentContext != null);
+            hint.targetKey.currentContext != null;
+        final calm = await (waitCalm ?? HintCalm.instance.waitCalm)(ready);
         if (!calm || !hint.context.mounted) continue;
 
         // Ключ пишем перед показом: подсказка одноразовая независимо от того,
         // дочитали её или закрыли тапом мимо.
         await UiPrefs.markHintSeen(hint.key);
+        await UiPrefs.markHintSeen(seenKey);
         if (!hint.context.mounted) continue;
         // Тем, кому включён облачко-гид, подсказывает облачко у кнопки.
-        if (MascotGuideService.instance.on) {
+        if (seenKey != hint.key) {
           await showGuideHint(
             hint.context,
             targetKey: hint.targetKey,
