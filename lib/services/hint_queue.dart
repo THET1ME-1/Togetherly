@@ -3,7 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
+import '../widgets/common/guide_hint.dart';
 import '../widgets/common/hint_bubble.dart';
+import 'hint_calm.dart';
+import 'mascot_guide_service.dart';
 import 'ui_prefs.dart';
 
 /// Очередь одноразовых подсказок о новых функциях.
@@ -82,23 +85,39 @@ class HintQueue {
       while (_queue.isNotEmpty) {
         final hint = _queue.removeAt(0);
         if (await UiPrefs.hintSeen(hint.key)) continue;
-        if (!hint.context.mounted) continue;
-        if (hint.ready != null && !hint.ready!()) continue;
-        if (hint.targetKey.currentContext == null) continue;
+        // Ждём спокойного момента: окна поверх главной (лист покупки Плюса и
+        // прочие) закрыты, и после них прошло несколько тихих секунд.
+        // Подсказка поверх листа — это не подсказка, а помеха.
+        final calm = await HintCalm.instance.waitCalm(() =>
+            hint.context.mounted &&
+            (hint.ready == null || hint.ready!()) &&
+            hint.targetKey.currentContext != null);
+        if (!calm || !hint.context.mounted) continue;
 
         // Ключ пишем перед показом: подсказка одноразовая независимо от того,
         // дочитали её или закрыли тапом мимо.
         await UiPrefs.markHintSeen(hint.key);
         if (!hint.context.mounted) continue;
-        await showHintBubble(
-          hint.context,
-          targetKey: hint.targetKey,
-          text: hint.text,
-          gotIt: hint.gotIt,
-          icon: hint.icon,
-          theme: hint.theme,
-          side: hint.side,
-        );
+        // Тем, кому включён облачко-гид, подсказывает облачко у кнопки.
+        if (MascotGuideService.instance.on) {
+          await showGuideHint(
+            hint.context,
+            targetKey: hint.targetKey,
+            text: hint.text,
+            gotIt: hint.gotIt,
+            theme: hint.theme,
+          );
+        } else {
+          await showHintBubble(
+            hint.context,
+            targetKey: hint.targetKey,
+            text: hint.text,
+            gotIt: hint.gotIt,
+            icon: hint.icon,
+            theme: hint.theme,
+            side: hint.side,
+          );
+        }
         if (_queue.isNotEmpty) await Future<void>.delayed(_gap);
       }
     } finally {

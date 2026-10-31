@@ -447,6 +447,8 @@ COLLECTIONS = {
             "min_build": "num", "updated_at": "date", "gifts_enabled": "bool",
             "wishes_enabled": "bool", "widget_diag_enabled": "bool",
             "wallet": "json", "chest_enabled": "bool", "room_native_ios": "num",
+            # Кому показывать облачко-гида (31.10.2026, `mascotGuideOn`).
+            "mascot_guide": "json",
         },
         "scope": "public",
         "read_only": True,

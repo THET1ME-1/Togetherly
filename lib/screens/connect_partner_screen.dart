@@ -41,6 +41,8 @@ import '../widgets/common/stable_stream_builder.dart';
 import '../widgets/unfold/unfold_route.dart';
 import '../utils/invite_code.dart';
 import '../widgets/common/badge_image.dart';
+import '../widgets/common/guide_mascot.dart';
+import '../services/mascot_guide_service.dart';
 
 class ConnectPartnerScreen extends StatefulWidget {
   final PairData pairData;
@@ -1400,6 +1402,10 @@ class _ConnectPartnerScreenState extends State<ConnectPartnerScreen>
       ),
       child: Column(
         children: [
+          // С гидом вместо пустого места партнёра — облачко ждёт, пока код введут
+          if (MascotGuideService.instance.on)
+            const GuideMascot('wait', side: 112)
+          else
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [

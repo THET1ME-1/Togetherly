@@ -23,12 +23,14 @@ import 'home_screen.dart';
 import 'login_screen.dart';
 import 'welcome_screen.dart';
 import '../services/locale_service.dart';
+import '../services/mascot_guide_service.dart';
 import '../services/network/server_reach.dart';
 import '../utils/auth_failure.dart';
 import '../utils/network_failure_text.dart';
 import '../theme/theme_scope.dart';
 import '../widgets/auth_widgets.dart';
 import '../widgets/common/app_dialog.dart';
+import '../widgets/common/guide_mascot.dart';
 
 
 class SetupScreen extends StatefulWidget {
@@ -54,6 +56,7 @@ class _SetupScreenState extends State<SetupScreen>
   String _avatarUrl = '';
   XFile? _selectedAvatarFile; // Локальный файл для загрузки после регистрации
   bool _agreeToTerms = false;
+  bool _passwordFocused = false;
 
   // Ссылки на юридические документы (раздаются с нашего сервера, pb_public).
   static final Uri _termsUri = Uri.parse('https://togetherly.day/terms');
@@ -553,17 +556,33 @@ class _SetupScreenState extends State<SetupScreen>
             ),
           ),
           const Spacer(flex: 2),
-          // Icon
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              color: _accentLight.withOpacity(0.8),
-              shape: BoxShape.circle,
+          // Облачко-гид переодевается под выбранный пол, без гида — значок
+          if (MascotGuideService.instance.on)
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 320),
+              switchInCurve: Curves.easeOutBack,
+              transitionBuilder: (child, animation) => ScaleTransition(
+                scale: Tween(begin: 0.7, end: 1.0).animate(animation),
+                child: child,
+              ),
+              child: GuideMascot(
+                _genderGuideArt(),
+                key: ValueKey(_genderGuideArt()),
+                // Экран без прокрутки: на низком телефоне облачко поменьше
+                side: (MediaQuery.sizeOf(context).height * 0.16).clamp(88.0, 130.0),
+              ),
+            )
+          else
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: _accentLight.withOpacity(0.8),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.wc_rounded, color: _accent, size: 36),
             ),
-            child: Icon(Icons.wc_rounded, color: _accent, size: 36),
-          ),
-          const SizedBox(height: 32),
+          SizedBox(height: MascotGuideService.instance.on ? 12 : 32),
           Text(
             LocaleService.current.whoAreYou,
             style: TextStyle(
@@ -619,6 +638,19 @@ class _SetupScreenState extends State<SetupScreen>
         ],
       ),
     );
+  }
+
+  String _genderGuideArt() {
+    if (_customSelected) return 'look_down';
+    switch (_selectedGender) {
+      case Gender.male:
+        return 'boy';
+      case Gender.female:
+        return 'girl';
+      case Gender.unspecified:
+      case null:
+        return 'look_down';
+    }
   }
 
   bool get _genderValid =>
@@ -804,6 +836,18 @@ class _SetupScreenState extends State<SetupScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // Пока вводят пароль, облачко отворачивается и не подглядывает
+                  if (MascotGuideService.instance.on)
+                    Center(
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 260),
+                        child: GuideMascot(
+                          _passwordFocused ? 'nopeek' : 'look_down',
+                          key: ValueKey(_passwordFocused),
+                          side: 120,
+                        ),
+                      ),
+                    ),
                   Center(
                     child: Text(
                       s.createAccountBtn,
@@ -836,14 +880,20 @@ class _SetupScreenState extends State<SetupScreen>
                     ],
                   ),
                   const SizedBox(height: 18),
-                  AuthField(
-                    controller: _passwordController,
-                    label: s.password,
-                    hint: s.yourPassword,
-                    accent: _accent,
-                    isPassword: true,
-                    textInputAction: TextInputAction.done,
-                    onChanged: (_) => setState(() {}),
+                  Focus(
+                    canRequestFocus: false,
+                    skipTraversal: true,
+                    onFocusChange: (focused) =>
+                        setState(() => _passwordFocused = focused),
+                    child: AuthField(
+                      controller: _passwordController,
+                      label: s.password,
+                      hint: s.yourPassword,
+                      accent: _accent,
+                      isPassword: true,
+                      textInputAction: TextInputAction.done,
+                      onChanged: (_) => setState(() {}),
+                    ),
                   ),
                   const SizedBox(height: 14),
                   _buildPasswordChecks(),

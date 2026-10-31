@@ -25,6 +25,8 @@ import 'theme/app_palettes.dart';
 import 'theme/profile_theme.dart';
 import 'theme/theme_scope.dart';
 import 'services/analytics_service.dart';
+import 'services/hint_calm.dart';
+import 'services/mascot_guide_service.dart';
 import 'services/deep_link_service.dart';
 import 'services/shared_link_service.dart';
 import 'services/pb_push_service.dart';
@@ -873,6 +875,10 @@ class _LoveAppState extends State<LoveApp> with WidgetsBindingObserver {
       // (на iOS обновления гонит App Store). Проверка идёт в фоне: заставка
       // сеть не ждёт, а запрет, если он есть, встанет, как только придёт ответ.
       if (Platform.isAndroid) unawaited(_checkMinBuild());
+      // Флаг облачка-гида нужен уже приветствию: поднимаем сохранённый и
+      // перечитываем конфиг в фоне. На Android его читает проверка сборки.
+      unawaited(MascotGuideService.instance.restore());
+      if (!Platform.isAndroid) unawaited(PbDataService().fetchMinSupportedBuild());
 
       // Запоминаем, была ли сессия активна ДО loadFromPrefs: внутри него
       // серверная синхронизация коинов/тем выполняется только при уже
@@ -979,7 +985,7 @@ class _LoveAppState extends State<LoveApp> with WidgetsBindingObserver {
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
         ],
-        navigatorObservers: [AnalyticsService.instance.observer],
+        navigatorObservers: [AnalyticsService.instance.observer, HintCalm.instance.observer],
         // Глобальная плашка «офлайн / ожидает синхронизации» поверх любого экрана.
         builder: (context, child) => LaunchSplashOverlay(
           child: ThemeScope(

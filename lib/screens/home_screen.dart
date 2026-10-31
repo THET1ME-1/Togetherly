@@ -73,6 +73,8 @@ import '../services/presence_service.dart';
 import '../services/centrifugo_service.dart';
 import '../services/locale_service.dart';
 import '../services/rate_limiter_service.dart';
+import '../services/hint_calm.dart';
+import '../services/mascot_guide_service.dart';
 import '../services/hint_queue.dart';
 import '../services/ui_prefs.dart';
 import '../services/update_service.dart';
@@ -359,6 +361,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadGiftsFlag();
     WalletTeaser.restore();
     RoomWindowFlag.restore();
+    MascotGuideService.instance.restore();
     _loadWishesFlag();
     _loadIncomingGifts();
     _listenGifts();
@@ -1860,7 +1863,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _queueHints() async {
     if (!mounted || !_pairData.isPaired || _selectedNavIndex != 0) return;
     final s = LocaleService.current;
-    bool onHome() => mounted && _pairData.isPaired && _selectedNavIndex == 0;
+    // Главная должна быть верхним экраном: поверх неё не открыт экран Плюса,
+    // лист или диалог. Окна считает HintCalm, сам экран — isCurrent.
+    bool onHome() =>
+        mounted &&
+        _pairData.isPaired &&
+        _selectedNavIndex == 0 &&
+        (ModalRoute.of(context)?.isCurrent ?? true);
+    HintCalm.instance.homeShown();
 
     HintQueue.instance.enqueue(
       context: context,

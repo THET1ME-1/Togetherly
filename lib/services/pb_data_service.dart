@@ -20,6 +20,7 @@ import 'pb_errors.dart';
 import 'pocketbase_service.dart';
 import 'upsert_backoff.dart';
 import 'upsert_id_cache.dart';
+import 'mascot_guide_service.dart';
 import 'room_window_flag.dart';
 import 'wallet_teaser.dart';
 
@@ -3446,6 +3447,7 @@ class PbDataService {
       if (res.items.isEmpty) return 0;
       WalletTeaser.ingest(res.items.first.data['wallet']);
       RoomWindowFlag.ingest(res.items.first.data['room_native_ios']);
+      MascotGuideService.instance.ingest(res.items.first.data['mascot_guide']);
       final v = res.items.first.data['min_build'];
       if (v is int) return v;
       if (v is num) return v.toInt();
@@ -3557,6 +3559,7 @@ class PbDataService {
       if (res.items.isEmpty) return false;
       WalletTeaser.ingest(res.items.first.data['wallet']);
       RoomWindowFlag.ingest(res.items.first.data['room_native_ios']);
+      MascotGuideService.instance.ingest(res.items.first.data['mascot_guide']);
       return res.items.first.data['gifts_enabled'] == true;
     } catch (e) {
       debugPrint('PbData.fetchGiftsEnabled failed: $e');
@@ -3577,6 +3580,7 @@ class PbDataService {
       // выходе без отдельного запроса (см. `WalletTeaser`).
       WalletTeaser.ingest(res.items.first.data['wallet']);
       RoomWindowFlag.ingest(res.items.first.data['room_native_ios']);
+      MascotGuideService.instance.ingest(res.items.first.data['mascot_guide']);
       return res.items.first.data['wishes_enabled'] != false;
     } catch (e) {
       debugPrint('PbData.fetchWishesEnabled failed: $e');

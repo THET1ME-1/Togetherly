@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../services/mascot_guide_service.dart';
+import '../widgets/common/guide_mascot.dart';
 import '../models/user_data.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
@@ -136,11 +138,19 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 Expanded(
                   child: PageView(
                     controller: _ctrl,
-                    children: [
-                      _DuoScene(scheme: cs, still: still),
-                      _MorphScene(scheme: cs, theme: theme, still: still),
-                      _DialScene(scheme: cs, theme: theme, still: still),
-                    ],
+                    // Облачко-гид вместо сцен — тем, кому он включён
+                    // (`app_config.mascot_guide`, телефон владельца).
+                    children: MascotGuideService.instance.on
+                        ? const [
+                            _GuideScene('welcome'),
+                            _GuideScene('album'),
+                            _GuideScene('moods'),
+                          ]
+                        : [
+                            _DuoScene(scheme: cs, still: still),
+                            _MorphScene(scheme: cs, theme: theme, still: still),
+                            _DialScene(scheme: cs, theme: theme, still: still),
+                          ],
                   ),
                 ),
                 _Copy(
@@ -193,6 +203,24 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─── Облачко-гид вместо сцены ─────────────────────────────────────────────────
+
+/// Слайд приветствия с облачком: знакомится, ловит фото, меняет настроения.
+class _GuideScene extends StatelessWidget {
+  const _GuideScene(this.name);
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, c) => Center(
+        child: GuideMascot(name, side: (c.biggest.shortestSide * 0.92).clamp(160.0, 320.0)),
       ),
     );
   }
