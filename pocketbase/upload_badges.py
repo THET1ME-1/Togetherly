@@ -255,7 +255,41 @@ def upload_chest(folder: Path, token: str, kind: str = "chest") -> None:
     print(f"{what} {key}: {action} ({item_id}, {spec.get('from')} — {spec.get('until')}, {len(names)} файлов)")
 
 
+def upload_wear(folder: Path, token: str) -> None:
+    """Вещь Ту (гардероб): запись вида `wear` с id `wear_<ключ>`.
+
+    Папка из `bake_wear.py` мастерской: `wear.json` и подпапки слоёв и значка
+    (каждая с `gift.json` вида `art`). Слои заливаются картинками, а в `data`
+    записи вещи ложится карта «сцена → [слой сзади, слой спереди]» ключами
+    этих картинок. `min_app` 1.41.0: старые сборки надеть вещь не умеют.
+    """
+    spec = json.loads((folder / "wear.json").read_text(encoding="utf-8"))
+    key = spec["key"]
+    for sub in sorted(p for p in folder.iterdir() if (p / "gift.json").exists()):
+        upload_gift(sub, token)
+    item_id = "wear_" + slug(key)
+    names = spec.get("name") or {}
+    data = {k: spec[k] for k in ("key", "cat", "src", "set", "rarity", "icon", "layers", "note") if k in spec}
+    fields = {"kind": "wear", "name_ru": names.get("ru", key), "name_en": names.get("en", key), "is_free": "false",
+              "price": str(int(spec.get("price", 0))), "min_app": "1.41.0", "sort": str(int(spec.get("sort", 500))),
+              "enabled": "true", "data": json.dumps(data, ensure_ascii=False)}
+    url = f"{PB}/api/collections/catalog_items/records/{item_id}"
+    if exists(item_id, token):
+        body, ctype = multipart(fields, [])
+        send("PATCH", url, token, body, ctype)
+        action = "обновлена"
+    else:
+        fields["id"] = item_id
+        body, ctype = multipart(fields, [])
+        send("POST", f"{PB}/api/collections/catalog_items/records", token, body, ctype)
+        action = "заведена"
+    print(f"вещь Ту {key}: {action} ({item_id}, сцен {len(spec.get('layers', {}))})")
+
+
 def upload(folder: Path, token: str) -> None:
+    if (folder / "wear.json").exists():
+        upload_wear(folder, token)
+        return
     if (folder / "chest.json").exists():
         upload_chest(folder, token)
         return
@@ -349,7 +383,7 @@ def main() -> None:
         if args.dir:
             root = Path(args.dir)
             folders = sorted(p for p in root.iterdir()
-                             if any((p / f).exists() for f in ("badge.json", "gift.json", "frame.json", "chest.json", "backdrop.json", "splash.json")))
+                             if any((p / f).exists() for f in ("badge.json", "gift.json", "frame.json", "chest.json", "backdrop.json", "splash.json", "wear.json")))
             if args.only:
                 folders = [p for p in folders if p.name in args.only]
             if not folders:

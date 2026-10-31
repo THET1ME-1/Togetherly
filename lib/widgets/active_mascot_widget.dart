@@ -10,6 +10,7 @@ import '../dict_strings.dart' show ruEn;
 import '../models/cloud_mascot.dart';
 import '../models/mascot.dart';
 import 'mascot/cloud_mascot_view.dart';
+import '../screens/tu_wardrobe_screen.dart';
 import '../screens/home/home_bottom_nav.dart' show kHomeBottomNavHeight;
 import '../utils/mascot_bounds.dart';
 import '../services/locale_service.dart';
@@ -469,6 +470,19 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
                     ),
                   ],
                 ),
+              ),
+            // Гардероб Ту — первым пунктом: нажал на Ту и переодел.
+            if (_isCloud)
+              ListTile(
+                leading: Icon(Icons.checkroom_outlined, color: widget.theme.primary),
+                title: Text(ruEn('Гардероб', 'Wardrobe')),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => const TuWardrobeScreen(),
+                    settings: const RouteSettings(name: '/tu_wardrobe'),
+                  ));
+                },
               ),
             ListTile(
               leading: Icon(

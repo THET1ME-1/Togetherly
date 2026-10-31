@@ -5,7 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../dict_strings.dart' show trKey;
+import '../dict_strings.dart' show ruEn, trKey;
 import '../models/chest.dart';
 import '../models/chest_pending.dart';
 import '../models/gift.dart';
@@ -38,6 +38,7 @@ import '../widgets/chest/chest_stash_sheet.dart';
 import '../widgets/chest/season_glitch.dart';
 import '../widgets/unfold/unfold_route.dart';
 import 'chest_prize_screen.dart';
+import '../services/tu_wear_service.dart';
 import 'chest_share_screen.dart';
 
 /// Экран сундука по макету «Сундук на Хэллоуин», вариант Б (08.10.2026):
@@ -651,6 +652,8 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     // иначе «Надеть» упрётся в «не твоя» до следующей синхронизации.
     if (res.ownedFeatures != null) widget.userData?.applyOwnedFeatures(res.ownedFeatures!);
     if (res.ownedIcons != null) widget.userData?.applyOwnedIcons(res.ownedIcons!);
+    if (res.ownedWear != null) TuWearService.instance.setOwned(res.ownedWear!);
+    if (res.prize?.kind == ChestPrizeKind.wear && res.prize?.wearKey != null) TuWearService.instance.setOwned([res.prize!.wearKey!]);
     if (res.plusTrialUntil != null) PlusService.instance.setTrialUntil(res.plusTrialUntil!);
     setState(() {
       slot.opening = res.prize;
@@ -707,7 +710,7 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
         slot.choice = ChestStashItem(openId: slot.lastOpenId!, giftKey: prize.key);
       }
       if (prize != null &&
-          (prize.kind == ChestPrizeKind.frame || prize.kind == ChestPrizeKind.badge) &&
+          (prize.kind == ChestPrizeKind.frame || prize.kind == ChestPrizeKind.badge || prize.kind == ChestPrizeKind.wear) &&
           widget.userData != null) {
         slot.wearWon = prize;
       }
@@ -847,6 +850,11 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
 
   String _frameName(ChestPrize p) => p.frame?.name ?? p.frameKey ?? p.key;
   String _badgeName(ChestPrize p) => p.badge?.name ?? p.key;
+  String _wearTitle(ChestPrize p) {
+    final w = CatalogService.instance.wearItem(p.key);
+    final name = w == null ? (p.wearKey ?? p.key) : ruEn(w.nameRu, w.nameEn);
+    return ruEn('Вещь Ту «$name»', 'Tu’s item “$name”');
+  }
 
   String _wonText(ChestPrize p) => switch (p.kind) {
     ChestPrizeKind.coins => trKey('chestWonCoins').replaceAll('{n}', '${p.amount}'),
@@ -855,6 +863,7 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     ChestPrizeKind.frame => trKey('chestFrameTitle').replaceAll('{name}', _frameName(p)),
     ChestPrizeKind.badge => trKey('chestBadgeTitle').replaceAll('{name}', _badgeName(p)),
     ChestPrizeKind.plusTrial => trKey('chestPlusTrialTitle'),
+    ChestPrizeKind.wear => _wearTitle(p),
   };
 
   String _title(ChestPrize p) => switch (p.kind) {
@@ -864,6 +873,7 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     ChestPrizeKind.frame => trKey('chestFrameTitle').replaceAll('{name}', _frameName(p)),
     ChestPrizeKind.badge => trKey('chestBadgeTitle').replaceAll('{name}', _badgeName(p)),
     ChestPrizeKind.plusTrial => trKey('chestPlusTrialTitle'),
+    ChestPrizeKind.wear => _wearTitle(p),
   };
 
   String _subtitle(ChestPrize p) => switch (p.kind) {
@@ -873,6 +883,7 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
     ChestPrizeKind.frame => trKey('chestFrameSub'),
     ChestPrizeKind.badge => trKey('chestBadgeSub'),
     ChestPrizeKind.plusTrial => trKey('chestPlusTrialSub'),
+    ChestPrizeKind.wear => ruEn('Только для Ту, надевается в гардеробе', 'For Tu only, wear it in the wardrobe'),
   };
 
   String _tierName(ChestTier t) => switch (t) {
@@ -1854,14 +1865,19 @@ class _ChestScreenState extends State<ChestScreen> with TickerProviderStateMixin
             onPressed: () async {
               final ud = widget.userData;
               if (ud == null) return;
+              final wearItem = prize.kind == ChestPrizeKind.wear ? CatalogService.instance.wearItem(prize.key) : null;
               if (prize.kind == ChestPrizeKind.badge) {
                 await ud.setBadgeIcon(prize.badge?.id);
+              } else if (prize.kind == ChestPrizeKind.wear) {
+                if (wearItem != null) await TuWearService.instance.wear(wearItem);
               } else {
                 await ud.setFrame(prize.frameKey);
               }
               if (!mounted) return;
               setState(() => slot.wearWon = null);
-              _snack(trKey(prize.kind == ChestPrizeKind.badge ? 'chestBadgeWorn' : 'chestFrameWorn'));
+              _snack(prize.kind == ChestPrizeKind.wear
+                  ? ruEn('Ту уже в обновке', 'Tu is wearing it now')
+                  : trKey(prize.kind == ChestPrizeKind.badge ? 'chestBadgeWorn' : 'chestFrameWorn'));
             },
             style: style(cs.primary, cs.onPrimary),
             child: FittedBox(fit: BoxFit.scaleDown, child: Text(trKey('shopWear'), maxLines: 1)),

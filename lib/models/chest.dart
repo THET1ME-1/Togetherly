@@ -12,7 +12,7 @@ export 'season_chest.dart';
 /// же роутом `/api/chest/state`, поэтому проценты на экране совпадают с
 /// розыгрышем. Здесь — разбор ответа и запасная копия таблицы на случай, когда
 /// сервер ещё не ответил.
-enum ChestPrizeKind { coins, gift, plus, frame, badge, plusTrial }
+enum ChestPrizeKind { coins, gift, plus, frame, badge, plusTrial, wear }
 
 enum ChestTier { common, rare, legendary }
 
@@ -42,6 +42,9 @@ class ChestPrize {
   /// Значок-жилец из сундука; у прочих призов null.
   ProfileIcon? get badge => kind == ChestPrizeKind.badge ? ProfileIcon.byCatalogId(key) : null;
 
+  /// Ключ вещи Ту (`scarf` из `wear_scarf`); у прочих призов null.
+  String? get wearKey => kind == ChestPrizeKind.wear && key.startsWith('wear_') ? key.substring(5) : null;
+
   static ChestPrize? fromJson(Map<String, dynamic> j) {
     final kind = switch (j['kind']) {
       'coins' => ChestPrizeKind.coins,
@@ -50,6 +53,7 @@ class ChestPrize {
       'frame' => ChestPrizeKind.frame,
       'badge' => ChestPrizeKind.badge,
       'plus_trial' => ChestPrizeKind.plusTrial,
+      'wear' => ChestPrizeKind.wear,
       _ => null,
     };
     final key = (j['key'] ?? '').toString();

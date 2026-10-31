@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../models/avatar_frame.dart';
 import '../../models/chest.dart';
+import '../../services/catalog_service.dart';
 import '../../services/pb_auth_service.dart';
+import '../common/guide_mascot.dart';
 import '../../services/pocketbase_service.dart';
 import '../avatar_widget.dart';
 import '../common/badge_image.dart';
@@ -45,6 +47,14 @@ class ChestPrizeImage extends StatelessWidget {
         return GiftImage('chest_plus', side: side);
       case ChestPrizeKind.badge:
         return BadgeImage(prize.badge?.id, side: side);
+      case ChestPrizeKind.wear:
+        // Значок вещи Ту из каталога (`tuw_<вещь>_icon`).
+        final icon = CatalogService.instance.wearItem(prize.key)?.iconKey;
+        final dpr = MediaQuery.devicePixelRatioOf(context);
+        final url = icon == null || icon.isEmpty ? null : catalogArtUrl(icon, artDecodeBucket(side * dpr));
+        return url == null
+            ? SizedBox.square(dimension: side, child: Icon(Icons.checkroom, size: side * 0.6))
+            : catalogArtImage(url, side: side, decode: artDecodeBucket(side * dpr));
       case ChestPrizeKind.frame:
         // Рамка крупнее аватарки: вся картинка рамки занимает [side].
         final avatar = side / AvatarFrame.scale;

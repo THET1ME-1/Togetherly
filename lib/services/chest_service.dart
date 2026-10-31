@@ -22,6 +22,7 @@ class ChestOpenResult {
     this.plus = false,
     this.ownedFeatures,
     this.ownedIcons,
+    this.ownedWear,
     this.plusTrialUntil,
     this.untilRare,
     this.jarBonus,
@@ -40,6 +41,9 @@ class ChestOpenResult {
 
   /// Купленные и выпавшие значки после открытия: выпавший жилец уже здесь.
   final List<String>? ownedIcons;
+
+  /// Вещи Ту после открытия: выпавшая уже здесь.
+  final List<String>? ownedWear;
 
   /// Срок недели Togetherly+ (мс), если сервер его прислал.
   final int? plusTrialUntil;
@@ -90,6 +94,8 @@ class ChestService {
           'tz': '$_tz',
           'platform': _platform,
           'frames': '1',
+          // Сборка умеет надеть вещь Ту: без флага сервер их не разыгрывает.
+          'wear': '1',
           if (group != null && group.isNotEmpty) 'group': group,
           'chest': ?chest,
         },
@@ -153,6 +159,7 @@ class ChestService {
           'tz': _tz,
           'platform': _platform,
           'frames': true,
+          'wear': true,
           if (fromJar) 'bonus': true,
           if (noAd) 'noAd': true,
           'chest': ?chest,
@@ -329,6 +336,7 @@ ChestOpenResult parseChestOpen(Map<String, dynamic>? j) {
     plus: j['plus'] == true,
     ownedFeatures: j['ownedFeatures'] is List ? [for (final f in j['ownedFeatures'] as List) '$f'] : null,
     ownedIcons: j['ownedIcons'] is List ? [for (final f in j['ownedIcons'] as List) '$f'] : null,
+    ownedWear: j['ownedWear'] is List ? [for (final f in j['ownedWear'] as List) '$f'] : null,
     plusTrialUntil: (j['plusTrialUntil'] as num?)?.toInt(),
     untilRare: (j['untilRare'] as num?)?.toInt(),
     jarBonus: (j['jarBonus'] as num?)?.toInt(),

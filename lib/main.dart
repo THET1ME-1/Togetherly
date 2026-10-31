@@ -41,6 +41,7 @@ import 'services/locale_service.dart';
 import 'services/app_icon_service.dart';
 import 'services/mascot_inactivity_notification_service.dart';
 import 'services/mood_pack_service.dart';
+import 'services/tu_wear_service.dart';
 import 'services/pocketbase_service.dart';
 import 'models/ios_widget_gaps.dart';
 import 'services/pb_auth_service.dart';
@@ -545,6 +546,8 @@ void main() async {
   // Выбранный пак настроений (локальный выбор, как язык) — грузим заранее,
   // чтобы пикер сразу открывался на нужном наборе без мигания.
   await MoodPackService.instance.load();
+  // Наряд Ту — тоже локальный выбор: маскот на главной сразу в своих вещах.
+  await TuWearService.instance.load();
 
   // Удалённый каталог контента (паки настроений из Supabase) — поднимаем кэш с
   // диска мгновенно, свежий список тянем фоном. Новые паки/эмоции приезжают без

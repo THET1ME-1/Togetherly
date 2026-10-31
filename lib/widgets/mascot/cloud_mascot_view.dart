@@ -6,6 +6,8 @@ import 'package:sensors_plus/sensors_plus.dart';
 import '../../models/cloud_mascot.dart';
 import '../../models/shake_detector.dart';
 import '../../services/catalog_service.dart';
+import '../../services/tu_wear_service.dart';
+import 'lockstep_art.dart';
 import '../../models/mascot_anim.dart';
 import '../common/guide_mascot.dart';
 
@@ -179,7 +181,10 @@ class _CloudMascotViewState extends State<CloudMascotView> {
   Widget build(BuildContext context) {
     final dpr = MediaQuery.devicePixelRatioOf(context);
     if (widget.listenEvents) warmCloud(widget.tint, size: widget.size, dpr: dpr);
-    return ListenableBuilder(listenable: CatalogService.instance, builder: (context, _) => _art(dpr));
+    return ListenableBuilder(
+      listenable: Listenable.merge([CatalogService.instance, TuWearService.instance]),
+      builder: (context, _) => _art(dpr),
+    );
   }
 
   /// Сцена маскота или эмоция пака — одной и той же картинкой на одном месте
@@ -194,6 +199,7 @@ class _CloudMascotViewState extends State<CloudMascotView> {
     final String? url;
     final double side;
     Offset shift = Offset.zero;
+    final art = cloudArt(anim: widget.anim, tint: widget.tint, night: widget.night, sick: widget.sick, event: _event);
     if (emotion != null) {
       // Эмоции пака обрезаны плотно (квадрат 24..458 × 38..472 кадра 480):
       // ставим так, чтобы облачко совпало по размеру и месту со сценами.
@@ -202,13 +208,9 @@ class _CloudMascotViewState extends State<CloudMascotView> {
       shift = _kPackShift * canvas;
     } else {
       side = canvas;
-      url = catalogArtUrl(
-        cloudArt(anim: widget.anim, tint: widget.tint, night: widget.night, sick: widget.sick, event: _event),
-        artDecodeBucket(side * dpr),
-        fallbackKey: 'cloud_idle_base',
-      );
+      url = catalogArtUrl(art, artDecodeBucket(side * dpr), fallbackKey: 'cloud_idle_base');
     }
-    return OverflowBox(
+    final bare = OverflowBox(
       maxWidth: canvas,
       maxHeight: canvas,
       child: SizedBox.square(
@@ -220,6 +222,26 @@ class _CloudMascotViewState extends State<CloudMascotView> {
           ),
         ),
       ),
+    );
+    // Одежда Ту: слои той же сцены под и над ним, кадр в кадр. Сцены, для
+    // которой вещь не запечена, просто нет в карте — Ту в ней без вещи.
+    final wear = TuWearService.instance.layersFor(art: art, emotion: emotion != null ? widget.mood : null);
+    if (url == null || (wear.back.isEmpty && wear.front.isEmpty)) return bare;
+    final decode = artDecodeBucket(canvas * dpr);
+    LockstepLayer? layer(String key) {
+      final u = catalogArtUrl(key, decode);
+      return u == null ? null : LockstepLayer(u, side: canvas);
+    }
+
+    final layers = <LockstepLayer>[
+      for (final k in wear.back) ?layer(k),
+      LockstepLayer(url, side: side, shift: shift),
+      for (final k in wear.front) ?layer(k),
+    ];
+    return OverflowBox(
+      maxWidth: canvas,
+      maxHeight: canvas,
+      child: LockstepArt(layers: layers, canvas: canvas, decode: decode, placeholder: bare),
     );
   }
 }

@@ -216,6 +216,12 @@
           "maxSize": 2000000
         },
         {
+          "name": "owned_wear",
+          "type": "json",
+          "required": false,
+          "maxSize": 2000000
+        },
+        {
           "name": "waiting_mode",
           "type": "bool",
           "required": false,

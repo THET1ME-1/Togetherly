@@ -27,7 +27,7 @@ onRecordUpdateRequest((e) => {
       throw new ForbiddenError("cannot update other user's record");
     }
     const PROTECTED = [
-      "coins", "owned_themes", "owned_icons", "owned_features", "granted_badges",
+      "coins", "owned_themes", "owned_icons", "owned_features", "owned_wear", "granted_badges",
       "dev_coins_granted", "ad_rewards_date", "ad_rewards_today",
       "last_daily_bonus_ms", "last_memory_reward_ms",
       "last_daily_bonus_at", "last_memory_reward_at",
@@ -166,7 +166,7 @@ onRecordCreateRequest((e) => {
     }
 
     const PROTECTED = [
-      "coins", "owned_themes", "owned_icons", "owned_features", "granted_badges",
+      "coins", "owned_themes", "owned_icons", "owned_features", "owned_wear", "granted_badges",
       "dev_coins_granted", "ad_rewards_date", "ad_rewards_today",
       "last_daily_bonus_ms", "last_memory_reward_ms",
       "last_daily_bonus_at", "last_memory_reward_at",

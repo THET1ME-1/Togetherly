@@ -83,6 +83,9 @@ routerAdd("GET", "/api/chest/state", (e) => {
   // Рамки разыгрываются только сборкам, которые умеют их показать (`frames=1`).
   // Старым их доля целиком остаётся в «5 монет», таблица у них прежняя.
   const withFrames = (q.get("frames") || "") === "1";
+  // Вещи Ту (гардероб) — только сборкам, которые умеют их надеть (`wear=1`,
+  // с 1.41). Старым их доля уходит в «5 монет», как рамки без `frames`.
+  const withWear = (q.get("wear") || "") === "1";
   const shifted = new Date(Date.now() + tz * 60 * 1000);
   const day = shifted.toISOString().slice(0, 10);
   // Сезонные сундуки из каталога; активные уходят приложению списком.
@@ -143,6 +146,8 @@ routerAdd("GET", "/api/chest/state", (e) => {
   try { ownedI = JSON.parse(user.getString("owned_icons") || "[]") || []; } catch (_) { ownedI = []; }
   let grantedI = [];
   try { grantedI = JSON.parse(user.getString("granted_badges") || "[]") || []; } catch (_) { grantedI = []; }
+  let ownedW = [];
+  try { ownedW = JSON.parse(user.getString("owned_wear") || "[]") || []; } catch (_) { ownedW = []; }
   // [id приза, вид, ярус, можно ли выдать, ключ во владении]
   const items = [];
   // Редкие призы обоих сундуков — для общей гарантии редкого.
@@ -152,7 +157,7 @@ routerAdd("GET", "/api/chest/state", (e) => {
     if (!hw) items.push([GIFTS[i][0], "gift", GIFTS[i][1], true, GIFTS[i][0]]);
   }
   try {
-    const recs = $app.findRecordsByFilter("catalog_items", "enabled = true && (kind = 'frame' || kind = 'badge' || kind = 'gift')", "sort", 500, 0);
+    const recs = $app.findRecordsByFilter("catalog_items", "enabled = true && (kind = 'frame' || kind = 'badge' || kind = 'gift' || kind = 'wear')", "sort", 500, 0);
     for (let i = 0; i < recs.length; i++) {
       let d = {};
       try { d = JSON.parse(recs[i].getString("data") || "{}") || {}; } catch (_) { d = {}; }
@@ -160,8 +165,8 @@ routerAdd("GET", "/api/chest/state", (e) => {
       const kind = recs[i].getString("kind");
       const set = String(d.set || "");
       // Подарки из каталога разыгрываются только сезонные: обычные подарки
-      // сундука перечислены в GIFTS выше.
-      if (kind === "gift" && !set) continue;
+      // сундука перечислены в GIFTS выше. Вещи Ту — тоже только из набора.
+      if ((kind === "gift" || kind === "wear") && !set) continue;
       if (kind === "badge" && d.chest !== true) continue;
       const t = TIER_POOL[d.rarity] ? d.rarity : "common";
       const id = kind === "gift" ? String(d.key) : recs[i].id;
@@ -169,8 +174,9 @@ routerAdd("GET", "/api/chest/state", (e) => {
       if (set !== SET) continue;
       const owned = kind === "frame"
         ? ownedF.indexOf("frame:" + recs[i].id) !== -1
-        : kind === "badge" ? (ownedI.indexOf(d.key) !== -1 || grantedI.indexOf(d.key) !== -1) : false;
-      items.push([id, kind, t, withFrames && !owned, String(d.key)]);
+        : kind === "badge" ? (ownedI.indexOf(d.key) !== -1 || grantedI.indexOf(d.key) !== -1)
+        : kind === "wear" ? ownedW.indexOf(d.key) !== -1 : false;
+      items.push([id, kind, t, (kind === "wear" ? withWear : withFrames) && !owned, String(d.key)]);
     }
   } catch (_) {}
   const tierCount = { common: 0, rare: 0, legendary: 0 };
@@ -218,6 +224,7 @@ routerAdd("GET", "/api/chest/state", (e) => {
       for (let j = 0; j < ODDS.length; j++) if (ODDS[j][0] === key) kind = ODDS[j][1];
       if (key.indexOf("frame_") === 0) kind = "frame";
       if (key.indexOf("badge_") === 0) kind = "badge";
+      if (key.indexOf("wear_") === 0) kind = "wear";
       today.push({ key: key, kind: kind, amount: won[i].getInt("amount") });
     }
   } catch (_) {}
@@ -296,7 +303,7 @@ routerAdd("POST", "/api/chest/open", (e) => {
   // каждого сундука — вдвое больше дневного.
   let PER_24H = 6;
 
-  const body = new DynamicModel({ openId: "", groupId: "", tz: 0, platform: "", frames: false, bonus: false, chest: "", noAd: false });
+  const body = new DynamicModel({ openId: "", groupId: "", tz: 0, platform: "", frames: false, wear: false, bonus: false, chest: "", noAd: false });
   e.bindBody(body);
   // Открытие без ролика — только там, где рекламы нет (страну решает сервер,
   // см. /api/chest/state), и без Плюса в розыгрыше.
@@ -318,6 +325,7 @@ routerAdd("POST", "/api/chest/open", (e) => {
     $app.logger().warn("chest open: без ролика", "uid", e.auth.id, "ip", e.realIP(), "openId", String(body.openId || ""));
   }
   const withFrames = body.frames === true;
+  const withWear = body.wear === true;
   // Открытие из копилки пары: без ролика и сверх трёх в день. День такой
   // записи пишется с приставкой «b», поэтому в дневной счёт она не входит.
   const fromJar = body.bonus === true;
@@ -402,10 +410,13 @@ routerAdd("POST", "/api/chest/open", (e) => {
         for (let i = 0; i < ODDS.length; i++) if (ODDS[i][0] === key) kind = ODDS[i][1];
         if (key.indexOf("frame_") === 0) kind = "frame";
         if (key.indexOf("badge_") === 0) kind = "badge";
+        if (key.indexOf("wear_") === 0) kind = "wear";
         let ownedNow = [];
         try { ownedNow = JSON.parse(user.getString("owned_features") || "[]") || []; } catch (_) { ownedNow = []; }
         let iconsNow = [];
         try { iconsNow = JSON.parse(user.getString("owned_icons") || "[]") || []; } catch (_) { iconsNow = []; }
+        let wearNow = [];
+        try { wearNow = JSON.parse(user.getString("owned_wear") || "[]") || []; } catch (_) { wearNow = []; }
         out = {
           s: 200,
           b: {
@@ -416,6 +427,7 @@ routerAdd("POST", "/api/chest/open", (e) => {
             plus: user.getBool("plus"),
             ownedFeatures: ownedNow,
             ownedIcons: iconsNow,
+            ownedWear: wearNow,
           },
         };
         return;
@@ -462,6 +474,8 @@ routerAdd("POST", "/api/chest/open", (e) => {
       try { ownedI = JSON.parse(user.getString("owned_icons") || "[]") || []; } catch (_) { ownedI = []; }
       let grantedI = [];
       try { grantedI = JSON.parse(user.getString("granted_badges") || "[]") || []; } catch (_) { grantedI = []; }
+      let ownedW = [];
+      try { ownedW = JSON.parse(user.getString("owned_wear") || "[]") || []; } catch (_) { ownedW = []; }
       // [id приза, вид, ярус, можно ли выдать, ключ во владении]
       const items = [];
       // Редкие призы обоих сундуков — для общей гарантии редкого.
@@ -471,14 +485,14 @@ routerAdd("POST", "/api/chest/open", (e) => {
         if (!hw) items.push([GIFTS[i][0], "gift", GIFTS[i][1], true, GIFTS[i][0]]);
       }
       try {
-        const recs = txApp.findRecordsByFilter("catalog_items", "enabled = true && (kind = 'frame' || kind = 'badge' || kind = 'gift')", "sort", 500, 0);
+        const recs = txApp.findRecordsByFilter("catalog_items", "enabled = true && (kind = 'frame' || kind = 'badge' || kind = 'gift' || kind = 'wear')", "sort", 500, 0);
         for (let i = 0; i < recs.length; i++) {
           let d = {};
           try { d = JSON.parse(recs[i].getString("data") || "{}") || {}; } catch (_) { d = {}; }
           if (!d.key) continue;
           const kind = recs[i].getString("kind");
           const set = String(d.set || "");
-          if (kind === "gift" && !set) continue;
+          if ((kind === "gift" || kind === "wear") && !set) continue;
           if (kind === "badge" && d.chest !== true) continue;
           const t = TIER_POOL[d.rarity] ? d.rarity : "common";
           const id = kind === "gift" ? String(d.key) : recs[i].id;
@@ -486,8 +500,9 @@ routerAdd("POST", "/api/chest/open", (e) => {
           if (set !== SET) continue;
           const owned = kind === "frame"
             ? ownedF.indexOf("frame:" + recs[i].id) !== -1
-            : kind === "badge" ? (ownedI.indexOf(d.key) !== -1 || grantedI.indexOf(d.key) !== -1) : false;
-          items.push([id, kind, t, withFrames && !owned, String(d.key)]);
+            : kind === "badge" ? (ownedI.indexOf(d.key) !== -1 || grantedI.indexOf(d.key) !== -1)
+            : kind === "wear" ? ownedW.indexOf(d.key) !== -1 : false;
+          items.push([id, kind, t, (kind === "wear" ? withWear : withFrames) && !owned, String(d.key)]);
         }
       } catch (_) {}
       const tierCount = { common: 0, rare: 0, legendary: 0 };
@@ -584,6 +599,12 @@ routerAdd("POST", "/api/chest/open", (e) => {
         if (ownedI.indexOf(prize[4]) === -1) ownedI.push(prize[4]);
         user.set("owned_icons", JSON.stringify(ownedI));
         txApp.save(user);
+      } else if (prize[1] === "wear") {
+        // Вещь Ту — навсегда, ключом вещи (`owned_wear`); надевает её
+        // человек сам, в гардеробе.
+        if (ownedW.indexOf(prize[4]) === -1) ownedW.push(prize[4]);
+        user.set("owned_wear", JSON.stringify(ownedW));
+        txApp.save(user);
       } else if (prize[1] === "plus_trial") {
         // Неделя Плюса — отдельным сроком: флаг `plus` не трогаем, иначе
         // покупка во время недели ответила бы «уже куплено», а снятие по сроку
@@ -609,6 +630,7 @@ routerAdd("POST", "/api/chest/open", (e) => {
           jarBonus: jarLib.bonusLeft(txApp, groupId, me),
           ownedFeatures: ownedF,
           ownedIcons: ownedI,
+          ownedWear: ownedW,
           plusTrialUntil: user.getInt("plus_trial_until") || 0,
           untilRare: rarePlus[prize[0]] ? PITY : PITY - dry - 1,
         },

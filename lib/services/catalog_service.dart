@@ -17,6 +17,7 @@ import '../models/mood_pack.dart';
 import '../models/profile_icon.dart';
 import '../models/launch_splash.dart';
 import '../models/season_backdrop.dart';
+import '../models/tu_wear.dart';
 import 'launch_splash_service.dart';
 import 'pb_data_service.dart';
 import 'pocketbase_service.dart';
@@ -50,7 +51,20 @@ class CatalogService extends ChangeNotifier {
   Map<String, GiftArt> _reactionArt = const {};
   List<SeasonBackdrop> _backdrops = const [];
   List<LaunchSplash> _splashes = const [];
+  List<TuWear> _wear = const [];
   bool _initialized = false;
+
+  /// Вещи гардероба Ту (kind='wear'), по полю `sort`.
+  List<TuWear> get wearItems => _wear;
+
+  /// Вещь Ту по ключу (`scarf`) или по id записи (`wear_scarf`).
+  TuWear? wearItem(String key) {
+    final k = key.startsWith('wear_') ? key.substring(5) : key;
+    for (final w in _wear) {
+      if (w.key == k) return w;
+    }
+    return null;
+  }
 
   /// Сезонные фоны главной (kind='backdrop'): призрак за стеклом и будущие.
   List<SeasonBackdrop> get backdrops => _backdrops;
@@ -245,11 +259,18 @@ class CatalogService extends ChangeNotifier {
     final reactionArt = <String, GiftArt>{};
     final backdrops = <SeasonBackdrop>[];
     final splashes = <LaunchSplash>[];
+    final wear = <TuWear>[];
 
     for (final raw in rows) {
       if (raw is! Map) continue;
       final row = raw.cast<String, dynamic>();
       if (!_appAtLeast(appVersion, row['min_app'] as String?)) continue;
+
+      if (row['kind'] == 'wear') {
+        final w = TuWear.fromCatalog(row);
+        if (w != null) wear.add(w);
+        continue;
+      }
 
       if (row['kind'] == 'backdrop') {
         final b = SeasonBackdrop.fromCatalog(row);
@@ -356,6 +377,8 @@ class CatalogService extends ChangeNotifier {
     _ailmentArt = Map.unmodifiable(ailmentArt);
     _reactionArt = Map.unmodifiable(reactionArt);
     _backdrops = List.unmodifiable(backdrops);
+    wear.sort((a, b) => a.sort.compareTo(b.sort));
+    _wear = List.unmodifiable(wear);
     splashes.sort((a, b) => a.sort.compareTo(b.sort));
     _splashes = List.unmodifiable(splashes);
     // Выбранная заставка: снятая с сервера перестаёт играть, новая выкладка

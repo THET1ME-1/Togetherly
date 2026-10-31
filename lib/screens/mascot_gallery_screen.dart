@@ -35,6 +35,7 @@ import '../services/catalog_service.dart';
 import '../widgets/active_mascot_widget.dart' show buildMascotAssetImage;
 import '../widgets/mascot/pixel_mascot_view.dart';
 import 'mascot_draw_screen.dart';
+import 'tu_wardrobe_screen.dart';
 import '../services/offline/media_view_cache.dart';
 import '../widgets/common/coin_image.dart';
 
@@ -132,7 +133,7 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
     }
 
     return [
-      _Folder('cloud', ruEn('Облачко', 'Cloud'), Icons.cloud_rounded, cloud),
+      _Folder('cloud', ruEn('Ту', 'Tu'), Icons.cloud_rounded, cloud),
       _Folder('own', ruEn('Наши рисунки', 'Our drawings'),
           Icons.brush_outlined, own),
       _Folder('bundled', ruEn('Встроенные', 'Built-in'),
@@ -774,6 +775,24 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
             onTap: () => _showActions(items[i]),
           ),
         ));
+        // Гардероб Ту — под его карточкой: сюда и так приходят выбирать маскота.
+        if (f.key == 'cloud') {
+          folders.add(Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            child: SizedBox(
+              height: 48,
+              child: FilledButton.tonalIcon(
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => const TuWardrobeScreen(),
+                  settings: const RouteSettings(name: '/tu_wardrobe'),
+                )),
+                icon: const Icon(Icons.checkroom_outlined),
+                label: Text(ruEn('Гардероб Ту', 'Tu’s wardrobe')),
+                style: FilledButton.styleFrom(shape: const StadiumBorder()),
+              ),
+            ),
+          ));
+        }
       }
     }
 

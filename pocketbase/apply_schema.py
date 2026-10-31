@@ -74,6 +74,8 @@ USERS_CUSTOM = [
     text("display_name"), text("avatar_url"), text("banner_url"),
     text("gender"), date("birth_date"), number("coins"),
     jsonf("owned_themes"), jsonf("owned_icons"), jsonf("owned_features"),
+    # Вещи Ту из гардероба (ключи вещей). Пишет только сервер: сундук.
+    jsonf("owned_wear"),
     jsonf("granted_badges"), text("badge"), text("pair_id"), jsonf("pair_ids"),
     text("invite_code"), text("fcm_token"), jsonf("fcm_tokens"),
     boolean("notif_miss_you"), boolean("notif_new_memory"),
