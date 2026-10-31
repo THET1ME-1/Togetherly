@@ -133,6 +133,8 @@ import 'draw_screen.dart';
 import '../services/mascot_service.dart';
 import '../services/live_location_service.dart';
 import '../widgets/active_mascot_widget.dart';
+import '../models/cloud_mascot.dart' show CloudEvent;
+import '../widgets/mascot/cloud_mascot_view.dart' show CloudEvents;
 import '../widgets/common/coin_reward_toast.dart';
 import 'home/widgets/live_map_card.dart';
 import 'mascot_gallery_screen.dart';
@@ -1552,7 +1554,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 HomeHeader(
                   missKey: _missKey,
                   // Сезонный призрак за стеклом приходит по «Скучаю».
-                  onMissYou: () => _backdropKey.currentState?.summon(),
+                  onMissYou: () {
+                    _backdropKey.currentState?.summon();
+                    CloudEvents.instance.fire(CloudEvent.missSend);
+                  },
                   theme: _t,
                   isPaired: _pairData.isPaired,
                   myAvatarUrl: widget.userData.avatarUrl,
@@ -1588,6 +1593,12 @@ class _HomeScreenState extends State<HomeScreen> {
               theme: _t,
               onOpenGallery: _openMascotGallery,
               sleepOf: widget.userData.sleepOf,
+              moodOf: (mine) {
+                if (mine) return _moodService.myMoodToday?.moodId;
+                final partnerUid = _pairData.partnerUid;
+                if (partnerUid.isEmpty) return null;
+                return _moodService.partnerMoodToday(partnerUid)?.moodId;
+              },
             ),
           // -- Theme preview banner (показывается только на главной вкладке) --
           if (widget.userData.isPreviewingTheme && _selectedNavIndex == 0)

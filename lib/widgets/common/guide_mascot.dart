@@ -21,11 +21,28 @@ class GuideMascot extends StatelessWidget {
   final double side;
 
   @override
+  Widget build(BuildContext context) => CatalogArtAnim('guide_$name', side: side);
+}
+
+/// Анимация из каталога (вид `art`) по полному ключу. Общая для гида и для
+/// облачка-маскота на главной.
+class CatalogArtAnim extends StatelessWidget {
+  const CatalogArtAnim(this.artKey, {super.key, required this.side, this.fallbackKey});
+
+  final String artKey;
+  final double side;
+
+  /// Что показать, пока нужной анимации в каталоге нет (старый каталог без
+  /// цвета настроения): облачко обычного цвета лучше пустоты.
+  final String? fallbackKey;
+
+  @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: CatalogService.instance,
       builder: (context, _) {
-        final art = CatalogService.instance.giftArt('guide_$name');
+        final catalog = CatalogService.instance;
+        final art = catalog.giftArt(artKey) ?? (fallbackKey == null ? null : catalog.giftArt(fallbackKey!));
         final dpr = MediaQuery.maybeDevicePixelRatioOf(context) ?? 2.0;
         final decode = (side * dpr).round();
         // Файл выбирается по пикселям экрана, а не по точкам: малый (240)
@@ -33,8 +50,10 @@ class GuideMascot extends StatelessWidget {
         final url = decode > 260 ? (art?.lgUrl ?? art?.smUrl) : (art?.smUrl ?? art?.lgUrl);
         if (url == null) return SizedBox.square(dimension: side);
         return CachedNetworkImage(
-          key: ValueKey(url),
           cacheManager: OfflineImageCacheManager.instance,
+          // Смена сцены (покой → касание) не должна мигать пустотой, пока
+          // новый файл разжимается: до готовности стоит прежний кадр.
+          useOldImageOnUrlChange: true,
           imageUrl: url,
           width: side,
           height: side,

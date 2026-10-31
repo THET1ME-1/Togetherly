@@ -6,7 +6,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../dict_strings.dart' show ruEn;
+import '../models/cloud_mascot.dart';
 import '../models/mascot.dart';
+import 'mascot/cloud_mascot_view.dart';
 import '../screens/home/home_bottom_nav.dart' show kHomeBottomNavHeight;
 import '../utils/mascot_bounds.dart';
 import '../services/locale_service.dart';
@@ -19,6 +22,9 @@ import '../theme/app_theme.dart';
 import '../services/offline/media_view_cache.dart';
 
 const String _kHiddenKey = 'mascot_hidden';
+
+/// Чьим настроением красится облачко: партнёра (по умолчанию) или своим.
+const String _kCloudMineKey = 'cloud_mood_mine';
 const String _kOnboardingKey = 'mascot_onboarding_shown';
 
 /// Global notifier for the mascot's hidden state.
@@ -36,12 +42,17 @@ class ActiveMascotWidget extends StatefulWidget {
   /// Окно ночной сцены персонажа: у каждого своё, задаётся в настройках.
   final SleepWindow Function(String mascotId) sleepOf;
 
+  /// Сегодняшнее настроение (id) — своё при `mine`, иначе партнёра. Облачко
+  /// красится им; остальным маскотам не нужно.
+  final String? Function(bool mine)? moodOf;
+
   const ActiveMascotWidget({
     super.key,
     required this.mascotService,
     required this.theme,
     required this.onOpenGallery,
     required this.sleepOf,
+    this.moodOf,
   });
 
   @override
@@ -120,6 +131,7 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
     if (mounted) {
       setState(() {
         _hidden = hidden;
+        _cloudMine = prefs.getBool(_kCloudMineKey) ?? false;
         _onboardingShown = prefs.getBool(_kOnboardingKey) ?? false;
       });
     }
@@ -291,7 +303,7 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
           slop: _kTapSlop,
         );
     if (tap) {
-      _setAnim(MascotAnimState.live);
+      _setAnim(_isCloud ? MascotAnimState.drop : MascotAnimState.live);
       _onTap();
       return;
     }
@@ -303,6 +315,11 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
   /// приземлился) сами возвращают его к обычной жизни.
   MascotAnimState _anim = MascotAnimState.live;
 
+  /// Облачко красится своим настроением, а не партнёра.
+  bool _cloudMine = false;
+
+  bool get _isCloud => _svc.activeMascot?.id == kCloudMascotId;
+
   /// Серия на прошлом показе — по ней и видно, что случилось за это время.
   static const String _kStreakKey = 'mascot_anim_last_streak';
 
@@ -311,7 +328,7 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
   /// в памяти: главную открывают заново после каждого убийства приложения.
   Future<void> _reactToStreak() async {
     final anim = CatalogService.instance.animById(_svc.activeMascot?.id);
-    if (anim == null) return;
+    if (anim == null && !_isCloud) return;
     final streak = _svc.activeStreak;
     final prefs = await SharedPreferences.getInstance();
     final was = prefs.getInt(_kStreakKey);
@@ -367,6 +384,8 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
   void _onTap() {
     if (_menuOpen || !mounted) return;
     _menuOpen = true;
+    // Облачко отвечает на касание само, меню выезжает под ним.
+    if (_isCloud) _setAnim(MascotAnimState.drop);
     showModalBottomSheet(
       context: context,
       backgroundColor: widget.theme.cardSurface,
@@ -422,6 +441,35 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
                 ],
               ),
             ),
+            // Облачко в цвете настроения: партнёра или своём.
+            if (_isCloud)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        ruEn('Цвет настроения', 'Mood colour'),
+                        style: TextStyle(color: widget.theme.textPrimary, fontSize: 15),
+                      ),
+                    ),
+                    SegmentedButton<bool>(
+                      showSelectedIcon: false,
+                      segments: [
+                        ButtonSegment(value: false, label: Text(ruEn('Партнёра', 'Partner'))),
+                        ButtonSegment(value: true, label: Text(ruEn('Моё', 'Mine'))),
+                      ],
+                      selected: {_cloudMine},
+                      onSelectionChanged: (v) async {
+                        setSheetState(() {});
+                        setState(() => _cloudMine = v.first);
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.setBool(_kCloudMineKey, v.first);
+                      },
+                    ),
+                  ],
+                ),
+              ),
             ListTile(
               leading: Icon(
                 Icons.photo_library_outlined,
@@ -485,6 +533,7 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
             child: _MascotImage(
               mascot: mascot,
               service: _svc,
+              cloudMood: widget.moodOf?.call(_cloudMine),
               anim: _anim,
               level: MascotAnim.levelForStreak(_svc.activeStreak),
               sleep: widget.sleepOf(mascot.id),
@@ -513,9 +562,13 @@ class _MascotImage extends StatelessWidget {
   /// Когда этот персонаж уходит на ночную сцену.
   final SleepWindow sleep;
 
+  /// Настроение, которым красится облачко (id), или null.
+  final String? cloudMood;
+
   const _MascotImage({
     required this.mascot,
     required this.service,
+    this.cloudMood,
     this.anim = MascotAnimState.live,
     this.level = 3,
     this.sleep = SleepWindow.standard,
@@ -524,6 +577,22 @@ class _MascotImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (mascot.id == kCloudMascotId) {
+      return LayoutBuilder(
+        builder: (_, c) {
+          final side = c.biggest.shortestSide;
+          return CloudMascotView(
+            size: side.isFinite ? side : 96,
+            anim: anim,
+            tint: cloudTintForMood(cloudMood),
+            night: sleep.contains(DateTime.now()),
+            sick: cloudMood == 'sick',
+            listenEvents: true,
+            onOneShotDone: onAnimDone,
+          );
+        },
+      );
+    }
     // Пиксельный маскот из каталога: рисуем кадр из атласа. Проверка идёт
     // первой — у такого маскота catalogUrl ведёт на атлас, и обычный Image
     // показал бы всю простыню кадров разом.

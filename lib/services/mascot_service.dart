@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import '../dict_strings.dart' show ruEn;
+import '../models/cloud_mascot.dart';
 import '../models/mascot.dart';
 import '../models/streak_restore.dart';
+import 'mascot_guide_service.dart';
 import '../models/mascot_sleep.dart';
 import '../models/mascot_widget_data.dart';
 import 'catalog_service.dart';
@@ -58,10 +61,25 @@ class MascotService extends ChangeNotifier {
   /// Дедуп по id: собственная копия группы побеждает (если id совпал).
   List<Mascot> get mascots {
     final catalog = CatalogService.instance.mascots;
-    if (catalog.isEmpty) return _mascots;
     final ids = _mascots.map((m) => m.id).toSet();
-    return [..._mascots, ...catalog.where((c) => !ids.contains(c.id))];
+    final all = [..._mascots, ...catalog.where((c) => !ids.contains(c.id))];
+    // Облачко — главный маскот, встроен в сборку. Пока его включают по
+    // одному (тот же флаг, что у гида), но если партнёр уже поставил его
+    // паре, видно и тем, кому флаг не включён: иначе у них пропал бы маскот.
+    if (MascotGuideService.instance.on || _state.activeMascotId == kCloudMascotId) {
+      all.insert(0, cloudMascot);
+    }
+    return all;
   }
+
+  /// Облачко в галерее: рисунок приходит из каталога анимациями `cloud_*`.
+  static final Mascot cloudMascot = Mascot(
+    id: kCloudMascotId,
+    name: ruEn('Облачко', 'Cloud'),
+    createdBy: 'togetherly',
+    createdAt: DateTime(2026, 10, 31),
+    isDefault: true,
+  );
 
   GroupMascotState get state => _state;
   bool get isLoading => _isLoading;

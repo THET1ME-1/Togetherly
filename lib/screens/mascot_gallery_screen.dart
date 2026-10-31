@@ -24,7 +24,9 @@ import '../dict_strings.dart';
 import '../services/locale_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_scope.dart';
+import '../models/cloud_mascot.dart';
 import '../models/mascot_anim.dart';
+import '../widgets/mascot/cloud_mascot_view.dart';
 import '../models/mascot_sleep.dart';
 import '../models/symbol_catalog.dart';
 import '../theme/profile_theme.dart';
@@ -105,16 +107,20 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
   }
 
 
-  /// Раскладка по папкам. Пиксельные идут первыми — они анимированные и живее
-  /// остальных; свои рисунки следом, потому что их заводили руками.
+  /// Раскладка по папкам: облачко первое и главное, за ним всё нарисованное
+  /// (свои, встроенные, каталог), пиксельные в самом конце — решение
+  /// владельца 31.10.2026.
   List<_Folder> _folders() {
+    final cloud = <Mascot>[];
     final pixel = <Mascot>[];
     final own = <Mascot>[];
     final bundled = <Mascot>[];
     final catalog = <Mascot>[];
 
     for (final m in _svc.mascots) {
-      if (CatalogService.instance.animById(m.id) != null) {
+      if (m.id == kCloudMascotId) {
+        cloud.add(m);
+      } else if (CatalogService.instance.animById(m.id) != null) {
         pixel.add(m);
       } else if (m.catalogUrl != null) {
         catalog.add(m);
@@ -126,14 +132,15 @@ class _MascotGalleryScreenState extends State<MascotGalleryScreen> {
     }
 
     return [
-      _Folder('pixel', ruEn('Пиксельные', 'Pixel'), Icons.grid_view_rounded,
-          pixel),
+      _Folder('cloud', ruEn('Облачко', 'Cloud'), Icons.cloud_rounded, cloud),
       _Folder('own', ruEn('Наши рисунки', 'Our drawings'),
           Icons.brush_outlined, own),
       _Folder('bundled', ruEn('Встроенные', 'Built-in'),
           Icons.auto_awesome_outlined, bundled),
       _Folder('catalog', ruEn('Каталог', 'Catalog'),
           Icons.collections_bookmark_outlined, catalog),
+      _Folder('pixel', ruEn('Пиксельные', 'Pixel'), Icons.grid_view_rounded,
+          pixel),
     ];
   }
 
@@ -1208,6 +1215,15 @@ class _MascotThumbnail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (mascot.id == kCloudMascotId) {
+      if (size.isFinite) return SizedBox.square(dimension: size, child: CloudMascotView(size: size));
+      return LayoutBuilder(
+        builder: (_, c) {
+          final side = c.biggest.shortestSide;
+          return CloudMascotView(size: side.isFinite ? side : 96);
+        },
+      );
+    }
     // Resolve asset path considering mood state for default mascots
     final asset = service.resolvedAssetForMood(mascot);
 

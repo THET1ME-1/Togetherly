@@ -12,6 +12,8 @@ import '../models/gift_effect.dart';
 import 'frame_gift_service.dart';
 import '../dict_strings.dart';
 import 'chat_service.dart';
+import '../models/cloud_mascot.dart' show CloudEvent;
+import '../widgets/mascot/cloud_mascot_view.dart' show CloudEvents;
 import 'centrifugo_service.dart';
 import 'locale_service.dart';
 import 'pocketbase_service.dart';
@@ -198,6 +200,9 @@ class PbPushService {
         if (r == null || r.data['user_uid'] != partnerUid) return;
         final cnt = (r.data['count'] as num?)?.toInt() ?? 0;
         if (_lastMissCount != null && cnt <= _lastMissCount!) return; // только рост
+        // Облачко на главной ловит сердце партнёра, даже когда пуши о
+        // «Скучаю» выключены: это не уведомление, а жизнь на экране.
+        CloudEvents.instance.fire(CloudEvent.missGet);
         final vibe = (r.data['last_vibe'] ?? 'miss_you').toString();
         final custom = (r.data['last_vibe_text'] ?? '').toString();
         // custom доставляется всегда; остальное — по настройке notif_miss_you
