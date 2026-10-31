@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -76,6 +77,27 @@ void warmCatalogArt(Iterable<String> keys, {required double side, double? dpr}) 
     );
     stream.addListener(listener);
   }
+}
+
+/// Скачивает и разжимает первый кадр сцены; true — кадр готов и показ будет
+/// мгновенным, false — в каталоге её нет или файл не дошёл за [timeout].
+Future<bool> catalogArtReady(String key, {required double side, required double dpr, Duration timeout = const Duration(seconds: 20)}) {
+  final decode = artDecodeBucket(side * dpr);
+  final url = _artUrl(key, decode);
+  if (url == null) return Future.value(false);
+  final done = Completer<bool>();
+  final stream = _artProvider(url, decode).resolve(ImageConfiguration.empty);
+  late final ImageStreamListener listener;
+  void finish(bool ok) {
+    if (done.isCompleted) return;
+    stream.removeListener(listener);
+    done.complete(ok);
+  }
+
+  listener = ImageStreamListener((_, _) => finish(true), onError: (_, _) => finish(false));
+  stream.addListener(listener);
+  Timer(timeout, () => finish(false));
+  return done.future;
 }
 
 /// Анимация из каталога (вид `art`) по полному ключу. Общая для гида и для

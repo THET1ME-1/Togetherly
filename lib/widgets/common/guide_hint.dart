@@ -50,7 +50,7 @@ Future<void> showGuideHint(
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onTap: close,
-        child: _GuideHintView(layout: layout, target: target, text: text, gotIt: gotIt, scheme: cs, onClose: close),
+        child: _GuideHintView(layout: layout, target: target, targetKey: targetKey, text: text, gotIt: gotIt, scheme: cs, onClose: close),
       ),
     ),
   );
@@ -60,10 +60,11 @@ Future<void> showGuideHint(
 }
 
 class _GuideHintView extends StatefulWidget {
-  const _GuideHintView({required this.layout, required this.target, required this.text, required this.gotIt, required this.scheme, required this.onClose});
+  const _GuideHintView({required this.layout, required this.target, required this.targetKey, required this.text, required this.gotIt, required this.scheme, required this.onClose});
 
   final GuideHintLayout layout;
   final Rect target;
+  final GlobalKey targetKey;
   final String text;
   final String gotIt;
   final ColorScheme scheme;
@@ -86,8 +87,29 @@ class _GuideHintViewState extends State<_GuideHintView> with TickerProviderState
     super.dispose();
   }
 
+  /// Где кнопка сейчас. Главная прокручивается под подсказкой, и облачко с
+  /// кольцом обязаны ехать вместе с кнопкой, а не висеть на месте.
+  Offset _shift() {
+    final box = widget.targetKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.attached || !box.hasSize) {
+      // Кнопка ушла с экрана вместе со страницей — подсказке не на что смотреть.
+      WidgetsBinding.instance.addPostFrameCallback((_) => widget.onClose());
+      return Offset.zero;
+    }
+    return box.localToGlobal(Offset.zero) - widget.target.topLeft;
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Пересчёт каждый кадр: кольцо пульсирует без конца, им и тикаем.
+    return AnimatedBuilder(
+      animation: _ring,
+      builder: (context, child) => Transform.translate(offset: _shift(), child: child),
+      child: _content(),
+    );
+  }
+
+  Widget _content() {
     final l = widget.layout, cs = widget.scheme;
     final fly = CurvedAnimation(parent: _in, curve: const Interval(0, 0.7, curve: Curves.easeOutBack));
     final pop = CurvedAnimation(parent: _in, curve: const Interval(0.45, 1, curve: Curves.easeOutCubic));

@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../services/catalog_service.dart';
 import '../services/mascot_guide_service.dart';
 import '../widgets/common/guide_mascot.dart';
 import '../models/user_data.dart';
@@ -39,6 +40,13 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
   static const int _pages = 3;
 
+  /// Показывать ли облачко вместо прежних сцен. Знали сразу — облачко с
+  /// первого кадра (его разжали на заставке). Флаг пришёл позже, как бывает
+  /// на свежей установке, где настройки пусты, — прежние сцены стоят, пока
+  /// облачко не скачается: подмена на пустое место хуже.
+  bool _guide = MascotGuideService.instance.on;
+  bool _guideLoading = false;
+
   @override
   void initState() {
     super.initState();
@@ -46,12 +54,28 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       final p = _ctrl.hasClients ? (_ctrl.page ?? 0) : 0.0;
       if ((p - _pos).abs() > 0.001) setState(() => _pos = p);
     });
+    MascotGuideService.instance.addListener(_maybeGuide);
+    CatalogService.instance.addListener(_maybeGuide);
   }
 
   @override
   void dispose() {
+    MascotGuideService.instance.removeListener(_maybeGuide);
+    CatalogService.instance.removeListener(_maybeGuide);
     _ctrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _maybeGuide() async {
+    if (_guide || _guideLoading || !mounted || !MascotGuideService.instance.on) return;
+    _guideLoading = true;
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    warmCatalogArt(const ['guide_album', 'guide_moods'], side: kWelcomeGuideSide, dpr: dpr);
+    // Следом регистрация: там облачко около 120 точек.
+    warmCatalogArt(const ['guide_look_down', 'guide_girl', 'guide_boy', 'guide_nopeek'], side: 120, dpr: dpr);
+    final ok = await catalogArtReady('guide_welcome', side: kWelcomeGuideSide, dpr: dpr);
+    _guideLoading = false;
+    if (ok && mounted) setState(() => _guide = true);
   }
 
   int get _page => _pos.round();
@@ -140,7 +164,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                     controller: _ctrl,
                     // Облачко-гид вместо сцен — тем, кому он включён
                     // (`app_config.mascot_guide`, телефон владельца).
-                    children: MascotGuideService.instance.on
+                    children: _guide
                         ? const [
                             _GuideScene('welcome'),
                             _GuideScene('album'),
