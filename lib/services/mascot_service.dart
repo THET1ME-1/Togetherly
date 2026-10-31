@@ -72,10 +72,10 @@ class MascotService extends ChangeNotifier {
     return all;
   }
 
-  /// Облачко в галерее: рисунок приходит из каталога анимациями `cloud_*`.
+  /// Ту в галерее: рисунок приходит из каталога анимациями `cloud_*`.
   static final Mascot cloudMascot = Mascot(
     id: kCloudMascotId,
-    name: ruEn('Облачко', 'Cloud'),
+    name: ruEn('Ту', 'Tu'),
     createdBy: 'togetherly',
     createdAt: DateTime(2026, 10, 31),
     isDefault: true,

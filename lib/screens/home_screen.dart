@@ -133,8 +133,8 @@ import 'draw_screen.dart';
 import '../services/mascot_service.dart';
 import '../services/live_location_service.dart';
 import '../widgets/active_mascot_widget.dart';
-import '../models/cloud_mascot.dart' show CloudEvent;
-import '../widgets/mascot/cloud_mascot_view.dart' show CloudEvents;
+import '../models/cloud_mascot.dart' show CloudEvent, kCloudMascotId;
+import '../widgets/mascot/cloud_mascot_view.dart' show CloudEvents, CloudMascotView;
 import '../widgets/common/coin_reward_toast.dart';
 import 'home/widgets/live_map_card.dart';
 import 'mascot_gallery_screen.dart';
@@ -4470,6 +4470,19 @@ class _MascotPreviewWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Ту без картинки и ссылки каталога: рисунок приходит анимациями
+    // `cloud_*`, и без этой ветки на месте Ту стоял системный смайлик.
+    if (mascot.id == kCloudMascotId) {
+      return LayoutBuilder(
+        builder: (_, c) {
+          final side = c.biggest.shortestSide;
+          return CloudMascotView(
+            size: side.isFinite ? side : 48,
+            night: sleep.contains(DateTime.now()),
+          );
+        },
+      );
+    }
     final asset = service.resolvedAssetForMood(mascot);
     if (asset != null) {
       return buildMascotAssetImage(asset, fit: BoxFit.contain);

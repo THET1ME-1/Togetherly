@@ -250,6 +250,7 @@ const Map<String, String> kUkByEnglish = {
   'Brew': 'Чайок',
   'Bulb': 'Лампик',
   'Cloud': 'Хмаринка',
+  'Tu': 'Ту',
   'Sprout': 'Паросток',
   'Scoop': 'Пломбір',
   'Pearl': 'Перлинка',
