@@ -32,6 +32,14 @@ import '../../services/offline/media_view_cache.dart';
 /// на ней стоит. Пролистали на экране к другому — окно сложится без полёта.
 String chestUnfoldTag(String? seasonKey) => 'chest-${seasonKey ?? 'main'}';
 
+/// Ширина, под которую распаковываются кадры. Не крупнее самого файла:
+/// растягивание при распаковке идёт процессором на каждом кадре, а
+/// растянуть готовый кадр видеокарта может даром. Карточка сезонного
+/// сундука (600 точек) распаковывалась под экран в 1000 и тормозила весь
+/// экран на средних телефонах (обращение 551).
+int chestDecodeWidth({required int fileWidth, required int wanted}) =>
+    fileWidth > 0 && fileWidth < wanted ? fileWidth : wanted;
+
 class ChestFrames extends StatefulWidget {
   const ChestFrames({
     super.key,
@@ -216,7 +224,16 @@ class _ChestFramesState extends State<ChestFrames> with SingleTickerProviderStat
       final dpr = ui.PlatformDispatcher.instance.views.first.devicePixelRatio;
       // Предел ставится по ширине: у вытянутого кадра (занавес) пропорции
       // сохраняются, а у квадратного выходит прежний размер.
-      codec = await ui.instantiateImageCodec(bytes, targetWidth: (widget.side * dpr).round());
+      final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+      final descriptor = await ui.ImageDescriptor.encoded(buffer);
+      try {
+        codec = await descriptor.instantiateCodec(
+          targetWidth: chestDecodeWidth(fileWidth: descriptor.width, wanted: (widget.side * dpr).round()),
+        );
+      } finally {
+        descriptor.dispose();
+        buffer.dispose();
+      }
     } catch (_) {
       codec = null;
     }
