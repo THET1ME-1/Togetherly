@@ -77,4 +77,19 @@ void main() {
       expect(wearOutfitDecode(null), isEmpty);
     });
   });
+
+  group('вещь, снятая с сервера', () {
+    final live = TuWear.fromCatalog(row('scarf', 'neck'))!;
+    final retired = TuWear.fromCatalog({...row('specs', 'glasses'), 'enabled': false})!;
+
+    test('выключенная запись помечается снятой', () {
+      expect(live.retired, isFalse);
+      expect(retired.retired, isTrue);
+    });
+
+    test('в гардеробе её видит только тот, у кого она есть', () {
+      expect(wardrobeItems([live, retired], owned: const {}), [live]);
+      expect(wardrobeItems([live, retired], owned: const {'specs'}), [live, retired]);
+    });
+  });
 }

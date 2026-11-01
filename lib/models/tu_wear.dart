@@ -19,6 +19,7 @@ class TuWear {
     this.rarity = '',
     this.price = 0,
     this.sort = 500,
+    this.retired = false,
   });
 
   /// Ключ вещи: он же лежит у человека в `users.owned_wear`.
@@ -43,6 +44,10 @@ class TuWear {
   final String rarity;
   final int price;
   final int sort;
+
+  /// Вещь снята с сервера (`enabled = false`): из сундука больше не выпадает,
+  /// но у тех, кому досталась, остаётся и надевается.
+  final bool retired;
 
   bool get fromChest => src == 'chest';
 
@@ -76,9 +81,15 @@ class TuWear {
       rarity: data['rarity'] as String? ?? '',
       price: (row['price'] as num?)?.toInt() ?? 0,
       sort: (row['sort'] as num?)?.toInt() ?? 500,
+      retired: row['enabled'] == false,
     );
   }
 }
+
+/// Что показывать в гардеробе: все живые вещи и снятые, если они у человека
+/// есть.
+List<TuWear> wardrobeItems(List<TuWear> items, {required Set<String> owned}) =>
+    [for (final w in items) if (!w.retired || owned.contains(w.key)) w];
 
 /// Разделы гардероба по порядку вкладок. Тот же порядок задаёт, какой слой
 /// «спереди» лежит выше: очки ниже шарфа, шарф ниже того, что над головой.

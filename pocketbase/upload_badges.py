@@ -382,7 +382,7 @@ def upload(folder: Path, token: str) -> None:
 
 
 def disable(key_or_slug: str, token: str) -> None:
-    item_id = key_or_slug if key_or_slug.startswith(("badge_", "gift_", "art_", "frame_", "chest_")) else "badge_" + slug(key_or_slug)
+    item_id = key_or_slug if key_or_slug.startswith(("badge_", "gift_", "art_", "frame_", "chest_", "wear_")) else "badge_" + slug(key_or_slug)
     body, ctype = multipart({"enabled": "false"}, [])
     send("PATCH", f"{PB}/api/collections/catalog_items/records/{item_id}", token, body, ctype)
     print(f"{item_id}: снят с витрины (у купивших остаётся)")

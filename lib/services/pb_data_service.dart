@@ -3428,8 +3428,10 @@ class PbDataService {
   /// чтение `catalog_items` из Supabase в [CatalogService] на cutover.
   Future<List<RecordModel>> loadCatalogAll() async {
     try {
+      // Вещи Ту приходят и выключенными: снятая с сервера вещь остаётся у
+      // тех, кому досталась (`TuWear.retired`), из сундука она уже не выпадает.
       return await _pb.collection('catalog_items').getFullList(
-            filter: 'enabled = true',
+            filter: "enabled = true || kind = 'wear'",
             sort: 'sort',
           );
     } catch (e) {

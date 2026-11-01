@@ -30,7 +30,7 @@ class _TuWardrobeScreenState extends State<TuWardrobeScreen> {
     return ListenableBuilder(
       listenable: Listenable.merge([CatalogService.instance, TuWearService.instance]),
       builder: (context, _) {
-        final items = CatalogService.instance.wearItems;
+        final items = wardrobeItems(CatalogService.instance.wearItems, owned: TuWearService.instance.owned);
         final cats = [for (final c in kTuWearCats) if (items.any((w) => w.cat == c)) c];
         return DefaultTabController(
           length: cats.isEmpty ? 1 : cats.length,
