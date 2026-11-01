@@ -6,6 +6,7 @@ import 'package:sensors_plus/sensors_plus.dart';
 import '../../models/cloud_mascot.dart';
 import '../../models/shake_detector.dart';
 import '../../services/catalog_service.dart';
+import '../../services/offline/media_view_cache.dart';
 import '../../services/tu_wear_service.dart';
 import 'lockstep_art.dart';
 import '../../models/mascot_anim.dart';
@@ -84,6 +85,33 @@ void warmCloud(String tint, {required double size, required double dpr}) {
     'cloud_sick_base',
   ], side: canvas, dpr: dpr);
 }
+
+/// Эмоции пака Ту и слои надетых вещей под них — заранее, чтобы смена
+/// эмоции была мгновенной. Картинки эмоций разжимаются в кэш изображений,
+/// слои одежды только ложатся на диск: их разжимает `LockstepArt`.
+void warmCloudEmotions({required double size, required double dpr}) {
+  final canvas = size * _kCloudCanvas;
+  final urls = cloudEmotionWarmUrls(CatalogService.instance.allPacks);
+  final outfit = TuWearService.instance.outfit;
+  final mark = '${urls.length}@${artDecodeBucket(canvas * dpr)}@${outfit.values.join(',')}';
+  if (urls.isEmpty || _warmedEmotions == mark) return;
+  _warmedEmotions = mark;
+  warmArtUrls(urls, side: canvas * _kPackCrop, dpr: dpr);
+  if (outfit.isEmpty) return;
+  final decode = artDecodeBucket(canvas * dpr);
+  for (final pack in CatalogService.instance.allPacks) {
+    if (pack.id != kCloudMoodPackId) continue;
+    for (final mood in pack.moods) {
+      final wear = TuWearService.instance.layersFor(art: '', emotion: mood.id);
+      for (final key in [...wear.back, ...wear.front]) {
+        final url = catalogArtUrl(key, decode);
+        if (url != null) unawaited(OfflineImageCacheManager.instance.getSingleFile(url).then((_) {}, onError: (_) {}));
+      }
+    }
+  }
+}
+
+String? _warmedEmotions;
 
 final Set<String> _warmed = {};
 
@@ -180,7 +208,10 @@ class _CloudMascotViewState extends State<CloudMascotView> {
   @override
   Widget build(BuildContext context) {
     final dpr = MediaQuery.devicePixelRatioOf(context);
-    if (widget.listenEvents) warmCloud(widget.tint, size: widget.size, dpr: dpr);
+    if (widget.listenEvents) {
+      warmCloud(widget.tint, size: widget.size, dpr: dpr);
+      warmCloudEmotions(size: widget.size, dpr: dpr);
+    }
     return ListenableBuilder(
       listenable: Listenable.merge([CatalogService.instance, TuWearService.instance]),
       builder: (context, _) => _art(dpr),

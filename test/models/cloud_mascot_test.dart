@@ -104,6 +104,17 @@ void main() {
     expect(cloudOneShot('cloud_drag_love'), isNull);
   });
 
+  test('прогреваются все эмоции пака Ту и только они', () {
+    const cloud = MoodPack(id: 'cloud', isFree: true, nameRu: 'Ту', nameEn: 'Tu', moods: [
+      MoodOption(id: 'happy', imagePath: 'https://x/happy.webp', label: 'Радость', color: Color(0xFFFFC800)),
+      MoodOption(id: 'sad', imagePath: 'https://x/sad.webp', label: 'Грусть', color: Color(0xFF6E8FBF)),
+    ]);
+    const other = MoodPack(id: 'moti', isFree: true, nameRu: 'Моти', nameEn: 'Moti', moods: [
+      MoodOption(id: 'happy', imagePath: 'https://x/moti.webp', label: 'Радость', color: Color(0xFFFFC800)),
+    ]);
+    expect(cloudEmotionWarmUrls([other, cloud]), ['https://x/happy.webp', 'https://x/sad.webp']);
+  });
+
   group('тряска с выбранной эмоцией', () {
     bool all(String _) => true;
     bool none(String _) => false;

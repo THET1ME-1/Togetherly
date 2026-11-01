@@ -81,6 +81,21 @@ void warmCatalogArt(Iterable<String> keys, {required double side, double? dpr}) 
   }
 }
 
+/// То же по готовым адресам — для картинок не из `art`, например эмоций пака.
+void warmArtUrls(Iterable<String> urls, {required double side, double? dpr}) {
+  final ratio = dpr ?? ui.PlatformDispatcher.instance.views.first.devicePixelRatio;
+  final decode = artDecodeBucket(side * ratio);
+  for (final url in urls) {
+    final stream = _artProvider(url, decode).resolve(ImageConfiguration.empty);
+    late final ImageStreamListener listener;
+    listener = ImageStreamListener(
+      (_, _) => stream.removeListener(listener),
+      onError: (_, _) => stream.removeListener(listener),
+    );
+    stream.addListener(listener);
+  }
+}
+
 /// Скачивает и разжимает первый кадр сцены; true — кадр готов и показ будет
 /// мгновенным, false — в каталоге её нет или файл не дошёл за [timeout].
 Future<bool> catalogArtReady(String key, {required double side, required double dpr, Duration timeout = const Duration(seconds: 20)}) {

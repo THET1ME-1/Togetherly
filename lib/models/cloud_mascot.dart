@@ -62,6 +62,15 @@ String? cloudEmotionUrl(List<MoodPack> packs, String? moodId) {
   return null;
 }
 
+/// Картинки всех эмоций пака Ту — их прогревают заранее: иначе новая эмоция
+/// начинала качаться только в момент выбора, и Ту менялся с задержкой.
+List<String> cloudEmotionWarmUrls(List<MoodPack> packs) => [
+      for (final pack in packs)
+        if (pack.id == kCloudMoodPackId)
+          for (final mood in pack.moods)
+            if (mood.imagePath.isNotEmpty) mood.imagePath,
+    ];
+
 /// То, что случилось на главной и перекрывает остальную жизнь облачка.
 enum CloudEvent { missSend, missGet, shake }
 
