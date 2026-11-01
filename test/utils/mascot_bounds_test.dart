@@ -183,6 +183,19 @@ void main() {
       expect(s.velocity.dx.abs(), lessThan(1000));
     });
 
+    test('по диагонали в стену — удар только о неё, скорость вдоль стены сохраняется', () {
+      final s = mascotFlightStep(const Offset(355, 300), const Offset(1000, 600), 0.016, box);
+      expect(s.wall, const Offset(1, 0));
+      expect(s.velocity.dy, greaterThan(0));
+    });
+
+    test('в угол — удар о две стены сразу', () {
+      final s = mascotFlightStep(const Offset(355, 695), const Offset(1000, 1000), 0.016, box);
+      expect(s.wall, const Offset(1, 1));
+      expect(s.velocity.dx, lessThan(0));
+      expect(s.velocity.dy, lessThan(0));
+    });
+
     test('медленный бросок — сразу стоит', () {
       expect(mascotFlingWorth(const Offset(300, 200)), isFalse);
       expect(mascotFlingWorth(const Offset(1200, 0)), isTrue);

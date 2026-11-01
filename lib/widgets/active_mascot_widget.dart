@@ -385,14 +385,8 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
         // Об стенку: прижимается к ней и сплющивается, сильнее на быстром.
         _hitAt = elapsed;
         _hitStrength = (before.distance / 1400).clamp(0.4, 1.0);
-        final p = step.position;
-        _hitSide = p.dx <= box.left
-            ? Alignment.centerLeft
-            : p.dx >= box.right
-                ? Alignment.centerRight
-                : p.dy <= box.top
-                    ? Alignment.topCenter
-                    : Alignment.bottomCenter;
+        // Прижимается к той стене, о которую ударился; в углу — к углу.
+        _hitSide = Alignment(step.wall.dx, step.wall.dy);
       }
       final hitAt = _hitAt;
       _squash = hitAt == null
@@ -702,10 +696,12 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
               curve: Curves.easeOutBack,
               builder: (context, fed, child) {
                 final grow = 1 + 0.21 * fed;
-                // Сплющивание идёт от стены удара: Ту прижат к ней.
-                final sideways = _hitSide.y == 0;
-                final sx = sideways ? _squash.flat : _squash.wide;
-                final sy = sideways ? _squash.wide : _squash.flat;
+                // Сплющивание идёт от стены удара: Ту прижат к ней. Ось,
+                // по которой бился, сплющена, другая раздаётся; в углу
+                // сплющены обе — Ту вжат в угол.
+                final hitX = _hitSide.x != 0, hitY = _hitSide.y != 0;
+                final sx = hitX ? _squash.flat : (hitY ? _squash.wide : 1.0);
+                final sy = hitY ? _squash.flat : (hitX ? _squash.wide : 1.0);
                 return Transform(
                   alignment: Alignment.bottomCenter,
                   transform: Matrix4.diagonal3Values(grow, grow, 1),

@@ -102,7 +102,10 @@ bool mascotFlingWorth(Offset velocity) => velocity.distance > 700;
 
 /// Шаг полёта Ту после броска: летит по инерции, тормозит, о края [box]
 /// (где может стоять его середина) отскакивает и теряет скорость.
-({Offset position, Offset velocity, bool hit}) mascotFlightStep(
+///
+/// [wall] — о какие стены удар: −1 левая или верхняя, 1 правая или нижняя,
+/// 0 — не было. По диагонали в стену бьётся одна ось, в угол — обе.
+({Offset position, Offset velocity, bool hit, Offset wall}) mascotFlightStep(
   Offset position,
   Offset velocity,
   double dt,
@@ -113,19 +116,24 @@ bool mascotFlingWorth(Offset velocity) => velocity.distance > 700;
   var x = position.dx + velocity.dx * dt;
   var y = position.dy + velocity.dy * dt;
   var vx = velocity.dx, vy = velocity.dy;
-  var hit = false;
+  var wx = 0.0, wy = 0.0;
   if (x < box.left || x > box.right) {
+    wx = x < box.left ? -1 : 1;
     x = x.clamp(box.left, box.right);
     vx = -vx * bounce;
-    hit = true;
   }
   if (y < box.top || y > box.bottom) {
+    wy = y < box.top ? -1 : 1;
     y = y.clamp(box.top, box.bottom);
     vy = -vy * bounce;
-    hit = true;
   }
   final slow = 1 / (1 + friction * dt);
-  return (position: Offset(x, y), velocity: Offset(vx * slow, vy * slow), hit: hit);
+  return (
+    position: Offset(x, y),
+    velocity: Offset(vx * slow, vy * slow),
+    hit: wx != 0 || wy != 0,
+    wall: Offset(wx, wy),
+  );
 }
 
 /// Форма Ту после удара о стену: [flat] — вдоль удара, [wide] — поперёк.
