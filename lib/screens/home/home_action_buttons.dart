@@ -35,6 +35,10 @@ class HomeActionButtons extends StatelessWidget {
   /// Ключ кнопки фото — за него держится подсказка про удержание.
   final GlobalKey? postButtonKey;
 
+  /// Ключ кнопки календаря — к ней Ту подлетает с подсказкой про настроения
+  /// и цикл.
+  final GlobalKey? calendarButtonKey;
+
   /// Кнопка Togetherly Wallet в середине ряда. null — ряд из четырёх.
   final VoidCallback? onWallet;
 
@@ -52,6 +56,7 @@ class HomeActionButtons extends StatelessWidget {
     required this.onPost,
     this.onPostHold,
     this.postButtonKey,
+    this.calendarButtonKey,
     this.onWallet,
     this.hidden = const {},
   });
@@ -155,6 +160,7 @@ class HomeActionButtons extends StatelessWidget {
               svgIcon: _calendarSvg,
               enabled: isPaired,
               onTap: onCalendar,
+              key: calendarButtonKey,
               width: width,
               height: height,
             ),
@@ -238,6 +244,7 @@ class HomeActionButtons extends StatelessWidget {
                   index: i,
                   svgIcon: _calendarSvg,
                   onTap: onCalendar,
+                  key: calendarButtonKey,
                   width: width,
                   height: height,
                   dy: dip(i),
@@ -324,6 +331,7 @@ class HomeActionButtons extends StatelessWidget {
               index: 3,
               svgIcon: _calendarSvg,
               onTap: onCalendar,
+              key: calendarButtonKey,
               width: width,
               height: height,
               dy: dip(3),

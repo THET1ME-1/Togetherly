@@ -2044,6 +2044,14 @@ abstract class DictStrings extends AppStrings {
   @override
   String get missScreenHint => _t('missScreenHint');
   @override
+  String get timerDateHint => _t('timerDateHint');
+  @override
+  String get timerAddHint => _t('timerAddHint');
+  @override
+  String get calendarHint => _t('calendarHint');
+  @override
+  String get mascotHint => _t('mascotHint');
+  @override
   String get supportedServices => _t('supportedServices');
   @override
   String get pasteLinkFromSupported => _t('pasteLinkFromSupported');

@@ -26,6 +26,11 @@ class ExpandableTimerCard extends StatefulWidget {
   final ValueChanged<bool>? onExpandChanged;
   final ValueChanged<String>? onPetalTap;
 
+  /// Ключи карандаша и плюса над кругом: к ним Ту подлетает с подсказками
+  /// «поменять дату отношений» и «завести свой таймер».
+  final GlobalKey? editKey;
+  final GlobalKey? addKey;
+
   const ExpandableTimerCard({
     super.key,
     required this.theme,
@@ -35,6 +40,8 @@ class ExpandableTimerCard extends StatefulWidget {
     required this.isPaired,
     this.onExpandChanged,
     this.onPetalTap,
+    this.editKey,
+    this.addKey,
   });
 
   @override
@@ -151,6 +158,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
               Text(LocaleService.current.noTimers),
               const SizedBox(height: 16),
               _RadialButton(
+                key: widget.addKey,
                 icon: Icons.add_rounded,
                 onTap: _showCreateDialog,
                 theme: _t,
@@ -252,8 +260,8 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
         onTap: () => _goToPage(index - 1),
         visible: index > 0,
       ),
-      _ArcAction(icon: Icons.edit_rounded, onTap: () => _showEditDialog(timer)),
-      _ArcAction(icon: Icons.add_rounded, onTap: _showCreateDialog),
+      _ArcAction(icon: Icons.edit_rounded, onTap: () => _showEditDialog(timer), key: widget.editKey),
+      _ArcAction(icon: Icons.add_rounded, onTap: _showCreateDialog, key: widget.addKey),
       _ArcAction(
         icon: Icons.delete_outline_rounded,
         onTap: () => _showDeleteConfirm(timer),
@@ -291,6 +299,7 @@ class _ExpandableTimerCardState extends State<ExpandableTimerCard> {
           left: centerX + x - 18,
           top: centerY + y - 18,
           child: _RadialButton(
+            key: visibleActions[i].key,
             icon: visibleActions[i].icon,
             onTap: visibleActions[i].onTap,
             theme: _t,
@@ -814,7 +823,8 @@ class _ArcAction {
   final IconData icon;
   final VoidCallback onTap;
   final bool visible;
-  _ArcAction({required this.icon, required this.onTap, this.visible = true});
+  final GlobalKey? key;
+  _ArcAction({required this.icon, required this.onTap, this.visible = true, this.key});
 }
 
 class _RadialButton extends StatefulWidget {
@@ -823,6 +833,7 @@ class _RadialButton extends StatefulWidget {
   final AppTheme theme;
 
   const _RadialButton({
+    super.key,
     required this.icon,
     required this.onTap,
     required this.theme,

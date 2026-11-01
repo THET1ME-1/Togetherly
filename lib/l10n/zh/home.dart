@@ -4,6 +4,10 @@
 const Map<String, String> homeZh = {
   'snapHoldHint': '按住拍照按钮，会拍一段三秒短片，作为动态照片出现在另一半的桌面上',
   'missScreenHint': '点一下计数，就能看到你们哪几天在想彼此，还能直接回应',
+  'timerDateHint': '点一下铅笔，设定你们在一起的日子。这里和小组件上的天数都从这天算起',
+  'timerAddHint': '点加号再建一个计时器：倒数旅行、约会、生日',
+  'calendarHint': '心情日历能看到你们俩每天过得怎么样。点一下某天，也能在那里记录生理期',
+  'mascotHint': '是我，图图！点这里能看到所有吉祥物和我的衣柜',
   'home': '首页',
   'widgets': '小组件',
   'connect': '连接',

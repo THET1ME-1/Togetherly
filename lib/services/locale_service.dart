@@ -1320,6 +1320,12 @@ abstract class AppStrings {
 
   /// Подсказка про счётчик «Скучаю» — он открывает экран.
   String get missScreenHint;
+
+  /// Подсказки Ту на главной: дата отношений, новый таймер, календарь, сам Ту.
+  String get timerDateHint;
+  String get timerAddHint;
+  String get calendarHint;
+  String get mascotHint;
   String get supportedServices;
   String get pasteLinkFromSupported;
   String get selectTextAndPress;

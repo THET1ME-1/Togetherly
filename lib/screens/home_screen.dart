@@ -232,6 +232,12 @@ class _HomeScreenState extends State<HomeScreen> {
   final GlobalKey _postBtnKey = GlobalKey();
   final GlobalKey _missKey = GlobalKey();
 
+  /// Цели подсказок Ту: карандаш и плюс над таймером, календарь, блок маскота.
+  final GlobalKey _timerEditKey = GlobalKey();
+  final GlobalKey _timerAddKey = GlobalKey();
+  final GlobalKey _calendarBtnKey = GlobalKey();
+  final GlobalKey _mascotKey = GlobalKey();
+
   /// Сезонный фон под главной (призрак за стеклом): ему нажатия в пустое место.
   final _backdropKey = GlobalKey<SeasonBackdropLayerState>();
 
@@ -1888,6 +1894,30 @@ class _HomeScreenState extends State<HomeScreen> {
         (ModalRoute.of(context)?.isCurrent ?? true);
     HintCalm.instance.homeShown();
 
+    // Чаще всего в поддержку спрашивают, как поменять дату отношений и как
+    // завести таймер, поэтому Ту начинает с них.
+    HintQueue.instance.enqueue(
+      context: context,
+      key: 'timer_date',
+      targetKey: _timerEditKey,
+      text: s.timerDateHint,
+      gotIt: s.gotIt,
+      icon: Icons.edit_rounded,
+      theme: _t,
+      side: HintSide.below,
+      ready: onHome,
+    );
+    HintQueue.instance.enqueue(
+      context: context,
+      key: 'timer_add',
+      targetKey: _timerAddKey,
+      text: s.timerAddHint,
+      gotIt: s.gotIt,
+      icon: Icons.add_rounded,
+      theme: _t,
+      side: HintSide.below,
+      ready: onHome,
+    );
     HintQueue.instance.enqueue(
       context: context,
       key: 'side_action',
@@ -1918,6 +1948,27 @@ class _HomeScreenState extends State<HomeScreen> {
       theme: _t,
       side: HintSide.below,
       ready: onHome,
+    );
+    HintQueue.instance.enqueue(
+      context: context,
+      key: 'mood_calendar',
+      targetKey: _calendarBtnKey,
+      text: s.calendarHint,
+      gotIt: s.gotIt,
+      icon: Icons.calendar_month_rounded,
+      theme: _t,
+      ready: onHome,
+    );
+    // Про гардероб говорит сам Ту, поэтому подсказка только при Ту на главной.
+    HintQueue.instance.enqueue(
+      context: context,
+      key: 'mascot_tu',
+      targetKey: _mascotKey,
+      text: s.mascotHint,
+      gotIt: s.gotIt,
+      icon: Icons.checkroom_rounded,
+      theme: _t,
+      ready: () => onHome() && _mascotService.activeMascot?.id == kCloudMascotId,
     );
   }
 
@@ -2005,6 +2056,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       onPetalTap: _pairData.isPaired
                           ? (label) => _openMemoryLaneForPetal(label)
                           : null,
+                      editKey: _timerEditKey,
+                      addKey: _timerAddKey,
                     ),
                   ),
                 ),
@@ -2026,6 +2079,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: _pairData.isPaired
                         ? HomeActionButtons(
                             postButtonKey: _postBtnKey,
+                            calendarButtonKey: _calendarBtnKey,
                             theme: _t,
                             isPaired: true,
                             // Единый источник правды — календарь (myMoodToday),
@@ -2329,6 +2383,7 @@ class _HomeScreenState extends State<HomeScreen> {
           listenable: _mascotService,
           builder: (context, _) {
             return _MascotButton(
+              key: _mascotKey,
               mascot: _mascotService.activeMascot,
               service: _mascotService,
               theme: _t,
@@ -4547,6 +4602,7 @@ class _MascotButton extends StatefulWidget {
   final SleepWindow Function(String mascotId) sleepOf;
 
   const _MascotButton({
+    super.key,
     required this.mascot,
     required this.service,
     required this.theme,
