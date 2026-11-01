@@ -118,4 +118,20 @@ void main() {
       );
     });
   });
+
+  group('двойной тап по Ту — кувырок', () {
+    final first = DateTime(2026, 11, 1, 12);
+
+    test('второй тап сразу за первым — двойной', () {
+      expect(mascotDoubleTap(first, first.add(const Duration(milliseconds: 250))), isTrue);
+    });
+
+    test('второй тап позже — два отдельных', () {
+      expect(mascotDoubleTap(first, first.add(const Duration(milliseconds: 600))), isFalse);
+    });
+
+    test('первого тапа не было — одиночный', () {
+      expect(mascotDoubleTap(null, first), isFalse);
+    });
+  });
 }

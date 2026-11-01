@@ -45,3 +45,10 @@ bool mascotGestureIsTap({
   Duration limit = const Duration(milliseconds: 400),
 }) =>
     travel <= slop && held < limit;
+
+/// Сколько ждать второго касания: столько же меню Ту выжидает после первого.
+const Duration kMascotDoubleTapWindow = Duration(milliseconds: 300);
+
+/// Второй тап по Ту вслед за первым — двойной: Ту делает кувырок.
+bool mascotDoubleTap(DateTime? lastTap, DateTime now) =>
+    lastTap != null && now.difference(lastTap) <= kMascotDoubleTapWindow;

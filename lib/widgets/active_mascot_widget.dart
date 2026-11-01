@@ -82,6 +82,11 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
   // Push-debounce for Firestore writes
   Timer? _syncTimer;
 
+  /// Двойной тап по Ту — кувырок. Меню после первого касания ждёт
+  /// [kMascotDoubleTapWindow]: пришёл второй тап — меню не открывается.
+  DateTime? _lastTap;
+  Timer? _menuTimer;
+
   // Entrance animation
   late AnimationController _entranceCtrl;
   late Animation<double> _entranceAnim;
@@ -110,6 +115,7 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
   void dispose() {
     _entranceCtrl.dispose();
     _syncTimer?.cancel();
+    _menuTimer?.cancel();
     _svc.removeListener(_onServiceChanged);
     mascotHiddenNotifier.removeListener(_onExternalVisibilityChanged);
     super.dispose();
@@ -304,8 +310,7 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
           slop: _kTapSlop,
         );
     if (tap) {
-      _setAnim(_isCloud ? MascotAnimState.drop : MascotAnimState.live);
-      _onTap();
+      _tapped();
       return;
     }
     _setAnim(MascotAnimState.drop);
@@ -381,6 +386,29 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
   }
 
   // ── Menu ─────────────────────────────────────────────────────────────────
+
+  /// Касание по маскоту. У Ту второй тап вслед за первым — кувырок вместо
+  /// меню; остальные маскоты открывают меню сразу.
+  void _tapped() {
+    if (!_isCloud) {
+      _setAnim(MascotAnimState.live);
+      _onTap();
+      return;
+    }
+    final now = DateTime.now();
+    // Одно касание приходит и тапом, и концом жеста — это не второй тап.
+    if (_lastTap != null && now.difference(_lastTap!) < const Duration(milliseconds: 40)) return;
+    if (mascotDoubleTap(_lastTap, now)) {
+      _menuTimer?.cancel();
+      _lastTap = null;
+      _setAnim(MascotAnimState.grow);
+      return;
+    }
+    _lastTap = now;
+    _setAnim(MascotAnimState.drop);
+    _menuTimer?.cancel();
+    _menuTimer = Timer(kMascotDoubleTapWindow, _onTap);
+  }
 
   void _onTap() {
     if (_menuOpen || !mounted) return;
@@ -537,7 +565,7 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
         scale: _entranceAnim,
         child: GestureDetector(
           behavior: HitTestBehavior.translucent,
-          onTap: _onTap,
+          onTap: _tapped,
           onScaleStart: _onScaleStart,
           onScaleUpdate: _onScaleUpdate,
           onScaleEnd: _onScaleEnd,
