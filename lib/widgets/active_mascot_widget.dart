@@ -404,6 +404,11 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
     if (step.hit) {
       _flightHits++;
       HapticFeedback.lightImpact();
+      // Удар — сразу испуг со спиральными глазами и шатанием (сцена
+      // встряски), а не довольная сцена полёта. Каждый новый удар
+      // запускает испуг заново; он держится и секунды после.
+      _setAnim(MascotAnimState.live);
+      CloudEvents.instance.fire(CloudEvent.shake);
     }
     final settled = _hitAt == null || elapsed - _hitAt! > const Duration(milliseconds: 600);
     if (_flightVelocity.distance < 60 && settled) _endFlight();
@@ -414,14 +419,9 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
     _flight = null;
     _hitAt = null;
     if (mounted) setState(() => _squash = (flat: 1.0, wide: 1.0));
-    // Бился о стены — приземляется оглушённым (спиральные глаза встряски),
-    // а не довольным, как после обычного касания.
-    if (_flightHits > 0) {
-      _setAnim(MascotAnimState.live);
-      CloudEvents.instance.fire(CloudEvent.shake);
-    } else {
-      _setAnim(MascotAnimState.drop);
-    }
+    // Бился о стены — испуг уже идёт с удара, его не перебиваем; без ударов
+    // просто приземлился.
+    if (_flightHits == 0) _setAnim(MascotAnimState.drop);
     _scheduleSync();
   }
 
