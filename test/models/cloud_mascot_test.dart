@@ -5,6 +5,7 @@ import 'package:love_app/models/cloud_mascot.dart';
 import 'package:love_app/models/mascot_anim.dart';
 import 'package:love_app/models/mood_entry.dart';
 import 'package:love_app/models/mood_pack.dart';
+import 'package:love_app/models/tu_wear.dart' show wearSceneOf;
 
 /// Облачко на главной живёт в цвете настроения партнёра, а что оно делает,
 /// решают руки человека, серия, время суток и годовщина. Анимации лежат в
@@ -101,5 +102,27 @@ void main() {
     expect(cloudOneShot('cloud_flip_love'), const Duration(milliseconds: 2800));
     expect(cloudOneShot('cloud_idle_love'), isNull);
     expect(cloudOneShot('cloud_drag_love'), isNull);
+  });
+
+  group('тряска с выбранной эмоцией', () {
+    bool all(String _) => true;
+    bool none(String _) => false;
+
+    test('Ту трясётся в цвете своей эмоции', () {
+      expect(cloudEmotionShakeArt(mood: 'kiss', hasArt: all), 'cloud_shake_emo_kiss');
+    });
+
+    test('без эмоции или без запечённой тряски — обычная тряска', () {
+      expect(cloudEmotionShakeArt(mood: null, hasArt: all), isNull);
+      expect(cloudEmotionShakeArt(mood: 'kiss', hasArt: none), isNull);
+    });
+
+    test('одежда на тряске эмоции — слои обычной тряски: движение то же', () {
+      expect(wearSceneOf(art: 'cloud_shake_emo_kiss', emotion: null), 'shake_base');
+    });
+
+    test('длина та же, что у обычной тряски', () {
+      expect(cloudOneShot('cloud_shake_emo_kiss'), cloudOneShot('cloud_shake_base'));
+    });
   });
 }

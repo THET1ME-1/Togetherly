@@ -121,6 +121,8 @@ Map<String, String> wearToggle(Map<String, String> outfit, String cat, String ke
 /// покой), сцена облачка — ключ каталога без приставки `cloud_`.
 String? wearSceneOf({required String art, required String? emotion}) {
   if (emotion != null && emotion.isNotEmpty) return 'emo_$emotion';
+  // Тряска в цвете эмоции движется так же, как обычная: одежда та же.
+  if (art.startsWith('cloud_shake_emo_')) return 'shake_base';
   if (art.startsWith('cloud_')) return art.substring(6);
   return null;
 }

@@ -115,6 +115,16 @@ String cloudArt({
 /// Длина разовой сцены: после неё облачко возвращается к обычной жизни.
 /// Петли (покой, полёт за пальцем, сон) — null. Длины те же, что у петель
 /// в `mascot.js`.
+/// Тряска в цвете выбранной эмоции пака (`cloud_shake_emo_<id>`, мастерская
+/// `bake_emotion_shake.py`): испуг тот же, что у обычной, а Ту остаётся
+/// цвета эмоции. Без неё встряска перекрашивала Ту в коралловый. Null —
+/// обычная тряска: эмоции нет или её тряска ещё не в каталоге.
+String? cloudEmotionShakeArt({required String? mood, required bool Function(String key) hasArt}) {
+  if (mood == null || mood.isEmpty) return null;
+  final key = 'cloud_shake_emo_$mood';
+  return hasArt(key) ? key : null;
+}
+
 Duration? cloudOneShot(String art) {
   const ms = {
     'tap': 2400,

@@ -199,7 +199,18 @@ class _CloudMascotViewState extends State<CloudMascotView> {
     final String? url;
     final double side;
     Offset shift = Offset.zero;
-    final art = cloudArt(anim: widget.anim, tint: widget.tint, night: widget.night, sick: widget.sick, event: _event);
+    var art = cloudArt(anim: widget.anim, tint: widget.tint, night: widget.night, sick: widget.sick, event: _event);
+    // Встряска с выбранной эмоцией: тот же испуг, но в цвете эмоции.
+    if (_event == CloudEvent.shake) {
+      final moodShown = (widget.anim == MascotAnimState.live || widget.anim == MascotAnimState.freeze) &&
+          !widget.night &&
+          cloudEmotionUrl(CatalogService.instance.allPacks, widget.mood) != null;
+      art = cloudEmotionShakeArt(
+            mood: moodShown ? widget.mood : null,
+            hasArt: (key) => CatalogService.instance.giftArt(key) != null,
+          ) ??
+          art;
+    }
     if (emotion != null) {
       // Эмоции пака обрезаны плотно (квадрат 24..458 × 38..472 кадра 480):
       // ставим так, чтобы облачко совпало по размеру и месту со сценами.
