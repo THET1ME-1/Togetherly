@@ -70,12 +70,9 @@ class MascotService extends ChangeNotifier {
     final catalog = CatalogService.instance.mascots;
     final ids = _mascots.map((m) => m.id).toSet();
     final all = [..._mascots, ...catalog.where((c) => !ids.contains(c.id))];
-    // Облачко — главный маскот, встроен в сборку. Пока его включают по
-    // одному (тот же флаг, что у гида), но если партнёр уже поставил его
-    // паре, видно и тем, кому флаг не включён: иначе у них пропал бы маскот.
-    if (MascotGuideService.instance.on || _state.activeMascotId == kCloudMascotId) {
-      all.insert(0, cloudMascot);
-    }
+    // Ту — главный маскот, встроен в сборку и стоит в галерее первым у всех
+    // (01.11.2026; прежде только тем, кому включён гид).
+    all.insert(0, cloudMascot);
     return all;
   }
 
