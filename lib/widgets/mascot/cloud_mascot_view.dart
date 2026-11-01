@@ -78,13 +78,33 @@ void warmCloud(String tint, {required double size, required double dpr}) {
   final mark = '$tint@${artDecodeBucket(canvas * dpr)}';
   if (_warmed.contains(mark)) return;
   _warmed.add(mark);
+  final scenes = cloudScenesFor(tint);
   warmCatalogArt([
     for (final t in kCloudTints) 'cloud_idle_$t',
-    for (final scene in const ['tap', 'drag', 'miss_send', 'miss_get', 'joy', 'flip', 'pour']) 'cloud_${scene}_$tint',
-    'cloud_sleep_base',
-    'cloud_sick_base',
+    ...scenes,
   ], side: canvas, dpr: dpr);
+  _warmOutfit(scenes, decode: artDecodeBucket(canvas * dpr));
 }
+
+/// Слои надетых вещей под сцены Ту — на диск заранее. Без этого Ту в
+/// одежде ждал, пока докачаются слои новой сцены, и короткая сцена
+/// (кувырок 2,8 с) успевала кончиться невидимой.
+void _warmOutfit(List<String> scenes, {required int decode}) {
+  final outfit = TuWearService.instance.outfit;
+  if (outfit.isEmpty) return;
+  final mark = '${scenes.join(',')}@$decode@${outfit.values.join(',')}';
+  if (_warmedOutfit == mark) return;
+  _warmedOutfit = mark;
+  for (final art in scenes) {
+    final wear = TuWearService.instance.layersFor(art: art);
+    for (final key in [...wear.back, ...wear.front]) {
+      final url = catalogArtUrl(key, decode);
+      if (url != null) unawaited(OfflineImageCacheManager.instance.getSingleFile(url).then((_) {}, onError: (_) {}));
+    }
+  }
+}
+
+String? _warmedOutfit;
 
 /// Эмоции пака Ту и слои надетых вещей под них — заранее, чтобы смена
 /// эмоции была мгновенной. Картинки эмоций разжимаются в кэш изображений,

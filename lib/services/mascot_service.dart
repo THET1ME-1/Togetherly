@@ -57,6 +57,13 @@ class MascotService extends ChangeNotifier {
   GroupMascotState _state = const GroupMascotState();
   bool _isLoading = false;
 
+  /// Состояние пары без сервера — для тестов виджетов маскота.
+  @visibleForTesting
+  void debugSetState(GroupMascotState state) {
+    _state = state;
+    notifyListeners();
+  }
+
   /// Галерея группы (PB) + каталожные маскоты (рендер-онли, поверх).
   /// Дедуп по id: собственная копия группы побеждает (если id совпал).
   List<Mascot> get mascots {

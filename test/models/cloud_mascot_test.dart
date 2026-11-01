@@ -115,10 +115,15 @@ void main() {
     expect(cloudEmotionWarmUrls([other, cloud]), ['https://x/happy.webp', 'https://x/sad.webp']);
   });
 
-  test('перекормленный Ту проливается в цвете настроения, одежда — общая', () {
-    expect(cloudArt(anim: MascotAnimState.live, tint: 'joy', event: CloudEvent.pour), 'cloud_pour_joy');
-    expect(cloudOneShot('cloud_pour_joy'), const Duration(milliseconds: 3400));
-    expect(wearSceneOf(art: 'cloud_pour_joy', emotion: null), 'pour_base');
+  test('перекормленный Ту лопается в цвете настроения, одежда — общая', () {
+    expect(cloudArt(anim: MascotAnimState.live, tint: 'joy', event: CloudEvent.burst), 'cloud_burst_joy');
+    expect(cloudOneShot('cloud_burst_joy'), const Duration(milliseconds: 3200));
+    expect(wearSceneOf(art: 'cloud_burst_joy', emotion: null), 'burst_base');
+  });
+
+  test('заранее прогреваются все сцены Ту в его цвете, включая кувырок', () {
+    final scenes = cloudScenesFor('joy');
+    expect(scenes, containsAll(['cloud_idle_joy', 'cloud_tap_joy', 'cloud_flip_joy', 'cloud_burst_joy', 'cloud_shake_base']));
   });
 
   group('тряска с выбранной эмоцией', () {

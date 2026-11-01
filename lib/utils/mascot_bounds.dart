@@ -49,24 +49,24 @@ bool mascotGestureIsTap({
 /// Тапы дальше друг от друга, чем это, — уже не одна серия.
 const Duration kMascotTapChain = Duration(milliseconds: 350);
 
-/// На каком тапе серии Ту проливается дождиком.
-const int kMascotPourTap = 10;
+/// На каком тапе серии Ту лопается.
+const int kMascotBurstTap = 10;
 
 /// Что делать прямо на тапе серии.
-enum MascotTapStep { wait, feed, pour }
+enum MascotTapStep { wait, feed, burst }
 
 /// Чем кончилась серия, когда тапы прекратились.
 enum MascotTapEnd { none, menu, flip, deflate }
 
 /// Серия тапов по Ту: один — меню, два — кувырок, с третьего подряд Ту
-/// раздувается и темнеет, как туча, на десятом проливается дождиком. Бросили
-/// тапать посреди — сдувается обратно без дождя.
+/// раздувается, на десятом лопается на облачка и собирается обратно. Бросили
+/// тапать посреди — сдувается.
 class MascotTapCombo {
   int _count = 0;
   DateTime? _last;
 
-  /// Насколько Ту раздуло: 0 — обычный, 1 — туча перед дождём.
-  double get fed => _count < 3 ? 0 : (_count - 2) / (kMascotPourTap - 2);
+  /// Насколько Ту раздуло: 0 — обычный, 1 — вот-вот лопнет.
+  double get fed => _count < 3 ? 0 : (_count - 2) / (kMascotBurstTap - 2);
 
   MascotTapStep tap(DateTime now) {
     final last = _last;
@@ -74,10 +74,10 @@ class MascotTapCombo {
     if (last != null && now.difference(last) < const Duration(milliseconds: 40)) return MascotTapStep.wait;
     _count = last != null && now.difference(last) <= kMascotTapChain ? _count + 1 : 1;
     _last = now;
-    if (_count >= kMascotPourTap) {
+    if (_count >= kMascotBurstTap) {
       _count = 0;
       _last = null;
-      return MascotTapStep.pour;
+      return MascotTapStep.burst;
     }
     return _count >= 3 ? MascotTapStep.feed : MascotTapStep.wait;
   }

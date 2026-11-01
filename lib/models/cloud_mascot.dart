@@ -71,8 +71,17 @@ List<String> cloudEmotionWarmUrls(List<MoodPack> packs) => [
             if (mood.imagePath.isNotEmpty) mood.imagePath,
     ];
 
+/// Сцены Ту в цвете [tint], которые нужны на главной: их подгружают
+/// заранее вместе со слоями надетых вещей.
+List<String> cloudScenesFor(String tint) => [
+      for (final scene in const ['idle', 'tap', 'drag', 'miss_send', 'miss_get', 'joy', 'flip', 'burst']) 'cloud_${scene}_$tint',
+      'cloud_shake_base',
+      'cloud_sleep_base',
+      'cloud_sick_base',
+    ];
+
 /// То, что случилось на главной и перекрывает остальную жизнь облачка.
-enum CloudEvent { missSend, missGet, shake, pour }
+enum CloudEvent { missSend, missGet, shake, burst }
 
 /// Ключ анимации облачка в каталоге.
 ///
@@ -96,8 +105,8 @@ String cloudArt({
       return key('miss_get', tint);
     case CloudEvent.shake:
       return key('shake', 'base');
-    case CloudEvent.pour:
-      return key('pour', tint);
+    case CloudEvent.burst:
+      return key('burst', tint);
     case null:
       break;
   }
@@ -144,7 +153,7 @@ Duration? cloudOneShot(String art) {
     'joy': 2600,
     'flip': 2800,
     'shake': 3800,
-    'pour': 3400,
+    'burst': 3200,
   };
   for (final e in ms.entries) {
     if (art.startsWith('cloud_${e.key}_')) return Duration(milliseconds: e.value);

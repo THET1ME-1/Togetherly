@@ -132,12 +132,12 @@ void main() {
       expect(two.settle(), MascotTapEnd.flip);
     });
 
-    test('с третьего тапа подряд Ту раздувается, на десятом проливается', () {
+    test('с третьего тапа подряд Ту раздувается, на десятом лопается', () {
       final combo = MascotTapCombo();
       final results = [for (var i = 0; i < 10; i++) combo.tap(at(i * 200))];
       expect(results.take(2), everyElement(MascotTapStep.wait));
       expect(results.sublist(2, 9), everyElement(MascotTapStep.feed));
-      expect(results.last, MascotTapStep.pour);
+      expect(results.last, MascotTapStep.burst);
       expect(combo.settle(), MascotTapEnd.none);
     });
 

@@ -34,6 +34,11 @@ const String _kOnboardingKey = 'mascot_onboarding_shown';
 /// to react when the user hides/shows the floating mascot.
 final ValueNotifier<bool> mascotHiddenNotifier = ValueNotifier<bool>(false);
 
+/// Часы серии тапов по Ту. Тест подставляет поддельные: настоящие идут мимо
+/// поддельного времени теста, и два тапа склеивались бы в один.
+@visibleForTesting
+DateTime Function() mascotTapClock = DateTime.now;
+
 /// Floating mascot overlay rendered inside the home screen Stack.
 /// Draggable + pinch-to-scale. Position and scale sync via [MascotService].
 class ActiveMascotWidget extends StatefulWidget {
@@ -96,6 +101,7 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
   Ticker? _flight;
   Offset _flightVelocity = Offset.zero;
   Duration _flightLast = Duration.zero;
+  int _flightHits = 0;
 
   /// Сплющивание об край: 1 — удар только что, гаснет за доли секунды.
   double _squash = 0;
@@ -348,6 +354,7 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
     _flight?.dispose();
     _flightVelocity = velocity;
     _flightLast = Duration.zero;
+    _flightHits = 0;
     _setAnim(MascotAnimState.drag);
     _flight = createTicker(_flightTick)..start();
   }
@@ -376,14 +383,24 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
         _squashX = step.position.dx <= box.left || step.position.dx >= box.right;
       }
     });
-    if (step.hit) HapticFeedback.lightImpact();
+    if (step.hit) {
+      _flightHits++;
+      HapticFeedback.lightImpact();
+    }
     if (_flightVelocity.distance < 60 && _squash == 0) _endFlight();
   }
 
   void _endFlight() {
     _flight?.dispose();
     _flight = null;
-    _setAnim(MascotAnimState.drop);
+    // Бился о стены — приземляется оглушённым (спиральные глаза встряски),
+    // а не довольным, как после обычного касания.
+    if (_flightHits > 0) {
+      _setAnim(MascotAnimState.live);
+      CloudEvents.instance.fire(CloudEvent.shake);
+    } else {
+      _setAnim(MascotAnimState.drop);
+    }
     _scheduleSync();
   }
 
@@ -466,11 +483,11 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
       return;
     }
     _menuTimer?.cancel();
-    switch (_combo.tap(DateTime.now())) {
-      case MascotTapStep.pour:
-        // Десятый тап: туча проливается дождиком и сдувается сама.
+    switch (_combo.tap(mascotTapClock())) {
+      case MascotTapStep.burst:
+        // Десятый тап: Ту лопается на облачка и собирается обратно сам.
         setState(() => _fed = 0);
-        CloudEvents.instance.fire(CloudEvent.pour);
+        CloudEvents.instance.fire(CloudEvent.burst);
         return;
       case MascotTapStep.feed:
         setState(() => _fed = _combo.fed);
@@ -658,8 +675,8 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
           child: SizedBox(
             width: mascotSize,
             height: mascotSize,
-            // Раздутый тапами Ту растёт от низа и темнеет тучей; об край
-            // экрана в полёте сплющивается вдоль удара.
+            // Раздутый тапами Ту растёт от низа; об край экрана в полёте
+            // сплющивается вдоль удара.
             child: TweenAnimationBuilder<double>(
               tween: Tween(end: _fed),
               duration: const Duration(milliseconds: 180),
@@ -669,16 +686,10 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
                 final flat = 1 - 0.25 * _squash, wide = 1 + 0.15 * _squash;
                 final sx = grow * (_squashX ? flat : wide);
                 final sy = grow * (_squashX ? wide : flat);
-                final body = fed <= 0.001
-                    ? child!
-                    : ColorFiltered(
-                        colorFilter: ColorFilter.mode(const Color(0xFF66728A).withValues(alpha: 0.55 * fed.clamp(0.0, 1.0)), BlendMode.srcATop),
-                        child: child,
-                      );
                 return Transform(
                   alignment: Alignment.bottomCenter,
                   transform: Matrix4.diagonal3Values(sx, sy, 1),
-                  child: body,
+                  child: child,
                 );
               },
               child: _MascotImage(
