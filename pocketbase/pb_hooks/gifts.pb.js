@@ -183,18 +183,29 @@ routerAdd("POST", "/api/gifts/send", (e) => {
 
       const coins = user.getInt("coins") || 0;
       if (byAd) {
-        let sent = [];
+        // Подарок из запаса сундука тоже уходит с ценой 0, но к рекламе
+        // отношения не имеет: его id — это id открытия в chest_opens. Без
+        // этой проверки два-три подарка из сундука съедали дневной лимит
+        // рекламы (обращение 549, 01.11.2026).
+        let adSent = 0;
         try {
-          sent = txApp.findRecordsByFilter(
+          const sent = txApp.findRecordsByFilter(
             "gifts",
             "sender_uid = {:me} && price = 0 && deliver_at > {:since}",
-            "", AD_PER_DAY, 0,
+            "", 50, 0,
             { me: me, since: Date.now() - 24 * 60 * 60 * 1000 },
           );
+          for (let i = 0; i < sent.length; i++) {
+            try {
+              txApp.findRecordById("chest_opens", sent[i].id);
+            } catch (_) {
+              adSent++;
+            }
+          }
         } catch (_) {
-          sent = [];
+          adSent = 0;
         }
-        if (sent.length >= AD_PER_DAY) {
+        if (adSent >= AD_PER_DAY) {
           out = { s: 429, b: { ok: false, error: "ad_limit", coins: coins } };
           return;
         }

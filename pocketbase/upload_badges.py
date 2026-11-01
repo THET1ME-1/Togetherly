@@ -103,8 +103,11 @@ def multipart(fields: dict[str, str], files: list[tuple[str, Path]]) -> tuple[by
 def send(method: str, url: str, token: str, body: bytes, ctype: str) -> dict:
     req = urllib.request.Request(url, data=body, method=method,
                                  headers={"Authorization": token, "Content-Type": ctype})
-    with urllib.request.urlopen(req) as r:
-        return json.load(r)
+    try:
+        with urllib.request.urlopen(req) as r:
+            return json.load(r)
+    except urllib.error.HTTPError as e:
+        sys.exit(f"{method} {url}: {e.code} {e.read().decode(errors='replace')[:500]}")
 
 
 def exists(item_id: str, token: str) -> bool:
@@ -117,6 +120,17 @@ def exists(item_id: str, token: str) -> bool:
         if e.code == 404:
             return False
         raise
+
+
+def layer_ready(item_id: str, token: str) -> bool:
+    req = urllib.request.Request(f"{PB}/api/collections/catalog_items/records/{item_id}",
+                                 headers={"Authorization": token})
+    try:
+        with urllib.request.urlopen(req) as r:
+            data = json.load(r).get("data") or {}
+    except urllib.error.HTTPError:
+        return False
+    return bool(data.get("still"))
 
 
 def upload_gift(folder: Path, token: str) -> None:
@@ -266,6 +280,11 @@ def upload_wear(folder: Path, token: str) -> None:
     spec = json.loads((folder / "wear.json").read_text(encoding="utf-8"))
     key = spec["key"]
     for sub in sorted(p for p in folder.iterdir() if (p / "gift.json").exists()):
+        # Слой, уже лёгший целиком, повтор не перезаливает: хранилище бывает
+        # медленным, и на 140 слоях вещи каждый заход начинался бы с нуля.
+        layer_id = "art_" + slug(json.loads((sub / "gift.json").read_text(encoding="utf-8"))["key"])
+        if layer_ready(layer_id, token):
+            continue
         upload_gift(sub, token)
     item_id = "wear_" + slug(key)
     names = spec.get("name") or {}
