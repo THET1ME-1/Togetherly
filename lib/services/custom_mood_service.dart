@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/custom_mood.dart';
+import '../models/mood_entry.dart' show MoodOption;
 import '../models/own_mood_pack.dart';
 import 'pb_realtime_service.dart';
 import 'pocketbase_service.dart';
@@ -59,6 +60,13 @@ class CustomMoodService implements CustomMoodStore {
   List<CustomMood> _snapshot = const [];
   List<CustomMood> get snapshot => _snapshot;
 
+  /// Снимок плюс регистрация в поиске настроений по id: по нему календарь
+  /// берёт название и балл своего настроения.
+  void _remember(List<CustomMood> list) {
+    _snapshot = list;
+    MoodOption.registerCustomMoods([for (final m in list) m.toMoodOption()]);
+  }
+
   String _fileUrl(String recordId, String file) =>
       '${PocketBaseService().pb.baseURL}/api/files/$collection/$recordId/$file';
 
@@ -70,7 +78,7 @@ class CustomMoodService implements CustomMoodStore {
         for (final r in recs)
           CustomMood.fromMap({...r.data, 'id': r.id}, fileUrl: _fileUrl),
       ];
-      _snapshot = list;
+      _remember(list);
       return list;
     });
   }
@@ -91,7 +99,7 @@ class CustomMoodService implements CustomMoodStore {
         for (final r in recs)
           CustomMood.fromMap({...r.data, 'id': r.id}, fileUrl: _fileUrl),
       ];
-      _snapshot = list;
+      _remember(list);
       return list;
     } catch (e) {
       debugPrint('CustomMoodService: набор не загрузился — $e');

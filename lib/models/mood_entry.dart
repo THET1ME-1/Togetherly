@@ -534,11 +534,23 @@ class MoodOption {
     _remote = List.unmodifiable(moods);
   }
 
+  /// Свои настроения пары (`custom_…`). Без них календарь не знал ни
+  /// названия, ни балла своего настроения: в кольце стоял голый id, а
+  /// «Светлое» считалось тёмным (обращение 550). Наполняет CustomMoodService.
+  static List<MoodOption> _custom = const [];
+
+  static void registerCustomMoods(List<MoodOption> moods) {
+    _custom = List.unmodifiable(moods);
+  }
+
   static MoodOption? byId(String id) {
     for (final m in registry) {
       if (m.id == id) return m;
     }
     for (final m in _remote) {
+      if (m.id == id) return m;
+    }
+    for (final m in _custom) {
       if (m.id == id) return m;
     }
     return null;

@@ -9,6 +9,7 @@ import '../widgets/mood/mood_year_sheet.dart';
 import '../models/cycle_entry.dart';
 import '../models/memory.dart';
 import '../models/mood_entry.dart';
+import '../services/custom_mood_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/ui_prefs.dart';
 import '../widgets/mood/mood_vessel.dart';
@@ -118,6 +119,14 @@ class _MoodCalendarScreenState extends State<MoodCalendarScreen> {
     }
     _listenMemories();
     _listenChat();
+    unawaited(_loadCustomMoods());
+  }
+
+  /// Свои настроения пары: без них кольцо статистики не знает их названий и
+  /// балла и считает светлое настроение тёмным (обращение 550).
+  Future<void> _loadCustomMoods() async {
+    await CustomMoodService.instance.load(_pair.pairId);
+    if (mounted) setState(() {});
   }
 
   void _listenChat() {
