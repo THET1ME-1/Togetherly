@@ -115,6 +115,12 @@ void main() {
     expect(cloudEmotionWarmUrls([other, cloud]), ['https://x/happy.webp', 'https://x/sad.webp']);
   });
 
+  test('перекормленный Ту проливается в цвете настроения, одежда — общая', () {
+    expect(cloudArt(anim: MascotAnimState.live, tint: 'joy', event: CloudEvent.pour), 'cloud_pour_joy');
+    expect(cloudOneShot('cloud_pour_joy'), const Duration(milliseconds: 3400));
+    expect(wearSceneOf(art: 'cloud_pour_joy', emotion: null), 'pour_base');
+  });
+
   group('тряска с выбранной эмоцией', () {
     bool all(String _) => true;
     bool none(String _) => false;

@@ -1,4 +1,4 @@
-import 'dart:ui' show Offset, Size;
+import 'dart:ui' show Offset, Rect, Size;
 
 /// Держит маскота в пределах экрана.
 ///
@@ -46,9 +46,83 @@ bool mascotGestureIsTap({
 }) =>
     travel <= slop && held < limit;
 
-/// Сколько ждать второго касания: столько же меню Ту выжидает после первого.
-const Duration kMascotDoubleTapWindow = Duration(milliseconds: 300);
+/// Тапы дальше друг от друга, чем это, — уже не одна серия.
+const Duration kMascotTapChain = Duration(milliseconds: 350);
 
-/// Второй тап по Ту вслед за первым — двойной: Ту делает кувырок.
-bool mascotDoubleTap(DateTime? lastTap, DateTime now) =>
-    lastTap != null && now.difference(lastTap) <= kMascotDoubleTapWindow;
+/// На каком тапе серии Ту проливается дождиком.
+const int kMascotPourTap = 10;
+
+/// Что делать прямо на тапе серии.
+enum MascotTapStep { wait, feed, pour }
+
+/// Чем кончилась серия, когда тапы прекратились.
+enum MascotTapEnd { none, menu, flip, deflate }
+
+/// Серия тапов по Ту: один — меню, два — кувырок, с третьего подряд Ту
+/// раздувается и темнеет, как туча, на десятом проливается дождиком. Бросили
+/// тапать посреди — сдувается обратно без дождя.
+class MascotTapCombo {
+  int _count = 0;
+  DateTime? _last;
+
+  /// Насколько Ту раздуло: 0 — обычный, 1 — туча перед дождём.
+  double get fed => _count < 3 ? 0 : (_count - 2) / (kMascotPourTap - 2);
+
+  MascotTapStep tap(DateTime now) {
+    final last = _last;
+    // Одно касание приходит и тапом, и концом жеста — это не второй тап.
+    if (last != null && now.difference(last) < const Duration(milliseconds: 40)) return MascotTapStep.wait;
+    _count = last != null && now.difference(last) <= kMascotTapChain ? _count + 1 : 1;
+    _last = now;
+    if (_count >= kMascotPourTap) {
+      _count = 0;
+      _last = null;
+      return MascotTapStep.pour;
+    }
+    return _count >= 3 ? MascotTapStep.feed : MascotTapStep.wait;
+  }
+
+  /// Тапы прекратились: что показать и с чистого листа.
+  MascotTapEnd settle() {
+    final count = _count;
+    _count = 0;
+    _last = null;
+    return switch (count) {
+      0 => MascotTapEnd.none,
+      1 => MascotTapEnd.menu,
+      2 => MascotTapEnd.flip,
+      _ => MascotTapEnd.deflate,
+    };
+  }
+}
+
+/// Бросок стоит полёта: отпустили на ходу, а не просто разжали палец.
+bool mascotFlingWorth(Offset velocity) => velocity.distance > 700;
+
+/// Шаг полёта Ту после броска: летит по инерции, тормозит, о края [box]
+/// (где может стоять его середина) отскакивает и теряет скорость.
+({Offset position, Offset velocity, bool hit}) mascotFlightStep(
+  Offset position,
+  Offset velocity,
+  double dt,
+  Rect box, {
+  double friction = 2.4,
+  double bounce = 0.55,
+}) {
+  var x = position.dx + velocity.dx * dt;
+  var y = position.dy + velocity.dy * dt;
+  var vx = velocity.dx, vy = velocity.dy;
+  var hit = false;
+  if (x < box.left || x > box.right) {
+    x = x.clamp(box.left, box.right);
+    vx = -vx * bounce;
+    hit = true;
+  }
+  if (y < box.top || y > box.bottom) {
+    y = y.clamp(box.top, box.bottom);
+    vy = -vy * bounce;
+    hit = true;
+  }
+  final slow = 1 / (1 + friction * dt);
+  return (position: Offset(x, y), velocity: Offset(vx * slow, vy * slow), hit: hit);
+}

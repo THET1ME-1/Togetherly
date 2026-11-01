@@ -2,6 +2,7 @@ import 'dart:async';
 import 'storage_image.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -61,7 +62,7 @@ class ActiveMascotWidget extends StatefulWidget {
 }
 
 class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   bool _hidden = false;
   bool _onboardingShown = false;
 
@@ -82,10 +83,23 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
   // Push-debounce for Firestore writes
   Timer? _syncTimer;
 
-  /// Двойной тап по Ту — кувырок. Меню после первого касания ждёт
-  /// [kMascotDoubleTapWindow]: пришёл второй тап — меню не открывается.
-  DateTime? _lastTap;
+  /// Серия тапов по Ту ([MascotTapCombo]): меню, кувырок, раздувание тучей
+  /// и дождик. Что делать, решается, когда тапы прекратились
+  /// ([kMascotTapChain] тишины).
+  final MascotTapCombo _combo = MascotTapCombo();
   Timer? _menuTimer;
+
+  /// Насколько Ту раздуло тапами: 0 — обычный, 1 — туча перед дождём.
+  double _fed = 0;
+
+  /// Полёт после броска: Ту летит по инерции и отскакивает от краёв.
+  Ticker? _flight;
+  Offset _flightVelocity = Offset.zero;
+  Duration _flightLast = Duration.zero;
+
+  /// Сплющивание об край: 1 — удар только что, гаснет за доли секунды.
+  double _squash = 0;
+  bool _squashX = true;
 
   // Entrance animation
   late AnimationController _entranceCtrl;
@@ -116,6 +130,7 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
     _entranceCtrl.dispose();
     _syncTimer?.cancel();
     _menuTimer?.cancel();
+    _flight?.dispose();
     _svc.removeListener(_onServiceChanged);
     mascotHiddenNotifier.removeListener(_onExternalVisibilityChanged);
     super.dispose();
@@ -259,6 +274,12 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
   static const double _kTapSlop = 12;
 
   void _onScaleStart(ScaleStartDetails d) {
+    // Поймали пальцем в полёте — летит дальше уже за пальцем.
+    if (_flight != null) {
+      _flight!.dispose();
+      _flight = null;
+      _squash = 0;
+    }
     _isInteracting = true;
     _baseScale = _scale;
     _travel = 0;
@@ -300,7 +321,7 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
     _scheduleSyncTimer();
   }
 
-  void _onScaleEnd(ScaleEndDetails _) {
+  void _onScaleEnd(ScaleEndDetails d) {
     _isInteracting = false;
     final started = _gestureStartedAt;
     final tap = started != null &&
@@ -313,6 +334,55 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
       _tapped();
       return;
     }
+    // Отпустили на ходу (не щипком): Ту летит дальше по инерции.
+    final velocity = d.velocity.pixelsPerSecond;
+    if (_isCloud && d.pointerCount <= 1 && mascotFlingWorth(velocity)) {
+      _startFlight(velocity);
+      return;
+    }
+    _setAnim(MascotAnimState.drop);
+    _scheduleSync();
+  }
+
+  void _startFlight(Offset velocity) {
+    _flight?.dispose();
+    _flightVelocity = velocity;
+    _flightLast = Duration.zero;
+    _setAnim(MascotAnimState.drag);
+    _flight = createTicker(_flightTick)..start();
+  }
+
+  void _flightTick(Duration elapsed) {
+    if (!mounted) return;
+    final dt = ((elapsed - _flightLast).inMicroseconds / 1e6).clamp(0.0, 0.05);
+    _flightLast = elapsed;
+    final media = MediaQuery.of(context);
+    final half = 40.0 * _scale;
+    final box = Rect.fromLTRB(
+      half,
+      media.viewPadding.top + half,
+      media.size.width - half,
+      media.size.height - media.viewPadding.bottom - kHomeBottomNavHeight - half,
+    );
+    if (box.width <= 0 || box.height <= 0) return _endFlight();
+    final step = mascotFlightStep(_position, _flightVelocity, dt, box);
+    setState(() {
+      _position = step.position;
+      _flightVelocity = step.velocity;
+      _squash = (_squash - dt * 6).clamp(0.0, 1.0);
+      if (step.hit) {
+        // Об стенку: сплющивается вдоль удара, сильнее на быстром.
+        _squash = (step.velocity.distance / 900).clamp(0.3, 1.0);
+        _squashX = step.position.dx <= box.left || step.position.dx >= box.right;
+      }
+    });
+    if (step.hit) HapticFeedback.lightImpact();
+    if (_flightVelocity.distance < 60 && _squash == 0) _endFlight();
+  }
+
+  void _endFlight() {
+    _flight?.dispose();
+    _flight = null;
     _setAnim(MascotAnimState.drop);
     _scheduleSync();
   }
@@ -395,19 +465,35 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
       _onTap();
       return;
     }
-    final now = DateTime.now();
-    // Одно касание приходит и тапом, и концом жеста — это не второй тап.
-    if (_lastTap != null && now.difference(_lastTap!) < const Duration(milliseconds: 40)) return;
-    if (mascotDoubleTap(_lastTap, now)) {
-      _menuTimer?.cancel();
-      _lastTap = null;
-      _setAnim(MascotAnimState.grow);
-      return;
-    }
-    _lastTap = now;
-    _setAnim(MascotAnimState.drop);
     _menuTimer?.cancel();
-    _menuTimer = Timer(kMascotDoubleTapWindow, _onTap);
+    switch (_combo.tap(DateTime.now())) {
+      case MascotTapStep.pour:
+        // Десятый тап: туча проливается дождиком и сдувается сама.
+        setState(() => _fed = 0);
+        CloudEvents.instance.fire(CloudEvent.pour);
+        return;
+      case MascotTapStep.feed:
+        setState(() => _fed = _combo.fed);
+      case MascotTapStep.wait:
+        _setAnim(MascotAnimState.drop);
+    }
+    _menuTimer = Timer(kMascotTapChain, _settleTaps);
+  }
+
+  /// Тапы прекратились: один — меню, два — кувырок, серия без дождя —
+  /// сдуться обратно.
+  void _settleTaps() {
+    if (!mounted) return;
+    switch (_combo.settle()) {
+      case MascotTapEnd.menu:
+        _onTap();
+      case MascotTapEnd.flip:
+        _setAnim(MascotAnimState.grow);
+      case MascotTapEnd.deflate:
+        setState(() => _fed = 0);
+      case MascotTapEnd.none:
+        break;
+    }
   }
 
   void _onTap() {
@@ -572,14 +658,38 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
           child: SizedBox(
             width: mascotSize,
             height: mascotSize,
-            child: _MascotImage(
-              mascot: mascot,
-              service: _svc,
-              cloudMood: widget.moodOf?.call(_cloudMine),
-              anim: _anim,
-              level: MascotAnim.levelForStreak(_svc.activeStreak),
-              sleep: widget.sleepOf(mascot.id),
-              onAnimDone: () => _setAnim(MascotAnimState.live),
+            // Раздутый тапами Ту растёт от низа и темнеет тучей; об край
+            // экрана в полёте сплющивается вдоль удара.
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(end: _fed),
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutBack,
+              builder: (context, fed, child) {
+                final grow = 1 + 0.21 * fed;
+                final flat = 1 - 0.25 * _squash, wide = 1 + 0.15 * _squash;
+                final sx = grow * (_squashX ? flat : wide);
+                final sy = grow * (_squashX ? wide : flat);
+                final body = fed <= 0.001
+                    ? child!
+                    : ColorFiltered(
+                        colorFilter: ColorFilter.mode(const Color(0xFF66728A).withValues(alpha: 0.55 * fed.clamp(0.0, 1.0)), BlendMode.srcATop),
+                        child: child,
+                      );
+                return Transform(
+                  alignment: Alignment.bottomCenter,
+                  transform: Matrix4.diagonal3Values(sx, sy, 1),
+                  child: body,
+                );
+              },
+              child: _MascotImage(
+                mascot: mascot,
+                service: _svc,
+                cloudMood: widget.moodOf?.call(_cloudMine),
+                anim: _anim,
+                level: MascotAnim.levelForStreak(_svc.activeStreak),
+                sleep: widget.sleepOf(mascot.id),
+                onAnimDone: () => _setAnim(MascotAnimState.live),
+              ),
             ),
           ),
         ),

@@ -80,7 +80,7 @@ void warmCloud(String tint, {required double size, required double dpr}) {
   _warmed.add(mark);
   warmCatalogArt([
     for (final t in kCloudTints) 'cloud_idle_$t',
-    for (final scene in const ['tap', 'drag', 'miss_send', 'miss_get', 'joy', 'flip']) 'cloud_${scene}_$tint',
+    for (final scene in const ['tap', 'drag', 'miss_send', 'miss_get', 'joy', 'flip', 'pour']) 'cloud_${scene}_$tint',
     'cloud_sleep_base',
     'cloud_sick_base',
   ], side: canvas, dpr: dpr);

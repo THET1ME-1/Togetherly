@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'dart:ui' show Offset, Size;
+import 'dart:ui' show Offset, Rect, Size;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:love_app/utils/mascot_bounds.dart';
@@ -119,19 +119,73 @@ void main() {
     });
   });
 
-  group('двойной тап по Ту — кувырок', () {
-    final first = DateTime(2026, 11, 1, 12);
+  group('серия тапов по Ту', () {
+    final t0 = DateTime(2026, 11, 1, 12);
+    DateTime at(int ms) => t0.add(Duration(milliseconds: ms));
 
-    test('второй тап сразу за первым — двойной', () {
-      expect(mascotDoubleTap(first, first.add(const Duration(milliseconds: 250))), isTrue);
+    test('один тап — меню, два — кувырок', () {
+      final one = MascotTapCombo()..tap(at(0));
+      expect(one.settle(), MascotTapEnd.menu);
+      final two = MascotTapCombo()
+        ..tap(at(0))
+        ..tap(at(200));
+      expect(two.settle(), MascotTapEnd.flip);
     });
 
-    test('второй тап позже — два отдельных', () {
-      expect(mascotDoubleTap(first, first.add(const Duration(milliseconds: 600))), isFalse);
+    test('с третьего тапа подряд Ту раздувается, на десятом проливается', () {
+      final combo = MascotTapCombo();
+      final results = [for (var i = 0; i < 10; i++) combo.tap(at(i * 200))];
+      expect(results.take(2), everyElement(MascotTapStep.wait));
+      expect(results.sublist(2, 9), everyElement(MascotTapStep.feed));
+      expect(results.last, MascotTapStep.pour);
+      expect(combo.settle(), MascotTapEnd.none);
     });
 
-    test('первого тапа не было — одиночный', () {
-      expect(mascotDoubleTap(null, first), isFalse);
+    test('раздуло и бросили тапать — сдувается без дождя', () {
+      final combo = MascotTapCombo();
+      for (var i = 0; i < 5; i++) {
+        combo.tap(at(i * 200));
+      }
+      expect(combo.fed, closeTo(3 / 8, 1e-9));
+      expect(combo.settle(), MascotTapEnd.deflate);
+      expect(combo.fed, 0);
+    });
+
+    test('один и тот же тап двумя сигналами — один тап', () {
+      final combo = MascotTapCombo()
+        ..tap(at(0))
+        ..tap(at(10));
+      expect(combo.settle(), MascotTapEnd.menu);
+    });
+
+    test('пауза рвёт серию', () {
+      final combo = MascotTapCombo()..tap(at(0));
+      combo.tap(at(900));
+      expect(combo.settle(), MascotTapEnd.menu);
+    });
+  });
+
+  group('полёт Ту после броска', () {
+    const box = Rect.fromLTRB(40, 80, 360, 700);
+
+    test('летит по инерции и тормозит', () {
+      final s = mascotFlightStep(const Offset(200, 300), const Offset(800, 0), 0.016, box);
+      expect(s.position.dx, greaterThan(200));
+      expect(s.velocity.dx, lessThan(800));
+      expect(s.hit, isFalse);
+    });
+
+    test('о край отскакивает и теряет скорость', () {
+      final s = mascotFlightStep(const Offset(355, 300), const Offset(1000, 0), 0.016, box);
+      expect(s.hit, isTrue);
+      expect(s.position.dx, lessThanOrEqualTo(360));
+      expect(s.velocity.dx, lessThan(0));
+      expect(s.velocity.dx.abs(), lessThan(1000));
+    });
+
+    test('медленный бросок — сразу стоит', () {
+      expect(mascotFlingWorth(const Offset(300, 200)), isFalse);
+      expect(mascotFlingWorth(const Offset(1200, 0)), isTrue);
     });
   });
 }

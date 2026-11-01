@@ -72,7 +72,7 @@ List<String> cloudEmotionWarmUrls(List<MoodPack> packs) => [
     ];
 
 /// То, что случилось на главной и перекрывает остальную жизнь облачка.
-enum CloudEvent { missSend, missGet, shake }
+enum CloudEvent { missSend, missGet, shake, pour }
 
 /// Ключ анимации облачка в каталоге.
 ///
@@ -96,6 +96,8 @@ String cloudArt({
       return key('miss_get', tint);
     case CloudEvent.shake:
       return key('shake', 'base');
+    case CloudEvent.pour:
+      return key('pour', tint);
     case null:
       break;
   }
@@ -142,6 +144,7 @@ Duration? cloudOneShot(String art) {
     'joy': 2600,
     'flip': 2800,
     'shake': 3800,
+    'pour': 3400,
   };
   for (final e in ms.entries) {
     if (art.startsWith('cloud_${e.key}_')) return Duration(milliseconds: e.value);
