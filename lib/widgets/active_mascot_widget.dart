@@ -107,6 +107,13 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
   /// стену — Ту сплющивается к ней и пружинит обратно ([mascotSquash]).
   Duration? _hitAt;
   double _hitStrength = 0;
+
+  /// Кружок касания в точке, куда ткнули: точка, пока палец прижат, и
+  /// кольцо, которое расходится, когда его отпустили. Раньше кружок был
+  /// запечён в сцену и всегда стоял на макушке.
+  Offset? _touchPoint;
+  bool _touchHeld = false;
+  late final AnimationController _ringCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 450));
   Alignment _hitSide = Alignment.bottomCenter;
   ({double flat, double wide}) _squash = (flat: 1.0, wide: 1.0);
 
@@ -140,6 +147,7 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
     _syncTimer?.cancel();
     _menuTimer?.cancel();
     _flight?.dispose();
+    _ringCtrl.dispose();
     _svc.removeListener(_onServiceChanged);
     mascotHiddenNotifier.removeListener(_onExternalVisibilityChanged);
     super.dispose();
@@ -685,7 +693,56 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
           onScaleStart: _onScaleStart,
           onScaleUpdate: _onScaleUpdate,
           onScaleEnd: _onScaleEnd,
-          child: SizedBox(
+          child: Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: (e) {
+              if (!_isCloud) return;
+              _ringCtrl.stop();
+              setState(() {
+                _touchPoint = e.localPosition;
+                _touchHeld = true;
+              });
+            },
+            onPointerUp: (_) => _releaseTouch(),
+            onPointerCancel: (_) => _releaseTouch(),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                _mascotBody(mascot, mascotSize),
+                if (_touchPoint != null)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: AnimatedBuilder(
+                        animation: _ringCtrl,
+                        builder: (_, _) => CustomPaint(
+                          painter: _TouchMarkPainter(
+                            point: _touchPoint!,
+                            unit: mascotSize * 1.4 / 100,
+                            held: _touchHeld,
+                            ring: _ringCtrl.value,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _releaseTouch() {
+    if (!_touchHeld) return;
+    setState(() => _touchHeld = false);
+    _ringCtrl.forward(from: 0).whenComplete(() {
+      if (mounted && !_touchHeld) setState(() => _touchPoint = null);
+    });
+  }
+
+  Widget _mascotBody(Mascot mascot, double mascotSize) {
+    return SizedBox(
             width: mascotSize,
             height: mascotSize,
             // Раздутый тапами Ту растёт от низа; об край экрана в полёте
@@ -722,11 +779,43 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
                 onAnimDone: () => _setAnim(MascotAnimState.live),
               ),
             ),
-          ),
-        ),
-      ),
     );
   }
+}
+
+/// Кружок касания, как был в сцене мастерской (`touchMark` в mascot.js):
+/// белая подушечка с контуром тушью, пока палец прижат, и кольцо, которое
+/// расходится и тает после отпускания. [unit] — сотая доля холста Ту.
+class _TouchMarkPainter extends CustomPainter {
+  _TouchMarkPainter({required this.point, required this.unit, required this.held, required this.ring});
+
+  final Offset point;
+  final double unit;
+  final bool held;
+  final double ring;
+
+  static const Color _ink = Color(0xFF2A2D30);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (held) {
+      canvas.drawCircle(point, 5.5 * unit, Paint()..color = const Color(0xFFFFFFFF));
+      canvas.drawCircle(point, 5.5 * unit, Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.2 * unit
+        ..color = _ink);
+      return;
+    }
+    if (ring <= 0 || ring >= 1) return;
+    canvas.drawCircle(point, (4 + 12 * ring) * unit, Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.4 * (1 - ring * 0.6) * unit
+      ..color = _ink.withValues(alpha: 1 - ring));
+  }
+
+  @override
+  bool shouldRepaint(_TouchMarkPainter old) =>
+      old.point != point || old.held != held || old.ring != ring || old.unit != unit;
 }
 
 // ── Mascot image renderer ─────────────────────────────────────────────────────
