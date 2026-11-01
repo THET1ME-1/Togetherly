@@ -47,8 +47,11 @@ bool mascotGestureIsTap({
 }) =>
     travel <= slop && held < limit;
 
-/// Тапы дальше друг от друга, чем это, — уже не одна серия.
-const Duration kMascotTapChain = Duration(milliseconds: 350);
+/// Тапы дальше друг от друга, чем это, — уже не одна серия. Считается между
+/// отпусканиями пальца: Android даёт двойному тапу до 0,3 с от отпускания до
+/// следующего касания, плюс сам прижатый палец — с 0,35 с живой двойной тап
+/// распадался на два одиночных, и кувырка не было.
+const Duration kMascotTapChain = Duration(milliseconds: 450);
 
 /// На каком тапе серии Ту лопается.
 const int kMascotBurstTap = 10;

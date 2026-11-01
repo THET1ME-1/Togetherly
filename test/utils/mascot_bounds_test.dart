@@ -132,6 +132,13 @@ void main() {
       expect(two.settle(), MascotTapEnd.flip);
     });
 
+    test('живой двойной тап: 0,4 с между отпусканиями — всё ещё кувырок', () {
+      final two = MascotTapCombo()
+        ..tap(at(0))
+        ..tap(at(400));
+      expect(two.settle(), MascotTapEnd.flip);
+    });
+
     test('с третьего тапа подряд Ту раздувается, на десятом лопается', () {
       final combo = MascotTapCombo();
       final results = [for (var i = 0; i < 10; i++) combo.tap(at(i * 200))];
