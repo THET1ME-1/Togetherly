@@ -37,6 +37,21 @@ void main() {
     expect(MascotGuideService.instance.on, isFalse);
   });
 
+  test('свежая установка: сервер ещё не ответил, а приветствие уже с Ту', () async {
+    await MascotGuideService.instance.restore();
+    MascotGuideService.instance.who = () => (uid: null, created: null);
+    expect(MascotGuideService.instance.on, isTrue);
+  });
+
+  test('сервер выключил гида — выключен и до ответа в следующий раз', () async {
+    MascotGuideService.instance.ingest(<String, Object?>{});
+    await pumpEventQueue();
+    MascotGuideService.instance.resetForTest();
+    await MascotGuideService.instance.restore();
+    MascotGuideService.instance.who = () => (uid: null, created: null);
+    expect(MascotGuideService.instance.on, isFalse);
+  });
+
   test('вход после того, как конфиг уже лежал, тоже запоминается', () async {
     MascotGuideService.instance.who = () => (uid: null, created: null);
     MascotGuideService.instance.ingest({'uids': ['owner']});

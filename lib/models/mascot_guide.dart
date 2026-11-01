@@ -20,6 +20,10 @@ class MascotGuideConfig {
 
   static const MascotGuideConfig off = MascotGuideConfig();
 
+  /// До первого ответа сервера на свежей установке: гид включён новым, как
+  /// на сервере с 31.10.2026. Сервер ответит — его слово главнее.
+  static final MascotGuideConfig firstLaunch = MascotGuideConfig(newSince: DateTime.utc(2026, 10, 31));
+
   /// Разбирает поле с сервера. Всё непонятное — гид выключен.
   static MascotGuideConfig parse(Object? raw) {
     if (raw is! Map) return off;

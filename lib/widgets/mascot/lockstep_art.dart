@@ -6,6 +6,13 @@ import 'package:flutter/scheduler.dart';
 
 import '../../services/offline/media_view_cache.dart';
 
+/// Какие слои пора сменить на следующий кадр: те, чьё время [dues] уже
+/// подошло к [elapsed].
+List<int> lockstepDue(List<Duration> dues, Duration elapsed) => [
+      for (var i = 0; i < dues.length; i++)
+        if (elapsed >= dues[i]) i,
+    ];
+
 /// Слой анимации: файл, сторона на экране и сдвиг середины от середины
 /// холста.
 class LockstepLayer {
@@ -46,7 +53,12 @@ class _LockstepArtState extends State<LockstepArt> with SingleTickerProviderStat
   List<ui.Codec> _codecs = const [];
   List<LockstepLayer> _shownLayers = const [];
   List<ui.Image?> _frames = const [];
-  Duration _due = Duration.zero;
+
+  /// Когда каждому слою менять кадр. Часы у слоёв свои: при упаковке
+  /// одинаковые кадры подряд склеиваются в один длинный, и счёт кадров у
+  /// тела и одежды расходится (у взрыва 64 против 29). Время от начала
+  /// анимации у всех общее, поэтому слои идут кадр в кадр.
+  List<Duration> _dues = const [];
   int _generation = 0;
 
   /// Кадр, который тикер ждёт прямо сейчас, и от какой сцены. Закрыть
@@ -107,9 +119,9 @@ class _LockstepArtState extends State<LockstepArt> with SingleTickerProviderStat
       _codecs = codecs;
       _shownLayers = layers;
       _frames = [for (final f in first) f.image];
-      _due = first.first.duration;
+      _dues = [for (final f in first) _frameLength(f.duration)];
       _ticker.stop();
-      if (codecs.first.frameCount > 1) _ticker.start();
+      if (codecs.any((c) => c.frameCount > 1)) _ticker.start();
       setState(() {});
     } catch (_) {
       // Слой не скачался — Ту остаётся без одежды, но живой.
@@ -117,10 +129,21 @@ class _LockstepArtState extends State<LockstepArt> with SingleTickerProviderStat
     }
   }
 
+  static Duration _frameLength(Duration d) => d == Duration.zero ? const Duration(milliseconds: 50) : d;
+
   void _tick(Duration elapsed) {
     final codecs = _codecs;
-    if (identical(_inFlightCodecs, codecs) || elapsed < _due || codecs.isEmpty) return;
-    final step = _step(elapsed, _generation, codecs);
+    if (codecs.isEmpty || _dues.isEmpty || identical(_inFlightCodecs, codecs)) return;
+    // Отстали (приложение было свёрнуто): сдвигаем часы всех слоёв разом,
+    // чтобы не догонять пачкой и не разъехаться между собой.
+    final earliest = _dues.reduce((a, b) => a < b ? a : b);
+    if (elapsed - earliest > const Duration(milliseconds: 500)) {
+      final lag = elapsed - earliest;
+      _dues = [for (final d in _dues) d + lag];
+    }
+    final due = lockstepDue(_dues, elapsed);
+    if (due.isEmpty) return;
+    final step = _step(_generation, codecs, due);
     _inFlight = step;
     _inFlightCodecs = codecs;
     step.whenComplete(() {
@@ -131,24 +154,29 @@ class _LockstepArtState extends State<LockstepArt> with SingleTickerProviderStat
     });
   }
 
-  Future<void> _step(Duration elapsed, int gen, List<ui.Codec> codecs) async {
+  Future<void> _step(int gen, List<ui.Codec> codecs, List<int> due) async {
     try {
-      final next = await Future.wait(codecs.map((c) => c.getNextFrame()));
+      final next = await Future.wait(due.map((i) => codecs[i].getNextFrame()));
       if (!mounted || gen != _generation || !identical(codecs, _codecs)) {
         for (final f in next) {
           f.image.dispose();
         }
         return;
       }
-      final old = _frames;
-      setState(() => _frames = [for (final f in next) f.image]);
+      final frames = [..._frames];
+      final old = <ui.Image?>[];
+      final dues = [..._dues];
+      for (var k = 0; k < due.length; k++) {
+        final i = due[k];
+        old.add(frames[i]);
+        frames[i] = next[k].image;
+        dues[i] += _frameLength(next[k].duration);
+      }
+      _dues = dues;
+      setState(() => _frames = frames);
       for (final img in old) {
         img?.dispose();
       }
-      final step = next.first.duration;
-      _due += step == Duration.zero ? const Duration(milliseconds: 50) : step;
-      // Отстали (приложение было свёрнуто) — не догоняем пачкой, идём дальше.
-      if (elapsed - _due > const Duration(milliseconds: 500)) _due = elapsed;
     } catch (_) {}
   }
 

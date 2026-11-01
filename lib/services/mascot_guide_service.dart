@@ -37,7 +37,12 @@ class MascotGuideService extends ChangeNotifier {
       _remembered = prefs.getBool(_deviceKey) ?? false;
       final saved = prefs.getString(_configKey);
       // Сервер мог ответить раньше, чем прочитались настройки.
-      if (saved != null && !_fresh) _config = MascotGuideConfig.parse(jsonDecode(saved));
+      if (!_fresh) {
+        // Свежая установка: ответа сервера ещё не было ни разу, а приветствие
+        // уже на экране. Без этого первый экран у нового человека выходил без
+        // Ту — то есть гида не видел никто из новых.
+        _config = saved != null ? MascotGuideConfig.parse(jsonDecode(saved)) : MascotGuideConfig.firstLaunch;
+      }
       _rememberIfOn();
       notifyListeners();
     } catch (_) {}
