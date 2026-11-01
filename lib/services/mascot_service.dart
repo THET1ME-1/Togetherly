@@ -292,12 +292,13 @@ class MascotService extends ChangeNotifier {
     final bindGeneration = _bindGeneration;
     final defaults = DefaultMascots.asMascots();
     await _repo.saveBatch(boundGroupId, defaults);
-    // Активируем первого дефолтного ТОЛЬКО если активного ещё нет — иначе затёрли
-    // бы выбор пользователя (доп. защита к отложенному seed выше).
+    // Новой паре сразу ставится Ту (01.11.2026, прежде — Пиксик). ТОЛЬКО если
+    // активного ещё нет — иначе затёрли бы выбор пользователя (доп. защита к
+    // отложенному seed выше).
     final hasActive = (_state.activeMascotId ?? '').isNotEmpty;
-    if (defaults.isNotEmpty && !hasActive) {
+    if (!hasActive) {
       if (_groupId != boundGroupId || bindGeneration != _bindGeneration) return;
-      await setActive(defaults.first.id);
+      await setActive(kCloudMascotId);
     }
     if (_groupId == boundGroupId &&
         bindGeneration == _bindGeneration &&
