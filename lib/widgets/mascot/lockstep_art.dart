@@ -47,8 +47,15 @@ class _LockstepArtState extends State<LockstepArt> with SingleTickerProviderStat
   List<LockstepLayer> _shownLayers = const [];
   List<ui.Image?> _frames = const [];
   Duration _due = Duration.zero;
-  bool _busy = false;
   int _generation = 0;
+
+  /// Кадр, который тикер ждёт прямо сейчас, и от какой сцены. Закрыть
+  /// распаковщики посреди этого ожидания нельзя: оно так и не кончится, и
+  /// тикер встанет навсегда. Так Ту в одежде замирал намертво, если трясти
+  /// телефон: сцена менялась испугом туда и обратно, и замена попадала в
+  /// ожидание кадра.
+  Future<void>? _inFlight;
+  List<ui.Codec>? _inFlightCodecs;
 
   @override
   void initState() {
@@ -96,7 +103,7 @@ class _LockstepArtState extends State<LockstepArt> with SingleTickerProviderStat
         }
         return;
       }
-      _disposeAll();
+      _retire(_codecs, _frames);
       _codecs = codecs;
       _shownLayers = layers;
       _frames = [for (final f in first) f.image];
@@ -110,11 +117,21 @@ class _LockstepArtState extends State<LockstepArt> with SingleTickerProviderStat
     }
   }
 
-  Future<void> _tick(Duration elapsed) async {
-    if (_busy || elapsed < _due || _codecs.isEmpty) return;
-    _busy = true;
-    final gen = _generation;
+  void _tick(Duration elapsed) {
     final codecs = _codecs;
+    if (identical(_inFlightCodecs, codecs) || elapsed < _due || codecs.isEmpty) return;
+    final step = _step(elapsed, _generation, codecs);
+    _inFlight = step;
+    _inFlightCodecs = codecs;
+    step.whenComplete(() {
+      if (identical(_inFlight, step)) {
+        _inFlight = null;
+        _inFlightCodecs = null;
+      }
+    });
+  }
+
+  Future<void> _step(Duration elapsed, int gen, List<ui.Codec> codecs) async {
     try {
       final next = await Future.wait(codecs.map((c) => c.getNextFrame()));
       if (!mounted || gen != _generation || !identical(codecs, _codecs)) {
@@ -132,28 +149,36 @@ class _LockstepArtState extends State<LockstepArt> with SingleTickerProviderStat
       _due += step == Duration.zero ? const Duration(milliseconds: 50) : step;
       // Отстали (приложение было свёрнуто) — не догоняем пачкой, идём дальше.
       if (elapsed - _due > const Duration(milliseconds: 500)) _due = elapsed;
-    } catch (_) {
-    } finally {
-      _busy = false;
-    }
+    } catch (_) {}
   }
 
-  void _disposeAll() {
-    for (final img in _frames) {
-      img?.dispose();
+  /// Убрать прежнюю сцену. Если тикер как раз ждёт от неё кадр, закрыть
+  /// после того, как кадр придёт.
+  void _retire(List<ui.Codec> codecs, List<ui.Image?> frames) {
+    void close() {
+      for (final img in frames) {
+        img?.dispose();
+      }
+      for (final c in codecs) {
+        c.dispose();
+      }
     }
-    for (final c in _codecs) {
-      c.dispose();
+
+    final pending = _inFlight;
+    if (pending == null) {
+      close();
+    } else {
+      pending.whenComplete(close);
     }
-    _frames = const [];
-    _codecs = const [];
   }
 
   @override
   void dispose() {
     _generation++;
     _ticker.dispose();
-    _disposeAll();
+    _retire(_codecs, _frames);
+    _frames = const [];
+    _codecs = const [];
     super.dispose();
   }
 

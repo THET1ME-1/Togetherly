@@ -10,7 +10,9 @@ import '../services/plus_service.dart';
 import '../services/pocketbase_service.dart';
 import '../services/rewarded_ad_service.dart';
 import '../services/tu_wear_service.dart';
+import '../widgets/app_sheet.dart';
 import '../widgets/common/ad_result.dart';
+import '../widgets/common/coin_image.dart';
 import '../widgets/common/guide_mascot.dart';
 import '../widgets/mascot/cloud_mascot_view.dart';
 
@@ -64,7 +66,7 @@ class _TuWardrobeScreenState extends State<TuWardrobeScreen> {
                 Padding(
                   padding: const EdgeInsets.only(right: 16),
                   child: Chip(
-                    avatar: Icon(Icons.toll_rounded, size: 18, color: cs.onSecondaryContainer),
+                    avatar: const CoinImage(side: 22),
                     label: Text('${TuWearService.instance.coins}'),
                     backgroundColor: cs.secondaryContainer,
                     labelStyle: TextStyle(color: cs.onSecondaryContainer, fontWeight: FontWeight.w600),
@@ -164,7 +166,8 @@ class _TuWardrobeScreenState extends State<TuWardrobeScreen> {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (!owned) Icon(_sourceIcon(item), size: 14, color: cs.onSurfaceVariant),
+                  if (!owned && item.src == 'coins') const CoinImage(side: 16, animated: false),
+                  if (!owned && item.src != 'coins') Icon(_sourceIcon(item), size: 14, color: cs.onSurfaceVariant),
                   if (!owned) const SizedBox(width: 3),
                   Flexible(
                     child: Text(
@@ -184,7 +187,6 @@ class _TuWardrobeScreenState extends State<TuWardrobeScreen> {
   }
 
   IconData _sourceIcon(TuWear item) => switch (item.src) {
-        'coins' => Icons.toll_rounded,
         'ad' => Icons.play_circle_outline_rounded,
         _ => Icons.lock_outline,
       };
@@ -194,6 +196,99 @@ class _TuWardrobeScreenState extends State<TuWardrobeScreen> {
         'ad' => PlusService.instance.active ? ruEn('Забрать', 'Get') : ruEn('За ролик', 'Watch ad'),
         _ => ruEn('Из сундука', 'From chest'),
       };
+
+  /// Лист покупки, как у тем: вещь крупно, цена монетой TY и баланс, кнопка
+  /// покупки. Без монет кнопка неактивна, а под ценой сказано почему.
+  Future<bool?> _confirmBuy(TuWear item, String name) {
+    final cs = Theme.of(context).colorScheme;
+    final s = LocaleService.current;
+    final coins = TuWearService.instance.coins;
+    final byCoins = item.src == 'coins';
+    final canAfford = !byCoins || coins >= item.price;
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final iconUrl = item.iconKey.isEmpty ? null : catalogArtUrl(item.iconKey, artDecodeBucket(120 * dpr));
+    final button = byCoins
+        ? ruEn('Купить', 'Buy')
+        : PlusService.instance.active
+            ? ruEn('Забрать', 'Get')
+            : ruEn('Смотреть ролик', 'Watch ad');
+    return showAppSheet<bool>(
+      context,
+      background: cs.surfaceContainer,
+      builder: (ctx) => SheetScaffold(
+        title: name,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                height: 140,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(color: cs.surfaceContainerHigh, borderRadius: BorderRadius.circular(24)),
+                child: iconUrl == null
+                    ? Icon(Icons.checkroom, size: 56, color: cs.onSurfaceVariant)
+                    : catalogArtImage(iconUrl, side: 120, decode: artDecodeBucket(120 * dpr)),
+              ),
+              if (byCoins) ...[
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                  decoration: BoxDecoration(color: cs.surfaceContainerHigh, borderRadius: BorderRadius.circular(20)),
+                  child: Row(
+                    children: [
+                      const CoinImage(side: 28),
+                      const SizedBox(width: 10),
+                      Text(
+                        '${item.price}',
+                        style: TextStyle(fontFamily: 'Unbounded', fontSize: 22, fontWeight: FontWeight.w700, color: cs.onSurface),
+                      ),
+                      const Spacer(),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(s.coinBalance, style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
+                          Text(
+                            '$coins',
+                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: canAfford ? cs.onSurface : cs.error),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              if (!canAfford) ...[
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Icon(Icons.info_outline_rounded, size: 18, color: cs.error),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(s.notEnoughCoins, style: TextStyle(fontSize: 13, color: cs.error))),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 18),
+              SizedBox(
+                height: 56,
+                child: FilledButton.icon(
+                  onPressed: canAfford ? () => Navigator.pop(ctx, true) : null,
+                  icon: byCoins ? const CoinImage(side: 22, animated: false) : const Icon(Icons.play_circle_outline_rounded, size: 20),
+                  label: Text(button),
+                  style: FilledButton.styleFrom(
+                    shape: const StadiumBorder(),
+                    textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   void _say(String text) {
     ScaffoldMessenger.of(context)
@@ -213,11 +308,7 @@ class _TuWardrobeScreenState extends State<TuWardrobeScreen> {
     if (_busy) return;
     final name = _ru ? item.nameRu : item.nameEn;
     final service = TuWearService.instance;
-    if (item.src == 'coins' && service.coins < item.price) {
-      _say(ruEn('Не хватает монет: нужно ${item.price}, у вас ${service.coins}',
-          'Not enough coins: ${item.price} needed, you have ${service.coins}'));
-      return;
-    }
+    if (await _confirmBuy(item, name) != true || !mounted) return;
     setState(() => _busy = true);
     try {
       final byAd = item.src == 'ad';
