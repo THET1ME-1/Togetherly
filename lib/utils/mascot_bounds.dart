@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' show Offset, Rect, Size;
 
 /// Держит маскота в пределах экрана.
@@ -125,4 +126,14 @@ bool mascotFlingWorth(Offset velocity) => velocity.distance > 700;
   }
   final slow = 1 / (1 + friction * dt);
   return (position: Offset(x, y), velocity: Offset(vx * slow, vy * slow), hit: hit);
+}
+
+/// Форма Ту после удара о стену: [flat] — вдоль удара, [wide] — поперёк.
+/// В миг удара сплющен почти вдвое, потом пружинит с колыханием и за
+/// полсекунды успокаивается. [strength] 0..1 — сила удара.
+({double flat, double wide}) mascotSquash({required double sinceHit, required double strength}) {
+  if (sinceHit < 0 || strength <= 0) return (flat: 1.0, wide: 1.0);
+  final wobble = math.exp(-sinceHit * 9) * math.cos(sinceHit * 26);
+  final k = strength.clamp(0.0, 1.0);
+  return (flat: 1 - 0.45 * k * wobble, wide: 1 + 0.28 * k * wobble);
 }

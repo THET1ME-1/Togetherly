@@ -103,9 +103,12 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
   Duration _flightLast = Duration.zero;
   int _flightHits = 0;
 
-  /// Сплющивание об край: 1 — удар только что, гаснет за доли секунды.
-  double _squash = 0;
-  bool _squashX = true;
+  /// Удар о стену: когда был (время полёта), насколько сильный и о какую
+  /// стену — Ту сплющивается к ней и пружинит обратно ([mascotSquash]).
+  Duration? _hitAt;
+  double _hitStrength = 0;
+  Alignment _hitSide = Alignment.bottomCenter;
+  ({double flat, double wide}) _squash = (flat: 1.0, wide: 1.0);
 
   // Entrance animation
   late AnimationController _entranceCtrl;
@@ -284,7 +287,8 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
     if (_flight != null) {
       _flight!.dispose();
       _flight = null;
-      _squash = 0;
+      _hitAt = null;
+      _squash = (flat: 1.0, wide: 1.0);
     }
     _isInteracting = true;
     _baseScale = _scale;
@@ -372,27 +376,42 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
       media.size.height - media.viewPadding.bottom - kHomeBottomNavHeight - half,
     );
     if (box.width <= 0 || box.height <= 0) return _endFlight();
+    final before = _flightVelocity;
     final step = mascotFlightStep(_position, _flightVelocity, dt, box);
     setState(() {
       _position = step.position;
       _flightVelocity = step.velocity;
-      _squash = (_squash - dt * 6).clamp(0.0, 1.0);
       if (step.hit) {
-        // Об стенку: сплющивается вдоль удара, сильнее на быстром.
-        _squash = (step.velocity.distance / 900).clamp(0.3, 1.0);
-        _squashX = step.position.dx <= box.left || step.position.dx >= box.right;
+        // Об стенку: прижимается к ней и сплющивается, сильнее на быстром.
+        _hitAt = elapsed;
+        _hitStrength = (before.distance / 1400).clamp(0.4, 1.0);
+        final p = step.position;
+        _hitSide = p.dx <= box.left
+            ? Alignment.centerLeft
+            : p.dx >= box.right
+                ? Alignment.centerRight
+                : p.dy <= box.top
+                    ? Alignment.topCenter
+                    : Alignment.bottomCenter;
       }
+      final hitAt = _hitAt;
+      _squash = hitAt == null
+          ? (flat: 1.0, wide: 1.0)
+          : mascotSquash(sinceHit: (elapsed - hitAt).inMicroseconds / 1e6, strength: _hitStrength);
     });
     if (step.hit) {
       _flightHits++;
       HapticFeedback.lightImpact();
     }
-    if (_flightVelocity.distance < 60 && _squash == 0) _endFlight();
+    final settled = _hitAt == null || elapsed - _hitAt! > const Duration(milliseconds: 600);
+    if (_flightVelocity.distance < 60 && settled) _endFlight();
   }
 
   void _endFlight() {
     _flight?.dispose();
     _flight = null;
+    _hitAt = null;
+    if (mounted) setState(() => _squash = (flat: 1.0, wide: 1.0));
     // Бился о стены — приземляется оглушённым (спиральные глаза встряски),
     // а не довольным, как после обычного касания.
     if (_flightHits > 0) {
@@ -683,13 +702,18 @@ class _ActiveMascotWidgetState extends State<ActiveMascotWidget>
               curve: Curves.easeOutBack,
               builder: (context, fed, child) {
                 final grow = 1 + 0.21 * fed;
-                final flat = 1 - 0.25 * _squash, wide = 1 + 0.15 * _squash;
-                final sx = grow * (_squashX ? flat : wide);
-                final sy = grow * (_squashX ? wide : flat);
+                // Сплющивание идёт от стены удара: Ту прижат к ней.
+                final sideways = _hitSide.y == 0;
+                final sx = sideways ? _squash.flat : _squash.wide;
+                final sy = sideways ? _squash.wide : _squash.flat;
                 return Transform(
                   alignment: Alignment.bottomCenter,
-                  transform: Matrix4.diagonal3Values(sx, sy, 1),
-                  child: child,
+                  transform: Matrix4.diagonal3Values(grow, grow, 1),
+                  child: Transform(
+                    alignment: _hitSide,
+                    transform: Matrix4.diagonal3Values(sx, sy, 1),
+                    child: child,
+                  ),
                 );
               },
               child: _MascotImage(

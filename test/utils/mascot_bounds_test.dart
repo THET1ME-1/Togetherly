@@ -188,4 +188,24 @@ void main() {
       expect(mascotFlingWorth(const Offset(1200, 0)), isTrue);
     });
   });
+
+  group('удар Ту о стену', () {
+    test('в момент удара сильно сплющен вдоль удара и раздат поперёк', () {
+      final s = mascotSquash(sinceHit: 0, strength: 1);
+      expect(s.flat, lessThan(0.65));
+      expect(s.wide, greaterThan(1.2));
+    });
+
+    test('пружинит обратно с колыханием и успокаивается', () {
+      final back = mascotSquash(sinceHit: 0.1, strength: 1);
+      expect(back.flat, greaterThan(1), reason: 'отскок дальше обычного');
+      final calm = mascotSquash(sinceHit: 0.8, strength: 1);
+      expect((calm.flat - 1).abs(), lessThan(0.02));
+      expect((calm.wide - 1).abs(), lessThan(0.02));
+    });
+
+    test('слабый удар — слабее сплющивание', () {
+      expect(mascotSquash(sinceHit: 0, strength: 0.3).flat, greaterThan(mascotSquash(sinceHit: 0, strength: 1).flat));
+    });
+  });
 }
