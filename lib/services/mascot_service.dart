@@ -4,7 +4,6 @@ import '../dict_strings.dart' show ruEn;
 import '../models/cloud_mascot.dart';
 import '../models/mascot.dart';
 import '../models/streak_restore.dart';
-import 'mascot_guide_service.dart';
 import '../models/mascot_sleep.dart';
 import '../models/mascot_widget_data.dart';
 import 'catalog_service.dart';
