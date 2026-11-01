@@ -1700,7 +1700,9 @@ async def _flush_counters_pg(deltas: dict) -> None:
     отметка = now_pb()
     async with pg.acquire() as c:
         async with c.transaction():
-            for (gid, field), d in deltas.items():
+            # Сбрасывает каждый рабочий процесс, и строки одних пар идут у всех
+            # в одном порядке: так процессы не встанут друг другу поперёк.
+            for (gid, field), d in sorted(deltas.items()):
                 # updated двигаем намеренно: по нему зеркало понимает, какие
                 # пары нести обратно в SQLite, а счётчики нужны отчётам.
                 await c.execute(
@@ -4832,22 +4834,47 @@ async def _startup():
             "SELECT options FROM _collections WHERE name = 'users'"
         ).fetchone()[0]
     )["authToken"]["secret"]
-    if _claim_background_role():
+    роль = _claim_background_role()
+    if роль:
         log.info("этот процесс ведёт фоновые задачи (пары: %s)", GROUPS_SRC)
-        asyncio.get_running_loop().create_task(_counter_worker())
-        asyncio.get_running_loop().create_task(_presence_mirror_worker())
-        asyncio.get_running_loop().create_task(_зеркало_воркер())
-        asyncio.get_running_loop().create_task(_deliver_worker())
-        asyncio.get_running_loop().create_task(_app_config_worker())
-        asyncio.get_running_loop().create_task(_plus_flag_worker())
+    работники = {
+        "счётчики": _counter_worker,
+        "присутствие": _presence_mirror_worker,
+        "зеркало пар": _зеркало_воркер,
+        "к утру": _deliver_worker,
+        "настройки": _app_config_worker,
+        "плюс": _plus_flag_worker,
+    }
+    for задача in _задачи_процесса(фоновая_роль=роль, пары=GROUPS_SRC):
+        asyncio.get_running_loop().create_task(работники[задача]())
+
+
+def _задачи_процесса(фоновая_роль: bool, пары: str) -> list[str]:
+    """Какие фоновые задачи запускает этот рабочий процесс.
+
+    Прибавки счётчиков пары копит каждый процесс в своём словаре, поэтому и
+    сбрасывать их должен каждый. Пока сброс вёл один процесс с фоновой ролью,
+    прибавки остальных не доходили до базы никогда (с 14.08 по 01.11.2026):
+    в профиле стоял ноль воспоминаний, достижения не открывались. Исключение —
+    пары в SQLite: там посторонний коммит протухает снапшоты PocketBase, и
+    сброс остаётся за одним процессом. Остальное фоновое ведёт один."""
+    задачи = []
+    if фоновая_роль or пары == "pg":
+        задачи.append("счётчики")
+    if фоновая_роль:
+        задачи += ["присутствие", "зеркало пар", "к утру", "настройки", "плюс"]
+    return задачи
 
 
 @app.on_event("shutdown")
 async def _shutdown():
     if _counter_deltas:
         try:
-            _flush_counters_sync(dict(_counter_deltas))
-        except sqlite3.Error:
+            if GROUPS_SRC == "pg":
+                await _flush_counters_pg(dict(_counter_deltas))
+            else:
+                _flush_counters_sync(dict(_counter_deltas))
+        except (sqlite3.Error, asyncpg.PostgresError, OSError):
             pass
     await pg.close()
     await cent_client.aclose()
