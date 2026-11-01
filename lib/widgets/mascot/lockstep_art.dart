@@ -13,6 +13,20 @@ List<int> lockstepDue(List<Duration> dues, Duration elapsed) => [
         if (elapsed >= dues[i]) i,
     ];
 
+/// Доиграна ли сцена: каждый живой слой показал все свои кадры. Неподвижный
+/// слой (один кадр) конца не ждёт.
+bool lockstepPlayedThrough({required List<int> shown, required List<int> frames}) {
+  for (var i = 0; i < frames.length; i++) {
+    if (frames[i] > 1 && shown[i] < frames[i]) return false;
+  }
+  return true;
+}
+
+/// Виден ли слой [box] (в координатах экрана) на экране [screen]. За краем
+/// кадры не разжимаются: превью Ту в блоке маскота ниже экрана делило
+/// разжатие с летающим Ту, и кадры обоих шли медленнее часов.
+bool lockstepOnScreen(Rect box, Size screen) => box.overlaps(Offset.zero & screen);
+
 /// Слой анимации: файл, сторона на экране и сдвиг середины от середины
 /// холста.
 class LockstepLayer {
@@ -36,13 +50,26 @@ class LockstepLayer {
 /// Пока слои не готовы, стоит [placeholder] (сам Ту без одежды); при смене
 /// сцены до готовности новых кадров стоят прежние, без мигания.
 class LockstepArt extends StatefulWidget {
-  const LockstepArt({super.key, required this.layers, required this.canvas, required this.decode, required this.placeholder});
+  const LockstepArt({
+    super.key,
+    required this.layers,
+    required this.canvas,
+    required this.decode,
+    required this.placeholder,
+    this.onPlayedThrough,
+  });
 
   /// Снизу вверх.
   final List<LockstepLayer> layers;
   final double canvas;
   final int decode;
   final Widget placeholder;
+
+  /// Слои показали сцену до конца, один раз за сцену; в ответ — какие
+  /// слои. По этому одетый Ту заканчивает разовую сцену: три слоя
+  /// разжимаются медленнее одного, и по часам кувырок обрывался раньше
+  /// переворота (видео владельца, сборка 263).
+  final ValueChanged<List<LockstepLayer>>? onPlayedThrough;
 
   @override
   State<LockstepArt> createState() => _LockstepArtState();
@@ -60,6 +87,11 @@ class _LockstepArtState extends State<LockstepArt> with SingleTickerProviderStat
   /// анимации у всех общее, поэтому слои идут кадр в кадр.
   List<Duration> _dues = const [];
   int _generation = 0;
+
+  /// Сколько кадров показал каждый слой с начала сцены, и сказали ли уже,
+  /// что сцена доиграна.
+  List<int> _shownCount = const [];
+  bool _playedThrough = false;
 
   /// Кадр, который тикер ждёт прямо сейчас, и от какой сцены. Закрыть
   /// распаковщики посреди этого ожидания нельзя: оно так и не кончится, и
@@ -120,6 +152,8 @@ class _LockstepArtState extends State<LockstepArt> with SingleTickerProviderStat
       _shownLayers = layers;
       _frames = [for (final f in first) f.image];
       _dues = [for (final f in first) _frameLength(f.duration)];
+      _shownCount = [for (final _ in codecs) 1];
+      _playedThrough = false;
       _ticker.stop();
       if (codecs.any((c) => c.frameCount > 1)) _ticker.start();
       setState(() {});
@@ -142,7 +176,7 @@ class _LockstepArtState extends State<LockstepArt> with SingleTickerProviderStat
       _dues = [for (final d in _dues) d + lag];
     }
     final due = lockstepDue(_dues, elapsed);
-    if (due.isEmpty) return;
+    if (due.isEmpty || !_onScreen()) return;
     final step = _step(_generation, codecs, due);
     _inFlight = step;
     _inFlightCodecs = codecs;
@@ -171,13 +205,29 @@ class _LockstepArtState extends State<LockstepArt> with SingleTickerProviderStat
         old.add(frames[i]);
         frames[i] = next[k].image;
         dues[i] += _frameLength(next[k].duration);
+        _shownCount[i]++;
       }
       _dues = dues;
       setState(() => _frames = frames);
       for (final img in old) {
         img?.dispose();
       }
+      if (!_playedThrough && lockstepPlayedThrough(shown: _shownCount, frames: [for (final c in codecs) c.frameCount])) {
+        _playedThrough = true;
+        widget.onPlayedThrough?.call(_shownLayers);
+      }
     } catch (_) {}
+  }
+
+  /// Виден ли Ту на экране. За краем кадры не разжимаем: разжатие у всех
+  /// картинок одно, и превью в блоке маскота ниже экрана отнимало его у
+  /// летающего Ту. Часы при этом идут, и вернувшийся на экран слой
+  /// подхватит их сдвигом, как после свёрнутого приложения.
+  bool _onScreen() {
+    final box = context.findRenderObject();
+    if (box is! RenderBox || !box.hasSize || !box.attached) return true;
+    final topLeft = box.localToGlobal(Offset.zero);
+    return lockstepOnScreen(topLeft & box.size, MediaQuery.sizeOf(context));
   }
 
   /// Убрать прежнюю сцену. Если тикер как раз ждёт от неё кадр, закрыть

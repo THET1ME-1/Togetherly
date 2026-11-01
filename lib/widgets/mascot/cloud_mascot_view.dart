@@ -139,6 +139,9 @@ final Set<String> _warmed = {};
 /// само облачко было размером с прежнего маскота.
 const double _kCloudCanvas = 1.4;
 
+/// Чья разовая сцена: позы (касание, кувырок) или события (встряска, взрыв).
+enum _OneShotSlot { pose, event }
+
 /// Облачко на главной и в галерее. Сцену выбирает `cloudArt`, сама анимация
 /// приходит из каталога: рисунок не перерисовывается в приложении.
 class CloudMascotView extends StatefulWidget {
@@ -180,6 +183,16 @@ class _CloudMascotViewState extends State<CloudMascotView> {
   Timer? _oneShotTimer;
   CloudShakeWatch? _shake;
 
+  /// Сцена, которую сейчас рисуют слои одежды, и последняя, которую они
+  /// доиграли до конца.
+  String? _layeredArt;
+  String? _playedArt;
+
+  /// Разовые сцены, которые по часам кончились, а одетый Ту их ещё
+  /// доигрывает: своя у позы и своя у события, что сделать, когда доиграет.
+  final Map<_OneShotSlot, ({String art, VoidCallback done})> _waitingPlay = {};
+  final List<Timer> _capTimers = [];
+
   @override
   void initState() {
     super.initState();
@@ -202,6 +215,9 @@ class _CloudMascotViewState extends State<CloudMascotView> {
     _shake?.stop();
     _eventTimer?.cancel();
     _oneShotTimer?.cancel();
+    for (final t in _capTimers) {
+      t.cancel();
+    }
     super.dispose();
   }
 
@@ -211,7 +227,7 @@ class _CloudMascotViewState extends State<CloudMascotView> {
     setState(() => _event = event);
     _eventTimer?.cancel();
     final art = cloudArt(anim: widget.anim, tint: widget.tint, event: event);
-    _eventTimer = Timer(cloudOneShot(art) ?? const Duration(seconds: 3), () {
+    _eventTimer = _oneShotEnd(_OneShotSlot.event, art, cloudOneShot(art) ?? const Duration(seconds: 3), () {
       if (mounted) setState(() => _event = null);
     });
   }
@@ -220,9 +236,43 @@ class _CloudMascotViewState extends State<CloudMascotView> {
   /// возвращает облачко к обычной жизни.
   void _armOneShot() {
     _oneShotTimer?.cancel();
-    final length = cloudOneShot(cloudArt(anim: widget.anim, tint: widget.tint));
+    _waitingPlay.remove(_OneShotSlot.pose);
+    final art = cloudArt(anim: widget.anim, tint: widget.tint);
+    final length = cloudOneShot(art);
     if (length == null) return;
-    _oneShotTimer = Timer(length, () => widget.onOneShotDone?.call());
+    _oneShotTimer = _oneShotEnd(_OneShotSlot.pose, art, length, () => widget.onOneShotDone?.call());
+  }
+
+  /// Конец разовой сцены [art]. Голый Ту заканчивает её по часам. Одетого
+  /// рисуют три слоя, и на медленном телефоне их кадры идут медленнее часов:
+  /// по часам кувырок обрывался раньше переворота (видео владельца, сборка
+  /// 263). Поэтому одетый ждёт, пока слои доиграют сцену, но не дольше
+  /// тройной её длины.
+  Timer _oneShotEnd(_OneShotSlot slot, String art, Duration length, VoidCallback done) {
+    _waitingPlay.remove(slot);
+    if (_playedArt == art) _playedArt = null;
+    return Timer(length, () {
+      if (!mounted) return;
+      if (_layeredArt != art || _playedArt == art) return done();
+      final waiting = (art: art, done: done);
+      _waitingPlay[slot] = waiting;
+      _capTimers.add(Timer(length * 2, () {
+        if (!mounted || !identical(_waitingPlay[slot], waiting)) return;
+        _waitingPlay.remove(slot);
+        done();
+      }));
+    });
+  }
+
+  /// Слои одежды доиграли сцену [art] до конца.
+  void _played(String art) {
+    _playedArt = art;
+    for (final slot in _OneShotSlot.values) {
+      final waiting = _waitingPlay[slot];
+      if (waiting == null || waiting.art != art) continue;
+      _waitingPlay.remove(slot);
+      waiting.done();
+    }
   }
 
   @override
@@ -288,22 +338,35 @@ class _CloudMascotViewState extends State<CloudMascotView> {
     // Одежда Ту: слои той же сцены под и над ним, кадр в кадр. Сцены, для
     // которой вещь не запечена, просто нет в карте — Ту в ней без вещи.
     final wear = TuWearService.instance.layersFor(art: art, emotion: emotion != null ? widget.mood : null);
-    if (url == null || (wear.back.isEmpty && wear.front.isEmpty)) return bare;
+    final layered = url != null && (wear.back.isNotEmpty || wear.front.isNotEmpty);
+    _layeredArt = layered ? art : null;
+    if (!layered) return bare;
     final decode = artDecodeBucket(canvas * dpr);
     LockstepLayer? layer(String key) {
       final u = catalogArtUrl(key, decode);
       return u == null ? null : LockstepLayer(u, side: canvas);
     }
 
+    final body = LockstepLayer(url, side: side, shift: shift);
     final layers = <LockstepLayer>[
       for (final k in wear.back) ?layer(k),
-      LockstepLayer(url, side: side, shift: shift),
+      body,
       for (final k in wear.front) ?layer(k),
     ];
     return OverflowBox(
       maxWidth: canvas,
       maxHeight: canvas,
-      child: LockstepArt(layers: layers, canvas: canvas, decode: decode, placeholder: bare),
+      child: LockstepArt(
+        layers: layers,
+        canvas: canvas,
+        decode: decode,
+        placeholder: bare,
+        // Доиграли могут и прежние слои, пока новые качаются: засчитываем
+        // только ту сцену, чьё тело в доигравших слоях.
+        onPlayedThrough: (shown) {
+          if (shown.contains(body)) _played(art);
+        },
+      ),
     );
   }
 }
