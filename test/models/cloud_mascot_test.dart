@@ -128,25 +128,50 @@ void main() {
     expect(scenes, containsAll(['cloud_idle_joy', 'cloud_tap_joy', 'cloud_flip_joy', 'cloud_burst_joy', 'cloud_shake_base']));
   });
 
-  group('тряска с выбранной эмоцией', () {
+  // Сцены рук и встряски в цвете выбранной эмоции: без них серый Ту «Без
+  // эмоций» на касании становился бирюзовым — цвет брался от настроения, а
+  // не от самой эмоции (видео владельца, сборка 264).
+  group('сцены с выбранной эмоцией', () {
     bool all(String _) => true;
     bool none(String _) => false;
 
-    test('Ту трясётся в цвете своей эмоции', () {
-      expect(cloudEmotionShakeArt(mood: 'kiss', hasArt: all), 'cloud_shake_emo_kiss');
+    test('тряска, касание, кувырок, полёт и взрыв — в цвете эмоции', () {
+      expect(cloudEmotionSceneArt(art: 'cloud_shake_base', mood: 'kiss', hasArt: all), 'cloud_shake_emo_kiss');
+      expect(cloudEmotionSceneArt(art: 'cloud_tap_calm', mood: 'no_emotion', hasArt: all), 'cloud_tap_emo_no_emotion');
+      expect(cloudEmotionSceneArt(art: 'cloud_flip_love', mood: 'kiss', hasArt: all), 'cloud_flip_emo_kiss');
+      expect(cloudEmotionSceneArt(art: 'cloud_drag_sad', mood: 'very_sad', hasArt: all), 'cloud_drag_emo_very_sad');
+      expect(cloudEmotionSceneArt(art: 'cloud_burst_angry', mood: 'devil', hasArt: all), 'cloud_burst_emo_devil');
     });
 
-    test('без эмоции или без запечённой тряски — обычная тряска', () {
-      expect(cloudEmotionShakeArt(mood: null, hasArt: all), isNull);
-      expect(cloudEmotionShakeArt(mood: 'kiss', hasArt: none), isNull);
+    test('покой и «Скучаю» остаются своими: покой и так играет эмоцию', () {
+      expect(cloudEmotionSceneArt(art: 'cloud_idle_love', mood: 'kiss', hasArt: all), isNull);
+      expect(cloudEmotionSceneArt(art: 'cloud_miss_send_sad', mood: 'sad', hasArt: all), isNull);
     });
 
-    test('одежда на тряске эмоции — слои обычной тряски: движение то же', () {
+    test('без эмоции или без запечённой сцены — обычная сцена', () {
+      expect(cloudEmotionSceneArt(art: 'cloud_tap_base', mood: null, hasArt: all), isNull);
+      expect(cloudEmotionSceneArt(art: 'cloud_tap_base', mood: 'kiss', hasArt: none), isNull);
+    });
+
+    test('одежда на сцене эмоции — слои обычной сцены: движение то же', () {
       expect(wearSceneOf(art: 'cloud_shake_emo_kiss', emotion: null), 'shake_base');
+      expect(wearSceneOf(art: 'cloud_tap_emo_kiss', emotion: null), 'tap_base');
+      expect(wearSceneOf(art: 'cloud_flip_emo_kiss', emotion: null), 'flip_base');
+      expect(wearSceneOf(art: 'cloud_drag_emo_kiss', emotion: null), 'drag_base');
+      expect(wearSceneOf(art: 'cloud_burst_emo_kiss', emotion: null), 'burst_base');
     });
 
-    test('длина та же, что у обычной тряски', () {
+    test('длина та же, что у обычной сцены', () {
       expect(cloudOneShot('cloud_shake_emo_kiss'), cloudOneShot('cloud_shake_base'));
+      expect(cloudOneShot('cloud_tap_emo_kiss'), cloudOneShot('cloud_tap_base'));
+      expect(cloudOneShot('cloud_flip_emo_kiss'), cloudOneShot('cloud_flip_base'));
+      expect(cloudOneShot('cloud_burst_emo_kiss'), cloudOneShot('cloud_burst_base'));
+      expect(cloudOneShot('cloud_drag_emo_kiss'), isNull);
+    });
+
+    test('заранее прогреваются сцены эмоции, которая выбрана', () {
+      expect(cloudEmotionScenesFor('kiss'), ['cloud_shake_emo_kiss', 'cloud_tap_emo_kiss', 'cloud_flip_emo_kiss', 'cloud_drag_emo_kiss', 'cloud_burst_emo_kiss']);
+      expect(cloudEmotionScenesFor(null), isEmpty);
     });
   });
 }

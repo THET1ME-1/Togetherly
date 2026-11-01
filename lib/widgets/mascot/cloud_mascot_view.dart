@@ -71,14 +71,20 @@ class CloudShakeWatch {
 
 /// Готовит сцены облачка заранее, чтобы касание, полёт за пальцем и смена
 /// настроения шли сразу, а не после загрузки: покой во всех цветах и все
-/// реакции в цвете [tint]. Повторный вызов с тем же цветом и размером ничего
-/// не делает.
-void warmCloud(String tint, {required double size, required double dpr}) {
+/// реакции в цвете [tint] и в цвете выбранной эмоции [mood]. Повторный вызов
+/// с тем же цветом, эмоцией и размером ничего не делает.
+void warmCloud(String tint, {String? mood, required double size, required double dpr}) {
   final canvas = size * _kCloudCanvas;
-  final mark = '$tint@${artDecodeBucket(canvas * dpr)}';
+  // Каталог может доехать позже первого вызова: число найденных сцен эмоции
+  // входит в отметку, и с каталогом прогрев повторится.
+  final emotionScenes = [
+    for (final key in cloudEmotionScenesFor(mood))
+      if (CatalogService.instance.giftArt(key) != null) key,
+  ];
+  final mark = '$tint@$mood@${emotionScenes.length}@${artDecodeBucket(canvas * dpr)}';
   if (_warmed.contains(mark)) return;
   _warmed.add(mark);
-  final scenes = cloudScenesFor(tint);
+  final scenes = [...cloudScenesFor(tint), ...emotionScenes];
   warmCatalogArt([
     for (final t in kCloudTints) 'cloud_idle_$t',
     ...scenes,
@@ -279,7 +285,7 @@ class _CloudMascotViewState extends State<CloudMascotView> {
   Widget build(BuildContext context) {
     final dpr = MediaQuery.devicePixelRatioOf(context);
     if (widget.listenEvents) {
-      warmCloud(widget.tint, size: widget.size, dpr: dpr);
+      warmCloud(widget.tint, mood: widget.mood, size: widget.size, dpr: dpr);
       warmCloudEmotions(size: widget.size, dpr: dpr);
     }
     return ListenableBuilder(
@@ -301,17 +307,15 @@ class _CloudMascotViewState extends State<CloudMascotView> {
     final double side;
     Offset shift = Offset.zero;
     var art = cloudArt(anim: widget.anim, tint: widget.tint, night: widget.night, sick: widget.sick, event: _event);
-    // Встряска с выбранной эмоцией: тот же испуг, но в цвете эмоции.
-    if (_event == CloudEvent.shake) {
-      final moodShown = (widget.anim == MascotAnimState.live || widget.anim == MascotAnimState.freeze) &&
-          !widget.night &&
-          cloudEmotionUrl(CatalogService.instance.allPacks, widget.mood) != null;
-      art = cloudEmotionShakeArt(
-            mood: moodShown ? widget.mood : null,
-            hasArt: (key) => CatalogService.instance.giftArt(key) != null,
-          ) ??
-          art;
-    }
+    // Встряска, касание, кувырок, полёт и взрыв при выбранной эмоции — то же
+    // движение, но в цвете эмоции, а не настроения.
+    final moodShown = !widget.night && cloudEmotionUrl(CatalogService.instance.allPacks, widget.mood) != null;
+    art = cloudEmotionSceneArt(
+          art: art,
+          mood: moodShown ? widget.mood : null,
+          hasArt: (key) => CatalogService.instance.giftArt(key) != null,
+        ) ??
+        art;
     if (emotion != null) {
       // Эмоции пака обрезаны плотно (квадрат 24..458 × 38..472 кадра 480):
       // ставим так, чтобы облачко совпало по размеру и месту со сценами.

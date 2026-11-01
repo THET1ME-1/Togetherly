@@ -135,15 +135,28 @@ String cloudArt({
 /// Длина разовой сцены: после неё облачко возвращается к обычной жизни.
 /// Петли (покой, полёт за пальцем, сон) — null. Длины те же, что у петель
 /// в `mascot.js`.
-/// Тряска в цвете выбранной эмоции пака (`cloud_shake_emo_<id>`, мастерская
-/// `bake_emotion_shake.py`): испуг тот же, что у обычной, а Ту остаётся
-/// цвета эмоции. Без неё встряска перекрашивала Ту в коралловый. Null —
-/// обычная тряска: эмоции нет или её тряска ещё не в каталоге.
-String? cloudEmotionShakeArt({required String? mood, required bool Function(String key) hasArt}) {
+/// Сцены, которые запечены в цвете каждой эмоции пака (мастерская
+/// `bake_emotion_shake.py --scene=…`).
+const List<String> kCloudEmotionScenes = ['shake', 'tap', 'flip', 'drag', 'burst'];
+
+/// Сцена [art] в цвете выбранной эмоции: `cloud_<сцена>_emo_<id>`. Движение
+/// то же, что у обычной, а Ту остаётся цвета эмоции. Без этого касание,
+/// кувырок и встряска перекрашивали Ту в цвет настроения: серый «Без эмоций»
+/// становился бирюзовым. Null — обычная сцена: эмоции нет, сцена не из
+/// списка или её ещё нет в каталоге.
+String? cloudEmotionSceneArt({required String art, required String? mood, required bool Function(String key) hasArt}) {
   if (mood == null || mood.isEmpty) return null;
-  final key = 'cloud_shake_emo_$mood';
-  return hasArt(key) ? key : null;
+  for (final scene in kCloudEmotionScenes) {
+    if (!art.startsWith('cloud_${scene}_')) continue;
+    final key = 'cloud_${scene}_emo_$mood';
+    return hasArt(key) ? key : null;
+  }
+  return null;
 }
+
+/// Сцены выбранной эмоции, которые прогревают заранее вместе с обычными.
+List<String> cloudEmotionScenesFor(String? mood) =>
+    mood == null || mood.isEmpty ? const [] : [for (final scene in kCloudEmotionScenes) 'cloud_${scene}_emo_$mood'];
 
 Duration? cloudOneShot(String art) {
   const ms = {
