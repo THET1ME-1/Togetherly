@@ -40,6 +40,21 @@ String chestUnfoldTag(String? seasonKey) => 'chest-${seasonKey ?? 'main'}';
 int chestDecodeWidth({required int fileWidth, required int wanted}) =>
     fileWidth > 0 && fileWidth < wanted ? fileWidth : wanted;
 
+/// Декодер кадров файла сундука под ширину [wanted], не крупнее самого файла.
+///
+/// Описатель не закрывать: неподвижная картинка разжимается из него при
+/// первом кадре, а не при создании декодера. Закрытый сразу описатель
+/// оставлял её пустой, и у осеннего сундука пропал фон карточки (сборка 264);
+/// анимации это не задевало. Буфер описателю уже не нужен, как во Flutter.
+Future<ui.Codec> chestCodec(Uint8List bytes, {required int wanted}) async {
+  final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+  final descriptor = await ui.ImageDescriptor.encoded(buffer);
+  buffer.dispose();
+  return descriptor.instantiateCodec(
+    targetWidth: chestDecodeWidth(fileWidth: descriptor.width, wanted: wanted),
+  );
+}
+
 class ChestFrames extends StatefulWidget {
   const ChestFrames({
     super.key,
@@ -224,16 +239,7 @@ class _ChestFramesState extends State<ChestFrames> with SingleTickerProviderStat
       final dpr = ui.PlatformDispatcher.instance.views.first.devicePixelRatio;
       // Предел ставится по ширине: у вытянутого кадра (занавес) пропорции
       // сохраняются, а у квадратного выходит прежний размер.
-      final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
-      final descriptor = await ui.ImageDescriptor.encoded(buffer);
-      try {
-        codec = await descriptor.instantiateCodec(
-          targetWidth: chestDecodeWidth(fileWidth: descriptor.width, wanted: (widget.side * dpr).round()),
-        );
-      } finally {
-        descriptor.dispose();
-        buffer.dispose();
-      }
+      codec = await chestCodec(bytes, wanted: (widget.side * dpr).round());
     } catch (_) {
       codec = null;
     }
