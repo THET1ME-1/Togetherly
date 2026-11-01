@@ -117,7 +117,9 @@ void main() {
 
   test('перекормленный Ту лопается в цвете настроения, одежда — общая', () {
     expect(cloudArt(anim: MascotAnimState.live, tint: 'joy', event: CloudEvent.burst), 'cloud_burst_joy');
-    expect(cloudOneShot('cloud_burst_joy'), const Duration(milliseconds: 3200));
+    // Длина ровно как у сцены в мастерской (BURST = 2,2 с): дольше — сцена
+    // начиналась по второму кругу и обрывалась (видео владельца, сборка 263).
+    expect(cloudOneShot('cloud_burst_joy'), const Duration(milliseconds: 2200));
     expect(wearSceneOf(art: 'cloud_burst_joy', emotion: null), 'burst_base');
   });
 

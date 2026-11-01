@@ -153,7 +153,7 @@ Duration? cloudOneShot(String art) {
     'joy': 2600,
     'flip': 2800,
     'shake': 3800,
-    'burst': 3200,
+    'burst': 2200, // ровно как BURST в mascot.js мастерской
   };
   for (final e in ms.entries) {
     if (art.startsWith('cloud_${e.key}_')) return Duration(milliseconds: e.value);
