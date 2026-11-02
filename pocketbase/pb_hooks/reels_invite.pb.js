@@ -42,8 +42,11 @@ routerAdd("POST", "/api/reels/invite", (e) => {
     return e.json(200, { ok: true });
   }
 
-  // Запускает только купивший: это и есть цена ленты.
-  if (!e.auth.get("plus")) {
+  // Запускает только купивший: это и есть цена ленты. Пробный Плюс из
+  // сундука считается так же.
+  let trialUntil = 0;
+  try { trialUntil = e.auth.getInt("plus_trial_until") || 0; } catch (_) { trialUntil = 0; }
+  if (!rule.hasPlus(e.auth.get("plus"), trialUntil, now)) {
     $app.logger().warn("зов в ленту: нет Плюса", "uid", me);
     return e.json(403, { ok: false, error: "no_plus" });
   }

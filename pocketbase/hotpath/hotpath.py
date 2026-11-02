@@ -526,9 +526,14 @@ def _jwt_payload(token: str) -> dict:
 
 
 def _user_has_plus(uid: str) -> bool:
+    # Пробный Плюс из сундука живёт в plus_trial_until и тоже считается
     try:
-        row = lite.execute("SELECT plus FROM users WHERE id = ?", (uid,)).fetchone()
-        return bool(row and row[0])
+        row = lite.execute(
+            "SELECT plus, plus_trial_until FROM users WHERE id = ?", (uid,)
+        ).fetchone()
+        if not row:
+            return False
+        return bool(row[0]) or float(row[1] or 0) > _now_ms()
     except sqlite3.Error:
         return False
 

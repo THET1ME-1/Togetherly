@@ -51,4 +51,13 @@ function isActive(session, nowMs) {
   return age >= 0 && age < ACTIVE_MS;
 }
 
-module.exports = { FEEDS, GAP_MS, ACTIVE_MS, feedOf, mayInvite, message, isActive };
+/// Есть ли Плюс: купленный или пробный из сундука ([trialUntilMs] — до какого
+/// момента он действует). С одним `plus` пробный зов отбивался, и партнёр не
+/// получал ни пуша, ни входа (обращение 558, 02.11.2026).
+function hasPlus(plus, trialUntilMs, nowMs) {
+  if (plus) return true;
+  const until = Number(trialUntilMs);
+  return isFinite(until) && until > Number(nowMs);
+}
+
+module.exports = { FEEDS, GAP_MS, ACTIVE_MS, feedOf, mayInvite, message, isActive, hasPlus };

@@ -21,4 +21,10 @@ assert.ok(!r.isActive({ at: now - r.ACTIVE_MS - 1 }, now), 'старый зов 
 assert.ok(!r.isActive({ at: now - 60_000, stopped: true }, now), 'вышел из ленты — зова нет');
 assert.ok(!r.isActive(null, now));
 
+// Пробный Плюс из сундука даёт запустить ленту так же, как купленный
+assert.ok(r.hasPlus(true, 0, now), 'купленный Плюс');
+assert.ok(r.hasPlus(false, now + 60_000, now), 'живой пробный Плюс');
+assert.ok(!r.hasPlus(false, now - 60_000, now), 'пробный Плюс истёк');
+assert.ok(!r.hasPlus(false, 0, now), 'Плюса нет');
+
 console.log('reels_invite: всё прошло');
