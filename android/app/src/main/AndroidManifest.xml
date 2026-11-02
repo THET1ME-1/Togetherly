@@ -186,6 +186,35 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity-alias>
+        <!-- «Ту»: рисованный маскот с глазами-сердечками, бесплатно на выбор
+             (tool/gen_tu_icon.py, адаптивная — mipmap-anydpi-v26/ic_launcher_tu). -->
+        <activity-alias
+            android:name=".IconTu"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_tu"
+            android:roundIcon="@mipmap/ic_launcher_tu_round"
+            android:label="Togetherly"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <!-- Хэллоуин: маскот в шляпе ведьмы, бывшая основная до 1 ноября 2026. -->
+        <activity-alias
+            android:name=".IconHalloween"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_halloween"
+            android:roundIcon="@mipmap/ic_launcher_halloween_round"
+            android:label="Togetherly"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
         <activity-alias
             android:name=".IconPink"
             android:enabled="false"

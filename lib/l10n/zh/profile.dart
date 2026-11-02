@@ -103,7 +103,7 @@ const Map<String, String> profileZh = {
   'themeNameForestDark': '暗夜森林',
   'themeNameGarnet': '石榴红',
   'themeNameDarkHoney': '深色蜂蜜',
-  'themeNameHalloween': '万圣节',
+  'themeNameHalloween': '万圣节 2026',
   'themeDarkOnly': '此主题只有深色版本',
   'coinBalance': '金币',
   'coinShopTitle': '金币商店',

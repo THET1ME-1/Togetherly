@@ -464,6 +464,8 @@ class MainActivity : FlutterActivity() {
         // id (тема) -> суффикс android:name alias в манифесте.
         private val ICON_ALIASES = linkedMapOf(
             "default" to ".IconDefault",
+            "tu" to ".IconTu",
+            "halloween" to ".IconHalloween",
             "pink" to ".IconPink",
             "purple" to ".IconPurple",
             "blue" to ".IconBlue",

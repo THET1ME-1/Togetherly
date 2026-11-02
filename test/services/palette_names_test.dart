@@ -21,9 +21,10 @@ void main() {
 
   test('«Хэллоуин» называется по-человечески', () {
     LocaleService.instance.setLanguage(AppLanguage.ru);
-    expect(paletteDisplayName(25), 'Хэллоуин');
+    // Сезонная тема носит год, как сезоны сундука: «Уютная осень 2026»
+    expect(paletteDisplayName(25), 'Хэллоуин 2026');
     LocaleService.instance.setLanguage(AppLanguage.en);
-    expect(paletteDisplayName(25), 'Halloween');
+    expect(paletteDisplayName(25), 'Halloween 2026');
   });
 
   test('чужой номер даёт имя палитры по умолчанию', () {

@@ -56,6 +56,21 @@ class AppIconService {
       letters: Color(0xFFF6493A),
       asset: 'assets/images/logo/app_icon.webp',
     ),
+    // Ту, нарисованный в манере значков, с глазами-сердечками. Бесплатный, как
+    // все иконки; картинки делает tool/gen_tu_icon.py.
+    AppIconOption(
+      id: 'tu',
+      background: Color(0xFFFDE3E2),
+      letters: Color(0xFF2A2D30),
+      asset: 'assets/images/logo/app_icon_tu.webp',
+    ),
+    // Маскот в шляпе ведьмы: стоял основной до 1 ноября 2026, теперь на выбор.
+    AppIconOption(
+      id: 'halloween',
+      background: Color(0xFF1E1A24),
+      letters: Color(0xFFF26B2A),
+      asset: 'assets/images/logo/app_icon_halloween.webp',
+    ),
     AppIconOption(
       id: 'pink',
       background: Color(0xFFFEEAF1),

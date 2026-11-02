@@ -7,6 +7,8 @@
 const Map<String, String> smallCZh = {
   // app_icons
   'appicon_default': '默认',
+  'appicon_tu': '图图',
+  'appicon_halloween': '万圣节 2026',
   'appicon_pink': '粉色',
   'appicon_purple': '紫色',
   'appicon_blue': '蓝色',

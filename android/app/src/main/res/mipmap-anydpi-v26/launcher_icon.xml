@@ -3,8 +3,8 @@
      показывает PNG квадратом, тогда как соседние приложения становятся
      круглыми. Основной рисунок кроет весь слой 108dp — под маской остаются
      центральные 72dp, то есть лицо маскота; края срезает сам лончер, как у
-     всех. Хэллоуинский (до 1 ноября 2026) стоит целиком в видимых 72dp:
-     gen_main_icon.py с флагом fit. -->
+     всех. Сезонный рисунок, который надо видеть целиком, ставится в видимые
+     72dp: gen_main_icon.py с флагом fit. -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@color/ic_launcher_background" />
     <foreground android:drawable="@mipmap/launcher_icon_fg" />
