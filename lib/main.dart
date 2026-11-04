@@ -506,6 +506,8 @@ void main() async {
     // Инициализируем диспетчер здесь; само расписание ставит home_screen при
     // активной паре (там известен контекст). Не блокируем старт.
     unawaited(WidgetBackgroundRefreshService.instance.init());
+    // Пуш про виджеты при открытом приложении обновляет их здесь, без фоновой задачи.
+    WidgetBackgroundRefreshService.instance.listenInApp();
   }
 
   // Аналитика отключена (firebase_analytics убран при уходе с Firebase) —

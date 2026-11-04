@@ -602,6 +602,14 @@ class HomeWidgetService {
         'tgmood_${g}_partner_name', partnerWd?.displayName ?? '');
     await HomeWidget.saveWidgetData<String>('tgmood_latest_group', g);
     await _reloadLockWidget('LockMoodWidget');
+    // Плитки «Настроение» на Android читают те же ключи, но сами не
+    // перерисовываются: без этого шага они держали «не отмечено», пока не
+    // откроют приложение (проверено на эмуляторе 04.11.2026).
+    if (Platform.isAndroid) {
+      for (final n in const ['MoodTilesWidget2x2Provider', 'MoodTilesWidget4x2Provider']) {
+        await HomeWidget.updateWidget(name: n, androidName: n, qualifiedAndroidName: 'com.togetherly.love.$n');
+      }
+    }
   }
 
   /// Счётчики «Скучаю» и дни вместе для экрана блокировки в ФОНЕ.

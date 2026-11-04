@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
@@ -9,6 +10,7 @@ import 'locale_service.dart';
 import 'map/pair_map_widget_service.dart';
 import 'network/server_route.dart';
 import 'pocketbase_service.dart';
+import 'push_arrivals.dart';
 
 /// Периодический фоновый ФОЛБЭК обновления виджетов через WorkManager (Android).
 ///
@@ -57,30 +59,97 @@ class WidgetBackgroundRefreshService {
     }
   }
 
-  /// Запланировать периодический рефреш. Идемпотентно: политика KEEP не сбивает
-  /// 15-минутный отсчёт на каждом открытии приложения (иначе при частых заходах
-  /// задача никогда не дошла бы до срабатывания в фоне). Вызывать при активной
-  /// паре (см. home_screen._updatePartnerPush).
+  StreamSubscription<void>? _inApp;
+  Timer? _inAppGather;
+
+  /// Пуш «данные виджетов поменялись», пришедший при открытом приложении.
+  /// Нативная часть (FcmService) тогда не ставит задачу WorkManager — та
+  /// поднимала бы второй движок Flutter на главном потоке, и слабые телефоны
+  /// ловили «не отвечает» (1.41, 04.11.2026). Обновляет само приложение: тот
+  /// же путь из PocketBase, что у фоновой задачи. Пачка пушей за пару секунд
+  /// даёт одно обновление.
+  void listenInApp() {
+    if (!Platform.isAndroid || _inApp != null) return;
+    _inApp = PushArrivals.instance.of('widgets').listen((_) {
+      _inAppGather?.cancel();
+      _inAppGather = Timer(const Duration(seconds: 2), () => unawaited(_refreshInApp()));
+    });
+  }
+
+  Future<void> _refreshInApp() async {
+    try {
+      final myUid = PocketBaseService().userId ?? '';
+      final groupId = await HomeWidget.getWidgetData<String>('love_widget_group_id') ?? '';
+      final partnerUid = await HomeWidget.getWidgetData<String>('love_widget_partner_uid') ?? '';
+      if (myUid.isEmpty || groupId.isEmpty) return;
+      await HomeWidgetService.instance.backgroundRefreshAll(
+        groupId: groupId,
+        myUid: myUid,
+        partnerUid: partnerUid,
+        refreshPhotos: true,
+      );
+    } catch (e) {
+      debugPrint('WidgetBackgroundRefreshService._refreshInApp failed: $e');
+    }
+  }
+
+  /// Пара есть — фоновый рефреш нужен (ставит home_screen).
+  bool _wanted = false;
+  AppLifecycleListener? _life;
+
+  /// Запланировать периодический рефреш. Пока приложение на экране, задачи
+  /// нет: каждый её запуск поднимает второй движок Flutter на главном потоке,
+  /// и слабый телефон показывал «не отвечает» прямо в открытом приложении
+  /// (1.41, 04.11.2026). Виджеты в это время обновляет само приложение. Задача
+  /// встаёт, когда приложение свернули, и снимается, когда вернулись.
+  /// Вызывать при активной паре (см. home_screen._updatePartnerPush).
   Future<void> ensureScheduled() async {
     if (!Platform.isAndroid) return;
+    _wanted = true;
+    _life ??= AppLifecycleListener(
+      onHide: () => unawaited(_schedule()),
+      onShow: () => unawaited(_unschedule()),
+    );
+    final state = WidgetsBinding.instance.lifecycleState;
+    if (state == AppLifecycleState.resumed || state == AppLifecycleState.inactive) {
+      await _unschedule();
+    } else {
+      await _schedule();
+    }
+  }
+
+  Future<void> _unschedule() async {
+    try {
+      await Workmanager().cancelByUniqueName(_taskUnique);
+    } catch (e) {
+      debugPrint('WidgetBackgroundRefreshService._unschedule failed: $e');
+    }
+  }
+
+  Future<void> _schedule() async {
+    if (!_wanted) return;
     try {
       await Workmanager().registerPeriodicTask(
         _taskUnique,
         _taskName,
         frequency: const Duration(minutes: 15), // минимум, разрешённый WorkManager
+        // Первый запуск — через четверть часа после сворачивания: только что
+        // приложение само обновило виджеты.
+        initialDelay: const Duration(minutes: 15),
         constraints: Constraints(networkType: NetworkType.connected),
         existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
         backoffPolicy: BackoffPolicy.linear,
         backoffPolicyDelay: const Duration(minutes: 1),
       );
     } catch (e) {
-      debugPrint('WidgetBackgroundRefreshService.ensureScheduled failed: $e');
+      debugPrint('WidgetBackgroundRefreshService._schedule failed: $e');
     }
   }
 
   /// Отменить периодический рефреш (выход из аккаунта / распад пары).
   Future<void> cancel() async {
     if (!Platform.isAndroid) return;
+    _wanted = false;
     try {
       await Workmanager().cancelByUniqueName(_taskUnique);
     } catch (e) {

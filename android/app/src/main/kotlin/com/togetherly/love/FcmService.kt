@@ -49,6 +49,11 @@ class FcmService : FirebaseMessagingService() {
         // Данные виджетов у партнёра поменялись. Периодический WorkManager
         // подберёт это сам, но через четверть часа — а пуш даёт обновить
         // рабочий стол сразу. Путь home_widget тут мёртв (см. WidgetRefreshWake).
+        // Приложение открыто — перерисует само, без второго движка Flutter.
+        if (PushArrivedBridge.onScreen && PushArrivedBridge.attached) {
+            PushArrivedBridge.arrived("widgets")
+            return
+        }
         WidgetRefreshWake.enqueue(applicationContext, WidgetRefreshWake.TASK_ALL)
     }
 

@@ -113,6 +113,7 @@ class MainActivity : FlutterActivity() {
 
     override fun onStart() {
         super.onStart()
+        PushArrivedBridge.onScreen = true
         if (userPresentReceiver == null) {
             userPresentReceiver = PhotoDayRotationReceiver()
             val filter = IntentFilter(Intent.ACTION_USER_PRESENT)
@@ -123,6 +124,11 @@ class MainActivity : FlutterActivity() {
                 registerReceiver(userPresentReceiver, filter)
             }
         }
+    }
+
+    override fun onStop() {
+        PushArrivedBridge.onScreen = false
+        super.onStop()
     }
 
     override fun onDestroy() {

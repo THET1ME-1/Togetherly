@@ -19,6 +19,18 @@ object PushArrivedBridge {
     const val CHANNEL = "love_app/push_arrived"
 
     private var channel: MethodChannel? = null
+
+    /**
+     * Приложение на экране (между onStart и onStop у MainActivity). Тогда
+     * обновлять виджеты будит не фоновая задача, а уже запущенный Dart: задача
+     * WorkManager поднимает второй движок Flutter на главном потоке, и на
+     * слабых телефонах открытое приложение ловит «не отвечает» (1.41, 04.11.2026).
+     */
+    @Volatile
+    var onScreen = false
+
+    /** Канал к работающему Dart есть: сигнал дойдёт до приложения. */
+    val attached: Boolean get() = channel != null
     private val main = Handler(Looper.getMainLooper())
 
     fun attach(messenger: BinaryMessenger) {
