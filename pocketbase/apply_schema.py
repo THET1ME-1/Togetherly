@@ -98,6 +98,9 @@ USERS_CUSTOM = [
     # Общий счётчик просмотров rewarded за сутки; монетные три входят сюда же.
     # Потолок — kAdDailyViewCap в lib/models/ad_grants.dart.
     text("ad_views_date"), number("ad_views_today"),
+    # Когда человек сам задал пароль (epoch ms), 0 — неизвестно. Ставят только
+    # серверные пути, см. pb_hooks/login_methods.pb.js.
+    number("password_set"),
     # Задания дня: за какой день считаны награды и какие задания уже оплачены.
     # Строкой через запятую, а не json: список из трёх коротких id, а сравнение
     # строк в JSVM надёжнее разбора массива.
