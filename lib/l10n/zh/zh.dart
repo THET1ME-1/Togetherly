@@ -32,10 +32,12 @@ import 'launch_splash.dart';
 import 'stickers.dart';
 import 'widget_screen.dart';
 import 'hour_ranks.dart';
+import 'login_methods.dart';
 
 const Map<String, String> kZhStrings = {
   ...dateHelpersZh,
   ...hourRanksZh,
+  ...loginMethodsZh,
   ...smallAZh,
   ...smallBZh,
   ...smallCZh,

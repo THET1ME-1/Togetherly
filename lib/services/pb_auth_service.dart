@@ -11,6 +11,8 @@ import 'package:pocketbase/pocketbase.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../models/login_methods.dart';
+import '../models/partner_reset.dart';
 import '../models/session_restore.dart';
 import '../utils/auth_failure.dart';
 import 'home_widget_service.dart';
@@ -207,7 +209,32 @@ class PbAuthService {
   /// ID/Secret + redirect `<host>/api/oauth2-redirect`).
   Future<RecordModel?> signInWithOAuth2(String provider) async {
     try {
-      final auth = await _pb.collection(_usersCol).authWithOAuth2(
+      final auth = await _runOAuth2(provider);
+      // Профиль из OAuth-меты (имя/аватар), если в записи ещё пусто.
+      final meta = auth.meta;
+      await _ensureProfile(
+        displayName: meta['name']?.toString(),
+        avatarUrl: meta['avatarUrl']?.toString() ?? meta['avatarURL']?.toString(),
+      );
+      return _svc.currentUser;
+    } catch (e, st) {
+      debugPrint('PbAuth.signInWithOAuth2($provider) failed: $e');
+      debugPrintStack(stackTrace: st);
+      unawaited(Sentry.captureException(e, stackTrace: st, withScope: (s) {
+        s.setExtra('reason', 'signInWithOAuth2($provider) failed');
+        s.level = SentryLevel.warning; // часть — отмена пользователем, не баг
+      }));
+      rethrow;
+    }
+  }
+
+  /// Страница провайдера во встроенном браузере и обмен кода на сессию.
+  ///
+  /// Если человек уже вошёл, PocketBase привязывает провайдера к ЕГО аккаунту
+  /// (токен уходит в запросе), а не ищет аккаунт по почте провайдера: на этом
+  /// держится экран «Способы входа».
+  Future<RecordAuth> _runOAuth2(String provider) async {
+    final auth = await _pb.collection(_usersCol).authWithOAuth2(
         provider,
         (url) async {
           // In-app браузер держит приложение на переднем плане → realtime-
@@ -229,27 +256,130 @@ class PbAuthService {
           await safeLaunchUrl(url, mode: LaunchMode.externalApplication);
         },
       );
-      // OAuth завершён — закрыть in-app вьюху (iOS: SFSafariViewController;
-      // Android Custom Tabs: no-op, фокус и так возвращается).
-      try {
-        await closeInAppWebView();
-      } catch (_) {}
-      // Профиль из OAuth-меты (имя/аватар), если в записи ещё пусто.
-      final meta = auth.meta;
-      await _ensureProfile(
-        displayName: meta['name']?.toString(),
-        avatarUrl: meta['avatarUrl']?.toString() ?? meta['avatarURL']?.toString(),
-      );
-      return _svc.currentUser;
-    } catch (e, st) {
-      debugPrint('PbAuth.signInWithOAuth2($provider) failed: $e');
-      debugPrintStack(stackTrace: st);
-      unawaited(Sentry.captureException(e, stackTrace: st, withScope: (s) {
-        s.setExtra('reason', 'signInWithOAuth2($provider) failed');
-        s.level = SentryLevel.warning; // часть — отмена пользователем, не баг
-      }));
-      rethrow;
+    // OAuth завершён — закрыть in-app вьюху (iOS: SFSafariViewController;
+    // Android Custom Tabs: no-op, фокус и так возвращается).
+    try {
+      await closeInAppWebView();
+    } catch (_) {}
+    return auth;
+  }
+
+  /// Способы входа этого аккаунта (`pb_hooks/login_methods.pb.js`).
+  Future<LoginMethods> loadLoginMethods() async {
+    final res = await _pb
+        .send('/api/auth/methods')
+        .timeout(const Duration(seconds: 20));
+    return LoginMethods.fromJson(
+      res is Map ? Map<String, dynamic>.from(res) : const {},
+    );
+  }
+
+  /// Привязать провайдера к аккаунту, в который человек уже вошёл.
+  ///
+  /// Провайдер, привязанный к другому аккаунту, сервер не пускает
+  /// (`linked_elsewhere`). Если сессия всё же сменилась на чужой аккаунт,
+  /// возвращаем прежнюю: телефон не должен оказаться в чужом профиле.
+  Future<void> linkProvider(String provider) async {
+    final token = _pb.authStore.token;
+    final before = _svc.currentUser;
+    final auth = await _runOAuth2(provider);
+    if (before != null && auth.record.id != before.id) {
+      _pb.authStore.save(token, before);
+      throw const LinkedElsewhere();
     }
+  }
+
+  /// Отвязать провайдера. Последний способ входа сервер не отдаёт (409 `last`).
+  Future<void> unlinkProvider(String provider) async {
+    await _pb
+        .send('/api/auth/unlink', method: 'POST', body: {'provider': provider})
+        .timeout(const Duration(seconds: 20));
+  }
+
+  /// Пароль для аккаунта, заведённого через провайдера: старого у него нет.
+  /// Смена пароля гасит прежние токены, поэтому сервер отдаёт новую сессию.
+  Future<void> setInitialPassword(String password) async {
+    final res = await _pb
+        .send(
+          '/api/auth/set-password',
+          method: 'POST',
+          body: {'password': password},
+        )
+        .timeout(const Duration(seconds: 20));
+    _saveSession(res);
+  }
+
+  /// Попросить код у партнёра. `partner` — код ушёл партнёру, `none` — пары
+  /// нет (или такой почты), остаётся письмо.
+  Future<String> requestPartnerReset(String email) async {
+    final res = await _pb
+        .send(
+          '/api/auth/partner-reset/request',
+          method: 'POST',
+          body: {'email': email.trim()},
+        )
+        .timeout(const Duration(seconds: 20));
+    return res is Map && res['via'] == 'partner' ? 'partner' : 'none';
+  }
+
+  /// Код с нового телефона. Верный код меняется на пропуск для нового пароля.
+  Future<PartnerResetTicket> verifyPartnerCode(String email, String code) async {
+    final res = await _pb
+        .send(
+          '/api/auth/partner-reset/verify',
+          method: 'POST',
+          body: {'email': email.trim(), 'code': code},
+        )
+        .timeout(const Duration(seconds: 20));
+    return PartnerResetTicket.fromJson(
+      res is Map ? Map<String, dynamic>.from(res) : const {},
+    );
+  }
+
+  /// Новый пароль по пропуску — и сразу вход.
+  Future<RecordModel?> completePartnerReset(
+    String ticket,
+    String password,
+  ) async {
+    final res = await _pb
+        .send(
+          '/api/auth/partner-reset/complete',
+          method: 'POST',
+          body: {'ticket': ticket, 'password': password},
+        )
+        .timeout(const Duration(seconds: 20));
+    _saveSession(res);
+    await _ensureProfile();
+    return _svc.currentUser;
+  }
+
+  /// Код, который партнёр просит прямо сейчас. null — запроса нет.
+  Future<PendingReset?> pendingPartnerReset() async {
+    final res = await _pb
+        .send('/api/auth/partner-reset/pending')
+        .timeout(const Duration(seconds: 15));
+    final p = res is Map ? res['pending'] : null;
+    return PendingReset.fromJson(
+      p is Map ? Map<String, dynamic>.from(p) : null,
+    );
+  }
+
+  /// «Это не он»: код гаснет, хозяину аккаунта уходит предупреждение.
+  Future<void> denyPartnerReset() async {
+    await _pb
+        .send('/api/auth/partner-reset/deny', method: 'POST')
+        .timeout(const Duration(seconds: 15));
+  }
+
+  /// Ответ вида «токен и запись» — в хранилище сессии.
+  void _saveSession(Object? res) {
+    if (res is! Map || res['token'] is! String || res['record'] is! Map) {
+      throw StateError('сервер не отдал сессию: $res');
+    }
+    _pb.authStore.save(
+      res['token'] as String,
+      RecordModel.fromJson(Map<String, dynamic>.from(res['record'] as Map)),
+    );
   }
 
   /// Вход через Google. Требует настроенного провайдера `google` в панели PB.

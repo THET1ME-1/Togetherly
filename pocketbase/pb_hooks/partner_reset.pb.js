@@ -226,9 +226,11 @@ routerAdd("POST", "/api/auth/partner-reset/verify", (e) => {
     const ticket = $security.randomString(40);
     store.set("preset_ticket_" + ticket, { uid: user.id, at: now });
     let partnerName = "";
+    let partnerGender = "";
     try {
       const p = $app.findRecordById("users", req.partner);
       partnerName = String(p.getString("display_name") || p.getString("name") || "");
+      partnerGender = p.getString("gender");
     } catch (_) {
       partnerName = "";
     }
@@ -237,6 +239,7 @@ routerAdd("POST", "/api/auth/partner-reset/verify", (e) => {
       ticket: ticket,
       name: String(user.getString("display_name") || user.getString("name") || ""),
       partnerName: partnerName,
+      partnerGender: partnerGender,
     });
   }
   if (req) store.set(key, req);

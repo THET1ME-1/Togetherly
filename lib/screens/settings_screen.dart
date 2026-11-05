@@ -8,6 +8,7 @@ import '../utils/email_typo.dart';
 import '../widgets/app_icon_sheet.dart';
 import '../widgets/home_layout_editor.dart';
 import '../widgets/settings_scaffold.dart';
+import 'settings/login_methods_screen.dart';
 
 /// Экран настроек.
 ///
@@ -502,6 +503,12 @@ class SettingsScreen extends StatelessWidget {
                       trailing: const SettingsChevron(),
                       onTap: onChangeEmail,
                     ),
+                  // Несколько способов входа на одном аккаунте: забытый пароль
+                  // не закрывает вход, если привязан Google или Яндекс.
+                  LoginMethodsRow(
+                    scheme: scheme,
+                    onChangePassword: onChangePassword,
+                  ),
                   SettingsRow(
                     icon: Icons.lock_reset_rounded,
                     title: s.changePasswordTitle,

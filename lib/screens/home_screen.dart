@@ -52,6 +52,9 @@ import '../models/mascot_anim.dart';
 import '../models/mascot_sleep.dart';
 import '../services/catalog_service.dart';
 import '../services/app_time_service.dart';
+import '../services/push_arrivals.dart';
+import '../widgets/auth/login_nudge.dart';
+import '../widgets/auth/partner_reset_sheet.dart';
 import '../widgets/rank/new_rank_dialog.dart';
 import '../widgets/rank/oldtimer_dialog.dart';
 import '../widgets/mascot/pixel_mascot_view.dart';
@@ -327,6 +330,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Timer? _syncMoodWidgetDebounce;
   Timer? _moodStreakRewardDebounce;
   StreamSubscription<({ReelsInvite invite, bool opened})>? _reelsInviteSub;
+  StreamSubscription<void>? _pairResetSub;
 
   /// Партнёр зовёт в совместную ленту. По касанию на пуш входим сразу, а
   /// зов, пришедший при открытом приложении, спрашивает листом: человек мог
@@ -385,6 +389,12 @@ class _HomeScreenState extends State<HomeScreen> {
     // пришедший, пока человек в приложении, предлагает войти листом.
     _reelsInviteSub = ReelsInviteBus.instance.invites.listen(_onReelsInvite);
     unawaited(ReelsInviteBus.instance.init());
+    // Партнёр забыл пароль и просит код: лист с кодом по пушу, при открытии
+    // и при возврате в приложение (касание пуша приводит сюда же).
+    _pairResetSub = PushArrivals.instance
+        .of('pair_reset')
+        .listen((_) => _checkPartnerReset());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkPartnerReset());
 
     // Присутствие: «я жив» летит в канал пары через Centrifugo, а в базу
     // уходит редкая отметка «был в сети». До 14 августа 2026 это была запись
@@ -512,6 +522,7 @@ class _HomeScreenState extends State<HomeScreen> {
         // аватара нет. Само это не проходит, поэтому пробуем на каждом
         // возврате — сервис сам решит, надо ли и не рано ли (session_restore).
         unawaited(PbAuthService().ensureProfileLoaded());
+        _checkPartnerReset();
         if (_pairData.isPaired) {
           _mascotService.recordDailyActivity();
           HomeWidgetService.instance.refreshPhotoOfDay(_pairData.pairId);
@@ -583,6 +594,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     AppTimeService.instance.seconds.removeListener(_onAppTimeChanged);
     unawaited(_reelsInviteSub?.cancel());
+    unawaited(_pairResetSub?.cancel());
     final giftsOff = _giftsUnsub;
     _giftsUnsub = null;
     if (giftsOff != null) unawaited(giftsOff());
@@ -1436,6 +1448,12 @@ class _HomeScreenState extends State<HomeScreen> {
     };
   }
 
+  /// Код для партнёра, который забыл пароль. Пары нет — спрашивать некого.
+  void _checkPartnerReset() {
+    if (!mounted || !_pairData.isPaired) return;
+    unawaited(maybeShowPartnerReset(context));
+  }
+
   void _onUserChanged() {
     if (mounted) setState(() {});
     // Значок «Старожил» пришёл с сервера — один раз сказать, за что он.
@@ -1597,6 +1615,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   pairId: _pairData.pairId,
                 ),
                 _buildPartnerAilmentBanner(),
+                // «Не потеряйте аккаунт»: тем, кто входит только паролем.
+                if (_selectedNavIndex == 0)
+                  LoginNudge(scheme: ProfileTheme.schemeFor(_t)),
                 // Вкладка меняется проявлением; шапка и нижняя панель стоят.
                 Expanded(
                   child: TabFade(

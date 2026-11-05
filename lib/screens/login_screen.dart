@@ -5,6 +5,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter/services.dart';
 import 'package:pocketbase/pocketbase.dart' show ClientException;
 import '../dict_strings.dart';
+import '../models/partner_reset.dart';
 import '../models/user_data.dart';
 import '../services/pb_auth_service.dart';
 import '../services/locale_service.dart';
@@ -17,6 +18,8 @@ import '../theme/theme_scope.dart';
 import '../theme/profile_theme.dart';
 import 'package:material3_expressive_loading_indicator/material3_expressive_loading_indicator.dart';
 
+import 'auth/forgot_password_sheet.dart';
+import 'auth/partner_code_screen.dart';
 import 'home_screen.dart';
 import 'setup_screen.dart';
 import 'welcome_screen.dart';
@@ -126,54 +129,121 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      // Профиль из записи users PocketBase (camelCase — как раньше Firestore).
-      final profile = auth.currentProfile();
-
-      if (profile != null &&
-          profile['displayName'] != null &&
-          profile['gender'] != null) {
-        final displayName = profile['displayName'] as String;
-        final userEmail = profile['email'] as String? ?? '';
-        final avatarUrl = profile['avatarUrl'] as String? ?? '';
-        final genderStr = profile['gender'] as String;
-        final gender = genderStr == 'male' ? Gender.male : Gender.female;
-
-        await widget.userData.register(
-          displayName: displayName,
-          email: userEmail,
-          gender: gender,
-          avatarUrl: avatarUrl,
-          isReturningUser: true, // Login - don't clear existing data
-        );
-
-        // TODO(pb-cutover): статус «онлайн» (presence) переедет на PB-слой
-        // (heartbeat+TTL) вместе с data/realtime-срезом — см. CUTOVER §3.
-
-        if (!mounted) return;
-        Navigator.of(context).pushReplacement(
-          PageRouteBuilder(
-            pageBuilder: (_, __, ___) => HomeScreen(userData: widget.userData),
-            transitionsBuilder: (_, animation, __, child) =>
-                FadeTransition(opacity: animation, child: child),
-            transitionDuration: const Duration(milliseconds: 400),
-          ),
-        );
-      } else {
-        // No complete profile yet — send to setup to finish registration
-        if (!mounted) return;
-        Navigator.of(context).pushReplacement(
-          PageRouteBuilder(
-            pageBuilder: (_, __, ___) => SetupScreen(userData: widget.userData),
-            transitionsBuilder: (_, animation, __, child) =>
-                FadeTransition(opacity: animation, child: child),
-            transitionDuration: const Duration(milliseconds: 400),
-          ),
-        );
-      }
+      await _continueAfterSignIn(auth);
     } catch (e) {
       final message = await _authErrorText(e);
       if (mounted) setState(() => _isLoading = false);
       _showError(message);
+    }
+  }
+
+  /// Сессия есть — дальше на главную или, если профиль не дозаполнен, в
+  /// настройку. Общий хвост входа по паролю и сброса через партнёра.
+  Future<void> _continueAfterSignIn(PbAuthService auth) async {
+    // Профиль из записи users PocketBase (camelCase — как раньше Firestore).
+    final profile = auth.currentProfile();
+
+    if (profile != null &&
+        profile['displayName'] != null &&
+        profile['gender'] != null) {
+      final displayName = profile['displayName'] as String;
+      final userEmail = profile['email'] as String? ?? '';
+      final avatarUrl = profile['avatarUrl'] as String? ?? '';
+      final genderStr = profile['gender'] as String;
+      final gender = genderStr == 'male' ? Gender.male : Gender.female;
+
+      await widget.userData.register(
+        displayName: displayName,
+        email: userEmail,
+        gender: gender,
+        avatarUrl: avatarUrl,
+        isReturningUser: true, // Login - don't clear existing data
+      );
+
+      // TODO(pb-cutover): статус «онлайн» (presence) переедет на PB-слой
+      // (heartbeat+TTL) вместе с data/realtime-срезом — см. CUTOVER §3.
+
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder(
+          pageBuilder: (_, __, ___) => HomeScreen(userData: widget.userData),
+          transitionsBuilder: (_, animation, __, child) =>
+              FadeTransition(opacity: animation, child: child),
+          transitionDuration: const Duration(milliseconds: 400),
+        ),
+      );
+    } else {
+      // No complete profile yet — send to setup to finish registration
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder(
+          pageBuilder: (_, __, ___) => SetupScreen(userData: widget.userData),
+          transitionsBuilder: (_, animation, __, child) =>
+              FadeTransition(opacity: animation, child: child),
+          transitionDuration: const Duration(milliseconds: 400),
+        ),
+      );
+    }
+  }
+
+  /// «Забыли пароль?»: лист с выбором пути (макет «Вход без писем», 1-А).
+  /// Через партнёра — код в его приложении, затем новый пароль и сразу вход.
+  Future<void> _forgotPassword() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      _showError(LocaleService.current.invalidEmail);
+      return;
+    }
+    final way = await showForgotPasswordSheet(context, email: email);
+    if (!mounted || way == null) return;
+    if (way == ForgotWay.email) {
+      await _sendPasswordReset();
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    String via;
+    try {
+      via = await PbAuthService().requestPartnerReset(email);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      switch (partnerResetFailureOf(e)) {
+        // Код уже у партнёра: ведём к вводу, повтор не нужен.
+        case PartnerResetFailure.gap:
+          via = 'partner';
+        case PartnerResetFailure.day:
+          _showError(trKey('prDayLimit'));
+          return;
+        case PartnerResetFailure.network:
+          _showError(networkFailureText(await ServerReach.instance.check()));
+          return;
+        default:
+          _showError(trKey('serverSlowRetry'));
+          return;
+      }
+    }
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    // Пары нет: остаётся письмо.
+    if (via != 'partner') {
+      await _sendPasswordReset(
+        sentText: trKey('prNoPair').replaceAll('{0}', email),
+      );
+      return;
+    }
+
+    final done = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => PartnerCodeScreen(email: email)),
+    );
+    if (done != true || !mounted) return;
+    setState(() => _isLoading = true);
+    try {
+      await _continueAfterSignIn(PbAuthService());
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+      _showError(await _authErrorText(e));
     }
   }
 
@@ -317,7 +387,9 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _sendPasswordReset() async {
+  /// Письмо сброса. [sentText] — своя подпись к успеху (по умолчанию «письмо
+  /// отправлено на …»).
+  Future<void> _sendPasswordReset({String? sentText}) async {
     final email = _emailController.text.trim();
     if (email.isEmpty || !email.contains('@')) {
       _showError(LocaleService.current.invalidEmail);
@@ -333,7 +405,7 @@ class _LoginScreenState extends State<LoginScreen> {
       messenger?.clearSnackBars();
       messenger?.showSnackBar(
         SnackBar(
-          content: Text(LocaleService.current.passwordResetSent(email)),
+          content: Text(sentText ?? LocaleService.current.passwordResetSent(email)),
           behavior: SnackBarBehavior.floating,
           backgroundColor: const Color(0xFF4CAF50),
           duration: const Duration(seconds: 4),
@@ -497,7 +569,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             const Spacer(),
                             GestureDetector(
                               behavior: HitTestBehavior.opaque,
-                              onTap: _isLoading ? null : _sendPasswordReset,
+                              onTap: _isLoading ? null : _forgotPassword,
                               child: Text(
                                 s.forgotPassword,
                                 style: TextStyle(

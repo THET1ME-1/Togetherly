@@ -150,7 +150,7 @@ class AuthSocialRow extends StatelessWidget {
       if (onGoogle != null)
         AuthSocialIcon(onTap: onGoogle, child: const GoogleLogo(size: 22)),
       if (onYandex != null)
-        AuthSocialIcon(onTap: onYandex, child: const _YandexGlyph()),
+        AuthSocialIcon(onTap: onYandex, child: const YandexGlyph()),
       if (onVk != null) AuthSocialIcon(onTap: onVk, child: const _VkGlyph()),
       if (onFacebook != null)
         AuthSocialIcon(
@@ -219,8 +219,8 @@ class AuthSocialIcon extends StatelessWidget {
 }
 
 /// Бренд-глиф Яндекса: красный кругляш-квадрат с белой «Я».
-class _YandexGlyph extends StatelessWidget {
-  const _YandexGlyph();
+class YandexGlyph extends StatelessWidget {
+  const YandexGlyph({super.key});
   @override
   Widget build(BuildContext context) {
     return Container(
