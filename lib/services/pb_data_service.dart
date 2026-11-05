@@ -3473,22 +3473,25 @@ class PbDataService {
   /// Возвращает сырые записи: полку из них собирает `tallyGifts`
   /// (`lib/models/partner_profile.dart`). Пустой список при любой ошибке —
   /// профиль партнёра не та страница, ради которой стоит показывать сбой.
+  ///
+  /// Все подарки, а не первая страница: до 05.11.2026 здесь стоял `perPage:
+  /// 200`, и у пары, где подарков больше, счёт «Что дарили» застывал на 200,
+  /// а полка считала только последние двести (обращение 591).
   Future<List<Map<String, dynamic>>> fetchGiftsFor({
     String groupId = '',
     required String uid,
-    int limit = 200,
   }) async {
     if (uid.isEmpty) return const [];
     try {
       final filter = groupId.isEmpty
           ? 'recipient_uid = "$uid"'
           : 'group_id = "$groupId" && recipient_uid = "$uid"';
-      final res = await _pb.collection('gifts').getList(
-            perPage: limit,
+      final items = await _pb.collection('gifts').getFullList(
+            batch: 500,
             filter: filter,
             sort: '-created',
           );
-      return res.items.map((r) => Map<String, dynamic>.from(r.data)).toList();
+      return items.map((r) => Map<String, dynamic>.from(r.data)).toList();
     } catch (e) {
       debugPrint('PbData.fetchGiftsFor failed: $e');
       return const [];
