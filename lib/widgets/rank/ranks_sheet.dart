@@ -179,23 +179,17 @@ class _Now extends StatelessWidget {
                 const SizedBox(height: 10),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(10),
-                  child: SizedBox(
+                  // Дорожка во всю ширину (заметна и на светлом
+                  // контейнере), заливка — доля пути от неё.
+                  child: Container(
                     height: 10,
-                    child: Stack(
-                      children: [
-                        Positioned.fill(
-                          child: ColoredBox(
-                            // Дорожка заметна и на светлом контейнере.
-                            color: cs.onPrimaryContainer.withValues(
-                              alpha: 0.24,
-                            ),
-                          ),
-                        ),
-                        FractionallySizedBox(
-                          widthFactor: progress.fraction,
-                          child: ColoredBox(color: cs.primary),
-                        ),
-                      ],
+                    width: double.infinity,
+                    color: cs.onPrimaryContainer.withValues(alpha: 0.24),
+                    alignment: Alignment.centerLeft,
+                    child: FractionallySizedBox(
+                      widthFactor: progress.fraction,
+                      heightFactor: 1,
+                      child: ColoredBox(color: cs.primary),
                     ),
                   ),
                 ),
