@@ -449,6 +449,8 @@ COLLECTIONS = {
             "wallet": "json", "chest_enabled": "bool", "room_native_ios": "num",
             # Кому показывать облачко-гида (31.10.2026, `mascotGuideOn`).
             "mascot_guide": "json",
+            # Пороги званий за часы (05.11.2026, `parseRankHours`).
+            "rank_hours": "json",
         },
         "scope": "public",
         "read_only": True,

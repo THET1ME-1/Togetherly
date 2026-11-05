@@ -49,6 +49,7 @@ import 'services/pb_data_service.dart';
 import 'services/home_widget_service.dart';
 import 'services/miss_you_repository.dart';
 import 'services/widget_background_refresh_service.dart';
+import 'services/app_time_service.dart';
 import 'services/offline/local_store.dart';
 import 'services/offline/connectivity_service.dart';
 import 'services/offline/outbox_service.dart';
@@ -508,6 +509,8 @@ void main() async {
     unawaited(WidgetBackgroundRefreshService.instance.init());
     // Пуш про виджеты при открытом приложении обновляет их здесь, без фоновой задачи.
     WidgetBackgroundRefreshService.instance.listenInApp();
+    // Часы в приложении для званий: считаются, пока приложение на экране.
+    unawaited(AppTimeService.instance.start());
   }
 
   // Аналитика отключена (firebase_analytics убран при уходе с Firebase) —

@@ -11,6 +11,9 @@ CREATE TABLE IF NOT EXISTS user_app_time (
 
 -- Когда телефон отчитался в последний раз: по нему сервер не засчитывает
 -- больше реального времени. Телефонов на человека не больше пяти.
+-- Пороги званий: копия поля app_config.rank_hours из SQLite (_app_config_worker).
+ALTER TABLE app_config ADD COLUMN IF NOT EXISTS rank_hours jsonb;
+
 CREATE TABLE IF NOT EXISTS app_time_devices (
   uid text NOT NULL,
   device text NOT NULL,

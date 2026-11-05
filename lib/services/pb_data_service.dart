@@ -22,6 +22,7 @@ import 'upsert_backoff.dart';
 import 'upsert_id_cache.dart';
 import 'mascot_guide_service.dart';
 import 'room_window_flag.dart';
+import 'app_time_service.dart';
 import 'wallet_teaser.dart';
 
 /// Результат вызова серверного атомарного group-роута: [ok] — выполнен;
@@ -3250,6 +3251,8 @@ class PbDataService {
         'birthDate': res['birth_date'],
         'mascotSleep': res['mascot_sleep'],
         'grantedBadges': res['granted_badges'],
+        // Часы в приложении — звание на странице партнёра.
+        'appSeconds': res['app_seconds'],
       };
     } catch (e) {
       debugPrint('PbData.loadPartnerCard($uid) failed: $e');
@@ -3450,6 +3453,7 @@ class PbDataService {
       WalletTeaser.ingest(res.items.first.data['wallet']);
       RoomWindowFlag.ingest(res.items.first.data['room_native_ios']);
       MascotGuideService.instance.ingest(res.items.first.data['mascot_guide']);
+      AppTimeService.instance.ingestHours(res.items.first.data['rank_hours']);
       final v = res.items.first.data['min_build'];
       if (v is int) return v;
       if (v is num) return v.toInt();
@@ -3562,6 +3566,7 @@ class PbDataService {
       WalletTeaser.ingest(res.items.first.data['wallet']);
       RoomWindowFlag.ingest(res.items.first.data['room_native_ios']);
       MascotGuideService.instance.ingest(res.items.first.data['mascot_guide']);
+      AppTimeService.instance.ingestHours(res.items.first.data['rank_hours']);
       return res.items.first.data['gifts_enabled'] == true;
     } catch (e) {
       debugPrint('PbData.fetchGiftsEnabled failed: $e');
@@ -3583,6 +3588,7 @@ class PbDataService {
       WalletTeaser.ingest(res.items.first.data['wallet']);
       RoomWindowFlag.ingest(res.items.first.data['room_native_ios']);
       MascotGuideService.instance.ingest(res.items.first.data['mascot_guide']);
+      AppTimeService.instance.ingestHours(res.items.first.data['rank_hours']);
       return res.items.first.data['wishes_enabled'] != false;
     } catch (e) {
       debugPrint('PbData.fetchWishesEnabled failed: $e');
