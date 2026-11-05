@@ -54,13 +54,24 @@ void main() {
     });
 
     test('мусор — запасные пороги', () {
-      for (final bad in [null, 'x', <num>[], [0, 5, 3], [1, 2, 3], List<num>.filled(14, 1), [0, 'a']]) {
+      for (final bad in [
+        null,
+        'x',
+        <num>[],
+        [0, 5, 3],
+        [1, 2, 3],
+        List<num>.filled(14, 1),
+        [0, 'a'],
+      ]) {
         expect(parseRankHours(bad), kRankHours, reason: '$bad');
       }
     });
 
-    test('другое число ступеней — запасные пороги: эмблем ровно четырнадцать', () {
-      expect(parseRankHours([0, 1, 2]), kRankHours);
-    });
+    test(
+      'другое число ступеней — запасные пороги: эмблем ровно четырнадцать',
+      () {
+        expect(parseRankHours([0, 1, 2]), kRankHours);
+      },
+    );
   });
 }

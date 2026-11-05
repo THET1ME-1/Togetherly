@@ -31,9 +31,11 @@ import 'small_d.dart';
 import 'launch_splash.dart';
 import 'stickers.dart';
 import 'widget_screen.dart';
+import 'hour_ranks.dart';
 
 const Map<String, String> kZhStrings = {
   ...dateHelpersZh,
+  ...hourRanksZh,
   ...smallAZh,
   ...smallBZh,
   ...smallCZh,

@@ -53,6 +53,7 @@ import 'l10n/dict/push_notifications.dart';
 import 'l10n/dict/profile_icons.dart';
 import 'l10n/dict/profile_screen.dart';
 import 'l10n/dict/ranks.dart';
+import 'l10n/dict/hour_ranks.dart';
 import 'l10n/dict/relationship_status_screen.dart';
 import 'l10n/dict/setup.dart';
 import 'l10n/dict/timer_card.dart';
@@ -135,6 +136,7 @@ const Map<String, Map<String, String>> _kSectionStrings = {
   ...profileIconsStrings,
   ...profileScreenStrings,
   ...ranksStrings,
+  ...hourRanksStrings,
   ...relationshipStatusScreenStrings,
   ...setupStrings,
   ...timerCardStrings,

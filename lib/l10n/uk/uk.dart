@@ -28,9 +28,11 @@ import 'small_c.dart';
 import 'small_d.dart';
 import 'stickers.dart';
 import 'widget_screen.dart';
+import 'hour_ranks.dart';
 
 const Map<String, String> kUkStrings = {
   ...dateHelpersUk,
+  ...hourRanksUk,
   ...smallAUk,
   ...smallBUk,
   ...smallCUk,

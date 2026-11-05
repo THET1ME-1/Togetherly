@@ -9,7 +9,11 @@ import '../models/app_time_counter.dart';
 import '../models/rank.dart';
 import 'pocketbase_service.dart';
 
-typedef AppTimeSend = Future<Map<String, dynamic>?> Function(String path, Map<String, dynamic> body);
+typedef AppTimeSend =
+    Future<Map<String, dynamic>?> Function(
+      String path,
+      Map<String, dynamic> body,
+    );
 
 /// Часы в приложении для званий (05.11.2026, план 2026-11-05-ranks-by-hours).
 ///
@@ -42,6 +46,10 @@ class AppTimeService with WidgetsBindingObserver {
   /// Последнее звание, чей экран человек уже видел (-1 — никакого).
   int rankSeen = -1;
 
+  /// Сервер ответил хотя бы раз за этот запуск: до этого `rankSeen` может быть
+  /// старым (переустановка, второй телефон) и экран звания не показывается.
+  bool synced = false;
+
   /// Пороги званий из `app_config.rank_hours`.
   List<num> hours = kRankHours;
 
@@ -71,7 +79,10 @@ class AppTimeService with WidgetsBindingObserver {
     _device = p.getString(_kDevice) ?? '';
     if (_device.isEmpty) {
       final r = Random.secure();
-      _device = List.generate(16, (_) => r.nextInt(16).toRadixString(16)).join();
+      _device = List.generate(
+        16,
+        (_) => r.nextInt(16).toRadixString(16),
+      ).join();
       await p.setString(_kDevice, _device);
     }
     counter.restore(p.getInt(_kPending) ?? 0);
@@ -123,13 +134,17 @@ class AppTimeService with WidgetsBindingObserver {
     _flushing = true;
     try {
       counter.tick(now());
-      final res = await send('/api/user/app-time', {'device': _device, 'seconds': counter.pendingSeconds});
+      final res = await send('/api/user/app-time', {
+        'device': _device,
+        'seconds': counter.pendingSeconds,
+      });
       if (res == null || res['ok'] != true) return;
       counter.sent((res['granted'] as num?)?.toInt() ?? 0);
       final extra = counter.pendingSeconds - _keepMax;
       if (extra > 0) counter.sent(extra);
       _server = (res['seconds'] as num?)?.toInt() ?? _server;
       rankSeen = max(rankSeen, (res['rank_seen'] as num?)?.toInt() ?? -1);
+      synced = true;
       await _save();
     } catch (e) {
       debugPrint('AppTime.flush: $e');
@@ -163,10 +178,15 @@ class AppTimeService with WidgetsBindingObserver {
     } catch (_) {}
   }
 
-  static Future<Map<String, dynamic>?> _send(String path, Map<String, dynamic> body) async {
+  static Future<Map<String, dynamic>?> _send(
+    String path,
+    Map<String, dynamic> body,
+  ) async {
     final pb = PocketBaseService().pb;
     if (!pb.authStore.isValid) return null;
-    final res = await pb.send(path, method: 'POST', body: body).timeout(const Duration(seconds: 15));
+    final res = await pb
+        .send(path, method: 'POST', body: body)
+        .timeout(const Duration(seconds: 15));
     return res is Map ? res.cast<String, dynamic>() : null;
   }
 }

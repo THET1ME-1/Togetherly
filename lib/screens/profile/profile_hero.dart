@@ -37,6 +37,9 @@ class ProfileHero extends StatelessWidget {
   /// (`ProfileBanner.animate`).
   final bool bannerAnimated;
   final String subtitle;
+
+  /// Чип звания за часы (`RankChip`) рядом с подписью «N дней вместе».
+  final Widget? rankChip;
   final VoidCallback? onEdit;
   final VoidCallback? onPickBanner;
   final VoidCallback? onTapAvatar;
@@ -68,6 +71,7 @@ class ProfileHero extends StatelessWidget {
     this.localBannerPath,
     this.bannerAnimated = false,
     this.subtitle = '',
+    this.rankChip,
     this.onEdit,
     this.onPickBanner,
     this.onTapAvatar,
@@ -308,26 +312,35 @@ class ProfileHero extends StatelessWidget {
                   ],
                 ],
               ),
-              if (subtitle.isNotEmpty) ...[
+              if (subtitle.isNotEmpty || rankChip != null) ...[
                 const SizedBox(height: 9),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 11,
-                    vertical: 7,
-                  ),
-                  decoration: BoxDecoration(
-                    color: cs.surfaceContainerHigh,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontFamily: ProfileTheme.bodyFont,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12.5,
-                      color: cs.onSurfaceVariant,
-                    ),
-                  ),
+                // Чипы переносятся строкой ниже, если не помещаются рядом.
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    if (subtitle.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 11,
+                          vertical: 7,
+                        ),
+                        decoration: BoxDecoration(
+                          color: cs.surfaceContainerHigh,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Text(
+                          subtitle,
+                          style: TextStyle(
+                            fontFamily: ProfileTheme.bodyFont,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12.5,
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    ?rankChip,
+                  ],
                 ),
               ],
             ],

@@ -18,6 +18,9 @@ import '../utils/couple_days.dart';
 import '../utils/email_typo.dart';
 import '../widgets/common/app_dialog.dart';
 import '../widgets/common/plus_badge.dart';
+import '../widgets/rank/rank_chip.dart';
+import '../widgets/rank/ranks_sheet.dart';
+import '../services/app_time_service.dart';
 import '../widgets/level_avatar.dart';
 import '../widgets/storage_image.dart';
 import 'package:image_picker/image_picker.dart';
@@ -1509,6 +1512,16 @@ class _ProfileScreenState extends State<ProfileScreen>
       localBannerPath: _bannerPath,
       bannerAnimated: PlusService.instance.active,
       subtitle: chipText,
+      // Звание за часы в приложении: касание — лист званий.
+      rankChip: ValueListenableBuilder<int>(
+        valueListenable: AppTimeService.instance.seconds,
+        builder: (context, seconds, _) => RankChip(
+          cs: cs,
+          seconds: seconds,
+          hours: AppTimeService.instance.hours,
+          onTap: () => showRanksSheet(context, cs: cs, seconds: seconds, hours: AppTimeService.instance.hours),
+        ),
+      ),
       onEdit: () => _editProfile(context),
       onPickBanner: () => _pickBanner(context),
       onTapAvatar: () => _editProfile(context),

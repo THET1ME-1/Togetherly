@@ -51,6 +51,9 @@ import '../widgets/home/onboarding_card.dart';
 import '../models/mascot_anim.dart';
 import '../models/mascot_sleep.dart';
 import '../services/catalog_service.dart';
+import '../services/app_time_service.dart';
+import '../widgets/rank/new_rank_dialog.dart';
+import '../widgets/rank/oldtimer_dialog.dart';
 import '../widgets/mascot/pixel_mascot_view.dart';
 import '../widgets/home/quiet_partner_card.dart';
 import '../widgets/home/daily_tasks_card.dart';
@@ -351,6 +354,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _pairData.addListener(_onPairChanged);
     widget.userData.addListener(_onUserChanged);
+    AppTimeService.instance.seconds.addListener(_onAppTimeChanged);
     HomeLayoutService.instance.addListener(_onLayoutChanged);
     PlusService.instance.addListener(_onLayoutChanged);
     unawaited(HomeLayoutService.instance.ensureLoaded());
@@ -568,8 +572,16 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// Часы в приложении выросли — может, пришло новое звание. Экран звания
+  /// показываем только поверх главной: не посреди чата или рисования.
+  void _onAppTimeChanged() {
+    if (!mounted || !(ModalRoute.of(context)?.isCurrent ?? true)) return;
+    unawaited(maybeShowNewRank(context));
+  }
+
   @override
   void dispose() {
+    AppTimeService.instance.seconds.removeListener(_onAppTimeChanged);
     unawaited(_reelsInviteSub?.cancel());
     final giftsOff = _giftsUnsub;
     _giftsUnsub = null;
@@ -1426,6 +1438,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _onUserChanged() {
     if (mounted) setState(() {});
+    // Значок «Старожил» пришёл с сервера — один раз сказать, за что он.
+    if (mounted && (ModalRoute.of(context)?.isCurrent ?? true)) {
+      unawaited(maybeShowOldTimer(context, widget.userData));
+    }
     // Тема пары меняется через userData → синкаем виджеты рабочего стола,
     // иначе лепестковый таймер остаётся на старой/дефолтной теме.
     _scheduleSyncHomeWidgets();

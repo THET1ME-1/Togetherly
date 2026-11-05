@@ -9,7 +9,22 @@ library;
 /// Пороги ступеней в часах: Искра, Знакомство, Симпатия, Свидания,
 /// Влюблённость, Пара, Неразлучные, Опора, Родные души, Серебряная пара,
 /// Золотая пара, Легенда, Звёздная пара, Навсегда.
-const List<num> kRankHours = [0, 1, 3, 6, 10, 15, 25, 40, 60, 90, 130, 180, 250, 365];
+const List<num> kRankHours = [
+  0,
+  1,
+  3,
+  6,
+  10,
+  15,
+  25,
+  40,
+  60,
+  90,
+  130,
+  180,
+  250,
+  365,
+];
 
 /// Пороги из `app_config`. Ступеней ровно столько, сколько эмблем, первая — с
 /// нуля, дальше строго по возрастанию; иначе — запасные.
@@ -51,5 +66,10 @@ RankProgress progressOf(int seconds, List<num> hours) {
   if (rank >= hours.length - 1) return RankProgress(rank, null, 1, 0);
   final from = hours[rank] * 3600, to = hours[rank + 1] * 3600;
   final left = (to - seconds).ceil();
-  return RankProgress(rank, rank + 1, ((seconds - from) / (to - from)).clamp(0, 1).toDouble(), left);
+  return RankProgress(
+    rank,
+    rank + 1,
+    ((seconds - from) / (to - from)).clamp(0, 1).toDouble(),
+    left,
+  );
 }

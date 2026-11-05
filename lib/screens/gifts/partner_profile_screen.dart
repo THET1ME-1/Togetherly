@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../services/app_time_service.dart';
 import '../../services/locale_service.dart';
 import '../../services/pb_data_service.dart';
+import '../../widgets/rank/rank_chip.dart';
+import '../../widgets/rank/ranks_sheet.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/profile_theme.dart';
 import '../profile/profile_hero.dart';
@@ -42,6 +45,10 @@ class _PartnerProfileScreenState extends State<PartnerProfileScreen> {
   /// клиенту не виден, его считает сервер в карточке (`banner_live`).
   bool _bannerLive = false;
 
+  /// Часы партнёра в приложении (карточка `app_seconds`); null — ещё не
+  /// пришли или сервер старый: тогда чипа звания нет.
+  int? _appSeconds;
+
   @override
   void initState() {
     super.initState();
@@ -53,10 +60,12 @@ class _PartnerProfileScreenState extends State<PartnerProfileScreen> {
     if (!mounted || m == null) return;
     final b = (m['bannerUrl'] as String?) ?? '';
     final live = m['bannerLive'] == true;
-    if (b != _bannerUrl || live != _bannerLive) {
+    final secs = (m['appSeconds'] as num?)?.toInt();
+    if (b != _bannerUrl || live != _bannerLive || secs != _appSeconds) {
       setState(() {
         _bannerUrl = b;
         _bannerLive = live;
+        _appSeconds = secs;
       });
     }
   }
@@ -66,8 +75,9 @@ class _PartnerProfileScreenState extends State<PartnerProfileScreen> {
     final t = widget.theme;
     final cs = ProfileTheme.themeFor(t).colorScheme;
     final days = widget.daysTogether;
-    final subtitle =
-        days != null ? LocaleService.current.partnerDaysTogether(days) : '';
+    final subtitle = days != null
+        ? LocaleService.current.partnerDaysTogether(days)
+        : '';
     return Scaffold(
       backgroundColor: cs.surface,
       extendBodyBehindAppBar: true,
@@ -92,6 +102,20 @@ class _PartnerProfileScreenState extends State<PartnerProfileScreen> {
               bannerUrl: _bannerUrl,
               bannerAnimated: _bannerLive,
               subtitle: subtitle,
+              rankChip: _appSeconds == null
+                  ? null
+                  : RankChip(
+                      cs: cs,
+                      seconds: _appSeconds!,
+                      hours: AppTimeService.instance.hours,
+                      onTap: () => showRanksSheet(
+                        context,
+                        cs: cs,
+                        seconds: _appSeconds!,
+                        hours: AppTimeService.instance.hours,
+                        mine: false,
+                      ),
+                    ),
             ),
             const SizedBox(height: 52),
             Padding(

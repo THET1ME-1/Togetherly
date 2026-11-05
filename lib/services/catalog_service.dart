@@ -18,6 +18,7 @@ import '../models/profile_icon.dart';
 import '../models/launch_splash.dart';
 import '../models/season_backdrop.dart';
 import '../models/tu_wear.dart';
+import '../models/rank_art.dart';
 import 'launch_splash_service.dart';
 import 'pb_data_service.dart';
 import 'pocketbase_service.dart';
@@ -52,7 +53,18 @@ class CatalogService extends ChangeNotifier {
   List<SeasonBackdrop> _backdrops = const [];
   List<LaunchSplash> _splashes = const [];
   List<TuWear> _wear = const [];
+  Map<int, RankArt> _ranks = const {};
   bool _initialized = false;
+
+  /// Эмблема звания по номеру (kind='rank'); null — каталог ещё не пришёл.
+  RankArt? rankArt(int index) => _ranks[index];
+
+  /// Подставить эмблемы званий без сети — только для тестов.
+  @visibleForTesting
+  void debugSetRanks(List<RankArt> ranks) {
+    _ranks = Map.unmodifiable({for (final r in ranks) r.index: r});
+    notifyListeners();
+  }
 
   /// Вещи гардероба Ту (kind='wear'), по полю `sort`.
   List<TuWear> get wearItems => _wear;
@@ -260,11 +272,18 @@ class CatalogService extends ChangeNotifier {
     final backdrops = <SeasonBackdrop>[];
     final splashes = <LaunchSplash>[];
     final wear = <TuWear>[];
+    final ranks = <int, RankArt>{};
 
     for (final raw in rows) {
       if (raw is! Map) continue;
       final row = raw.cast<String, dynamic>();
       if (!_appAtLeast(appVersion, row['min_app'] as String?)) continue;
+
+      if (row['kind'] == 'rank') {
+        final r = RankArt.fromCatalog(row);
+        if (r != null) ranks[r.index] = r;
+        continue;
+      }
 
       if (row['kind'] == 'wear') {
         final w = TuWear.fromCatalog(row);
@@ -379,6 +398,7 @@ class CatalogService extends ChangeNotifier {
     _backdrops = List.unmodifiable(backdrops);
     wear.sort((a, b) => a.sort.compareTo(b.sort));
     _wear = List.unmodifiable(wear);
+    _ranks = Map.unmodifiable(ranks);
     splashes.sort((a, b) => a.sort.compareTo(b.sort));
     _splashes = List.unmodifiable(splashes);
     // Выбранная заставка: снятая с сервера перестаёт играть, новая выкладка

@@ -52,7 +52,12 @@ void main() {
   test('принятое сервером вычитается, часы берутся из ответа', () async {
     var t = t0;
     final s = make(() => t);
-    answer = (body) => {'ok': true, 'seconds': 5000 + (body['seconds'] as int), 'granted': body['seconds'], 'rank_seen': 2};
+    answer = (body) => {
+      'ok': true,
+      'seconds': 5000 + (body['seconds'] as int),
+      'granted': body['seconds'],
+      'rank_seen': 2,
+    };
     await open(s);
     t = t0.add(const Duration(seconds: 120));
     await s.flush();
@@ -79,7 +84,10 @@ void main() {
     await s.markSeen(4);
     await s.markSeen(2);
     expect(s.rankSeen, 4);
-    expect(calls.where((c) => c['path'] == '/api/user/app-time/seen').length, 1);
+    expect(
+      calls.where((c) => c['path'] == '/api/user/app-time/seen').length,
+      1,
+    );
     s.stop();
   });
 
