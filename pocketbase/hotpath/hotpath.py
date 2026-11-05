@@ -2960,7 +2960,117 @@ async def user_card(request: Request):
         "birth_date": birth_date or "",
         "mascot_sleep": sleep,
         "granted_badges": _json_list(granted_badges),
+        # Часы в приложении — для звания на странице партнёра.
+        "app_seconds": await _app_seconds_of(uid),
     }
+
+
+# ── Часы в приложении для званий (05.11.2026) ────────────────────────────────
+# Телефон считает секунды, пока приложение на экране, и шлёт их пачкой. Сервер
+# засчитывает не больше реального времени с прошлого отчёта этого телефона:
+# переведённые часы и подделанный запрос звания не дают. Таблицы — app_time.sql.
+
+_APP_TIME_CALL_MAX = 3600
+_APP_TIME_FIRST_MAX = 300
+_APP_TIME_DEVICES = 5
+
+
+def _app_time_grant(sent, last_ms, now_ms):
+    """Сколько присланных секунд засчитать: не больше прошедшего с прошлого
+    отчёта этого телефона (+30 с на сеть) и не больше часа за раз. Первый
+    отчёт телефона — не больше пяти минут."""
+    try:
+        sent = int(sent)
+    except (TypeError, ValueError, OverflowError):
+        return 0
+    if sent <= 0:
+        return 0
+    if last_ms is None:
+        return min(sent, _APP_TIME_FIRST_MAX)
+    room = max(0, (now_ms - last_ms) // 1000 + 30) if now_ms >= last_ms else 0
+    return int(min(sent, room, _APP_TIME_CALL_MAX))
+
+
+async def _app_seconds_of(uid: str) -> int:
+    try:
+        async with pg.acquire() as c:
+            return int(await c.fetchval("SELECT seconds FROM user_app_time WHERE uid = $1", uid) or 0)
+    except (asyncpg.PostgresError, asyncpg.InterfaceError, OSError) as e:
+        log.warning("app time read %s: %r", uid, e)
+        return 0
+
+
+@app.post("/api/user/app-time")
+async def app_time(request: Request):
+    """Отчёт телефона: {device, seconds} → {seconds, rank_seen, granted}.
+    seconds = 0 — просто прочитать свои часы."""
+    try:
+        auth = await _auth(request)
+    except Exception:
+        return _err(429, "Try again later.")
+    if auth is None:
+        return _err(401, "The request requires valid record authorization token.")
+    uid, _groups = auth
+    try:
+        body = await request.json()
+    except ValueError:
+        body = None
+    if not isinstance(body, dict):
+        return ORJSONResponse({"ok": False, "error": "bad body"}, status_code=400)
+    device = str(body.get("device") or "").strip()[:64]
+    if not device:
+        return ORJSONResponse({"ok": False, "error": "no device"}, status_code=400)
+    now = _now_ms()
+    async with pg.acquire() as c:
+        async with c.transaction():
+            last = await c.fetchval(
+                "SELECT reported_at FROM app_time_devices WHERE uid = $1 AND device = $2 FOR UPDATE",
+                uid, device)
+            known = last is not None
+            # Новый телефон сверх пяти не считается: иначе часы набивались бы
+            # первыми отчётами выдуманных телефонов.
+            if not known and await c.fetchval(
+                    "SELECT count(*) FROM app_time_devices WHERE uid = $1", uid) >= _APP_TIME_DEVICES:
+                grant = 0
+            else:
+                grant = _app_time_grant(body.get("seconds"), last, now)
+                await c.execute(
+                    "INSERT INTO app_time_devices (uid, device, reported_at) VALUES ($1, $2, $3) "
+                    "ON CONFLICT (uid, device) DO UPDATE SET reported_at = EXCLUDED.reported_at",
+                    uid, device, now)
+            row = await c.fetchrow(
+                "INSERT INTO user_app_time (uid, seconds) VALUES ($1, $2) "
+                "ON CONFLICT (uid) DO UPDATE SET seconds = user_app_time.seconds + EXCLUDED.seconds "
+                "RETURNING seconds, rank_seen",
+                uid, grant)
+    return {"ok": True, "seconds": int(row["seconds"]), "rank_seen": int(row["rank_seen"]), "granted": grant}
+
+
+@app.post("/api/user/app-time/seen")
+async def app_time_seen(request: Request):
+    """Экран нового звания показан: {rank}. Отметка только растёт, поэтому
+    после переустановки приложения экран не повторяется."""
+    try:
+        auth = await _auth(request)
+    except Exception:
+        return _err(429, "Try again later.")
+    if auth is None:
+        return _err(401, "The request requires valid record authorization token.")
+    uid, _groups = auth
+    try:
+        body = await request.json()
+        rank = int(body.get("rank"))
+    except (ValueError, TypeError, AttributeError):
+        return ORJSONResponse({"ok": False, "error": "bad rank"}, status_code=400)
+    if not 0 <= rank <= 99:
+        return ORJSONResponse({"ok": False, "error": "bad rank"}, status_code=400)
+    async with pg.acquire() as c:
+        seen = await c.fetchval(
+            "INSERT INTO user_app_time (uid, rank_seen) VALUES ($1, $2) "
+            "ON CONFLICT (uid) DO UPDATE SET rank_seen = GREATEST(user_app_time.rank_seen, EXCLUDED.rank_seen) "
+            "RETURNING rank_seen",
+            uid, rank)
+    return {"ok": True, "rank_seen": int(seen)}
 
 
 @app.post("/api/centrifugo/connection-token")
