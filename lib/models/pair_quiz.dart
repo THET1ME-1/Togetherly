@@ -247,63 +247,103 @@ final List<(Map<String, String>, List<(String, Map<String, String>)>)> _animalQs
 // поэтому баланс (каждый язык и каждый зверь ровно четыре раза, шесть
 // утверждений на ось) держится в любом наборе. Основной вариант — списки выше.
 
-/// Ещё по два варианта на каждую пару языков, в том же порядке типов.
+/// Ещё по четыре варианта на каждую пару языков, в том же порядке типов.
 final List<List<(Map<String, String>, Map<String, String>)>> _langExtra = [
   [ // words / time
+    (_m('Партнёр рассказывает, за что меня любит', 'My partner tells me why they love me', 'Партнер розповідає, за що мене кохає'),
+     _m('Вечер, когда мы вдвоём разбираем старые фото', 'An evening going through old photos together', 'Вечір, коли ми удвох переглядаємо старі фото')),
+    (_m('Тёплое сообщение, как только партнёр проснётся', 'A warm text as soon as my partner wakes up', 'Тепле повідомлення, щойно партнер прокинеться'),
+     _m('Партнёр берёт выходной, чтобы провести день со мной', 'My partner takes a day off to spend it with me', 'Партнер бере вихідний, щоб провести день зі мною')),
     (_m('Сообщение «думаю о тебе» посреди рабочего дня', 'A “thinking of you” text in the middle of the workday', 'Повідомлення «думаю про тебе» посеред робочого дня'),
      _m('Целый выходной только вдвоём', 'A whole day off, just the two of us', 'Цілий вихідний тільки удвох')),
     (_m('Партнёр хвалит то, что у меня получилось', 'My partner praises what I pulled off', 'Партнер хвалить те, що в мене вийшло'),
      _m('Партнёр слушает меня, ни на что не отвлекаясь', 'My partner listens to me with full attention', 'Партнер слухає мене, ні на що не відволікаючись')),
   ],
   [ // words / gifts
+    (_m('Пост о нас с тёплой подписью', 'A post about us with a sweet caption', 'Допис про нас із теплим підписом'),
+     _m('Билеты на концерт моей любимой группы', 'Tickets to my favorite band’s concert', 'Квитки на концерт мого улюбленого гурту')),
+    (_m('Партнёр перечисляет, что во мне ценит', 'My partner lists what they value in me', 'Партнер перелічує, що в мені цінує'),
+     _m('Вещица, которая напоминает о нашем первом свидании', 'A little thing that reminds me of our first date', 'Дрібничка, що нагадує про наше перше побачення')),
     (_m('Голосовое с признанием', 'A voice message with a confession', 'Голосове із зізнанням'),
      _m('Любимая сладость, купленная по дороге', 'My favorite treat, picked up on the way', 'Улюблена солодість, куплена дорогою')),
     (_m('Открытка с длинным письмом от руки', 'A card with a long handwritten letter', 'Листівка з довгим листом від руки'),
      _m('Подарок по моему случайному намёку', 'A gift based on a hint I dropped once', 'Подарунок за моїм випадковим натяком')),
   ],
   [ // words / acts
+    (_m('Партнёр говорит «ты молодец» после трудного дня', 'My partner says “well done” after a hard day', 'Партнер каже «ти молодець» після важкого дня'),
+     _m('Партнёр забирает за меня посылку', 'My partner picks up my parcel for me', 'Партнер забирає за мене посилку')),
+    (_m('Партнёр подбадривает меня перед важным делом', 'My partner cheers me on before something big', 'Партнер підбадьорює мене перед важливою справою'),
+     _m('Партнёр гладит мне одежду на завтра', 'My partner irons my clothes for tomorrow', 'Партнер прасує мені одяг на завтра')),
     (_m('Услышать «спасибо, что ты есть»', 'Hearing “thank you for being you”', 'Почути «дякую, що ти є»'),
      _m('Партнёр чинит то, что давно сломано', 'My partner fixes what has been broken for ages', 'Партнер лагодить те, що давно зламане')),
     (_m('Партнёр говорит, что верит в меня', 'My partner says they believe in me', 'Партнер каже, що вірить у мене'),
      _m('Партнёр сам закупает продукты на неделю', 'My partner does the weekly grocery run', 'Партнер сам закуповує продукти на тиждень')),
   ],
   [ // words / touch
+    (_m('Партнёр пишет, что скучает', 'My partner texts that they miss me', 'Партнер пише, що сумує'),
+     _m('Партнёр берёт мою руку под столом', 'My partner takes my hand under the table', 'Партнер бере мою руку під столом')),
+    (_m('Нежные слова шёпотом на ухо', 'Sweet words whispered in my ear', 'Ніжні слова пошепки на вухо'),
+     _m('Партнёр утыкается мне в плечо', 'My partner nuzzles into my shoulder', 'Партнер утикається мені в плече')),
     (_m('Ласковое прозвище', 'A sweet nickname', 'Ласкаве прізвисько'),
      _m('Поцелуй в лоб', 'A kiss on the forehead', 'Поцілунок у лоб')),
     (_m('Комплимент моей внешности', 'A compliment on how I look', 'Комплімент моїй зовнішності'),
      _m('Рука на моём плече в толпе', 'A hand on my shoulder in a crowd', 'Рука на моєму плечі в натовпі')),
   ],
   [ // time / gifts
+    (_m('Пикник вдвоём в парке', 'A picnic for two in the park', 'Пікнік удвох у парку'),
+     _m('Цветок в горшке, чтобы он рос у нас дома', 'A potted plant to grow in our home', 'Квітка в горщику, щоб вона росла в нас удома')),
+    (_m('Утро, когда никуда не надо спешить, и мы вместе', 'A morning with nowhere to rush, just us', 'Ранок, коли нікуди не треба поспішати, і ми разом'),
+     _m('Шарф, связанный своими руками', 'A scarf knitted by hand', 'Шарф, сплетений власними руками')),
     (_m('Свидание, которое партнёр сам спланировал', 'A date my partner planned all by themselves', 'Побачення, яке партнер сам спланував'),
      _m('Коробка с маленькими сюрпризами', 'A box of little surprises', 'Коробка з маленькими сюрпризами')),
     (_m('Вечер настольных игр вдвоём', 'A board game night for two', 'Вечір настільних ігор удвох'),
      _m('Книга, которую партнёр выбрал специально для меня', 'A book my partner chose just for me', 'Книжка, яку партнер обрав спеціально для мене')),
   ],
   [ // time / acts
+    (_m('Поход в музей вдвоём', 'A trip to a museum together', 'Похід до музею удвох'),
+     _m('Партнёр сам планирует наш отпуск и всё бронирует', 'My partner plans our vacation and books everything', 'Партнер сам планує нашу відпустку й усе бронює')),
+    (_m('Партнёр едет со мной по делам, просто чтобы быть рядом', 'My partner runs errands with me just to be together', 'Партнер їде зі мною у справах, просто щоб бути поруч'),
+     _m('Партнёр собирает мои вещи в поездку', 'My partner packs my bag for a trip', 'Партнер збирає мої речі в поїздку')),
     (_m('Поездка за город вдвоём', 'A trip out of town together', 'Поїздка за місто удвох'),
      _m('Партнёр убирает квартиру, пока меня нет', 'My partner cleans the place while I’m out', 'Партнер прибирає квартиру, поки мене немає')),
     (_m('Совместный завтрак без спешки', 'A slow breakfast together', 'Спільний сніданок без поспіху'),
      _m('Партнёр заранее собирает мне обед с собой', 'My partner packs me lunch ahead of time', 'Партнер заздалегідь збирає мені обід із собою')),
   ],
   [ // time / touch
+    (_m('Встречать рассвет вдвоём', 'Watching the sunrise together', 'Зустрічати світанок удвох'),
+     _m('Танцевать вдвоём на кухне', 'Dancing together in the kitchen', 'Танцювати удвох на кухні')),
+    (_m('Слушать музыку и болтать обо всём', 'Listening to music and chatting about everything', 'Слухати музику й балакати про все'),
+     _m('Партнёр греет мои руки в своих', 'My partner warms my hands in theirs', 'Партнер гріє мої руки у своїх')),
     (_m('Готовить ужин вместе', 'Cooking dinner together', 'Готувати вечерю разом'),
      _m('Засыпать в обнимку', 'Falling asleep in each other’s arms', 'Засинати в обіймах')),
     (_m('Гулять ночью по городу', 'Walking around the city at night', 'Гуляти вночі містом'),
      _m('Партнёр гладит меня по волосам', 'My partner strokes my hair', 'Партнер гладить мене по волоссю')),
   ],
   [ // gifts / acts
+    (_m('Вещь, о которой я давно мечтаю', 'Something I’ve been dreaming of for ages', 'Річ, про яку я давно мрію'),
+     _m('Партнёр помогает мне с переездом', 'My partner helps me move', 'Партнер допомагає мені з переїздом')),
+    (_m('Сладкий сюрприз на подушке', 'A sweet surprise on my pillow', 'Солодкий сюрприз на подушці'),
+     _m('Партнёр ухаживает за мной, когда я болею', 'My partner takes care of me when I’m sick', 'Партнер доглядає за мною, коли я хворію')),
     (_m('Фото в рамке с нашим общим моментом', 'A framed photo of a moment we shared', 'Фото в рамці з нашою спільною миттю'),
      _m('Партнёр делает за меня скучные звонки', 'My partner makes the boring calls for me', 'Партнер робить за мене нудні дзвінки')),
     (_m('Подарок на годовщину, придуманный заранее', 'An anniversary gift planned well ahead', 'Подарунок на річницю, вигаданий заздалегідь'),
      _m('Партнёр встречает меня горячим чаем после работы', 'My partner greets me with hot tea after work', 'Партнер зустрічає мене гарячим чаєм після роботи')),
   ],
   [ // gifts / touch
+    (_m('Подарок, упакованный своими руками', 'A gift wrapped by hand', 'Подарунок, запакований власними руками'),
+     _m('Поцелуй перед уходом из дома', 'A kiss before leaving the house', 'Поцілунок перед виходом з дому')),
+    (_m('Духи, которые партнёр подобрал под меня', 'A perfume my partner picked just for me', 'Парфуми, які партнер дібрав під мене'),
+     _m('Обниматься под одеялом холодным вечером', 'Cuddling under a blanket on a cold evening', 'Обійматися під ковдрою холодного вечора')),
     (_m('Браслет или украшение на память', 'A bracelet or a keepsake piece of jewelry', 'Браслет чи прикраса на згадку'),
      _m('Обнять, едва увидев после разлуки', 'A hug the moment we meet after time apart', 'Обійняти, щойно побачивши після розлуки')),
     (_m('Плейлист, собранный специально для меня', 'A playlist made just for me', 'Плейлист, зібраний спеціально для мене'),
      _m('Сидеть рядом, касаясь плечами', 'Sitting close, shoulders touching', 'Сидіти поруч, торкаючись плечима')),
   ],
   [ // acts / touch
+    (_m('Партнёр берёт на себя дело, которое я терпеть не могу', 'My partner handles the chore I can’t stand', 'Партнер бере на себе справу, яку я терпіти не можу'),
+     _m('Партнёр кладёт голову мне на колени', 'My partner rests their head in my lap', 'Партнер кладе голову мені на коліна')),
+    (_m('Партнёр провожает меня до дома поздно вечером', 'My partner walks me home late at night', 'Партнер проводжає мене додому пізно ввечері'),
+     _m('Идти под руку на прогулке', 'Walking arm in arm', 'Іти під руку на прогулянці')),
     (_m('Партнёр сам моет посуду после ужина', 'My partner does the dishes after dinner', 'Партнер сам миє посуд після вечері'),
      _m('Долгие объятия без слов', 'A long hug without words', 'Довгі обійми без слів')),
     (_m('Партнёр готовит мою любимую еду', 'My partner cooks my favorite food', 'Партнер готує мою улюблену їжу'),
@@ -311,72 +351,232 @@ final List<List<(Map<String, String>, Map<String, String>)>> _langExtra = [
   ],
 ];
 
-/// Ещё по одному утверждению на каждый слот: та же ось и то же направление.
-final List<Map<String, String>> _attachExtra = [
-  _m('Мне страшно, что меня бросят', 'I’m scared of being left', 'Мені страшно, що мене покинуть'),
-  _m('Мне неловко, когда партнёр говорит о чувствах', 'I feel awkward when my partner talks about feelings', 'Мені ніяково, коли партнер говорить про почуття'),
-  _m('Я перечитываю переписку и ищу, не обиделся ли партнёр', 'I reread our chat looking for signs my partner is upset', 'Я перечитую листування й шукаю, чи не образився партнер'),
-  _m('Слишком много времени вместе меня утомляет', 'Too much time together wears me out', 'Забагато часу разом мене втомлює'),
-  _m('Мне важно, чтобы партнёр часто писал первым', 'I need my partner to text first often', 'Мені важливо, щоб партнер часто писав першим'),
-  _m('Я легко делюсь с партнёром тем, что меня тревожит', 'I easily share what worries me with my partner', 'Я легко ділюся з партнером тим, що мене тривожить'),
-  _m('Я ревную, даже если повода нет', 'I get jealous even without a reason', 'Я ревную, навіть якщо приводу немає'),
-  _m('Когда что-то не так, я скорее замолчу, чем скажу', 'When something is wrong, I’d rather go quiet than say it', 'Коли щось не так, я радше замовкну, ніж скажу'),
-  _m('Если партнёр занят, я спокойно жду', 'If my partner is busy, I wait calmly', 'Якщо партнер зайнятий, я спокійно чекаю'),
-  _m('Мне нравится, когда мы знаем друг о друге всё', 'I like it when we know everything about each other', 'Мені подобається, коли ми знаємо одне про одного все'),
-  _m('После ссоры мне трудно уснуть', 'After a fight it is hard for me to fall asleep', 'Після сварки мені важко заснути'),
-  _m('Когда партнёр просит поговорить о нас, я ищу повод отложить', 'When my partner asks to talk about us, I look for a reason to put it off', 'Коли партнер просить поговорити про нас, я шукаю привід відкласти'),
+/// Ещё по три утверждения на каждый слот: та же ось и то же направление.
+final List<List<Map<String, String>>> _attachExtra = [
+  [ // anx
+    _m('Мне страшно, что меня бросят', 'I’m scared of being left', 'Мені страшно, що мене покинуть'),
+    _m('Иногда я сомневаюсь, что партнёр правда меня любит', 'Sometimes I doubt my partner really loves me', 'Іноді я сумніваюся, що партнер справді мене кохає'),
+    _m('Мне кажется, что я люблю сильнее, чем меня', 'I feel like I love more than I’m loved', 'Мені здається, що я кохаю сильніше, ніж мене'),
+  ],
+  [ // avo
+    _m('Мне неловко, когда партнёр говорит о чувствах', 'I feel awkward when my partner talks about feelings', 'Мені ніяково, коли партнер говорить про почуття'),
+    _m('Я редко говорю партнёру, что мне плохо', 'I rarely tell my partner when I feel bad', 'Я рідко кажу партнерові, що мені погано'),
+    _m('Свои переживания я держу при себе, даже от партнёра', 'I keep my worries to myself, even from my partner', 'Свої переживання я тримаю при собі, навіть від партнера'),
+  ],
+  [ // anx
+    _m('Я перечитываю переписку и ищу, не обиделся ли партнёр', 'I reread our chat looking for signs my partner is upset', 'Я перечитую листування й шукаю, чи не образився партнер'),
+    _m('Когда партнёр не берёт трубку, я представляю худшее', 'When my partner doesn’t pick up, I imagine the worst', 'Коли партнер не бере слухавку, я уявляю найгірше'),
+    _m('Я проверяю, когда партнёр был в сети', 'I check when my partner was last online', 'Я перевіряю, коли партнер був у мережі'),
+  ],
+  [ // avo
+    _m('Слишком много времени вместе меня утомляет', 'Too much time together wears me out', 'Забагато часу разом мене втомлює'),
+    _m('Даже когда всё хорошо, мне нужно много времени наедине с собой', 'Even when things are good, I need a lot of time alone', 'Навіть коли все добре, мені потрібно багато часу наодинці з собою'),
+    _m('Когда отношения становятся серьёзнее, мне хочется притормозить', 'When things get more serious, I want to slow down', 'Коли стосунки стають серйознішими, мені хочеться пригальмувати'),
+  ],
+  [ // anx
+    _m('Мне важно, чтобы партнёр часто писал первым', 'I need my partner to text first often', 'Мені важливо, щоб партнер часто писав першим'),
+    _m('Без частых знаков внимания я начинаю сомневаться в партнёре', 'Without frequent signs of attention I start to doubt my partner', 'Без частих знаків уваги я починаю сумніватися в партнері'),
+    _m('Я расстраиваюсь, если партнёр не замечает моих стараний', 'I get upset if my partner doesn’t notice my efforts', 'Я засмучуюся, якщо партнер не помічає моїх старань'),
+  ],
+  [ // avo, обратное
+    _m('Я легко делюсь с партнёром тем, что меня тревожит', 'I easily share what worries me with my partner', 'Я легко ділюся з партнером тим, що мене тривожить'),
+    _m('Я могу заплакать при партнёре и не стыдиться этого', 'I can cry in front of my partner without shame', 'Я можу заплакати при партнерові й не соромитися цього'),
+    _m('Мне легко рассказать партнёру о своих слабостях', 'It is easy for me to tell my partner about my weak spots', 'Мені легко розповісти партнерові про свої слабкості'),
+  ],
+  [ // anx
+    _m('Я ревную, даже если повода нет', 'I get jealous even without a reason', 'Я ревную, навіть якщо приводу немає'),
+    _m('Я сравниваю себя с бывшими партнёра', 'I compare myself to my partner’s exes', 'Я порівнюю себе з колишніми партнера'),
+    _m('Меня тревожит, когда партнёр хвалит кого-то другого', 'It bothers me when my partner praises someone else', 'Мене тривожить, коли партнер хвалить когось іншого'),
+  ],
+  [ // avo
+    _m('Когда что-то не так, я скорее замолчу, чем скажу', 'When something is wrong, I’d rather go quiet than say it', 'Коли щось не так, я радше замовкну, ніж скажу'),
+    _m('Я не люблю зависеть от партнёра', 'I don’t like depending on my partner', 'Я не люблю залежати від партнера'),
+    _m('О трудностях я рассказываю, только когда уже их решу', 'I only talk about my troubles once I’ve solved them', 'Про труднощі я розповідаю, тільки коли вже їх розв’яжу'),
+  ],
+  [ // anx, обратное
+    _m('Если партнёр занят, я спокойно жду', 'If my partner is busy, I wait calmly', 'Якщо партнер зайнятий, я спокійно чекаю'),
+    _m('Когда партнёр уезжает, я спокойно живу своей жизнью', 'When my partner is away, I calmly get on with my life', 'Коли партнер їде, я спокійно живу своїм життям'),
+    _m('Мне не нужно знать, где партнёр каждую минуту', 'I don’t need to know where my partner is every minute', 'Мені не треба знати, де партнер щохвилини'),
+  ],
+  [ // avo, обратное
+    _m('Мне нравится, когда мы знаем друг о друге всё', 'I like it when we know everything about each other', 'Мені подобається, коли ми знаємо одне про одного все'),
+    _m('Я люблю, когда партнёр рядом почти всё время', 'I love having my partner around almost all the time', 'Я люблю, коли партнер поруч майже весь час'),
+    _m('Мне легко сказать партнёру «я тебя люблю»', 'It is easy for me to say “I love you” to my partner', 'Мені легко сказати партнерові «я тебе кохаю»'),
+  ],
+  [ // anx
+    _m('После ссоры мне трудно уснуть', 'After a fight it is hard for me to fall asleep', 'Після сварки мені важко заснути'),
+    _m('После ссоры я боюсь, что это конец', 'After a fight I fear it’s the end', 'Після сварки я боюся, що це кінець'),
+    _m('Даже маленькое недовольство партнёра меня сильно тревожит', 'Even a little displeasure from my partner worries me a lot', 'Навіть маленьке невдоволення партнера мене дуже тривожить'),
+  ],
+  [ // avo
+    _m('Когда партнёр просит поговорить о нас, я ищу повод отложить', 'When my partner asks to talk about us, I look for a reason to put it off', 'Коли партнер просить поговорити про нас, я шукаю привід відкласти'),
+    _m('В трудном разговоре я закрываюсь', 'In a hard conversation I shut down', 'У важкій розмові я закриваюся'),
+    _m('Когда партнёр расстроен, мне хочется уйти в другую комнату', 'When my partner is upset, I want to go to another room', 'Коли партнер засмучений, мені хочеться піти в іншу кімнату'),
+  ],
 ];
 
-/// Ещё по одному вопросу на каждый слот: те же звери в том же порядке.
-final List<(Map<String, String>, List<Map<String, String>>)> _animalExtra = [
-  (_m('Как вы отдыхаете в отпуске', 'How you spend a vacation', 'Як ви відпочиваєте у відпустці'), [
-    _m('Каждый читает своё у бассейна', 'Each reading our own book by the pool', 'Кожен читає своє біля басейну'),
-    _m('Везде вместе, куда бы ни пошли', 'Together everywhere, wherever we go', 'Скрізь разом, куди б не пішли'),
-    _m('Каждый день новое место', 'A new place every day', 'Щодня нове місце'),
-    _m('Номер, кровать и доставка еды', 'The room, the bed and food delivery', 'Номер, ліжко й доставка їжі'),
-  ]),
-  (_m('Партнёр замёрз', 'Your partner is cold', 'Партнер змерз'), [
-    _m('Грею ладони партнёра в своих', 'I warm their hands in mine', 'Грію долоні партнера у своїх'),
-    _m('Обнимаю целиком', 'I wrap them in a full hug', 'Обіймаю повністю'),
-    _m('Ворчу и отдаю свою куртку', 'I grumble and hand over my jacket', 'Буркочу й віддаю свою куртку'),
-    _m('Приношу горячий чай', 'I bring hot tea', 'Приношу гарячий чай'),
-  ]),
-  (_m('Партнёр опаздывает на свидание', 'Your partner is late for a date', 'Партнер запізнюється на побачення'), [
-    _m('Не жду и занимаюсь своим', 'I don’t wait, I do my own thing', 'Не чекаю й займаюся своїм'),
-    _m('Жду и радуюсь, когда наконец приходит', 'I wait and light up when they finally show', 'Чекаю й радію, коли нарешті приходить'),
-    _m('Встречаю колкостью, но никуда не ухожу', 'I greet them with a jab, but I stay', 'Зустрічаю шпилькою, але нікуди не йду'),
-    _m('Придумываю розыгрыш', 'I plot a little prank', 'Вигадую розіграш'),
-  ]),
-  (_m('Вы долго не виделись', 'You haven’t seen each other for a while', 'Ви довго не бачилися'), [
-    _m('Весь день не отпускаю руку', 'I don’t let go of their hand all day', 'Увесь день не відпускаю руку'),
-    _m('Делаю вид, что не так уж и скучаю', 'I act like I didn’t miss them that much', 'Вдаю, що не так уже й сумую'),
-    _m('Сначала накормлю и укутаю', 'First I feed them and tuck them in', 'Спершу нагодую й закутаю'),
-    _m('Обнимаемся и засыпаем', 'We cuddle and fall asleep', 'Обіймаємося й засинаємо'),
-  ]),
-  (_m('Новые знакомые партнёра', 'Your partner’s new friends', 'Нові знайомі партнера'), [
-    _m('Быстро нахожу с ними общий язык', 'I get along with them right away', 'Швидко знаходжу з ними спільну мову'),
-    _m('Присматриваюсь, пока не пойму, кто они', 'I keep my distance until I figure them out', 'Придивляюся, поки не зрозумію, хто вони'),
-    _m('Сразу считаю их друзьями', 'I treat them as friends straight away', 'Одразу вважаю їх друзями'),
-    _m('Мне хватает моего человека', 'My person is all I need', 'Мені вистачає моєї людини'),
-  ]),
-  (_m('У партнёра тяжёлый день', 'Your partner has a rough day', 'У партнера важкий день'), [
-    _m('Беру всё на себя', 'I take everything on myself', 'Беру все на себе'),
-    _m('Весь день пишу, что я рядом', 'I text all day that I’m here', 'Увесь день пишу, що я поруч'),
-    _m('Готовлю сюрприз к вечеру', 'I plan a surprise for the evening', 'Готую сюрприз на вечір'),
-    _m('Зову полежать вместе и ничего не делать', 'I invite them to lie down together and do nothing', 'Кличу полежати разом і нічого не робити'),
-  ]),
-  (_m('Что ранило бы вас сильнее', 'What would hurt you most', 'Що поранило б вас найбільше'), [
-    _m('Измена', 'Cheating', 'Зрада'),
-    _m('Холодность', 'Coldness', 'Холодність'),
-    _m('Ненадёжность', 'Unreliability', 'Ненадійність'),
-    _m('Скука', 'Boredom', 'Нудьга'),
-  ]),
-  (_m('Любимое место дома', 'Your favorite spot at home', 'Улюблене місце вдома'), [
-    _m('Кровать', 'The bed', 'Ліжко'),
-    _m('Свой угол, куда никто не лезет', 'My own corner nobody touches', 'Свій куток, куди ніхто не лізе'),
-    _m('Диван, где мы вдвоём', 'The couch where we sit together', 'Диван, де ми вдвох'),
-    _m('Подоконник с видом', 'A windowsill with a view', 'Підвіконня з краєвидом'),
-  ]),
+/// Ещё по три вопроса на каждый слот: те же звери в том же порядке.
+final List<List<(Map<String, String>, List<Map<String, String>>)>> _animalExtra = [
+  [ // cat, dog, fox, koala
+    (_m('Как вы отдыхаете в отпуске', 'How you spend a vacation', 'Як ви відпочиваєте у відпустці'), [
+      _m('Каждый читает своё у бассейна', 'Each reading our own book by the pool', 'Кожен читає своє біля басейну'),
+      _m('Везде вместе, куда бы ни пошли', 'Together everywhere, wherever we go', 'Скрізь разом, куди б не пішли'),
+      _m('Каждый день новое место', 'A new place every day', 'Щодня нове місце'),
+      _m('Номер, кровать и доставка еды', 'The room, the bed and food delivery', 'Номер, ліжко й доставка їжі'),
+    ]),
+    (_m('Свободный день вдвоём', 'A free day together', 'Вільний день удвох'), [
+      _m('Полдня вместе, полдня каждый сам по себе', 'Half the day together, half on our own', 'Пів дня разом, пів дня кожен сам по собі'),
+      _m('Весь день вместе, чем бы ни заниматься', 'The whole day together, whatever we do', 'Увесь день разом, чим би не займатися'),
+      _m('Едем туда, где ещё не были', 'Off somewhere we’ve never been', 'Їдемо туди, де ще не були'),
+      _m('Не вылезаем из кровати', 'We never leave the bed', 'Не вилазимо з ліжка'),
+    ]),
+    (_m('Как вы празднуете годовщину', 'How you celebrate your anniversary', 'Як ви святкуєте річницю'), [
+      _m('Тихо, без лишней суеты', 'Quietly, no fuss', 'Тихо, без зайвої метушні'),
+      _m('Зовём друзей, пусть радуются с нами', 'We invite friends to celebrate with us', 'Кличемо друзів, хай радіють із нами'),
+      _m('Устраиваю сюрприз, о котором партнёр не догадается', 'I set up a surprise my partner won’t see coming', 'Влаштовую сюрприз, про який партнер не здогадається'),
+      _m('Заказываем еду и смотрим фильм под пледом', 'We order food and watch a movie under a blanket', 'Замовляємо їжу й дивимося фільм під пледом'),
+    ]),
+  ],
+  [ // otter, bear, hedgehog, penguin
+    (_m('Партнёр замёрз', 'Your partner is cold', 'Партнер змерз'), [
+      _m('Грею ладони партнёра в своих', 'I warm their hands in mine', 'Грію долоні партнера у своїх'),
+      _m('Обнимаю целиком', 'I wrap them in a full hug', 'Обіймаю повністю'),
+      _m('Ворчу и отдаю свою куртку', 'I grumble and hand over my jacket', 'Буркочу й віддаю свою куртку'),
+      _m('Приношу горячий чай', 'I bring hot tea', 'Приношу гарячий чай'),
+    ]),
+    (_m('Как вы заботитесь о партнёре', 'How you take care of your partner', 'Як ви дбаєте про партнера'), [
+      _m('Не отхожу ни на шаг', 'I never leave their side', 'Не відходжу ні на крок'),
+      _m('Защищаю от всего мира', 'I protect them from the whole world', 'Захищаю від усього світу'),
+      _m('Ворчу «оденься теплее» и несу шарф', 'I grumble “dress warmer” and bring a scarf', 'Буркочу «вдягнися тепліше» й несу шарф'),
+      _m('Оставляю записки и маленькие сюрпризы', 'I leave notes and little surprises', 'Залишаю записки й маленькі сюрпризи'),
+    ]),
+    (_m('Ваш способ сказать «люблю»', 'Your way of saying “I love you”', 'Ваш спосіб сказати «кохаю»'), [
+      _m('Переплетаю пальцы с пальцами партнёра', 'I lace my fingers with theirs', 'Переплітаю пальці з пальцями партнера'),
+      _m('Обнимаю так, что хрустят косточки', 'I hug so hard their bones crack', 'Обіймаю так, що хрустять кісточки'),
+      _m('Говорю колкость, но с улыбкой', 'I tease them, but with a smile', 'Кажу шпильку, але з усмішкою'),
+      _m('Приношу камешек, листик или ракушку', 'I bring a pebble, a leaf or a seashell', 'Приношу камінчик, листочок чи мушлю'),
+    ]),
+  ],
+  [ // cat, dog, hedgehog, fox
+    (_m('Партнёр опаздывает на свидание', 'Your partner is late for a date', 'Партнер запізнюється на побачення'), [
+      _m('Не жду и занимаюсь своим', 'I don’t wait, I do my own thing', 'Не чекаю й займаюся своїм'),
+      _m('Жду и радуюсь, когда наконец приходит', 'I wait and light up when they finally show', 'Чекаю й радію, коли нарешті приходить'),
+      _m('Встречаю колкостью, но никуда не ухожу', 'I greet them with a jab, but I stay', 'Зустрічаю шпилькою, але нікуди не йду'),
+      _m('Придумываю розыгрыш', 'I plot a little prank', 'Вигадую розіграш'),
+    ]),
+    (_m('Партнёр на вас обиделся', 'Your partner is hurt by you', 'Партнер на вас образився'), [
+      _m('Жду, когда пройдёт само', 'I wait for it to pass on its own', 'Чекаю, коли мине саме'),
+      _m('Не отстаю, пока не помиримся', 'I don’t give up until we make up', 'Не відстаю, поки не помиримося'),
+      _m('Колюсь в ответ, а потом отхожу', 'I prickle back, then soften', 'Колюся у відповідь, а потім відходжу'),
+      _m('Смешу, пока партнёр не улыбнётся', 'I make them laugh until they smile', 'Смішу, поки партнер не всміхнеться'),
+    ]),
+    (_m('Партнёр вас критикует', 'Your partner criticizes you', 'Партнер вас критикує'), [
+      _m('Слушаю вполуха и делаю по-своему', 'I half listen and do it my way', 'Слухаю впіввуха й роблю по-своєму'),
+      _m('Расстраиваюсь, но быстро прощаю', 'I get upset, but forgive quickly', 'Засмучуюся, але швидко прощаю'),
+      _m('Сразу ощетиниваюсь', 'My spikes go up at once', 'Одразу наїжачуюся'),
+      _m('Отшучиваюсь', 'I laugh it off', 'Віджартовуюся'),
+    ]),
+  ],
+  [ // otter, cat, bear, koala
+    (_m('Вы долго не виделись', 'You haven’t seen each other for a while', 'Ви довго не бачилися'), [
+      _m('Весь день не отпускаю руку', 'I don’t let go of their hand all day', 'Увесь день не відпускаю руку'),
+      _m('Делаю вид, что не так уж и скучаю', 'I act like I didn’t miss them that much', 'Вдаю, що не так уже й сумую'),
+      _m('Сначала накормлю и укутаю', 'First I feed them and tuck them in', 'Спершу нагодую й закутаю'),
+      _m('Обнимаемся и засыпаем', 'We cuddle and fall asleep', 'Обіймаємося й засинаємо'),
+    ]),
+    (_m('Партнёр уехал на неделю', 'Your partner is away for a week', 'Партнер поїхав на тиждень'), [
+      _m('Звоню по видео каждый вечер', 'I video call every evening', 'Дзвоню по відео щовечора'),
+      _m('Наслаждаюсь тишиной и жду', 'I enjoy the quiet and wait', 'Насолоджуюся тишею й чекаю'),
+      _m('Каждый день спрашиваю, как партнёр ест и спит', 'Every day I ask how they eat and sleep', 'Щодня питаю, як партнер їсть і спить'),
+      _m('Сплю в обнимку с вещью партнёра', 'I sleep hugging something of theirs', 'Сплю в обіймах із річчю партнера'),
+    ]),
+    (_m('Голосовые сообщения', 'Voice messages', 'Голосові повідомлення'), [
+      _m('Записываю по десять в день', 'I record ten a day', 'Записую по десять на день'),
+      _m('Слушаю, когда будет настроение', 'I listen when I’m in the mood', 'Слухаю, коли буде настрій'),
+      _m('Напоминаю в них одеться теплее', 'I use them to remind them to dress warm', 'Нагадую в них вдягнутися тепліше'),
+      _m('Засыпаю, не дослушав', 'I fall asleep before the end', 'Засинаю, не дослухавши'),
+    ]),
+  ],
+  [ // fox, hedgehog, dog, penguin
+    (_m('Новые знакомые партнёра', 'Your partner’s new friends', 'Нові знайомі партнера'), [
+      _m('Быстро нахожу с ними общий язык', 'I get along with them right away', 'Швидко знаходжу з ними спільну мову'),
+      _m('Присматриваюсь, пока не пойму, кто они', 'I keep my distance until I figure them out', 'Придивляюся, поки не зрозумію, хто вони'),
+      _m('Сразу считаю их друзьями', 'I treat them as friends straight away', 'Одразу вважаю їх друзями'),
+      _m('Мне хватает моего человека', 'My person is all I need', 'Мені вистачає моєї людини'),
+    ]),
+    (_m('Вечеринка у друзей партнёра', 'A party at your partner’s friends’ place', 'Вечірка в друзів партнера'), [
+      _m('Через час знаю всех по именам', 'An hour in, I know everyone by name', 'За годину знаю всіх на ім’я'),
+      _m('Сижу в углу с тем, кого знаю', 'I sit in a corner with someone I know', 'Сиджу в кутку з тим, кого знаю'),
+      _m('На прощание обнимаюсь со всеми', 'I hug everyone goodbye', 'На прощання обіймаюся з усіма'),
+      _m('Весь вечер держусь рядом с партнёром', 'I stay by my partner all evening', 'Увесь вечір тримаюся поруч із партнером'),
+    ]),
+    (_m('Ваш день рождения', 'Your birthday', 'Ваш день народження'), [
+      _m('Большая шумная вечеринка с играми', 'A big loud party with games', 'Велика гучна вечірка з іграми'),
+      _m('Только самые близкие', 'Only my closest people', 'Тільки найближчі'),
+      _m('Зову всех, кого знаю', 'I invite everyone I know', 'Кличу всіх, кого знаю'),
+      _m('Ужин вдвоём, больше никого', 'Dinner for two, no one else', 'Вечеря удвох, більше нікого'),
+    ]),
+  ],
+  [ // bear, otter, penguin, koala
+    (_m('У партнёра тяжёлый день', 'Your partner has a rough day', 'У партнера важкий день'), [
+      _m('Беру всё на себя', 'I take everything on myself', 'Беру все на себе'),
+      _m('Весь день пишу, что я рядом', 'I text all day that I’m here', 'Увесь день пишу, що я поруч'),
+      _m('Готовлю сюрприз к вечеру', 'I plan a surprise for the evening', 'Готую сюрприз на вечір'),
+      _m('Зову полежать вместе и ничего не делать', 'I invite them to lie down together and do nothing', 'Кличу полежати разом і нічого не робити'),
+    ]),
+    (_m('Партнёр заболел', 'Your partner is sick', 'Партнер захворів'), [
+      _m('Беру всё лечение на себя', 'I take charge of all the care', 'Беру все лікування на себе'),
+      _m('Сижу рядом и держу за руку', 'I sit close and hold their hand', 'Сиджу поруч і тримаю за руку'),
+      _m('Несу апельсины и любимые сладости', 'I bring oranges and favorite sweets', 'Несу апельсини й улюблені солодощі'),
+      _m('Лежу рядом, пока партнёр спит', 'I lie next to them while they sleep', 'Лежу поруч, поки партнер спить'),
+    ]),
+    (_m('Партнёр волнуется перед важным днём', 'Your partner is nervous before a big day', 'Партнер хвилюється перед важливим днем'), [
+      _m('Говорю: «Я с тобой, справимся»', 'I say: “I’m with you, we’ll handle it”', 'Кажу: «Я з тобою, впораємося»'),
+      _m('Держу за руку до самой двери', 'I hold their hand right up to the door', 'Тримаю за руку до самих дверей'),
+      _m('Кладу в сумку шоколадку на удачу', 'I slip a chocolate in their bag for luck', 'Кладу в сумку шоколадку на щастя'),
+      _m('Укладываю пораньше спать', 'I get them to bed early', 'Вкладаю раніше спати'),
+    ]),
+  ],
+  [ // penguin, dog, bear, fox
+    (_m('Что ранило бы вас сильнее', 'What would hurt you most', 'Що поранило б вас найбільше'), [
+      _m('Измена', 'Cheating', 'Зрада'),
+      _m('Холодность', 'Coldness', 'Холодність'),
+      _m('Ненадёжность', 'Unreliability', 'Ненадійність'),
+      _m('Скука', 'Boredom', 'Нудьга'),
+    ]),
+    (_m('Каким должен быть партнёр', 'What your partner should be like', 'Яким має бути партнер'), [
+      _m('Единственным на всю жизнь', 'The one for life', 'Єдиним на все життя'),
+      _m('Весёлым', 'Fun to be around', 'Веселим'),
+      _m('Тем, за кем как за стеной', 'Someone solid as a wall', 'Тим, за ким як за стіною'),
+      _m('С огоньком в глазах', 'With a spark in their eyes', 'З вогником в очах'),
+    ]),
+    (_m('Чего вы ждёте от будущего', 'What you want from the future', 'Чого ви чекаєте від майбутнього'), [
+      _m('Быть вместе до старости', 'To be together into old age', 'Бути разом до старості'),
+      _m('Чтобы каждый день был счастливым', 'For every day to be happy', 'Щоб кожен день був щасливим'),
+      _m('Свой дом и спокойствие', 'A home of our own and peace', 'Свій дім і спокій'),
+      _m('Путешествия и новые впечатления', 'Travel and new experiences', 'Подорожі й нові враження'),
+    ]),
+  ],
+  [ // koala, hedgehog, otter, cat
+    (_m('Любимое место дома', 'Your favorite spot at home', 'Улюблене місце вдома'), [
+      _m('Кровать', 'The bed', 'Ліжко'),
+      _m('Свой угол, куда никто не лезет', 'My own corner nobody touches', 'Свій куток, куди ніхто не лізе'),
+      _m('Диван, где мы вдвоём', 'The couch where we sit together', 'Диван, де ми вдвох'),
+      _m('Подоконник с видом', 'A windowsill with a view', 'Підвіконня з краєвидом'),
+    ]),
+    (_m('Прозвенел будильник', 'The alarm goes off', 'Задзвонив будильник'), [
+      _m('Ещё пять минут, и ещё пять', 'Five more minutes, then five more', 'Ще п’ять хвилин, і ще п’ять'),
+      _m('Встаю молча, меня пока лучше не трогать', 'I get up silently, better not touch me yet', 'Встаю мовчки, мене поки краще не чіпати'),
+      _m('Тянусь обнять партнёра', 'I reach out to hug my partner', 'Тягнуся обійняти партнера'),
+      _m('Встаю, когда захочу', 'I get up when I feel like it', 'Встаю, коли захочу'),
+    ]),
+    (_m('Дождливый день', 'A rainy day', 'Дощовий день'), [
+      _m('Спать под шум дождя', 'Sleeping to the sound of rain', 'Спати під шум дощу'),
+      _m('Читать в своём углу', 'Reading in my own corner', 'Читати у своєму кутку'),
+      _m('Смотреть на дождь, прижавшись друг к другу', 'Watching the rain, snuggled together', 'Дивитися на дощ, пригорнувшись одне до одного'),
+      _m('Сидеть у окна с чаем и смотреть на капли', 'Sitting by the window with tea, watching the drops', 'Сидіти біля вікна з чаєм і дивитися на краплі'),
+    ]),
+  ],
 ];
 
 /// Сколько вопросов в одном прохождении (слотов).
@@ -389,8 +589,8 @@ int quizSlotCount(QuizKind kind) => switch (kind) {
 /// Сколько вариантов у слота [slot], основной вариант тоже считается.
 int quizVariantCount(QuizKind kind, int slot) => 1 + switch (kind) {
       QuizKind.lang => _langExtra[slot].length,
-      QuizKind.attach => 1,
-      QuizKind.animal => 1,
+      QuizKind.attach => _attachExtra[slot].length,
+      QuizKind.animal => _animalExtra[slot].length,
     };
 
 /// Ключи вопросов набора — их запоминаем, чтобы в следующий раз дать другие.
@@ -421,7 +621,7 @@ List<QuizQuestion> quizQuestions(QuizKind kind, String lang, {List<int>? round})
       ],
     QuizKind.attach => [
         for (var i = 0; i < _attachItems.length; i++)
-          QuizQuestion('attach_${i}_${v(i)}', _t(v(i) == 0 ? _attachItems[i].$3 : _attachExtra[i], lang), [
+          QuizQuestion('attach_${i}_${v(i)}', _t(v(i) == 0 ? _attachItems[i].$3 : _attachExtra[i][v(i) - 1], lang), [
             for (var o = 0; o < 5; o++)
               QuizOption(_t(_likert[o], lang), {
                 _attachItems[i].$1: _attachItems[i].$2 ? 5 - o : o + 1,
@@ -430,10 +630,10 @@ List<QuizQuestion> quizQuestions(QuizKind kind, String lang, {List<int>? round})
       ],
     QuizKind.animal => [
         for (var i = 0; i < _animalQs.length; i++)
-          QuizQuestion('animal_${i}_${v(i)}', _t(v(i) == 0 ? _animalQs[i].$1 : _animalExtra[i].$1, lang), [
+          QuizQuestion('animal_${i}_${v(i)}', _t(v(i) == 0 ? _animalQs[i].$1 : _animalExtra[i][v(i) - 1].$1, lang), [
             for (var o = 0; o < _animalQs[i].$2.length; o++)
               QuizOption(
-                _t(v(i) == 0 ? _animalQs[i].$2[o].$2 : _animalExtra[i].$2[o], lang),
+                _t(v(i) == 0 ? _animalQs[i].$2[o].$2 : _animalExtra[i][v(i) - 1].$2[o], lang),
                 {_animalQs[i].$2[o].$1: 1},
               ),
           ]),

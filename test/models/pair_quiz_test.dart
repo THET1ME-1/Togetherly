@@ -48,8 +48,10 @@ void main() {
         final base = quizQuestions(kind, 'ru');
         final slots = quizSlotCount(kind);
         expect(slots, base.length);
+        // Язык любви: пять вариантов на слот, привязанность и зверь: четыре.
+        final least = kind == QuizKind.lang ? 5 : 4;
         for (var s = 0; s < slots; s++) {
-          expect(quizVariantCount(kind, s), greaterThanOrEqualTo(2), reason: '$kind слот $s');
+          expect(quizVariantCount(kind, s), greaterThanOrEqualTo(least), reason: '$kind слот $s');
         }
         // Каждый вариант каждого слота: те же типы на тех же местах.
         for (var s = 0; s < slots; s++) {
@@ -61,6 +63,29 @@ void main() {
               expect([for (final o in q.options) o.score], [for (final o in base[s].options) o.score]);
               for (final o in q.options) {
                 expect(o.text, isNotEmpty, reason: '$kind $s $v $lang');
+              }
+            }
+          }
+        }
+      });
+    }
+
+    for (final kind in QuizKind.values) {
+      test('${kind.name}: в банке нет повторов текста', () {
+        final slots = quizSlotCount(kind);
+        for (final lang in ['ru', 'en', 'uk']) {
+          final seen = <String>{};
+          for (var s = 0; s < slots; s++) {
+            for (var v = 0; v < quizVariantCount(kind, s); v++) {
+              final q = quizQuestions(kind, lang, round: List.filled(slots, 0)..[s] = v)[s];
+              // У языка любви вопрос один на всех, повторяться нельзя ответам.
+              final texts = kind == QuizKind.lang
+                  ? [for (final o in q.options) o.text]
+                  : kind == QuizKind.attach
+                      ? [q.text]
+                      : [q.text, for (final o in q.options) o.text];
+              for (final t in texts) {
+                expect(seen.add(t), isTrue, reason: '$kind $lang повтор: $t');
               }
             }
           }
